@@ -1,0 +1,21 @@
+{
+  "name": "ibrahim-pc-agent",
+  "version": "1.0.0",
+  "description": "Ibrahim PC Agent — Fik Conciergerie",
+  "main": "dist/agent.js",
+  "scripts": {
+    "dev": "tsx --env-file ../.env watch src/agent.ts",
+    "build": "tsc",
+    "start": "node dist/agent.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "socket.io-client": "^4.8.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}
