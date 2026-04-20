@@ -176,8 +176,21 @@ export function clearAudioQueue(): void {
   _audioQueue = [];
 }
 
+function cleanForSpeech(text: string): string {
+  return text
+    .replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FEFF}]|[\u{1F000}-\u{1F9FF}]/gu, '')
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*•]\s+/gm, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 export function iosFallbackSpeak(text: string): void {
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(cleanForSpeech(text));
   utterance.lang  = 'fr-FR';
   utterance.rate  = 1.0;
   utterance.pitch = 1.0;

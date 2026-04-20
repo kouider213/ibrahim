@@ -10,6 +10,29 @@ export function initDispatcher(io: SocketServer): void {
   _io = io;
 }
 
+// ── Nettoyage texte pour TTS ─────────────────────────────────
+
+export function cleanTextForTTS(text: string): string {
+  return text
+    // Supprimer les emojis
+    .replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FEFF}]|[\u{1F000}-\u{1F9FF}]/gu, '')
+    // Supprimer le markdown gras/italique
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    // Supprimer les titres markdown
+    .replace(/^#{1,6}\s+/gm, '')
+    // Supprimer les liens markdown
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Supprimer les bullets markdown
+    .replace(/^[-*•]\s+/gm, '')
+    // Supprimer les blocs de code
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    // Nettoyer les espaces multiples
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 // ── ElevenLabs TTS ────────────────────────────────────────────
 
 const EL_VOICE_SETTINGS = {
@@ -23,7 +46,7 @@ export async function synthesizeVoice(text: string): Promise<Buffer | null> {
   try {
     const response = await axios.post<ArrayBuffer>(
       `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}`,
-      { text, model_id: 'eleven_turbo_v2_5', voice_settings: EL_VOICE_SETTINGS },
+      { text: cleanTextForTTS(text), model_id: 'eleven_turbo_v2_5', voice_settings: EL_VOICE_SETTINGS },
       {
         headers: { 'xi-api-key': env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
         responseType: 'arraybuffer',
@@ -46,7 +69,7 @@ export async function synthesizeVoiceStream(
     const response = await axios.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream`,
       {
-        text,
+        text: cleanTextForTTS(text),
         model_id: 'eleven_turbo_v2_5',
         voice_settings: EL_VOICE_SETTINGS,
         output_format: 'mp3_44100_128',
