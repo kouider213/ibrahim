@@ -1,7 +1,16 @@
 import { getConversationHistory, getActiveRules, getFleet, getBookings } from '../integrations/supabase.js';
-import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext } from '../integrations/web-search.js';
+import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { IBRAHIM } from '../config/constants.js';
 import type { Message } from '../integrations/claude-api.js';
+
+// Cache météo 5 minutes
+let weatherCache: { data: WeatherData; ts: number } | null = null;
+async function getCachedWeather(): Promise<WeatherData | undefined> {
+  if (weatherCache && Date.now() - weatherCache.ts < 5 * 60 * 1000) return weatherCache.data;
+  const w = await getOranWeather().catch(() => undefined);
+  if (w) weatherCache = { data: w, ts: Date.now() };
+  return w;
+}
 
 export interface ConversationContext {
   messages:    Message[];
@@ -20,7 +29,7 @@ export async function buildContext(
     getActiveRules(),
     getFleet().catch(() => []),
     getBookings({ limit: 10 }).catch(() => []),
-    getOranWeather().catch(() => undefined),
+    getCachedWeather(),
     needsNews ? getAlgeriaNews(4).catch(() => []) : Promise.resolve([]),
   ]);
 

@@ -65,6 +65,10 @@ export default function ChatInterface() {
   const [showText,      setShowText]      = useState(false);
   const [textInput,     setTextInput]     = useState('');
   const [streamingText, setStreamingText] = useState('');
+  // Mode texte
+  const [textMode,      setTextMode]      = useState(false);
+  const [chatHistory,   setChatHistory]   = useState<{role:'user'|'ai';text:string;id:number}[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const [markerLbl,  setMarkerLbl]  = useState('ORAN · DZ');
   const [latTxt,     setLatTxt]     = useState('35.6971° N');
   const [lonTxt,     setLonTxt]     = useState('0.6308° W');
@@ -282,17 +286,29 @@ export default function ChatInterface() {
         applyState('speak');
       },
       onTextChunk:(chunk)=>{
-        // Streaming text — appears word by word
         setStreamingText(prev=>prev+chunk);
         setCaptionTxt(prev=>{const n=prev+chunk;return n.length>120?'…'+n.slice(-120):n;});
+        // En mode texte, mettre à jour la dernière bulle IA en cours
+        setChatHistory(h=>{
+          if(!h.length||h[h.length-1]?.role!=='ai') return [...h,{role:'ai' as const,text:chunk,id:Date.now()}];
+          const last=h[h.length-1]; if(!last) return h;
+          return [...h.slice(0,-1),{...last,text:last.text+chunk}];
+        });
+        setTimeout(()=>chatEndRef.current?.scrollIntoView({behavior:'smooth'}),30);
       },
       onTextComplete:(text)=>{
         setStreamingText(text);
-        // If no audio arrived after 3s, use iOS TTS fallback
+        // Finalise la bulle IA en mode texte
+        setChatHistory(h=>{
+          if(!h.length||h[h.length-1]?.role!=='ai') return h;
+          const last=h[h.length-1]; if(!last) return h;
+          return [...h.slice(0,-1),{...last,text}];
+        });
+        setTimeout(()=>chatEndRef.current?.scrollIntoView({behavior:'smooth'}),50);
+        // Fallback TTS seulement en mode voix
         if(audioFallbackTimer.current){clearTimeout(audioFallbackTimer.current);audioFallbackTimer.current=null;}
         audioFallbackTimer.current=setTimeout(()=>{
           audioFallbackTimer.current=null;
-          // Check if audio is already playing (audio chunks would have cancelled this)
           if(window.speechSynthesis&&!window.speechSynthesis.speaking){
             iosFallbackSpeak(text);
           }
@@ -364,16 +380,24 @@ export default function ChatInterface() {
   },[]);
 
   // ── Text / voice ──────────────────────────────────────────────
-  const sendText=useCallback(async(msg:string)=>{
+  const sendText=useCallback(async(msg:string,forceTextMode=textMode)=>{
     if(!msg.trim()||sending.current) return;
-    sending.current=true; setTextInput(''); setShowText(false); setStreamingText(''); applyState('listen');
+    sending.current=true;
+    setTextInput('');
+    setStreamingText('');
+    if(!forceTextMode) setShowText(false);
+    if(forceTextMode){
+      // Mode texte : ajouter message user et préparer la bulle IA
+      setChatHistory(h=>[...h,{role:'user',text:msg,id:Date.now()}]);
+      setTimeout(()=>chatEndRef.current?.scrollIntoView({behavior:'smooth'}),50);
+    } else {
+      applyState('listen');
+    }
     try{
-      // HTTP POST triggers streaming — text/audio arrive via WebSocket before response returns
-      await api.chat(msg,sessionId);
-      // HTTP response arrives after streaming completes — audio/text already shown via WS
-    }catch(e){console.error('[chat]',e);applyState('idle');}
+      await api.chat(msg,sessionId,forceTextMode);
+    }catch(e){console.error('[chat]',e);if(!forceTextMode)applyState('idle');}
     finally{sending.current=false;}
-  },[sessionId,applyState]);
+  },[sessionId,applyState,textMode]);
 
   const startListening=useCallback(()=>{
     if(gsRef.current==='listen') return;
@@ -478,7 +502,7 @@ export default function ChatInterface() {
             </div>
           )}
 
-          {showText&&(
+          {!textMode&&showText&&(
             <div className="text-overlay">
               <input type="text" placeholder="Écrire à Ibrahim…" value={textInput}
                 onChange={e=>setTextInput(e.target.value)}
@@ -488,6 +512,35 @@ export default function ChatInterface() {
             </div>
           )}
         </section>
+
+        {/* Mode Texte — Chat bubbles */}
+        {textMode&&(
+          <div className="chat-view">
+            <div className="chat-messages">
+              {chatHistory.map(m=>(
+                <div key={m.id} className={`chat-bubble ${m.role}`}>
+                  <p>{m.text}</p>
+                </div>
+              ))}
+              {!chatHistory.length&&(
+                <p className="chat-empty">Écris ton message ci-dessous…</p>
+              )}
+              <div ref={chatEndRef}/>
+            </div>
+            <div className="chat-input-row">
+              <input
+                type="text"
+                className="chat-input"
+                placeholder="Message…"
+                value={textInput}
+                onChange={e=>setTextInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendText(textInput,true);}}}
+                autoFocus
+              />
+              <button className="chat-send" onClick={()=>sendText(textInput,true)} disabled={!textInput.trim()}>↑</button>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <footer className="ibr-footer">
@@ -508,9 +561,9 @@ export default function ChatInterface() {
               ))}
             </div>
             <div className="buttons">
-              <button className="btn primary"   onPointerDown={startListening}><span className="ico"/><span>Parler</span></button>
-              <button className="btn secondary" onClick={()=>setShowText(p=>!p)}><span>Écrire</span></button>
-              <button className="btn danger"    onClick={stopAll}><span className="ico"/><span>Stop</span></button>
+              <button className={`btn${textMode?'':' primary'}`} onPointerDown={()=>{setTextMode(false);startListening();}}><span className="ico"/><span>Parler</span></button>
+              <button className={`btn${textMode?' primary':' secondary'}`} onClick={()=>{setTextMode(p=>!p);stopAll();}}><span>Écrire</span></button>
+              <button className="btn danger" onClick={stopAll}><span className="ico"/><span>Stop</span></button>
             </div>
           </div>
 

@@ -27,6 +27,23 @@ export interface OrchestratorResponse {
 // Sentence boundary regex — split for progressive TTS
 const SENTENCE_END = /([.!?…]+\s+|[.!?…]+$)/;
 
+// Stream text only (mode Écrire — pas d'audio)
+async function streamResponseTextOnly(
+  sessionId: string,
+  messages: Parameters<typeof chatStream>[0],
+  systemExtra: string | undefined,
+): Promise<string> {
+  _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
+  let fullText = '';
+  await chatStream(messages, systemExtra, (chunk: string) => {
+    fullText += chunk;
+    _io?.emit(SOCKET_EVENTS.TEXT_CHUNK, { sessionId, chunk });
+  });
+  _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: fullText });
+  _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+  return fullText;
+}
+
 // Stream text + audio in parallel: text chunks via WS, audio sentence-by-sentence
 async function streamResponseWithAudio(
   sessionId: string,
@@ -96,6 +113,7 @@ async function emitAudioAsync(text: string, sessionId: string): Promise<void> {
 export async function processMessage(
   userMessage: string,
   sessionId:   string,
+  textOnly  = false,
 ): Promise<OrchestratorResponse> {
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
 
@@ -135,14 +153,15 @@ export async function processMessage(
 
       // Stream ack response
       const ackSystem = ctx.systemExtra + `\n\nL'action "${intent.action}" a été mise en queue (task: ${taskId ?? 'N/A'}). Confirme brièvement à l'utilisateur que tu t'en occupes.`;
-      responseText = await streamResponseWithAudio(sessionId, ctx.messages, ackSystem);
+      const streamFn = textOnly ? streamResponseTextOnly : streamResponseWithAudio;
+      responseText = await streamFn(sessionId, ctx.messages, ackSystem);
       actionResult = { taskId, status: 'queued' };
 
       await saveConversationTurn(sessionId, 'assistant', responseText);
     }
   } else {
-    // Pure conversation — stream text + audio simultaneously
-    responseText = await streamResponseWithAudio(sessionId, ctx.messages, ctx.systemExtra);
+    const streamFn = textOnly ? streamResponseTextOnly : streamResponseWithAudio;
+    responseText = await streamFn(sessionId, ctx.messages, ctx.systemExtra);
     await saveConversationTurn(sessionId, 'assistant', responseText);
   }
 

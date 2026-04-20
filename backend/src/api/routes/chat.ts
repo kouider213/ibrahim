@@ -9,6 +9,7 @@ const router = Router();
 const messageSchema = z.object({
   message:   z.string().min(1).max(4000),
   sessionId: z.string().min(1).max(128),
+  textOnly:  z.boolean().optional().default(false),
 });
 
 // POST /api/chat — send a message to Ibrahim
@@ -19,10 +20,10 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  const { message, sessionId } = parsed.data;
+  const { message, sessionId, textOnly } = parsed.data;
 
   try {
-    const response = await processMessage(message, sessionId);
+    const response = await processMessage(message, sessionId, textOnly);
     res.json({
       text:          response.text,
       audio:         response.audioBase64,

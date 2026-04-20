@@ -31,10 +31,10 @@ export interface ChatResponse {
 }
 
 export const api = {
-  chat: (message: string, sessionId: string) =>
+  chat: (message: string, sessionId: string, textOnly = false) =>
     apiFetch<ChatResponse>('/api/chat', {
       method: 'POST',
-      body:   JSON.stringify({ message, sessionId }),
+      body:   JSON.stringify({ message, sessionId, textOnly }),
     }),
 
   getTasks: (status?: string) =>
