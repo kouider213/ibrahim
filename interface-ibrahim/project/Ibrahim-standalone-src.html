@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ibrahim — Interface vocale</title>
+<meta name="ext-resource-dependency" content="https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json" data-resource-id="countriesTopo" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f0a;
+    --bg-deep: #05070a;
+    --fg: #f5f7f5;
+    --muted: #6a7a70;
+    --idle: #6b8aa0;
+    --idle-glow: rgba(107, 138, 160, 0.45);
+    --listen: #006233;
+    --listen-bright: #14a85a;
+    --listen-glow: rgba(20, 168, 90, 0.55);
+    --speak: #d21034;
+    --speak-bright: #ff3355;
+    --speak-glow: rgba(255, 51, 85, 0.6);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Orbitron', sans-serif;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse at 50% 40%, rgba(20, 30, 25, 0.6) 0%, rgba(5, 7, 10, 1) 70%),
+      var(--bg-deep);
+    position: relative;
+  }
+
+  /* subtle starfield */
+  .stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.5), transparent),
+      radial-gradient(1px 1px at 80% 20%, rgba(255,255,255,0.35), transparent),
+      radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.25), transparent),
+      radial-gradient(1px 1px at 90% 80%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 15% 85%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1px 1px at 60% 10%, rgba(255,255,255,0.45), transparent),
+      radial-gradient(1px 1px at 35% 50%, rgba(255,255,255,0.2), transparent),
+      radial-gradient(1px 1px at 75% 55%, rgba(255,255,255,0.3), transparent);
+    background-size: 100% 100%;
+    opacity: 0.5;
+  }
+
+  .shell {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 40px 48px;
+  }
+
+  /* ------------- HEADER ------------- */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    z-index: 5;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .brand .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .brand h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 56px;
+    letter-spacing: 0.18em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 0 20px rgba(255,255,255,0.12);
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(8px);
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--idle);
+    box-shadow: 0 0 10px var(--idle-glow);
+    transition: all 0.5s ease;
+  }
+
+  body[data-state="listen"] .status-dot {
+    background: var(--listen-bright);
+    box-shadow: 0 0 14px var(--listen-glow);
+  }
+  body[data-state="speak"] .status-dot {
+    background: var(--speak-bright);
+    box-shadow: 0 0 14px var(--speak-glow);
+  }
+
+  /* ------------- STAGE ------------- */
+  .stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: visible;
+  }
+
+  /* concentric guide rings */
+  .guides {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    opacity: 0.35;
+  }
+  .guide-ring {
+    position: absolute;
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 50%;
+  }
+  .guide-ring:nth-child(1) { width: 720px; height: 720px; }
+  .guide-ring:nth-child(2) { width: 560px; height: 560px; }
+  .guide-ring:nth-child(3) { width: 900px; height: 900px; border-style: dashed; opacity: 0.5; animation: rotate-cw 120s linear infinite; }
+  .guide-ring:nth-child(4) { width: 1100px; height: 1100px; border-style: dashed; opacity: 0.3; animation: rotate-ccw 180s linear infinite; }
+
+  @keyframes rotate-cw  { to { transform: rotate(360deg); } }
+  @keyframes rotate-ccw { to { transform: rotate(-360deg); } }
+
+  /* corner tick marks */
+  .ticks { position: absolute; inset: 20px; pointer-events: none; }
+  .tick {
+    position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .tick.tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+  .tick.tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+  .tick.bl { bottom: 0; left: 0; border-right: none; border-top: none; }
+  .tick.br { bottom: 0; right: 0; border-left: none; border-top: none; }
+
+  /* ------------- GLOBE ------------- */
+  .globe-wrap {
+    position: relative;
+    width: 420px;
+    height: 420px;
+    display: grid;
+    place-items: center;
+  }
+
+  /* outer glow aura */
+  .aura {
+    position: absolute;
+    width: 620px; height: 620px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--idle-glow) 0%, transparent 55%);
+    opacity: 0.6;
+    transition: background 0.6s ease, opacity 0.6s ease;
+    filter: blur(4px);
+  }
+  body[data-state="listen"] .aura {
+    background: radial-gradient(circle, var(--listen-glow) 0%, transparent 55%);
+    animation: aura-pulse 2.4s ease-in-out infinite;
+  }
+  body[data-state="speak"] .aura {
+    background: radial-gradient(circle, var(--speak-glow) 0%, transparent 55%);
+    animation: aura-pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes aura-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 0.95; transform: scale(1.06); }
+  }
+
+  /* sonar rings (listen) */
+  .sonar {
+    position: absolute;
+    width: 420px; height: 420px;
+    pointer-events: none;
+    display: none;
+  }
+  body[data-state="listen"] .sonar { display: block; }
+  .sonar span {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--listen-bright);
+    opacity: 0;
+    animation: sonar 2.8s ease-out infinite;
+  }
+  .sonar span:nth-child(2) { animation-delay: 0.9s; }
+  .sonar span:nth-child(3) { animation-delay: 1.8s; }
+  @keyframes sonar {
+    0%   { transform: scale(1);   opacity: 0.7; border-width: 2px; }
+    100% { transform: scale(1.9); opacity: 0;   border-width: 1px; }
+  }
+
+  /* radial speaker rays (speak) */
+  .rays {
+    position: absolute;
+    width: 560px; height: 560px;
+    display: none;
+    pointer-events: none;
+  }
+  body[data-state="speak"] .rays { display: block; }
+  .rays .ray {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 2px;
+    height: 40px;
+    margin-left: -1px;
+    background: linear-gradient(to top, transparent, var(--speak-bright));
+    transform-origin: 50% 140px; /* pushes out from globe edge */
+    transform: translate(-50%, -50%) rotate(var(--a)) translateY(-140px);
+    border-radius: 2px;
+    opacity: 0.9;
+    animation: ray-osc 0.7s ease-in-out infinite;
+    animation-delay: var(--d);
+  }
+  @keyframes ray-osc {
+    0%, 100% { height: 16px; opacity: 0.3; }
+    50%      { height: 60px; opacity: 1; }
+  }
+
+  /* the globe itself: canvas does the rendering */
+  .globe {
+    position: relative;
+    width: 340px;
+    height: 340px;
+    border-radius: 50%;
+    transition: box-shadow 0.6s ease;
+    box-shadow:
+      0 0 50px var(--idle-glow),
+      0 0 120px var(--idle-glow);
+    overflow: visible;
+  }
+  body[data-state="listen"] .globe {
+    box-shadow: 0 0 60px var(--listen-glow), 0 0 160px var(--listen-glow);
+  }
+  body[data-state="speak"] .globe {
+    box-shadow: 0 0 70px var(--speak-glow), 0 0 180px var(--speak-glow);
+  }
+
+  /* true 3D sphere rendered via canvas (ray-traced per-pixel with world texture) */
+  .sphere3d {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* marker anchored onto sphere in screen space — JS updates left/top */
+  .marker {
+    position: absolute;
+    width: 14px; height: 14px;
+    margin-left: -7px; margin-top: -7px;
+    pointer-events: none;
+    z-index: 3;
+    transition: opacity 0.3s ease;
+  }
+  .marker .pin {
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 10px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6);
+  }
+  .marker .pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
+    animation: markerPulse 1.8s ease-out infinite;
+  }
+  .marker .pulse.p2 { animation-delay: 0.6s; }
+  .marker .pulse.p3 { animation-delay: 1.2s; }
+  @keyframes markerPulse {
+    0%   { transform: scale(1);   opacity: 0.9; }
+    100% { transform: scale(3.6); opacity: 0;   }
+  }
+  .marker .label {
+    position: absolute;
+    left: 16px; top: -4px;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    color: rgba(255,255,255,0.85);
+    text-transform: uppercase;
+    text-shadow: 0 0 6px rgba(0,0,0,0.8);
+  }
+  body[data-state="listen"] .marker .pin { background: #14a85a; box-shadow: 0 0 10px rgba(20,168,90,0.9), 0 0 28px rgba(20,168,90,0.6); }
+  body[data-state="listen"] .marker .pulse { border-color: #14a85a; }
+  body[data-state="speak"]  .marker .pin { background: #ff3355; box-shadow: 0 0 10px rgba(255,51,85,0.9), 0 0 28px rgba(255,51,85,0.6); }
+  body[data-state="speak"]  .marker .pulse { border-color: #ff3355; }
+
+  /* big central "I" */
+  .letter-I {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 800;
+    font-size: 180px;
+    line-height: 1;
+    color: #ffffff;
+    letter-spacing: -0.05em;
+    opacity: 0.92;
+    text-shadow:
+      0 0 16px rgba(255,255,255,0.85),
+      0 0 40px rgba(255,255,255,0.55),
+      0 0 90px rgba(255,255,255,0.35);
+    mix-blend-mode: screen;
+    transition: text-shadow 0.6s ease;
+  }
+  body[data-state="listen"] .letter-I {
+    text-shadow:
+      0 0 18px rgba(220,255,230,0.9),
+      0 0 50px rgba(120,255,170,0.6),
+      0 0 110px rgba(20,168,90,0.45);
+  }
+  body[data-state="speak"] .letter-I {
+    text-shadow:
+      0 0 18px rgba(255,225,230,0.9),
+      0 0 50px rgba(255,90,120,0.6),
+      0 0 110px rgba(210,16,52,0.5);
+    animation: letter-kick 0.22s ease-in-out infinite alternate;
+  }
+  @keyframes letter-kick {
+    from { transform: scale(1); }
+    to   { transform: scale(1.015); }
+  }
+
+
+  /* ------------- FOOTER ------------- */
+  footer {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 40px;
+    z-index: 5;
+  }
+
+  .readout {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    line-height: 1.8;
+  }
+  .readout .k { color: rgba(255,255,255,0.35); }
+  .readout .v { color: var(--fg); }
+  body[data-state="listen"] .readout .v.state-v { color: var(--listen-bright); }
+  body[data-state="speak"]  .readout .v.state-v { color: var(--speak-bright); }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .caption {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 500;
+    font-size: 15px;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--muted);
+    height: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: color 0.5s ease;
+  }
+  body[data-state="listen"] .caption { color: var(--listen-bright); }
+  body[data-state="speak"]  .caption { color: var(--speak-bright); }
+
+  .caption .dot-trio { display: inline-flex; gap: 4px; }
+  .caption .dot-trio i {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor;
+    opacity: 0.3;
+    animation: dot-bounce 1.2s ease-in-out infinite;
+  }
+  .caption .dot-trio i:nth-child(2) { animation-delay: 0.15s; }
+  .caption .dot-trio i:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dot-bounce {
+    0%, 100% { opacity: 0.3; transform: translateY(0); }
+    50%      { opacity: 1;   transform: translateY(-3px); }
+  }
+  body:not([data-state="listen"]):not([data-state="speak"]) .caption .dot-trio { display: none; }
+
+  .buttons {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 26px;
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 999px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(6px);
+  }
+  .btn:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.04); }
+  .btn:active { transform: scale(0.98); }
+
+  .btn.primary {
+    border-color: var(--listen-bright);
+    color: var(--listen-bright);
+    box-shadow: inset 0 0 0 0 var(--listen-bright);
+  }
+  .btn.primary:hover {
+    background: rgba(20, 168, 90, 0.12);
+    box-shadow: 0 0 20px rgba(20, 168, 90, 0.25);
+  }
+
+  .btn.danger {
+    border-color: rgba(255, 51, 85, 0.6);
+    color: var(--speak-bright);
+  }
+  .btn.danger:hover {
+    background: rgba(255, 51, 85, 0.1);
+    box-shadow: 0 0 20px rgba(255, 51, 85, 0.2);
+  }
+
+  .btn .ico {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 10px currentColor;
+  }
+  .btn.danger .ico {
+    border-radius: 2px;
+  }
+
+  /* live waveform (speak state) */
+  .waveform {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 48px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  body[data-state="speak"] .waveform { opacity: 1; }
+
+  .waveform i {
+    display: block;
+    width: 3px;
+    background: var(--speak-bright);
+    border-radius: 2px;
+    height: 6px;
+    animation: wave 0.9s ease-in-out infinite;
+    box-shadow: 0 0 6px var(--speak-glow);
+  }
+
+  @keyframes wave {
+    0%, 100% { height: 6px; }
+    50%      { height: 42px; }
+  }
+
+  .meta-right {
+    text-align: right;
+  }
+
+  /* scanline on globe during speak */
+  .scanline {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.5), transparent);
+    display: none;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+  body[data-state="speak"] .scanline {
+    display: block;
+    animation: scan 2.2s linear infinite;
+  }
+  @keyframes scan {
+    0%   { top: 10%; opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { top: 90%; opacity: 0; }
+  }
+
+  /* small responsive adjust */
+  @media (max-height: 780px) {
+    .globe-wrap { width: 340px; height: 340px; }
+    .globe { width: 280px; height: 280px; }
+    .sonar { width: 340px; height: 340px; }
+    .letter-I { font-size: 180px; }
+    .brand h1 { font-size: 42px; }
+  }
+</style>
+</head>
+<body data-state="idle">
+<template id="__bundler_thumbnail" data-bg-color="#0a0f0a">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="g" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#1a3a2a"/>
+        <stop offset="100%" stop-color="#0a0f0a"/>
+      </radialGradient>
+    </defs>
+    <rect width="1200" height="800" fill="url(#g)"/>
+    <circle cx="600" cy="400" r="220" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+    <circle cx="600" cy="400" r="180" fill="#0a1820" stroke="rgba(20,168,90,0.6)" stroke-width="2"/>
+    <text x="600" y="470" text-anchor="middle" font-family="Orbitron, sans-serif" font-weight="800" font-size="220" fill="#ffffff">I</text>
+    <text x="600" y="680" text-anchor="middle" font-family="Orbitron, sans-serif" font-weight="700" font-size="48" letter-spacing="12" fill="#f5f7f5">IBRAHIM</text>
+  </svg>
+</template>
+
+<div class="stars"></div>
+
+<div class="shell">
+
+  <header>
+    <div class="brand">
+      <span class="tag">Voice Interface · v1.0</span>
+      <h1>IBRAHIM</h1>
+    </div>
+    <div class="status-pill">
+      <span class="status-dot"></span>
+      <span id="statusLabel">System · Idle</span>
+    </div>
+  </header>
+
+  <section class="stage">
+    <div class="ticks">
+      <div class="tick tl"></div>
+      <div class="tick tr"></div>
+      <div class="tick bl"></div>
+      <div class="tick br"></div>
+    </div>
+
+    <div class="guides">
+      <div class="guide-ring"></div>
+      <div class="guide-ring"></div>
+      <div class="guide-ring"></div>
+      <div class="guide-ring"></div>
+    </div>
+
+    <div class="globe-wrap">
+      <div class="aura"></div>
+
+      <!-- listen sonar pulses -->
+      <div class="sonar">
+        <span></span><span></span><span></span>
+      </div>
+
+      <!-- speak radial rays -->
+      <div class="rays" id="rays"></div>
+
+      <div class="globe" id="globe">
+        <canvas class="sphere3d" id="sphere" width="680" height="680"></canvas>
+        <div class="marker" id="marker">
+          <span class="pulse"></span>
+          <span class="pulse p2"></span>
+          <span class="pulse p3"></span>
+          <span class="pin"></span>
+          <span class="label">ORAN · DZ</span>
+        </div>
+        <div class="scanline"></div>
+        <div class="letter-I">I</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="readout">
+      <div><span class="k">STATE ·</span> <span class="v state-v" id="roState">IDLE</span></div>
+      <div><span class="k">FREQ  ·</span> <span class="v" id="roFreq">0.00 Hz</span></div>
+      <div><span class="k">NODE  ·</span> <span class="v">IBR-01 · DZ</span></div>
+    </div>
+
+    <div class="controls">
+      <div class="caption" id="caption">
+        <span id="captionText">Prêt à écouter</span>
+        <span class="dot-trio"><i></i><i></i><i></i></span>
+      </div>
+
+      <div class="waveform" id="waveform"></div>
+
+      <div class="buttons">
+        <button class="btn primary" id="btnTalk">
+          <span class="ico"></span>
+          <span>Parler</span>
+        </button>
+        <button class="btn" id="btnReply">
+          <span>Répondre</span>
+        </button>
+        <button class="btn danger" id="btnStop">
+          <span class="ico"></span>
+          <span>Stop</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="readout meta-right">
+      <div><span class="k">· LAT</span> <span class="v">35.6971° N</span></div>
+      <div><span class="k">· LON</span> <span class="v">0.6308° W</span></div>
+      <div><span class="k">· UTC</span> <span class="v" id="roTime">--:--:--</span></div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  // ---------- world texture, built from real GeoJSON country borders ----------
+  // lon -180..180 → x 0..TEX_W, lat 90..-90 → y 0..TEX_H.
+  const TEX_W = 2048, TEX_H = 1024;
+  const texCanvas = document.createElement('canvas');
+  texCanvas.width = TEX_W; texCanvas.height = TEX_H;
+  const texCtx = texCanvas.getContext('2d');
+
+  let countriesData = null; // GeoJSON FeatureCollection
+  let texImageData = null;
+
+  function ll2xy(lon, lat) {
+    return [(lon + 180) / 360 * TEX_W, (90 - lat) / 180 * TEX_H];
+  }
+  function traceRing(ring) {
+    if (!ring || !ring.length) return;
+    let [px, py] = ll2xy(ring[0][0], ring[0][1]);
+    texCtx.moveTo(px, py);
+    for (let i = 1; i < ring.length; i++) {
+      const [nx, ny] = ll2xy(ring[i][0], ring[i][1]);
+      // antimeridian safe-guard
+      if (Math.abs(nx - px) > TEX_W * 0.5) texCtx.moveTo(nx, ny);
+      else texCtx.lineTo(nx, ny);
+      px = nx; py = ny;
+    }
+    texCtx.closePath();
+  }
+  function drawGeometry(geom) {
+    if (!geom) return;
+    if (geom.type === 'Polygon') {
+      texCtx.beginPath();
+      for (const ring of geom.coordinates) traceRing(ring);
+      texCtx.fill('evenodd');
+      texCtx.stroke();
+    } else if (geom.type === 'MultiPolygon') {
+      for (const poly of geom.coordinates) {
+        texCtx.beginPath();
+        for (const ring of poly) traceRing(ring);
+        texCtx.fill('evenodd');
+        texCtx.stroke();
+      }
+    }
+  }
+
+  // placeholder removed
+  const _UNUSED_SVG = `
+<svg viewBox="0 0 1000 500" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <!-- NORTH AMERICA: Alaska + Canada + USA + Mexico + Central America -->
+    <path class="land" d="M60,120 L95,105 L140,100 L175,95 L205,100 L235,115 L260,110 L275,120 L270,140 L250,150 L235,145 L215,155 L200,170 L215,175 L235,170 L250,180 L235,195 L215,205 L200,220 L195,240 L205,255 L220,270 L230,285 L225,300 L210,310 L195,305 L180,290 L170,275 L165,260 L160,245 L150,235 L135,225 L120,210 L110,195 L100,180 L95,165 L90,150 L85,135 L75,130 Z" />
+    <!-- Greenland -->
+    <path class="land" d="M290,70 L320,60 L345,65 L355,85 L350,110 L335,125 L315,130 L298,120 L290,100 L285,85 Z" />
+    <!-- Central America tail -->
+    <path class="land" d="M225,300 L240,305 L255,320 L265,335 L275,345 L280,355 L270,360 L260,350 L248,335 L235,320 L225,310 Z" />
+    <!-- Caribbean (simple blobs) -->
+    <path class="land" d="M270,320 L285,318 L295,325 L285,332 L272,328 Z" />
+    <path class="land" d="M300,325 L315,322 L325,328 L318,335 L305,333 Z" />
+
+    <!-- SOUTH AMERICA -->
+    <path class="land" d="M290,360 L310,355 L330,360 L345,375 L355,395 L360,420 L355,445 L345,465 L330,480 L315,485 L305,475 L300,455 L295,435 L290,415 L285,395 L285,378 Z" />
+
+    <!-- EUROPE -->
+    <path class="land" d="M460,130 L485,118 L510,115 L535,120 L560,125 L585,130 L610,135 L605,150 L585,155 L565,160 L545,165 L525,170 L510,175 L495,175 L480,170 L470,160 L460,150 Z" />
+    <!-- British Isles -->
+    <path class="land" d="M455,135 L470,130 L475,145 L470,160 L460,160 L453,150 Z" />
+    <!-- Scandinavia -->
+    <path class="land" d="M515,80 L540,75 L555,85 L560,105 L555,125 L545,135 L530,130 L520,115 L515,100 Z" />
+    <!-- Iceland -->
+    <path class="land" d="M420,100 L440,95 L448,108 L438,118 L422,115 Z" />
+
+    <!-- AFRICA -->
+    <path class="land" d="M490,200 L520,195 L555,198 L590,200 L615,205 L625,215 L630,235 L635,260 L625,285 L615,310 L600,335 L585,355 L570,375 L555,385 L540,380 L525,365 L515,345 L505,325 L500,305 L495,285 L490,265 L488,245 L488,225 L488,210 Z" />
+    <!-- Madagascar -->
+    <path class="land" d="M645,330 L655,325 L660,340 L655,360 L648,365 L642,350 Z" />
+
+    <!-- MIDDLE EAST -->
+    <path class="land" d="M610,195 L640,192 L670,198 L685,210 L680,225 L665,235 L645,232 L625,225 L615,215 Z" />
+
+    <!-- ASIA: massive mass from Turkey to Kamchatka/Japan -->
+    <path class="land" d="M610,135 L650,128 L700,125 L750,120 L800,115 L845,115 L885,120 L915,130 L935,145 L945,165 L935,180 L915,185 L890,185 L870,180 L850,185 L830,195 L810,205 L790,210 L770,205 L750,200 L730,195 L710,195 L690,200 L670,198 L650,190 L635,180 L625,165 L615,150 Z" />
+    <!-- India -->
+    <path class="land" d="M745,210 L770,208 L790,215 L800,235 L790,258 L775,268 L760,260 L750,240 L745,225 Z" />
+    <!-- Southeast Asia peninsula -->
+    <path class="land" d="M820,215 L840,212 L855,225 L858,245 L848,260 L835,262 L825,250 L820,235 Z" />
+    <!-- Japan -->
+    <path class="land" d="M910,175 L925,168 L935,180 L928,195 L918,200 L908,188 Z" />
+    <!-- Kamchatka / NE Asia -->
+    <path class="land" d="M930,115 L950,110 L960,125 L955,145 L945,160 L935,150 L928,135 Z" />
+
+    <!-- INDONESIA / MARITIME SE ASIA -->
+    <path class="land" d="M830,275 L858,272 L880,278 L895,285 L885,292 L860,290 L840,288 L828,283 Z" />
+    <path class="land" d="M810,285 L825,283 L820,295 L808,295 Z" />
+    <path class="land" d="M870,295 L890,292 L905,300 L895,308 L878,305 Z" />
+    <!-- Philippines -->
+    <path class="land" d="M890,250 L902,245 L905,258 L898,268 L890,263 Z" />
+
+    <!-- AUSTRALIA -->
+    <path class="land" d="M855,335 L890,330 L920,335 L940,345 L945,360 L935,375 L915,380 L890,378 L865,370 L852,358 L850,345 Z" />
+    <!-- New Zealand -->
+    <path class="land" d="M950,395 L962,390 L968,405 L960,418 L952,410 Z" />
+    <path class="land" d="M965,420 L975,415 L980,428 L970,435 Z" />
+    <!-- New Guinea -->
+    <path class="land" d="M895,305 L920,302 L940,308 L945,318 L930,322 L910,320 L895,315 Z" />
+
+    <!-- ANTARCTICA band -->
+    <path class="land" d="M40,465 L120,458 L220,455 L330,452 L440,450 L560,452 L680,455 L800,458 L920,462 L975,468 L975,495 L40,495 Z" />
+  </g>
+</svg>`;
+
+  // ---------- color themes per state ----------
+  const THEMES = {
+    idle:   { ocean: [18, 28, 40],    land: [170, 185, 200], border: [255,255,255,0.35], grid: [120, 145, 170, 0.2] },
+    listen: { ocean: [5, 40, 25],     land: [70, 210, 130],  border: [220,255,235,0.55], grid: [120, 255, 170, 0.25] },
+    speak:  { ocean: [50, 8, 18],     land: [255, 120, 140], border: [255,220,225,0.6],  grid: [255, 160, 170, 0.28] },
+  };
+
+  let currentTheme = 'idle';
+
+  function drawTexture(theme) {
+    const t = THEMES[theme];
+    texCtx.fillStyle = `rgb(${t.ocean[0]},${t.ocean[1]},${t.ocean[2]})`;
+    texCtx.fillRect(0, 0, TEX_W, TEX_H);
+    // grid lines (faint)
+    texCtx.strokeStyle = `rgba(${t.grid[0]},${t.grid[1]},${t.grid[2]},${t.grid[3]})`;
+    texCtx.lineWidth = 1;
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const y = (90 - lat) / 180 * TEX_H;
+      texCtx.beginPath(); texCtx.moveTo(0, y); texCtx.lineTo(TEX_W, y); texCtx.stroke();
+    }
+    for (let lon = -150; lon <= 150; lon += 30) {
+      const x = (lon + 180) / 360 * TEX_W;
+      texCtx.beginPath(); texCtx.moveTo(x, 0); texCtx.lineTo(x, TEX_H); texCtx.stroke();
+    }
+    // draw countries if loaded
+    if (countriesData) {
+      texCtx.fillStyle = `rgb(${t.land[0]},${t.land[1]},${t.land[2]})`;
+      texCtx.strokeStyle = `rgba(${t.border[0]},${t.border[1]},${t.border[2]},${t.border[3]})`;
+      texCtx.lineWidth = 1.2;
+      texCtx.lineJoin = 'round';
+      for (const f of countriesData.features) drawGeometry(f.geometry);
+    }
+    texImageData = texCtx.getImageData(0, 0, TEX_W, TEX_H);
+  }
+
+  // fetch real country borders (Natural Earth 110m via well-known CDN)
+  (async function loadCountries() {
+    try {
+      const url = (window.__resources && window.__resources.countriesTopo) || 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+      const r = await fetch(url);
+      if (r.ok) {
+        const topo = await r.json();
+        countriesData = topoToGeo(topo, topo.objects.countries);
+        drawTexture(currentTheme);
+      }
+    } catch(e) { console.warn('country borders failed to load', e); }
+  })();
+
+  // Minimal TopoJSON → GeoJSON converter for Feature/MultiPolygon only
+  function topoToGeo(topo, obj) {
+    const arcs = topo.arcs;
+    const transform = topo.transform;
+    const sx = transform.scale[0], sy = transform.scale[1];
+    const tx = transform.translate[0], ty = transform.translate[1];
+    function decodeArc(i) {
+      const rev = i < 0;
+      const arc = arcs[rev ? ~i : i];
+      let x = 0, y = 0;
+      const pts = [];
+      for (const p of arc) {
+        x += p[0]; y += p[1];
+        pts.push([x * sx + tx, y * sy + ty]);
+      }
+      return rev ? pts.slice().reverse() : pts;
+    }
+    function ringFromArcs(arcIds) {
+      const out = [];
+      for (let k = 0; k < arcIds.length; k++) {
+        const pts = decodeArc(arcIds[k]);
+        if (k > 0) pts.shift(); // avoid duplicate join point
+        for (const p of pts) out.push(p);
+      }
+      return out;
+    }
+    function geomToGeo(g) {
+      if (g.type === 'Polygon') {
+        return { type: 'Polygon', coordinates: g.arcs.map(ringFromArcs) };
+      } else if (g.type === 'MultiPolygon') {
+        return { type: 'MultiPolygon', coordinates: g.arcs.map(poly => poly.map(ringFromArcs)) };
+      }
+      return null;
+    }
+    return {
+      type: 'FeatureCollection',
+      features: obj.geometries.map(g => ({ type: 'Feature', properties: g.properties || {}, geometry: geomToGeo(g) }))
+    };
+  }
+
+  drawTexture('idle');
+
+  // ---------- 3D sphere renderer ----------
+  const canvas = document.getElementById('sphere');
+  const ctx = canvas.getContext('2d');
+  const CW = canvas.width, CH = canvas.height;
+  const cx = CW / 2, cy = CH / 2;
+  const radius = Math.min(CW, CH) * 0.48;
+  const R2 = radius * radius;
+
+  // tilt the globe (axial tilt) for nicer look
+  const TILT = 23.5 * Math.PI / 180;
+  const sinT = Math.sin(TILT), cosT = Math.cos(TILT);
+
+  let lonOffset = 0; // rotation around Y axis
+  let lastT = performance.now();
+
+  // precompute which pixels are inside the circle (for speed)
+  const outBuf = ctx.createImageData(CW, CH);
+  const outData = outBuf.data;
+
+  function renderSphere() {
+    if (!texImageData) return;
+    const td = texImageData.data;
+    // lighting direction (from upper-left toward sphere)
+    const lx = -0.55, ly = -0.45, lz = 0.70;
+    for (let py = 0; py < CH; py++) {
+      for (let px = 0; px < CW; px++) {
+        const dx = px - cx, dy = py - cy;
+        const d2 = dx*dx + dy*dy;
+        const idx = (py * CW + px) * 4;
+        if (d2 > R2) {
+          outData[idx+3] = 0;
+          continue;
+        }
+        // point on sphere surface (screen x,y; derive z from circle)
+        const z = Math.sqrt(R2 - d2);
+        // normalize to unit sphere normal
+        const nx = dx / radius;
+        const ny = dy / radius;
+        const nz = z  / radius;
+        // undo axial tilt (rotate around X axis by -TILT)
+        const ny2 =  ny * cosT + nz * sinT;
+        const nz2 = -ny * sinT + nz * cosT;
+        // apply Y-axis rotation (spin): rotate (nx, nz2) by -lonOffset
+        const cosL = Math.cos(-lonOffset), sinL = Math.sin(-lonOffset);
+        const nx2 = nx * cosL + nz2 * sinL;
+        const nz3 = -nx * sinL + nz2 * cosL;
+        // convert to lat/lon
+        const lat = Math.asin(-ny2);           // -PI/2..PI/2
+        const lon = Math.atan2(nx2, nz3);      // -PI..PI
+        // UV
+        let u = (lon + Math.PI) / (2 * Math.PI);
+        let v = (Math.PI/2 - lat) / Math.PI;
+        u = u - Math.floor(u);
+        const tx = Math.min(TEX_W - 1, Math.max(0, Math.floor(u * TEX_W)));
+        const ty = Math.min(TEX_H - 1, Math.max(0, Math.floor(v * TEX_H)));
+        const ti = (ty * TEX_W + tx) * 4;
+        // lighting
+        let L = nx*lx + ny*ly + nz*lz;
+        if (L < 0) L = 0;
+        const shade = 0.25 + 0.85 * L;
+        // rim fade
+        const rim = 1 - Math.pow(1 - nz, 3) * 0.5;
+        const k = shade * rim;
+        outData[idx]   = Math.min(255, td[ti]   * k);
+        outData[idx+1] = Math.min(255, td[ti+1] * k);
+        outData[idx+2] = Math.min(255, td[ti+2] * k);
+        outData[idx+3] = 255;
+      }
+    }
+    ctx.putImageData(outBuf, 0, 0);
+
+    // --- atmospheric rim glow on top ---
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(cx, cy, radius * 0.85, cx, cy, radius * 1.08);
+    const rim = THEMES[currentTheme];
+    g.addColorStop(0, `rgba(${rim.land[0]},${rim.land[1]},${rim.land[2]},0)`);
+    g.addColorStop(0.7, `rgba(${rim.land[0]},${rim.land[1]},${rim.land[2]},0.35)`);
+    g.addColorStop(1, `rgba(${rim.land[0]},${rim.land[1]},${rim.land[2]},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, radius * 1.08, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // ---------- User location marker (geolocation with Oran fallback) ----------
+  let USER_LAT = 35.6971 * Math.PI / 180;
+  let USER_LON = -0.6308 * Math.PI / 180;
+  const markerEl = document.getElementById('marker');
+  const markerLabel = markerEl.querySelector('.label');
+  const latReadout = document.querySelector('.meta-right .v'); // first = lat
+  const lonReadout = document.querySelectorAll('.meta-right .v')[1];
+
+  function fmtCoord(deg, pos, neg) {
+    const abs = Math.abs(deg).toFixed(4);
+    return `${abs}° ${deg >= 0 ? pos : neg}`;
+  }
+
+  async function reverseGeocode(lat, lon) {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&accept-language=fr`);
+      const j = await r.json();
+      const a = j.address || {};
+      const city = a.city || a.town || a.village || a.municipality || a.county || a.state || '';
+      const cc = (a.country_code || '').toUpperCase();
+      return (city + (cc ? ' · ' + cc : '')).trim() || 'VOUS';
+    } catch(e) { return 'VOUS'; }
+  }
+
+  function setUserLocation(latDeg, lonDeg, label) {
+    USER_LAT = latDeg * Math.PI / 180;
+    USER_LON = lonDeg * Math.PI / 180;
+    if (label) markerLabel.textContent = label.toUpperCase();
+    if (latReadout) latReadout.textContent = fmtCoord(latDeg, 'N', 'S');
+    if (lonReadout) lonReadout.textContent = fmtCoord(lonDeg, 'E', 'W');
+  }
+
+  if ('geolocation' in navigator) {
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      setUserLocation(latitude, longitude, 'Localisation…');
+      const label = await reverseGeocode(latitude, longitude);
+      markerLabel.textContent = label.toUpperCase();
+    }, () => { /* denied → keep Oran default */ }, { timeout: 8000, maximumAge: 300000 });
+  }
+
+  function updateMarker() {
+    // sphere coords (unit sphere, then tilt + spin)
+    const clat = Math.cos(USER_LAT), slat = Math.sin(USER_LAT);
+    const clon = Math.cos(USER_LON + lonOffset), slon = Math.sin(USER_LON + lonOffset);
+    // base: nx = cos(lat)*sin(lon), ny = -sin(lat), nz = cos(lat)*cos(lon)
+    let nx = clat * slon;
+    let ny = -slat;
+    let nz = clat * clon;
+    // apply axial tilt (rotation around X by +TILT)
+    const ny2 = ny * cosT - nz * sinT;
+    const nz2 = ny * sinT + nz * cosT;
+    ny = ny2; nz = nz2;
+    // project to canvas-local coords
+    const globeEl = document.getElementById('globe');
+    const W = globeEl.clientWidth, H = globeEl.clientHeight;
+    const r = W * 0.48; // match sphere radius proportion
+    const x = W/2 + nx * r;
+    const y = H/2 + ny * r;
+    markerEl.style.left = x + 'px';
+    markerEl.style.top  = y + 'px';
+    // hide when on back side
+    markerEl.style.opacity = nz > 0.02 ? 1 : 0;
+  }
+
+  // ---------- animation loop ----------
+  function loop(t) {
+    const dt = (t - lastT) / 1000;
+    lastT = t;
+    const speed = currentTheme === 'speak' ? 0.35 : currentTheme === 'listen' ? 0.14 : 0.08;
+    lonOffset += speed * dt;
+    renderSphere();
+    updateMarker();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame((t) => { lastT = t; loop(t); });
+
+  // ---------- build radial rays for speak state ----------
+  (function buildRays() {
+    const rays = document.getElementById('rays');
+    const N = 48;
+    for (let i = 0; i < N; i++) {
+      const r = document.createElement('div');
+      r.className = 'ray';
+      const angle = (i / N) * 360;
+      r.style.setProperty('--a', angle + 'deg');
+      r.style.setProperty('--d', ((i % 6) * 0.07) + 's');
+      rays.appendChild(r);
+    }
+  })();
+
+  // ---------- build waveform bars ----------
+  (function buildWave() {
+    const wf = document.getElementById('waveform');
+    const N = 36;
+    for (let i = 0; i < N; i++) {
+      const b = document.createElement('i');
+      // stagger + random-ish heights via delay
+      const delay = (Math.sin(i * 0.7) * 0.5 + 0.5) * 0.9;
+      b.style.animationDelay = (-delay).toFixed(2) + 's';
+      b.style.animationDuration = (0.7 + (i % 5) * 0.12).toFixed(2) + 's';
+      wf.appendChild(b);
+    }
+  })();
+
+  // ---------- state machine ----------
+  const body = document.body;
+  const captionText = document.getElementById('captionText');
+  const statusLabel = document.getElementById('statusLabel');
+  const roState = document.getElementById('roState');
+  const roFreq  = document.getElementById('roFreq');
+  const btnTalk = document.getElementById('btnTalk');
+  const btnReply = document.getElementById('btnReply');
+  const btnStop = document.getElementById('btnStop');
+
+  const STATES = {
+    idle:   { label: 'Prêt à écouter',     status: 'System · Idle',      ro: 'IDLE',      freq: '0.00 Hz'  },
+    listen: { label: "Ibrahim écoute",     status: 'System · Listening', ro: 'LISTENING', freq: '432.00 Hz' },
+    speak:  { label: 'Ibrahim parle',      status: 'System · Speaking',  ro: 'SPEAKING',  freq: '808.00 Hz' },
+  };
+
+  let freqInterval = null;
+
+  function setState(s) {
+    body.setAttribute('data-state', s);
+    currentTheme = s;
+    drawTexture(s);
+    const cfg = STATES[s];
+    captionText.textContent = cfg.label;
+    statusLabel.textContent = cfg.status;
+    roState.textContent = cfg.ro;
+
+    clearInterval(freqInterval);
+    if (s === 'idle') {
+      roFreq.textContent = cfg.freq;
+    } else {
+      // simulate a live frequency readout
+      freqInterval = setInterval(() => {
+        const base = s === 'listen' ? 432 : 808;
+        const jitter = (Math.random() - 0.5) * (s === 'listen' ? 18 : 46);
+        roFreq.textContent = (base + jitter).toFixed(2) + ' Hz';
+      }, 140);
+    }
+  }
+
+  btnTalk.addEventListener('click', () => setState('listen'));
+  btnReply.addEventListener('click', () => setState('speak'));
+  btnStop.addEventListener('click', () => setState('idle'));
+
+  // keyboard shortcuts
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); setState('listen'); }
+    if (e.code === 'KeyR')  setState('speak');
+    if (e.code === 'Escape') setState('idle');
+  });
+
+  // ---------- UTC clock ----------
+  const roTime = document.getElementById('roTime');
+  function tick() {
+    const d = new Date();
+    const hh = String(d.getUTCHours()).padStart(2,'0');
+    const mm = String(d.getUTCMinutes()).padStart(2,'0');
+    const ss = String(d.getUTCSeconds()).padStart(2,'0');
+    roTime.textContent = `${hh}:${mm}:${ss}`;
+  }
+  tick(); setInterval(tick, 1000);
+
+  // start idle
+  setState('idle');
+</script>
+</body>
+</html>

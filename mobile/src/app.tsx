@@ -1,93 +1,59 @@
+import './app.css';
 import { useState } from 'react';
-import ChatInterface    from './components/ChatInterface.js';
-import TasksView        from './components/TasksView.js';
-import ValidationQueue  from './components/ValidationQueue.js';
+import ChatInterface   from './components/ChatInterface.js';
+import TasksView       from './components/TasksView.js';
+import ValidationQueue from './components/ValidationQueue.js';
 
 type Tab = 'chat' | 'tasks' | 'validations';
 
-const TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: 'chat',        icon: '◎', label: 'Ibrahim'      },
-  { id: 'tasks',       icon: '⊡', label: 'Tâches'       },
-  { id: 'validations', icon: '◈', label: 'Validations'  },
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'chat',        label: 'Ibrahim',     icon: '◎' },
+  { id: 'tasks',       label: 'Tâches',      icon: '⊡' },
+  { id: 'validations', label: 'Validations', icon: '◈' },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('chat');
+  const [active, setActive] = useState<Tab>('chat');
 
   return (
-    <div style={{
-      width:         '100vw',
-      height:        '100dvh',
-      background:    '#000',
-      display:       'flex',
-      flexDirection: 'column',
-      overflow:      'hidden',
-      fontFamily:    '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-    }}>
-      {/* Page content */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        <div style={{ display: activeTab === 'chat'        ? 'block' : 'none', height: '100%' }}>
+    <div className="app-root">
+
+      {/* Content area — fills remaining height */}
+      <div className="app-content">
+
+        {/* Chat is always mounted so the globe keeps animating */}
+        <div className={`app-page${active === 'chat' ? ' app-page--active' : ''}`}>
           <ChatInterface />
         </div>
-        <div style={{ display: activeTab === 'tasks'       ? 'block' : 'none', height: '100%' }}>
-          <TasksView />
-        </div>
-        <div style={{ display: activeTab === 'validations' ? 'block' : 'none', height: '100%' }}>
-          <ValidationQueue />
-        </div>
+
+        {active === 'tasks' && (
+          <div className="app-page app-page--active app-page--scroll">
+            <TasksView />
+          </div>
+        )}
+
+        {active === 'validations' && (
+          <div className="app-page app-page--active app-page--scroll">
+            <ValidationQueue />
+          </div>
+        )}
+
       </div>
 
-      {/* Bottom tab bar */}
-      <nav style={{
-        display:         'flex',
-        borderTop:       '1px solid rgba(255,255,255,0.06)',
-        background:      'rgba(0,0,0,0.95)',
-        backdropFilter:  'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        paddingBottom:   'env(safe-area-inset-bottom, 0px)',
-      }}>
-        {TABS.map(tab => {
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                flex:           1,
-                display:        'flex',
-                flexDirection:  'column',
-                alignItems:     'center',
-                justifyContent: 'center',
-                gap:            4,
-                padding:        '10px 0',
-                background:     'none',
-                border:         'none',
-                cursor:         'pointer',
-                WebkitTapHighlightColor: 'transparent',
-                transition:     'opacity 0.15s',
-              }}
-            >
-              <span style={{
-                fontSize:   20,
-                color:      active ? '#7b2fff' : 'rgba(255,255,255,0.25)',
-                transition: 'color 0.2s, text-shadow 0.2s',
-                textShadow: active ? '0 0 12px rgba(123,47,255,0.6)' : 'none',
-              }}>
-                {tab.icon}
-              </span>
-              <span style={{
-                fontSize:      10,
-                letterSpacing: 0.5,
-                color:         active ? '#7b2fff' : 'rgba(255,255,255,0.2)',
-                transition:    'color 0.2s',
-                textTransform: 'uppercase',
-              }}>
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
+      {/* Tab bar — part of the flex column, not position:fixed */}
+      <nav className="tab-nav">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            className={`tab-btn${active === t.id ? ' tab-btn--active' : ''}`}
+            onClick={() => setActive(t.id)}
+          >
+            <span className="tab-icon">{t.icon}</span>
+            <span className="tab-label">{t.label}</span>
+          </button>
+        ))}
       </nav>
+
     </div>
   );
 }

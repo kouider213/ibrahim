@@ -43,6 +43,42 @@ export async function chat(
   };
 }
 
+// Streaming version — calls onChunk for each text delta, returns full response
+export async function chatStream(
+  messages: Message[],
+  systemExtra: string | undefined,
+  onChunk: (chunk: string) => void,
+): Promise<ClaudeResponse> {
+  const systemParts: string[] = [IBRAHIM.SYSTEM_PROMPT as string];
+  if (systemExtra) systemParts.push(systemExtra);
+
+  let fullText = '';
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let stopReason = 'end_turn';
+
+  const stream = client.messages.stream({
+    model:      'claude-sonnet-4-6',
+    max_tokens: 1024,
+    system:     systemParts.join('\n\n'),
+    messages,
+  });
+
+  for await (const event of stream) {
+    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+      fullText += event.delta.text;
+      onChunk(event.delta.text);
+    } else if (event.type === 'message_start') {
+      inputTokens = event.message.usage.input_tokens;
+    } else if (event.type === 'message_delta') {
+      outputTokens = event.usage.output_tokens;
+      stopReason = event.delta.stop_reason ?? 'end_turn';
+    }
+  }
+
+  return { text: fullText, inputTokens, outputTokens, stopReason };
+}
+
 export async function detectIntent(userMessage: string, context: string): Promise<{
   intent:  string;
   action?: string;
@@ -63,7 +99,13 @@ Retourne UNIQUEMENT un JSON valide avec ces champs:
   "reasoning": "courte explication"
 }`;
 
-  const res = await chat([{ role: 'user', content: prompt }]);
+  // Use Haiku for fast intent detection (3-5x faster than Sonnet)
+  const response = await client.messages.create({
+    model:      'claude-haiku-4-5-20251001',
+    max_tokens: 256,
+    messages:   [{ role: 'user', content: prompt }],
+  });
+  const res = { text: response.content.filter(b => b.type === 'text').map(b => (b as { type:'text'; text:string }).text).join('') };
 
   try {
     const jsonMatch = res.text.match(/\{[\s\S]*\}/);

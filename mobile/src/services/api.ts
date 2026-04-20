@@ -55,16 +55,19 @@ export const api = {
 export type IbrahimStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 export interface SocketCallbacks {
-  onStatus:     (status: IbrahimStatus) => void;
-  onAudio:      (base64: string) => void;
-  onResponse:   (text: string, fallback: boolean) => void;
-  onValidation: (validation: unknown) => void;
-  onTaskUpdate: (task: unknown) => void;
+  onStatus:       (status: IbrahimStatus) => void;
+  onAudio:        (base64: string) => void;
+  onAudioChunk:   (base64: string) => void;
+  onTextChunk:    (chunk: string) => void;
+  onTextComplete: (text: string) => void;
+  onResponse:     (text: string, fallback: boolean) => void;
+  onValidation:   (validation: unknown) => void;
+  onTaskUpdate:   (task: unknown) => void;
 }
 
 let _socket: Socket | null = null;
 
-export function connectSocket(_sessionId: string, callbacks: SocketCallbacks): Socket {
+export function connectSocket(sessionId: string, callbacks: SocketCallbacks): Socket {
   if (_socket?.connected) return _socket;
 
   _socket = io(`${WS_URL}/mobile`, {
@@ -75,16 +78,28 @@ export function connectSocket(_sessionId: string, callbacks: SocketCallbacks): S
   _socket.on('connect', () => console.log('[socket] Connected'));
   _socket.on('disconnect', () => console.log('[socket] Disconnected'));
 
-  _socket.on('ibrahim:status', (data: { status: IbrahimStatus }) => {
-    callbacks.onStatus(data.status);
+  _socket.on('ibrahim:status', (data: { status: IbrahimStatus; sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onStatus(data.status);
   });
 
-  _socket.on('ibrahim:audio', (data: { audio: string }) => {
-    callbacks.onAudio(data.audio);
+  _socket.on('ibrahim:audio', (data: { audio: string; sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudio(data.audio);
   });
 
-  _socket.on('ibrahim:response', (data: { text: string; fallback?: boolean }) => {
-    callbacks.onResponse(data.text, data.fallback ?? false);
+  _socket.on('ibrahim:audio_chunk', (data: { chunk: string; sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudioChunk(data.chunk);
+  });
+
+  _socket.on('ibrahim:text_chunk', (data: { chunk: string; sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onTextChunk(data.chunk);
+  });
+
+  _socket.on('ibrahim:text_complete', (data: { text: string; sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onTextComplete(data.text);
+  });
+
+  _socket.on('ibrahim:response', (data: { text: string; fallback?: boolean; sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onResponse(data.text, data.fallback ?? false);
   });
 
   _socket.on('ibrahim:validation_request', (v: unknown) => {
@@ -106,38 +121,81 @@ export function disconnectSocket(): void {
 // ── Audio helpers ─────────────────────────────────────────────
 
 let _audioCtx: AudioContext | null = null;
+let _audioQueue: ArrayBuffer[] = [];
+let _audioPlaying = false;
+
+async function getAudioCtx(): Promise<AudioContext> {
+  if (!_audioCtx || _audioCtx.state === 'closed') {
+    _audioCtx = new AudioContext();
+  }
+  if (_audioCtx.state === 'suspended') await _audioCtx.resume();
+  return _audioCtx;
+}
+
+async function drainAudioQueue(): Promise<void> {
+  if (_audioPlaying || _audioQueue.length === 0) return;
+  _audioPlaying = true;
+  try {
+    const ctx = await getAudioCtx();
+    while (_audioQueue.length > 0) {
+      const buf = _audioQueue.shift()!;
+      try {
+        const decoded = await ctx.decodeAudioData(buf);
+        const source = ctx.createBufferSource();
+        source.buffer = decoded;
+        source.connect(ctx.destination);
+        await new Promise<void>(resolve => {
+          source.onended = () => resolve();
+          source.start();
+        });
+      } catch { /* skip bad chunk */ }
+    }
+  } finally {
+    _audioPlaying = false;
+  }
+}
 
 export async function playBase64Audio(base64: string): Promise<void> {
   try {
-    if (!_audioCtx) _audioCtx = new AudioContext();
     const binary = atob(base64);
     const bytes  = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-    const buffer = await _audioCtx.decodeAudioData(bytes.buffer);
-    const source = _audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(_audioCtx.destination);
-    source.start();
+    _audioQueue.push(bytes.buffer);
+    void drainAudioQueue();
   } catch (err) {
     console.error('[audio] Playback failed:', err);
   }
 }
 
+// Enqueue a streaming audio chunk (plays as soon as previous finishes)
+export async function enqueueAudioChunk(base64: string): Promise<void> {
+  await playBase64Audio(base64);
+}
+
+export function clearAudioQueue(): void {
+  _audioQueue = [];
+}
+
 export function iosFallbackSpeak(text: string): void {
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang  = 'fr-FR';
-  utterance.rate  = 0.95;
+  utterance.rate  = 1.0;
+  utterance.pitch = 1.0;
+  window.speechSynthesis.cancel();
   window.speechSynthesis.speak(utterance);
 }
 
 // ── Session ───────────────────────────────────────────────────
 
 export function getOrCreateSessionId(): string {
-  let id = sessionStorage.getItem('ibrahim_session');
-  if (!id) {
-    id = `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem('ibrahim_session', id);
+  try {
+    let id = sessionStorage.getItem('ibrahim_session');
+    if (!id) {
+      id = `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem('ibrahim_session', id);
+    }
+    return id;
+  } catch {
+    return `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   }
-  return id;
 }

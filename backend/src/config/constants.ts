@@ -38,12 +38,16 @@ export const SOCKET_EVENTS = {
   // Server → client
   RESPONSE:         'ibrahim:response',
   AUDIO:            'ibrahim:audio',
+  AUDIO_CHUNK:      'ibrahim:audio_chunk',
+  TEXT_CHUNK:       'ibrahim:text_chunk',
+  TEXT_COMPLETE:    'ibrahim:text_complete',
   STATUS:           'ibrahim:status',
   TASK_UPDATE:      'ibrahim:task_update',
   VALIDATION_REQ:   'ibrahim:validation_request',
   // Client → server
   MESSAGE:          'ibrahim:message',
   AUDIO_INPUT:      'ibrahim:audio_input',
+  TYPING:           'ibrahim:typing',
   VALIDATION_REPLY: 'ibrahim:validation_reply',
   // PC Agent
   PC_COMMAND:       'pc:command',

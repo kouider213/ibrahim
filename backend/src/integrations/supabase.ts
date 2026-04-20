@@ -5,49 +5,65 @@ export const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY,
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-// ── Typed table helpers ───────────────────────────────────────
+// ── Fik Conciergerie real table types ─────────────────────────
+
+export interface Car {
+  id:           string;
+  name:         string;
+  base_price:   number;
+  resale_price: number;
+  image_url:    string;
+  category:     string;
+  seats:        number;
+  fuel:         string;
+  transmission: string;
+  available:    boolean;
+  description?: string;
+  created_at:   string;
+}
+
+export interface Booking {
+  id:                    string;
+  car_id:                string;
+  user_id?:              string;
+  client_name:           string;
+  client_email?:         string;
+  client_phone?:         string;
+  client_age?:           number;
+  client_passport?:      string;
+  start_date:            string;
+  end_date:              string;
+  base_price_snapshot:   number;
+  resale_price_snapshot: number;
+  final_price:           number;
+  profit:                number;
+  status:                'PENDING' | 'CONFIRMED' | 'REJECTED' | 'COMPLETED' | 'ACTIVE';
+  notes?:                string;
+  whatsapp_sent:         boolean;
+  sms_sent:              boolean;
+  pdf_url?:              string;
+  nb_days?:              number;
+  created_at:            string;
+  updated_at:            string;
+}
+
+export interface ClientDocument {
+  id:          string;
+  booking_id?: string;
+  client_phone: string;
+  client_name:  string;
+  type:         'passport' | 'license' | 'contract' | 'other';
+  file_url:     string;
+  storage_path: string;
+  notes?:       string;
+  created_at:   string;
+}
+
+// ── Ibrahim internal types ─────────────────────────────────────
 
 export type TaskStatus =
   | 'pending' | 'queued' | 'running' | 'waiting_validation'
   | 'completed' | 'failed' | 'cancelled';
-
-export interface Task {
-  id:          string;
-  project_id?: string;
-  title:       string;
-  description?: string;
-  action_type: string;
-  payload:     Record<string, unknown>;
-  status:      TaskStatus;
-  priority:    number;
-  created_by:  string;
-  result?:     Record<string, unknown>;
-  error?:      string;
-  created_at:  string;
-  updated_at:  string;
-  completed_at?: string;
-}
-
-export interface Reservation {
-  id:               string;
-  client_name:      string;
-  client_phone?:    string;
-  client_email?:    string;
-  vehicle_id:       string;
-  vehicle_name:     string;
-  start_date:       string;
-  end_date:         string;
-  pickup_location:  string;
-  return_location:  string;
-  daily_rate:       number;
-  total_amount:     number;
-  deposit?:         number;
-  is_vip:           boolean;
-  discount_pct:     number;
-  status:           string;
-  notes?:           string;
-  created_at:       string;
-}
 
 export interface IbrahimRule {
   id:         string;
@@ -60,7 +76,110 @@ export interface IbrahimRule {
   active:     boolean;
 }
 
-// ── Query helpers ─────────────────────────────────────────────
+// ── Fik Conciergerie queries ───────────────────────────────────
+
+export async function getFleet(): Promise<Car[]> {
+  const { data, error } = await supabase
+    .from('cars')
+    .select('*')
+    .order('name');
+  if (error) throw new Error(`Fleet fetch failed: ${error.message}`);
+  return (data ?? []) as Car[];
+}
+
+export async function getAvailableCars(startDate: string, endDate: string): Promise<Car[]> {
+  try {
+    const { data } = await supabase
+      .rpc('check_car_availability', { p_start: startDate, p_end: endDate });
+    if (data) return data as Car[];
+  } catch { /* RPC not available, fallback below */ }
+
+  // Fallback: filter by available flag
+  const { data: cars } = await supabase.from('cars').select('*').eq('available', true);
+  return (cars ?? []) as Car[];
+}
+
+export async function checkCarAvailability(
+  carId: string,
+  startDate: string,
+  endDate: string,
+  excludeBookingId?: string,
+): Promise<boolean> {
+  let query = supabase
+    .from('bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('car_id', carId)
+    .in('status', ['PENDING', 'CONFIRMED', 'ACTIVE'])
+    .lt('start_date', endDate)
+    .gt('end_date', startDate);
+
+  if (excludeBookingId) query = query.neq('id', excludeBookingId);
+
+  const { count, error } = await query;
+  if (error) throw new Error(`Availability check failed: ${error.message}`);
+  return (count ?? 0) === 0;
+}
+
+export async function getBookings(filters?: {
+  status?: string;
+  clientPhone?: string;
+  carId?: string;
+  limit?: number;
+}): Promise<Booking[]> {
+  let query = supabase
+    .from('bookings')
+    .select('*, cars(name, category)')
+    .order('created_at', { ascending: false })
+    .limit(filters?.limit ?? 50);
+
+  if (filters?.status) query = query.eq('status', filters.status);
+  if (filters?.clientPhone) query = query.eq('client_phone', filters.clientPhone);
+  if (filters?.carId) query = query.eq('car_id', filters.carId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Bookings fetch failed: ${error.message}`);
+  return (data ?? []) as Booking[];
+}
+
+export async function getClientHistory(phone: string): Promise<{
+  bookings: Booking[];
+  totalSpent: number;
+  bookingCount: number;
+  isVip: boolean;
+}> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('client_phone', phone)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(`Client history fetch failed: ${error.message}`);
+  const bookings = (data ?? []) as Booking[];
+  const confirmed = bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'COMPLETED');
+  const totalSpent = confirmed.reduce((sum, b) => sum + (b.final_price ?? 0), 0);
+  const isVip = confirmed.length >= 5 || totalSpent > 1000;
+
+  return { bookings, totalSpent, bookingCount: confirmed.length, isVip };
+}
+
+export async function createBooking(booking: Omit<Booking, 'id' | 'created_at' | 'updated_at'>): Promise<Booking> {
+  // Anti-doublon: check availability before creating
+  const available = await checkCarAvailability(booking.car_id, booking.start_date, booking.end_date);
+  if (!available) {
+    throw new Error(`Le véhicule n'est pas disponible du ${booking.start_date} au ${booking.end_date}.`);
+  }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert(booking)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Booking creation failed: ${error.message}`);
+  return data as Booking;
+}
+
+// ── Ibrahim conversation helpers ───────────────────────────────
 
 export async function getActiveRules(): Promise<IbrahimRule[]> {
   const { data, error } = await supabase
@@ -95,32 +214,39 @@ export async function saveConversationTurn(
   if (error) throw new Error(`Conversation save failed: ${error.message}`);
 }
 
+// ── Client documents ───────────────────────────────────────────
+
+export async function saveClientDocument(doc: Omit<ClientDocument, 'id' | 'created_at'>): Promise<ClientDocument> {
+  const { data, error } = await supabase
+    .from('client_documents')
+    .insert(doc)
+    .select()
+    .single();
+  if (error) throw new Error(`Document save failed: ${error.message}`);
+  return data as ClientDocument;
+}
+
+export async function getClientDocuments(clientPhone: string): Promise<ClientDocument[]> {
+  const { data, error } = await supabase
+    .from('client_documents')
+    .select('*')
+    .eq('client_phone', clientPhone)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`Documents fetch failed: ${error.message}`);
+  return (data ?? []) as ClientDocument[];
+}
+
+// Legacy compatibility
 export async function checkVehicleAvailability(
   vehicleId: string,
   startDate: string,
   endDate: string,
   excludeId?: string,
 ): Promise<boolean> {
-  let query = supabase
-    .from('reservations')
-    .select('id', { count: 'exact', head: true })
-    .eq('vehicle_id', vehicleId)
-    .in('status', ['confirmed', 'active'])
-    .lt('start_date', endDate)
-    .gt('end_date', startDate);
-
-  if (excludeId) query = query.neq('id', excludeId);
-
-  const { count, error } = await query;
-  if (error) throw new Error(`Availability check failed: ${error.message}`);
-  return (count ?? 0) === 0;
+  return checkCarAvailability(vehicleId, startDate, endDate, excludeId);
 }
 
 export async function isVipClient(phone: string): Promise<boolean> {
-  const { count } = await supabase
-    .from('reservations')
-    .select('id', { count: 'exact', head: true })
-    .eq('client_phone', phone)
-    .eq('is_vip', true);
-  return (count ?? 0) > 0;
+  const { isVip } = await getClientHistory(phone);
+  return isVip;
 }

@@ -17,6 +17,10 @@ import chatRoutes         from './api/routes/chat.js';
 import tasksRoutes        from './api/routes/tasks.js';
 import validationsRoutes  from './api/routes/validations.js';
 import notificationsRoutes from './api/routes/notifications.js';
+import bootstrapRoutes     from './api/routes/bootstrap.js';
+import calendarRoutes      from './api/routes/calendar.js';
+import clientsRoutes       from './api/routes/clients.js';
+import bookingsRoutes      from './api/routes/bookings.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -44,6 +48,10 @@ app.use('/api/chat',          chatRoutes);
 app.use('/api/tasks',         tasksRoutes);
 app.use('/api/validations',   validationsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/bootstrap',     bootstrapRoutes);
+app.use('/api/calendar',      calendarRoutes);
+app.use('/api/clients',       clientsRoutes);
+app.use('/api/bookings',      bookingsRoutes);
 
 app.use(errorHandler);
 
