@@ -67,6 +67,7 @@ export default function ChatInterface() {
   const [streamingText, setStreamingText] = useState('');
   // Mode texte
   const [textMode,      setTextMode]      = useState(false);
+  const textModeRef = useRef(false);
   const [chatHistory,   setChatHistory]   = useState<{role:'user'|'ai';text:string;id:number}[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [markerLbl,  setMarkerLbl]  = useState('ORAN · DZ');
@@ -264,6 +265,9 @@ export default function ChatInterface() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  // Keep ref in sync with state so socket callbacks read current value
+  useEffect(()=>{ textModeRef.current = textMode; },[textMode]);
+
   // ── Socket ────────────────────────────────────────────────────
   useEffect(()=>{
     const socket=connectSocket(sessionId,{
@@ -304,17 +308,22 @@ export default function ChatInterface() {
           return [...h.slice(0,-1),{...last,text}];
         });
         setTimeout(()=>chatEndRef.current?.scrollIntoView({behavior:'smooth'}),50);
-        // Flush accumulated MP3 chunks now that streaming is complete
-        void flushAudioChunks();
-        // Fallback TTS seulement en mode voix
-        if(audioFallbackTimer.current){clearTimeout(audioFallbackTimer.current);audioFallbackTimer.current=null;}
-        audioFallbackTimer.current=setTimeout(()=>{
-          audioFallbackTimer.current=null;
-          if(window.speechSynthesis&&!window.speechSynthesis.speaking){
-            iosFallbackSpeak(text);
-          }
-          setTimeout(()=>{setStreamingText('');applyState('idle');},Math.max(2000,text.length*55));
-        },3000);
+        if(!textModeRef.current){
+          // Voice mode: flush MP3 chunks and schedule fallback TTS
+          void flushAudioChunks();
+          if(audioFallbackTimer.current){clearTimeout(audioFallbackTimer.current);audioFallbackTimer.current=null;}
+          audioFallbackTimer.current=setTimeout(()=>{
+            audioFallbackTimer.current=null;
+            if(window.speechSynthesis&&!window.speechSynthesis.speaking){
+              iosFallbackSpeak(text);
+            }
+            setTimeout(()=>{setStreamingText('');applyState('idle');},Math.max(2000,text.length*55));
+          },3000);
+        } else {
+          // Text mode: just reset streaming overlay, no TTS
+          setStreamingText('');
+          applyState('idle');
+        }
       },
       onResponse:(text,fallback)=>{
         if(fallback){

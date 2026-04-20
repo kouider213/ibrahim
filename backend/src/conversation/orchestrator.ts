@@ -6,12 +6,12 @@ import { saveConversationTurn } from '../integrations/supabase.js';
 import { synthesizeVoice, synthesizeVoiceStream } from '../notifications/dispatcher.js';
 import { enqueueAction } from '../queue/queue.js';
 import { supabase } from '../integrations/supabase.js';
-import type { Server as SocketServer } from 'socket.io';
+import type { Namespace } from 'socket.io';
 import { SOCKET_EVENTS } from '../config/constants.js';
 
-let _io: SocketServer | null = null;
+let _io: Namespace | null = null;
 
-export function initOrchestrator(io: SocketServer): void {
+export function initOrchestrator(io: Namespace): void {
   _io = io;
 }
 

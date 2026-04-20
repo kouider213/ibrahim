@@ -1,7 +1,7 @@
 import { supabase } from '../integrations/supabase.js';
 import { sendPushover } from '../notifications/pushover.js';
 import type { ValidationReason } from './gate.js';
-import type { Server as SocketServer } from 'socket.io';
+import type { Namespace } from 'socket.io';
 import { SOCKET_EVENTS } from '../config/constants.js';
 
 export interface PendingValidation {
@@ -12,9 +12,9 @@ export interface PendingValidation {
   proposed: Record<string, unknown>;
 }
 
-let _io: SocketServer | null = null;
+let _io: Namespace | null = null;
 
-export function initApprover(io: SocketServer): void {
+export function initApprover(io: Namespace): void {
   _io = io;
 }
 

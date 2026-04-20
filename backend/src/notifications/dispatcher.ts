@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
-import type { Server as SocketServer } from 'socket.io';
+import type { Namespace } from 'socket.io';
 import { SOCKET_EVENTS } from '../config/constants.js';
 
-let _io: SocketServer | null = null;
+let _io: Namespace | null = null;
 
-export function initDispatcher(io: SocketServer): void {
+export function initDispatcher(io: Namespace): void {
   _io = io;
 }
 

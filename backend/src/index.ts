@@ -69,14 +69,14 @@ const io = new SocketServer(server, {
   maxHttpBufferSize: 5 * 1024 * 1024,
 });
 
-// Initialize all services with Socket.IO instance
-initOrchestrator(io);
-initApprover(io);
-initDispatcher(io);
-initPcRelay(io);
-
-// Mobile clients namespace
+// Mobile clients namespace (must be created before init calls)
 const mobileNs = io.of('/mobile');
+
+// Initialize services with the mobile namespace so events reach mobile clients
+initOrchestrator(mobileNs);
+initApprover(mobileNs);
+initDispatcher(mobileNs);
+initPcRelay(io);
 
 mobileNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;
