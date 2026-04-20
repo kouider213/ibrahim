@@ -401,6 +401,18 @@ export default function ChatInterface() {
     return ()=>window.removeEventListener('keydown',onKey);
   },[showText,startListening,stopAll]);
 
+  // Auto-start micro quand ouvert depuis Siri (?auto=1 dans l'URL)
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('auto')==='1'||params.get('autostart')==='1'){
+      // Nettoyer l'URL pour éviter la re-activation au refresh
+      window.history.replaceState({},'',window.location.pathname);
+      // Délai pour que le globe soit chargé
+      const t=setTimeout(()=>startListening(),1200);
+      return ()=>clearTimeout(t);
+    }
+  },[startListening]);
+
   // ── Render ─────────────────────────────────────────────────────
   const WAVE_N=24, RAY_N=32;
 
