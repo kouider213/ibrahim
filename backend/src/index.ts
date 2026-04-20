@@ -24,6 +24,7 @@ import bookingsRoutes      from './api/routes/bookings.js';
 import weatherRoutes       from './api/routes/weather.js';
 import siriRoutes          from './api/routes/siri.js';
 import githubRoutes        from './api/routes/github.js';
+import whatsappRoutes      from './api/routes/whatsapp.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -58,6 +59,7 @@ app.use('/api/bookings',      bookingsRoutes);
 app.use('/api/weather',       weatherRoutes);
 app.use('/api/siri',          siriRoutes);
 app.use('/api/github',        githubRoutes);
+app.use('/api/whatsapp',      whatsappRoutes);
 
 app.use(errorHandler);
 

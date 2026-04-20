@@ -21,6 +21,9 @@ const envSchema = z.object({
   GOOGLE_REDIRECT_URI:  z.string().optional(),
   NETLIFY_TOKEN:        z.string().optional(),
   RAILWAY_TOKEN:        z.string().optional(),
+  TWILIO_ACCOUNT_SID:   z.string().optional(),
+  TWILIO_AUTH_TOKEN:    z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(), // e.g. whatsapp:+14155238886
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_URL:          z.string().url().default('http://localhost:3000'),

@@ -2,7 +2,7 @@ import './ChatInterface.css';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   api, connectSocket, playBase64Audio, enqueueAudioChunk, flushAudioChunks,
-  clearAudioQueue, unlockAudio, iosFallbackSpeak, getOrCreateSessionId, type IbrahimStatus,
+  clearAudioQueue, unlockAudio, stopAudio, iosFallbackSpeak, getOrCreateSessionId, type IbrahimStatus,
 } from '../services/api.js';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ export default function ChatInterface() {
   const [utcTime,    setUtcTime]    = useState('--:--:--');
   const [showText,      setShowText]      = useState(false);
   const [textInput,     setTextInput]     = useState('');
-  const [streamingText, setStreamingText] = useState('');
+  const [, setStreamingText] = useState('');
   // Mode texte
   const [textMode,      setTextMode]      = useState(false);
   const textModeRef = useRef(false);
@@ -432,7 +432,11 @@ export default function ChatInterface() {
 
   const startListening=useCallback(()=>{
     if(gsRef.current==='listen') return;
-    unlockAudio(); // must happen in user gesture handler
+    unlockAudio();
+    // Barge-in: stop Ibrahim if he's speaking
+    stopAudio();
+    window.speechSynthesis?.cancel();
+    if(audioFallbackTimer.current){clearTimeout(audioFallbackTimer.current);audioFallbackTimer.current=null;}
     applyState('listen');
     const w=window as Window&{webkitSpeechRecognition?:new()=>SRL;SpeechRecognition?:new()=>SRL};
     const SR=w.webkitSpeechRecognition??w.SpeechRecognition;
@@ -448,6 +452,7 @@ export default function ChatInterface() {
   const stopAll=useCallback(()=>{
     if(audioFallbackTimer.current){clearTimeout(audioFallbackTimer.current);audioFallbackTimer.current=null;}
     try{window.speechSynthesis?.cancel();}catch(_){}
+    stopAudio();
     applyState('idle');
   },[applyState]);
 
@@ -528,11 +533,7 @@ export default function ChatInterface() {
             </div>
           </div>
 
-          {streamingText&&(
-            <div className="streaming-text-overlay">
-              <p className="streaming-text">{streamingText}</p>
-            </div>
-          )}
+          {/* Texte visible uniquement en mode texte (les bulles gèrent ça), pas en mode voix */}
 
           {!textMode&&showText&&(
             <div className="text-overlay">

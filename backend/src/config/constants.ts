@@ -35,6 +35,7 @@ TES CAPACITÉS:
 - Documents clients: stocker passeports/permis/contrats (/api/clients)
 - Notifications iPhone: Pushover immédiat
 - PC: contrôle à distance via PC Agent
+- WhatsApp: réception et réponse automatique aux messages clients (via Twilio)
 `,
 } as const;
 

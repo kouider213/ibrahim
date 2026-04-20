@@ -124,6 +124,7 @@ let _audioCtx: AudioContext | null = null;
 let _audioQueue: ArrayBuffer[] = [];
 let _audioPlaying = false;
 let _pendingChunks: Uint8Array[] = [];
+let _currentSource: AudioBufferSourceNode | null = null;
 
 // Call this during a user gesture (button tap) to unlock iOS AudioContext
 export function unlockAudio(): void {
@@ -155,8 +156,9 @@ async function drainAudioQueue(): Promise<void> {
         const source = ctx.createBufferSource();
         source.buffer = decoded;
         source.connect(ctx.destination);
+        _currentSource = source;
         await new Promise<void>(resolve => {
-          source.onended = () => resolve();
+          source.onended = () => { _currentSource = null; resolve(); };
           source.start();
         });
       } catch { /* skip bad chunk */ }
@@ -205,6 +207,15 @@ export async function flushAudioChunks(): Promise<void> {
 export function clearAudioQueue(): void {
   _audioQueue = [];
   _pendingChunks = [];
+}
+
+// Stop playback immediately (barge-in)
+export function stopAudio(): void {
+  _audioQueue = [];
+  _pendingChunks = [];
+  _audioPlaying = false;
+  try { _currentSource?.stop(); } catch { /* already stopped */ }
+  _currentSource = null;
 }
 
 function cleanForSpeech(text: string): string {
