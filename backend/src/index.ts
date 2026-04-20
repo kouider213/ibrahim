@@ -23,6 +23,7 @@ import clientsRoutes       from './api/routes/clients.js';
 import bookingsRoutes      from './api/routes/bookings.js';
 import weatherRoutes       from './api/routes/weather.js';
 import siriRoutes          from './api/routes/siri.js';
+import githubRoutes        from './api/routes/github.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -56,6 +57,7 @@ app.use('/api/clients',       clientsRoutes);
 app.use('/api/bookings',      bookingsRoutes);
 app.use('/api/weather',       weatherRoutes);
 app.use('/api/siri',          siriRoutes);
+app.use('/api/github',        githubRoutes);
 
 app.use(errorHandler);
 
