@@ -1,4 +1,5 @@
 import { getConversationHistory, getActiveRules, getFleet, getBookings } from '../integrations/supabase.js';
+import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext } from '../integrations/web-search.js';
 import { IBRAHIM } from '../config/constants.js';
 import type { Message } from '../integrations/claude-api.js';
 
@@ -12,11 +13,15 @@ export async function buildContext(
   sessionId: string,
   userMessage: string,
 ): Promise<ConversationContext> {
-  const [history, rules, fleet, recentBookings] = await Promise.all([
+  const needsNews = /actualit|news|journal|presse|info/i.test(userMessage);
+
+  const [history, rules, fleet, recentBookings, weather, news] = await Promise.all([
     getConversationHistory(sessionId, 15),
     getActiveRules(),
     getFleet().catch(() => []),
     getBookings({ limit: 10 }).catch(() => []),
+    getOranWeather().catch(() => undefined),
+    needsNews ? getAlgeriaNews(4).catch(() => []) : Promise.resolve([]),
   ]);
 
   const rulesText = rules.length > 0
@@ -36,7 +41,10 @@ export async function buildContext(
     ? `\n\nRÉSERVATIONS EN ATTENTE (${pendingBookings.length}):\n${pendingBookings.map(b => `- ${b.client_name} (${b.client_phone ?? 'N/A'}) du ${b.start_date} au ${b.end_date}, car_id: ${b.car_id}`).join('\n')}`
     : '';
 
-  const systemExtra = rulesText + dateInfo + fleetText + bookingsText;
+  const weatherText = weather ? `\n\n${formatWeatherForContext(weather)}` : '';
+  const newsText = news && news.length > 0 ? `\n\n${formatNewsForContext(news)}` : '';
+
+  const systemExtra = rulesText + dateInfo + weatherText + fleetText + bookingsText + newsText;
 
   const messages: Message[] = [
     ...history.map(h => ({

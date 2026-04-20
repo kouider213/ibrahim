@@ -21,6 +21,7 @@ import bootstrapRoutes     from './api/routes/bootstrap.js';
 import calendarRoutes      from './api/routes/calendar.js';
 import clientsRoutes       from './api/routes/clients.js';
 import bookingsRoutes      from './api/routes/bookings.js';
+import weatherRoutes       from './api/routes/weather.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -52,6 +53,7 @@ app.use('/api/bootstrap',     bootstrapRoutes);
 app.use('/api/calendar',      calendarRoutes);
 app.use('/api/clients',       clientsRoutes);
 app.use('/api/bookings',      bookingsRoutes);
+app.use('/api/weather',       weatherRoutes);
 
 app.use(errorHandler);
 
