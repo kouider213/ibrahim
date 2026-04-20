@@ -405,7 +405,27 @@ export default function ChatInterface() {
       applyState('listen');
     }
     try{
-      await api.chat(msg,sessionId,forceTextMode);
+      const resp = await api.chat(msg,sessionId,forceTextMode);
+      // Fallback: if socket didn't deliver text (e.g. namespace mismatch), use HTTP response
+      if(resp?.text){
+        setChatHistory(h=>{
+          const last=h[h.length-1];
+          // Only add if no AI bubble arrived via socket yet
+          if(!last||last.role!=='ai'){
+            return [...h,{role:'ai' as const,text:resp.text,id:Date.now()+1}];
+          }
+          return h;
+        });
+        if(forceTextMode){
+          setTimeout(()=>chatEndRef.current?.scrollIntoView({behavior:'smooth'}),50);
+        } else if(resp.text&&!window.speechSynthesis?.speaking){
+          // Voice fallback: speak via browser TTS if no audio arrived
+          setTimeout(()=>{
+            if(!window.speechSynthesis?.speaking) iosFallbackSpeak(resp.text);
+          },1500);
+          applyState('idle');
+        }
+      }
     }catch(e){console.error('[chat]',e);if(!forceTextMode)applyState('idle');}
     finally{sending.current=false;}
   },[sessionId,applyState,textMode]);
