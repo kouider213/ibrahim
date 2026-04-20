@@ -123,6 +123,17 @@ export function disconnectSocket(): void {
 let _audioCtx: AudioContext | null = null;
 let _audioQueue: ArrayBuffer[] = [];
 let _audioPlaying = false;
+let _pendingChunks: Uint8Array[] = [];
+
+// Call this during a user gesture (button tap) to unlock iOS AudioContext
+export function unlockAudio(): void {
+  if (!_audioCtx) {
+    try { _audioCtx = new AudioContext(); } catch { return; }
+  }
+  if (_audioCtx.state === 'suspended') {
+    _audioCtx.resume().catch(() => {});
+  }
+}
 
 async function getAudioCtx(): Promise<AudioContext> {
   if (!_audioCtx || _audioCtx.state === 'closed') {
@@ -167,13 +178,33 @@ export async function playBase64Audio(base64: string): Promise<void> {
   }
 }
 
-// Enqueue a streaming audio chunk (plays as soon as previous finishes)
-export async function enqueueAudioChunk(base64: string): Promise<void> {
-  await playBase64Audio(base64);
+// Accumulate streaming MP3 chunks — do NOT decode individually (incomplete frames)
+export function enqueueAudioChunk(base64: string): void {
+  try {
+    const binary = atob(base64);
+    const bytes  = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    _pendingChunks.push(bytes);
+  } catch (err) {
+    console.error('[audio] Chunk enqueue failed:', err);
+  }
+}
+
+// Call once streaming is complete — concatenates all chunks and decodes the full MP3
+export async function flushAudioChunks(): Promise<void> {
+  if (!_pendingChunks.length) return;
+  const totalLen = _pendingChunks.reduce((s, c) => s + c.length, 0);
+  const combined = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const chunk of _pendingChunks) { combined.set(chunk, offset); offset += chunk.length; }
+  _pendingChunks = [];
+  _audioQueue.push(combined.buffer);
+  void drainAudioQueue();
 }
 
 export function clearAudioQueue(): void {
   _audioQueue = [];
+  _pendingChunks = [];
 }
 
 function cleanForSpeech(text: string): string {

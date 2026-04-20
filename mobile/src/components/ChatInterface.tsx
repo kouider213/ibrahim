@@ -1,8 +1,8 @@
 import './ChatInterface.css';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  api, connectSocket, playBase64Audio, enqueueAudioChunk, clearAudioQueue,
-  iosFallbackSpeak, getOrCreateSessionId, type IbrahimStatus,
+  api, connectSocket, playBase64Audio, enqueueAudioChunk, flushAudioChunks,
+  clearAudioQueue, unlockAudio, iosFallbackSpeak, getOrCreateSessionId, type IbrahimStatus,
 } from '../services/api.js';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -279,7 +279,6 @@ export default function ChatInterface() {
         applyState('speak');
       },
       onAudioChunk:(b64)=>{
-        // Progressive audio — play each sentence chunk as it arrives
         if(audioFallbackTimer.current){clearTimeout(audioFallbackTimer.current);audioFallbackTimer.current=null;}
         window.speechSynthesis?.cancel();
         enqueueAudioChunk(b64);
@@ -305,6 +304,8 @@ export default function ChatInterface() {
           return [...h.slice(0,-1),{...last,text}];
         });
         setTimeout(()=>chatEndRef.current?.scrollIntoView({behavior:'smooth'}),50);
+        // Flush accumulated MP3 chunks now that streaming is complete
+        void flushAudioChunks();
         // Fallback TTS seulement en mode voix
         if(audioFallbackTimer.current){clearTimeout(audioFallbackTimer.current);audioFallbackTimer.current=null;}
         audioFallbackTimer.current=setTimeout(()=>{
@@ -382,6 +383,7 @@ export default function ChatInterface() {
   // ── Text / voice ──────────────────────────────────────────────
   const sendText=useCallback(async(msg:string,forceTextMode=textMode)=>{
     if(!msg.trim()||sending.current) return;
+    unlockAudio(); // user gesture — unlock AudioContext before response arrives
     sending.current=true;
     setTextInput('');
     setStreamingText('');
@@ -401,6 +403,7 @@ export default function ChatInterface() {
 
   const startListening=useCallback(()=>{
     if(gsRef.current==='listen') return;
+    unlockAudio(); // must happen in user gesture handler
     applyState('listen');
     const w=window as Window&{webkitSpeechRecognition?:new()=>SRL;SpeechRecognition?:new()=>SRL};
     const SR=w.webkitSpeechRecognition??w.SpeechRecognition;
