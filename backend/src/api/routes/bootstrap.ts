@@ -1,11 +1,9 @@
 import { Router } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { supabase } from '../../integrations/supabase.js';
 
 const router = Router();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Tables Ibrahim à créer
 const TABLES = [
