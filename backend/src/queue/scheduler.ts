@@ -1,0 +1,93 @@
+import { Queue, Worker, type Job } from 'bullmq';
+import { redis } from './queue.js';
+import {
+  jobEndRentalReminder,
+  jobIdleVehicleAlert,
+  jobTikTokSuggestion,
+  jobUnpaidReminder,
+  jobWeeklyReport,
+} from './jobs/proactive-jobs.js';
+
+const SCHEDULER_QUEUE = 'ibrahim-scheduler';
+
+export const schedulerQueue = new Queue(SCHEDULER_QUEUE, { connection: redis });
+
+const JOBS = [
+  {
+    name:  'end-rental-reminder',
+    cron:  '0 9 * * *',        // 9h chaque jour (Africa/Algiers = UTC+1)
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'idle-vehicle-alert',
+    cron:  '0 10 * * *',       // 10h chaque jour
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'tiktok-suggestion',
+    cron:  '0 9 * * 1',        // 9h chaque lundi
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'unpaid-reminder',
+    cron:  '0 */6 * * *',      // toutes les 6h
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'weekly-report',
+    cron:  '0 8 * * 1',        // 8h chaque lundi
+    tz:    'Africa/Algiers',
+  },
+] as const;
+
+const handlers: Record<string, (job: Job) => Promise<void>> = {
+  'end-rental-reminder': jobEndRentalReminder,
+  'idle-vehicle-alert':  jobIdleVehicleAlert,
+  'tiktok-suggestion':   jobTikTokSuggestion,
+  'unpaid-reminder':     jobUnpaidReminder,
+  'weekly-report':       jobWeeklyReport,
+};
+
+export async function initScheduler(): Promise<void> {
+  // Register all repeatable jobs
+  for (const job of JOBS) {
+    await schedulerQueue.add(
+      job.name,
+      {},
+      {
+        repeat: { pattern: job.cron, tz: job.tz },
+        removeOnComplete: { count: 10 },
+        removeOnFail:     { count: 5 },
+      },
+    );
+    console.log(`[scheduler] Registered: ${job.name} (${job.cron})`);
+  }
+
+  // Worker that processes all scheduled jobs
+  const worker = new Worker(
+    SCHEDULER_QUEUE,
+    async (job: Job) => {
+      const handler = handlers[job.name];
+      if (handler) {
+        console.log(`[scheduler] Running: ${job.name}`);
+        await handler(job);
+      }
+    },
+    { connection: redis, concurrency: 1 },
+  );
+
+  worker.on('completed', job => console.log(`[scheduler] ✅ ${job.name} done`));
+  worker.on('failed',    (job, err) => console.error(`[scheduler] ❌ ${job?.name} failed:`, err.message));
+
+  console.log('[scheduler] All proactive jobs registered');
+}
+
+// Manual trigger (for testing/admin)
+export async function triggerJob(jobName: string): Promise<boolean> {
+  const valid = JOBS.map(j => j.name);
+  if (!valid.includes(jobName as typeof valid[number])) return false;
+  await schedulerQueue.add(jobName, {}, { priority: 1 });
+  return true;
+}
+
+export { SCHEDULER_QUEUE };

@@ -25,9 +25,12 @@ import weatherRoutes       from './api/routes/weather.js';
 import siriRoutes          from './api/routes/siri.js';
 import githubRoutes        from './api/routes/github.js';
 import whatsappRoutes      from './api/routes/whatsapp.js';
+import schedulerRoutes     from './api/routes/scheduler.js';
+import widgetRoutes        from './api/routes/widget.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
+import { initScheduler }   from './queue/scheduler.js';
 import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
@@ -60,6 +63,8 @@ app.use('/api/weather',       weatherRoutes);
 app.use('/api/siri',          siriRoutes);
 app.use('/api/github',        githubRoutes);
 app.use('/api/whatsapp',      whatsappRoutes);
+app.use('/api/scheduler',     schedulerRoutes);
+app.use('/api/widget',        widgetRoutes);
 
 app.use(errorHandler);
 
@@ -139,6 +144,9 @@ pcNs.on('connection', socket => {
 });
 
 // ── Start server ──────────────────────────────────────────────
+// Start proactive scheduler
+initScheduler().catch(err => console.error('[scheduler] Init failed:', err));
+
 server.listen(env.PORT, () => {
   console.log(`\n🤖 Ibrahim backend running on port ${env.PORT}`);
   console.log(`   REST  → http://localhost:${env.PORT}/api`);
