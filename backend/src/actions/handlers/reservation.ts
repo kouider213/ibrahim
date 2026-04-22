@@ -85,14 +85,23 @@ async function createReservation(params: Record<string, unknown>): Promise<Actio
   const totalAmount = baseAmount * (1 - discountPct / 100);
 
   const { data: reservation, error } = await supabase
-    .from('reservations')
+    .from('bookings')
     .insert({
-      ...data,
-      daily_rate:   dailyRate,
-      total_amount: Math.round(totalAmount),
-      is_vip:       isVip,
-      discount_pct: discountPct,
-      created_by:   'ibrahim',
+      car_id:                data.vehicle_id,
+      client_name:           data.client_name,
+      client_phone:          data.client_phone,
+      client_email:          data.client_email,
+      start_date:            data.start_date,
+      end_date:              data.end_date,
+      nb_days:               days,
+      base_price_snapshot:   Math.round(dailyRate),
+      resale_price_snapshot: Math.round(data.daily_rate),
+      final_price:           Math.round(totalAmount),
+      profit:                Math.round(totalAmount - data.daily_rate * days),
+      notes:                 data.notes ?? `Créé par Ibrahim. ${isVip ? `VIP -${discountPct}%` : ''}`,
+      status:                'CONFIRMED',
+      whatsapp_sent:         false,
+      sms_sent:              false,
     })
     .select()
     .single();
@@ -111,7 +120,7 @@ async function updateReservation(params: Record<string, unknown>): Promise<Actio
   if (!id) return { success: false, error: 'missing_id', message: 'ID réservation requis' };
 
   const { data, error } = await supabase
-    .from('reservations')
+    .from('bookings')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
@@ -126,7 +135,7 @@ async function cancelReservation(params: Record<string, unknown>): Promise<Actio
   if (!id) return { success: false, error: 'missing_id', message: 'ID requis' };
 
   const { error } = await supabase
-    .from('reservations')
+    .from('bookings')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', id);
 
@@ -137,7 +146,7 @@ async function cancelReservation(params: Record<string, unknown>): Promise<Actio
 async function listReservations(params: Record<string, unknown>): Promise<ActionResult> {
   const { status, vehicle_id, date } = params as { status?: string; vehicle_id?: string; date?: string };
 
-  let query = supabase.from('reservations').select('*').order('start_date', { ascending: true });
+  let query = supabase.from('bookings').select('*').order('start_date', { ascending: true });
 
   if (status) query = query.eq('status', status);
   if (vehicle_id) query = query.eq('vehicle_id', vehicle_id);
