@@ -5,6 +5,7 @@ import { requestValidation } from '../validations/approver.js';
 import { saveConversationTurn } from '../integrations/supabase.js';
 import { synthesizeVoice, synthesizeVoiceStream } from '../notifications/dispatcher.js';
 import { enqueueAction } from '../queue/queue.js';
+import { executeAction } from '../actions/executor.js';
 import { supabase } from '../integrations/supabase.js';
 import type { Namespace } from 'socket.io';
 import { SOCKET_EVENTS } from '../config/constants.js';
@@ -140,6 +141,19 @@ export async function processMessage(
 
       await saveConversationTurn(sessionId, 'assistant', responseText);
       void emitAudioAsync(responseText, sessionId);
+    } else if (textOnly) {
+      // Telegram / text-only: execute synchronously, include result in response
+      const result = await executeAction({
+        action: intent.action, params: intent.params, sessionId,
+      });
+
+      const resultSystem = ctx.systemExtra
+        + `\n\nRÉSULTAT ACTION "${intent.action}": ${result.success ? '✅ SUCCÈS' : '❌ ÉCHEC'}\nMessage: ${result.message}\n${result.error ? `Erreur: ${result.error}` : ''}\nRéponds à l'utilisateur en lui confirmant ce qui a été fait (ou l'erreur).`;
+
+      responseText = await streamResponseTextOnly(sessionId, ctx.messages, resultSystem);
+      actionResult = { status: result.success ? 'done' : 'error' };
+
+      await saveConversationTurn(sessionId, 'assistant', responseText);
     } else {
       const { data: task } = await supabase.from('tasks').insert({
         title:       `${intent.action}: ${userMessage.slice(0, 80)}`,
@@ -152,9 +166,8 @@ export async function processMessage(
       const taskId = (task as { id: string } | null)?.id;
       await enqueueAction({ action: intent.action, params: intent.params, taskId, sessionId });
 
-      // Stream ack response
       const ackSystem = ctx.systemExtra + `\n\nL'action "${intent.action}" a été mise en queue (task: ${taskId ?? 'N/A'}). Confirme brièvement à l'utilisateur que tu t'en occupes.`;
-      const streamFn = textOnly ? streamResponseTextOnly : streamResponseWithAudio;
+      const streamFn = streamResponseWithAudio;
       responseText = await streamFn(sessionId, ctx.messages, ackSystem);
       actionResult = { taskId, status: 'queued' };
 
