@@ -95,8 +95,11 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
     }
 
     // Parse caption to detect type + client name
-    const caption = msg.text ?? '';
+    const caption = msg.caption ?? msg.text ?? '';
     const { docType, clientName, clientPhone, bookingNote } = parseCaption(caption);
+
+    // Ensure bucket exists
+    await supabase.storage.createBucket(BUCKET, { public: true }).catch(() => {});
 
     // Upload to Supabase Storage
     const safeName  = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');

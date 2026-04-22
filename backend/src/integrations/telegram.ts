@@ -60,7 +60,8 @@ export interface TelegramMessage {
   from:       { id: number; first_name: string; username?: string };
   chat:       { id: number; type: string };
   text?:      string;
-  photo?:     Array<{ file_id: string }>;
+  caption?:   string;
+  photo?:     Array<{ file_id: string; file_size?: number }>;
   document?:  { file_id: string; file_name?: string; mime_type?: string };
 }
 
