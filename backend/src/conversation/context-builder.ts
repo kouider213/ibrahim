@@ -1,5 +1,6 @@
 import { getConversationHistory, getActiveRules, getFleet, getBookings } from '../integrations/supabase.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
+import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { IBRAHIM } from '../config/constants.js';
 import type { Message } from '../integrations/claude-api.js';
 
@@ -24,13 +25,14 @@ export async function buildContext(
 ): Promise<ConversationContext> {
   const needsNews = /actualit|news|journal|presse|info/i.test(userMessage);
 
-  const [history, rules, fleet, allBookings, weather, news] = await Promise.all([
+  const [history, rules, fleet, allBookings, weather, news, calendarEvents] = await Promise.all([
     getConversationHistory(sessionId, 15),
     getActiveRules(),
     getFleet().catch(() => []),
     getBookings({ limit: 30 }).catch(() => []),
     getCachedWeather(),
     needsNews ? getAlgeriaNews(4).catch(() => []) : Promise.resolve([]),
+    listUpcomingEvents(15).catch(() => []),
   ]);
 
   const rulesText = rules.length > 0
@@ -82,7 +84,14 @@ export async function buildContext(
   const weatherText = weather ? `\n\n${formatWeatherForContext(weather)}` : '';
   const newsText = news && news.length > 0 ? `\n\n${formatNewsForContext(news)}` : '';
 
-  const systemExtra = rulesText + dateInfo + weatherText + fleetText + bookingsText + newsText;
+  const calendarText = calendarEvents.length > 0
+    ? `\n\nAGENDA GOOGLE (${calendarEvents.length} événements à venir):\n${calendarEvents.map(e => {
+        const start = e.start.dateTime ? new Date(e.start.dateTime).toLocaleDateString('fr-DZ', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : (e.start as unknown as {date?: string}).date ?? '';
+        return `- ${e.summary} → ${start}`;
+      }).join('\n')}`
+    : '';
+
+  const systemExtra = rulesText + dateInfo + weatherText + fleetText + bookingsText + calendarText + newsText;
 
   const messages: Message[] = [
     ...history.map(h => ({
