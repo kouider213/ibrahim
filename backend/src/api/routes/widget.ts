@@ -111,6 +111,8 @@ router.get('/embed.js', (_req, res) => {
   const backendUrl = env.BACKEND_URL;
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.send(buildWidgetScript(backendUrl));
 });
 
