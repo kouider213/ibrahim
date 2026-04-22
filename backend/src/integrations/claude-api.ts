@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 import { IBRAHIM } from '../config/constants.js';
+import { IBRAHIM_TOOLS } from './tools.js';
+import { executeTool } from './tool-executor.js';
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -16,6 +18,81 @@ export interface ClaudeResponse {
   stopReason:   string;
 }
 
+// ── Tool-use chat (agentic loop) ──────────────────────────────
+// Used by Telegram and any text-only flow.
+// Claude calls tools natively → executor hits Supabase → result back to Claude → final answer.
+export async function chatWithTools(
+  messages: Message[],
+  systemExtra?: string,
+): Promise<ClaudeResponse> {
+  const systemParts = [IBRAHIM.SYSTEM_PROMPT as string];
+  if (systemExtra) systemParts.push(systemExtra);
+  const system = systemParts.join('\n\n');
+
+  // Convert Message[] to Anthropic format
+  let apiMessages: Anthropic.MessageParam[] = messages.map(m => ({
+    role:    m.role,
+    content: m.content,
+  }));
+
+  let inputTokens  = 0;
+  let outputTokens = 0;
+  let finalText    = '';
+
+  // Agentic loop — max 5 tool rounds
+  for (let round = 0; round < 5; round++) {
+    const response = await client.messages.create({
+      model:      'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system,
+      tools:      IBRAHIM_TOOLS,
+      messages:   apiMessages,
+    });
+
+    inputTokens  += response.usage.input_tokens;
+    outputTokens += response.usage.output_tokens;
+
+    // Collect text
+    const textBlocks = response.content.filter(b => b.type === 'text');
+    finalText = textBlocks.map(b => (b as Anthropic.TextBlock).text).join('');
+
+    if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
+      return { text: finalText, inputTokens, outputTokens, stopReason: response.stop_reason };
+    }
+
+    if (response.stop_reason !== 'tool_use') {
+      return { text: finalText, inputTokens, outputTokens, stopReason: response.stop_reason ?? 'end_turn' };
+    }
+
+    // Execute tool calls
+    const toolUseBlocks = response.content.filter(b => b.type === 'tool_use') as Anthropic.ToolUseBlock[];
+    if (!toolUseBlocks.length) break;
+
+    // Add assistant turn with tool calls
+    apiMessages = [...apiMessages, { role: 'assistant', content: response.content }];
+
+    // Execute all tools and collect results
+    const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
+      toolUseBlocks.map(async (block) => {
+        console.log(`[tools] Executing: ${block.name}`, block.input);
+        const result = await executeTool(block.name, block.input as Record<string, unknown>);
+        console.log(`[tools] Result: ${result.slice(0, 200)}`);
+        return {
+          type:        'tool_result' as const,
+          tool_use_id: block.id,
+          content:     result,
+        };
+      }),
+    );
+
+    // Add tool results as user turn
+    apiMessages = [...apiMessages, { role: 'user', content: toolResults }];
+  }
+
+  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, stopReason: 'end_turn' };
+}
+
+// ── Simple chat (no tools) ────────────────────────────────────
 export async function chat(
   messages: Message[],
   systemExtra?: string,

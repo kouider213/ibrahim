@@ -3,7 +3,8 @@ import {
   sendMessage, sendTyping, setWebhook, downloadFile,
   type TelegramUpdate, type TelegramMessage,
 } from '../../integrations/telegram.js';
-import { processMessage } from '../../conversation/orchestrator.js';
+import { chatWithTools } from '../../integrations/claude-api.js';
+import { buildContext } from '../../conversation/context-builder.js';
 import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 
@@ -50,9 +51,11 @@ router.post('/webhook', async (req, res) => {
 
   try {
     await sendTyping(chatId);
-    // textOnly=true → orchestrator exécute les actions MAIS pas de voice/audio
-    const result = await processMessage(text, sessionId, true);
-    for (const chunk of splitMessage(result.text, 4000)) {
+    const ctx      = await buildContext(sessionId, text);
+    const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+    await saveConversationTurn(sessionId, 'user',      text,          { source: 'telegram' });
+    await saveConversationTurn(sessionId, 'assistant', response.text, { source: 'telegram' });
+    for (const chunk of splitMessage(response.text, 4000)) {
       await sendMessage(chatId, chunk);
     }
   } catch (err) {
