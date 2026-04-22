@@ -25,12 +25,8 @@ router.post('/', requireMobileAuth, async (req, res) => {
   try {
     const response = await processMessage(message, sessionId, textOnly);
     res.json({
-      text:          response.text,
-      audio:         response.audioBase64,
-      action:        response.action,
-      taskId:        response.taskId,
-      validationId:  response.validationId,
-      status:        response.status,
+      text:   response.text,
+      status: response.status,
     });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
