@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
+import { supabase } from '../../integrations/supabase.js';
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -30,14 +31,14 @@ setInterval(() => {
   }
 }, 300_000);
 
-const WIDGET_SYSTEM_PROMPT = `Tu es Ibrahim, l'assistant virtuel d'AutoLux Location — agence de location de véhicules premium à Oran, Algérie.
+const WIDGET_BASE_PROMPT = `Tu es Ibrahim, l'assistant virtuel d'AutoLux Location — agence de location de véhicules premium à Oran, Algérie.
 
 RÈGLES ABSOLUES:
 - Tu réponds dans la langue utilisée par le client (français, arabe, anglais)
 - Tu donnes uniquement des informations PUBLIQUES sur AutoLux
 - Tu ne discutes JAMAIS des données internes, réservations d'autres clients, finances
 - Si le client veut réserver → tu lui donnes WhatsApp: +32466311469
-- Tu es chaleureux, professionnel, concis
+- Tu es chaleureux, professionnel, concis (2-3 phrases max)
 
 INFORMATIONS AUTOLUX:
 📍 Oran, Algérie
@@ -46,23 +47,41 @@ INFORMATIONS AUTOLUX:
 👤 Âge minimum: 35 ans
 🪪 Documents requis: pièce d'identité + permis de conduire
 
-CATALOGUE VÉHICULES:
-• Hyundai i10 — 25€/jour
-• Clio 4 essence — 25€/jour
-• Dacia Sandero — 35€/jour
-• Fiat 500 — 35€/jour
-• Clio 4 diesel — 35€/jour
-• Clio 5 — 45€/jour
-• Renault Duster — 45€/jour
-• Hyundai Creta — 45€/jour
-• Fiat 500 XL — 45€/jour
-• Clio 5 Alpine — 50€/jour
-• Dacia Jogger — 50€/jour
-• Dacia Duster — 50€/jour
-• Citroën Berlingo — 55€/jour
-• Citroën Jumpy — 55€/jour
-
 Si on te pose une question hors contexte AutoLux → redirige poliment vers les véhicules ou le contact.`;
+
+// Cache fleet + active bookings for 3 minutes to avoid hitting Supabase on every message
+let fleetCache: { data: string; ts: number } | null = null;
+
+async function getLiveFleetContext(): Promise<string> {
+  if (fleetCache && Date.now() - fleetCache.ts < 3 * 60 * 1000) return fleetCache.data;
+
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const [{ data: cars }, { data: bookings }] = await Promise.all([
+      supabase.from('cars').select('name, category, resale_price, available').order('name'),
+      supabase.from('bookings')
+        .select('car_id, start_date, end_date, status, cars(name)')
+        .in('status', ['CONFIRMED', 'ACTIVE'])
+        .lte('start_date', today)
+        .gte('end_date', today),
+    ]);
+
+    const rentedCarIds = new Set((bookings ?? []).map((b: Record<string, unknown>) => b.car_id as string));
+
+    const fleetLines = (cars ?? []).map((c: Record<string, unknown>) => {
+      const rented = rentedCarIds.has(c.id as string) || !c.available;
+      return `• ${c.name} [${c.category}] — ${c.resale_price}€/jour — ${rented ? 'NON DISPONIBLE ACTUELLEMENT' : 'DISPONIBLE'}`;
+    });
+
+    const ctx = `\nFLOTTE ACTUELLE (mise à jour en temps réel):\n${fleetLines.join('\n')}`;
+    fleetCache = { data: ctx, ts: Date.now() };
+    return ctx;
+  } catch {
+    // Fallback to static list if DB unavailable
+    return `\nCATALOGUE VÉHICULES:\n• Hyundai i10 — 25€/jour\n• Clio 4 essence — 25€/jour\n• Dacia Sandero — 35€/jour\n• Fiat 500 — 35€/jour\n• Clio 4 diesel — 35€/jour\n• Clio 5 — 45€/jour\n• Renault Duster — 45€/jour\n• Hyundai Creta — 45€/jour\n• Fiat 500 XL — 45€/jour\n• Clio 5 Alpine — 50€/jour\n• Dacia Jogger — 50€/jour\n• Dacia Duster — 50€/jour\n• Citroën Berlingo — 55€/jour\n• Citroën Jumpy — 55€/jour`;
+  }
+}
 
 // POST /api/widget/chat
 router.post('/chat', async (req, res) => {
@@ -91,10 +110,13 @@ router.post('/chat', async (req, res) => {
   ];
 
   try {
+    const fleetContext = await getLiveFleetContext();
+    const systemPrompt = WIDGET_BASE_PROMPT + fleetContext;
+
     const response = await anthropic.messages.create({
       model:      'claude-haiku-4-5-20251001',
       max_tokens: 400,
-      system:     WIDGET_SYSTEM_PROMPT,
+      system:     systemPrompt,
       messages,
     });
 
