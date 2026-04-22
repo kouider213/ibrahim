@@ -1,9 +1,9 @@
 import './ChatInterface.css';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  api, connectSocket, playBase64Audio, enqueueAudioChunk, flushAudioChunks,
-  clearAudioQueue, unlockAudio, stopAudio, iosFallbackSpeak, getOrCreateSessionId,
-  isAudioPlaying,
+  api, connectSocket,
+  playBase64Audio, enqueueAudioChunk, flushAudioChunks, clearAudioQueue,
+  unlockAudio, stopAudio, iosFallbackSpeak, getOrCreateSessionId, isAudioPlaying,
   type IbrahimStatus,
 } from '../services/api.js';
 
@@ -57,6 +57,7 @@ export default function ChatInterface() {
   const recRef     = useRef<SRL | null>(null);
   const loopActive = useRef(false);
   const audioFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const elevenlabsReceivedRef = useRef(false);
 
   // ── Error display ────────────────────────────
   const showError = useCallback((msg: string) => {
@@ -84,11 +85,7 @@ export default function ChatInterface() {
       if (resp?.text) {
         setResponseText(resp.text);
         setShowResponse(true);
-        if (!window.speechSynthesis?.speaking) {
-          setTimeout(() => {
-            if (!window.speechSynthesis?.speaking) iosFallbackSpeak(resp.text);
-          }, 1500);
-        }
+        // TTS handled by socket onTextComplete
       }
     } catch {
       showError('Erreur de connexion');
@@ -175,11 +172,12 @@ export default function ChatInterface() {
     const socket = connectSocket(sessionId, {
       onStatus: (s) => {
         if (s === 'thinking') { setResponseText(''); setShowResponse(false); }
-        // Don't transition to idle while audio is still playing — wait for ibrahim:audioEnded
-        if (s === 'idle' && isAudioPlaying()) return;
+        // Don't go idle while audio is still playing
+        if (s === 'idle' && (isAudioPlaying() || window.speechSynthesis?.speaking)) return;
         applyState(toJarvis(s));
       },
       onAudio: (b64) => {
+        elevenlabsReceivedRef.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         window.speechSynthesis?.cancel();
         clearAudioQueue();
@@ -187,6 +185,7 @@ export default function ChatInterface() {
         applyState('speak');
       },
       onAudioChunk: (b64) => {
+        elevenlabsReceivedRef.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         window.speechSynthesis?.cancel();
         enqueueAudioChunk(b64);
@@ -201,26 +200,22 @@ export default function ChatInterface() {
         setShowResponse(true);
         void flushAudioChunks();
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        // Fallback: if ElevenLabs audio never arrives in 3s, use iOS TTS
-        audioFallbackTimer.current = setTimeout(() => {
-          audioFallbackTimer.current = null;
-          if (!isAudioPlaying() && window.speechSynthesis && !window.speechSynthesis.speaking) {
-            iosFallbackSpeak(text);
-            const speakDuration = Math.max(2000, text.length * 60);
-            setTimeout(() => { applyState('idle'); scheduleNextListen(); }, speakDuration);
-          }
-        }, 3000);
-      },
-      onResponse: (text, fallback) => {
-        if (fallback) {
-          if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-          iosFallbackSpeak(text);
-          setTimeout(() => {
-            applyState('idle');
-            scheduleNextListen();
-          }, Math.max(2500, text.length * 55));
+        // iOS TTS fallback only if ElevenLabs sent zero audio (API failure)
+        if (!elevenlabsReceivedRef.current) {
+          audioFallbackTimer.current = setTimeout(() => {
+            audioFallbackTimer.current = null;
+            if (!isAudioPlaying()) {
+              applyState('speak');
+              iosFallbackSpeak(text, () => {
+                applyState('idle');
+                scheduleNextListen();
+              });
+            }
+          }, 1500);
         }
+        elevenlabsReceivedRef.current = false;
       },
+      onResponse: (_text, _fallback) => {},
       onValidation: () => {
         // Validation request sent — Ibrahim already said so via audio. Resume listening after 3s.
         setTimeout(() => {
