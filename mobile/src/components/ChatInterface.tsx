@@ -174,6 +174,8 @@ export default function ChatInterface() {
     const socket = connectSocket(sessionId, {
       onStatus: (s) => {
         if (s === 'thinking') { setResponseText(''); setShowResponse(false); }
+        // Don't transition to idle while audio is still playing — wait for ibrahim:audioEnded
+        if (s === 'idle' && isAudioPlaying()) return;
         applyState(toJarvis(s));
       },
       onAudio: (b64) => {
