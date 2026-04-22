@@ -165,6 +165,8 @@ async function drainAudioQueue(): Promise<void> {
     }
   } finally {
     _audioPlaying = false;
+    // Signal component that audio finished — component uses this instead of timer guessing
+    window.dispatchEvent(new CustomEvent('ibrahim:audioEnded'));
   }
 }
 
@@ -207,6 +209,10 @@ export async function flushAudioChunks(): Promise<void> {
 export function clearAudioQueue(): void {
   _audioQueue = [];
   _pendingChunks = [];
+}
+
+export function isAudioPlaying(): boolean {
+  return _audioPlaying;
 }
 
 // Stop playback immediately (barge-in)
