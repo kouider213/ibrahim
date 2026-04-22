@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   api, connectSocket, playBase64Audio, enqueueAudioChunk, flushAudioChunks,
   clearAudioQueue, unlockAudio, stopAudio, iosFallbackSpeak, getOrCreateSessionId,
+  isAudioPlaying,
   type IbrahimStatus,
 } from '../services/api.js';
 
@@ -197,17 +198,15 @@ export default function ChatInterface() {
         setShowResponse(true);
         void flushAudioChunks();
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
+        // Fallback: if ElevenLabs audio never arrives in 3s, use iOS TTS
         audioFallbackTimer.current = setTimeout(() => {
           audioFallbackTimer.current = null;
-          if (window.speechSynthesis && !window.speechSynthesis.speaking) {
+          if (!isAudioPlaying() && window.speechSynthesis && !window.speechSynthesis.speaking) {
             iosFallbackSpeak(text);
+            const speakDuration = Math.max(2000, text.length * 60);
+            setTimeout(() => { applyState('idle'); scheduleNextListen(); }, speakDuration);
           }
-          const speakDuration = Math.max(2500, text.length * 55);
-          setTimeout(() => {
-            applyState('idle');
-            scheduleNextListen();
-          }, speakDuration);
-        }, 2500);
+        }, 3000);
       },
       onResponse: (text, fallback) => {
         if (fallback) {
@@ -223,7 +222,20 @@ export default function ChatInterface() {
       onTaskUpdate: () => {},
     });
 
-    return () => { socket.disconnect(); };
+    // When ElevenLabs audio finishes playing → go idle and relisten
+    const onAudioEnded = () => {
+      if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
+      if (loopActive.current) {
+        applyState('idle');
+        scheduleNextListen();
+      }
+    };
+    window.addEventListener('ibrahim:audioEnded', onAudioEnded);
+
+    return () => {
+      socket.disconnect();
+      window.removeEventListener('ibrahim:audioEnded', onAudioEnded);
+    };
   }, [sessionId, applyState, scheduleNextListen]);
 
   // ── Auto-start on mount ──────────────────────
