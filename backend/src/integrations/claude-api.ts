@@ -85,12 +85,31 @@ export async function detectIntent(userMessage: string, context: string): Promis
   params?: Record<string, unknown>;
   requiresValidation: boolean;
 }> {
-  const prompt = `Analyse ce message et retourne un JSON structuré.
+  const prompt = `Analyse ce message et retourne un JSON structuré pour exécuter l'action.
 
-Context: ${context}
+CONTEXTE ACTUEL (réservations, flotte, agenda):
+${context}
+
 Message utilisateur: "${userMessage}"
 
-Retourne UNIQUEMENT un JSON valide avec ces champs:
+ACTIONS DISPONIBLES:
+- update_reservation: params = { id (UUID de la réservation), + champs à modifier: client_name, end_date, start_date, car_id, final_price, rented_by, status, notes }
+- create_reservation: params = { client_name, vehicle_id, vehicle_name, start_date, end_date, daily_rate }
+- cancel_reservation: params = { id }
+- list_reservations: params = { status?, vehicle_id?, date? }
+- check_availability: params = { vehicle_id, start_date, end_date }
+- get_financial_report: params = { year?, month? }
+- set_booking_owner: params = { id, rented_by: "Kouider"|"Houari" }
+- store_document: params = { clientPhone, clientName, type, fileName, base64 }
+- read_site_file: params = { path }
+- update_site_file: params = { path, content, message? }
+- generate_tiktok: params = { topic, vehicle_name? }
+- learn_rule: params = { instruction }
+- reply_to_client: TOUJOURS requiresValidation=true
+
+IMPORTANT: Si update_reservation → trouve l'ID UUID dans le contexte en cherchant par nom client ou véhicule mentionné.
+
+Retourne UNIQUEMENT un JSON valide:
 {
   "intent": "reservation|content_generation|pc_command|query|conversation|rule_learning",
   "action": "action_name_or_null",

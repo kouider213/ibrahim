@@ -117,12 +117,13 @@ export async function processMessage(
 ): Promise<OrchestratorResponse> {
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
 
-  // Run DB save, context building, and intent detection all in parallel
-  const [ctx, intent] = await Promise.all([
+  // Build context first — intent detection needs booking IDs to generate correct params
+  const [ctx] = await Promise.all([
     buildContext(sessionId, userMessage),
-    analyzeMessage(userMessage, `Session: ${sessionId}`),
     saveConversationTurn(sessionId, 'user', userMessage),
-  ]) as [Awaited<ReturnType<typeof buildContext>>, Awaited<ReturnType<typeof analyzeMessage>>, unknown];
+  ]);
+
+  const intent = await analyzeMessage(userMessage, ctx.systemExtra);
 
   let responseText: string;
   let actionResult: { taskId?: string; validationId?: string; status: OrchestratorResponse['status'] } = { status: 'done' };
