@@ -237,13 +237,23 @@ function cleanForSpeech(text: string): string {
     .trim();
 }
 
-export function iosFallbackSpeak(text: string): void {
-  const utterance = new SpeechSynthesisUtterance(cleanForSpeech(text));
-  utterance.lang  = 'fr-FR';
-  utterance.rate  = 1.0;
-  utterance.pitch = 1.0;
+export function iosFallbackSpeak(text: string, onComplete?: () => void): void {
   window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+  const cleaned = cleanForSpeech(text);
+  // iOS Safari truncates utterances >~220 chars — split into sentence chunks and chain
+  const chunks = cleaned.match(/[^.!?…:;]+[.!?…:;]*/g)?.filter(s => s.trim().length > 0) ?? [cleaned];
+  let i = 0;
+  function speakNext() {
+    if (i >= chunks.length) { onComplete?.(); return; }
+    const utt = new SpeechSynthesisUtterance(chunks[i++]!.trim());
+    utt.lang  = 'fr-FR';
+    utt.rate  = 1.0;
+    utt.pitch = 1.0;
+    utt.onend = speakNext;
+    utt.onerror = () => { onComplete?.(); };
+    window.speechSynthesis.speak(utt);
+  }
+  speakNext();
 }
 
 // ── Session ───────────────────────────────────────────────────
