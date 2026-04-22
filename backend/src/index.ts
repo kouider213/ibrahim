@@ -27,6 +27,8 @@ import githubRoutes        from './api/routes/github.js';
 import whatsappRoutes      from './api/routes/whatsapp.js';
 import schedulerRoutes     from './api/routes/scheduler.js';
 import widgetRoutes        from './api/routes/widget.js';
+import financeRoutes       from './api/routes/finance.js';
+import documentsRoutes     from './api/routes/documents.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -65,6 +67,8 @@ app.use('/api/github',        githubRoutes);
 app.use('/api/whatsapp',      whatsappRoutes);
 app.use('/api/scheduler',     schedulerRoutes);
 app.use('/api/widget',        widgetRoutes);
+app.use('/api/finance',       financeRoutes);
+app.use('/api/documents',     documentsRoutes);
 
 app.use(errorHandler);
 

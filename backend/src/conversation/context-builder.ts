@@ -1,6 +1,8 @@
 import { getConversationHistory, getActiveRules, getFleet, getBookings } from '../integrations/supabase.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
+import { getFinancialReport } from '../integrations/finance.js';
+import { formatPricingTable } from '../config/pricing.js';
 import { IBRAHIM } from '../config/constants.js';
 import type { Message } from '../integrations/claude-api.js';
 
@@ -23,9 +25,11 @@ export async function buildContext(
   sessionId: string,
   userMessage: string,
 ): Promise<ConversationContext> {
-  const needsNews = /actualit|news|journal|presse|info/i.test(userMessage);
+  const needsNews    = /actualit|news|journal|presse|info/i.test(userMessage);
+  const needsFinance = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
 
-  const [history, rules, fleet, allBookings, weather, news, calendarEvents] = await Promise.all([
+  const now = new Date();
+  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport] = await Promise.all([
     getConversationHistory(sessionId, 15),
     getActiveRules(),
     getFleet().catch(() => []),
@@ -33,6 +37,7 @@ export async function buildContext(
     getCachedWeather(),
     needsNews ? getAlgeriaNews(4).catch(() => []) : Promise.resolve([]),
     listUpcomingEvents(15).catch(() => []),
+    needsFinance ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null) : Promise.resolve(null),
   ]);
 
   const rulesText = rules.length > 0
@@ -54,13 +59,9 @@ export async function buildContext(
     b.start_date > today,
   );
 
-  // Build set of car_ids currently occupied
-  const occupiedCarIds = new Set(activeRentals.map(b => b.car_id));
-
   const fleetText = fleet.length > 0
     ? `\n\nFLOTTE (${fleet.length} véhicules):\n${fleet.map(c => {
         const rental = activeRentals.find(b => b.car_id === c.id);
-        const busy = occupiedCarIds.has(c.id) || !c.available;
         const status = rental
           ? `EN LOCATION → ${rental.client_name} jusqu'au ${rental.end_date}`
           : c.available ? 'DISPONIBLE' : 'INDISPONIBLE';
@@ -84,6 +85,12 @@ export async function buildContext(
   const weatherText = weather ? `\n\n${formatWeatherForContext(weather)}` : '';
   const newsText = news && news.length > 0 ? `\n\n${formatNewsForContext(news)}` : '';
 
+  const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;
+
+  const financeText = financeReport
+    ? `\n\nRAPPORT FINANCIER ${financeReport.period}:\n- Réservations: ${financeReport.totalBookings} (Kouider: ${financeReport.kouiderBookings} | Houari: ${financeReport.houariBookings})\n- Bénéfice Kouider ce mois: ${financeReport.kouiderProfit}€\n- Revenu Houari ce mois: ${financeReport.houariRevenue}€\nRÈGLE: Quand Kouider loue → bénéfice = K - H par jour. Quand Houari loue → 100% pour Houari.`
+    : '';
+
   const calendarText = calendarEvents.length > 0
     ? `\n\nAGENDA GOOGLE (${calendarEvents.length} événements à venir):\n${calendarEvents.map(e => {
         const start = e.start.dateTime ? new Date(e.start.dateTime).toLocaleDateString('fr-DZ', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : (e.start as unknown as {date?: string}).date ?? '';
@@ -91,7 +98,7 @@ export async function buildContext(
       }).join('\n')}`
     : '';
 
-  const systemExtra = rulesText + dateInfo + weatherText + fleetText + bookingsText + calendarText + newsText;
+  const systemExtra = rulesText + dateInfo + weatherText + fleetText + bookingsText + calendarText + pricingText + financeText + newsText;
 
   const messages: Message[] = [
     ...history.map(h => ({

@@ -2,13 +2,14 @@
   "name": "Ibrahim — Fik Conciergerie",
   "short_name": "Ibrahim",
   "description": "Assistant business IA vocal pour Fik Conciergerie",
-  "start_url": "/",
+  "start_url": "/ibrahim/",
+  "scope": "/ibrahim/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#05070a",
+  "theme_color": "#05070a",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/ibrahim/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/ibrahim/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

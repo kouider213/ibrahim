@@ -98,6 +98,44 @@ const actions: ActionDefinition[] = [
     requiresValidation: false,
     handler:            'reservation',
   },
+  // Finance
+  {
+    name:               'get_financial_report',
+    category:           'query',
+    description:        'Rapport financier mensuel — bénéfice Kouider, revenu Houari',
+    requiresValidation: false,
+    handler:            'finance',
+  },
+  {
+    name:               'set_booking_owner',
+    category:           'reservation',
+    description:        'Attribuer une réservation à Kouider ou Houari',
+    requiresValidation: false,
+    handler:            'finance',
+  },
+  // Documents
+  {
+    name:               'store_document',
+    category:           'query',
+    description:        'Stocker document client (passeport, permis, contrat) dans Supabase Storage',
+    requiresValidation: false,
+    handler:            'finance',
+  },
+  // Site Autolux
+  {
+    name:               'read_site_file',
+    category:           'query',
+    description:        'Lire un fichier du site autolux-location sur GitHub',
+    requiresValidation: false,
+    handler:            'finance',
+  },
+  {
+    name:               'update_site_file',
+    category:           'content',
+    description:        'Modifier un fichier du site autolux-location via GitHub → Vercel',
+    requiresValidation: false,
+    handler:            'finance',
+  },
 ];
 
 const registry = new Map<string, ActionDefinition>(

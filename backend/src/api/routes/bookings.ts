@@ -85,6 +85,50 @@ router.post('/', requireMobileAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/bookings/:id — full update (client_name, dates, vehicle, amount, rented_by, etc.)
+router.patch('/:id', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const updates = req.body as Record<string, unknown>;
+
+  if (!id) {
+    res.status(400).json({ error: 'id required' });
+    return;
+  }
+
+  // Sanitize: never allow changing id or created_at
+  const { id: _id, created_at: _ca, ...safeUpdates } = updates as Record<string, unknown>;
+  safeUpdates['updated_at'] = new Date().toISOString();
+
+  // If dates changed, re-check availability
+  if (safeUpdates['start_date'] || safeUpdates['end_date']) {
+    const { data: current } = await supabase.from('bookings').select('car_id, start_date, end_date').eq('id', id).single();
+    if (current) {
+      const carId = (safeUpdates['car_id'] ?? (current as { car_id: string }).car_id) as string;
+      const start = (safeUpdates['start_date'] ?? (current as { start_date: string }).start_date) as string;
+      const end   = (safeUpdates['end_date']   ?? (current as { end_date: string }).end_date) as string;
+      const avail = await checkCarAvailability(carId, start, end, id);
+      if (!avail) {
+        res.status(409).json({ error: `Véhicule non disponible du ${start} au ${end}` });
+        return;
+      }
+    }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update(safeUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    res.json({ booking: data, message: 'Réservation mise à jour' });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // PATCH /api/bookings/:id/status — update booking status
 router.patch('/:id/status', requireMobileAuth, async (req, res) => {
   const { id } = req.params as { id: string };
