@@ -29,6 +29,7 @@ import schedulerRoutes     from './api/routes/scheduler.js';
 import widgetRoutes        from './api/routes/widget.js';
 import financeRoutes       from './api/routes/finance.js';
 import documentsRoutes     from './api/routes/documents.js';
+import telegramRoutes      from './api/routes/telegram.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -69,6 +70,7 @@ app.use('/api/scheduler',     schedulerRoutes);
 app.use('/api/widget',        widgetRoutes);
 app.use('/api/finance',       financeRoutes);
 app.use('/api/documents',     documentsRoutes);
+app.use('/api/telegram',      telegramRoutes);
 
 app.use(errorHandler);
 

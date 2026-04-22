@@ -31,8 +31,17 @@ CREATE TABLE IF NOT EXISTS client_documents (
 
 -- 4. RLS policies pour client_documents
 ALTER TABLE client_documents ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Service role full access on client_documents"
-  ON client_documents FOR ALL TO service_role USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'client_documents'
+      AND policyname = 'Service role full access on client_documents'
+  ) THEN
+    CREATE POLICY "Service role full access on client_documents"
+      ON client_documents FOR ALL TO service_role USING (true);
+  END IF;
+END $$;
 
 -- 5. Seed pricing table
 INSERT INTO pricing (vehicle_name, houari_price, kouider_price) VALUES
