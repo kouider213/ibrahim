@@ -50,7 +50,7 @@ app.use(requestLogger);
 
 // Health check
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'ibrahim', time: new Date().toISOString() });
+  res.json({ status: 'ok', service: 'ibrahim', version: '2.0-chatWithTools', time: new Date().toISOString() });
 });
 
 // API routes
