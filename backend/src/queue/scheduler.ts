@@ -1,6 +1,7 @@
 import { Queue, Worker, type Job } from 'bullmq';
 import { redis } from './queue.js';
 import {
+  jobMorningBriefing,
   jobEndRentalReminder,
   jobIdleVehicleAlert,
   jobTikTokSuggestion,
@@ -13,6 +14,11 @@ const SCHEDULER_QUEUE = 'ibrahim-scheduler';
 export const schedulerQueue = new Queue(SCHEDULER_QUEUE, { connection: redis });
 
 const JOBS = [
+  {
+    name:  'morning-briefing',
+    cron:  '30 7 * * *',        // 7h30 chaque matin (Africa/Algiers)
+    tz:    'Africa/Algiers',
+  },
   {
     name:  'end-rental-reminder',
     cron:  '0 9 * * *',        // 9h chaque jour (Africa/Algiers = UTC+1)
@@ -41,6 +47,7 @@ const JOBS = [
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
+  'morning-briefing':    jobMorningBriefing,
   'end-rental-reminder': jobEndRentalReminder,
   'idle-vehicle-alert':  jobIdleVehicleAlert,
   'tiktok-suggestion':   jobTikTokSuggestion,
