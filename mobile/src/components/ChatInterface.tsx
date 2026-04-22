@@ -49,6 +49,7 @@ export default function ChatInterface() {
   const [utcTime,      setUtcTime]      = useState('--:--:--');
   const [errorMsg,     setErrorMsg]     = useState('');
   const [errorVisible, setErrorVisible] = useState(false);
+  const [started,      setStarted]      = useState(false); // requires tap to unlock iOS mic
 
   const stateRef   = useRef<JarvisState>('idle');
   const sending    = useRef(false);
@@ -220,7 +221,12 @@ export default function ChatInterface() {
           }, Math.max(2500, text.length * 55));
         }
       },
-      onValidation: () => {},
+      onValidation: () => {
+        // Validation request sent — Ibrahim already said so via audio. Resume listening after 3s.
+        setTimeout(() => {
+          if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
+        }, 3000);
+      },
       onTaskUpdate: () => {},
     });
 
@@ -240,27 +246,50 @@ export default function ChatInterface() {
     };
   }, [sessionId, applyState, scheduleNextListen]);
 
-  // ── Auto-start on mount ──────────────────────
-  useEffect(() => {
+  // ── Tap orb to start (required for iOS mic unlock) ──────────
+  const handleOrbTap = useCallback(() => {
+    if (started) {
+      // Already running — tap stops/restarts listening
+      if (stateRef.current === 'listen') {
+        recRef.current?.stop();
+        applyState('idle');
+      } else if (stateRef.current === 'idle') {
+        startListening();
+      }
+      return;
+    }
+    // First tap: unlock audio + speak local greeting + start loop
+    setStarted(true);
     loopActive.current = true;
+    unlockAudio();
 
-    // Greet Kouider after short delay then start listening
-    const greetTimer = setTimeout(() => {
-      // Trigger greeting via Ibrahim
-      void sendText('Bonjour Ibrahim, démarre automatiquement.');
-    }, 800);
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Bonjour Kouider' : hour < 18 ? 'Bon après-midi Kouider' : 'Bonsoir Kouider';
+    const greetText = `${greeting}, Ibrahim est prêt. Je vous écoute.`;
 
+    applyState('speak');
+    setResponseText(greetText);
+    setShowResponse(true);
+    iosFallbackSpeak(greetText);
+
+    setTimeout(() => {
+      applyState('idle');
+      scheduleNextListen();
+    }, Math.max(2500, greetText.length * 65));
+  }, [started, applyState, startListening, scheduleNextListen]);
+
+  // ── Cleanup on unmount ────────────────────────
+  useEffect(() => {
     return () => {
       loopActive.current = false;
-      clearTimeout(greetTimer);
       recRef.current?.stop();
       if (audioFallbackTimer.current) clearTimeout(audioFallbackTimer.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── After Ibrahim finishes speaking → relisten ──
+  // ── After Ibrahim finishes speaking → relisten (only when started) ──
   useEffect(() => {
-    if (state === 'idle' && loopActive.current) {
+    if (state === 'idle' && loopActive.current && started) {
       const t = setTimeout(() => {
         if (stateRef.current === 'idle' && loopActive.current) {
           startListening();
@@ -268,7 +297,7 @@ export default function ChatInterface() {
       }, 1500);
       return () => clearTimeout(t);
     }
-  }, [state, startListening]);
+  }, [state, startListening, started]);
 
   // ── Clock ────────────────────────────────────
   useEffect(() => {
@@ -320,16 +349,16 @@ export default function ChatInterface() {
         <div className="listen-ring" />
         <div className="listen-ring" />
 
-        {/* Main orb */}
-        <div className="orb">
+        {/* Main orb — tap to start / toggle */}
+        <div className="orb" onClick={handleOrbTap} style={{ cursor: 'pointer' }}>
           <div className="orb-inner">
-            <span className="orb-symbol">{ORB_ICON[state]}</span>
+            <span className="orb-symbol">{started ? ORB_ICON[state] : '▶'}</span>
           </div>
         </div>
 
         {/* Caption */}
         <div className="jarvis-caption">
-          <div className="jarvis-caption-text">{CAPTION[state]}</div>
+          <div className="jarvis-caption-text">{started ? CAPTION[state] : 'APPUYER POUR DÉMARRER'}</div>
         </div>
       </div>
 
