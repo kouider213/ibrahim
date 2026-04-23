@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#05070a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ibrahim" />
+    <title>Ibrahim — Fik Conciergerie</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/ibrahim/manifest.json" />
+    <link rel="apple-touch-icon" href="/ibrahim/icon-192.png" />
+    <style>
+      *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #05070a;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: none;
+      }
+
+      #root {
+        /* Use JS-set --app-h so iOS Safari gets the real inner height */
+        width: 100%;
+        height: var(--app-h, 100vh);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: #05070a;
+      }
+    </style>
+
+    <!-- iOS Safari real viewport height fix -->
+    <script>
+      (function () {
+        function setH() {
+          document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
+        }
+        setH();
+        window.addEventListener('resize', setH);
+        window.addEventListener('orientationchange', function () { setTimeout(setH, 100); });
+      })();
+    </script>
+    <script type="module" crossorigin src="/ibrahim/assets/index-C3NWWCti.js"></script>
+    <link rel="stylesheet" crossorigin href="/ibrahim/assets/index-DreUtvtP.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
