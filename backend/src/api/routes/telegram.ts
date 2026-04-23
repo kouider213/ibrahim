@@ -59,8 +59,9 @@ router.post('/webhook', async (req, res) => {
       await sendMessage(chatId, chunk);
     }
   } catch (err) {
-    console.error('[telegram] Error:', err instanceof Error ? err.message : String(err));
-    await sendMessage(chatId, '⚠️ Erreur, réessaie dans un instant.');
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[telegram] Error:', msg);
+    await sendMessage(chatId, `⚠️ Erreur: ${msg.slice(0, 300)}`);
   }
 });
 
