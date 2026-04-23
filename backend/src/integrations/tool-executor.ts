@@ -89,22 +89,25 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
 }
 
 async function createBooking(input: Record<string, unknown>): Promise<string> {
-  const { car_id, client_name, client_phone, client_age, start_date, end_date, final_price, notes, rented_by } = input as {
-    car_id: string; client_name: string; client_phone?: string; client_age: number;
+  const { car_id, client_name, client_phone, client_age, start_date, end_date, final_price, notes, rented_by, status } = input as {
+    car_id: string; client_name: string; client_phone?: string; client_age?: number;
     start_date: string; end_date: string; final_price: number;
-    notes?: string; rented_by?: string;
+    notes?: string; rented_by?: string; status?: string;
   };
 
-  const days = Math.ceil((new Date(end_date).getTime() - new Date(start_date).getTime()) / 86_400_000);
+  const validStatuses = ['PENDING','CONFIRMED','ACTIVE','COMPLETED','REJECTED'];
+  const bookingStatus = status && validStatuses.includes(status) ? status : 'CONFIRMED';
+
+  const days = Math.max(1, Math.ceil((new Date(end_date).getTime() - new Date(start_date).getTime()) / 86_400_000));
 
   const { data, error } = await supabase.from('bookings').insert({
-    car_id, client_name, client_phone, client_age, start_date, end_date,
+    car_id, client_name, client_phone, client_age: client_age ?? null, start_date, end_date,
     nb_days:               days,
     final_price,
     base_price_snapshot:   final_price,
     resale_price_snapshot: final_price,
     profit:                0,
-    status:                'CONFIRMED',
+    status:                bookingStatus,
     rented_by:             rented_by ?? 'Kouider',
     notes,
     whatsapp_sent: false,

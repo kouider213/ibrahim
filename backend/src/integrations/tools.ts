@@ -48,8 +48,9 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
         final_price: { type: 'number' },
         notes:       { type: 'string' },
         rented_by:   { type: 'string', enum: ['Kouider','Houari'], description: 'Défaut: Kouider' },
+        status:      { type: 'string', enum: ['PENDING','CONFIRMED','ACTIVE','COMPLETED','REJECTED'], description: 'Défaut: CONFIRMED. Utiliser COMPLETED pour les anciennes réservations terminées.' },
       },
-      required: ['car_id','client_name','client_age','start_date','end_date','final_price'],
+      required: ['car_id','client_name','start_date','end_date','final_price'],
     },
   },
   {
