@@ -70,8 +70,8 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
 }
 
 async function createBooking(input: Record<string, unknown>): Promise<string> {
-  const { car_id, client_name, client_phone, start_date, end_date, final_price, notes, rented_by } = input as {
-    car_id: string; client_name: string; client_phone?: string;
+  const { car_id, client_name, client_phone, client_age, start_date, end_date, final_price, notes, rented_by } = input as {
+    car_id: string; client_name: string; client_phone?: string; client_age: number;
     start_date: string; end_date: string; final_price: number;
     notes?: string; rented_by?: string;
   };
@@ -79,7 +79,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const days = Math.ceil((new Date(end_date).getTime() - new Date(start_date).getTime()) / 86_400_000);
 
   const { data, error } = await supabase.from('bookings').insert({
-    car_id, client_name, client_phone, start_date, end_date,
+    car_id, client_name, client_phone, client_age, start_date, end_date,
     nb_days:               days,
     final_price,
     base_price_snapshot:   final_price,
