@@ -30,8 +30,8 @@ export async function buildContext(
 
   const now = new Date();
   const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories] = await Promise.all([
-    getConversationHistory(sessionId, 15),
-    getActiveRules(),
+    getConversationHistory(sessionId, 15).catch(() => []),
+    getActiveRules().catch(() => []),
     getFleet().catch(() => []),
     getBookings({ limit: 30 }).catch(() => []),
     getCachedWeather(),
