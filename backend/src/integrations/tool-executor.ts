@@ -13,6 +13,7 @@ export async function executeTool(
       case 'update_booking':      return await updateBooking(input);
       case 'create_booking':      return await createBooking(input);
       case 'cancel_booking':      return await cancelBooking(input);
+      case 'delete_booking':      return await deleteBooking(input);
       case 'get_financial_report':return await financialReport(input);
       case 'store_document':      return await storeDocument(input);
       case 'read_site_file':      return await readSiteFile(input);
@@ -107,6 +108,19 @@ async function cancelBooking(input: Record<string, unknown>): Promise<string> {
 
   if (error) return `Erreur annulation: ${error.message}`;
   return `✅ Réservation ${id.slice(0,8)} annulée.`;
+}
+
+async function deleteBooking(input: Record<string, unknown>): Promise<string> {
+  const { id } = input as { id: string };
+  if (!id) return 'Erreur: id obligatoire';
+
+  const { error } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('id', id);
+
+  if (error) return `Erreur suppression: ${error.message}`;
+  return `✅ Réservation ${id.slice(0,8)} supprimée définitivement.`;
 }
 
 async function financialReport(input: Record<string, unknown>): Promise<string> {

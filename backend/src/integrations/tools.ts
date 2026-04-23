@@ -64,6 +64,17 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'delete_booking',
+    description: 'Supprimer définitivement une réservation de Supabase (DELETE). Utiliser pour effacer les réservations annulées/rejetées.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        id: { type: 'string', description: 'UUID de la réservation à supprimer' },
+      },
+      required: ['id'],
+    },
+  },
+  {
     name: 'get_financial_report',
     description: 'Rapport financier: bénéfice Kouider et revenu Houari par mois/année.',
     input_schema: {
