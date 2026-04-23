@@ -56,11 +56,6 @@ async function createReservation(params: Record<string, unknown>): Promise<Actio
     return { success: false, error: 'min_duration', message: `La durée minimale est de ${BUSINESS_RULES.MIN_RENTAL_DAYS} jours.` };
   }
 
-  // Business rule: no delivery on Friday
-  if (start.getDay() === BUSINESS_RULES.NO_DELIVERY_DAY && data.pickup_location !== 'agency') {
-    return { success: false, error: 'no_friday_delivery', message: 'Pas de livraison le vendredi. Choisissez un autre jour de prise en charge.' };
-  }
-
   // Check vehicle availability (anti-duplicate)
   const available = await checkVehicleAvailability(data.vehicle_id, data.start_date, data.end_date);
   if (!available) {
@@ -75,11 +70,7 @@ async function createReservation(params: Record<string, unknown>): Promise<Actio
     if (isVip) discountPct = BUSINESS_RULES.VIP_DISCOUNT_PCT;
   }
 
-  // Airport surcharge
-  let dailyRate = data.daily_rate;
-  if (data.pickup_location === BUSINESS_RULES.AIRPORT_CODE || data.return_location === BUSINESS_RULES.AIRPORT_CODE) {
-    dailyRate += BUSINESS_RULES.AIRPORT_SURCHARGE_DZD / days;
-  }
+  const dailyRate = data.daily_rate;
 
   const baseAmount = dailyRate * days;
   const totalAmount = baseAmount * (1 - discountPct / 100);

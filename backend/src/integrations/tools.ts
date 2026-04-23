@@ -136,4 +136,48 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       required: ['instruction'],
     },
   },
+  {
+    name: 'remember_info',
+    description: 'Mémoriser une information dans la mémoire permanente ibrahim_memory. Utiliser quand Kouider dit "souviens-toi que..." ou "apprends que...".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        content:  { type: 'string', description: 'L\'information à retenir' },
+        category: { type: 'string', description: 'Catégorie: personal, business, rule, preference, fact' },
+      },
+      required: ['content'],
+    },
+  },
+  {
+    name: 'recall_memory',
+    description: 'Rechercher dans la mémoire permanente d\'Ibrahim.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query:    { type: 'string', description: 'Recherche dans la mémoire' },
+        category: { type: 'string', description: 'Filtrer par catégorie' },
+      },
+    },
+  },
+  {
+    name: 'get_weather',
+    description: 'Obtenir la météo pour n\'importe quelle ville du monde.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        city:    { type: 'string', description: 'Nom de la ville (ex: Paris, Alger, Dubai)' },
+        country: { type: 'string', description: 'Pays optionnel pour précision' },
+      },
+    },
+  },
+  {
+    name: 'get_news',
+    description: 'Obtenir les actualités récentes d\'Algérie ou du monde.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        source: { type: 'string', enum: ['algerie', 'monde'], description: 'Source: algerie (défaut) ou monde' },
+      },
+    },
+  },
 ];

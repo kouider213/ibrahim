@@ -7,6 +7,7 @@ import {
   jobTikTokSuggestion,
   jobUnpaidReminder,
   jobWeeklyReport,
+  jobPatternDetection,
 } from './jobs/proactive-jobs.js';
 
 const SCHEDULER_QUEUE = 'ibrahim-scheduler';
@@ -44,6 +45,11 @@ const JOBS = [
     cron:  '0 8 * * 1',        // 8h chaque lundi
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'pattern-detection',
+    cron:  '30 8 * * 1',       // 8h30 chaque lundi (après rapport hebdo)
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -53,6 +59,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'tiktok-suggestion':   jobTikTokSuggestion,
   'unpaid-reminder':     jobUnpaidReminder,
   'weekly-report':       jobWeeklyReport,
+  'pattern-detection':   jobPatternDetection,
 };
 
 export async function initScheduler(): Promise<void> {

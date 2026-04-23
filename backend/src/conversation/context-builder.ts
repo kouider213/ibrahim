@@ -1,4 +1,4 @@
-import { getConversationHistory, getActiveRules, getFleet, getBookings } from '../integrations/supabase.js';
+import { getConversationHistory, getActiveRules, getFleet, getBookings, supabase } from '../integrations/supabase.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
@@ -29,7 +29,7 @@ export async function buildContext(
   const needsFinance = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
 
   const now = new Date();
-  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport] = await Promise.all([
+  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories] = await Promise.all([
     getConversationHistory(sessionId, 15),
     getActiveRules(),
     getFleet().catch(() => []),
@@ -38,15 +38,23 @@ export async function buildContext(
     needsNews ? getAlgeriaNews(4).catch(() => []) : Promise.resolve([]),
     listUpcomingEvents(15).catch(() => []),
     needsFinance ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null) : Promise.resolve(null),
+    (async () => { const r = await supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(30); return r.data ?? []; })().catch(() => []),
   ]);
 
   const rulesText = rules.length > 0
     ? `\n\nRÈGLES MÉTIER ACTIVES:\n${rules.map(r => `- [${r.category}] ${r.rule}`).join('\n')}`
     : '';
 
-  const dateInfo = `\n\nDate actuelle: ${new Date().toLocaleDateString('fr-DZ', {
+  const hour = now.getHours();
+  const timeContext = hour < 12
+    ? 'PÉRIODE: Matin — ton énergique, propose résumé du jour si pertinent.'
+    : hour < 18
+    ? 'PÉRIODE: Après-midi — ton normal et professionnel.'
+    : 'PÉRIODE: Soir — ton calme, propose résumé journée si Kouider salue.';
+
+  const dateInfo = `\n\nDate: ${new Date().toLocaleDateString('fr-DZ', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  })}`;
+  })} | Heure Oran: ${String(hour).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')} | ${timeContext}`;
 
   // Active rentals: cars currently booked (CONFIRMED or ACTIVE)
   const today = new Date().toISOString().slice(0, 10);
@@ -98,7 +106,11 @@ export async function buildContext(
       }).join('\n')}`
     : '';
 
-  const systemExtra = rulesText + dateInfo + weatherText + fleetText + bookingsText + calendarText + pricingText + financeText + newsText;
+  const memoryText = (memories as Array<{ content: string; category: string }>).length > 0
+    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as Array<{ content: string; category: string }>).map(m => `[${m.category}] ${m.content}`).join('\n')}`
+    : '';
+
+  const systemExtra = memoryText + rulesText + dateInfo + weatherText + fleetText + bookingsText + calendarText + pricingText + financeText + newsText;
 
   const messages: Message[] = [
     ...history.map(h => ({

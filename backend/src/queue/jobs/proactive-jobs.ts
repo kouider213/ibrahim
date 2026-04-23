@@ -134,7 +134,7 @@ function getDailyTip(dayOfWeek: number, activeCount: number, upcomingCount: numb
     return 'Aucune réservation — bonne journée pour publier un TikTok ou contacter d\'anciens clients.';
   }
   if (dayOfWeek === 1) return 'Début de semaine — vérifie les docs de tous les clients en cours.';
-  if (dayOfWeek === 5) return 'Vendredi — pas de livraison, appelle les clients qui reviennent lundi.';
+  if (dayOfWeek === 5) return 'Vendredi — vérifie les retours prévus ce week-end.';
   if (dayOfWeek === 0) return 'Dimanche — bon moment pour planifier la semaine avec Ibrahim.';
   return '';
 }
@@ -263,4 +263,73 @@ export async function jobWeeklyReport(_job: Job): Promise<void> {
   await tg(report);
   await notifyOwner('📊 Rapport hebdomadaire', report, false);
   console.log('[job:weekly-report] sent');
+}
+
+// ── 6. Détection patterns (lundi avec rapport hebdo) ─────────
+export async function jobPatternDetection(_job: Job): Promise<void> {
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('client_name, client_phone, car_id, start_date, status, cars(name)')
+    .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+    .gte('start_date', threeMonthsAgo.toISOString().slice(0, 10));
+
+  if (!bookings?.length) return;
+
+  const all = bookings as unknown as Array<{
+    client_name: string; client_phone?: string; car_id: string;
+    start_date: string; cars?: { name: string };
+  }>;
+
+  // Pattern 1: clients qui louent en juillet
+  const julyBookers: Record<string, number> = {};
+  for (const b of all) {
+    if (new Date(b.start_date).getMonth() === 6) {
+      julyBookers[b.client_name] = (julyBookers[b.client_name] ?? 0) + 1;
+    }
+  }
+
+  // Pattern 2: véhicules demandés le week-end
+  const weekendCars: Record<string, number> = {};
+  for (const b of all) {
+    const day = new Date(b.start_date).getDay();
+    if (day === 5 || day === 6 || day === 0) {
+      const car = b.cars?.name ?? b.car_id;
+      weekendCars[car] = (weekendCars[car] ?? 0) + 1;
+    }
+  }
+
+  // Pattern 3: jours les plus actifs
+  const dayCount: Record<number, number> = {};
+  for (const b of all) {
+    const day = new Date(b.start_date).getDay();
+    dayCount[day] = (dayCount[day] ?? 0) + 1;
+  }
+  const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const topDay = Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0];
+
+  const lines: string[] = ['📈 *Patterns détectés (3 derniers mois):*', ''];
+
+  const topJuly = Object.entries(julyBookers).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (topJuly.length) {
+    lines.push('🏖 *Clients récurrents juillet:*');
+    topJuly.forEach(([name, count]) => lines.push(`  • ${name}: ${count} location(s)`));
+    lines.push('');
+  }
+
+  const topWeekend = Object.entries(weekendCars).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  if (topWeekend.length) {
+    lines.push('🗓 *Véhicules les plus demandés le week-end:*');
+    topWeekend.forEach(([car, count]) => lines.push(`  • ${car}: ${count}x`));
+    lines.push('');
+  }
+
+  if (topDay) {
+    lines.push(`📅 *Jour le plus actif:* ${dayNames[Number(topDay[0])]} (${topDay[1]} réservations)`);
+  }
+
+  await tg(lines.join('\n'));
+  console.log('[job:pattern-detection] sent');
 }
