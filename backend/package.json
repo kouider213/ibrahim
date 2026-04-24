@@ -14,6 +14,7 @@
     "@supabase/supabase-js": "^2.49.4",
     "axios": "^1.8.4",
     "bullmq": "^5.34.6",
+    "cloudinary": "^2.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.21.2",
