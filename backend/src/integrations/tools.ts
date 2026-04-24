@@ -181,4 +181,76 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+
+  // ── Outils développement autonome ────────────────────────────
+
+  {
+    name: 'github_read_file',
+    description: 'Lire un fichier depuis n\'importe quel repo GitHub (ibrahim, autolux-location, fik-conciergerie). Utiliser pour lire le code source d\'Ibrahim avant de le modifier.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        repo: { type: 'string', description: 'Nom du repo: ibrahim, autolux-location, ou fik-conciergerie' },
+        path: { type: 'string', description: 'Chemin du fichier ex: backend/src/config/constants.ts' },
+      },
+      required: ['repo', 'path'],
+    },
+  },
+  {
+    name: 'github_write_file',
+    description: 'Créer ou modifier un fichier dans un repo GitHub. Pour le repo ibrahim → Railway redéploie automatiquement en 2-3 min. Envoyer le contenu COMPLET du fichier.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        repo:    { type: 'string', description: 'Nom du repo: ibrahim, autolux-location, ou fik-conciergerie' },
+        path:    { type: 'string', description: 'Chemin du fichier ex: backend/src/integrations/tools.ts' },
+        content: { type: 'string', description: 'Contenu COMPLET du fichier (pas de diff, tout le fichier)' },
+        message: { type: 'string', description: 'Message de commit (ex: "feat: add booking export tool")' },
+      },
+      required: ['repo', 'path', 'content'],
+    },
+  },
+  {
+    name: 'github_list_files',
+    description: 'Lister les fichiers/dossiers dans un répertoire d\'un repo GitHub. Utiliser pour naviguer dans le codebase avant de lire/modifier des fichiers.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        repo: { type: 'string', description: 'Nom du repo: ibrahim, autolux-location, ou fik-conciergerie' },
+        path: { type: 'string', description: 'Chemin du dossier (vide pour racine). Ex: backend/src/integrations' },
+      },
+      required: ['repo'],
+    },
+  },
+  {
+    name: 'railway_get_logs',
+    description: 'Récupérer les derniers logs Railway pour vérifier si un déploiement a réussi ou trouver des erreurs.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        limit: { type: 'number', description: 'Nombre de lignes de logs (défaut 50)' },
+      },
+    },
+  },
+  {
+    name: 'supabase_execute',
+    description: 'Exécuter du SQL sur la base de données Supabase (SELECT, INSERT, UPDATE, ALTER TABLE, CREATE TABLE, etc.). Nécessite SUPABASE_ACCESS_TOKEN configuré dans Railway.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        sql: { type: 'string', description: 'La requête SQL à exécuter' },
+      },
+      required: ['sql'],
+    },
+  },
+  {
+    name: 'netlify_deploy',
+    description: 'Déclencher manuellement un redéploiement d\'un site Netlify.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        site_id: { type: 'string', description: 'ID ou nom du site Netlify (défaut: fik-conciergerie-oran)' },
+      },
+    },
+  },
 ];

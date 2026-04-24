@@ -39,11 +39,11 @@ export async function chatWithTools(
   let outputTokens = 0;
   let finalText    = '';
 
-  // Agentic loop — max 5 tool rounds
-  for (let round = 0; round < 5; round++) {
+  // Agentic loop — max 15 tool rounds (needed for multi-step coding tasks)
+  for (let round = 0; round < 15; round++) {
     const response = await client.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 8192,
       system,
       tools:      IBRAHIM_TOOLS,
       messages:   apiMessages,

@@ -1,8 +1,10 @@
 import { supabase } from './supabase.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
-import { getFileContent, updateFile } from './github.js';
+import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy } from './github.js';
 import { learnRule } from './claude-api.js';
 import { getOranWeather } from './web-search.js';
+import { getRailwayLogs } from './railway.js';
+import { env } from '../config/env.js';
 import axios from 'axios';
 
 export async function executeTool(
@@ -25,6 +27,12 @@ export async function executeTool(
       case 'recall_memory':       return await recallMemory(input);
       case 'get_weather':         return await getWeather(input);
       case 'get_news':            return await getNews(input);
+      case 'github_read_file':    return await githubReadFile(input);
+      case 'github_write_file':   return await githubWriteFile(input);
+      case 'github_list_files':   return await githubListFiles(input);
+      case 'railway_get_logs':    return await railwayGetLogs(input);
+      case 'supabase_execute':    return await supabaseExecute(input);
+      case 'netlify_deploy':      return await netlifyDeploy(input);
       default:                    return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -238,6 +246,80 @@ async function getWeather(input: Record<string, unknown>): Promise<string> {
   } catch (err) {
     return `Erreur météo: ${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+async function githubReadFile(input: Record<string, unknown>): Promise<string> {
+  const { repo, path } = input as { repo: string; path: string };
+  if (!repo || !path) return 'Erreur: repo et path requis';
+  const file = await getFileContent(path, repo);
+  if (!file) return `Fichier introuvable: ${repo}/${path}`;
+  const preview = file.content.length > 4000 ? file.content.slice(0, 4000) + '\n...(tronqué)' : file.content;
+  return `📄 ${repo}/${path} (${file.content.length} chars):\n\`\`\`\n${preview}\n\`\`\``;
+}
+
+async function githubWriteFile(input: Record<string, unknown>): Promise<string> {
+  const { repo, path, content, message } = input as {
+    repo: string; path: string; content: string; message?: string;
+  };
+  if (!repo || !path || !content) return 'Erreur: repo, path et content requis';
+  const commitMsg = message ?? `Ibrahim: update ${path}`;
+  const result = await updateFile(path, content, commitMsg, repo);
+  if (!result) return `Échec écriture GitHub: ${repo}/${path}`;
+  const deployNote = repo === 'ibrahim' ? ' Railway redéploie automatiquement dans 2-3 min.' : '';
+  return `✅ ${repo}/${path} mis à jour — commit ${result.commitSha}.${deployNote}`;
+}
+
+async function githubListFiles(input: Record<string, unknown>): Promise<string> {
+  const { repo, path } = input as { repo: string; path?: string };
+  if (!repo) return 'Erreur: repo requis';
+  const files = await listDirectory(path ?? '', repo);
+  if (!files.length) return `Répertoire vide ou introuvable: ${repo}/${path ?? ''}`;
+  const lines = files.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.path}`).join('\n');
+  return `Contenu de ${repo}/${path ?? ''} (${files.length} éléments):\n${lines}`;
+}
+
+async function railwayGetLogs(input: Record<string, unknown>): Promise<string> {
+  const limit = Number(input['limit'] ?? 50);
+  return getRailwayLogs(limit);
+}
+
+async function supabaseExecute(input: Record<string, unknown>): Promise<string> {
+  const { sql } = input as { sql: string };
+  if (!sql) return 'Erreur: sql requis';
+
+  const accessToken = env.SUPABASE_ACCESS_TOKEN;
+  if (!accessToken) {
+    return '⚠️ SUPABASE_ACCESS_TOKEN non configuré.\nPour activer: aller sur app.supabase.com > Account > Access Tokens > New token → ajouter dans Railway Variables.';
+  }
+
+  const supabaseUrl = env.SUPABASE_URL;
+  const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+  if (!projectRef) return 'URL Supabase invalide';
+
+  try {
+    const { data } = await axios.post(
+      `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
+      { query: sql },
+      {
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        timeout: 30000,
+      },
+    );
+    const result = JSON.stringify(data, null, 2);
+    return `✅ SQL exécuté:\n${result.slice(0, 3000)}${result.length > 3000 ? '\n...(tronqué)' : ''}`;
+  } catch (err) {
+    const msg = axios.isAxiosError(err)
+      ? JSON.stringify(err.response?.data ?? err.message)
+      : String(err);
+    return `Erreur SQL Supabase: ${msg}`;
+  }
+}
+
+async function netlifyDeploy(input: Record<string, unknown>): Promise<string> {
+  const siteId = (input['site_id'] as string | undefined) ?? 'fik-conciergerie-oran';
+  const ok = await triggerNetlifyDeploy(siteId);
+  if (!ok) return `Échec déploiement Netlify: ${siteId}. Vérifier NETLIFY_TOKEN dans Railway Variables.`;
+  return `✅ Déploiement Netlify déclenché pour: ${siteId}`;
 }
 
 async function getNews(input: Record<string, unknown>): Promise<string> {
