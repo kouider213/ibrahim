@@ -47,7 +47,7 @@ export async function chatWithTools(
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         response = await client.messages.create({
-          model:      'claude-sonnet-4-6',
+          model:      'claude-sonnet-4-5',
           max_tokens: 8192,
           system,
           tools:      IBRAHIM_TOOLS,
@@ -126,7 +126,7 @@ export async function chat(
   if (systemExtra) systemParts.push(systemExtra);
 
   const response = await client.messages.create({
-    model:      'claude-sonnet-4-6',
+    model:      'claude-sonnet-4-5',
     max_tokens: 1024,
     system:     systemParts.join('\n\n'),
     messages,
@@ -160,7 +160,7 @@ export async function chatStream(
   let stopReason = 'end_turn';
 
   const stream = client.messages.stream({
-    model:      'claude-sonnet-4-6',
+    model:      'claude-sonnet-4-5',
     max_tokens: 1024,
     system:     systemParts.join('\n\n'),
     messages,
@@ -222,7 +222,7 @@ Retourne UNIQUEMENT un JSON valide:
 
   // Use Haiku for fast intent detection (3-5x faster than Sonnet)
   const response = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
+    model:      'claude-haiku-4-5',
     max_tokens: 256,
     messages:   [{ role: 'user', content: prompt }],
   });
