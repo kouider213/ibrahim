@@ -8,10 +8,11 @@ import { env } from '../config/env.js';
 import {
   getPaymentStatus,
   recordPayment,
-  getRevenueReport,
+  getCAReport,
   getUnpaidBookings,
   generateReceipt,
-  getFinanceDashboard,
+  getFinancialDashboard,
+  checkAnomalies,
 } from './phase5-finance.js';
 import axios from 'axios';
 
@@ -49,15 +50,15 @@ export async function executeTool(
                                       (input['type'] as 'acompte' | 'solde' | 'partiel') ?? 'partiel',
                                       input['note'] as string | undefined,
                                     );
-      case 'get_revenue_report':    return await getRevenueReport(
-                                      (input['period'] as 'week' | 'month' | 'year') ?? 'month',
-                                      input['year'] ? Number(input['year']) : undefined,
+      case 'get_revenue_report':    return await getCAReport(
+                                      input['year'] ? Number(input['year']) : new Date().getFullYear(),
                                       input['month'] ? Number(input['month']) : undefined,
-                                      input['car_name'] as string | undefined,
+                                      input['week'] ? Number(input['week']) : undefined,
                                     );
       case 'get_unpaid_bookings':   return await getUnpaidBookings();
       case 'generate_receipt':      return await generateReceipt(input['booking_id'] as string);
-      case 'get_finance_dashboard': return await getFinanceDashboard();
+      case 'get_finance_dashboard': return await getFinancialDashboard();
+      case 'check_anomalies':       return await checkAnomalies();
       default:                      return `Outil inconnu: ${name}`;
     }
   } catch (err) {

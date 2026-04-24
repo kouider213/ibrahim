@@ -5,8 +5,8 @@ import {
   getPaymentStatus,
   recordPayment,
   getCAReport,
-  checkUnpaidBookings,
-  generateInvoice,
+  getUnpaidBookings,
+  generateReceipt,
   getFinancialDashboard,
   checkAnomalies,
 } from '../../integrations/phase5-finance.js';
@@ -146,8 +146,9 @@ async function readSiteFile(params: Record<string, unknown>): Promise<ActionResu
   if (!path) return { success: false, error: 'missing_path', message: 'path requis' };
 
   try {
-    const content = await getFileContent(repo ?? 'autolux-location', path);
-    return { success: true, data: { path, content }, message: content };
+    const result = await getFileContent(path, repo ?? 'autolux-location');
+    if (!result) return { success: false, error: 'not_found', message: `Fichier non trouvé: ${path}` };
+    return { success: true, data: { path, sha: result.sha }, message: result.content };
   } catch (err) {
     return { success: false, error: String(err), message: `Erreur lecture fichier: ${String(err)}` };
   }
@@ -181,11 +182,14 @@ async function handleGetPaymentStatus(params: Record<string, unknown>): Promise<
 }
 
 async function handleRecordPayment(params: Record<string, unknown>): Promise<ActionResult> {
-  const { booking_id, amount, note } = params as { booking_id: string; amount: number; note?: string };
+  const { booking_id, amount, type, note } = params as {
+    booking_id: string; amount: number;
+    type?: 'acompte' | 'solde' | 'partiel'; note?: string;
+  };
   if (!booking_id || !amount) {
     return { success: false, error: 'missing_params', message: 'booking_id et amount requis' };
   }
-  const msg = await recordPayment(booking_id, amount, note);
+  const msg = await recordPayment(booking_id, amount, type ?? 'partiel', note);
   return { success: true, message: msg };
 }
 
@@ -198,14 +202,14 @@ async function handleGetCAReport(params: Record<string, unknown>): Promise<Actio
 }
 
 async function handleCheckUnpaid(): Promise<ActionResult> {
-  const msg = await checkUnpaidBookings();
+  const msg = await getUnpaidBookings();
   return { success: true, message: msg };
 }
 
 async function handleGenerateInvoice(params: Record<string, unknown>): Promise<ActionResult> {
   const { booking_id } = params as { booking_id: string };
   if (!booking_id) return { success: false, error: 'missing_params', message: 'booking_id requis' };
-  const msg = await generateInvoice(booking_id);
+  const msg = await generateReceipt(booking_id);
   return { success: true, message: msg };
 }
 

@@ -424,6 +424,21 @@ function buildTelegramRelance(
   ].join('\n');
 }
 
+// ── 4b. Détection anomalies financières ──────────────────────
+export async function jobCheckAnomalies(_job: Job): Promise<void> {
+  try {
+    const { checkAnomalies } = await import('../../integrations/phase5-finance.js');
+    const result = await checkAnomalies();
+    if (result && !result.includes('Aucune anomalie')) {
+      await tg(`⚠️ *Anomalies financières détectées:*\n${result}`);
+      await notifyOwner('⚠️ Anomalie financière', result.slice(0, 200), true);
+    }
+    console.log('[job:anomalies] check done');
+  } catch (err) {
+    console.error('[job:anomalies] error:', err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ── 5. Rapport hebdo lundi 8h ─────────────────────────────────
 export async function jobWeeklyReport(_job: Job): Promise<void> {
   const weekAgo = new Date();

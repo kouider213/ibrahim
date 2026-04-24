@@ -8,6 +8,7 @@ import {
   jobUnpaidReminder,
   jobWeeklyReport,
   jobPatternDetection,
+  jobCheckAnomalies,
 } from './jobs/proactive-jobs.js';
 
 const SCHEDULER_QUEUE = 'ibrahim-scheduler';
@@ -50,6 +51,11 @@ const JOBS = [
     cron:  '30 8 * * 1',       // 8h30 chaque lundi (après rapport hebdo)
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'check-anomalies',
+    cron:  '0 12 * * *',       // 12h chaque jour — détection anomalies financières
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -60,6 +66,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'unpaid-reminder':     jobUnpaidReminder,
   'weekly-report':       jobWeeklyReport,
   'pattern-detection':   jobPatternDetection,
+  'check-anomalies':     jobCheckAnomalies,
 };
 
 export async function initScheduler(): Promise<void> {

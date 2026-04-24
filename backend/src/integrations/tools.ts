@@ -253,4 +253,77 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+
+  // ─── PHASE 5 — Finance ────────────────────────────────────────
+  {
+    name: 'get_payment_status',
+    description: 'Voir le statut de paiement des réservations (payé, acompte, impayé). Sans booking_id = toutes les réservations actives.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id: { type: 'string', description: 'ID UUID de la réservation (optionnel — sans = toutes)' },
+      },
+    },
+  },
+  {
+    name: 'record_payment',
+    description: 'Enregistrer un paiement (acompte, solde, ou paiement partiel) pour une réservation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id: { type: 'string', description: 'ID UUID de la réservation' },
+        amount:     { type: 'number', description: 'Montant encaissé en euros' },
+        type:       { type: 'string', enum: ['acompte', 'solde', 'partiel'], description: 'Type de paiement' },
+        note:       { type: 'string', description: 'Note facultative (ex: "paiement espèces")' },
+      },
+      required: ['booking_id', 'amount'],
+    },
+  },
+  {
+    name: 'get_revenue_report',
+    description: 'Calcul du chiffre d\'affaires par semaine, mois ou année. Inclut la répartition par véhicule et par propriétaire (Kouider/Houari).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        year:  { type: 'number', description: 'Année (défaut: année courante)' },
+        month: { type: 'number', description: 'Mois 1-12 (optionnel)' },
+        week:  { type: 'number', description: 'Numéro de semaine dans le mois (optionnel, nécessite month)' },
+      },
+    },
+  },
+  {
+    name: 'get_unpaid_bookings',
+    description: 'Lister toutes les réservations impayées ou partiellement payées, avec urgence et délai.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
+    name: 'generate_receipt',
+    description: 'Générer un reçu/facture formaté pour une réservation (à envoyer au client).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id: { type: 'string', description: 'ID UUID de la réservation' },
+      },
+      required: ['booking_id'],
+    },
+  },
+  {
+    name: 'get_finance_dashboard',
+    description: 'Tableau de bord financier complet : CA mois en cours, comparaison mois précédent, prévisions, impayés, répartition Kouider/Houari.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
+    name: 'check_anomalies',
+    description: 'Détecter les anomalies financières : prix anormalement bas/haut, réservations suspectes, écarts avec la grille tarifaire.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
 ];
