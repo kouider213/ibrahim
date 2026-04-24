@@ -1,9 +1,10 @@
 import { supabase } from './supabase.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
-import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy } from './github.js';
+import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
 import { learnRule } from './claude-api.js';
 import { getOranWeather } from './web-search.js';
 import { getRailwayLogs } from './railway.js';
+import { handlePcRelay } from '../actions/handlers/pc-relay.js';
 import { env } from '../config/env.js';
 import {
   getPaymentStatus,
@@ -78,6 +79,10 @@ export async function executeTool(
       // ─── PHASE 6 — WhatsApp ───
       case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input);
       case 'check_car_availability':     return await checkCarAvailability(input);
+      // ─── PC + GitHub search ───
+      case 'pc_typecheck':               return await pcTypecheck(input);
+      case 'pc_run_command':             return await pcRunCommand(input);
+      case 'github_search_code':         return await githubSearchCode(input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -474,4 +479,59 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
   });
 
   return `✅ Disponible du ${startDate} au ${endDate} (${days} jours):\n${lines.join('\n')}`;
+}
+
+// ─── PC tools ────────────────────────────────────────────────────
+
+async function pcTypecheck(input: Record<string, unknown>): Promise<string> {
+  const projectPath = (input['project_path'] as string | undefined) ?? '';
+  const command = projectPath
+    ? `cd "${projectPath}" && npm run typecheck 2>&1`
+    : 'npm run typecheck 2>&1';
+
+  const result = await handlePcRelay({
+    action:    'pc_run_command',
+    params:    { command, cwd: projectPath || undefined },
+    sessionId: 'tool',
+  });
+
+  if (!result.success) {
+    return `⚠️ PC agent non connecté ou timeout. Impossible de valider TypeScript.\nErreur: ${result.error}`;
+  }
+
+  const out = result.data as { stdout?: string; stderr?: string } | undefined;
+  const combined = ((out?.stdout ?? '') + (out?.stderr ?? '')).trim();
+  const errorCount = (combined.match(/error TS/g) ?? []).length;
+
+  if (errorCount === 0) return `✅ TypeScript: 0 erreur — code prêt à pusher`;
+  return `❌ TypeScript: ${errorCount} erreur(s)\n\n${combined.slice(0, 3000)}`;
+}
+
+async function pcRunCommand(input: Record<string, unknown>): Promise<string> {
+  const command = input['command'] as string;
+  const cwd     = input['cwd'] as string | undefined;
+
+  if (!command) return 'Commande requise';
+
+  const result = await handlePcRelay({
+    action:    'pc_run_command',
+    params:    { command, cwd },
+    sessionId: 'tool',
+  });
+
+  if (!result.success) {
+    return `⚠️ Erreur PC: ${result.error ?? result.message}`;
+  }
+
+  const out = result.data as { stdout?: string; stderr?: string } | undefined;
+  const stdout = (out?.stdout ?? '').trim();
+  const stderr = (out?.stderr ?? '').trim();
+  return [stdout, stderr].filter(Boolean).join('\n').slice(0, 3000) || '✅ Commande exécutée (pas de sortie)';
+}
+
+async function githubSearchCode(input: Record<string, unknown>): Promise<string> {
+  const repo  = (input['repo'] as string) || 'ibrahim';
+  const query = input['query'] as string;
+  if (!query) return 'Query requise';
+  return searchCode(repo, query);
 }

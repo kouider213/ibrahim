@@ -550,6 +550,42 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── OUTILS PC (validation avant deploy) ─────────────────────
+  {
+    name: 'pc_typecheck',
+    description: 'Lancer "npm run typecheck" sur le PC de Kouider pour valider le TypeScript AVANT de pousser sur GitHub. OBLIGATOIRE après toute modification de code. Retourne les erreurs TypeScript ou "0 erreurs".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        project_path: { type: 'string', description: 'Chemin vers le dossier backend sur le PC (ex: C:\\Projects\\ibrahim\\backend). Laisser vide si PC agent connaît le chemin.' },
+      },
+    },
+  },
+  {
+    name: 'pc_run_command',
+    description: 'Exécuter une commande shell sur le PC de Kouider (Windows/Mac/Linux). Utile pour: npm install, git status, lancer des scripts, ouvrir des applications. Commandes destructives bloquées.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        command: { type: 'string', description: 'Commande shell à exécuter (ex: "cd ibrahim/backend && npm install")' },
+        cwd:     { type: 'string', description: 'Répertoire de travail (optionnel)' },
+      },
+      required: ['command'],
+    },
+  },
+  {
+    name: 'github_search_code',
+    description: 'Chercher un texte/pattern dans tous les fichiers du repo GitHub. Essentiel avant de modifier du code: trouver où une fonction est définie, quels fichiers importent un module, détecter les usages d\'un type.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        repo:    { type: 'string', description: 'Nom du repo (ex: ibrahim, autolux-location)' },
+        query:   { type: 'string', description: 'Texte à chercher dans le code (ex: "handlePcRelay", "import.*supabase", "SOCKET_EVENTS")' },
+      },
+      required: ['repo', 'query'],
+    },
+  },
+
   // ─── PHASE 6 — WhatsApp clients ──────────────────────────────
   {
     name: 'send_whatsapp_to_client',

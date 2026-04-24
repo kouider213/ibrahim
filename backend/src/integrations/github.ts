@@ -161,3 +161,19 @@ export async function createClientSiteOnNetlify(config: ClientSiteConfig): Promi
     return null;
   }
 }
+
+export async function searchCode(repo: string, query: string): Promise<string> {
+  try {
+    const { data } = await axios.get(`${GITHUB_API}/search/code`, {
+      headers: { ...getHeaders(), Accept: 'application/vnd.github.v3+json' },
+      params: { q: `${query} repo:${OWNER}/${repo}`, per_page: 10 },
+    });
+
+    const items = (data as { items: Array<{ path: string; html_url: string }> }).items;
+    if (!items.length) return `Aucun résultat pour "${query}" dans ${repo}`;
+
+    return items.map(i => `📄 ${i.path}`).join('\n');
+  } catch (err) {
+    return `Erreur recherche code: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
