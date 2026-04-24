@@ -372,4 +372,181 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       properties: {},
     },
   },
+
+  // ─── PHASE 14 — Traitement Image & Vidéo ──────────────────────
+
+  // ── IMAGE (6 outils) ──
+  {
+    name: 'analyze_image',
+    description: 'Analyser une image: qualité, résolution, format, poids, suggestions d\'amélioration.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_url: { type: 'string', description: 'URL publique de l\'image à analyser' },
+      },
+      required: ['image_url'],
+    },
+  },
+  {
+    name: 'optimize_image',
+    description: 'Optimiser une image: compression, conversion format, amélioration qualité selon usage (web, social, print).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_url: { type: 'string', description: 'URL publique de l\'image' },
+        usage:     { type: 'string', enum: ['web', 'social', 'print'], description: 'Usage cible pour optimisation adaptée' },
+        quality:   { type: 'number', description: 'Qualité 1-100 (défaut: 85)' },
+      },
+      required: ['image_url', 'usage'],
+    },
+  },
+  {
+    name: 'create_social_variants',
+    description: 'Créer automatiquement toutes les variantes réseaux sociaux d\'une image (TikTok 9:16, Instagram Post 1:1, Instagram Story 9:16, Facebook 1.91:1).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_url: { type: 'string', description: 'URL publique de l\'image source' },
+        platforms: { type: 'string', description: 'Plateformes: tiktok, instagram, facebook, all (défaut: all)' },
+      },
+      required: ['image_url'],
+    },
+  },
+  {
+    name: 'enhance_image',
+    description: 'Améliorer qualité image avec filtres professionnels: luminosité, contraste, netteté, couleurs, réduction bruit.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_url: { type: 'string', description: 'URL publique de l\'image' },
+        preset:    { type: 'string', enum: ['auto', 'vibrant', 'soft', 'pro', 'minimal'], description: 'Preset d\'amélioration (défaut: auto)' },
+      },
+      required: ['image_url'],
+    },
+  },
+  {
+    name: 'remove_background',
+    description: 'Supprimer automatiquement l\'arrière-plan d\'une image (utile pour visuels pub, logos, produits).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_url: { type: 'string', description: 'URL publique de l\'image' },
+      },
+      required: ['image_url'],
+    },
+  },
+  {
+    name: 'add_text_overlay',
+    description: 'Ajouter du texte professionnel sur une image (titre, slogan, CTA) pour publicités ou stories.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_url: { type: 'string', description: 'URL publique de l\'image' },
+        text:      { type: 'string', description: 'Texte à ajouter' },
+        position:  { type: 'string', enum: ['top', 'center', 'bottom'], description: 'Position du texte (défaut: center)' },
+        style:     { type: 'string', enum: ['bold', 'elegant', 'modern', 'minimal'], description: 'Style typographique (défaut: bold)' },
+      },
+      required: ['image_url', 'text'],
+    },
+  },
+
+  // ── VIDÉO (8 outils) ──
+  {
+    name: 'analyze_video',
+    description: 'Analyser une vidéo: durée, résolution, format, codec, poids, qualité, ratio, suggestions d\'optimisation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_url: { type: 'string', description: 'URL publique de la vidéo à analyser' },
+      },
+      required: ['video_url'],
+    },
+  },
+  {
+    name: 'cut_video',
+    description: 'Découper un segment précis d\'une vidéo (ex: extraire de 0:10 à 0:45).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_url:  { type: 'string', description: 'URL publique de la vidéo' },
+        start_time: { type: 'string', description: 'Temps début format MM:SS ou HH:MM:SS (ex: 0:10)' },
+        end_time:   { type: 'string', description: 'Temps fin format MM:SS ou HH:MM:SS (ex: 0:45)' },
+      },
+      required: ['video_url', 'start_time', 'end_time'],
+    },
+  },
+  {
+    name: 'merge_videos',
+    description: 'Fusionner plusieurs vidéos en une seule (dans l\'ordre fourni).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_urls: { type: 'string', description: 'URLs des vidéos séparées par virgule (ex: url1,url2,url3)' },
+        transition: { type: 'string', enum: ['none', 'fade', 'dissolve'], description: 'Transition entre clips (défaut: none)' },
+      },
+      required: ['video_urls'],
+    },
+  },
+  {
+    name: 'add_subtitles',
+    description: 'Générer et ajouter automatiquement des sous-titres à partir de la détection vocale IA (français, arabe, anglais).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_url: { type: 'string', description: 'URL publique de la vidéo' },
+        language:  { type: 'string', enum: ['fr', 'ar', 'en', 'auto'], description: 'Langue audio (défaut: auto-détection)' },
+        style:     { type: 'string', enum: ['tiktok', 'youtube', 'minimal'], description: 'Style sous-titres (défaut: tiktok)' },
+      },
+      required: ['video_url'],
+    },
+  },
+  {
+    name: 'optimize_for_platform',
+    description: 'Optimiser vidéo pour une plateforme spécifique: format, ratio, durée, compression adaptés (TikTok 9:16 <60s, Instagram Reels 9:16 <90s, YouTube 16:9).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_url: { type: 'string', description: 'URL publique de la vidéo' },
+        platform:  { type: 'string', enum: ['tiktok', 'instagram', 'youtube', 'facebook'], description: 'Plateforme cible' },
+      },
+      required: ['video_url', 'platform'],
+    },
+  },
+  {
+    name: 'extract_thumbnail',
+    description: 'Extraire une miniature (image) d\'une vidéo à un moment précis.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_url: { type: 'string', description: 'URL publique de la vidéo' },
+        timestamp: { type: 'string', description: 'Moment à capturer format MM:SS ou HH:MM:SS (ex: 0:15)' },
+      },
+      required: ['video_url', 'timestamp'],
+    },
+  },
+  {
+    name: 'add_background_music',
+    description: 'Ajouter une musique de fond libre de droits à une vidéo (volume automatiquement équilibré avec voix).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_url: { type: 'string', description: 'URL publique de la vidéo' },
+        music:     { type: 'string', enum: ['upbeat', 'chill', 'corporate', 'energetic', 'emotional'], description: 'Style musical' },
+        volume:    { type: 'number', description: 'Volume musique 0-100 (défaut: 30)' },
+      },
+      required: ['video_url', 'music'],
+    },
+  },
+  {
+    name: 'create_video_preview',
+    description: 'Générer automatiquement un aperçu/teaser de 10 secondes à partir d\'une vidéo longue (sélection moments clés IA).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        video_url: { type: 'string', description: 'URL publique de la vidéo source' },
+        duration:  { type: 'number', description: 'Durée du preview en secondes (défaut: 10)' },
+      },
+      required: ['video_url'],
+    },
+  },
 ];
