@@ -14,11 +14,21 @@ import {
   getFinancialDashboard,
   checkAnomalies,
 } from './phase5-finance.js';
+import {
+  recordFeedback as recordFeedbackAPI,
+  getKouiderPreferences,
+} from './feedback-system.js';
+import {
+  generateMonthlyReport,
+  getEvolutionReport,
+  formatReportForKouider,
+} from './improvement-report.js';
 import axios from 'axios';
 
 export async function executeTool(
   name: string,
   input: Record<string, unknown>,
+  sessionId?: string,
 ): Promise<string> {
   try {
     switch (name) {
@@ -59,6 +69,11 @@ export async function executeTool(
       case 'generate_receipt':      return await generateReceipt(input['booking_id'] as string);
       case 'get_finance_dashboard': return await getFinancialDashboard();
       case 'check_anomalies':       return await checkAnomalies();
+      // ─── PHASE 13 ───
+      case 'record_feedback':            return await recordFeedbackTool(input, sessionId);
+      case 'get_monthly_improvement_report': return await getMonthlyImprovementReportTool(input);
+      case 'get_learning_evolution':     return await getLearningEvolutionTool(input);
+      case 'get_kouider_preferences':    return await getKouiderPreferencesTool();
       default:                      return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -332,4 +347,75 @@ async function netlifyDeploy(input: Record<string, unknown>): Promise<string> {
   const siteId = (input['site_id'] as string) || 'fik-conciergerie-oran';
   const ok = await triggerNetlifyDeploy(siteId);
   return ok ? `✅ Déploiement Netlify déclenché pour: ${siteId}` : `❌ Échec du déploiement Netlify pour: ${siteId}`;
+}
+
+// ─── PHASE 13 — APPRENTISSAGE CONTINU ─────────────────────────────────────
+
+async function recordFeedbackTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const actionType = input['action_type'] as string;
+  const rating = input['rating'] as 'positive' | 'negative' | 'neutral';
+  const actionId = input['action_id'] as string | undefined;
+  const comment = input['comment'] as string | undefined;
+  const contextStr = input['context'] as string | undefined;
+  const context = contextStr ? JSON.parse(contextStr) : undefined;
+
+  const feedback = await recordFeedbackAPI({
+    sessionId: sessionId ?? 'default',
+    actionType,
+    actionId,
+    rating,
+    comment,
+    context,
+  });
+
+  return `✅ Feedback enregistré [${rating}] pour ${actionType}. ID: ${feedback.id}`;
+}
+
+async function getMonthlyImprovementReportTool(input: Record<string, unknown>): Promise<string> {
+  const now = new Date();
+  const year = input['year'] ? Number(input['year']) : now.getFullYear();
+  const month = input['month'] ? Number(input['month']) : now.getMonth() + 1;
+
+  const report = await generateMonthlyReport(year, month);
+  return formatReportForKouider(report);
+}
+
+async function getLearningEvolutionTool(input: Record<string, unknown>): Promise<string> {
+  const months = input['months'] ? Number(input['months']) : 6;
+  const evolution = await getEvolutionReport(months);
+
+  let text = `📈 **ÉVOLUTION DE L'APPRENTISSAGE** (${months} derniers mois)\n\n`;
+
+  evolution.evolution.forEach(e => {
+    const bar = '█'.repeat(Math.round(e.positive_rate * 20));
+    text += `${e.period} : ${bar} ${Math.round(e.positive_rate * 100)}% | ${e.new_rules} règles\n`;
+  });
+
+  text += `\n**TENDANCES**\n`;
+  text += `- ${evolution.trends.improving ? '📈 En amélioration' : '📉 Stable ou en baisse'}\n`;
+  text += `- Taux de satisfaction moyen : **${Math.round(evolution.trends.avg_positive_rate * 100)}%**\n`;
+
+  return text;
+}
+
+async function getKouiderPreferencesTool(): Promise<string> {
+  const prefs = await getKouiderPreferences();
+
+  let text = `🎯 **PRÉFÉRENCES CALIBRÉES DE KOUIDER**\n\n`;
+  text += `**Style de réponse** : ${prefs.response_style}\n`;
+  text += `**Ton** : ${prefs.tone}\n`;
+
+  if (Object.keys(prefs.tiktok_styles).length > 0) {
+    text += `\n**Styles TikTok favoris** :\n`;
+    const sorted = Object.entries(prefs.tiktok_styles)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+    sorted.forEach(([style, score]) => {
+      text += `- ${style} : ${Math.round(score * 100)}%\n`;
+    });
+  }
+
+  text += `\n**Seuil d'approbation automatique** : ${Math.round(prefs.auto_approve_threshold * 100)}%\n`;
+
+  return text;
 }
