@@ -11,7 +11,7 @@
  */
 
 import { v2 as cloudinary } from 'cloudinary';
-import fetch from 'node-fetch';
+import axios from 'axios';
 
 // ─── Configuration Cloudinary ────────────────────────────────────
 
@@ -385,42 +385,48 @@ export async function addSubtitles(
       format: 'mp3',
     });
 
-    // Transcription via AssemblyAI
-    const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
-      method: 'POST',
+    // Télécharger audio
+    const audioResponse = await axios.get(audioUrl, { responseType: 'arraybuffer' });
+    const audioBuffer = Buffer.from(audioResponse.data);
+
+    // Upload audio vers AssemblyAI
+    const uploadResponse = await axios.post('https://api.assemblyai.com/v2/upload', audioBuffer, {
       headers: {
         authorization: ASSEMBLYAI_API_KEY,
+        'content-type': 'application/octet-stream',
       },
-      body: await fetch(audioUrl).then(r => r.buffer()),
     });
 
-    const { upload_url } = await uploadResponse.json() as any;
+    const uploadUrl = uploadResponse.data.upload_url;
 
-    const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
-      method: 'POST',
-      headers: {
-        authorization: ASSEMBLYAI_API_KEY,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        audio_url: upload_url,
+    // Demander transcription
+    const transcriptResponse = await axios.post(
+      'https://api.assemblyai.com/v2/transcript',
+      {
+        audio_url: uploadUrl,
         language_code: language === 'fr' ? 'fr' : language === 'ar' ? 'ar' : 'en',
-      }),
-    });
+      },
+      {
+        headers: {
+          authorization: ASSEMBLYAI_API_KEY,
+          'content-type': 'application/json',
+        },
+      }
+    );
 
-    const { id: transcriptId } = await transcriptResponse.json() as any;
+    const transcriptId = transcriptResponse.data.id;
 
     // Attendre transcription (polling)
     let transcriptData: any;
     let attempts = 0;
     while (attempts < 60) {
-      const statusResponse = await fetch(
+      const statusResponse = await axios.get(
         `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
         {
           headers: { authorization: ASSEMBLYAI_API_KEY },
         }
       );
-      transcriptData = await statusResponse.json();
+      transcriptData = statusResponse.data;
 
       if (transcriptData.status === 'completed') break;
       if (transcriptData.status === 'error') {
