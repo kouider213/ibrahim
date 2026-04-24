@@ -12,14 +12,14 @@ import {
   analyzeImage, optimizeImage, createSocialVariants, enhanceImage, removeBackground,
   analyzeVideo, cutVideo, optimizeForPlatform, extractThumbnail,
 } from '../../integrations/media-processing.js';
-import { v2 as cloudinary } from 'cloudinary';
+import cloudinary from 'cloudinary';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
 const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] ?? '' });
 
 // Configuration Cloudinary
-cloudinary.config({
+cloudinary.v2.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
   api_key: process.env.CLOUDINARY_API_KEY || '',
   api_secret: process.env.CLOUDINARY_API_SECRET || '',
@@ -129,7 +129,7 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
     await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
     
     const uploadResult = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
+      const uploadStream = cloudinary.v2.uploader.upload_stream(
         { resource_type: 'video', folder: 'telegram_videos' },
         (error, result) => {
           if (error) reject(error);
@@ -240,7 +240,7 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
     await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
     
     const uploadResult = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
+      const uploadStream = cloudinary.v2.uploader.upload_stream(
         { resource_type: 'image', folder: 'telegram_images' },
         (error, result) => {
           if (error) reject(error);
