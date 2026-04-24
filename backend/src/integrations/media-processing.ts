@@ -314,10 +314,18 @@ export async function analyzeVideo(videoUrl: string): Promise<VideoAnalysis> {
 // ─── Helper: extraire le public_id d'une URL Cloudinary ──────────
 
 function extractPublicId(url: string): string | null {
-  // https://res.cloudinary.com/{cloud}/video/upload/{transformations?}/v{n}/{public_id}.{ext}
-  // https://res.cloudinary.com/{cloud}/video/upload/{public_id}.{ext}
-  const m = url.match(/\/(?:video|image)\/upload\/(?:[^/]+\/)*v?\d*\/?(.+?)(?:\.[a-z0-9]+)?$/i);
-  return m ? m[1] : null;
+  const uploadIdx = url.indexOf('/upload/');
+  if (uploadIdx === -1) return null;
+
+  let path = url.slice(uploadIdx + 8); // tout après "/upload/"
+
+  // Supprimer le préfixe de version (ex: "v1234567890/")
+  path = path.replace(/^v\d+\//, '');
+
+  // Supprimer l'extension finale (.mp4, .mov, .jpg…)
+  path = path.replace(/\.[^./]+$/, '');
+
+  return path || null;
 }
 
 // ─── VIDÉO — Découpe ──────────────────────────────────────────────
@@ -328,15 +336,19 @@ export async function cutVideo(
   endSeconds: number
 ): Promise<string> {
   try {
-    // Si déjà sur Cloudinary, on utilise directement le public_id (pas de re-upload)
-    let publicId = videoUrl.includes('cloudinary.com') ? extractPublicId(videoUrl) : null;
+    let publicId: string | null = null;
+
+    if (videoUrl.includes('cloudinary.com')) {
+      publicId = extractPublicId(videoUrl);
+      console.log(`[media] cutVideo — extracted public_id: "${publicId}" from URL: ${videoUrl}`);
+    }
 
     if (!publicId) {
       const upload = await cloudinary.uploader.upload(videoUrl, { resource_type: 'video' });
       publicId = upload.public_id;
+      console.log(`[media] cutVideo — uploaded, public_id: "${publicId}"`);
     }
 
-    // URL de transformation Cloudinary — traitement appliqué à l'accès (fiable)
     const transformed = cloudinary.url(publicId, {
       resource_type: 'video',
       transformation: [{ start_offset: startSeconds, end_offset: endSeconds, quality: 'auto' }],
@@ -344,6 +356,7 @@ export async function cutVideo(
       secure: true,
     });
 
+    console.log(`[media] cutVideo — result URL: ${transformed}`);
     return transformed;
   } catch (error: any) {
     throw new Error(`Erreur découpe vidéo: ${error.message}`);

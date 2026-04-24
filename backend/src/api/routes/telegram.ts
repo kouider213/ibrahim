@@ -141,14 +141,15 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
       );
       uploadStream.end(buffer);
     });
-    const videoUrl = uploadResult.secure_url as string;
+    const videoUrl     = uploadResult.secure_url as string;
+    const videoPublicId = uploadResult.public_id  as string;
 
     // 3. Passer à Claude pour traitement en langage naturel
     await sendMessage(chatId, '🤖 Ibrahim traite ta demande...');
 
     const userRequest = caption
-      ? `Vidéo reçue via Telegram et uploadée sur Cloudinary.\nURL: ${videoUrl}\n\nDemande de Kouider: "${caption}"\n\nUtilise l'outil cut_video pour couper, create_video_preview pour limiter la durée, optimize_for_platform pour TikTok/YouTube. Passe exactement l'URL ci-dessus comme video_url. Retourne l'URL transformée dans ta réponse.`
-      : `Vidéo reçue via Telegram.\nURL: ${videoUrl}\n\nAucune instruction spécifique. Analyse et propose.`;
+      ? `Vidéo reçue via Telegram et uploadée sur Cloudinary.\nURL: ${videoUrl}\nCloudinary public_id: ${videoPublicId}\n\nDemande de Kouider: "${caption}"\n\nUtilise l'outil approprié:\n- cut_video: pour couper/limiter la durée (video_url="${videoUrl}", start_seconds=0, end_seconds=N)\n- create_video_preview: pour garder uniquement les N premières secondes (video_url="${videoUrl}", duration_seconds=N)\n- optimize_for_platform: pour TikTok/YouTube (video_url="${videoUrl}", platform="tiktok"|"youtube")\nRetourne l'URL résultante dans ta réponse.`
+      : `Vidéo reçue via Telegram.\nURL: ${videoUrl}\n\nAucune instruction. Analyse et propose ce que je peux en faire.`;
 
     const ctx = await buildContext(sessionId, userRequest);
     const response = await chatWithTools(ctx.messages, ctx.systemExtra);
