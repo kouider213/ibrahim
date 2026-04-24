@@ -41,13 +41,27 @@ export async function chatWithTools(
 
   // Agentic loop — max 15 tool rounds (needed for multi-step coding tasks)
   for (let round = 0; round < 15; round++) {
-    const response = await client.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 8192,
-      system,
-      tools:      IBRAHIM_TOOLS,
-      messages:   apiMessages,
-    });
+    // Retry up to 3 times on 429 rate limit
+    let response: Awaited<ReturnType<typeof client.messages.create>> | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await client.messages.create({
+          model:      'claude-sonnet-4-6',
+          max_tokens: 8192,
+          system,
+          tools:      IBRAHIM_TOOLS,
+          messages:   apiMessages,
+        });
+        break;
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        if (status === 429 && attempt < 2) {
+          console.warn(`[claude] Rate limit 429 — attente 65s (tentative ${attempt + 1}/3)`);
+          await new Promise(r => setTimeout(r, 65_000));
+        } else { throw err; }
+      }
+    }
+    if (!response) throw new Error('Claude API unavailable after retries');
 
     inputTokens  += response.usage.input_tokens;
     outputTokens += response.usage.output_tokens;
