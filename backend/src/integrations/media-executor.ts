@@ -4,7 +4,25 @@
  * Gère l'exécution des outils de traitement image et vidéo
  */
 
-import * as media from './media-processing';
+import * as media from './media-processing.js';
+
+// ─── Helper: Convertir MM:SS ou HH:MM:SS → secondes ──────────────
+
+function parseTimeToSeconds(time: string | number): number {
+  if (typeof time === 'number') return time;
+  
+  const parts = time.split(':').map(Number);
+  
+  if (parts.length === 2) {
+    // MM:SS
+    return parts[0] * 60 + parts[1];
+  } else if (parts.length === 3) {
+    // HH:MM:SS
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+  
+  return parseInt(time) || 0;
+}
 
 export async function executeMediaTool(toolName: string, args: any): Promise<string> {
   try {
@@ -19,7 +37,7 @@ export async function executeMediaTool(toolName: string, args: any): Promise<str
 📄 **Format:** ${result.format.toUpperCase()}
 ⭐ **Score qualité:** ${result.quality_score}/100
 
-${result.suggestions.length > 0 ? '💡 **Suggestions:**\n' + result.suggestions.map(s => `   ${s}`).join('\n') : '✅ Image optimale !'}
+${result.suggestions.length > 0 ? '💡 **Suggestions:**\n' + result.suggestions.map((s: string) => `   ${s}`).join('\n') : '✅ Image optimale !'}
 
 🔗 **URL:** ${result.url}`;
       }
@@ -104,21 +122,25 @@ ${result.youtube}
 🎬 **FPS:** ${result.fps}
 📡 **Bitrate:** ${result.bitrate}
 
-${result.suggestions.length > 0 ? '💡 **Suggestions:**\n' + result.suggestions.map(s => `   ${s}`).join('\n') : '✅ Vidéo optimale !'}
+${result.suggestions.length > 0 ? '💡 **Suggestions:**\n' + result.suggestions.map((s: string) => `   ${s}`).join('\n') : '✅ Vidéo optimale !'}
 
 🔗 **URL:** ${result.url}`;
       }
 
       case 'cut_video': {
+        // Parse MM:SS ou HH:MM:SS → secondes
+        const startSeconds = parseTimeToSeconds(args.start_time);
+        const endSeconds = parseTimeToSeconds(args.end_time);
+        
         const result = await media.cutVideo(
           args.video_url,
-          args.start_seconds,
-          args.end_seconds
+          startSeconds,
+          endSeconds
         );
-        const duration = args.end_seconds - args.start_seconds;
+        const duration = endSeconds - startSeconds;
         return `✂️ **VIDÉO DÉCOUPÉE**
 
-⏱️ **Segment:** ${args.start_seconds}s → ${args.end_seconds}s (durée: ${duration}s)
+⏱️ **Segment:** ${startSeconds}s → ${endSeconds}s (durée: ${duration}s)
 🔗 **URL:** ${result}
 
 ✅ Le clip a été extrait avec succès.`;
