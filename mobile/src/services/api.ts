@@ -37,6 +37,12 @@ export const api = {
       body:   JSON.stringify({ message, sessionId, textOnly }),
     }),
 
+  tts: (text: string) =>
+    apiFetch<{ audio: string; mimeType: string }>('/api/tts', {
+      method: 'POST',
+      body:   JSON.stringify({ text: text.slice(0, 500) }),
+    }).then(r => r.audio).catch(() => null),
+
   getTasks: (status?: string) =>
     apiFetch<{ tasks: unknown[] }>(`/api/tasks${status ? `?status=${status}` : ''}`),
 

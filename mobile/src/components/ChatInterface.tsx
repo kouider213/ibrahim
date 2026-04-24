@@ -85,7 +85,17 @@ export default function ChatInterface() {
       if (resp?.text) {
         setResponseText(resp.text);
         setShowResponse(true);
-        // TTS handled by socket onTextComplete
+        applyState('speak');
+        // TTS via REST (fiable, pas besoin de Socket.IO)
+        const audio = await api.tts(resp.text);
+        if (audio) {
+          await playBase64Audio(audio);
+        } else {
+          iosFallbackSpeak(resp.text, () => {
+            applyState('idle');
+            scheduleNextListen();
+          });
+        }
       }
     } catch {
       showError('Erreur de connexion');
