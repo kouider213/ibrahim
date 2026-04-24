@@ -111,8 +111,6 @@ export async function optimizeImage(
     const originalUpload = await cloudinary.uploader.upload(imageUrl, {
       resource_type: 'image',
     });
-    const originalSize = originalUpload.bytes;
-
     // Paramètres selon usage
     let quality: number | string = 'auto:good';
     let format = 'auto';

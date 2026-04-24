@@ -549,4 +549,32 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       required: ['video_url'],
     },
   },
+
+  // ─── PHASE 6 — WhatsApp clients ──────────────────────────────
+  {
+    name: 'send_whatsapp_to_client',
+    description: 'Envoyer un message WhatsApp à un client (confirmation de réservation, rappel, réponse à une plainte, etc.). Toujours utiliser après validation Kouider pour les réponses sensibles.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        phone:   { type: 'string', description: 'Numéro de téléphone du client (ex: +213661234567)' },
+        message: { type: 'string', description: 'Texte du message WhatsApp à envoyer' },
+        lang:    { type: 'string', enum: ['fr', 'ar', 'en'], description: 'Langue du message (défaut: fr)' },
+      },
+      required: ['phone', 'message'],
+    },
+  },
+  {
+    name: 'check_car_availability',
+    description: 'Vérifier si une voiture est disponible pour des dates données. Retourne les voitures disponibles avec leurs tarifs.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        start_date: { type: 'string', description: 'Date de début (YYYY-MM-DD)' },
+        end_date:   { type: 'string', description: 'Date de fin (YYYY-MM-DD)' },
+        car_id:     { type: 'string', description: 'ID de la voiture spécifique (optionnel — sans = toutes les voitures)' },
+      },
+      required: ['start_date', 'end_date'],
+    },
+  },
 ];

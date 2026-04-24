@@ -9,6 +9,9 @@ import {
   jobWeeklyReport,
   jobPatternDetection,
   jobCheckAnomalies,
+  jobWhatsAppBookingConfirmations,
+  jobWhatsApp24hReminders,
+  jobWhatsAppReturnReminders,
 } from './jobs/proactive-jobs.js';
 
 const SCHEDULER_QUEUE = 'ibrahim-scheduler';
@@ -56,17 +59,36 @@ const JOBS = [
     cron:  '0 12 * * *',       // 12h chaque jour — détection anomalies financières
     tz:    'Africa/Algiers',
   },
+  // ── Phase 6 — WhatsApp ──
+  {
+    name:  'wa-booking-confirmations',
+    cron:  '*/10 * * * *',     // toutes les 10 min — envoi confirmations WhatsApp
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'wa-24h-reminders',
+    cron:  '0 10 * * *',       // 10h chaque jour — rappel J-1
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'wa-return-reminders',
+    cron:  '0 9 * * *',        // 9h chaque jour — rappel retour aujourd'hui
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
-  'morning-briefing':    jobMorningBriefing,
-  'end-rental-reminder': jobEndRentalReminder,
-  'idle-vehicle-alert':  jobIdleVehicleAlert,
-  'tiktok-suggestion':   jobTikTokSuggestion,
-  'unpaid-reminder':     jobUnpaidReminder,
-  'weekly-report':       jobWeeklyReport,
-  'pattern-detection':   jobPatternDetection,
-  'check-anomalies':     jobCheckAnomalies,
+  'morning-briefing':         jobMorningBriefing,
+  'end-rental-reminder':      jobEndRentalReminder,
+  'idle-vehicle-alert':       jobIdleVehicleAlert,
+  'tiktok-suggestion':        jobTikTokSuggestion,
+  'unpaid-reminder':          jobUnpaidReminder,
+  'weekly-report':            jobWeeklyReport,
+  'pattern-detection':        jobPatternDetection,
+  'check-anomalies':          jobCheckAnomalies,
+  'wa-booking-confirmations': jobWhatsAppBookingConfirmations,
+  'wa-24h-reminders':         jobWhatsApp24hReminders,
+  'wa-return-reminders':      jobWhatsAppReturnReminders,
 };
 
 export async function initScheduler(): Promise<void> {

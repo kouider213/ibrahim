@@ -23,6 +23,7 @@ import {
   getEvolutionReport,
   formatReportForKouider,
 } from './improvement-report.js';
+import { sendWhatsApp } from './whatsapp.js';
 import axios from 'axios';
 
 export async function executeTool(
@@ -68,13 +69,16 @@ export async function executeTool(
       case 'get_unpaid_bookings':   return await getUnpaidBookings();
       case 'generate_receipt':      return await generateReceipt(input['booking_id'] as string);
       case 'get_finance_dashboard': return await getFinancialDashboard();
-      case 'check_anomalies':       return await checkAnomalies();
+      case 'check_anomalies':            return await checkAnomalies();
       // ─── PHASE 13 ───
       case 'record_feedback':            return await recordFeedbackTool(input, sessionId);
       case 'get_monthly_improvement_report': return await getMonthlyImprovementReportTool(input);
       case 'get_learning_evolution':     return await getLearningEvolutionTool(input);
       case 'get_kouider_preferences':    return await getKouiderPreferencesTool();
-      default:                      return `Outil inconnu: ${name}`;
+      // ─── PHASE 6 — WhatsApp ───
+      case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input);
+      case 'check_car_availability':     return await checkCarAvailability(input);
+      default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
     return `Erreur outil ${name}: ${err instanceof Error ? err.message : String(err)}`;
@@ -226,14 +230,12 @@ async function learnRuleTool(input: Record<string, unknown>): Promise<string> {
 }
 
 async function rememberInfo(input: Record<string, unknown>): Promise<string> {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('ibrahim_memory')
     .insert({
       category: input['category'] ?? 'fact',
       content:  input['content'],
-    })
-    .select()
-    .single();
+    });
 
   if (error) return `Erreur mémoire: ${error.message}`;
   return `✅ Mémorisé [${input['category']}]: ${input['content']}`;
@@ -255,10 +257,9 @@ async function recallMemory(input: Record<string, unknown>): Promise<string> {
   return data.map((m: any) => `[${m.category}] ${m.content}`).join('\n');
 }
 
-async function getWeather(input: Record<string, unknown>): Promise<string> {
-  const city    = (input['city']    as string) || 'Oran';
-  const country = (input['country'] as string) || '';
-  return getOranWeather(`${city}${country ? ', ' + country : ''}`);
+async function getWeather(_input: Record<string, unknown>): Promise<string> {
+  const data = await getOranWeather();
+  return JSON.stringify(data);
 }
 
 async function getNews(input: Record<string, unknown>): Promise<string> {
@@ -418,4 +419,59 @@ async function getKouiderPreferencesTool(): Promise<string> {
   text += `\n**Seuil d'approbation automatique** : ${Math.round(prefs.auto_approve_threshold * 100)}%\n`;
 
   return text;
+}
+
+// ── Phase 6 — WhatsApp tools ──────────────────────────────────
+
+async function sendWhatsAppToClient(input: Record<string, unknown>): Promise<string> {
+  const phone   = input['phone']   as string;
+  const message = input['message'] as string;
+  if (!phone || !message) return '❌ phone et message sont requis';
+  const ok = await sendWhatsApp(phone, message);
+  return ok
+    ? `✅ Message WhatsApp envoyé à ${phone}`
+    : `❌ Échec envoi WhatsApp à ${phone} (Twilio non configuré ?)`;
+}
+
+async function checkCarAvailability(input: Record<string, unknown>): Promise<string> {
+  const startDate = input['start_date'] as string;
+  const endDate   = input['end_date']   as string;
+  const carId     = input['car_id']     as string | undefined;
+
+  if (!startDate || !endDate) return '❌ start_date et end_date sont requis';
+
+  let overlappingQuery = supabase
+    .from('bookings')
+    .select('car_id')
+    .in('status', ['CONFIRMED', 'ACTIVE'])
+    .lte('start_date', endDate)
+    .gte('end_date', startDate);
+
+  const { data: overlapping } = await overlappingQuery;
+  const busyCarIds = new Set((overlapping ?? []).map((b: { car_id: string }) => b.car_id));
+
+  let carsQuery = supabase.from('cars').select('id, name, base_price, category').eq('available', true);
+  if (carId) carsQuery = carsQuery.eq('id', carId);
+
+  const { data: cars, error } = await carsQuery;
+  if (error) return `❌ Erreur: ${error.message}`;
+
+  const startD = new Date(startDate);
+  const endD   = new Date(endDate);
+  const days   = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / 86_400_000));
+
+  const available = (cars ?? []).filter((c: { id: string }) => !busyCarIds.has(c.id));
+
+  if (!available.length) {
+    return carId
+      ? `❌ La voiture demandée n'est pas disponible du ${startDate} au ${endDate}.`
+      : `❌ Aucune voiture disponible du ${startDate} au ${endDate}.`;
+  }
+
+  const lines = available.map((c: { id: string; name: string; base_price: number; category: string }) => {
+    const total = c.base_price * days;
+    return `🚗 ${c.name} (${c.category}) — ${c.base_price.toLocaleString('fr-DZ')} DZD/jour → Total ${days}j: ${total.toLocaleString('fr-DZ')} DZD`;
+  });
+
+  return `✅ Disponible du ${startDate} au ${endDate} (${days} jours):\n${lines.join('\n')}`;
 }

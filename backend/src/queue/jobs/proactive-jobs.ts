@@ -5,6 +5,7 @@ import { sendMessage } from '../../integrations/telegram.js';
 import { getFinancialReport } from '../../integrations/finance.js';
 import { listUpcomingEvents } from '../../integrations/google-calendar.js';
 import { getOranWeather } from '../../integrations/web-search.js';
+import { sendWhatsApp, detectLanguage } from '../../integrations/whatsapp.js';
 
 function ownerChatId(): string {
   return process.env['TELEGRAM_CHAT_ID'] ?? '809747124';
@@ -547,4 +548,91 @@ export async function jobPatternDetection(_job: Job): Promise<void> {
 
   await tg(lines.join('\n'));
   console.log('[job:pattern-detection] sent');
+}
+
+// ── PHASE 6 — WhatsApp proactifs ─────────────────────────────────
+
+// Envoi confirmation WhatsApp pour toute réservation CONFIRMED dont whatsapp_sent=false
+export async function jobWhatsAppBookingConfirmations(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, start_date, end_date, final_price, cars(name)')
+    .eq('status', 'CONFIRMED')
+    .eq('whatsapp_sent', false)
+    .not('client_phone', 'is', null)
+    .gte('start_date', today);
+
+  if (!bookings?.length) return;
+
+  for (const b of bookings as any[]) {
+    if (!b.client_phone) continue;
+    const phone     = b.client_phone as string;
+    const lang      = detectLanguage('');   // default fr, phone has no text to detect
+    const carName   = b.cars?.name ?? 'votre véhicule';
+
+    let msg: string;
+    if (lang === 'ar') {
+      msg = `مرحباً ${b.client_name} 🎉\nتم تأكيد حجزك في Fik Conciergerie Oran!\n🚗 ${carName}\n📅 ${b.start_date} → ${b.end_date}\n💰 ${Number(b.final_price).toLocaleString('fr-DZ')} DZD\nشكراً لثقتك بنا. 🙏`;
+    } else {
+      msg = `Bonjour ${b.client_name} 🎉\nVotre réservation chez Fik Conciergerie Oran est confirmée !\n🚗 ${carName}\n📅 Du ${b.start_date} au ${b.end_date}\n💰 Total: ${Number(b.final_price).toLocaleString('fr-DZ')} DZD\nMerci de votre confiance. Pour toute question, répondez ici. 🙏`;
+    }
+
+    const ok = await sendWhatsApp(phone, msg);
+    if (ok) {
+      await supabase.from('bookings').update({ whatsapp_sent: true }).eq('id', b.id);
+      console.log(`[job:wa-confirm] ✅ Sent to ${phone}`);
+    }
+  }
+}
+
+// Rappel 24h avant prise en charge
+export async function jobWhatsApp24hReminders(_job: Job): Promise<void> {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, start_date, cars(name)')
+    .eq('status', 'CONFIRMED')
+    .eq('start_date', tomorrowStr)
+    .not('client_phone', 'is', null);
+
+  if (!bookings?.length) return;
+
+  for (const b of bookings as any[]) {
+    if (!b.client_phone) continue;
+    const phone   = b.client_phone as string;
+    const carName = b.cars?.name ?? 'votre véhicule';
+
+    const msg = `Bonjour ${b.client_name} 👋\nRappel : votre location de ${carName} commence demain, le ${b.start_date}.\nNous vous attendons ! Pour toute question, répondez ici. 🚗`;
+    await sendWhatsApp(phone, msg);
+    console.log(`[job:wa-24h] Reminder sent to ${phone}`);
+  }
+}
+
+// Message de fin de location (jour J de restitution)
+export async function jobWhatsAppReturnReminders(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, end_date, cars(name)')
+    .in('status', ['CONFIRMED', 'ACTIVE'])
+    .eq('end_date', today)
+    .not('client_phone', 'is', null);
+
+  if (!bookings?.length) return;
+
+  for (const b of bookings as any[]) {
+    if (!b.client_phone) continue;
+    const phone   = b.client_phone as string;
+    const carName = b.cars?.name ?? 'votre véhicule';
+
+    const msg = `Bonjour ${b.client_name},\nRappel : la restitution de ${carName} est prévue aujourd'hui.\nMerci pour votre confiance — nous espérons que vous avez apprécié votre location ! 🙏`;
+    await sendWhatsApp(phone, msg);
+    console.log(`[job:wa-return] Reminder sent to ${phone}`);
+  }
 }
