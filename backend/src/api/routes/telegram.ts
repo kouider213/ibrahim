@@ -12,19 +12,23 @@ import {
   analyzeImage, optimizeImage, createSocialVariants, enhanceImage, removeBackground,
   analyzeVideo, cutVideo, optimizeForPlatform, extractThumbnail,
 } from '../../integrations/media-processing.js';
-import cloudinary from 'cloudinary';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
 const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] ?? '' });
 
-// Configuration Cloudinary
-cloudinary.v2.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
-  api_key: process.env.CLOUDINARY_API_KEY || '',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '',
-  secure: true,
-});
+// Cloudinary import dynamique (CommonJS compatible)
+let cloudinary: any;
+(async () => {
+  const { v2 } = await import('cloudinary');
+  cloudinary = v2;
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
+    api_key: process.env.CLOUDINARY_API_KEY || '',
+    api_secret: process.env.CLOUDINARY_API_SECRET || '',
+    secure: true,
+  });
+})();
 
 function isAllowed(chatId: number): boolean {
   const allowed = process.env['TELEGRAM_ALLOWED_CHATS'] ?? '';
@@ -109,6 +113,11 @@ router.post('/webhook', async (req, res) => {
 // ── TRAITEMENT VIDÉO AUTOMATIQUE ──────────────────────────────────
 async function handleVideoMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
+    if (!cloudinary) {
+      await sendMessage(chatId, '⚠️ Cloudinary en cours de chargement, réessaie dans 2 secondes...');
+      return;
+    }
+
     await sendTyping(chatId);
 
     const videoFile = msg.video;
@@ -129,9 +138,9 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
     await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
     
     const uploadResult = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.v2.uploader.upload_stream(
+      const uploadStream = cloudinary.uploader.upload_stream(
         { resource_type: 'video', folder: 'telegram_videos' },
-        (error, result) => {
+        (error: any, result: any) => {
           if (error) reject(error);
           else resolve(result);
         }
@@ -205,6 +214,11 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
 // ── TRAITEMENT IMAGE AUTOMATIQUE ──────────────────────────────────
 async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
+    if (!cloudinary) {
+      await sendMessage(chatId, '⚠️ Cloudinary en cours de chargement, réessaie dans 2 secondes...');
+      return;
+    }
+
     await sendTyping(chatId);
 
     let fileId: string;
@@ -240,9 +254,9 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
     await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
     
     const uploadResult = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.v2.uploader.upload_stream(
+      const uploadStream = cloudinary.uploader.upload_stream(
         { resource_type: 'image', folder: 'telegram_images' },
-        (error, result) => {
+        (error: any, result: any) => {
           if (error) reject(error);
           else resolve(result);
         }
