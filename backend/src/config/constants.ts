@@ -134,6 +134,7 @@ export const SOCKET_EVENTS = {
   PC_RESULT:        'pc:result',
   PC_PING:          'pc:ping',
   PC_PONG:          'pc:pong',
+  PC_REGISTER:      'pc:register',
 } as const;
 
 // Ibrahim status

@@ -95,7 +95,7 @@ initPcRelay(io);
 
 mobileNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;
-  if (!token || !validateToken(token)) {
+  if (!token || !validateToken(token, 'mobile')) {
     return next(new Error('Unauthorized'));
   }
   next();
@@ -104,8 +104,8 @@ mobileNs.use((socket, next) => {
 mobileNs.on('connection', (socket) => {
   console.log(`[Socket] Mobile client connected: ${socket.id}`);
 
-  socket.on(SOCKET_EVENTS.PC_REGISTER, (data) => {
-    registerPcAgent(socket, data);
+  socket.on(SOCKET_EVENTS.PC_REGISTER, () => {
+    registerPcAgent(socket.id);
   });
 
   socket.on('disconnect', () => {
@@ -119,7 +119,7 @@ const desktopNs = io.of('/desktop');
 
 desktopNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;
-  if (!token || !validateToken(token)) {
+  if (!token || !validateToken(token, 'mobile')) {
     return next(new Error('Unauthorized'));
   }
   next();

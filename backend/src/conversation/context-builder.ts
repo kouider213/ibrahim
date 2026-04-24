@@ -3,7 +3,6 @@ import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForC
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
 import { formatPricingTable } from '../config/pricing.js';
-import { IBRAHIM } from '../config/constants.js';
 import type { Message } from '../integrations/claude-api.js';
 
 // Cache météo 5 minutes
@@ -69,11 +68,11 @@ export async function buildContext(
     needsNews     ? getAlgeriaNews(4).catch(() => [])                                            : Promise.resolve([]),
     needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
     needsFinance  ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
-    needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then(r => r.data ?? []).catch(() => []) : Promise.resolve([]),
+    needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then((r: any) => r.data ?? []) : Promise.resolve([]),
   ]);
 
   const rulesText = rules.length > 0
-    ? `\n\nRÈGLES MÉTIER ACTIVES:\n${rules.map(r => `- [${r.category}] ${r.rule}`).join('\n')}`
+    ? `\n\nRÈGLES MÉTIER ACTIVES:\n${rules.map((r: any) => `- [${r.category}] ${r.rule}`).join('\n')}`
     : '';
 
   const hour = now.getHours();
@@ -89,18 +88,18 @@ export async function buildContext(
 
   // Active rentals
   const today = new Date().toISOString().slice(0, 10);
-  const activeRentals = allBookings.filter(b =>
+  const activeRentals = allBookings.filter((b: any) =>
     (b.status === 'CONFIRMED' || b.status === 'ACTIVE') &&
     b.start_date <= today && b.end_date >= today,
   );
-  const upcomingRentals = allBookings.filter(b =>
+  const upcomingRentals = allBookings.filter((b: any) =>
     (b.status === 'CONFIRMED' || b.status === 'ACTIVE') &&
     b.start_date > today,
   );
 
   const fleetText = fleet.length > 0
-    ? `\n\nFLOTTE (${fleet.length} véhicules):\n${fleet.map(c => {
-        const rental = activeRentals.find(b => b.car_id === c.id);
+    ? `\n\nFLOTTE (${fleet.length} véhicules):\n${fleet.map((c: any) => {
+        const rental = activeRentals.find((b: any) => b.car_id === c.id);
         const status = rental
           ? `EN LOCATION → ${rental.client_name} jusqu'au ${rental.end_date}`
           : c.available ? 'DISPONIBLE' : 'INDISPONIBLE';
@@ -108,15 +107,15 @@ export async function buildContext(
       }).join('\n')}`
     : '';
 
-  const pendingBookings = allBookings.filter(b => b.status === 'PENDING');
+  const pendingBookings = allBookings.filter((b: any) => b.status === 'PENDING');
   const bookingsText = [
     activeRentals.length > 0
-      ? `\n\nLOCATIONS EN COURS (${activeRentals.length}):\n${activeRentals.map(b =>
+      ? `\n\nLOCATIONS EN COURS (${activeRentals.length}):\n${activeRentals.map((b: any) =>
           `- ${b.client_name} (${b.client_phone}) — ${b.car_name} — du ${b.start_date} au ${b.end_date} — ${b.status}`
         ).join('\n')}`
       : '',
     upcomingRentals.length > 0
-      ? `\n\nRÉSERVATIONS EN ATTENTE (${upcomingRentals.length + pendingBookings.length}):\n${[...upcomingRentals, ...pendingBookings].map(b =>
+      ? `\n\nRÉSERVATIONS EN ATTENTE (${upcomingRentals.length + pendingBookings.length}):\n${[...upcomingRentals, ...pendingBookings].map((b: any) =>
           `- ${b.client_name} (${b.client_phone}) — ${b.car_name} — du ${b.start_date} au ${b.end_date}`
         ).join('\n')}`
       : '',
@@ -124,7 +123,7 @@ export async function buildContext(
 
   // Agenda (seulement si demandé)
   const calendarText = calendarEvents.length > 0
-    ? `\n\nAGENDA GOOGLE (${calendarEvents.length} événements à venir):\n${calendarEvents.slice(0, 5).map(e =>
+    ? `\n\nAGENDA GOOGLE (${calendarEvents.length} événements à venir):\n${calendarEvents.slice(0, 5).map((e: any) =>
         `- ${e.summary} → ${e.start}`
       ).join('\n')}`
     : '';
@@ -142,7 +141,7 @@ export async function buildContext(
     : '';
 
   const memoriesText = memories.length > 0
-    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${memories.map(m => `[${m.category}] ${m.content}`).join('\n')}`
+    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
     : '';
 
   const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;

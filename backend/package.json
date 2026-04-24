@@ -7,7 +7,10 @@
     "dev": "tsx --env-file ../.env watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "worker": "tsx --env-file ../.env watch src/queue/worker.ts"
+    "worker": "tsx --env-file ../.env watch src/queue/worker.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run build",
+    "predeploy": "tsx scripts/predeploy.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

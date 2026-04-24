@@ -72,9 +72,6 @@ function formatDateEdreams(date: string): string {
   return date;
 }
 
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) || /^\d{2}\/\d{2}\/\d{4}$/.test(date);
-}
 
 function normalizeDate(input: string): string | null {
   // Accepte: 2026-07-15 ou 15/07/2026
