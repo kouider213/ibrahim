@@ -1,12 +1,22 @@
 import { supabase } from '../../integrations/supabase.js';
 import { getFinancialReport, formatFinancialReport } from '../../integrations/finance.js';
 import { getFileContent, updateFile } from '../../integrations/github.js';
+import {
+  getPaymentStatus,
+  recordPayment,
+  getCAReport,
+  checkUnpaidBookings,
+  generateInvoice,
+  getFinancialDashboard,
+  checkAnomalies,
+} from '../../integrations/phase5-finance.js';
 import type { ActionPayload, ActionResult } from '../executor.js';
 
 const BUCKET = 'client-documents';
 
 export async function handleFinance(payload: ActionPayload): Promise<ActionResult> {
   switch (payload.action) {
+    // ── Existing ──────────────────────────────
     case 'get_financial_report':
       return financialReport(payload.params);
     case 'set_booking_owner':
@@ -17,10 +27,31 @@ export async function handleFinance(payload: ActionPayload): Promise<ActionResul
       return readSiteFile(payload.params);
     case 'update_site_file':
       return updateSiteFile(payload.params);
+
+    // ── Phase 5 ───────────────────────────────
+    case 'get_payment_status':
+      return handleGetPaymentStatus(payload.params);
+    case 'record_payment':
+      return handleRecordPayment(payload.params);
+    case 'get_ca_report':
+      return handleGetCAReport(payload.params);
+    case 'check_unpaid':
+      return handleCheckUnpaid();
+    case 'generate_invoice':
+      return handleGenerateInvoice(payload.params);
+    case 'financial_dashboard':
+      return handleDashboard();
+    case 'check_anomalies':
+      return handleCheckAnomalies();
+
     default:
       return { success: false, error: 'Unknown finance action', message: 'Action finance inconnue' };
   }
 }
+
+// ─────────────────────────────────────────────
+// EXISTING HANDLERS
+// ─────────────────────────────────────────────
 
 async function financialReport(params: Record<string, unknown>): Promise<ActionResult> {
   const year  = Number(params['year']  ?? new Date().getFullYear());
@@ -106,41 +137,84 @@ async function storeDocument(params: Record<string, unknown>): Promise<ActionRes
       message: `✅ Document ${type} stocké pour ${clientName} — accessible à tout moment`,
     };
   } catch (err) {
-    return { success: false, error: String(err), message: `Erreur stockage: ${String(err)}` };
+    return { success: false, error: String(err), message: `Erreur stockage document: ${String(err)}` };
   }
 }
 
 async function readSiteFile(params: Record<string, unknown>): Promise<ActionResult> {
-  const { path } = params as { path: string };
+  const { path, repo } = params as { path: string; repo?: string };
   if (!path) return { success: false, error: 'missing_path', message: 'path requis' };
 
-  const file = await getFileContent(path);
-  if (!file) return { success: false, error: 'not_found', message: `Fichier introuvable: ${path}` };
-
-  return {
-    success: true,
-    data:    { path, content: file.content, sha: file.sha },
-    message: `✅ Fichier lu: ${path} (${file.content.length} caractères)`,
-  };
+  try {
+    const content = await getFileContent(repo ?? 'autolux-location', path);
+    return { success: true, data: { path, content }, message: content };
+  } catch (err) {
+    return { success: false, error: String(err), message: `Erreur lecture fichier: ${String(err)}` };
+  }
 }
 
 async function updateSiteFile(params: Record<string, unknown>): Promise<ActionResult> {
-  const { path, content, message: commitMsg } = params as {
-    path: string; content: string; message?: string;
+  const { path, content, message, repo } = params as {
+    path:     string;
+    content:  string;
+    message?: string;
+    repo?:    string;
   };
+  if (!path || !content) return { success: false, error: 'missing_params', message: 'path et content requis' };
 
-  if (!path || !content) {
-    return { success: false, error: 'missing_params', message: 'path et content requis' };
+  try {
+    await updateFile(repo ?? 'autolux-location', path, content, message ?? `update: ${path}`);
+    return { success: true, message: `✅ ${path} mis à jour — Vercel redéploie automatiquement` };
+  } catch (err) {
+    return { success: false, error: String(err), message: `Erreur mise à jour: ${String(err)}` };
   }
+}
 
-  const result = await updateFile(path, content, commitMsg ?? `Ibrahim: mise à jour ${path}`);
-  if (!result) {
-    return { success: false, error: 'github_failed', message: `Échec mise à jour GitHub: ${path}` };
+// ─────────────────────────────────────────────
+// PHASE 5 HANDLERS
+// ─────────────────────────────────────────────
+
+async function handleGetPaymentStatus(params: Record<string, unknown>): Promise<ActionResult> {
+  const bookingId = params['booking_id'] as string | undefined;
+  const msg = await getPaymentStatus(bookingId);
+  return { success: true, message: msg };
+}
+
+async function handleRecordPayment(params: Record<string, unknown>): Promise<ActionResult> {
+  const { booking_id, amount, note } = params as { booking_id: string; amount: number; note?: string };
+  if (!booking_id || !amount) {
+    return { success: false, error: 'missing_params', message: 'booking_id et amount requis' };
   }
+  const msg = await recordPayment(booking_id, amount, note);
+  return { success: true, message: msg };
+}
 
-  return {
-    success: true,
-    data:    { commitSha: result.commitSha },
-    message: `✅ Site mis à jour: ${path} — commit ${result.commitSha} — Vercel va redéployer automatiquement`,
-  };
+async function handleGetCAReport(params: Record<string, unknown>): Promise<ActionResult> {
+  const year  = Number(params['year']  ?? new Date().getFullYear());
+  const month = params['month'] ? Number(params['month']) : undefined;
+  const week  = params['week']  ? Number(params['week'])  : undefined;
+  const msg   = await getCAReport(year, month, week);
+  return { success: true, message: msg };
+}
+
+async function handleCheckUnpaid(): Promise<ActionResult> {
+  const msg = await checkUnpaidBookings();
+  return { success: true, message: msg };
+}
+
+async function handleGenerateInvoice(params: Record<string, unknown>): Promise<ActionResult> {
+  const { booking_id } = params as { booking_id: string };
+  if (!booking_id) return { success: false, error: 'missing_params', message: 'booking_id requis' };
+  const msg = await generateInvoice(booking_id);
+  return { success: true, message: msg };
+}
+
+async function handleDashboard(): Promise<ActionResult> {
+  const msg = await getFinancialDashboard();
+  return { success: true, message: msg };
+}
+
+async function handleCheckAnomalies(): Promise<ActionResult> {
+  const msg = await checkAnomalies();
+  return { success: true, message: msg };
 }
