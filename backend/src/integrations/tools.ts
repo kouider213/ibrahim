@@ -550,27 +550,15 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
 
-  // ─── OUTILS PC (validation avant deploy) ─────────────────────
+  // ─── VALIDATION DEPLOY ───────────────────────────────────────
   {
-    name: 'pc_typecheck',
-    description: 'Lancer "npm run typecheck" sur le PC de Kouider pour valider le TypeScript AVANT de pousser sur GitHub. OBLIGATOIRE après toute modification de code. Retourne les erreurs TypeScript ou "0 erreurs".',
+    name: 'railway_wait_deploy',
+    description: 'OBLIGATOIRE après chaque github_write_file. Attend la fin du déploiement Railway et retourne: ✅ succès OU ❌ erreur avec les logs complets. Permet de détecter et corriger les erreurs TypeScript immédiatement après push, sans PC.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        project_path: { type: 'string', description: 'Chemin vers le dossier backend sur le PC (ex: C:\\Projects\\ibrahim\\backend). Laisser vide si PC agent connaît le chemin.' },
+        timeout_seconds: { type: 'number', description: 'Temps max d\'attente en secondes (défaut: 180)' },
       },
-    },
-  },
-  {
-    name: 'pc_run_command',
-    description: 'Exécuter une commande shell sur le PC de Kouider (Windows/Mac/Linux). Utile pour: npm install, git status, lancer des scripts, ouvrir des applications. Commandes destructives bloquées.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        command: { type: 'string', description: 'Commande shell à exécuter (ex: "cd ibrahim/backend && npm install")' },
-        cwd:     { type: 'string', description: 'Répertoire de travail (optionnel)' },
-      },
-      required: ['command'],
     },
   },
   {

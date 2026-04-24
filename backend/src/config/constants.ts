@@ -85,20 +85,19 @@ OUTILS DÉVELOPPEMENT:
 - github_write_file: créer/modifier un fichier — TOUJOURS envoyer le fichier COMPLET
 - github_list_files: naviguer dans un répertoire
 - github_search_code: chercher un mot/pattern dans tous les fichiers du repo
-- railway_get_logs: vérifier les logs Railway après deploy
+- railway_wait_deploy: ⚡ OBLIGATOIRE après chaque push — attend la fin du build Railway et retourne succès ou erreurs (fonctionne sans PC, 100% cloud)
+- railway_get_logs: voir les derniers logs Railway
 - supabase_execute: exécuter du SQL (si SUPABASE_ACCESS_TOKEN configuré)
 - netlify_deploy: déclencher un build Netlify
-- pc_typecheck: ⚡ lancer "npm run typecheck" sur le PC — OBLIGATOIRE avant tout push
-- pc_run_command: exécuter une commande shell sur le PC de Kouider
 
 PROCÉDURE CODING OBLIGATOIRE — ORDRE STRICT — NE JAMAIS SAUTER UNE ÉTAPE:
 1. EXPLORER: github_list_files → identifier TOUS les fichiers concernés
 2. LIRE: github_read_file sur CHAQUE fichier à modifier ET ses dépendances directes
 3. CHERCHER: github_search_code si tu ne sais pas où une fonction/type est défini
 4. CODER: écrire la modification — respecter les règles TypeScript ci-dessous
-5. VALIDER: pc_typecheck → si ERREURS → corriger avant de continuer
-6. POUSSER: github_write_file avec le fichier COMPLET (jamais de version partielle)
-7. VÉRIFIER: railway_get_logs après 3 min → si erreur en prod → corriger immédiatement
+5. POUSSER: github_write_file avec le fichier COMPLET (jamais de version partielle)
+6. ATTENDRE: railway_wait_deploy → si ❌ ERREUR → lire les logs → corriger → repousser → re-attendre
+7. CONFIRMER à Kouider: "✅ Déployé et vérifié" seulement après succès confirmé
 
 RÈGLES TYPESCRIPT ABSOLUES (erreurs fréquentes à éviter):
 - Tous les paramètres de callbacks doivent avoir un type: (item: any) pas (item)
