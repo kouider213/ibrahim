@@ -15,9 +15,17 @@ async function getCachedWeather(): Promise<WeatherData | undefined> {
   return w;
 }
 
-// Cache flotte + réservations 2 minutes
+// Cache flotte + réservations + règles 2 minutes
 let fleetCache: { data: any[]; ts: number } | null = null;
 let bookingsCache: { data: any[]; ts: number } | null = null;
+let rulesCache: { data: any[]; ts: number } | null = null;
+
+async function getCachedRules() {
+  if (rulesCache && Date.now() - rulesCache.ts < 2 * 60 * 1000) return rulesCache.data;
+  const data = await getActiveRules().catch(() => []);
+  rulesCache = { data, ts: Date.now() };
+  return data;
+}
 
 async function getCachedFleet() {
   if (fleetCache && Date.now() - fleetCache.ts < 2 * 60 * 1000) return fleetCache.data;
@@ -43,9 +51,10 @@ export async function buildContext(
   sessionId: string,
   userMessage: string,
 ): Promise<ConversationContext> {
-  const needsNews    = /actualit|news|journal|presse|info/i.test(userMessage);
-  const needsFinance = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
+  const needsNews     = /actualit|news|journal|presse|info/i.test(userMessage);
+  const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
+  const needsMemory   = /souviens|rappelle|mémoire|mémoris|retiens|n'oublie|remember/i.test(userMessage);
 
   const now = new Date();
 
@@ -53,17 +62,14 @@ export async function buildContext(
   const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories] = await Promise.all([
     // HISTORIQUE: seulement 6 derniers messages (pas 15)
     getConversationHistory(sessionId, 6).catch(() => []),
-    getActiveRules().catch(() => []),
+    getCachedRules(),
     getCachedFleet(),
     getCachedBookings(),
     getCachedWeather(),
-    needsNews    ? getAlgeriaNews(4).catch(() => [])                                                    : Promise.resolve([]),
-    needsCalendar? listUpcomingEvents(10).catch(() => [])                                               : Promise.resolve([]),
-    needsFinance ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)          : Promise.resolve(null),
-    (async () => {
-      const r = await supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20);
-      return r.data ?? [];
-    })().catch(() => []),
+    needsNews     ? getAlgeriaNews(4).catch(() => [])                                            : Promise.resolve([]),
+    needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
+    needsFinance  ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
+    needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then(r => r.data ?? []).catch(() => []) : Promise.resolve([]),
   ]);
 
   const rulesText = rules.length > 0

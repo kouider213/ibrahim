@@ -53,11 +53,20 @@ router.post('/webhook', async (req, res) => {
     await sendTyping(chatId);
     const ctx      = await buildContext(sessionId, text);
     const response = await chatWithTools(ctx.messages, ctx.systemExtra);
-    await saveConversationTurn(sessionId, 'user',      text,          { source: 'telegram' });
-    await saveConversationTurn(sessionId, 'assistant', response.text, { source: 'telegram' });
-    for (const chunk of splitMessage(response.text, 4000)) {
-      await sendMessage(chatId, chunk);
-    }
+
+    // Envoyer la réponse en priorité, sauvegarder en arrière-plan
+    const sendPromise = (async () => {
+      for (const chunk of splitMessage(response.text, 4000)) {
+        await sendMessage(chatId, chunk);
+      }
+    })();
+
+    const savePromise = Promise.all([
+      saveConversationTurn(sessionId, 'user',      text,          { source: 'telegram' }),
+      saveConversationTurn(sessionId, 'assistant', response.text, { source: 'telegram' }),
+    ]).catch(e => console.error('[telegram] Save error:', e));
+
+    await Promise.all([sendPromise, savePromise]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[telegram] Error:', msg);
