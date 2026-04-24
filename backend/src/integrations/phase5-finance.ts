@@ -445,3 +445,195 @@ export async function checkAnomalies(): Promise<string> {
   if (!alerts.length) return '✅ Aucune anomalie détectée ce mois-ci.';
   return `🚨 ANOMALIES DÉTECTÉES (${alerts.length}):\n${alerts.join('\n')}`;
 }
+
+// ─────────────────────────────────────────────
+// 7. GÉNÉRATION PDF FACTURE
+// ─────────────────────────────────────────────
+
+export async function generatePdfReceipt(bookingId: string): Promise<{ url: string; text: string }> {
+  const { data: b, error } = await supabase
+    .from('bookings').select('*, cars(name)').eq('id', bookingId).single();
+
+  if (error || !b) throw new Error(`Réservation introuvable: ${error?.message}`);
+
+  const booking  = b as any;
+  const carName  = booking.cars?.name ?? 'Véhicule';
+  const startDt  = new Date(booking.start_date);
+  const endDt    = new Date(booking.end_date);
+  const nbDays   = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
+  const daily    = Math.round((booking.final_price ?? 0) / nbDays);
+  const acompte  = booking.acompte_amount ?? 0;
+  const solde    = (booking.final_price ?? 0) - acompte;
+  const refNum   = booking.id.split('-')[0].toUpperCase();
+  const dateStr  = new Date().toLocaleDateString('fr-FR');
+
+  // Génération PDF avec pdfkit
+  const PDFDocument = (await import('pdfkit')).default;
+  const pdfBuffer: Buffer = await new Promise((resolve, reject) => {
+    const doc    = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.on('end',  () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    // En-tête
+    doc.fontSize(22).font('Helvetica-Bold').text('AUTOLUX ORAN', { align: 'center' });
+    doc.fontSize(12).font('Helvetica').text('Fik Conciergerie — Location de véhicules', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.moveDown(0.5);
+
+    // Référence et date
+    doc.fontSize(11).font('Helvetica-Bold').text(`FACTURE / REÇU  #${refNum}`, { continued: true });
+    doc.font('Helvetica').text(`     Date: ${dateStr}`, { align: 'right' });
+    doc.moveDown(1);
+
+    // Client
+    doc.fontSize(12).font('Helvetica-Bold').text('CLIENT');
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica')
+      .text(`Nom:       ${booking.client_name}`)
+      .text(`Téléphone: ${booking.client_phone ?? 'N/A'}`)
+      .text(`Âge:       ${booking.client_age ?? 'N/A'}`);
+    doc.moveDown(1);
+
+    // Location
+    doc.fontSize(12).font('Helvetica-Bold').text('DÉTAIL DE LA LOCATION');
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica')
+      .text(`Véhicule:    ${carName}`)
+      .text(`Début:       ${booking.start_date}`)
+      .text(`Fin:         ${booking.end_date}`)
+      .text(`Durée:       ${nbDays} jour(s)`)
+      .text(`Prix/jour:   ${daily} €`);
+    doc.moveDown(1);
+
+    // Paiement
+    doc.fontSize(12).font('Helvetica-Bold').text('PAIEMENT');
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica')
+      .text(`Total:          ${booking.final_price ?? 0} €`)
+      .text(`Acompte versé:  ${acompte} €`)
+      .text(`Solde restant:  ${solde} €`)
+      .text(`Statut:         ${booking.payment_status ?? 'PENDING'}`);
+    doc.moveDown(1.5);
+
+    // Pied de page
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica').fillColor('gray')
+      .text('Merci pour votre confiance — AutoLux Oran, Algérie', { align: 'center' });
+
+    doc.end();
+  });
+
+  // Upload Supabase Storage
+  const storagePath = `receipts/${bookingId}.pdf`;
+  const BUCKET = 'client-documents';
+
+  await supabase.storage.createBucket(BUCKET, { public: true }).catch(() => {});
+  await supabase.storage.from(BUCKET).upload(storagePath, pdfBuffer, {
+    contentType: 'application/pdf',
+    upsert: true,
+  });
+
+  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
+  const url = urlData.publicUrl;
+
+  // Sauvegarder l'URL dans la réservation
+  await supabase.from('bookings').update({ pdf_url: url }).eq('id', bookingId);
+
+  const text = `✅ Facture PDF générée pour ${booking.client_name}\n🔗 ${url}`;
+  return { url, text };
+}
+
+// ─────────────────────────────────────────────
+// 8. DONNÉES STRUCTURÉES POUR LE DASHBOARD MOBILE
+// ─────────────────────────────────────────────
+
+export interface DashboardData {
+  month: number; year: number;
+  ca:       { current: number; previous: number; evolution: number };
+  payments: { collected: number; outstanding: number };
+  profit:   number;
+  forecast: { projected: number; nextMonth: number; dailyAvg: number };
+  unpaid:   Array<{ id: string; name: string; car: string; amount: number; phone?: string }>;
+  vehicles: Array<{ name: string; ca: number; bookings: number }>;
+  bookingCount: number;
+}
+
+export async function getDashboardData(): Promise<DashboardData> {
+  const now   = new Date();
+  const year  = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear  = month === 1 ? year - 1 : year;
+  const mm  = String(month).padStart(2, '0');
+  const ppm = String(prevMonth).padStart(2, '0');
+
+  const [curRes, prevRes, unpaidRes] = await Promise.all([
+    supabase.from('bookings')
+      .select('id, final_price, paid_amount, payment_status, rented_by, start_date, end_date, cars(name)')
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .gte('start_date', `${year}-${mm}-01`)
+      .lte('start_date', `${year}-${mm}-${new Date(year, month, 0).getDate()}`),
+    supabase.from('bookings')
+      .select('final_price, rented_by, start_date, end_date, cars(name)')
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .gte('start_date', `${prevYear}-${ppm}-01`)
+      .lte('start_date', `${prevYear}-${ppm}-${new Date(prevYear, prevMonth, 0).getDate()}`),
+    supabase.from('bookings')
+      .select('id, client_name, client_phone, final_price, paid_amount, cars(name)')
+      .in('payment_status', ['PENDING', 'PARTIAL'])
+      .in('status', ['CONFIRMED', 'ACTIVE']),
+  ]);
+
+  const cur    = (curRes.data ?? [])    as any[];
+  const prev   = (prevRes.data ?? [])   as any[];
+  const unpaid = (unpaidRes.data ?? []) as any[];
+
+  const curCA    = cur.reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const prevCA   = prev.reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const evol     = prevCA > 0 ? Math.round(((curCA - prevCA) / prevCA) * 100) : 0;
+  const collected = cur.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
+  const outstanding = unpaid.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - (b.paid_amount ?? 0)), 0);
+
+  const profit = cur.reduce((s, b) => {
+    const days = Math.max(1, Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000));
+    const p    = getPricingForVehicle(b.cars?.name ?? '');
+    return s + (p && (b.rented_by ?? 'Kouider') === 'Kouider' ? p.benefit * days : 0);
+  }, 0);
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dailyAvg    = now.getDate() > 0 ? Math.round(curCA / now.getDate()) : 0;
+
+  // Répartition par véhicule
+  const vehicleMap: Record<string, { ca: number; bookings: number }> = {};
+  for (const b of cur) {
+    const name = (b.cars as any)?.name ?? 'Inconnu';
+    if (!vehicleMap[name]) vehicleMap[name] = { ca: 0, bookings: 0 };
+    vehicleMap[name]!.ca += b.final_price ?? 0;
+    vehicleMap[name]!.bookings++;
+  }
+  const vehicles = Object.entries(vehicleMap)
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.ca - a.ca);
+
+  return {
+    month, year,
+    ca:       { current: curCA, previous: prevCA, evolution: evol },
+    payments: { collected, outstanding },
+    profit,
+    forecast: { projected: dailyAvg * daysInMonth, nextMonth: Math.round(curCA * 1.1), dailyAvg },
+    unpaid:   unpaid.map(b => ({
+      id: b.id, name: b.client_name, car: (b.cars as any)?.name ?? '?',
+      amount: Math.max(0, (b.final_price ?? 0) - (b.paid_amount ?? 0)),
+      phone: b.client_phone ?? undefined,
+    })),
+    vehicles,
+    bookingCount: cur.length,
+  };
+}
