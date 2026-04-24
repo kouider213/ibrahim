@@ -92,7 +92,6 @@ async function handleImageAnalysis(chatId: number, sessionId: string, msg: Teleg
   try {
     await sendTyping(chatId);
 
-    // Récupérer le file_id
     let fileId: string;
     let mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
 
@@ -112,64 +111,56 @@ async function handleImageAnalysis(chatId: number, sessionId: string, msg: Teleg
       return;
     }
 
-    // Télécharger l'image en buffer
     const buffer = await downloadFile(fileId);
-    if (!buffer) {
-      await sendMessage(chatId, '⚠️ Impossible de télécharger la photo.');
-      return;
-    }
+    if (!buffer) { await sendMessage(chatId, '⚠️ Impossible de télécharger la photo.'); return; }
 
     const base64Image = buffer.toString('base64');
     const caption     = msg.caption ?? '';
 
-    // Construire le prompt selon le contexte
-    const userQuestion = caption
-      ? `L'utilisateur a envoyé cette image avec le message: "${caption}". Analyse-la et réponds en conséquence.`
-      : `L'utilisateur a envoyé cette image. Analyse son contenu et dis ce que tu vois, ou aide à résoudre le problème si c'est une capture d'écran d'un problème.`;
-
-    // Appel Claude Vision directement
-    const response = await anthropic.messages.create({
+    // Étape 1 — Vision: décrire l'image (pas d'outils ici, juste comprendre)
+    const visionResponse = await anthropic.messages.create({
       model:      'claude-opus-4-5',
       max_tokens: 1024,
-      system: `Tu es Ibrahim, l'assistant IA de Kouider (Fik Conciergerie Oran). 
-Tu analyses les images envoyées par Kouider et tu réponds en français de manière utile et précise.
-Si c'est une capture d'écran d'un site web → identifie les erreurs/problèmes affichés.
-Si c'est un document → résume le contenu.
-Si c'est une photo → décris ce que tu vois et aide si nécessaire.`,
+      system: `Tu es Ibrahim, assistant IA de Kouider (Fik Conciergerie Oran).
+Analyse précisément cette image. Si c'est un tableau/dashboard → liste tous les noms, prix, données visibles.
+Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et précis.`,
       messages: [{
         role: 'user',
         content: [
-          {
-            type:   'image',
-            source: {
-              type:       'base64',
-              media_type: mimeType,
-              data:       base64Image,
-            },
-          },
-          {
-            type: 'text',
-            text: userQuestion,
-          },
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
+          { type: 'text',  text: caption ? `Message joint: "${caption}"` : 'Décris ce que tu vois.' },
         ],
       }],
     });
 
-    const analysisText = response.content
+    const imageDescription = visionResponse.content
       .filter(b => b.type === 'text')
       .map(b => (b as Anthropic.TextBlock).text)
       .join('');
 
-    // Sauvegarder dans la conversation pour que Ibrahim garde le contexte
-    const userTurnText = caption
-      ? `[Image envoyée avec message: "${caption}"]`
-      : `[Image envoyée — analyse: ${analysisText.slice(0, 200)}...]`;
+    // Étape 2 — Si caption contient une action → utiliser chatWithTools pour exécuter
+    const ACTION_KEYWORDS = /modif|chang|corrig|mett|updat|prix|montant|réserv|client|supprim|créé|ajoute/i;
+    if (caption && ACTION_KEYWORDS.test(caption)) {
+      // Injecter la description Vision dans le contexte puis laisser Ibrahim agir avec ses outils
+      const actionMessage = `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
+      const ctx      = await buildContext(sessionId, actionMessage);
+      const response = await chatWithTools(ctx.messages, ctx.systemExtra);
 
-    await Promise.all([
-      sendMessage(chatId, analysisText),
-      saveConversationTurn(sessionId, 'user',      userTurnText,  { source: 'telegram', type: 'image' }),
-      saveConversationTurn(sessionId, 'assistant', analysisText,  { source: 'telegram' }),
-    ]);
+      await Promise.all([
+        (async () => {
+          for (const chunk of splitMessage(response.text, 4000)) await sendMessage(chatId, chunk);
+        })(),
+        saveConversationTurn(sessionId, 'user',      actionMessage,  { source: 'telegram', type: 'image_action' }),
+        saveConversationTurn(sessionId, 'assistant', response.text,  { source: 'telegram' }),
+      ]);
+    } else {
+      // Pas d'action demandée → envoyer juste l'analyse
+      await Promise.all([
+        sendMessage(chatId, imageDescription),
+        saveConversationTurn(sessionId, 'user',      `[Image envoyée${caption ? ` — "${caption}"` : ''}]`, { source: 'telegram', type: 'image' }),
+        saveConversationTurn(sessionId, 'assistant', imageDescription, { source: 'telegram' }),
+      ]);
+    }
 
   } catch (err) {
     console.error('[telegram] handleImageAnalysis error:', err instanceof Error ? err.message : String(err));
