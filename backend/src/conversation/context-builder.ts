@@ -15,6 +15,24 @@ async function getCachedWeather(): Promise<WeatherData | undefined> {
   return w;
 }
 
+// Cache flotte + réservations 2 minutes
+let fleetCache: { data: any[]; ts: number } | null = null;
+let bookingsCache: { data: any[]; ts: number } | null = null;
+
+async function getCachedFleet() {
+  if (fleetCache && Date.now() - fleetCache.ts < 2 * 60 * 1000) return fleetCache.data;
+  const data = await getFleet().catch(() => []);
+  fleetCache = { data, ts: Date.now() };
+  return data;
+}
+
+async function getCachedBookings() {
+  if (bookingsCache && Date.now() - bookingsCache.ts < 2 * 60 * 1000) return bookingsCache.data;
+  const data = await getBookings({ limit: 20 }).catch(() => []);
+  bookingsCache = { data, ts: Date.now() };
+  return data;
+}
+
 export interface ConversationContext {
   messages:    Message[];
   systemExtra: string;
@@ -27,18 +45,25 @@ export async function buildContext(
 ): Promise<ConversationContext> {
   const needsNews    = /actualit|news|journal|presse|info/i.test(userMessage);
   const needsFinance = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
+  const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
 
   const now = new Date();
+
+  // Chargement parallèle — seulement ce dont on a besoin
   const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories] = await Promise.all([
-    getConversationHistory(sessionId, 15).catch(() => []),
+    // HISTORIQUE: seulement 6 derniers messages (pas 15)
+    getConversationHistory(sessionId, 6).catch(() => []),
     getActiveRules().catch(() => []),
-    getFleet().catch(() => []),
-    getBookings({ limit: 30 }).catch(() => []),
+    getCachedFleet(),
+    getCachedBookings(),
     getCachedWeather(),
-    needsNews ? getAlgeriaNews(4).catch(() => []) : Promise.resolve([]),
-    listUpcomingEvents(15).catch(() => []),
-    needsFinance ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null) : Promise.resolve(null),
-    (async () => { const r = await supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(30); return r.data ?? []; })().catch(() => []),
+    needsNews    ? getAlgeriaNews(4).catch(() => [])                                                    : Promise.resolve([]),
+    needsCalendar? listUpcomingEvents(10).catch(() => [])                                               : Promise.resolve([]),
+    needsFinance ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)          : Promise.resolve(null),
+    (async () => {
+      const r = await supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20);
+      return r.data ?? [];
+    })().catch(() => []),
   ]);
 
   const rulesText = rules.length > 0
@@ -56,7 +81,7 @@ export async function buildContext(
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })} | Heure Oran: ${String(hour).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')} | ${timeContext}`;
 
-  // Active rentals: cars currently booked (CONFIRMED or ACTIVE)
+  // Active rentals
   const today = new Date().toISOString().slice(0, 10);
   const activeRentals = allBookings.filter(b =>
     (b.status === 'CONFIRMED' || b.status === 'ACTIVE') &&
@@ -80,52 +105,60 @@ export async function buildContext(
   const pendingBookings = allBookings.filter(b => b.status === 'PENDING');
   const bookingsText = [
     activeRentals.length > 0
-      ? `\n\nLOCATIONS EN COURS (${activeRentals.length}):\n${activeRentals.map(b => `- ${b.client_name} (${b.client_phone ?? 'N/A'}) — ${(b as unknown as {cars?: {name?: string}}).cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date} — ${b.status}`).join('\n')}`
+      ? `\n\nLOCATIONS EN COURS (${activeRentals.length}):\n${activeRentals.map(b =>
+          `- ${b.client_name} (${b.client_phone}) — ${b.car_name} — du ${b.start_date} au ${b.end_date} — ${b.status}`
+        ).join('\n')}`
       : '',
     upcomingRentals.length > 0
-      ? `\n\nLOCATIONS À VENIR (${upcomingRentals.length}):\n${upcomingRentals.map(b => `- ${b.client_name} (${b.client_phone ?? 'N/A'}) — ${(b as unknown as {cars?: {name?: string}}).cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date}`).join('\n')}`
-      : '',
-    pendingBookings.length > 0
-      ? `\n\nRÉSERVATIONS EN ATTENTE (${pendingBookings.length}):\n${pendingBookings.map(b => `- ${b.client_name} (${b.client_phone ?? 'N/A'}) — ${(b as unknown as {cars?: {name?: string}}).cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date}`).join('\n')}`
+      ? `\n\nRÉSERVATIONS EN ATTENTE (${upcomingRentals.length + pendingBookings.length}):\n${[...upcomingRentals, ...pendingBookings].map(b =>
+          `- ${b.client_name} (${b.client_phone}) — ${b.car_name} — du ${b.start_date} au ${b.end_date}`
+        ).join('\n')}`
       : '',
   ].join('');
 
-  const weatherText = weather ? `\n\n${formatWeatherForContext(weather)}` : '';
-  const newsText = news && news.length > 0 ? `\n\n${formatNewsForContext(news)}` : '';
+  // Agenda (seulement si demandé)
+  const calendarText = calendarEvents.length > 0
+    ? `\n\nAGENDA GOOGLE (${calendarEvents.length} événements à venir):\n${calendarEvents.slice(0, 5).map(e =>
+        `- ${e.summary} → ${e.start}`
+      ).join('\n')}`
+    : '';
+
+  const weatherText = weather
+    ? `\n\nMÉTÉO ORAN EN CE MOMENT: ${formatWeatherForContext(weather)}`
+    : '';
+
+  const newsText = news.length > 0
+    ? `\n\nACTUALITÉS ALGÉRIE:\n${formatNewsForContext(news)}`
+    : '';
+
+  const financeText = financeReport
+    ? `\n\nRAPPORT FINANCIER:\n${JSON.stringify(financeReport, null, 2)}`
+    : '';
+
+  const memoriesText = memories.length > 0
+    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${memories.map(m => `[${m.category}] ${m.content}`).join('\n')}`
+    : '';
 
   const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;
 
-  const financeText = financeReport
-    ? `\n\nRAPPORT FINANCIER ${financeReport.period}:\n- Réservations: ${financeReport.totalBookings} (Kouider: ${financeReport.kouiderBookings} | Houari: ${financeReport.houariBookings})\n- Bénéfice Kouider ce mois: ${financeReport.kouiderProfit}€\n- Revenu Houari ce mois: ${financeReport.houariRevenue}€\nRÈGLE: Quand Kouider loue → bénéfice = K - H par jour. Quand Houari loue → 100% pour Houari.`
-    : '';
+  const systemExtra = [
+    dateInfo,
+    weatherText,
+    fleetText,
+    bookingsText,
+    calendarText,
+    newsText,
+    financeText,
+    memoriesText,
+    rulesText,
+    pricingText,
+  ].join('');
 
-  const calendarText = calendarEvents.length > 0
-    ? `\n\nAGENDA GOOGLE (${calendarEvents.length} événements à venir):\n${calendarEvents.map(e => {
-        const start = e.start.dateTime ? new Date(e.start.dateTime).toLocaleDateString('fr-DZ', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : (e.start as unknown as {date?: string}).date ?? '';
-        return `- ${e.summary} → ${start}`;
-      }).join('\n')}`
-    : '';
-
-  const memoryText = (memories as Array<{ content: string; category: string }>).length > 0
-    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as Array<{ content: string; category: string }>).map(m => `[${m.category}] ${m.content}`).join('\n')}`
-    : '';
-
-  const systemExtra = memoryText + rulesText + dateInfo + weatherText + fleetText + bookingsText + calendarText + pricingText + financeText + newsText;
-
+  // Construire les messages: historique (6 max) + message courant
   const messages: Message[] = [
-    ...history.map(h => ({
-      role:    h.role as 'user' | 'assistant',
-      content: h.content,
-    })),
+    ...history,
     { role: 'user', content: userMessage },
   ];
 
   return { messages, systemExtra, sessionId };
-}
-
-export function formatIbrahimGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return `Bonjour, je suis ${IBRAHIM.NAME}, votre assistant ${IBRAHIM.AGENCY}.`;
-  if (hour < 18) return `Bon après-midi, je suis ${IBRAHIM.NAME}.`;
-  return `Bonsoir, je suis ${IBRAHIM.NAME}, assistant de ${IBRAHIM.AGENCY}.`;
 }
