@@ -326,4 +326,50 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       properties: {},
     },
   },
+
+  // ─── PHASE 13 — Apprentissage continu ────────────────────────
+  {
+    name: 'record_feedback',
+    description: 'Enregistrer un feedback de Kouider sur une action Ibrahim (réponse, réservation, contenu TikTok, etc.). Ibrahim apprend de ces feedbacks.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action_type: { type: 'string', description: 'Type d\'action: response, booking, tiktok, modification, etc.' },
+        action_id:   { type: 'string', description: 'ID de l\'action (optionnel)' },
+        rating:      { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Évaluation' },
+        comment:     { type: 'string', description: 'Commentaire de Kouider (optionnel)' },
+        context:     { type: 'string', description: 'Contexte JSON stringifié (optionnel)' },
+      },
+      required: ['action_type', 'rating'],
+    },
+  },
+  {
+    name: 'get_monthly_improvement_report',
+    description: 'Rapport mensuel d\'amélioration Ibrahim: nouvelles règles apprises, feedbacks reçus, patterns découverts, performances par catégorie, recommandations.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        year:  { type: 'number', description: 'Année (défaut: année courante)' },
+        month: { type: 'number', description: 'Mois 1-12 (défaut: mois courant)' },
+      },
+    },
+  },
+  {
+    name: 'get_learning_evolution',
+    description: 'Évolution de l\'apprentissage Ibrahim sur plusieurs mois: tendances, taux de satisfaction, amélioration continue.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        months: { type: 'number', description: 'Nombre de mois à analyser (défaut: 6)' },
+      },
+    },
+  },
+  {
+    name: 'get_kouider_preferences',
+    description: 'Récupérer les préférences calibrées de Kouider: style de réponse (court/détaillé), ton (professionnel/amical), styles TikTok favoris.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
 ];
