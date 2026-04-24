@@ -319,17 +319,16 @@ export async function cutVideo(
   endSeconds: number
 ): Promise<string> {
   try {
-    const upload = await cloudinary.uploader.upload(videoUrl, {
+    // Upload + eager transformation (traitement immédiat, pas lazy)
+    const result = await cloudinary.uploader.upload(videoUrl, {
       resource_type: 'video',
+      eager: [{ start_offset: startSeconds, end_offset: endSeconds, format: 'mp4', quality: 'auto' }],
+      eager_async: false,
     });
-
-    // Découpe vidéo
-    return cloudinary.url(upload.public_id, {
-      resource_type: 'video',
-      start_offset: startSeconds,
-      end_offset: endSeconds,
-      format: 'mp4',
-      quality: 'auto',
+    if (result.eager?.[0]?.secure_url) return result.eager[0].secure_url;
+    // Fallback: transformation URL
+    return cloudinary.url(result.public_id, {
+      resource_type: 'video', start_offset: startSeconds, end_offset: endSeconds, format: 'mp4',
     });
   } catch (error: any) {
     throw new Error(`Erreur découpe vidéo: ${error.message}`);
@@ -462,38 +461,24 @@ export async function optimizeForPlatform(
   platform: 'tiktok' | 'instagram' | 'youtube'
 ): Promise<string> {
   try {
-    const upload = await cloudinary.uploader.upload(videoUrl, {
+    const specs: Record<string, { width: number; height: number; end_offset?: number }> = {
+      tiktok:    { width: 1080, height: 1920, end_offset: 60 },
+      instagram: { width: 1080, height: 1920, end_offset: 90 },
+      youtube:   { width: 1920, height: 1080 },
+    };
+    const s = specs[platform]!;
+    const transformation: Record<string, unknown> = {
+      width: s.width, height: s.height, crop: 'fill', gravity: 'auto', quality: 'auto', format: 'mp4',
+    };
+    if (s.end_offset) transformation['end_offset'] = s.end_offset;
+
+    const result = await cloudinary.uploader.upload(videoUrl, {
       resource_type: 'video',
+      eager: [transformation],
+      eager_async: false,
     });
-
-    let width: number;
-    let height: number;
-    let duration: number | undefined;
-
-    if (platform === 'tiktok') {
-      width = 1080;
-      height = 1920; // 9:16
-      duration = 60; // Max 60s
-    } else if (platform === 'instagram') {
-      width = 1080;
-      height = 1920; // 9:16 Reels
-      duration = 90; // Max 90s
-    } else {
-      width = 1920;
-      height = 1080; // 16:9
-      duration = undefined; // Pas de limite
-    }
-
-    return cloudinary.url(upload.public_id, {
-      resource_type: 'video',
-      width,
-      height,
-      crop: 'fill',
-      gravity: 'auto',
-      end_offset: duration,
-      quality: 'auto',
-      format: 'mp4',
-    });
+    if (result.eager?.[0]?.secure_url) return result.eager[0].secure_url;
+    return cloudinary.url(result.public_id, { resource_type: 'video', ...transformation });
   } catch (error: any) {
     throw new Error(`Erreur optimisation plateforme: ${error.message}`);
   }
@@ -529,17 +514,14 @@ export async function createVideoPreview(
   durationSeconds: number = 10
 ): Promise<string> {
   try {
-    const upload = await cloudinary.uploader.upload(videoUrl, {
+    const result = await cloudinary.uploader.upload(videoUrl, {
       resource_type: 'video',
+      eager: [{ start_offset: 0, end_offset: durationSeconds, quality: 'auto', format: 'mp4' }],
+      eager_async: false,
     });
-
-    // Découpe premiers 10 secondes
-    return cloudinary.url(upload.public_id, {
-      resource_type: 'video',
-      start_offset: 0,
-      end_offset: durationSeconds,
-      quality: 'auto',
-      format: 'mp4',
+    if (result.eager?.[0]?.secure_url) return result.eager[0].secure_url;
+    return cloudinary.url(result.public_id, {
+      resource_type: 'video', start_offset: 0, end_offset: durationSeconds, format: 'mp4',
     });
   } catch (error: any) {
     throw new Error(`Erreur création preview: ${error.message}`);

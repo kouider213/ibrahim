@@ -9,8 +9,7 @@ import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  analyzeImage, optimizeImage, createSocialVariants, enhanceImage, removeBackground,
-  analyzeVideo, cutVideo, optimizeForPlatform, extractThumbnail,
+  analyzeImage, optimizeImage, enhanceImage, removeBackground, createSocialVariants,
 } from '../../integrations/media-processing.js';
 
 const router   = Router();
@@ -114,7 +113,7 @@ router.post('/webhook', async (req, res) => {
 async function handleVideoMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
     if (!cloudinary) {
-      await sendMessage(chatId, '⚠️ Cloudinary en cours de chargement, réessaie dans 2 secondes...');
+      await sendMessage(chatId, '⚠️ Cloudinary non configuré.');
       return;
     }
 
@@ -123,12 +122,11 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
     const videoFile = msg.video;
     if (!videoFile) return;
 
-    const fileId = videoFile.file_id;
     const caption = msg.caption ?? '';
 
-    // 1. Télécharger la vidéo depuis Telegram
-    await sendMessage(chatId, '⏳ Téléchargement de la vidéo...');
-    const buffer = await downloadFile(fileId);
+    // 1. Télécharger depuis Telegram
+    await sendMessage(chatId, '⏳ Téléchargement...');
+    const buffer = await downloadFile(videoFile.file_id);
     if (!buffer) {
       await sendMessage(chatId, '⚠️ Impossible de télécharger la vidéo.');
       return;
@@ -136,78 +134,41 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
 
     // 2. Upload sur Cloudinary
     await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
-    
     const uploadResult = await new Promise<any>((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { resource_type: 'video', folder: 'telegram_videos' },
-        (error: any, result: any) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
+        (error: any, result: any) => { if (error) reject(error); else resolve(result); }
       );
       uploadStream.end(buffer);
     });
+    const videoUrl = uploadResult.secure_url as string;
 
-    const videoUrl = uploadResult.secure_url;
+    // 3. Passer à Claude pour traitement en langage naturel
+    await sendMessage(chatId, '🤖 Ibrahim traite ta demande...');
 
-    // 3. Analyser la vidéo
-    await sendMessage(chatId, '🔍 Analyse de la vidéo...');
-    const analysis = await analyzeVideo(videoUrl);
+    const userRequest = caption
+      ? `Vidéo reçue via Telegram, uploadée sur Cloudinary: ${videoUrl}\n\nDemande de Kouider: "${caption}"\n\nEffectue exactement ce qui est demandé. Utilise les outils disponibles (cut_video, optimize_for_platform, create_video_preview, extract_thumbnail, add_subtitles...). Après avoir appliqué la transformation, retourne l'URL résultante.`
+      : `Vidéo reçue via Telegram, URL: ${videoUrl}\n\nAucune instruction. Analyse la vidéo et dis-moi ce que tu peux en faire.`;
 
-    // 4. Détecter l'action demandée dans la légende
-    const lowerCaption = caption.toLowerCase();
-    let processedUrl = videoUrl;
-    let action = 'Vidéo reçue et analysée';
+    const ctx = await buildContext(sessionId, userRequest);
+    const response = await chatWithTools(ctx.messages, ctx.systemExtra);
 
-    if (/tiktok|reels|story|vertical/i.test(lowerCaption)) {
-      await sendMessage(chatId, '✂️ Optimisation format TikTok/Reels (9:16)...');
-      processedUrl = await optimizeForPlatform(videoUrl, 'tiktok');
-      action = 'Optimisation TikTok/Reels 9:16';
-    } else if (/youtube|horizontal|16:9/i.test(lowerCaption)) {
-      await sendMessage(chatId, '✂️ Optimisation format YouTube (16:9)...');
-      processedUrl = await optimizeForPlatform(videoUrl, 'youtube');
-      action = 'Optimisation YouTube 16:9';
-    } else if (/miniature|thumb|vignette/i.test(lowerCaption)) {
-      await sendMessage(chatId, '📸 Extraction miniature...');
-      const thumbUrl = await extractThumbnail(videoUrl, 2);
-      await sendPhoto(chatId, thumbUrl);
-      action = 'Miniature extraite';
-    } else if (/découpe|coupe|cut|extrait/i.test(lowerCaption)) {
-      // Détection timestamps (ex: "0:10 à 0:45")
-      const timeMatch = caption.match(/(\d+):(\d+)\s*[àa]\s*(\d+):(\d+)/i);
-      if (timeMatch) {
-        const startSec = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
-        const endSec = parseInt(timeMatch[3]) * 60 + parseInt(timeMatch[4]);
-        await sendMessage(chatId, `✂️ Découpe ${startSec}s → ${endSec}s...`);
-        processedUrl = await cutVideo(videoUrl, startSec, endSec);
-        action = `Découpe ${startSec}s-${endSec}s`;
-      }
-    }
+    await sendMessage(chatId, response.text);
 
-    // 5. Envoyer résultat
-    const resultMsg = `✅ **Vidéo traitée** — ${action}\n\n` +
-      `📊 **Analyse:**\n` +
-      `• Durée: ${analysis.duration_seconds}s\n` +
-      `• Résolution: ${analysis.width}x${analysis.height}\n` +
-      `• Taille: ${analysis.size_mb} MB\n` +
-      `• Format: ${analysis.format}\n\n` +
-      `🔗 Lien: ${processedUrl}`;
-
-    await sendMessage(chatId, resultMsg);
-
-    // Envoyer la vidéo traitée si différente de l'originale
-    if (processedUrl !== videoUrl) {
-      await sendVideo(chatId, processedUrl);
+    // Extraire et renvoyer la vidéo Cloudinary modifiée si présente dans la réponse
+    const urlMatch = response.text.match(/https:\/\/res\.cloudinary\.com\/[^\s\n)"']+\.mp4[^\s\n)"']*/);
+    if (urlMatch && urlMatch[0] !== videoUrl) {
+      await sendVideo(chatId, urlMatch[0]);
     }
 
     await saveConversationTurn(sessionId, 'user',
-      `[Vidéo reçue${caption ? ` — "${caption}"` : ''} → ${action}]`,
-      { source: 'telegram', type: 'video', url: processedUrl }
+      `[Vidéo Telegram${caption ? ` — "${caption}"` : ''}]`,
+      { source: 'telegram', type: 'video', url: videoUrl }
     );
 
   } catch (err) {
     console.error('[telegram] handleVideoMessage error:', err instanceof Error ? err.message : String(err));
-    await sendMessage(chatId, `⚠️ Erreur traitement vidéo: ${err instanceof Error ? err.message : String(err)}`);
+    await sendMessage(chatId, `⚠️ Erreur: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

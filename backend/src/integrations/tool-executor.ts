@@ -1,5 +1,6 @@
 import { supabase } from './supabase.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
+import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
 import { learnRule } from './claude-api.js';
 import { getOranWeather } from './web-search.js';
@@ -81,6 +82,20 @@ export async function executeTool(
       case 'check_car_availability':     return await checkCarAvailability(input);
       // ─── GitHub search ───
       case 'github_search_code':         return await githubSearchCode(input);
+      // ─── PHASE 14 — Image & Vidéo ───
+      case 'analyze_image':
+      case 'optimize_image':
+      case 'create_social_variants':
+      case 'enhance_image':
+      case 'remove_background':
+      case 'add_text_overlay':
+      case 'analyze_video':
+      case 'cut_video':
+      case 'merge_videos':
+      case 'add_subtitles':
+      case 'optimize_for_platform':
+      case 'extract_thumbnail':
+      case 'create_video_preview':       return await executeMediaTool(name, input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
