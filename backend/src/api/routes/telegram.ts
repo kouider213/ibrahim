@@ -81,9 +81,9 @@ router.post('/webhook', async (req, res) => {
 
     await Promise.all([sendPromise, savePromise]);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[telegram] Error:', msg);
-    await sendMessage(chatId, `⚠️ Erreur: ${msg.slice(0, 300)}`);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[telegram] Error:', errMsg);
+    await sendMessage(chatId, `⚠️ Erreur: ${errMsg.slice(0, 300)}`);
   }
 });
 
@@ -99,15 +99,15 @@ async function handleImageAnalysis(chatId: number, sessionId: string, msg: Teleg
     if (msg.photo && msg.photo.length > 0) {
       const largest = msg.photo[msg.photo.length - 1];
       if (!largest) { await sendMessage(chatId, '⚠️ Photo illisible.'); return; }
-      fileId = largest.file_id;
+      fileId   = largest.file_id;
       mimeType = 'image/jpeg';
     } else if (msg.document) {
       fileId = msg.document.file_id;
       const mime = msg.document.mime_type ?? '';
-      if (mime === 'image/png')  mimeType = 'image/png';
+      if (mime === 'image/png')       mimeType = 'image/png';
       else if (mime === 'image/gif')  mimeType = 'image/gif';
       else if (mime === 'image/webp') mimeType = 'image/webp';
-      else mimeType = 'image/jpeg';
+      else                            mimeType = 'image/jpeg';
     } else {
       return;
     }
@@ -206,7 +206,7 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
       return;
     }
 
-    const caption = msg.caption ?? msg.text ?? '';
+    const caption = msg.caption ?? '';
     const { docType, clientName, clientPhone, bookingNote } = parseCaption(caption);
 
     await supabase.storage.createBucket(BUCKET, { public: true }).catch(() => {});
