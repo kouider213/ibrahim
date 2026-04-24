@@ -41,8 +41,9 @@ export async function chatWithTools(
 
   // Agentic loop — max 15 tool rounds (needed for multi-step coding tasks)
   for (let round = 0; round < 15; round++) {
-    // Retry up to 3 times on 429 rate limit
+    // Retry up to 3 times on 429 (rate limit), 529 (overloaded), 422 (context too long)
     let response: Awaited<ReturnType<typeof client.messages.create>> | null = null;
+    let currentMessages = apiMessages;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         response = await client.messages.create({
@@ -50,7 +51,7 @@ export async function chatWithTools(
           max_tokens: 8192,
           system,
           tools:      IBRAHIM_TOOLS,
-          messages:   apiMessages,
+          messages:   currentMessages,
         });
         break;
       } catch (err) {
@@ -58,6 +59,14 @@ export async function chatWithTools(
         if (status === 429 && attempt < 2) {
           console.warn(`[claude] Rate limit 429 — attente 65s (tentative ${attempt + 1}/3)`);
           await new Promise(r => setTimeout(r, 65_000));
+        } else if (status === 529 && attempt < 2) {
+          console.warn(`[claude] Overloaded 529 — attente 30s (tentative ${attempt + 1}/3)`);
+          await new Promise(r => setTimeout(r, 30_000));
+        } else if (status === 422 && attempt < 2) {
+          // Context too long — keep only last 6 messages
+          console.warn('[claude] Context trop long 422 — troncature historique');
+          const trimmed = currentMessages.slice(-6);
+          currentMessages = trimmed;
         } else { throw err; }
       }
     }
