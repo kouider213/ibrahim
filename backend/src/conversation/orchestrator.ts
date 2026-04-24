@@ -21,29 +21,42 @@ export async function processMessage(
   sessionId:   string,
   textOnly = false,
 ): Promise<OrchestratorResponse> {
+
+  // 1. Notifier "thinking" immédiatement
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
 
+  // 2. Construire le contexte + sauvegarder le message user en parallèle
   const [ctx] = await Promise.all([
     buildContext(sessionId, userMessage),
     saveConversationTurn(sessionId, 'user', userMessage),
   ]);
 
-  // chatWithTools: Claude voit les outils, appelle Supabase si besoin, retourne réponse finale
-  const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+  // 3. Claude répond (avec tools si besoin)
+  let response: Awaited<ReturnType<typeof chatWithTools>>;
+  try {
+    response = await chatWithTools(ctx.messages, ctx.systemExtra);
+  } catch (err) {
+    const errorText = `Erreur Ibrahim: ${err instanceof Error ? err.message : String(err)}`;
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: errorText });
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: errorText, status: 'error' };
+  }
 
-  await saveConversationTurn(sessionId, 'assistant', response.text);
+  // 4. Émettre le texte IMMÉDIATEMENT dès que Claude a répondu
+  _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: response.text });
 
-  if (textOnly) {
-    // Telegram — texte seulement
-    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: response.text });
-  } else {
-    // App mobile — texte + audio ElevenLabs
-    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: response.text });
+  // 5. Sauvegarder en base (non-bloquant)
+  saveConversationTurn(sessionId, 'assistant', response.text).catch(err =>
+    console.error('[orchestrator] save error:', err)
+  );
+
+  // 6. Audio ElevenLabs (seulement si app mobile, pas Telegram)
+  if (!textOnly && response.text.length > 0) {
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
-
     await streamAudioSentences(response.text, sessionId);
   }
 
+  // 7. Idle
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
 
   return { text: response.text, status: 'done' };
