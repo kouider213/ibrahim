@@ -188,20 +188,25 @@ async function storeDocument(input: Record<string, unknown>): Promise<string> {
 }
 
 async function readSiteFile(input: Record<string, unknown>): Promise<string> {
-  return getFileContent(input['path'] as string, 'autolux-location');
+  const result = await getFileContent(input['path'] as string, 'autolux-location');
+  if (!result) return `Fichier non trouvé: ${input['path']}`;
+  return result.content;
 }
 
 async function updateSiteFile(input: Record<string, unknown>): Promise<string> {
-  return updateFile(
+  const result = await updateFile(
     input['path']    as string,
     input['content'] as string,
     input['message'] as string,
     'autolux-location',
   );
+  if (!result) return `Erreur: impossible de mettre à jour ${input['path']}`;
+  return `✅ Fichier mis à jour: ${input['path']} (commit: ${result.commitSha})`;
 }
 
 async function learnRuleTool(input: Record<string, unknown>): Promise<string> {
-  return learnRule(input['instruction'] as string);
+  const result = await learnRule(input['instruction'] as string);
+  return `✅ Règle apprise [${result.category}]: ${result.rule}`;
 }
 
 async function rememberInfo(input: Record<string, unknown>): Promise<string> {
@@ -257,7 +262,9 @@ async function getNews(input: Record<string, unknown>): Promise<string> {
 async function githubReadFile(input: Record<string, unknown>): Promise<string> {
   const repo = (input['repo'] as string) || 'ibrahim';
   const path = input['path'] as string;
-  return getFileContent(path, repo);
+  const result = await getFileContent(path, repo);
+  if (!result) return `Fichier non trouvé: ${path}`;
+  return result.content;
 }
 
 async function githubWriteFile(input: Record<string, unknown>): Promise<string> {
@@ -265,13 +272,17 @@ async function githubWriteFile(input: Record<string, unknown>): Promise<string> 
   const path    = input['path']    as string;
   const content = input['content'] as string;
   const message = (input['message'] as string) || 'update';
-  return updateFile(path, content, message, repo);
+  const result = await updateFile(path, content, message, repo);
+  if (!result) return `Erreur: impossible de mettre à jour ${path}`;
+  return `✅ Fichier mis à jour: ${path} (commit: ${result.commitSha})`;
 }
 
 async function githubListFiles(input: Record<string, unknown>): Promise<string> {
   const repo = (input['repo'] as string) || 'ibrahim';
   const path = (input['path'] as string) || '';
-  return listDirectory(path, repo);
+  const files = await listDirectory(path, repo);
+  if (!files.length) return `Répertoire vide ou non trouvé: ${path || '/'}`;
+  return files.map(f => `${f.type === 'dir' ? '📁' : '📄'} ${f.path}`).join('\n');
 }
 
 async function railwayGetLogs(input: Record<string, unknown>): Promise<string> {
@@ -318,5 +329,6 @@ async function supabaseExecute(input: Record<string, unknown>): Promise<string> 
 
 async function netlifyDeploy(input: Record<string, unknown>): Promise<string> {
   const siteId = (input['site_id'] as string) || 'fik-conciergerie-oran';
-  return triggerNetlifyDeploy(siteId);
+  const ok = await triggerNetlifyDeploy(siteId);
+  return ok ? `✅ Déploiement Netlify déclenché pour: ${siteId}` : `❌ Échec du déploiement Netlify pour: ${siteId}`;
 }
