@@ -311,6 +311,15 @@ export async function analyzeVideo(videoUrl: string): Promise<VideoAnalysis> {
   }
 }
 
+// ─── Helper: extraire le public_id d'une URL Cloudinary ──────────
+
+function extractPublicId(url: string): string | null {
+  // https://res.cloudinary.com/{cloud}/video/upload/{transformations?}/v{n}/{public_id}.{ext}
+  // https://res.cloudinary.com/{cloud}/video/upload/{public_id}.{ext}
+  const m = url.match(/\/(?:video|image)\/upload\/(?:[^/]+\/)*v?\d*\/?(.+?)(?:\.[a-z0-9]+)?$/i);
+  return m ? m[1] : null;
+}
+
 // ─── VIDÉO — Découpe ──────────────────────────────────────────────
 
 export async function cutVideo(
@@ -319,17 +328,23 @@ export async function cutVideo(
   endSeconds: number
 ): Promise<string> {
   try {
-    // Upload + eager transformation (traitement immédiat, pas lazy)
-    const result = await cloudinary.uploader.upload(videoUrl, {
+    // Si déjà sur Cloudinary, on utilise directement le public_id (pas de re-upload)
+    let publicId = videoUrl.includes('cloudinary.com') ? extractPublicId(videoUrl) : null;
+
+    if (!publicId) {
+      const upload = await cloudinary.uploader.upload(videoUrl, { resource_type: 'video' });
+      publicId = upload.public_id;
+    }
+
+    // URL de transformation Cloudinary — traitement appliqué à l'accès (fiable)
+    const transformed = cloudinary.url(publicId, {
       resource_type: 'video',
-      eager: [{ start_offset: startSeconds, end_offset: endSeconds, format: 'mp4', quality: 'auto' }],
-      eager_async: false,
+      transformation: [{ start_offset: startSeconds, end_offset: endSeconds, quality: 'auto' }],
+      format: 'mp4',
+      secure: true,
     });
-    if (result.eager?.[0]?.secure_url) return result.eager[0].secure_url;
-    // Fallback: transformation URL
-    return cloudinary.url(result.public_id, {
-      resource_type: 'video', start_offset: startSeconds, end_offset: endSeconds, format: 'mp4',
-    });
+
+    return transformed;
   } catch (error: any) {
     throw new Error(`Erreur découpe vidéo: ${error.message}`);
   }
@@ -467,18 +482,22 @@ export async function optimizeForPlatform(
       youtube:   { width: 1920, height: 1080 },
     };
     const s = specs[platform]!;
-    const transformation: Record<string, unknown> = {
-      width: s.width, height: s.height, crop: 'fill', gravity: 'auto', quality: 'auto', format: 'mp4',
-    };
-    if (s.end_offset) transformation['end_offset'] = s.end_offset;
 
-    const result = await cloudinary.uploader.upload(videoUrl, {
+    let publicId = videoUrl.includes('cloudinary.com') ? extractPublicId(videoUrl) : null;
+    if (!publicId) {
+      const upload = await cloudinary.uploader.upload(videoUrl, { resource_type: 'video' });
+      publicId = upload.public_id;
+    }
+
+    const tf: Record<string, unknown> = { width: s.width, height: s.height, crop: 'fill', gravity: 'auto', quality: 'auto' };
+    if (s.end_offset) tf['end_offset'] = s.end_offset;
+
+    return cloudinary.url(publicId, {
       resource_type: 'video',
-      eager: [transformation],
-      eager_async: false,
+      transformation: [tf],
+      format: 'mp4',
+      secure: true,
     });
-    if (result.eager?.[0]?.secure_url) return result.eager[0].secure_url;
-    return cloudinary.url(result.public_id, { resource_type: 'video', ...transformation });
   } catch (error: any) {
     throw new Error(`Erreur optimisation plateforme: ${error.message}`);
   }
@@ -514,15 +533,8 @@ export async function createVideoPreview(
   durationSeconds: number = 10
 ): Promise<string> {
   try {
-    const result = await cloudinary.uploader.upload(videoUrl, {
-      resource_type: 'video',
-      eager: [{ start_offset: 0, end_offset: durationSeconds, quality: 'auto', format: 'mp4' }],
-      eager_async: false,
-    });
-    if (result.eager?.[0]?.secure_url) return result.eager[0].secure_url;
-    return cloudinary.url(result.public_id, {
-      resource_type: 'video', start_offset: 0, end_offset: durationSeconds, format: 'mp4',
-    });
+    // createVideoPreview = cutVideo de 0 → durationSeconds
+    return cutVideo(videoUrl, 0, durationSeconds);
   } catch (error: any) {
     throw new Error(`Erreur création preview: ${error.message}`);
   }

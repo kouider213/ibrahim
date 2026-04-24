@@ -147,16 +147,17 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
     await sendMessage(chatId, '🤖 Ibrahim traite ta demande...');
 
     const userRequest = caption
-      ? `Vidéo reçue via Telegram, uploadée sur Cloudinary: ${videoUrl}\n\nDemande de Kouider: "${caption}"\n\nEffectue exactement ce qui est demandé. Utilise les outils disponibles (cut_video, optimize_for_platform, create_video_preview, extract_thumbnail, add_subtitles...). Après avoir appliqué la transformation, retourne l'URL résultante.`
-      : `Vidéo reçue via Telegram, URL: ${videoUrl}\n\nAucune instruction. Analyse la vidéo et dis-moi ce que tu peux en faire.`;
+      ? `Vidéo reçue via Telegram et uploadée sur Cloudinary.\nURL: ${videoUrl}\n\nDemande de Kouider: "${caption}"\n\nUtilise l'outil cut_video pour couper, create_video_preview pour limiter la durée, optimize_for_platform pour TikTok/YouTube. Passe exactement l'URL ci-dessus comme video_url. Retourne l'URL transformée dans ta réponse.`
+      : `Vidéo reçue via Telegram.\nURL: ${videoUrl}\n\nAucune instruction spécifique. Analyse et propose.`;
 
     const ctx = await buildContext(sessionId, userRequest);
     const response = await chatWithTools(ctx.messages, ctx.systemExtra);
 
     await sendMessage(chatId, response.text);
 
-    // Extraire et renvoyer la vidéo Cloudinary modifiée si présente dans la réponse
-    const urlMatch = response.text.match(/https:\/\/res\.cloudinary\.com\/[^\s\n)"']+\.mp4[^\s\n)"']*/);
+    // Extraire et renvoyer la vidéo Cloudinary modifiée
+    // Le regex accepte les URLs Cloudinary avec ou sans extension .mp4 dans le path
+    const urlMatch = response.text.match(/https:\/\/res\.cloudinary\.com\/[^\s\n)"']+/);
     if (urlMatch && urlMatch[0] !== videoUrl) {
       await sendVideo(chatId, urlMatch[0]);
     }
