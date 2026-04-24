@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { IBRAHIM } from '../config/constants.js';
 import { IBRAHIM_TOOLS } from './tools.js';
 import { executeTool } from './tool-executor.js';
+import { randomUUID } from 'crypto';
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -24,10 +25,14 @@ export interface ClaudeResponse {
 export async function chatWithTools(
   messages: Message[],
   systemExtra?: string,
+  sessionId?: string,
 ): Promise<ClaudeResponse> {
   const systemParts = [IBRAHIM.SYSTEM_PROMPT as string];
   if (systemExtra) systemParts.push(systemExtra);
   const system = systemParts.join('\n\n');
+
+  // Generate session ID if not provided
+  const sid = sessionId ?? randomUUID();
 
   // Convert Message[] to Anthropic format
   let apiMessages: Anthropic.MessageParam[] = messages.map(m => ({
@@ -98,7 +103,7 @@ export async function chatWithTools(
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (block) => {
         console.log(`[tools] Executing: ${block.name}`, block.input);
-        const raw = await executeTool(block.name, block.input as Record<string, unknown>);
+        const raw = await executeTool(block.name, block.input as Record<string, unknown>, sid);
         // Guarantee content is always a plain string — never an object/array
         const content = typeof raw === 'string' ? raw : JSON.stringify(raw);
         console.log(`[tools] Result: ${content.slice(0, 200)}`);
