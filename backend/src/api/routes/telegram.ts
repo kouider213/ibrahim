@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  sendMessage, sendTyping, setWebhook, downloadFile, getFileUrl,
+  sendMessage, sendTyping, setWebhook, downloadFile, getFileUrl, sendPhoto, sendVideo,
   type TelegramUpdate, type TelegramMessage,
 } from '../../integrations/telegram.js';
 import { chatWithTools } from '../../integrations/claude-api.js';
@@ -8,10 +8,23 @@ import { buildContext } from '../../conversation/context-builder.js';
 import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import Anthropic from '@anthropic-ai/sdk';
+import {
+  analyzeImage, optimizeImage, createSocialVariants, enhanceImage, removeBackground,
+  analyzeVideo, cutVideo, optimizeForPlatform, extractThumbnail,
+} from '../../integrations/media-processing.js';
+import { v2 as cloudinary } from 'cloudinary';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
 const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] ?? '' });
+
+// Configuration Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
+  api_key: process.env.CLOUDINARY_API_KEY || '',
+  api_secret: process.env.CLOUDINARY_API_SECRET || '',
+  secure: true,
+});
 
 function isAllowed(chatId: number): boolean {
   const allowed = process.env['TELEGRAM_ALLOWED_CHATS'] ?? '';
@@ -40,11 +53,17 @@ router.post('/webhook', async (req, res) => {
 
   // /start
   if (msg.text?.startsWith('/start')) {
-    await sendMessage(chatId, `Salam ! Je suis Ibrahim 🚗\nEnvoie message, photo ou document.`);
+    await sendMessage(chatId, `Salam Kouider ! Je suis Ibrahim 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTu peux me dire ce que tu veux faire avec tes médias !`);
     return;
   }
 
-  // Photo ou document reçu
+  // ── VIDÉO REÇUE ──
+  if (msg.video) {
+    await handleVideoMessage(chatId, sessionId, msg);
+    return;
+  }
+
+  // ── PHOTO OU DOCUMENT IMAGE REÇU ──
   if (msg.photo || msg.document) {
     const caption = msg.caption ?? '';
 
@@ -54,8 +73,8 @@ router.post('/webhook', async (req, res) => {
       return;
     }
 
-    // Sinon → analyser l'image avec Claude Vision et répondre intelligemment
-    await handleImageAnalysis(chatId, sessionId, msg);
+    // Sinon → analyser l'image avec Claude Vision ET proposer traitement
+    await handleImageMessage(chatId, sessionId, msg);
     return;
   }
 
@@ -87,8 +106,104 @@ router.post('/webhook', async (req, res) => {
   }
 });
 
-// ── Analyse image avec Claude Vision ──────────────────────────
-async function handleImageAnalysis(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
+// ── TRAITEMENT VIDÉO AUTOMATIQUE ──────────────────────────────────
+async function handleVideoMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
+  try {
+    await sendTyping(chatId);
+
+    const videoFile = msg.video;
+    if (!videoFile) return;
+
+    const fileId = videoFile.file_id;
+    const caption = msg.caption ?? '';
+
+    // 1. Télécharger la vidéo depuis Telegram
+    await sendMessage(chatId, '⏳ Téléchargement de la vidéo...');
+    const buffer = await downloadFile(fileId);
+    if (!buffer) {
+      await sendMessage(chatId, '⚠️ Impossible de télécharger la vidéo.');
+      return;
+    }
+
+    // 2. Upload sur Cloudinary
+    await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
+    
+    const uploadResult = await new Promise<any>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { resource_type: 'video', folder: 'telegram_videos' },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(buffer);
+    });
+
+    const videoUrl = uploadResult.secure_url;
+
+    // 3. Analyser la vidéo
+    await sendMessage(chatId, '🔍 Analyse de la vidéo...');
+    const analysis = await analyzeVideo(videoUrl);
+
+    // 4. Détecter l'action demandée dans la légende
+    const lowerCaption = caption.toLowerCase();
+    let processedUrl = videoUrl;
+    let action = 'Vidéo reçue et analysée';
+
+    if (/tiktok|reels|story|vertical/i.test(lowerCaption)) {
+      await sendMessage(chatId, '✂️ Optimisation format TikTok/Reels (9:16)...');
+      processedUrl = await optimizeForPlatform(videoUrl, 'tiktok');
+      action = 'Optimisation TikTok/Reels 9:16';
+    } else if (/youtube|horizontal|16:9/i.test(lowerCaption)) {
+      await sendMessage(chatId, '✂️ Optimisation format YouTube (16:9)...');
+      processedUrl = await optimizeForPlatform(videoUrl, 'youtube');
+      action = 'Optimisation YouTube 16:9';
+    } else if (/miniature|thumb|vignette/i.test(lowerCaption)) {
+      await sendMessage(chatId, '📸 Extraction miniature...');
+      const thumbUrl = await extractThumbnail(videoUrl, 2);
+      await sendPhoto(chatId, thumbUrl);
+      action = 'Miniature extraite';
+    } else if (/découpe|coupe|cut|extrait/i.test(lowerCaption)) {
+      // Détection timestamps (ex: "0:10 à 0:45")
+      const timeMatch = caption.match(/(\d+):(\d+)\s*[àa]\s*(\d+):(\d+)/i);
+      if (timeMatch) {
+        const startSec = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+        const endSec = parseInt(timeMatch[3]) * 60 + parseInt(timeMatch[4]);
+        await sendMessage(chatId, `✂️ Découpe ${startSec}s → ${endSec}s...`);
+        processedUrl = await cutVideo(videoUrl, startSec, endSec);
+        action = `Découpe ${startSec}s-${endSec}s`;
+      }
+    }
+
+    // 5. Envoyer résultat
+    const resultMsg = `✅ **Vidéo traitée** — ${action}\n\n` +
+      `📊 **Analyse:**\n` +
+      `• Durée: ${analysis.duration_seconds}s\n` +
+      `• Résolution: ${analysis.width}x${analysis.height}\n` +
+      `• Taille: ${analysis.size_mb} MB\n` +
+      `• Format: ${analysis.format}\n\n` +
+      `🔗 Lien: ${processedUrl}`;
+
+    await sendMessage(chatId, resultMsg);
+
+    // Envoyer la vidéo traitée si différente de l'originale
+    if (processedUrl !== videoUrl) {
+      await sendVideo(chatId, processedUrl);
+    }
+
+    await saveConversationTurn(sessionId, 'user',
+      `[Vidéo reçue${caption ? ` — "${caption}"` : ''} → ${action}]`,
+      { source: 'telegram', type: 'video', url: processedUrl }
+    );
+
+  } catch (err) {
+    console.error('[telegram] handleVideoMessage error:', err instanceof Error ? err.message : String(err));
+    await sendMessage(chatId, `⚠️ Erreur traitement vidéo: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+// ── TRAITEMENT IMAGE AUTOMATIQUE ──────────────────────────────────
+async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
     await sendTyping(chatId);
 
@@ -111,13 +226,36 @@ async function handleImageAnalysis(chatId: number, sessionId: string, msg: Teleg
       return;
     }
 
+    const caption = msg.caption ?? '';
+
+    // 1. Télécharger l'image depuis Telegram
+    await sendMessage(chatId, '⏳ Téléchargement de l\'image...');
     const buffer = await downloadFile(fileId);
-    if (!buffer) { await sendMessage(chatId, '⚠️ Impossible de télécharger la photo.'); return; }
+    if (!buffer) {
+      await sendMessage(chatId, '⚠️ Impossible de télécharger l\'image.');
+      return;
+    }
 
+    // 2. Upload sur Cloudinary
+    await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
+    
+    const uploadResult = await new Promise<any>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { resource_type: 'image', folder: 'telegram_images' },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(buffer);
+    });
+
+    const imageUrl = uploadResult.secure_url;
+
+    // 3. ANALYSE VISION CLAUDE pour comprendre l'image
+    await sendMessage(chatId, '👁️ Analyse de l\'image...');
     const base64Image = buffer.toString('base64');
-    const caption     = msg.caption ?? '';
 
-    // Étape 1 — Vision: décrire l'image (pas d'outils ici, juste comprendre)
     const visionResponse = await anthropic.messages.create({
       model:      'claude-opus-4-5',
       max_tokens: 1024,
@@ -128,7 +266,7 @@ Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et 
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-          { type: 'text',  text: caption ? `Message joint: "${caption}"` : 'Décris ce que tu vois.' },
+          { type: 'text',  text: caption ? `Message joint: "${caption}"` : 'Décris ce que tu vois en détail.' },
         ],
       }],
     });
@@ -138,33 +276,90 @@ Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et 
       .map(b => (b as Anthropic.TextBlock).text)
       .join('');
 
-    // Étape 2 — Si caption contient une action → utiliser chatWithTools pour exécuter
+    // 4. Détecter si c'est une ACTION à exécuter (modification réservation, etc.)
     const ACTION_KEYWORDS = /modif|chang|corrig|mett|updat|prix|montant|réserv|client|supprim|créé|ajoute/i;
+    
     if (caption && ACTION_KEYWORDS.test(caption)) {
-      // Injecter la description Vision dans le contexte puis laisser Ibrahim agir avec ses outils
+      // ACTION DEMANDÉE → passer à chatWithTools avec le contexte Vision
+      await sendMessage(chatId, '⚙️ Exécution de l\'action...');
+      
       const actionMessage = `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
       const ctx      = await buildContext(sessionId, actionMessage);
       const response = await chatWithTools(ctx.messages, ctx.systemExtra);
 
+      await sendMessage(chatId, response.text);
+
       await Promise.all([
-        (async () => {
-          for (const chunk of splitMessage(response.text, 4000)) await sendMessage(chatId, chunk);
-        })(),
-        saveConversationTurn(sessionId, 'user',      actionMessage,  { source: 'telegram', type: 'image_action' }),
+        saveConversationTurn(sessionId, 'user',      actionMessage,  { source: 'telegram', type: 'image_action', url: imageUrl }),
         saveConversationTurn(sessionId, 'assistant', response.text,  { source: 'telegram' }),
       ]);
-    } else {
-      // Pas d'action demandée → envoyer juste l'analyse
-      await Promise.all([
-        sendMessage(chatId, imageDescription),
-        saveConversationTurn(sessionId, 'user',      `[Image envoyée${caption ? ` — "${caption}"` : ''}]`, { source: 'telegram', type: 'image' }),
-        saveConversationTurn(sessionId, 'assistant', imageDescription, { source: 'telegram' }),
-      ]);
+
+      return;
     }
 
+    // 5. SINON → Traitement image selon demande
+    const lowerCaption = caption.toLowerCase();
+    let processedUrl = imageUrl;
+    let action = 'Image reçue et analysée';
+
+    if (/optim|compress|rédui|léger|web/i.test(lowerCaption)) {
+      await sendMessage(chatId, '🔧 Optimisation de l\'image...');
+      const optimized = await optimizeImage(imageUrl, 'web');
+      processedUrl = optimized.url;
+      action = `Optimisée (${optimized.size_reduction_percent}% plus légère)`;
+    } else if (/améliore|enhance|qualité|nettet/i.test(lowerCaption)) {
+      await sendMessage(chatId, '✨ Amélioration qualité...');
+      processedUrl = await enhanceImage(imageUrl);
+      action = 'Qualité améliorée (contraste, luminosité, netteté)';
+    } else if (/fond|background|détour/i.test(lowerCaption)) {
+      await sendMessage(chatId, '🎭 Suppression du fond...');
+      processedUrl = await removeBackground(imageUrl);
+      action = 'Fond supprimé (PNG transparent)';
+    } else if (/social|tiktok|insta|facebook|story|post/i.test(lowerCaption)) {
+      await sendMessage(chatId, '📱 Création variantes réseaux sociaux...');
+      const variants = await createSocialVariants(imageUrl);
+      
+      await sendMessage(chatId,
+        `✅ **Variantes créées:**\n\n` +
+        `📸 **TikTok/Reels (9:16)**\n${variants.tiktok}\n\n` +
+        `📸 **Instagram Post (1:1)**\n${variants.instagram_feed}\n\n` +
+        `📸 **Instagram Story (9:16)**\n${variants.instagram_story}\n\n` +
+        `📸 **YouTube (16:9)**\n${variants.youtube}`
+      );
+
+      await sendPhoto(chatId, variants.tiktok);
+      action = 'Variantes réseaux sociaux créées';
+    }
+
+    // 6. Analyse qualité
+    const analysis = await analyzeImage(imageUrl);
+
+    // 7. Envoyer résultat
+    const resultMsg = `✅ **Image traitée** — ${action}\n\n` +
+      `👁️ **Vision:**\n${imageDescription}\n\n` +
+      `📊 **Analyse technique:**\n` +
+      `• Résolution: ${analysis.width}x${analysis.height}\n` +
+      `• Taille: ${analysis.size_kb} KB\n` +
+      `• Format: ${analysis.format}\n` +
+      `• Score qualité: ${analysis.quality_score}/100\n\n` +
+      (analysis.suggestions.length > 0 ? `💡 **Suggestions:**\n${analysis.suggestions.join('\n')}\n\n` : '') +
+      `🔗 Lien: ${processedUrl}`;
+
+    await sendMessage(chatId, resultMsg);
+
+    // Envoyer l'image traitée si différente de l'originale
+    if (processedUrl !== imageUrl) {
+      await sendPhoto(chatId, processedUrl);
+    }
+
+    await saveConversationTurn(sessionId, 'user',
+      `[Image reçue${caption ? ` — "${caption}"` : ''} → ${action}]`,
+      { source: 'telegram', type: 'image', url: processedUrl, vision: imageDescription }
+    );
+
   } catch (err) {
-    console.error('[telegram] handleImageAnalysis error:', err instanceof Error ? err.message : String(err));
-    await sendMessage(chatId, '⚠️ Impossible d\'analyser l\'image.');
+    console.error('[telegram] handleImageMessage error:', err instanceof Error ? err.message : String(err));
+    await sendMessage(chatId, `⚠️ Erreur traitement image: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
