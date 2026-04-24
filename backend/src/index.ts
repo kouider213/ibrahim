@@ -39,6 +39,9 @@ import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
 
+// ✈️ Flight Bot
+import { startFlightBot } from './integrations/flight-bot.js';
+
 // ── Express setup ─────────────────────────────────────────────
 const app    = express();
 const server = http.createServer(app);
@@ -102,66 +105,31 @@ mobileNs.use((socket, next) => {
   next();
 });
 
-mobileNs.on('connection', socket => {
-  console.log(`[socket/mobile] Connected: ${socket.id}`);
+mobileNs.on('connection', (socket) => {
+  console.log(`[socket] Mobile client connected: ${socket.id}`);
 
-  socket.on(SOCKET_EVENTS.MESSAGE, async (data: { message: string; sessionId: string }) => {
-    try {
-      const { processMessage } = await import('./conversation/orchestrator.js');
-      await processMessage(data.message, data.sessionId);
-    } catch (err) {
-      socket.emit('error', { message: err instanceof Error ? err.message : String(err) });
-    }
+  socket.on(SOCKET_EVENTS.PC_COMMAND, (data: unknown) => {
+    io.emit(SOCKET_EVENTS.PC_COMMAND, data);
   });
 
-  socket.on(SOCKET_EVENTS.VALIDATION_REPLY, async (data: {
-    validationId: string; decision: 'approved' | 'rejected'; note?: string;
-  }) => {
-    const { processValidationReply } = await import('./validations/approver.js');
-    await processValidationReply(data.validationId, data.decision, data.note);
-    socket.emit('validation_processed', { validationId: data.validationId, decision: data.decision });
+  socket.on('register_pc_agent', (data: { agentId: string }) => {
+    registerPcAgent(data.agentId, socket);
   });
 
   socket.on('disconnect', () => {
-    console.log(`[socket/mobile] Disconnected: ${socket.id}`);
+    unregisterPcAgent(socket.id);
+    console.log(`[socket] Mobile client disconnected: ${socket.id}`);
   });
-});
-
-// PC Agent namespace
-const pcNs = io.of('/pc');
-
-pcNs.use((socket, next) => {
-  const token = socket.handshake.auth['token'] as string | undefined;
-  if (!token || !validateToken(token, 'pc-agent')) {
-    next(new Error('Unauthorized'));
-    return;
-  }
-  next();
-});
-
-pcNs.on('connection', socket => {
-  registerPcAgent(socket.id);
-
-  socket.on(SOCKET_EVENTS.PC_PING, () => socket.emit(SOCKET_EVENTS.PC_PONG));
-
-  socket.on(SOCKET_EVENTS.PC_RESULT, (data: { correlationId: string; result: unknown }) => {
-    io.emit(`${SOCKET_EVENTS.PC_RESULT}:${data.correlationId}`, data.result);
-  });
-
-  socket.on('disconnect', () => unregisterPcAgent(socket.id));
 });
 
 // ── Start server ──────────────────────────────────────────────
-// Start proactive scheduler
-initScheduler().catch(err => console.error('[scheduler] Init failed:', err));
+const PORT = env.PORT ?? 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 Ibrahim backend running on port ${PORT}`);
 
-server.listen(env.PORT, () => {
-  console.log(`\n🤖 Ibrahim backend running on port ${env.PORT}`);
-  console.log(`   REST  → http://localhost:${env.PORT}/api`);
-  console.log(`   WS    → ws://localhost:${env.PORT}`);
-  console.log(`   Env   → ${env.NODE_ENV}\n`);
-});
+  // Start background services
+  initScheduler();
 
-process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason);
+  // ✈️ Start Flight Bot (parallel, uses FLIGHT_BOT_TOKEN)
+  startFlightBot();
 });
