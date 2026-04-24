@@ -1,9 +1,9 @@
 /**
  * PHASE 5 — Ibrahim gère tes finances
  * 1. Suivi encaissements & acomptes
- * 2. Calcul CA automatique (semaine/mois/année/véhicule/type client)
- * 3. Relance clients impayés automatique
- * 4. Génération factures PDF
+ * 2. Calcul CA automatique (semaine/mois/année/véhicule)
+ * 3. Relance clients impayés
+ * 4. Génération reçu PDF simple
  * 5. Tableau de bord financier
  * 6. Alerte dépense anormale
  */
@@ -18,7 +18,7 @@ import { getPricingForVehicle } from '../config/pricing.js';
 export async function getPaymentStatus(bookingId?: string): Promise<string> {
   let query = supabase
     .from('bookings')
-    .select('id, client_name, client_phone, final_price, paid_amount, payment_status, last_payment_date, cars(name)')
+    .select('id, client_name, client_phone, final_price, paid_amount, payment_status, last_payment_date, start_date, end_date, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED']);
 
   if (bookingId) query = query.eq('id', bookingId);
@@ -31,54 +31,81 @@ export async function getPaymentStatus(bookingId?: string): Promise<string> {
     const paid      = b.paid_amount ?? 0;
     const total     = b.final_price ?? 0;
     const remaining = total - paid;
-    const status    = paid >= total ? '✅ PAYÉ' : paid > 0 ? '⚠️ PARTIEL' : '❌ IMPAYÉ';
-    return `- ${b.client_name} | ${(b as any).cars?.name ?? '?'} | Total: ${total}€ | Payé: ${paid}€ | Reste: ${remaining}€ | ${status}`;
+    const st        = paid >= total ? '✅ PAYÉ' : paid > 0 ? '⚠️ PARTIEL' : '❌ IMPAYÉ';
+    const car       = (b as any).cars?.name ?? '?';
+    return `- ${b.client_name} | ${car} | ${b.start_date}→${b.end_date} | Total: ${total}€ | Payé: ${paid}€ | Reste: ${remaining}€ | ${st}`;
   });
 
-  return `💰 ENCAISSEMENTS:\n${rows.join('\n')}`;
+  const totalImpaye = (data as any[]).reduce((sum, b) => {
+    const paid  = b.paid_amount ?? 0;
+    const total = b.final_price ?? 0;
+    return sum + Math.max(0, total - paid);
+  }, 0);
+
+  return `💰 ENCAISSEMENTS (${data.length} réservations):\n${rows.join('\n')}\n\n💸 Total restant à encaisser: ${totalImpaye}€`;
 }
 
 export async function recordPayment(
   bookingId: string,
   amount: number,
+  type: 'acompte' | 'solde' | 'partiel' = 'partiel',
   note?: string
 ): Promise<string> {
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
-    .select('id, client_name, final_price, paid_amount')
+    .select('id, client_name, final_price, paid_amount, acompte_amount')
     .eq('id', bookingId)
     .single();
 
   if (fetchErr || !booking) return `Réservation introuvable: ${fetchErr?.message}`;
 
-  const currentPaid = (booking as any).paid_amount ?? 0;
+  const b           = booking as any;
+  const currentPaid = b.paid_amount ?? 0;
   const newPaid     = currentPaid + amount;
-  const total       = (booking as any).final_price ?? 0;
-  const newStatus   = newPaid >= total ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'UNPAID';
+  const total       = b.final_price ?? 0;
+  const newStatus   = newPaid >= total ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'PENDING';
 
-  // Log payment
+  // Mise à jour acompte si c'est un acompte
+  const updateData: any = {
+    paid_amount:       newPaid,
+    payment_status:    newStatus,
+    last_payment_date: new Date().toISOString().split('T')[0],
+    payment_notes:     note ?? null,
+    solde_paid:        newPaid >= total,
+  };
+
+  if (type === 'acompte') {
+    updateData.acompte_amount = (b.acompte_amount ?? 0) + amount;
+    updateData.acompte_date   = new Date().toISOString().split('T')[0];
+  }
+
+  // Log dans payment_logs
   await supabase.from('payment_logs').insert({
     booking_id:     bookingId,
     amount,
     payment_date:   new Date().toISOString().split('T')[0],
     payment_method: 'cash',
-    note: note ?? null,
+    note:           `[${type}] ${note ?? ''}`.trim(),
   });
 
   const { error } = await supabase
     .from('bookings')
-    .update({
-      paid_amount:       newPaid,
-      payment_status:    newStatus,
-      last_payment_date: new Date().toISOString().split('T')[0],
-      payment_notes:     note ?? null,
-    })
+    .update(updateData)
     .eq('id', bookingId);
 
   if (error) return `Erreur enregistrement paiement: ${error.message}`;
 
   const remaining = total - newPaid;
-  return `✅ Paiement enregistré!\n- Client: ${(booking as any).client_name}\n- Montant encaissé: +${amount}€\n- Total payé: ${newPaid}€/${total}€\n- Reste: ${remaining}€\n- Statut: ${newStatus}`;
+  const statusEmoji = newStatus === 'PAID' ? '✅' : '⚠️';
+
+  return `${statusEmoji} Paiement enregistré!\n` +
+    `👤 Client: ${b.client_name}\n` +
+    `💵 Type: ${type.toUpperCase()}\n` +
+    `➕ Montant encaissé: +${amount}€\n` +
+    `💰 Total payé: ${newPaid}€ / ${total}€\n` +
+    `📊 Reste: ${remaining}€\n` +
+    `🏷️ Statut: ${newStatus}` +
+    (remaining <= 0 ? '\n\n🎉 Réservation entièrement payée!' : '');
 }
 
 // ─────────────────────────────────────────────
@@ -116,143 +143,167 @@ export async function getCAReport(
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client_name, client_type, final_price, rented_by, start_date, end_date, cars(name)')
+    .select('*, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .gte('start_date', startDate)
-    .lte('start_date', endDate);
+    .lte('start_date', endDate)
+    .order('start_date');
 
   if (error) return `Erreur CA: ${error.message}`;
-  if (!data?.length) return `Aucune réservation pour la période ${period}.`;
+  if (!data?.length) return `Aucune réservation pour ${period}.`;
 
-  let caTotal   = 0;
-  let nbMRE     = 0;
-  let nbLocal   = 0;
-  let caKouider = 0;
-  let caHouari  = 0;
-  const byVehicle: Record<string, number> = {};
+  // Calcul CA par véhicule
+  const byVehicle: Record<string, { count: number; ca: number; profit: number }> = {};
+  let totalCA     = 0;
+  let totalProfit = 0;
+  let totalKouider = 0;
+  let totalHouari  = 0;
 
   for (const b of data as any[]) {
-    const price    = b.final_price ?? 0;
-    const carName  = b.cars?.name ?? 'Inconnu';
+    const carName = b.cars?.name ?? 'Inconnu';
+    const price   = b.final_price ?? 0;
+    const startDt = new Date(b.start_date);
+    const endDt   = new Date(b.end_date);
+    const nbDays  = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
+    const pricing = getPricingForVehicle(carName);
     const rentedBy = b.rented_by ?? 'Kouider';
 
-    caTotal += price;
-    if (b.client_type === 'mre') nbMRE++; else nbLocal++;
-    if (rentedBy === 'Kouider') {
-      const pricing = getPricingForVehicle(carName);
-      const days    = Math.max(1, Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000));
-      caKouider += pricing ? pricing.benefit * days : Math.round(price * 0.2);
-    } else {
-      caHouari += price;
+    let profit = 0;
+    if (pricing) {
+      profit = rentedBy === 'Kouider' ? pricing.benefit * nbDays : 0;
     }
-    byVehicle[carName] = (byVehicle[carName] ?? 0) + price;
+
+    if (!byVehicle[carName]) byVehicle[carName] = { count: 0, ca: 0, profit: 0 };
+    byVehicle[carName].count++;
+    byVehicle[carName].ca += price;
+    byVehicle[carName].profit += profit;
+
+    totalCA     += price;
+    totalProfit += profit;
+    if (rentedBy === 'Kouider') totalKouider++;
+    else totalHouari++;
   }
 
-  const byVehicleText = Object.entries(byVehicle)
-    .sort(([, a], [, b]) => b - a)
-    .map(([name, total]) => `  • ${name}: ${total}€`)
-    .join('\n');
+  // Trier par CA décroissant
+  const vehicleRows = Object.entries(byVehicle)
+    .sort(([, a], [, b]) => b.ca - a.ca)
+    .map(([name, v]) => `  - ${name}: ${v.count} loc. | CA: ${v.ca}€ | Bénéfice Kouider: ${v.profit}€`);
 
-  return [
-    `📊 CA — ${period}`,
-    `──────────────────────`,
-    `💶 CA Total:       ${caTotal}€`,
-    `👤 Bénéfice Kouider: ${caKouider}€`,
-    `🚗 Revenu Houari:  ${caHouari}€`,
-    `📦 Réservations:   ${data.length} (${nbLocal} local / ${nbMRE} MRE)`,
-    ``,
-    `🚘 Par véhicule:`,
-    byVehicleText,
-  ].join('\n');
+  return `📊 CHIFFRE D'AFFAIRES — ${period}\n` +
+    `${'─'.repeat(40)}\n` +
+    `📈 CA Total: ${totalCA}€\n` +
+    `💰 Bénéfice Kouider: ${totalProfit}€\n` +
+    `📋 Réservations: ${data.length} (Kouider: ${totalKouider} | Houari: ${totalHouari})\n\n` +
+    `🚗 PAR VÉHICULE:\n${vehicleRows.join('\n')}`;
 }
 
 // ─────────────────────────────────────────────
 // 3. RELANCE CLIENTS IMPAYÉS
 // ─────────────────────────────────────────────
 
-export async function checkUnpaidBookings(): Promise<string> {
-  const cutoff48h = new Date(Date.now() - 48 * 3600 * 1000).toISOString().split('T')[0];
-  const cutoff72h = new Date(Date.now() - 72 * 3600 * 1000).toISOString().split('T')[0];
+export async function getUnpaidBookings(): Promise<string> {
+  const now = new Date();
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client_name, client_phone, final_price, paid_amount, start_date, cars(name)')
-    .in('payment_status', ['UNPAID', 'PARTIAL'])
+    .select('id, client_name, client_phone, final_price, paid_amount, payment_status, start_date, end_date, created_at, cars(name)')
+    .in('payment_status', ['PENDING', 'PARTIAL'])
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-    .lte('start_date', cutoff48h);
+    .order('start_date', { ascending: false });
 
   if (error) return `Erreur: ${error.message}`;
-  if (!data?.length) return '✅ Aucun impayé détecté.';
+  if (!data?.length) return '✅ Aucun impayé — tout est à jour!';
 
-  const results: string[] = ['⚠️ CLIENTS IMPAYÉS:'];
+  const rows = (data as any[]).map(b => {
+    const paid      = b.paid_amount ?? 0;
+    const total     = b.final_price ?? 0;
+    const remaining = total - paid;
+    const created   = new Date(b.created_at);
+    const hoursAgo  = Math.floor((now.getTime() - created.getTime()) / 3_600_000);
+    const daysAgo   = Math.floor(hoursAgo / 24);
+    const urgence   = hoursAgo >= 72 ? '🔴' : hoursAgo >= 48 ? '🟡' : '🟢';
+    const car       = (b as any).cars?.name ?? '?';
 
-  for (const b of data as any[]) {
-    const remaining = (b.final_price ?? 0) - (b.paid_amount ?? 0);
-    const isOld     = b.start_date <= cutoff72h;
-    const urgency   = isOld ? '🔴 +72h' : '🟡 +48h';
-    results.push(`${urgency} ${b.client_name} (${b.client_phone ?? 'N/A'}) — ${b.cars?.name ?? '?'} — Reste: ${remaining}€`);
+    return `${urgence} ${b.client_name} | ${car} | Reste: ${remaining}€ | Depuis: ${daysAgo}j ${hoursAgo % 24}h | 📱 ${b.client_phone ?? 'N/A'}`;
+  });
+
+  const urgent = (data as any[]).filter(b => {
+    const hoursAgo = Math.floor((now.getTime() - new Date(b.created_at).getTime()) / 3_600_000);
+    return hoursAgo >= 48;
+  }).length;
+
+  return `⚠️ IMPAYÉS (${data.length} clients | ${urgent} urgents):\n${rows.join('\n')}\n\n` +
+    `🔴 = +72h (relance urgente) | 🟡 = +48h (relance normale) | 🟢 = récent`;
+}
+
+// Message de relance WhatsApp
+export function generateRelanceMessage(
+  clientName: string,
+  amount: number,
+  carName: string,
+  attempt: 1 | 2
+): string {
+  if (attempt === 1) {
+    return `Bonjour ${clientName} 👋\n\nNous vous rappelons que le paiement de ${amount}€ pour la location de votre ${carName} est en attente.\n\nMerci de régulariser votre situation dès que possible.\n\n📞 AutoLux Oran — Fik Conciergerie`;
+  } else {
+    return `Bonjour ${clientName},\n\nMalgré notre premier rappel, le paiement de ${amount}€ pour la location de votre ${carName} reste impayé.\n\nNous vous demandons de régulariser cette situation dans les plus brefs délais pour éviter toute complication.\n\n📞 AutoLux Oran — Fik Conciergerie`;
   }
-
-  results.push('\n📲 Envoie un message WhatsApp pour relancer ces clients.');
-  return results.join('\n');
 }
 
 // ─────────────────────────────────────────────
-// 4. GÉNÉRATION FACTURES PDF (texte structuré → Supabase)
+// 4. GÉNÉRATION REÇU SIMPLE (texte formaté)
 // ─────────────────────────────────────────────
 
-export async function generateInvoice(bookingId: string): Promise<string> {
-  const { data: booking, error } = await supabase
+export async function generateReceipt(bookingId: string): Promise<string> {
+  const { data: b, error } = await supabase
     .from('bookings')
     .select('*, cars(name)')
     .eq('id', bookingId)
     .single();
 
-  if (error || !booking) return `Réservation introuvable: ${error?.message}`;
+  if (error || !b) return `Réservation introuvable: ${error?.message}`;
 
-  const b         = booking as any;
-  const invoiceNo = `FIK-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-  const days      = Math.max(1, Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86400000));
-  const priceDay  = Math.round(b.final_price / days);
+  const booking  = b as any;
+  const carName  = booking.cars?.name ?? 'Véhicule';
+  const startDt  = new Date(booking.start_date);
+  const endDt    = new Date(booking.end_date);
+  const nbDays   = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
+  const daily    = Math.round(booking.final_price / nbDays);
+  const acompte  = booking.acompte_amount ?? 0;
+  const solde    = (booking.final_price ?? 0) - acompte;
+  const dateStr  = new Date().toLocaleDateString('fr-FR');
+  const refNum   = booking.id.split('-')[0].toUpperCase();
 
-  const invoiceText = [
-    `╔══════════════════════════════╗`,
-    `║     FIK CONCIERGERIE         ║`,
-    `║     FACTURE LOCATION         ║`,
-    `╚══════════════════════════════╝`,
-    `N° Facture: ${invoiceNo}`,
-    `Date: ${new Date().toLocaleDateString('fr-FR')}`,
-    `──────────────────────────────`,
-    `CLIENT:`,
-    `  Nom: ${b.client_name}`,
-    `  Tél: ${b.client_phone ?? 'N/A'}`,
-    `──────────────────────────────`,
-    `LOCATION:`,
-    `  Véhicule: ${b.cars?.name ?? 'N/A'}`,
-    `  Du: ${b.start_date}`,
-    `  Au: ${b.end_date}`,
-    `  Durée: ${days} jour(s)`,
-    `  Prix/jour: ${priceDay}€`,
-    `──────────────────────────────`,
-    `  TOTAL: ${b.final_price}€`,
-    `  Payé: ${b.paid_amount ?? 0}€`,
-    `  Reste: ${(b.final_price ?? 0) - (b.paid_amount ?? 0)}€`,
-    `══════════════════════════════`,
-    `Merci de votre confiance!`,
-    `📞 WhatsApp: +213 XXX XXX XXX`,
-  ].join('\n');
+  const receipt = `
+╔══════════════════════════════════════╗
+║        AUTOLUX ORAN — REÇU           ║
+║        Fik Conciergerie              ║
+╠══════════════════════════════════════╣
+  Réf: #${refNum}
+  Date: ${dateStr}
+──────────────────────────────────────
+  CLIENT
+  Nom: ${booking.client_name}
+  Tél: ${booking.client_phone ?? 'N/A'}
+──────────────────────────────────────
+  LOCATION
+  Véhicule: ${carName}
+  Du: ${booking.start_date}
+  Au: ${booking.end_date}
+  Durée: ${nbDays} jour(s)
+  Prix/jour: ${daily}€
+──────────────────────────────────────
+  PAIEMENT
+  Total: ${booking.final_price}€
+  Acompte versé: ${acompte}€
+  Solde à payer: ${solde}€
+  Statut: ${booking.payment_status ?? 'PENDING'}
+╚══════════════════════════════════════╝
+  Merci pour votre confiance!
+  📍 Oran, Algérie
+`.trim();
 
-  // Store invoice record in Supabase
-  const { error: invErr } = await supabase.from('invoices').insert({
-    booking_id:     bookingId,
-    invoice_number: invoiceNo,
-    pdf_url:        null, // PDF generation requires server-side lib
-    sent_to_client: false,
-  });
-
-  if (invErr) console.warn('[phase5] Invoice insert error:', invErr.message);
-
-  return `✅ Facture générée!\n\n${invoiceText}`;
+  return receipt;
 }
 
 // ─────────────────────────────────────────────
@@ -266,44 +317,86 @@ export async function getFinancialDashboard(): Promise<string> {
   const prevMonth = month === 1 ? 12 : month - 1;
   const prevYear  = month === 1 ? year - 1 : year;
 
-  const [currentCA, previousCA] = await Promise.all([
-    getCAReport(year, month),
-    getCAReport(prevYear, prevMonth),
+  // Mois courant
+  const mm  = String(month).padStart(2, '0');
+  const ppm = String(prevMonth).padStart(2, '0');
+
+  const [curRes, prevRes, unpaidRes] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('final_price, paid_amount, payment_status, rented_by, start_date, end_date, cars(name)')
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .gte('start_date', `${year}-${mm}-01`)
+      .lte('start_date', `${year}-${mm}-${new Date(year, month, 0).getDate()}`),
+    supabase
+      .from('bookings')
+      .select('final_price, rented_by, start_date, end_date, cars(name)')
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .gte('start_date', `${prevYear}-${ppm}-01`)
+      .lte('start_date', `${prevYear}-${ppm}-${new Date(prevYear, prevMonth, 0).getDate()}`),
+    supabase
+      .from('bookings')
+      .select('final_price, paid_amount')
+      .in('payment_status', ['PENDING', 'PARTIAL'])
+      .in('status', ['CONFIRMED', 'ACTIVE']),
   ]);
 
-  // Unpaid count
-  const { count: unpaidCount } = await supabase
-    .from('bookings')
-    .select('id', { count: 'exact', head: true })
-    .in('payment_status', ['UNPAID', 'PARTIAL'])
-    .in('status', ['CONFIRMED', 'ACTIVE']);
+  const curData  = (curRes.data ?? []) as any[];
+  const prevData = (prevRes.data ?? []) as any[];
+  const unpaid   = (unpaidRes.data ?? []) as any[];
 
-  // Active bookings this month
-  const mm = String(month).padStart(2, '0');
-  const { count: activeCount } = await supabase
-    .from('bookings')
-    .select('id', { count: 'exact', head: true })
-    .in('status', ['CONFIRMED', 'ACTIVE'])
-    .gte('start_date', `${year}-${mm}-01`);
+  // Calculs mois courant
+  const curCA      = curData.reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const curProfit  = curData.reduce((s, b) => {
+    const startDt = new Date(b.start_date);
+    const endDt   = new Date(b.end_date);
+    const nbDays  = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
+    const pricing = getPricingForVehicle(b.cars?.name ?? '');
+    const rentedBy = b.rented_by ?? 'Kouider';
+    return s + (pricing && rentedBy === 'Kouider' ? pricing.benefit * nbDays : 0);
+  }, 0);
+  const curEncaisse = curData.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
 
-  return [
-    `📊 TABLEAU DE BORD — ${mm}/${year}`,
-    `══════════════════════════════`,
-    ``,
-    `📅 MOIS EN COURS:`,
-    currentCA,
-    ``,
-    `📅 MOIS PRÉCÉDENT (${String(prevMonth).padStart(2,'0')}/${prevYear}):`,
-    previousCA,
-    ``,
-    `──────────────────────────────`,
-    `📋 Réservations actives: ${activeCount ?? 0}`,
-    `⚠️  Impayés en cours: ${unpaidCount ?? 0}`,
-  ].join('\n');
+  // Calculs mois précédent
+  const prevCA = prevData.reduce((s, b) => s + (b.final_price ?? 0), 0);
+
+  // Évolution
+  const evol     = prevCA > 0 ? Math.round(((curCA - prevCA) / prevCA) * 100) : 0;
+  const evolEmoji = evol >= 0 ? '📈' : '📉';
+
+  // Impayés
+  const totalImpaye = unpaid.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - (b.paid_amount ?? 0)), 0);
+
+  // Prévision mois suivant (basée sur mois courant + 10% croissance)
+  const nextMonthForecast = Math.round(curCA * 1.1);
+
+  const daysInMonth    = new Date(year, month, 0).getDate();
+  const daysElapsed    = now.getDate();
+  const dailyAvg       = daysElapsed > 0 ? Math.round(curCA / daysElapsed) : 0;
+  const projectedMonth = dailyAvg * daysInMonth;
+
+  return `📊 TABLEAU DE BORD FINANCIER\n` +
+    `${'═'.repeat(40)}\n` +
+    `📅 ${mm}/${year}\n\n` +
+    `💰 REVENUS\n` +
+    `  CA Mois courant:    ${curCA}€\n` +
+    `  CA Mois précédent:  ${prevCA}€\n` +
+    `  Évolution:          ${evolEmoji} ${evol > 0 ? '+' : ''}${evol}%\n` +
+    `  Encaissé:           ${curEncaisse}€\n` +
+    `  À encaisser:        ${totalImpaye}€\n\n` +
+    `💵 BÉNÉFICE KOUIDER\n` +
+    `  Bénéfice mois:      ${curProfit}€\n\n` +
+    `🔮 PRÉVISIONS\n` +
+    `  Projection mois:    ${projectedMonth}€\n` +
+    `  Mois prochain (est): ${nextMonthForecast}€\n` +
+    `  Moyenne/jour:        ${dailyAvg}€\n\n` +
+    `📋 ACTIVITÉ\n` +
+    `  Réservations:       ${curData.length}\n` +
+    `  Impayés:            ${unpaid.length} client(s) (${totalImpaye}€)`;
 }
 
 // ─────────────────────────────────────────────
-// 6. ALERTES DÉPENSES ANORMALES
+// 6. ALERTE DÉPENSE ANORMALE
 // ─────────────────────────────────────────────
 
 export async function checkAnomalies(): Promise<string> {
@@ -312,38 +405,43 @@ export async function checkAnomalies(): Promise<string> {
   const month = now.getMonth() + 1;
   const mm    = String(month).padStart(2, '0');
 
-  // Fetch current month bookings
   const { data, error } = await supabase
     .from('bookings')
-    .select('final_price, rented_by, client_name')
+    .select('client_name, final_price, start_date, end_date, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .gte('start_date', `${year}-${mm}-01`)
     .lte('start_date', `${year}-${mm}-${new Date(year, month, 0).getDate()}`);
 
-  if (error) return `Erreur détection anomalies: ${error.message}`;
-  if (!data?.length) return 'Aucune donnée ce mois.';
+  if (error) return `Erreur: ${error.message}`;
+  if (!data?.length) return 'Aucune donnée pour analyse.';
 
   const alerts: string[] = [];
 
-  // Check: bookings with unusually low price (< 50% of average)
-  const prices  = (data as any[]).map(b => b.final_price ?? 0).filter(p => p > 0);
-  const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
-  const threshold = avgPrice * 0.5;
-
   for (const b of data as any[]) {
-    if ((b.final_price ?? 0) < threshold && (b.final_price ?? 0) > 0) {
-      alerts.push(`🔴 Prix anormalement bas: ${b.client_name} — ${b.final_price}€ (moy: ${Math.round(avgPrice)}€)`);
+    const total   = b.final_price ?? 0;
+    const startDt = new Date(b.start_date);
+    const endDt   = new Date(b.end_date);
+    const nbDays  = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
+    const daily   = Math.round(total / nbDays);
+    const carName = b.cars?.name ?? '?';
+    const pricing = getPricingForVehicle(carName);
 
-      await supabase.from('expense_alerts').insert({
-        alert_type:  'LOW_PRICE',
-        description: `Prix bas détecté: ${b.client_name} — ${b.final_price}€`,
-        amount:      b.final_price,
-        threshold:   Math.round(threshold),
-      });
+    // Alerte si prix journalier très différent du prix catalogue
+    if (pricing) {
+      const expected = pricing.kouiderPrice;
+      const diff     = Math.abs(daily - expected);
+      const pct      = Math.round((diff / expected) * 100);
+      if (pct > 30) {
+        alerts.push(`⚠️ ${b.client_name} | ${carName} | ${daily}€/j vs catalogue ${expected}€/j (écart ${pct}%)`);
+      }
+    }
+
+    // Alerte si montant total > 2000€
+    if (total > 2000) {
+      alerts.push(`🔴 Réservation importante: ${b.client_name} | ${carName} | ${total}€ total`);
     }
   }
 
-  if (!alerts.length) return `✅ Aucune anomalie détectée ce mois (moy: ${Math.round(avgPrice)}€/réservation).`;
-
-  return `⚠️ ALERTES FINANCIÈRES:\n${alerts.join('\n')}`;
+  if (!alerts.length) return '✅ Aucune anomalie détectée ce mois-ci.';
+  return `🚨 ANOMALIES DÉTECTÉES (${alerts.length}):\n${alerts.join('\n')}`;
 }
