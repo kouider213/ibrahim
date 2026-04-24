@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "^2.49.4",
     "axios": "^1.8.4",
     "bullmq": "^5.34.6",
+    "cloudinary": "^2.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.21.2",
@@ -24,6 +25,7 @@
     "helmet": "^8.0.0",
     "ioredis": "^5.6.0",
     "morgan": "^1.10.0",
+    "pdfkit": "^0.15.2",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0",
     "zod": "^3.24.2"
@@ -34,6 +36,7 @@
     "@types/express": "^5.0.1",
     "@types/morgan": "^1.9.9",
     "@types/node": "^22.14.1",
+    "@types/pdfkit": "^0.13.9",
     "@types/uuid": "^10.0.0",
     "pg": "^8.20.0",
     "tsx": "^4.19.3",

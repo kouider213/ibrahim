@@ -8,16 +8,28 @@ import { env } from '../config/env.js';
 import {
   getPaymentStatus,
   recordPayment,
-  getRevenueReport,
+  getCAReport,
   getUnpaidBookings,
   generateReceipt,
-  getFinanceDashboard,
+  getFinancialDashboard,
+  checkAnomalies,
 } from './phase5-finance.js';
+import {
+  recordFeedback as recordFeedbackAPI,
+  getKouiderPreferences,
+} from './feedback-system.js';
+import {
+  generateMonthlyReport,
+  getEvolutionReport,
+  formatReportForKouider,
+} from './improvement-report.js';
+import { sendWhatsApp } from './whatsapp.js';
 import axios from 'axios';
 
 export async function executeTool(
   name: string,
   input: Record<string, unknown>,
+  sessionId?: string,
 ): Promise<string> {
   try {
     switch (name) {
@@ -49,16 +61,24 @@ export async function executeTool(
                                       (input['type'] as 'acompte' | 'solde' | 'partiel') ?? 'partiel',
                                       input['note'] as string | undefined,
                                     );
-      case 'get_revenue_report':    return await getRevenueReport(
-                                      (input['period'] as 'week' | 'month' | 'year') ?? 'month',
-                                      input['year'] ? Number(input['year']) : undefined,
+      case 'get_revenue_report':    return await getCAReport(
+                                      input['year'] ? Number(input['year']) : new Date().getFullYear(),
                                       input['month'] ? Number(input['month']) : undefined,
-                                      input['car_name'] as string | undefined,
+                                      input['week'] ? Number(input['week']) : undefined,
                                     );
       case 'get_unpaid_bookings':   return await getUnpaidBookings();
       case 'generate_receipt':      return await generateReceipt(input['booking_id'] as string);
-      case 'get_finance_dashboard': return await getFinanceDashboard();
-      default:                      return `Outil inconnu: ${name}`;
+      case 'get_finance_dashboard': return await getFinancialDashboard();
+      case 'check_anomalies':            return await checkAnomalies();
+      // ─── PHASE 13 ───
+      case 'record_feedback':            return await recordFeedbackTool(input, sessionId);
+      case 'get_monthly_improvement_report': return await getMonthlyImprovementReportTool(input);
+      case 'get_learning_evolution':     return await getLearningEvolutionTool(input);
+      case 'get_kouider_preferences':    return await getKouiderPreferencesTool();
+      // ─── PHASE 6 — WhatsApp ───
+      case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input);
+      case 'check_car_availability':     return await checkCarAvailability(input);
+      default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
     return `Erreur outil ${name}: ${err instanceof Error ? err.message : String(err)}`;
@@ -210,14 +230,12 @@ async function learnRuleTool(input: Record<string, unknown>): Promise<string> {
 }
 
 async function rememberInfo(input: Record<string, unknown>): Promise<string> {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('ibrahim_memory')
     .insert({
       category: input['category'] ?? 'fact',
       content:  input['content'],
-    })
-    .select()
-    .single();
+    });
 
   if (error) return `Erreur mémoire: ${error.message}`;
   return `✅ Mémorisé [${input['category']}]: ${input['content']}`;
@@ -239,10 +257,9 @@ async function recallMemory(input: Record<string, unknown>): Promise<string> {
   return data.map((m: any) => `[${m.category}] ${m.content}`).join('\n');
 }
 
-async function getWeather(input: Record<string, unknown>): Promise<string> {
-  const city    = (input['city']    as string) || 'Oran';
-  const country = (input['country'] as string) || '';
-  return getOranWeather(`${city}${country ? ', ' + country : ''}`);
+async function getWeather(_input: Record<string, unknown>): Promise<string> {
+  const data = await getOranWeather();
+  return JSON.stringify(data);
 }
 
 async function getNews(input: Record<string, unknown>): Promise<string> {
@@ -331,4 +348,130 @@ async function netlifyDeploy(input: Record<string, unknown>): Promise<string> {
   const siteId = (input['site_id'] as string) || 'fik-conciergerie-oran';
   const ok = await triggerNetlifyDeploy(siteId);
   return ok ? `✅ Déploiement Netlify déclenché pour: ${siteId}` : `❌ Échec du déploiement Netlify pour: ${siteId}`;
+}
+
+// ─── PHASE 13 — APPRENTISSAGE CONTINU ─────────────────────────────────────
+
+async function recordFeedbackTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const actionType = input['action_type'] as string;
+  const rating = input['rating'] as 'positive' | 'negative' | 'neutral';
+  const actionId = input['action_id'] as string | undefined;
+  const comment = input['comment'] as string | undefined;
+  const contextStr = input['context'] as string | undefined;
+  const context = contextStr ? JSON.parse(contextStr) : undefined;
+
+  const feedback = await recordFeedbackAPI({
+    sessionId: sessionId ?? 'default',
+    actionType,
+    actionId,
+    rating,
+    comment,
+    context,
+  });
+
+  return `✅ Feedback enregistré [${rating}] pour ${actionType}. ID: ${feedback.id}`;
+}
+
+async function getMonthlyImprovementReportTool(input: Record<string, unknown>): Promise<string> {
+  const now = new Date();
+  const year = input['year'] ? Number(input['year']) : now.getFullYear();
+  const month = input['month'] ? Number(input['month']) : now.getMonth() + 1;
+
+  const report = await generateMonthlyReport(year, month);
+  return formatReportForKouider(report);
+}
+
+async function getLearningEvolutionTool(input: Record<string, unknown>): Promise<string> {
+  const months = input['months'] ? Number(input['months']) : 6;
+  const evolution = await getEvolutionReport(months);
+
+  let text = `📈 **ÉVOLUTION DE L'APPRENTISSAGE** (${months} derniers mois)\n\n`;
+
+  evolution.evolution.forEach(e => {
+    const bar = '█'.repeat(Math.round(e.positive_rate * 20));
+    text += `${e.period} : ${bar} ${Math.round(e.positive_rate * 100)}% | ${e.new_rules} règles\n`;
+  });
+
+  text += `\n**TENDANCES**\n`;
+  text += `- ${evolution.trends.improving ? '📈 En amélioration' : '📉 Stable ou en baisse'}\n`;
+  text += `- Taux de satisfaction moyen : **${Math.round(evolution.trends.avg_positive_rate * 100)}%**\n`;
+
+  return text;
+}
+
+async function getKouiderPreferencesTool(): Promise<string> {
+  const prefs = await getKouiderPreferences();
+
+  let text = `🎯 **PRÉFÉRENCES CALIBRÉES DE KOUIDER**\n\n`;
+  text += `**Style de réponse** : ${prefs.response_style}\n`;
+  text += `**Ton** : ${prefs.tone}\n`;
+
+  if (Object.keys(prefs.tiktok_styles).length > 0) {
+    text += `\n**Styles TikTok favoris** :\n`;
+    const sorted = Object.entries(prefs.tiktok_styles)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+    sorted.forEach(([style, score]) => {
+      text += `- ${style} : ${Math.round(score * 100)}%\n`;
+    });
+  }
+
+  text += `\n**Seuil d'approbation automatique** : ${Math.round(prefs.auto_approve_threshold * 100)}%\n`;
+
+  return text;
+}
+
+// ── Phase 6 — WhatsApp tools ──────────────────────────────────
+
+async function sendWhatsAppToClient(input: Record<string, unknown>): Promise<string> {
+  const phone   = input['phone']   as string;
+  const message = input['message'] as string;
+  if (!phone || !message) return '❌ phone et message sont requis';
+  const ok = await sendWhatsApp(phone, message);
+  return ok
+    ? `✅ Message WhatsApp envoyé à ${phone}`
+    : `❌ Échec envoi WhatsApp à ${phone} (Twilio non configuré ?)`;
+}
+
+async function checkCarAvailability(input: Record<string, unknown>): Promise<string> {
+  const startDate = input['start_date'] as string;
+  const endDate   = input['end_date']   as string;
+  const carId     = input['car_id']     as string | undefined;
+
+  if (!startDate || !endDate) return '❌ start_date et end_date sont requis';
+
+  let overlappingQuery = supabase
+    .from('bookings')
+    .select('car_id')
+    .in('status', ['CONFIRMED', 'ACTIVE'])
+    .lte('start_date', endDate)
+    .gte('end_date', startDate);
+
+  const { data: overlapping } = await overlappingQuery;
+  const busyCarIds = new Set((overlapping ?? []).map((b: { car_id: string }) => b.car_id));
+
+  let carsQuery = supabase.from('cars').select('id, name, base_price, category').eq('available', true);
+  if (carId) carsQuery = carsQuery.eq('id', carId);
+
+  const { data: cars, error } = await carsQuery;
+  if (error) return `❌ Erreur: ${error.message}`;
+
+  const startD = new Date(startDate);
+  const endD   = new Date(endDate);
+  const days   = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / 86_400_000));
+
+  const available = (cars ?? []).filter((c: { id: string }) => !busyCarIds.has(c.id));
+
+  if (!available.length) {
+    return carId
+      ? `❌ La voiture demandée n'est pas disponible du ${startDate} au ${endDate}.`
+      : `❌ Aucune voiture disponible du ${startDate} au ${endDate}.`;
+  }
+
+  const lines = available.map((c: { id: string; name: string; base_price: number; category: string }) => {
+    const total = c.base_price * days;
+    return `🚗 ${c.name} (${c.category}) — ${c.base_price.toLocaleString('fr-DZ')} DZD/jour → Total ${days}j: ${total.toLocaleString('fr-DZ')} DZD`;
+  });
+
+  return `✅ Disponible du ${startDate} au ${endDate} (${days} jours):\n${lines.join('\n')}`;
 }

@@ -1,21 +1,43 @@
 import { Router } from 'express';
 import {
-  sendMessage, sendTyping, setWebhook, downloadFile,
+  sendMessage, sendTyping, setWebhook, downloadFile, getFileUrl, sendPhoto, sendVideo,
   type TelegramUpdate, type TelegramMessage,
 } from '../../integrations/telegram.js';
 import { chatWithTools } from '../../integrations/claude-api.js';
 import { buildContext } from '../../conversation/context-builder.js';
 import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import Anthropic from '@anthropic-ai/sdk';
+import {
+  analyzeImage, optimizeImage, createSocialVariants, enhanceImage, removeBackground,
+  analyzeVideo, cutVideo, optimizeForPlatform, extractThumbnail,
+} from '../../integrations/media-processing.js';
 
-const router = Router();
-const BUCKET = 'client-documents';
+const router   = Router();
+const BUCKET   = 'client-documents';
+const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] ?? '' });
+
+// Cloudinary import dynamique (CommonJS compatible)
+let cloudinary: any;
+(async () => {
+  const { v2 } = await import('cloudinary');
+  cloudinary = v2;
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
+    api_key: process.env.CLOUDINARY_API_KEY || '',
+    api_secret: process.env.CLOUDINARY_API_SECRET || '',
+    secure: true,
+  });
+})();
 
 function isAllowed(chatId: number): boolean {
   const allowed = process.env['TELEGRAM_ALLOWED_CHATS'] ?? '';
   if (!allowed) return true;
   return allowed.split(',').map(s => s.trim()).includes(String(chatId));
 }
+
+// Mots-clés qui indiquent explicitement qu'on veut enregistrer un document
+const STORE_KEYWORDS = /passport|passeport|permis|license|licence|contrat|contract|enregistre|sauvegarde|stocke|store/i;
 
 // POST /api/telegram/webhook
 router.post('/webhook', async (req, res) => {
@@ -35,13 +57,28 @@ router.post('/webhook', async (req, res) => {
 
   // /start
   if (msg.text?.startsWith('/start')) {
-    await sendMessage(chatId, `Salam ! Je suis Ibrahim 🚗\nEnvoie message, photo ou document.`);
+    await sendMessage(chatId, `Salam Kouider ! Je suis Ibrahim 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTu peux me dire ce que tu veux faire avec tes médias !`);
     return;
   }
 
-  // Photo or document → store as client document
+  // ── VIDÉO REÇUE ──
+  if (msg.video) {
+    await handleVideoMessage(chatId, sessionId, msg);
+    return;
+  }
+
+  // ── PHOTO OU DOCUMENT IMAGE REÇU ──
   if (msg.photo || msg.document) {
-    await handleFileMessage(chatId, sessionId, msg);
+    const caption = msg.caption ?? '';
+
+    // Si la légende contient un mot-clé d'enregistrement → stocker comme avant
+    if (STORE_KEYWORDS.test(caption)) {
+      await handleFileMessage(chatId, sessionId, msg);
+      return;
+    }
+
+    // Sinon → analyser l'image avec Claude Vision ET proposer traitement
+    await handleImageMessage(chatId, sessionId, msg);
     return;
   }
 
@@ -54,7 +91,6 @@ router.post('/webhook', async (req, res) => {
     const ctx      = await buildContext(sessionId, text);
     const response = await chatWithTools(ctx.messages, ctx.systemExtra);
 
-    // Envoyer la réponse en priorité, sauvegarder en arrière-plan
     const sendPromise = (async () => {
       for (const chunk of splitMessage(response.text, 4000)) {
         await sendMessage(chatId, chunk);
@@ -68,17 +104,284 @@ router.post('/webhook', async (req, res) => {
 
     await Promise.all([sendPromise, savePromise]);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[telegram] Error:', msg);
-    await sendMessage(chatId, `⚠️ Erreur: ${msg.slice(0, 300)}`);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[telegram] Error:', errMsg);
+    await sendMessage(chatId, `⚠️ Erreur: ${errMsg.slice(0, 300)}`);
   }
 });
 
+// ── TRAITEMENT VIDÉO AUTOMATIQUE ──────────────────────────────────
+async function handleVideoMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
+  try {
+    if (!cloudinary) {
+      await sendMessage(chatId, '⚠️ Cloudinary en cours de chargement, réessaie dans 2 secondes...');
+      return;
+    }
+
+    await sendTyping(chatId);
+
+    const videoFile = msg.video;
+    if (!videoFile) return;
+
+    const fileId = videoFile.file_id;
+    const caption = msg.caption ?? '';
+
+    // 1. Télécharger la vidéo depuis Telegram
+    await sendMessage(chatId, '⏳ Téléchargement de la vidéo...');
+    const buffer = await downloadFile(fileId);
+    if (!buffer) {
+      await sendMessage(chatId, '⚠️ Impossible de télécharger la vidéo.');
+      return;
+    }
+
+    // 2. Upload sur Cloudinary
+    await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
+    
+    const uploadResult = await new Promise<any>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { resource_type: 'video', folder: 'telegram_videos' },
+        (error: any, result: any) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(buffer);
+    });
+
+    const videoUrl = uploadResult.secure_url;
+
+    // 3. Analyser la vidéo
+    await sendMessage(chatId, '🔍 Analyse de la vidéo...');
+    const analysis = await analyzeVideo(videoUrl);
+
+    // 4. Détecter l'action demandée dans la légende
+    const lowerCaption = caption.toLowerCase();
+    let processedUrl = videoUrl;
+    let action = 'Vidéo reçue et analysée';
+
+    if (/tiktok|reels|story|vertical/i.test(lowerCaption)) {
+      await sendMessage(chatId, '✂️ Optimisation format TikTok/Reels (9:16)...');
+      processedUrl = await optimizeForPlatform(videoUrl, 'tiktok');
+      action = 'Optimisation TikTok/Reels 9:16';
+    } else if (/youtube|horizontal|16:9/i.test(lowerCaption)) {
+      await sendMessage(chatId, '✂️ Optimisation format YouTube (16:9)...');
+      processedUrl = await optimizeForPlatform(videoUrl, 'youtube');
+      action = 'Optimisation YouTube 16:9';
+    } else if (/miniature|thumb|vignette/i.test(lowerCaption)) {
+      await sendMessage(chatId, '📸 Extraction miniature...');
+      const thumbUrl = await extractThumbnail(videoUrl, 2);
+      await sendPhoto(chatId, thumbUrl);
+      action = 'Miniature extraite';
+    } else if (/découpe|coupe|cut|extrait/i.test(lowerCaption)) {
+      // Détection timestamps (ex: "0:10 à 0:45")
+      const timeMatch = caption.match(/(\d+):(\d+)\s*[àa]\s*(\d+):(\d+)/i);
+      if (timeMatch) {
+        const startSec = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+        const endSec = parseInt(timeMatch[3]) * 60 + parseInt(timeMatch[4]);
+        await sendMessage(chatId, `✂️ Découpe ${startSec}s → ${endSec}s...`);
+        processedUrl = await cutVideo(videoUrl, startSec, endSec);
+        action = `Découpe ${startSec}s-${endSec}s`;
+      }
+    }
+
+    // 5. Envoyer résultat
+    const resultMsg = `✅ **Vidéo traitée** — ${action}\n\n` +
+      `📊 **Analyse:**\n` +
+      `• Durée: ${analysis.duration_seconds}s\n` +
+      `• Résolution: ${analysis.width}x${analysis.height}\n` +
+      `• Taille: ${analysis.size_mb} MB\n` +
+      `• Format: ${analysis.format}\n\n` +
+      `🔗 Lien: ${processedUrl}`;
+
+    await sendMessage(chatId, resultMsg);
+
+    // Envoyer la vidéo traitée si différente de l'originale
+    if (processedUrl !== videoUrl) {
+      await sendVideo(chatId, processedUrl);
+    }
+
+    await saveConversationTurn(sessionId, 'user',
+      `[Vidéo reçue${caption ? ` — "${caption}"` : ''} → ${action}]`,
+      { source: 'telegram', type: 'video', url: processedUrl }
+    );
+
+  } catch (err) {
+    console.error('[telegram] handleVideoMessage error:', err instanceof Error ? err.message : String(err));
+    await sendMessage(chatId, `⚠️ Erreur traitement vidéo: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+// ── TRAITEMENT IMAGE AUTOMATIQUE ──────────────────────────────────
+async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
+  try {
+    if (!cloudinary) {
+      await sendMessage(chatId, '⚠️ Cloudinary en cours de chargement, réessaie dans 2 secondes...');
+      return;
+    }
+
+    await sendTyping(chatId);
+
+    let fileId: string;
+    let mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
+
+    if (msg.photo && msg.photo.length > 0) {
+      const largest = msg.photo[msg.photo.length - 1];
+      if (!largest) { await sendMessage(chatId, '⚠️ Photo illisible.'); return; }
+      fileId   = largest.file_id;
+      mimeType = 'image/jpeg';
+    } else if (msg.document) {
+      fileId = msg.document.file_id;
+      const mime = msg.document.mime_type ?? '';
+      if (mime === 'image/png')       mimeType = 'image/png';
+      else if (mime === 'image/gif')  mimeType = 'image/gif';
+      else if (mime === 'image/webp') mimeType = 'image/webp';
+      else                            mimeType = 'image/jpeg';
+    } else {
+      return;
+    }
+
+    const caption = msg.caption ?? '';
+
+    // 1. Télécharger l'image depuis Telegram
+    await sendMessage(chatId, '⏳ Téléchargement de l\'image...');
+    const buffer = await downloadFile(fileId);
+    if (!buffer) {
+      await sendMessage(chatId, '⚠️ Impossible de télécharger l\'image.');
+      return;
+    }
+
+    // 2. Upload sur Cloudinary
+    await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
+    
+    const uploadResult = await new Promise<any>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { resource_type: 'image', folder: 'telegram_images' },
+        (error: any, result: any) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(buffer);
+    });
+
+    const imageUrl = uploadResult.secure_url;
+
+    // 3. ANALYSE VISION CLAUDE pour comprendre l'image
+    await sendMessage(chatId, '👁️ Analyse de l\'image...');
+    const base64Image = buffer.toString('base64');
+
+    const visionResponse = await anthropic.messages.create({
+      model:      'claude-opus-4-5',
+      max_tokens: 1024,
+      system: `Tu es Ibrahim, assistant IA de Kouider (Fik Conciergerie Oran).
+Analyse précisément cette image. Si c'est un tableau/dashboard → liste tous les noms, prix, données visibles.
+Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et précis.`,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
+          { type: 'text',  text: caption ? `Message joint: "${caption}"` : 'Décris ce que tu vois en détail.' },
+        ],
+      }],
+    });
+
+    const imageDescription = visionResponse.content
+      .filter(b => b.type === 'text')
+      .map(b => (b as Anthropic.TextBlock).text)
+      .join('');
+
+    // 4. Détecter si c'est une ACTION à exécuter (modification réservation, etc.)
+    const ACTION_KEYWORDS = /modif|chang|corrig|mett|updat|prix|montant|réserv|client|supprim|créé|ajoute/i;
+    
+    if (caption && ACTION_KEYWORDS.test(caption)) {
+      // ACTION DEMANDÉE → passer à chatWithTools avec le contexte Vision
+      await sendMessage(chatId, '⚙️ Exécution de l\'action...');
+      
+      const actionMessage = `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
+      const ctx      = await buildContext(sessionId, actionMessage);
+      const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+
+      await sendMessage(chatId, response.text);
+
+      await Promise.all([
+        saveConversationTurn(sessionId, 'user',      actionMessage,  { source: 'telegram', type: 'image_action', url: imageUrl }),
+        saveConversationTurn(sessionId, 'assistant', response.text,  { source: 'telegram' }),
+      ]);
+
+      return;
+    }
+
+    // 5. SINON → Traitement image selon demande
+    const lowerCaption = caption.toLowerCase();
+    let processedUrl = imageUrl;
+    let action = 'Image reçue et analysée';
+
+    if (/optim|compress|rédui|léger|web/i.test(lowerCaption)) {
+      await sendMessage(chatId, '🔧 Optimisation de l\'image...');
+      const optimized = await optimizeImage(imageUrl, 'web');
+      processedUrl = optimized.url;
+      action = `Optimisée (${optimized.size_reduction_percent}% plus légère)`;
+    } else if (/améliore|enhance|qualité|nettet/i.test(lowerCaption)) {
+      await sendMessage(chatId, '✨ Amélioration qualité...');
+      processedUrl = await enhanceImage(imageUrl);
+      action = 'Qualité améliorée (contraste, luminosité, netteté)';
+    } else if (/fond|background|détour/i.test(lowerCaption)) {
+      await sendMessage(chatId, '🎭 Suppression du fond...');
+      processedUrl = await removeBackground(imageUrl);
+      action = 'Fond supprimé (PNG transparent)';
+    } else if (/social|tiktok|insta|facebook|story|post/i.test(lowerCaption)) {
+      await sendMessage(chatId, '📱 Création variantes réseaux sociaux...');
+      const variants = await createSocialVariants(imageUrl);
+      
+      await sendMessage(chatId,
+        `✅ **Variantes créées:**\n\n` +
+        `📸 **TikTok/Reels (9:16)**\n${variants.tiktok}\n\n` +
+        `📸 **Instagram Post (1:1)**\n${variants.instagram_feed}\n\n` +
+        `📸 **Instagram Story (9:16)**\n${variants.instagram_story}\n\n` +
+        `📸 **YouTube (16:9)**\n${variants.youtube}`
+      );
+
+      await sendPhoto(chatId, variants.tiktok);
+      action = 'Variantes réseaux sociaux créées';
+    }
+
+    // 6. Analyse qualité
+    const analysis = await analyzeImage(imageUrl);
+
+    // 7. Envoyer résultat
+    const resultMsg = `✅ **Image traitée** — ${action}\n\n` +
+      `👁️ **Vision:**\n${imageDescription}\n\n` +
+      `📊 **Analyse technique:**\n` +
+      `• Résolution: ${analysis.width}x${analysis.height}\n` +
+      `• Taille: ${analysis.size_kb} KB\n` +
+      `• Format: ${analysis.format}\n` +
+      `• Score qualité: ${analysis.quality_score}/100\n\n` +
+      (analysis.suggestions.length > 0 ? `💡 **Suggestions:**\n${analysis.suggestions.join('\n')}\n\n` : '') +
+      `🔗 Lien: ${processedUrl}`;
+
+    await sendMessage(chatId, resultMsg);
+
+    // Envoyer l'image traitée si différente de l'originale
+    if (processedUrl !== imageUrl) {
+      await sendPhoto(chatId, processedUrl);
+    }
+
+    await saveConversationTurn(sessionId, 'user',
+      `[Image reçue${caption ? ` — "${caption}"` : ''} → ${action}]`,
+      { source: 'telegram', type: 'image', url: processedUrl, vision: imageDescription }
+    );
+
+  } catch (err) {
+    console.error('[telegram] handleImageMessage error:', err instanceof Error ? err.message : String(err));
+    await sendMessage(chatId, `⚠️ Erreur traitement image: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+// ── Enregistrement document (passeport, permis, contrat) ──────
 async function handleFileMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
     await sendTyping(chatId);
 
-    // Get file_id: photo = largest size, document = file_id
     let fileId:   string;
     let fileName: string;
     let mimeType: string;
@@ -97,23 +400,19 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
       return;
     }
 
-    // Download from Telegram
     const buffer = await downloadFile(fileId);
     if (!buffer) {
       await sendMessage(chatId, '⚠️ Impossible de télécharger le fichier.');
       return;
     }
 
-    // Parse caption to detect type + client name
-    const caption = msg.caption ?? msg.text ?? '';
+    const caption = msg.caption ?? '';
     const { docType, clientName, clientPhone, bookingNote } = parseCaption(caption);
 
-    // Ensure bucket exists
     await supabase.storage.createBucket(BUCKET, { public: true }).catch(() => {});
 
-    // Upload to Supabase Storage
-    const safeName  = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const phone     = clientPhone ?? 'inconnu';
+    const safeName    = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const phone       = clientPhone ?? 'inconnu';
     const storagePath = `${phone}/${docType}/${Date.now()}_${safeName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -128,7 +427,6 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
 
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
 
-    // Save to client_documents
     const { error: dbError } = await supabase.from('client_documents').insert({
       client_phone: phone,
       client_name:  clientName ?? 'Inconnu',
@@ -145,15 +443,14 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
                 : docType === 'contract' ? 'Contrat'
                 : 'Document';
 
-    const nameStr  = clientName  ? ` de *${clientName}*`   : '';
-    const phoneStr = clientPhone ? ` (${clientPhone})`     : '';
+    const nameStr  = clientName  ? ` de *${clientName}*` : '';
+    const phoneStr = clientPhone ? ` (${clientPhone})`   : '';
     const noteStr  = bookingNote ? `\n📝 Note: ${bookingNote}` : '';
 
     await sendMessage(chatId,
       `✅ ${label}${nameStr}${phoneStr} enregistré dans Supabase.${noteStr}\n🔗 ${urlData.publicUrl}`,
     );
 
-    // Also save to conversation so Ibrahim remembers
     await saveConversationTurn(sessionId, 'user',
       `[Document reçu: ${label}${nameStr}${phoneStr} — stocké dans Supabase Storage: ${urlData.publicUrl}]`,
       { source: 'telegram', type: 'document' },
@@ -178,12 +475,10 @@ function parseCaption(caption: string): {
   else if (/permis|license|licence/.test(lower)) docType = 'license';
   else if (/contrat|contract/.test(lower))       docType = 'contract';
 
-  // Extract phone number
-  const phoneMatch = caption.match(/(?:\+213|0)([\d\s]{8,11})/);
+  const phoneMatch  = caption.match(/(?:\+213|0)([\d\s]{8,11})/);
   const clientPhone = phoneMatch ? phoneMatch[0].replace(/\s/g, '') : undefined;
 
-  // Extract name: word after keyword
-  const nameMatch = caption.match(/(?:pour|de|client)\s+([A-ZÀ-Ö][a-zà-ö]+(?:\s+[A-ZÀ-Ö][a-zà-ö]+)?)/i);
+  const nameMatch  = caption.match(/(?:pour|de|client)\s+([A-ZÀ-Ö][a-zà-ö]+(?:\s+[A-ZÀ-Ö][a-zà-ö]+)?)/i);
   const clientName = nameMatch ? nameMatch[1] : undefined;
 
   return { docType, clientName, clientPhone, bookingNote: caption || undefined };

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { getFinancialReport, seedPricingTable } from '../../integrations/finance.js';
 import { VEHICLE_PRICING } from '../../config/pricing.js';
+import { getDashboardData, generatePdfReceipt, getPaymentStatus, getUnpaidBookings } from '../../integrations/phase5-finance.js';
 
 const router = Router();
 
@@ -60,6 +61,47 @@ router.patch('/bookings/:id/owner', requireMobileAuth, async (req, res) => {
 
     if (error) throw new Error(error.message);
     res.json({ booking: data, message: `Réservation attribuée à ${rented_by}` });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/finance/dashboard — données structurées pour le dashboard mobile
+router.get('/dashboard', requireMobileAuth, async (_req, res) => {
+  try {
+    const data = await getDashboardData();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/finance/receipts/:id — générer la facture PDF
+router.post('/receipts/:id', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  try {
+    const result = await generatePdfReceipt(id);
+    res.json({ url: result.url, message: result.text });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/finance/payments — statut paiements
+router.get('/payments', requireMobileAuth, async (_req, res) => {
+  try {
+    const text = await getPaymentStatus();
+    res.json({ text });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/finance/unpaid — liste impayés
+router.get('/unpaid', requireMobileAuth, async (_req, res) => {
+  try {
+    const text = await getUnpaidBookings();
+    res.json({ text });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

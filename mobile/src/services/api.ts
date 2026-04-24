@@ -54,7 +54,24 @@ export const api = {
       method: 'POST',
       body:   JSON.stringify({ decision, note }),
     }),
+
+  getFinanceDashboard: () =>
+    apiFetch<FinanceDashboardData>('/api/finance/dashboard'),
+
+  generateReceipt: (bookingId: string) =>
+    apiFetch<{ url: string; message: string }>(`/api/finance/receipts/${bookingId}`, { method: 'POST' }),
 };
+
+export interface FinanceDashboardData {
+  month: number; year: number;
+  ca:       { current: number; previous: number; evolution: number };
+  payments: { collected: number; outstanding: number };
+  profit:   number;
+  forecast: { projected: number; nextMonth: number; dailyAvg: number };
+  unpaid:   Array<{ id: string; name: string; car: string; amount: number; phone?: string }>;
+  vehicles: Array<{ name: string; ca: number; bookings: number }>;
+  bookingCount: number;
+}
 
 // ── Socket.IO ─────────────────────────────────────────────────
 

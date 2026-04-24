@@ -88,27 +88,26 @@ export async function getFinancialReport(year: number, month?: number): Promise<
     const endDt      = new Date(b.end_date);
     const nbDays     = b.nb_days ?? Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
     const rentedBy   = b.rented_by ?? 'Kouider';
+    const finalPrice = b.final_price; // Prix TOTAL déjà payé
     const pricing    = getPricingForVehicle(carName);
 
     let kouiderProfit = 0;
     let houariRevenue = 0;
 
-    if (pricing) {
-      if (rentedBy === 'Kouider') {
-        kouiderProfit = pricing.benefit * nbDays;
-        houariRevenue = pricing.houariPrice * nbDays;
-      } else {
-        // Houari rented — Houari gets 100%, Kouider gets 0
-        houariRevenue = pricing.houariPrice * nbDays;
-        kouiderProfit = 0;
-      }
+    if (rentedBy === 'Houari') {
+      // Houari loue → Houari = 100%, Kouider = 0
+      houariRevenue = finalPrice;
+      kouiderProfit = 0;
     } else {
-      // No pricing match — fallback: use final_price ratio
-      if (rentedBy === 'Kouider') {
-        kouiderProfit = Math.round(b.final_price * 0.2);
-        houariRevenue = b.final_price - kouiderProfit;
+      // Kouider loue → calculer bénéfice d'après grille tarifaire
+      if (pricing) {
+        const benefitPerDay = pricing.benefit;
+        kouiderProfit = benefitPerDay * nbDays;
+        houariRevenue = finalPrice - kouiderProfit;
       } else {
-        houariRevenue = b.final_price;
+        // Pas de grille → estimation 20% pour Kouider
+        kouiderProfit = Math.round(finalPrice * 0.2);
+        houariRevenue = finalPrice - kouiderProfit;
       }
     }
 
@@ -119,7 +118,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
       start_date:     b.start_date,
       end_date:       b.end_date,
       nb_days:        nbDays,
-      final_price:    b.final_price,
+      final_price:    finalPrice,
       rented_by:      rentedBy,
       status:         b.status,
       kouider_profit: kouiderProfit,
