@@ -204,24 +204,224 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   console.log('[job:tiktok] sent');
 }
 
-// ── 4. Réservation impayée 48h ────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// ── 4. RELANCE CLIENTS IMPAYÉS — PHASE 5 ÉTAPE 3 ─────────────
+// Logique:
+//   - attempt 1 → toutes les réservations CONFIRMED/ACTIVE avec
+//     payment_status PENDING ou PARTIAL, créées il y a ≥ 48h
+//     et pas encore relancées (pas de log attempt=1)
+//   - attempt 2 → celles qui ont déjà eu une relance 1 il y a ≥ 24h
+//     et sont toujours impayées
+//   - Si toujours impayé après relance 2 → alerte urgente Kouider
+// ════════════════════════════════════════════════════════════════
+
 export async function jobUnpaidReminder(_job: Job): Promise<void> {
-  const cutoff = new Date();
-  cutoff.setHours(cutoff.getHours() - 48);
+  console.log('[job:unpaid-reminder] Démarrage vérification impayés...');
 
-  const { data: bookings } = await supabase
-    .from('bookings').select('id, client_name, client_phone, final_price, cars(name)')
-    .eq('status', 'PENDING').lt('created_at', cutoff.toISOString());
+  // 1. Récupérer toutes les réservations impayées/partielles actives
+  const { data: bookings, error } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, final_price, paid_amount, payment_status, created_at, start_date, end_date, cars(name)')
+    .in('payment_status', ['PENDING', 'PARTIAL'])
+    .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+    .order('created_at', { ascending: true });
 
-  if (!bookings?.length) return;
-
-  for (const b of bookings as unknown as Array<{ client_name: string; client_phone?: string; final_price: number; cars?: { name: string } }>) {
-    const car = b.cars?.name ?? '?';
-    await tg(`💸 *Réservation en attente > 48h*\n${b.client_name} — ${car}\nMontant: ${b.final_price}€${b.client_phone ? `\n📞 ${b.client_phone}` : ''}`);
-    await notifyOwner('💸 Impayé > 48h', `${b.client_name} — ${car}`, true);
+  if (error) {
+    console.error('[job:unpaid-reminder] Erreur Supabase:', error.message);
+    return;
   }
 
-  console.log(`[job:unpaid] ${bookings.length} alertes`);
+  if (!bookings?.length) {
+    console.log('[job:unpaid-reminder] ✅ Aucun impayé trouvé.');
+    return;
+  }
+
+  const now = new Date();
+  let attempt1Count = 0;
+  let attempt2Count = 0;
+  let urgentCount   = 0;
+
+  for (const booking of bookings as any[]) {
+    const bookingId  = booking.id as string;
+    const clientName = booking.client_name as string;
+    const clientPhone = booking.client_phone as string | null;
+    const carName    = (booking.cars as any)?.name ?? 'Véhicule';
+    const total      = booking.final_price as number ?? 0;
+    const paid       = booking.paid_amount as number ?? 0;
+    const remaining  = total - paid;
+    const createdAt  = new Date(booking.created_at);
+    const hoursOld   = (now.getTime() - createdAt.getTime()) / 3_600_000;
+
+    // Récupérer les logs de relance existants pour cette réservation
+    const { data: logs } = await supabase
+      .from('relance_logs')
+      .select('attempt, sent_at')
+      .eq('booking_id', bookingId)
+      .order('attempt', { ascending: true });
+
+    const existingAttempts = (logs ?? []) as Array<{ attempt: number; sent_at: string }>;
+    const attempt1Log = existingAttempts.find(l => l.attempt === 1);
+    const attempt2Log = existingAttempts.find(l => l.attempt === 2);
+
+    // ── Relance 1: ≥48h sans paiement et pas encore relancé ──
+    if (!attempt1Log && hoursOld >= 48) {
+      const whatsappMsg = generateRelanceMessage(clientName, remaining, carName, 1);
+      const tgMessage   = buildTelegramRelance(clientName, clientPhone, carName, remaining, total, paid, 1, Math.floor(hoursOld));
+
+      await tg(tgMessage);
+      await notifyOwner(
+        `💸 Relance 1 — ${clientName}`,
+        `${carName} | Reste: ${remaining}€ | ${Math.floor(hoursOld)}h sans paiement\n📱 ${clientPhone ?? 'N/A'}`,
+        false,
+      );
+
+      // Log la relance dans Supabase
+      await supabase.from('relance_logs').insert({
+        booking_id:    bookingId,
+        client_name:   clientName,
+        client_phone:  clientPhone,
+        car_name:      carName,
+        amount_due:    remaining,
+        attempt:       1,
+        sent_at:       now.toISOString(),
+        whatsapp_msg:  whatsappMsg,
+        status:        'sent',
+      });
+
+      attempt1Count++;
+      console.log(`[job:unpaid-reminder] Relance 1 → ${clientName} (${remaining}€)`);
+    }
+
+    // ── Relance 2: ≥24h après relance 1, toujours impayé ──
+    else if (attempt1Log && !attempt2Log) {
+      const hoursSinceAttempt1 = (now.getTime() - new Date(attempt1Log.sent_at).getTime()) / 3_600_000;
+
+      if (hoursSinceAttempt1 >= 24) {
+        const whatsappMsg = generateRelanceMessage(clientName, remaining, carName, 2);
+        const tgMessage   = buildTelegramRelance(clientName, clientPhone, carName, remaining, total, paid, 2, Math.floor(hoursOld));
+
+        await tg(tgMessage);
+        await notifyOwner(
+          `🚨 Relance 2 — ${clientName}`,
+          `${carName} | Reste: ${remaining}€ | Déjà relancé il y a ${Math.floor(hoursSinceAttempt1)}h\n📱 ${clientPhone ?? 'N/A'}`,
+          true, // urgente
+        );
+
+        // Log la relance 2
+        await supabase.from('relance_logs').insert({
+          booking_id:    bookingId,
+          client_name:   clientName,
+          client_phone:  clientPhone,
+          car_name:      carName,
+          amount_due:    remaining,
+          attempt:       2,
+          sent_at:       now.toISOString(),
+          whatsapp_msg:  whatsappMsg,
+          status:        'sent',
+        });
+
+        attempt2Count++;
+        console.log(`[job:unpaid-reminder] Relance 2 → ${clientName} (${remaining}€)`);
+      }
+    }
+
+    // ── Alerte urgente: 2 relances faites, toujours impayé ──
+    else if (attempt1Log && attempt2Log) {
+      const hoursSinceAttempt2 = (now.getTime() - new Date(attempt2Log.sent_at).getTime()) / 3_600_000;
+
+      // Alerter toutes les 24h si toujours impayé après relance 2
+      if (hoursSinceAttempt2 >= 24) {
+        const daysDue = Math.floor(hoursOld / 24);
+
+        await tg([
+          `🔴 *IMPAYÉ PERSISTANT — ACTION REQUISE*`,
+          ``,
+          `👤 *${clientName}*`,
+          `🚗 ${carName}`,
+          `💰 Reste à payer: *${remaining}€* (total: ${total}€)`,
+          `📅 ${daysDue} jours sans règlement`,
+          `📱 ${clientPhone ?? 'N/A'}`,
+          ``,
+          `⚠️ 2 relances envoyées — aucune réponse.`,
+          `👉 Contacte ce client directement.`,
+        ].join('\n'));
+
+        await notifyOwner(
+          `🔴 IMPAYÉ ${daysDue}j — ${clientName}`,
+          `${carName} | ${remaining}€ | 2 relances sans réponse | 📱 ${clientPhone ?? 'N/A'}`,
+          true,
+        );
+
+        // Mettre à jour le log attempt 2 avec la dernière alerte
+        await supabase.from('relance_logs')
+          .update({ sent_at: now.toISOString(), status: 'urgent' })
+          .eq('booking_id', bookingId)
+          .eq('attempt', 2);
+
+        urgentCount++;
+        console.log(`[job:unpaid-reminder] 🔴 Alerte urgente → ${clientName} (${daysDue}j)`);
+      }
+    }
+  }
+
+  // Résumé
+  const total_actions = attempt1Count + attempt2Count + urgentCount;
+  if (total_actions > 0) {
+    console.log(`[job:unpaid-reminder] ✅ Terminé: ${attempt1Count} relance(s) 1 | ${attempt2Count} relance(s) 2 | ${urgentCount} alerte(s) urgente(s)`);
+  } else {
+    console.log('[job:unpaid-reminder] ℹ️ Aucune nouvelle relance nécessaire.');
+  }
+}
+
+/**
+ * Génère le message WhatsApp à envoyer au client
+ * (affiché à Kouider pour qu'il le copie/envoie)
+ */
+function generateRelanceMessage(
+  clientName: string,
+  amount: number,
+  carName: string,
+  attempt: 1 | 2,
+): string {
+  if (attempt === 1) {
+    return `Bonjour ${clientName} 👋\n\nNous vous rappelons que le règlement de ${amount}€ pour la location du *${carName}* est toujours en attente.\n\nMerci de régulariser votre situation dès que possible.\n\n📞 AutoLux Oran — Fik Conciergerie`;
+  } else {
+    return `Bonjour ${clientName},\n\n⚠️ Malgré notre premier rappel, le règlement de *${amount}€* pour la location du ${carName} reste impayé.\n\nNous vous demandons de régulariser cette situation *dans les plus brefs délais* pour éviter toute complication.\n\n📞 AutoLux Oran — Fik Conciergerie`;
+  }
+}
+
+/**
+ * Construit le message Telegram envoyé à Kouider
+ * avec le message WhatsApp prêt à copier-coller
+ */
+function buildTelegramRelance(
+  clientName: string,
+  clientPhone: string | null,
+  carName: string,
+  remaining: number,
+  total: number,
+  paid: number,
+  attempt: 1 | 2,
+  hoursOld: number,
+): string {
+  const emoji   = attempt === 1 ? '🟡' : '🔴';
+  const urgence = attempt === 1 ? 'Première relance' : '⚠️ Deuxième relance URGENTE';
+  const waMsg   = generateRelanceMessage(clientName, remaining, carName, attempt);
+
+  return [
+    `${emoji} *${urgence} — Impayé*`,
+    ``,
+    `👤 *${clientName}*`,
+    `🚗 ${carName}`,
+    `💰 Total: ${total}€ | Payé: ${paid}€ | *Reste: ${remaining}€*`,
+    `⏱ Depuis: ${Math.floor(hoursOld / 24)}j ${hoursOld % 24}h`,
+    `📱 ${clientPhone ?? 'Pas de téléphone'}`,
+    ``,
+    `📋 *Message WhatsApp à envoyer:*`,
+    `\`\`\``,
+    waMsg,
+    `\`\`\``,
+  ].join('\n');
 }
 
 // ── 5. Rapport hebdo lundi 8h ─────────────────────────────────
