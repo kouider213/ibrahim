@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  sendMessage, sendTyping, setWebhook, downloadFile, getFileUrl, sendPhoto, sendVideo,
+  sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo,
   type TelegramUpdate, type TelegramMessage,
 } from '../../integrations/telegram.js';
 import { chatWithTools } from '../../integrations/claude-api.js';

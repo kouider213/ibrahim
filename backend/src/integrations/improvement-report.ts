@@ -1,9 +1,8 @@
 import {
-  getFeedbackStats,
   getLearningPatterns,
   getKouiderPreferences,
 } from './feedback-system.js';
-import { getActiveRules, supabase } from './supabase.js';
+import { supabase } from './supabase.js';
 
 // ── Types ──────────────────────────────────────────────────────
 

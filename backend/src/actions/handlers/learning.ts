@@ -1,4 +1,4 @@
-import { supabase } from '../../config/supabase';
+import { supabase } from '../../integrations/supabase.js';
 
 /**
  * PHASE 13 — APPRENTISSAGE CONTINU IBRAHIM
@@ -99,7 +99,7 @@ export async function getMonthlyImprovementReport(args?: {
     // Analyser les feedbacks par type
     const byType: Record<string, { positive: number; negative: number; neutral: number }> = {};
     
-    feedbacks?.forEach((fb) => {
+    feedbacks?.forEach((fb: any) => {
       if (!byType[fb.action_type]) {
         byType[fb.action_type] = { positive: 0, negative: 0, neutral: 0 };
       }
@@ -107,14 +107,14 @@ export async function getMonthlyImprovementReport(args?: {
     });
 
     const totalFeedbacks = feedbacks?.length || 0;
-    const positiveFeedbacks = feedbacks?.filter((f) => f.rating === 'positive').length || 0;
-    const negativeFeedbacks = feedbacks?.filter((f) => f.rating === 'negative').length || 0;
+    const positiveFeedbacks = feedbacks?.filter((f: any) => f.rating === 'positive').length || 0;
+    const negativeFeedbacks = feedbacks?.filter((f: any) => f.rating === 'negative').length || 0;
     const satisfactionRate = totalFeedbacks > 0 ? Math.round((positiveFeedbacks / totalFeedbacks) * 100) : 0;
 
     // Patterns découverts (feedbacks négatifs récurrents)
     const negativePatterns = feedbacks
-      ?.filter((f) => f.rating === 'negative' && f.comment)
-      .map((f) => f.comment);
+      ?.filter((f: any) => f.rating === 'negative' && f.comment)
+      .map((f: any) => f.comment);
 
     return {
       success: true,
@@ -123,12 +123,12 @@ export async function getMonthlyImprovementReport(args?: {
         total_feedbacks: totalFeedbacks,
         positive: positiveFeedbacks,
         negative: negativeFeedbacks,
-        neutral: feedbacks?.filter((f) => f.rating === 'neutral').length || 0,
+        neutral: feedbacks?.filter((f: any) => f.rating === 'neutral').length || 0,
         satisfaction_rate: `${satisfactionRate}%`,
       },
       by_action_type: byType,
       rules_learned: rules?.length || 0,
-      new_rules: rules?.map((r) => r.instruction) || [],
+      new_rules: rules?.map((r: any) => r.instruction) || [],
       negative_patterns: negativePatterns || [],
       recommendations: generateRecommendations(byType, negativeFeedbacks, totalFeedbacks),
     };
@@ -160,7 +160,7 @@ export async function getLearningEvolution(args?: { months?: number }) {
     // Grouper par mois
     const monthlyData: Record<string, { positive: number; negative: number; total: number }> = {};
 
-    feedbacks?.forEach((fb) => {
+    feedbacks?.forEach((fb: any) => {
       const date = new Date(fb.created_at);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -265,8 +265,8 @@ async function updateMonthlyStats(year: number, month: number) {
     .lte('created_at', endDate.toISOString());
 
   const totalFeedbacks = feedbacks?.length || 0;
-  const positiveFeedbacks = feedbacks?.filter((f) => f.rating === 'positive').length || 0;
-  const negativeFeedbacks = feedbacks?.filter((f) => f.rating === 'negative').length || 0;
+  const positiveFeedbacks = feedbacks?.filter((f: any) => f.rating === 'positive').length || 0;
+  const negativeFeedbacks = feedbacks?.filter((f: any) => f.rating === 'negative').length || 0;
 
   await supabase
     .from('ibrahim_learning_stats')
@@ -363,4 +363,34 @@ function analyzeBookingPreferences(feedbacks: any[]): any {
     satisfaction_rate: total > 0 ? Math.round((positiveCount / total) * 100) : 0,
     total_bookings_reviewed: total,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// DISPATCHER — appelé par executor.ts
+// ─────────────────────────────────────────────────────────────────
+import type { ActionPayload, ActionResult } from '../executor.js';
+
+export async function handleLearning(payload: ActionPayload): Promise<ActionResult> {
+  try {
+    let data: unknown;
+    switch (payload.action) {
+      case 'record_feedback':
+        data = await recordFeedback(payload.params as any);
+        break;
+      case 'get_monthly_improvement_report':
+        data = await getMonthlyImprovementReport(payload.params as any);
+        break;
+      case 'get_learning_evolution':
+        data = await getLearningEvolution(payload.params as any);
+        break;
+      case 'get_kouider_preferences':
+        data = await getKouiderPreferences();
+        break;
+      default:
+        return { success: false, error: 'Unknown learning action', message: `Action inconnue: ${payload.action}` };
+    }
+    return { success: true, data, message: 'OK' };
+  } catch (err: any) {
+    return { success: false, error: err.message, message: `Erreur: ${err.message}` };
+  }
 }

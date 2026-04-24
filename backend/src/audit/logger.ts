@@ -1,5 +1,7 @@
 import { supabase } from '../integrations/supabase.js';
 
+// ── Audit log (Supabase) ───────────────────────────────────────
+
 export interface AuditEntry {
   actor?:    string;
   action:    string;
@@ -25,14 +27,63 @@ export async function audit(entry: AuditEntry): Promise<void> {
   }
 }
 
-export function consoleLog(level: 'info' | 'warn' | 'error', ...args: unknown[]): void {
-  const ts = new Date().toISOString();
-  const prefix = `[${ts}] [${level.toUpperCase()}]`;
-  if (level === 'error') {
-    console.error(prefix, ...args);
-  } else if (level === 'warn') {
-    console.warn(prefix, ...args);
+// ── Structured JSON logger ─────────────────────────────────────
+
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+interface LogEntry {
+  ts:      string;
+  level:   LogLevel;
+  module:  string;
+  msg:     string;
+  data?:   unknown;
+  ms?:     number;
+}
+
+function emit(entry: LogEntry): void {
+  const line = JSON.stringify(entry);
+  if (entry.level === 'error') {
+    process.stderr.write(line + '\n');
   } else {
-    console.log(prefix, ...args);
+    process.stdout.write(line + '\n');
   }
+}
+
+export const logger = {
+  debug(module: string, msg: string, data?: unknown): void {
+    if (process.env['LOG_LEVEL'] === 'debug') {
+      emit({ ts: new Date().toISOString(), level: 'debug', module, msg, data });
+    }
+  },
+  info(module: string, msg: string, data?: unknown): void {
+    emit({ ts: new Date().toISOString(), level: 'info', module, msg, data });
+  },
+  warn(module: string, msg: string, data?: unknown): void {
+    emit({ ts: new Date().toISOString(), level: 'warn', module, msg, data });
+  },
+  error(module: string, msg: string, data?: unknown): void {
+    emit({ ts: new Date().toISOString(), level: 'error', module, msg, data });
+  },
+  /** Wrap an async fn and emit its duration + outcome */
+  async time<T>(module: string, label: string, fn: () => Promise<T>): Promise<T> {
+    const start = Date.now();
+    try {
+      const result = await fn();
+      emit({ ts: new Date().toISOString(), level: 'info', module, msg: label, ms: Date.now() - start });
+      return result;
+    } catch (err) {
+      emit({
+        ts: new Date().toISOString(), level: 'error', module,
+        msg: `${label} FAILED`, ms: Date.now() - start,
+        data: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  },
+};
+
+// ── Legacy helper kept for backward compat ────────────────────
+
+export function consoleLog(level: 'info' | 'warn' | 'error', ...args: unknown[]): void {
+  logger[level]('app', args.map(String).join(' '));
 }
