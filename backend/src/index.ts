@@ -39,9 +39,6 @@ import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
 
-// ✈️ Flight Bot
-import { startFlightBot } from './integrations/flight-bot.js';
-
 // ── Express setup ─────────────────────────────────────────────
 const app    = express();
 const server = http.createServer(app);
@@ -98,38 +95,47 @@ initPcRelay(io);
 
 mobileNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;
-  if (!token || !validateToken(token, 'mobile')) {
-    next(new Error('Unauthorized'));
-    return;
+  if (!token || !validateToken(token)) {
+    return next(new Error('Unauthorized'));
   }
   next();
 });
 
 mobileNs.on('connection', (socket) => {
-  console.log(`[socket] Mobile client connected: ${socket.id}`);
+  console.log(`[Socket] Mobile client connected: ${socket.id}`);
 
-  socket.on(SOCKET_EVENTS.PC_COMMAND, (data: unknown) => {
-    io.emit(SOCKET_EVENTS.PC_COMMAND, data);
-  });
-
-  socket.on('register_pc_agent', (data: { agentId: string }) => {
-    registerPcAgent(data.agentId, socket);
+  socket.on(SOCKET_EVENTS.PC_REGISTER, (data) => {
+    registerPcAgent(socket, data);
   });
 
   socket.on('disconnect', () => {
     unregisterPcAgent(socket.id);
-    console.log(`[socket] Mobile client disconnected: ${socket.id}`);
+    console.log(`[Socket] Mobile client disconnected: ${socket.id}`);
+  });
+});
+
+// Desktop clients namespace
+const desktopNs = io.of('/desktop');
+
+desktopNs.use((socket, next) => {
+  const token = socket.handshake.auth['token'] as string | undefined;
+  if (!token || !validateToken(token)) {
+    return next(new Error('Unauthorized'));
+  }
+  next();
+});
+
+desktopNs.on('connection', (socket) => {
+  console.log(`[Socket] Desktop client connected: ${socket.id}`);
+
+  socket.on('disconnect', () => {
+    console.log(`[Socket] Desktop client disconnected: ${socket.id}`);
   });
 });
 
 // ── Start server ──────────────────────────────────────────────
-const PORT = env.PORT ?? 3000;
+const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Ibrahim backend running on port ${PORT}`);
-
-  // Start background services
+  console.log(`✅ Ibrahim backend running on port ${PORT}`);
   initScheduler();
-
-  // ✈️ Start Flight Bot (parallel, uses FLIGHT_BOT_TOKEN)
-  startFlightBot();
 });
