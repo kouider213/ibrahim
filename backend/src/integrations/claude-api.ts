@@ -13,73 +13,100 @@ export interface Message {
 }
 
 export interface ClaudeResponse {
-  text:         string;
-  inputTokens:  number;
-  outputTokens: number;
-  cacheReadTokens?: number;
+  text:              string;
+  inputTokens:       number;
+  outputTokens:      number;
+  cacheReadTokens?:  number;
   cacheWriteTokens?: number;
-  stopReason:   string;
+  thinkingTokens?:   number;
+  stopReason:        string;
 }
 
+// ── Tool streaming callback ───────────────────────────────────────────────────
+export type ToolStartCallback = (toolName: string, toolInput: Record<string, unknown>) => void;
+export type ToolDoneCallback  = (toolName: string, result: string) => void;
+
 // ── System prompt avec cache_control — mis en cache côté Anthropic ──────────
-// Le system prompt est très long (~3000 tokens) → on le cache pour:
-//   - 80% de réduction de coût sur les tokens d'entrée
-//   - Réponses 2x plus rapides (pas besoin de retraiter le system prompt)
-//   - Cache valide 5 minutes (renouvelé automatiquement à chaque appel)
 const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
   {
-    type: 'text',
-    text: IBRAHIM.SYSTEM_PROMPT as string,
+    type:          'text',
+    text:          IBRAHIM.SYSTEM_PROMPT as string,
     cache_control: { type: 'ephemeral' },
   },
 ];
 
-// ── Tool-use chat (agentic loop) ──────────────────────────────
-// Used by Telegram and any text-only flow.
-// Claude calls tools natively → executor hits Supabase → result back to Claude → final answer.
+// ── Détecter si la question nécessite Extended Thinking ──────────────────────
+// Questions complexes: finance, stratégie, analyse, code difficile
+function needsExtendedThinking(messages: Message[]): boolean {
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  if (!lastUser) return false;
+  const text = lastUser.content.toLowerCase();
+  return (
+    /stratégi|analys|plan|optimis|combien.*voiture|combien.*gagn|comparaison|recommand|conseil business|budget|prévision|rentabilité/i.test(text) ||
+    /fix.*bug|debug|erreur.*code|typescript.*error|comment implémenter/i.test(text)
+  );
+}
+
+// ── Tool-use chat (agentic loop) avec Tool Streaming ─────────────────────────
 export async function chatWithTools(
-  messages: Message[],
-  systemExtra?: string,
-  sessionId?: string,
+  messages:       Message[],
+  systemExtra?:   string,
+  sessionId?:     string,
+  onToolStart?:   ToolStartCallback,
+  onToolDone?:    ToolDoneCallback,
+  onTextChunk?:   (chunk: string) => void,
 ): Promise<ClaudeResponse> {
+
   // Build system array with caching on the main system prompt
-  const systemBlocks: Anthropic.TextBlockParam[] = [
-    ...CACHED_SYSTEM, // system prompt principal — mis en cache
-  ];
+  const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
   if (systemExtra) {
-    // Le contexte dynamique (flotte, réservations...) n'est PAS mis en cache car il change à chaque requête
     systemBlocks.push({ type: 'text', text: systemExtra });
   }
 
-  // Generate session ID if not provided
-  const sid = sessionId ?? randomUUID();
+  const sid             = sessionId ?? randomUUID();
+  const useThinking     = needsExtendedThinking(messages);
 
-  // Convert Message[] to Anthropic format
   let apiMessages: Anthropic.MessageParam[] = messages.map(m => ({
     role:    m.role,
     content: m.content,
   }));
 
-  let inputTokens       = 0;
-  let outputTokens      = 0;
-  let cacheReadTokens   = 0;
-  let cacheWriteTokens  = 0;
-  let finalText         = '';
+  let inputTokens      = 0;
+  let outputTokens     = 0;
+  let cacheReadTokens  = 0;
+  let cacheWriteTokens = 0;
+  let thinkingTokens   = 0;
+  let finalText        = '';
 
-  // Agentic loop — max 15 tool rounds (needed for multi-step coding tasks)
+  if (useThinking) {
+    console.log(`[claude] Extended Thinking activé pour: "${messages[messages.length - 1]?.content?.slice(0, 60)}..."`);
+  }
+
+  // Agentic loop — max 15 tool rounds
   for (let round = 0; round < 15; round++) {
-    // Retry up to 3 times on 429 (rate limit), 529 (overloaded), 422 (context too long)
     let response: Awaited<ReturnType<typeof client.messages.create>> | null = null;
     let currentMessages = apiMessages;
+
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        response = await client.messages.create({
-          model:      'claude-sonnet-4-6',
-          max_tokens: 16000,
+        // Paramètres de base
+        const createParams: Anthropic.MessageCreateParamsNonStreaming = {
+          model:      'claude-opus-4-5',
+          max_tokens: useThinking ? 16000 : 16000,
           system:     systemBlocks,
           tools:      IBRAHIM_TOOLS,
           messages:   currentMessages,
-        });
+        };
+
+        // Extended Thinking: budget 8000 tokens de réflexion
+        if (useThinking) {
+          (createParams as any).thinking = {
+            type:         'enabled',
+            budget_tokens: 8000,
+          };
+        }
+
+        response = await client.messages.create(createParams);
         break;
       } catch (err) {
         const status = (err as { status?: number }).status;
@@ -90,11 +117,11 @@ export async function chatWithTools(
           console.warn(`[claude] Overloaded 529 — attente 30s (tentative ${attempt + 1}/3)`);
           await new Promise(r => setTimeout(r, 30_000));
         } else if (status === 422 && attempt < 2) {
-          // Context too long — keep only last 6 messages
           console.warn('[claude] Context trop long 422 — troncature historique');
-          const trimmed = currentMessages.slice(-6);
-          currentMessages = trimmed;
-        } else { throw err; }
+          currentMessages = currentMessages.slice(-6);
+        } else {
+          throw err;
+        }
       }
     }
     if (!response) throw new Error('Claude API unavailable after retries');
@@ -102,29 +129,42 @@ export async function chatWithTools(
     inputTokens  += response.usage.input_tokens;
     outputTokens += response.usage.output_tokens;
 
-    // Track cache metrics (disponibles si prompt caching actif)
+    // Track cache metrics
     const usage = response.usage as Anthropic.Usage & {
-      cache_read_input_tokens?:    number;
+      cache_read_input_tokens?:     number;
       cache_creation_input_tokens?: number;
     };
-    if (usage.cache_read_input_tokens)    cacheReadTokens  += usage.cache_read_input_tokens;
+    if (usage.cache_read_input_tokens)     cacheReadTokens  += usage.cache_read_input_tokens;
     if (usage.cache_creation_input_tokens) cacheWriteTokens += usage.cache_creation_input_tokens;
 
-    // Log cache stats pour monitoring
+    // Log cache stats
     if (usage.cache_read_input_tokens || usage.cache_creation_input_tokens) {
       console.log(`[claude-cache] read=${usage.cache_read_input_tokens ?? 0} write=${usage.cache_creation_input_tokens ?? 0} regular=${response.usage.input_tokens}`);
+    }
+
+    // Track thinking tokens
+    const thinkingBlocks = response.content.filter((b: any) => b.type === 'thinking');
+    if (thinkingBlocks.length > 0) {
+      const totalThinking = thinkingBlocks.reduce((sum: number, b: any) => sum + (b.thinking?.length ?? 0), 0);
+      thinkingTokens += Math.ceil(totalThinking * 0.25);
+      console.log(`[claude-thinking] ${thinkingBlocks.length} blocs de réflexion (${thinkingTokens} tokens estimés)`);
     }
 
     // Collect text
     const textBlocks = response.content.filter(b => b.type === 'text');
     finalText = textBlocks.map(b => (b as Anthropic.TextBlock).text).join('');
 
+    // Stream text chunks si callback fourni
+    if (onTextChunk && finalText) {
+      onTextChunk(finalText);
+    }
+
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
-      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, stopReason: response.stop_reason };
+      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason };
     }
 
     if (response.stop_reason !== 'tool_use') {
-      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, stopReason: response.stop_reason ?? 'end_turn' };
+      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason ?? 'end_turn' };
     }
 
     // Execute tool calls
@@ -134,14 +174,28 @@ export async function chatWithTools(
     // Add assistant turn with tool calls
     apiMessages = [...apiMessages, { role: 'assistant', content: response.content }];
 
+    // ── Tool Streaming: notifier le début de chaque outil ─────────────────
+    for (const block of toolUseBlocks) {
+      if (onToolStart) {
+        console.log(`[tool-stream] ▶ START: ${block.name}`);
+        onToolStart(block.name, block.input as Record<string, unknown>);
+      }
+    }
+
     // Execute all tools and collect results
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (block) => {
         console.log(`[tools] Executing: ${block.name}`, block.input);
-        const raw = await executeTool(block.name, block.input as Record<string, unknown>, sid);
-        // Guarantee content is always a plain string — never an object/array
+        const raw     = await executeTool(block.name, block.input as Record<string, unknown>, sid);
         const content = typeof raw === 'string' ? raw : JSON.stringify(raw);
         console.log(`[tools] Result: ${content.slice(0, 200)}`);
+
+        // ── Tool Streaming: notifier la fin de chaque outil ───────────────
+        if (onToolDone) {
+          console.log(`[tool-stream] ✅ DONE: ${block.name}`);
+          onToolDone(block.name, content.slice(0, 500));
+        }
+
         return {
           type:        'tool_result' as const,
           tool_use_id: block.id,
@@ -154,19 +208,19 @@ export async function chatWithTools(
     apiMessages = [...apiMessages, { role: 'user', content: toolResults }];
   }
 
-  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, stopReason: 'end_turn' };
+  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: 'end_turn' };
 }
 
 // ── Simple chat (no tools) ────────────────────────────────────
 export async function chat(
-  messages: Message[],
+  messages:   Message[],
   systemExtra?: string,
 ): Promise<ClaudeResponse> {
   const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
   if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
   const response = await client.messages.create({
-    model:      'claude-sonnet-4-5',
+    model:      'claude-haiku-4-5',
     max_tokens: 1024,
     system:     systemBlocks,
     messages,
@@ -187,20 +241,20 @@ export async function chat(
 
 // Streaming version — calls onChunk for each text delta, returns full response
 export async function chatStream(
-  messages: Message[],
-  systemExtra: string | undefined,
-  onChunk: (chunk: string) => void,
+  messages:     Message[],
+  systemExtra:  string | undefined,
+  onChunk:      (chunk: string) => void,
 ): Promise<ClaudeResponse> {
   const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
   if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
-  let fullText = '';
+  let fullText    = '';
   let inputTokens = 0;
   let outputTokens = 0;
-  let stopReason = 'end_turn';
+  let stopReason  = 'end_turn';
 
   const stream = client.messages.stream({
-    model:      'claude-sonnet-4-5',
+    model:      'claude-haiku-4-5',
     max_tokens: 1024,
     system:     systemBlocks,
     messages,
@@ -214,7 +268,7 @@ export async function chatStream(
       inputTokens = event.message.usage.input_tokens;
     } else if (event.type === 'message_delta') {
       outputTokens = event.usage.output_tokens;
-      stopReason = event.delta.stop_reason ?? 'end_turn';
+      stopReason   = event.delta.stop_reason ?? 'end_turn';
     }
   }
 
@@ -260,13 +314,17 @@ Retourne UNIQUEMENT un JSON valide:
   "reasoning": "courte explication"
 }`;
 
-  // Use Haiku for fast intent detection (3-5x faster than Sonnet)
   const response = await client.messages.create({
     model:      'claude-haiku-4-5',
     max_tokens: 256,
     messages:   [{ role: 'user', content: prompt }],
   });
-  const res = { text: response.content.filter(b => b.type === 'text').map(b => (b as { type:'text'; text:string }).text).join('') };
+  const res = {
+    text: response.content
+      .filter(b => b.type === 'text')
+      .map(b => (b as { type: 'text'; text: string }).text)
+      .join(''),
+  };
 
   try {
     const jsonMatch = res.text.match(/\{[\s\S]*\}/);
@@ -284,7 +342,7 @@ Retourne UNIQUEMENT un JSON valide:
 
 export async function generateTikTokContent(topic: string, vehicleName?: string): Promise<string> {
   const res = await chat([{
-    role: 'user',
+    role:    'user',
     content: `Crée un script TikTok engageant pour Fik Conciergerie Oran.
 Sujet: ${topic}
 ${vehicleName ? `Véhicule: ${vehicleName}` : ''}
@@ -298,7 +356,7 @@ export async function learnRule(
   userInstruction: string,
 ): Promise<{ category: string; rule: string; conditions: object; action: object }> {
   const res = await chat([{
-    role: 'user',
+    role:    'user',
     content: `Transforme cette instruction métier en règle structurée JSON.
 
 Instruction: "${userInstruction}"
