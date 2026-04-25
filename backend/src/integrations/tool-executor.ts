@@ -87,6 +87,8 @@ export async function executeTool(
       // ─── Web / Internet ───
       case 'web_search':                 return await webSearch(input);
       case 'fetch_url':                  return await fetchUrl(input);
+      // ─── PHASE 15 — Recherche images ───
+      case 'search_images':              return await searchImages(input);
       // ─── PHASE 14 — Image & Vidéo ───
       case 'analyze_image':
       case 'optimize_image':
@@ -100,6 +102,7 @@ export async function executeTool(
       case 'add_subtitles':
       case 'optimize_for_platform':
       case 'extract_thumbnail':
+      case 'add_background_music':
       case 'create_video_preview':       return await executeMediaTool(name, input);
       default:                           return `Outil inconnu: ${name}`;
     }
@@ -432,10 +435,10 @@ async function getKouiderPreferencesTool(): Promise<string> {
   if (Object.keys(prefs.tiktok_styles).length > 0) {
     text += `\n**Styles TikTok favoris** :\n`;
     const sorted = Object.entries(prefs.tiktok_styles)
-      .sort(([, a], [, b]) => b - a)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 5);
     sorted.forEach(([style, score]) => {
-      text += `- ${style} : ${Math.round(score * 100)}%\n`;
+      text += `- ${style} : ${Math.round((score as number) * 100)}%\n`;
     });
   }
 
@@ -463,7 +466,7 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
 
   if (!startDate || !endDate) return '❌ start_date et end_date sont requis';
 
-  let overlappingQuery = supabase
+  const overlappingQuery = supabase
     .from('bookings')
     .select('car_id')
     .in('status', ['CONFIRMED', 'ACTIVE'])
@@ -525,7 +528,6 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
 
   const results = await Promise.all((data as DocRow[]).map(async d => {
     let url = d.file_url;
-    // Génère une signed URL (1h) si storage_path disponible — bypass auth bucket
     if (d.storage_path) {
       const { data: signed } = await supabase.storage
         .from('client-documents')
@@ -567,5 +569,63 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
     return text.slice(0, 6000) || 'Page vide ou inaccessible.';
   } catch (err) {
     return `Erreur fetch URL: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+// ─── PHASE 15 — Recherche d'images (Pexels) ──────────────────────────────
+
+async function searchImages(input: Record<string, unknown>): Promise<string> {
+  const query       = input['query'] as string;
+  const count       = Math.min(Number(input['count'] ?? 4), 10);
+  const orientation = (input['orientation'] as string) || '';
+
+  if (!query) return '❌ Query requise';
+
+  const PEXELS_KEY = process.env['PEXELS_API_KEY'];
+
+  // ── Sans clé Pexels → fallback Unsplash (source publique, no key) ─────
+  if (!PEXELS_KEY) {
+    try {
+      const encoded = encodeURIComponent(query);
+      const results: string[] = [];
+      for (let i = 1; i <= count; i++) {
+        const url = `https://source.unsplash.com/featured/800x600/?${encoded}&sig=${i}`;
+        results.push(`🖼️ Image ${i}: ${url}`);
+      }
+      return `🔍 **Résultats pour "${query}"** (Unsplash — source publique)\n\n${results.join('\n')}\n\n💡 Pour de meilleurs résultats, configure une clé PEXELS_API_KEY dans Railway.`;
+    } catch (err) {
+      return `❌ Erreur recherche images: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  // ── Avec clé Pexels ────────────────────────────────────────────────────
+  try {
+    const params: Record<string, string | number> = {
+      query,
+      per_page: count,
+      locale: 'fr-FR',
+    };
+    if (orientation) params['orientation'] = orientation;
+
+    const { data } = await axios.get('https://api.pexels.com/v1/search', {
+      headers: { Authorization: PEXELS_KEY },
+      params,
+      timeout: 10_000,
+    });
+
+    const photos = data.photos as any[];
+    if (!photos?.length) return `Aucune image trouvée pour "${query}"`;
+
+    const lines = photos.map((p: any, i: number) => {
+      const url     = p.src?.large ?? p.src?.original ?? p.url;
+      const thumb   = p.src?.medium ?? url;
+      const author  = p.photographer ?? 'Inconnu';
+      return `🖼️ **Image ${i + 1}** — Photo par ${author}\n📎 URL: ${url}\n🔍 Aperçu: ${thumb}`;
+    });
+
+    return `🔍 **Résultats pour "${query}"** (${photos.length} images — Pexels)\n\n${lines.join('\n\n')}`;
+  } catch (err: any) {
+    const msg = err.response?.data?.error ?? err.message;
+    return `❌ Erreur Pexels: ${msg}`;
   }
 }
