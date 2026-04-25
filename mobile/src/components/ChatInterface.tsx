@@ -197,12 +197,8 @@ export default function ChatInterface() {
       idle: 0.003, listen: 0.009, think: 0.006, speak: 0.012,
     };
 
-    let lastTime = 0;
-
-    function draw(ts: number) {
+    function draw(_ts: number) {
       if (!ctx || !canvas) return;
-      const dt = Math.min((ts - lastTime) / 1000, 0.05);
-      lastTime = ts;
 
       // Read mic amplitude
       if (analyserRef.current) {
@@ -309,7 +305,7 @@ export default function ChatInterface() {
     }
 
     function resize() {
-      if (!canvas) return;
+      if (!canvas || !ctx) return;
       canvas.width  = canvas.offsetWidth  * devicePixelRatio;
       canvas.height = canvas.offsetHeight * devicePixelRatio;
       ctx.scale(devicePixelRatio, devicePixelRatio);
