@@ -22,12 +22,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 }
 
 export interface ChatResponse {
-  text:          string;
+  text?:         string;
   audio?:        string;
   action?:       string;
   taskId?:       string;
   validationId?: string;
-  status:        'done' | 'queued' | 'validation_pending' | 'error';
+  sessionId?:    string;
+  status:        'done' | 'queued' | 'validation_pending' | 'error' | 'processing';
 }
 
 export const api = {

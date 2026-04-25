@@ -79,24 +79,13 @@ export default function ChatInterface() {
     unlockAudio();
     applyState('think');
     setShowResponse(false);
+    elevenlabsReceivedRef.current = false;
 
     try {
-      const resp = await api.chat(msg, sessionId, false);
-      if (resp?.text) {
-        setResponseText(resp.text);
-        setShowResponse(true);
-        applyState('speak');
-        // TTS via REST (fiable, pas besoin de Socket.IO)
-        const audio = await api.tts(resp.text);
-        if (audio) {
-          await playBase64Audio(audio);
-        } else {
-          iosFallbackSpeak(resp.text, () => {
-            applyState('idle');
-            scheduleNextListen();
-          });
-        }
-      }
+      await api.chat(msg, sessionId, false);
+      // Backend returns 202 immediately — result arrives via socket:
+      // ibrahim:text_complete → text display + audio flush
+      // ibrahim:audio_chunk   → ElevenLabs streaming audio
     } catch {
       showError('Erreur de connexion');
       applyState('idle');
