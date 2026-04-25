@@ -85,14 +85,15 @@ export interface FinanceDashboardData {
 export type IbrahimStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 export interface SocketCallbacks {
-  onStatus:       (status: IbrahimStatus) => void;
-  onAudio:        (base64: string) => void;
-  onAudioChunk:   (base64: string) => void;
-  onTextChunk:    (chunk: string) => void;
-  onTextComplete: (text: string) => void;
-  onResponse:     (text: string, fallback: boolean) => void;
-  onValidation:   (validation: unknown) => void;
-  onTaskUpdate:   (task: unknown) => void;
+  onStatus:        (status: IbrahimStatus) => void;
+  onAudio:         (base64: string) => void;
+  onAudioChunk:    (base64: string) => void;
+  onAudioComplete: () => void;
+  onTextChunk:     (chunk: string) => void;
+  onTextComplete:  (text: string) => void;
+  onResponse:      (text: string, fallback: boolean) => void;
+  onValidation:    (validation: unknown) => void;
+  onTaskUpdate:    (task: unknown) => void;
 }
 
 let _socket: Socket | null = null;
@@ -121,6 +122,10 @@ export function connectSocket(sessionId: string, callbacks: SocketCallbacks): So
 
   _socket.on('ibrahim:audio_chunk', (data: { chunk: string; sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudioChunk(data.chunk);
+  });
+
+  _socket.on('ibrahim:audio_complete', (data: { sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudioComplete();
   });
 
   _socket.on('ibrahim:text_chunk', (data: { chunk: string; sessionId?: string }) => {

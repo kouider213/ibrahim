@@ -339,9 +339,12 @@ export default function ChatInterface() {
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         window.speechSynthesis?.cancel(); enqueueAudioChunk(b64); applyState('speak');
       },
+      onAudioComplete: () => {
+        void flushAudioChunks();
+      },
       onTextChunk: (chunk) => { setResponseText(prev => prev + chunk); setShowResponse(true); },
       onTextComplete: (text) => {
-        setResponseText(text); setShowResponse(true); void flushAudioChunks();
+        setResponseText(text); setShowResponse(true);
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         if (!elevenlabsReceived.current) {
           audioFallbackTimer.current = setTimeout(() => {

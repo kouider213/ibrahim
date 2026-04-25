@@ -177,6 +177,7 @@ export const SOCKET_EVENTS = {
   RESPONSE:         'ibrahim:response',
   AUDIO:            'ibrahim:audio',
   AUDIO_CHUNK:      'ibrahim:audio_chunk',
+  AUDIO_COMPLETE:   'ibrahim:audio_complete',
   TEXT_CHUNK:       'ibrahim:text_chunk',
   TEXT_COMPLETE:    'ibrahim:text_complete',
   STATUS:           'ibrahim:status',

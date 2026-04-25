@@ -127,6 +127,7 @@ export async function processMessage(
   if (!textOnly && response.text.length > 0) {
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
     await streamAudioSentences(response.text, sessionId);
+    _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
   }
 
   // 7. Idle
