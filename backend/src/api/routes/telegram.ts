@@ -242,12 +242,27 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
     await sendMessage(chatId, '👁️ Analyse de l\'image...');
     const base64Image = buffer.toString('base64');
 
-    const visionResponse = await anthropic.messages.create({
-      model:      'claude-opus-4-5',
-      max_tokens: 1024,
-      system: `Tu es Ibrahim, assistant IA de Kouider (Fik Conciergerie Oran).
+    // Détecter si c'est une référence d'interface UI
+    const UI_KEYWORDS = /ressemble|interface|design|style|ui|apparence|copie|même look|même style|jarvis|modifie l'interface|change l'interface/i;
+    const isUIReference = caption && UI_KEYWORDS.test(caption);
+
+    const visionSystemPrompt = isUIReference
+      ? `Tu es Ibrahim, assistant IA de Kouider. Analyse cette image d'interface UI avec TOUS les détails visuels:
+- Couleurs exactes (background, texte, boutons, bordures) avec codes hex si possible
+- Layout et disposition des éléments
+- Typographie (police, taille, poids)
+- Effets visuels (gradient, glow, blur, ombre, animation si visible)
+- Composants présents (boutons, cartes, barres, cercles, vagues)
+- Style général (futuriste, minimal, glassmorphism, neon, etc.)
+Sois TRÈS précis et exhaustif — cette description servira à reproduire exactement ce design.`
+      : `Tu es Ibrahim, assistant IA de Kouider (Fik Conciergerie Oran).
 Analyse précisément cette image. Si c'est un tableau/dashboard → liste tous les noms, prix, données visibles.
-Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et précis.`,
+Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et précis.`;
+
+    const visionResponse = await anthropic.messages.create({
+      model:      'claude-sonnet-4-6',
+      max_tokens: isUIReference ? 2048 : 1024,
+      system: visionSystemPrompt,
       messages: [{
         role: 'user',
         content: [
@@ -262,14 +277,16 @@ Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et 
       .map(b => (b as Anthropic.TextBlock).text)
       .join('');
 
-    // 4. Détecter si c'est une ACTION à exécuter (modification réservation, etc.)
-    const ACTION_KEYWORDS = /modif|chang|corrig|mett|updat|prix|montant|réserv|client|supprim|créé|ajoute/i;
-    
+    // 4. Détecter si c'est une ACTION à exécuter
+    const ACTION_KEYWORDS = /modif|chang|corrig|mett|updat|prix|montant|réserv|client|supprim|créé|ajoute|ressemble|interface|design|style|ui|apparence|copie|jarvis/i;
+
     if (caption && ACTION_KEYWORDS.test(caption)) {
-      // ACTION DEMANDÉE → passer à chatWithTools avec le contexte Vision
-      await sendMessage(chatId, '⚙️ Exécution de l\'action...');
-      
-      const actionMessage = `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
+      await sendMessage(chatId, isUIReference ? '🎨 Analyse du design... Je vais modifier mon interface.' : '⚙️ Exécution de l\'action...');
+
+      const actionMessage = isUIReference
+        ? `[Référence UI reçue — analyse visuelle détaillée:\n${imageDescription}]\n\nDemande de Kouider: "${caption}"\n\nTu dois modifier ton interface mobile pour qu'elle ressemble à cette référence.\nFichiers à modifier dans le repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux fichiers → modifier CSS/TSX pour reproduire le design → github_write_file → Netlify redéploie auto.`
+        : `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
+
       const ctx      = await buildContext(sessionId, actionMessage);
       const response = await chatWithTools(ctx.messages, ctx.systemExtra);
 
