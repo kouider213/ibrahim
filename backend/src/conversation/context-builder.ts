@@ -1,4 +1,4 @@
-import { getConversationHistory, getActiveRules, getFleet, getBookings, supabase } from '../integrations/supabase.js';
+import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, supabase } from '../integrations/supabase.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
@@ -58,7 +58,7 @@ export async function buildContext(
   const now = new Date();
 
   // Chargement parallèle — seulement ce dont on a besoin
-  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories] = await Promise.all([
+  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages] = await Promise.all([
     // HISTORIQUE: seulement 6 derniers messages (pas 15)
     getConversationHistory(sessionId, 6).catch(() => []),
     getCachedRules(),
@@ -69,6 +69,7 @@ export async function buildContext(
     needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
     needsFinance  ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
     needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then((r: any) => r.data ?? []) : Promise.resolve([]),
+    getRecentUserMessages(40).catch(() => [] as string[]),
   ]);
 
   const rulesText = rules.length > 0
@@ -144,6 +145,11 @@ export async function buildContext(
     ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
     : '';
 
+  // Style mirror — Ibrahim voit comment Kouider écrit et adapte ses réponses
+  const styleText = (styleMessages as string[]).length >= 5
+    ? `\n\nSTYLE DE KOUIDER (IMPORTANT — adapte ton registre à ces exemples réels):\nKouider parle comme ça:\n${(styleMessages as string[]).slice(-20).map(m => `• ${m}`).join('\n')}\nMiroir son style: longueur phrases, mélange français/darija/arabe, niveau familiarité, ponctuation.`
+    : '';
+
   const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;
 
   const systemExtra = [
@@ -157,6 +163,7 @@ export async function buildContext(
     memoriesText,
     rulesText,
     pricingText,
+    styleText,
   ].join('');
 
   // Construire les messages: historique (6 max) + message courant

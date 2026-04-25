@@ -191,6 +191,16 @@ export async function getActiveRules(): Promise<IbrahimRule[]> {
   return (data ?? []) as IbrahimRule[];
 }
 
+export async function getRecentUserMessages(limit = 40): Promise<string[]> {
+  const { data } = await supabase
+    .from('conversations')
+    .select('content')
+    .eq('role', 'user')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r: { content: string }) => r.content).reverse();
+}
+
 export async function getConversationHistory(sessionId: string, limit = 20) {
   const { data, error } = await supabase
     .from('conversations')
