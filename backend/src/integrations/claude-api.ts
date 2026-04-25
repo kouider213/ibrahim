@@ -4,6 +4,7 @@ import { IBRAHIM } from '../config/constants.js';
 import { IBRAHIM_TOOLS } from './tools.js';
 import { executeTool } from './tool-executor.js';
 import { randomUUID } from 'crypto';
+import { compactIfNeeded, emergencyCompact, needsCompaction } from '../conversation/compaction.js';
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -47,7 +48,7 @@ function needsExtendedThinking(messages: Message[]): boolean {
   );
 }
 
-// ── Tool-use chat (agentic loop) avec Tool Streaming ─────────────────────────
+// ── Tool-use chat (agentic loop) avec Tool Streaming + Compaction ────────────
 export async function chatWithTools(
   messages:       Message[],
   systemExtra?:   string,
@@ -57,16 +58,27 @@ export async function chatWithTools(
   onTextChunk?:   (chunk: string) => void,
 ): Promise<ClaudeResponse> {
 
+  const sid = sessionId ?? randomUUID();
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COMPACTION: Si historique trop long, résumer avant d'envoyer à Claude
+  // ══════════════════════════════════════════════════════════════════════════
+  let processedMessages = messages;
+  if (needsCompaction(messages)) {
+    console.log(`[compaction] Historique trop long (${messages.length} msgs) — compaction en cours…`);
+    processedMessages = await compactIfNeeded(messages, sid);
+    console.log(`[compaction] Réduit à ${processedMessages.length} messages`);
+  }
+
   // Build system array with caching on the main system prompt
   const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
   if (systemExtra) {
     systemBlocks.push({ type: 'text', text: systemExtra });
   }
 
-  const sid             = sessionId ?? randomUUID();
-  const useThinking     = needsExtendedThinking(messages);
+  const useThinking = needsExtendedThinking(processedMessages);
 
-  let apiMessages: Anthropic.MessageParam[] = messages.map(m => ({
+  let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,
     content: m.content,
   }));
@@ -79,7 +91,7 @@ export async function chatWithTools(
   let finalText        = '';
 
   if (useThinking) {
-    console.log(`[claude] Extended Thinking activé pour: "${messages[messages.length - 1]?.content?.slice(0, 60)}..."`);
+    console.log(`[claude] Extended Thinking activé pour: "${processedMessages[processedMessages.length - 1]?.content?.slice(0, 60)}..."`);
   }
 
   // Agentic loop — max 15 tool rounds
@@ -117,8 +129,22 @@ export async function chatWithTools(
           console.warn(`[claude] Overloaded 529 — attente 30s (tentative ${attempt + 1}/3)`);
           await new Promise(r => setTimeout(r, 30_000));
         } else if (status === 422 && attempt < 2) {
-          console.warn('[claude] Context trop long 422 — troncature historique');
-          currentMessages = currentMessages.slice(-6);
+          // ════════════════════════════════════════════════════════════════════
+          // EMERGENCY COMPACTION: contexte encore trop long après première tentative
+          // ════════════════════════════════════════════════════════════════════
+          console.warn('[claude] Context trop long 422 — emergency compaction');
+          const emergencyMessages = await emergencyCompact(
+            currentMessages.map(m => ({
+              role: m.role as 'user' | 'assistant',
+              content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+            })),
+            sid,
+          );
+          currentMessages = emergencyMessages.map(m => ({
+            role:    m.role,
+            content: m.content,
+          }));
+          console.log(`[compaction] Emergency: réduit à ${currentMessages.length} messages`);
         } else {
           throw err;
         }
