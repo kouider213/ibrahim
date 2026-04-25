@@ -18,19 +18,10 @@ function toJarvis(s: IbrahimStatus): JarvisState {
 
 const CAPTION: Record<JarvisState, string> = {
   idle:   'EN ATTENTE',
-  listen: 'J\'ÉCOUTE',
+  listen: "J'ÉCOUTE",
   think:  'JE RÉFLÉCHIS',
   speak:  'JE PARLE',
 };
-
-const ORB_ICON: Record<JarvisState, string> = {
-  idle:   '◈',
-  listen: '◉',
-  think:  '⟳',
-  speak:  '◈',
-};
-
-const WAVE_N = 18;
 
 // ── Speech Recognition types ──────────────────
 interface SREvent { results: { [k: number]: { [k: number]: { transcript: string } } } }
@@ -42,61 +33,84 @@ interface SRL {
   start(): void; stop(): void;
 }
 
+// ── 3D Sphere ─────────────────────────────────
+const N_PARTICLES = 140;
+const CONNECT_DIST = 0.38; // max dot-product for line draw (cos of angle)
+
+interface Particle { x: number; y: number; z: number }
+
+function fibonacciSphere(n: number): Particle[] {
+  const pts: Particle[] = [];
+  const phi = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (i / (n - 1)) * 2;
+    const r = Math.sqrt(1 - y * y);
+    const theta = phi * i;
+    pts.push({ x: Math.cos(theta) * r, y, z: Math.sin(theta) * r });
+  }
+  return pts;
+}
+
+function rotateY(p: Particle, a: number): Particle {
+  const cos = Math.cos(a), sin = Math.sin(a);
+  return { x: p.x * cos + p.z * sin, y: p.y, z: -p.x * sin + p.z * cos };
+}
+
+function rotateX(p: Particle, a: number): Particle {
+  const cos = Math.cos(a), sin = Math.sin(a);
+  return { x: p.x, y: p.y * cos - p.z * sin, z: p.y * sin + p.z * cos };
+}
+
+const BASE_PARTICLES = fibonacciSphere(N_PARTICLES);
+
 export default function ChatInterface() {
-  const [state,       setState]       = useState<JarvisState>('idle');
+  const [state,        setState]        = useState<JarvisState>('idle');
   const [responseText, setResponseText] = useState('');
-  const [showResponse,  setShowResponse]  = useState(false);
-  const [utcTime,      setUtcTime]      = useState('--:--:--');
+  const [showResponse, setShowResponse] = useState(false);
   const [errorMsg,     setErrorMsg]     = useState('');
   const [errorVisible, setErrorVisible] = useState(false);
-  const [started,      setStarted]      = useState(false); // requires tap to unlock iOS mic
+  const [started,      setStarted]      = useState(false);
 
-  const stateRef   = useRef<JarvisState>('idle');
-  const sending    = useRef(false);
-  const sessionId  = getOrCreateSessionId();
-  const recRef     = useRef<SRL | null>(null);
-  const loopActive = useRef(false);
+  const stateRef           = useRef<JarvisState>('idle');
+  const sending            = useRef(false);
+  const sessionId          = getOrCreateSessionId();
+  const recRef             = useRef<SRL | null>(null);
+  const loopActive         = useRef(false);
   const audioFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const elevenlabsReceivedRef = useRef(false);
+  const elevenlabsReceived = useRef(false);
 
-  // ── Error display ────────────────────────────
+  // Canvas refs
+  const canvasRef   = useRef<HTMLCanvasElement>(null);
+  const rafRef      = useRef<number>(0);
+  const rotYRef     = useRef(0);
+  const rotXRef     = useRef(0.18);
+  const ampRef      = useRef(0); // microphone amplitude 0..1
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+
+  // ── Error display ─────────────────────────────
   const showError = useCallback((msg: string) => {
     setErrorMsg(msg);
     setErrorVisible(true);
     setTimeout(() => setErrorVisible(false), 3000);
   }, []);
 
-  // ── State machine ────────────────────────────
+  // ── State machine ─────────────────────────────
   const applyState = useCallback((s: JarvisState) => {
     stateRef.current = s;
     setState(s);
   }, []);
 
-  // ── Send text to Ibrahim ─────────────────────
+  // ── Send text ─────────────────────────────────
   const sendText = useCallback(async (msg: string) => {
     if (!msg.trim() || sending.current) return;
     sending.current = true;
     unlockAudio();
     applyState('think');
     setShowResponse(false);
-
+    elevenlabsReceived.current = false;
     try {
-      const resp = await api.chat(msg, sessionId, false);
-      if (resp?.text) {
-        setResponseText(resp.text);
-        setShowResponse(true);
-        applyState('speak');
-        // TTS via REST (fiable, pas besoin de Socket.IO)
-        const audio = await api.tts(resp.text);
-        if (audio) {
-          await playBase64Audio(audio);
-        } else {
-          iosFallbackSpeak(resp.text, () => {
-            applyState('idle');
-            scheduleNextListen();
-          });
-        }
-      }
+      await api.chat(msg, sessionId, false);
     } catch {
       showError('Erreur de connexion');
       applyState('idle');
@@ -105,14 +119,36 @@ export default function ChatInterface() {
     }
   }, [sessionId, applyState, showError]);
 
-  // ── Start speech recognition ─────────────────
-  const startListening = useCallback(() => {
-    if (stateRef.current === 'listen') return;
+  // ── Mic amplitude reader ──────────────────────
+  const startMicAnalyser = useCallback(async () => {
+    if (analyserRef.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+      const ctx      = new AudioContext();
+      const src      = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 32;
+      src.connect(analyser);
+      analyserRef.current = analyser;
+    } catch { /* mic denied — amplitude stays 0 */ }
+  }, []);
 
+  // ── SpeechRecognition loop ────────────────────
+  const scheduleNextListen = useCallback(() => {
+    if (!loopActive.current) return;
+    setTimeout(() => {
+      if (loopActive.current && stateRef.current === 'idle') startListeningInner();
+    }, 200);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const startListeningInner = useCallback(() => {
+    if (stateRef.current === 'listen') return;
     stopAudio();
     window.speechSynthesis?.cancel();
     if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-
     applyState('listen');
     unlockAudio();
 
@@ -121,287 +157,292 @@ export default function ChatInterface() {
       SpeechRecognition?: new () => SRL;
     };
     const SR = w.webkitSpeechRecognition ?? w.SpeechRecognition;
-
-    if (!SR) {
-      showError('Micro non supporté sur ce navigateur');
-      applyState('idle');
-      return;
-    }
+    if (!SR) { showError('Micro non supporté'); applyState('idle'); return; }
 
     try {
       const rec = new SR();
-      rec.lang             = 'fr-FR';
-      rec.interimResults   = false;
-      rec.maxAlternatives  = 1;
-      rec.continuous       = false;
-      recRef.current       = rec;
+      rec.lang            = 'fr-FR';
+      rec.interimResults  = false;
+      rec.maxAlternatives = 1;
+      rec.continuous      = false;
+      recRef.current      = rec;
 
       rec.onresult = (e: SREvent) => {
-        const transcript = e.results[0]?.[0]?.transcript ?? '';
+        const t = e.results[0]?.[0]?.transcript ?? '';
         recRef.current = null;
-        if (transcript.trim()) {
-          void sendText(transcript.trim());
-        } else {
-          applyState('idle');
-          scheduleNextListen();
-        }
+        if (t.trim()) void sendText(t.trim());
+        else { applyState('idle'); scheduleNextListen(); }
       };
-
-      rec.onerror = () => {
-        recRef.current = null;
-        applyState('idle');
-        scheduleNextListen();
-      };
-
-      rec.onend = () => {
-        if (stateRef.current === 'listen') {
-          applyState('idle');
-          scheduleNextListen();
-        }
-      };
-
+      rec.onerror = () => { recRef.current = null; applyState('idle'); scheduleNextListen(); };
+      rec.onend   = () => { if (stateRef.current === 'listen') { applyState('idle'); scheduleNextListen(); } };
       rec.start();
-    } catch {
-      applyState('idle');
-      scheduleNextListen();
-    }
-  }, [applyState, sendText, showError]); // eslint-disable-line react-hooks/exhaustive-deps
+    } catch { applyState('idle'); scheduleNextListen(); }
+  }, [applyState, sendText, showError, scheduleNextListen]);
 
-  // ── Auto-relisten after Ibrahim finishes speaking ──
-  const scheduleNextListen = useCallback(() => {
-    if (!loopActive.current) return;
-    setTimeout(() => {
-      if (loopActive.current && stateRef.current === 'idle') {
-        startListening();
+  // ── Canvas sphere animation ───────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const COLORS: Record<JarvisState, { dot: string; line: string; glow: string }> = {
+      idle:   { dot: 'rgba(0,220,255,',   line: 'rgba(0,180,220,',  glow: 'rgba(0,200,255,' },
+      listen: { dot: 'rgba(80,255,140,',  line: 'rgba(60,220,100,', glow: 'rgba(80,255,140,' },
+      think:  { dot: 'rgba(80,160,255,',  line: 'rgba(60,120,220,', glow: 'rgba(80,160,255,' },
+      speak:  { dot: 'rgba(255,200,40,',  line: 'rgba(220,160,30,', glow: 'rgba(255,210,60,' },
+    };
+
+    const SPEED: Record<JarvisState, number> = {
+      idle: 0.003, listen: 0.009, think: 0.006, speak: 0.012,
+    };
+
+    function draw(_ts: number) {
+      if (!ctx || !canvas) return;
+
+      // Read mic amplitude
+      if (analyserRef.current) {
+        const buf = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(buf);
+        const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+        ampRef.current = Math.min(avg / 80, 1);
+      } else {
+        ampRef.current *= 0.9;
       }
-    }, 1200);
-  }, [startListening]);
 
-  // ── Socket events ────────────────────────────
+      const s = stateRef.current;
+      const speed = SPEED[s];
+      const amp = ampRef.current;
+      const pulse = s === 'speak' ? 0.06 + amp * 0.12 : s === 'listen' ? 0.04 + amp * 0.14 : 0.0;
+
+      rotYRef.current += speed + amp * 0.01;
+      rotXRef.current += speed * 0.4;
+
+      const W = canvas.width;
+      const H = canvas.height;
+      const R = Math.min(W, H) * 0.32 * (1 + pulse);
+      const CX = W / 2;
+      const CY = H / 2;
+      const col = COLORS[s];
+
+      ctx.clearRect(0, 0, W, H);
+
+      // Project all particles
+      const proj = BASE_PARTICLES.map(p => {
+        const r1 = rotateY(p, rotYRef.current);
+        const r2 = rotateX(r1, rotXRef.current);
+        const depth = (r2.z + 1) / 2; // 0..1
+        return {
+          sx: CX + r2.x * R,
+          sy: CY + r2.y * R,
+          depth,
+          visible: r2.z > -0.15,
+        };
+      });
+
+      // Draw connecting lines first (back to front via depth)
+      ctx.lineWidth = 0.6;
+      for (let i = 0; i < N_PARTICLES; i++) {
+        const a = proj[i]!;
+        if (!a.visible) continue;
+        for (let j = i + 1; j < N_PARTICLES; j++) {
+          const b = proj[j]!;
+          if (!b.visible) continue;
+          const dx = BASE_PARTICLES[i]!.x - BASE_PARTICLES[j]!.x;
+          const dy = BASE_PARTICLES[i]!.y - BASE_PARTICLES[j]!.y;
+          const dz = BASE_PARTICLES[i]!.z - BASE_PARTICLES[j]!.z;
+          const dist2 = dx*dx + dy*dy + dz*dz;
+          if (dist2 > CONNECT_DIST * CONNECT_DIST) continue;
+          const alpha = (1 - dist2 / (CONNECT_DIST * CONNECT_DIST)) * 0.35 * a.depth * b.depth;
+          ctx.beginPath();
+          ctx.strokeStyle = `${col.line}${alpha.toFixed(2)})`;
+          ctx.moveTo(a.sx, a.sy);
+          ctx.lineTo(b.sx, b.sy);
+          ctx.stroke();
+        }
+      }
+
+      // Draw dots
+      for (const p of proj) {
+        if (!p.visible) continue;
+        const r = (1.8 + p.depth * 2.2) * (1 + pulse * 0.5);
+        const alpha = 0.5 + p.depth * 0.5;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+        ctx.fillStyle = `${col.dot}${alpha.toFixed(2)})`;
+        ctx.fill();
+      }
+
+      // Star burst center
+      const burstR = 18 + pulse * 30 + (s === 'speak' ? amp * 20 : 0);
+      const burstAlpha = s === 'idle' ? 0.55 : 0.9;
+      const burst = ctx.createRadialGradient(CX, CY, 0, CX, CY, burstR);
+      burst.addColorStop(0,   `rgba(255,255,255,${burstAlpha})`);
+      burst.addColorStop(0.3, `${col.glow}${(burstAlpha * 0.5).toFixed(2)})`);
+      burst.addColorStop(1,   'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(CX, CY, burstR, 0, Math.PI * 2);
+      ctx.fillStyle = burst;
+      ctx.fill();
+
+      // Rays (speak state)
+      if (s === 'speak' || s === 'listen') {
+        const nRays = 8;
+        for (let i = 0; i < nRays; i++) {
+          const angle = (i / nRays) * Math.PI * 2 + rotYRef.current * 0.5;
+          const len = burstR * (1.5 + amp * 1.5);
+          const rayAlpha = 0.15 + amp * 0.2;
+          ctx.beginPath();
+          ctx.moveTo(CX, CY);
+          ctx.lineTo(CX + Math.cos(angle) * len, CY + Math.sin(angle) * len);
+          ctx.strokeStyle = `${col.glow}${rayAlpha.toFixed(2)})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    }
+
+    function resize() {
+      if (!canvas || !ctx) return;
+      canvas.width  = canvas.offsetWidth  * devicePixelRatio;
+      canvas.height = canvas.offsetHeight * devicePixelRatio;
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+
+    resize();
+    window.addEventListener('resize', resize);
+    rafRef.current = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener('resize', resize);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Socket events ─────────────────────────────
   useEffect(() => {
     const socket = connectSocket(sessionId, {
       onStatus: (s) => {
         if (s === 'thinking') { setResponseText(''); setShowResponse(false); }
-        // Don't go idle while audio is still playing
         if (s === 'idle' && (isAudioPlaying() || window.speechSynthesis?.speaking)) return;
         applyState(toJarvis(s));
       },
       onAudio: (b64) => {
-        elevenlabsReceivedRef.current = true;
+        elevenlabsReceived.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        window.speechSynthesis?.cancel();
-        clearAudioQueue();
-        playBase64Audio(b64);
-        applyState('speak');
+        window.speechSynthesis?.cancel(); clearAudioQueue(); playBase64Audio(b64); applyState('speak');
       },
       onAudioChunk: (b64) => {
-        elevenlabsReceivedRef.current = true;
+        elevenlabsReceived.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        window.speechSynthesis?.cancel();
-        enqueueAudioChunk(b64);
-        applyState('speak');
+        window.speechSynthesis?.cancel(); enqueueAudioChunk(b64); applyState('speak');
       },
-      onTextChunk: (chunk) => {
-        setResponseText(prev => prev + chunk);
-        setShowResponse(true);
-      },
-      onTextComplete: (text) => {
-        setResponseText(text);
-        setShowResponse(true);
+      onAudioComplete: () => {
         void flushAudioChunks();
+      },
+      onTextChunk: (chunk) => { setResponseText(prev => prev + chunk); setShowResponse(true); },
+      onTextComplete: (text) => {
+        setResponseText(text); setShowResponse(true);
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        // iOS TTS fallback only if ElevenLabs sent zero audio (API failure)
-        if (!elevenlabsReceivedRef.current) {
+        if (!elevenlabsReceived.current) {
           audioFallbackTimer.current = setTimeout(() => {
             audioFallbackTimer.current = null;
             if (!isAudioPlaying()) {
               applyState('speak');
-              iosFallbackSpeak(text, () => {
-                applyState('idle');
-                scheduleNextListen();
-              });
+              iosFallbackSpeak(text, () => { applyState('idle'); scheduleNextListen(); });
             }
           }, 1500);
         }
-        elevenlabsReceivedRef.current = false;
+        elevenlabsReceived.current = false;
       },
-      onResponse: (_text, _fallback) => {},
+      onResponse: (_t, _f) => {},
       onValidation: () => {
-        // Validation request sent — Ibrahim already said so via audio. Resume listening after 3s.
-        setTimeout(() => {
-          if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
-        }, 3000);
+        setTimeout(() => { if (loopActive.current) { applyState('idle'); scheduleNextListen(); } }, 3000);
       },
       onTaskUpdate: () => {},
     });
 
-    // When ElevenLabs audio finishes playing → go idle and relisten
     const onAudioEnded = () => {
       if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-      if (loopActive.current) {
-        applyState('idle');
-        scheduleNextListen();
-      }
+      if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
     };
     window.addEventListener('ibrahim:audioEnded', onAudioEnded);
-
-    return () => {
-      socket.disconnect();
-      window.removeEventListener('ibrahim:audioEnded', onAudioEnded);
-    };
+    return () => { socket.disconnect(); window.removeEventListener('ibrahim:audioEnded', onAudioEnded); };
   }, [sessionId, applyState, scheduleNextListen]);
 
-  // ── Tap orb to start (required for iOS mic unlock) ──────────
-  const handleOrbTap = useCallback(() => {
-    if (started) {
-      // Already running — tap stops/restarts listening
-      if (stateRef.current === 'listen') {
-        recRef.current?.stop();
-        applyState('idle');
-      } else if (stateRef.current === 'idle') {
-        startListening();
-      }
+  // ── Relisten when idle + started ──────────────
+  useEffect(() => {
+    if (state === 'idle' && loopActive.current && started) {
+      const t = setTimeout(() => {
+        if (stateRef.current === 'idle' && loopActive.current) startListeningInner();
+      }, 1500);
+      return () => clearTimeout(t);
+    }
+  }, [state, startListeningInner, started]);
+
+  // ── Tap to start ──────────────────────────────
+  const handleTap = useCallback(async () => {
+    if (!started) {
+      setStarted(true);
+      loopActive.current = true;
+      unlockAudio();
+      await startMicAnalyser();
+
+      const hour = new Date().getHours();
+      const greet = hour < 12 ? 'Bonjour Kouider' : hour < 18 ? 'Bon après-midi Kouider' : 'Bonsoir Kouider';
+      const greetText = `${greet}, Ibrahim est prêt. Je vous écoute.`;
+      applyState('speak');
+      setResponseText(greetText);
+      setShowResponse(true);
+      iosFallbackSpeak(greetText);
+      setTimeout(() => { applyState('idle'); scheduleNextListen(); }, Math.max(2500, greetText.length * 65));
       return;
     }
-    // First tap: unlock audio + speak local greeting + start loop
-    setStarted(true);
-    loopActive.current = true;
-    unlockAudio();
-
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? 'Bonjour Kouider' : hour < 18 ? 'Bon après-midi Kouider' : 'Bonsoir Kouider';
-    const greetText = `${greeting}, Ibrahim est prêt. Je vous écoute.`;
-
-    applyState('speak');
-    setResponseText(greetText);
-    setShowResponse(true);
-    iosFallbackSpeak(greetText);
-
-    setTimeout(() => {
+    // Tap again: toggle listen
+    if (stateRef.current === 'listen') {
+      recRef.current?.stop();
       applyState('idle');
-      scheduleNextListen();
-    }, Math.max(2500, greetText.length * 65));
-  }, [started, applyState, startListening, scheduleNextListen]);
+    } else if (stateRef.current === 'idle') {
+      startListeningInner();
+    }
+  }, [started, applyState, startListeningInner, scheduleNextListen, startMicAnalyser]);
 
-  // ── Cleanup on unmount ────────────────────────
+  // ── Cleanup ───────────────────────────────────
   useEffect(() => {
     return () => {
       loopActive.current = false;
       recRef.current?.stop();
       if (audioFallbackTimer.current) clearTimeout(audioFallbackTimer.current);
+      cancelAnimationFrame(rafRef.current);
+      micStreamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── After Ibrahim finishes speaking → relisten (only when started) ──
-  useEffect(() => {
-    if (state === 'idle' && loopActive.current && started) {
-      const t = setTimeout(() => {
-        if (stateRef.current === 'idle' && loopActive.current) {
-          startListening();
-        }
-      }, 1500);
-      return () => clearTimeout(t);
-    }
-  }, [state, startListening, started]);
-
-  // ── Clock ────────────────────────────────────
-  useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      setUtcTime(`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
-
   return (
-    <div className="jarvis" data-state={state}>
-      <div className="jarvis-bg" />
-      <div className="jarvis-scanlines" />
-
-      {/* Corners */}
-      <div className="corner tl" />
-      <div className="corner tr" />
-      <div className="corner bl" />
-      <div className="corner br" />
+    <div className="sphere-ui" data-state={state} onClick={handleTap}>
+      {/* 3D sphere canvas */}
+      <canvas ref={canvasRef} className="sphere-canvas" />
 
       {/* Header */}
-      <header className="jarvis-header">
-        <div>
-          <div className="jarvis-title">IBRAHIM</div>
-          <div className="jarvis-subtitle">FIK CONCIERGERIE · ORAN</div>
-        </div>
-        <div className="jarvis-status-badge">
-          <div className="jarvis-online">EN LIGNE · KOUIDER</div>
-          <div className="jarvis-state-label">{CAPTION[state]}</div>
-        </div>
+      <header className="sphere-header">
+        <div className="sphere-title">IBRAHIM</div>
+        <div className="sphere-subtitle">FIK CONCIERGERIE · ORAN</div>
       </header>
 
-      {/* Orb */}
-      <div className="jarvis-center">
-        {/* Electric ring (thinking) */}
-        <div className="electric-ring" />
-
-        {/* Wave rings (speaking) */}
-        <div className="wave-ring" />
-        <div className="wave-ring" />
-        <div className="wave-ring" />
-        <div className="wave-ring" />
-
-        {/* Listen rings */}
-        <div className="listen-ring" />
-        <div className="listen-ring" />
-        <div className="listen-ring" />
-
-        {/* Main orb — tap to start / toggle */}
-        <div className="orb" onClick={handleOrbTap} style={{ cursor: 'pointer' }}>
-          <div className="orb-inner">
-            <span className="orb-symbol">{started ? ORB_ICON[state] : '▶'}</span>
-          </div>
-        </div>
-
-        {/* Caption */}
-        <div className="jarvis-caption">
-          <div className="jarvis-caption-text">{started ? CAPTION[state] : 'APPUYER POUR DÉMARRER'}</div>
-        </div>
+      {/* State label */}
+      <div className="sphere-state">
+        {started ? CAPTION[state] : 'APPUYER POUR DÉMARRER'}
       </div>
 
       {/* Response text */}
-      <div className={`jarvis-response${showResponse ? ' visible' : ''}`}>
-        <div className="jarvis-response-text">{responseText}</div>
+      <div className={`sphere-response${showResponse ? ' visible' : ''}`}>
+        <div className="sphere-response-text">{responseText}</div>
       </div>
 
-      {/* Footer */}
-      <footer className="jarvis-footer">
-        <div className="jarvis-readout">
-          <div className="readout-line">NODE · <span>IBR-01</span></div>
-          <div className="readout-line">LOC · <span>ORAN · DZ</span></div>
-          <div className="readout-line">UTC · <span>{utcTime}</span></div>
-        </div>
-
-        <div className="jarvis-wave">
-          {Array.from({ length: WAVE_N }, (_, i) => (
-            <i
-              key={i}
-              style={{
-                ['--dur' as string]: `${(0.5 + (i % 5) * 0.12).toFixed(2)}s`,
-                ['--del' as string]: `${((-(Math.sin(i * 0.7) * 0.5 + 0.5)) * 0.8).toFixed(2)}s`,
-                ['--h'   as string]: `${8 + Math.round(Math.abs(Math.sin(i * 0.9)) * 18)}px`,
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="jarvis-readout" style={{ alignItems: 'flex-end' }}>
-          <div className="readout-line">MODE · <span>JARVIS</span></div>
-          <div className="readout-line">VER · <span>2.0</span></div>
-          <div className="readout-line">SYS · <span>ACTIF</span></div>
-        </div>
-      </footer>
-
       {/* Error toast */}
-      <div className={`jarvis-error${errorVisible ? ' show' : ''}`}>{errorMsg}</div>
+      <div className={`sphere-error${errorVisible ? ' show' : ''}`}>{errorMsg}</div>
     </div>
   );
 }

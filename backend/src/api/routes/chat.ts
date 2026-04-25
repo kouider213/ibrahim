@@ -22,17 +22,12 @@ router.post('/', requireMobileAuth, async (req, res) => {
 
   const { message, sessionId, textOnly } = parsed.data;
 
-  try {
-    const response = await processMessage(message, sessionId, textOnly);
-    res.json({
-      text:   response.text,
-      status: response.status,
-    });
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    console.error('[chat] Error:', error);
-    res.status(500).json({ error });
-  }
+  // Acknowledge immediately — result delivered via Socket.IO (ibrahim:text_complete + audio chunks)
+  res.status(202).json({ status: 'processing', sessionId });
+
+  processMessage(message, sessionId, textOnly).catch(err => {
+    console.error('[chat] processMessage error:', err instanceof Error ? err.message : String(err));
+  });
 });
 
 // GET /api/chat/:sessionId/history

@@ -20,6 +20,67 @@ async function railwayQuery(query: string, variables: Record<string, unknown> = 
   return data.data;
 }
 
+export async function getLatestDeploymentStatus(): Promise<{ id: string; status: string } | null> {
+  const projectId = env.RAILWAY_PROJECT_ID;
+  const serviceId = env.RAILWAY_SERVICE_ID;
+  if (!env.RAILWAY_TOKEN || !projectId || !serviceId) return null;
+
+  try {
+    const data = await railwayQuery(`
+      query($projectId: String!, $serviceId: String!) {
+        deployments(input: { projectId: $projectId, serviceId: $serviceId }) {
+          edges { node { id status createdAt } }
+        }
+      }
+    `, { projectId, serviceId }) as {
+      deployments: { edges: Array<{ node: { id: string; status: string; createdAt: string } }> };
+    };
+    const node = data.deployments.edges[0]?.node;
+    return node ? { id: node.id, status: node.status } : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function waitForDeploy(timeoutMs = 180_000): Promise<string> {
+  if (!env.RAILWAY_TOKEN) return '⚠️ RAILWAY_TOKEN non configuré.';
+
+  const start = Date.now();
+  const POLL_MS = 8_000;
+
+  // Snapshot the deployment ID at start so we detect a NEW deployment
+  const initialDep = await getLatestDeploymentStatus();
+  let targetId = initialDep?.id ?? null;
+
+  // Wait for a new deployment to appear (push may not have triggered yet)
+  while (Date.now() - start < 30_000) {
+    await new Promise(r => setTimeout(r, POLL_MS));
+    const dep = await getLatestDeploymentStatus();
+    if (dep && dep.id !== targetId) { targetId = dep.id; break; }
+  }
+
+  if (!targetId) return '⚠️ Aucun déploiement détecté après 30s. Vérifie que le push GitHub a bien déclenché Railway.';
+
+  // Poll until terminal state
+  while (Date.now() - start < timeoutMs) {
+    await new Promise(r => setTimeout(r, POLL_MS));
+    const dep = await getLatestDeploymentStatus();
+    if (!dep || dep.id !== targetId) continue;
+
+    const terminal = ['SUCCESS', 'FAILED', 'CRASHED', 'REMOVED', 'CANCELLED'];
+    if (terminal.includes(dep.status)) {
+      if (dep.status === 'SUCCESS') {
+        return `✅ Déploiement réussi (${dep.id.slice(0, 8)}) — Ibrahim est en ligne avec le nouveau code.`;
+      }
+      // Failed — get logs
+      const logs = await getRailwayLogs(30);
+      return `❌ Déploiement ÉCHOUÉ (${dep.status})\n\nLogs:\n${logs}`;
+    }
+  }
+
+  return `⏱️ Timeout (${timeoutMs / 1000}s) — statut inconnu. Lance railway_get_logs manuellement.`;
+}
+
 export async function getRailwayLogs(limit = 50): Promise<string> {
   const projectId = env.RAILWAY_PROJECT_ID;
   const serviceId = env.RAILWAY_SERVICE_ID;

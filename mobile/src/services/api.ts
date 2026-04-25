@@ -22,12 +22,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 }
 
 export interface ChatResponse {
-  text:          string;
+  text?:         string;
   audio?:        string;
   action?:       string;
   taskId?:       string;
   validationId?: string;
-  status:        'done' | 'queued' | 'validation_pending' | 'error';
+  sessionId?:    string;
+  status:        'done' | 'queued' | 'validation_pending' | 'error' | 'processing';
 }
 
 export const api = {
@@ -54,31 +55,58 @@ export const api = {
       method: 'POST',
       body:   JSON.stringify({ decision, note }),
     }),
+
+  getFinanceDashboard: () =>
+    apiFetch<FinanceDashboardData>('/api/finance/dashboard'),
+
+  generateReceipt: (bookingId: string) =>
+    apiFetch<{ url: string; message: string }>(`/api/finance/receipts/${bookingId}`, { method: 'POST' }),
+
+  vision: (imageBase64: string, mimeType = 'image/jpeg') =>
+    apiFetch<{ description: string }>('/api/vision/analyze', {
+      method: 'POST',
+      body:   JSON.stringify({ imageBase64, mimeType }),
+    }),
 };
+
+export interface FinanceDashboardData {
+  month: number; year: number;
+  ca:       { current: number; previous: number; evolution: number };
+  payments: { collected: number; outstanding: number };
+  profit:   number;
+  forecast: { projected: number; nextMonth: number; dailyAvg: number };
+  unpaid:   Array<{ id: string; name: string; car: string; amount: number; phone?: string }>;
+  vehicles: Array<{ name: string; ca: number; bookings: number }>;
+  bookingCount: number;
+}
 
 // ── Socket.IO ─────────────────────────────────────────────────
 
 export type IbrahimStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 export interface SocketCallbacks {
-  onStatus:       (status: IbrahimStatus) => void;
-  onAudio:        (base64: string) => void;
-  onAudioChunk:   (base64: string) => void;
-  onTextChunk:    (chunk: string) => void;
-  onTextComplete: (text: string) => void;
-  onResponse:     (text: string, fallback: boolean) => void;
-  onValidation:   (validation: unknown) => void;
-  onTaskUpdate:   (task: unknown) => void;
+  onStatus:        (status: IbrahimStatus) => void;
+  onAudio:         (base64: string) => void;
+  onAudioChunk:    (base64: string) => void;
+  onAudioComplete: () => void;
+  onTextChunk:     (chunk: string) => void;
+  onTextComplete:  (text: string) => void;
+  onResponse:      (text: string, fallback: boolean) => void;
+  onValidation:    (validation: unknown) => void;
+  onTaskUpdate:    (task: unknown) => void;
 }
 
 let _socket: Socket | null = null;
 
 export function connectSocket(sessionId: string, callbacks: SocketCallbacks): Socket {
-  if (_socket?.connected) return _socket;
+  if (_socket) return _socket; // reuse existing socket (even if reconnecting)
 
   _socket = io(`${WS_URL}/mobile`, {
-    auth:       { token: ACCESS_TOKEN },
-    transports: ['websocket'],
+    auth:              { token: ACCESS_TOKEN },
+    transports:        ['websocket', 'polling'],
+    reconnection:      true,
+    reconnectionDelay: 1000,
+    timeout:           10000,
   });
 
   _socket.on('connect', () => console.log('[socket] Connected'));
@@ -94,6 +122,10 @@ export function connectSocket(sessionId: string, callbacks: SocketCallbacks): So
 
   _socket.on('ibrahim:audio_chunk', (data: { chunk: string; sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudioChunk(data.chunk);
+  });
+
+  _socket.on('ibrahim:audio_complete', (data: { sessionId?: string }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudioComplete();
   });
 
   _socket.on('ibrahim:text_chunk', (data: { chunk: string; sessionId?: string }) => {
@@ -132,7 +164,7 @@ let _audioPlaying = false;
 let _pendingChunks: Uint8Array[] = [];
 let _currentSource: AudioBufferSourceNode | null = null;
 
-// Call this during a user gesture (button tap) to unlock iOS AudioContext
+// Call this during a user gesture to permanently unlock iOS AudioContext
 export function unlockAudio(): void {
   if (!_audioCtx) {
     try { _audioCtx = new AudioContext(); } catch { return; }
@@ -140,6 +172,14 @@ export function unlockAudio(): void {
   if (_audioCtx.state === 'suspended') {
     _audioCtx.resume().catch(() => {});
   }
+  // Silent 1-sample buffer — iOS won't re-suspend after playing real audio
+  try {
+    const buf = _audioCtx.createBuffer(1, 1, 22050);
+    const src = _audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(_audioCtx.destination);
+    src.start(0);
+  } catch { /* ignore */ }
 }
 
 async function getAudioCtx(): Promise<AudioContext> {

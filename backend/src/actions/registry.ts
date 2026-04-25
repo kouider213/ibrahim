@@ -1,4 +1,4 @@
-export type ActionCategory = 'reservation' | 'content' | 'pc' | 'query' | 'rule';
+export type ActionCategory = 'reservation' | 'content' | 'pc' | 'query' | 'rule' | 'learning';
 
 export interface ActionDefinition {
   name:               string;
@@ -135,6 +135,35 @@ const actions: ActionDefinition[] = [
     description:        'Modifier un fichier du site autolux-location via GitHub → Vercel',
     requiresValidation: false,
     handler:            'finance',
+  },
+  // ─── PHASE 13: Learning & Feedback ───
+  {
+    name:               'record_feedback',
+    category:           'learning',
+    description:        'Enregistrer un feedback de Kouider sur une action Ibrahim',
+    requiresValidation: false,
+    handler:            'learning',
+  },
+  {
+    name:               'get_monthly_improvement_report',
+    category:           'learning',
+    description:        'Rapport mensuel d\'amélioration Ibrahim',
+    requiresValidation: false,
+    handler:            'learning',
+  },
+  {
+    name:               'get_learning_evolution',
+    category:           'learning',
+    description:        'Évolution de l\'apprentissage Ibrahim sur plusieurs mois',
+    requiresValidation: false,
+    handler:            'learning',
+  },
+  {
+    name:               'get_kouider_preferences',
+    category:           'learning',
+    description:        'Récupérer les préférences calibrées de Kouider',
+    requiresValidation: false,
+    handler:            'learning',
   },
 ];
 

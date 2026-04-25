@@ -3,6 +3,7 @@ import { handleReservation } from './handlers/reservation.js';
 import { handleContent } from './handlers/content.js';
 import { handlePcRelay } from './handlers/pc-relay.js';
 import { handleFinance } from './handlers/finance.js';
+import { handleLearning } from './handlers/learning.js';
 import { audit } from '../audit/logger.js';
 import { supabase } from '../integrations/supabase.js';
 
@@ -54,6 +55,9 @@ export async function executeAction(payload: ActionPayload): Promise<ActionResul
         break;
       case 'finance':
         result = await handleFinance(payload);
+        break;
+      case 'learning':
+        result = await handleLearning(payload);
         break;
       default:
         result = { success: false, error: 'No handler', message: 'Aucun handler configuré' };

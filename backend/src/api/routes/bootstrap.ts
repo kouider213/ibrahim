@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { supabase } from '../../integrations/supabase.js';
+import { requireMobileAuth } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -106,7 +107,7 @@ const TABLES = [
 ];
 
 // GET /api/bootstrap/status — check table existence
-router.get('/status', async (_req, res) => {
+router.get('/status', requireMobileAuth, async (_req, res) => {
   const results: Record<string, boolean> = {};
   for (const t of TABLES) {
     const { error } = await supabase.from(t.name).select('id').limit(1);
@@ -117,7 +118,7 @@ router.get('/status', async (_req, res) => {
 });
 
 // GET /api/bootstrap/sql — return the SQL to execute manually
-router.get('/sql', (_req, res) => {
+router.get('/sql', requireMobileAuth, (_req, res) => {
   try {
     const sqlPath = path.resolve(__dirname, '../../../../supabase/schema-ibrahim-only.sql');
     const sql = readFileSync(sqlPath, 'utf-8');

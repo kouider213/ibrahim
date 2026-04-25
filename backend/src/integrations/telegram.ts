@@ -30,6 +30,54 @@ export async function sendMessage(chatId: number | string, text: string): Promis
   }
 }
 
+export async function sendPhoto(chatId: number | string, photoUrl: string, caption?: string): Promise<void> {
+  if (!getToken()) return;
+  try {
+    await axios.post(`${base()}/sendPhoto`, {
+      chat_id: chatId,
+      photo:   photoUrl,
+      caption: caption || undefined,
+    });
+  } catch (err) {
+    console.error('[telegram] sendPhoto failed:', err instanceof Error ? err.message : String(err));
+    await sendMessage(chatId, `📸 ${caption || ''}`);
+  }
+}
+
+export async function sendDocument(chatId: number | string, fileId: string, caption?: string): Promise<void> {
+  if (!getToken()) return;
+  try {
+    await axios.post(`${base()}/sendDocument`, {
+      chat_id:  chatId,
+      document: fileId,
+      caption:  caption || undefined,
+    });
+  } catch (err) {
+    console.error('[telegram] sendDocument failed:', err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function sendVideo(chatId: number | string, videoUrl: string, caption?: string): Promise<void> {
+  const token = getToken();
+  if (!token) {
+    console.error('[telegram] TELEGRAM_BOT_TOKEN not set — cannot send video');
+    return;
+  }
+  try {
+    await axios.post(`${base()}/sendVideo`, {
+      chat_id: chatId,
+      video: videoUrl,
+      caption: caption || undefined,
+      parse_mode: 'Markdown',
+      supports_streaming: true,
+    });
+  } catch (err) {
+    console.error('[telegram] sendVideo failed:', err instanceof Error ? err.message : String(err));
+    // Fallback: envoyer juste l'URL en texte
+    await sendMessage(chatId, `🎬 Vidéo: ${videoUrl}\n${caption || ''}`);
+  }
+}
+
 export async function sendTyping(chatId: number | string): Promise<void> {
   if (!getToken()) return;
   await axios.post(`${base()}/sendChatAction`, {
@@ -63,6 +111,7 @@ export interface TelegramMessage {
   caption?:   string;
   photo?:     Array<{ file_id: string; file_size?: number }>;
   document?:  { file_id: string; file_name?: string; mime_type?: string };
+  video?:     { file_id: string; file_name?: string; mime_type?: string; duration?: number };
 }
 
 export interface TelegramUpdate {

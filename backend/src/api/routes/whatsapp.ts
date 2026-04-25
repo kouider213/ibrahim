@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import express from 'express';
 import crypto from 'crypto';
-import axios from 'axios';
 import { env } from '../../config/env.js';
 import { notifyOwner } from '../../notifications/pushover.js';
-import { processMessage } from '../../conversation/orchestrator.js';
-import { supabase } from '../../integrations/supabase.js';
+import { buildContext } from '../../conversation/context-builder.js';
+import { chatWithTools } from '../../integrations/claude-api.js';
+import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
+import { requestValidation } from '../../validations/approver.js';
+import {
+  detectLanguage,
+  getClientSystemPrompt,
+  isBookingRequest,
+  isComplaint,
+  sendWhatsApp,
+} from '../../integrations/whatsapp.js';
 
 const router = Router();
 
@@ -25,84 +33,120 @@ function validateTwilioSignature(req: express.Request): boolean {
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 }
 
-// ── Send WhatsApp reply via Twilio ─────────────────────────────
-async function sendWhatsAppReply(to: string, body: string): Promise<void> {
-  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_WHATSAPP_FROM) return;
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
-  await axios.post(url, new URLSearchParams({
-    From: env.TWILIO_WHATSAPP_FROM,
-    To:   to,
-    Body: body,
-  }), {
-    auth: { username: env.TWILIO_ACCOUNT_SID, password: env.TWILIO_AUTH_TOKEN },
-  });
-}
-
-// ── POST /api/whatsapp/webhook ────────────────────────────────
-// Twilio calls this URL when a WhatsApp message arrives
+// ── POST /api/whatsapp/webhook ─────────────────────────────────
 router.post('/webhook', async (req, res) => {
-  // Validate Twilio signature
+  // Twilio expects 200 immediately
+  res.set('Content-Type', 'text/xml');
+  res.send('<Response/>');
+
   if (!validateTwilioSignature(req)) {
-    res.status(403).send('Forbidden');
+    console.warn('[whatsapp] Invalid Twilio signature — ignored');
     return;
   }
 
-  const body   = req.body as Record<string, string>;
-  const from   = body['From']  ?? '';   // e.g. whatsapp:+213661234567
-  const text   = body['Body']  ?? '';
+  const body     = req.body as Record<string, string>;
+  const from     = body['From']     ?? '';  // e.g. whatsapp:+213661234567
+  const text     = body['Body']     ?? '';
   const numMedia = parseInt(body['NumMedia'] ?? '0', 10);
 
-  if (!from || !text) {
-    res.status(200).send('<Response/>'); // TwiML empty response
-    return;
-  }
+  if (!from || !text) return;
 
-  const phone = from.replace('whatsapp:', '');
-  console.log(`[whatsapp] Message from ${phone}: ${text.slice(0, 80)}`);
+  const phone     = from.replace('whatsapp:', '');
+  const sessionId = `wa_${phone.replace(/\D/g, '')}`;
+  const lang      = detectLanguage(text);
 
-  // Save to Supabase for history
-  try {
-    await supabase.from('whatsapp_messages').insert({
-      from_number: phone,
-      body:        text,
-      direction:   'inbound',
-      media_count: numMedia,
-    });
-  } catch { /* table might not exist yet */ }
+  console.log(`[whatsapp] ${phone} [${lang}]: ${text.slice(0, 80)}`);
 
-  // Notify owner via Pushover
-  await notifyOwner(
-    `📱 WhatsApp: ${phone}`,
+  // Save inbound message (fire-and-forget)
+  void supabase.from('whatsapp_messages').insert({
+    from_number: phone,
+    body:        text,
+    direction:   'inbound',
+    media_count: numMedia,
+  });
+
+  // Notify owner
+  notifyOwner(
+    `📱 WhatsApp [${lang.toUpperCase()}]: ${phone}`,
     text.length > 200 ? text.slice(0, 200) + '…' : text,
     false,
-  );
+  ).catch(() => {});
 
-  // Process with Ibrahim (use phone as session ID so context is per-contact)
-  const sessionId = `wa_${phone.replace(/\D/g, '')}`;
   try {
-    const response = await processMessage(text, sessionId, true);
+    // Build context with client-specific system prompt
+    const clientSystemExtra = getClientSystemPrompt(lang);
+    const ctx = await buildContext(sessionId, text);
 
-    // Auto-reply with Ibrahim's response
-    if (response.text && env.TWILIO_ACCOUNT_SID) {
-      await sendWhatsAppReply(from, response.text);
+    // Merge: put client system at the front, then context extras
+    const systemExtra = ctx.systemExtra
+      ? `${clientSystemExtra}\n\n${ctx.systemExtra}`
+      : clientSystemExtra;
+
+    const response = await chatWithTools(ctx.messages, systemExtra);
+    const replyText = response.text;
+
+    // Complaints and first-time booking requests → validate before sending
+    const needsValidation = isComplaint(text) || (isBookingRequest(text) && replyText.includes('DZD'));
+
+    if (needsValidation) {
+      await requestValidation(
+        'client_reply',
+        {
+          description: `Réponse WhatsApp à ${phone} [${lang.toUpperCase()}]: "${text.slice(0, 120)}"`,
+          phone,
+          lang,
+          clientMessage: text,
+          isComplaint:   isComplaint(text),
+          isBooking:     isBookingRequest(text),
+        },
+        {
+          action:    'send_whatsapp',
+          to:        phone,
+          message:   replyText,
+        },
+      );
+
+      // Acknowledge immediately in detected language
+      const ack = lang === 'ar'
+        ? 'شكراً لتواصلك معنا. وكيلنا سيراجع طلبك ويرد عليك قريباً. 🙏'
+        : lang === 'en'
+        ? 'Thank you for contacting us. An agent will review your request and reply shortly. 🙏'
+        : 'Merci de votre message. Un agent va examiner votre demande et vous répondre très prochainement. 🙏';
+
+      await sendWhatsApp(phone, ack);
+    } else {
+      // Auto-reply directly
+      await sendWhatsApp(phone, replyText);
     }
 
-    // TwiML response (Twilio expects XML)
-    res.set('Content-Type', 'text/xml');
-    // If no Twilio creds, just acknowledge; Twilio auto-reply isn't used
-    res.send('<Response/>');
+    // Save conversation
+    await Promise.all([
+      saveConversationTurn(sessionId, 'user',      text,      { source: 'whatsapp', lang }),
+      saveConversationTurn(sessionId, 'assistant', replyText, { source: 'whatsapp', lang, validated: !needsValidation }),
+    ]);
+
   } catch (err) {
-    console.error('[whatsapp] Processing error:', err);
-    res.set('Content-Type', 'text/xml');
-    res.send('<Response/>');
+    console.error('[whatsapp] Processing error:', err instanceof Error ? err.message : String(err));
   }
 });
 
-// ── GET /api/whatsapp/status ──────────────────────────────────
+// ── POST /api/whatsapp/send ─────────────────────────────────────
+// Outbound: owner or Ibrahim tool sends message to a client
+router.post('/send', async (req, res) => {
+  const { to, message } = req.body as { to?: string; message?: string };
+  if (!to || !message) {
+    res.status(400).json({ error: 'to and message are required' });
+    return;
+  }
+  const ok = await sendWhatsApp(to, message);
+  res.json({ ok });
+});
+
+// ── GET /api/whatsapp/status ───────────────────────────────────
 router.get('/status', (_req, res) => {
   res.json({
-    configured: !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN),
-    webhookUrl: `${env.BACKEND_URL}/api/whatsapp/webhook`,
+    configured:  !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN),
+    webhookUrl:  `${env.BACKEND_URL}/api/whatsapp/webhook`,
     instructions: [
       '1. Créer un compte Twilio sur twilio.com',
       '2. Activer WhatsApp Sandbox: console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn',
