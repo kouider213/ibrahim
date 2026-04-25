@@ -76,16 +76,20 @@ export async function buildContext(
     ? `\n\nRÈGLES MÉTIER ACTIVES:\n${rules.map((r: any) => `- [${r.category}] ${r.rule}`).join('\n')}`
     : '';
 
-  const hour = now.getHours();
-  const timeContext = hour < 12
+  // Timezones: Kouider est à Bruxelles (Europe/Brussels), Fik Conciergerie à Oran (Africa/Algiers)
+  const fmtBruxelles = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', minute: 'numeric', hour12: false });
+  const fmtOran      = new Intl.DateTimeFormat('fr-DZ', { timeZone: 'Africa/Algiers',  hour: 'numeric', minute: 'numeric', hour12: false });
+  const fmtDate      = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const hourBruxelles = parseInt(new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', hour12: false }).format(now), 10);
+
+  const timeContext = hourBruxelles < 12
     ? 'PÉRIODE: Matin — ton énergique, propose résumé du jour si pertinent.'
-    : hour < 18
+    : hourBruxelles < 18
     ? 'PÉRIODE: Après-midi — ton normal et professionnel.'
     : 'PÉRIODE: Soir — ton calme, propose résumé journée si Kouider salue.';
 
-  const dateInfo = `\n\nDate: ${new Date().toLocaleDateString('fr-DZ', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  })} | Heure Oran: ${String(hour).padStart(2,'0')}h${String(now.getMinutes()).padStart(2,'0')} | ${timeContext}`;
+  const dateInfo = `\n\nKOUIDER EST À BRUXELLES (Belgique) — pas à Oran.\nDate: ${fmtDate.format(now)} | Heure Bruxelles: ${fmtBruxelles.format(now)} | Heure Oran: ${fmtOran.format(now)} | ${timeContext}`;
 
   // Active rentals
   const today = new Date().toISOString().slice(0, 10);
