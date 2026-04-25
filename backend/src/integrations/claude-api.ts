@@ -21,6 +21,7 @@ export interface ClaudeResponse {
   cacheWriteTokens?: number;
   thinkingTokens?:   number;
   stopReason:        string;
+  mode?:             'fast' | 'normal' | 'thinking';
 }
 
 // ── Tool streaming callback ───────────────────────────────────────────────────
@@ -36,16 +37,85 @@ const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
   },
 ];
 
-// ── Détecter si la question nécessite Extended Thinking ──────────────────────
-// Questions complexes: finance, stratégie, analyse, code difficile
-function needsExtendedThinking(messages: Message[]): boolean {
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 1: FAST MODE — Questions simples = réponse ultra-rapide avec Haiku
+// ══════════════════════════════════════════════════════════════════════════════
+function isFastModeEligible(messages: Message[]): boolean {
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) return false;
+  const text = lastUser.content.toLowerCase().trim();
+  
+  // Questions très courtes (< 30 caractères) sans complexité
+  if (text.length < 30) {
+    // Exceptions: ne pas utiliser fast mode si c'est une demande d'action
+    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité/i.test(text);
+    if (!needsAction) return true;
+  }
+  
+  // Réponses simples: oui, non, ok, parfait, merci, etc.
+  const simplePatterns = /^(oui|non|ok|d'accord|parfait|merci|cool|super|nice|bien|compris|test|rien|salut|hello|bonjour|bonsoir|ciao|bye|wesh|salam|cv|ca va|ça va|\?|yo|ouais|nope|nan|quoi de neuf|quoi de 9|je t'écoute)$/i;
+  if (simplePatterns.test(text)) return true;
+  
+  return false;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 2: ADAPTIVE THINKING — Budget de réflexion selon complexité
+// ══════════════════════════════════════════════════════════════════════════════
+type ComplexityLevel = 'none' | 'low' | 'medium' | 'high';
+
+function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budget: number } {
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  if (!lastUser) return { level: 'none', budget: 0 };
+  
   const text = lastUser.content.toLowerCase();
-  return (
-    /stratégi|analys|plan|optimis|combien.*voiture|combien.*gagn|comparaison|recommand|conseil business|budget|prévision|rentabilité/i.test(text) ||
-    /fix.*bug|debug|erreur.*code|typescript.*error|comment implémenter/i.test(text)
-  );
+  
+  // HIGH: Stratégie, optimisation, analyse approfondie, debug complexe
+  if (/stratégi|optimis|analyse complète|plan d'action|business plan|prévision annuelle|comment améliorer/i.test(text)) {
+    return { level: 'high', budget: 10000 };
+  }
+  if (/debug.*erreur|typescript.*error|fix.*bug|implémenter.*feature|architecture|refactor/i.test(text)) {
+    return { level: 'high', budget: 10000 };
+  }
+  
+  // MEDIUM: Calculs financiers, comparaisons, rapports
+  if (/combien.*gagn|bénéfice|rentabilité|comparaison|rapport financier|revenu.*mois/i.test(text)) {
+    return { level: 'medium', budget: 6000 };
+  }
+  if (/recommand|conseil|suggestion|meilleur|quel.*choix/i.test(text)) {
+    return { level: 'medium', budget: 6000 };
+  }
+  
+  // LOW: Questions de contexte, résumés
+  if (/résumé|recap|qu'est-ce que|explique|c'est quoi/i.test(text)) {
+    return { level: 'low', budget: 3000 };
+  }
+  
+  // NONE: Questions factuelles, actions simples
+  return { level: 'none', budget: 0 };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 3: CITATIONS — Activer pour les requêtes avec documents/sources
+// ══════════════════════════════════════════════════════════════════════════════
+function needsCitations(messages: Message[], systemExtra?: string): boolean {
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  if (!lastUser) return false;
+  
+  const text = lastUser.content.toLowerCase();
+  
+  // Si on fait référence à des documents, sources, ou si le contexte contient beaucoup de données
+  if (/source|document|référence|d'où vient|citation|preuve|selon/i.test(text)) {
+    return true;
+  }
+  
+  // Si le systemExtra contient des données structurées (rapports, règles, etc.)
+  if (systemExtra && systemExtra.length > 3000) {
+    // Beaucoup de contexte = activer citations pour traçabilité
+    return /rapport|règle|grille|historique/i.test(text);
+  }
+  
+  return false;
 }
 
 // ── Tool-use chat (agentic loop) avec Tool Streaming + Compaction ────────────
@@ -59,6 +129,35 @@ export async function chatWithTools(
 ): Promise<ClaudeResponse> {
 
   const sid = sessionId ?? randomUUID();
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FAST MODE CHECK — Questions simples → Haiku sans outils
+  // ══════════════════════════════════════════════════════════════════════════
+  if (isFastModeEligible(messages)) {
+    console.log('[claude] ⚡ FAST MODE: Question simple détectée');
+    const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
+    if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
+    
+    const response = await client.messages.create({
+      model:      'claude-haiku-4-5',
+      max_tokens: 512,
+      system:     systemBlocks,
+      messages:   messages.map(m => ({ role: m.role, content: m.content })),
+    });
+    
+    const text = response.content
+      .filter(b => b.type === 'text')
+      .map(b => (b as Anthropic.TextBlock).text)
+      .join('');
+    
+    return {
+      text,
+      inputTokens:  response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      stopReason:   response.stop_reason ?? 'end_turn',
+      mode:         'fast',
+    };
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // COMPACTION: Si historique trop long, résumer avant d'envoyer à Claude
@@ -76,7 +175,17 @@ export async function chatWithTools(
     systemBlocks.push({ type: 'text', text: systemExtra });
   }
 
-  const useThinking = needsExtendedThinking(processedMessages);
+  // ══════════════════════════════════════════════════════════════════════════
+  // ADAPTIVE THINKING: Ajuster le budget selon la complexité
+  // ══════════════════════════════════════════════════════════════════════════
+  const complexity = analyzeComplexity(processedMessages);
+  const useThinking = complexity.level !== 'none';
+  const thinkingBudget = complexity.budget;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CITATIONS: Activer si nécessaire
+  // ══════════════════════════════════════════════════════════════════════════
+  const useCitations = needsCitations(processedMessages, systemExtra);
 
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,
@@ -91,7 +200,10 @@ export async function chatWithTools(
   let finalText        = '';
 
   if (useThinking) {
-    console.log(`[claude] Extended Thinking activé pour: "${processedMessages[processedMessages.length - 1]?.content?.slice(0, 60)}..."`);
+    console.log(`[claude] 🧠 ADAPTIVE THINKING: ${complexity.level} (${thinkingBudget} tokens) pour: "${processedMessages[processedMessages.length - 1]?.content?.slice(0, 60)}..."`);
+  }
+  if (useCitations) {
+    console.log('[claude] 📚 CITATIONS: Activé pour cette requête');
   }
 
   // Agentic loop — max 15 tool rounds
@@ -110,12 +222,20 @@ export async function chatWithTools(
           messages:   currentMessages,
         };
 
-        // Extended Thinking: budget 8000 tokens de réflexion
-        if (useThinking) {
+        // ADAPTIVE THINKING: budget dynamique selon complexité
+        if (useThinking && thinkingBudget > 0) {
           (createParams as any).thinking = {
-            type:         'enabled',
-            budget_tokens: 8000,
+            type:          'enabled',
+            budget_tokens: thinkingBudget,
           };
+        }
+
+        // CITATIONS: activer si nécessaire (beta feature)
+        // Note: Citations ne sont supportées qu'avec certains modèles
+        // On le prépare pour quand ce sera disponible sur claude-sonnet-4
+        if (useCitations) {
+          // Pour l'instant on log juste - à activer quand dispo
+          // (createParams as any).citations = { enabled: true };
         }
 
         response = await client.messages.create(createParams);
@@ -176,7 +296,7 @@ export async function chatWithTools(
       console.log(`[claude-thinking] ${thinkingBlocks.length} blocs de réflexion (${thinkingTokens} tokens estimés)`);
     }
 
-    // Collect text
+    // Collect text (and citations if present)
     const textBlocks = response.content.filter(b => b.type === 'text');
     finalText = textBlocks.map(b => (b as Anthropic.TextBlock).text).join('');
 
@@ -186,11 +306,13 @@ export async function chatWithTools(
     }
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
-      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason };
+      const mode = useThinking ? 'thinking' : 'normal';
+      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason, mode };
     }
 
     if (response.stop_reason !== 'tool_use') {
-      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason ?? 'end_turn' };
+      const mode = useThinking ? 'thinking' : 'normal';
+      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason ?? 'end_turn', mode };
     }
 
     // Execute tool calls
@@ -234,7 +356,8 @@ export async function chatWithTools(
     apiMessages = [...apiMessages, { role: 'user', content: toolResults }];
   }
 
-  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: 'end_turn' };
+  const mode = useThinking ? 'thinking' : 'normal';
+  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: 'end_turn', mode };
 }
 
 // ── Simple chat (no tools) ────────────────────────────────────
