@@ -602,6 +602,19 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'get_client_document',
+    description: 'Récupérer un document client stocké (passeport, permis, contrat) depuis Supabase. Retourne l\'URL publique directe pour afficher la photo. Utiliser quand Kouider demande à voir/envoyer un document client.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:  { type: 'string', description: 'Nom du client (partiel accepté)' },
+        client_phone: { type: 'string', description: 'Téléphone du client (optionnel)' },
+        type:         { type: 'string', enum: ['passport', 'license', 'contract', 'other'], description: 'Type de document (optionnel)' },
+      },
+      required: [],
+    },
+  },
+  {
     name: 'web_search',
     description: 'Rechercher sur internet: actualités mondiales, technologie, Claude/Anthropic nouveautés, prix, informations générales. Retourne les résultats les plus pertinents.',
     input_schema: {

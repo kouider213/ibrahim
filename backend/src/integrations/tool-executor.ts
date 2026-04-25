@@ -82,6 +82,8 @@ export async function executeTool(
       case 'check_car_availability':     return await checkCarAvailability(input);
       // ─── GitHub search ───
       case 'github_search_code':         return await githubSearchCode(input);
+      // ─── Documents client ───
+      case 'get_client_document':        return await getClientDocument(input);
       // ─── Web / Internet ───
       case 'web_search':                 return await webSearch(input);
       case 'fetch_url':                  return await fetchUrl(input);
@@ -502,6 +504,32 @@ async function githubSearchCode(input: Record<string, unknown>): Promise<string>
   const query = input['query'] as string;
   if (!query) return 'Query requise';
   return searchCode(repo, query);
+}
+
+async function getClientDocument(input: Record<string, unknown>): Promise<string> {
+  let query = supabase
+    .from('client_documents')
+    .select('id, client_name, client_phone, type, file_url, notes, created_at')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (input['client_name']) {
+    query = query.ilike('client_name', `%${input['client_name']}%`);
+  }
+  if (input['client_phone']) {
+    query = query.ilike('client_phone', `%${input['client_phone']}%`);
+  }
+  if (input['type']) {
+    query = query.eq('type', input['type']);
+  }
+
+  const { data, error } = await query;
+  if (error) return `Erreur: ${error.message}`;
+  if (!data || data.length === 0) return 'Aucun document trouvé pour ce client.';
+
+  return (data as Array<{ client_name: string; client_phone: string; type: string; file_url: string; notes?: string; created_at: string }>)
+    .map(d => `📄 ${d.client_name} (${d.client_phone}) — ${d.type}\nURL: ${d.file_url}\nDate: ${d.created_at.slice(0, 10)}${d.notes ? `\nNote: ${d.notes}` : ''}`)
+    .join('\n\n');
 }
 
 async function webSearch(input: Record<string, unknown>): Promise<string> {

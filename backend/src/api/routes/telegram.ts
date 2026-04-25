@@ -94,6 +94,13 @@ router.post('/webhook', async (req, res) => {
       for (const chunk of splitMessage(response.text, 4000)) {
         await sendMessage(chatId, chunk);
       }
+      // Si la réponse contient une URL de document Supabase → envoyer la photo directement
+      const docUrls = response.text.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+\/client-documents\/[^\s\n\])"']+/g);
+      if (docUrls) {
+        for (const url of docUrls) {
+          await sendPhoto(chatId, url).catch(() => sendDocument(chatId, url));
+        }
+      }
     })();
 
     const savePromise = Promise.all([
