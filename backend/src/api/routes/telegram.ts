@@ -411,8 +411,13 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
     const noteStr  = bookingNote ? `\n📝 Note: ${bookingNote}` : '';
 
     await sendMessage(chatId,
-      `✅ ${label}${nameStr}${phoneStr} enregistré dans Supabase.${noteStr}\n🔗 ${urlData.publicUrl}`,
+      `✅ ${label}${nameStr}${phoneStr} enregistré dans Supabase.${noteStr}`,
     );
+
+    // Renvoyer la photo directement dans le chat (pas d'URL à ouvrir)
+    if (msg.photo || (msg.document && mimeType.startsWith('image/'))) {
+      await sendPhoto(chatId, fileId, `📄 ${label}${nameStr}${phoneStr}`);
+    }
 
     await saveConversationTurn(sessionId, 'user',
       `[Document reçu: ${label}${nameStr}${phoneStr} — stocké dans Supabase Storage: ${urlData.publicUrl}]`,
