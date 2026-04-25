@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import axios from 'axios';
 import {
   sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo, sendDocument,
   type TelegramUpdate, type TelegramMessage,
@@ -150,10 +151,68 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
       );
       uploadStream.end(buffer);
     });
-    const videoUrl     = uploadResult.secure_url as string;
+    const videoUrl      = uploadResult.secure_url as string;
     const videoPublicId = uploadResult.public_id  as string;
 
-    // 3. Passer à Claude pour traitement en langage naturel
+    // Détecte si c'est une référence UI (design à copier)
+    const UI_KEYWORDS = /ressemble|interface|design|style|ui|apparence|copie|même look|même style|jarvis|modifie l'interface|change l'interface/i;
+    const isUIRef = UI_KEYWORDS.test(caption);
+
+    // 3a. SI référence UI → extraire frame + analyse Vision → modifier interface
+    if (isUIRef) {
+      await sendMessage(chatId, '🎨 Analyse du design dans la vidéo...');
+
+      // Cloudinary extrait automatiquement la première frame en ajoutant .jpg
+      const frameUrl = videoUrl.replace(/\.(mp4|mov|avi|webm)$/i, '.jpg')
+        .replace('/video/upload/', '/video/upload/so_0,f_jpg/');
+
+      // Télécharger la frame
+      const frameBuffer = await axios.get(frameUrl, { responseType: 'arraybuffer', timeout: 15_000 })
+        .then((r: { data: ArrayBuffer }) => Buffer.from(r.data))
+        .catch(() => null);
+
+      if (frameBuffer) {
+        const base64Frame = frameBuffer.toString('base64');
+
+        const visionResp = await anthropic.messages.create({
+          model:      'claude-sonnet-4-6',
+          max_tokens: 2048,
+          system: `Analyse cette interface UI avec TOUS les détails visuels:
+- Couleurs exactes (background, texte, boutons, bordures) avec codes hex si possible
+- Layout et disposition des éléments
+- Typographie (police, taille, poids)
+- Effets visuels (gradient, glow, blur, ombre)
+- Composants présents (boutons, cartes, barres, cercles, vagues)
+- Style général (futuriste, minimal, glassmorphism, neon, etc.)
+Sois TRÈS précis — cette description servira à reproduire exactement ce design.`,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Frame } },
+              { type: 'text',  text: `Demande: "${caption}" — Décris ce design en détail.` },
+            ],
+          }],
+        });
+
+        const uiDescription = visionResp.content
+          .filter(b => b.type === 'text')
+          .map(b => (b as Anthropic.TextBlock).text)
+          .join('');
+
+        const actionMessage = `[Référence UI extraite d'une vidéo — analyse visuelle:\n${uiDescription}]\n\nDemande de Kouider: "${caption}"\n\nModifie l'interface mobile Ibrahim pour qu'elle ressemble à ce design.\nFichiers dans repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux → modifier → github_write_file → Netlify redéploie.`;
+
+        const ctx      = await buildContext(sessionId, actionMessage);
+        const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+        await sendMessage(chatId, response.text);
+        await saveConversationTurn(sessionId, 'user', `[Vidéo UI ref — "${caption}"]`, { source: 'telegram', type: 'video_ui', url: videoUrl });
+        return;
+      }
+
+      await sendMessage(chatId, '⚠️ Impossible d\'extraire la frame. Essaie avec une photo à la place.');
+      return;
+    }
+
+    // 3b. Traitement vidéo normal
     await sendMessage(chatId, '🤖 Ibrahim traite ta demande...');
 
     const userRequest = caption
