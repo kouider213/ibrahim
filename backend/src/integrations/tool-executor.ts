@@ -167,6 +167,16 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
 }
 
 async function createBooking(input: Record<string, unknown>): Promise<string> {
+  if (!input['car_id'])      return '❌ car_id manquant — spécifie la voiture';
+  if (!input['client_name']) return '❌ client_name manquant';
+  if (!input['start_date'])  return '❌ start_date manquant (format YYYY-MM-DD)';
+  if (!input['end_date'])    return '❌ end_date manquant (format YYYY-MM-DD)';
+  if (input['start_date'] > input['end_date']) return '❌ start_date doit être avant end_date';
+
+  const VALID_STATUSES = ['CONFIRMED', 'PENDING', 'ACTIVE'];
+  const status = (input['status'] as string) ?? 'CONFIRMED';
+  if (!VALID_STATUSES.includes(status)) return `❌ status invalide: ${status}. Valeurs: ${VALID_STATUSES.join(', ')}`;
+
   const { data, error } = await supabase
     .from('bookings')
     .insert({
@@ -179,7 +189,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
       final_price:  input['final_price'],
       notes:        input['notes']        ?? null,
       rented_by:    input['rented_by']    ?? 'Kouider',
-      status:       input['status']       ?? 'CONFIRMED',
+      status,
       payment_status: 'PENDING',
       paid_amount:  0,
     })

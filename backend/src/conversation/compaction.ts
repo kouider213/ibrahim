@@ -27,7 +27,10 @@ const MAX_TOKENS_BEFORE_COMPACT   = 8000; // Compacter si historique > 8000 toke
 
 // ── Estimation rapide du nombre de tokens ────────────────────────────────────
 function estimateTokens(messages: Message[]): number {
-  return messages.reduce((sum, m) => sum + Math.ceil(m.content.length * ESTIMATED_TOKENS_PER_CHAR), 0);
+  return messages.reduce((sum, m) => {
+    const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+    return sum + Math.ceil(text.length * ESTIMATED_TOKENS_PER_CHAR);
+  }, 0);
 }
 
 // ── Vérifier si la compaction est nécessaire ─────────────────────────────────
@@ -40,7 +43,10 @@ export function needsCompaction(messages: Message[]): boolean {
 // ── Générer un résumé compact de l'historique ────────────────────────────────
 async function summarizeHistory(messages: Message[]): Promise<string> {
   const conversationText = messages
-    .map(m => `[${m.role === 'user' ? 'Kouider' : 'Ibrahim'}]: ${m.content}`)
+    .map(m => {
+      const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+      return `[${m.role === 'user' ? 'Kouider' : 'Ibrahim'}]: ${text}`;
+    })
     .join('\n\n');
 
   const prompt = `Tu es Ibrahim, assistant IA de Kouider (Fik Conciergerie Oran).

@@ -4,6 +4,7 @@ import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
 import { formatPricingTable } from '../config/pricing.js';
 import type { Message } from '../integrations/claude-api.js';
+import { loadCompactionSummary } from './compaction.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -58,7 +59,7 @@ export async function buildContext(
   const now = new Date();
 
   // Chargement parallèle — seulement ce dont on a besoin
-  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages] = await Promise.all([
+  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary] = await Promise.all([
     // HISTORIQUE: seulement 6 derniers messages (pas 15)
     getConversationHistory(sessionId, 6).catch(() => []),
     getCachedRules(),
@@ -70,6 +71,7 @@ export async function buildContext(
     needsFinance  ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
     needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then((r: any) => r.data ?? []) : Promise.resolve([]),
     getRecentUserMessages(40).catch(() => [] as string[]),
+    loadCompactionSummary(sessionId).catch(() => null),
   ]);
 
   const rulesText = rules.length > 0
@@ -170,8 +172,13 @@ export async function buildContext(
     styleText,
   ].join('');
 
-  // Construire les messages: historique (6 max) + message courant
+  // Construire les messages: résumé compaction (si dispo) + historique (6 max) + message courant
+  const compactionMessage: Message[] = compactionSummary && history.length < 3
+    ? [{ role: 'user', content: compactionSummary }, { role: 'assistant', content: 'Compris, je me souviens de ce contexte.' }]
+    : [];
+
   const messages: Message[] = [
+    ...compactionMessage,
     ...history,
     { role: 'user', content: userMessage },
   ];

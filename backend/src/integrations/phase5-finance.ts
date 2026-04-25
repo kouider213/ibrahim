@@ -51,6 +51,9 @@ export async function recordPayment(
   type: 'acompte' | 'solde' | 'partiel' = 'partiel',
   note?: string
 ): Promise<string> {
+  if (!bookingId) return '❌ booking_id manquant';
+  if (!amount || amount <= 0) return '❌ Le montant doit être supérieur à 0';
+
   const { data: booking, error: fetchErr } = await supabase
     .from('bookings')
     .select('id, client_name, final_price, paid_amount, acompte_amount')

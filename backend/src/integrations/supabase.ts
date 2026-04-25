@@ -206,6 +206,7 @@ export async function getConversationHistory(sessionId: string, limit = 20) {
     .from('conversations')
     .select('role, content, created_at')
     .eq('session_id', sessionId)
+    .in('role', ['user', 'assistant'])
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Conversation fetch failed: ${error.message}`);

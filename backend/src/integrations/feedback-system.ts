@@ -219,9 +219,22 @@ export async function getKouiderPreferences(): Promise<{
     });
   }
 
+  // Analyse du ton basée sur les patterns de feedback
+  let tone: 'professional' | 'friendly' | 'casual' = 'friendly';
+  const tonePattern = patterns.find(p => p.category === 'tone');
+  if (tonePattern?.metadata) {
+    const tm = tonePattern.metadata as Record<string, number>;
+    const scores = {
+      professional: tm['professional'] ?? 0,
+      friendly:     tm['friendly']     ?? 0,
+      casual:       tm['casual']       ?? 0,
+    };
+    tone = (Object.entries(scores).sort((a, b) => b[1] - a[1])[0]![0]) as typeof tone;
+  }
+
   return {
     response_style: responseStyle,
-    tone: 'friendly', // TODO: analyser le ton
+    tone,
     tiktok_styles: tiktokStyles,
     auto_approve_threshold: 0.8,
   };
