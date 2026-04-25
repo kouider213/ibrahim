@@ -98,11 +98,14 @@ export interface SocketCallbacks {
 let _socket: Socket | null = null;
 
 export function connectSocket(sessionId: string, callbacks: SocketCallbacks): Socket {
-  if (_socket?.connected) return _socket;
+  if (_socket) return _socket; // reuse existing socket (even if reconnecting)
 
   _socket = io(`${WS_URL}/mobile`, {
-    auth:       { token: ACCESS_TOKEN },
-    transports: ['websocket'],
+    auth:              { token: ACCESS_TOKEN },
+    transports:        ['websocket', 'polling'],
+    reconnection:      true,
+    reconnectionDelay: 1000,
+    timeout:           10000,
   });
 
   _socket.on('connect', () => console.log('[socket] Connected'));
@@ -156,7 +159,7 @@ let _audioPlaying = false;
 let _pendingChunks: Uint8Array[] = [];
 let _currentSource: AudioBufferSourceNode | null = null;
 
-// Call this during a user gesture (button tap) to unlock iOS AudioContext
+// Call this during a user gesture to permanently unlock iOS AudioContext
 export function unlockAudio(): void {
   if (!_audioCtx) {
     try { _audioCtx = new AudioContext(); } catch { return; }
@@ -164,6 +167,14 @@ export function unlockAudio(): void {
   if (_audioCtx.state === 'suspended') {
     _audioCtx.resume().catch(() => {});
   }
+  // Silent 1-sample buffer — iOS won't re-suspend after playing real audio
+  try {
+    const buf = _audioCtx.createBuffer(1, 1, 22050);
+    const src = _audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(_audioCtx.destination);
+    src.start(0);
+  } catch { /* ignore */ }
 }
 
 async function getAudioCtx(): Promise<AudioContext> {
