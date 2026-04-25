@@ -61,6 +61,12 @@ export const api = {
 
   generateReceipt: (bookingId: string) =>
     apiFetch<{ url: string; message: string }>(`/api/finance/receipts/${bookingId}`, { method: 'POST' }),
+
+  vision: (imageBase64: string, mimeType = 'image/jpeg') =>
+    apiFetch<{ description: string }>('/api/vision/analyze', {
+      method: 'POST',
+      body:   JSON.stringify({ imageBase64, mimeType }),
+    }),
 };
 
 export interface FinanceDashboardData {

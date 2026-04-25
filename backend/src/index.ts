@@ -31,6 +31,7 @@ import financeRoutes       from './api/routes/finance.js';
 import documentsRoutes     from './api/routes/documents.js';
 import telegramRoutes      from './api/routes/telegram.js';
 import ttsRoutes           from './api/routes/tts.js';
+import visionRoutes        from './api/routes/vision.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -73,6 +74,7 @@ app.use('/api/finance',       financeRoutes);
 app.use('/api/documents',     documentsRoutes);
 app.use('/api/telegram',      telegramRoutes);
 app.use('/api/tts',           ttsRoutes);
+app.use('/api/vision',        visionRoutes);
 
 app.use(errorHandler);
 
