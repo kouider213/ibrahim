@@ -10,7 +10,7 @@ const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 export interface Message {
   role: 'user' | 'assistant';
-  content: string;
+  content: string | Anthropic.ContentBlockParam[];
 }
 
 export interface ClaudeResponse {
@@ -52,19 +52,19 @@ const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
 function isFastModeEligible(messages: Message[]): boolean {
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) return false;
-  const text = lastUser.content.toLowerCase().trim();
-  
+  const content = lastUser.content;
+  const text = (typeof content === 'string' ? content : '').toLowerCase().trim();
+
   // Questions très courtes (< 30 caractères) sans complexité
   if (text.length < 30) {
-    // Exceptions: ne pas utiliser fast mode si c'est une demande d'action
     const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve/i.test(text);
     if (!needsAction) return true;
   }
-  
+
   // Réponses simples: oui, non, ok, parfait, merci, etc.
   const simplePatterns = /^(oui|non|ok|d'accord|parfait|merci|cool|super|nice|bien|compris|test|rien|salut|hello|bonjour|bonsoir|ciao|bye|wesh|salam|cv|ca va|ça va|\?|yo|ouais|nope|nan|quoi de neuf|quoi de 9|je t'écoute|alors)$/i;
   if (simplePatterns.test(text)) return true;
-  
+
   return false;
 }
 
@@ -76,9 +76,10 @@ type ComplexityLevel = 'none' | 'low' | 'medium' | 'high';
 function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budget: number } {
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) return { level: 'none', budget: 0 };
-  
-  const text = lastUser.content.toLowerCase();
-  
+
+  const content = lastUser.content;
+  const text = (typeof content === 'string' ? content : '').toLowerCase();
+
   // HIGH: Stratégie, optimisation, analyse approfondie, debug complexe
   if (/stratégi|optimis|analyse complète|plan d'action|business plan|prévision annuelle|comment améliorer/i.test(text)) {
     return { level: 'high', budget: 10000 };
@@ -86,7 +87,7 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
   if (/debug.*erreur|typescript.*error|fix.*bug|implémenter.*feature|architecture|refactor/i.test(text)) {
     return { level: 'high', budget: 10000 };
   }
-  
+
   // MEDIUM: Calculs financiers, comparaisons, rapports
   if (/combien.*gagn|bénéfice|rentabilité|comparaison|rapport financier|revenu.*mois/i.test(text)) {
     return { level: 'medium', budget: 6000 };
@@ -94,12 +95,12 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
   if (/recommand|conseil|suggestion|meilleur|quel.*choix/i.test(text)) {
     return { level: 'medium', budget: 6000 };
   }
-  
+
   // LOW: Questions de contexte, résumés
   if (/résumé|recap|qu'est-ce que|explique|c'est quoi/i.test(text)) {
     return { level: 'low', budget: 3000 };
   }
-  
+
   // NONE: Questions factuelles, actions simples
   return { level: 'none', budget: 0 };
 }
@@ -110,20 +111,18 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
 function needsCitations(messages: Message[], systemExtra?: string): boolean {
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) return false;
-  
-  const text = lastUser.content.toLowerCase();
-  
-  // Si on fait référence à des documents, sources, ou si le contexte contient beaucoup de données
+
+  const content = lastUser.content;
+  const text = (typeof content === 'string' ? content : '').toLowerCase();
+
   if (/source|document|référence|d'où vient|citation|preuve|selon|d'après/i.test(text)) {
     return true;
   }
-  
-  // Si le systemExtra contient des données structurées (rapports, règles, etc.)
+
   if (systemExtra && systemExtra.length > 3000) {
-    // Beaucoup de contexte = activer citations pour traçabilité
     return /rapport|règle|grille|historique/i.test(text);
   }
-  
+
   return false;
 }
 
@@ -133,12 +132,12 @@ function needsCitations(messages: Message[], systemExtra?: string): boolean {
 function needsWebSearch(messages: Message[]): boolean {
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   if (!lastUser) return false;
-  
-  const text = lastUser.content.toLowerCase();
-  
-  // Patterns indiquant besoin de recherche web
+
+  const content = lastUser.content;
+  const text = (typeof content === 'string' ? content : '').toLowerCase();
+
   const webSearchPatterns = /actualités?|news|dernières nouvelles|récent|aujourd'hui|cette semaine|ce mois|anthropic|claude.*nouveau|openai|gpt|prix.*actuel|cours|bourse|événement|match|score|météo.*monde|température.*à|qui a gagné|résultat|élection/i;
-  
+
   return webSearchPatterns.test(text);
 }
 
@@ -146,15 +145,13 @@ function needsWebSearch(messages: Message[]): boolean {
 const ANTHROPIC_WEB_SEARCH_TOOL: Anthropic.Tool = {
   type: 'web_search_20250305' as any,
   name: 'web_search',
-  // Pas besoin de input_schema pour les server tools
 } as any;
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────
 function extractCitations(content: Anthropic.ContentBlock[]): CitationInfo[] {
   const citations: CitationInfo[] = [];
-  
+
   for (const block of content) {
-    // Les citations sont dans des blocs spéciaux
     if ((block as any).type === 'citation') {
       const citationBlock = block as any;
       citations.push({
@@ -165,7 +162,7 @@ function extractCitations(content: Anthropic.ContentBlock[]): CitationInfo[] {
       });
     }
   }
-  
+
   return citations;
 }
 
@@ -188,19 +185,19 @@ export async function chatWithTools(
     console.log('[claude] ⚡ FAST MODE: Question simple détectée');
     const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
     if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
-    
+
     const response = await client.messages.create({
-      model:      'claude-haiku-4-5',
+      model:      'claude-haiku-4-5-20251001',
       max_tokens: 512,
       system:     systemBlocks,
       messages:   messages.map(m => ({ role: m.role, content: m.content })),
     });
-    
+
     const text = response.content
       .filter(b => b.type === 'text')
       .map(b => (b as Anthropic.TextBlock).text)
       .join('');
-    
+
     return {
       text,
       inputTokens:  response.usage.input_tokens,
@@ -242,9 +239,8 @@ export async function chatWithTools(
   // WEB SEARCH NATIF: Ajouter le server tool si nécessaire
   // ══════════════════════════════════════════════════════════════════════════
   const useWebSearch = needsWebSearch(processedMessages);
-  
-  // Combiner nos outils custom avec le web_search natif si nécessaire
-  const tools: Anthropic.Tool[] = useWebSearch 
+
+  const tools: Anthropic.Tool[] = useWebSearch
     ? [...IBRAHIM_TOOLS, ANTHROPIC_WEB_SEARCH_TOOL]
     : IBRAHIM_TOOLS;
 
@@ -262,14 +258,12 @@ export async function chatWithTools(
   let allCitations: CitationInfo[] = [];
 
   if (useThinking) {
-    console.log(`[claude] 🧠 ADAPTIVE THINKING: ${complexity.level} (${thinkingBudget} tokens) pour: "${processedMessages[processedMessages.length - 1]?.content?.slice(0, 60)}..."`);
+    const lastContent = processedMessages[processedMessages.length - 1]?.content;
+    const preview = typeof lastContent === 'string' ? lastContent.slice(0, 60) : '[image]';
+    console.log(`[claude] 🧠 ADAPTIVE THINKING: ${complexity.level} (${thinkingBudget} tokens) pour: "${preview}..."`);
   }
-  if (useCitations) {
-    console.log('[claude] 📚 CITATIONS: Activé pour cette requête');
-  }
-  if (useWebSearch) {
-    console.log('[claude] 🌐 WEB SEARCH NATIF: Activé pour cette requête');
-  }
+  if (useCitations)  console.log('[claude] 📚 CITATIONS: Activé pour cette requête');
+  if (useWebSearch)  console.log('[claude] 🌐 WEB SEARCH NATIF: Activé pour cette requête');
 
   // Agentic loop — max 15 tool rounds
   for (let round = 0; round < 15; round++) {
@@ -278,16 +272,14 @@ export async function chatWithTools(
 
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        // Paramètres de base
         const createParams: Anthropic.MessageCreateParamsNonStreaming = {
-          model:      'claude-sonnet-4-20250514',
-          max_tokens: useThinking ? 16000 : 16000,
+          model:      'claude-sonnet-4-6',
+          max_tokens: 16000,
           system:     systemBlocks,
           tools:      tools,
           messages:   currentMessages,
         };
 
-        // ADAPTIVE THINKING: budget dynamique selon complexité
         if (useThinking && thinkingBudget > 0) {
           (createParams as any).thinking = {
             type:          'enabled',
@@ -295,7 +287,6 @@ export async function chatWithTools(
           };
         }
 
-        // CITATIONS: activer si nécessaire
         if (useCitations) {
           (createParams as any).citations = { enabled: true };
         }
@@ -311,9 +302,6 @@ export async function chatWithTools(
           console.warn(`[claude] Overloaded 529 — attente 30s (tentative ${attempt + 1}/3)`);
           await new Promise(r => setTimeout(r, 30_000));
         } else if (status === 422 && attempt < 2) {
-          // ════════════════════════════════════════════════════════════════════
-          // EMERGENCY COMPACTION: contexte encore trop long après première tentative
-          // ════════════════════════════════════════════════════════════════════
           console.warn('[claude] Context trop long 422 — emergency compaction');
           const emergencyMessages = await emergencyCompact(
             currentMessages.map(m => ({
@@ -337,7 +325,6 @@ export async function chatWithTools(
     inputTokens  += response.usage.input_tokens;
     outputTokens += response.usage.output_tokens;
 
-    // Track cache metrics
     const usage = response.usage as Anthropic.Usage & {
       cache_read_input_tokens?:     number;
       cache_creation_input_tokens?: number;
@@ -345,12 +332,10 @@ export async function chatWithTools(
     if (usage.cache_read_input_tokens)     cacheReadTokens  += usage.cache_read_input_tokens;
     if (usage.cache_creation_input_tokens) cacheWriteTokens += usage.cache_creation_input_tokens;
 
-    // Log cache stats
     if (usage.cache_read_input_tokens || usage.cache_creation_input_tokens) {
       console.log(`[claude-cache] read=${usage.cache_read_input_tokens ?? 0} write=${usage.cache_creation_input_tokens ?? 0} regular=${response.usage.input_tokens}`);
     }
 
-    // Track thinking tokens
     const thinkingBlocks = response.content.filter((b: any) => b.type === 'thinking');
     if (thinkingBlocks.length > 0) {
       const totalThinking = thinkingBlocks.reduce((sum: number, b: any) => sum + (b.thinking?.length ?? 0), 0);
@@ -358,32 +343,29 @@ export async function chatWithTools(
       console.log(`[claude-thinking] ${thinkingBlocks.length} blocs de réflexion (${thinkingTokens} tokens estimés)`);
     }
 
-    // Collect text (and citations if present)
     const textBlocks = response.content.filter(b => b.type === 'text');
     finalText = textBlocks.map(b => (b as Anthropic.TextBlock).text).join('');
 
-    // Extraire les citations si présentes
     const citations = extractCitations(response.content);
     if (citations.length > 0) {
       allCitations = [...allCitations, ...citations];
       console.log(`[claude-citations] ${citations.length} citation(s) extraite(s)`);
     }
 
-    // Stream text chunks si callback fourni
     if (onTextChunk && finalText) {
       onTextChunk(finalText);
     }
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
       const mode = useThinking ? 'thinking' : 'normal';
-      return { 
-        text: finalText, 
-        inputTokens, 
-        outputTokens, 
-        cacheReadTokens, 
-        cacheWriteTokens, 
-        thinkingTokens, 
-        stopReason: response.stop_reason, 
+      return {
+        text: finalText,
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        thinkingTokens,
+        stopReason: response.stop_reason,
         mode,
         citations: allCitations.length > 0 ? allCitations : undefined,
       };
@@ -391,27 +373,24 @@ export async function chatWithTools(
 
     if (response.stop_reason !== 'tool_use') {
       const mode = useThinking ? 'thinking' : 'normal';
-      return { 
-        text: finalText, 
-        inputTokens, 
-        outputTokens, 
-        cacheReadTokens, 
-        cacheWriteTokens, 
-        thinkingTokens, 
-        stopReason: response.stop_reason ?? 'end_turn', 
+      return {
+        text: finalText,
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        thinkingTokens,
+        stopReason: response.stop_reason ?? 'end_turn',
         mode,
         citations: allCitations.length > 0 ? allCitations : undefined,
       };
     }
 
-    // Execute tool calls
     const toolUseBlocks = response.content.filter(b => b.type === 'tool_use') as Anthropic.ToolUseBlock[];
     if (!toolUseBlocks.length) break;
 
-    // Add assistant turn with tool calls
     apiMessages = [...apiMessages, { role: 'assistant', content: response.content }];
 
-    // ── Tool Streaming: notifier le début de chaque outil ─────────────────
     for (const block of toolUseBlocks) {
       if (onToolStart) {
         console.log(`[tool-stream] ▶ START: ${block.name}`);
@@ -419,17 +398,10 @@ export async function chatWithTools(
       }
     }
 
-    // Execute all tools and collect results
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (block) => {
-        // ══════════════════════════════════════════════════════════════════════
-        // WEB SEARCH NATIF: Les server tools sont exécutés automatiquement par Anthropic
-        // Pas besoin de les exécuter nous-mêmes — le résultat est déjà dans la réponse
-        // ══════════════════════════════════════════════════════════════════════
         if (block.name === 'web_search') {
           console.log(`[tools] Server tool web_search exécuté par Anthropic`);
-          // Le server tool est géré automatiquement, on ne retourne pas de résultat
-          // En fait, les server tools ne nécessitent pas de tool_result de notre part
           return {
             type:        'tool_result' as const,
             tool_use_id: block.id,
@@ -442,7 +414,6 @@ export async function chatWithTools(
         const content = typeof raw === 'string' ? raw : JSON.stringify(raw);
         console.log(`[tools] Result: ${content.slice(0, 200)}`);
 
-        // ── Tool Streaming: notifier la fin de chaque outil ───────────────
         if (onToolDone) {
           console.log(`[tool-stream] ✅ DONE: ${block.name}`);
           onToolDone(block.name, content.slice(0, 500));
@@ -456,19 +427,18 @@ export async function chatWithTools(
       }),
     );
 
-    // Add tool results as user turn
     apiMessages = [...apiMessages, { role: 'user', content: toolResults }];
   }
 
   const mode = useThinking ? 'thinking' : 'normal';
-  return { 
-    text: finalText || 'Désolé, erreur interne.', 
-    inputTokens, 
-    outputTokens, 
-    cacheReadTokens, 
-    cacheWriteTokens, 
-    thinkingTokens, 
-    stopReason: 'end_turn', 
+  return {
+    text: finalText || 'Désolé, erreur interne.',
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    thinkingTokens,
+    stopReason: 'end_turn',
     mode,
     citations: allCitations.length > 0 ? allCitations : undefined,
   };
@@ -476,14 +446,14 @@ export async function chatWithTools(
 
 // ── Simple chat (no tools) ────────────────────────────────────
 export async function chat(
-  messages:   Message[],
+  messages:     Message[],
   systemExtra?: string,
 ): Promise<ClaudeResponse> {
   const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
   if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
   const response = await client.messages.create({
-    model:      'claude-haiku-4-5',
+    model:      'claude-haiku-4-5-20251001',
     max_tokens: 1024,
     system:     systemBlocks,
     messages,
@@ -511,13 +481,13 @@ export async function chatStream(
   const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
   if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
-  let fullText    = '';
-  let inputTokens = 0;
+  let fullText     = '';
+  let inputTokens  = 0;
   let outputTokens = 0;
-  let stopReason  = 'end_turn';
+  let stopReason   = 'end_turn';
 
   const stream = client.messages.stream({
-    model:      'claude-haiku-4-5',
+    model:      'claude-haiku-4-5-20251001',
     max_tokens: 1024,
     system:     systemBlocks,
     messages,
@@ -578,7 +548,7 @@ Retourne UNIQUEMENT un JSON valide:
 }`;
 
   const response = await client.messages.create({
-    model:      'claude-haiku-4-5',
+    model:      'claude-haiku-4-5-20251001',
     max_tokens: 256,
     messages:   [{ role: 'user', content: prompt }],
   });
