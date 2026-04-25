@@ -23,15 +23,6 @@ const CAPTION: Record<JarvisState, string> = {
   speak:  'JE PARLE',
 };
 
-const ORB_ICON: Record<JarvisState, string> = {
-  idle:   '◈',
-  listen: '◉',
-  think:  '⟳',
-  speak:  '◈',
-};
-
-const WAVE_N = 18;
-
 // ── Speech Recognition types ──────────────────
 interface SREvent { results: { [k: number]: { [k: number]: { transcript: string } } } }
 interface SRL {
@@ -42,14 +33,196 @@ interface SRL {
   start(): void; stop(): void;
 }
 
+// ── Neural Brain Canvas ───────────────────────
+interface Particle {
+  x: number; y: number; z: number;
+  vx: number; vy: number; vz: number;
+  size: number; opacity: number;
+}
+
+function BrainCanvas({ state }: { state: JarvisState }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particlesRef = useRef<Particle[]>([]);
+  const animRef = useRef<number>(0);
+  const rotationRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const W = canvas.width = canvas.offsetWidth;
+    const H = canvas.height = canvas.offsetHeight;
+    const CX = W / 2;
+    const CY = H / 2;
+    const R = Math.min(W, H) * 0.38;
+
+    // Generate brain-shaped particles using spherical coordinates with noise
+    const N = 320;
+    const particles: Particle[] = [];
+    for (let i = 0; i < N; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi   = Math.acos(2 * Math.random() - 1);
+      // Brain deformation: flatten top, add lobes
+      const lobeNoise = 1 + 0.18 * Math.sin(theta * 2) * Math.sin(phi * 2);
+      const r = R * lobeNoise * (0.7 + Math.random() * 0.3);
+      particles.push({
+        x: r * Math.sin(phi) * Math.cos(theta),
+        y: r * Math.cos(phi) * 0.85, // flatten vertically
+        z: r * Math.sin(phi) * Math.sin(theta),
+        vx: (Math.random() - 0.5) * 0.003,
+        vy: (Math.random() - 0.5) * 0.003,
+        vz: (Math.random() - 0.5) * 0.003,
+        size: 1.5 + Math.random() * 2,
+        opacity: 0.4 + Math.random() * 0.6,
+      });
+    }
+    particlesRef.current = particles;
+
+    const getColor = (s: JarvisState) => {
+      if (s === 'listen') return { r: 100, g: 220, b: 100 };
+      if (s === 'think')  return { r: 30,  g: 200, b: 255 };
+      if (s === 'speak')  return { r: 201, g: 162, b: 39  };
+      return { r: 0, g: 220, b: 255 };
+    };
+
+    let currentState = state;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+
+      rotationRef.current += 0.003;
+      const rot = rotationRef.current;
+      const cosR = Math.cos(rot);
+      const sinR = Math.sin(rot);
+
+      const col = getColor(currentState);
+      const pts: Array<{ sx: number; sy: number; depth: number; p: Particle }> = [];
+
+      // Project 3D → 2D with Y-axis rotation
+      for (const p of particlesRef.current) {
+        const x3 = p.x * cosR - p.z * sinR;
+        const z3 = p.x * sinR + p.z * cosR;
+        const depth = (z3 + R) / (2 * R); // 0..1
+        const scale = 0.6 + depth * 0.4;
+        pts.push({
+          sx: CX + x3 * scale,
+          sy: CY + p.y * scale,
+          depth,
+          p,
+        });
+      }
+
+      // Sort by depth (back to front)
+      pts.sort((a, b) => a.depth - b.depth);
+
+      // Draw connections
+      const maxDist = 72;
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dx = pts[i].sx - pts[j].sx;
+          const dy = pts[i].sy - pts[j].sy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < maxDist) {
+            const alpha = (1 - dist / maxDist) * 0.35 * pts[i].depth * pts[j].depth;
+            ctx.beginPath();
+            ctx.moveTo(pts[i].sx, pts[i].sy);
+            ctx.lineTo(pts[j].sx, pts[j].sy);
+            ctx.strokeStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw particles
+      for (const { sx, sy, depth, p } of pts) {
+        const alpha = p.opacity * (0.4 + depth * 0.6);
+        const size  = p.size * (0.5 + depth * 0.7);
+        // Glow
+        const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, size * 4);
+        grad.addColorStop(0, `rgba(${col.r},${col.g},${col.b},${alpha})`);
+        grad.addColorStop(1, `rgba(${col.r},${col.g},${col.b},0)`);
+        ctx.beginPath();
+        ctx.arc(sx, sy, size * 4, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+        // Core dot
+        ctx.beginPath();
+        ctx.arc(sx, sy, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
+        ctx.fill();
+      }
+
+      // Central starburst
+      const flareAlpha = currentState === 'speak' ? 0.9 : currentState === 'listen' ? 0.7 : 0.6;
+      const flareGrad = ctx.createRadialGradient(CX, CY, 0, CX, CY, 40);
+      flareGrad.addColorStop(0,    `rgba(255,255,255,${flareAlpha})`);
+      flareGrad.addColorStop(0.15, `rgba(${col.r},${col.g},${col.b},${flareAlpha * 0.8})`);
+      flareGrad.addColorStop(1,    'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(CX, CY, 40, 0, Math.PI * 2);
+      ctx.fillStyle = flareGrad;
+      ctx.fill();
+
+      // Star rays
+      const rays = 8;
+      const rayLen = currentState === 'speak' ? 55 : 40;
+      ctx.save();
+      ctx.translate(CX, CY);
+      ctx.rotate(rotationRef.current * 0.5);
+      for (let r = 0; r < rays; r++) {
+        const angle = (r / rays) * Math.PI * 2;
+        const grad2 = ctx.createLinearGradient(0, 0, Math.cos(angle) * rayLen, Math.sin(angle) * rayLen);
+        grad2.addColorStop(0, `rgba(255,255,255,${flareAlpha * 0.7})`);
+        grad2.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(angle) * rayLen, Math.sin(angle) * rayLen);
+        ctx.strokeStyle = grad2;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      animRef.current = requestAnimationFrame(draw);
+    };
+
+    // Allow state updates inside the animation loop
+    (canvasRef.current as HTMLCanvasElement & { _setState?: (s: JarvisState) => void })._setState = (s: JarvisState) => {
+      currentState = s;
+    };
+
+    draw();
+    return () => cancelAnimationFrame(animRef.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update color when state changes
+  useEffect(() => {
+    const c = canvasRef.current as (HTMLCanvasElement & { _setState?: (s: JarvisState) => void }) | null;
+    c?._setState?.(state);
+  }, [state]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="brain-canvas"
+      style={{ width: '100%', height: '100%' }}
+    />
+  );
+}
+
+const WAVE_N = 18;
+
 export default function ChatInterface() {
-  const [state,       setState]       = useState<JarvisState>('idle');
+  const [state,        setState]       = useState<JarvisState>('idle');
   const [responseText, setResponseText] = useState('');
-  const [showResponse,  setShowResponse]  = useState(false);
-  const [utcTime,      setUtcTime]      = useState('--:--:--');
-  const [errorMsg,     setErrorMsg]     = useState('');
-  const [errorVisible, setErrorVisible] = useState(false);
-  const [started,      setStarted]      = useState(false); // requires tap to unlock iOS mic
+  const [showResponse, setShowResponse] = useState(false);
+  const [utcTime,      setUtcTime]     = useState('--:--:--');
+  const [errorMsg,     setErrorMsg]    = useState('');
+  const [errorVisible, setErrorVisible]= useState(false);
+  const [started,      setStarted]     = useState(false);
 
   const stateRef   = useRef<JarvisState>('idle');
   const sending    = useRef(false);
@@ -59,20 +232,17 @@ export default function ChatInterface() {
   const audioFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const elevenlabsReceivedRef = useRef(false);
 
-  // ── Error display ────────────────────────────
   const showError = useCallback((msg: string) => {
     setErrorMsg(msg);
     setErrorVisible(true);
     setTimeout(() => setErrorVisible(false), 3000);
   }, []);
 
-  // ── State machine ────────────────────────────
   const applyState = useCallback((s: JarvisState) => {
     stateRef.current = s;
     setState(s);
   }, []);
 
-  // ── Send text to Ibrahim ─────────────────────
   const sendText = useCallback(async (msg: string) => {
     if (!msg.trim() || sending.current) return;
     sending.current = true;
@@ -80,12 +250,8 @@ export default function ChatInterface() {
     applyState('think');
     setShowResponse(false);
     elevenlabsReceivedRef.current = false;
-
     try {
       await api.chat(msg, sessionId, false);
-      // Backend returns 202 immediately — result arrives via socket:
-      // ibrahim:text_complete → text display + audio flush
-      // ibrahim:audio_chunk   → ElevenLabs streaming audio
     } catch {
       showError('Erreur de connexion');
       applyState('idle');
@@ -94,14 +260,11 @@ export default function ChatInterface() {
     }
   }, [sessionId, applyState, showError]);
 
-  // ── Start speech recognition ─────────────────
   const startListening = useCallback(() => {
     if (stateRef.current === 'listen') return;
-
     stopAudio();
     window.speechSynthesis?.cancel();
     if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-
     applyState('listen');
     unlockAudio();
 
@@ -110,105 +273,56 @@ export default function ChatInterface() {
       SpeechRecognition?: new () => SRL;
     };
     const SR = w.webkitSpeechRecognition ?? w.SpeechRecognition;
-
-    if (!SR) {
-      showError('Micro non supporté sur ce navigateur');
-      applyState('idle');
-      return;
-    }
+    if (!SR) { showError('Micro non supporté sur ce navigateur'); applyState('idle'); return; }
 
     try {
       const rec = new SR();
-      rec.lang             = 'fr-FR';
-      rec.interimResults   = false;
-      rec.maxAlternatives  = 1;
-      rec.continuous       = false;
-      recRef.current       = rec;
-
+      rec.lang = 'fr-FR'; rec.interimResults = false; rec.maxAlternatives = 1; rec.continuous = false;
+      recRef.current = rec;
       rec.onresult = (e: SREvent) => {
         const transcript = e.results[0]?.[0]?.transcript ?? '';
         recRef.current = null;
-        if (transcript.trim()) {
-          void sendText(transcript.trim());
-        } else {
-          applyState('idle');
-          scheduleNextListen();
-        }
+        if (transcript.trim()) { void sendText(transcript.trim()); }
+        else { applyState('idle'); scheduleNextListen(); }
       };
-
-      rec.onerror = () => {
-        recRef.current = null;
-        applyState('idle');
-        scheduleNextListen();
-      };
-
-      rec.onend = () => {
-        if (stateRef.current === 'listen') {
-          applyState('idle');
-          scheduleNextListen();
-        }
-      };
-
+      rec.onerror = () => { recRef.current = null; applyState('idle'); scheduleNextListen(); };
+      rec.onend   = () => { if (stateRef.current === 'listen') { applyState('idle'); scheduleNextListen(); } };
       rec.start();
-    } catch {
-      applyState('idle');
-      scheduleNextListen();
-    }
+    } catch { applyState('idle'); scheduleNextListen(); }
   }, [applyState, sendText, showError]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Auto-relisten after Ibrahim finishes speaking ──
   const scheduleNextListen = useCallback(() => {
     if (!loopActive.current) return;
-    setTimeout(() => {
-      if (loopActive.current && stateRef.current === 'idle') {
-        startListening();
-      }
-    }, 1200);
+    setTimeout(() => { if (loopActive.current && stateRef.current === 'idle') startListening(); }, 1200);
   }, [startListening]);
 
-  // ── Socket events ────────────────────────────
   useEffect(() => {
     const socket = connectSocket(sessionId, {
       onStatus: (s) => {
         if (s === 'thinking') { setResponseText(''); setShowResponse(false); }
-        // Don't go idle while audio is still playing
         if (s === 'idle' && (isAudioPlaying() || window.speechSynthesis?.speaking)) return;
         applyState(toJarvis(s));
       },
       onAudio: (b64) => {
         elevenlabsReceivedRef.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        window.speechSynthesis?.cancel();
-        clearAudioQueue();
-        playBase64Audio(b64);
-        applyState('speak');
+        window.speechSynthesis?.cancel(); clearAudioQueue(); playBase64Audio(b64); applyState('speak');
       },
       onAudioChunk: (b64) => {
         elevenlabsReceivedRef.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        window.speechSynthesis?.cancel();
-        enqueueAudioChunk(b64);
-        applyState('speak');
+        window.speechSynthesis?.cancel(); enqueueAudioChunk(b64); applyState('speak');
       },
-      onTextChunk: (chunk) => {
-        setResponseText(prev => prev + chunk);
-        setShowResponse(true);
-      },
+      onTextChunk: (chunk) => { setResponseText(prev => prev + chunk); setShowResponse(true); },
       onTextComplete: (text) => {
-        setResponseText(text);
-        setShowResponse(true);
-        void flushAudioChunks();
+        setResponseText(text); setShowResponse(true); void flushAudioChunks();
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        // iOS TTS fallback only if ElevenLabs sent zero audio (API failure)
         if (!elevenlabsReceivedRef.current) {
           audioFallbackTimer.current = setTimeout(() => {
             audioFallbackTimer.current = null;
             if (!isAudioPlaying()) {
               applyState('speak');
-              iosFallbackSpeak(text, () => {
-                applyState('idle');
-                scheduleNextListen();
-              });
+              iosFallbackSpeak(text, () => { applyState('idle'); scheduleNextListen(); });
             }
           }, 1500);
         }
@@ -216,63 +330,38 @@ export default function ChatInterface() {
       },
       onResponse: (_text, _fallback) => {},
       onValidation: () => {
-        // Validation request sent — Ibrahim already said so via audio. Resume listening after 3s.
-        setTimeout(() => {
-          if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
-        }, 3000);
+        setTimeout(() => { if (loopActive.current) { applyState('idle'); scheduleNextListen(); } }, 3000);
       },
       onTaskUpdate: () => {},
     });
 
-    // When ElevenLabs audio finishes playing → go idle and relisten
     const onAudioEnded = () => {
       if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-      if (loopActive.current) {
-        applyState('idle');
-        scheduleNextListen();
-      }
+      if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
     };
     window.addEventListener('ibrahim:audioEnded', onAudioEnded);
-
-    return () => {
-      socket.disconnect();
-      window.removeEventListener('ibrahim:audioEnded', onAudioEnded);
-    };
+    return () => { socket.disconnect(); window.removeEventListener('ibrahim:audioEnded', onAudioEnded); };
   }, [sessionId, applyState, scheduleNextListen]);
 
-  // ── Tap orb to start (required for iOS mic unlock) ──────────
   const handleOrbTap = useCallback(() => {
     if (started) {
-      // Already running — tap stops/restarts listening
-      if (stateRef.current === 'listen') {
-        recRef.current?.stop();
-        applyState('idle');
-      } else if (stateRef.current === 'idle') {
-        startListening();
-      }
+      if (stateRef.current === 'listen') { recRef.current?.stop(); applyState('idle'); }
+      else if (stateRef.current === 'idle') { startListening(); }
       return;
     }
-    // First tap: unlock audio + speak local greeting + start loop
     setStarted(true);
     loopActive.current = true;
     unlockAudio();
-
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Bonjour Kouider' : hour < 18 ? 'Bon après-midi Kouider' : 'Bonsoir Kouider';
     const greetText = `${greeting}, Ibrahim est prêt. Je vous écoute.`;
-
     applyState('speak');
     setResponseText(greetText);
     setShowResponse(true);
     iosFallbackSpeak(greetText);
-
-    setTimeout(() => {
-      applyState('idle');
-      scheduleNextListen();
-    }, Math.max(2500, greetText.length * 65));
+    setTimeout(() => { applyState('idle'); scheduleNextListen(); }, Math.max(2500, greetText.length * 65));
   }, [started, applyState, startListening, scheduleNextListen]);
 
-  // ── Cleanup on unmount ────────────────────────
   useEffect(() => {
     return () => {
       loopActive.current = false;
@@ -281,19 +370,15 @@ export default function ChatInterface() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── After Ibrahim finishes speaking → relisten (only when started) ──
   useEffect(() => {
     if (state === 'idle' && loopActive.current && started) {
       const t = setTimeout(() => {
-        if (stateRef.current === 'idle' && loopActive.current) {
-          startListening();
-        }
+        if (stateRef.current === 'idle' && loopActive.current) startListening();
       }, 1500);
       return () => clearTimeout(t);
     }
   }, [state, startListening, started]);
 
-  // ── Clock ────────────────────────────────────
   useEffect(() => {
     const tick = () => {
       const d = new Date();
@@ -306,10 +391,15 @@ export default function ChatInterface() {
 
   return (
     <div className="jarvis" data-state={state}>
+      {/* Ambient background */}
       <div className="jarvis-bg" />
-      <div className="jarvis-scanlines" />
 
-      {/* Corners */}
+      {/* Neural Brain Canvas — full screen */}
+      <div className="brain-wrapper">
+        <BrainCanvas state={state} />
+      </div>
+
+      {/* Corner accents */}
       <div className="corner tl" />
       <div className="corner tr" />
       <div className="corner bl" />
@@ -327,32 +417,18 @@ export default function ChatInterface() {
         </div>
       </header>
 
-      {/* Orb */}
+      {/* Tap zone — centered over brain */}
       <div className="jarvis-center">
-        {/* Electric ring (thinking) */}
-        <div className="electric-ring" />
-
-        {/* Wave rings (speaking) */}
-        <div className="wave-ring" />
-        <div className="wave-ring" />
-        <div className="wave-ring" />
-        <div className="wave-ring" />
-
-        {/* Listen rings */}
-        <div className="listen-ring" />
-        <div className="listen-ring" />
-        <div className="listen-ring" />
-
-        {/* Main orb — tap to start / toggle */}
-        <div className="orb" onClick={handleOrbTap} style={{ cursor: 'pointer' }}>
-          <div className="orb-inner">
-            <span className="orb-symbol">{started ? ORB_ICON[state] : '▶'}</span>
-          </div>
+        <div className="orb-tap" onClick={handleOrbTap}>
+          {!started && (
+            <div className="start-hint">
+              <span className="start-icon">▶</span>
+              <span className="start-label">APPUYER POUR DÉMARRER</span>
+            </div>
+          )}
         </div>
-
-        {/* Caption */}
         <div className="jarvis-caption">
-          <div className="jarvis-caption-text">{started ? CAPTION[state] : 'APPUYER POUR DÉMARRER'}</div>
+          <div className="jarvis-caption-text">{started ? CAPTION[state] : ''}</div>
         </div>
       </div>
 
@@ -383,8 +459,8 @@ export default function ChatInterface() {
         </div>
 
         <div className="jarvis-readout" style={{ alignItems: 'flex-end' }}>
-          <div className="readout-line">MODE · <span>JARVIS</span></div>
-          <div className="readout-line">VER · <span>2.0</span></div>
+          <div className="readout-line">MODE · <span>NEURAL</span></div>
+          <div className="readout-line">VER · <span>3.0</span></div>
           <div className="readout-line">SYS · <span>ACTIF</span></div>
         </div>
       </footer>
