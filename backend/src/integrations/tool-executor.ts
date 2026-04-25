@@ -82,6 +82,9 @@ export async function executeTool(
       case 'check_car_availability':     return await checkCarAvailability(input);
       // ─── GitHub search ───
       case 'github_search_code':         return await githubSearchCode(input);
+      // ─── Web / Internet ───
+      case 'web_search':                 return await webSearch(input);
+      case 'fetch_url':                  return await fetchUrl(input);
       // ─── PHASE 14 — Image & Vidéo ───
       case 'analyze_image':
       case 'optimize_image':
@@ -499,4 +502,36 @@ async function githubSearchCode(input: Record<string, unknown>): Promise<string>
   const query = input['query'] as string;
   if (!query) return 'Query requise';
   return searchCode(repo, query);
+}
+
+async function webSearch(input: Record<string, unknown>): Promise<string> {
+  const query = input['query'] as string;
+  if (!query) return 'Query requise';
+  try {
+    const encoded = encodeURIComponent(query);
+    const { data } = await axios.get(`https://s.jina.ai/${encoded}`, {
+      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      timeout: 15_000,
+    });
+    const text = typeof data === 'string' ? data : JSON.stringify(data);
+    return text.slice(0, 4000) || 'Aucun résultat trouvé.';
+  } catch (err) {
+    return `Erreur recherche web: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function fetchUrl(input: Record<string, unknown>): Promise<string> {
+  const url = input['url'] as string;
+  if (!url) return 'URL requise';
+  try {
+    const encoded = encodeURIComponent(url);
+    const { data } = await axios.get(`https://r.jina.ai/${encoded}`, {
+      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      timeout: 20_000,
+    });
+    const text = typeof data === 'string' ? data : JSON.stringify(data);
+    return text.slice(0, 6000) || 'Page vide ou inaccessible.';
+  } catch (err) {
+    return `Erreur fetch URL: ${err instanceof Error ? err.message : String(err)}`;
+  }
 }

@@ -601,4 +601,26 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       required: ['start_date', 'end_date'],
     },
   },
+  {
+    name: 'web_search',
+    description: 'Rechercher sur internet: actualités mondiales, technologie, Claude/Anthropic nouveautés, prix, informations générales. Retourne les résultats les plus pertinents.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Requête de recherche (ex: "Anthropic Claude nouveautés 2025", "actualités Bruxelles aujourd\'hui")' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'fetch_url',
+    description: 'Lire le contenu de n\'importe quelle page web ou document en ligne: docs Anthropic, GitHub, articles, pages officielles. Idéal pour consulter https://docs.anthropic.com, https://github.com/anthropics, ou toute URL publique.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        url: { type: 'string', description: 'URL complète à lire (ex: https://docs.anthropic.com/en/release-notes/overview)' },
+      },
+      required: ['url'],
+    },
+  },
 ];
