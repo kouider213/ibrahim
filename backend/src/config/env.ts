@@ -28,6 +28,7 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN:    z.string().optional(),
   TWILIO_WHATSAPP_FROM:          z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON:   z.string().optional(),
+  PEXELS_API_KEY:       z.string().optional(),
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_URL:          z.string().url().default('http://localhost:3000'),
