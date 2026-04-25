@@ -5,6 +5,7 @@ import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, search
 import { learnRule } from './claude-api.js';
 import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
+import { sendMessage as sendTelegramMessage } from './telegram.js';
 import { env } from '../config/env.js';
 import {
   getPaymentStatus,
@@ -84,6 +85,8 @@ export async function executeTool(
       case 'github_search_code':         return await githubSearchCode(input);
       // ─── Documents client ───
       case 'get_client_document':        return await getClientDocument(input);
+      // ─── Notification Kouider ───
+      case 'send_to_kouider':            return await sendToKouider(input);
       // ─── Web / Internet ───
       case 'web_search':                 return await webSearch(input);
       case 'fetch_url':                  return await fetchUrl(input);
@@ -567,5 +570,23 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
     return text.slice(0, 6000) || 'Page vide ou inaccessible.';
   } catch (err) {
     return `Erreur fetch URL: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function sendToKouider(input: Record<string, unknown>): Promise<string> {
+  const message = input['message'] as string;
+  if (!message) return '❌ message requis';
+
+  const allowed = process.env['TELEGRAM_ALLOWED_CHATS'] ?? '';
+  if (!allowed) return '❌ TELEGRAM_ALLOWED_CHATS non configuré — impossible d\'envoyer à Kouider.';
+
+  const chatId = allowed.split(',')[0]?.trim();
+  if (!chatId) return '❌ Aucun chat ID Telegram configuré.';
+
+  try {
+    await sendTelegramMessage(chatId, message);
+    return `✅ Message envoyé à Kouider sur Telegram (chat: ${chatId})`;
+  } catch (err) {
+    return `❌ Erreur envoi Telegram: ${err instanceof Error ? err.message : String(err)}`;
   }
 }

@@ -57,13 +57,17 @@ function isFastModeEligible(messages: Message[]): boolean {
 
   // Questions très courtes (< 30 caractères) sans complexité
   if (text.length < 30) {
-    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve/i.test(text);
+    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|recherche|envoie|envoi|whatsapp/i.test(text);
     if (!needsAction) return true;
   }
 
   // Réponses simples: oui, non, ok, parfait, merci, etc.
   const simplePatterns = /^(oui|non|ok|d'accord|parfait|merci|cool|super|nice|bien|compris|test|rien|salut|hello|bonjour|bonsoir|ciao|bye|wesh|salam|cv|ca va|ça va|\?|yo|ouais|nope|nan|quoi de neuf|quoi de 9|je t'écoute|alors)$/i;
   if (simplePatterns.test(text)) return true;
+
+  // Ne jamais passer en fast mode si une recherche ou envoi est demandé
+  const needsTool = /recherche|cherche.*(moi|un|une|des|le|la)|trouve.*(moi|un|une|des)|envoie|envoi|whatsapp|web_search|fetch/i.test(text);
+  if (needsTool) return false;
 
   return false;
 }
@@ -136,16 +140,13 @@ function needsWebSearch(messages: Message[]): boolean {
   const content = lastUser.content;
   const text = (typeof content === 'string' ? content : '').toLowerCase();
 
-  const webSearchPatterns = /actualités?|news|dernières nouvelles|récent|aujourd'hui|cette semaine|ce mois|anthropic|claude.*nouveau|openai|gpt|prix.*actuel|cours|bourse|événement|match|score|météo.*monde|température.*à|qui a gagné|résultat|élection/i;
+  const webSearchPatterns = /actualités?|news|dernières nouvelles|récent|aujourd'hui|cette semaine|ce mois|anthropic|claude.*nouveau|openai|gpt|prix.*actuel|cours|bourse|événement|match|score|météo.*monde|température.*à|qui a gagné|résultat|élection|recherche.*(voiture|auto|moto|vélo|appartement|maison|produit|article|clio|golf|polo|bmw|mercedes|renault|peugeot|dacia|toyota|honda|ford|fiat|opel|audi|vw|volkswagen)|cherche.*(moi|un|une|des|le|la).*?(voiture|auto|moto|véhicule|article|produit|model|marque)|trouve.*(moi|un|une|des)|c'est quoi.*prix|quel est le prix|combien coûte|compare|comparaison|meilleur.*prix/i;
 
   return webSearchPatterns.test(text);
 }
 
-// Server tool web_search natif Anthropic
-const ANTHROPIC_WEB_SEARCH_TOOL: Anthropic.Tool = {
-  type: 'web_search_20250305' as any,
-  name: 'web_search',
-} as any;
+// Note: web_search natif Anthropic retiré — conflict avec l'outil custom Jina.
+// Le custom web_search est toujours disponible dans IBRAHIM_TOOLS.
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────
 function extractCitations(content: Anthropic.ContentBlock[]): CitationInfo[] {
@@ -240,9 +241,8 @@ export async function chatWithTools(
   // ══════════════════════════════════════════════════════════════════════════
   const useWebSearch = needsWebSearch(processedMessages);
 
-  const tools: Anthropic.Tool[] = useWebSearch
-    ? [...IBRAHIM_TOOLS, ANTHROPIC_WEB_SEARCH_TOOL]
-    : IBRAHIM_TOOLS;
+  // Toujours utiliser IBRAHIM_TOOLS (web_search custom Jina déjà inclus)
+  const tools: Anthropic.Tool[] = IBRAHIM_TOOLS;
 
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,
@@ -400,15 +400,6 @@ export async function chatWithTools(
 
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (block) => {
-        if (block.name === 'web_search') {
-          console.log(`[tools] Server tool web_search exécuté par Anthropic`);
-          return {
-            type:        'tool_result' as const,
-            tool_use_id: block.id,
-            content:     'Recherche web effectuée par le serveur Anthropic.',
-          };
-        }
-
         console.log(`[tools] Executing: ${block.name}`, block.input);
         const raw     = await executeTool(block.name, block.input as Record<string, unknown>, sid);
         const content = typeof raw === 'string' ? raw : JSON.stringify(raw);

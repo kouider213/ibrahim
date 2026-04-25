@@ -42,6 +42,7 @@ const TOOL_LABELS: Record<string, string> = {
   railway_get_logs:     '📋 Récupération logs Railway…',
   supabase_execute:     '🗄️ Requête base de données…',
   send_whatsapp_to_client: '📱 Envoi WhatsApp…',
+  send_to_kouider:        '📨 Envoi message à Kouider…',
   store_document:       '📄 Stockage document…',
   get_client_document:  '📄 Récupération document…',
   get_payment_status:   '💳 Vérification paiements…',

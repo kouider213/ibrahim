@@ -615,8 +615,19 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'send_to_kouider',
+    description: 'Envoyer un message à Kouider sur Telegram. Utiliser quand Kouider dit "envoie-le moi", "envoie sur Telegram", "dis-moi le résultat", ou quand Ibrahim veut notifier proactivement Kouider d\'un résultat de recherche, d\'une tâche terminée ou d\'une information importante.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        message: { type: 'string', description: 'Le message complet à envoyer à Kouider (Markdown accepté — inclure le résultat complet de la recherche ou de la tâche)' },
+      },
+      required: ['message'],
+    },
+  },
+  {
     name: 'web_search',
-    description: 'Rechercher sur internet: actualités mondiales, technologie, Claude/Anthropic nouveautés, prix, informations générales. Retourne les résultats les plus pertinents.',
+    description: 'Rechercher sur internet: actualités mondiales, technologie, Claude/Anthropic nouveautés, prix, informations générales, voitures, produits, etc. Retourne les résultats les plus pertinents. TOUJOURS utiliser quand Kouider demande de "chercher" ou "faire une recherche".',
     input_schema: {
       type: 'object' as const,
       properties: {

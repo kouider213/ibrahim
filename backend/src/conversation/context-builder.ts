@@ -53,14 +53,15 @@ export async function buildContext(
   const needsNews     = /actualit|news|journal|presse|info/i.test(userMessage);
   const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
-  const needsMemory   = /souviens|rappelle|mémoire|mémoris|retiens|n'oublie|remember/i.test(userMessage);
+  // Mémoire TOUJOURS chargée — Ibrahim ne doit jamais oublier ce qu'il a fait ou mémorisé
+  const needsMemory   = true;
 
   const now = new Date();
 
   // Chargement parallèle — seulement ce dont on a besoin
   const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages] = await Promise.all([
-    // HISTORIQUE: seulement 6 derniers messages (pas 15)
-    getConversationHistory(sessionId, 6).catch(() => []),
+    // HISTORIQUE: 15 derniers messages pour ne pas oublier les actions récentes
+    getConversationHistory(sessionId, 15).catch(() => []),
     getCachedRules(),
     getCachedFleet(),
     getCachedBookings(),
@@ -68,7 +69,8 @@ export async function buildContext(
     needsNews     ? getAlgeriaNews(4).catch(() => [])                                            : Promise.resolve([]),
     needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
     needsFinance  ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
-    needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then((r: any) => r.data ?? []) : Promise.resolve([]),
+    // Mémoire TOUJOURS chargée (30 entrées) — inclut les actions récentes d'Ibrahim
+    supabase.from('ibrahim_memory').select('content, category, created_at').order('created_at', { ascending: false }).limit(30).then((r: any) => r.data ?? []),
     getRecentUserMessages(40).catch(() => [] as string[]),
   ]);
 
@@ -146,7 +148,7 @@ export async function buildContext(
     : '';
 
   const memoriesText = memories.length > 0
-    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
+    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes + actions récentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}${m.created_at ? ` (le ${m.created_at.slice(0, 10)})` : ''}`).join('\n')}`
     : '';
 
   // Style mirror — Ibrahim voit comment Kouider écrit et adapte ses réponses
