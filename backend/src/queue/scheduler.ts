@@ -12,6 +12,7 @@ import {
   jobWhatsAppBookingConfirmations,
   jobWhatsApp24hReminders,
   jobWhatsAppReturnReminders,
+  jobAnthropicWatch,
 } from './jobs/proactive-jobs.js';
 
 const SCHEDULER_QUEUE = 'ibrahim-scheduler';
@@ -75,6 +76,11 @@ const JOBS = [
     cron:  '0 9 * * *',        // 9h chaque jour — rappel retour aujourd'hui
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'anthropic-watch',
+    cron:  '0 10 * * 0',       // 10h chaque dimanche — veille nouveautés Anthropic
+    tz:    'Europe/Brussels',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -89,6 +95,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'wa-booking-confirmations': jobWhatsAppBookingConfirmations,
   'wa-24h-reminders':         jobWhatsApp24hReminders,
   'wa-return-reminders':      jobWhatsAppReturnReminders,
+  'anthropic-watch':          jobAnthropicWatch,
 };
 
 export async function initScheduler(): Promise<void> {

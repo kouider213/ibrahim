@@ -6,6 +6,8 @@ import { getFinancialReport } from '../../integrations/finance.js';
 import { listUpcomingEvents } from '../../integrations/google-calendar.js';
 import { getOranWeather } from '../../integrations/web-search.js';
 import { sendWhatsApp, detectLanguage } from '../../integrations/whatsapp.js';
+import { chat } from '../../integrations/claude-api.js';
+import axios from 'axios';
 
 function ownerChatId(): string {
   return process.env['TELEGRAM_CHAT_ID'] ?? '809747124';
@@ -634,5 +636,47 @@ export async function jobWhatsAppReturnReminders(_job: Job): Promise<void> {
     const msg = `Bonjour ${b.client_name},\nRappel : la restitution de ${carName} est prévue aujourd'hui.\nMerci pour votre confiance — nous espérons que vous avez apprécié votre location ! 🙏`;
     await sendWhatsApp(phone, msg);
     console.log(`[job:wa-return] Reminder sent to ${phone}`);
+  }
+}
+
+// ── Veille Anthropic — chaque dimanche 10h ────────────────────
+export async function jobAnthropicWatch(_job: Job): Promise<void> {
+  try {
+    // Fetch release notes + SDK changelog via Jina.ai
+    const [releaseNotes, sdkChangelog] = await Promise.all([
+      axios.get('https://r.jina.ai/https://docs.anthropic.com/en/release-notes/overview', {
+        headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+        timeout: 20_000,
+      }).then((r: { data: unknown }) => (typeof r.data === 'string' ? r.data : JSON.stringify(r.data)).slice(0, 3000)),
+      axios.get('https://r.jina.ai/https://github.com/anthropics/anthropic-sdk-node/blob/main/CHANGELOG.md', {
+        headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+        timeout: 20_000,
+      }).then((r: { data: unknown }) => (typeof r.data === 'string' ? r.data : JSON.stringify(r.data)).slice(0, 2000)),
+    ]);
+
+    const analysis = await chat([{
+      role: 'user',
+      content: `Tu es Ibrahim, assistant IA de Fik Conciergerie Oran.
+Analyse ces nouveautés Anthropic/Claude et identifie ce qui peut CONCRÈTEMENT améliorer tes capacités.
+
+RELEASE NOTES ANTHROPIC:
+${releaseNotes}
+
+SDK CHANGELOG:
+${sdkChangelog}
+
+Réponds en français, format court:
+1. Liste les 2-3 nouveautés les plus utiles pour toi (nouveau modèle, nouvelle fonctionnalité API, amélioration)
+2. Pour chacune: ce que ça changerait concrètement pour Kouider
+3. Effort estimé: Facile/Moyen/Complexe
+
+Si rien de nouveau ou utile: dis-le clairement en une phrase.`,
+    }], undefined);
+
+    const msg = `🤖 *Veille Anthropic hebdomadaire*\n\n${analysis.text}\n\n_Réponds "go" + numéro pour que j'implémente._`;
+    await tg(msg);
+    console.log('[job:anthropic-watch] ✅ Rapport envoyé');
+  } catch (err) {
+    console.error('[job:anthropic-watch] ❌', err instanceof Error ? err.message : String(err));
   }
 }
