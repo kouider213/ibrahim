@@ -509,27 +509,33 @@ async function githubSearchCode(input: Record<string, unknown>): Promise<string>
 async function getClientDocument(input: Record<string, unknown>): Promise<string> {
   let query = supabase
     .from('client_documents')
-    .select('id, client_name, client_phone, type, file_url, notes, created_at')
+    .select('id, client_name, client_phone, type, file_url, storage_path, notes, created_at')
     .order('created_at', { ascending: false })
     .limit(5);
 
-  if (input['client_name']) {
-    query = query.ilike('client_name', `%${input['client_name']}%`);
-  }
-  if (input['client_phone']) {
-    query = query.ilike('client_phone', `%${input['client_phone']}%`);
-  }
-  if (input['type']) {
-    query = query.eq('type', input['type']);
-  }
+  if (input['client_name']) query = query.ilike('client_name', `%${input['client_name']}%`);
+  if (input['client_phone']) query = query.ilike('client_phone', `%${input['client_phone']}%`);
+  if (input['type']) query = query.eq('type', input['type']);
 
   const { data, error } = await query;
   if (error) return `Erreur: ${error.message}`;
   if (!data || data.length === 0) return 'Aucun document trouvé pour ce client.';
 
-  return (data as Array<{ client_name: string; client_phone: string; type: string; file_url: string; notes?: string; created_at: string }>)
-    .map(d => `📄 ${d.client_name} (${d.client_phone}) — ${d.type}\nURL: ${d.file_url}\nDate: ${d.created_at.slice(0, 10)}${d.notes ? `\nNote: ${d.notes}` : ''}`)
-    .join('\n\n');
+  type DocRow = { client_name: string; client_phone: string; type: string; file_url: string; storage_path?: string; notes?: string; created_at: string };
+
+  const results = await Promise.all((data as DocRow[]).map(async d => {
+    let url = d.file_url;
+    // Génère une signed URL (1h) si storage_path disponible — bypass auth bucket
+    if (d.storage_path) {
+      const { data: signed } = await supabase.storage
+        .from('client-documents')
+        .createSignedUrl(d.storage_path, 3600);
+      if (signed?.signedUrl) url = signed.signedUrl;
+    }
+    return `📄 ${d.client_name} (${d.client_phone}) — ${d.type}\nURL: ${url}\nDate: ${d.created_at.slice(0, 10)}${d.notes ? `\nNote: ${d.notes}` : ''}`;
+  }));
+
+  return results.join('\n\n');
 }
 
 async function webSearch(input: Record<string, unknown>): Promise<string> {
