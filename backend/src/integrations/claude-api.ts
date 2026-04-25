@@ -22,6 +22,15 @@ export interface ClaudeResponse {
   thinkingTokens?:   number;
   stopReason:        string;
   mode?:             'fast' | 'normal' | 'thinking';
+  citations?:        CitationInfo[];
+}
+
+// ── Citation info pour traçabilité ────────────────────────────────────────────
+export interface CitationInfo {
+  text:       string;
+  source:     string;
+  startIndex: number;
+  endIndex:   number;
 }
 
 // ── Tool streaming callback ───────────────────────────────────────────────────
@@ -48,12 +57,12 @@ function isFastModeEligible(messages: Message[]): boolean {
   // Questions très courtes (< 30 caractères) sans complexité
   if (text.length < 30) {
     // Exceptions: ne pas utiliser fast mode si c'est une demande d'action
-    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité/i.test(text);
+    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve/i.test(text);
     if (!needsAction) return true;
   }
   
   // Réponses simples: oui, non, ok, parfait, merci, etc.
-  const simplePatterns = /^(oui|non|ok|d'accord|parfait|merci|cool|super|nice|bien|compris|test|rien|salut|hello|bonjour|bonsoir|ciao|bye|wesh|salam|cv|ca va|ça va|\?|yo|ouais|nope|nan|quoi de neuf|quoi de 9|je t'écoute)$/i;
+  const simplePatterns = /^(oui|non|ok|d'accord|parfait|merci|cool|super|nice|bien|compris|test|rien|salut|hello|bonjour|bonsoir|ciao|bye|wesh|salam|cv|ca va|ça va|\?|yo|ouais|nope|nan|quoi de neuf|quoi de 9|je t'écoute|alors)$/i;
   if (simplePatterns.test(text)) return true;
   
   return false;
@@ -105,7 +114,7 @@ function needsCitations(messages: Message[], systemExtra?: string): boolean {
   const text = lastUser.content.toLowerCase();
   
   // Si on fait référence à des documents, sources, ou si le contexte contient beaucoup de données
-  if (/source|document|référence|d'où vient|citation|preuve|selon/i.test(text)) {
+  if (/source|document|référence|d'où vient|citation|preuve|selon|d'après/i.test(text)) {
     return true;
   }
   
@@ -116,6 +125,48 @@ function needsCitations(messages: Message[], systemExtra?: string): boolean {
   }
   
   return false;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FEATURE 4: WEB SEARCH NATIF ANTHROPIC — Server Tool automatique
+// ══════════════════════════════════════════════════════════════════════════════
+function needsWebSearch(messages: Message[]): boolean {
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  if (!lastUser) return false;
+  
+  const text = lastUser.content.toLowerCase();
+  
+  // Patterns indiquant besoin de recherche web
+  const webSearchPatterns = /actualités?|news|dernières nouvelles|récent|aujourd'hui|cette semaine|ce mois|anthropic|claude.*nouveau|openai|gpt|prix.*actuel|cours|bourse|événement|match|score|météo.*monde|température.*à|qui a gagné|résultat|élection/i;
+  
+  return webSearchPatterns.test(text);
+}
+
+// Server tool web_search natif Anthropic
+const ANTHROPIC_WEB_SEARCH_TOOL: Anthropic.Tool = {
+  type: 'web_search_20250305' as any,
+  name: 'web_search',
+  // Pas besoin de input_schema pour les server tools
+} as any;
+
+// ── Extraction des citations depuis la réponse ────────────────────────────────
+function extractCitations(content: Anthropic.ContentBlock[]): CitationInfo[] {
+  const citations: CitationInfo[] = [];
+  
+  for (const block of content) {
+    // Les citations sont dans des blocs spéciaux
+    if ((block as any).type === 'citation') {
+      const citationBlock = block as any;
+      citations.push({
+        text:       citationBlock.cited_text ?? '',
+        source:     citationBlock.source?.title ?? citationBlock.source?.url ?? 'source inconnue',
+        startIndex: citationBlock.start_index ?? 0,
+        endIndex:   citationBlock.end_index ?? 0,
+      });
+    }
+  }
+  
+  return citations;
 }
 
 // ── Tool-use chat (agentic loop) avec Tool Streaming + Compaction ────────────
@@ -187,6 +238,16 @@ export async function chatWithTools(
   // ══════════════════════════════════════════════════════════════════════════
   const useCitations = needsCitations(processedMessages, systemExtra);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // WEB SEARCH NATIF: Ajouter le server tool si nécessaire
+  // ══════════════════════════════════════════════════════════════════════════
+  const useWebSearch = needsWebSearch(processedMessages);
+  
+  // Combiner nos outils custom avec le web_search natif si nécessaire
+  const tools: Anthropic.Tool[] = useWebSearch 
+    ? [...IBRAHIM_TOOLS, ANTHROPIC_WEB_SEARCH_TOOL]
+    : IBRAHIM_TOOLS;
+
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,
     content: m.content,
@@ -198,12 +259,16 @@ export async function chatWithTools(
   let cacheWriteTokens = 0;
   let thinkingTokens   = 0;
   let finalText        = '';
+  let allCitations: CitationInfo[] = [];
 
   if (useThinking) {
     console.log(`[claude] 🧠 ADAPTIVE THINKING: ${complexity.level} (${thinkingBudget} tokens) pour: "${processedMessages[processedMessages.length - 1]?.content?.slice(0, 60)}..."`);
   }
   if (useCitations) {
     console.log('[claude] 📚 CITATIONS: Activé pour cette requête');
+  }
+  if (useWebSearch) {
+    console.log('[claude] 🌐 WEB SEARCH NATIF: Activé pour cette requête');
   }
 
   // Agentic loop — max 15 tool rounds
@@ -215,10 +280,10 @@ export async function chatWithTools(
       try {
         // Paramètres de base
         const createParams: Anthropic.MessageCreateParamsNonStreaming = {
-          model:      'claude-opus-4-5',
+          model:      'claude-sonnet-4-20250514',
           max_tokens: useThinking ? 16000 : 16000,
           system:     systemBlocks,
-          tools:      IBRAHIM_TOOLS,
+          tools:      tools,
           messages:   currentMessages,
         };
 
@@ -230,12 +295,9 @@ export async function chatWithTools(
           };
         }
 
-        // CITATIONS: activer si nécessaire (beta feature)
-        // Note: Citations ne sont supportées qu'avec certains modèles
-        // On le prépare pour quand ce sera disponible sur claude-sonnet-4
+        // CITATIONS: activer si nécessaire
         if (useCitations) {
-          // Pour l'instant on log juste - à activer quand dispo
-          // (createParams as any).citations = { enabled: true };
+          (createParams as any).citations = { enabled: true };
         }
 
         response = await client.messages.create(createParams);
@@ -300,6 +362,13 @@ export async function chatWithTools(
     const textBlocks = response.content.filter(b => b.type === 'text');
     finalText = textBlocks.map(b => (b as Anthropic.TextBlock).text).join('');
 
+    // Extraire les citations si présentes
+    const citations = extractCitations(response.content);
+    if (citations.length > 0) {
+      allCitations = [...allCitations, ...citations];
+      console.log(`[claude-citations] ${citations.length} citation(s) extraite(s)`);
+    }
+
     // Stream text chunks si callback fourni
     if (onTextChunk && finalText) {
       onTextChunk(finalText);
@@ -307,12 +376,32 @@ export async function chatWithTools(
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
       const mode = useThinking ? 'thinking' : 'normal';
-      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason, mode };
+      return { 
+        text: finalText, 
+        inputTokens, 
+        outputTokens, 
+        cacheReadTokens, 
+        cacheWriteTokens, 
+        thinkingTokens, 
+        stopReason: response.stop_reason, 
+        mode,
+        citations: allCitations.length > 0 ? allCitations : undefined,
+      };
     }
 
     if (response.stop_reason !== 'tool_use') {
       const mode = useThinking ? 'thinking' : 'normal';
-      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: response.stop_reason ?? 'end_turn', mode };
+      return { 
+        text: finalText, 
+        inputTokens, 
+        outputTokens, 
+        cacheReadTokens, 
+        cacheWriteTokens, 
+        thinkingTokens, 
+        stopReason: response.stop_reason ?? 'end_turn', 
+        mode,
+        citations: allCitations.length > 0 ? allCitations : undefined,
+      };
     }
 
     // Execute tool calls
@@ -333,6 +422,21 @@ export async function chatWithTools(
     // Execute all tools and collect results
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (block) => {
+        // ══════════════════════════════════════════════════════════════════════
+        // WEB SEARCH NATIF: Les server tools sont exécutés automatiquement par Anthropic
+        // Pas besoin de les exécuter nous-mêmes — le résultat est déjà dans la réponse
+        // ══════════════════════════════════════════════════════════════════════
+        if (block.name === 'web_search') {
+          console.log(`[tools] Server tool web_search exécuté par Anthropic`);
+          // Le server tool est géré automatiquement, on ne retourne pas de résultat
+          // En fait, les server tools ne nécessitent pas de tool_result de notre part
+          return {
+            type:        'tool_result' as const,
+            tool_use_id: block.id,
+            content:     'Recherche web effectuée par le serveur Anthropic.',
+          };
+        }
+
         console.log(`[tools] Executing: ${block.name}`, block.input);
         const raw     = await executeTool(block.name, block.input as Record<string, unknown>, sid);
         const content = typeof raw === 'string' ? raw : JSON.stringify(raw);
@@ -357,7 +461,17 @@ export async function chatWithTools(
   }
 
   const mode = useThinking ? 'thinking' : 'normal';
-  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, thinkingTokens, stopReason: 'end_turn', mode };
+  return { 
+    text: finalText || 'Désolé, erreur interne.', 
+    inputTokens, 
+    outputTokens, 
+    cacheReadTokens, 
+    cacheWriteTokens, 
+    thinkingTokens, 
+    stopReason: 'end_turn', 
+    mode,
+    citations: allCitations.length > 0 ? allCitations : undefined,
+  };
 }
 
 // ── Simple chat (no tools) ────────────────────────────────────
