@@ -52,8 +52,8 @@ export async function chatWithTools(
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         response = await client.messages.create({
-          model:      'claude-sonnet-4-5',
-          max_tokens: 8192,
+          model:      'claude-sonnet-4-6',
+          max_tokens: 16000,
           system,
           tools:      IBRAHIM_TOOLS,
           messages:   currentMessages,
