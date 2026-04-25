@@ -336,26 +336,16 @@ export default function ChatInterface() {
       onAudio: (b64) => {
         elevenlabsReceived.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        window.speechSynthesis?.cancel();
-        clearAudioQueue();
-        playBase64Audio(b64);
-        applyState('speak');
+        window.speechSynthesis?.cancel(); clearAudioQueue(); playBase64Audio(b64); applyState('speak');
       },
       onAudioChunk: (b64) => {
         elevenlabsReceived.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
-        window.speechSynthesis?.cancel();
-        enqueueAudioChunk(b64);
-        applyState('speak');
+        window.speechSynthesis?.cancel(); enqueueAudioChunk(b64); applyState('speak');
       },
-      onTextChunk: (chunk) => {
-        setResponseText(prev => prev + chunk);
-        setShowResponse(true);
-      },
+      onTextChunk: (chunk) => { setResponseText(prev => prev + chunk); setShowResponse(true); },
       onTextComplete: (text) => {
-        setResponseText(text);
-        setShowResponse(true);
-        void flushAudioChunks();
+        setResponseText(text); setShowResponse(true); void flushAudioChunks();
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         if (!elevenlabsReceived.current) {
           audioFallbackTimer.current = setTimeout(() => {
@@ -380,11 +370,7 @@ export default function ChatInterface() {
       if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
     };
     window.addEventListener('ibrahim:audioEnded', onAudioEnded);
-
-    return () => {
-      socket.disconnect();
-      window.removeEventListener('ibrahim:audioEnded', onAudioEnded);
-    };
+    return () => { socket.disconnect(); window.removeEventListener('ibrahim:audioEnded', onAudioEnded); };
   }, [sessionId, applyState, scheduleNextListen]);
 
   // ── Relisten when idle + started ──────────────
