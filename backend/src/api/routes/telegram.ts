@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo,
+  sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo, sendDocument,
   type TelegramUpdate, type TelegramMessage,
 } from '../../integrations/telegram.js';
 import { chatWithTools } from '../../integrations/claude-api.js';
@@ -414,9 +414,12 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
       `✅ ${label}${nameStr}${phoneStr} enregistré dans Supabase.${noteStr}`,
     );
 
-    // Renvoyer la photo directement dans le chat (pas d'URL à ouvrir)
-    if (msg.photo || (msg.document && mimeType.startsWith('image/'))) {
-      await sendPhoto(chatId, fileId, `📄 ${label}${nameStr}${phoneStr}`);
+    // Renvoyer le fichier directement dans le chat — sendPhoto pour photo, sendDocument sinon
+    const fileCaption = `📄 ${label}${nameStr}${phoneStr} — enregistré ✅`;
+    if (msg.photo) {
+      await sendPhoto(chatId, fileId, fileCaption);
+    } else {
+      await sendDocument(chatId, fileId, fileCaption);
     }
 
     await saveConversationTurn(sessionId, 'user',
