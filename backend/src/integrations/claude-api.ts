@@ -16,8 +16,23 @@ export interface ClaudeResponse {
   text:         string;
   inputTokens:  number;
   outputTokens: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   stopReason:   string;
 }
+
+// ── System prompt avec cache_control — mis en cache côté Anthropic ──────────
+// Le system prompt est très long (~3000 tokens) → on le cache pour:
+//   - 80% de réduction de coût sur les tokens d'entrée
+//   - Réponses 2x plus rapides (pas besoin de retraiter le system prompt)
+//   - Cache valide 5 minutes (renouvelé automatiquement à chaque appel)
+const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
+  {
+    type: 'text',
+    text: IBRAHIM.SYSTEM_PROMPT as string,
+    cache_control: { type: 'ephemeral' },
+  },
+];
 
 // ── Tool-use chat (agentic loop) ──────────────────────────────
 // Used by Telegram and any text-only flow.
@@ -27,9 +42,14 @@ export async function chatWithTools(
   systemExtra?: string,
   sessionId?: string,
 ): Promise<ClaudeResponse> {
-  const systemParts = [IBRAHIM.SYSTEM_PROMPT as string];
-  if (systemExtra) systemParts.push(systemExtra);
-  const system = systemParts.join('\n\n');
+  // Build system array with caching on the main system prompt
+  const systemBlocks: Anthropic.TextBlockParam[] = [
+    ...CACHED_SYSTEM, // system prompt principal — mis en cache
+  ];
+  if (systemExtra) {
+    // Le contexte dynamique (flotte, réservations...) n'est PAS mis en cache car il change à chaque requête
+    systemBlocks.push({ type: 'text', text: systemExtra });
+  }
 
   // Generate session ID if not provided
   const sid = sessionId ?? randomUUID();
@@ -40,9 +60,11 @@ export async function chatWithTools(
     content: m.content,
   }));
 
-  let inputTokens  = 0;
-  let outputTokens = 0;
-  let finalText    = '';
+  let inputTokens       = 0;
+  let outputTokens      = 0;
+  let cacheReadTokens   = 0;
+  let cacheWriteTokens  = 0;
+  let finalText         = '';
 
   // Agentic loop — max 15 tool rounds (needed for multi-step coding tasks)
   for (let round = 0; round < 15; round++) {
@@ -54,7 +76,7 @@ export async function chatWithTools(
         response = await client.messages.create({
           model:      'claude-sonnet-4-6',
           max_tokens: 16000,
-          system,
+          system:     systemBlocks,
           tools:      IBRAHIM_TOOLS,
           messages:   currentMessages,
         });
@@ -80,16 +102,29 @@ export async function chatWithTools(
     inputTokens  += response.usage.input_tokens;
     outputTokens += response.usage.output_tokens;
 
+    // Track cache metrics (disponibles si prompt caching actif)
+    const usage = response.usage as Anthropic.Usage & {
+      cache_read_input_tokens?:    number;
+      cache_creation_input_tokens?: number;
+    };
+    if (usage.cache_read_input_tokens)    cacheReadTokens  += usage.cache_read_input_tokens;
+    if (usage.cache_creation_input_tokens) cacheWriteTokens += usage.cache_creation_input_tokens;
+
+    // Log cache stats pour monitoring
+    if (usage.cache_read_input_tokens || usage.cache_creation_input_tokens) {
+      console.log(`[claude-cache] read=${usage.cache_read_input_tokens ?? 0} write=${usage.cache_creation_input_tokens ?? 0} regular=${response.usage.input_tokens}`);
+    }
+
     // Collect text
     const textBlocks = response.content.filter(b => b.type === 'text');
     finalText = textBlocks.map(b => (b as Anthropic.TextBlock).text).join('');
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {
-      return { text: finalText, inputTokens, outputTokens, stopReason: response.stop_reason };
+      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, stopReason: response.stop_reason };
     }
 
     if (response.stop_reason !== 'tool_use') {
-      return { text: finalText, inputTokens, outputTokens, stopReason: response.stop_reason ?? 'end_turn' };
+      return { text: finalText, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, stopReason: response.stop_reason ?? 'end_turn' };
     }
 
     // Execute tool calls
@@ -119,7 +154,7 @@ export async function chatWithTools(
     apiMessages = [...apiMessages, { role: 'user', content: toolResults }];
   }
 
-  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, stopReason: 'end_turn' };
+  return { text: finalText || 'Désolé, erreur interne.', inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, stopReason: 'end_turn' };
 }
 
 // ── Simple chat (no tools) ────────────────────────────────────
@@ -127,13 +162,13 @@ export async function chat(
   messages: Message[],
   systemExtra?: string,
 ): Promise<ClaudeResponse> {
-  const systemParts: string[] = [IBRAHIM.SYSTEM_PROMPT as string];
-  if (systemExtra) systemParts.push(systemExtra);
+  const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
+  if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
   const response = await client.messages.create({
     model:      'claude-sonnet-4-5',
     max_tokens: 1024,
-    system:     systemParts.join('\n\n'),
+    system:     systemBlocks,
     messages,
   });
 
@@ -156,8 +191,8 @@ export async function chatStream(
   systemExtra: string | undefined,
   onChunk: (chunk: string) => void,
 ): Promise<ClaudeResponse> {
-  const systemParts: string[] = [IBRAHIM.SYSTEM_PROMPT as string];
-  if (systemExtra) systemParts.push(systemExtra);
+  const systemBlocks: Anthropic.TextBlockParam[] = [...CACHED_SYSTEM];
+  if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
   let fullText = '';
   let inputTokens = 0;
@@ -167,7 +202,7 @@ export async function chatStream(
   const stream = client.messages.stream({
     model:      'claude-sonnet-4-5',
     max_tokens: 1024,
-    system:     systemParts.join('\n\n'),
+    system:     systemBlocks,
     messages,
   });
 
