@@ -213,12 +213,15 @@ async function cancelBooking(input: Record<string, unknown>): Promise<string> {
 }
 
 async function deleteBooking(input: Record<string, unknown>): Promise<string> {
-  const { error } = await supabase
-    .from('bookings')
-    .delete()
-    .eq('id', input['id'] as string);
+  const id = input['id'] as string;
+  const { data: booking } = await supabase.from('bookings').select('status').eq('id', id).single();
+  if (!booking) return `❌ Réservation ${id} introuvable`;
+  if (['ACTIVE', 'CONFIRMED'].includes(booking.status as string)) {
+    return `❌ Impossible de supprimer une réservation ${booking.status}. Annule-la d'abord avec cancel_booking.`;
+  }
+  const { error } = await supabase.from('bookings').delete().eq('id', id);
   if (error) return `Erreur suppression: ${error.message}`;
-  return `✅ Réservation ${input['id']} supprimée définitivement`;
+  return `✅ Réservation ${id} supprimée définitivement`;
 }
 
 async function financialReport(input: Record<string, unknown>): Promise<string> {
@@ -349,6 +352,11 @@ async function railwayGetLogs(input: Record<string, unknown>): Promise<string> {
 async function supabaseExecute(input: Record<string, unknown>): Promise<string> {
   const sql = input['sql'] as string;
   if (!sql) return 'SQL manquant';
+  // Only allow SELECT queries — prevent accidental destructive operations via Claude
+  const trimmed = sql.trim().toUpperCase();
+  if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('WITH')) {
+    return '❌ Seules les requêtes SELECT sont autorisées via cet outil.';
+  }
 
   const supabaseUrl   = env.SUPABASE_URL;
   const supabaseToken = env.SUPABASE_ACCESS_TOKEN;

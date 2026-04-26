@@ -296,7 +296,7 @@ export function iosFallbackSpeak(text: string, onComplete?: () => void): void {
     utt.rate  = 1.0;
     utt.pitch = 1.0;
     utt.onend = speakNext;
-    utt.onerror = () => { onComplete?.(); };
+    utt.onerror = speakNext;
     window.speechSynthesis.speak(utt);
   }
   speakNext();

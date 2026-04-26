@@ -121,7 +121,7 @@ const desktopNs = io.of('/desktop');
 
 desktopNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;
-  if (!token || !validateToken(token, 'mobile')) {
+  if (!token || !validateToken(token, 'pc-agent')) {
     return next(new Error('Unauthorized'));
   }
   next();
