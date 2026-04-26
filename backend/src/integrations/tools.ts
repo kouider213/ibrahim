@@ -550,6 +550,22 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── TELEGRAM depuis app vocale ──────────────────────────────
+  {
+    name: 'send_telegram_message',
+    description: 'Envoyer un message texte ou une photo/document à Kouider via Telegram. Utiliser depuis l\'app vocale quand Kouider demande d\'envoyer quelque chose sur son Telegram (ex: "envoie-moi le passeport de Omar sur Telegram").',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        message:      { type: 'string', description: 'Texte à envoyer (obligatoire)' },
+        photo_url:    { type: 'string', description: 'URL d\'une photo à envoyer (optionnel)' },
+        document_url: { type: 'string', description: 'URL d\'un document à envoyer (optionnel)' },
+        caption:      { type: 'string', description: 'Légende pour la photo/document (optionnel)' },
+      },
+      required: ['message'],
+    },
+  },
+
   // ─── VALIDATION DEPLOY ───────────────────────────────────────
   {
     name: 'railway_wait_deploy',

@@ -305,14 +305,9 @@ export function iosFallbackSpeak(text: string, onComplete?: () => void): void {
 // ── Session ───────────────────────────────────────────────────
 
 export function getOrCreateSessionId(): string {
+  // Fixed session ID so voice and Telegram share the same memory context
   try {
-    let id = sessionStorage.getItem('ibrahim_session');
-    if (!id) {
-      id = `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      sessionStorage.setItem('ibrahim_session', id);
-    }
-    return id;
-  } catch {
-    return `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  }
+    localStorage.setItem('ibrahim_voice_session', 'voice_kouider');
+  } catch { /* ignore */ }
+  return 'voice_kouider';
 }

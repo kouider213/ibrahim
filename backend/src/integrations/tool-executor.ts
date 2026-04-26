@@ -25,6 +25,7 @@ import {
   formatReportForKouider,
 } from './improvement-report.js';
 import { sendWhatsApp } from './whatsapp.js';
+import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc } from './telegram.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
 
@@ -85,6 +86,8 @@ export async function executeTool(
       case 'github_search_code':         return await githubSearchCode(input);
       // ─── Documents client ───
       case 'get_client_document':        return await getClientDocument(input);
+      // ─── Telegram depuis app vocale ───
+      case 'send_telegram_message':      return await sendTelegramMessage(input);
       // ─── Web / Internet ───
       case 'web_search':                 return await webSearch(input);
       case 'fetch_url':                  return await fetchUrl(input);
@@ -676,5 +679,34 @@ async function searchImages(input: Record<string, unknown>): Promise<string> {
   } catch (err: any) {
     const msg = err.response?.data?.error ?? err.message;
     return `❌ Erreur Pexels: ${msg}`;
+  }
+}
+
+async function sendTelegramMessage(input: Record<string, unknown>): Promise<string> {
+  const chatIdStr = env.TELEGRAM_CHAT_ID ?? '809747124';
+  const chatId    = Number(chatIdStr);
+  const message   = (input['message'] as string) ?? '';
+  const photoUrl  = input['photo_url']    as string | undefined;
+  const docUrl    = input['document_url'] as string | undefined;
+  const caption   = (input['caption']    as string | undefined) ?? message;
+
+  try {
+    if (photoUrl) {
+      await sendTelegramPhoto(chatId, photoUrl, caption);
+      if (message && message !== caption) await sendTelegramText(chatId, message);
+      return `✅ Photo envoyée sur Telegram${message ? ` avec message: "${message}"` : ''}`;
+    }
+    if (docUrl) {
+      await sendTelegramDoc(chatId, docUrl, caption);
+      if (message && message !== caption) await sendTelegramText(chatId, message);
+      return `✅ Document envoyé sur Telegram`;
+    }
+    if (message) {
+      await sendTelegramText(chatId, message);
+      return `✅ Message envoyé sur Telegram: "${message}"`;
+    }
+    return '❌ Rien à envoyer (message, photo_url ou document_url requis)';
+  } catch (err) {
+    return `❌ Erreur Telegram: ${err instanceof Error ? err.message : String(err)}`;
   }
 }
