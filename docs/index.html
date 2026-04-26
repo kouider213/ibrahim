@@ -985,8 +985,8 @@
   const ACCESS_TOKEN = 'f6214183be37ad5e3c593590870077db247a4047c7de3cd72ae008e0f8d447d2';
 
   function getSession() {
-    let id = sessionStorage.getItem('ibrahim_session');
-    if (!id) { id = `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`; sessionStorage.setItem('ibrahim_session', id); }
+    let id = localStorage.getItem('ibrahim_session');
+    if (!id) { id = `web_${Date.now()}_${Math.random().toString(36).slice(2)}`; localStorage.setItem('ibrahim_session', id); }
     return id;
   }
   const SESSION_ID = getSession();

@@ -54,7 +54,7 @@ export async function buildContext(
   const needsNews     = /actualit|news|journal|presse|info/i.test(userMessage);
   const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
-  const needsMemory   = /souviens|rappelle|mémoire|mémoris|retiens|n'oublie|remember/i.test(userMessage);
+  const needsMemory   = true; // always inject memories — both channels (voice app + Telegram) share them
 
   const now = new Date();
 
