@@ -70,6 +70,9 @@ export default function ChatInterface() {
   const [errorMsg,     setErrorMsg]     = useState('');
   const [errorVisible, setErrorVisible] = useState(false);
   const [started,      setStarted]      = useState(false);
+  const [analyzing,    setAnalyzing]    = useState(false);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const stateRef           = useRef<JarvisState>('idle');
   const sending            = useRef(false);
@@ -409,6 +412,36 @@ export default function ChatInterface() {
     }
   }, [started, applyState, startListeningInner, scheduleNextListen, startMicAnalyser]);
 
+  // ── Camera vision ────────────────────────────
+  const handleCameraClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    cameraInputRef.current?.click();
+  }, []);
+
+  const handlePhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setAnalyzing(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+      const mime   = file.type || 'image/jpeg';
+      const result = await api.vision(base64, mime);
+      const description = result.description ?? '';
+      if (description) {
+        await sendText(`[📷 Photo] ${description}`);
+      } else {
+        showError('Ibrahim ne peut pas analyser cette photo');
+      }
+    } catch {
+      showError('Erreur analyse photo');
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [sendText, showError]);
+
   // ── Cleanup ───────────────────────────────────
   useEffect(() => {
     return () => {
@@ -440,6 +473,25 @@ export default function ChatInterface() {
       <div className={`sphere-response${showResponse ? ' visible' : ''}`}>
         <div className="sphere-response-text">{responseText}</div>
       </div>
+
+      {/* Camera button */}
+      <button
+        className={`camera-btn${analyzing ? ' analyzing' : ''}`}
+        onClick={handleCameraClick}
+        aria-label="Prendre une photo"
+      >
+        {analyzing ? '⏳' : '📷'}
+      </button>
+
+      {/* Hidden camera input */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={handlePhotoChange}
+      />
 
       {/* Error toast */}
       <div className={`sphere-error${errorVisible ? ' show' : ''}`}>{errorMsg}</div>
