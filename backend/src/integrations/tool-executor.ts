@@ -90,6 +90,7 @@ export async function executeTool(
       case 'github_search_code':         return await githubSearchCode(input);
       // ─── Documents client ───
       case 'get_client_document':        return await getClientDocument(input);
+      case 'get_client_profile':         return await getClientProfile(input);
       // ─── Telegram depuis app vocale ───
       case 'send_telegram_message':      return await sendTelegramMessage(input);
       // ─── Web / Internet ───
@@ -196,7 +197,22 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     .single();
 
   if (error) return `Erreur création: ${error.message}`;
-  return `✅ Réservation créée! ID: ${(data as any).id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€`;
+
+  const booking = data as { id: string };
+
+  // Auto-sync Google Calendar (fire-and-forget)
+  supabase.from('cars').select('name').eq('id', input['car_id'] as string).single()
+    .then(({ data: car }) => createCalendarEvent(
+      booking.id,
+      input['client_name'] as string,
+      (car as { name?: string } | null)?.name ?? 'Véhicule',
+      input['start_date'] as string,
+      input['end_date']   as string,
+      input['notes']      as string | undefined,
+    ))
+    .catch((err: unknown) => console.error('[calendar] Auto-sync failed:', err));
+
+  return `✅ Réservation créée — ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€ | 📅 Calendrier synchronisé`;
 }
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {
@@ -733,4 +749,59 @@ async function updateCalendarEventTool(input: Record<string, unknown>): Promise<
 async function deleteCalendarEventTool(input: Record<string, unknown>): Promise<string> {
   await deleteCalendarEvent(input['google_event_id'] as string);
   return '✅ Événement supprimé du calendrier';
+}
+
+async function getClientProfile(input: Record<string, unknown>): Promise<string> {
+  const clientName = input['client_name'] as string;
+  if (!clientName) return '❌ client_name manquant';
+
+  const [bookingsRes, docsRes] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('id, client_name, client_phone, start_date, end_date, final_price, status, payment_status, paid_amount, cars(name)')
+      .ilike('client_name', `%${clientName}%`)
+      .order('start_date', { ascending: false }),
+    supabase
+      .from('client_documents')
+      .select('type, created_at')
+      .ilike('client_name', `%${clientName}%`)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  const bookings = (bookingsRes.data ?? []) as any[];
+  const docs     = (docsRes.data    ?? []) as any[];
+
+  if (!bookings.length && !docs.length) {
+    return `Aucun client trouvé avec le nom "${clientName}"`;
+  }
+
+  const phone      = bookings.find((b: any) => b.client_phone)?.client_phone ?? 'N/A';
+  const totalSpent = bookings.reduce((s: number, b: any) => s + (b.final_price ?? 0), 0);
+  const paidTotal  = bookings.reduce((s: number, b: any) => s + (b.paid_amount ?? 0), 0);
+  const unpaid     = totalSpent - paidTotal;
+
+  const statusCount = bookings.reduce((acc: Record<string, number>, b: any) => {
+    acc[b.status] = (acc[b.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  let result = `👤 PROFIL: ${bookings[0]?.client_name ?? clientName}\n`;
+  result += `📱 Téléphone: ${phone}\n`;
+  result += `📋 Réservations: ${bookings.length}`;
+  if (Object.keys(statusCount).length) {
+    result += ` (${Object.entries(statusCount).map(([s, n]) => `${n} ${s}`).join(', ')})`;
+  }
+  result += `\n💰 Facturé: ${totalSpent}€ | Encaissé: ${paidTotal}€`;
+  if (unpaid > 0) result += ` | ⚠️ Impayé: ${unpaid}€`;
+  if (docs.length) result += `\n📄 Documents: ${docs.map((d: any) => d.type).join(', ')}`;
+
+  if (bookings.length) {
+    result += `\n\nHistorique:\n`;
+    result += bookings.slice(0, 8).map((b: any) =>
+      `- ${b.start_date} → ${b.end_date} | ${b.cars?.name ?? '?'} | ${b.final_price ?? 0}€ | ${b.status}`
+    ).join('\n');
+    if (bookings.length > 8) result += `\n… et ${bookings.length - 8} autres`;
+  }
+
+  return result;
 }

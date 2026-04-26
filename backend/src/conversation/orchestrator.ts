@@ -44,6 +44,7 @@ const TOOL_LABELS: Record<string, string> = {
   send_whatsapp_to_client: '📱 Envoi WhatsApp…',
   store_document:       '📄 Stockage document…',
   get_client_document:  '📄 Récupération document…',
+  get_client_profile:   '👤 Chargement profil client…',
   send_telegram_message:'📱 Envoi sur Telegram…',
   get_payment_status:   '💳 Vérification paiements…',
   record_payment:       '💳 Enregistrement paiement…',

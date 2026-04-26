@@ -485,6 +485,17 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'get_client_profile',
+    description: 'Profil complet d\'un client: historique de toutes ses réservations, total dépensé, montant impayé, documents en archive, téléphone. Utiliser quand Kouider demande "dis-moi tout sur le client X" ou pour vérifier l\'historique avant une nouvelle location.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom du client (partiel accepté)' },
+      },
+      required: ['client_name'],
+    },
+  },
+  {
     name: 'get_client_document',
     description: 'Récupérer un document client stocké (passeport, permis, contrat) depuis Supabase. Retourne l\'URL publique directe pour afficher la photo. Utiliser quand Kouider demande à voir/envoyer un document client.',
     input_schema: {
