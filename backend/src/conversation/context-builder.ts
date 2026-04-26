@@ -63,8 +63,24 @@ export async function buildContext(
   const isCodingContext = /code|fichier|github|railway|deploy|typescript|modifier|écrire|programme|lire|debug|erreur|push|commit/i.test(userMessage);
   const historyLimit = isCodingContext ? 20 : 10;
 
-  const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary] = await Promise.all([
+  // Cross-channel: voice app also loads recent Telegram messages and vice-versa
+  const crossChannelSessionId = sessionId === 'voice_kouider'
+    ? 'telegram_%'
+    : sessionId.startsWith('telegram_') ? 'voice_kouider' : null;
+
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
+    crossChannelSessionId
+      ? supabase
+          .from('conversations')
+          .select('role, content, session_id, created_at')
+          .like('session_id', crossChannelSessionId)
+          .in('role', ['user', 'assistant'])
+          .order('created_at', { ascending: false })
+          .limit(8)
+          .then((r: any) => (r.data ?? []).reverse())
+          .catch(() => [])
+      : Promise.resolve([]),
     getCachedRules(),
     getCachedFleet(),
     getCachedBookings(),
@@ -154,6 +170,11 @@ export async function buildContext(
     ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
     : '';
 
+  const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
+  const crossChannelText = (crossHistory as any[]).length > 0
+    ? `\n\nCONVERSATION RÉCENTE SUR ${crossChannelLabel} (pour mémoire cross-canal):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Ibrahim'}] ${String(m.content).slice(0, 300)}`).join('\n')}`
+    : '';
+
   // Style mirror — Ibrahim voit comment Kouider écrit et adapte ses réponses
   const styleText = (styleMessages as string[]).length >= 5
     ? `\n\nSTYLE DE KOUIDER (IMPORTANT — adapte ton registre à ces exemples réels):\nKouider parle comme ça:\n${(styleMessages as string[]).slice(-20).map(m => `• ${m}`).join('\n')}\nMiroir son style: longueur phrases, mélange français/darija/arabe, niveau familiarité, ponctuation.`
@@ -170,6 +191,7 @@ export async function buildContext(
     newsText,
     financeText,
     memoriesText,
+    crossChannelText,
     rulesText,
     pricingText,
     styleText,

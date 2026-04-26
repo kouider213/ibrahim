@@ -508,8 +508,30 @@ export default function ChatInterface() {
 
   return (
     <div className="sphere-ui" data-state={state} onClick={handleTap}>
+
+      {/* Perspective grid background */}
+      <div className="hud-grid" />
+      <div className="hud-vignette" />
+
       {/* 3D sphere canvas */}
       <canvas ref={canvasRef} className="sphere-canvas" />
+
+      {/* Concentric rings */}
+      <div className="ring ring-outer" />
+      <div className="ring ring-mid" />
+      <div className="ring ring-inner" />
+
+      {/* Scan line */}
+      <div className="scan-line" />
+
+      {/* HUD corner brackets */}
+      <div className="hud-corner hud-tl" />
+      <div className="hud-corner hud-tr" />
+      <div className="hud-corner hud-bl" />
+      <div className="hud-corner hud-br" />
+
+      {/* Telegram connection dot */}
+      <div className="telegram-dot" title="Telegram connecté" />
 
       {/* Header */}
       <header className="sphere-header">
@@ -521,6 +543,9 @@ export default function ChatInterface() {
       <div className="sphere-state">
         {started ? CAPTION[state] : 'APPUYER POUR DÉMARRER'}
       </div>
+
+      {/* Status bar */}
+      <div className="status-bar" />
 
       {/* Response text */}
       <div className={`sphere-response${showResponse ? ' visible' : ''}`}>
