@@ -32,10 +32,10 @@ export interface ChatResponse {
 }
 
 export const api = {
-  chat: (message: string, sessionId: string, textOnly = false) =>
+  chat: (message: string, sessionId: string, textOnly = false, imageBase64?: string, imageMime?: string) =>
     apiFetch<ChatResponse>('/api/chat', {
       method: 'POST',
-      body:   JSON.stringify({ message, sessionId, textOnly }),
+      body:   JSON.stringify({ message, sessionId, textOnly, imageBase64, imageMime }),
     }),
 
   tts: (text: string) =>

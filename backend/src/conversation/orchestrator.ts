@@ -71,9 +71,11 @@ function getToolLabel(toolName: string): string {
 
 // ── Processeur principal ──────────────────────────────────────────────────────
 export async function processMessage(
-  userMessage: string,
-  sessionId:   string,
-  textOnly = false,
+  userMessage:  string,
+  sessionId:    string,
+  textOnly    = false,
+  imageBase64?: string,
+  imageMime   = 'image/jpeg',
 ): Promise<OrchestratorResponse> {
 
   // 1. Notifier "thinking" immédiatement
@@ -102,6 +104,9 @@ export async function processMessage(
       (_toolName: string, _result: string) => {
         _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: null });
       },
+      undefined,
+      imageBase64,
+      imageMime,
     );
   } catch (err) {
     const errorText = `Erreur Ibrahim: ${err instanceof Error ? err.message : String(err)}`;

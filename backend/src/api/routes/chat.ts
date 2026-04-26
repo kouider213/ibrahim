@@ -7,9 +7,11 @@ import { getConversationHistory } from '../../integrations/supabase.js';
 const router = Router();
 
 const messageSchema = z.object({
-  message:   z.string().min(1).max(4000),
-  sessionId: z.string().min(1).max(128),
-  textOnly:  z.boolean().optional().default(false),
+  message:      z.string().min(1).max(4000),
+  sessionId:    z.string().min(1).max(128),
+  textOnly:     z.boolean().optional().default(false),
+  imageBase64:  z.string().optional(),
+  imageMime:    z.string().optional().default('image/jpeg'),
 });
 
 // POST /api/chat — send a message to Ibrahim
@@ -20,12 +22,12 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  const { message, sessionId, textOnly } = parsed.data;
+  const { message, sessionId, textOnly, imageBase64, imageMime } = parsed.data;
 
   // Acknowledge immediately — result delivered via Socket.IO (ibrahim:text_complete + audio chunks)
   res.status(202).json({ status: 'processing', sessionId });
 
-  processMessage(message, sessionId, textOnly).catch(err => {
+  processMessage(message, sessionId, textOnly, imageBase64, imageMime).catch(err => {
     console.error('[chat] processMessage error:', err instanceof Error ? err.message : String(err));
   });
 });

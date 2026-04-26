@@ -174,6 +174,8 @@ export async function chatWithTools(
   onToolStart?:   ToolStartCallback,
   onToolDone?:    ToolDoneCallback,
   onTextChunk?:   (chunk: string) => void,
+  imageBase64?:   string,
+  imageMime?:     string,
 ): Promise<ClaudeResponse> {
 
   const sid = sessionId ?? randomUUID();
@@ -248,6 +250,24 @@ export async function chatWithTools(
     role:    m.role,
     content: m.content,
   }));
+
+  // Inject live camera frame into the last user message if provided
+  if (imageBase64) {
+    const mime = (imageMime ?? 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    const lastIdx = apiMessages.length - 1;
+    const lastMsg = apiMessages[lastIdx];
+    if (lastMsg && lastMsg.role === 'user') {
+      const textContent = typeof lastMsg.content === 'string' ? lastMsg.content : '';
+      apiMessages[lastIdx] = {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mime, data: imageBase64 } },
+          { type: 'text', text: textContent || '(Que vois-tu sur cette image ?)' },
+        ],
+      };
+      console.log('[vision] 📷 Frame caméra injectée dans le message utilisateur');
+    }
+  }
 
   let inputTokens      = 0;
   let outputTokens     = 0;

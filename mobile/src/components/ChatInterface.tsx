@@ -71,8 +71,11 @@ export default function ChatInterface() {
   const [errorVisible, setErrorVisible] = useState(false);
   const [started,      setStarted]      = useState(false);
   const [analyzing,    setAnalyzing]    = useState(false);
+  const [liveVision,   setLiveVision]   = useState(false);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const liveVideoRef   = useRef<HTMLVideoElement>(null);
+  const videoStreamRef = useRef<MediaStream | null>(null);
 
   const stateRef           = useRef<JarvisState>('idle');
   const sending            = useRef(false);
@@ -104,6 +107,52 @@ export default function ChatInterface() {
     setState(s);
   }, []);
 
+  // ── Live camera: capture frame from video stream ─────────────
+  const captureFrame = useCallback((): string | null => {
+    const video = liveVideoRef.current;
+    if (!video || !videoStreamRef.current || video.readyState < 2) return null;
+    const w = Math.min(video.videoWidth  || 640, 640);
+    const h = Math.min(video.videoHeight || 480, 480);
+    const tmp = document.createElement('canvas');
+    tmp.width = w; tmp.height = h;
+    const c = tmp.getContext('2d');
+    if (!c) return null;
+    c.drawImage(video, 0, 0, w, h);
+    const dataUrl = tmp.toDataURL('image/jpeg', 0.7);
+    return dataUrl.split(',')[1] ?? null;
+  }, []);
+
+  // ── Live camera: start / stop stream ─────────────────────────
+  const startLiveCamera = useCallback(async () => {
+    if (videoStreamRef.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      videoStreamRef.current = stream;
+      if (liveVideoRef.current) {
+        liveVideoRef.current.srcObject = stream;
+        await liveVideoRef.current.play().catch(() => {});
+      }
+      setLiveVision(true);
+    } catch {
+      showError('Caméra non accessible');
+    }
+  }, [showError]);
+
+  const stopLiveCamera = useCallback(() => {
+    videoStreamRef.current?.getTracks().forEach(t => t.stop());
+    videoStreamRef.current = null;
+    if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
+    setLiveVision(false);
+  }, []);
+
+  const toggleLiveVision = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (liveVision) stopLiveCamera();
+    else await startLiveCamera();
+  }, [liveVision, startLiveCamera, stopLiveCamera]);
+
   // ── Send text ─────────────────────────────────
   const sendText = useCallback(async (msg: string) => {
     if (!msg.trim() || sending.current) return;
@@ -112,15 +161,18 @@ export default function ChatInterface() {
     applyState('think');
     setShowResponse(false);
     elevenlabsReceived.current = false;
+
+    const frame = videoStreamRef.current ? captureFrame() : null;
+
     try {
-      await api.chat(msg, sessionId, false);
+      await api.chat(msg, sessionId, false, frame ?? undefined, 'image/jpeg');
     } catch {
       showError('Erreur de connexion');
       applyState('idle');
     } finally {
       sending.current = false;
     }
-  }, [sessionId, applyState, showError]);
+  }, [sessionId, applyState, showError, captureFrame]);
 
   // ── Mic amplitude reader ──────────────────────
   const startMicAnalyser = useCallback(async () => {
@@ -450,6 +502,7 @@ export default function ChatInterface() {
       if (audioFallbackTimer.current) clearTimeout(audioFallbackTimer.current);
       cancelAnimationFrame(rafRef.current);
       micStreamRef.current?.getTracks().forEach(t => t.stop());
+      videoStreamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -474,6 +527,15 @@ export default function ChatInterface() {
         <div className="sphere-response-text">{responseText}</div>
       </div>
 
+      {/* Live vision toggle */}
+      <button
+        className={`live-vision-btn${liveVision ? ' active' : ''}`}
+        onClick={toggleLiveVision}
+        aria-label={liveVision ? 'Désactiver vision live' : 'Activer vision live'}
+      >
+        {liveVision ? '👁️' : '🎥'}
+      </button>
+
       {/* Camera button */}
       <button
         className={`camera-btn${analyzing ? ' analyzing' : ''}`}
@@ -491,6 +553,16 @@ export default function ChatInterface() {
         capture="environment"
         style={{ display: 'none' }}
         onChange={handlePhotoChange}
+      />
+
+      {/* Hidden live video — required by iOS to keep stream alive */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <video
+        ref={liveVideoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '1px', height: '1px' }}
       />
 
       {/* Error toast */}
