@@ -59,9 +59,12 @@ export async function buildContext(
   const now = new Date();
 
   // Chargement parallèle — seulement ce dont on a besoin
+  // Coding sessions need deeper history (10-step procedure spans many messages)
+  const isCodingContext = /code|fichier|github|railway|deploy|typescript|modifier|écrire|programme|lire|debug|erreur|push|commit/i.test(userMessage);
+  const historyLimit = isCodingContext ? 20 : 10;
+
   const [history, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary] = await Promise.all([
-    // HISTORIQUE: seulement 6 derniers messages (pas 15)
-    getConversationHistory(sessionId, 6).catch(() => []),
+    getConversationHistory(sessionId, historyLimit).catch(() => []),
     getCachedRules(),
     getCachedFleet(),
     getCachedBookings(),
@@ -173,7 +176,7 @@ export async function buildContext(
   ].join('');
 
   // Construire les messages: résumé compaction (si dispo) + historique (6 max) + message courant
-  const compactionMessage: Message[] = compactionSummary && history.length < 3
+  const compactionMessage: Message[] = compactionSummary
     ? [{ role: 'user', content: compactionSummary }, { role: 'assistant', content: 'Compris, je me souviens de ce contexte.' }]
     : [];
 

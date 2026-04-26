@@ -14,6 +14,7 @@ import {
   jobWhatsAppReturnReminders,
   jobAnthropicWatch,
 } from './jobs/proactive-jobs.js';
+import { notifyOwner } from '../notifications/pushover.js';
 
 const SCHEDULER_QUEUE = 'ibrahim-scheduler';
 
@@ -117,6 +118,11 @@ export async function initScheduler(): Promise<void> {
   const worker = new Worker(
     SCHEDULER_QUEUE,
     async (job: Job) => {
+      if (job.name === 'custom-reminder') {
+        const msg = (job.data as { message: string }).message;
+        await notifyOwner('⏰ Rappel Ibrahim', msg);
+        return;
+      }
       const handler = handlers[job.name];
       if (handler) {
         console.log(`[scheduler] Running: ${job.name}`);

@@ -57,7 +57,7 @@ function isFastModeEligible(messages: Message[]): boolean {
 
   // Questions très courtes (< 30 caractères) sans complexité
   if (text.length < 30) {
-    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve/i.test(text);
+    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|image|photo|fraise|montre|envoie|rappel|remind|web|internet|info/i.test(text);
     if (!needsAction) return true;
   }
 

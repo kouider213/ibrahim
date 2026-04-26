@@ -25,6 +25,7 @@ import {
   formatReportForKouider,
 } from './improvement-report.js';
 import { sendWhatsApp } from './whatsapp.js';
+import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
 
 export async function executeTool(
@@ -87,6 +88,8 @@ export async function executeTool(
       // ─── Web / Internet ───
       case 'web_search':                 return await webSearch(input);
       case 'fetch_url':                  return await fetchUrl(input);
+      // ─── Rappels ───
+      case 'schedule_reminder':          return await scheduleReminder(input);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
       // ─── PHASE 14 — Image & Vidéo ───
@@ -582,6 +585,45 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
   }
 }
 
+// ─── RAPPELS PERSONNALISÉS ────────────────────────────────────────────────────
+
+async function scheduleReminder(input: Record<string, unknown>): Promise<string> {
+  const message      = input['message']       as string;
+  const delayMinutes = input['delay_minutes'] as number | undefined;
+  const atTime       = input['at_time']       as string | undefined;
+
+  if (!message) return '❌ message requis';
+
+  let delayMs = 0;
+
+  if (delayMinutes && delayMinutes > 0) {
+    delayMs = delayMinutes * 60 * 1000;
+  } else if (atTime) {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(atTime);
+    if (!match) return '❌ at_time invalide — format HH:MM (ex: "14:30")';
+    const [, h, m] = match;
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
+    const target = new Date(now);
+    target.setHours(Number(h), Number(m), 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1);
+    delayMs = target.getTime() - now.getTime();
+  } else {
+    return '❌ Spécifie delay_minutes ou at_time';
+  }
+
+  await schedulerQueue.add(
+    'custom-reminder',
+    { message },
+    { delay: delayMs, removeOnComplete: { count: 10 }, removeOnFail: { count: 3 } },
+  );
+
+  const mins = Math.round(delayMs / 60000);
+  const hDisplay = mins >= 60
+    ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : ''}`
+    : `${mins}min`;
+  return `✅ Rappel programmé dans ${hDisplay}: "${message}"`;
+}
+
 // ─── PHASE 15 — Recherche d'images (Pexels) ──────────────────────────────
 
 async function searchImages(input: Record<string, unknown>): Promise<string> {
@@ -591,21 +633,10 @@ async function searchImages(input: Record<string, unknown>): Promise<string> {
 
   if (!query) return '❌ Query requise';
 
-  const PEXELS_KEY = process.env['PEXELS_API_KEY'];
+  const PEXELS_KEY = env.PEXELS_API_KEY;
 
-  // ── Sans clé Pexels → fallback Unsplash (source publique, no key) ─────
   if (!PEXELS_KEY) {
-    try {
-      const encoded = encodeURIComponent(query);
-      const results: string[] = [];
-      for (let i = 1; i <= count; i++) {
-        const url = `https://source.unsplash.com/featured/800x600/?${encoded}&sig=${i}`;
-        results.push(`🖼️ Image ${i}: ${url}`);
-      }
-      return `🔍 **Résultats pour "${query}"** (Unsplash — source publique)\n\n${results.join('\n')}\n\n💡 Pour de meilleurs résultats, configure une clé PEXELS_API_KEY dans Railway.`;
-    } catch (err) {
-      return `❌ Erreur recherche images: ${err instanceof Error ? err.message : String(err)}`;
-    }
+    return `❌ Recherche d'images non disponible — configure PEXELS_API_KEY dans Railway (gratuit: pexels.com/api).`;
   }
 
   // ── Avec clé Pexels ────────────────────────────────────────────────────

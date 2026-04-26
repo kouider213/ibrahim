@@ -637,6 +637,21 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── RAPPELS PERSONNALISÉS ────────────────────────────────────
+  {
+    name: 'schedule_reminder',
+    description: 'Programmer un rappel Pushover à Kouider. Exemples: "rappelle-moi dans 30min de appeler Houari", "rappel à 14h30 rendez-vous médecin".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        message:       { type: 'string',  description: 'Texte du rappel' },
+        delay_minutes: { type: 'number',  description: 'Délai en minutes (ex: 30 pour "dans 30 minutes")' },
+        at_time:       { type: 'string',  description: 'Heure exacte HH:MM heure Bruxelles (ex: "14:30") — alternatif à delay_minutes' },
+      },
+      required: ['message'],
+    },
+  },
+
   // ─── PHASE 15 — Recherche d'images ───────────────────────────
   {
     name: 'search_images',
