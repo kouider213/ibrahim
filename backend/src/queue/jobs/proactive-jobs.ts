@@ -8,9 +8,10 @@ import { getOranWeather } from '../../integrations/web-search.js';
 import { sendWhatsApp, detectLanguage } from '../../integrations/whatsapp.js';
 import { chat } from '../../integrations/claude-api.js';
 import axios from 'axios';
+import { env } from '../../config/env.js';
 
 function ownerChatId(): string {
-  return process.env['TELEGRAM_CHAT_ID'] ?? '809747124';
+  return env.TELEGRAM_CHAT_ID ?? '809747124';
 }
 
 async function tg(text: string): Promise<void> {

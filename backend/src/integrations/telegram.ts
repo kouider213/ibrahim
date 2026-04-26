@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { env } from '../config/env.js';
 
 function getToken(): string {
-  return process.env['TELEGRAM_BOT_TOKEN'] ?? '';
+  return env.TELEGRAM_BOT_TOKEN ?? '';
 }
 
 function base(): string {

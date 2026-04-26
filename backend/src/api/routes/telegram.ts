@@ -16,7 +16,7 @@ import { env } from '../../config/env.js';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
-const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] ?? '' });
+const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 // Cloudinary import dynamique (CommonJS compatible)
 let cloudinary: any;
@@ -552,7 +552,7 @@ router.post('/setup', requireMobileAuth, async (req, res) => {
 
 // GET /api/telegram/setup
 router.get('/setup', requireMobileAuth, async (_req, res) => {
-  const token = process.env['TELEGRAM_BOT_TOKEN'] ?? '';
+  const token = env.TELEGRAM_BOT_TOKEN ?? '';
   try {
     const { default: axios } = await import('axios');
     const { data } = await axios.get(`https://api.telegram.org/bot${token}/getWebhookInfo`);

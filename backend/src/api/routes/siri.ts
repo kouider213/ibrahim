@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { processMessage } from '../../conversation/orchestrator.js';
+import { env } from '../../config/env.js';
 
 const router = Router();
 
@@ -13,7 +14,7 @@ const sirisSchema = z.object({
 // Retourne du texte brut (pas de JSON) pour que Siri puisse le lire
 router.post('/', async (req, res) => {
   const token = req.headers['x-ibrahim-token'] as string | undefined;
-  if (token !== process.env['MOBILE_ACCESS_TOKEN']) {
+  if (token !== env.MOBILE_ACCESS_TOKEN) {
     res.status(401).type('text').send('Non autorisé');
     return;
   }

@@ -34,6 +34,8 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: z.string().optional(),
   ASSEMBLYAI_API_KEY:    z.string().optional(),
 
+  TELEGRAM_BOT_TOKEN:     z.string().optional(),
+  TELEGRAM_CHAT_ID:       z.string().optional(),
   TELEGRAM_ALLOWED_CHATS: z.string().optional(),
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),

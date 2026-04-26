@@ -3,6 +3,7 @@ import { sendPushover } from '../notifications/pushover.js';
 import type { ValidationReason } from './gate.js';
 import type { Namespace } from 'socket.io';
 import { SOCKET_EVENTS } from '../config/constants.js';
+import { env } from '../config/env.js';
 
 export interface PendingValidation {
   id:       string;
@@ -45,7 +46,7 @@ export async function requestValidation(
     title:    `Ibrahim — Validation requise`,
     message:  `[${type}] ${context['description'] ?? 'Action en attente de validation'}`,
     priority: 1,
-    url:      `${process.env['BACKEND_URL']}/api/validations/${validationId}`,
+    url:      `${env.BACKEND_URL}/api/validations/${validationId}`,
     urlTitle: 'Voir la demande',
   });
 

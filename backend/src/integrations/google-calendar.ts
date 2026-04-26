@@ -27,7 +27,7 @@ interface CalendarEvent {
 let cachedSAToken: { value: string; expiresAt: number } | null = null;
 
 function getServiceAccount(): ServiceAccountKey | null {
-  const raw = process.env['GOOGLE_SERVICE_ACCOUNT_JSON'];
+  const raw = env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) return null;
   try { return JSON.parse(raw) as ServiceAccountKey; }
   catch { console.error('[google-calendar] Invalid GOOGLE_SERVICE_ACCOUNT_JSON'); return null; }

@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
+import { env } from '../../config/env.js';
 
 const router = Router();
-const client = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] });
+const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 router.post('/analyze', async (req, res) => {
   const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
