@@ -319,6 +319,29 @@
   text-shadow: 0 0 14px rgba(0,220,255,0.22);
 }
 
+/* ── Live camera preview ────────────────────────── */
+.live-preview {
+  position: absolute;
+  top: max(60px, calc(env(safe-area-inset-top, 20px) + 40px));
+  right: 16px;
+  width: 90px;
+  height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1.5px solid rgba(255,60,60,0.0);
+  z-index: 15;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s, border-color 0.4s;
+  background: #000;
+}
+.live-preview--on {
+  opacity: 1;
+  border-color: rgba(255,60,60,0.75);
+  pointer-events: auto;
+  box-shadow: 0 0 16px rgba(255,60,60,0.25);
+}
+
 /* ── LIVE camera button ─────────────────────────── */
 .live-btn {
   position: absolute;

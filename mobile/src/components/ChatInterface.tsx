@@ -133,6 +133,7 @@ export default function ChatInterface() {
   // ── Live camera ───────────────────────────────
   const startLiveCamera = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Toggle off
     if (videoStreamRef.current) {
       videoStreamRef.current.getTracks().forEach(t => t.stop());
       videoStreamRef.current = null;
@@ -140,18 +141,28 @@ export default function ChatInterface() {
       setLiveVision(false);
       return;
     }
+    // getUserMedia — use ideal so it falls back to front camera if no rear
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showError('Caméra non supportée sur cet appareil');
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
       });
       videoStreamRef.current = stream;
-      if (liveVideoRef.current) {
-        liveVideoRef.current.srcObject = stream;
-        await liveVideoRef.current.play().catch(() => {});
+      const video = liveVideoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        // iOS requires play() after srcObject is set; ignore AbortError
+        video.play().catch(() => {});
       }
       setLiveVision(true);
-    } catch {
-      showError('Caméra non accessible');
+    } catch (err) {
+      const msg = err instanceof DOMException && err.name === 'NotAllowedError'
+        ? 'Permission caméra refusée — autorisez dans Réglages'
+        : 'Caméra non accessible';
+      showError(msg);
     }
   }, [showError]);
 
@@ -608,10 +619,13 @@ export default function ChatInterface() {
         />
       </label>
 
-      {/* Hidden live video element — iOS needs it in DOM to keep stream alive */}
+      {/* Live camera preview — visible corner when LIVE active (iOS needs visible video to stream) */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video ref={liveVideoRef} autoPlay playsInline muted
-        style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '1px', height: '1px' }} />
+      <video
+        ref={liveVideoRef}
+        autoPlay playsInline muted
+        className={`live-preview${liveVision ? ' live-preview--on' : ''}`}
+      />
 
       {/* Error toast */}
       <div className={`sphere-error${errorVisible ? ' show' : ''}`}>{errorMsg}</div>
