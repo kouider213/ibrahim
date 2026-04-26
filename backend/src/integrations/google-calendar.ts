@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import axios from 'axios';
 import { supabase } from './supabase.js';
+import { env } from '../config/env.js';
 
 const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 const GOOGLE_TOKEN_URL     = 'https://oauth2.googleapis.com/token';
@@ -75,8 +76,8 @@ async function getOAuthToken(): Promise<string | null> {
   try {
     const { data: r } = await axios.post(GOOGLE_TOKEN_URL, new URLSearchParams({
       grant_type: 'refresh_token', refresh_token: token.refresh_token,
-      client_id: process.env['GOOGLE_CLIENT_ID'] ?? '',
-      client_secret: process.env['GOOGLE_CLIENT_SECRET'] ?? '',
+      client_id: env.GOOGLE_CLIENT_ID ?? '',
+      client_secret: env.GOOGLE_CLIENT_SECRET ?? '',
     }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     await supabase.from('google_oauth_tokens').upsert({
       email: CALENDAR_ID, access_token: r.access_token as string,
@@ -185,8 +186,8 @@ export async function syncPendingBookings(): Promise<number> {
 
 export function getAuthUrl(): string {
   const params = new URLSearchParams({
-    client_id: process.env['GOOGLE_CLIENT_ID'] ?? '', response_type: 'code',
-    redirect_uri: process.env['GOOGLE_REDIRECT_URI'] ?? 'https://ibrahim-backend-production.up.railway.app/api/calendar/callback',
+    client_id: env.GOOGLE_CLIENT_ID ?? '', response_type: 'code',
+    redirect_uri: env.GOOGLE_REDIRECT_URI ?? 'https://ibrahim-backend-production.up.railway.app/api/calendar/callback',
     scope: CALENDAR_SCOPE, access_type: 'offline', prompt: 'consent', login_hint: CALENDAR_ID,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -196,9 +197,9 @@ export async function exchangeCodeForTokens(code: string): Promise<boolean> {
   try {
     const { data } = await axios.post(GOOGLE_TOKEN_URL, new URLSearchParams({
       code, grant_type: 'authorization_code',
-      client_id:     process.env['GOOGLE_CLIENT_ID'] ?? '',
-      client_secret: process.env['GOOGLE_CLIENT_SECRET'] ?? '',
-      redirect_uri:  process.env['GOOGLE_REDIRECT_URI'] ?? 'https://ibrahim-backend-production.up.railway.app/api/calendar/callback',
+      client_id:     env.GOOGLE_CLIENT_ID     ?? '',
+      client_secret: env.GOOGLE_CLIENT_SECRET ?? '',
+      redirect_uri:  env.GOOGLE_REDIRECT_URI  ?? 'https://ibrahim-backend-production.up.railway.app/api/calendar/callback',
     }).toString(), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     await supabase.from('google_oauth_tokens').upsert({
       email: CALENDAR_ID, access_token: data.access_token as string,

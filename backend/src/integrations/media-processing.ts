@@ -12,17 +12,18 @@
 
 import { v2 as cloudinary } from 'cloudinary';
 import axios from 'axios';
+import { env } from '../config/env.js';
 
 // ─── Configuration Cloudinary ────────────────────────────────────
 
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
-  api_key: process.env.CLOUDINARY_API_KEY || '',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '',
+  cloud_name: env.CLOUDINARY_CLOUD_NAME ?? '',
+  api_key:    env.CLOUDINARY_API_KEY    ?? '',
+  api_secret: env.CLOUDINARY_API_SECRET ?? '',
   secure: true,
 });
 
-const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
+const ASSEMBLYAI_API_KEY = env.ASSEMBLYAI_API_KEY ?? '';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -371,18 +372,20 @@ export async function mergeVideos(videoUrls: string[]): Promise<string> {
       throw new Error('Minimum 2 vidéos requises pour fusion');
     }
 
-    // Upload toutes les vidéos
     const uploads = await Promise.all(
-      videoUrls.map(url =>
-        cloudinary.uploader.upload(url, { resource_type: 'video' })
-      )
+      videoUrls.map(url => cloudinary.uploader.upload(url, { resource_type: 'video' }))
     );
 
-    // Cloudinary ne fait pas de fusion directe via URL
-    // Pour l'instant, on retourne la première vidéo + note
-    // TODO: Implémenter fusion via Cloudinary API avancée ou Shotstack
+    const [first, ...rest] = uploads;
+    const transformation: object[] = [];
+    for (const upload of rest) {
+      transformation.push(
+        { flags: 'splice', overlay: `video:${upload.public_id.replace(/\//g, ':')}` },
+        { flags: 'layer_apply' },
+      );
+    }
 
-    return uploads[0].secure_url + ' (fusion multi-vidéos nécessite API avancée)';
+    return cloudinary.url(first.public_id, { resource_type: 'video', transformation });
   } catch (error: any) {
     throw new Error(`Erreur fusion vidéos: ${error.message}`);
   }
@@ -466,14 +469,28 @@ export async function addSubtitles(
       throw new Error('Timeout transcription');
     }
 
-    // Génération fichier SRT
     const srtContent = generateSRT(transcriptData.words || []);
 
-    // Pour l'instant, retourner transcription texte
-    // TODO: Overlay SRT sur vidéo via Cloudinary
+    // Upload SRT to Cloudinary then overlay on video
+    const srtPublicId = `subtitles/${Date.now()}`;
+    await new Promise<void>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'raw', public_id: srtPublicId, format: 'srt' },
+        (err) => err ? reject(err) : resolve(),
+      );
+      stream.end(Buffer.from(srtContent));
+    });
+
+    const videoWithSubs = cloudinary.url(videoUpload.public_id, {
+      resource_type: 'video',
+      transformation: [
+        { overlay: { public_id: srtPublicId, resource_type: 'subtitles' } },
+        { flags: 'layer_apply' },
+      ],
+    });
 
     return {
-      video_url: videoUpload.secure_url,
+      video_url: videoWithSubs,
       subtitles_url: 'data:text/plain;base64,' + Buffer.from(srtContent).toString('base64'),
       transcription: transcriptData.text || '',
     };

@@ -12,6 +12,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   analyzeImage, optimizeImage, enhanceImage, removeBackground, createSocialVariants,
 } from '../../integrations/media-processing.js';
+import { env } from '../../config/env.js';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
@@ -21,17 +22,18 @@ const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] ?? ''
 let cloudinary: any;
 (async () => {
   const { v2 } = await import('cloudinary');
+  const { env: e } = await import('../../config/env.js');
   cloudinary = v2;
   cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'demo',
-    api_key: process.env.CLOUDINARY_API_KEY || '',
-    api_secret: process.env.CLOUDINARY_API_SECRET || '',
+    cloud_name: e.CLOUDINARY_CLOUD_NAME ?? '',
+    api_key:    e.CLOUDINARY_API_KEY    ?? '',
+    api_secret: e.CLOUDINARY_API_SECRET ?? '',
     secure: true,
   });
 })();
 
 function isAllowed(chatId: number): boolean {
-  const allowed = process.env['TELEGRAM_ALLOWED_CHATS'] ?? '';
+  const allowed = env.TELEGRAM_ALLOWED_CHATS ?? '';
   if (!allowed) return true;
   return allowed.split(',').map(s => s.trim()).includes(String(chatId));
 }

@@ -230,6 +230,10 @@ export async function getKouiderPreferences(): Promise<{
       casual:       tm['casual']       ?? 0,
     };
     tone = (Object.entries(scores).sort((a, b) => b[1] - a[1])[0]![0]) as typeof tone;
+  } else if (responseStyle === 'detailed') {
+    tone = 'professional';
+  } else if (responseStyle === 'short') {
+    tone = 'casual';
   }
 
   return {

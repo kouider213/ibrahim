@@ -5,10 +5,11 @@
  */
 
 import axios from 'axios';
+import { env } from '../config/env.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 function getToken(): string {
-  return process.env['FLIGHT_BOT_TOKEN'] ?? '';
+  return env.FLIGHT_BOT_TOKEN ?? '';
 }
 function base(): string {
   return `https://api.telegram.org/bot${getToken()}`;

@@ -6,10 +6,13 @@
  */
 
 import axios from 'axios';
+import { env } from '../config/env.js';
 
-const AMADEUS_CLIENT_ID     = process.env['AMADEUS_CLIENT_ID'] ?? '';
-const AMADEUS_CLIENT_SECRET = process.env['AMADEUS_CLIENT_SECRET'] ?? '';
-const AMADEUS_BASE_URL      = 'https://test.api.amadeus.com'; // sandbox → production: api.amadeus.com
+const AMADEUS_CLIENT_ID     = env.AMADEUS_CLIENT_ID     ?? '';
+const AMADEUS_CLIENT_SECRET = env.AMADEUS_CLIENT_SECRET ?? '';
+const AMADEUS_BASE_URL      = env.AMADEUS_USE_PRODUCTION
+  ? 'https://api.amadeus.com'
+  : 'https://test.api.amadeus.com';
 
 export interface FlightOffer {
   id:             string;
