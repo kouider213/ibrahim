@@ -373,6 +373,50 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── Alertes immédiates ──────────────────────────────────────
+  {
+    name: 'send_alert',
+    description: 'Envoyer une notification Pushover immédiate à Kouider. Utiliser pour les urgences: client en retard, voiture non rendue, problème urgent. Différent de schedule_reminder qui programme un rappel futur.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        message: { type: 'string', description: 'Texte de la notification' },
+        title:   { type: 'string', description: 'Titre (défaut: "Ibrahim")' },
+        urgent:  { type: 'boolean', description: 'Priorité haute (true = son d\'alerte fort)' },
+      },
+      required: ['message'],
+    },
+  },
+
+  // ─── Maintenance flotte ──────────────────────────────────────
+  {
+    name: 'record_maintenance',
+    description: 'Enregistrer un entretien pour une voiture de la flotte (vidange, pneus, freins, contrôle technique, accident, etc.).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:      { type: 'string', description: 'Nom de la voiture (ex: Clio 5, Dacia Sandero)' },
+        type:          { type: 'string', description: 'Type d\'entretien: vidange, pneus, freins, controle_technique, accident, nettoyage, autre' },
+        date:          { type: 'string', description: 'Date YYYY-MM-DD (défaut: aujourd\'hui)' },
+        mileage:       { type: 'number', description: 'Kilométrage au moment de l\'entretien (optionnel)' },
+        cost:          { type: 'number', description: 'Coût en DZD (optionnel)' },
+        notes:         { type: 'string', description: 'Notes supplémentaires (optionnel)' },
+        next_due_date: { type: 'string', description: 'Prochaine échéance YYYY-MM-DD (optionnel — ex: prochaine vidange dans 10 000 km)' },
+      },
+      required: ['car_name', 'type'],
+    },
+  },
+  {
+    name: 'get_fleet_maintenance',
+    description: 'Voir l\'historique d\'entretien de la flotte. Affiche les entretiens passés et les alertes pour les échéances à venir dans 30 jours.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name: { type: 'string', description: 'Filtrer par nom de voiture (optionnel — vide = toute la flotte)' },
+      },
+    },
+  },
+
   // ─── Calendrier Google — Gestion événements ─────────────────
   {
     name: 'create_calendar_event',

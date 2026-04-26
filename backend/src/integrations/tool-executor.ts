@@ -29,6 +29,7 @@ import {
   formatReportForKouider,
 } from './improvement-report.js';
 import { sendWhatsApp } from './whatsapp.js';
+import { notifyOwner } from '../notifications/pushover.js';
 import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc } from './telegram.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
@@ -100,6 +101,10 @@ export async function executeTool(
       case 'schedule_reminder':          return await scheduleReminder(input);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
+      // ─── Alertes & Maintenance ───
+      case 'send_alert':                 return await sendAlert(input);
+      case 'record_maintenance':         return await recordMaintenance(input);
+      case 'get_fleet_maintenance':      return await getFleetMaintenance(input);
       // ─── Calendrier Google ───
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'update_calendar_event':      return await updateCalendarEventTool(input);
@@ -804,4 +809,95 @@ async function getClientProfile(input: Record<string, unknown>): Promise<string>
   }
 
   return result;
+}
+
+async function recordMaintenance(input: Record<string, unknown>): Promise<string> {
+  const carName  = input['car_name'] as string;
+  const type     = input['type']     as string;
+  const date     = (input['date'] as string) ?? new Date().toISOString().slice(0, 10);
+  const mileage  = input['mileage']      as number | undefined;
+  const cost     = input['cost']         as number | undefined;
+  const notes    = input['notes']        as string | undefined;
+  const nextDate = input['next_due_date'] as string | undefined;
+
+  if (!carName) return '❌ car_name manquant';
+  if (!type)    return '❌ type manquant (ex: vidange, pneus, freins, controle_technique, accident)';
+
+  const content = JSON.stringify({ car: carName, type, date, mileage, cost, notes, next_due_date: nextDate });
+  const { error } = await supabase.from('ibrahim_memory').insert({ category: 'maintenance', content });
+  if (error) return `❌ Erreur: ${error.message}`;
+
+  let result = `✅ Entretien enregistré — ${carName}: ${type} (${date})`;
+  if (mileage) result += ` | ${mileage.toLocaleString('fr-DZ')} km`;
+  if (cost)    result += ` | ${cost.toLocaleString('fr-DZ')} DZD`;
+  if (nextDate) result += ` | Prochain prévu: ${nextDate}`;
+  return result;
+}
+
+async function getFleetMaintenance(input: Record<string, unknown>): Promise<string> {
+  const filterCar = input['car_name'] as string | undefined;
+
+  const { data, error } = await supabase
+    .from('ibrahim_memory')
+    .select('content, created_at')
+    .eq('category', 'maintenance')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) return `❌ Erreur: ${error.message}`;
+  if (!data?.length) return 'Aucun entretien enregistré.';
+
+  type MR = { car: string; type: string; date: string; mileage?: number; cost?: number; notes?: string; next_due_date?: string };
+  const records = (data as { content: string }[]).map(d => {
+    try { return JSON.parse(d.content) as MR; } catch { return null; }
+  }).filter(Boolean) as MR[];
+
+  const filtered = filterCar
+    ? records.filter(r => r.car.toLowerCase().includes(filterCar.toLowerCase()))
+    : records;
+
+  if (!filtered.length) return `Aucun entretien trouvé${filterCar ? ` pour "${filterCar}"` : ''}.`;
+
+  // Group by car
+  const byCar = filtered.reduce((acc, r) => {
+    if (!acc[r.car]) acc[r.car] = [];
+    acc[r.car].push(r);
+    return acc;
+  }, {} as Record<string, MR[]>);
+
+  let result = '🔧 ENTRETIENS FLOTTE\n\n';
+  for (const [car, history] of Object.entries(byCar)) {
+    result += `🚗 ${car}:\n`;
+    history.slice(0, 6).forEach(r => {
+      result += `  - ${r.date} | ${r.type}`;
+      if (r.mileage) result += ` | ${r.mileage.toLocaleString('fr-DZ')} km`;
+      if (r.cost)    result += ` | ${r.cost.toLocaleString('fr-DZ')} DZD`;
+      if (r.next_due_date) result += ` | ⚠️ Prochain: ${r.next_due_date}`;
+      if (r.notes)   result += ` | ${r.notes}`;
+      result += '\n';
+    });
+  }
+
+  // Upcoming alerts within 30 days
+  const soon = filtered.filter(r => {
+    if (!r.next_due_date) return false;
+    const diff = new Date(r.next_due_date).getTime() - Date.now();
+    return diff <= 30 * 86_400_000;
+  }).sort((a, b) => new Date(a.next_due_date!).getTime() - new Date(b.next_due_date!).getTime());
+
+  if (soon.length) {
+    result += `\n⚠️ À PRÉVOIR DANS 30 JOURS:\n`;
+    soon.forEach(r => result += `  - ${r.car}: ${r.type} prévu le ${r.next_due_date}\n`);
+  }
+
+  return result;
+}
+
+async function sendAlert(input: Record<string, unknown>): Promise<string> {
+  const message = input['message'] as string;
+  const title   = (input['title']  as string) ?? 'Ibrahim';
+  const urgent  = Boolean(input['urgent']);
+  if (!message) return '❌ message manquant';
+  await notifyOwner(title, message, urgent);
+  return `✅ Alerte Pushover envoyée: "${message}"`;
 }

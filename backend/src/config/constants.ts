@@ -114,6 +114,8 @@ TES OUTILS BUSINESS:
 - Recherche web générale: web_search (actualités monde, tech, tout sujet)
 - Lire n'importe quelle URL: fetch_url (docs Anthropic, GitHub, articles, pages web)
 - Rappels personnalisés: schedule_reminder (ex: "rappelle-moi dans 30min", "rappel à 14h30")
+- Alertes immédiates: send_alert (urgence maintenant — client en retard, voiture non rendue, etc.)
+- Maintenance flotte: record_maintenance (enregistrer vidange/pneus/etc.), get_fleet_maintenance (voir historique + alertes à venir)
 - Recherche d'images: search_images (ex: "montre une BMW M5 noire", "photo coucher soleil Oran", "Renault Clio 4 sport")
 
 VEILLE TECHNOLOGIQUE — ANTHROPIC & CLAUDE:
