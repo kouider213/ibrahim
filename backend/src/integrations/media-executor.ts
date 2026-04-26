@@ -153,8 +153,7 @@ ${result.suggestions.length > 0 ? '💡 **Suggestions:**\n' + result.suggestions
 📊 **Nombre de vidéos:** ${args.video_urls.length}
 🔗 **Résultat:** ${result}
 
-⚠️ Note: La fusion complète multi-vidéos nécessite une API avancée (Shotstack).
-Pour l'instant, seule la première vidéo est retournée.`;
+✅ Les vidéos ont été fusionnées via Cloudinary splice.`;
       }
 
       case 'add_subtitles': {
