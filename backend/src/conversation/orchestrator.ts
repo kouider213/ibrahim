@@ -51,6 +51,8 @@ const TOOL_LABELS: Record<string, string> = {
   generate_receipt:     '🧾 Génération reçu…',
   get_unpaid_bookings:  '⚠️ Vérification impayés…',
   check_anomalies:        '🔍 Détection anomalies…',
+  generate_contract:      '📄 Génération contrat location…',
+  get_fleet_stats:        '📊 Analyse statistiques flotte…',
   send_alert:             '🚨 Envoi alerte Pushover…',
   record_maintenance:     '🔧 Enregistrement entretien…',
   get_fleet_maintenance:  '🔧 Chargement historique flotte…',

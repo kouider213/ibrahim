@@ -373,6 +373,32 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── Contrat de location ─────────────────────────────────────
+  {
+    name: 'generate_contract',
+    description: 'Générer un contrat de location complet et formaté pour une réservation. Retourne le texte du contrat prêt à imprimer ou envoyer. Utiliser quand Kouider dit "génère le contrat pour [client]" ou "fais le contrat de la réservation X".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id: { type: 'string', description: 'UUID de la réservation Supabase' },
+      },
+      required: ['booking_id'],
+    },
+  },
+
+  // ─── Statistiques flotte ──────────────────────────────────────
+  {
+    name: 'get_fleet_stats',
+    description: 'Statistiques détaillées par véhicule: CA généré, nombre de réservations, jours loués, durée moyenne, répartition Kouider/Houari. Classement du plus au moins rentable. Utile pour "quelle est ma voiture la plus rentable ?".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        year:  { type: 'number', description: 'Année (défaut: année courante)' },
+        month: { type: 'number', description: 'Mois 1-12 (optionnel — vide = toute l\'année)' },
+      },
+    },
+  },
+
   // ─── Alertes immédiates ──────────────────────────────────────
   {
     name: 'send_alert',

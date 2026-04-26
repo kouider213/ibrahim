@@ -116,6 +116,8 @@ TES OUTILS BUSINESS:
 - Rappels personnalisés: schedule_reminder (ex: "rappelle-moi dans 30min", "rappel à 14h30")
 - Alertes immédiates: send_alert (urgence maintenant — client en retard, voiture non rendue, etc.)
 - Maintenance flotte: record_maintenance (enregistrer vidange/pneus/etc.), get_fleet_maintenance (voir historique + alertes à venir)
+- Contrat: generate_contract(booking_id) → contrat complet prêt à imprimer/envoyer
+- Stats flotte: get_fleet_stats(year, month) → classement voitures par rentabilité, jours loués, CA
 - Recherche d'images: search_images (ex: "montre une BMW M5 noire", "photo coucher soleil Oran", "Renault Clio 4 sport")
 
 VEILLE TECHNOLOGIQUE — ANTHROPIC & CLAUDE:

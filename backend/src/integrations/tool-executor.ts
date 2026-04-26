@@ -105,6 +105,9 @@ export async function executeTool(
       case 'send_alert':                 return await sendAlert(input);
       case 'record_maintenance':         return await recordMaintenance(input);
       case 'get_fleet_maintenance':      return await getFleetMaintenance(input);
+      // ─── Contrat & Stats flotte ───
+      case 'generate_contract':          return await generateContract(input);
+      case 'get_fleet_stats':            return await getFleetStats(input);
       // ─── Calendrier Google ───
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'update_calendar_event':      return await updateCalendarEventTool(input);
@@ -900,4 +903,127 @@ async function sendAlert(input: Record<string, unknown>): Promise<string> {
   if (!message) return '❌ message manquant';
   await notifyOwner(title, message, urgent);
   return `✅ Alerte Pushover envoyée: "${message}"`;
+}
+
+async function generateContract(input: Record<string, unknown>): Promise<string> {
+  const bookingId = input['booking_id'] as string;
+  if (!bookingId) return '❌ booking_id manquant';
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, client_age, start_date, end_date, final_price, notes, rented_by, cars(name, base_price, category)')
+    .eq('id', bookingId)
+    .single();
+
+  if (error || !data) return `❌ Réservation introuvable: ${bookingId}`;
+  const b = data as any;
+  const carName   = b.cars?.name ?? 'Véhicule';
+  const start     = new Date(b.start_date);
+  const end       = new Date(b.end_date);
+  const days      = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+  const dailyRate = b.final_price && days ? Math.round(b.final_price / days) : (b.cars?.base_price ?? 0);
+  const today     = new Date().toLocaleDateString('fr-DZ');
+  const refNum    = b.id.slice(0, 8).toUpperCase();
+
+  const contract = `
+═══════════════════════════════════════════
+       CONTRAT DE LOCATION DE VÉHICULE
+           FIK CONCIERGERIE — ORAN
+═══════════════════════════════════════════
+Réf: ${refNum}              Date: ${today}
+
+── BAILLEUR ──────────────────────────────
+Fik Conciergerie
+Oran, Algérie
+
+── LOCATAIRE ─────────────────────────────
+Nom:       ${b.client_name}
+Téléphone: ${b.client_phone ?? 'N/A'}${b.client_age ? `\nÂge:       ${b.client_age} ans` : ''}
+
+── VÉHICULE ──────────────────────────────
+${carName}${b.cars?.category ? ` (${b.cars.category})` : ''}
+
+── CONDITIONS DE LOCATION ────────────────
+Date début:     ${b.start_date}
+Date fin:       ${b.end_date}
+Durée:          ${days} jour${days > 1 ? 's' : ''}
+Tarif/jour:     ${dailyRate.toLocaleString('fr-DZ')} DZD
+MONTANT TOTAL:  ${Number(b.final_price).toLocaleString('fr-DZ')} DZD${b.notes ? `\nNotes:      ${b.notes}` : ''}
+
+── CONDITIONS GÉNÉRALES ──────────────────
+1. Le locataire s'engage à restituer le véhicule en parfait état.
+2. Tout dommage constaté sera facturé au locataire.
+3. Toute sortie hors wilaya d'Oran nécessite une autorisation écrite.
+4. Retard de restitution: ${dailyRate.toLocaleString('fr-DZ')} DZD par jour supplémentaire.
+5. Carburant: restitution au même niveau qu'à la prise en charge.
+6. Documents requis: permis de conduire + pièce d'identité valide.
+7. Vitesse maximale autorisée: 120 km/h sur autoroute.
+
+── SIGNATURES ────────────────────────────
+Le Bailleur: _________________    Date: ___/___/______
+Le Locataire: ________________    Date: ___/___/______
+═══════════════════════════════════════════`.trim();
+
+  return contract;
+}
+
+async function getFleetStats(input: Record<string, unknown>): Promise<string> {
+  const year  = input['year']  ? Number(input['year'])  : new Date().getFullYear();
+  const month = input['month'] ? Number(input['month']) : null;
+
+  let query = supabase
+    .from('bookings')
+    .select('car_id, start_date, end_date, final_price, status, rented_by, cars(name)')
+    .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED']);
+
+  if (month) {
+    const from = `${year}-${String(month).padStart(2, '0')}-01`;
+    const to   = `${year}-${String(month).padStart(2, '0')}-31`;
+    query = query.gte('start_date', from).lte('start_date', to);
+  } else {
+    query = query.gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`);
+  }
+
+  const { data, error } = await query;
+  if (error) return `❌ Erreur: ${error.message}`;
+  if (!data?.length) return 'Aucune réservation trouvée pour cette période.';
+
+  type Row = { car_id: string; start_date: string; end_date: string; final_price: number; rented_by: string; cars?: { name?: string } };
+  const rows = data as Row[];
+
+  const stats: Record<string, { name: string; bookings: number; ca: number; days: number; kouider: number; houari: number }> = {};
+
+  for (const r of rows) {
+    const key  = r.car_id;
+    const name = r.cars?.name ?? r.car_id;
+    if (!stats[key]) stats[key] = { name, bookings: 0, ca: 0, days: 0, kouider: 0, houari: 0 };
+
+    const d = Math.max(1, Math.round(
+      (new Date(r.end_date).getTime() - new Date(r.start_date).getTime()) / 86_400_000
+    ));
+    stats[key].bookings++;
+    stats[key].ca   += r.final_price ?? 0;
+    stats[key].days += d;
+    if (r.rented_by === 'Houari') stats[key].houari += r.final_price ?? 0;
+    else                           stats[key].kouider += r.final_price ?? 0;
+  }
+
+  const sorted = Object.values(stats).sort((a, b) => b.ca - a.ca);
+  const totalCA = sorted.reduce((s, v) => s + v.ca, 0);
+
+  const period = month ? `${month}/${year}` : `${year}`;
+  let result   = `📊 STATS FLOTTE — ${period}\n`;
+  result += `Total CA: ${totalCA.toLocaleString('fr-DZ')} DZD | ${sorted.reduce((s,v)=>s+v.bookings,0)} réservations\n\n`;
+
+  sorted.forEach((v, i) => {
+    const share = totalCA > 0 ? Math.round(v.ca / totalCA * 100) : 0;
+    const avg   = v.bookings > 0 ? Math.round(v.days / v.bookings) : 0;
+    result += `${i + 1}. ${v.name}\n`;
+    result += `   CA: ${v.ca.toLocaleString('fr-DZ')} DZD (${share}%) | ${v.bookings} résas | ${v.days}j loués | moy ${avg}j/résa\n`;
+    if (v.kouider || v.houari) {
+      result += `   Kouider: ${v.kouider.toLocaleString('fr-DZ')} DZD — Houari: ${v.houari.toLocaleString('fr-DZ')} DZD\n`;
+    }
+  });
+
+  return result;
 }
