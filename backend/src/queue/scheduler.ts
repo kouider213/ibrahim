@@ -15,6 +15,8 @@ import {
   jobAnthropicWatch,
 } from './jobs/proactive-jobs.js';
 import { notifyOwner } from '../notifications/pushover.js';
+import { sendMessage as sendTelegram } from '../integrations/telegram.js';
+import { env } from '../config/env.js';
 
 const SCHEDULER_QUEUE = 'ibrahim-scheduler';
 
@@ -120,7 +122,12 @@ export async function initScheduler(): Promise<void> {
     async (job: Job) => {
       if (job.name === 'custom-reminder') {
         const msg = (job.data as { message: string }).message;
-        await notifyOwner('⏰ Rappel Ibrahim', msg);
+        const chatId = env.TELEGRAM_CHAT_ID;
+        if (chatId) {
+          await sendTelegram(chatId, `⏰ *Rappel Ibrahim*\n\n${msg}`);
+        } else {
+          await notifyOwner('⏰ Rappel Ibrahim', msg);
+        }
         return;
       }
       const handler = handlers[job.name];
