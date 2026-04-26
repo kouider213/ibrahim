@@ -92,11 +92,10 @@ export default function ChatInterface() {
   const [errorVisible, setErrorVisible] = useState(false);
   const [started,      setStarted]      = useState(false);
   const [analyzing,    setAnalyzing]    = useState(false);
-  const [liveVision,   setLiveVision]   = useState(false);
+  // Pending photo: stored after capture, sent together with the next voice message
+  const pendingPhotoRef = useRef<{ base64: string; mime: string } | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const liveVideoRef   = useRef<HTMLVideoElement>(null);
-  const videoStreamRef = useRef<MediaStream | null>(null);
 
   const stateRef           = useRef<JarvisState>('idle');
   const sending            = useRef(false);
@@ -128,53 +127,7 @@ export default function ChatInterface() {
     setState(s);
   }, []);
 
-  // ── Live camera: capture frame from video stream ─────────────
-  const captureFrame = useCallback((): string | null => {
-    const video = liveVideoRef.current;
-    if (!video || !videoStreamRef.current || video.readyState < 2) return null;
-    const w = Math.min(video.videoWidth  || 640, 640);
-    const h = Math.min(video.videoHeight || 480, 480);
-    const tmp = document.createElement('canvas');
-    tmp.width = w; tmp.height = h;
-    const c = tmp.getContext('2d');
-    if (!c) return null;
-    c.drawImage(video, 0, 0, w, h);
-    const dataUrl = tmp.toDataURL('image/jpeg', 0.7);
-    return dataUrl.split(',')[1] ?? null;
-  }, []);
-
-  // ── Live camera: start / stop stream ─────────────────────────
-  const startLiveCamera = useCallback(async () => {
-    if (videoStreamRef.current) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
-      });
-      videoStreamRef.current = stream;
-      if (liveVideoRef.current) {
-        liveVideoRef.current.srcObject = stream;
-        await liveVideoRef.current.play().catch(() => {});
-      }
-      setLiveVision(true);
-    } catch {
-      showError('Caméra non accessible');
-    }
-  }, [showError]);
-
-  const stopLiveCamera = useCallback(() => {
-    videoStreamRef.current?.getTracks().forEach(t => t.stop());
-    videoStreamRef.current = null;
-    if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
-    setLiveVision(false);
-  }, []);
-
-  const toggleLiveVision = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (liveVision) stopLiveCamera();
-    else await startLiveCamera();
-  }, [liveVision, startLiveCamera, stopLiveCamera]);
-
-  // ── Send text ─────────────────────────────────
+  // ── Send text (attaches pending photo if any) ────────────────
   const sendText = useCallback(async (msg: string) => {
     if (!msg.trim() || sending.current) return;
     sending.current = true;
@@ -183,17 +136,18 @@ export default function ChatInterface() {
     setShowResponse(false);
     elevenlabsReceived.current = false;
 
-    const frame = videoStreamRef.current ? captureFrame() : null;
+    const photo = pendingPhotoRef.current;
+    pendingPhotoRef.current = null;
 
     try {
-      await api.chat(msg, sessionId, false, frame ?? undefined, 'image/jpeg');
+      await api.chat(msg, sessionId, false, photo?.base64, photo?.mime ?? 'image/jpeg');
     } catch {
       showError('Erreur de connexion');
       applyState('idle');
     } finally {
       sending.current = false;
     }
-  }, [sessionId, applyState, showError, captureFrame]);
+  }, [sessionId, applyState, showError]);
 
   // ── Mic amplitude reader ──────────────────────
   const startMicAnalyser = useCallback(async () => {
@@ -507,22 +461,27 @@ export default function ChatInterface() {
 
     setAnalyzing(true);
     try {
-      // Resize to max 1024px before sending — keeps payload small and avoids call-stack overflow
       const base64 = await resizeImageToBase64(file, 1024);
-      const mime   = 'image/jpeg';
-      const result = await api.vision(base64, mime);
-      const description = result.description ?? '';
-      if (description) {
-        await sendText(`[📷 Photo] ${description}`);
-      } else {
-        showError('Ibrahim ne peut pas analyser cette photo');
-      }
-    } catch {
-      showError('Erreur analyse photo');
-    } finally {
+      // Store photo — it will be attached to the next voice message
+      pendingPhotoRef.current = { base64, mime: 'image/jpeg' };
       setAnalyzing(false);
+
+      // Ask the user what they want to know about the photo
+      const prompt = 'Photo reçue. Posez votre question à voix haute.';
+      setResponseText(prompt);
+      setShowResponse(true);
+      applyState('speak');
+      iosFallbackSpeak(prompt, () => {
+        applyState('idle');
+        // Auto-start listening so user can immediately ask their question
+        if (loopActive.current) startListeningInner();
+      });
+    } catch {
+      setAnalyzing(false);
+      showError('Impossible de lire la photo');
     }
-  }, [sendText, showError]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyState, showError]);
 
   // ── Cleanup ───────────────────────────────────
   useEffect(() => {
@@ -532,7 +491,6 @@ export default function ChatInterface() {
       if (audioFallbackTimer.current) clearTimeout(audioFallbackTimer.current);
       cancelAnimationFrame(rafRef.current);
       micStreamRef.current?.getTracks().forEach(t => t.stop());
-      videoStreamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -582,22 +540,14 @@ export default function ChatInterface() {
         <div className="sphere-response-text">{responseText}</div>
       </div>
 
-      {/* Live vision toggle */}
-      <button
-        className={`live-vision-btn${liveVision ? ' active' : ''}`}
-        onClick={toggleLiveVision}
-        aria-label={liveVision ? 'Désactiver vision live' : 'Activer vision live'}
-      >
-        {liveVision ? '👁️' : '🎥'}
-      </button>
-
       {/* Camera button — label wraps input directly so iOS Safari opens camera on first tap */}
       <label
-        className={`camera-btn${analyzing ? ' analyzing' : ''}`}
+        className={`camera-btn${analyzing ? ' analyzing' : ''}${pendingPhotoRef.current ? ' photo-ready' : ''}`}
         onClick={stopProp}
         aria-label="Prendre une photo"
+        title={pendingPhotoRef.current ? 'Photo prête — parlez maintenant' : 'Prendre une photo'}
       >
-        {analyzing ? '⏳' : '📷'}
+        {analyzing ? '⏳' : pendingPhotoRef.current ? '✅' : '📷'}
         <input
           ref={cameraInputRef}
           type="file"
@@ -607,16 +557,6 @@ export default function ChatInterface() {
           onChange={handlePhotoChange}
         />
       </label>
-
-      {/* Hidden live video — required by iOS to keep stream alive */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        ref={liveVideoRef}
-        autoPlay
-        playsInline
-        muted
-        style={{ position: 'fixed', left: '-9999px', top: '-9999px', width: '1px', height: '1px' }}
-      />
 
       {/* Error toast */}
       <div className={`sphere-error${errorVisible ? ' show' : ''}`}>{errorMsg}</div>

@@ -347,36 +347,15 @@
   box-shadow: 0 0 22px rgba(255,200,40,0.25);
   animation: btn-pulse-yellow 1s ease-in-out infinite;
 }
+.camera-btn.photo-ready {
+  border-color: rgba(80,255,140,0.72);
+  color: rgba(80,255,140,0.95);
+  box-shadow: 0 0 22px rgba(80,255,140,0.30);
+  animation: btn-pulse-green 1.5s ease-in-out infinite;
+}
 @keyframes btn-pulse-yellow {
   0%, 100% { box-shadow: 0 0 14px rgba(255,200,40,0.2); }
   50%       { box-shadow: 0 0 28px rgba(255,200,40,0.5); }
-}
-
-.live-vision-btn {
-  position: absolute;
-  bottom: max(14px, env(safe-area-inset-bottom, 14px));
-  right: 86px;
-  width: 50px; height: 50px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(0,220,255,0.28);
-  background: rgba(0,12,20,0.80);
-  color: rgba(0,220,255,0.65);
-  font-size: 20px;
-  cursor: pointer;
-  z-index: 20;
-  display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 0 10px rgba(0,220,255,0.08);
-  transition: border-color 0.3s, box-shadow 0.3s, transform 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-.live-vision-btn:active { transform: scale(0.92); }
-.live-vision-btn.active {
-  border-color: rgba(80,255,140,0.72);
-  color: rgba(80,255,140,0.95);
-  box-shadow: 0 0 20px rgba(80,255,140,0.30), inset 0 0 10px rgba(80,255,140,0.08);
-  animation: btn-pulse-green 2s ease-in-out infinite;
 }
 @keyframes btn-pulse-green {
   0%, 100% { box-shadow: 0 0 14px rgba(80,255,140,0.22); }
