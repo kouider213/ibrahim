@@ -49,21 +49,10 @@ const TOOL_LABELS: Record<string, string> = {
   record_payment:       '💳 Enregistrement paiement…',
   generate_receipt:     '🧾 Génération reçu…',
   get_unpaid_bookings:  '⚠️ Vérification impayés…',
-  check_anomalies:      '🔍 Détection anomalies…',
-  analyze_image:        '🖼️ Analyse image…',
-  optimize_image:       '🖼️ Optimisation image…',
-  enhance_image:        '✨ Amélioration image…',
-  remove_background:    '🎨 Suppression arrière-plan…',
-  add_text_overlay:     '📝 Ajout texte sur image…',
-  create_social_variants: '📱 Création variantes réseaux…',
-  analyze_video:        '🎬 Analyse vidéo…',
-  cut_video:            '✂️ Découpe vidéo…',
-  merge_videos:         '🎞️ Fusion vidéos…',
-  add_subtitles:        '💬 Génération sous-titres…',
-  optimize_for_platform: '📱 Optimisation plateforme…',
-  extract_thumbnail:    '🖼️ Extraction miniature…',
-  add_background_music: '🎵 Ajout musique…',
-  create_video_preview: '🎬 Création aperçu vidéo…',
+  check_anomalies:        '🔍 Détection anomalies…',
+  create_calendar_event:  '📅 Création événement calendrier…',
+  update_calendar_event:  '📅 Mise à jour calendrier…',
+  delete_calendar_event:  '📅 Suppression événement calendrier…',
 };
 
 function getToolLabel(toolName: string): string {
@@ -142,22 +131,46 @@ export async function processMessage(
   return { text: response.text, status: 'done' };
 }
 
+const MAX_SENTENCE_LEN = 280;
+
 function splitSentences(text: string): string[] {
-  const SENTENCE_END = /([.!?…]+\s+|[.!?…]+$)/g;
-  const sentences: string[] = [];
+  // Split on strong punctuation or colon/semicolon (common in French enumerations)
+  const SENTENCE_END = /([.!?…]+\s+|[.!?…]+$|[:;]\s+)/g;
+  const raw: string[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
   while ((match = SENTENCE_END.exec(text)) !== null) {
     const end      = match.index + match[0].length;
     const sentence = text.slice(last, end).trim();
-    if (sentence) sentences.push(sentence);
+    if (sentence) raw.push(sentence);
     last = end;
   }
   if (last < text.length) {
     const remaining = text.slice(last).trim();
-    if (remaining) sentences.push(remaining);
+    if (remaining) raw.push(remaining);
   }
-  return sentences;
+
+  // Fallback: break sentences >MAX_SENTENCE_LEN at comma boundaries
+  const sentences: string[] = [];
+  for (const s of raw) {
+    if (s.length <= MAX_SENTENCE_LEN) {
+      sentences.push(s);
+    } else {
+      const parts = s.split(/,\s*/);
+      let current = '';
+      for (const part of parts) {
+        const candidate = current ? `${current}, ${part}` : part;
+        if (candidate.length <= MAX_SENTENCE_LEN) {
+          current = candidate;
+        } else {
+          if (current) sentences.push(current);
+          current = part;
+        }
+      }
+      if (current) sentences.push(current);
+    }
+  }
+  return sentences.filter(s => s.trim().length > 0);
 }
 
 // Pre-buffer a sentence into memory so it's ready to emit instantly

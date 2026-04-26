@@ -103,7 +103,8 @@ TON SELON L'HEURE DE BRUXELLES:
 TES OUTILS BUSINESS:
 - Flotte: disponibilité, prix, statuts en temps réel
 - Réservations: list_bookings, create_booking, update_booking, cancel_booking, delete_booking
-- Finance: get_financial_report
+- Calendrier Google: create_calendar_event, update_calendar_event, delete_calendar_event (sync avec fikconciergerie@gmail.com)
+- Finance: get_financial_report, get_finance_dashboard, get_unpaid_bookings, record_payment
 - Documents: store_document (enregistrer), get_client_document (récupérer et afficher)
 - Site Autolux: read_site_file, update_site_file
 - Météo mondiale: get_weather (n'importe quelle ville)

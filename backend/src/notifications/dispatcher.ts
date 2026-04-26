@@ -59,7 +59,7 @@ export async function synthesizeVoice(text: string): Promise<Buffer | null> {
   try {
     const response = await axios.post<ArrayBuffer>(
       `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}`,
-      { text: cleanTextForTTS(text), model_id: 'eleven_turbo_v2_5', voice_settings: EL_VOICE_SETTINGS },
+      { text: cleanTextForTTS(text), model_id: 'eleven_flash_v2_5', voice_settings: EL_VOICE_SETTINGS },
       {
         headers: { 'xi-api-key': env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
         responseType: 'arraybuffer',
@@ -83,7 +83,7 @@ export async function synthesizeVoiceStream(
       `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream`,
       {
         text: cleanTextForTTS(text),
-        model_id: 'eleven_turbo_v2_5',
+        model_id: 'eleven_flash_v2_5',
         voice_settings: EL_VOICE_SETTINGS,
         output_format: 'mp3_44100_128',
       },

@@ -1,6 +1,10 @@
 import { supabase } from './supabase.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
-import { executeMediaTool } from './media-executor.js';
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from './google-calendar.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
 import { learnRule } from './claude-api.js';
 import { getOranWeather } from './web-search.js';
@@ -95,21 +99,10 @@ export async function executeTool(
       case 'schedule_reminder':          return await scheduleReminder(input);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
-      // ─── PHASE 14 — Image & Vidéo ───
-      case 'analyze_image':
-      case 'optimize_image':
-      case 'create_social_variants':
-      case 'enhance_image':
-      case 'remove_background':
-      case 'add_text_overlay':
-      case 'analyze_video':
-      case 'cut_video':
-      case 'merge_videos':
-      case 'add_subtitles':
-      case 'optimize_for_platform':
-      case 'extract_thumbnail':
-      case 'add_background_music':
-      case 'create_video_preview':       return await executeMediaTool(name, input);
+      // ─── Calendrier Google ───
+      case 'create_calendar_event':      return await createCalendarEventTool(input);
+      case 'update_calendar_event':      return await updateCalendarEventTool(input);
+      case 'delete_calendar_event':      return await deleteCalendarEventTool(input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -709,4 +702,35 @@ async function sendTelegramMessage(input: Record<string, unknown>): Promise<stri
   } catch (err) {
     return `❌ Erreur Telegram: ${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+async function createCalendarEventTool(input: Record<string, unknown>): Promise<string> {
+  const eventId = await createCalendarEvent(
+    input['booking_id']  as string,
+    input['client_name'] as string,
+    input['car_name']    as string,
+    input['start_date']  as string,
+    input['end_date']    as string,
+    input['notes']       as string | undefined,
+  );
+  if (!eventId) return '❌ Impossible de créer l\'événement — vérifie GOOGLE_SERVICE_ACCOUNT_JSON';
+  return `✅ Événement créé dans le calendrier Google (ID: ${eventId})`;
+}
+
+async function updateCalendarEventTool(input: Record<string, unknown>): Promise<string> {
+  const ok = await updateCalendarEvent(
+    input['google_event_id'] as string,
+    {
+      summary:     input['summary']     as string | undefined,
+      startDate:   input['start_date']  as string | undefined,
+      endDate:     input['end_date']    as string | undefined,
+      description: input['description'] as string | undefined,
+    },
+  );
+  return ok ? '✅ Événement calendrier mis à jour' : '❌ Échec mise à jour — événement introuvable';
+}
+
+async function deleteCalendarEventTool(input: Record<string, unknown>): Promise<string> {
+  await deleteCalendarEvent(input['google_event_id'] as string);
+  return '✅ Événement supprimé du calendrier';
 }
