@@ -204,6 +204,28 @@ ${result.transcription}
 ✅ Frame extraite en haute qualité (JPG optimisé).`;
       }
 
+      case 'add_background_music': {
+        const volume = args.volume ?? 30;
+        const music: string = args.music ?? 'chill';
+        // Cloudinary audio overlay — free royalty-free music via public audio URLs
+        const MUSIC_URLS: Record<string, string> = {
+          upbeat:    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+          chill:     'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+          corporate: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+          energetic: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+          emotional: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
+        };
+        const musicUrl = MUSIC_URLS[music] ?? MUSIC_URLS['chill'];
+        const result = await media.addBackgroundMusicUrl(args.video_url, musicUrl, volume);
+        return `🎵 **MUSIQUE DE FOND AJOUTÉE**
+
+🎼 **Style:** ${music}
+🔊 **Volume musique:** ${volume}%
+🔗 **URL:** ${result}
+
+✅ La musique a été mixée automatiquement avec la vidéo.`;
+      }
+
       case 'create_video_preview': {
         const result = await media.createVideoPreview(
           args.video_url,

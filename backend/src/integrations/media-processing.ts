@@ -609,3 +609,24 @@ function formatSRTTime(ms: number): string {
 function pad(num: number, size: number = 2): string {
   return String(num).padStart(size, '0');
 }
+
+// ─── Add Background Music ────────────────────────────────────────
+export async function addBackgroundMusicUrl(
+  videoUrl: string,
+  musicUrl: string,
+  volumePct = 30,
+): Promise<string> {
+  // Upload video to Cloudinary
+  const upload = await cloudinary.uploader.upload(videoUrl, { resource_type: 'video' });
+
+  // Cloudinary audio overlay: underlay music track at given volume
+  const musicVolume = Math.round(volumePct * 0.4); // Cloudinary volume 0..100 mapped from pct
+  const url = cloudinary.url(upload.public_id, {
+    resource_type: 'video',
+    transformation: [
+      { overlay: { url: musicUrl }, flags: 'layer_apply', audio_codec: 'aac', volume: musicVolume },
+    ],
+  });
+
+  return url;
+}

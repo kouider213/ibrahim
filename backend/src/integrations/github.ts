@@ -1,13 +1,14 @@
 import axios from 'axios';
+import { env } from '../config/env.js';
 
-const GITHUB_API = 'https://api.github.com';
-const OWNER      = process.env['GITHUB_OWNER'] ?? 'kouider213';
-const FIK_REPO   = 'autolux-location';
-const IBRAHIM_REPO = process.env['GITHUB_DEFAULT_REPO'] ?? 'ibrahim';
+const GITHUB_API   = 'https://api.github.com';
+const OWNER        = env.GITHUB_OWNER ?? 'kouider213';
+const FIK_REPO     = 'autolux-location';
+const IBRAHIM_REPO = env.GITHUB_DEFAULT_REPO ?? 'ibrahim';
 
 function getHeaders() {
   return {
-    Authorization: `Bearer ${process.env['GITHUB_TOKEN'] ?? ''}`,
+    Authorization: `Bearer ${env.GITHUB_TOKEN ?? ''}`,
     Accept: 'application/vnd.github.v3+json',
     'Content-Type': 'application/json',
   };
@@ -82,7 +83,7 @@ export async function listDirectory(
 // ── Trigger Netlify deploy via Netlify API ────────────────────
 
 export async function triggerNetlifyDeploy(siteId = 'fik-conciergerie-oran'): Promise<boolean> {
-  const token = process.env['NETLIFY_TOKEN'] ?? '';
+  const token = env.NETLIFY_TOKEN ?? '';
   try {
     await axios.post(
       `https://api.netlify.com/api/v1/sites/${siteId}/builds`,
@@ -131,7 +132,7 @@ export interface ClientSiteConfig {
 }
 
 export async function createClientSiteOnNetlify(config: ClientSiteConfig): Promise<{ siteUrl: string; adminUrl: string } | null> {
-  const token = process.env['NETLIFY_TOKEN'] ?? '';
+  const token = env.NETLIFY_TOKEN ?? '';
   const siteName = `client-${config.clientName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
 
   try {

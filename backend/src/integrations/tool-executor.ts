@@ -351,7 +351,7 @@ async function supabaseExecute(input: Record<string, unknown>): Promise<string> 
   if (!sql) return 'SQL manquant';
 
   const supabaseUrl   = env.SUPABASE_URL;
-  const supabaseToken = process.env['SUPABASE_ACCESS_TOKEN'];
+  const supabaseToken = env.SUPABASE_ACCESS_TOKEN;
 
   if (!supabaseToken) return 'SUPABASE_ACCESS_TOKEN non configuré dans Railway.';
 
