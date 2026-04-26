@@ -137,12 +137,12 @@ export async function buildContext(
   const bookingsText = [
     activeRentals.length > 0
       ? `\n\nLOCATIONS EN COURS (${activeRentals.length}):\n${activeRentals.map((b: any) =>
-          `- ${b.client_name} (${b.client_phone}) — ${b.car_name} — du ${b.start_date} au ${b.end_date} — ${b.status}`
+          `- ${b.client_name} (${b.client_phone}) — ${b.cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date} — ${b.status}`
         ).join('\n')}`
       : '',
     upcomingRentals.length > 0
       ? `\n\nRÉSERVATIONS EN ATTENTE (${upcomingRentals.length + pendingBookings.length}):\n${[...upcomingRentals, ...pendingBookings].map((b: any) =>
-          `- ${b.client_name} (${b.client_phone}) — ${b.car_name} — du ${b.start_date} au ${b.end_date}`
+          `- ${b.client_name} (${b.client_phone}) — ${b.cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date}`
         ).join('\n')}`
       : '',
   ].join('');

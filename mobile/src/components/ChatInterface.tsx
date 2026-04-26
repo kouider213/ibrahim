@@ -243,14 +243,25 @@ export default function ChatInterface() {
       rec.continuous      = false;
       recRef.current      = rec;
 
+      // Safety timeout — if rec hangs >25s with no result, abort and re-schedule
+      const listenTimeout = setTimeout(() => {
+        if (stateRef.current === 'listen') {
+          recRef.current?.stop();
+          recRef.current = null;
+          applyState('idle');
+          scheduleNextListen();
+        }
+      }, 25_000);
+
       rec.onresult = (e: SREvent) => {
+        clearTimeout(listenTimeout);
         const t = e.results[0]?.[0]?.transcript ?? '';
         recRef.current = null;
         if (t.trim()) void sendText(t.trim());
         else { applyState('idle'); scheduleNextListen(); }
       };
-      rec.onerror = () => { recRef.current = null; applyState('idle'); scheduleNextListen(); };
-      rec.onend   = () => { if (stateRef.current === 'listen') { applyState('idle'); scheduleNextListen(); } };
+      rec.onerror = () => { clearTimeout(listenTimeout); recRef.current = null; applyState('idle'); scheduleNextListen(); };
+      rec.onend   = () => { clearTimeout(listenTimeout); if (stateRef.current === 'listen') { applyState('idle'); scheduleNextListen(); } };
       rec.start();
     } catch { applyState('idle'); scheduleNextListen(); }
   }, [applyState, sendText, showError, scheduleNextListen]);
@@ -423,13 +434,14 @@ export default function ChatInterface() {
         setResponseText(text); setShowResponse(true);
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         if (!elevenlabsReceived.current) {
+          // Wait 3s before fallback — gives ElevenLabs time to arrive on slow networks
           audioFallbackTimer.current = setTimeout(() => {
             audioFallbackTimer.current = null;
-            if (!isAudioPlaying()) {
+            if (!isAudioPlaying() && !elevenlabsReceived.current) {
               applyState('speak');
               iosFallbackSpeak(text, () => { applyState('idle'); scheduleNextListen(); });
             }
-          }, 1500);
+          }, 3000);
         }
         elevenlabsReceived.current = false;
       },

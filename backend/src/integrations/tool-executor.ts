@@ -683,8 +683,8 @@ async function searchImages(input: Record<string, unknown>): Promise<string> {
 }
 
 async function sendTelegramMessage(input: Record<string, unknown>): Promise<string> {
-  const chatIdStr = env.TELEGRAM_CHAT_ID ?? '809747124';
-  const chatId    = Number(chatIdStr);
+  if (!env.TELEGRAM_CHAT_ID) return '❌ TELEGRAM_CHAT_ID non configuré sur le serveur';
+  const chatId = Number(env.TELEGRAM_CHAT_ID);
   const message   = (input['message'] as string) ?? '';
   const photoUrl  = input['photo_url']    as string | undefined;
   const docUrl    = input['document_url'] as string | undefined;

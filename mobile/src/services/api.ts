@@ -286,16 +286,36 @@ function cleanForSpeech(text: string): string {
 export function iosFallbackSpeak(text: string, onComplete?: () => void): void {
   window.speechSynthesis.cancel();
   const cleaned = cleanForSpeech(text);
-  // iOS Safari truncates utterances >~220 chars — split into sentence chunks and chain
-  const chunks = cleaned.match(/[^.!?…:;]+[.!?…:;]*/g)?.filter(s => s.trim().length > 0) ?? [cleaned];
+  // iOS Safari truncates utterances >~220 chars — split by punctuation then enforce hard 180-char limit
+  const sentenceChunks = cleaned.match(/[^.!?…:;]+[.!?…:;]*/g)?.filter(s => s.trim().length > 0) ?? [cleaned];
+  const chunks: string[] = [];
+  for (const sentence of sentenceChunks) {
+    const trimmed = sentence.trim();
+    if (trimmed.length <= 180) {
+      chunks.push(trimmed);
+    } else {
+      // Break long sentences at word boundaries every 180 chars
+      const words = trimmed.split(' ');
+      let current = '';
+      for (const word of words) {
+        if ((current + ' ' + word).trim().length > 180) {
+          if (current) chunks.push(current.trim());
+          current = word;
+        } else {
+          current = current ? current + ' ' + word : word;
+        }
+      }
+      if (current) chunks.push(current.trim());
+    }
+  }
   let i = 0;
   function speakNext() {
     if (i >= chunks.length) { onComplete?.(); return; }
-    const utt = new SpeechSynthesisUtterance(chunks[i++]!.trim());
-    utt.lang  = 'fr-FR';
-    utt.rate  = 1.0;
-    utt.pitch = 1.0;
-    utt.onend = speakNext;
+    const utt = new SpeechSynthesisUtterance(chunks[i++]!);
+    utt.lang    = 'fr-FR';
+    utt.rate    = 1.0;
+    utt.pitch   = 1.0;
+    utt.onend   = speakNext;
     utt.onerror = speakNext;
     window.speechSynthesis.speak(utt);
   }
