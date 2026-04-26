@@ -1,4 +1,6 @@
 .env
+.env.local
 mobile/.env.local
 */node_modules/
 */dist/
+.netlify/
