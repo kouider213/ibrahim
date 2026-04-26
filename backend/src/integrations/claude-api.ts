@@ -85,7 +85,7 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
     return { level: 'high', budget: 10000 };
   }
   if (/debug.*erreur|typescript.*error|fix.*bug|implémenter.*feature|architecture|refactor/i.test(text)) {
-    return { level: 'high', budget: 10000 };
+    return { level: 'none', budget: 0 }; // code tasks: skip thinking, use tools directly — faster
   }
 
   // MEDIUM: Calculs financiers, comparaisons, rapports
@@ -285,8 +285,12 @@ export async function chatWithTools(
   if (useCitations)  console.log('[claude] 📚 CITATIONS: Activé pour cette requête');
   if (useWebSearch)  console.log('[claude] 🌐 WEB SEARCH NATIF: Activé pour cette requête');
 
-  // Agentic loop — max 15 tool rounds
-  for (let round = 0; round < 15; round++) {
+  // Agentic loop — max 30 tool rounds (more for coding tasks)
+  const lastText = (processedMessages.at(-1)?.content ?? '').toString().toLowerCase();
+  const isCodingTask = /code|fichier|github|modifier|écrire|lire|debug|railway|deploy|typescript|push|commit|programme|script/i.test(lastText);
+  const maxRounds = isCodingTask ? 30 : 15;
+
+  for (let round = 0; round < maxRounds; round++) {
     let response: Awaited<ReturnType<typeof client.messages.create>> | null = null;
     let currentMessages = apiMessages;
 
