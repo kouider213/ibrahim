@@ -63,6 +63,27 @@ function rotateX(p: Particle, a: number): Particle {
 
 const BASE_PARTICLES = fibonacciSphere(N_PARTICLES);
 
+// Resize image to maxPx on longest side and return base64 JPEG string (no stack overflow)
+function resizeImageToBase64(file: File, maxPx: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width  * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      resolve(dataUrl.split(',')[1]!);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 export default function ChatInterface() {
   const [state,        setState]        = useState<JarvisState>('idle');
   const [responseText, setResponseText] = useState('');
@@ -477,9 +498,9 @@ export default function ChatInterface() {
 
     setAnalyzing(true);
     try {
-      const buffer = await file.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-      const mime   = file.type || 'image/jpeg';
+      // Resize to max 1024px before sending — keeps payload small and avoids call-stack overflow
+      const base64 = await resizeImageToBase64(file, 1024);
+      const mime   = 'image/jpeg';
       const result = await api.vision(base64, mime);
       const description = result.description ?? '';
       if (description) {

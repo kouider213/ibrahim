@@ -1,54 +1,6 @@
-/* ── App shell ─────────────────────────────────── */
-
 .app-root {
-  display: flex;
-  width: 100%;
-  height: 100%;
+  position: fixed;
+  inset: 0;
   background: #000;
   overflow: hidden;
 }
-
-.app-page {
-  position: absolute;
-  top: 0; right: 0; bottom: 48px; left: 0;
-  display: none;
-  background: #000;
-  overflow: hidden;
-}
-
-.app-page--active {
-  display: block;
-}
-
-/* ── Tab bar ────────────────────────────────────── */
-
-.app-tabbar {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 48px;
-  display: flex;
-  background: #0d0d0d;
-  border-top: 1px solid #1e1e1e;
-  z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.app-tab {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  background: none;
-  border: none;
-  color: #555;
-  cursor: pointer;
-  padding: 4px 0;
-  transition: color .15s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.app-tab--active      { color: #3b82f6; }
-.app-tab__icon        { font-size: 16px; line-height: 1; }
-.app-tab__label       { font-size: 9px; font-family: -apple-system, sans-serif; letter-spacing: .02em; }
