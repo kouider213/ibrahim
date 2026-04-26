@@ -9,7 +9,7 @@ from telegram.ext import (
 )
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN = os.getenv("VALORANT_BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("VOLORANBOT_TOKEN")
 HENRIK_API_KEY = os.getenv("HENRIK_API_KEY", "")  # optional — rate limit is higher with key
 
 HENRIK_BASE = "https://api.henrikdev.xyz/valorant"
@@ -171,7 +171,7 @@ def format_match(match: dict, player_name: str, player_tag: str) -> str:
 # ── /start ─────────────────────────────────────────────────────────────────────
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🎮 *Valorant Stats Bot*\n\n"
+        "🎮 *voloranbot*\n\n"
         "Consulte les stats de n'importe quel joueur Valorant !\n\n"
         "📌 *Commandes :*\n"
         "• /stats — Stats complètes d'un joueur\n"
@@ -400,7 +400,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(conv)
 
-    print("🎮 Valorant Stats Bot démarré !")
+    print("🎮 voloranbot démarré !")
     app.run_polling()
 
 if __name__ == "__main__":
