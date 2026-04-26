@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    base: '/ibrahim/',
+    base: '/',
     build: {
       outDir:     'dist',
       sourcemap:  false,

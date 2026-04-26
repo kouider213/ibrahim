@@ -232,7 +232,7 @@
 /* ── State label ────────────────────────────────── */
 .sphere-state {
   position: absolute;
-  bottom: calc(max(28px, env(safe-area-inset-bottom, 28px)) + 96px);
+  bottom: calc(max(16px, env(safe-area-inset-bottom, 16px)) + 186px);
   left: 0; right: 0;
   text-align: center;
   z-index: 10;
@@ -264,7 +264,7 @@
 /* ── Status bar ────────────────────────────────── */
 .status-bar {
   position: absolute;
-  bottom: calc(max(28px, env(safe-area-inset-bottom, 28px)) + 78px);
+  bottom: calc(max(16px, env(safe-area-inset-bottom, 16px)) + 170px);
   left: 60px; right: 60px;
   height: 1px;
   background: rgba(0,220,255,0.15);
@@ -292,9 +292,9 @@
 /* ── Response text ──────────────────────────────── */
 .sphere-response {
   position: absolute;
-  bottom: max(28px, env(safe-area-inset-bottom, 28px));
-  left: 28px; right: 28px;
-  max-height: 88px;
+  bottom: calc(max(16px, env(safe-area-inset-bottom, 16px)) + 68px);
+  left: 24px; right: 24px;
+  max-height: 110px;
   overflow: hidden;
   text-align: center;
   z-index: 10;
@@ -302,8 +302,8 @@
   transform: translateY(6px);
   transition: opacity 0.5s, transform 0.5s;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(to top, transparent 0%, black 30%);
-  mask-image: linear-gradient(to top, transparent 0%, black 30%);
+  -webkit-mask-image: linear-gradient(to top, transparent 0%, black 25%);
+  mask-image: linear-gradient(to top, transparent 0%, black 25%);
 }
 .sphere-response.visible {
   opacity: 1;
@@ -312,9 +312,9 @@
 
 .sphere-response-text {
   font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.65;
-  color: rgba(255,255,255,0.85);
+  color: rgba(255,255,255,0.90);
   font-weight: 400;
   text-shadow: 0 0 14px rgba(0,220,255,0.22);
 }
@@ -322,8 +322,8 @@
 /* ── Camera / vision buttons ────────────────────── */
 .camera-btn {
   position: absolute;
-  bottom: calc(max(28px, env(safe-area-inset-bottom, 28px)) + 6px);
-  right: 28px;
+  bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  right: 24px;
   width: 50px; height: 50px;
   border-radius: 50%;
   border: 1.5px solid rgba(0,220,255,0.38);
@@ -354,8 +354,8 @@
 
 .live-vision-btn {
   position: absolute;
-  bottom: calc(max(28px, env(safe-area-inset-bottom, 28px)) + 6px);
-  right: 90px;
+  bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  right: 86px;
   width: 50px; height: 50px;
   border-radius: 50%;
   border: 1.5px solid rgba(0,220,255,0.28);

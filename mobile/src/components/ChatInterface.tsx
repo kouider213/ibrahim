@@ -1,7 +1,7 @@
 import './ChatInterface.css';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  api, connectSocket,
+  api, connectSocket, disconnectSocket,
   playBase64Audio, enqueueAudioChunk, flushAudioChunks, clearAudioQueue,
   unlockAudio, stopAudio, iosFallbackSpeak, getOrCreateSessionId, isAudioPlaying,
   type IbrahimStatus,
@@ -378,7 +378,7 @@ export default function ChatInterface() {
 
   // ── Socket events ─────────────────────────────
   useEffect(() => {
-    const socket = connectSocket(sessionId, {
+    connectSocket(sessionId, {
       onStatus: (s) => {
         if (s === 'thinking') { setResponseText(''); setShowResponse(false); }
         if (s === 'idle' && (isAudioPlaying() || window.speechSynthesis?.speaking)) return;
@@ -424,7 +424,7 @@ export default function ChatInterface() {
       if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
     };
     window.addEventListener('ibrahim:audioEnded', onAudioEnded);
-    return () => { socket.disconnect(); window.removeEventListener('ibrahim:audioEnded', onAudioEnded); };
+    return () => { disconnectSocket(); window.removeEventListener('ibrahim:audioEnded', onAudioEnded); };
   }, [sessionId, applyState, scheduleNextListen]);
 
   // ── Relisten when idle + started ──────────────
