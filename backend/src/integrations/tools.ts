@@ -655,11 +655,11 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   // ─── PHASE 15 — Recherche d'images ───────────────────────────
   {
     name: 'search_images',
-    description: 'Rechercher des images sur internet (Pexels). Exemples: "cherche une image de blueberry", "montre moi des photos de Clio 5 rouge", "trouve des images de coucher de soleil Oran".',
+    description: 'Rechercher des images sur internet (Pexels). Utilise EXACTEMENT ce que l\'utilisateur demande comme query. Exemples: "montre moi des photos de Clio 5 rouge", "trouve des images de coucher de soleil Oran", "voiture noire sport".',
     input_schema: {
       type: 'object' as const,
       properties: {
-        query:       { type: 'string', description: 'Ce que tu veux chercher (ex: "blueberry", "Renault Clio 5 red car", "sunset Oran")' },
+        query:       { type: 'string', description: 'EXACTEMENT ce que l\'utilisateur a demandé de chercher. Exemple: si l\'utilisateur dit "clip 4 noir", query = "Renault Clio 4 black car"' },
         count:       { type: 'number', description: 'Nombre d\'images (défaut: 4, max: 10)' },
         orientation: { type: 'string', enum: ['landscape', 'portrait', 'square'], description: 'Orientation (optionnel)' },
       },
