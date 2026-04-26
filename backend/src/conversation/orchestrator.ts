@@ -142,12 +142,11 @@ export async function processMessage(
   return { text: response.text, status: 'done' };
 }
 
-async function streamAudioSentences(text: string, sessionId: string): Promise<void> {
+function splitSentences(text: string): string[] {
   const SENTENCE_END = /([.!?…]+\s+|[.!?…]+$)/g;
   const sentences: string[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
-
   while ((match = SENTENCE_END.exec(text)) !== null) {
     const end      = match.index + match[0].length;
     const sentence = text.slice(last, end).trim();
@@ -158,14 +157,35 @@ async function streamAudioSentences(text: string, sessionId: string): Promise<vo
     const remaining = text.slice(last).trim();
     if (remaining) sentences.push(remaining);
   }
+  return sentences;
+}
 
-  for (const sentence of sentences) {
-    await synthesizeVoiceStream(sentence, (chunk) => {
-      _io?.emit(SOCKET_EVENTS.AUDIO_CHUNK, {
-        sessionId,
-        chunk:    chunk.toString('base64'),
-        mimeType: 'audio/mpeg',
-      });
-    }).catch((err: unknown) => console.error('[orchestrator] audio error:', err));
+// Pre-buffer a sentence into memory so it's ready to emit instantly
+function preBufferSentence(sentence: string): Promise<Buffer[]> {
+  const chunks: Buffer[] = [];
+  return synthesizeVoiceStream(sentence, (chunk) => chunks.push(chunk))
+    .catch(() => false)
+    .then(() => chunks);
+}
+
+async function streamAudioSentences(text: string, sessionId: string): Promise<void> {
+  const sentences = splitSentences(text);
+  if (sentences.length === 0) return;
+
+  const emit = (chunk: Buffer) =>
+    _io?.emit(SOCKET_EVENTS.AUDIO_CHUNK, { sessionId, chunk: chunk.toString('base64'), mimeType: 'audio/mpeg' });
+
+  // Sentence 0: stream live while pre-buffering sentence 1
+  let nextBuffered: Promise<Buffer[]> | null =
+    sentences.length > 1 ? preBufferSentence(sentences[1]!) : null;
+
+  await synthesizeVoiceStream(sentences[0]!, emit)
+    .catch((err: unknown) => console.error('[orchestrator] audio error:', err));
+
+  // Sentences 1+: emit pre-buffered chunks, pre-fetch next in parallel
+  for (let i = 1; i < sentences.length; i++) {
+    const chunks = await nextBuffered!;
+    nextBuffered  = sentences[i + 1] ? preBufferSentence(sentences[i + 1]!) : null;
+    for (const chunk of chunks) emit(chunk);
   }
 }

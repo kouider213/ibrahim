@@ -12,8 +12,20 @@ export function initDispatcher(io: Namespace): void {
 
 // ── Nettoyage texte pour TTS ─────────────────────────────────
 
+const SPOKEN_ORDINALS: Record<number, string> = {
+  1: 'Premièrement, ',
+  2: 'Deuxièmement, ',
+  3: 'Troisièmement, ',
+  4: 'Quatrièmement, ',
+  5: 'Cinquièmement, ',
+};
+
 export function cleanTextForTTS(text: string): string {
   return text
+    // Supprimer les tags d'action [thinking], [pause], [searching], etc.
+    .replace(/\[[^\]]{1,40}\]/g, '')
+    // Supprimer les blocs de code avant tout
+    .replace(/```[\s\S]*?```/g, '')
     // Supprimer les emojis
     .replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FEFF}]|[\u{1F000}-\u{1F9FF}]/gu, '')
     // Supprimer le markdown gras/italique
@@ -21,12 +33,13 @@ export function cleanTextForTTS(text: string): string {
     .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
     // Supprimer les titres markdown
     .replace(/^#{1,6}\s+/gm, '')
-    // Supprimer les liens markdown
+    // Supprimer les liens markdown — garder le texte visible
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Convertir listes numérotées en langage naturel parlé
+    .replace(/^(\d+)\.\s+/gm, (_: string, n: string) => SPOKEN_ORDINALS[parseInt(n)] ?? '')
     // Supprimer les bullets markdown
     .replace(/^[-*•]\s+/gm, '')
-    // Supprimer les blocs de code
-    .replace(/```[\s\S]*?```/g, '')
+    // Code inline
     .replace(/`([^`]+)`/g, '$1')
     // Nettoyer les espaces multiples
     .replace(/\s{2,}/g, ' ')
