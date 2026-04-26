@@ -486,10 +486,7 @@ export default function ChatInterface() {
   }, [started, applyState, startListeningInner, scheduleNextListen, startMicAnalyser]);
 
   // ── Camera vision ────────────────────────────
-  const handleCameraClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    cameraInputRef.current?.click();
-  }, []);
+  const stopProp = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
 
   const handlePhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -582,24 +579,22 @@ export default function ChatInterface() {
         {liveVision ? '👁️' : '🎥'}
       </button>
 
-      {/* Camera button */}
-      <button
+      {/* Camera button — label wraps input directly so iOS Safari opens camera on first tap */}
+      <label
         className={`camera-btn${analyzing ? ' analyzing' : ''}`}
-        onClick={handleCameraClick}
+        onClick={stopProp}
         aria-label="Prendre une photo"
       >
         {analyzing ? '⏳' : '📷'}
-      </button>
-
-      {/* Hidden camera input */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={handlePhotoChange}
-      />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={handlePhotoChange}
+        />
+      </label>
 
       {/* Hidden live video — required by iOS to keep stream alive */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
