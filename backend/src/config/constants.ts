@@ -105,7 +105,11 @@ TES OUTILS BUSINESS:
 - Réservations: list_bookings, create_booking, update_booking, cancel_booking, delete_booking
 - Calendrier Google: create_calendar_event, update_calendar_event, delete_calendar_event (sync avec fikconciergerie@gmail.com)
 - Finance: get_financial_report, get_finance_dashboard, get_unpaid_bookings, record_payment
-- Clients: get_client_profile (historique complet + impayés + documents), get_client_document (récupérer doc), store_document (enregistrer)
+- Clients: get_client_profile (historique complet), get_client_document, store_document
+- Blacklist: add_to_blacklist, check_blacklist, get_blacklist — vérification AUTO à chaque create_booking
+- Fiche voiture: update_car_info (assurance/immat/CT), get_car_profile (fiche complète)
+- Kilométrage: record_mileage (départ/arrivée), get_car_mileage (historique km)
+- Cautions: record_deposit, get_deposits_to_return, mark_deposit_returned
 - Site Autolux: read_site_file, update_site_file
 - Météo mondiale: get_weather (n'importe quelle ville)
 - Actualités: get_news

@@ -399,6 +399,134 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── Blacklist clients ────────────────────────────────────────
+  {
+    name: 'add_to_blacklist',
+    description: 'Ajouter un client à la liste noire (mauvais payeur, voiture abîmée, comportement problématique). Ibrahim bloquera automatiquement toute nouvelle réservation pour ce client.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom du client à blacklister' },
+        reason:      { type: 'string', description: 'Raison (ex: "impayé 15 000 DZD", "a rayé la voiture", "comportement agressif")' },
+        phone:       { type: 'string', description: 'Numéro de téléphone (optionnel mais recommandé)' },
+      },
+      required: ['client_name', 'reason'],
+    },
+  },
+  {
+    name: 'check_blacklist',
+    description: 'Vérifier si un client est sur la liste noire avant de créer une réservation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom du client à vérifier' },
+        phone:       { type: 'string', description: 'Téléphone du client (optionnel)' },
+      },
+    },
+  },
+  {
+    name: 'get_blacklist',
+    description: 'Afficher tous les clients sur la liste noire.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+
+  // ─── Fiche voiture ────────────────────────────────────────────
+  {
+    name: 'update_car_info',
+    description: 'Enregistrer ou mettre à jour les informations administratives d\'une voiture: immatriculation, expiration assurance, vignette, contrôle technique, date et prix d\'achat.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:         { type: 'string', description: 'Nom de la voiture (ex: Clio 5, Dacia Sandero)' },
+        registration:     { type: 'string', description: 'Numéro d\'immatriculation (ex: 123-1-01)' },
+        insurance_expiry: { type: 'string', description: 'Date expiration assurance YYYY-MM-DD' },
+        vignette_expiry:  { type: 'string', description: 'Date expiration vignette YYYY-MM-DD' },
+        ct_expiry:        { type: 'string', description: 'Date expiration contrôle technique YYYY-MM-DD' },
+        purchase_date:    { type: 'string', description: 'Date d\'achat YYYY-MM-DD' },
+        purchase_price:   { type: 'number', description: 'Prix d\'achat en DZD' },
+        notes:            { type: 'string', description: 'Notes supplémentaires' },
+      },
+      required: ['car_name'],
+    },
+  },
+  {
+    name: 'get_car_profile',
+    description: 'Fiche complète d\'une voiture: tarif, immatriculation, assurance, vignette, contrôle technique, kilométrage actuel, CA généré, nombre de réservations, historique maintenance. Utiliser quand Kouider demande "fiche complète de la Clio" ou "tout sur la Sandero".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name: { type: 'string', description: 'Nom de la voiture (partiel accepté)' },
+      },
+      required: ['car_name'],
+    },
+  },
+
+  // ─── Kilométrage ──────────────────────────────────────────────
+  {
+    name: 'record_mileage',
+    description: 'Enregistrer le kilométrage départ et arrivée pour une location. Permet de suivre les km parcourus par voiture et d\'anticiper les entretiens.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:     { type: 'string', description: 'Nom de la voiture' },
+        km_departure: { type: 'number', description: 'Kilométrage au départ de la location' },
+        km_arrival:   { type: 'number', description: 'Kilométrage au retour de la location' },
+        booking_id:   { type: 'string', description: 'UUID de la réservation (optionnel)' },
+        date:         { type: 'string', description: 'Date YYYY-MM-DD (défaut: aujourd\'hui)' },
+      },
+      required: ['car_name'],
+    },
+  },
+  {
+    name: 'get_car_mileage',
+    description: 'Voir l\'historique kilométrique d\'une voiture: km actuel estimé, total parcouru depuis suivi, historique par location.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name: { type: 'string', description: 'Nom de la voiture' },
+      },
+      required: ['car_name'],
+    },
+  },
+
+  // ─── Cautions / Acomptes ──────────────────────────────────────
+  {
+    name: 'record_deposit',
+    description: 'Enregistrer une caution ou un acompte reçu d\'un client. Séparé du paiement de la location. Ibrahim rappellera automatiquement quand la caution doit être remboursée.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom du client' },
+        amount:      { type: 'number', description: 'Montant en DZD' },
+        type:        { type: 'string', enum: ['caution', 'acompte'], description: 'Type: caution (à rembourser) ou acompte (déduit du total)' },
+        booking_id:  { type: 'string', description: 'UUID de la réservation (optionnel)' },
+        end_date:    { type: 'string', description: 'Date de retour prévue YYYY-MM-DD (pour rappel de remboursement)' },
+      },
+      required: ['client_name', 'amount'],
+    },
+  },
+  {
+    name: 'get_deposits_to_return',
+    description: 'Voir toutes les cautions/acomptes en attente de remboursement. Affiche les délais dépassés en priorité.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Filtrer par client (optionnel — vide = tous)' },
+      },
+    },
+  },
+  {
+    name: 'mark_deposit_returned',
+    description: 'Marquer une caution ou un acompte comme remboursé au client.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        ref:         { type: 'string', description: 'Référence de la caution (Réf: XXXXXX dans le message d\'enregistrement)' },
+        client_name: { type: 'string', description: 'Nom du client (alternatif à ref — prend la dernière caution de ce client)' },
+      },
+    },
+  },
+
   // ─── Alertes immédiates ──────────────────────────────────────
   {
     name: 'send_alert',

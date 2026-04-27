@@ -108,6 +108,20 @@ export async function executeTool(
       // ─── Contrat & Stats flotte ───
       case 'generate_contract':          return await generateContract(input);
       case 'get_fleet_stats':            return await getFleetStats(input);
+      // ─── Blacklist ───
+      case 'add_to_blacklist':           return await addToBlacklist(input);
+      case 'check_blacklist':            return await checkBlacklist(input);
+      case 'get_blacklist':              return await getBlacklist();
+      // ─── Fiche voiture ───
+      case 'update_car_info':            return await updateCarInfo(input);
+      case 'get_car_profile':            return await getCarProfile(input);
+      // ─── Kilométrage ───
+      case 'record_mileage':             return await recordMileage(input);
+      case 'get_car_mileage':            return await getCarMileage(input);
+      // ─── Cautions / Acomptes ───
+      case 'record_deposit':             return await recordDeposit(input);
+      case 'get_deposits_to_return':     return await getDepositsToReturn(input);
+      case 'mark_deposit_returned':      return await markDepositReturned(input);
       // ─── Calendrier Google ───
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'update_calendar_event':      return await updateCalendarEventTool(input);
@@ -180,6 +194,10 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   if (!input['start_date'])  return '❌ start_date manquant (format YYYY-MM-DD)';
   if (!input['end_date'])    return '❌ end_date manquant (format YYYY-MM-DD)';
   if (input['start_date'] > input['end_date']) return '❌ start_date doit être avant end_date';
+
+  // Auto-check blacklist before creating
+  const blWarning = await checkBlacklistSilent(input['client_name'] as string);
+  if (blWarning) return `⛔ ALERTE BLACKLIST — ${blWarning}\n\nRéservation NON créée. Confirme explicitement si tu veux quand même continuer.`;
 
   const VALID_STATUSES = ['CONFIRMED', 'PENDING', 'ACTIVE'];
   const status = (input['status'] as string) ?? 'CONFIRMED';
@@ -1026,4 +1044,247 @@ async function getFleetStats(input: Record<string, unknown>): Promise<string> {
   });
 
   return result;
+}
+
+// ── Blacklist ────────────────────────────────────────────────
+
+type BLEntry = { client_name: string; phone?: string; reason: string; date: string };
+
+async function blEntries(): Promise<BLEntry[]> {
+  const { data } = await supabase
+    .from('ibrahim_memory').select('content').eq('category', 'blacklist');
+  return (data ?? []).map((d: { content: string }) => {
+    try { return JSON.parse(d.content) as BLEntry; } catch { return null; }
+  }).filter(Boolean) as BLEntry[];
+}
+
+async function checkBlacklistSilent(name: string): Promise<string | null> {
+  const entries = await blEntries().catch(() => []);
+  const found = entries.filter(e => e.client_name.toLowerCase().includes(name.toLowerCase()));
+  if (!found.length) return null;
+  return found.map(e => `${e.client_name} — Raison: ${e.reason} (${e.date})`).join('; ');
+}
+
+async function addToBlacklist(input: Record<string, unknown>): Promise<string> {
+  const clientName = input['client_name'] as string;
+  const reason     = input['reason']      as string;
+  const phone      = input['phone']       as string | undefined;
+  if (!clientName || !reason) return '❌ client_name et reason requis';
+  const content = JSON.stringify({ client_name: clientName, phone, reason, date: new Date().toISOString().slice(0, 10) });
+  const { error } = await supabase.from('ibrahim_memory').insert({ category: 'blacklist', content });
+  if (error) return `❌ Erreur: ${error.message}`;
+  return `⛔ ${clientName} ajouté à la blacklist. Raison: ${reason}`;
+}
+
+async function checkBlacklist(input: Record<string, unknown>): Promise<string> {
+  const search = (input['client_name'] ?? input['phone']) as string;
+  if (!search) return '❌ client_name ou phone requis';
+  const entries = await blEntries();
+  const found = entries.filter(e =>
+    e.client_name.toLowerCase().includes(search.toLowerCase()) ||
+    (e.phone && e.phone.includes(search))
+  );
+  if (!found.length) return `✅ "${search}" n'est pas sur la blacklist.`;
+  return `⛔ BLACKLIST — "${search}" est sur la liste noire:\n` +
+    found.map(e => `- ${e.client_name}${e.phone ? ` (${e.phone})` : ''}: ${e.reason} (${e.date})`).join('\n');
+}
+
+async function getBlacklist(): Promise<string> {
+  const entries = await blEntries();
+  if (!entries.length) return '✅ Blacklist vide.';
+  return `⛔ BLACKLIST (${entries.length} entrée${entries.length > 1 ? 's' : ''}):\n` +
+    entries.map(e => `- ${e.client_name}${e.phone ? ` (${e.phone})` : ''}: ${e.reason} (${e.date})`).join('\n');
+}
+
+// ── Fiche voiture ────────────────────────────────────────────
+
+async function updateCarInfo(input: Record<string, unknown>): Promise<string> {
+  const carName = input['car_name'] as string;
+  if (!carName) return '❌ car_name manquant';
+  const info = {
+    car:               carName,
+    registration:      input['registration']       as string | undefined,
+    insurance_expiry:  input['insurance_expiry']   as string | undefined,
+    vignette_expiry:   input['vignette_expiry']    as string | undefined,
+    ct_expiry:         input['ct_expiry']          as string | undefined,
+    purchase_date:     input['purchase_date']      as string | undefined,
+    purchase_price:    input['purchase_price']     as number | undefined,
+    notes:             input['notes']              as string | undefined,
+    updated:           new Date().toISOString().slice(0, 10),
+  };
+  const content = JSON.stringify(info);
+  const { error } = await supabase.from('ibrahim_memory').insert({ category: 'car_info', content });
+  if (error) return `❌ Erreur: ${error.message}`;
+  return `✅ Fiche ${carName} mise à jour.`;
+}
+
+async function getCarProfile(input: Record<string, unknown>): Promise<string> {
+  const carName = input['car_name'] as string;
+  if (!carName) return '❌ car_name manquant';
+  const lower = carName.toLowerCase();
+
+  const [carRes, bookRes, memRes] = await Promise.all([
+    supabase.from('cars').select('id, name, base_price, category, available').ilike('name', `%${carName}%`).limit(1).single(),
+    supabase.from('bookings').select('start_date, end_date, final_price, status, cars(name)').in('status', ['CONFIRMED','ACTIVE','COMPLETED']),
+    supabase.from('ibrahim_memory').select('category, content, created_at').in('category', ['car_info','maintenance','mileage']),
+  ]);
+
+  const car = carRes.data as any;
+  const allBookings = ((bookRes.data ?? []) as any[]).filter(b => b.cars?.name?.toLowerCase().includes(lower));
+  const memories    = ((memRes.data  ?? []) as any[]).filter(m => {
+    try { return JSON.parse(m.content as string).car?.toLowerCase().includes(lower); } catch { return false; }
+  });
+
+  const carInfo    = memories.filter(m => m.category === 'car_info').map(m => { try { return JSON.parse(m.content); } catch { return null; } }).filter(Boolean).sort((a: any,b: any)=> b.updated?.localeCompare(a.updated))[0];
+  const maintenances = memories.filter(m => m.category === 'maintenance').map(m => { try { return JSON.parse(m.content); } catch { return null; } }).filter(Boolean);
+  const mileages   = memories.filter(m => m.category === 'mileage').map(m => { try { return JSON.parse(m.content); } catch { return null; } }).filter(Boolean).sort((a: any,b: any)=> b.date?.localeCompare(a.date));
+
+  const totalCA    = allBookings.reduce((s: number, b: any) => s + (b.final_price ?? 0), 0);
+  const totalDays  = allBookings.reduce((s: number, b: any) => {
+    const d = Math.max(1, Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000));
+    return s + d;
+  }, 0);
+  const lastKm     = mileages[0]?.km_arrival ?? mileages[0]?.km_departure;
+
+  let result = `🚗 FICHE VOITURE: ${car?.name ?? carName}\n`;
+  if (car) {
+    result += `Catégorie: ${car.category} | Tarif: ${car.base_price?.toLocaleString('fr-DZ')} DZD/j | ${car.available ? '✅ Disponible' : '🔴 Indisponible'}\n`;
+  }
+  if (carInfo) {
+    if (carInfo.registration)     result += `Immatriculation: ${carInfo.registration}\n`;
+    if (carInfo.insurance_expiry) result += `Assurance expire: ${carInfo.insurance_expiry}\n`;
+    if (carInfo.vignette_expiry)  result += `Vignette expire: ${carInfo.vignette_expiry}\n`;
+    if (carInfo.ct_expiry)        result += `Contrôle technique: ${carInfo.ct_expiry}\n`;
+    if (carInfo.purchase_date)    result += `Achetée le: ${carInfo.purchase_date}`;
+    if (carInfo.purchase_price)   result += ` | Prix: ${carInfo.purchase_price.toLocaleString('fr-DZ')} DZD`;
+    if (carInfo.purchase_date || carInfo.purchase_price) result += '\n';
+  }
+  if (lastKm) result += `Dernier km enregistré: ${lastKm.toLocaleString('fr-DZ')} km\n`;
+  result += `\n📊 Historique: ${allBookings.length} réservations | ${totalDays} jours loués | ${totalCA.toLocaleString('fr-DZ')} DZD générés\n`;
+  if (maintenances.length) {
+    result += `\n🔧 Derniers entretiens:\n`;
+    maintenances.slice(0, 3).forEach((m: any) => result += `  - ${m.date}: ${m.type}${m.cost ? ` (${m.cost.toLocaleString('fr-DZ')} DZD)` : ''}\n`);
+  }
+
+  return result;
+}
+
+// ── Kilométrage ──────────────────────────────────────────────
+
+async function recordMileage(input: Record<string, unknown>): Promise<string> {
+  const carName   = input['car_name'] as string;
+  if (!carName) return '❌ car_name manquant';
+  const kmDep = input['km_departure'] as number | undefined;
+  const kmArr = input['km_arrival']   as number | undefined;
+  const content = JSON.stringify({
+    car: carName,
+    booking_id:   input['booking_id'] as string | undefined,
+    km_departure: kmDep,
+    km_arrival:   kmArr,
+    km_driven:    kmDep && kmArr ? kmArr - kmDep : undefined,
+    date: (input['date'] as string) ?? new Date().toISOString().slice(0, 10),
+  });
+  const { error } = await supabase.from('ibrahim_memory').insert({ category: 'mileage', content });
+  if (error) return `❌ Erreur: ${error.message}`;
+  let result = `✅ Kilométrage ${carName}`;
+  if (kmDep) result += ` — départ: ${kmDep.toLocaleString('fr-DZ')} km`;
+  if (kmArr) result += ` / arrivée: ${kmArr.toLocaleString('fr-DZ')} km`;
+  if (kmDep && kmArr) result += ` (${(kmArr - kmDep).toLocaleString('fr-DZ')} km parcourus)`;
+  return result;
+}
+
+async function getCarMileage(input: Record<string, unknown>): Promise<string> {
+  const carName = input['car_name'] as string;
+  if (!carName) return '❌ car_name manquant';
+  const { data, error } = await supabase
+    .from('ibrahim_memory').select('content, created_at').eq('category', 'mileage')
+    .order('created_at', { ascending: false }).limit(50);
+  if (error) return `❌ Erreur: ${error.message}`;
+  type MR = { car: string; km_departure?: number; km_arrival?: number; km_driven?: number; date: string; booking_id?: string };
+  const entries = ((data ?? []) as { content: string }[])
+    .map(d => { try { return JSON.parse(d.content) as MR; } catch { return null; } })
+    .filter((e): e is MR => !!e && e.car?.toLowerCase().includes(carName.toLowerCase()));
+  if (!entries.length) return `Aucun kilométrage enregistré pour "${carName}".`;
+  const totalKm  = entries.reduce((s, e) => s + (e.km_driven ?? 0), 0);
+  const lastEntry = entries[0]!;
+  let result = `🛣️ KILOMÉTRAGE — ${lastEntry.car}\n`;
+  result += `Km actuel estimé: ${(lastEntry.km_arrival ?? lastEntry.km_departure ?? '?').toLocaleString?.() ?? '?'} km\n`;
+  result += `Total parcourus (${entries.length} locations): ${totalKm.toLocaleString('fr-DZ')} km\n\n`;
+  result += entries.slice(0, 8).map(e =>
+    `- ${e.date}: ${e.km_departure ? e.km_departure.toLocaleString('fr-DZ') : '?'} → ${e.km_arrival ? e.km_arrival.toLocaleString('fr-DZ') : '?'} km${e.km_driven ? ` (${e.km_driven.toLocaleString('fr-DZ')} km)` : ''}`
+  ).join('\n');
+  return result;
+}
+
+// ── Cautions / Acomptes ──────────────────────────────────────
+
+type DepEntry = { client_name: string; booking_id?: string; amount: number; type: string; status: string; end_date?: string; date: string; ref: string };
+
+async function recordDeposit(input: Record<string, unknown>): Promise<string> {
+  const clientName = input['client_name'] as string;
+  const amount     = Number(input['amount']);
+  if (!clientName || !amount) return '❌ client_name et amount requis';
+  const type    = (input['type'] as string) ?? 'caution';
+  const endDate = input['end_date'] as string | undefined;
+  const ref     = Math.random().toString(36).slice(2, 10).toUpperCase();
+  const content = JSON.stringify({ client_name: clientName, booking_id: input['booking_id'], amount, type, status: 'held', end_date: endDate, date: new Date().toISOString().slice(0, 10), ref });
+  const { error } = await supabase.from('ibrahim_memory').insert({ category: 'deposit', content });
+  if (error) return `❌ Erreur: ${error.message}`;
+  return `✅ ${type === 'caution' ? 'Caution' : 'Acompte'} enregistré: ${amount.toLocaleString('fr-DZ')} DZD pour ${clientName}${endDate ? ` (à rendre le ${endDate})` : ''} — Réf: ${ref}`;
+}
+
+async function getDepositsToReturn(input: Record<string, unknown>): Promise<string> {
+  const { data, error } = await supabase.from('ibrahim_memory').select('content, created_at').in('category', ['deposit', 'deposit_returned']).order('created_at', { ascending: false });
+  if (error) return `❌ Erreur: ${error.message}`;
+  const filter = (input['client_name'] as string | undefined)?.toLowerCase();
+
+  const allEntries = ((data ?? []) as { content: string; category?: string }[]).map(d => {
+    try { return JSON.parse(d.content) as DepEntry; } catch { return null; }
+  }).filter(Boolean) as DepEntry[];
+
+  const returnedRefs = new Set(allEntries.filter(e => e.status === 'returned').map(e => e.ref));
+  const held = allEntries.filter(e => e.status === 'held' && !returnedRefs.has(e.ref));
+  const filtered = filter ? held.filter(e => e.client_name.toLowerCase().includes(filter)) : held;
+
+  if (!filtered.length) return '✅ Aucune caution/acompte en attente.';
+
+  const today = new Date();
+  const overdue  = filtered.filter(e => e.end_date && new Date(e.end_date) < today);
+  const upcoming = filtered.filter(e => !e.end_date || new Date(e.end_date) >= today);
+  const total    = filtered.reduce((s, e) => s + e.amount, 0);
+
+  let result = `💰 CAUTIONS/ACOMPTES EN ATTENTE\n`;
+  if (overdue.length) {
+    result += `\n⚠️ À REMBOURSER (date dépassée):\n`;
+    overdue.forEach(e => result += `  - ${e.client_name}: ${e.amount.toLocaleString('fr-DZ')} DZD (${e.type}) — fin: ${e.end_date} — Réf: ${e.ref}\n`);
+  }
+  if (upcoming.length) {
+    result += `\n⏳ EN COURS:\n`;
+    upcoming.forEach(e => result += `  - ${e.client_name}: ${e.amount.toLocaleString('fr-DZ')} DZD (${e.type})${e.end_date ? ` — fin: ${e.end_date}` : ''} — Réf: ${e.ref}\n`);
+  }
+  result += `\nTotal retenu: ${total.toLocaleString('fr-DZ')} DZD`;
+  return result;
+}
+
+async function markDepositReturned(input: Record<string, unknown>): Promise<string> {
+  const ref        = input['ref']         as string | undefined;
+  const clientName = input['client_name'] as string | undefined;
+  if (!ref && !clientName) return '❌ ref ou client_name requis';
+
+  if (ref) {
+    const content = JSON.stringify({ ref, status: 'returned', date: new Date().toISOString().slice(0, 10) });
+    const { error } = await supabase.from('ibrahim_memory').insert({ category: 'deposit_returned', content });
+    if (error) return `❌ Erreur: ${error.message}`;
+    return `✅ Caution/acompte Réf ${ref} marqué comme remboursé.`;
+  }
+
+  // No ref: find last held deposit for this client
+  const { data } = await supabase.from('ibrahim_memory').select('content').eq('category', 'deposit').order('created_at', { ascending: false });
+  const entries = ((data ?? []) as { content: string }[]).map(d => { try { return JSON.parse(d.content) as DepEntry; } catch { return null; } }).filter(Boolean) as DepEntry[];
+  const match = entries.find(e => e.status === 'held' && e.client_name.toLowerCase().includes((clientName!).toLowerCase()));
+  if (!match) return `❌ Aucune caution en attente trouvée pour "${clientName}"`;
+  const content = JSON.stringify({ ref: match.ref, status: 'returned', date: new Date().toISOString().slice(0, 10) });
+  const { error } = await supabase.from('ibrahim_memory').insert({ category: 'deposit_returned', content });
+  if (error) return `❌ Erreur: ${error.message}`;
+  return `✅ Caution ${match.amount.toLocaleString('fr-DZ')} DZD de ${match.client_name} marquée remboursée.`;
 }
