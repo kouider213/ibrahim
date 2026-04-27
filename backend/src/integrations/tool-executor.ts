@@ -774,26 +774,41 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
   const filename = `BON_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   const caption  = `📄 Bon de réservation — ${clientName}`;
 
-  // Si appelé depuis Telegram → envoyer le buffer directement dans ce chat
+  const sendPDF = async (chatId: number): Promise<void> => {
+    // Tentative 1 : URL Supabase directe (Telegram supporte HTTP URLs)
+    try {
+      await sendTelegramDoc(chatId, url, caption);
+      console.log('[voucher] PDF sent via URL to', chatId);
+      return;
+    } catch (e1: unknown) {
+      console.error('[voucher] URL send failed:', e1 instanceof Error ? e1.message : String(e1));
+    }
+    // Tentative 2 : buffer multipart
+    try {
+      await sendTelegramDocBuffer(chatId, buffer, filename, caption);
+      console.log('[voucher] PDF sent via buffer to', chatId);
+    } catch (e2: unknown) {
+      console.error('[voucher] Buffer send failed:', e2 instanceof Error ? e2.message : String(e2));
+      throw new Error(`Impossible d'envoyer le PDF: ${e2 instanceof Error ? e2.message : String(e2)}`);
+    }
+  };
+
   if (sessionId?.startsWith('telegram_')) {
     const chatId = Number(sessionId.replace('telegram_', ''));
     if (!isNaN(chatId)) {
       try {
-        await sendTelegramDocBuffer(chatId, buffer, filename, caption);
+        await sendPDF(chatId);
         return `✅ Bon de réservation de ${clientName} généré ! 📄`;
       } catch (e: unknown) {
-        console.error('[voucher] sendDocumentBuffer failed, fallback to URL:', e instanceof Error ? e.message : String(e));
-        // Fallback : inclure l'URL — le Telegram route va détecter et envoyer
-        return `✅ Bon de réservation de ${clientName} généré ! 📄\n${url}`;
+        return `⚠️ Bon généré mais envoi échoué: ${e instanceof Error ? e.message : String(e)}\nURL: ${url}`;
       }
     }
   }
 
   // App vocale → envoyer au chat Telegram configuré
   if (env.TELEGRAM_CHAT_ID) {
-    const chatId = Number(env.TELEGRAM_CHAT_ID);
-    await sendTelegramDocBuffer(chatId, buffer, filename, caption).catch(
-      (e: unknown) => console.error('[voucher] sendDocumentBuffer (voice):', e instanceof Error ? e.message : String(e)),
+    await sendPDF(Number(env.TELEGRAM_CHAT_ID)).catch(
+      (e: unknown) => console.error('[voucher] voice send failed:', e instanceof Error ? e.message : String(e)),
     );
   }
   return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n${url}`;
