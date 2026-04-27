@@ -771,6 +771,15 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
   const bookingId = input['booking_id'] as string;
   if (!bookingId) return '❌ booking_id requis';
 
+  // DIAGNOSTIC v5 — verify function called + sessionId value
+  const dbgChatId = sessionId?.startsWith('telegram_') ? Number(sessionId.replace('telegram_', '')) : 0;
+  console.log(`[voucher-v5] called bookingId=${bookingId} sessionId=${sessionId} dbgChatId=${dbgChatId}`);
+  if (dbgChatId) {
+    await sendTelegramText(dbgChatId, `🔧 [v5] voucher appelé\nbookingId=${bookingId}\nsessionId=${sessionId}`).catch(e => {
+      console.error('[voucher-v5] sendText failed:', e instanceof Error ? e.message : String(e));
+    });
+  }
+
   const { url, clientName, buffer } = await generateReservationVoucher(bookingId);
   const filename = `BON_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   const caption  = `📄 Bon de réservation — ${clientName}`;
