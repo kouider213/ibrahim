@@ -184,25 +184,29 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   if (!input['end_date'])    return '❌ end_date manquant (format YYYY-MM-DD)';
   if (input['start_date'] > input['end_date']) return '❌ start_date doit être avant end_date';
 
-  const VALID_STATUSES = ['CONFIRMED', 'PENDING', 'ACTIVE'];
+  const VALID_STATUSES = ['CONFIRMED', 'PENDING', 'ACTIVE', 'COMPLETED', 'REJECTED'];
   const status = (input['status'] as string) ?? 'CONFIRMED';
   if (!VALID_STATUSES.includes(status)) return `❌ status invalide: ${status}. Valeurs: ${VALID_STATUSES.join(', ')}`;
+
+  const VALID_PAYMENT_STATUSES = ['PENDING', 'PARTIAL', 'PAID'];
+  const paymentStatus = (input['payment_status'] as string) ?? 'PENDING';
+  if (!VALID_PAYMENT_STATUSES.includes(paymentStatus)) return `❌ payment_status invalide: ${paymentStatus}. Valeurs: ${VALID_PAYMENT_STATUSES.join(', ')}`;
 
   const { data, error } = await supabase
     .from('bookings')
     .insert({
-      car_id:       input['car_id'],
-      client_name:  input['client_name'],
-      client_phone: input['client_phone'] ?? null,
-      client_age:   input['client_age']   ?? null,
-      start_date:   input['start_date'],
-      end_date:     input['end_date'],
-      final_price:  input['final_price'],
-      notes:        input['notes']        ?? null,
-      rented_by:    input['rented_by']    ?? 'Kouider',
+      car_id:         input['car_id'],
+      client_name:    input['client_name'],
+      client_phone:   input['client_phone'] ?? null,
+      client_age:     input['client_age']   ?? null,
+      start_date:     input['start_date'],
+      end_date:       input['end_date'],
+      final_price:    input['final_price'],
+      notes:          input['notes']        ?? null,
+      rented_by:      input['rented_by']    ?? 'Kouider',
       status,
-      payment_status: 'PENDING',
-      paid_amount:  0,
+      payment_status: paymentStatus,
+      paid_amount:    Number(input['paid_amount'] ?? 0),
     })
     .select()
     .single();
