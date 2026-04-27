@@ -15,17 +15,47 @@ export async function generateReservationVoucher(
 
   // 2. Infos passeport/permis (OCR déjà fait)
   let passportInfo: Record<string, string> = {};
-  const firstName = String(booking['client_name'] ?? '').split(' ')[0] ?? '';
-  const { data: docs } = await supabase
+
+  const tryParseNotes = (notes: unknown): Record<string, string> => {
+    try { return JSON.parse(String(notes)) as Record<string, string>; } catch { return {}; }
+  };
+
+  // Priorité 1 : document lié directement à cette réservation
+  const { data: docsByBooking } = await supabase
     .from('client_documents')
     .select('notes, type')
-    .ilike('client_name', `%${firstName}%`)
+    .eq('booking_id', bookingId)
     .in('type', ['passport', 'license'])
     .order('created_at', { ascending: false })
     .limit(1);
 
-  if (docs?.[0]?.notes) {
-    try { passportInfo = JSON.parse(String(docs[0].notes)) as Record<string, string>; } catch { /* ignore */ }
+  if (docsByBooking?.[0]?.notes) {
+    passportInfo = tryParseNotes(docsByBooking[0].notes);
+  }
+
+  // Priorité 2 : par téléphone client
+  if (Object.keys(passportInfo).length === 0 && booking['client_phone']) {
+    const { data: docsByPhone } = await supabase
+      .from('client_documents')
+      .select('notes, type')
+      .ilike('client_phone', `%${String(booking['client_phone']).replace(/\s/g, '')}%`)
+      .in('type', ['passport', 'license'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (docsByPhone?.[0]?.notes) passportInfo = tryParseNotes(docsByPhone[0].notes);
+  }
+
+  // Priorité 3 : par prénom (fallback)
+  if (Object.keys(passportInfo).length === 0) {
+    const firstName = String(booking['client_name'] ?? '').split(' ')[0] ?? '';
+    const { data: docsByName } = await supabase
+      .from('client_documents')
+      .select('notes, type')
+      .ilike('client_name', `%${firstName}%`)
+      .in('type', ['passport', 'license'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (docsByName?.[0]?.notes) passportInfo = tryParseNotes(docsByName[0].notes);
   }
 
   // 3. Générer PDF
@@ -98,8 +128,11 @@ function buildPDF(booking: Record<string, unknown>, passport: Record<string, str
     doc.moveDown(1);
 
     // ── CLIENT ───────────────────────────────────────────────────
+    // Nom: préférer celui du passeport OCR s'il est plus complet
+    const clientName = passport['name'] || String(booking['client_name'] ?? '—');
+
     sectionTitle(doc, 'INFORMATIONS CLIENT');
-    row(doc, 'Nom complet',    String(booking['client_name'] ?? '—'));
+    row(doc, 'Nom complet',    clientName);
     row(doc, 'N° Passeport',   passport['passport_number'] || passport['license_number'] || '—');
     row(doc, 'Date naissance', passport['birth_date']   || '—');
     row(doc, 'Nationalite',    passport['nationality']  || '—');
