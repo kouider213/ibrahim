@@ -771,20 +771,10 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
   const bookingId = input['booking_id'] as string;
   if (!bookingId) return '❌ booking_id requis';
 
-  // DIAGNOSTIC v5 — verify function called + sessionId value
-  const dbgChatId = sessionId?.startsWith('telegram_') ? Number(sessionId.replace('telegram_', '')) : 0;
-  console.log(`[voucher-v5] called bookingId=${bookingId} sessionId=${sessionId} dbgChatId=${dbgChatId}`);
-  if (dbgChatId) {
-    await sendTelegramText(dbgChatId, `🔧 [v5] voucher appelé\nbookingId=${bookingId}\nsessionId=${sessionId}`).catch(e => {
-      console.error('[voucher-v5] sendText failed:', e instanceof Error ? e.message : String(e));
-    });
-  }
-
   const { url, clientName, buffer } = await generateReservationVoucher(bookingId);
   const filename = `BON_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   const caption  = `📄 Bon de réservation — ${clientName}`;
 
-  // Envoi direct via Telegram API — multipart FormData, vérification ok:true
   const sendPDF = async (chatId: number): Promise<void> => {
     const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
     const form = new FormData();
@@ -796,7 +786,7 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
     });
     if (caption) form.append('caption', caption);
 
-    const resp = await axios.post<{ ok: boolean; description?: string; result?: unknown }>(
+    const resp = await axios.post<{ ok: boolean; description?: string }>(
       `${botBase}/sendDocument`,
       form,
       { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
@@ -805,25 +795,19 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
     if (!resp.data.ok) {
       throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
     }
-    console.log('[voucher] PDF sent via multipart to chatId:', chatId, JSON.stringify(resp.data).slice(0, 200));
-    // Log success response in Telegram too so we can debug silently-dropped sends
-    await sendTelegramText(chatId, `✅ Telegram resp ok:true — message_id=${JSON.stringify((resp.data.result as any)?.message_id)}`).catch(() => {});
+    console.log('[voucher] PDF sent to chatId:', chatId);
   };
 
   if (sessionId?.startsWith('telegram_')) {
     const chatId = Number(sessionId.replace('telegram_', ''));
     if (!isNaN(chatId)) {
-      // Pre-flight: verify state before attempting PDF send
-      const tokenPreview = (env.TELEGRAM_BOT_TOKEN ?? '').slice(0, 12);
-      await sendTelegramText(chatId, `🔍 Pre-flight voucher:\nbuffer=${buffer.length}b\nchatId=${chatId}\ntoken=${tokenPreview}...\nfilename=${filename}`).catch(() => {});
       try {
         await sendPDF(chatId);
-        return `✅ [CODE-v5-OK] Bon de réservation de ${clientName} généré et envoyé en PDF (chatId=${chatId}) ! 📄`;
+        return `✅ Bon de réservation de ${clientName} généré et envoyé en PDF ! 📄`;
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
         console.error('[voucher] sendPDF error:', errMsg);
-        await sendTelegramText(chatId, `🔴 sendPDF error: ${errMsg}`).catch(() => {});
-        return `⚠️ [CODE-v5-ERR] Bon généré, PDF non envoyé (chatId=${chatId}): ${errMsg}`;
+        return `⚠️ Bon généré, PDF non envoyé: ${errMsg}\n${url}`;
       }
     }
   }
