@@ -77,9 +77,17 @@ export async function generateReservationVoucher(
   // Fallback OCR : si pas de données JSON mais on a l'URL de la photo → re-OCR à la volée
   if (Object.keys(passportInfo).length === 0 && foundDocUrl) {
     try {
-      const resp = await fetch(foundDocUrl);
-      const buf  = Buffer.from(await resp.arrayBuffer());
-      const b64  = buf.toString('base64');
+      console.log('[voucher] OCR fallback on:', foundDocUrl);
+      const axios = (await import('axios')).default;
+      const { data: imgData } = await axios.get(foundDocUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15_000,
+        headers: { 'User-Agent': 'Ibrahim-AI/1.0' },
+      });
+      const buf = Buffer.from(imgData as ArrayBuffer);
+      const b64 = buf.toString('base64');
+      console.log('[voucher] Image fetched, size:', buf.length, 'bytes — running OCR...');
+
       const ocrResp = await anthropic.messages.create({
         model:      'claude-sonnet-4-6',
         max_tokens: 300,
@@ -93,9 +101,20 @@ export async function generateReservationVoucher(
       });
       const raw   = ocrResp.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('');
       const match = raw.match(/\{[\s\S]*\}/);
-      if (match) passportInfo = JSON.parse(match[0]) as Record<string, string>;
+      if (match) {
+        passportInfo = JSON.parse(match[0]) as Record<string, string>;
+        console.log('[voucher] OCR fallback success:', JSON.stringify(passportInfo));
+
+        // Mettre à jour les notes en DB pour éviter de re-OCR à chaque fois
+        const filename = String(foundDocUrl).split('/').pop() ?? '';
+        supabase
+          .from('client_documents')
+          .update({ notes: JSON.stringify(passportInfo) })
+          .ilike('file_url', `%${filename}%`)
+          .then(() => {}, () => {});
+      }
     } catch (ocrErr) {
-      console.error('[voucher] OCR fallback:', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+      console.error('[voucher] OCR fallback failed:', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
     }
   }
 
