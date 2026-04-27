@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
+﻿import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
-import { IBRAHIM } from '../config/constants.js';
-import { IBRAHIM_TOOLS } from './tools.js';
+import { Dzaryx } from '../config/constants.js';
+import { Dzaryx_TOOLS } from './tools.js';
 import { executeTool } from './tool-executor.js';
 import { randomUUID } from 'crypto';
 import { compactIfNeeded, emergencyCompact, needsCompaction } from '../conversation/compaction.js';
@@ -41,7 +41,7 @@ export type ToolDoneCallback  = (toolName: string, result: string) => void;
 const CACHED_SYSTEM: Anthropic.TextBlockParam[] = [
   {
     type:          'text',
-    text:          IBRAHIM.SYSTEM_PROMPT as string,
+    text:          Dzaryx.SYSTEM_PROMPT as string,
     cache_control: { type: 'ephemeral' },
   },
 ];
@@ -248,8 +248,8 @@ export async function chatWithTools(
   const useWebSearch = needsWebSearch(processedMessages);
 
   const tools: Anthropic.Tool[] = useWebSearch
-    ? [...IBRAHIM_TOOLS, ANTHROPIC_WEB_SEARCH_TOOL]
-    : IBRAHIM_TOOLS;
+    ? [...Dzaryx_TOOLS, ANTHROPIC_WEB_SEARCH_TOOL]
+    : Dzaryx_TOOLS;
 
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,

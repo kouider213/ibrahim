@@ -1,5 +1,5 @@
-/**
- * PHASE 5 — Ibrahim gère tes finances
+﻿/**
+ * PHASE 5 — Dzaryx gère tes finances
  * 1. Suivi encaissements & acomptes
  * 2. Calcul CA automatique (semaine/mois/année/véhicule)
  * 3. Relance clients impayés

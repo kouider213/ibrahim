@@ -1,4 +1,4 @@
-import { supabase } from '../integrations/supabase.js';
+﻿import { supabase } from '../integrations/supabase.js';
 
 // ── Audit log (Supabase) ───────────────────────────────────────
 
@@ -14,7 +14,7 @@ export interface AuditEntry {
 
 export async function audit(entry: AuditEntry): Promise<void> {
   const { error } = await supabase.from('audit_logs').insert({
-    actor:     entry.actor ?? 'ibrahim',
+    actor:     entry.actor ?? 'Dzaryx',
     action:    entry.action,
     target:    entry.target,
     target_id: entry.targetId,

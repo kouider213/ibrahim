@@ -1,6 +1,6 @@
-import type Anthropic from '@anthropic-ai/sdk';
+﻿import type Anthropic from '@anthropic-ai/sdk';
 
-export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
+export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   {
     name: 'list_bookings',
     description: 'Lister les réservations depuis Supabase. Filtre par status, client, voiture ou date.',
@@ -132,7 +132,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'learn_rule',
-    description: 'Mémoriser une nouvelle règle métier dans ibrahim_rules.',
+    description: 'Mémoriser une nouvelle règle métier dans Dzaryx_rules.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -143,7 +143,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'remember_info',
-    description: 'Mémoriser une information dans la mémoire permanente ibrahim_memory. Utiliser quand Kouider dit "souviens-toi que..." ou "apprends que...".',
+    description: 'Mémoriser une information dans la mémoire permanente Dzaryx_memory. Utiliser quand Kouider dit "souviens-toi que..." ou "apprends que...".',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -155,7 +155,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'recall_memory',
-    description: 'Rechercher dans la mémoire permanente d\'Ibrahim.',
+    description: 'Rechercher dans la mémoire permanente d\'Dzaryx.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -190,7 +190,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
 
   {
     name: 'github_read_file',
-    description: 'Lire un fichier depuis n\'importe quel repo GitHub (ibrahim, autolux-location, fik-conciergerie). Utiliser pour lire le code source d\'Ibrahim avant de le modifier.',
+    description: 'Lire un fichier depuis n\'importe quel repo GitHub (Dzaryx, autolux-location, fik-conciergerie). Utiliser pour lire le code source d\'Dzaryx avant de le modifier.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -202,7 +202,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'github_write_file',
-    description: 'Créer ou modifier un fichier dans un repo GitHub. Pour le repo ibrahim → Railway redéploie automatiquement en 2-3 min. Envoyer le contenu COMPLET du fichier.',
+    description: 'Créer ou modifier un fichier dans un repo GitHub. Pour le repo Dzaryx → Railway redéploie automatiquement en 2-3 min. Envoyer le contenu COMPLET du fichier.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -353,7 +353,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   // ─── PHASE 13 — Apprentissage continu ────────────────────────
   {
     name: 'record_feedback',
-    description: 'Enregistrer un feedback de Kouider sur une action Ibrahim (réponse, réservation, contenu TikTok, etc.). Ibrahim apprend de ces feedbacks.',
+    description: 'Enregistrer un feedback de Kouider sur une action Dzaryx (réponse, réservation, contenu TikTok, etc.). Dzaryx apprend de ces feedbacks.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -368,7 +368,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_monthly_improvement_report',
-    description: 'Rapport mensuel d\'amélioration Ibrahim: nouvelles règles apprises, feedbacks reçus, patterns découverts, performances par catégorie, recommandations.',
+    description: 'Rapport mensuel d\'amélioration Dzaryx: nouvelles règles apprises, feedbacks reçus, patterns découverts, performances par catégorie, recommandations.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -379,7 +379,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_learning_evolution',
-    description: 'Évolution de l\'apprentissage Ibrahim sur plusieurs mois: tendances, taux de satisfaction, amélioration continue.',
+    description: 'Évolution de l\'apprentissage Dzaryx sur plusieurs mois: tendances, taux de satisfaction, amélioration continue.',
     input_schema: {
       type: 'object' as const,
       properties: {

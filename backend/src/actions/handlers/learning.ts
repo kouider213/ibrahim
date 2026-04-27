@@ -1,7 +1,7 @@
-import { supabase } from '../../integrations/supabase.js';
+﻿import { supabase } from '../../integrations/supabase.js';
 
 /**
- * PHASE 13 — APPRENTISSAGE CONTINU IBRAHIM
+ * PHASE 13 — APPRENTISSAGE CONTINU Dzaryx
  * Handlers pour feedback, amélioration, et calibration automatique
  */
 
@@ -28,7 +28,7 @@ export async function recordFeedback(args: {
 
     // Insérer le feedback
     const { data, error } = await supabase
-      .from('ibrahim_feedback')
+      .from('Dzaryx_feedback')
       .insert({
         action_type: args.action_type,
         action_id: args.action_id || null,
@@ -79,7 +79,7 @@ export async function getMonthlyImprovementReport(args?: {
     const endDate = new Date(year, month, 0, 23, 59, 59);
 
     const { data: feedbacks, error: feedbackError } = await supabase
-      .from('ibrahim_feedback')
+      .from('Dzaryx_feedback')
       .select('*')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString())
@@ -89,7 +89,7 @@ export async function getMonthlyImprovementReport(args?: {
 
     // Récupérer les règles apprises ce mois
     const { data: rules, error: rulesError } = await supabase
-      .from('ibrahim_rules')
+      .from('Dzaryx_rules')
       .select('*')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString());
@@ -150,7 +150,7 @@ export async function getLearningEvolution(args?: { months?: number }) {
     const startDate = new Date(now.getFullYear(), now.getMonth() - monthsToAnalyze + 1, 1);
 
     const { data: feedbacks, error } = await supabase
-      .from('ibrahim_feedback')
+      .from('Dzaryx_feedback')
       .select('*')
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: true });
@@ -216,7 +216,7 @@ export async function getKouiderPreferences() {
   try {
     // Récupérer tous les feedbacks
     const { data: feedbacks, error } = await supabase
-      .from('ibrahim_feedback')
+      .from('Dzaryx_feedback')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -253,13 +253,13 @@ async function updateMonthlyStats(year: number, month: number) {
   const endDate = new Date(year, month, 0, 23, 59, 59);
 
   const { data: feedbacks } = await supabase
-    .from('ibrahim_feedback')
+    .from('Dzaryx_feedback')
     .select('rating')
     .gte('created_at', startDate.toISOString())
     .lte('created_at', endDate.toISOString());
 
   const { data: rules } = await supabase
-    .from('ibrahim_rules')
+    .from('Dzaryx_rules')
     .select('id')
     .gte('created_at', startDate.toISOString())
     .lte('created_at', endDate.toISOString());
@@ -269,7 +269,7 @@ async function updateMonthlyStats(year: number, month: number) {
   const negativeFeedbacks = feedbacks?.filter((f: any) => f.rating === 'negative').length || 0;
 
   await supabase
-    .from('ibrahim_learning_stats')
+    .from('Dzaryx_learning_stats')
     .upsert(
       {
         year,

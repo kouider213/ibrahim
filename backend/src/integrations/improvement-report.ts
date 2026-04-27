@@ -1,4 +1,4 @@
-import {
+﻿import {
   getLearningPatterns,
   getKouiderPreferences,
 } from './feedback-system.js';
@@ -39,7 +39,7 @@ export async function generateMonthlyReport(
 
   // 1. Compter les nouvelles règles apprises ce mois
   const { data: newRules } = await supabase
-    .from('ibrahim_rules')
+    .from('Dzaryx_rules')
     .select('id')
     .gte('created_at', startDate)
     .lt('created_at', endDate);
@@ -48,7 +48,7 @@ export async function generateMonthlyReport(
 
   // 2. Récupérer les stats de feedback du mois
   const { data: monthFeedback } = await supabase
-    .from('ibrahim_feedback')
+    .from('Dzaryx_feedback')
     .select('rating, action_type, comment')
     .gte('created_at', startDate)
     .lt('created_at', endDate);

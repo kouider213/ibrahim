@@ -1,4 +1,4 @@
-import PDFDocument from 'pdfkit';
+﻿import PDFDocument from 'pdfkit';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './supabase.js';
 import { env } from '../config/env.js';
@@ -82,7 +82,7 @@ export async function generateReservationVoucher(
       const { data: imgData } = await axios.get(foundDocUrl, {
         responseType: 'arraybuffer',
         timeout: 15_000,
-        headers: { 'User-Agent': 'Ibrahim-AI/1.0' },
+        headers: { 'User-Agent': 'Dzaryx-AI/1.0' },
       });
       const buf = Buffer.from(imgData as ArrayBuffer);
       const b64 = buf.toString('base64');
@@ -249,7 +249,7 @@ function buildPDF(booking: Record<string, unknown>, passport: Record<string, str
 
     // ── PIED DE PAGE ─────────────────────────────────────────────
     doc.font('Helvetica').fontSize(7).fillColor('#cccccc')
-      .text(`Fik Conciergerie — AutoLux Location Oran — Ref: ${refNo} — Document genere par Ibrahim IA`, 50, 770, {
+      .text(`Fik Conciergerie — AutoLux Location Oran — Ref: ${refNo} — Document genere par Dzaryx IA`, 50, 770, {
         align: 'center', width: 495,
       });
 

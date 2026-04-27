@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js';
+﻿import { supabase } from './supabase.js';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ export async function recordFeedback(params: {
   context?: Record<string, unknown>;
 }): Promise<Feedback> {
   const { data, error } = await supabase
-    .from('ibrahim_feedback')
+    .from('Dzaryx_feedback')
     .insert({
       session_id: params.sessionId,
       action_type: params.actionType,
@@ -60,7 +60,7 @@ export async function recordFeedback(params: {
 
 export async function getFeedbackForAction(actionId: string): Promise<Feedback[]> {
   const { data, error } = await supabase
-    .from('ibrahim_feedback')
+    .from('Dzaryx_feedback')
     .select('*')
     .eq('action_id', actionId)
     .order('created_at', { ascending: false });
@@ -76,7 +76,7 @@ export async function getFeedbackByType(
   limit = 50
 ): Promise<Feedback[]> {
   const { data, error } = await supabase
-    .from('ibrahim_feedback')
+    .from('Dzaryx_feedback')
     .select('*')
     .eq('action_type', actionType)
     .order('created_at', { ascending: false })
@@ -161,7 +161,7 @@ export async function upsertLearningPattern(params: {
   metadata: Record<string, unknown>;
 }): Promise<LearningPattern> {
   const { data, error } = await supabase
-    .from('ibrahim_learning_patterns')
+    .from('Dzaryx_learning_patterns')
     .upsert(
       {
         category: params.category,
@@ -183,7 +183,7 @@ export async function upsertLearningPattern(params: {
 
 export async function getLearningPatterns(): Promise<LearningPattern[]> {
   const { data, error } = await supabase
-    .from('ibrahim_learning_patterns')
+    .from('Dzaryx_learning_patterns')
     .select('*')
     .order('confidence', { ascending: false });
 
@@ -254,7 +254,7 @@ export async function getFeedbackStats(): Promise<{
   by_type: Record<string, { positive: number; negative: number; neutral: number }>;
 }> {
   const { data, error } = await supabase
-    .from('ibrahim_feedback')
+    .from('Dzaryx_feedback')
     .select('rating, action_type');
 
   if (error) throw new Error(`Stats fetch failed: ${error.message}`);

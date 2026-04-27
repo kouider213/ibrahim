@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import axios from 'axios';
 import {
   sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo, sendDocument,
@@ -59,7 +59,7 @@ router.post('/webhook', async (req, res) => {
 
   // /start
   if (msg.text?.startsWith('/start')) {
-    await sendMessage(chatId, `Salam Kouider ! Je suis Ibrahim 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTu peux me dire ce que tu veux faire avec tes médias !`);
+    await sendMessage(chatId, `Salam Kouider ! Je suis Dzaryx 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTu peux me dire ce que tu veux faire avec tes médias !`);
     return;
   }
 
@@ -201,7 +201,7 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
           .map(b => (b as Anthropic.TextBlock).text)
           .join('');
 
-        const actionMessage = `[Référence UI extraite d'une vidéo — analyse visuelle:\n${uiDescription}]\n\nDemande de Kouider: "${caption}"\n\nModifie l'interface mobile Ibrahim pour qu'elle ressemble à ce design.\nFichiers dans repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux → modifier → github_write_file → Netlify redéploie.`;
+        const actionMessage = `[Référence UI extraite d'une vidéo — analyse visuelle:\n${uiDescription}]\n\nDemande de Kouider: "${caption}"\n\nModifie l'interface mobile Dzaryx pour qu'elle ressemble à ce design.\nFichiers dans repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux → modifier → github_write_file → Netlify redéploie.`;
 
         const ctx      = await buildContext(sessionId, actionMessage);
         const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
@@ -215,7 +215,7 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
     }
 
     // 3b. Traitement vidéo normal
-    await sendMessage(chatId, '🤖 Ibrahim traite ta demande...');
+    await sendMessage(chatId, '🤖 Dzaryx traite ta demande...');
 
     const userRequest = caption
       ? `Vidéo reçue via Telegram et uploadée sur Cloudinary.\nURL: ${videoUrl}\nCloudinary public_id: ${videoPublicId}\n\nDemande de Kouider: "${caption}"\n\nUtilise l'outil approprié:\n- cut_video: pour couper/limiter la durée (video_url="${videoUrl}", start_seconds=0, end_seconds=N)\n- create_video_preview: pour garder uniquement les N premières secondes (video_url="${videoUrl}", duration_seconds=N)\n- optimize_for_platform: pour TikTok/YouTube (video_url="${videoUrl}", platform="tiktok"|"youtube")\nRetourne l'URL résultante dans ta réponse.`
@@ -308,7 +308,7 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
     const isUIReference = caption && UI_KEYWORDS.test(caption);
 
     const visionSystemPrompt = isUIReference
-      ? `Tu es Ibrahim, assistant IA de Kouider. Analyse cette image d'interface UI avec TOUS les détails visuels:
+      ? `Tu es Dzaryx, assistant IA de Kouider. Analyse cette image d'interface UI avec TOUS les détails visuels:
 - Couleurs exactes (background, texte, boutons, bordures) avec codes hex si possible
 - Layout et disposition des éléments
 - Typographie (police, taille, poids)
@@ -316,7 +316,7 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
 - Composants présents (boutons, cartes, barres, cercles, vagues)
 - Style général (futuriste, minimal, glassmorphism, neon, etc.)
 Sois TRÈS précis et exhaustif — cette description servira à reproduire exactement ce design.`
-      : `Tu es Ibrahim, assistant IA de Kouider (Fik Conciergerie Oran).
+      : `Tu es Dzaryx, assistant IA de Kouider (Fik Conciergerie Oran).
 Analyse précisément cette image. Si c'est un tableau/dashboard → liste tous les noms, prix, données visibles.
 Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et précis.`;
 

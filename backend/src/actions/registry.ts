@@ -1,4 +1,4 @@
-export type ActionCategory = 'reservation' | 'content' | 'pc' | 'query' | 'rule' | 'learning';
+﻿export type ActionCategory = 'reservation' | 'content' | 'pc' | 'query' | 'rule' | 'learning';
 
 export interface ActionDefinition {
   name:               string;
@@ -140,21 +140,21 @@ const actions: ActionDefinition[] = [
   {
     name:               'record_feedback',
     category:           'learning',
-    description:        'Enregistrer un feedback de Kouider sur une action Ibrahim',
+    description:        'Enregistrer un feedback de Kouider sur une action Dzaryx',
     requiresValidation: false,
     handler:            'learning',
   },
   {
     name:               'get_monthly_improvement_report',
     category:           'learning',
-    description:        'Rapport mensuel d\'amélioration Ibrahim',
+    description:        'Rapport mensuel d\'amélioration Dzaryx',
     requiresValidation: false,
     handler:            'learning',
   },
   {
     name:               'get_learning_evolution',
     category:           'learning',
-    description:        'Évolution de l\'apprentissage Ibrahim sur plusieurs mois',
+    description:        'Évolution de l\'apprentissage Dzaryx sur plusieurs mois',
     requiresValidation: false,
     handler:            'learning',
   },

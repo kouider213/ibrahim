@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { processMessage } from '../../conversation/orchestrator.js';
 import { requireMobileAuth } from '../middleware/auth.js';
@@ -14,7 +14,7 @@ const messageSchema = z.object({
   imageMime:    z.string().optional().default('image/jpeg'),
 });
 
-// POST /api/chat — send a message to Ibrahim
+// POST /api/chat — send a message to Dzaryx
 router.post('/', requireMobileAuth, async (req, res) => {
   const parsed = messageSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -24,7 +24,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
 
   const { message, sessionId, textOnly, imageBase64, imageMime } = parsed.data;
 
-  // Acknowledge immediately — result delivered via Socket.IO (ibrahim:text_complete + audio chunks)
+  // Acknowledge immediately — result delivered via Socket.IO (Dzaryx:text_complete + audio chunks)
   res.status(202).json({ status: 'processing', sessionId });
 
   processMessage(message, sessionId, textOnly, imageBase64, imageMime).catch(err => {

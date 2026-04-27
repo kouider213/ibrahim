@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js';
+﻿import { supabase } from './supabase.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';

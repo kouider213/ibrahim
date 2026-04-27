@@ -1,7 +1,7 @@
-/**
+﻿/**
  * PHASE 14 — Traitement Image & Vidéo
  * 
- * Module de traitement média pour Ibrahim
+ * Module de traitement média pour Dzaryx
  * - Images: optimisation, redimensionnement, amélioration, variants sociaux
  * - Vidéos: découpe, sous-titres auto, optimisation plateforme, montage
  * 

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
 import { supabase } from '../../integrations/supabase.js';
@@ -31,7 +31,7 @@ setInterval(() => {
   }
 }, 300_000);
 
-const WIDGET_BASE_PROMPT = `Tu es Ibrahim, l'assistant virtuel d'AutoLux Location — agence de location de véhicules premium à Oran, Algérie.
+const WIDGET_BASE_PROMPT = `Tu es Dzaryx, l'assistant virtuel d'AutoLux Location — agence de location de véhicules premium à Oran, Algérie.
 
 RÈGLES ABSOLUES:
 - Tu réponds dans la langue utilisée par le client (français, arabe, anglais)
@@ -186,7 +186,7 @@ function buildWidgetScript(backendUrl: string): string {
   // ── HTML ───────────────────────────────────────────────────
   var btn = document.createElement('button');
   btn.id = 'ibr-btn';
-  btn.title = 'Ibrahim — Assistant AutoLux';
+  btn.title = 'Dzaryx — Assistant AutoLux';
   btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 
   var win = document.createElement('div');
@@ -195,7 +195,7 @@ function buildWidgetScript(backendUrl: string): string {
     '<div id="ibr-head">',
       '<div id="ibr-head-left">',
         '<div id="ibr-avatar">🤖</div>',
-        '<div id="ibr-head-info"><h3>Ibrahim</h3><p>Assistant AutoLux • En ligne</p></div>',
+        '<div id="ibr-head-info"><h3>Dzaryx</h3><p>Assistant AutoLux • En ligne</p></div>',
       '</div>',
       '<button id="ibr-close">×</button>',
     '</div>',
@@ -230,7 +230,7 @@ function buildWidgetScript(backendUrl: string): string {
   function greet() {
     var hour = new Date().getHours();
     var g = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
-    addBubble(g + ' ! Je suis Ibrahim, l\'assistant AutoLux. Comment puis-je vous aider ? 🚗', 'bot');
+    addBubble(g + ' ! Je suis Dzaryx, l\'assistant AutoLux. Comment puis-je vous aider ? 🚗', 'bot');
   }
 
   async function sendMsg() {

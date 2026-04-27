@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { supabase } from '../../integrations/supabase.js';
@@ -6,7 +6,7 @@ import { requireMobileAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-// Tables Ibrahim à créer
+// Tables Dzaryx à créer
 const TABLES = [
   {
     name: 'tasks',
@@ -15,7 +15,7 @@ const TABLES = [
       title TEXT NOT NULL, description TEXT, action_type TEXT NOT NULL,
       payload JSONB NOT NULL DEFAULT '{}',
       status TEXT NOT NULL DEFAULT 'pending',
-      priority INTEGER NOT NULL DEFAULT 5, created_by TEXT NOT NULL DEFAULT 'ibrahim',
+      priority INTEGER NOT NULL DEFAULT 5, created_by TEXT NOT NULL DEFAULT 'Dzaryx',
       result JSONB, error TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -75,14 +75,14 @@ const TABLES = [
     name: 'audit_logs',
     sql: `CREATE TABLE IF NOT EXISTS audit_logs (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      actor TEXT NOT NULL DEFAULT 'ibrahim', action TEXT NOT NULL,
+      actor TEXT NOT NULL DEFAULT 'Dzaryx', action TEXT NOT NULL,
       target TEXT, target_id UUID, before JSONB, after JSONB,
       ip TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
   },
   {
-    name: 'ibrahim_rules',
-    sql: `CREATE TABLE IF NOT EXISTS ibrahim_rules (
+    name: 'Dzaryx_rules',
+    sql: `CREATE TABLE IF NOT EXISTS Dzaryx_rules (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       category TEXT NOT NULL, rule TEXT NOT NULL,
       conditions JSONB DEFAULT '{}', action JSONB DEFAULT '{}',
@@ -120,7 +120,7 @@ router.get('/status', requireMobileAuth, async (_req, res) => {
 // GET /api/bootstrap/sql — return the SQL to execute manually
 router.get('/sql', requireMobileAuth, (_req, res) => {
   try {
-    const sqlPath = path.resolve(__dirname, '../../../../supabase/schema-ibrahim-only.sql');
+    const sqlPath = path.resolve(__dirname, '../../../../supabase/schema-Dzaryx-only.sql');
     const sql = readFileSync(sqlPath, 'utf-8');
     res.type('text/plain').send(sql);
   } catch {

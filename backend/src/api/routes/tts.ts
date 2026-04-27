@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { synthesizeVoice } from '../../notifications/dispatcher.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { env } from '../../config/env.js';
@@ -8,7 +8,7 @@ const router = Router();
 // GET /api/tts/test — test ElevenLabs connectivity
 router.get('/test', requireMobileAuth, async (_req, res) => {
   try {
-    const audio = await synthesizeVoice('Ibrahim est prêt.');
+    const audio = await synthesizeVoice('Dzaryx est prêt.');
     if (!audio) {
       res.status(502).json({
         ok: false,

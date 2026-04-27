@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 
 // ── Météo Oran (Open-Meteo — gratuit, pas de clé API) ─────────
 const ORAN_LAT = 35.6971;
@@ -93,7 +93,7 @@ function parseRssItems(xml: string, source: string, max = 5): NewsItem[] {
 export async function getAlgeriaNews(maxPerFeed = 4): Promise<NewsItem[]> {
   const results = await Promise.allSettled(
     NEWS_FEEDS.map(f =>
-      axios.get(f.url, { timeout: 8000, headers: { 'User-Agent': 'Ibrahim-Bot/1.0' } })
+      axios.get(f.url, { timeout: 8000, headers: { 'User-Agent': 'Dzaryx-Bot/1.0' } })
         .then(r => parseRssItems(r.data as string, f.source, maxPerFeed))
     )
   );

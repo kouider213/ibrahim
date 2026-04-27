@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { processMessage } from '../../conversation/orchestrator.js';
 import { env } from '../../config/env.js';
@@ -13,7 +13,7 @@ const sirisSchema = z.object({
 // POST /api/siri — endpoint simplifié pour Siri Shortcut iOS
 // Retourne du texte brut (pas de JSON) pour que Siri puisse le lire
 router.post('/', async (req, res) => {
-  const token = req.headers['x-ibrahim-token'] as string | undefined;
+  const token = req.headers['x-Dzaryx-token'] as string | undefined;
   if (token !== env.MOBILE_ACCESS_TOKEN) {
     res.status(401).type('text').send('Non autorisé');
     return;
@@ -44,7 +44,7 @@ router.get('/setup', (_req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ibrahim — Raccourci Siri</title>
+<title>Dzaryx — Raccourci Siri</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:20px;background:#0a0a0a;color:#f0f0f0}
@@ -62,8 +62,8 @@ router.get('/setup', (_req, res) => {
 </style>
 </head>
 <body>
-<h1>🎙️ Raccourci Siri Ibrahim</h1>
-<p class="sub">Configure "Hey Siri Ibrahim" → l'app s'ouvre et écoute automatiquement</p>
+<h1>🎙️ Raccourci Siri Dzaryx</h1>
+<p class="sub">Configure "Hey Siri Dzaryx" → l'app s'ouvre et écoute automatiquement</p>
 
 <div class="warn">
   ⚠️ <strong>Étape préalable</strong> : Ouvre d'abord <a href="${appUrl}" style="color:#fcd34d">${appUrl}</a> dans Safari → Partager → <strong>Sur l'écran d'accueil</strong>. L'app doit être installée comme une vraie app.
@@ -85,23 +85,23 @@ router.get('/setup', (_req, res) => {
 </div>
 
 <div class="step">
-  <h3><span class="num">3</span>Nomme le raccourci "Ibrahim"</h3>
-  <p>Appuie sur le nom en haut → tape <strong>Ibrahim</strong> → terminé</p>
+  <h3><span class="num">3</span>Nomme le raccourci "Dzaryx"</h3>
+  <p>Appuie sur le nom en haut → tape <strong>Dzaryx</strong> → terminé</p>
 </div>
 
 <div class="step">
   <h3><span class="num">4</span>Ajoute à Siri</h3>
   <p>Dans le raccourci → appuie sur <strong>···</strong> (3 points) → <strong>"Ajouter à Siri"</strong><br><br>
-  Enregistre la phrase : dis <strong>"Ibrahim"</strong> quand demandé</p>
+  Enregistre la phrase : dis <strong>"Dzaryx"</strong> quand demandé</p>
 </div>
 
 <div class="step">
   <h3>✅ Test final</h3>
-  <p>Dis <strong>"Hey Siri Ibrahim"</strong><br>
+  <p>Dis <strong>"Hey Siri Dzaryx"</strong><br>
   → L'app s'ouvre<br>
   → Le globe devient vert et écoute automatiquement<br>
   → Parle ton message<br>
-  → Ibrahim répond avec sa voix</p>
+  → Dzaryx répond avec sa voix</p>
 </div>
 
 <a href="${appUrl}?auto=1" class="btn">🧪 Tester maintenant (ouvre l'app)</a>

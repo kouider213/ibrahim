@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { getFileContent, updateFile, listDirectory, getRecentCommits, createClientSiteOnNetlify } from '../../integrations/github.js';
@@ -25,7 +25,7 @@ router.get('/site/read', requireMobileAuth, async (req, res) => {
 const updateSchema = z.object({
   path:    z.string().min(1),
   content: z.string().min(1),
-  message: z.string().min(1).default('Ibrahim: mise à jour du site'),
+  message: z.string().min(1).default('Dzaryx: mise à jour du site'),
 });
 
 router.post('/site/update', requireMobileAuth, async (req, res) => {

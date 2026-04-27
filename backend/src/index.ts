@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import http from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -52,7 +52,7 @@ app.use(requestLogger);
 
 // Health check
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'ibrahim', version: '2.0-chatWithTools', time: new Date().toISOString() });
+  res.json({ status: 'ok', service: 'Dzaryx', version: '2.0-chatWithTools', time: new Date().toISOString() });
 });
 
 // API routes
@@ -138,6 +138,6 @@ desktopNs.on('connection', (socket) => {
 // ── Start server ──────────────────────────────────────────────
 const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`✅ Ibrahim backend running on port ${PORT}`);
+  console.log(`✅ Dzaryx backend running on port ${PORT}`);
   initScheduler();
 });

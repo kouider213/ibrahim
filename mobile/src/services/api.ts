@@ -1,4 +1,4 @@
-import { io, Socket } from 'socket.io-client';
+﻿import { io, Socket } from 'socket.io-client';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _env = (import.meta as any).env ?? {};
@@ -112,39 +112,39 @@ export function connectSocket(sessionId: string, callbacks: SocketCallbacks): So
   _socket.on('connect', () => console.log('[socket] Connected'));
   _socket.on('disconnect', () => console.log('[socket] Disconnected'));
 
-  _socket.on('ibrahim:status', (data: { status: IbrahimStatus; sessionId?: string; toolLabel?: string | null }) => {
+  _socket.on('Dzaryx:status', (data: { status: IbrahimStatus; sessionId?: string; toolLabel?: string | null }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onStatus(data.status, data.toolLabel);
   });
 
-  _socket.on('ibrahim:audio', (data: { audio: string; sessionId?: string }) => {
+  _socket.on('Dzaryx:audio', (data: { audio: string; sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudio(data.audio);
   });
 
-  _socket.on('ibrahim:audio_chunk', (data: { chunk: string; sessionId?: string }) => {
+  _socket.on('Dzaryx:audio_chunk', (data: { chunk: string; sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudioChunk(data.chunk);
   });
 
-  _socket.on('ibrahim:audio_complete', (data: { sessionId?: string }) => {
+  _socket.on('Dzaryx:audio_complete', (data: { sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onAudioComplete();
   });
 
-  _socket.on('ibrahim:text_chunk', (data: { chunk: string; sessionId?: string }) => {
+  _socket.on('Dzaryx:text_chunk', (data: { chunk: string; sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onTextChunk(data.chunk);
   });
 
-  _socket.on('ibrahim:text_complete', (data: { text: string; sessionId?: string }) => {
+  _socket.on('Dzaryx:text_complete', (data: { text: string; sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onTextComplete(data.text);
   });
 
-  _socket.on('ibrahim:response', (data: { text: string; fallback?: boolean; sessionId?: string }) => {
+  _socket.on('Dzaryx:response', (data: { text: string; fallback?: boolean; sessionId?: string }) => {
     if (!data.sessionId || data.sessionId === sessionId) callbacks.onResponse(data.text, data.fallback ?? false);
   });
 
-  _socket.on('ibrahim:validation_request', (v: unknown) => {
+  _socket.on('Dzaryx:validation_request', (v: unknown) => {
     callbacks.onValidation(v);
   });
 
-  _socket.on('ibrahim:task_update', (t: unknown) => {
+  _socket.on('Dzaryx:task_update', (t: unknown) => {
     callbacks.onTaskUpdate(t);
   });
 
@@ -212,7 +212,7 @@ async function drainAudioQueue(): Promise<void> {
   } finally {
     _audioPlaying = false;
     // Signal component that audio finished — component uses this instead of timer guessing
-    window.dispatchEvent(new CustomEvent('ibrahim:audioEnded'));
+    window.dispatchEvent(new CustomEvent('Dzaryx:audioEnded'));
   }
 }
 
@@ -327,7 +327,7 @@ export function iosFallbackSpeak(text: string, onComplete?: () => void): void {
 export function getOrCreateSessionId(): string {
   // Fixed session ID so voice and Telegram share the same memory context
   try {
-    localStorage.setItem('ibrahim_voice_session', 'voice_kouider');
+    localStorage.setItem('Dzaryx_voice_session', 'voice_kouider');
   } catch { /* ignore */ }
   return 'voice_kouider';
 }

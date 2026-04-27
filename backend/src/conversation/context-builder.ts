@@ -1,4 +1,4 @@
-import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, supabase } from '../integrations/supabase.js';
+﻿import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, supabase } from '../integrations/supabase.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
@@ -166,7 +166,7 @@ export async function buildContext(
     : '';
 
   const memoriesText = memories.length > 0
-    ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
+    ? `\n\nMÉMOIRE Dzaryx (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
     : '';
 
   const currentChannel = sessionId === 'voice_kouider'
@@ -179,10 +179,10 @@ export async function buildContext(
 
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
   const crossChannelText = (crossHistory as any[]).length > 0
-    ? `\n\nCONVERSATION RÉCENTE SUR ${crossChannelLabel} (pour mémoire cross-canal):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Ibrahim'}] ${String(m.content).slice(0, 300)}`).join('\n')}`
+    ? `\n\nCONVERSATION RÉCENTE SUR ${crossChannelLabel} (pour mémoire cross-canal):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Dzaryx'}] ${String(m.content).slice(0, 300)}`).join('\n')}`
     : '';
 
-  // Style mirror — Ibrahim voit comment Kouider écrit et adapte ses réponses
+  // Style mirror — Dzaryx voit comment Kouider écrit et adapte ses réponses
   const styleText = (styleMessages as string[]).length >= 5
     ? `\n\nSTYLE DE KOUIDER (IMPORTANT — adapte ton registre à ces exemples réels):\nKouider parle comme ça:\n${(styleMessages as string[]).slice(-20).map(m => `• ${m}`).join('\n')}\nMiroir son style: longueur phrases, mélange français/darija/arabe, niveau familiarité, ponctuation.`
     : '';

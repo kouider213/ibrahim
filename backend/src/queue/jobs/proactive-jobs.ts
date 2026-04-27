@@ -1,4 +1,4 @@
-import type { Job } from 'bullmq';
+﻿import type { Job } from 'bullmq';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
 import { sendMessage } from '../../integrations/telegram.js';
@@ -139,7 +139,7 @@ function getDailyTip(dayOfWeek: number, activeCount: number, upcomingCount: numb
   }
   if (dayOfWeek === 1) return 'Début de semaine — vérifie les docs de tous les clients en cours.';
   if (dayOfWeek === 5) return 'Vendredi — vérifie les retours prévus ce week-end.';
-  if (dayOfWeek === 0) return 'Dimanche — bon moment pour planifier la semaine avec Ibrahim.';
+  if (dayOfWeek === 0) return 'Dimanche — bon moment pour planifier la semaine avec Dzaryx.';
   return '';
 }
 
@@ -701,7 +701,7 @@ export async function jobAnthropicWatch(_job: Job): Promise<void> {
 
     const analysis = await chat([{
       role: 'user',
-      content: `Tu es Ibrahim, assistant IA de Fik Conciergerie Oran.
+      content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
 Analyse ces nouveautés Anthropic/Claude et identifie ce qui peut CONCRÈTEMENT améliorer tes capacités.
 
 RELEASE NOTES ANTHROPIC:

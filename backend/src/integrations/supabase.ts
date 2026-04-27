@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+﻿import { createClient } from '@supabase/supabase-js';
 import { env } from '../config/env.js';
 
 export const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
@@ -59,7 +59,7 @@ export interface ClientDocument {
   created_at:   string;
 }
 
-// ── Ibrahim internal types ─────────────────────────────────────
+// ── Dzaryx internal types ─────────────────────────────────────
 
 export type TaskStatus =
   | 'pending' | 'queued' | 'running' | 'waiting_validation'
@@ -179,11 +179,11 @@ export async function createBooking(booking: Omit<Booking, 'id' | 'created_at' |
   return data as Booking;
 }
 
-// ── Ibrahim conversation helpers ───────────────────────────────
+// ── Dzaryx conversation helpers ───────────────────────────────
 
 export async function getActiveRules(): Promise<IbrahimRule[]> {
   const { data, error } = await supabase
-    .from('ibrahim_rules')
+    .from('Dzaryx_rules')
     .select('*')
     .eq('active', true)
     .order('category');

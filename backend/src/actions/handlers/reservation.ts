@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 import { supabase, checkVehicleAvailability, isVipClient } from '../../integrations/supabase.js';
 import { learnRule } from '../../integrations/claude-api.js';
 import { BUSINESS_RULES } from '../../config/constants.js';
@@ -89,7 +89,7 @@ async function createReservation(params: Record<string, unknown>): Promise<Actio
       resale_price_snapshot: Math.round(data.daily_rate),
       final_price:           Math.round(totalAmount),
       profit:                Math.round(totalAmount - data.daily_rate * days),
-      notes:                 data.notes ?? `Créé par Ibrahim. ${isVip ? `VIP -${discountPct}%` : ''}`,
+      notes:                 data.notes ?? `Créé par Dzaryx. ${isVip ? `VIP -${discountPct}%` : ''}`,
       status:                'CONFIRMED',
       whatsapp_sent:         false,
       sms_sent:              false,
@@ -183,7 +183,7 @@ async function handleLearnRule(params: Record<string, unknown>): Promise<ActionR
   const rule = await learnRule(instruction);
 
   const { data, error } = await supabase
-    .from('ibrahim_rules')
+    .from('Dzaryx_rules')
     .insert({ ...rule, source: 'learned', active: true })
     .select()
     .single();

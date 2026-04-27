@@ -1,6 +1,6 @@
-/**
+﻿/**
  * PHASE 15 — Recherche d'images (Pexels API)
- * Permet à Ibrahim de chercher des images sur internet et les afficher
+ * Permet à Dzaryx de chercher des images sur internet et les afficher
  */
 
 import axios from 'axios';

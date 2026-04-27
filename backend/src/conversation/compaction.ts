@@ -1,8 +1,8 @@
-/**
+﻿/**
  * COMPACTION — Compression intelligente de l'historique de conversation
  *
  * Quand la conversation devient trop longue (>20 messages ou >8000 tokens estimés),
- * Ibrahim résume les anciens échanges en un bloc compact "mémoire de session"
+ * Dzaryx résume les anciens échanges en un bloc compact "mémoire de session"
  * sans perdre les informations importantes (réservations, décisions, préférences).
  *
  * Stratégie:
@@ -45,11 +45,11 @@ async function summarizeHistory(messages: Message[]): Promise<string> {
   const conversationText = messages
     .map(m => {
       const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      return `[${m.role === 'user' ? 'Kouider' : 'Ibrahim'}]: ${text}`;
+      return `[${m.role === 'user' ? 'Kouider' : 'Dzaryx'}]: ${text}`;
     })
     .join('\n\n');
 
-  const prompt = `Tu es Ibrahim, assistant IA de Kouider (Fik Conciergerie Oran).
+  const prompt = `Tu es Dzaryx, assistant IA de Kouider (Fik Conciergerie Oran).
 Résume cette conversation de manière TRÈS COMPACTE en retenant UNIQUEMENT:
 - Les réservations créées/modifiées (client, voiture, dates, prix)
 - Les décisions importantes prises

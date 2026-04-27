@@ -1,4 +1,4 @@
-import { buildContext }                          from './context-builder.js';
+﻿import { buildContext }                          from './context-builder.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -97,7 +97,7 @@ export async function processMessage(
       ctx.messages,
       ctx.systemExtra,
       sessionId,
-      // onToolStart → émettre "Ibrahim utilise l'outil X…"
+      // onToolStart → émettre "Dzaryx utilise l'outil X…"
       (toolName: string, _toolInput: Record<string, unknown>) => {
         const label = getToolLabel(toolName);
         _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: label });
@@ -115,7 +115,7 @@ export async function processMessage(
       imageMime,
     );
   } catch (err) {
-    const errorText = `Erreur Ibrahim: ${err instanceof Error ? err.message : String(err)}`;
+    const errorText = `Erreur Dzaryx: ${err instanceof Error ? err.message : String(err)}`;
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: errorText });
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: errorText, status: 'error' };

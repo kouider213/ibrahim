@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import express from 'express';
 import crypto from 'crypto';
 import { env } from '../../config/env.js';
@@ -131,7 +131,7 @@ router.post('/webhook', async (req, res) => {
 });
 
 // ── POST /api/whatsapp/send ─────────────────────────────────────
-// Outbound: owner or Ibrahim tool sends message to a client
+// Outbound: owner or Dzaryx tool sends message to a client
 router.post('/send', async (req, res) => {
   const { to, message } = req.body as { to?: string; message?: string };
   if (!to || !message) {

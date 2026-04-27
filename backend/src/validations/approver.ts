@@ -1,4 +1,4 @@
-import { supabase } from '../integrations/supabase.js';
+﻿import { supabase } from '../integrations/supabase.js';
 import { sendPushover } from '../notifications/pushover.js';
 import type { ValidationReason } from './gate.js';
 import type { Namespace } from 'socket.io';
@@ -43,7 +43,7 @@ export async function requestValidation(
 
   // Notify via Pushover
   await sendPushover({
-    title:    `Ibrahim — Validation requise`,
+    title:    `Dzaryx — Validation requise`,
     message:  `[${type}] ${context['description'] ?? 'Action en attente de validation'}`,
     priority: 1,
     url:      `${env.BACKEND_URL}/api/validations/${validationId}`,

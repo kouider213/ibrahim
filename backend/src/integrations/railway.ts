@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 import { env } from '../config/env.js';
 
 const RAILWAY_GQL = 'https://backboard.railway.app/graphql/v2';
@@ -70,7 +70,7 @@ export async function waitForDeploy(timeoutMs = 180_000): Promise<string> {
     const terminal = ['SUCCESS', 'FAILED', 'CRASHED', 'REMOVED', 'CANCELLED'];
     if (terminal.includes(dep.status)) {
       if (dep.status === 'SUCCESS') {
-        return `✅ Déploiement réussi (${dep.id.slice(0, 8)}) — Ibrahim est en ligne avec le nouveau code.`;
+        return `✅ Déploiement réussi (${dep.id.slice(0, 8)}) — Dzaryx est en ligne avec le nouveau code.`;
       }
       // Failed — get logs
       const logs = await getRailwayLogs(30);

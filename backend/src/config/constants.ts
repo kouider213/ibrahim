@@ -1,18 +1,18 @@
-// Business rules — Fik Conciergerie Oran
+﻿// Business rules — Fik Conciergerie Oran
 export const BUSINESS_RULES = {
   MIN_RENTAL_DAYS:          2,
   VIP_DISCOUNT_PCT:         10,
   FINANCIAL_THRESHOLD_DZD:  50_000,     // Validation required above this
 } as const;
 
-// Ibrahim AI identity
-export const IBRAHIM = {
-  NAME:          'Ibrahim',
+// Dzaryx AI identity
+export const Dzaryx = {
+  NAME:          'Dzaryx',
   AGENCY:        'Fik Conciergerie',
   CITY:          'Oran',
   COUNTRY:       'Algérie',
   LANGUAGE:      'fr-DZ',
-  SYSTEM_PROMPT: `Tu es Ibrahim, l'assistant IA personnel et business de Kouider — fondateur de Fik Conciergerie à Oran, Algérie. Kouider lui-même vit à BRUXELLES (Belgique).
+  SYSTEM_PROMPT: `Tu es Dzaryx, l'assistant IA personnel et business de Kouider — fondateur de Fik Conciergerie à Oran, Algérie. Kouider lui-même vit à BRUXELLES (Belgique).
 
 LANGUE:
 - Tu réponds en FRANÇAIS par défaut (darija acceptée)
@@ -49,8 +49,8 @@ TU RÉPONDS À TOUT — comme ChatGPT:
 MODIFICATION INTERFACE VIA PHOTO/VIDÉO:
 Quand Kouider envoie une image/vidéo d'une interface avec "ressemble à ça" ou "modifie l'interface":
 1. La description visuelle détaillée est déjà dans le message (analysée par Claude Vision)
-2. github_read_file → ibrahim → mobile/src/components/ChatInterface.tsx
-3. github_read_file → ibrahim → mobile/src/components/ChatInterface.css
+2. github_read_file → Dzaryx → mobile/src/components/ChatInterface.tsx
+3. github_read_file → Dzaryx → mobile/src/components/ChatInterface.css
 4. Reproduire le design: couleurs, layout, effets visuels, composants
 5. github_write_file les deux fichiers modifiés → Netlify redéploie auto
 6. Confirmer avec lien de préview
@@ -101,8 +101,8 @@ MÉMOIRE CROSS-CANAL (TRÈS IMPORTANT):
 - Exemple: si Kouider t'a dit sur Telegram de "garder en mémoire X", tu t'en souviens quand il te parle vocalement
 
 MÉMOIRE PERMANENTE:
-- "Ibrahim souviens-toi que..." → action remember_info → tu enregistres et confirmes
-- "Ibrahim apprends que..." → action remember_info → tu enregistres la règle
+- "Dzaryx souviens-toi que..." → action remember_info → tu enregistres et confirmes
+- "Dzaryx apprends que..." → action remember_info → tu enregistres la règle
 - Avant chaque réponse, tu consultes ta mémoire (inject automatiquement dans le contexte)
 - Tu ne oublies JAMAIS ce que Kouider t'a dit de retenir
 
@@ -181,7 +181,7 @@ DÉVELOPPEMENT AUTONOME — TU PEUX MODIFIER TON PROPRE CODE:
 Tu peux lire et modifier ton propre code source, puis Railway redéploie automatiquement.
 
 REPOS ACCESSIBLES:
-- "ibrahim" → ton propre backend/frontend (Railway auto-déploie après chaque push)
+- "Dzaryx" → ton propre backend/frontend (Railway auto-déploie après chaque push)
 - "autolux-location" → site AutoLux Oran
 - "fik-conciergerie" → site Fik Conciergerie
 
@@ -238,28 +238,28 @@ RÈGLES DE SÉCURITÉ ABSOLUES — confirmation Kouider OBLIGATOIRE:
 
 // Queue names
 export const QUEUES = {
-  ACTIONS: 'ibrahim-actions',
-  VOICE:   'ibrahim-voice',
-  NOTIFY:  'ibrahim-notify',
+  ACTIONS: 'Dzaryx-actions',
+  VOICE:   'Dzaryx-voice',
+  NOTIFY:  'Dzaryx-notify',
 } as const;
 
 // Socket events
 export const SOCKET_EVENTS = {
   // Server → client
-  RESPONSE:         'ibrahim:response',
-  AUDIO:            'ibrahim:audio',
-  AUDIO_CHUNK:      'ibrahim:audio_chunk',
-  AUDIO_COMPLETE:   'ibrahim:audio_complete',
-  TEXT_CHUNK:       'ibrahim:text_chunk',
-  TEXT_COMPLETE:    'ibrahim:text_complete',
-  STATUS:           'ibrahim:status',
-  TASK_UPDATE:      'ibrahim:task_update',
-  VALIDATION_REQ:   'ibrahim:validation_request',
+  RESPONSE:         'Dzaryx:response',
+  AUDIO:            'Dzaryx:audio',
+  AUDIO_CHUNK:      'Dzaryx:audio_chunk',
+  AUDIO_COMPLETE:   'Dzaryx:audio_complete',
+  TEXT_CHUNK:       'Dzaryx:text_chunk',
+  TEXT_COMPLETE:    'Dzaryx:text_complete',
+  STATUS:           'Dzaryx:status',
+  TASK_UPDATE:      'Dzaryx:task_update',
+  VALIDATION_REQ:   'Dzaryx:validation_request',
   // Client → server
-  MESSAGE:          'ibrahim:message',
-  AUDIO_INPUT:      'ibrahim:audio_input',
-  TYPING:           'ibrahim:typing',
-  VALIDATION_REPLY: 'ibrahim:validation_reply',
+  MESSAGE:          'Dzaryx:message',
+  AUDIO_INPUT:      'Dzaryx:audio_input',
+  TYPING:           'Dzaryx:typing',
+  VALIDATION_REPLY: 'Dzaryx:validation_reply',
   // PC Agent
   PC_COMMAND:       'pc:command',
   PC_RESULT:        'pc:result',
@@ -268,5 +268,5 @@ export const SOCKET_EVENTS = {
   PC_REGISTER:      'pc:register',
 } as const;
 
-// Ibrahim status
+// Dzaryx status
 export type IbrahimStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
