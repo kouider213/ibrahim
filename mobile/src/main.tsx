@@ -17,7 +17,7 @@ class ErrorBoundary extends React.Component<
           fontFamily:'monospace', padding:'24px', textAlign:'center', gap:'12px',
         }}>
           <div style={{fontSize:'32px'}}>◎</div>
-          <div style={{fontSize:'14px', letterSpacing:'.1em'}}>IBRAHIM</div>
+          <div style={{fontSize:'14px', letterSpacing:'.1em'}}>DZARYX</div>
           <div style={{fontSize:'11px', color:'rgba(255,255,255,.4)', maxWidth:'280px'}}>{this.state.error}</div>
         </div>
       );

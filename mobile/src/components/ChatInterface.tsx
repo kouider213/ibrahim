@@ -576,7 +576,7 @@ export default function ChatInterface() {
 
       {/* Header */}
       <header className="sphere-header">
-        <div className="sphere-title">IBRAHIM</div>
+        <div className="sphere-title">DZARYX</div>
         <div className="sphere-subtitle">FIK CONCIERGERIE · ORAN</div>
       </header>
 
