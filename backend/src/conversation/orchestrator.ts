@@ -69,6 +69,7 @@ const TOOL_LABELS: Record<string, string> = {
   create_calendar_event:  '📅 Création événement calendrier…',
   update_calendar_event:  '📅 Mise à jour calendrier…',
   delete_calendar_event:  '📅 Suppression événement calendrier…',
+  sync_booking_to_calendar: '📅 Synchronisation réservation → calendrier…',
 };
 
 function getToolLabel(toolName: string): string {

@@ -126,6 +126,7 @@ export async function executeTool(
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'update_calendar_event':      return await updateCalendarEventTool(input);
       case 'delete_calendar_event':      return await deleteCalendarEventTool(input);
+      case 'sync_booking_to_calendar':   return await syncBookingToCalendar(input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -803,6 +804,43 @@ async function updateCalendarEventTool(input: Record<string, unknown>): Promise<
 async function deleteCalendarEventTool(input: Record<string, unknown>): Promise<string> {
   await deleteCalendarEvent(input['google_event_id'] as string);
   return '✅ Événement supprimé du calendrier';
+}
+
+async function syncBookingToCalendar(input: Record<string, unknown>): Promise<string> {
+  let bookings: Array<{ id: string; client_name: string; start_date: string; end_date: string; notes?: string; cars?: unknown }> = [];
+
+  if (input['booking_id']) {
+    const { data } = await supabase
+      .from('bookings')
+      .select('id, client_name, start_date, end_date, notes, cars(name)')
+      .eq('id', input['booking_id'] as string)
+      .single();
+    if (!data) return `❌ Réservation ${input['booking_id']} introuvable`;
+    bookings = [data as typeof bookings[0]];
+  } else if (input['client_name']) {
+    const { data } = await supabase
+      .from('bookings')
+      .select('id, client_name, start_date, end_date, notes, cars(name)')
+      .ilike('client_name', `%${input['client_name'] as string}%`)
+      .in('status', ['CONFIRMED', 'ACTIVE', 'PENDING'])
+      .order('start_date', { ascending: false });
+    if (!data?.length) return `❌ Aucune réservation trouvée pour "${input['client_name']}"`;
+    bookings = data as typeof bookings;
+  } else {
+    return '❌ Fournis booking_id ou client_name';
+  }
+
+  const results: string[] = [];
+  for (const b of bookings) {
+    const carName = (b.cars as { name?: string } | null)?.name ?? 'Véhicule';
+    const eventId = await createCalendarEvent(b.id, b.client_name, carName, b.start_date, b.end_date, b.notes);
+    if (eventId) {
+      results.push(`✅ ${b.client_name} — ${carName} (${b.start_date} → ${b.end_date}) → event ${eventId.slice(0, 8)}`);
+    } else {
+      results.push(`⚠️ ${b.client_name} — ${carName} (${b.start_date} → ${b.end_date}) → échec sync`);
+    }
+  }
+  return results.join('\n');
 }
 
 async function getClientProfile(input: Record<string, unknown>): Promise<string> {

@@ -614,6 +614,18 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       required: ['google_event_id'],
     },
   },
+  {
+    name: 'sync_booking_to_calendar',
+    description: 'Synchroniser une réservation EXISTANTE vers Google Calendar. Utiliser quand une réservation a déjà été créée mais n\'est pas encore dans le calendrier. Peut chercher par booking_id OU par nom de client.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id:  { type: 'string', description: 'UUID de la réservation (optionnel si client_name fourni)' },
+        client_name: { type: 'string', description: 'Nom du client pour chercher ses réservations (optionnel si booking_id fourni)' },
+      },
+      required: [],
+    },
+  },
 
   // ─── TELEGRAM depuis app vocale ──────────────────────────────
   {
