@@ -77,6 +77,25 @@ export async function sendDocumentBuffer(
   });
 }
 
+export async function sendVideoBuffer(
+  chatId: number | string,
+  buffer: Buffer,
+  caption?: string,
+): Promise<void> {
+  if (!getToken()) return;
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('video', buffer, { filename: 'tiktok_video.mp4', contentType: 'video/mp4', knownLength: buffer.length });
+  if (caption) { form.append('caption', caption); form.append('parse_mode', 'Markdown'); }
+  form.append('supports_streaming', 'true');
+  await axios.post(`${base()}/sendVideo`, form, {
+    headers: { ...form.getHeaders() },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+    timeout: 120_000,
+  });
+}
+
 export async function sendVoiceBuffer(
   chatId: number | string,
   buffer: Buffer,

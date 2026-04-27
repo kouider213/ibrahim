@@ -8,12 +8,13 @@ import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
+import { createMarketingVideo } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
 import {
   sendMessage as sendTelegramForMarketing,
-  sendVideo as sendTelegramVideo,
   sendPhoto as sendTelegramPhoto,
   sendVoiceBuffer,
+  sendVideoBuffer,
 } from './telegram.js';
 import { synthesizeVoice } from '../notifications/dispatcher.js';
 import type { Car } from './supabase.js';
@@ -963,7 +964,7 @@ async function getLateReturns(): Promise<string> {
 
 // ── Marketing TikTok tools ────────────────────────────────────
 
-async function runTikTokResearchTool(sessionId?: string): Promise<string> {
+async function runTikTokResearchTool(_sessionId?: string): Promise<string> {
   const chatId = env.TELEGRAM_CHAT_ID ?? '809747124';
 
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
@@ -1002,7 +1003,7 @@ async function runTikTokResearchTool(sessionId?: string): Promise<string> {
 
 async function createMarketingVideoTool(
   input: Record<string, unknown>,
-  sessionId?: string,
+  _sessionId?: string,
 ): Promise<string> {
   const chatId  = env.TELEGRAM_CHAT_ID ?? '809747124';
   const carName = (input['car_name'] as string | undefined)?.toLowerCase();
@@ -1019,9 +1020,8 @@ async function createMarketingVideoTool(
 
   if (!car.image_url) return `⚠️ Pas d'image pour ${car.name} — ajoute une photo dans le tableau de bord.`;
 
-  await sendTelegramForMarketing(chatId, `🎬 *Préparation contenu TikTok — ${car.name}*...\n_Génération IA + voix en cours..._`);
+  await sendTelegramForMarketing(chatId, `🎬 *Création vidéo TikTok — ${car.name}*...\n_Voix IA + montage en cours (30-60s)_ ⏳`);
 
-  // Build idea from style or AI research
   const styleScripts: Record<string, string> = {
     reveal:    `Wach tabghi tchouf akwa voiture f Oran? ${car.name} — Fik Conciergerie. ${car.base_price.toLocaleString()} DA par jour. Appelle maintenant !`,
     prix:      `${car.name} à seulement ${car.base_price.toLocaleString()} DA par jour — c'est le meilleur prix à Oran ! Fik Conciergerie, on livre la voiture chez toi.`,
@@ -1029,54 +1029,65 @@ async function createMarketingVideoTool(
     temoignage:`Wallah hada sers — ${car.name} de chez Fik Conciergerie. ${car.base_price.toLocaleString()} DA par jour, service impeccable. Je recommande à 100%.`,
   };
 
-  const script = styleScripts[style] ?? styleScripts['reveal'];
-  const caption = `🚗 ${car.name} à Oran — ${car.base_price.toLocaleString()} DZD/j | Fik Conciergerie`;
+  const script   = styleScripts[style] ?? styleScripts['reveal'];
+  const caption  = `🚗 ${car.name} à Oran — ${car.base_price.toLocaleString()} DZD/j | Fik Conciergerie`;
   const hashtags = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
 
-  // Step 1 — send car photo to Telegram
-  await sendTelegramPhoto(chatId, car.image_url, `📸 *${car.name}* — ${car.base_price.toLocaleString()} DZD/j`).catch(
-    err => console.error('[tool] sendPhoto failed:', err instanceof Error ? err.message : err),
-  );
+  const idea = {
+    title:            `${car.name} — Fik Conciergerie Oran`,
+    concept:          script,
+    voiceover_script: script,
+    caption,
+    hashtags,
+    best_time:        'Ce soir 20h-22h',
+    car_suggestion:   car.name,
+  };
 
-  // Step 2 — generate ElevenLabs voiceover and send as voice message
-  const audioBuffer = await synthesizeVoice(script).catch(err => {
-    console.error('[tool] synthesizeVoice failed:', err instanceof Error ? err.message : err);
+  const videoResult = await createMarketingVideo(car, idea).catch(err => {
+    console.error('[tool:create_marketing_video] ffmpeg failed:', err instanceof Error ? err.message : err);
     return null;
   });
 
-  if (audioBuffer) {
-    await sendVoiceBuffer(chatId, audioBuffer, `🎤 Voiceover — ${car.name}`);
+  // Fallback: photo + audio separately if ffmpeg failed
+  if (!videoResult) {
+    await sendTelegramPhoto(chatId, car.image_url, `📸 *${car.name}* — ${car.base_price.toLocaleString()} DZD/j`).catch(() => {});
+    const audioBuffer = await synthesizeVoice(script).catch(() => null);
+    if (audioBuffer) await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+
+    const pendingId = await savePendingVideo({ video_url: car.image_url, caption, hashtags, car_name: car.name, car_id: car.id, script });
+    await sendTelegramForMarketing(chatId, [
+      `📋 *Contenu TikTok — ${car.name}*`,
+      ``,
+      caption,
+      hashtags.join(' '),
+      ``,
+      `✅ *Oke* pour publier | ❌ *Non* pour annuler`,
+    ].join('\n'));
+    return `✅ Contenu envoyé (photo+voix) — en attente validation (ID: ${pendingId}).`;
   }
 
-  // Step 3 — save as pending for Oke/Non approval
   const pendingId = await savePendingVideo({
     video_url: car.image_url,
-    caption,
-    hashtags,
-    car_name:  car.name,
+    caption:   videoResult.caption,
+    hashtags:  videoResult.hashtags,
+    car_name:  videoResult.car_name,
     car_id:    car.id,
-    script,
+    script:    videoResult.script,
   });
 
-  // Step 4 — send caption + hashtags + approval instructions
   const approvalMsg = [
-    `📋 *Contenu TikTok prêt — ${car.name}*`,
+    `🎬 *Vidéo TikTok prête — ${car.name}*`,
     ``,
-    `📝 *Caption:*`,
-    caption,
+    `📋 ${videoResult.caption}`,
+    `🏷️ ${videoResult.hashtags.join(' ')}`,
     ``,
-    `🏷️ *Hashtags:*`,
-    hashtags.join(' '),
-    ``,
-    `🎤 *Script voix:*`,
-    `_${script}_`,
-    ``,
-    `━━━━━━━━━━━━━━━━`,
-    `✅ Réponds *Oke* pour publier`,
-    `❌ Réponds *Non* pour annuler`,
+    `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
   ].join('\n');
 
-  await sendTelegramForMarketing(chatId, approvalMsg);
+  await sendVideoBuffer(chatId, videoResult.buffer, approvalMsg).catch(async (err) => {
+    console.error('[tool] sendVideoBuffer failed:', err instanceof Error ? err.message : err);
+    await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+  });
 
-  return `✅ Contenu TikTok créé pour ${car.name} — photo + voix envoyés sur Telegram (ID: ${pendingId}). En attente de validation.`;
+  return `✅ Vidéo MP4 créée pour ${car.name} et envoyée sur Telegram (ID: ${pendingId}). En attente de validation.`;
 }
