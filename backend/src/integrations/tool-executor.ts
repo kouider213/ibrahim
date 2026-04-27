@@ -787,7 +787,7 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
     });
     if (caption) form.append('caption', caption);
 
-    const resp = await axios.post<{ ok: boolean; description?: string }>(
+    const resp = await axios.post<{ ok: boolean; description?: string; result?: unknown }>(
       `${botBase}/sendDocument`,
       form,
       { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
@@ -796,7 +796,9 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
     if (!resp.data.ok) {
       throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
     }
-    console.log('[voucher] PDF sent via multipart to chatId:', chatId);
+    console.log('[voucher] PDF sent via multipart to chatId:', chatId, JSON.stringify(resp.data).slice(0, 200));
+    // Log success response in Telegram too so we can debug silently-dropped sends
+    await sendTelegramText(chatId, `✅ Telegram resp ok:true — message_id=${JSON.stringify((resp.data.result as any)?.message_id)}`).catch(() => {});
   };
 
   if (sessionId?.startsWith('telegram_')) {
