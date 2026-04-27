@@ -71,7 +71,7 @@ export default function TasksView() {
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
     }}>
       <h2 style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: 400, marginBottom: 16, letterSpacing: 2, textTransform: 'uppercase' }}>
-        Tâches Ibrahim
+        Tâches Dzaryx
       </h2>
 
       {tasks.length === 0 ? (

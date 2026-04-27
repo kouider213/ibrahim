@@ -462,8 +462,8 @@ export default function ChatInterface() {
       if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
       if (loopActive.current) { applyState('idle'); scheduleNextListen(); }
     };
-    window.addEventListener('ibrahim:audioEnded', onAudioEnded);
-    return () => { disconnectSocket(); window.removeEventListener('ibrahim:audioEnded', onAudioEnded); };
+    window.addEventListener('Dzaryx:audioEnded', onAudioEnded);
+    return () => { disconnectSocket(); window.removeEventListener('Dzaryx:audioEnded', onAudioEnded); };
   }, [sessionId, applyState, scheduleNextListen]);
 
   // ── Relisten when idle + started ──────────────
@@ -486,7 +486,7 @@ export default function ChatInterface() {
 
       const hour = new Date().getHours();
       const greet = hour < 12 ? 'Bonjour Kouider' : hour < 18 ? 'Bon après-midi Kouider' : 'Bonsoir Kouider';
-      const greetText = `${greet}, Ibrahim est prêt. Je vous écoute.`;
+      const greetText = `${greet}, Dzaryx est prêt. Je vous écoute.`;
       applyState('speak');
       setResponseText(greetText);
       setShowResponse(true);
