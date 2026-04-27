@@ -104,6 +104,8 @@ export async function executeTool(
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
       case 'get_late_returns':                   return await getLateReturns();
       case 'generate_reservation_voucher':       return await generateVoucherTool(input, sessionId);
+      case 'get_fleet_status':                   return await getFleetStatus();
+      case 'rate_client':                        return await rateClient(input);
       // ─── PHASE 14 — Image & Vidéo ───
       case 'analyze_image':
       case 'optimize_image':
@@ -173,6 +175,8 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (input['end_date'])     fields['end_date']     = input['end_date'];
   if (input['final_price'] !== undefined) fields['final_price'] = input['final_price'];
   if (input['status'])       fields['status']       = input['status'];
+  if (input['payment_status']) fields['payment_status'] = input['payment_status'];
+  if (input['paid_amount'] !== undefined) fields['paid_amount'] = Number(input['paid_amount']);
   if (input['rented_by'])    fields['rented_by']    = input['rented_by'];
   if (input['notes'])        fields['notes']        = input['notes'];
 
@@ -517,8 +521,8 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
     .from('bookings')
     .select('car_id')
     .in('status', ['CONFIRMED', 'ACTIVE'])
-    .lte('start_date', endDate)
-    .gte('end_date', startDate);
+    .lt('start_date', endDate)
+    .gt('end_date', startDate);
 
   const { data: overlapping } = await overlappingQuery;
   const busyCarIds = new Set((overlapping ?? []).map((b: { car_id: string }) => b.car_id));
@@ -821,6 +825,94 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
   return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n${url}`;
 }
 
+async function getFleetStatus(): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: cars, error: carErr } = await supabase
+    .from('cars')
+    .select('id, name, category, base_price, available')
+    .order('name');
+
+  if (carErr || !cars?.length) return '❌ Impossible de récupérer la flotte.';
+
+  const { data: activeBookings } = await supabase
+    .from('bookings')
+    .select('car_id, client_name, client_phone, start_date, end_date, payment_status, paid_amount, final_price')
+    .in('status', ['CONFIRMED', 'ACTIVE'])
+    .lt('start_date', today)
+    .gte('end_date', today);
+
+  const { data: upcomingBookings } = await supabase
+    .from('bookings')
+    .select('car_id, client_name, start_date, end_date')
+    .in('status', ['CONFIRMED', 'PENDING'])
+    .gt('start_date', today)
+    .lte('start_date', new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10));
+
+  const activeMap = new Map<string, typeof activeBookings extends (infer T)[] | null ? T : never>();
+  for (const b of (activeBookings ?? []) as any[]) activeMap.set(b.car_id, b);
+
+  const upcomingMap = new Map<string, typeof upcomingBookings extends (infer T)[] | null ? T : never>();
+  for (const b of (upcomingBookings ?? []) as any[]) {
+    if (!upcomingMap.has(b.car_id)) upcomingMap.set(b.car_id, b);
+  }
+
+  const lines: string[] = [`🚗 *ÉTAT FLOTTE — ${today}*`, '─'.repeat(35)];
+  let rented = 0, available = 0, unavailable = 0;
+
+  for (const car of cars as any[]) {
+    const active   = activeMap.get(car.id);
+    const upcoming = upcomingMap.get(car.id);
+
+    if (active) {
+      rented++;
+      const remaining = (active.final_price ?? 0) - (active.paid_amount ?? 0);
+      const payTag = active.payment_status === 'PAID' ? '✅' : remaining > 0 ? `💰${remaining}€ dû` : '';
+      lines.push(`🔴 *${car.name}* — loué à ${active.client_name} jusqu'au ${active.end_date} ${payTag}`);
+    } else if (!car.available) {
+      unavailable++;
+      lines.push(`🔧 *${car.name}* — indisponible (maintenance/hors service)`);
+    } else {
+      available++;
+      const nextLine = upcoming ? ` → prochain: ${(upcoming as any).client_name} le ${(upcoming as any).start_date}` : '';
+      lines.push(`🟢 *${car.name}* — disponible${nextLine}`);
+    }
+  }
+
+  lines.push('─'.repeat(35));
+  lines.push(`✅ ${available} dispo | 🔴 ${rented} loué(s) | 🔧 ${unavailable} hors service`);
+  return lines.join('\n');
+}
+
+async function rateClient(input: Record<string, unknown>): Promise<string> {
+  const bookingId = input['booking_id'] as string;
+  const rating    = Number(input['rating']);
+  const comment   = (input['comment'] as string) ?? '';
+
+  if (!bookingId) return '❌ booking_id requis';
+  if (rating < 1 || rating > 5) return '❌ Note entre 1 et 5';
+
+  const { data: booking, error } = await supabase
+    .from('bookings')
+    .select('client_name, client_phone')
+    .eq('id', bookingId)
+    .single();
+
+  if (error || !booking) return `❌ Réservation introuvable: ${bookingId}`;
+
+  const stars = '⭐'.repeat(rating) + '☆'.repeat(5 - rating);
+  const notes = comment ? `${stars} — ${comment}` : stars;
+
+  const { error: updErr } = await supabase
+    .from('bookings')
+    .update({ notes: `[NOTE CLIENT] ${notes}` })
+    .eq('id', bookingId);
+
+  if (updErr) return `❌ Erreur: ${updErr.message}`;
+
+  return `✅ Client ${(booking as any).client_name} noté ${stars}${comment ? ` — "${comment}"` : ''}`;
+}
+
 async function getLateReturns(): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
@@ -848,5 +940,10 @@ async function getLateReturns(): Promise<string> {
     };
   });
 
-  return JSON.stringify(results);
+  const lines = results.map(r => {
+    const urgency = r.days_late >= 3 ? '🔴' : r.days_late >= 1 ? '🟡' : '⚪';
+    return `${urgency} ${r.car} — ${r.client} (${r.phone}) — dû le ${r.due_date} — ${r.days_late}j de retard`;
+  });
+
+  return `⏰ RETARDS DE RETOUR (${results.length} véhicule${results.length > 1 ? 's' : ''})\n${'─'.repeat(40)}\n${lines.join('\n')}`;
 }

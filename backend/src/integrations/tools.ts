@@ -26,9 +26,11 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
         start_date:  { type: 'string', description: 'Format YYYY-MM-DD' },
         end_date:    { type: 'string', description: 'Format YYYY-MM-DD' },
         final_price: { type: 'number' },
-        status:      { type: 'string', enum: ['PENDING','CONFIRMED','ACTIVE','COMPLETED','REJECTED'] },
-        rented_by:   { type: 'string', enum: ['Kouider','Houari'] },
-        notes:       { type: 'string' },
+        status:         { type: 'string', enum: ['PENDING','CONFIRMED','ACTIVE','COMPLETED','REJECTED'] },
+        payment_status: { type: 'string', enum: ['PENDING','PARTIAL','PAID'], description: 'Statut de paiement' },
+        paid_amount:    { type: 'number', description: 'Montant déjà encaissé en €' },
+        rented_by:      { type: 'string', enum: ['Kouider','Houari'] },
+        notes:          { type: 'string' },
       },
       required: ['id'],
     },
@@ -737,6 +739,27 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       properties: {
         max_results: { type: 'number', description: 'Nombre max d\'événements (défaut: 20)' },
       },
+    },
+  },
+  {
+    name: 'get_fleet_status',
+    description: 'Voir l\'état complet de la flotte en temps réel: quelles voitures sont louées, disponibles, en retard. Utiliser quand Kouider demande "c\'est quoi l\'état de la flotte", "quelles voitures sont dispo", "résumé de la flotte", "tableau de bord véhicules".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
+    name: 'rate_client',
+    description: 'Noter un client après une location (fiabilité, ponctualité, soin du véhicule). Permet de constituer un historique de confiance. Utiliser quand Kouider dit "note ce client", "il était bien/nul", "client fiable/problème".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id: { type: 'string', description: 'UUID de la réservation' },
+        rating:     { type: 'number', description: 'Note de 1 à 5 (1=très mauvais, 5=excellent)' },
+        comment:    { type: 'string', description: 'Commentaire optionnel (ex: "retard 2h", "voiture impeccable", "payé sans problème")' },
+      },
+      required: ['booking_id', 'rating'],
     },
   },
 ];
