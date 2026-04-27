@@ -518,13 +518,44 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
       ? JSON.stringify(ocrExtracted)
       : (bookingNote ?? caption ?? null);
 
+    // Auto-link: chercher la réservation active du client pour lier booking_id
+    const resolvedName  = clientName ?? ocrExtracted['name'] ?? null;
+    const resolvedPhone = clientPhone ?? null;
+    let linkedBookingId: string | null = null;
+    let linkedBookingInfo = '';
+
+    try {
+      let bQuery = supabase
+        .from('bookings')
+        .select('id, client_name, cars(name), start_date, end_date')
+        .in('status', ['CONFIRMED', 'ACTIVE', 'PENDING'])
+        .order('start_date', { ascending: false })
+        .limit(1);
+
+      if (resolvedPhone) {
+        bQuery = bQuery.ilike('client_phone', `%${resolvedPhone.replace(/\D/g, '').slice(-8)}%`);
+      } else if (resolvedName) {
+        const firstName = resolvedName.split(' ')[0] ?? '';
+        bQuery = bQuery.ilike('client_name', `%${firstName}%`);
+      }
+
+      const { data: bookings } = await bQuery;
+      if (bookings?.[0]) {
+        const b = bookings[0] as unknown as { id: string; client_name: string; cars?: { name: string } | { name: string }[]; start_date: string; end_date: string };
+        const carName = Array.isArray(b.cars) ? b.cars[0]?.name : b.cars?.name;
+        linkedBookingId  = b.id;
+        linkedBookingInfo = ` | 🔗 Lié à: ${b.client_name} — ${carName ?? '?'} (${b.start_date} → ${b.end_date})`;
+      }
+    } catch { /* lookup optionnel */ }
+
     const { error: dbError } = await supabase.from('client_documents').insert({
       client_phone: phone,
-      client_name:  clientName ?? ocrExtracted['name'] ?? 'Inconnu',
+      client_name:  resolvedName ?? 'Inconnu',
       type:         docType,
       file_url:     urlData.publicUrl,
       storage_path: storagePath,
       notes:        notesValue,
+      ...(linkedBookingId ? { booking_id: linkedBookingId } : {}),
     });
 
     if (dbError) console.error('[telegram] DB insert failed:', dbError.message);
@@ -534,12 +565,12 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
                 : docType === 'contract' ? 'Contrat'
                 : 'Document';
 
-    const nameStr  = clientName  ? ` de *${clientName}*` : (ocrExtracted['name'] ? ` de *${ocrExtracted['name']}*` : '');
-    const phoneStr = clientPhone ? ` (${clientPhone})`   : '';
+    const nameStr  = resolvedName  ? ` de *${resolvedName}*` : '';
+    const phoneStr = resolvedPhone ? ` (${resolvedPhone})`   : '';
     const noteStr  = bookingNote && !ocrText ? `\n📝 Note: ${bookingNote}` : '';
 
     await sendMessage(chatId,
-      `✅ ${label}${nameStr}${phoneStr} enregistré dans Supabase.${noteStr}${ocrText}`,
+      `✅ ${label}${nameStr}${phoneStr} enregistré.${noteStr}${ocrText}${linkedBookingInfo}`,
     );
 
     // Renvoyer le fichier directement dans le chat — sendPhoto pour photo, sendDocument sinon
