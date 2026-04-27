@@ -91,7 +91,7 @@ router.post('/webhook', async (req, res) => {
   try {
     await sendTyping(chatId);
     const ctx      = await buildContext(sessionId, text);
-    const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+    const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
 
     const sendPromise = (async () => {
       for (const chunk of splitMessage(response.text, 4000)) {
@@ -204,7 +204,7 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
         const actionMessage = `[Référence UI extraite d'une vidéo — analyse visuelle:\n${uiDescription}]\n\nDemande de Kouider: "${caption}"\n\nModifie l'interface mobile Ibrahim pour qu'elle ressemble à ce design.\nFichiers dans repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux → modifier → github_write_file → Netlify redéploie.`;
 
         const ctx      = await buildContext(sessionId, actionMessage);
-        const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+        const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
         await sendMessage(chatId, response.text);
         await saveConversationTurn(sessionId, 'user', `[Vidéo UI ref — "${caption}"]`, { source: 'telegram', type: 'video_ui', url: videoUrl });
         return;
@@ -222,7 +222,7 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
       : `Vidéo reçue via Telegram.\nURL: ${videoUrl}\n\nAucune instruction. Analyse et propose ce que je peux en faire.`;
 
     const ctx = await buildContext(sessionId, userRequest);
-    const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+    const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
 
     await sendMessage(chatId, response.text);
 
@@ -349,7 +349,7 @@ Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et 
         : `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
 
       const ctx      = await buildContext(sessionId, actionMessage);
-      const response = await chatWithTools(ctx.messages, ctx.systemExtra);
+      const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
 
       await sendMessage(chatId, response.text);
 
