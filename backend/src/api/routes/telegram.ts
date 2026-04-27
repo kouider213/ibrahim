@@ -8,6 +8,8 @@ import { chatWithTools } from '../../integrations/claude-api.js';
 import { buildContext } from '../../conversation/context-builder.js';
 import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
+import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   analyzeImage, optimizeImage, enhanceImage, removeBackground, createSocialVariants,
@@ -87,6 +89,34 @@ router.post('/webhook', async (req, res) => {
   // Text message
   if (!msg.text) return;
   const text = msg.text.trim();
+
+  // ── Marketing video approval: "Oke" or "Non" ──────────────
+  const isOke = /^(oke|ok|oké|okay|valide|validé|publie|yes|oui)$/i.test(text);
+  const isNon = /^(non|no|annule|annulé|refuse|refus|nope)$/i.test(text);
+
+  if (isOke || isNon) {
+    const pending = getLatestPendingVideo();
+    if (pending) {
+      if (isOke) {
+        approveVideo(pending.id);
+        await sendMessage(chatId, '✅ *Vidéo validée !* Publication TikTok en cours...');
+
+        const result = await publishVideo(pending);
+
+        if (result.success) {
+          await sendMessage(chatId, `🚀 *${result.message}*\n${result.url ?? ''}`);
+        } else {
+          // TikTok API not configured or failed → send ready-to-post package
+          await sendMessage(chatId, buildSharePackage(pending));
+        }
+      } else {
+        rejectVideo(pending.id);
+        await sendMessage(chatId, '❌ Vidéo annulée. Dis "fais une vidéo marketing" quand tu veux en créer une nouvelle !');
+      }
+      return;
+    }
+    // No pending video — let Claude handle naturally
+  }
 
   try {
     await sendTyping(chatId);
