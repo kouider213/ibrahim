@@ -119,11 +119,29 @@ function buildPDF(booking: Record<string, unknown>, passport: Record<string, str
 
     // ── TARIF ────────────────────────────────────────────────────
     sectionTitle(doc, 'TARIFICATION');
-    row(doc, 'Prix par jour',  `${daily} EUR`);
-    rowBold(doc, 'TOTAL',      `${total} EUR`);
-    row(doc, 'Acompte verse',  `${paid} EUR`);
-    rowBold(doc, 'Reste a payer', `${total - paid} EUR`);
-    row(doc, 'Statut paiement', fmtPayment(String(booking['payment_status'] ?? 'PENDING')));
+    row(doc, 'Prix par jour', `${daily} EUR`);
+    rowBold(doc, 'TOTAL',     `${total} EUR`);
+
+    doc.moveDown(0.6);
+
+    // Paragraph acompte
+    const reste = total - paid;
+    if (paid > 0) {
+      doc.font('Helvetica').fontSize(10).fillColor('#222222')
+        .text(
+          `Un montant de ${paid} EUR a ete verse afin de reserver le vehicule.` +
+          (reste > 0
+            ? ` Le reste de ${reste} EUR est a regler a la restitution des cles.`
+            : ' Le montant total a ete regle integralement.'),
+          55, doc.y, { width: 490 },
+        );
+    } else {
+      doc.font('Helvetica').fontSize(10).fillColor('#222222')
+        .text(
+          `Le montant total de ${total} EUR est a regler a la restitution des cles.`,
+          55, doc.y, { width: 490 },
+        );
+    }
 
     doc.moveDown(1);
 
@@ -131,27 +149,12 @@ function buildPDF(booking: Record<string, unknown>, passport: Record<string, str
     sectionTitle(doc, 'CONDITIONS DE LOCATION');
     doc.font('Helvetica').fontSize(9).fillColor('#444444')
       .text('1. Le vehicule doit etre restitue avec le meme niveau de carburant qu\'a la prise en charge.')
-      .text('2. Une caution de 200 EUR ou piece d\'identite doit etre deposee a la signature du contrat.')
+      .text('2. Le passeport du locataire est conserve par l\'agence pendant toute la duree de la location.')
       .text('3. Tout depassement de la date de retour sera facture au tarif journalier en vigueur.')
       .text("4. L'agence decline toute responsabilite en cas d'infraction commise pendant la location.")
       .text('5. En cas de panne ou accident, contacter immediatement l\'agence.');
 
-    doc.moveDown(2);
-
-    // ── SIGNATURES ───────────────────────────────────────────────
-    const sy = doc.y;
-
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#111111')
-      .text('Signature du client:', 50, sy)
-      .text("Signature de l'agence:", 340, sy);
-
-    const lineY = sy + 50;
-    doc.moveTo(50,  lineY).lineTo(230, lineY).lineWidth(1).strokeColor('#aaaaaa').stroke();
-    doc.moveTo(340, lineY).lineTo(540, lineY).lineWidth(1).strokeColor('#aaaaaa').stroke();
-
-    doc.font('Helvetica').fontSize(8).fillColor('#aaaaaa')
-      .text(String(booking['client_name'] ?? ''), 50,  lineY + 5, { width: 180, align: 'center' })
-      .text('Fik Conciergerie Oran',               340, lineY + 5, { width: 200, align: 'center' });
+    doc.moveDown(1.5);
 
     // ── PIED DE PAGE ─────────────────────────────────────────────
     doc.font('Helvetica').fontSize(7).fillColor('#cccccc')
@@ -196,8 +199,3 @@ function fmtDate(d: string): string {
   } catch { return d; }
 }
 
-function fmtPayment(s: string): string {
-  if (s === 'PAID')    return 'Paye integralement';
-  if (s === 'PARTIAL') return 'Acompte verse';
-  return 'En attente de paiement';
-}
