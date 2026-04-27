@@ -37,7 +37,7 @@ import {
 } from './improvement-report.js';
 import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
-import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc } from './telegram.js';
+import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
