@@ -1,5 +1,9 @@
 import PDFDocument from 'pdfkit';
+import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './supabase.js';
+import { env } from '../config/env.js';
+
+const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY ?? '' });
 
 export async function generateReservationVoucher(
   bookingId: string,
@@ -16,46 +20,83 @@ export async function generateReservationVoucher(
   // 2. Infos passeport/permis (OCR déjà fait)
   let passportInfo: Record<string, string> = {};
 
+  type DocRow = { notes: string | null; type: string; file_url: string | null };
+
   const tryParseNotes = (notes: unknown): Record<string, string> => {
-    try { return JSON.parse(String(notes)) as Record<string, string>; } catch { return {}; }
+    if (!notes) return {};
+    try {
+      const parsed = JSON.parse(String(notes)) as Record<string, string>;
+      // Vérifier que c'est bien des données passeport (pas juste un texte JSON aléatoire)
+      if (parsed['passport_number'] || parsed['license_number'] || parsed['birth_date']) return parsed;
+    } catch { /* ignore */ }
+    return {};
+  };
+
+  let foundDocUrl: string | null = null;
+
+  const applyDoc = (doc: DocRow) => {
+    if (doc.file_url && !foundDocUrl) foundDocUrl = doc.file_url;
+    if (Object.keys(passportInfo).length === 0) passportInfo = tryParseNotes(doc.notes);
   };
 
   // Priorité 1 : document lié directement à cette réservation
   const { data: docsByBooking } = await supabase
     .from('client_documents')
-    .select('notes, type')
+    .select('notes, type, file_url')
     .eq('booking_id', bookingId)
     .in('type', ['passport', 'license'])
     .order('created_at', { ascending: false })
     .limit(1);
-
-  if (docsByBooking?.[0]?.notes) {
-    passportInfo = tryParseNotes(docsByBooking[0].notes);
-  }
+  if (docsByBooking?.[0]) applyDoc(docsByBooking[0] as DocRow);
 
   // Priorité 2 : par téléphone client
   if (Object.keys(passportInfo).length === 0 && booking['client_phone']) {
     const { data: docsByPhone } = await supabase
       .from('client_documents')
-      .select('notes, type')
+      .select('notes, type, file_url')
       .ilike('client_phone', `%${String(booking['client_phone']).replace(/\s/g, '')}%`)
       .in('type', ['passport', 'license'])
       .order('created_at', { ascending: false })
       .limit(1);
-    if (docsByPhone?.[0]?.notes) passportInfo = tryParseNotes(docsByPhone[0].notes);
+    if (docsByPhone?.[0]) applyDoc(docsByPhone[0] as DocRow);
   }
 
-  // Priorité 3 : par prénom (fallback)
+  // Priorité 3 : par prénom
   if (Object.keys(passportInfo).length === 0) {
     const firstName = String(booking['client_name'] ?? '').split(' ')[0] ?? '';
     const { data: docsByName } = await supabase
       .from('client_documents')
-      .select('notes, type')
+      .select('notes, type, file_url')
       .ilike('client_name', `%${firstName}%`)
       .in('type', ['passport', 'license'])
       .order('created_at', { ascending: false })
       .limit(1);
-    if (docsByName?.[0]?.notes) passportInfo = tryParseNotes(docsByName[0].notes);
+    if (docsByName?.[0]) applyDoc(docsByName[0] as DocRow);
+  }
+
+  // Fallback OCR : si pas de données JSON mais on a l'URL de la photo → re-OCR à la volée
+  if (Object.keys(passportInfo).length === 0 && foundDocUrl) {
+    try {
+      const resp = await fetch(foundDocUrl);
+      const buf  = Buffer.from(await resp.arrayBuffer());
+      const b64  = buf.toString('base64');
+      const ocrResp = await anthropic.messages.create({
+        model:      'claude-sonnet-4-6',
+        max_tokens: 300,
+        messages:   [{
+          role:    'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+            { type: 'text',  text: 'Extrais les infos de ce passeport. JSON UNIQUEMENT:\n{"name":"","passport_number":"","birth_date":"","expiry_date":"","nationality":""}' },
+          ],
+        }],
+      });
+      const raw   = ocrResp.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('');
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (match) passportInfo = JSON.parse(match[0]) as Record<string, string>;
+    } catch (ocrErr) {
+      console.error('[voucher] OCR fallback:', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+    }
   }
 
   // 3. Générer PDF
