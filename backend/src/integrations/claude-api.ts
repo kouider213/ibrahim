@@ -55,13 +55,16 @@ function isFastModeEligible(messages: Message[]): boolean {
   const content = lastUser.content;
   const text = (typeof content === 'string' ? content : '').toLowerCase().trim();
 
-  // Questions très courtes (< 30 caractères) sans complexité
+  // Jamais fast mode pour les questions — nécessite contexte business + outils
+  if (/^(qui|quel|quoi|comment|combien|où|quand|est-ce|pourquoi|lequel|laquelle|which|who|what|how|when|where|why|كم|من|ما|كيف|متى|أين)/i.test(text)) return false;
+
+  // Questions courtes (< 30 chars) sans action business
   if (text.length < 30) {
-    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|image|photo|montre|envoie|rappel|remind|web|internet|info/i.test(text);
+    const needsAction = /réserv|booking|modifi|change|créer|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|image|photo|montre|envoie|rappel|remind|web|internet|info|client|voiture|doc|passeport|permis|agenda|paiement|facture/i.test(text);
     if (!needsAction) return true;
   }
 
-  // Réponses simples: oui, non, ok, parfait, merci, etc.
+  // Réponses purement conversationnelles — sans besoin d'outils
   const simplePatterns = /^(oui|non|ok|d'accord|parfait|merci|cool|super|nice|bien|compris|test|rien|salut|hello|bonjour|bonsoir|ciao|bye|wesh|salam|cv|ca va|ça va|\?|yo|ouais|nope|nan|quoi de neuf|quoi de 9|je t'écoute|alors)$/i;
   if (simplePatterns.test(text)) return true;
 
@@ -80,16 +83,18 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
   const content = lastUser.content;
   const text = (typeof content === 'string' ? content : '').toLowerCase();
 
-  // HIGH: Stratégie, optimisation, analyse approfondie, debug complexe
-  if (/stratégi|optimis|analyse complète|plan d'action|business plan|prévision annuelle|comment améliorer/i.test(text)) {
+  // HIGH: Stratégie, optimisation, analyse approfondie
+  if (/stratégi|optimis|analyse complète|plan d'action|business plan|prévision annuelle|comment améliorer|استراتيج|تحسين|تحليل|خطة|تطوير/i.test(text)) {
     return { level: 'high', budget: 10000 };
   }
-  if (/debug.*erreur|typescript.*error|fix.*bug|implémenter.*feature|architecture|refactor/i.test(text)) {
-    return { level: 'none', budget: 0 }; // code tasks: skip thinking, use tools directly — faster
+
+  // MEDIUM: Tâches de codage — thinking aide à planifier avant d'écrire → moins d'erreurs → moins de redéploiements
+  if (/debug.*erreur|typescript.*error|fix.*bug|implémenter.*feature|architecture|refactor|crée.*fichier|ajoute.*fonction|modifie.*code|écris.*fonction/i.test(text)) {
+    return { level: 'medium', budget: 5000 };
   }
 
   // MEDIUM: Calculs financiers, comparaisons, rapports
-  if (/combien.*gagn|bénéfice|rentabilité|comparaison|rapport financier|revenu.*mois/i.test(text)) {
+  if (/combien.*gagn|bénéfice|rentabilité|comparaison|rapport financier|revenu.*mois|كم|ربح|مدخول|مقارنة|تقرير/i.test(text)) {
     return { level: 'medium', budget: 6000 };
   }
   if (/recommand|conseil|suggestion|meilleur|quel.*choix/i.test(text)) {
@@ -97,7 +102,7 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
   }
 
   // LOW: Questions de contexte, résumés
-  if (/résumé|recap|qu'est-ce que|explique|c'est quoi/i.test(text)) {
+  if (/résumé|recap|qu'est-ce que|explique|c'est quoi|ملخص|اشرح/i.test(text)) {
     return { level: 'low', budget: 3000 };
   }
 
@@ -294,6 +299,8 @@ export async function chatWithTools(
     let response: Awaited<ReturnType<typeof client.messages.create>> | null = null;
     let currentMessages = apiMessages;
 
+    let streamChunkEmitted = false;
+
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const createParams: Anthropic.MessageCreateParamsNonStreaming = {
@@ -315,9 +322,17 @@ export async function chatWithTools(
           (createParams as any).citations = { enabled: true };
         }
 
-        response = await client.messages.create(createParams);
+        const stream = client.messages.stream(createParams as any);
+        for await (const event of stream) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+            streamChunkEmitted = true;
+            onTextChunk?.(event.delta.text);
+          }
+        }
+        response = await stream.finalMessage();
         break;
       } catch (err) {
+        if (streamChunkEmitted) throw err;
         const status = (err as { status?: number }).status;
         if (status === 429 && attempt < 2) {
           console.warn(`[claude] Rate limit 429 — attente 65s (tentative ${attempt + 1}/3)`);
@@ -374,10 +389,6 @@ export async function chatWithTools(
     if (citations.length > 0) {
       allCitations = [...allCitations, ...citations];
       console.log(`[claude-citations] ${citations.length} citation(s) extraite(s)`);
-    }
-
-    if (onTextChunk && finalText) {
-      onTextChunk(finalText);
     }
 
     if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') {

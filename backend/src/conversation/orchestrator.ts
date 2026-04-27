@@ -105,7 +105,10 @@ export async function processMessage(
       (_toolName: string, _result: string) => {
         _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: null });
       },
-      undefined,
+      // onTextChunk → streaming texte temps réel vers le frontend
+      (chunk: string) => {
+        _io?.emit(SOCKET_EVENTS.TEXT_CHUNK, { sessionId, chunk });
+      },
       imageBase64,
       imageMime,
     );
