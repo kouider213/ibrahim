@@ -477,13 +477,54 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
 
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
 
+    // OCR automatique pour passeports et permis
+    let ocrExtracted: Record<string, string> = {};
+    let ocrText = '';
+    if ((docType === 'passport' || docType === 'license') && mimeType.startsWith('image/')) {
+      try {
+        const base64Image = buffer.toString('base64');
+        const prompt = docType === 'passport'
+          ? 'Extrais les infos de ce passeport. JSON UNIQUEMENT:\n{"name":"","passport_number":"","birth_date":"","expiry_date":"","nationality":""}'
+          : 'Extrais les infos de ce permis de conduire. JSON UNIQUEMENT:\n{"name":"","license_number":"","birth_date":"","expiry_date":"","category":""}';
+
+        const ocrResp = await anthropic.messages.create({
+          model:      'claude-sonnet-4-6',
+          max_tokens: 256,
+          messages:   [{
+            role:    'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: base64Image } },
+              { type: 'text',  text: prompt },
+            ],
+          }],
+        });
+
+        const raw = ocrResp.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('');
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) {
+          ocrExtracted = JSON.parse(match[0]) as Record<string, string>;
+          if (docType === 'passport') {
+            ocrText = `\n\n📋 *Info extraite:*\n• Nom: ${ocrExtracted['name'] || '?'}\n• N°: ${ocrExtracted['passport_number'] || '?'}\n• Né(e): ${ocrExtracted['birth_date'] || '?'}\n• Expire: ${ocrExtracted['expiry_date'] || '?'}\n• Nationalité: ${ocrExtracted['nationality'] || '?'}`;
+          } else {
+            ocrText = `\n\n📋 *Info extraite:*\n• Nom: ${ocrExtracted['name'] || '?'}\n• N°: ${ocrExtracted['license_number'] || '?'}\n• Né(e): ${ocrExtracted['birth_date'] || '?'}\n• Expire: ${ocrExtracted['expiry_date'] || '?'}\n• Catégorie: ${ocrExtracted['category'] || '?'}`;
+          }
+        }
+      } catch (ocrErr) {
+        console.error('[telegram] OCR failed:', ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+      }
+    }
+
+    const notesValue = Object.keys(ocrExtracted).length > 0
+      ? JSON.stringify(ocrExtracted)
+      : (bookingNote ?? caption ?? null);
+
     const { error: dbError } = await supabase.from('client_documents').insert({
       client_phone: phone,
-      client_name:  clientName ?? 'Inconnu',
+      client_name:  clientName ?? ocrExtracted['name'] ?? 'Inconnu',
       type:         docType,
       file_url:     urlData.publicUrl,
       storage_path: storagePath,
-      notes:        bookingNote ?? caption ?? null,
+      notes:        notesValue,
     });
 
     if (dbError) console.error('[telegram] DB insert failed:', dbError.message);
@@ -493,12 +534,12 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
                 : docType === 'contract' ? 'Contrat'
                 : 'Document';
 
-    const nameStr  = clientName  ? ` de *${clientName}*` : '';
+    const nameStr  = clientName  ? ` de *${clientName}*` : (ocrExtracted['name'] ? ` de *${ocrExtracted['name']}*` : '');
     const phoneStr = clientPhone ? ` (${clientPhone})`   : '';
-    const noteStr  = bookingNote ? `\n📝 Note: ${bookingNote}` : '';
+    const noteStr  = bookingNote && !ocrText ? `\n📝 Note: ${bookingNote}` : '';
 
     await sendMessage(chatId,
-      `✅ ${label}${nameStr}${phoneStr} enregistré dans Supabase.${noteStr}`,
+      `✅ ${label}${nameStr}${phoneStr} enregistré dans Supabase.${noteStr}${ocrText}`,
     );
 
     // Renvoyer le fichier directement dans le chat — sendPhoto pour photo, sendDocument sinon

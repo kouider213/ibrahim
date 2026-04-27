@@ -48,6 +48,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_payment_status:   '💳 Vérification paiements…',
   record_payment:       '💳 Enregistrement paiement…',
   generate_receipt:     '🧾 Génération reçu…',
+  get_late_returns:     '🚨 Vérification retards de retour…',
   get_unpaid_bookings:  '⚠️ Vérification impayés…',
   check_anomalies:      '🔍 Détection anomalies…',
   analyze_image:        '🖼️ Analyse image…',

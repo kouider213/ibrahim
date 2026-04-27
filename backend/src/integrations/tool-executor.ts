@@ -98,8 +98,9 @@ export async function executeTool(
       case 'search_images':              return await searchImages(input);
       // ─── GOOGLE CALENDAR ───
       case 'create_calendar_event':      return await createCalendarEventTool(input);
-      case 'sync_calendar':              return await syncCalendarTool();
-      case 'list_calendar_events':       return await listCalendarEventsTool(input);
+      case 'sync_calendar':             return await syncCalendarTool();
+      case 'list_calendar_events':      return await listCalendarEventsTool(input);
+      case 'get_late_returns':          return await getLateReturns();
       // ─── PHASE 14 — Image & Vidéo ───
       case 'analyze_image':
       case 'optimize_image':
@@ -761,4 +762,34 @@ async function sendTelegramMessage(input: Record<string, unknown>): Promise<stri
   } catch (err) {
     return `❌ Erreur Telegram: ${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+async function getLateReturns(): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, end_date, final_price, cars(name)')
+    .in('status', ['CONFIRMED', 'ACTIVE'])
+    .lt('end_date', today)
+    .order('end_date', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  if (!data?.length) return '✅ Aucun véhicule en retard de retour.';
+
+  const results = (data as any[]).map(b => {
+    const daysLate = Math.floor(
+      (new Date(today).getTime() - new Date(b.end_date as string).getTime()) / 86_400_000
+    );
+    return {
+      booking_id:  b.id,
+      client:      b.client_name,
+      phone:       b.client_phone ?? 'N/A',
+      car:         b.cars?.name ?? '?',
+      due_date:    b.end_date,
+      days_late:   daysLate,
+      total_price: b.final_price,
+    };
+  });
+
+  return JSON.stringify(results);
 }

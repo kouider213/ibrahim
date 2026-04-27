@@ -428,6 +428,50 @@ function buildTelegramRelance(
   ].join('\n');
 }
 
+// ── 4a. Alerte retards de retour ─────────────────────────────
+export async function jobLateReturnAlert(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: overdue } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, end_date, final_price, cars(name)')
+    .in('status', ['CONFIRMED', 'ACTIVE'])
+    .lt('end_date', today)
+    .order('end_date', { ascending: true });
+
+  if (!overdue?.length) {
+    console.log('[job:late-return] ✅ Aucun retard');
+    return;
+  }
+
+  for (const b of overdue as any[]) {
+    const daysLate = Math.floor(
+      (new Date(today).getTime() - new Date(b.end_date as string).getTime()) / 86_400_000
+    );
+    const carName = (b.cars as any)?.name ?? 'Véhicule';
+
+    await tg([
+      `🚨 *RETARD DE RETOUR — ${daysLate} jour(s)*`,
+      ``,
+      `👤 *${b.client_name}*`,
+      `🚗 ${carName}`,
+      `📅 Devait rendre le *${b.end_date}*`,
+      `📱 ${b.client_phone ?? 'N/A'}`,
+      `💰 Prix total: ${b.final_price}€`,
+      ``,
+      `⚠️ Contacte ce client immédiatement.`,
+    ].join('\n'));
+
+    await notifyOwner(
+      `🚨 Retard ${daysLate}j — ${b.client_name}`,
+      `${carName} — devait rendre le ${b.end_date}`,
+      true,
+    );
+  }
+
+  console.log(`[job:late-return] ${overdue.length} véhicule(s) en retard détecté(s)`);
+}
+
 // ── 4b. Détection anomalies financières ──────────────────────
 export async function jobCheckAnomalies(_job: Job): Promise<void> {
   try {

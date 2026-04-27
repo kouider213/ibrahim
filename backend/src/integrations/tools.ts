@@ -294,6 +294,14 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'get_late_returns',
+    description: 'Détecter les véhicules non rendus après leur date de fin de location. Identifie les clients en retard avec nombre de jours de dépassement. Utiliser quand Kouider demande "qui n\'a pas rendu la voiture" ou "véhicules en retard".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
     name: 'get_unpaid_bookings',
     description: 'Lister toutes les réservations impayées ou partiellement payées, avec urgence et délai.',
     input_schema: {

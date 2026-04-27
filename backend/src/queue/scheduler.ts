@@ -9,6 +9,7 @@ import {
   jobWeeklyReport,
   jobPatternDetection,
   jobCheckAnomalies,
+  jobLateReturnAlert,
   jobWhatsAppBookingConfirmations,
   jobWhatsApp24hReminders,
   jobWhatsAppReturnReminders,
@@ -63,6 +64,11 @@ const JOBS = [
     cron:  '0 12 * * *',       // 12h chaque jour — détection anomalies financières
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'late-return-alert',
+    cron:  '0 11 * * *',       // 11h chaque jour — véhicules pas encore rendus
+    tz:    'Africa/Algiers',
+  },
   // ── Phase 6 — WhatsApp ──
   {
     name:  'wa-booking-confirmations',
@@ -95,6 +101,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'weekly-report':            jobWeeklyReport,
   'pattern-detection':        jobPatternDetection,
   'check-anomalies':          jobCheckAnomalies,
+  'late-return-alert':        jobLateReturnAlert,
   'wa-booking-confirmations': jobWhatsAppBookingConfirmations,
   'wa-24h-reminders':         jobWhatsApp24hReminders,
   'wa-return-reminders':      jobWhatsAppReturnReminders,
