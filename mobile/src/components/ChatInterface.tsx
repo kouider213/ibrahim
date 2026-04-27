@@ -416,8 +416,9 @@ export default function ChatInterface() {
   // ── Socket events ─────────────────────────────
   useEffect(() => {
     connectSocket(sessionId, {
-      onStatus: (s) => {
-        if (s === 'thinking') { setResponseText(''); setShowResponse(false); }
+      onStatus: (s, toolLabel) => {
+        // Clear text only on fresh thinking start — NOT when a tool is running (toolLabel present)
+        if (s === 'thinking' && toolLabel === undefined) { setResponseText(''); setShowResponse(false); }
         if (s === 'idle' && (isAudioPlaying() || window.speechSynthesis?.speaking)) return;
         applyState(toJarvis(s));
       },

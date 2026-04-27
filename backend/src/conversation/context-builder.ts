@@ -36,7 +36,7 @@ async function getCachedFleet() {
 
 async function getCachedBookings() {
   if (bookingsCache && Date.now() - bookingsCache.ts < 2 * 60 * 1000) return bookingsCache.data;
-  const data = await getBookings({ limit: 20 }).catch(() => []);
+  const data = await getBookings({ limit: 50 }).catch(() => []);
   bookingsCache = { data, ts: Date.now() };
   return data;
 }
@@ -78,8 +78,7 @@ export async function buildContext(
           .in('role', ['user', 'assistant'])
           .order('created_at', { ascending: false })
           .limit(8)
-          .then((r: any) => (r.data ?? []).reverse())
-          .catch(() => [])
+          .then((r: any) => (r.data ?? []).reverse(), () => [])
       : Promise.resolve([]),
     getCachedRules(),
     getCachedFleet(),

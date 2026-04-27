@@ -85,7 +85,7 @@ export interface FinanceDashboardData {
 export type IbrahimStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 export interface SocketCallbacks {
-  onStatus:        (status: IbrahimStatus) => void;
+  onStatus:        (status: IbrahimStatus, toolLabel?: string | null) => void;
   onAudio:         (base64: string) => void;
   onAudioChunk:    (base64: string) => void;
   onAudioComplete: () => void;
@@ -112,8 +112,8 @@ export function connectSocket(sessionId: string, callbacks: SocketCallbacks): So
   _socket.on('connect', () => console.log('[socket] Connected'));
   _socket.on('disconnect', () => console.log('[socket] Disconnected'));
 
-  _socket.on('ibrahim:status', (data: { status: IbrahimStatus; sessionId?: string }) => {
-    if (!data.sessionId || data.sessionId === sessionId) callbacks.onStatus(data.status);
+  _socket.on('ibrahim:status', (data: { status: IbrahimStatus; sessionId?: string; toolLabel?: string | null }) => {
+    if (!data.sessionId || data.sessionId === sessionId) callbacks.onStatus(data.status, data.toolLabel);
   });
 
   _socket.on('ibrahim:audio', (data: { audio: string; sessionId?: string }) => {
