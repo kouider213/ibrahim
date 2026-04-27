@@ -806,7 +806,11 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
         await sendPDF(chatId);
         return `✅ Bon de réservation de ${clientName} généré ! 📄`;
       } catch (e: unknown) {
-        return `⚠️ Bon généré mais envoi échoué: ${e instanceof Error ? e.message : String(e)}\nURL: ${url}`;
+        const errMsg = e instanceof Error ? e.message : String(e);
+        console.error('[voucher] sendPDF error:', errMsg);
+        // Envoyer l'erreur directement dans Telegram — bypass le résumé Ibrahim
+        await sendTelegramText(chatId, `🔴 DEBUG voucher: ${errMsg}\nbuffer=${buffer.length}b chatId=${chatId}`).catch(() => {});
+        return `⚠️ Bon généré, PDF non envoyé: ${errMsg}`;
       }
     }
   }
