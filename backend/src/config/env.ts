@@ -37,6 +37,9 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN:     z.string().optional(),
   TELEGRAM_CHAT_ID:       z.string().optional(),
   TELEGRAM_ALLOWED_CHATS: z.string().optional(),
+  // ── Instagram Graph API (optionnel — pour publication automatique) ──
+  INSTAGRAM_ACCESS_TOKEN: z.string().optional(),
+  INSTAGRAM_USER_ID:      z.string().optional(),
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_URL:          z.string().url().default('http://localhost:3000'),

@@ -7,6 +7,11 @@ import { learnRule } from './claude-api.js';
 import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
+import { runTikTokMarketResearch } from '../marketing/market-research.js';
+import { createMarketingVideo } from '../marketing/video-creator.js';
+import { savePendingVideo } from '../marketing/approval-store.js';
+import { sendMessage as sendTelegramForMarketing, sendVideo as sendTelegramVideo } from './telegram.js';
+import type { Car } from './supabase.js';
 import {
   getPaymentStatus,
   recordPayment,
@@ -121,6 +126,9 @@ export async function executeTool(
       case 'extract_thumbnail':
       case 'add_background_music':
       case 'create_video_preview':       return await executeMediaTool(name, input);
+      // ─── MARKETING TIKTOK ───
+      case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
+      case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -946,4 +954,117 @@ async function getLateReturns(): Promise<string> {
   });
 
   return `⏰ RETARDS DE RETOUR (${results.length} véhicule${results.length > 1 ? 's' : ''})\n${'─'.repeat(40)}\n${lines.join('\n')}`;
+}
+
+// ── Marketing TikTok tools ────────────────────────────────────
+
+async function runTikTokResearchTool(sessionId?: string): Promise<string> {
+  const chatId = env.TELEGRAM_CHAT_ID ?? '809747124';
+
+  const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
+  const cars = (carsRaw ?? []) as Car[];
+
+  if (cars.length === 0) {
+    return '⚠️ Aucune voiture disponible pour la recherche marketing.';
+  }
+
+  await sendTelegramForMarketing(chatId, '🔍 *Dzaryx Marketing*\nRecherche TikTok lancée... ⏳');
+
+  const report = await runTikTokMarketResearch(cars);
+
+  const msg = [
+    `📊 *RAPPORT MARKETING — ${report.week}*`,
+    ``,
+    `📈 *Tendances:*`,
+    report.trends.map(t => `• ${t}`).join('\n'),
+    ``,
+    report.top_ideas.map((idea, i) => [
+      `*[${i + 1}] ${idea.title}*`,
+      `🎬 ${idea.concept}`,
+      `🎤 _${idea.voiceover_script}_`,
+      `📱 ${idea.caption}`,
+      `⏰ ${idea.best_time}`,
+    ].join('\n')).join('\n\n'),
+    ``,
+    `💡 ${report.summary}`,
+    ``,
+    `💬 Dis "fais une vidéo pour [voiture]" pour créer une vidéo automatiquement !`,
+  ].join('\n');
+
+  await sendTelegramForMarketing(chatId, msg);
+  return `✅ Rapport TikTok envoyé sur Telegram (${report.top_ideas.length} idées générées).`;
+}
+
+async function createMarketingVideoTool(
+  input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const chatId   = env.TELEGRAM_CHAT_ID ?? '809747124';
+  const carName  = (input['car_name'] as string | undefined)?.toLowerCase();
+  const style    = (input['style'] as string | undefined) ?? 'reveal';
+
+  const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
+  const cars = (carsRaw ?? []) as Car[];
+
+  if (cars.length === 0) return '⚠️ Aucune voiture disponible.';
+
+  const car = carName
+    ? cars.find(c => c.name.toLowerCase().includes(carName)) ?? cars[0]
+    : cars[0];
+
+  if (!car.image_url) return `⚠️ Pas d'image pour ${car.name} — ajoute une photo dans le tableau de bord.`;
+
+  await sendTelegramForMarketing(chatId, `🎬 *Création vidéo pour ${car.name}*...\n_Voix IA + montage en cours (30-60s)_`);
+
+  // Generate a targeted idea based on style
+  const stylePrompts: Record<string, string> = {
+    reveal:    `Car reveal dramatique — dévoilement de la ${car.name} avec musique, prix en gros plan`,
+    prix:      `Format "Prix choc" — ${car.name} à ${car.base_price} DZD/j, comparer avec la concurrence`,
+    lifestyle: `POV lifestyle — imaginer son weekend avec la ${car.name} à Oran`,
+    temoignage:`Témoignage client fictif en darija — "wallah hada sers" pour la ${car.name}`,
+  };
+
+  const ideaPrompt = stylePrompts[style] ?? stylePrompts['reveal'];
+  const report = await runTikTokMarketResearch([car]);
+  const idea = report.top_ideas[0] ?? {
+    title:            `${car.name} — Fik Conciergerie Oran`,
+    concept:          ideaPrompt,
+    voiceover_script: `Wach tabghi troh f weekend b ${car.name}? Fik Conciergerie Oran — ${car.base_price.toLocaleString()} DA par jour seulement. Appelle maintenant !`,
+    caption:          `🚗 ${car.name} à Oran — ${car.base_price.toLocaleString()} DZD/j | Fik Conciergerie`,
+    hashtags:         ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre'],
+    best_time:        'Ce soir 20h-22h',
+    car_suggestion:   car.name,
+  };
+
+  const videoResult = await createMarketingVideo(car, idea).catch(err => {
+    console.error('[tool:create_marketing_video] failed:', err);
+    return null;
+  });
+
+  if (!videoResult) {
+    return `⚠️ Création vidéo échouée. Script prêt:\n"${idea.voiceover_script}"`;
+  }
+
+  const pendingId = await savePendingVideo({
+    video_url: videoResult.video_url,
+    caption:   videoResult.caption,
+    hashtags:  videoResult.hashtags,
+    car_name:  videoResult.car_name,
+    car_id:    car.id,
+    script:    videoResult.script,
+  });
+
+  const approvalMsg = [
+    `🎬 *Vidéo créée — ${car.name}*`,
+    `📝 _${videoResult.script}_`,
+    ``,
+    `✅ Réponds *Oke* pour publier`,
+    `❌ Réponds *Non* pour annuler`,
+  ].join('\n');
+
+  await sendTelegramVideo(chatId, videoResult.video_url, approvalMsg).catch(async () => {
+    await sendTelegramForMarketing(chatId, `${approvalMsg}\n\n🔗 ${videoResult.video_url}`);
+  });
+
+  return `✅ Vidéo créée pour ${car.name} et envoyée sur Telegram pour validation (ID: ${pendingId}).`;
 }

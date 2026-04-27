@@ -1,7 +1,7 @@
 ﻿import type { Job } from 'bullmq';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
-import { sendMessage } from '../../integrations/telegram.js';
+import { sendMessage, sendVideo } from '../../integrations/telegram.js';
 import { getFinancialReport } from '../../integrations/finance.js';
 import { listUpcomingEvents } from '../../integrations/google-calendar.js';
 import { getOranWeather } from '../../integrations/web-search.js';
@@ -9,6 +9,10 @@ import { sendWhatsApp, detectLanguage } from '../../integrations/whatsapp.js';
 import { chat } from '../../integrations/claude-api.js';
 import axios from 'axios';
 import { env } from '../../config/env.js';
+import { runTikTokMarketResearch } from '../../marketing/market-research.js';
+import { createMarketingVideo } from '../../marketing/video-creator.js';
+import { savePendingVideo } from '../../marketing/approval-store.js';
+import type { Car } from '../../integrations/supabase.js';
 
 function ownerChatId(): string {
   return env.TELEGRAM_CHAT_ID ?? '809747124';
@@ -193,19 +197,119 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   console.log(`[job:idle-vehicle] ${idleCars.length} idle`);
 }
 
-// ── 3. Suggestion TikTok ──────────────────────────────────────
+// ── 3. Marketing TikTok hebdomadaire (IA complète) ────────────
 export async function jobTikTokSuggestion(_job: Job): Promise<void> {
-  const month = new Date().getMonth() + 1;
-  let suggestion: string;
+  console.log('[job:tiktok] Démarrage recherche marketing IA...');
 
-  if (month >= 6 && month <= 8) suggestion = '☀️ Saison MRE — vidéo flotte complète, prix été, livraison aéroport.';
-  else if (month === 3 || month === 4) suggestion = '🌙 Ramadan — tarifs nuit, message darija, disponibilité nocturne.';
-  else if (month === 12 || month === 1) suggestion = '❄️ Hiver — promo longue durée, véhicules chauffés.';
-  else suggestion = '📱 Cette semaine: montre un véhicule, témoignage client, ou coulisses agence.';
+  // 1. Load available cars
+  const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
+  const cars = (carsRaw ?? []) as Car[];
 
-  await tg(`📱 *Suggestion TikTok semaine:*\n${suggestion}`);
-  await notifyOwner('📱 Suggestion TikTok', suggestion, false);
-  console.log('[job:tiktok] sent');
+  if (cars.length === 0) {
+    await tg('📱 *Marketing TikTok*: aucune voiture disponible cette semaine.');
+    return;
+  }
+
+  // 2. Run market research with Claude
+  await tg('🔍 *Dzaryx Marketing*\nAnalyse TikTok en cours... ⏳');
+  const report = await runTikTokMarketResearch(cars).catch(err => {
+    console.error('[job:tiktok] research failed:', err);
+    return null;
+  });
+
+  if (!report || report.top_ideas.length === 0) {
+    await tg('⚠️ Recherche TikTok échouée — réessaie plus tard.');
+    return;
+  }
+
+  // 3. Send research report to Telegram
+  const researchMsg = [
+    `📊 *RAPPORT MARKETING SEMAINE DU ${report.week}*`,
+    ``,
+    `📈 *Tendances qui cartonnent:*`,
+    report.trends.map(t => `• ${t}`).join('\n'),
+    ``,
+    `🎯 *${report.top_ideas.length} idées vidéos générées*`,
+    ``,
+    report.top_ideas.map((idea, i) => [
+      `*[${i + 1}] ${idea.title}*`,
+      `🎬 ${idea.concept}`,
+      `⏰ Publier: ${idea.best_time}`,
+      `🚗 Voiture: ${idea.car_suggestion ?? 'au choix'}`,
+    ].join('\n')).join('\n\n'),
+    ``,
+    `💡 *Stratégie:* ${report.summary}`,
+    ``,
+    `⏳ _Création vidéo de la meilleure idée en cours..._`,
+  ].join('\n');
+
+  await tg(researchMsg);
+
+  // 4. Pick best idea and find matching car
+  const bestIdea = report.top_ideas[0];
+  const targetCar = cars.find(c =>
+    bestIdea.car_suggestion &&
+    c.name.toLowerCase().includes(bestIdea.car_suggestion.toLowerCase()),
+  ) ?? cars[0];
+
+  if (!targetCar.image_url) {
+    await tg(`✅ Rapport envoyé ! Pas d'image pour créer la vidéo automatiquement.\n\n*Script voix-off:*\n_${bestIdea.voiceover_script}_`);
+    return;
+  }
+
+  // 5. Create the video
+  console.log(`[job:tiktok] Creating video for car: ${targetCar.name}`);
+  const videoResult = await createMarketingVideo(targetCar, bestIdea).catch(err => {
+    console.error('[job:tiktok] video creation failed:', err);
+    return null;
+  });
+
+  if (!videoResult) {
+    await tg([
+      `✅ *Idée #1 — ${bestIdea.title}*`,
+      ``,
+      `📝 *Script voix-off:*`,
+      `_${bestIdea.voiceover_script}_`,
+      ``,
+      `📱 *Légende:* ${bestIdea.caption}`,
+      `#️⃣ ${bestIdea.hashtags.slice(0, 5).join(' ')}`,
+    ].join('\n'));
+    return;
+  }
+
+  // 6. Save as pending (waiting for "Oke" approval)
+  const pendingId = await savePendingVideo({
+    video_url: videoResult.video_url,
+    caption:   videoResult.caption,
+    hashtags:  videoResult.hashtags,
+    car_name:  videoResult.car_name,
+    car_id:    targetCar.id,
+    script:    videoResult.script,
+  });
+
+  console.log(`[job:tiktok] Pending video saved: ${pendingId}`);
+
+  // 7. Send video to Telegram for approval
+  const approvalCaption = [
+    `🎬 *Vidéo créée — ${bestIdea.title}*`,
+    `🚗 ${videoResult.car_name}`,
+    `📝 _${videoResult.script}_`,
+    ``,
+    `✅ Réponds *Oke* pour publier sur Instagram/TikTok`,
+    `❌ Réponds *Non* pour annuler`,
+  ].join('\n');
+
+  await sendVideo(ownerChatId(), videoResult.video_url, approvalCaption).catch(async () => {
+    // Fallback if video send fails
+    await tg([
+      approvalCaption,
+      ``,
+      `🔗 *Lien vidéo:* ${videoResult.video_url}`,
+    ].join('\n'));
+  });
+
+  await notifyOwner('📱 Vidéo TikTok prête', `${bestIdea.title} — réponds Oke pour publier`, false);
+  console.log('[job:tiktok] Weekly marketing job complete');
 }
 
 // ════════════════════════════════════════════════════════════════

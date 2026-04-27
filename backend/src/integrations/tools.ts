@@ -762,4 +762,24 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
       required: ['booking_id', 'rating'],
     },
   },
+  // ── MARKETING TIKTOK ─────────────────────────────────────────
+  {
+    name: 'run_tiktok_research',
+    description: 'Lancer une recherche de marché TikTok maintenant: analyse les tendances, génère 3 idées de vidéos sur mesure pour Fik Conciergerie Oran, et envoie le rapport sur Telegram. Utiliser quand Kouider dit "fais une recherche TikTok", "analyse le marché", "quelles idées pour cette semaine", "stratégie réseaux sociaux".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
+    name: 'create_marketing_video',
+    description: 'Créer une vidéo TikTok/Instagram complète avec voix IA (ElevenLabs) pour une voiture de la flotte. Génère le script, la voix, monte la vidéo et l\'envoie sur Telegram pour validation. Utiliser quand Kouider dit "fais une vidéo pour la [voiture]", "crée une pub", "génère une vidéo marketing", "fais une vidéo TikTok".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name: { type: 'string', description: 'Nom ou modèle de la voiture (ex: "Dacia Duster", "BMW"). Si vide, Dzaryx choisit la meilleure option.' },
+        style:    { type: 'string', description: 'Style de vidéo souhaité: "reveal" (dévoilement), "prix" (focus prix choc), "lifestyle" (style de vie), "temoignage" (témoignage client). Défaut: Dzaryx choisit.', enum: ['reveal', 'prix', 'lifestyle', 'temoignage'] },
+      },
+    },
+  },
 ];
