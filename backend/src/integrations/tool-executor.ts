@@ -778,21 +778,25 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
   if (sessionId?.startsWith('telegram_')) {
     const chatId = Number(sessionId.replace('telegram_', ''));
     if (!isNaN(chatId)) {
-      await sendTelegramDocBuffer(chatId, buffer, filename, caption).catch(
-        (e: unknown) => console.error('[voucher] sendDocumentBuffer:', e instanceof Error ? e.message : String(e)),
-      );
+      try {
+        await sendTelegramDocBuffer(chatId, buffer, filename, caption);
+        return `✅ Bon de réservation de ${clientName} généré ! 📄`;
+      } catch (e: unknown) {
+        console.error('[voucher] sendDocumentBuffer failed, fallback to URL:', e instanceof Error ? e.message : String(e));
+        // Fallback : inclure l'URL — le Telegram route va détecter et envoyer
+        return `✅ Bon de réservation de ${clientName} généré ! 📄\n${url}`;
+      }
     }
-    return `✅ Bon de réservation de ${clientName} généré et envoyé ici ! 📄`;
   }
 
   // App vocale → envoyer au chat Telegram configuré
   if (env.TELEGRAM_CHAT_ID) {
     const chatId = Number(env.TELEGRAM_CHAT_ID);
     await sendTelegramDocBuffer(chatId, buffer, filename, caption).catch(
-      (e: unknown) => console.error('[voucher] sendDocumentBuffer:', e instanceof Error ? e.message : String(e)),
+      (e: unknown) => console.error('[voucher] sendDocumentBuffer (voice):', e instanceof Error ? e.message : String(e)),
     );
   }
-  return `✅ Bon de réservation PDF généré pour ${clientName} ! Envoyé sur Telegram. 📄\nURL: ${url}`;
+  return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n${url}`;
 }
 
 async function getLateReturns(): Promise<string> {

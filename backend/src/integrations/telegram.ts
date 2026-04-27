@@ -1,4 +1,5 @@
 import axios from 'axios';
+import FormData from 'form-data';
 import { env } from '../config/env.js';
 
 function getToken(): string {
@@ -65,16 +66,15 @@ export async function sendDocumentBuffer(
   caption?: string,
 ): Promise<void> {
   if (!getToken()) return;
-  const { default: FormData } = await import('form-data');
   const form = new FormData();
   form.append('chat_id', String(chatId));
-  form.append('document', buffer, { filename, contentType: 'application/pdf' });
+  form.append('document', buffer, { filename, contentType: 'application/pdf', knownLength: buffer.length });
   if (caption) form.append('caption', caption);
-  try {
-    await axios.post(`${base()}/sendDocument`, form, { headers: form.getHeaders() });
-  } catch (err) {
-    console.error('[telegram] sendDocumentBuffer failed:', err instanceof Error ? err.message : String(err));
-  }
+  await axios.post(`${base()}/sendDocument`, form, {
+    headers: { ...form.getHeaders() },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
 }
 
 export async function sendVideo(chatId: number | string, videoUrl: string, caption?: string): Promise<void> {
