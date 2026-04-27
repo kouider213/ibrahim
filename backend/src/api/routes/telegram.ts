@@ -99,20 +99,19 @@ router.post('/webhook', async (req, res) => {
     if (pending) {
       if (isOke) {
         approveVideo(pending.id);
-        await sendMessage(chatId, '✅ *Vidéo validée !* Publication en cours...');
+        await sendMessage(chatId, '✅ *Vidéo validée !* Publication TikTok en cours...');
 
-        const results = await publishVideo(pending);
-        const igResult = results.find(r => r.platform === 'instagram');
+        const result = await publishVideo(pending);
 
-        if (igResult?.success) {
-          await sendMessage(chatId, `🚀 *Publié sur Instagram !*\n${igResult.url ?? ''}`);
+        if (result.success) {
+          await sendMessage(chatId, `🚀 *${result.message}*\n${result.url ?? ''}`);
         } else {
-          // Instagram not configured or failed → send ready-to-post package
+          // TikTok API not configured or failed → send ready-to-post package
           await sendMessage(chatId, buildSharePackage(pending));
         }
       } else {
         rejectVideo(pending.id);
-        await sendMessage(chatId, '❌ Vidéo annulée. Lance une nouvelle recherche avec "fais une vidéo marketing" quand tu veux !');
+        await sendMessage(chatId, '❌ Vidéo annulée. Dis "fais une vidéo marketing" quand tu veux en créer une nouvelle !');
       }
       return;
     }

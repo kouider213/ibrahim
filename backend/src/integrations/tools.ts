@@ -773,7 +773,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_marketing_video',
-    description: 'Créer une vidéo TikTok/Instagram complète avec voix IA (ElevenLabs) pour une voiture de la flotte. Génère le script, la voix, monte la vidéo et l\'envoie sur Telegram pour validation. Utiliser quand Kouider dit "fais une vidéo pour la [voiture]", "crée une pub", "génère une vidéo marketing", "fais une vidéo TikTok".',
+    description: 'Créer une vidéo TikTok complète avec voix IA (ElevenLabs) pour une voiture de la flotte. Génère le script, la voix, monte la vidéo et l\'envoie sur Telegram pour validation. Utiliser quand Kouider dit "fais une vidéo pour la [voiture]", "crée une pub", "génère une vidéo marketing", "fais une vidéo TikTok".',
     input_schema: {
       type: 'object' as const,
       properties: {

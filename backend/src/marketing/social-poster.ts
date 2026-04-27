@@ -10,90 +10,115 @@ export interface PostResult {
   message:  string;
 }
 
-// ── Instagram Graph API (Reels) ───────────────────────────────
+// ── TikTok Content Posting API (Direct Post) ─────────────────
+// Docs: https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
 
-async function waitForContainer(containerId: string, accessToken: string): Promise<void> {
-  for (let i = 0; i < 15; i++) {
-    await new Promise(r => setTimeout(r, 5000));
-    const { data } = await axios.get<{ status_code: string }>(
-      `https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${accessToken}`,
-    );
-    if (data.status_code === 'FINISHED') return;
-    if (data.status_code === 'ERROR') throw new Error('Instagram container processing failed');
+async function postToTikTokDirect(video: PendingVideo): Promise<PostResult> {
+  const accessToken = env.TIKTOK_ACCESS_TOKEN;
+  const openId      = env.TIKTOK_OPEN_ID;
+
+  if (!accessToken || !openId) {
+    return { platform: 'tiktok', success: false, message: 'TikTok API non configuré — clés manquantes' };
   }
-  throw new Error('Instagram processing timeout');
-}
 
-export async function postToInstagram(video: PendingVideo): Promise<PostResult> {
-  const accessToken = env.INSTAGRAM_ACCESS_TOKEN;
-  const igUserId    = env.INSTAGRAM_USER_ID;
-
-  if (!accessToken || !igUserId) {
-    return { platform: 'instagram', success: false, message: 'Instagram API non configuré — clés manquantes' };
-  }
+  const caption = `${video.caption} ${video.hashtags.join(' ')}`.slice(0, 2200);
 
   try {
-    const caption = `${video.caption}\n\n${video.hashtags.join(' ')}`;
-
-    const container = await axios.post<{ id: string }>(
-      `https://graph.facebook.com/v19.0/${igUserId}/media`,
-      { video_url: video.video_url, caption, media_type: 'REELS', access_token: accessToken },
+    // Step 1: Init upload
+    const initRes = await axios.post<{
+      data: { publish_id: string; upload_url: string };
+      error: { code: string; message: string };
+    }>(
+      'https://open.tiktokapis.com/v2/post/publish/video/init/',
+      {
+        post_info: {
+          title:             caption,
+          privacy_level:     'PUBLIC_TO_EVERYONE',
+          disable_duet:      false,
+          disable_comment:   false,
+          disable_stitch:    false,
+          video_cover_timestamp_ms: 1000,
+        },
+        source_info: {
+          source:    'PULL_FROM_URL',
+          video_url: video.video_url,
+        },
+      },
+      {
+        headers: {
+          Authorization:  `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+      },
     );
-    const containerId = container.data.id;
-    await waitForContainer(containerId, accessToken);
 
-    const publish = await axios.post<{ id: string }>(
-      `https://graph.facebook.com/v19.0/${igUserId}/media_publish`,
-      { creation_id: containerId, access_token: accessToken },
-    );
+    if (initRes.data.error?.code && initRes.data.error.code !== 'ok') {
+      throw new Error(initRes.data.error.message);
+    }
 
-    return {
-      platform: 'instagram',
-      success:  true,
-      post_id:  publish.data.id,
-      url:      `https://www.instagram.com/reel/${publish.data.id}`,
-      message:  `✅ Reel Instagram publié !`,
-    };
+    const publishId = initRes.data.data.publish_id;
+
+    // Step 2: Poll until published
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      const statusRes = await axios.post<{
+        data: { status: string; publicaly_available_post_id?: string[] };
+        error: { code: string };
+      }>(
+        'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
+        { publish_id: publishId },
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' } },
+      );
+
+      const status = statusRes.data.data?.status;
+      if (status === 'PUBLISH_COMPLETE') {
+        const postId = statusRes.data.data.publicaly_available_post_id?.[0];
+        return {
+          platform: 'tiktok',
+          success:  true,
+          post_id:  postId,
+          url:      postId ? `https://www.tiktok.com/@fikconcierge/video/${postId}` : undefined,
+          message:  `✅ Vidéo publiée sur TikTok !`,
+        };
+      }
+      if (status === 'FAILED') throw new Error('TikTok publishing failed');
+    }
+    throw new Error('TikTok publish timeout');
   } catch (err) {
     return {
-      platform: 'instagram',
+      platform: 'tiktok',
       success:  false,
-      message:  `❌ Instagram: ${err instanceof Error ? err.message : String(err)}`,
+      message:  `❌ TikTok API: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }
 
-// ── Generate ready-to-post package (fallback) ─────────────────
+// ── Package prêt à poster manuellement sur TikTok ────────────
 
 export function buildSharePackage(video: PendingVideo): string {
-  const caption  = `${video.caption}\n\n${video.hashtags.join(' ')}`;
-  const lines: string[] = [
-    `🎬 *Vidéo prête à publier !*`,
+  const caption = `${video.caption}\n\n${video.hashtags.join(' ')}`;
+  return [
+    `✅ *Vidéo validée — prête pour TikTok !*`,
     ``,
-    `🚗 *Voiture:* ${video.car_name}`,
+    `📥 *1. Télécharge la vidéo:*`,
+    video.video_url,
     ``,
-    `📝 *Légende à copier:*`,
+    `📝 *2. Copie cette légende:*`,
     `\`\`\``,
     caption,
     `\`\`\``,
     ``,
-    `🔗 *Lien vidéo (télécharge et publie):*`,
-    video.video_url,
+    `📱 *3. Ouvre TikTok → + → Upload → colle la légende → Publier*`,
     ``,
-    `📱 *Meilleure heure pour TikTok/Instagram:* maintenant ou ce soir 20h-22h`,
+    `⏰ *Meilleur moment:* maintenant ou ce soir 19h-22h`,
     ``,
-    `💡 *Astuce:* Publie en Reel Instagram ET TikTok en même temps pour doubler la portée !`,
-  ];
-  return lines.join('\n');
+    `💡 Épingle ce post pour qu'il reste en haut de ton profil !`,
+  ].join('\n');
 }
 
-// ── Try all configured platforms ─────────────────────────────
+// ── Publish (TikTok API si configuré, sinon package manuel) ──
 
-export async function publishVideo(video: PendingVideo): Promise<PostResult[]> {
-  const results: PostResult[] = [];
-
-  const igResult = await postToInstagram(video);
-  results.push(igResult);
-
-  return results;
+export async function publishVideo(video: PendingVideo): Promise<PostResult> {
+  const result = await postToTikTokDirect(video);
+  return result;
 }

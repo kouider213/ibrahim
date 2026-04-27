@@ -295,7 +295,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
     `🚗 ${videoResult.car_name}`,
     `📝 _${videoResult.script}_`,
     ``,
-    `✅ Réponds *Oke* pour publier sur Instagram/TikTok`,
+    `✅ Réponds *Oke* pour publier sur TikTok`,
     `❌ Réponds *Non* pour annuler`,
   ].join('\n');
 
