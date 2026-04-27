@@ -93,8 +93,12 @@ export default function ChatInterface() {
   const [started,      setStarted]      = useState(false);
   const [analyzing,    setAnalyzing]    = useState(false);
   const [liveVision,   setLiveVision]   = useState(false);
+  const [scanMode,     setScanMode]     = useState(false);
+  const [scanning,     setScanning]     = useState(false);
+  const [scanResult,   setScanResult]   = useState<{ type: string; data?: Record<string, unknown> } | null>(null);
   // Pending photo: stored after capture, sent together with the next voice message
   const pendingPhotoRef = useRef<{ base64: string; mime: string } | null>(null);
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const liveVideoRef   = useRef<HTMLVideoElement>(null);
@@ -176,6 +180,80 @@ export default function ChatInterface() {
     tmp.getContext('2d')!.drawImage(video, 0, 0, w, h);
     return tmp.toDataURL('image/jpeg', 0.7).split(',')[1] ?? null;
   }, []);
+
+  // ── Instant SCAN — Dzaryx analyzes camera view and speaks result ──
+  const handleScan = useCallback(async () => {
+    if (scanning) return;
+    const frame = captureFrame();
+    if (!frame) { showError('Caméra non prête'); return; }
+
+    setScanning(true);
+    applyState('think');
+    clearAudioQueue();
+
+    try {
+      const result = await api.scan(frame, 'image/jpeg');
+      setScanResult({ type: result.type, data: result.extractedData });
+
+      const spoken = result.description || 'Je ne peux pas analyser cette image.';
+      setResponseText(spoken);
+      setShowResponse(true);
+      applyState('speak');
+      iosFallbackSpeak(spoken, () => {
+        applyState('idle');
+      });
+
+      // If document detected → auto-send to chat for saving
+      if (result.extractedData && ['passport', 'license'].includes(result.type)) {
+        const data = result.extractedData;
+        const name = (data['name'] as string) || '';
+        if (name) {
+          // Brief delay then ask via voice if user wants to save
+          setTimeout(() => {
+            pendingPhotoRef.current = { base64: frame, mime: 'image/jpeg' };
+          }, 500);
+        }
+      }
+    } catch {
+      showError('Erreur scan vision');
+      applyState('idle');
+    } finally {
+      setScanning(false);
+    }
+  }, [scanning, captureFrame, applyState, showError, scanMode]);
+
+  // ── Toggle auto-scan mode ──────────────────────────────────────
+  const toggleScanMode = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setScanMode(prev => {
+      const next = !prev;
+      if (!next && scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+      return next;
+    });
+  }, []);
+
+  // Auto-scan loop when scan mode active
+  useEffect(() => {
+    if (scanMode && liveVision && started) {
+      // First scan immediately
+      handleScan();
+      scanIntervalRef.current = setInterval(() => {
+        if (stateRef.current === 'idle') handleScan();
+      }, 6000);
+    } else {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (scanIntervalRef.current) { clearInterval(scanIntervalRef.current); scanIntervalRef.current = null; }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanMode, liveVision, started]);
 
   // ── Send text (attaches pending photo or live frame if any) ───
   const sendText = useCallback(async (msg: string) => {
@@ -601,6 +679,30 @@ export default function ChatInterface() {
       >
         {liveVision ? <><span className="live-dot" />REC</> : 'LIVE'}
       </button>
+
+      {/* SCAN button — appears when LIVE is active */}
+      {liveVision && (
+        <button
+          className={`scan-btn${scanning ? ' scan-btn--scanning' : ''}${scanMode ? ' scan-btn--auto' : ''}`}
+          onClick={scanMode ? toggleScanMode : (e) => { e.stopPropagation(); handleScan(); }}
+          onDoubleClick={toggleScanMode}
+          title={scanMode ? 'Mode AUTO actif — double-tap pour arrêter' : 'Tap: scan instant | Double-tap: scan auto'}
+        >
+          {scanning ? '⟳' : scanMode ? '👁️ AUTO' : '👁️ SCAN'}
+        </button>
+      )}
+
+      {/* Scan result badge — document type detected */}
+      {scanResult && liveVision && (
+        <div className="scan-badge">
+          {scanResult.type === 'passport' && '🪪 PASSEPORT DÉTECTÉ'}
+          {scanResult.type === 'license' && '🪪 PERMIS DÉTECTÉ'}
+          {scanResult.type === 'vehicle' && '🚗 VÉHICULE DÉTECTÉ'}
+          {scanResult.type === 'arabic' && '🔤 TEXTE ARABE'}
+          {scanResult.type === 'receipt' && '🧾 REÇU DÉTECTÉ'}
+          {scanResult.type === 'contract' && '📄 CONTRAT DÉTECTÉ'}
+        </div>
+      )}
 
       {/* Camera button — label wraps input directly so iOS Safari opens camera on first tap */}
       <label

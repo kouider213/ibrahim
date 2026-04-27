@@ -468,3 +468,71 @@
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ── SCAN button ────────────────────────────────── */
+.scan-btn {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom, 14px));
+  right: 82px;
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0,255,180,0.45);
+  background: rgba(0,12,20,0.80);
+  color: rgba(0,255,180,0.90);
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 0 16px rgba(0,255,180,0.12),
+    inset 0 0 12px rgba(0,255,180,0.05);
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.scan-btn:active { transform: scale(0.92); }
+.scan-btn--scanning {
+  border-color: rgba(255,200,40,0.7);
+  color: rgba(255,200,40,0.95);
+  animation: scan-spin 0.8s linear infinite;
+}
+@keyframes scan-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.scan-btn--auto {
+  border-color: rgba(0,255,140,0.75);
+  color: rgba(0,255,140,1);
+  animation: scan-auto-pulse 1.2s ease-in-out infinite;
+}
+@keyframes scan-auto-pulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(0,255,140,0.2); }
+  50%       { box-shadow: 0 0 30px rgba(0,255,140,0.6); }
+}
+
+/* ── Scan badge ─────────────────────────────────── */
+.scan-badge {
+  position: absolute;
+  top: max(52px, calc(env(safe-area-inset-top, 28px) + 24px));
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,10,20,0.88);
+  border: 1px solid rgba(0,255,180,0.40);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: rgba(0,255,180,0.95);
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.08em;
+  z-index: 25;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 0 20px rgba(0,255,180,0.15);
+  animation: badge-in 0.3s ease-out;
+  white-space: nowrap;
+}
+@keyframes badge-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

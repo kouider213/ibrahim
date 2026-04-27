@@ -67,6 +67,12 @@ export const api = {
       method: 'POST',
       body:   JSON.stringify({ imageBase64, mimeType }),
     }),
+
+  scan: (imageBase64: string, mimeType = 'image/jpeg') =>
+    apiFetch<{ description: string; type: string; extractedData?: Record<string, unknown> }>('/api/vision/scan', {
+      method: 'POST',
+      body:   JSON.stringify({ imageBase64, mimeType }),
+    }),
 };
 
 export interface FinanceDashboardData {
