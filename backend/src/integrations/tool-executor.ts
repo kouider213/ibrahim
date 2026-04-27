@@ -25,8 +25,9 @@ import {
   getEvolutionReport,
   formatReportForKouider,
 } from './improvement-report.js';
+import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
-import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc, sendDocumentBuffer as sendTelegramDocBuffer } from './telegram.js';
+import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
@@ -774,23 +775,28 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
   const filename = `BON_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
   const caption  = `📄 Bon de réservation — ${clientName}`;
 
+  // Envoi direct via Telegram API — multipart FormData, vérification ok:true
   const sendPDF = async (chatId: number): Promise<void> => {
-    // Tentative 1 : URL Supabase directe (Telegram supporte HTTP URLs)
-    try {
-      await sendTelegramDoc(chatId, url, caption);
-      console.log('[voucher] PDF sent via URL to', chatId);
-      return;
-    } catch (e1: unknown) {
-      console.error('[voucher] URL send failed:', e1 instanceof Error ? e1.message : String(e1));
+    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('document', buffer, {
+      filename,
+      contentType: 'application/pdf',
+      knownLength: buffer.length,
+    });
+    if (caption) form.append('caption', caption);
+
+    const resp = await axios.post<{ ok: boolean; description?: string }>(
+      `${botBase}/sendDocument`,
+      form,
+      { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
+    );
+
+    if (!resp.data.ok) {
+      throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
     }
-    // Tentative 2 : buffer multipart
-    try {
-      await sendTelegramDocBuffer(chatId, buffer, filename, caption);
-      console.log('[voucher] PDF sent via buffer to', chatId);
-    } catch (e2: unknown) {
-      console.error('[voucher] Buffer send failed:', e2 instanceof Error ? e2.message : String(e2));
-      throw new Error(`Impossible d'envoyer le PDF: ${e2 instanceof Error ? e2.message : String(e2)}`);
-    }
+    console.log('[voucher] PDF sent via multipart to chatId:', chatId);
   };
 
   if (sessionId?.startsWith('telegram_')) {
