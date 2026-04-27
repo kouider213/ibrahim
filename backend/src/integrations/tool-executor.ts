@@ -270,12 +270,33 @@ async function financialReport(input: Record<string, unknown>): Promise<string> 
 }
 
 async function storeDocument(input: Record<string, unknown>): Promise<string> {
+  const clientName = input['client_name'] as string;
+  if (!clientName) return '❌ client_name manquant';
+
+  let phone     = input['client_phone'] as string | undefined;
+  let bookingId = input['booking_id']   as string | undefined;
+
+  // Auto-lookup client info from existing bookings if phone or booking_id missing
+  if (!phone || !bookingId) {
+    const { data: existing } = await supabase
+      .from('bookings')
+      .select('id, client_phone')
+      .ilike('client_name', `%${clientName}%`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (existing) {
+      if (!phone)     phone     = (existing as any).client_phone ?? undefined;
+      if (!bookingId) bookingId = (existing as any).id           ?? undefined;
+    }
+  }
+
   const { data, error } = await supabase
     .from('client_documents')
     .insert({
-      client_phone: input['client_phone'],
-      client_name:  input['client_name'],
-      booking_id:   input['booking_id'] ?? null,
+      client_phone: phone     ?? null,
+      client_name:  clientName,
+      booking_id:   bookingId ?? null,
       type:         input['type'],
       file_url:     input['file_url'],
       notes:        input['notes'] ?? null,
@@ -284,7 +305,7 @@ async function storeDocument(input: Record<string, unknown>): Promise<string> {
     .single();
 
   if (error) return `Erreur stockage document: ${error.message}`;
-  return `✅ Document ${input['type']} stocké pour ${input['client_name']}. ID: ${(data as any).id}`;
+  return `✅ Document ${input['type']} stocké pour ${clientName}${phone ? ` (${phone})` : ''}${bookingId ? ` — lié à la réservation ${bookingId.slice(0, 8)}` : ''}. ID: ${(data as any).id}`;
 }
 
 async function readSiteFile(input: Record<string, unknown>): Promise<string> {

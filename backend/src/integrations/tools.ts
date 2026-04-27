@@ -99,7 +99,7 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
         file_url:     { type: 'string', description: 'URL publique du fichier' },
         notes:        { type: 'string' },
       },
-      required: ['client_phone','client_name','type','file_url'],
+      required: ['client_name','type','file_url'],
     },
   },
   {
