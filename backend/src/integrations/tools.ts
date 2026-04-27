@@ -682,4 +682,40 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
       required: ['query'],
     },
   },
+
+  // ─── GOOGLE CALENDAR ─────────────────────────────────────────
+  {
+    name: 'create_calendar_event',
+    description: 'Ajouter une réservation dans Google Agenda fikconciergerie@gmail.com. Utiliser quand Kouider dit "ajoute au calendrier", "mets dans l\'agenda", "synchronise avec Google". Peut aussi être utilisé après create_booking pour forcer la synchro.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id:  { type: 'string', description: 'UUID de la réservation (obligatoire)' },
+        client_name: { type: 'string', description: 'Nom du client' },
+        car_name:    { type: 'string', description: 'Nom du véhicule (ex: Clio 4, Duster)' },
+        start_date:  { type: 'string', description: 'Date début YYYY-MM-DD' },
+        end_date:    { type: 'string', description: 'Date fin YYYY-MM-DD' },
+        notes:       { type: 'string', description: 'Notes optionnelles' },
+      },
+      required: ['booking_id', 'client_name', 'car_name', 'start_date', 'end_date'],
+    },
+  },
+  {
+    name: 'sync_calendar',
+    description: 'Synchroniser TOUTES les réservations CONFIRMED/ACTIVE pas encore dans Google Agenda. Utiliser pour un sync en masse ou vérifier que tout est bien dans le calendrier.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+  {
+    name: 'list_calendar_events',
+    description: 'Voir les prochains événements dans Google Agenda Fik Conciergerie. Permet de vérifier ce qui est déjà dans le calendrier.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        max_results: { type: 'number', description: 'Nombre max d\'événements (défaut: 20)' },
+      },
+    },
+  },
 ];

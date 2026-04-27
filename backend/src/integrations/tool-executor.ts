@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { createCalendarEvent, syncPendingBookings, listUpcomingEvents } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
@@ -95,6 +96,10 @@ export async function executeTool(
       case 'schedule_reminder':          return await scheduleReminder(input);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
+      // ─── GOOGLE CALENDAR ───
+      case 'create_calendar_event':      return await createCalendarEventTool(input);
+      case 'sync_calendar':              return await syncCalendarTool();
+      case 'list_calendar_events':       return await listCalendarEventsTool(input);
       // ─── PHASE 14 — Image & Vidéo ───
       case 'analyze_image':
       case 'optimize_image':
@@ -203,7 +208,17 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     .single();
 
   if (error) return `Erreur création: ${error.message}`;
-  return `✅ Réservation créée! ID: ${(data as any).id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€`;
+
+  const booking = data as any;
+  let calendarNote = '';
+  try {
+    const { data: car } = await supabase.from('cars').select('name').eq('id', input['car_id']).single();
+    const carName = (car as any)?.name ?? 'Véhicule';
+    const eventId = await createCalendarEvent(booking.id, input['client_name'] as string, carName, input['start_date'] as string, input['end_date'] as string, input['notes'] as string | undefined);
+    calendarNote = eventId ? ' | 📅 Ajouté Google Agenda' : ' | ⚠️ Google Agenda non synchro';
+  } catch { calendarNote = ' | ⚠️ Google Agenda non synchro'; }
+
+  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}`;
 }
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {
@@ -636,6 +651,39 @@ async function scheduleReminder(input: Record<string, unknown>): Promise<string>
 }
 
 // ─── PHASE 15 — Recherche d'images (Pexels) ──────────────────────────────
+
+// ─── GOOGLE CALENDAR ─────────────────────────────────────────────────────────
+
+async function createCalendarEventTool(input: Record<string, unknown>): Promise<string> {
+  const bookingId  = input['booking_id']  as string;
+  const clientName = input['client_name'] as string;
+  const carName    = input['car_name']    as string;
+  const startDate  = input['start_date']  as string;
+  const endDate    = input['end_date']    as string;
+  const notes      = input['notes']       as string | undefined;
+
+  if (!bookingId || !clientName || !carName || !startDate || !endDate)
+    return '❌ booking_id, client_name, car_name, start_date, end_date sont requis';
+
+  const eventId = await createCalendarEvent(bookingId, clientName, carName, startDate, endDate, notes);
+  if (!eventId) return '❌ Impossible de créer l\'événement Google Calendar. Vérifie GOOGLE_SERVICE_ACCOUNT_JSON dans Railway.';
+  return `✅ Événement créé dans Google Agenda!\n📅 ${clientName} — ${carName}\n📆 ${startDate} → ${endDate}\n🔗 Event ID: ${eventId}`;
+}
+
+async function syncCalendarTool(): Promise<string> {
+  const count = await syncPendingBookings();
+  if (count === 0) return '✅ Tout est déjà synchronisé — aucune réservation manquante dans l\'agenda.';
+  return `✅ ${count} réservation(s) ajoutée(s) dans Google Agenda!`;
+}
+
+async function listCalendarEventsTool(input: Record<string, unknown>): Promise<string> {
+  const maxResults = Number(input['max_results'] ?? 20);
+  const events = await listUpcomingEvents(maxResults);
+  if (!events.length) return 'Aucun événement à venir dans Google Agenda.';
+  return `📅 ${events.length} événement(s) dans Google Agenda:\n${events.map(e =>
+    `- ${e.summary} | ${e.start.dateTime?.slice(0, 10) ?? '?'} → ${e.end.dateTime?.slice(0, 10) ?? '?'}`
+  ).join('\n')}`;
+}
 
 async function searchImages(input: Record<string, unknown>): Promise<string> {
   const query       = input['query'] as string;
