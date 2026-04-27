@@ -802,14 +802,16 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
   if (sessionId?.startsWith('telegram_')) {
     const chatId = Number(sessionId.replace('telegram_', ''));
     if (!isNaN(chatId)) {
+      // Pre-flight: verify state before attempting PDF send
+      const tokenPreview = (env.TELEGRAM_BOT_TOKEN ?? '').slice(0, 12);
+      await sendTelegramText(chatId, `🔍 Pre-flight voucher:\nbuffer=${buffer.length}b\nchatId=${chatId}\ntoken=${tokenPreview}...\nfilename=${filename}`).catch(() => {});
       try {
         await sendPDF(chatId);
         return `✅ Bon de réservation de ${clientName} généré ! 📄`;
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
         console.error('[voucher] sendPDF error:', errMsg);
-        // Envoyer l'erreur directement dans Telegram — bypass le résumé Ibrahim
-        await sendTelegramText(chatId, `🔴 DEBUG voucher: ${errMsg}\nbuffer=${buffer.length}b chatId=${chatId}`).catch(() => {});
+        await sendTelegramText(chatId, `🔴 sendPDF error: ${errMsg}`).catch(() => {});
         return `⚠️ Bon généré, PDF non envoyé: ${errMsg}`;
       }
     }
