@@ -58,6 +58,25 @@ export async function sendDocument(chatId: number | string, fileId: string, capt
   }
 }
 
+export async function sendDocumentBuffer(
+  chatId: number | string,
+  buffer: Buffer,
+  filename: string,
+  caption?: string,
+): Promise<void> {
+  if (!getToken()) return;
+  const { default: FormData } = await import('form-data');
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('document', buffer, { filename, contentType: 'application/pdf' });
+  if (caption) form.append('caption', caption);
+  try {
+    await axios.post(`${base()}/sendDocument`, form, { headers: form.getHeaders() });
+  } catch (err) {
+    console.error('[telegram] sendDocumentBuffer failed:', err instanceof Error ? err.message : String(err));
+  }
+}
+
 export async function sendVideo(chatId: number | string, videoUrl: string, caption?: string): Promise<void> {
   const token = getToken();
   if (!token) {

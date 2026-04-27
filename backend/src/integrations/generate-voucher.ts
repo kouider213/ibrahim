@@ -3,7 +3,7 @@ import { supabase } from './supabase.js';
 
 export async function generateReservationVoucher(
   bookingId: string,
-): Promise<{ url: string; clientName: string }> {
+): Promise<{ url: string; clientName: string; buffer: Buffer }> {
   // 1. Réservation + voiture
   const { data: booking, error } = await supabase
     .from('bookings')
@@ -29,7 +29,7 @@ export async function generateReservationVoucher(
   }
 
   // 3. Générer PDF
-  const pdfBuffer = await buildPDF(booking as Record<string, unknown>, passportInfo);
+  const pdfBuffer: Buffer = await buildPDF(booking as Record<string, unknown>, passportInfo);
 
   // 4. Upload Supabase Storage (bucket client-documents, dossier vouchers/)
   const safeName    = String(booking['client_name'] ?? 'client').replace(/[^a-zA-Z0-9]/g, '_');
@@ -43,7 +43,7 @@ export async function generateReservationVoucher(
 
   const { data: urlData } = supabase.storage.from('client-documents').getPublicUrl(storagePath);
 
-  return { url: urlData.publicUrl, clientName: String(booking['client_name'] ?? '') };
+  return { url: urlData.publicUrl, clientName: String(booking['client_name'] ?? ''), buffer: pdfBuffer };
 }
 
 // ── Construction PDF ──────────────────────────────────────────────────────────

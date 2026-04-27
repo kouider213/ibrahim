@@ -169,6 +169,14 @@ export async function buildContext(
     ? `\n\nMÉMOIRE IBRAHIM (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
     : '';
 
+  const currentChannel = sessionId === 'voice_kouider'
+    ? 'App Vocale'
+    : sessionId.startsWith('telegram_')
+    ? 'Telegram'
+    : 'Inconnu';
+
+  const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}. ${currentChannel === 'Telegram' ? 'Kouider écrit DEPUIS Telegram — ne jamais dire "je t\'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.' : 'Kouider parle via App Vocale — utiliser send_telegram_message pour lui envoyer des documents/photos.'}`;
+
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
   const crossChannelText = (crossHistory as any[]).length > 0
     ? `\n\nCONVERSATION RÉCENTE SUR ${crossChannelLabel} (pour mémoire cross-canal):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Ibrahim'}] ${String(m.content).slice(0, 300)}`).join('\n')}`
@@ -182,6 +190,7 @@ export async function buildContext(
   const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;
 
   const systemExtra = [
+    channelInfo,
     dateInfo,
     weatherText,
     fleetText,

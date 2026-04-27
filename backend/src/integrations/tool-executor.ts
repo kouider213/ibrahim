@@ -26,7 +26,7 @@ import {
   formatReportForKouider,
 } from './improvement-report.js';
 import { sendWhatsApp } from './whatsapp.js';
-import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc } from './telegram.js';
+import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc, sendDocumentBuffer as sendTelegramDocBuffer } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
@@ -102,7 +102,7 @@ export async function executeTool(
       case 'sync_calendar':             return await syncCalendarTool();
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
       case 'get_late_returns':                   return await getLateReturns();
-      case 'generate_reservation_voucher':       return await generateVoucherTool(input);
+      case 'generate_reservation_voucher':       return await generateVoucherTool(input, sessionId);
       // ─── PHASE 14 — Image & Vidéo ───
       case 'analyze_image':
       case 'optimize_image':
@@ -766,20 +766,33 @@ async function sendTelegramMessage(input: Record<string, unknown>): Promise<stri
   }
 }
 
-async function generateVoucherTool(input: Record<string, unknown>): Promise<string> {
+async function generateVoucherTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const bookingId = input['booking_id'] as string;
   if (!bookingId) return '❌ booking_id requis';
 
-  const { url, clientName } = await generateReservationVoucher(bookingId);
+  const { url, clientName, buffer } = await generateReservationVoucher(bookingId);
+  const filename = `BON_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  const caption  = `📄 Bon de réservation — ${clientName}`;
 
-  if (env.TELEGRAM_CHAT_ID) {
-    const chatId = Number(env.TELEGRAM_CHAT_ID);
-    try {
-      await sendTelegramDoc(chatId, url, `📄 Bon de réservation — ${clientName}`);
-    } catch { /* envoi Telegram optionnel */ }
+  // Si appelé depuis Telegram → envoyer le buffer directement dans ce chat
+  if (sessionId?.startsWith('telegram_')) {
+    const chatId = Number(sessionId.replace('telegram_', ''));
+    if (!isNaN(chatId)) {
+      await sendTelegramDocBuffer(chatId, buffer, filename, caption).catch(
+        (e: unknown) => console.error('[voucher] sendDocumentBuffer:', e instanceof Error ? e.message : String(e)),
+      );
+    }
+    return `✅ Bon de réservation de ${clientName} généré et envoyé ici ! 📄`;
   }
 
-  return `✅ Bon de réservation PDF généré pour ${clientName}!\n📄 URL: ${url}\n📱 Envoyé sur Telegram`;
+  // App vocale → envoyer au chat Telegram configuré
+  if (env.TELEGRAM_CHAT_ID) {
+    const chatId = Number(env.TELEGRAM_CHAT_ID);
+    await sendTelegramDocBuffer(chatId, buffer, filename, caption).catch(
+      (e: unknown) => console.error('[voucher] sendDocumentBuffer:', e instanceof Error ? e.message : String(e)),
+    );
+  }
+  return `✅ Bon de réservation PDF généré pour ${clientName} ! Envoyé sur Telegram. 📄\nURL: ${url}`;
 }
 
 async function getLateReturns(): Promise<string> {
