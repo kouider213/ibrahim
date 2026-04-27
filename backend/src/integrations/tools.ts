@@ -302,6 +302,17 @@ export const IBRAHIM_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'generate_reservation_voucher',
+    description: 'Générer un bon de réservation PDF professionnel (A4) pour un client. Intègre automatiquement les infos passeport/permis OCR déjà enregistrées. Crée le PDF, l\'upload dans Supabase Storage, et l\'envoie directement sur Telegram. Utiliser quand Kouider dit "génère le bon de réservation pour X", "crée un bon pour X", "fais le contrat de location pour X".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id: { type: 'string', description: 'UUID de la réservation (utiliser list_bookings si nécessaire pour récupérer l\'ID)' },
+      },
+      required: ['booking_id'],
+    },
+  },
+  {
     name: 'get_unpaid_bookings',
     description: 'Lister toutes les réservations impayées ou partiellement payées, avec urgence et délai.',
     input_schema: {

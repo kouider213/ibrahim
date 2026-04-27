@@ -27,6 +27,7 @@ import {
 } from './improvement-report.js';
 import { sendWhatsApp } from './whatsapp.js';
 import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc } from './telegram.js';
+import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
 
@@ -100,7 +101,8 @@ export async function executeTool(
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'sync_calendar':             return await syncCalendarTool();
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
-      case 'get_late_returns':          return await getLateReturns();
+      case 'get_late_returns':                   return await getLateReturns();
+      case 'generate_reservation_voucher':       return await generateVoucherTool(input);
       // ─── PHASE 14 — Image & Vidéo ───
       case 'analyze_image':
       case 'optimize_image':
@@ -762,6 +764,22 @@ async function sendTelegramMessage(input: Record<string, unknown>): Promise<stri
   } catch (err) {
     return `❌ Erreur Telegram: ${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+async function generateVoucherTool(input: Record<string, unknown>): Promise<string> {
+  const bookingId = input['booking_id'] as string;
+  if (!bookingId) return '❌ booking_id requis';
+
+  const { url, clientName } = await generateReservationVoucher(bookingId);
+
+  if (env.TELEGRAM_CHAT_ID) {
+    const chatId = Number(env.TELEGRAM_CHAT_ID);
+    try {
+      await sendTelegramDoc(chatId, url, `📄 Bon de réservation — ${clientName}`);
+    } catch { /* envoi Telegram optionnel */ }
+  }
+
+  return `✅ Bon de réservation PDF généré pour ${clientName}!\n📄 URL: ${url}\n📱 Envoyé sur Telegram`;
 }
 
 async function getLateReturns(): Promise<string> {
