@@ -77,6 +77,25 @@ export async function sendDocumentBuffer(
   });
 }
 
+export async function sendVoiceBuffer(
+  chatId: number | string,
+  buffer: Buffer,
+  caption?: string,
+): Promise<void> {
+  if (!getToken()) return;
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('voice', buffer, { filename: 'voiceover.mp3', contentType: 'audio/mpeg', knownLength: buffer.length });
+  if (caption) form.append('caption', caption);
+  await axios.post(`${base()}/sendVoice`, form, {
+    headers: { ...form.getHeaders() },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  }).catch(err => {
+    console.error('[telegram] sendVoiceBuffer failed:', err instanceof Error ? err.message : String(err));
+  });
+}
+
 export async function sendVideo(chatId: number | string, videoUrl: string, caption?: string): Promise<void> {
   const token = getToken();
   if (!token) {
