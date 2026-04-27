@@ -818,12 +818,12 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
       await sendTelegramText(chatId, `🔍 Pre-flight voucher:\nbuffer=${buffer.length}b\nchatId=${chatId}\ntoken=${tokenPreview}...\nfilename=${filename}`).catch(() => {});
       try {
         await sendPDF(chatId);
-        return `✅ Bon de réservation de ${clientName} généré ! 📄`;
+        return `✅ [CODE-v5-OK] Bon de réservation de ${clientName} généré et envoyé en PDF (chatId=${chatId}) ! 📄`;
       } catch (e: unknown) {
         const errMsg = e instanceof Error ? e.message : String(e);
         console.error('[voucher] sendPDF error:', errMsg);
         await sendTelegramText(chatId, `🔴 sendPDF error: ${errMsg}`).catch(() => {});
-        return `⚠️ Bon généré, PDF non envoyé: ${errMsg}`;
+        return `⚠️ [CODE-v5-ERR] Bon généré, PDF non envoyé (chatId=${chatId}): ${errMsg}`;
       }
     }
   }
