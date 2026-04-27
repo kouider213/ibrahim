@@ -119,28 +119,26 @@ function buildPDF(booking: Record<string, unknown>, passport: Record<string, str
 
     // ── TARIF ────────────────────────────────────────────────────
     sectionTitle(doc, 'TARIFICATION');
-    row(doc, 'Prix par jour', `${daily} EUR`);
-    rowBold(doc, 'TOTAL',     `${total} EUR`);
+    row(doc, 'Prix par jour',   `${daily} EUR`);
+    rowBold(doc, 'TOTAL',       `${total} EUR`);
+    rowBold(doc, 'Caution versee', paid > 0 ? `${paid} EUR` : 'Aucune');
 
     doc.moveDown(0.6);
 
-    // Paragraph acompte
+    // Phrase explicative paiement
     const reste = total - paid;
-    if (paid > 0) {
+    if (paid > 0 && reste > 0) {
       doc.font('Helvetica').fontSize(10).fillColor('#222222')
         .text(
-          `Un montant de ${paid} EUR a ete verse afin de reserver le vehicule.` +
-          (reste > 0
-            ? ` Le reste de ${reste} EUR est a regler a la restitution des cles.`
-            : ' Le montant total a ete regle integralement.'),
+          `Un montant de ${paid} EUR a ete verse a titre de caution afin de reserver le vehicule. Le reste de ${reste} EUR est a regler a la restitution des cles.`,
           55, doc.y, { width: 490 },
         );
+    } else if (paid >= total) {
+      doc.font('Helvetica').fontSize(10).fillColor('#222222')
+        .text('Le montant total a ete regle integralement.', 55, doc.y, { width: 490 });
     } else {
       doc.font('Helvetica').fontSize(10).fillColor('#222222')
-        .text(
-          `Le montant total de ${total} EUR est a regler a la restitution des cles.`,
-          55, doc.y, { width: 490 },
-        );
+        .text(`Le montant total de ${total} EUR est a regler a la restitution des cles.`, 55, doc.y, { width: 490 });
     }
 
     doc.moveDown(1);
