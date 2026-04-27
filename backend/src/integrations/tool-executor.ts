@@ -226,19 +226,26 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
 
   const booking = data as { id: string };
 
-  // Auto-sync Google Calendar (fire-and-forget)
-  supabase.from('cars').select('name').eq('id', input['car_id'] as string).single()
-    .then(({ data: car }) => createCalendarEvent(
+  // Auto-sync Google Calendar (awaited so we know if it worked)
+  let calendarStatus = '⚠️ Calendrier: non configuré (GOOGLE_SERVICE_ACCOUNT_JSON manquant)';
+  try {
+    const { data: car } = await supabase.from('cars').select('name').eq('id', input['car_id'] as string).single();
+    const carName = (car as { name?: string } | null)?.name ?? 'Véhicule';
+    const eventId = await createCalendarEvent(
       booking.id,
       input['client_name'] as string,
-      (car as { name?: string } | null)?.name ?? 'Véhicule',
+      carName,
       input['start_date'] as string,
       input['end_date']   as string,
       input['notes']      as string | undefined,
-    ))
-    .catch((err: unknown) => console.error('[calendar] Auto-sync failed:', err));
+    );
+    calendarStatus = eventId ? `📅 Calendrier synchronisé (event: ${eventId.slice(0, 8)})` : '⚠️ Calendrier: échec sync (vérifie GOOGLE_SERVICE_ACCOUNT_JSON dans Railway)';
+  } catch (err) {
+    console.error('[calendar] Auto-sync failed:', err);
+    calendarStatus = `⚠️ Calendrier: erreur — ${err instanceof Error ? err.message : String(err)}`;
+  }
 
-  return `✅ Réservation créée — ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€ | 📅 Calendrier synchronisé`;
+  return `✅ Réservation créée — ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€ | ${calendarStatus}`;
 }
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {
