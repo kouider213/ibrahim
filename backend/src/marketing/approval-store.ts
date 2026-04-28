@@ -59,11 +59,10 @@ export function approveVideo(id: string): PendingVideo | null {
   v.status = 'approved';
   if (latestId === id) latestId = null;
 
-  supabase.from('tasks')
+  void supabase.from('tasks')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
     .eq('payload->>id', id)
-    .then(() => {})
-    .catch(() => {});
+    .then(() => {});
 
   return v;
 }
@@ -74,9 +73,8 @@ export function rejectVideo(id: string): void {
   v.status = 'rejected';
   if (latestId === id) latestId = null;
 
-  supabase.from('tasks')
+  void supabase.from('tasks')
     .update({ status: 'cancelled' })
     .eq('payload->>id', id)
-    .then(() => {})
-    .catch(() => {});
+    .then(() => {});
 }

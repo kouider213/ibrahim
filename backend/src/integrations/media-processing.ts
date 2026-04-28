@@ -610,6 +610,95 @@ function pad(num: number, size: number = 2): string {
   return String(num).padStart(size, '0');
 }
 
+// ─── VIDÉO — Générer pub TikTok depuis images ────────────────────
+
+const TIKTOK_MUSIC_URLS: Record<string, string> = {
+  upbeat:    'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+  chill:     'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+  corporate: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+  energetic: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+  emotional: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
+};
+
+export async function generateTikTokVideo(params: {
+  image_urls: string[];
+  title?: string;
+  subtitle?: string;
+  music?: string;
+  duration_per_image?: number;
+}): Promise<{ video_url: string; thumbnail_url: string }> {
+  const {
+    image_urls,
+    title = 'Fik Conciergerie Oran',
+    subtitle,
+    music = 'upbeat',
+    duration_per_image = 3,
+  } = params;
+
+  if (!image_urls.length) throw new Error('Au moins 1 image requise');
+
+  const tag = `tiktok_pub_${Date.now()}`;
+  const delayCs = duration_per_image * 100; // secondes → centisecondes
+
+  // Upload chaque image avec dimensions TikTok 9:16 + tag
+  for (const url of image_urls) {
+    const transformation: object[] = [
+      { width: 1080, height: 1920, crop: 'fill', gravity: 'auto', quality: 'auto:best' },
+    ];
+
+    // Titre en haut
+    if (title) {
+      transformation.push({
+        overlay: { font_family: 'Arial', font_size: 55, font_weight: 'bold', text: title.replace(/[,]/g, '%2C') },
+        gravity: 'north', y: 80, color: '#FFFFFF', effect: 'shadow:15',
+      } as object);
+      transformation.push({ flags: 'layer_apply' } as object);
+    }
+
+    // Sous-titre en bas
+    if (subtitle) {
+      transformation.push({
+        overlay: { font_family: 'Arial', font_size: 42, text: subtitle.replace(/[,]/g, '%2C') },
+        gravity: 'south', y: 100, color: '#FFDD00', effect: 'shadow:10',
+      } as object);
+      transformation.push({ flags: 'layer_apply' } as object);
+    }
+
+    await cloudinary.uploader.upload(url, {
+      resource_type: 'image',
+      tags: [tag],
+      transformation,
+    });
+  }
+
+  // Créer le slideshow video MP4 depuis les images taguées
+  const result = await (cloudinary.uploader as any).multi(tag, {
+    resource_type: 'image',
+    format: 'mp4',
+    delay: delayCs,
+    transformation: [{ width: 1080, height: 1920, crop: 'pad', quality: 'auto:best' }],
+  });
+
+  let videoUrl: string = result.secure_url;
+
+  // Ajouter musique de fond
+  const musicUrl = TIKTOK_MUSIC_URLS[music] ?? TIKTOK_MUSIC_URLS['upbeat'];
+  try {
+    videoUrl = await addBackgroundMusicUrl(videoUrl, musicUrl, 35);
+  } catch {
+    // Si échec musique → garder vidéo sans musique
+  }
+
+  const thumbnailUrl = cloudinary.url(result.public_id, {
+    resource_type: 'video',
+    format: 'jpg',
+    start_offset: 0,
+    quality: 'auto:best',
+  });
+
+  return { video_url: videoUrl, thumbnail_url: thumbnailUrl };
+}
+
 // ─── Add Background Music ────────────────────────────────────────
 export async function addBackgroundMusicUrl(
   videoUrl: string,

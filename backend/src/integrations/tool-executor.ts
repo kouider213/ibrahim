@@ -135,6 +135,22 @@ export async function executeTool(
       // ─── MARKETING TIKTOK ───
       case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
       case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
+      case 'generate_tiktok_video': {
+        // Si pas d'images fournies → fetch auto depuis Supabase cars
+        let imageUrls = (input['image_urls'] as string | undefined) ?? '';
+        if (!imageUrls.trim()) {
+          const vehicleName = input['title'] as string | undefined;
+          let query = supabase.from('cars').select('image_url, name').eq('available', true).limit(5);
+          if (vehicleName) query = query.ilike('name', `%${vehicleName}%`);
+          const { data: cars } = await query;
+          const urls = (cars as any[] ?? [])
+            .map((c: any) => c.image_url)
+            .filter((u: any) => typeof u === 'string' && u.startsWith('http'));
+          if (!urls.length) return 'Aucune image voiture trouvée dans Supabase. Fournis des URLs manuellement.';
+          imageUrls = urls.join(',');
+        }
+        return await executeMediaTool(name, { ...input, image_urls: imageUrls });
+      }
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {

@@ -5,11 +5,21 @@ import * as path from 'path';
 import * as os from 'os';
 // @ts-ignore — ffmpeg-static has no bundled type declarations
 import ffmpegPath from 'ffmpeg-static';
+import { v2 as cloudinary } from 'cloudinary';
+import { env } from '../config/env.js';
 import { synthesizeVoice } from '../notifications/dispatcher.js';
 import type { VideoIdea } from './market-research.js';
 import type { Car } from '../integrations/supabase.js';
 
+cloudinary.config({
+  cloud_name: env.CLOUDINARY_CLOUD_NAME ?? '',
+  api_key:    env.CLOUDINARY_API_KEY    ?? '',
+  api_secret: env.CLOUDINARY_API_SECRET ?? '',
+  secure: true,
+});
+
 export interface VideoResult {
+  video_url:        string;
   buffer:           Buffer;
   caption:          string;
   hashtags:         string[];
@@ -81,10 +91,20 @@ export async function createMarketingVideo(car: Car, idea: VideoIdea): Promise<V
     // 3. Encode MP4 (image + audio via -shortest, or 20s silent)
     await buildVideo(imagePath, hasAudio ? audioPath : null, videoPath);
 
-    // 4. Return as Buffer — caller sends directly to Telegram
+    // 4. Read buffer
     const buffer = await fs.readFile(videoPath);
 
+    // 5. Upload to Cloudinary → get persistent URL
+    const cloudUrl = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'video', folder: 'dzaryx-marketing', format: 'mp4' },
+        (err, result) => err ? reject(err) : resolve(result!.secure_url),
+      );
+      stream.end(buffer);
+    });
+
     return {
+      video_url: cloudUrl,
       buffer,
       caption:  idea.caption,
       hashtags: idea.hashtags,

@@ -572,6 +572,21 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
       required: ['video_url'],
     },
   },
+  {
+    name: 'generate_tiktok_video',
+    description: 'Créer une vraie vidéo publicitaire TikTok (MP4 9:16, 1080×1920) depuis des images de voitures. Ajoute titre, sous-titre et musique automatiquement. Utiliser quand Kouider demande de créer une pub TikTok, vidéo pub, vidéo marketing, ou vidéo pour réseaux sociaux.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_urls:         { type: 'string', description: 'URLs des images séparées par virgule. Si vide, utilise les images des voitures Fik Conciergerie.' },
+        title:              { type: 'string', description: 'Titre affiché en haut de la vidéo (défaut: "Fik Conciergerie Oran")' },
+        subtitle:           { type: 'string', description: 'Sous-titre affiché en bas (ex: "Location de voitures premium • Oran")' },
+        music:              { type: 'string', enum: ['upbeat', 'chill', 'corporate', 'energetic', 'emotional'], description: 'Style musical (défaut: upbeat)' },
+        duration_per_image: { type: 'number', description: 'Durée d\'affichage par image en secondes (défaut: 3)' },
+      },
+      required: [],
+    },
+  },
 
   // ─── TELEGRAM depuis app vocale ──────────────────────────────
   {

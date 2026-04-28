@@ -239,6 +239,31 @@ ${result.transcription}
 💡 Parfait pour teaser sur réseaux sociaux !`;
       }
 
+      case 'generate_tiktok_video': {
+        const imageUrls: string[] = Array.isArray(args.image_urls)
+          ? args.image_urls
+          : (typeof args.image_urls === 'string' ? args.image_urls.split(',').map((s: string) => s.trim()) : []);
+
+        const result = await media.generateTikTokVideo({
+          image_urls: imageUrls,
+          title:      args.title     as string | undefined,
+          subtitle:   args.subtitle  as string | undefined,
+          music:      args.music     as string | undefined,
+          duration_per_image: args.duration_per_image ? Number(args.duration_per_image) : undefined,
+        });
+
+        return `🎬 **VIDÉO TIKTOK GÉNÉRÉE** ✅
+
+🎥 **Vidéo (MP4 9:16 TikTok):**
+${result.video_url}
+
+🖼️ **Miniature:**
+${result.thumbnail_url}
+
+✅ Vidéo prête — 1080×1920px, musique de fond, texte en overlay.
+💡 Poste directement sur TikTok, Instagram Reels ou Facebook Reels.`;
+      }
+
       default:
         return `❌ Outil média inconnu: ${toolName}`;
     }
