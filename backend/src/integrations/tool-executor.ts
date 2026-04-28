@@ -1023,11 +1023,12 @@ async function createMarketingVideoTool(
 
   if (cars.length === 0) return '⚠️ Aucune voiture disponible.';
 
-  const car = carName
-    ? cars.find(c => c.name.toLowerCase().includes(carName)) ?? cars[0]
-    : cars[0];
+  const carsWithImage = cars.filter(c => c.image_url);
+  if (carsWithImage.length === 0) return '⚠️ Aucune voiture avec photo disponible — ajoute des photos dans le tableau de bord.';
 
-  if (!car.image_url) return `⚠️ Pas d'image pour ${car.name} — ajoute une photo dans le tableau de bord.`;
+  const car = carName
+    ? (cars.find(c => c.name.toLowerCase().includes(carName)) ?? carsWithImage[Math.floor(Math.random() * carsWithImage.length)])
+    : carsWithImage[Math.floor(Math.random() * carsWithImage.length)];
 
   const bgLabel = backgroundEffect ? ` (effet: ${backgroundEffect})` : '';
   await sendTelegramForMarketing(chatId, `🎬 *Création vidéo TikTok — ${car.name}*${bgLabel}...\n_Voix IA + montage en cours (30-60s)_ ⏳`);
