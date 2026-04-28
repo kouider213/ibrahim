@@ -10,6 +10,7 @@ import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
+import { addVideoToBuffer } from '../../marketing/video-buffer.js';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   analyzeImage, optimizeImage, enhanceImage, removeBackground, createSocialVariants,
@@ -67,6 +68,8 @@ router.post('/webhook', async (req, res) => {
 
   // ── VIDÉO REÇUE ──
   if (msg.video) {
+    // Store file_id in buffer so merge_videos tool can retrieve it
+    addVideoToBuffer(sessionId, msg.video.file_id);
     await handleVideoMessage(chatId, sessionId, msg);
     return;
   }

@@ -788,12 +788,24 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_marketing_video',
-    description: 'Créer une vidéo TikTok complète avec voix IA (ElevenLabs) pour une voiture de la flotte. Génère le script, la voix, monte la vidéo et l\'envoie sur Telegram pour validation. Utiliser quand Kouider dit "fais une vidéo pour la [voiture]", "crée une pub", "génère une vidéo marketing", "fais une vidéo TikTok".',
+    description: 'Créer une vidéo TikTok MP4 complète (voix française ElevenLabs + montage FFmpeg) pour une voiture de la flotte. Envoie la vidéo dans cette conversation Telegram pour validation Oke/Non. AUSSI utiliser pour MODIFIER une vidéo existante (nouveau script, nouvelle voiture, nouvel effet de fond). Utiliser quand Kouider dit "fais une vidéo", "modifie la vidéo", "change le texte par...", "mets-la sur une plage", "change de voiture".',
     input_schema: {
       type: 'object' as const,
       properties: {
-        car_name: { type: 'string', description: 'Nom ou modèle de la voiture (ex: "Dacia Duster", "BMW"). Si vide, Dzaryx choisit la meilleure option.' },
-        style:    { type: 'string', description: 'Style de vidéo souhaité: "reveal" (dévoilement), "prix" (focus prix choc), "lifestyle" (style de vie), "temoignage" (témoignage client). Défaut: Dzaryx choisit.', enum: ['reveal', 'prix', 'lifestyle', 'temoignage'] },
+        car_name:          { type: 'string', description: 'Nom ou modèle de la voiture (ex: "Dacia Duster", "Creta"). Si vide, choisit automatiquement.' },
+        style:             { type: 'string', description: 'Style: "reveal" (dévoilement), "prix" (focus prix), "lifestyle" (week-end), "temoignage" (avis client). Défaut: reveal.', enum: ['reveal', 'prix', 'lifestyle', 'temoignage'] },
+        custom_script:     { type: 'string', description: 'Texte personnalisé à dire en voix. TOUJOURS en FRANÇAIS. Exemple: "Découvrez la Creta, disponible dès maintenant à Oran pour 4500 dinars par jour !"' },
+        background_effect: { type: 'string', description: 'Effet de fond: mettre la voiture devant un décor. Valeurs: "plage", "ville", "montagne", "desert", "route", "luxe", "foret", "coucher". Utiliser quand Kouider dit "mets-la sur une plage", "fond nuit", etc.', enum: ['plage', 'ville', 'montagne', 'desert', 'route', 'luxe', 'foret', 'coucher', 'nuit'] },
+      },
+    },
+  },
+  {
+    name: 'merge_videos',
+    description: 'Fusionner plusieurs vidéos envoyées par Kouider en une seule vidéo TikTok. Utiliser quand Kouider dit "fusionne ces vidéos", "mets-les ensemble", "combine les clips". IMPORTANT: Kouider doit d\'abord envoyer les vidéos, puis demander la fusion.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Titre optionnel pour la vidéo finale.' },
       },
     },
   },

@@ -8,8 +8,9 @@ import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
-import { createMarketingVideo } from '../marketing/video-creator.js';
+import { createMarketingVideo, mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
+import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
 import {
   sendMessage as sendTelegramForMarketing,
   sendPhoto as sendTelegramPhoto,
@@ -135,22 +136,7 @@ export async function executeTool(
       // ─── MARKETING TIKTOK ───
       case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
       case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
-      case 'generate_tiktok_video': {
-        // Si pas d'images fournies → fetch auto depuis Supabase cars
-        let imageUrls = (input['image_urls'] as string | undefined) ?? '';
-        if (!imageUrls.trim()) {
-          const vehicleName = input['title'] as string | undefined;
-          let query = supabase.from('cars').select('image_url, name').eq('available', true).limit(5);
-          if (vehicleName) query = query.ilike('name', `%${vehicleName}%`);
-          const { data: cars } = await query;
-          const urls = (cars as any[] ?? [])
-            .map((c: any) => c.image_url)
-            .filter((u: any) => typeof u === 'string' && u.startsWith('http'));
-          if (!urls.length) return 'Aucune image voiture trouvée dans Supabase. Fournis des URLs manuellement.';
-          imageUrls = urls.join(',');
-        }
-        return await executeMediaTool(name, { ...input, image_urls: imageUrls });
-      }
+      case 'merge_videos':               return await mergeVideosTool(input, sessionId);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -1026,9 +1012,11 @@ async function createMarketingVideoTool(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
-  const chatId  = chatIdFromSession(sessionId);
-  const carName = (input['car_name'] as string | undefined)?.toLowerCase();
-  const style   = (input['style'] as string | undefined) ?? 'reveal';
+  const chatId          = chatIdFromSession(sessionId);
+  const carName         = (input['car_name'] as string | undefined)?.toLowerCase();
+  const style           = (input['style'] as string | undefined) ?? 'reveal';
+  const customScript    = input['custom_script'] as string | undefined;
+  const backgroundEffect = input['background_effect'] as string | undefined;
 
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
   const cars = (carsRaw ?? []) as Car[];
@@ -1041,16 +1029,19 @@ async function createMarketingVideoTool(
 
   if (!car.image_url) return `⚠️ Pas d'image pour ${car.name} — ajoute une photo dans le tableau de bord.`;
 
-  await sendTelegramForMarketing(chatId, `🎬 *Création vidéo TikTok — ${car.name}*...\n_Voix IA + montage en cours (30-60s)_ ⏳`);
+  const bgLabel = backgroundEffect ? ` (effet: ${backgroundEffect})` : '';
+  await sendTelegramForMarketing(chatId, `🎬 *Création vidéo TikTok — ${car.name}*${bgLabel}...\n_Voix IA + montage en cours (30-60s)_ ⏳`);
 
+  // French-only voiceover scripts
   const styleScripts: Record<string, string> = {
-    reveal:    `Wach tabghi tchouf akwa voiture f Oran? ${car.name} — Fik Conciergerie. ${car.base_price.toLocaleString()} DA par jour. Appelle maintenant !`,
-    prix:      `${car.name} à seulement ${car.base_price.toLocaleString()} DA par jour — c'est le meilleur prix à Oran ! Fik Conciergerie, on livre la voiture chez toi.`,
-    lifestyle: `Imagine ton weekend avec la ${car.name} à Oran — plage, montagne, famille. Fik Conciergerie — réservation en 2 minutes.`,
-    temoignage:`Wallah hada sers — ${car.name} de chez Fik Conciergerie. ${car.base_price.toLocaleString()} DA par jour, service impeccable. Je recommande à 100%.`,
+    reveal:    `Découvrez la ${car.name} — la voiture idéale pour vos déplacements à Oran. Seulement ${car.base_price.toLocaleString()} dinars par jour. Fik Conciergerie, réservez maintenant !`,
+    prix:      `Seulement ${car.base_price.toLocaleString()} dinars par jour pour la ${car.name} ! Le meilleur tarif à Oran. Fik Conciergerie — on vous livre la voiture à domicile.`,
+    lifestyle: `Imaginez votre week-end avec la ${car.name} à Oran — plage, montagne, famille. Fik Conciergerie — réservation en deux minutes.`,
+    temoignage:`Je recommande à cent pour cent ! La ${car.name} de Fik Conciergerie, ${car.base_price.toLocaleString()} dinars par jour, service impeccable. Appelez maintenant !`,
   };
 
-  const script   = styleScripts[style] ?? styleScripts['reveal'];
+  const defaultScript = styleScripts[style] ?? styleScripts['reveal'];
+  const script   = customScript ?? defaultScript;
   const caption  = `🚗 ${car.name} à Oran — ${car.base_price.toLocaleString()} DZD/j | Fik Conciergerie`;
   const hashtags = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
 
@@ -1064,7 +1055,7 @@ async function createMarketingVideoTool(
     car_suggestion:   car.name,
   };
 
-  const videoResult = await createMarketingVideo(car, idea).catch(async (err) => {
+  const videoResult = await createMarketingVideo(car, idea, { customScript, backgroundEffect }).catch(async (err) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[tool:create_marketing_video] ffmpeg failed:', msg);
     await sendTelegramForMarketing(chatId, `⚠️ Montage vidéo échoué (${msg.slice(0, 80)}) — envoi photo+voix à la place`);
@@ -1113,5 +1104,50 @@ async function createMarketingVideoTool(
     await sendTelegramPhoto(chatId, car.image_url).catch(() => {});
   });
 
-  return `✅ Vidéo MP4 créée pour ${car.name} et envoyée sur Telegram (ID: ${pendingId}). En attente de validation.`;
+  return `✅ Vidéo MP4 créée pour ${car.name} et envoyée juste au-dessus ↑ (ID: ${pendingId}). En attente de validation.`;
+}
+
+async function mergeVideosTool(
+  _input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const chatId  = chatIdFromSession(sessionId);
+  const fileIds = getVideoBuffer(sessionId ?? '');
+
+  if (fileIds.length < 2) {
+    return `⚠️ Envoie au moins 2 vidéos sur Telegram avant de demander la fusion. Tu n'as envoyé que ${fileIds.length} vidéo(s) dans cette session.`;
+  }
+
+  await sendTelegramForMarketing(chatId, `🎬 *Fusion de ${fileIds.length} vidéos en cours...*\n_Normalisation + montage_ ⏳`);
+
+  // Download all videos from Telegram
+  const { downloadFile: downloadTelegramFile } = await import('./telegram.js');
+  const buffers: Buffer[] = [];
+  for (const fileId of fileIds) {
+    const buf = await downloadTelegramFile(fileId);
+    if (!buf) {
+      await sendTelegramForMarketing(chatId, `⚠️ Impossible de télécharger la vidéo (ID: ${fileId}) — elle a peut-être expiré.`);
+      return `⚠️ Échec téléchargement d'une vidéo.`;
+    }
+    buffers.push(buf);
+  }
+
+  const merged = await mergeVideos(buffers).catch(async (err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[tool:merge_videos] failed:', msg);
+    await sendTelegramForMarketing(chatId, `⚠️ Fusion échouée: ${msg.slice(0, 120)}`);
+    return null;
+  });
+
+  if (!merged) return '⚠️ Fusion des vidéos échouée.';
+
+  clearVideoBuffer(sessionId ?? '');
+
+  const caption = `🎬 *Vidéo fusionnée — ${fileIds.length} clips*\n\nFusionnée par Dzaryx ✨`;
+  await sendVideoBuffer(chatId, merged, caption).catch(async (err) => {
+    console.error('[tool] merge sendVideoBuffer failed:', err instanceof Error ? err.message : err);
+    await sendTelegramForMarketing(chatId, `⚠️ Upload vidéo fusionnée échoué: ${err instanceof Error ? err.message : String(err)}`);
+  });
+
+  return `✅ ${fileIds.length} vidéos fusionnées et envoyées juste au-dessus ↑`;
 }
