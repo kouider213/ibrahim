@@ -499,18 +499,6 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
-    name: 'merge_videos',
-    description: 'Fusionner plusieurs vidéos en une seule (dans l\'ordre fourni).',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        video_urls: { type: 'string', description: 'URLs des vidéos séparées par virgule (ex: url1,url2,url3)' },
-        transition: { type: 'string', enum: ['none', 'fade', 'dissolve'], description: 'Transition entre clips (défaut: none)' },
-      },
-      required: ['video_urls'],
-    },
-  },
-  {
     name: 'add_subtitles',
     description: 'Générer et ajouter automatiquement des sous-titres à partir de la détection vocale IA (français, arabe, anglais).',
     input_schema: {
