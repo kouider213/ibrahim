@@ -964,8 +964,13 @@ async function getLateReturns(): Promise<string> {
 
 // ── Marketing TikTok tools ────────────────────────────────────
 
-async function runTikTokResearchTool(_sessionId?: string): Promise<string> {
-  const chatId = env.TELEGRAM_CHAT_ID ?? '809747124';
+function chatIdFromSession(sessionId?: string): string {
+  if (sessionId?.startsWith('telegram_')) return sessionId.slice('telegram_'.length);
+  return env.TELEGRAM_CHAT_ID ?? '809747124';
+}
+
+async function runTikTokResearchTool(sessionId?: string): Promise<string> {
+  const chatId = chatIdFromSession(sessionId);
 
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
   const cars = (carsRaw ?? []) as Car[];
@@ -1003,9 +1008,9 @@ async function runTikTokResearchTool(_sessionId?: string): Promise<string> {
 
 async function createMarketingVideoTool(
   input: Record<string, unknown>,
-  _sessionId?: string,
+  sessionId?: string,
 ): Promise<string> {
-  const chatId  = env.TELEGRAM_CHAT_ID ?? '809747124';
+  const chatId  = chatIdFromSession(sessionId);
   const carName = (input['car_name'] as string | undefined)?.toLowerCase();
   const style   = (input['style'] as string | undefined) ?? 'reveal';
 
@@ -1043,16 +1048,18 @@ async function createMarketingVideoTool(
     car_suggestion:   car.name,
   };
 
-  const videoResult = await createMarketingVideo(car, idea).catch(err => {
-    console.error('[tool:create_marketing_video] ffmpeg failed:', err instanceof Error ? err.message : err);
+  const videoResult = await createMarketingVideo(car, idea).catch(async (err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[tool:create_marketing_video] ffmpeg failed:', msg);
+    await sendTelegramForMarketing(chatId, `⚠️ Montage vidéo échoué (${msg.slice(0, 80)}) — envoi photo+voix à la place`);
     return null;
   });
 
   // Fallback: photo + audio separately if ffmpeg failed
   if (!videoResult) {
-    await sendTelegramPhoto(chatId, car.image_url, `📸 *${car.name}* — ${car.base_price.toLocaleString()} DZD/j`).catch(() => {});
+    await sendTelegramPhoto(chatId, car.image_url, `📸 *${car.name}* — ${car.base_price.toLocaleString()} DZD/j`);
     const audioBuffer = await synthesizeVoice(script).catch(() => null);
-    if (audioBuffer) await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+    if (audioBuffer) await sendVoiceBuffer(chatId, audioBuffer);
 
     const pendingId = await savePendingVideo({ video_url: car.image_url, caption, hashtags, car_name: car.name, car_id: car.id, script });
     await sendTelegramForMarketing(chatId, [
@@ -1086,7 +1093,8 @@ async function createMarketingVideoTool(
 
   await sendVideoBuffer(chatId, videoResult.buffer, approvalMsg).catch(async (err) => {
     console.error('[tool] sendVideoBuffer failed:', err instanceof Error ? err.message : err);
-    await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    await sendTelegramForMarketing(chatId, `⚠️ Upload vidéo échoué — voici le contenu quand même:\n\n${approvalMsg}`);
+    await sendTelegramPhoto(chatId, car.image_url).catch(() => {});
   });
 
   return `✅ Vidéo MP4 créée pour ${car.name} et envoyée sur Telegram (ID: ${pendingId}). En attente de validation.`;
