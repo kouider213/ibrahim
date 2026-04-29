@@ -1,4 +1,4 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
 
 const envSchema = z.object({
   ANTHROPIC_API_KEY:    z.string().min(1),
@@ -33,13 +33,14 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY:    z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
   ASSEMBLYAI_API_KEY:    z.string().optional(),
-
   TELEGRAM_BOT_TOKEN:     z.string().optional(),
   TELEGRAM_CHAT_ID:       z.string().optional(),
   TELEGRAM_ALLOWED_CHATS: z.string().optional(),
-  // ── TikTok Content Posting API (optionnel — pour publication automatique) ──
+  // ── TikTok Content Posting API ──
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_OPEN_ID:      z.string().optional(),
+  // ── Kling AI — Génération vidéo IA depuis image ──
+  KLING_API_KEY:       z.string().optional(),
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_URL:          z.string().url().default('http://localhost:3000'),
