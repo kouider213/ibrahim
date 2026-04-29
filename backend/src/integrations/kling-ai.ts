@@ -5,13 +5,13 @@
  */
 
 import axios from 'axios';
-import * as fs from 'fs/promises';
+import crypto from 'crypto';
 import { env } from '../config/env.js';
 
 const KLING_BASE = 'https://api.klingai.com';
 
 export interface KlingVideoOptions {
-  /** URL publique de l'image source (ou base64) */
+  /** URL publique de l'image source */
   imageUrl: string;
   /** Prompt décrivant le mouvement / scène souhaitée */
   prompt: string;
@@ -36,32 +36,28 @@ export interface KlingVideoResult {
 }
 
 /**
- * Génère un JWT pour l'API Kling AI depuis la clé API
- * Format clé: "access_key_id:access_key_secret"
+ * Génère un JWT HS256 pour l'API Kling AI
+ * Format clé attendu: "access_key_id:access_key_secret"
  */
 function buildKlingAuthHeader(): string {
   const apiKey = env.KLING_API_KEY;
   if (!apiKey) throw new Error('KLING_API_KEY non configurée dans Railway');
 
-  // Si la clé est au format "id:secret" → JWT
+  // Format "id:secret" → JWT HS256
   if (apiKey.includes(':')) {
-    const [id, secret] = apiKey.split(':');
-    // Kling utilise un JWT HS256 simple
+    const colonIdx = apiKey.indexOf(':');
+    const id       = apiKey.slice(0, colonIdx);
+    const secret   = apiKey.slice(colonIdx + 1);
+
     const header  = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const now     = Math.floor(Date.now() / 1000);
     const payload = Buffer.from(JSON.stringify({ iss: id, exp: now + 1800, nbf: now - 5 })).toString('base64url');
-
-    // HMAC-SHA256 manuel (sans librairie externe)
-    const crypto = await import('crypto');
-    const sig = crypto.default
-      .createHmac('sha256', secret)
-      .update(`${header}.${payload}`)
-      .digest('base64url');
+    const sig     = crypto.createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
 
     return `Bearer ${header}.${payload}.${sig}`;
   }
 
-  // Sinon clé directe (Bearer token)
+  // Clé directe (Bearer token simple)
   return `Bearer ${apiKey}`;
 }
 
@@ -72,10 +68,10 @@ export async function createKlingVideoTask(opts: KlingVideoOptions): Promise<str
   const auth = buildKlingAuthHeader();
 
   const body: Record<string, unknown> = {
-    model_name: 'kling-v1',
-    image_url:  opts.imageUrl,
-    prompt:     opts.prompt,
-    duration:   String(opts.duration ?? 5),
+    model_name:   'kling-v1',
+    image_url:    opts.imageUrl,
+    prompt:       opts.prompt,
+    duration:     String(opts.duration ?? 5),
     aspect_ratio: opts.aspectRatio ?? '9:16',
     mode:         opts.mode ?? 'std',
   };
@@ -127,7 +123,7 @@ export async function getKlingTaskStatus(taskId: string): Promise<KlingVideoResu
   );
 
   if (resp.data.code !== 0) {
-    throw new Error(`Kling AI status erreur ${resp.data.code}: ${resp.data.message}`);
+    throw new Error(`Kling status erreur ${resp.data.code}: ${resp.data.message}`);
   }
 
   const d = resp.data.data;
@@ -138,8 +134,8 @@ export async function getKlingTaskStatus(taskId: string): Promise<KlingVideoResu
     failed:     'failed',
   };
 
-  const status = statusMap[d.task_status] ?? 'processing';
-  const videos = d.task_result?.videos ?? [];
+  const status  = statusMap[d.task_status] ?? 'processing';
+  const videos  = d.task_result?.videos ?? [];
 
   return {
     taskId,
@@ -150,39 +146,35 @@ export async function getKlingTaskStatus(taskId: string): Promise<KlingVideoResu
 }
 
 /**
- * Attendre la fin d'une tâche Kling AI (polling jusqu'à 4 minutes)
+ * Attendre la fin d'une tâche Kling AI (polling, timeout 4min)
  */
 export async function waitForKlingVideo(taskId: string, timeoutMs = 240_000): Promise<KlingVideoResult> {
-  const start = Date.now();
-  const POLL_INTERVAL = 8_000; // 8 secondes entre chaque vérification
+  const start         = Date.now();
+  const POLL_INTERVAL = 8_000;
 
   while (Date.now() - start < timeoutMs) {
     const result = await getKlingTaskStatus(taskId);
 
     if (result.status === 'succeed') {
       if (result.videoUrl) {
-        // Télécharger la vidéo en Buffer
         const resp = await axios.get<ArrayBuffer>(result.videoUrl, {
           responseType: 'arraybuffer',
-          timeout: 60_000,
+          timeout:      60_000,
         });
         result.buffer = Buffer.from(resp.data);
       }
       return result;
     }
 
-    if (result.status === 'failed') {
-      return result;
-    }
+    if (result.status === 'failed') return result;
 
-    // Attendre avant prochain poll
-    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+    await new Promise<void>(resolve => setTimeout(resolve, POLL_INTERVAL));
   }
 
   return {
     taskId,
     status: 'failed',
-    error: `Timeout: génération Kling AI > ${timeoutMs / 1000}s`,
+    error:  `Timeout: génération Kling AI > ${timeoutMs / 1000}s`,
   };
 }
 
@@ -196,16 +188,14 @@ export async function generateKlingVideo(opts: KlingVideoOptions): Promise<Buffe
   const result = await waitForKlingVideo(taskId);
 
   if (result.status !== 'succeed' || !result.buffer) {
-    throw new Error(result.error ?? 'Génération Kling AI échouée sans erreur détaillée');
+    throw new Error(result.error ?? 'Génération Kling AI échouée');
   }
 
   console.log(`[kling] ✅ Vidéo générée (${result.buffer.length} bytes)`);
   return result.buffer;
 }
 
-/**
- * Vérifier si Kling AI est disponible (clé configurée)
- */
+/** Vérifie si Kling AI est configuré */
 export function isKlingAvailable(): boolean {
   return Boolean(env.KLING_API_KEY);
 }
