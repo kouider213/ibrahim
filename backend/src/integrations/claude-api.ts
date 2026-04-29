@@ -247,9 +247,13 @@ export async function chatWithTools(
   // ══════════════════════════════════════════════════════════════════════════
   const useWebSearch = needsWebSearch(processedMessages);
 
-  const tools: Anthropic.Tool[] = useWebSearch
-    ? [...Dzaryx_TOOLS, ANTHROPIC_WEB_SEARCH_TOOL]
+  // Quand on ajoute le server tool Anthropic web_search, retirer le tool local du même nom pour éviter le doublon → 400
+  const baseTools = useWebSearch
+    ? Dzaryx_TOOLS.filter(t => t.name !== 'web_search')
     : Dzaryx_TOOLS;
+  const tools: Anthropic.Tool[] = useWebSearch
+    ? [...baseTools, ANTHROPIC_WEB_SEARCH_TOOL]
+    : baseTools;
 
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,
