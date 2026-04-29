@@ -1035,18 +1035,44 @@ async function createMarketingVideoTool(
     : carsWithImage[Math.floor(Math.random() * carsWithImage.length)];
 
   const bgLabel = backgroundEffect ? ` (effet: ${backgroundEffect})` : '';
-  await sendTelegramForMarketing(chatId, `🎬 *Création vidéo TikTok — ${car.name}*${bgLabel}...\n_Voix IA + montage en cours (30-60s)_ ⏳`);
+  await sendTelegramForMarketing(chatId, `🎬 *Création vidéo TikTok — ${car.name}*${bgLabel}...\n_Script IA + voix ElevenLabs + montage (45-90s)_ ⏳`);
 
-  // French-only voiceover scripts
-  const styleScripts: Record<string, string> = {
-    reveal:    `Découvrez la ${car.name} — la voiture idéale pour vos déplacements à Oran. Seulement ${car.base_price.toLocaleString()} dinars par jour. Fik Conciergerie, réservez maintenant !`,
-    prix:      `Seulement ${car.base_price.toLocaleString()} dinars par jour pour la ${car.name} ! Le meilleur tarif à Oran. Fik Conciergerie — on vous livre la voiture à domicile.`,
-    lifestyle: `Imaginez votre week-end avec la ${car.name} à Oran — plage, montagne, famille. Fik Conciergerie — réservation en deux minutes.`,
-    temoignage:`Je recommande à cent pour cent ! La ${car.name} de Fik Conciergerie, ${car.base_price.toLocaleString()} dinars par jour, service impeccable. Appelez maintenant !`,
-  };
+  // Script IA dynamique si pas de custom_script
+  let script: string;
+  if (customScript) {
+    script = customScript;
+  } else {
+    const month = new Date().getMonth() + 1;
+    const season = month >= 6 && month <= 8 ? 'Saison MRE (familles diaspora, forte demande)'
+      : month === 3 || month === 4 ? 'Ramadan (sorties nocturnes, famille)'
+      : 'Période standard (clients locaux + professionnels)';
 
-  const defaultScript = styleScripts[style] ?? styleScripts['reveal'];
-  const script   = customScript ?? defaultScript;
+    const priceEur = car.resale_price ? `${car.resale_price}€` : '';
+    const priceDzd = `${car.base_price.toLocaleString()} DZD`;
+
+    const scriptResponse = await chat([{
+      role: 'user',
+      content: `Tu es un réalisateur TikTok expert pour la location de voitures à Oran, Algérie.
+Écris un script voix-off PARFAIT pour une vidéo TikTok de 20-25 secondes.
+
+VOITURE: ${car.name} (catégorie: ${car.category})
+PRIX: ${priceEur ? priceEur + '/j | ' : ''}${priceDzd}/j
+STYLE DEMANDÉ: ${style}
+SAISON: ${season}
+EFFET VISUEL: ${backgroundEffect ?? 'voiture plein écran'}
+
+RÈGLES DU SCRIPT:
+- Durée lue à voix haute: 20-25 secondes (environ 50-65 mots)
+- Langue: FRANÇAIS uniquement (pas de darija, pas d'arabe — ElevenLabs lit du français)
+- Ton: dynamique, direct, accrocheur — pas corporate
+- Mentionner le prix et Fik Conciergerie
+- Finir par un appel à l'action fort
+- Style ${style}: ${style === 'reveal' ? 'dévoilement dramatique, suspense puis révélation prix' : style === 'prix' ? 'choc du prix en premier, insister sur le rapport qualité/prix' : style === 'lifestyle' ? 'émotion, voyage, liberté, week-end parfait' : 'témoignage client enthousiaste, très authentique'}
+
+RÉPONDS UNIQUEMENT avec le script, sans guillemets ni explications.`,
+    }], undefined);
+    script = scriptResponse.text.trim().replace(/^["']|["']$/g, '');
+  }
   const caption  = `🚗 ${car.name} à Oran — ${car.base_price.toLocaleString()} DZD/j | Fik Conciergerie`;
   const hashtags = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
 
