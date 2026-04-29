@@ -109,7 +109,14 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
 };
 
 export async function initScheduler(): Promise<void> {
-  // Register all repeatable jobs
+  // Remove all existing repeatable jobs first — évite les doublons après redéploiement Railway
+  const existing = await schedulerQueue.getRepeatableJobs();
+  for (const rj of existing) {
+    await schedulerQueue.removeRepeatableByKey(rj.key);
+    console.log(`[scheduler] Cleaned: ${rj.name}`);
+  }
+
+  // Register all repeatable jobs (ardoise propre)
   for (const job of JOBS) {
     await schedulerQueue.add(
       job.name,

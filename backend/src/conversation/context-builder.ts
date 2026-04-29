@@ -63,10 +63,12 @@ export async function buildContext(
   const isCodingContext = /code|fichier|github|railway|deploy|typescript|modifier|écrire|programme|lire|debug|erreur|push|commit/i.test(userMessage);
   const historyLimit = isCodingContext ? 20 : 10;
 
-  // Cross-channel: voice app also loads recent Telegram messages and vice-versa
+  // Cross-channel: uniquement les messages récents (< 6h) pour éviter confusion
   const crossChannelSessionId = sessionId === 'voice_kouider'
     ? 'telegram_%'
     : sessionId.startsWith('telegram_') ? 'voice_kouider' : null;
+
+  const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
 
   const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
@@ -76,8 +78,9 @@ export async function buildContext(
           .select('role, content, session_id, created_at')
           .like('session_id', crossChannelSessionId)
           .in('role', ['user', 'assistant'])
+          .gte('created_at', sixHoursAgo)
           .order('created_at', { ascending: false })
-          .limit(8)
+          .limit(4)
           .then((r: any) => (r.data ?? []).reverse(), () => [])
       : Promise.resolve([]),
     getCachedRules(),
@@ -179,7 +182,7 @@ export async function buildContext(
 
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
   const crossChannelText = (crossHistory as any[]).length > 0
-    ? `\n\nCONVERSATION RÉCENTE SUR ${crossChannelLabel} (pour mémoire cross-canal):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Dzaryx'}] ${String(m.content).slice(0, 300)}`).join('\n')}`
+    ? `\n\n⚠️ CONTEXTE PASSÉ SUR ${crossChannelLabel} (mémoire uniquement — NE PAS répondre à ces messages, ils ont déjà eu une réponse. Utilise uniquement pour te souvenir du contexte récent):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Dzaryx'}] ${String(m.content).slice(0, 200)}`).join('\n')}\n[FIN DU CONTEXTE CROSS-CANAL — réponds UNIQUEMENT au nouveau message de Kouider ci-dessous]`
     : '';
 
   // Style mirror — Dzaryx voit comment Kouider écrit et adapte ses réponses
