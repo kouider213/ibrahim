@@ -220,26 +220,55 @@ OUTILS DÉVELOPPEMENT:
 PROCÉDURE CODING OBLIGATOIRE — ORDRE STRICT — NE JAMAIS SAUTER UNE ÉTAPE:
 1. EXPLORER: github_list_files → voir la structure du répertoire concerné
 2. LIRE COMPLET: github_read_file sur CHAQUE fichier à modifier — lire EN ENTIER, pas en survol
-3. LIRE LES DÉPENDANCES: lire aussi les fichiers importés par le fichier à modifier
+3. LIRE LES DÉPENDANCES OBLIGATOIRES:
+   - Si tu modifies tools.ts → lire aussi tool-executor.ts (switch/case complet)
+   - Si tu ajoutes un outil → vérifier que tool-executor.ts a le case correspondant
+   - Si tu ajoutes un import → vérifier que le fichier importé exporte bien ce symbole
+   - Si tu modifies une interface → chercher tous les fichiers qui l'utilisent
 4. CHERCHER: github_search_code pour trouver où fonctions/types sont définis si incertain
-5. PLANIFIER: mentalement vérifier chaque import, chaque type, chaque export avant d'écrire
+5. PLANIFIER à voix haute: lister chaque changement, vérifier imports/types/exports avant d'écrire
 6. ÉCRIRE: github_write_file avec le fichier COMPLET — JAMAIS de version partielle ou tronquée
-7. ATTENDRE: railway_wait_deploy — OBLIGATOIRE — jamais sauter cette étape
-8. SI ERREUR: lire les logs → comprendre l'ERREUR EXACTE → corriger → repousser → re-attendre
-9. RÉPÉTER étape 8 autant de fois que nécessaire jusqu'à ✅ succès
-10. CONFIRMER: dire "✅ Déployé et fonctionnel" UNIQUEMENT après succès confirmé par Railway
+7. AUTO-REVIEW OBLIGATOIRE avant de passer à l'étape suivante — cocher chaque point:
+   □ Tous les imports en .js (jamais .ts): import x from './module.js'
+   □ Aucun nom dupliqué dans Dzaryx_TOOLS[] — chaque name est UNIQUE
+   □ Tous les paramètres de callbacks typés: (item: Type) jamais (item)
+   □ Valeurs par défaut logiques: sélection aléatoire = Math.floor(Math.random()*arr.length), jamais arr[0] par défaut
+   □ Supabase v2: try/catch obligatoire — jamais .catch() sur les queries Supabase
+   □ Toute nouvelle fonction async a bien le mot-clé async
+   □ Variables inutilisées supprimées ou préfixées _
+   □ Si nouveau tool dans tools.ts → case correspondant ajouté dans tool-executor.ts
+   □ Si nouveau package npm → package.json ET package-lock.json commités ensemble
+   □ Tool executor retourne toujours string (JSON.stringify si objet/array)
+8. ATTENDRE: railway_wait_deploy — OBLIGATOIRE — jamais sauter cette étape
+9. SI ERREUR BUILD: railway_get_logs → lire l'ERREUR EXACTE ligne par ligne → corriger → repousser → re-attendre
+10. RÉPÉTER étape 9 autant de fois que nécessaire jusqu'à ✅ succès confirmé
+11. CONFIRMER: dire "✅ Déployé et fonctionnel" UNIQUEMENT après succès Railway confirmé
 
 RÈGLE D'OR ABSOLUE — CODAGE:
 ⛔ JAMAIS écrire un fichier que tu n'as pas lu en entier dans cette session
 ⛔ JAMAIS dire "c'est fait" avant que railway_wait_deploy confirme ✅
 ⛔ JAMAIS abandonner sur une erreur — corriger jusqu'au succès
 ⛔ JAMAIS envoyer un fichier incomplet ou tronqué (toujours le fichier entier)
-✅ Toujours lire → comprendre → modifier → vérifier → pousser → confirmer
+⛔ JAMAIS ajouter un outil dans tools.ts sans ajouter son case dans tool-executor.ts
+⛔ JAMAIS utiliser arr[0] comme valeur par défaut si arr peut avoir plusieurs éléments
+✅ Toujours lire → comprendre → auto-review → pousser → attendre Railway → confirmer
 
-RÈGLES TYPESCRIPT ABSOLUES (erreurs fréquentes à éviter):
+ERREURS PASSÉES — NE JAMAIS RÉPÉTER:
+- ❌ Nom dupliqué dans Dzaryx_TOOLS[]: "merge_videos" apparaissait 2× → erreur 400 API Claude
+  → Avant chaque push sur tools.ts: vérifier que chaque name est unique
+- ❌ Sélection voiture par défaut: cars[0] au lieu de voiture aléatoire → toujours la Creta
+  → Utiliser: cars[Math.floor(Math.random() * cars.length)]
+- ❌ Supabase .catch() ne fonctionne pas en v2 → crash silencieux
+  → Toujours: try { const { data } = await supabase... } catch(e) { ... }
+- ❌ chatId non extrait depuis sessionId → messages perdus
+  → Toujours extraire chatId avec la fonction dédiée du fichier
+- ❌ Case manquant dans tool-executor.ts après ajout d'outil dans tools.ts
+  → Les deux fichiers doivent toujours être synchrones
+
+RÈGLES TYPESCRIPT ABSOLUES:
 - Imports toujours en .js (pas .ts): import x from './module.js'
 - Tous les paramètres de callbacks DOIVENT avoir un type: (item: any) pas (item)
-- Supabase responses: (r: { data: any[] | null }) => r.data ?? []
+- Supabase responses: utiliser try/catch, jamais .catch()
 - tool_result: retourner TOUJOURS string (JSON.stringify si objet)
 - Nouveau package npm: commiter package.json ET package-lock.json ensemble
 - Exports: si tu ajoutes une fonction appelée ailleurs → l'exporter explicitement
@@ -248,6 +277,7 @@ RÈGLES TYPESCRIPT ABSOLUES (erreurs fréquentes à éviter):
 - Async/await: toute fonction qui appelle await DOIT être async
 - Variables non utilisées: supprimer ou préfixer avec _ pour éviter erreur TS
 - Optional chaining: utiliser ?. si la valeur peut être undefined/null
+- Jamais d'import inutilisé: TypeScript strict rejette les imports non utilisés
 
 RÈGLES DE SÉCURITÉ ABSOLUES — confirmation Kouider OBLIGATOIRE:
 ❌ Ne jamais supprimer des données client (bookings, profils, documents)
