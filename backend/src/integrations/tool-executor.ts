@@ -141,6 +141,10 @@ export async function executeTool(
       // ─── VEILLE CONCURRENTIELLE ───
       case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId);
       case 'watch_my_tiktok':            return await watchMyTiktok(input);
+      // ─── GÉNÉRATION IA (Replicate + fal.ai) ───
+      case 'generate_image':             return await generateImageTool(input, sessionId);
+      case 'generate_ai_video':          return await generateAiVideoTool(input, sessionId);
+      case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -1320,4 +1324,214 @@ Si les données sont limitées (TikTok bloque souvent les scrapers), dis-le et p
   }], undefined);
 
   return analysis.text;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── GÉNÉRATION IA — Replicate (images) + fal.ai (vidéos) ─────
+// ════════════════════════════════════════════════════════════════
+
+async function replicateGenerate(
+  model: string,
+  input: Record<string, unknown>,
+  token: string,
+  maxMs = 120_000,
+): Promise<string> {
+  const createResp = await axios.post(
+    `https://api.replicate.com/v1/models/${model}/predictions`,
+    { input },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Prefer: 'wait=10',
+      },
+      timeout: 30_000,
+    },
+  );
+
+  type Prediction = { id: string; status: string; output: unknown; error?: string };
+  let pred = createResp.data as Prediction;
+
+  if (pred.status === 'succeeded') {
+    const out = Array.isArray(pred.output) ? pred.output[0] : pred.output;
+    return String(out);
+  }
+
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    await new Promise(r => setTimeout(r, 3000));
+    const poll = await axios.get(`https://api.replicate.com/v1/predictions/${pred.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15_000,
+    });
+    pred = poll.data;
+    if (pred.status === 'succeeded') {
+      const out = Array.isArray(pred.output) ? pred.output[0] : pred.output;
+      return String(out);
+    }
+    if (pred.status === 'failed' || pred.status === 'canceled') {
+      throw new Error(`Replicate: ${pred.error ?? 'prediction failed'}`);
+    }
+  }
+  throw new Error('Replicate: timeout après 2 minutes');
+}
+
+async function falGenerate(
+  modelId: string,
+  input: Record<string, unknown>,
+  falKey: string,
+  maxMs = 180_000,
+): Promise<string> {
+  // Submit to fal.ai queue
+  const submitResp = await axios.post(
+    `https://queue.fal.run/${modelId}`,
+    input,
+    {
+      headers: {
+        Authorization: `Key ${falKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 30_000,
+    },
+  );
+
+  type FalQueue = { request_id: string; status?: string };
+  const { request_id } = submitResp.data as FalQueue;
+
+  // Poll for completion
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    await new Promise(r => setTimeout(r, 4000));
+    const statusResp = await axios.get(
+      `https://queue.fal.run/${modelId}/requests/${request_id}/status`,
+      { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 },
+    );
+    const { status } = statusResp.data as { status: string };
+    if (status === 'COMPLETED') break;
+    if (status === 'FAILED') throw new Error('fal.ai: prediction failed');
+  }
+
+  // Fetch result
+  const resultResp = await axios.get(
+    `https://queue.fal.run/${modelId}/requests/${request_id}`,
+    { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 },
+  );
+
+  const result = resultResp.data as Record<string, unknown>;
+  // fal.ai returns { video: { url } } or { images: [{ url }] }
+  const videoUrl = (result['video'] as any)?.url as string | undefined;
+  if (videoUrl) return videoUrl;
+  const images = result['images'] as any[] | undefined;
+  if (images?.[0]?.url) return images[0].url as string;
+  return JSON.stringify(result);
+}
+
+async function generateImageTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const token = env.REPLICATE_API_TOKEN;
+  if (!token) return '❌ REPLICATE_API_TOKEN non configuré dans Railway. Ajoute-le dans Railway → Variables.';
+
+  const prompt      = input['prompt'] as string;
+  const aspectRatio = (input['aspect_ratio'] as string) ?? '9:16';
+  const style       = (input['style'] as string) ?? 'photorealistic';
+  const chatId      = chatIdFromSession(sessionId);
+
+  const styleModifier: Record<string, string> = {
+    photorealistic: 'ultra-realistic, photographic, DSLR quality, 4K',
+    cinematic:      'cinematic photography, film grain, professional lighting, movie scene',
+    artistic:       'artistic, vibrant colors, creative composition',
+    luxury:         'luxury brand photography, glossy, premium, elegant',
+  };
+
+  const fullPrompt = `${prompt}, ${styleModifier[style] ?? styleModifier['photorealistic']}`;
+
+  await sendTelegramForMarketing(chatId, `🎨 *Génération image IA — Flux.1*\n_"${prompt.slice(0, 80)}"_\n⏳ 15-30 secondes...`);
+
+  const imageUrl = await replicateGenerate(
+    'black-forest-labs/flux-1.1-pro',
+    {
+      prompt:         fullPrompt,
+      aspect_ratio:   aspectRatio,
+      output_format:  'jpg',
+      output_quality: 90,
+      safety_tolerance: 2,
+    },
+    token,
+    90_000,
+  );
+
+  await sendTelegramPhoto(chatId, imageUrl, `🎨 *Image générée — Flux.1 Pro*\n_${prompt.slice(0, 100)}_`);
+  return `✅ Image Flux.1 générée et envoyée sur Telegram ↑\nURL: ${imageUrl}`;
+}
+
+async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const falKey = env.FAL_KEY;
+  if (!falKey) return '❌ FAL_KEY non configuré dans Railway. Ajoute-le dans Railway → Variables.';
+
+  const prompt   = input['prompt'] as string;
+  const duration = Number(input['duration'] ?? 5) as 5 | 10;
+  const chatId   = chatIdFromSession(sessionId);
+
+  await sendTelegramForMarketing(chatId, `🎬 *Génération vidéo IA — Kling 1.6*\n_"${prompt.slice(0, 80)}"_\n⏳ 60-120 secondes, patience...`);
+
+  const videoUrl = await falGenerate(
+    'fal-ai/kling-video/v1.6/standard/text-to-video',
+    {
+      prompt,
+      duration:     String(duration),
+      aspect_ratio: '9:16',
+    },
+    falKey,
+    180_000,
+  );
+
+  const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+  const buffer = Buffer.from(resp.data as ArrayBuffer);
+
+  await sendVideoBuffer(chatId, buffer, `🎬 *Vidéo IA — Kling 1.6*\n_${prompt.slice(0, 100)}_`);
+  return `✅ Vidéo IA créée (Kling 1.6) et envoyée sur Telegram ↑`;
+}
+
+async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const falKey = env.FAL_KEY;
+  if (!falKey) return '❌ FAL_KEY non configuré dans Railway. Ajoute-le dans Railway → Variables.';
+
+  const chatId       = chatIdFromSession(sessionId);
+  const carName      = input['car_name'] as string | undefined;
+  const motionPrompt = (input['motion_prompt'] as string) ?? 'car moving forward smoothly, cinematic camera pan, golden hour lighting';
+
+  let imageUrl = input['image_url'] as string | undefined;
+  let displayName = 'voiture';
+
+  if (!imageUrl) {
+    const { data: cars } = await supabase.from('cars').select('name, image_url').eq('available', true);
+    const pool = carName
+      ? (cars ?? []).filter((c: any) => c.name.toLowerCase().includes(carName.toLowerCase()) && c.image_url)
+      : (cars ?? []).filter((c: any) => c.image_url);
+    const car = pool[0] as any;
+    if (!car?.image_url) {
+      return '❌ Aucune voiture avec photo trouvée. Précise car_name ou fournis image_url.';
+    }
+    imageUrl    = car.image_url as string;
+    displayName = car.name as string;
+  }
+
+  await sendTelegramForMarketing(chatId, `🎬 *Animation photo IA — Kling 1.6*\n_${displayName} · "${motionPrompt.slice(0, 60)}"_\n⏳ 60-90 secondes...`);
+
+  const videoUrl = await falGenerate(
+    'fal-ai/kling-video/v1.6/standard/image-to-video',
+    {
+      image_url:    imageUrl,
+      prompt:       motionPrompt,
+      duration:     '5',
+      aspect_ratio: '9:16',
+    },
+    falKey,
+    180_000,
+  );
+
+  const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+  const buffer = Buffer.from(resp.data as ArrayBuffer);
+
+  await sendVideoBuffer(chatId, buffer, `🎬 *${displayName} animé — Kling 1.6*\n_${motionPrompt.slice(0, 80)}_`);
+  return `✅ Photo de ${displayName} animée (Kling 1.6) et envoyée sur Telegram ↑`;
 }

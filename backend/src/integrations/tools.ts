@@ -820,4 +820,43 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+
+  // ─── GÉNÉRATION IA (Replicate + fal.ai) ──────────────────────
+  {
+    name: 'generate_image',
+    description: 'Générer une image ultra-réaliste avec l\'IA Flux.1 (qualité Midjourney). Utiliser quand Kouider dit "génère une image", "crée une photo de...", "fais-moi une image...", "génère une photo de voiture". Envoie l\'image directement sur Telegram.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        prompt:       { type: 'string', description: 'Description précise de l\'image à générer (en anglais pour meilleur résultat). Ex: "luxury Renault Duster SUV on Oran beach, golden sunset, cinematic photography, 4K"' },
+        aspect_ratio: { type: 'string', enum: ['9:16', '16:9', '1:1', '4:3'], description: 'Format de l\'image. Défaut: 9:16 (TikTok/Stories). 16:9 pour YouTube/Web, 1:1 pour Instagram.' },
+        style:        { type: 'string', enum: ['photorealistic', 'cinematic', 'artistic', 'luxury'], description: 'Style visuel. Défaut: photorealistic.' },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'generate_ai_video',
+    description: 'Générer une vidéo IA depuis un texte (qualité Kling/Runway). Utiliser quand Kouider dit "génère une vidéo IA de...", "crée une vidéo avec IA", "génère une vidéo de [scène]". ⚠️ Prend 60-120 secondes. Envoie la vidéo directement sur Telegram.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        prompt:   { type: 'string', description: 'Description de la vidéo à générer (en anglais pour meilleur résultat). Ex: "luxury SUV driving through Oran coastal road at sunset, cinematic slow motion, 4K"' },
+        duration: { type: 'number', enum: [5, 10], description: 'Durée en secondes (5 ou 10). Défaut: 5.' },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'animate_car_photo',
+    description: 'Animer une photo de voiture existante avec l\'IA Kling (image → vidéo cinématique). Utiliser quand Kouider dit "anime la photo de [voiture]", "transforme cette photo en vidéo", "fais bouger la voiture". ⚠️ Prend 60-90 secondes. Envoie la vidéo sur Telegram.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:      { type: 'string', description: 'Nom de la voiture de la flotte (ex: "Duster", "Clio"). Si vide, choisit automatiquement.' },
+        image_url:     { type: 'string', description: 'URL d\'une photo à animer (optionnel — sans = utilise photo de la flotte).' },
+        motion_prompt: { type: 'string', description: 'Description du mouvement voulu (en anglais). Défaut: "car moving forward smoothly, cinematic camera pan, golden hour lighting".' },
+      },
+    },
+  },
 ];
