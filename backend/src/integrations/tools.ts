@@ -797,4 +797,27 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+  // ── VEILLE CONCURRENTIELLE ────────────────────────────────────
+  {
+    name: 'analyze_competitors',
+    description: 'Analyser la concurrence location voiture à Oran sur TikTok, Telegram et web. Recherche promos, prix, vidéos publiées par les concurrents. Compare avec les prix de Fik Conciergerie et donne des conseils stratégiques. Utiliser quand Kouider dit "regarde ce que font les concurrents", "didanolocation a publié quoi", "est-on compétitif", "analyse la concurrence", "que font mes concurrents".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        competitor: { type: 'string', description: 'Nom ou handle du concurrent (ex: "didanolocation", "auto location oran"). Si vide, cherche tous les concurrents connus.' },
+        platform:   { type: 'string', enum: ['tiktok', 'telegram', 'all'], description: 'Plateforme à surveiller (défaut: all)' },
+        generate_counter_video: { type: 'boolean', description: 'Si true et une promo concurrente est détectée, crée automatiquement une vidéo de réponse TikTok.' },
+      },
+    },
+  },
+  {
+    name: 'watch_my_tiktok',
+    description: 'Voir les stats et vidéos récentes du TikTok de Fik Conciergerie. Analyse ce qui performe, ce qui manque, et donne des recommandations. Utiliser quand Kouider dit "regarde mon TikTok", "comment va mon compte", "mes vidéos performent comment", "stats TikTok".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        handle: { type: 'string', description: 'Handle TikTok sans @. Si vide, utilise le compte Fik Conciergerie configuré.' },
+      },
+    },
+  },
 ];

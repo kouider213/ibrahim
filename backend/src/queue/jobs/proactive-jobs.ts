@@ -788,6 +788,74 @@ export async function jobWhatsAppReturnReminders(_job: Job): Promise<void> {
   }
 }
 
+// ── Veille concurrents — lundi + jeudi 11h ───────────────────
+export async function jobCompetitorWatch(_job: Job): Promise<void> {
+  console.log('[job:competitor-watch] Démarrage veille concurrence...');
+  try {
+    const queries = [
+      'didanolocation tiktok location voiture oran promo',
+      'location voiture oran tiktok video récente',
+      'location voiture oran telegram prix promo',
+      'concurrence location auto oran algerie',
+    ];
+
+    const results = await Promise.all(queries.map(async q => {
+      const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(q)}`, {
+        headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+        timeout: 15_000,
+      }).catch(() => ({ data: '' }));
+      return `[${q}]\n${(typeof data === 'string' ? data : '').slice(0, 1200)}`;
+    }));
+
+    const { formatPricingTable } = await import('../../config/pricing.js');
+    const pricing = formatPricingTable();
+
+    const { data: carsRaw } = await supabase.from('cars').select('name, resale_price').eq('available', true);
+    const availableNames = (carsRaw ?? []).map((c: any) => `${(c as { name: string; resale_price: number }).name} (${(c as { name: string; resale_price: number }).resale_price}€/j)`).join(', ');
+
+    const analysis = await chat([{
+      role: 'user',
+      content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
+Analyse la concurrence location voiture Oran pour cette semaine.
+
+RÉSULTATS RECHERCHE WEB:
+${results.join('\n\n---\n\n')}
+
+NOS PRIX (prix Kouider):
+${pricing}
+
+NOS VOITURES DISPONIBLES: ${availableNames || 'Toute la flotte'}
+
+Donne un rapport court en français pour Telegram (markdown):
+
+🕵️ **CE QUE FONT LES CONCURRENTS CETTE SEMAINE**
+(promos, prix trouvés, vidéos TikTok, contenus Telegram)
+
+📊 **ON EST COMPÉTITIF ?**
+(sur quels modèles oui/non, et à quel prix)
+
+⚡ **ACTION IMMÉDIATE**
+(une seule chose concrète à faire MAINTENANT)
+
+Si aucune info concrète trouvée: dis-le clairement et propose une stratégie proactive.
+Format court, 10 lignes max.`,
+    }], undefined);
+
+    const msg = [
+      `🕵️ *VEILLE CONCURRENCE — ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}*`,
+      ``,
+      analysis.text,
+      ``,
+      `💡 _Réponds "vidéo concurrence" pour que je crée une contre-pub, ou "analyse didanolocation" pour cibler un concurrent._`,
+    ].join('\n');
+
+    await tg(msg);
+    console.log('[job:competitor-watch] ✅ Rapport envoyé');
+  } catch (err) {
+    console.error('[job:competitor-watch] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ── Veille Anthropic — chaque dimanche 10h ────────────────────
 export async function jobAnthropicWatch(_job: Job): Promise<void> {
   try {

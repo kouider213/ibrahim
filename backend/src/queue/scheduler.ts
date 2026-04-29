@@ -14,6 +14,7 @@ import {
   jobWhatsApp24hReminders,
   jobWhatsAppReturnReminders,
   jobAnthropicWatch,
+  jobCompetitorWatch,
 } from './jobs/proactive-jobs.js';
 import { notifyOwner } from '../notifications/pushover.js';
 import { sendMessage as sendTelegram } from '../integrations/telegram.js';
@@ -90,6 +91,11 @@ const JOBS = [
     cron:  '0 10 * * 0',       // 10h chaque dimanche — veille nouveautés Anthropic
     tz:    'Europe/Brussels',
   },
+  {
+    name:  'competitor-watch',
+    cron:  '0 11 * * 1,4',    // 11h lundi + jeudi — veille concurrence TikTok/Telegram
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -106,6 +112,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'wa-24h-reminders':         jobWhatsApp24hReminders,
   'wa-return-reminders':      jobWhatsAppReturnReminders,
   'anthropic-watch':          jobAnthropicWatch,
+  'competitor-watch':         jobCompetitorWatch,
 };
 
 export async function initScheduler(): Promise<void> {

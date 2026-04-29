@@ -3,7 +3,8 @@ import { createCalendarEvent, syncPendingBookings, listUpcomingEvents } from './
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
-import { learnRule } from './claude-api.js';
+import { learnRule, chat } from './claude-api.js';
+import { formatPricingTable } from '../config/pricing.js';
 import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
@@ -137,6 +138,9 @@ export async function executeTool(
       case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
       case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
       case 'merge_videos':               return await mergeVideosTool(input, sessionId);
+      // ─── VEILLE CONCURRENTIELLE ───
+      case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId);
+      case 'watch_my_tiktok':            return await watchMyTiktok(input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -1151,4 +1155,143 @@ async function mergeVideosTool(
   });
 
   return `✅ ${fileIds.length} vidéos fusionnées et envoyées juste au-dessus ↑`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── VEILLE CONCURRENTIELLE ────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+
+const KNOWN_COMPETITORS = [
+  'didanolocation',
+  'location voiture oran',
+  'car rental oran algerie',
+];
+
+async function jSearch(query: string, maxChars = 1500): Promise<string> {
+  try {
+    const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(query)}`, {
+      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      timeout: 15_000,
+    });
+    return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
+  } catch {
+    return 'Aucun résultat.';
+  }
+}
+
+async function jFetch(url: string, maxChars = 2500): Promise<string> {
+  try {
+    const { data } = await axios.get(`https://r.jina.ai/${encodeURIComponent(url)}`, {
+      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      timeout: 20_000,
+    });
+    return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
+  } catch {
+    return 'Page inaccessible.';
+  }
+}
+
+async function analyzeCompetitors(input: Record<string, unknown>, sessionId: string): Promise<string> {
+  const competitor = input['competitor'] as string | undefined;
+  const platform   = (input['platform'] as string | undefined) ?? 'all';
+  const makeVideo  = input['generate_counter_video'] as boolean | undefined;
+
+  const queries: string[] = competitor
+    ? [
+        `"${competitor}" tiktok location voiture oran`,
+        `"${competitor}" prix promo voiture algérie`,
+        platform !== 'tiktok' ? `"${competitor}" telegram location voiture` : '',
+      ].filter(Boolean)
+    : [
+        'didanolocation tiktok location voiture oran promo',
+        'location voiture oran tiktok video récente',
+        'location voiture oran telegram prix promo',
+        'concurrence location auto oran algerie 2025',
+      ];
+
+  const results = await Promise.all(queries.map(async q => `[${q}]\n${await jSearch(q)}`));
+  const pricing  = formatPricingTable();
+
+  const analysis = await chat([{
+    role: 'user',
+    content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
+Analyse ces résultats de recherche sur la concurrence locale en location de voitures.
+
+RÉSULTATS:
+${results.join('\n\n---\n\n')}
+
+GRILLE TARIFAIRE FIK CONCIERGERIE (prix Kouider):
+${pricing}
+
+Réponds en français, format structuré pour Telegram (markdown):
+
+**🕵️ CE QUE FONT LES CONCURRENTS**
+(promos détectées, prix trouvés, véhicules mis en avant, contenus TikTok/Telegram)
+
+**📊 COMPARAISON AVEC NOS PRIX**
+(on est moins cher / plus cher / équivalent — par véhicule si possible)
+
+**⚡ ACTION RECOMMANDÉE MAINTENANT**
+(une seule action précise: ex "Publier une vidéo Clio 4 à 35€/jour ce soir" ou "Baisser le prix du Duster de 50→45€")
+
+**📱 IDÉE DE CONTRE-PUB**
+(script court 15 sec pour TikTok si une promo concurrente a été détectée)
+
+Si aucune info concrète trouvée: dis-le clairement et propose une stratégie proactive.`,
+  }], undefined);
+
+  const chatId = sessionId.startsWith('telegram_') ? sessionId.replace('telegram_', '') : (process.env['TELEGRAM_CHAT_ID'] ?? '');
+
+  if (makeVideo && chatId) {
+    await sendTelegramForMarketing(chatId, `${analysis.text}\n\n⏳ _Création de la contre-pub en cours..._`);
+    const { data: cars } = await supabase.from('cars').select('*').eq('available', true).limit(1);
+    const car = (cars ?? [])[Math.floor(Math.random() * (cars ?? []).length)] as Car | undefined;
+    if (car) {
+      await createMarketingVideoTool({ car_name: car.name, style: 'prix' }, sessionId);
+    }
+    return '✅ Analyse concurrents envoyée + vidéo contre-pub créée.';
+  }
+
+  return analysis.text;
+}
+
+async function watchMyTiktok(input: Record<string, unknown>): Promise<string> {
+  const handle = ((input['handle'] as string | undefined) ?? 'fikconciergerieoran').replace('@', '');
+
+  const [profileData, searchData] = await Promise.all([
+    jFetch(`https://www.tiktok.com/@${handle}`, 3000),
+    jSearch(`@${handle} tiktok location voiture oran fik conciergerie`, 2000),
+  ]);
+
+  const analysis = await chat([{
+    role: 'user',
+    content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran. Analyse notre compte TikTok @${handle}.
+
+DONNÉES PROFIL TIKTOK:
+${profileData}
+
+RÉSULTATS RECHERCHE:
+${searchData}
+
+Analyse en français, format Telegram (markdown):
+
+**📊 ÉTAT DU COMPTE @${handle}**
+(abonnés, vues, engagement approximatif si visible)
+
+**🎬 VIDÉOS RÉCENTES**
+(titres, sujets, performance si disponible)
+
+**✅ CE QUI FONCTIONNE**
+(types de contenu qui marchent bien)
+
+**❌ CE QUI MANQUE**
+(opportunités non exploitées, types de vidéos à essayer)
+
+**🚀 3 RECOMMANDATIONS CONCRÈTES**
+(actions spécifiques à faire cette semaine)
+
+Si les données sont limitées (TikTok bloque souvent les scrapers), dis-le et propose quand même des pistes basées sur les bonnes pratiques du secteur location voiture Oran.`,
+  }], undefined);
+
+  return analysis.text;
 }
