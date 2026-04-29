@@ -324,43 +324,61 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 // ════════════════════════════════════════════════════════════════
 
 export async function jobUnpaidReminder(_job: Job): Promise<void> {
-  console.log('[job:unpaid-reminder] Démarrage vérification impayés...');
+  console.log('[job:unpaid-reminder] Démarrage vérification soldes...');
 
-  // 1. Récupérer toutes les réservations impayées/partielles actives
-  const { data: bookings, error } = await supabase
+  const today = new Date().toISOString().slice(0, 10);
+
+  // ── RÈGLE ABSOLUE Fik Conciergerie (clients MRE) ──────────────
+  // 1. Client réserve → paie ACOMPTE → booking créé (PARTIAL ou PENDING)
+  // 2. Client arrive à Oran → reçoit les clés → paie le SOLDE
+  // 3. JAMAIS relancer un client pour le solde avant start_date
+  //    (il n'a pas encore les clés = il ne doit rien de plus)
+  // 4. Relancer le solde UNIQUEMENT si start_date passé ET voiture remise (ACTIVE/COMPLETED)
+  // ──────────────────────────────────────────────────────────────
+
+  // Cas 1 — Solde dû: client a la voiture (start_date passé, ACTIVE/COMPLETED, encore dû)
+  const { data: activeUnpaid } = await supabase
     .from('bookings')
     .select('id, client_name, client_phone, final_price, paid_amount, payment_status, created_at, start_date, end_date, cars(name)')
     .in('payment_status', ['PENDING', 'PARTIAL'])
-    .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-    .order('created_at', { ascending: true });
+    .in('status', ['ACTIVE', 'COMPLETED'])
+    .lte('start_date', today)
+    .order('start_date', { ascending: true });
 
-  if (error) {
-    console.error('[job:unpaid-reminder] Erreur Supabase:', error.message);
-    return;
-  }
+  // Cas 2 — Acompte manquant: client CONFIRMED, start_date dans 3 jours ou moins, aucun paiement
+  const threeDaysFromNow = new Date();
+  threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+  const threeDaysStr = threeDaysFromNow.toISOString().slice(0, 10);
 
-  if (!bookings?.length) {
-    console.log('[job:unpaid-reminder] ✅ Aucun impayé trouvé.');
-    return;
-  }
+  const { data: pendingNoDeposit } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, final_price, paid_amount, payment_status, created_at, start_date, end_date, cars(name)')
+    .eq('payment_status', 'PENDING')
+    .eq('paid_amount', 0)
+    .eq('status', 'CONFIRMED')
+    .gt('start_date', today)
+    .lte('start_date', threeDaysStr)
+    .order('start_date', { ascending: true });
 
   const now = new Date();
-  let attempt1Count = 0;
-  let attempt2Count = 0;
-  let urgentCount   = 0;
+  let soldeCount = 0;
+  let acompteCount = 0;
+  let urgentCount = 0;
 
-  for (const booking of bookings as any[]) {
-    const bookingId  = booking.id as string;
-    const clientName = booking.client_name as string;
+  // ── Traitement des SOLDES DÛS (voiture déjà remise) ──────────
+  for (const booking of (activeUnpaid ?? []) as any[]) {
+    const bookingId   = booking.id as string;
+    const clientName  = booking.client_name as string;
     const clientPhone = booking.client_phone as string | null;
-    const carName    = (booking.cars as any)?.name ?? 'Véhicule';
-    const total      = booking.final_price as number ?? 0;
-    const paid       = booking.paid_amount as number ?? 0;
-    const remaining  = total - paid;
-    const createdAt  = new Date(booking.created_at);
-    const hoursOld   = (now.getTime() - createdAt.getTime()) / 3_600_000;
+    const carName     = (booking.cars as any)?.name ?? 'Véhicule';
+    const total       = Number(booking.final_price ?? 0);
+    const paid        = Number(booking.paid_amount ?? 0);
+    const remaining   = total - paid;
+    const startDate   = booking.start_date as string;
+    const daysWithCar = Math.floor((now.getTime() - new Date(startDate).getTime()) / 86_400_000);
 
-    // Récupérer les logs de relance existants pour cette réservation
+    if (remaining <= 0) continue;
+
     const { data: logs } = await supabase
       .from('relance_logs')
       .select('attempt, sent_at')
@@ -371,138 +389,109 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
     const attempt1Log = existingAttempts.find(l => l.attempt === 1);
     const attempt2Log = existingAttempts.find(l => l.attempt === 2);
 
-    // ── Relance 1: ≥48h sans paiement et pas encore relancé ──
-    if (!attempt1Log && hoursOld >= 48) {
-      const whatsappMsg = generateRelanceMessage(clientName, remaining, carName, 1);
-      const tgMessage   = buildTelegramRelance(clientName, clientPhone, carName, remaining, total, paid, 1, Math.floor(hoursOld));
-
-      await tg(tgMessage);
-      await notifyOwner(
-        `💸 Relance 1 — ${clientName}`,
-        `${carName} | Reste: ${remaining}€ | ${Math.floor(hoursOld)}h sans paiement\n📱 ${clientPhone ?? 'N/A'}`,
-        false,
-      );
-
-      // Log la relance dans Supabase
+    if (!attempt1Log) {
+      // Première alerte solde (J+0 à J+1 après remise clés)
+      const waMsg = generateSoldeMessage(clientName, remaining, carName, 1, daysWithCar);
+      const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 1, daysWithCar, startDate);
+      await tg(tgMsg);
       await supabase.from('relance_logs').insert({
-        booking_id:    bookingId,
-        client_name:   clientName,
-        client_phone:  clientPhone,
-        car_name:      carName,
-        amount_due:    remaining,
-        attempt:       1,
-        sent_at:       now.toISOString(),
-        whatsapp_msg:  whatsappMsg,
-        status:        'sent',
+        booking_id: bookingId, client_name: clientName, client_phone: clientPhone,
+        car_name: carName, amount_due: remaining, attempt: 1,
+        sent_at: now.toISOString(), whatsapp_msg: waMsg, status: 'sent',
       });
+      soldeCount++;
+      console.log(`[job:unpaid-reminder] Solde J+${daysWithCar} → ${clientName} (${remaining}€)`);
 
-      attempt1Count++;
-      console.log(`[job:unpaid-reminder] Relance 1 → ${clientName} (${remaining}€)`);
-    }
-
-    // ── Relance 2: ≥24h après relance 1, toujours impayé ──
-    else if (attempt1Log && !attempt2Log) {
-      const hoursSinceAttempt1 = (now.getTime() - new Date(attempt1Log.sent_at).getTime()) / 3_600_000;
-
-      if (hoursSinceAttempt1 >= 24) {
-        const whatsappMsg = generateRelanceMessage(clientName, remaining, carName, 2);
-        const tgMessage   = buildTelegramRelance(clientName, clientPhone, carName, remaining, total, paid, 2, Math.floor(hoursOld));
-
-        await tg(tgMessage);
-        await notifyOwner(
-          `🚨 Relance 2 — ${clientName}`,
-          `${carName} | Reste: ${remaining}€ | Déjà relancé il y a ${Math.floor(hoursSinceAttempt1)}h\n📱 ${clientPhone ?? 'N/A'}`,
-          true, // urgente
-        );
-
-        // Log la relance 2
+    } else if (attempt1Log && !attempt2Log) {
+      const hoursSince1 = (now.getTime() - new Date(attempt1Log.sent_at).getTime()) / 3_600_000;
+      if (hoursSince1 >= 24) {
+        const waMsg = generateSoldeMessage(clientName, remaining, carName, 2, daysWithCar);
+        const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 2, daysWithCar, startDate);
+        await tg(tgMsg);
         await supabase.from('relance_logs').insert({
-          booking_id:    bookingId,
-          client_name:   clientName,
-          client_phone:  clientPhone,
-          car_name:      carName,
-          amount_due:    remaining,
-          attempt:       2,
-          sent_at:       now.toISOString(),
-          whatsapp_msg:  whatsappMsg,
-          status:        'sent',
+          booking_id: bookingId, client_name: clientName, client_phone: clientPhone,
+          car_name: carName, amount_due: remaining, attempt: 2,
+          sent_at: now.toISOString(), whatsapp_msg: waMsg, status: 'sent',
         });
-
-        attempt2Count++;
-        console.log(`[job:unpaid-reminder] Relance 2 → ${clientName} (${remaining}€)`);
+        soldeCount++;
+        console.log(`[job:unpaid-reminder] Solde relance 2 → ${clientName}`);
       }
-    }
 
-    // ── Alerte urgente: 2 relances faites, toujours impayé ──
-    else if (attempt1Log && attempt2Log) {
-      const hoursSinceAttempt2 = (now.getTime() - new Date(attempt2Log.sent_at).getTime()) / 3_600_000;
-
-      // Alerter toutes les 24h si toujours impayé après relance 2
-      if (hoursSinceAttempt2 >= 24) {
-        const daysDue = Math.floor(hoursOld / 24);
-
+    } else if (attempt1Log && attempt2Log) {
+      const hoursSince2 = (now.getTime() - new Date(attempt2Log.sent_at).getTime()) / 3_600_000;
+      if (hoursSince2 >= 24) {
         await tg([
-          `🔴 *IMPAYÉ PERSISTANT — ACTION REQUISE*`,
+          `🔴 *SOLDE NON ENCAISSÉ — ${daysWithCar}j après remise clés*`,
           ``,
           `👤 *${clientName}*`,
-          `🚗 ${carName}`,
-          `💰 Reste à payer: *${remaining}€* (total: ${total}€)`,
-          `📅 ${daysDue} jours sans règlement`,
-          `📱 ${clientPhone ?? 'N/A'}`,
+          `🚗 ${carName} (remis le ${startDate})`,
+          `💰 Solde restant: *${remaining}€* (total: ${total}€ | payé: ${paid}€)`,
+          `📱 ${clientPhone ?? 'Pas de téléphone'}`,
           ``,
-          `⚠️ 2 relances envoyées — aucune réponse.`,
-          `👉 Contacte ce client directement.`,
+          `⚠️ 2 rappels envoyés — aucun règlement. Contacte ce client directement.`,
         ].join('\n'));
-
-        await notifyOwner(
-          `🔴 IMPAYÉ ${daysDue}j — ${clientName}`,
-          `${carName} | ${remaining}€ | 2 relances sans réponse | 📱 ${clientPhone ?? 'N/A'}`,
-          true,
-        );
-
-        // Mettre à jour le log attempt 2 avec la dernière alerte
-        await supabase.from('relance_logs')
-          .update({ sent_at: now.toISOString(), status: 'urgent' })
-          .eq('booking_id', bookingId)
-          .eq('attempt', 2);
-
+        await supabase.from('relance_logs').update({ sent_at: now.toISOString(), status: 'urgent' })
+          .eq('booking_id', bookingId).eq('attempt', 2);
         urgentCount++;
-        console.log(`[job:unpaid-reminder] 🔴 Alerte urgente → ${clientName} (${daysDue}j)`);
       }
     }
   }
 
-  // Résumé
-  const total_actions = attempt1Count + attempt2Count + urgentCount;
-  if (total_actions > 0) {
-    console.log(`[job:unpaid-reminder] ✅ Terminé: ${attempt1Count} relance(s) 1 | ${attempt2Count} relance(s) 2 | ${urgentCount} alerte(s) urgente(s)`);
-  } else {
-    console.log('[job:unpaid-reminder] ℹ️ Aucune nouvelle relance nécessaire.');
+  // ── Traitement des ACOMPTES MANQUANTS (arrive dans ≤ 3 jours, 0€ payé) ─
+  for (const booking of (pendingNoDeposit ?? []) as any[]) {
+    const clientName  = booking.client_name as string;
+    const clientPhone = booking.client_phone as string | null;
+    const carName     = (booking.cars as any)?.name ?? 'Véhicule';
+    const total       = Number(booking.final_price ?? 0);
+    const startDate   = booking.start_date as string;
+    const daysLeft    = Math.ceil((new Date(startDate).getTime() - now.getTime()) / 86_400_000);
+
+    const { data: logs } = await supabase
+      .from('relance_logs').select('attempt').eq('booking_id', booking.id as string);
+
+    if ((logs ?? []).length > 0) continue; // déjà alerté
+
+    await tg([
+      `⚠️ *ACOMPTE MANQUANT — Arrivée dans ${daysLeft}j*`,
+      ``,
+      `👤 *${clientName}*`,
+      `🚗 ${carName}`,
+      `📅 Arrivée prévue: ${startDate}`,
+      `💰 Total: ${total}€ | Acompte: *0€ reçu*`,
+      `📱 ${clientPhone ?? 'Pas de téléphone'}`,
+      ``,
+      `💡 Ce client n'a pas encore versé d'acompte. Confirme la réservation avec lui.`,
+    ].join('\n'));
+
+    await supabase.from('relance_logs').insert({
+      booking_id: booking.id as string, client_name: clientName, client_phone: clientPhone,
+      car_name: carName, amount_due: total, attempt: 0,
+      sent_at: now.toISOString(), whatsapp_msg: '', status: 'acompte_alert',
+    });
+    acompteCount++;
+    console.log(`[job:unpaid-reminder] Acompte manquant → ${clientName} (arrive le ${startDate})`);
   }
+
+  const total_actions = soldeCount + acompteCount + urgentCount;
+  console.log(`[job:unpaid-reminder] ✅ Terminé: ${soldeCount} solde(s) | ${acompteCount} acompte(s) manquant(s) | ${urgentCount} urgent(s)`);
+  if (total_actions === 0) console.log('[job:unpaid-reminder] ℹ️ Aucune action nécessaire.');
 }
 
-/**
- * Génère le message WhatsApp à envoyer au client
- * (affiché à Kouider pour qu'il le copie/envoie)
- */
-function generateRelanceMessage(
+function generateSoldeMessage(
   clientName: string,
-  amount: number,
+  remaining: number,
   carName: string,
   attempt: 1 | 2,
+  daysWithCar: number,
 ): string {
   if (attempt === 1) {
-    return `Bonjour ${clientName} 👋\n\nNous vous rappelons que le règlement de ${amount}€ pour la location du *${carName}* est toujours en attente.\n\nMerci de régulariser votre situation dès que possible.\n\n📞 AutoLux Oran — Fik Conciergerie`;
+    return `Bonjour ${clientName} 👋\n\nNous espérons que vous profitez bien du *${carName}*.\n\nLe solde restant de *${remaining}€* est à régler dès que possible.\n\nMerci de votre confiance 🙏\n\n📞 Fik Conciergerie Oran`;
   } else {
-    return `Bonjour ${clientName},\n\n⚠️ Malgré notre premier rappel, le règlement de *${amount}€* pour la location du ${carName} reste impayé.\n\nNous vous demandons de régulariser cette situation *dans les plus brefs délais* pour éviter toute complication.\n\n📞 AutoLux Oran — Fik Conciergerie`;
+    return `Bonjour ${clientName},\n\nNous vous rappelons que le solde de *${remaining}€* pour le *${carName}* (${daysWithCar}j de location) n'a pas encore été réglé.\n\nMerci de régulariser rapidement.\n\n📞 Fik Conciergerie Oran`;
   }
 }
 
-/**
- * Construit le message Telegram envoyé à Kouider
- * avec le message WhatsApp prêt à copier-coller
- */
-function buildTelegramRelance(
+function buildTelegramSolde(
   clientName: string,
   clientPhone: string | null,
   carName: string,
@@ -510,22 +499,23 @@ function buildTelegramRelance(
   total: number,
   paid: number,
   attempt: 1 | 2,
-  hoursOld: number,
+  daysWithCar: number,
+  startDate: string,
 ): string {
   const emoji   = attempt === 1 ? '🟡' : '🔴';
-  const urgence = attempt === 1 ? 'Première relance' : '⚠️ Deuxième relance URGENTE';
-  const waMsg   = generateRelanceMessage(clientName, remaining, carName, attempt);
+  const label   = attempt === 1 ? 'Solde à encaisser' : '⚠️ Rappel solde — 2ème';
+  const waMsg   = generateSoldeMessage(clientName, remaining, carName, attempt, daysWithCar);
 
   return [
-    `${emoji} *${urgence} — Impayé*`,
+    `${emoji} *${label}*`,
     ``,
     `👤 *${clientName}*`,
-    `🚗 ${carName}`,
-    `💰 Total: ${total}€ | Payé: ${paid}€ | *Reste: ${remaining}€*`,
-    `⏱ Depuis: ${Math.floor(hoursOld / 24)}j ${hoursOld % 24}h`,
+    `🚗 ${carName} (remis le ${startDate})`,
+    `💰 Total: ${total}€ | Payé: ${paid}€ | *Solde: ${remaining}€*`,
+    `📅 Voiture en sa possession depuis ${daysWithCar}j`,
     `📱 ${clientPhone ?? 'Pas de téléphone'}`,
     ``,
-    `📋 *Message WhatsApp à envoyer:*`,
+    `📋 *Message WhatsApp à copier:*`,
     `\`\`\``,
     waMsg,
     `\`\`\``,
