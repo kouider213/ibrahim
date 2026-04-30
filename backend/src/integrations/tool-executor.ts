@@ -1340,76 +1340,129 @@ function formatTikTokItems(items: any[]): string {
 async function analyzeCompetitors(input: Record<string, unknown>, sessionId: string): Promise<string> {
   const competitor = input['competitor'] as string | undefined;
   const makeVideo  = input['generate_counter_video'] as boolean | undefined;
+  const chatId     = chatIdFromSession(sessionId);
 
-  // Hashtags TikTok liés à la location voiture à Oran
-  const defaultHashtags = ['locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture', 'oranalgerie'];
+  // ── Notification de démarrage ──────────────────────────────
+  await sendTelegramForMarketing(chatId,
+    `🕵️ *Veille concurrentielle lancée*\n${competitor ? `_Cible: ${competitor}_` : '_Scan général: location voiture Oran_'}\n⏳ Recherche web en cours...`
+  ).catch(() => {});
+
+  // ── Sources à scraper ──────────────────────────────────────
+  const COMPETITOR_HANDLES = competitor
+    ? [competitor.replace('@', '').trim()]
+    : ['didanolocation', 'locationoranalgerie', 'orancar', 'autolocationoran'];
+
+  const TIKTOK_HASHTAGS = ['locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture', 'oranalgerie'];
 
   let tiktokData = '';
+
+  // ── APIFY (si clé disponible) ──────────────────────────────
   if (env.APIFY_API_KEY) {
     if (competitor && competitor.startsWith('@')) {
-      // Scraping par profil spécifique
       const items = await apifyRun('clockworks~tiktok-scraper', {
-        profiles: [competitor.replace('@', '').trim()],
-        resultsPerPage: 15,
+        profiles:             [competitor.replace('@', '').trim()],
+        resultsPerPage:       15,
         shouldDownloadVideos: false,
         shouldDownloadCovers: false,
       });
       tiktokData = formatTikTokItems(items);
     } else if (competitor) {
-      // Chercher un mot-clé (ex: "didano location")
       const items = await apifyRun('clockworks~tiktok-scraper', {
-        searchQueries: [competitor],
-        resultsPerPage: 20,
+        searchQueries:        [competitor, `location voiture oran ${competitor}`],
+        resultsPerPage:       20,
         shouldDownloadVideos: false,
         shouldDownloadCovers: false,
       });
       tiktokData = formatTikTokItems(items);
     } else {
-      // Recherche par hashtags — découvre automatiquement tous les concurrents
       const items = await apifyRun('clockworks~tiktok-scraper', {
-        hashtags: defaultHashtags,
-        resultsPerPage: 15,
+        hashtags:             TIKTOK_HASHTAGS,
+        resultsPerPage:       15,
         shouldDownloadVideos: false,
         shouldDownloadCovers: false,
       });
       tiktokData = formatTikTokItems(items);
     }
-  } else {
-    tiktokData = await jSearch(`location voiture oran tiktok ${competitor ?? 'concurrents'}`);
+  }
+
+  // ── Fallback multi-sources web (sans APIFY ou complément) ──
+  if (!tiktokData || tiktokData === 'Aucun résultat TikTok trouvé.') {
+    const searches: Array<Promise<string>> = [];
+
+    // 1. Recherches TikTok via Jina (moteur de recherche)
+    const tiktokQueries = competitor
+      ? [`tiktok ${competitor} location voiture oran`, `site:tiktok.com ${competitor}`]
+      : [
+          'tiktok location voiture oran algerie hashtag',
+          'site:tiktok.com locationoran locationvoitureoran',
+          'tiktok didanolocation location oran algerie',
+        ];
+
+    for (const q of tiktokQueries) {
+      searches.push(jSearch(q, 2000));
+    }
+
+    // 2. Pages TikTok directes des concurrents connus
+    const profileFetches = COMPETITOR_HANDLES.slice(0, 3).map(h =>
+      jFetch(`https://www.tiktok.com/@${h}`, 1500)
+        .then(txt => `\n--- PROFIL @${h} ---\n${txt}`)
+        .catch(() => `\n--- @${h}: inaccessible ---\n`)
+    );
+    searches.push(...profileFetches);
+
+    // 3. Recherches Google sur les concurrents à Oran
+    searches.push(jSearch('location voiture oran prix tarifs 2024 2025 concurrents', 1500));
+    searches.push(jSearch('agence location voiture oran algerie avis google maps', 1500));
+
+    // 4. Facebook/Instagram (souvent plus accessibles)
+    searches.push(jSearch('facebook location voiture oran algerie promo prix', 1500));
+
+    const results = await Promise.all(searches);
+    tiktokData = results
+      .filter(r => r && r.length > 50 && !r.includes('Aucun résultat'))
+      .join('\n\n---\n\n')
+      .slice(0, 8000);
+
+    if (!tiktokData || tiktokData.length < 100) {
+      tiktokData = '⚠️ Données web limitées — TikTok bloque le scraping. Analyse basée sur les bonnes pratiques du marché.';
+    }
   }
 
   const pricing = formatPricingTable();
 
+  // ── Analyse Claude avec les données collectées ─────────────
   const analysis = await chat([{
     role: 'user',
     content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
-Analyse ces VRAIES données TikTok du marché location de voitures à Oran.
-Ces données viennent de vrais comptes TikTok trouvés via les hashtags #locationoran #locationvoitureoran etc.
+Analyse ces données RÉELLES collectées sur internet concernant la concurrence location voitures à Oran.
+Les données proviennent de TikTok, Google, Facebook, pages web des concurrents.
 
-DONNÉES TIKTOK RÉELLES:
+DONNÉES COLLECTÉES:
 ${tiktokData}
 
-GRILLE TARIFAIRE FIK CONCIERGERIE (prix Kouider):
+GRILLE TARIFAIRE FIK CONCIERGERIE (nos vrais prix):
 ${pricing}
 
-Réponds en français, format structuré pour Telegram (markdown):
+Réponds en français, format structuré Telegram (markdown bold avec **):
 
-**🕵️ QUI PUBLIE ET QUE FONT-ILS**
-(comptes actifs, fréquence, types de vidéos, sujets qui marchent)
+**🕵️ CONCURRENTS DÉTECTÉS & ACTIVITÉ**
+(liste les comptes/agences trouvés, leur activité, fréquence de publication, types de contenu — si données limitées, dis-le clairement)
 
-**📊 OPPORTUNITÉS DÉTECTÉES**
-(ce que personne ne fait encore, lacunes du marché, tendances à exploiter)
+**💰 COMPARAISON TARIFAIRE**
+(prix concurrents vs nos prix — si trouvés dans les données)
 
-**⚡ ACTION RECOMMANDÉE MAINTENANT**
-(une seule action précise basée sur les vraies données — ex: "Poste ce soir une vidéo Clio 4 avec le hashtag #locationoran, aucun concurrent ne l'a fait cette semaine")
+**📊 OPPORTUNITÉS MARCHÉ**
+(ce que personne ne fait encore, lacunes, tendances à exploiter à Oran)
 
-**📱 SCRIPT DE VIDÉO**
-(15-20 sec, basé sur ce qui cartonne dans les données)`,
+**⚡ ACTION IMMÉDIATE RECOMMANDÉE**
+(une seule action très précise et concrète à faire aujourd'hui)
+
+**📱 SCRIPT VIDÉO SUGGÉRÉ**
+(15-20 sec en français, exploite une lacune détectée)`,
   }], undefined);
 
-  const chatId = sessionId.startsWith('telegram_') ? sessionId.replace('telegram_', '') : (process.env['TELEGRAM_CHAT_ID'] ?? '');
-
-  if (makeVideo && chatId) {
+  // ── Envoi de l'analyse sur Telegram ────────────────────────
+  if (makeVideo) {
     await sendTelegramForMarketing(chatId, `${analysis.text}\n\n⏳ _Création de la contre-pub en cours..._`);
     const { data: cars } = await supabase.from('cars').select('*').eq('available', true).limit(1);
     const car = (cars ?? [])[Math.floor(Math.random() * (cars ?? []).length)] as Car | undefined;
@@ -1419,6 +1472,8 @@ Réponds en français, format structuré pour Telegram (markdown):
     return '✅ Analyse concurrents envoyée + vidéo contre-pub créée.';
   }
 
+  // Envoyer l'analyse sur Telegram et la retourner aussi dans la réponse
+  await sendTelegramForMarketing(chatId, analysis.text).catch(() => {});
   return analysis.text;
 }
 
