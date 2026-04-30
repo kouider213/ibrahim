@@ -1054,13 +1054,16 @@ async function createMarketingVideoTool(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
-  const chatId           = chatIdFromSession(sessionId);
-  const carName          = (input['car_name'] as string | undefined)?.toLowerCase();
+  const chatId       = chatIdFromSession(sessionId);
+  const falKey       = env.FAL_KEY;
+
+  // ── Paramètres ────────────────────────────────────────────────
+  const carNameFilter    = (input['car_name'] as string | undefined)?.toLowerCase();
   const style            = (input['style'] as string | undefined) ?? 'reveal';
   const customScript     = input['custom_script'] as string | undefined;
   const backgroundEffect = input['background_effect'] as string | undefined;
-  const falKey           = env.FAL_KEY;
 
+  // ── Chercher la voiture ───────────────────────────────────────
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
   const cars = (carsRaw ?? []) as Car[];
   if (cars.length === 0) return '⚠️ Aucune voiture disponible.';
@@ -1068,17 +1071,17 @@ async function createMarketingVideoTool(
   const carsWithImage = cars.filter(c => c.image_url);
   if (carsWithImage.length === 0) return '⚠️ Aucune voiture avec photo — ajoute des photos dans le tableau de bord.';
 
-  const car = carName
-    ? (carsWithImage.find(c => c.name.toLowerCase().includes(carName)) ?? carsWithImage[Math.floor(Math.random() * carsWithImage.length)])
+  const car = carNameFilter
+    ? (carsWithImage.find(c => c.name.toLowerCase().includes(carNameFilter)) ?? carsWithImage[Math.floor(Math.random() * carsWithImage.length)])
     : carsWithImage[Math.floor(Math.random() * carsWithImage.length)];
 
-  // ── 1. Prix réel depuis la grille tarifaire ──────────────────
-  const pricing    = getPricingForVehicle(car.name);
+  // ── Prix depuis la grille tarifaire ──────────────────────────
+  const pricing      = getPricingForVehicle(car.name);
   const priceKouider = pricing?.kouiderPrice ?? null;
   const priceHouari  = pricing?.houariPrice  ?? null;
   const priceDisplay = priceKouider ? `${priceKouider}€/j` : (priceHouari ? `${priceHouari}€/j` : 'prix sur demande');
 
-  // ── 2. Script IA ─────────────────────────────────────────────
+  // ── Script IA ou personnalisé ─────────────────────────────────
   let script: string;
   if (customScript) {
     script = customScript;
@@ -1097,7 +1100,7 @@ async function createMarketingVideoTool(
       role: 'user',
       content: `Script voix-off TikTok, 20-25 sec, FRANÇAIS uniquement, style ${style} (${styleDesc[style] ?? style}).
 VOITURE: ${car.name} (${car.category}) | PRIX: ${priceDisplay} | ${season}
-Accrocheur, prix + Fik Conciergerie mentionnés, CTA fort. RÉPONDS UNIQUEMENT avec le script.`,
+Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQUEMENT avec le script, sans guillemets.`,
     }], undefined);
     script = sr.text.trim().replace(/^["']|["']$/g, '');
   }
@@ -1105,37 +1108,33 @@ Accrocheur, prix + Fik Conciergerie mentionnés, CTA fort. RÉPONDS UNIQUEMENT a
   const caption  = `🚗 ${car.name} à Oran — ${priceDisplay} | Fik Conciergerie`;
   const hashtags = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
 
-  // ── 2. Motion prompt pour Kling ──────────────────────────────
-  const bgMotion: Record<string, string> = {
-    plage:    'car on Algerian beach, ocean waves, golden sunset, cinematic pan shot',
-    ville:    'car in Oran city streets, urban lights, dynamic tracking shot',
-    montagne: 'car on mountain road Algeria, dramatic landscape, sweeping camera move',
-    desert:   'car in Sahara desert, sand dunes, epic wide establishing shot',
-    route:    'car driving on coastal road Oran, smooth tracking shot',
-    luxe:     'luxury car, premium setting, elegant slow motion reveal',
-    foret:    'car on forest road, dappled golden light, cinematic dolly shot',
-    coucher:  'car at golden hour sunset, warm tones, silhouette reveal',
-    nuit:     'car at night, city lights bokeh, dramatic neon reflections',
-  };
-  const motionPrompt = backgroundEffect
-    ? (bgMotion[backgroundEffect] ?? `${backgroundEffect} scenery, cinematic car reveal, smooth camera`)
-    : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
-
-  if (!falKey) {
-    await sendTelegramForMarketing(chatId, `⚠️ FAL_KEY manquant dans Railway — génération IA impossible.`);
-  } else {
-    await sendTelegramForMarketing(chatId, `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · ${backgroundEffect}` : ''}_\n⏳ 60-90 secondes...`);
-  }
-
-  // ── 3. Génération vidéo : Kling en priorité, FFmpeg en fallback ──
+  // ── Tentative 1 : Kling IA (fal.ai) image→vidéo ─────────────
   let videoBuffer: Buffer | null = null;
+  let method = 'photo';
 
   if (falKey) {
+    const bgMotion: Record<string, string> = {
+      plage:    'car on Algerian beach, ocean waves, golden sunset, cinematic pan shot',
+      ville:    'car in Oran city streets, urban lights, dynamic tracking shot',
+      montagne: 'car on mountain road Algeria, dramatic landscape, sweeping camera move',
+      desert:   'car in Sahara desert, sand dunes, epic wide establishing shot',
+      route:    'car driving on coastal road Oran, smooth tracking shot',
+      luxe:     'luxury car, premium setting, elegant slow motion reveal',
+      foret:    'car on forest road, dappled golden light, cinematic dolly shot',
+      coucher:  'car at golden hour sunset, warm tones, silhouette reveal',
+      nuit:     'car at night, city lights bokeh, dramatic neon reflections',
+    };
+    const motionPrompt = backgroundEffect
+      ? (bgMotion[backgroundEffect] ?? `${backgroundEffect} scenery, cinematic car reveal, smooth camera`)
+      : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
+
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ 60-90 secondes...`
+    ).catch(() => {});
+
     try {
-      // Vérifie que l'image est accessible publiquement
-      await axios.head(car.image_url, { timeout: 8_000 }).catch(() => {
-        throw new Error(`Image voiture inaccessible publiquement: ${car.image_url}`);
-      });
+      // Vérifier que l'image est publiquement accessible
+      await axios.head(car.image_url, { timeout: 8_000 });
 
       const videoUrl = await falGenerate(
         'fal-ai/kling-video/v1.6/standard/image-to-video',
@@ -1145,44 +1144,70 @@ Accrocheur, prix + Fik Conciergerie mentionnés, CTA fort. RÉPONDS UNIQUEMENT a
       );
       const resp = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
       videoBuffer = Buffer.from(resp.data as ArrayBuffer);
+      method      = 'Kling IA';
+      console.log('[tool:create_marketing_video] ✅ Kling OK — buffer:', videoBuffer.length, 'bytes');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[tool:create_marketing_video] Kling failed:', msg);
       await sendTelegramForMarketing(chatId,
-        `❌ *Kling IA échoué*\n\`${msg.slice(0, 200)}\`\n\n_Tentative fallback FFmpeg..._`);
+        `⚠️ _Kling IA indisponible (\`${msg.slice(0, 120)}\`) — FFmpeg fallback..._`
+      ).catch(() => {});
     }
   }
 
+  // ── Tentative 2 : FFmpeg + ElevenLabs (local, fiable) ────────
   if (!videoBuffer) {
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Vidéo TikTok — ${car.name}*\n_Montage FFmpeg HD 1080×1920${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ Génération voix + montage...`
+    ).catch(() => {});
+
     try {
-      const idea = {
-        title: `${car.name} — Fik Conciergerie Oran`, concept: script, voiceover_script: script,
-        caption, hashtags, best_time: 'Ce soir 20h-22h', car_suggestion: car.name,
-      };
-      const ff = await createMarketingVideo(car, idea, { customScript, backgroundEffect });
-      if (ff) videoBuffer = ff.buffer;
+      // Utilise executeCreateMarketingVideo — le module complet avec upload Supabase
+      const result = await executeCreateMarketingVideo(
+        {
+          car_name:          car.name,
+          style:             style as 'reveal' | 'prix' | 'lifestyle' | 'temoignage',
+          custom_script:     customScript,
+          background_effect: backgroundEffect,
+        },
+        chatId,
+      );
+      // La fonction envoie elle-même la vidéo sur Telegram avec le workflow d'approbation
+      return `✅ Vidéo FFmpeg HD générée pour ${result.car_name} et envoyée sur Telegram ↑ (ID: ${result.pending_id}).\nMéthode: ${result.method} | Script: "${result.script.slice(0, 80)}..."`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[tool:create_marketing_video] FFmpeg fallback failed:', msg);
+      console.error('[tool:create_marketing_video] FFmpeg failed:', msg);
       await sendTelegramForMarketing(chatId,
-        `❌ *FFmpeg aussi échoué*\n\`${msg.slice(0, 200)}\`\n\n_Envoi photo + voix à la place._`);
+        `❌ _FFmpeg aussi échoué:_ \`${msg.slice(0, 200)}\`\n_Envoi photo + voix..._`
+      ).catch(() => {});
     }
   }
 
-  // ── 4. Voix ElevenLabs (séparée) ─────────────────────────────
+  // ── Voix ElevenLabs (pour Kling ou fallback photo) ───────────
   const audioBuffer = await synthesizeVoice(script).catch(() => null);
 
-  // ── 5. Envoi + workflow approbation ──────────────────────────
-  const pendingId   = await savePendingVideo({ video_url: car.image_url, caption, hashtags, car_name: car.name, car_id: car.id, script });
+  // ── Workflow approbation ──────────────────────────────────────
+  const pendingId = await savePendingVideo({
+    video_url: car.image_url,
+    caption,
+    hashtags,
+    car_name:  car.name,
+    car_id:    car.id,
+    script,
+  });
+
   const approvalMsg = [
-    `🎬 *Vidéo TikTok — ${car.name}*`,
+    `🎬 *Vidéo TikTok — ${car.name}* (${method})`,
     ``,
     `📋 ${caption}`,
     `🏷️ ${hashtags.join(' ')}`,
     ``,
+    `📝 Script:\n_${script.slice(0, 200)}_`,
+    ``,
     `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
   ].join('\n');
 
+  // ── Envoi Telegram ────────────────────────────────────────────
   if (videoBuffer) {
     await sendVideoBuffer(chatId, videoBuffer, approvalMsg).catch(async () => {
       await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
@@ -1191,9 +1216,11 @@ Accrocheur, prix + Fik Conciergerie mentionnés, CTA fort. RÉPONDS UNIQUEMENT a
     await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
   }
 
-  if (audioBuffer) await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+  if (audioBuffer) {
+    await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+  }
 
-  return `✅ Vidéo ${videoBuffer ? (falKey ? 'Kling IA' : 'FFmpeg') : 'photo'} + voix envoyées ↑ (ID: ${pendingId}). En attente de validation.`;
+  return `✅ Vidéo ${method} + voix ElevenLabs envoyées ↑ (ID: ${pendingId}). En attente de ta validation.`;
 }
 
 async function mergeVideosTool(
