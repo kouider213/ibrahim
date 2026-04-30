@@ -429,14 +429,14 @@ export async function executeCreateMarketingVideo(
       month === 3 || month === 4 ? 'Ramadan (sorties nocturnes, famille)' :
       'Période standard (clients locaux + professionnels)';
 
-    const sr = await chat([{
+    const sr = await claudeChat([{
       role: 'user',
       content: `Script voix-off TikTok, 20-25 secondes, FRANÇAIS uniquement, style "${style}" (${STYLE_DESC[style] ?? style}).
 VOITURE: ${car.name} (${car.category}) | PRIX: ${priceDisplay} | CONTEXTE: ${season}
 Instructions: accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort à la fin.
 RÉPONDS UNIQUEMENT avec le script, sans guillemets ni commentaires.`,
-    }]);
-    script = sr.trim().replace(/^["']|["']$/g, '');
+    }], undefined);
+    script = sr.text.trim().replace(/^["']|["']$/g, '');
   }
 
   const caption  = `🚗 ${car.name} à Oran — ${priceDisplay} | Fik Conciergerie`;
