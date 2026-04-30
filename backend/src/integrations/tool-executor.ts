@@ -9,7 +9,7 @@ import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
-import { createMarketingVideo, mergeVideos } from '../marketing/video-creator.js';
+import { mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
 import { executeCreateMarketingVideo } from '../marketing/create-marketing-video.js';
 import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
