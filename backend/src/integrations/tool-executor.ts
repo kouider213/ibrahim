@@ -139,9 +139,10 @@ export async function executeTool(
       case 'create_video_preview':       return await executeMediaTool(name, input);
       // ─── MARKETING TIKTOK ───
       case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
+      case 'generate_tiktok_video':      return await createMarketingVideoTool(input, sessionId);
       case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
       // ─── VEILLE CONCURRENTIELLE ───
-      case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId);
+      case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId ?? '');
       case 'watch_my_tiktok':            return await watchMyTiktok(input);
       // ─── CODE AGENT AUTONOME ───
       case 'execute_code_task':          return await executeCodeTaskTool(input, sessionId);
