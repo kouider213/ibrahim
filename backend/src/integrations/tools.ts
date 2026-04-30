@@ -202,16 +202,31 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'github_write_file',
-    description: 'Créer ou modifier un fichier dans un repo GitHub. Pour le repo Dzaryx → Railway redéploie automatiquement en 2-3 min. Envoyer le contenu COMPLET du fichier.',
+    description: 'Créer un NOUVEAU fichier dans un repo GitHub (utiliser uniquement pour les nouveaux fichiers courts < 100 lignes). Pour MODIFIER un fichier existant, utiliser github_patch_file à la place.',
     input_schema: {
       type: 'object' as const,
       properties: {
         repo:    { type: 'string', description: 'Nom du repo: ibrahim, autolux-location, ou fik-conciergerie' },
         path:    { type: 'string', description: 'Chemin du fichier ex: backend/src/integrations/tools.ts' },
-        content: { type: 'string', description: 'Contenu COMPLET du fichier (pas de diff, tout le fichier)' },
+        content: { type: 'string', description: 'Contenu COMPLET du fichier (uniquement pour nouveaux fichiers)' },
         message: { type: 'string', description: 'Message de commit (ex: "feat: add booking export tool")' },
       },
       required: ['repo', 'path', 'content'],
+    },
+  },
+  {
+    name: 'github_patch_file',
+    description: 'Modifier CHIRURGICALEMENT un fichier GitHub existant: remplace un extrait précis sans toucher au reste. C\'est l\'outil principal pour coder — JAMAIS réécrire tout le fichier. Utiliser pour: ajouter une fonction, modifier un cron, changer une règle, corriger un bug. RÈGLE: old_string doit être UNIQUE dans le fichier (ajouter du contexte si besoin). Plusieurs patches = plusieurs appels successifs.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        repo:       { type: 'string', description: 'Nom du repo: ibrahim, autolux-location, ou fik-conciergerie' },
+        path:       { type: 'string', description: 'Chemin du fichier ex: backend/src/queue/scheduler.ts' },
+        old_string: { type: 'string', description: 'Extrait EXACT à remplacer (copié mot pour mot depuis github_read_file, espaces et retours à la ligne inclus). Doit être unique dans le fichier.' },
+        new_string: { type: 'string', description: 'Nouveau texte qui remplace old_string' },
+        message:    { type: 'string', description: 'Message de commit ex: "fix: change cron to 8h30"' },
+      },
+      required: ['repo', 'path', 'old_string', 'new_string'],
     },
   },
   {

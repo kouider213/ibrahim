@@ -68,6 +68,7 @@ export async function executeTool(
       case 'get_news':              return await getNews(input);
       case 'github_read_file':      return await githubReadFile(input);
       case 'github_write_file':     return await githubWriteFile(input);
+      case 'github_patch_file':     return await githubPatchFile(input);
       case 'github_list_files':     return await githubListFiles(input);
       case 'railway_get_logs':      return await railwayGetLogs(input);
       case 'railway_wait_deploy':   return await waitForDeploy(Number(input['timeout_seconds'] ?? 180) * 1000);
@@ -388,6 +389,35 @@ async function githubWriteFile(input: Record<string, unknown>): Promise<string> 
   const result = await updateFile(path, content, message, repo);
   if (!result) return `Erreur: impossible de mettre à jour ${path}`;
   return `✅ Fichier mis à jour: ${path} (commit: ${result.commitSha})`;
+}
+
+async function githubPatchFile(input: Record<string, unknown>): Promise<string> {
+  const repo      = (input['repo']       as string) || 'ibrahim';
+  const path      = input['path']       as string;
+  const oldString = input['old_string'] as string;
+  const newString = input['new_string'] as string;
+  const message   = (input['message']   as string) || 'patch: surgical edit';
+
+  if (!path || oldString === undefined || newString === undefined)
+    return '❌ repo, path, old_string et new_string sont requis';
+
+  const result = await getFileContent(path, repo);
+  if (!result) return `❌ Fichier non trouvé: ${path} dans ${repo}`;
+
+  const content = result.content;
+  const occurrences = content.split(oldString).length - 1;
+
+  if (occurrences === 0)
+    return `❌ Extrait non trouvé dans ${path}.\nVérifie que le texte est copié mot pour mot (espaces, indentation, retours à la ligne inclus).\nAstuce: utilise github_read_file pour récupérer l'extrait exact.`;
+  if (occurrences > 1)
+    return `❌ Extrait trouvé ${occurrences} fois dans ${path} — ambigu.\nAjoute plus de contexte autour (lignes voisines) pour le rendre unique.`;
+
+  const newContent = content.replace(oldString, newString);
+  const writeResult = await updateFile(path, newContent, message, repo);
+  if (!writeResult) return `❌ Impossible de commiter ${path}`;
+
+  const preview = oldString.split('\n')[0].trim().slice(0, 60);
+  return `✅ Patch appliqué dans ${path} (commit: ${writeResult.commitSha})\n→ "${preview}..." remplacé avec succès`;
 }
 
 async function githubListFiles(input: Record<string, unknown>): Promise<string> {
