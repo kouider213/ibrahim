@@ -131,7 +131,6 @@ export async function executeTool(
       case 'add_text_overlay':
       case 'analyze_video':
       case 'cut_video':
-      case 'merge_videos':
       case 'add_subtitles':
       case 'optimize_for_platform':
       case 'extract_thumbnail':
