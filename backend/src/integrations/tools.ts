@@ -836,6 +836,35 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── CODE AGENT AUTONOME ─────────────────────────────────────
+  {
+    name: 'execute_code_task',
+    description: 'Lancer le Code Agent autonome pour coder une feature, corriger un bug, créer un site/app client. L\'agent lit les fichiers, fait les modifications, vérifie TypeScript, corrige ses propres erreurs et déploie. Utiliser quand Kouider dit "code ça", "ajoute cette feature", "crée un site pour X", "corrige ce bug", "modifie cette fonction". Fonctionne même sans PC.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        task: { type: 'string', description: 'Description précise de ce qui doit être codé. Plus c\'est détaillé, mieux c\'est. Ex: "Ajoute un outil get_client_history qui liste les 5 dernières réservations d\'un client par téléphone"' },
+        repo: { type: 'string', description: 'Repo cible: ibrahim (défaut = Dzaryx), autolux-location, fik-conciergerie, ou nom d\'un nouveau repo client' },
+      },
+      required: ['task'],
+    },
+  },
+  {
+    name: 'create_new_project',
+    description: 'Créer un nouveau projet complet (site vitrine, app, landing page) pour un client. L\'agent crée tous les fichiers, les push sur GitHub, et déploie sur Netlify. Utiliser quand Kouider dit "crée un site pour [client]", "nouveau projet pour [business]", "fais un site [type]".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:   { type: 'string', description: 'Nom du client ou de l\'entreprise' },
+        business_type: { type: 'string', description: 'Type de business: restaurant, coiffeur, garage, médecin, boutique, etc.' },
+        description:   { type: 'string', description: 'Description du projet: ce que le site doit contenir, style, couleurs, fonctionnalités' },
+        phone:         { type: 'string', description: 'Téléphone du client (affiché sur le site)' },
+        city:          { type: 'string', description: 'Ville du client' },
+      },
+      required: ['client_name', 'business_type', 'description'],
+    },
+  },
+
   // ─── GÉNÉRATION IA (Replicate + fal.ai) ──────────────────────
   {
     name: 'generate_image',

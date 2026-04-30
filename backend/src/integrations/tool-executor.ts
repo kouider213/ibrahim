@@ -44,6 +44,7 @@ import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc } from
 import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
+import { runCodeAgent } from '../agents/code-agent.js';
 
 export async function executeTool(
   name: string,
@@ -142,6 +143,9 @@ export async function executeTool(
       // ─── VEILLE CONCURRENTIELLE ───
       case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId);
       case 'watch_my_tiktok':            return await watchMyTiktok(input);
+      // ─── CODE AGENT AUTONOME ───
+      case 'execute_code_task':          return await executeCodeTaskTool(input, sessionId);
+      case 'create_new_project':         return await createNewProjectTool(input, sessionId);
       // ─── GÉNÉRATION IA (Replicate + fal.ai) ───
       case 'generate_image':             return await generateImageTool(input, sessionId);
       case 'generate_ai_video':          return await generateAiVideoTool(input, sessionId);
@@ -1374,6 +1378,66 @@ Si les données sont limitées (TikTok bloque souvent les scrapers), dis-le et p
   }], undefined);
 
   return analysis.text;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── CODE AGENT AUTONOME ───────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+
+async function executeCodeTaskTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const task   = input['task'] as string;
+  const repo   = (input['repo'] as string | undefined) ?? 'ibrahim';
+  const chatId = chatIdFromSession(sessionId);
+
+  if (!task) return '❌ task requis — décris ce qui doit être codé';
+
+  // Lance l'agent en arrière-plan (non-bloquant)
+  runCodeAgent(task, chatId, repo).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    sendTelegramForMarketing(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
+  });
+
+  return `✅ Code Agent lancé pour: "${task.slice(0, 80)}"\n⏳ Je te tiens informé sur Telegram au fur et à mesure (5-15 min selon la complexité).`;
+}
+
+async function createNewProjectTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const clientName   = input['client_name']   as string;
+  const businessType = input['business_type'] as string;
+  const description  = input['description']   as string;
+  const phone        = (input['phone']        as string | undefined) ?? '';
+  const city         = (input['city']         as string | undefined) ?? 'Oran';
+  const chatId       = chatIdFromSession(sessionId);
+
+  if (!clientName || !businessType || !description)
+    return '❌ client_name, business_type et description sont requis';
+
+  const repoName = `client-${clientName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+  const task = `Créer un site web professionnel complet pour un client.
+
+CLIENT: ${clientName}
+TYPE DE BUSINESS: ${businessType}
+VILLE: ${city}
+TÉLÉPHONE: ${phone || 'à définir'}
+DESCRIPTION / CONTENU SOUHAITÉ: ${description}
+
+INSTRUCTIONS TECHNIQUES:
+1. Créer les fichiers dans le dossier clients/${repoName}/ du repo ibrahim
+2. Fichiers minimum: index.html, style.css, script.js
+3. Design: moderne, responsive, professionnel
+4. Langue: français (ou arabe si demandé)
+5. Inclure: header avec nom + logo placeholder, section services, contact avec téléphone, footer
+6. Couleurs: choisir selon le type de business (restaurant → chaleureux, médecin → bleu/blanc, etc.)
+7. Après création → verify_deploy pour confirmer
+
+À la fin, annoncer que le site est prêt et indiquer comment le déployer sur Netlify.`;
+
+  runCodeAgent(task, chatId, 'ibrahim').catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    sendTelegramForMarketing(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
+  });
+
+  return `✅ Création du site pour ${clientName} (${businessType}) lancée!\n⏳ Code Agent au travail — résultat sur Telegram dans 10-20 min.`;
 }
 
 // ════════════════════════════════════════════════════════════════
