@@ -1083,13 +1083,22 @@ Accrocheur, prix + Fik Conciergerie mentionnés, CTA fort. RÉPONDS UNIQUEMENT a
     ? (bgMotion[backgroundEffect] ?? `${backgroundEffect} scenery, cinematic car reveal, smooth camera`)
     : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
 
-  await sendTelegramForMarketing(chatId, `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · ${backgroundEffect}` : ''}_\n⏳ 60-90 secondes...`);
+  if (!falKey) {
+    await sendTelegramForMarketing(chatId, `⚠️ FAL_KEY manquant dans Railway — génération IA impossible.`);
+  } else {
+    await sendTelegramForMarketing(chatId, `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · ${backgroundEffect}` : ''}_\n⏳ 60-90 secondes...`);
+  }
 
   // ── 3. Génération vidéo : Kling en priorité, FFmpeg en fallback ──
   let videoBuffer: Buffer | null = null;
 
   if (falKey) {
     try {
+      // Vérifie que l'image est accessible publiquement
+      await axios.head(car.image_url, { timeout: 8_000 }).catch(() => {
+        throw new Error(`Image voiture inaccessible publiquement: ${car.image_url}`);
+      });
+
       const videoUrl = await falGenerate(
         'fal-ai/kling-video/v1.6/standard/image-to-video',
         { image_url: car.image_url, prompt: motionPrompt, duration: '5', aspect_ratio: '9:16' },
@@ -1101,17 +1110,25 @@ Accrocheur, prix + Fik Conciergerie mentionnés, CTA fort. RÉPONDS UNIQUEMENT a
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[tool:create_marketing_video] Kling failed:', msg);
-      await sendTelegramForMarketing(chatId, `⚠️ Kling échoué (${msg.slice(0, 60)}) — fallback FFmpeg...`);
+      await sendTelegramForMarketing(chatId,
+        `❌ *Kling IA échoué*\n\`${msg.slice(0, 200)}\`\n\n_Tentative fallback FFmpeg..._`);
     }
   }
 
   if (!videoBuffer) {
-    const idea = {
-      title: `${car.name} — Fik Conciergerie Oran`, concept: script, voiceover_script: script,
-      caption, hashtags, best_time: 'Ce soir 20h-22h', car_suggestion: car.name,
-    };
-    const ff = await createMarketingVideo(car, idea, { customScript, backgroundEffect }).catch(() => null);
-    if (ff) videoBuffer = ff.buffer;
+    try {
+      const idea = {
+        title: `${car.name} — Fik Conciergerie Oran`, concept: script, voiceover_script: script,
+        caption, hashtags, best_time: 'Ce soir 20h-22h', car_suggestion: car.name,
+      };
+      const ff = await createMarketingVideo(car, idea, { customScript, backgroundEffect });
+      if (ff) videoBuffer = ff.buffer;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[tool:create_marketing_video] FFmpeg fallback failed:', msg);
+      await sendTelegramForMarketing(chatId,
+        `❌ *FFmpeg aussi échoué*\n\`${msg.slice(0, 200)}\`\n\n_Envoi photo + voix à la place._`);
+    }
   }
 
   // ── 4. Voix ElevenLabs (séparée) ─────────────────────────────
