@@ -1272,12 +1272,6 @@ async function mergeVideosTool(
 // ── VEILLE CONCURRENTIELLE ────────────────────────────────────
 // ════════════════════════════════════════════════════════════════
 
-const KNOWN_COMPETITORS = [
-  'didanolocation',
-  'location voiture oran',
-  'car rental oran algerie',
-];
-
 async function jSearch(query: string, maxChars = 1500): Promise<string> {
   try {
     const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(query)}`, {
