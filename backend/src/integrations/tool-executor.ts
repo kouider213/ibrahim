@@ -1543,9 +1543,9 @@ Réponds en français, format structuré Telegram (markdown bold avec **):
     return '✅ Analyse concurrents envoyée + vidéo contre-pub créée.';
   }
 
-  // Envoyer l'analyse sur Telegram et la retourner aussi dans la réponse
+  // Envoyer l'analyse sur Telegram et la retourner aussi dans la réponse (tronquée pour Claude)
   await sendTelegramForMarketing(chatId, analysis.text).catch(() => {});
-  return analysis.text;
+  return analysis.text.substring(0, 3000);
 }
 
 async function watchMyTiktok(input: Record<string, unknown>): Promise<string> {
