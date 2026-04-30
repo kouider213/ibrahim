@@ -52,7 +52,8 @@ export async function buildContext(
   userMessage: string,
 ): Promise<ConversationContext> {
   const needsNews     = /actualit|news|journal|presse|info/i.test(userMessage);
-  const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
+  const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari|part.*houari|part.*kouider|total|depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan/i.test(userMessage);
+  const needsAnnualFinance = /depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan.*ann[eé]e|ann[eé]e.*enti[eè]re|rapport.*ann[eé]e|ann[eé]e.*compl[eè]te/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
   const needsMemory   = true; // always inject memories — both channels (voice app + Telegram) share them
 
@@ -89,7 +90,7 @@ export async function buildContext(
     getCachedWeather(),
     needsNews     ? getAlgeriaNews(4).catch(() => [])                                            : Promise.resolve([]),
     needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
-    needsFinance  ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
+    needsFinance  ? getFinancialReport(now.getFullYear(), needsAnnualFinance ? undefined : now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
     needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then((r: any) => r.data ?? []) : Promise.resolve([]),
     getRecentUserMessages(40).catch(() => [] as string[]),
     loadCompactionSummary(sessionId).catch(() => null),
@@ -165,7 +166,7 @@ export async function buildContext(
     : '';
 
   const financeText = financeReport
-    ? `\n\nRAPPORT FINANCIER:\n${JSON.stringify(financeReport, null, 2)}`
+    ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):\nTotal réservations: ${financeReport.totalBookings} | Kouider: ${financeReport.kouiderBookings} résa | Houari: ${financeReport.houariBookings} résa\nBÉNÉFICE KOUIDER: ${financeReport.kouiderProfit}€ | REVENU HOUARI: ${financeReport.houariRevenue}€\nDÉTAIL:\n${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | ${b.final_price}€ total | ${b.rented_by === 'Kouider' ? `K+${b.kouider_profit}€` : `H100%`}`).join('\n')}`
     : '';
 
   const memoriesText = memories.length > 0

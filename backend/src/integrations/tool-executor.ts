@@ -1258,10 +1258,15 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
   ].join('\n');
 
   // ── Envoi Telegram ────────────────────────────────────────────
+  let videoActuallySent = false;
   if (videoBuffer) {
-    await sendVideoBuffer(chatId, videoBuffer, approvalMsg).catch(async () => {
+    try {
+      await sendVideoBuffer(chatId, videoBuffer, approvalMsg);
+      videoActuallySent = true;
+    } catch (sendErr) {
+      console.error('[tool:create_marketing_video] sendVideoBuffer failed:', sendErr instanceof Error ? sendErr.message : sendErr);
       await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
-    });
+    }
   } else {
     await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
   }
@@ -1270,7 +1275,15 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
     await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
   }
 
-  const resultMsg = `✅ Vidéo ${method} + voix ElevenLabs envoyées ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  let resultMsg: string;
+  if (videoActuallySent) {
+    const method = falKey ? 'Kling IA' : 'FFmpeg';
+    resultMsg = `✅ Vidéo ${method} créée et envoyée ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  } else if (videoBuffer) {
+    resultMsg = `⚠️ Vidéo générée mais envoi Telegram échoué — photo envoyée à la place ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  } else {
+    resultMsg = `⚠️ Génération vidéo échouée (Kling IA et FFmpeg ont tous les deux échoué) — photo + voix envoyées à la place ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  }
   return resultMsg.substring(0, 3000);
 }
 
