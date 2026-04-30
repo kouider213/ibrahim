@@ -4,7 +4,6 @@
  */
 
 import axios from 'axios';
-import FormData from 'form-data';
 
 export type DocumentType = 'pdf' | 'docx' | 'xlsx' | 'txt' | 'csv' | 'image' | 'unknown';
 

@@ -83,6 +83,20 @@ const BG_QUERIES: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+/**
+ * Vérifie qu'un Buffer est un vrai fichier MP4 :
+ *  - taille > 50 KB (minimum pour une vidéo réelle)
+ *  - magic bytes "ftyp" présents à l'offset 4 (standard MP4/MOV)
+ */
+export function isValidMp4Buffer(buf: Buffer): boolean {
+  if (buf.length < 50_000) return false;
+  // MP4 : 4 octets taille de boîte + "ftyp" (0x66 0x74 0x79 0x70)
+  return (
+    buf[4] === 0x66 && buf[5] === 0x74 &&
+    buf[6] === 0x79 && buf[7] === 0x70
+  );
+}
+
 /** Nettoyage texte pour filtres FFmpeg drawtext */
 function dt(text: string): string {
   return text
@@ -501,7 +515,13 @@ RÉPONDS UNIQUEMENT avec le script, sans guillemets ni commentaires.`,
       console.log('[mktg-video] ✅ Simple fallback video built');
     }
 
-    videoBuffer = await fs.readFile(videoPath);
+    const raw = await fs.readFile(videoPath);
+    if (!isValidMp4Buffer(raw)) {
+      console.error(`[mktg-video] ❌ Fichier généré invalide: ${raw.length} bytes, magic bytes incorrects`);
+      throw new Error(`Le fichier MP4 généré par FFmpeg est invalide ou corrompu (${raw.length} bytes).`);
+    }
+    videoBuffer = raw;
+    console.log(`[mktg-video] ✅ MP4 validé: ${videoBuffer.length} bytes`);
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }

@@ -11,7 +11,7 @@ import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
 import { mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
-import { executeCreateMarketingVideo } from '../marketing/create-marketing-video.js';
+import { executeCreateMarketingVideo, isValidMp4Buffer } from '../marketing/create-marketing-video.js';
 import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
 import {
   sendMessage as sendTelegramForMarketing,
@@ -1193,9 +1193,13 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
         180_000,
       );
       const resp = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
-      videoBuffer = Buffer.from(resp.data as ArrayBuffer);
+      const rawBuf = Buffer.from(resp.data as ArrayBuffer);
+      if (!isValidMp4Buffer(rawBuf)) {
+        throw new Error(`Kling IA a retourné un fichier invalide (${rawBuf.length} bytes, magic bytes incorrects — pas un MP4).`);
+      }
+      videoBuffer = rawBuf;
       method      = 'Kling IA';
-      console.log('[tool:create_marketing_video] ✅ Kling OK — buffer:', videoBuffer.length, 'bytes');
+      console.log('[tool:create_marketing_video] ✅ Kling MP4 validé:', videoBuffer.length, 'bytes');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[tool:create_marketing_video] Kling failed:', msg);
@@ -1277,12 +1281,11 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
 
   let resultMsg: string;
   if (videoActuallySent) {
-    const method = falKey ? 'Kling IA' : 'FFmpeg';
     resultMsg = `✅ Vidéo ${method} créée et envoyée ↑ (ID: ${pendingId}). En attente de ta validation.`;
   } else if (videoBuffer) {
     resultMsg = `⚠️ Vidéo générée mais envoi Telegram échoué — photo envoyée à la place ↑ (ID: ${pendingId}). En attente de ta validation.`;
   } else {
-    resultMsg = `⚠️ Génération vidéo échouée (Kling IA et FFmpeg ont tous les deux échoué) — photo + voix envoyées à la place ↑ (ID: ${pendingId}). En attente de ta validation.`;
+    resultMsg = `Je n'ai pas pu créer la vidéo. La génération a échoué (Kling IA et FFmpeg ont tous les deux échoué). Une photo + voix ont été envoyées à la place ↑ (ID: ${pendingId}).`;
   }
   return resultMsg.substring(0, 3000);
 }

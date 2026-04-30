@@ -1,7 +1,7 @@
 ﻿import type { Job } from 'bullmq';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
-import { sendMessage, sendVideo } from '../../integrations/telegram.js';
+import { sendMessage, sendVideoBuffer } from '../../integrations/telegram.js';
 import { getFinancialReport } from '../../integrations/finance.js';
 import { listUpcomingEvents } from '../../integrations/google-calendar.js';
 import { getOranWeather } from '../../integrations/web-search.js';
@@ -279,7 +279,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 
   // 6. Save as pending (waiting for "Oke" approval)
   const pendingId = await savePendingVideo({
-    video_url: videoResult.video_url,
+    video_url: targetCar.image_url,
     caption:   videoResult.caption,
     hashtags:  videoResult.hashtags,
     car_name:  videoResult.car_name,
@@ -299,12 +299,11 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
     `❌ Réponds *Non* pour annuler`,
   ].join('\n');
 
-  await sendVideo(ownerChatId(), videoResult.video_url, approvalCaption).catch(async () => {
-    // Fallback if video send fails
+  await sendVideoBuffer(ownerChatId(), videoResult.buffer, approvalCaption).catch(async () => {
     await tg([
       approvalCaption,
       ``,
-      `🔗 *Lien vidéo:* ${videoResult.video_url}`,
+      `🖼️ *Aperçu:* ${targetCar.image_url}`,
     ].join('\n'));
   });
 

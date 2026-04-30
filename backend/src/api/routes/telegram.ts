@@ -12,9 +12,6 @@ import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketin
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import { addVideoToBuffer } from '../../marketing/video-buffer.js';
 import Anthropic from '@anthropic-ai/sdk';
-import {
-  analyzeImage, optimizeImage, enhanceImage, removeBackground, createSocialVariants,
-} from '../../integrations/media-processing.js';
 import { env } from '../../config/env.js';
 
 const router   = Router();
