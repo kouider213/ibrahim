@@ -1587,7 +1587,7 @@ Analyse en français, format Telegram (markdown):
 Si les données sont limitées (TikTok bloque souvent les scrapers), dis-le et propose quand même des pistes basées sur les bonnes pratiques du secteur location voiture Oran.`,
   }], undefined);
 
-  return analysis.text;
+  return analysis.text.substring(0, 3000);
 }
 
 // ════════════════════════════════════════════════════════════════
