@@ -1270,7 +1270,8 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
     await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
   }
 
-  return `✅ Vidéo ${method} + voix ElevenLabs envoyées ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  const resultMsg = `✅ Vidéo ${method} + voix ElevenLabs envoyées ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  return resultMsg.substring(0, 3000);
 }
 
 async function mergeVideosTool(
