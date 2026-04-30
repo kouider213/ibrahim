@@ -12,7 +12,7 @@ export const VEHICLE_PRICING: VehiclePricing[] = [
   { name: 'Sandero',       houariPrice: 22, kouiderPrice: 35, benefit: 13 },
   { name: 'Clio 5',        houariPrice: 37, kouiderPrice: 45, benefit:  8 },
   { name: 'Clio 5 Alpine', houariPrice: 44, kouiderPrice: 50, benefit:  6 },
-  { name: 'Clio 4 v1',     houariPrice: 18, kouiderPrice: 35, benefit: 17 },
+  { name: 'Clio 4 v1',     houariPrice: 16, kouiderPrice: 35, benefit: 19 },
   { name: 'Clio 4 v2',     houariPrice: 24, kouiderPrice: 35, benefit: 11 },
   { name: 'i10',           houariPrice: 19, kouiderPrice: 25, benefit:  6 },
   { name: 'Fiat 500',      houariPrice: 24, kouiderPrice: 35, benefit: 11 },

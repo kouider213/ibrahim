@@ -4,7 +4,7 @@ import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
 import { learnRule, chat } from './claude-api.js';
-import { formatPricingTable } from '../config/pricing.js';
+import { formatPricingTable, getPricingForVehicle } from '../config/pricing.js';
 import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
@@ -1038,7 +1038,13 @@ async function createMarketingVideoTool(
     ? (carsWithImage.find(c => c.name.toLowerCase().includes(carName)) ?? carsWithImage[Math.floor(Math.random() * carsWithImage.length)])
     : carsWithImage[Math.floor(Math.random() * carsWithImage.length)];
 
-  // ── 1. Script IA ─────────────────────────────────────────────
+  // ── 1. Prix réel depuis la grille tarifaire ──────────────────
+  const pricing    = getPricingForVehicle(car.name);
+  const priceKouider = pricing?.kouiderPrice ?? null;
+  const priceHouari  = pricing?.houariPrice  ?? null;
+  const priceDisplay = priceKouider ? `${priceKouider}€/j` : (priceHouari ? `${priceHouari}€/j` : 'prix sur demande');
+
+  // ── 2. Script IA ─────────────────────────────────────────────
   let script: string;
   if (customScript) {
     script = customScript;
@@ -1047,8 +1053,6 @@ async function createMarketingVideoTool(
     const season = month >= 6 && month <= 8 ? 'Saison MRE (forte demande diaspora)'
       : month === 3 || month === 4            ? 'Ramadan (sorties nocturnes, famille)'
       : 'Période standard (clients locaux + pros)';
-    const priceEur = car.resale_price ? `${car.resale_price}€` : '';
-    const priceDzd = `${car.base_price.toLocaleString()} DZD`;
     const styleDesc: Record<string, string> = {
       reveal:     'dévoilement dramatique, suspense puis révélation prix',
       prix:       'choc du prix en premier, insister sur le rapport qualité/prix',
@@ -1058,13 +1062,13 @@ async function createMarketingVideoTool(
     const sr = await chat([{
       role: 'user',
       content: `Script voix-off TikTok, 20-25 sec, FRANÇAIS uniquement, style ${style} (${styleDesc[style] ?? style}).
-VOITURE: ${car.name} (${car.category}) | PRIX: ${priceEur ? priceEur + '/j | ' : ''}${priceDzd}/j | ${season}
+VOITURE: ${car.name} (${car.category}) | PRIX: ${priceDisplay} | ${season}
 Accrocheur, prix + Fik Conciergerie mentionnés, CTA fort. RÉPONDS UNIQUEMENT avec le script.`,
     }], undefined);
     script = sr.text.trim().replace(/^["']|["']$/g, '');
   }
 
-  const caption  = `🚗 ${car.name} à Oran — ${car.base_price.toLocaleString()} DZD/j | Fik Conciergerie`;
+  const caption  = `🚗 ${car.name} à Oran — ${priceDisplay} | Fik Conciergerie`;
   const hashtags = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
 
   // ── 2. Motion prompt pour Kling ──────────────────────────────
