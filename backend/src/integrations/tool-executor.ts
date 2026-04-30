@@ -359,9 +359,58 @@ async function recallMemory(input: Record<string, unknown>): Promise<string> {
   return data.map((m: any) => `[${m.category}] ${m.content}`).join('\n');
 }
 
-async function getWeather(_input: Record<string, unknown>): Promise<string> {
-  const data = await getOranWeather();
-  return JSON.stringify(data);
+async function getWeather(input: Record<string, unknown>): Promise<string> {
+  const city    = (input['city'] as string | undefined)?.trim();
+  const country = (input['country'] as string | undefined)?.trim();
+
+  // Sans ville spécifiée → météo Oran (défaut)
+  if (!city || city.toLowerCase().includes('oran')) {
+    const data = await getOranWeather();
+    return JSON.stringify(data);
+  }
+
+  // Avec ville → geocoding Open-Meteo puis météo
+  try {
+    const geoQuery  = country ? `${city}, ${country}` : city;
+    const geoResp   = await axios.get(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(geoQuery)}&count=1&language=fr&format=json`,
+      { timeout: 8_000 },
+    );
+    const results = (geoResp.data as any).results as Array<{ latitude: number; longitude: number; name: string; country: string; timezone: string }> | undefined;
+    if (!results?.length) return `❌ Ville introuvable: ${geoQuery}`;
+
+    const loc      = results[0];
+    const timezone = encodeURIComponent(loc.timezone ?? 'auto');
+    const wxResp   = await axios.get(
+      `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weathercode,is_day&timezone=${timezone}`,
+      { timeout: 8_000 },
+    );
+    const c    = (wxResp.data as any).current;
+    const WMO: Record<number, { label: string; icon: string }> = {
+      0: { label: 'Ciel dégagé', icon: '☀️' }, 1: { label: 'Principalement dégagé', icon: '🌤️' },
+      2: { label: 'Partiellement nuageux', icon: '⛅' }, 3: { label: 'Couvert', icon: '☁️' },
+      45: { label: 'Brouillard', icon: '🌫️' }, 48: { label: 'Brouillard givrant', icon: '🌫️' },
+      51: { label: 'Bruine légère', icon: '🌦️' }, 61: { label: 'Pluie légère', icon: '🌧️' },
+      63: { label: 'Pluie modérée', icon: '🌧️' }, 65: { label: 'Pluie forte', icon: '⛈️' },
+      80: { label: 'Averses légères', icon: '🌦️' }, 81: { label: 'Averses modérées', icon: '🌧️' },
+      82: { label: 'Averses violentes', icon: '⛈️' }, 95: { label: 'Orage', icon: '⛈️' },
+      99: { label: 'Orage avec grêle', icon: '🌩️' },
+    };
+    const wmo = WMO[c.weathercode as number] ?? { label: 'Inconnu', icon: '❓' };
+    return JSON.stringify({
+      city:          loc.name,
+      country:       loc.country,
+      temperature:   Math.round(c.temperature_2m as number),
+      apparent_temp: Math.round(c.apparent_temperature as number),
+      humidity:      c.relative_humidity_2m as number,
+      wind_speed:    Math.round(c.wind_speed_10m as number),
+      condition:     wmo.label,
+      icon:          wmo.icon,
+      is_day:        c.is_day === 1,
+    });
+  } catch (err) {
+    return `❌ Erreur météo pour ${city}: ${err instanceof Error ? err.message : String(err)}`;
+  }
 }
 
 async function getNews(input: Record<string, unknown>): Promise<string> {
