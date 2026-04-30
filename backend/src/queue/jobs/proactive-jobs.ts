@@ -694,6 +694,10 @@ export async function jobPatternDetection(_job: Job): Promise<void> {
 
 // Envoi confirmation WhatsApp pour toute réservation CONFIRMED dont whatsapp_sent=false
 export async function jobWhatsAppBookingConfirmations(_job: Job): Promise<void> {
+  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_WHATSAPP_FROM) {
+    console.log('[job:wa-confirm] SKIP — Twilio non configuré (variables manquantes)');
+    return;
+  }
   const today = new Date().toISOString().slice(0, 10);
 
   const { data: bookings } = await supabase
@@ -729,6 +733,10 @@ export async function jobWhatsAppBookingConfirmations(_job: Job): Promise<void> 
 
 // Rappel 24h avant prise en charge
 export async function jobWhatsApp24hReminders(_job: Job): Promise<void> {
+  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_WHATSAPP_FROM) {
+    console.log('[job:wa-24h] SKIP — Twilio non configuré (variables manquantes)');
+    return;
+  }
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().slice(0, 10);
@@ -755,6 +763,10 @@ export async function jobWhatsApp24hReminders(_job: Job): Promise<void> {
 
 // Message de fin de location (jour J de restitution)
 export async function jobWhatsAppReturnReminders(_job: Job): Promise<void> {
+  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_WHATSAPP_FROM) {
+    console.log('[job:wa-return] SKIP — Twilio non configuré (variables manquantes)');
+    return;
+  }
   const today = new Date().toISOString().slice(0, 10);
 
   const { data: bookings } = await supabase

@@ -248,15 +248,19 @@ router.post('/webhook', async (req, res) => {
     if (pending) {
       if (isOke) {
         approveVideo(pending.id);
-        await sendMessage(chatId, '✅ *Vidéo validée !* Publication TikTok en cours...');
+        const tiktokConfigured = Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID);
 
-        const result = await publishVideo(pending);
-
-        if (result.success) {
-          await sendMessage(chatId, `🚀 *${result.message}*\n${result.url ?? ''}`);
+        if (tiktokConfigured) {
+          await sendMessage(chatId, '✅ *Vidéo validée !* Publication TikTok en cours...');
+          const result = await publishVideo(pending);
+          if (result.success) {
+            await sendMessage(chatId, `🚀 *${result.message}*\n${result.url ?? ''}`);
+          } else {
+            await sendMessage(chatId, `⚠️ Publication TikTok échouée: ${result.message}\n\n${buildSharePackage(pending)}`);
+          }
         } else {
-          // TikTok API not configured or failed → send ready-to-post package
-          await sendMessage(chatId, buildSharePackage(pending));
+          // TikTok non configuré → paquet manuel directement, sans fausse promesse
+          await sendMessage(chatId, `✅ *Vidéo validée !*\n\n${buildSharePackage(pending)}`);
         }
       } else {
         rejectVideo(pending.id);
