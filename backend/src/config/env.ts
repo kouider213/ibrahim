@@ -45,6 +45,8 @@ const envSchema = z.object({
   REPLICATE_API_TOKEN: z.string().optional(),
   // ── fal.ai — Génération vidéos IA (Kling 1.6, WAN 2.1) ──
   FAL_KEY:             z.string().optional(),
+  // ── Apify — Scraping TikTok concurrents ──
+  APIFY_API_KEY:       z.string().optional(),
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_URL:          z.string().url().default('http://localhost:3000'),

@@ -1275,34 +1275,109 @@ async function jFetch(url: string, maxChars = 2500): Promise<string> {
   }
 }
 
+async function apifyTikTokScrape(handles: string[]): Promise<string> {
+  const apiKey = env.APIFY_API_KEY;
+  if (!apiKey) return 'APIFY_API_KEY non configurée.';
+
+  // Démarrer le run Apify (clockworks/tiktok-scraper)
+  const runResp = await axios.post(
+    `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/runs?token=${apiKey}`,
+    {
+      profiles:              handles,
+      resultsPerPage:        10,
+      shouldDownloadVideos:  false,
+      shouldDownloadCovers:  false,
+      shouldDownloadSubtitles: false,
+    },
+    { timeout: 30_000 },
+  );
+
+  const runId: string = runResp.data?.data?.id ?? '';
+  if (!runId) return 'Impossible de démarrer le scraper Apify.';
+
+  // Attendre la fin du run (max 90s)
+  let datasetId = '';
+  for (let i = 0; i < 18; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const statusResp = await axios.get(
+      `https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`,
+      { timeout: 10_000 },
+    );
+    const status: string = statusResp.data?.data?.status ?? '';
+    if (status === 'SUCCEEDED') {
+      datasetId = statusResp.data?.data?.defaultDatasetId ?? '';
+      break;
+    }
+    if (status === 'FAILED' || status === 'ABORTED') return `Scraper Apify échoué: ${status}`;
+  }
+
+  if (!datasetId) return 'Timeout — scraper Apify trop lent.';
+
+  // Récupérer les résultats
+  const itemsResp = await axios.get(
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=30`,
+    { timeout: 15_000 },
+  );
+
+  const items: any[] = itemsResp.data ?? [];
+  if (!items.length) return 'Aucun résultat TikTok trouvé.';
+
+  // Formater les données
+  const profiles: Record<string, any[]> = {};
+  for (const item of items) {
+    const handle = item.authorMeta?.name ?? item.author?.uniqueId ?? 'inconnu';
+    if (!profiles[handle]) profiles[handle] = [];
+    profiles[handle].push(item);
+  }
+
+  let output = '';
+  for (const [handle, videos] of Object.entries(profiles)) {
+    const first = videos[0];
+    const authorMeta = first?.authorMeta ?? first?.author ?? {};
+    output += `\n📊 @${handle}\n`;
+    output += `• Abonnés: ${authorMeta.fans ?? authorMeta.followerCount ?? '?'}\n`;
+    output += `• Total likes: ${authorMeta.heart ?? authorMeta.heartCount ?? '?'}\n`;
+    output += `• Vidéos: ${authorMeta.video ?? authorMeta.videoCount ?? '?'}\n`;
+    output += `• Bio: ${authorMeta.signature ?? '—'}\n\n`;
+    output += `Dernières vidéos:\n`;
+    for (const v of videos.slice(0, 8)) {
+      const date = v.createTimeISO ?? (v.createTime ? new Date(v.createTime * 1000).toLocaleDateString('fr-FR') : '?');
+      output += `  - "${(v.text ?? v.desc ?? '').slice(0, 80)}"\n`;
+      output += `    👁 ${v.playCount ?? v.stats?.playCount ?? '?'} vues | ❤️ ${v.diggCount ?? v.stats?.diggCount ?? '?'} likes | 💬 ${v.commentCount ?? v.stats?.commentCount ?? '?'} | ${date}\n`;
+    }
+    output += '\n';
+  }
+
+  return output;
+}
+
 async function analyzeCompetitors(input: Record<string, unknown>, sessionId: string): Promise<string> {
   const competitor = input['competitor'] as string | undefined;
-  const platform   = (input['platform'] as string | undefined) ?? 'all';
   const makeVideo  = input['generate_counter_video'] as boolean | undefined;
 
-  const queries: string[] = competitor
-    ? [
-        `"${competitor}" tiktok location voiture oran`,
-        `"${competitor}" prix promo voiture algérie`,
-        platform !== 'tiktok' ? `"${competitor}" telegram location voiture` : '',
-      ].filter(Boolean)
-    : [
-        'didanolocation tiktok location voiture oran promo',
-        'location voiture oran tiktok video récente',
-        'location voiture oran telegram prix promo',
-        'concurrence location auto oran algerie 2025',
-      ];
+  // Concurrents connus par défaut
+  const defaultHandles = ['didanolocation', 'autolorationoran', 'locationvoitureoran'];
+  const handles = competitor
+    ? [competitor.replace('@', '').trim()]
+    : defaultHandles;
 
-  const results = await Promise.all(queries.map(async q => `[${q}]\n${await jSearch(q)}`));
-  const pricing  = formatPricingTable();
+  // Scraping TikTok réel via Apify
+  let tiktokData = '';
+  if (env.APIFY_API_KEY) {
+    tiktokData = await apifyTikTokScrape(handles);
+  } else {
+    tiktokData = await jSearch(handles.map(h => `@${h} tiktok location voiture oran`).join(' OR '));
+  }
+
+  const pricing = formatPricingTable();
 
   const analysis = await chat([{
     role: 'user',
     content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
-Analyse ces résultats de recherche sur la concurrence locale en location de voitures.
+Analyse ces VRAIES données TikTok des concurrents en location de voitures à Oran.
 
-RÉSULTATS:
-${results.join('\n\n---\n\n')}
+DONNÉES TIKTOK RÉELLES:
+${tiktokData}
 
 GRILLE TARIFAIRE FIK CONCIERGERIE (prix Kouider):
 ${pricing}
@@ -1310,18 +1385,16 @@ ${pricing}
 Réponds en français, format structuré pour Telegram (markdown):
 
 **🕵️ CE QUE FONT LES CONCURRENTS**
-(promos détectées, prix trouvés, véhicules mis en avant, contenus TikTok/Telegram)
+(vidéos récentes, sujets traités, fréquence de publication, vues moyennes)
 
-**📊 COMPARAISON AVEC NOS PRIX**
-(on est moins cher / plus cher / équivalent — par véhicule si possible)
+**📊 LEUR FORCE vs NOTRE FORCE**
+(ce qu'ils font mieux, ce qu'on fait mieux, opportunités détectées)
 
 **⚡ ACTION RECOMMANDÉE MAINTENANT**
-(une seule action précise: ex "Publier une vidéo Clio 4 à 35€/jour ce soir" ou "Baisser le prix du Duster de 50→45€")
+(une seule action précise basée sur les vraies données)
 
 **📱 IDÉE DE CONTRE-PUB**
-(script court 15 sec pour TikTok si une promo concurrente a été détectée)
-
-Si aucune info concrète trouvée: dis-le clairement et propose une stratégie proactive.`,
+(script court 15 sec pour TikTok inspiré de ce qu'on vient de voir)`,
   }], undefined);
 
   const chatId = sessionId.startsWith('telegram_') ? sessionId.replace('telegram_', '') : (process.env['TELEGRAM_CHAT_ID'] ?? '');
