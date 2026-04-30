@@ -277,186 +277,117 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
   }
 }
 
-// ── TRAITEMENT IMAGE AUTOMATIQUE ──────────────────────────────────
+// ── TRAITEMENT IMAGE — Claude Vision complet ─────────────────────
 async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
-    if (!cloudinary) {
-      await sendMessage(chatId, '⚠️ Cloudinary en cours de chargement, réessaie dans 2 secondes...');
-      return;
-    }
-
     await sendTyping(chatId);
 
+    const caption = msg.caption ?? '';
+
+    // ── Récupérer le fileId et mimeType ──────────────────────────
     let fileId: string;
     let mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
 
     if (msg.photo && msg.photo.length > 0) {
       const largest = msg.photo[msg.photo.length - 1];
       if (!largest) { await sendMessage(chatId, '⚠️ Photo illisible.'); return; }
-      fileId   = largest.file_id;
-      mimeType = 'image/jpeg';
+      fileId = largest.file_id;
     } else if (msg.document) {
       fileId = msg.document.file_id;
       const mime = msg.document.mime_type ?? '';
       if (mime === 'image/png')       mimeType = 'image/png';
       else if (mime === 'image/gif')  mimeType = 'image/gif';
       else if (mime === 'image/webp') mimeType = 'image/webp';
-      else                            mimeType = 'image/jpeg';
     } else {
       return;
     }
 
-    const caption = msg.caption ?? '';
-
-    // 1. Télécharger l'image depuis Telegram
-    await sendMessage(chatId, '⏳ Téléchargement de l\'image...');
+    // ── Télécharger l'image ───────────────────────────────────────
     const buffer = await downloadFile(fileId);
-    if (!buffer) {
-      await sendMessage(chatId, '⚠️ Impossible de télécharger l\'image.');
-      return;
-    }
+    if (!buffer) { await sendMessage(chatId, '⚠️ Impossible de télécharger la photo.'); return; }
 
-    // 2. Upload sur Cloudinary
-    await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
-    
-    const uploadResult = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { resource_type: 'image', folder: 'telegram_images' },
-        (error: any, result: any) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(buffer);
-    });
-
-    const imageUrl = uploadResult.secure_url;
-
-    // 3. ANALYSE VISION CLAUDE pour comprendre l'image
-    await sendMessage(chatId, '👁️ Analyse de l\'image...');
     const base64Image = buffer.toString('base64');
 
-    // Détecter si c'est une référence d'interface UI
-    const UI_KEYWORDS = /ressemble|interface|design|style|ui|apparence|copie|même look|même style|jarvis|modifie l'interface|change l'interface/i;
-    const isUIReference = caption && UI_KEYWORDS.test(caption);
+    // ── Vision Claude — analyse complète en une seule passe ───────
+    // Le system prompt donne à Claude tout le contexte Dzaryx
+    const visionPrompt = caption
+      ? `Photo reçue sur Telegram avec ce message: "${caption}"\n\nAnalyse d'abord l'image en détail, puis réponds à la demande.`
+      : `Photo reçue sur Telegram sans message. Analyse-la et dis-moi ce que tu vois avec tous les détails utiles (texte visible, personnes, documents, interface, voiture, lieu, etc.).`;
 
-    const visionSystemPrompt = isUIReference
-      ? `Tu es Dzaryx, assistant IA de Kouider. Analyse cette image d'interface UI avec TOUS les détails visuels:
-- Couleurs exactes (background, texte, boutons, bordures) avec codes hex si possible
-- Layout et disposition des éléments
-- Typographie (police, taille, poids)
-- Effets visuels (gradient, glow, blur, ombre, animation si visible)
-- Composants présents (boutons, cartes, barres, cercles, vagues)
-- Style général (futuriste, minimal, glassmorphism, neon, etc.)
-Sois TRÈS précis et exhaustif — cette description servira à reproduire exactement ce design.`
-      : `Tu es Dzaryx, assistant IA de Kouider (Fik Conciergerie Oran).
-Analyse précisément cette image. Si c'est un tableau/dashboard → liste tous les noms, prix, données visibles.
-Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et précis.`;
-
-    const visionResponse = await anthropic.messages.create({
+    const visionResp = await anthropic.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: isUIReference ? 2048 : 1024,
-      system: visionSystemPrompt,
+      max_tokens: 2048,
+      system: `Tu es Dzaryx, assistant IA personnel de Kouider — fondateur de Fik Conciergerie à Oran.
+Tu analyses les images envoyées sur Telegram avec une précision maximale.
+
+SELON LE TYPE D'IMAGE:
+- Passeport/permis → extrais TOUS les champs: nom complet, numéro, date naissance, expiration, nationalité
+- Capture d'écran d'une réservation/tableau → liste toutes les données visibles (noms, prix, dates, statuts)
+- Photo de voiture → identifie le modèle, état, plaque si visible, remarques
+- Interface/design → décris couleurs exactes, layout, composants, effets visuels (pour reproduire)
+- Facture/document commercial → extrais montants, dates, parties concernées
+- Photo générale → décris le contenu de façon précise et utile
+
+RÈGLES:
+- Répondre en FRANÇAIS
+- Sois EXHAUSTIF — mentionne TOUS les détails visibles
+- Si c'est un document client → propose directement de l'enregistrer (store_document)
+- Si c'est une interface UI → propose de modifier l'app pour y ressembler
+- Si c'est une voiture → fais le lien avec la flotte Fik Conciergerie si pertinent
+- Ton conversationnel naturel — tu es Dzaryx, pas un robot d'analyse`,
       messages: [{
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-          { type: 'text',  text: caption ? `Message joint: "${caption}"` : 'Décris ce que tu vois en détail.' },
+          { type: 'text',  text: visionPrompt },
         ],
       }],
     });
 
-    const imageDescription = visionResponse.content
-      .filter(b => b.type === 'text')
-      .map(b => (b as Anthropic.TextBlock).text)
+    const visionText = visionResp.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
       .join('');
 
-    // 4. Détecter si c'est une ACTION à exécuter
-    const ACTION_KEYWORDS = /modif|chang|corrig|mett|updat|prix|montant|réserv|client|supprim|créé|ajoute|ressemble|interface|design|style|ui|apparence|copie|jarvis/i;
+    // ── Passer la description Vision à Dzaryx avec tous ses outils ─
+    const fullMessage = caption
+      ? `[Photo reçue sur Telegram]\n\nVision Claude:\n${visionText}\n\nMessage de Kouider: "${caption}"`
+      : `[Photo reçue sur Telegram]\n\nVision Claude:\n${visionText}`;
 
-    if (caption && ACTION_KEYWORDS.test(caption)) {
-      await sendMessage(chatId, isUIReference ? '🎨 Analyse du design... Je vais modifier mon interface.' : '⚙️ Exécution de l\'action...');
+    const ctx      = await buildContext(sessionId, fullMessage);
+    const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
 
-      const actionMessage = isUIReference
-        ? `[Référence UI reçue — analyse visuelle détaillée:\n${imageDescription}]\n\nDemande de Kouider: "${caption}"\n\nTu dois modifier ton interface mobile pour qu'elle ressemble à cette référence.\nFichiers à modifier dans le repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux fichiers → modifier CSS/TSX pour reproduire le design → github_write_file → Netlify redéploie auto.`
-        : `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
-
-      const ctx      = await buildContext(sessionId, actionMessage);
-      const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
-
-      await sendMessage(chatId, response.text);
-
-      await Promise.all([
-        saveConversationTurn(sessionId, 'user',      actionMessage,  { source: 'telegram', type: 'image_action', url: imageUrl }),
-        saveConversationTurn(sessionId, 'assistant', response.text,  { source: 'telegram' }),
-      ]);
-
-      return;
+    // Envoyer la réponse de Dzaryx
+    for (const chunk of splitMessage(response.text, 4000)) {
+      await sendMessage(chatId, chunk);
     }
 
-    // 5. SINON → Traitement image selon demande
-    const lowerCaption = caption.toLowerCase();
-    let processedUrl = imageUrl;
-    let action = 'Image reçue et analysée';
-
-    if (/optim|compress|rédui|léger|web/i.test(lowerCaption)) {
-      await sendMessage(chatId, '🔧 Optimisation de l\'image...');
-      const optimized = await optimizeImage(imageUrl, 'web');
-      processedUrl = optimized.url;
-      action = `Optimisée (${optimized.size_reduction_percent}% plus légère)`;
-    } else if (/améliore|enhance|qualité|nettet/i.test(lowerCaption)) {
-      await sendMessage(chatId, '✨ Amélioration qualité...');
-      processedUrl = await enhanceImage(imageUrl);
-      action = 'Qualité améliorée (contraste, luminosité, netteté)';
-    } else if (/fond|background|détour/i.test(lowerCaption)) {
-      await sendMessage(chatId, '🎭 Suppression du fond...');
-      processedUrl = await removeBackground(imageUrl);
-      action = 'Fond supprimé (PNG transparent)';
-    } else if (/social|tiktok|insta|facebook|story|post/i.test(lowerCaption)) {
-      await sendMessage(chatId, '📱 Création variantes réseaux sociaux...');
-      const variants = await createSocialVariants(imageUrl);
-      
-      await sendMessage(chatId,
-        `✅ **Variantes créées:**\n\n` +
-        `📸 **TikTok/Reels (9:16)**\n${variants.tiktok}\n\n` +
-        `📸 **Instagram Post (1:1)**\n${variants.instagram_feed}\n\n` +
-        `📸 **Instagram Story (9:16)**\n${variants.instagram_story}\n\n` +
-        `📸 **YouTube (16:9)**\n${variants.youtube}`
-      );
-
-      await sendPhoto(chatId, variants.tiktok);
-      action = 'Variantes réseaux sociaux créées';
+    // Uploader sur Cloudinary en background (pour les outils media si besoin)
+    let imageUrl = '';
+    if (cloudinary) {
+      try {
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type: 'image', folder: 'telegram_images' },
+            (err: any, res: any) => { if (err) reject(err); else resolve(res); },
+          );
+          stream.end(buffer);
+        });
+        imageUrl = uploadResult.secure_url as string;
+      } catch { /* cloudinary optionnel */ }
     }
 
-    // 6. Analyse qualité
-    const analysis = await analyzeImage(imageUrl);
-
-    // 7. Envoyer résultat
-    const resultMsg = `✅ **Image traitée** — ${action}\n\n` +
-      `👁️ **Vision:**\n${imageDescription}\n\n` +
-      `📊 **Analyse technique:**\n` +
-      `• Résolution: ${analysis.width}x${analysis.height}\n` +
-      `• Taille: ${analysis.size_kb} KB\n` +
-      `• Format: ${analysis.format}\n` +
-      `• Score qualité: ${analysis.quality_score}/100\n\n` +
-      (analysis.suggestions.length > 0 ? `💡 **Suggestions:**\n${analysis.suggestions.join('\n')}\n\n` : '') +
-      `🔗 Lien: ${processedUrl}`;
-
-    await sendMessage(chatId, resultMsg);
-
-    // Envoyer l'image traitée si différente de l'originale
-    if (processedUrl !== imageUrl) {
-      await sendPhoto(chatId, processedUrl);
-    }
-
-    await saveConversationTurn(sessionId, 'user',
-      `[Image reçue${caption ? ` — "${caption}"` : ''} → ${action}]`,
-      { source: 'telegram', type: 'image', url: processedUrl, vision: imageDescription }
-    );
+    await Promise.all([
+      saveConversationTurn(sessionId, 'user',
+        `[Photo Telegram${caption ? ` — "${caption}"` : ''}]\n${visionText.slice(0, 500)}`,
+        { source: 'telegram', type: 'image', url: imageUrl, vision: visionText },
+      ),
+      saveConversationTurn(sessionId, 'assistant', response.text, { source: 'telegram' }),
+    ]).catch(e => console.error('[telegram] save error:', e));
 
   } catch (err) {
     console.error('[telegram] handleImageMessage error:', err instanceof Error ? err.message : String(err));
-    await sendMessage(chatId, `⚠️ Erreur traitement image: ${err instanceof Error ? err.message : String(err)}`);
+    await sendMessage(chatId, `⚠️ Erreur analyse photo: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
