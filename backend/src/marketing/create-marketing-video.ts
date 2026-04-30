@@ -23,7 +23,7 @@ import ffmpegPath from 'ffmpeg-static';
 import { supabase } from '../integrations/supabase.js';
 import { env } from '../config/env.js';
 import { synthesizeVoice } from '../notifications/dispatcher.js';
-import { chat } from './chat-helper.js';
+import { chat as claudeChat } from '../integrations/claude-api.js';
 import { getPricingForVehicle } from '../config/pricing.js';
 import {
   sendMessage as tgText,
