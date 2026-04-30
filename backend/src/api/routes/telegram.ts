@@ -59,7 +59,40 @@ router.post('/webhook', async (req, res) => {
 
   // /start
   if (msg.text?.startsWith('/start')) {
-    await sendMessage(chatId, `Salam Kouider ! Je suis Dzaryx 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTu peux me dire ce que tu veux faire avec tes médias !`);
+    await sendMessage(chatId, `Salam Kouider ! Je suis Dzaryx 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTape /help pour voir toutes mes commandes.`);
+    return;
+  }
+
+  // /help
+  if (msg.text?.startsWith('/help')) {
+    await sendMessage(chatId, `🤖 *Dzaryx — Commandes disponibles*\n\n` +
+      `*📋 RÉSERVATIONS*\n` +
+      `"liste les réservations" — voir toutes les réservations\n` +
+      `"crée une réservation pour [client] du [date] au [date]"\n` +
+      `"annule la réservation de [client]"\n` +
+      `"état de la flotte" — quelles voitures sont dispo/louées\n\n` +
+      `*💰 FINANCES*\n` +
+      `"rapport financier" — CA du mois\n` +
+      `"qui a pas payé" — réservations impayées\n` +
+      `"enregistre un paiement de X€ pour [client]"\n` +
+      `"génère le bon de réservation pour [client]"\n\n` +
+      `*📸 PHOTOS & VIDÉOS*\n` +
+      `Envoie une photo → analyse automatique\n` +
+      `Envoie photo + "passeport" → OCR + stockage\n` +
+      `Envoie une vidéo → traitement Cloudinary\n` +
+      `"fais une vidéo TikTok pour [voiture]"\n` +
+      `"génère une image IA de [description]"\n` +
+      `"anime la photo de [voiture]"\n\n` +
+      `*📅 CALENDRIER*\n` +
+      `"synchronise le calendrier"\n` +
+      `"prochains événements agenda"\n\n` +
+      `*🔍 INFORMATIONS*\n` +
+      `"météo Oran" — météo en temps réel\n` +
+      `"qui n'a pas rendu la voiture" — retards\n` +
+      `"regarde les concurrents TikTok"\n\n` +
+      `*✅ APPROBATION VIDÉO*\n` +
+      `\`Oke\` → publier la vidéo en attente\n` +
+      `\`Non\` → annuler la vidéo en attente`);
     return;
   }
 

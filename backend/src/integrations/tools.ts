@@ -253,7 +253,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'supabase_execute',
-    description: 'Exécuter du SQL sur la base de données Supabase (SELECT, INSERT, UPDATE, ALTER TABLE, CREATE TABLE, etc.). Nécessite SUPABASE_ACCESS_TOKEN configuré dans Railway.',
+    description: 'Exécuter une requête SELECT sur la base de données Supabase. Lecture seule — INSERT/UPDATE/DELETE non autorisés. Nécessite SUPABASE_ACCESS_TOKEN configuré dans Railway.',
     input_schema: {
       type: 'object' as const,
       properties: {
