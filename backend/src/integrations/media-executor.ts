@@ -5,6 +5,7 @@
  */
 
 import * as media from './media-processing.js';
+import { env } from '../config/env.js';
 
 // ─── Helper: Convertir MM:SS ou HH:MM:SS → secondes ──────────────
 
@@ -25,6 +26,10 @@ function parseTimeToSeconds(time: string | number): number {
 }
 
 export async function executeMediaTool(toolName: string, args: any): Promise<string> {
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+    return `❌ Cloudinary non configuré — ajoute CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET dans Railway pour activer le traitement image/vidéo.`;
+  }
+
   try {
     switch (toolName) {
       // ─── IMAGE ──────────────────────────────────────────────────

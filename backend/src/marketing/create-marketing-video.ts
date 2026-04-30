@@ -44,13 +44,14 @@ export interface MarketingVideoInput {
 }
 
 export interface MarketingVideoResult {
-  public_url:  string;
-  car_name:    string;
-  script:      string;
-  caption:     string;
-  hashtags:    string[];
-  pending_id:  string;
-  method:      'ffmpeg' | 'photo_fallback';
+  public_url:         string;
+  car_name:           string;
+  script:             string;
+  caption:            string;
+  hashtags:           string[];
+  pending_id:         string;
+  method:             'ffmpeg' | 'photo_fallback';
+  telegram_delivered: boolean;
 }
 
 // ─── Constantes ───────────────────────────────────────────────
@@ -563,33 +564,47 @@ RÉPONDS UNIQUEMENT avec le script, sans guillemets ni commentaires.`,
     script,
   });
 
-  if (videoBuffer) {
-    await tgVideo(chatId, videoBuffer, approvalMsg).catch(async (err: unknown) => {
-      // Fallback : envoyer la photo + message si la vidéo est trop lourde
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('[mktg-video] tgVideo failed:', msg);
-      await tgPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
-    });
+  let telegramDelivered = false;
 
-    // Envoyer la voix séparément si disponible
+  if (videoBuffer) {
+    try {
+      await tgVideo(chatId, videoBuffer, approvalMsg);
+      telegramDelivered = true;
+    } catch (vidErr) {
+      console.error('[mktg-video] tgVideo failed:', vidErr instanceof Error ? vidErr.message : vidErr);
+      try {
+        await tgPhoto(chatId, car.image_url, approvalMsg);
+        telegramDelivered = true;
+      } catch (photoErr) {
+        console.error('[mktg-video] tgPhoto fallback also failed:', photoErr instanceof Error ? photoErr.message : photoErr);
+      }
+    }
+
+    // Voix séparément (toujours optionnel)
     const voiceBuffer = await synthesizeVoice(script).catch(() => null);
     if (voiceBuffer) {
       await tgVoice(chatId, voiceBuffer).catch(() => {});
     }
   } else {
     // Aucune vidéo générée — envoyer la photo avec le message
-    await tgPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    try {
+      await tgPhoto(chatId, car.image_url, approvalMsg);
+      telegramDelivered = true;
+    } catch (photoErr) {
+      console.error('[mktg-video] photo send failed:', photoErr instanceof Error ? photoErr.message : photoErr);
+    }
     const voiceBuffer = await synthesizeVoice(script).catch(() => null);
     if (voiceBuffer) await tgVoice(chatId, voiceBuffer).catch(() => {});
   }
 
   return {
-    public_url: publicUrl || car.image_url,
-    car_name:   car.name,
+    public_url:         publicUrl || car.image_url,
+    car_name:           car.name,
     script,
     caption,
-    hashtags:   HASHTAGS,
-    pending_id: pendingId,
-    method:     videoBuffer ? 'ffmpeg' : 'photo_fallback',
+    hashtags:           HASHTAGS,
+    pending_id:         pendingId,
+    method:             videoBuffer ? 'ffmpeg' : 'photo_fallback',
+    telegram_delivered: telegramDelivered,
   };
 }

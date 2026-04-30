@@ -1226,8 +1226,9 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
         },
         chatId,
       );
-      // La fonction envoie elle-même la vidéo sur Telegram avec le workflow d'approbation
-      return `✅ Vidéo FFmpeg HD générée pour ${result.car_name} et envoyée sur Telegram ↑ (ID: ${result.pending_id}).\nMéthode: ${result.method} | Script: "${result.script.slice(0, 80)}..."`;
+      const deliveryNote = result.telegram_delivered ? 'envoyée sur Telegram ↑' : '⚠️ générée mais envoi Telegram échoué';
+      const prefix = result.telegram_delivered ? '✅' : '⚠️';
+      return `${prefix} Vidéo ${result.method === 'ffmpeg' ? 'FFmpeg HD' : 'photo'} pour ${result.car_name} — ${deliveryNote} (ID: ${result.pending_id}).\nScript: "${result.script.slice(0, 80)}..."`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[tool:create_marketing_video] FFmpeg failed:', msg);

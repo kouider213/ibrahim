@@ -96,6 +96,122 @@ router.post('/webhook', async (req, res) => {
     return;
   }
 
+  // /health
+  if (msg.text?.startsWith('/health')) {
+    await sendTyping(chatId);
+    const checks: Array<{ name: string; ok: boolean; note?: string }> = [];
+    checks.push({ name: 'Telegram', ok: true });
+    try {
+      const { error } = await supabase.from('bookings').select('id').limit(1);
+      checks.push({ name: 'Supabase', ok: !error, note: error?.message });
+    } catch { checks.push({ name: 'Supabase', ok: false, note: 'ping échoué' }); }
+    checks.push({ name: 'ElevenLabs TTS', ok: Boolean(env.ELEVENLABS_API_KEY && env.ELEVENLABS_VOICE_ID), note: env.ELEVENLABS_API_KEY ? undefined : 'clé manquante' });
+    const clOk = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+    checks.push({ name: 'Cloudinary', ok: clOk, note: clOk ? undefined : '3 variables manquantes' });
+    checks.push({ name: 'Google Calendar', ok: Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON), note: env.GOOGLE_SERVICE_ACCOUNT_JSON ? undefined : 'GOOGLE_SERVICE_ACCOUNT_JSON manquant' });
+    const twOk = Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM);
+    checks.push({ name: 'WhatsApp Twilio', ok: twOk, note: twOk ? undefined : 'Variables Twilio manquantes' });
+    const pvOk = Boolean(env.PUSHOVER_USER_KEY && env.PUSHOVER_APP_TOKEN);
+    checks.push({ name: 'Pushover', ok: pvOk, note: pvOk ? undefined : 'Pushover vars manquantes' });
+    checks.push({ name: 'GitHub', ok: Boolean(env.GITHUB_TOKEN), note: env.GITHUB_TOKEN ? undefined : 'GITHUB_TOKEN manquant' });
+    checks.push({ name: 'fal.ai (Kling IA)', ok: Boolean(env.FAL_KEY), note: env.FAL_KEY ? undefined : 'FAL_KEY manquant' });
+    checks.push({ name: 'Replicate (Flux.1)', ok: Boolean(env.REPLICATE_API_TOKEN), note: env.REPLICATE_API_TOKEN ? undefined : 'REPLICATE_API_TOKEN manquant' });
+    checks.push({ name: 'Pexels', ok: Boolean(env.PEXELS_API_KEY), note: env.PEXELS_API_KEY ? undefined : 'PEXELS_API_KEY manquant' });
+    const tkOk = Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID);
+    checks.push({ name: 'TikTok API', ok: tkOk, note: tkOk ? undefined : 'Tokens TikTok manquants' });
+    const ok = checks.filter(c => c.ok).length;
+    const lines = checks.map(c => `${c.ok ? '🟢' : '🔴'} *${c.name}*${c.note ? ` — ${c.note}` : ''}`);
+    await sendMessage(chatId, `🏥 *DZARYX HEALTH CHECK*\n\n${lines.join('\n')}\n\n_${ok}/${checks.length} services opérationnels_`);
+    return;
+  }
+
+  // /capabilities
+  if (msg.text?.startsWith('/capabilities')) {
+    const has = (v: unknown) => Boolean(v);
+    const feats = [
+      { n: 'Chat IA + mémoire permanente',        ok: true },
+      { n: 'Réservations + flotte',               ok: true },
+      { n: 'Finances + impayés + rapport CA',     ok: true },
+      { n: 'Bon de réservation PDF',              ok: true },
+      { n: 'OCR passeport / permis',              ok: true },
+      { n: 'Documents clients (stockage + recherche)', ok: true },
+      { n: 'Rappels personnalisés (BullMQ)',       ok: true },
+      { n: 'Météo + actualités',                  ok: true },
+      { n: 'Web search + fetch URL',              ok: true },
+      { n: 'Code Agent autonome',                 ok: has(env.GITHUB_TOKEN) },
+      { n: 'Google Calendar sync',                ok: has(env.GOOGLE_SERVICE_ACCOUNT_JSON) },
+      { n: 'ElevenLabs voix (TTS)',               ok: has(env.ELEVENLABS_API_KEY) },
+      { n: 'Vidéo TikTok FFmpeg (local)',         ok: has(env.ELEVENLABS_API_KEY) },
+      { n: 'Traitement image/vidéo (Cloudinary)', ok: Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET) },
+      { n: 'Vidéo IA Kling (fal.ai)',             ok: has(env.FAL_KEY) },
+      { n: 'Image IA Flux.1 (Replicate)',         ok: has(env.REPLICATE_API_TOKEN) },
+      { n: 'Recherche images Pexels',             ok: has(env.PEXELS_API_KEY) },
+      { n: 'WhatsApp clients (Twilio)',           ok: Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM) },
+      { n: 'Publication TikTok automatique',      ok: Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID) },
+      { n: 'SQL SELECT Supabase',                 ok: has(env.SUPABASE_ACCESS_TOKEN) },
+    ];
+    const ready = feats.filter(f => f.ok);
+    const missing = feats.filter(f => !f.ok);
+    const capMsg = `⚡ *DZARYX CAPABILITIES — ${ready.length}/${feats.length}*\n\n✅ *Opérationnel*\n${ready.map(f => `  • ${f.n}`).join('\n')}\n\n❌ *Non configuré*\n${missing.map(f => `  • ${f.n}`).join('\n')}`;
+    await sendMessage(chatId, capMsg);
+    return;
+  }
+
+  // /selftest
+  if (msg.text?.startsWith('/selftest')) {
+    await sendTyping(chatId);
+    await sendMessage(chatId, '🧪 *Self-test Dzaryx...*\n_Tests réels en cours._');
+    const res: Array<{ t: string; ok: boolean; d: string }> = [];
+
+    // Supabase bookings
+    try {
+      const { data, error } = await supabase.from('bookings').select('id').limit(1);
+      res.push({ t: 'Supabase bookings', ok: !error, d: error?.message ?? `accessible (${data?.length ?? 0} ligne)` });
+    } catch (e) { res.push({ t: 'Supabase bookings', ok: false, d: String(e) }); }
+
+    // Supabase cars
+    try {
+      const { data, error } = await supabase.from('cars').select('id, name').limit(3);
+      res.push({ t: 'Supabase cars', ok: !error && (data?.length ?? 0) > 0, d: error?.message ?? `${data?.length ?? 0} voiture(s)` });
+    } catch (e) { res.push({ t: 'Supabase cars', ok: false, d: String(e) }); }
+
+    // Mémoire
+    try {
+      const { error } = await supabase.from('ibrahim_memory').select('id').limit(1);
+      res.push({ t: 'Table mémoire', ok: !error, d: error?.message ?? 'accessible' });
+    } catch (e) { res.push({ t: 'Table mémoire', ok: false, d: String(e) }); }
+
+    // Météo Open-Meteo (sans clé API)
+    try {
+      const { default: ax } = await import('axios');
+      const r = await ax.get('https://api.open-meteo.com/v1/forecast?latitude=35.7&longitude=-0.63&current=temperature_2m&timezone=Africa%2FAlgiers', { timeout: 8000 });
+      const temp = (r.data as any)?.current?.temperature_2m;
+      res.push({ t: 'Météo API', ok: temp !== undefined, d: temp !== undefined ? `${temp}°C Oran` : 'Pas de réponse' });
+    } catch (e) { res.push({ t: 'Météo API', ok: false, d: e instanceof Error ? e.message : String(e) }); }
+
+    // FFmpeg
+    try {
+      const { default: ffmpegStatic } = await import('ffmpeg-static');
+      const bin = ffmpegStatic as string | null;
+      res.push({ t: 'FFmpeg (vidéo)', ok: Boolean(bin), d: bin ?? 'ffmpeg-static absent' });
+    } catch (e) { res.push({ t: 'FFmpeg (vidéo)', ok: false, d: String(e) }); }
+
+    // ElevenLabs config
+    res.push({ t: 'ElevenLabs TTS', ok: Boolean(env.ELEVENLABS_API_KEY), d: env.ELEVENLABS_API_KEY ? `voix: ${env.ELEVENLABS_VOICE_ID}` : 'clé absente' });
+
+    // Cloudinary config
+    const clOk2 = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+    res.push({ t: 'Cloudinary', ok: clOk2, d: clOk2 ? `cloud: ${env.CLOUDINARY_CLOUD_NAME}` : '3 variables manquantes' });
+
+    // Google Calendar
+    res.push({ t: 'Google Calendar', ok: Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON), d: env.GOOGLE_SERVICE_ACCOUNT_JSON ? 'service account présent' : 'GOOGLE_SERVICE_ACCOUNT_JSON absent' });
+
+    const passed = res.filter(r => r.ok).length;
+    const lines = res.map(r => `${r.ok ? '✅' : '❌'} *${r.t}* — ${r.d}`);
+    await sendMessage(chatId, `🧪 *RÉSULTATS SELF-TEST*\n\n${lines.join('\n')}\n\n_${passed}/${res.length} tests passés_`);
+    return;
+  }
+
   // ── VIDÉO REÇUE ──
   if (msg.video) {
     // Store file_id in buffer so merge_videos tool can retrieve it
