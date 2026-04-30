@@ -151,6 +151,17 @@ export async function initScheduler(): Promise<void> {
         }
         return;
       }
+
+      // ── Verrou anti-doublon Redis ─────────────────────────────
+      // Évite qu'une 2ème instance Railway (overlap de déploiement) exécute
+      // le même job cron dans les 30 minutes qui suivent la 1ère exécution.
+      const lockKey = `scheduler:lock:${job.name}:${Math.floor(Date.now() / (30 * 60 * 1000))}`;
+      const acquired = await redis.set(lockKey, '1', 'EX', 1800, 'NX');
+      if (!acquired) {
+        console.log(`[scheduler] SKIP (déjà exécuté par une autre instance): ${job.name}`);
+        return;
+      }
+
       const handler = handlers[job.name];
       if (handler) {
         console.log(`[scheduler] Running: ${job.name}`);
