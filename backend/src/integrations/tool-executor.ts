@@ -1275,79 +1275,65 @@ async function jFetch(url: string, maxChars = 2500): Promise<string> {
   }
 }
 
-async function apifyTikTokScrape(handles: string[]): Promise<string> {
+async function apifyRun(actorId: string, inputPayload: Record<string, unknown>): Promise<any[]> {
   const apiKey = env.APIFY_API_KEY;
-  if (!apiKey) return 'APIFY_API_KEY non configurée.';
+  if (!apiKey) return [];
 
-  // Démarrer le run Apify (clockworks/tiktok-scraper)
   const runResp = await axios.post(
-    `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/runs?token=${apiKey}`,
-    {
-      profiles:              handles,
-      resultsPerPage:        10,
-      shouldDownloadVideos:  false,
-      shouldDownloadCovers:  false,
-      shouldDownloadSubtitles: false,
-    },
+    `https://api.apify.com/v2/acts/${actorId}/runs?token=${apiKey}`,
+    inputPayload,
     { timeout: 30_000 },
   );
 
   const runId: string = runResp.data?.data?.id ?? '';
-  if (!runId) return 'Impossible de démarrer le scraper Apify.';
+  if (!runId) return [];
 
-  // Attendre la fin du run (max 90s)
+  // Attendre la fin du run (max 120s)
   let datasetId = '';
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 24; i++) {
     await new Promise(r => setTimeout(r, 5000));
     const statusResp = await axios.get(
       `https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`,
       { timeout: 10_000 },
     );
     const status: string = statusResp.data?.data?.status ?? '';
-    if (status === 'SUCCEEDED') {
-      datasetId = statusResp.data?.data?.defaultDatasetId ?? '';
-      break;
-    }
-    if (status === 'FAILED' || status === 'ABORTED') return `Scraper Apify échoué: ${status}`;
+    if (status === 'SUCCEEDED') { datasetId = statusResp.data?.data?.defaultDatasetId ?? ''; break; }
+    if (status === 'FAILED' || status === 'ABORTED') return [];
   }
 
-  if (!datasetId) return 'Timeout — scraper Apify trop lent.';
+  if (!datasetId) return [];
 
-  // Récupérer les résultats
   const itemsResp = await axios.get(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=30`,
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=40`,
     { timeout: 15_000 },
   );
+  return itemsResp.data ?? [];
+}
 
-  const items: any[] = itemsResp.data ?? [];
+function formatTikTokItems(items: any[]): string {
   if (!items.length) return 'Aucun résultat TikTok trouvé.';
 
-  // Formater les données
-  const profiles: Record<string, any[]> = {};
+  const byAuthor: Record<string, any[]> = {};
   for (const item of items) {
     const handle = item.authorMeta?.name ?? item.author?.uniqueId ?? 'inconnu';
-    if (!profiles[handle]) profiles[handle] = [];
-    profiles[handle].push(item);
+    if (!byAuthor[handle]) byAuthor[handle] = [];
+    byAuthor[handle].push(item);
   }
 
   let output = '';
-  for (const [handle, videos] of Object.entries(profiles)) {
+  for (const [handle, videos] of Object.entries(byAuthor)) {
     const first = videos[0];
-    const authorMeta = first?.authorMeta ?? first?.author ?? {};
-    output += `\n📊 @${handle}\n`;
-    output += `• Abonnés: ${authorMeta.fans ?? authorMeta.followerCount ?? '?'}\n`;
-    output += `• Total likes: ${authorMeta.heart ?? authorMeta.heartCount ?? '?'}\n`;
-    output += `• Vidéos: ${authorMeta.video ?? authorMeta.videoCount ?? '?'}\n`;
-    output += `• Bio: ${authorMeta.signature ?? '—'}\n\n`;
-    output += `Dernières vidéos:\n`;
-    for (const v of videos.slice(0, 8)) {
+    const m = first?.authorMeta ?? first?.author ?? {};
+    output += `\n📊 @${handle} — Abonnés: ${m.fans ?? m.followerCount ?? '?'} | Likes total: ${m.heart ?? m.heartCount ?? '?'}\n`;
+    for (const v of videos.slice(0, 6)) {
       const date = v.createTimeISO ?? (v.createTime ? new Date(v.createTime * 1000).toLocaleDateString('fr-FR') : '?');
-      output += `  - "${(v.text ?? v.desc ?? '').slice(0, 80)}"\n`;
-      output += `    👁 ${v.playCount ?? v.stats?.playCount ?? '?'} vues | ❤️ ${v.diggCount ?? v.stats?.diggCount ?? '?'} likes | 💬 ${v.commentCount ?? v.stats?.commentCount ?? '?'} | ${date}\n`;
+      const desc = (v.text ?? v.desc ?? '(sans description)').slice(0, 100);
+      const tags = (v.hashtags ?? []).map((h: any) => `#${h.name ?? h}`).join(' ');
+      output += `  • "${desc}" ${tags}\n`;
+      output += `    👁 ${v.playCount ?? v.stats?.playCount ?? '?'} vues | ❤️ ${v.diggCount ?? v.stats?.diggCount ?? '?'} | ${date}\n`;
     }
     output += '\n';
   }
-
   return output;
 }
 
@@ -1355,18 +1341,41 @@ async function analyzeCompetitors(input: Record<string, unknown>, sessionId: str
   const competitor = input['competitor'] as string | undefined;
   const makeVideo  = input['generate_counter_video'] as boolean | undefined;
 
-  // Concurrents connus par défaut
-  const defaultHandles = ['didanolocation', 'autolorationoran', 'locationvoitureoran'];
-  const handles = competitor
-    ? [competitor.replace('@', '').trim()]
-    : defaultHandles;
+  // Hashtags TikTok liés à la location voiture à Oran
+  const defaultHashtags = ['locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture', 'oranalgerie'];
 
-  // Scraping TikTok réel via Apify
   let tiktokData = '';
   if (env.APIFY_API_KEY) {
-    tiktokData = await apifyTikTokScrape(handles);
+    if (competitor && competitor.startsWith('@')) {
+      // Scraping par profil spécifique
+      const items = await apifyRun('clockworks~tiktok-scraper', {
+        profiles: [competitor.replace('@', '').trim()],
+        resultsPerPage: 15,
+        shouldDownloadVideos: false,
+        shouldDownloadCovers: false,
+      });
+      tiktokData = formatTikTokItems(items);
+    } else if (competitor) {
+      // Chercher un mot-clé (ex: "didano location")
+      const items = await apifyRun('clockworks~tiktok-scraper', {
+        searchQueries: [competitor],
+        resultsPerPage: 20,
+        shouldDownloadVideos: false,
+        shouldDownloadCovers: false,
+      });
+      tiktokData = formatTikTokItems(items);
+    } else {
+      // Recherche par hashtags — découvre automatiquement tous les concurrents
+      const items = await apifyRun('clockworks~tiktok-scraper', {
+        hashtags: defaultHashtags,
+        resultsPerPage: 15,
+        shouldDownloadVideos: false,
+        shouldDownloadCovers: false,
+      });
+      tiktokData = formatTikTokItems(items);
+    }
   } else {
-    tiktokData = await jSearch(handles.map(h => `@${h} tiktok location voiture oran`).join(' OR '));
+    tiktokData = await jSearch(`location voiture oran tiktok ${competitor ?? 'concurrents'}`);
   }
 
   const pricing = formatPricingTable();
@@ -1374,7 +1383,8 @@ async function analyzeCompetitors(input: Record<string, unknown>, sessionId: str
   const analysis = await chat([{
     role: 'user',
     content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
-Analyse ces VRAIES données TikTok des concurrents en location de voitures à Oran.
+Analyse ces VRAIES données TikTok du marché location de voitures à Oran.
+Ces données viennent de vrais comptes TikTok trouvés via les hashtags #locationoran #locationvoitureoran etc.
 
 DONNÉES TIKTOK RÉELLES:
 ${tiktokData}
@@ -1384,17 +1394,17 @@ ${pricing}
 
 Réponds en français, format structuré pour Telegram (markdown):
 
-**🕵️ CE QUE FONT LES CONCURRENTS**
-(vidéos récentes, sujets traités, fréquence de publication, vues moyennes)
+**🕵️ QUI PUBLIE ET QUE FONT-ILS**
+(comptes actifs, fréquence, types de vidéos, sujets qui marchent)
 
-**📊 LEUR FORCE vs NOTRE FORCE**
-(ce qu'ils font mieux, ce qu'on fait mieux, opportunités détectées)
+**📊 OPPORTUNITÉS DÉTECTÉES**
+(ce que personne ne fait encore, lacunes du marché, tendances à exploiter)
 
 **⚡ ACTION RECOMMANDÉE MAINTENANT**
-(une seule action précise basée sur les vraies données)
+(une seule action précise basée sur les vraies données — ex: "Poste ce soir une vidéo Clio 4 avec le hashtag #locationoran, aucun concurrent ne l'a fait cette semaine")
 
-**📱 IDÉE DE CONTRE-PUB**
-(script court 15 sec pour TikTok inspiré de ce qu'on vient de voir)`,
+**📱 SCRIPT DE VIDÉO**
+(15-20 sec, basé sur ce qui cartonne dans les données)`,
   }], undefined);
 
   const chatId = sessionId.startsWith('telegram_') ? sessionId.replace('telegram_', '') : (process.env['TELEGRAM_CHAT_ID'] ?? '');
