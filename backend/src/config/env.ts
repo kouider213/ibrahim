@@ -45,6 +45,8 @@ const envSchema = z.object({
   REPLICATE_API_TOKEN: z.string().optional(),
   // ── fal.ai — Génération vidéos IA (Kling 1.6, WAN 2.1) ──
   FAL_KEY:             z.string().optional(),
+  // ── Runway — Génération vidéo IA haute fidélité (Gen-3 Alpha Turbo) ──
+  RUNWAY_API_TOKEN:    z.string().optional(),
   // ── Apify — Scraping TikTok concurrents ──
   APIFY_API_KEY:       z.string().optional(),
   PORT:                 z.coerce.number().int().positive().default(3000),

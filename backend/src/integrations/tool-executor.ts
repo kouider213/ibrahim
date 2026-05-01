@@ -1800,6 +1800,102 @@ async function falGenerate(
   return JSON.stringify(result);
 }
 
+// ── Runway Gen-3 Alpha Turbo — image-to-video ─────────────────────────────────
+async function runwayGenerate(
+  imageUrl: string,
+  prompt: string,
+  duration: 5 | 10,
+  token: string,
+  maxMs = 240_000,
+): Promise<string> {
+  const headers = {
+    Authorization:    `Bearer ${token}`,
+    'X-Runway-Version': '2024-11-06',
+    'Content-Type':   'application/json',
+  };
+
+  const submitResp = await axios.post(
+    'https://api.dev.runwayml.com/v1/image_to_video',
+    { model: 'gen3a_turbo', promptImage: imageUrl, promptText: prompt, ratio: '720:1280', duration },
+    { headers, timeout: 30_000 },
+  );
+
+  const taskId: string = (submitResp.data as any)?.id;
+  if (!taskId) throw new Error('Runway: pas de task ID dans la réponse');
+
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    await new Promise(r => setTimeout(r, 5000));
+    const statusResp = await axios.get(
+      `https://api.dev.runwayml.com/v1/tasks/${taskId}`,
+      { headers, timeout: 15_000, validateStatus: () => true },
+    );
+    const httpStatus = statusResp.status;
+    if (httpStatus === 401 || httpStatus === 403) throw new Error(`Runway: auth rejetée (${httpStatus})`);
+    if (httpStatus === 404) throw new Error(`Runway: task introuvable (${taskId})`);
+    if (httpStatus >= 500) throw new Error(`Runway: erreur serveur (${httpStatus})`);
+    const task   = statusResp.data as any;
+    const status = (task?.status ?? '') as string;
+    if (status === 'SUCCEEDED') {
+      const output = task?.output as string[] | undefined;
+      if (output?.[0]) return output[0];
+      throw new Error('Runway: SUCCEEDED mais aucune URL vidéo dans output');
+    }
+    if (status === 'FAILED') {
+      const reason = task?.failure ?? task?.failureCode ?? 'raison inconnue';
+      throw new Error(`Runway: génération échouée — ${reason}`);
+    }
+    // PENDING / RUNNING → continue polling
+  }
+  throw new Error(`Runway: timeout après ${Math.round(maxMs / 1000)}s`);
+}
+
+// ── Provider dispatcher — Runway → fal.ai image-to-video → text-to-video ──────
+async function generateVehicleVideo(opts: {
+  imageUrl:     string | null;
+  prompt:       string;
+  duration:     number;
+  falKey:       string | undefined;
+  runwayToken:  string | undefined;
+}): Promise<{ url: string; provider: string }> {
+  const { imageUrl, prompt, duration, falKey, runwayToken } = opts;
+  const dur = (duration <= 5 ? 5 : 10) as 5 | 10;
+
+  // Provider 1 — Runway (best fidelity — preserves exact car appearance)
+  if (imageUrl && runwayToken) {
+    try {
+      const fidelityPrompt = `${prompt}. Preserve exact vehicle appearance from the source image — same color, shape, and proportions. Smooth realistic motion only, no morphing or stylization.`;
+      const url = await runwayGenerate(imageUrl, fidelityPrompt, dur, runwayToken, 240_000);
+      return { url, provider: 'Runway Gen-3' };
+    } catch (err: any) {
+      console.warn('[generateVehicleVideo] Runway failed → fal.ai fallback:', err.message);
+    }
+  }
+
+  // Provider 2 — fal.ai / Kling 1.6 image-to-video
+  if (imageUrl && falKey) {
+    const motionPrompt = `${prompt}, smooth natural car movement, cinematic premium quality, preserve vehicle color and shape`;
+    const url = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/image-to-video',
+      { image_url: imageUrl, prompt: motionPrompt, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+    return { url, provider: 'Kling 1.6 (image)' };
+  }
+
+  // Provider 3 — text-to-video (last resort)
+  if (falKey) {
+    const url = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/text-to-video',
+      { prompt, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+    return { url, provider: 'Kling 1.6 (texte)' };
+  }
+
+  throw new Error('Aucun provider vidéo configuré — ajoute FAL_KEY ou RUNWAY_API_TOKEN dans Railway');
+}
+
 async function generateImageTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const token = env.REPLICATE_API_TOKEN;
   if (!token) return '❌ REPLICATE_API_TOKEN non configuré dans Railway. Ajoute-le dans Railway → Variables.';
@@ -1848,76 +1944,63 @@ async function generateImageTool(input: Record<string, unknown>, sessionId?: str
 }
 
 async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
-  const falKey = env.FAL_KEY;
-  if (!falKey) return '❌ FAL_KEY non configuré dans Railway. Ajoute-le dans Railway → Variables.';
+  const falKey      = env.FAL_KEY;
+  const runwayToken = env.RUNWAY_API_TOKEN;
+  if (!falKey && !runwayToken) return '❌ Aucun provider vidéo configuré. Ajoute FAL_KEY ou RUNWAY_API_TOKEN dans Railway → Variables.';
 
   const prompt   = input['prompt'] as string;
   const duration = Number(input['duration'] ?? 5);
   const carName  = input['car_name'] as string | undefined;
   const chatId   = chatIdFromSession(sessionId);
 
-  // ── Lookup car in Supabase when name provided ──────────────────────────────
+  // ── Lookup real car photo from Supabase ────────────────────────────────────
   let carImageUrl:   string | null = null;
   let carDisplayName = '';
-  let mode: 'image-to-video' | 'text-to-video' = 'text-to-video';
 
   if (carName) {
     const car = await findCarByName(carName);
-    console.log(`[generateAiVideoTool] Recherche voiture: "${carName}" →`, car ? `trouvée: ${car.name} (id:${car.id}, image:${car.image_url ? 'oui' : 'non'})` : 'non trouvée');
-
+    console.log(`[generateAiVideoTool] Recherche voiture: "${carName}" →`, car ? `${car.name} (image:${car.image_url ? 'oui' : 'non'})` : 'non trouvée');
     if (car?.image_url) {
       try {
         await axios.head(car.image_url, { timeout: 8_000 });
         carImageUrl    = car.image_url;
         carDisplayName = car.name;
-        mode           = 'image-to-video';
-        console.log(`[generateAiVideoTool] ✅ image-to-video: ${car.name} — ${car.image_url}`);
+        console.log(`[generateAiVideoTool] ✅ image trouvée: ${car.name}`);
       } catch {
-        console.log(`[generateAiVideoTool] ⚠️ Image inaccessible pour ${car.name} — fallback text-to-video`);
+        console.log(`[generateAiVideoTool] ⚠️ Image inaccessible pour ${car.name} — text-to-video`);
       }
     }
   }
 
-  // ── Notify user which mode we use ─────────────────────────────────────────
-  if (mode === 'image-to-video') {
+  // ── Notify user — provider selection message ───────────────────────────────
+  const providerHint = runwayToken ? 'Runway Gen-3' : 'Kling 1.6';
+  if (carImageUrl) {
     await sendTelegramForMarketing(chatId,
-      `🎬 *Génération vidéo IA — Kling 1.6*\n✅ Photo réelle de *${carDisplayName}* trouvée\n_Génération vidéo réaliste depuis l'image..._\n⏳ 60-240 secondes, patience...`);
+      `🎬 *Génération vidéo IA — ${providerHint}*\n✅ Photo réelle de *${carDisplayName}* trouvée\n_Fidélité maximale — l'apparence du véhicule est préservée_\n⏳ 60-240 secondes, patience...`);
   } else {
     const reason = carName
-      ? `⚠️ Aucune photo réelle trouvée pour "${carName}" — génération depuis description uniquement`
+      ? `⚠️ Aucune photo trouvée pour "${carName}" — génération texte`
       : `Génération depuis description texte`;
     await sendTelegramForMarketing(chatId,
       `🎬 *Génération vidéo IA — Kling 1.6*\n_${reason}_\n⏳ 60-240 secondes, patience...`);
   }
 
-  // ── Generate video ─────────────────────────────────────────────────────────
-  let videoUrl: string;
-  if (mode === 'image-to-video') {
-    const motionPrompt = `${prompt}, smooth natural car movement, cinematic premium quality`;
-    console.log(`[generateAiVideoTool] image-to-video prompt: ${motionPrompt.slice(0, 100)}`);
-    videoUrl = await falGenerate(
-      'fal-ai/kling-video/v1.6/standard/image-to-video',
-      { image_url: carImageUrl!, prompt: motionPrompt, duration: String(duration), aspect_ratio: '9:16' },
-      falKey, 240_000,
-    );
-  } else {
-    videoUrl = await falGenerate(
-      'fal-ai/kling-video/v1.6/standard/text-to-video',
-      { prompt, duration: String(duration), aspect_ratio: '9:16' },
-      falKey, 240_000,
-    );
-  }
+  // ── Generate via provider dispatcher ──────────────────────────────────────
+  const { url: videoUrl, provider } = await generateVehicleVideo({
+    imageUrl: carImageUrl, prompt, duration, falKey, runwayToken,
+  });
+  console.log(`[generateAiVideoTool] provider utilisé: ${provider}`);
 
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
   const buffer = Buffer.from(resp.data as ArrayBuffer);
 
   if (!isValidMp4Buffer(buffer)) {
-    throw new Error(`fal.ai a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
+    throw new Error(`${provider} a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
   }
 
-  const caption = mode === 'image-to-video'
-    ? `🎬 *${carDisplayName} — Vidéo IA réaliste — Kling 1.6*\n_Générée depuis la vraie photo_`
-    : `🎬 *Vidéo IA — Kling 1.6*\n_${prompt.slice(0, 100)}_`;
+  const caption = carImageUrl
+    ? `🎬 *${carDisplayName} — Vidéo IA réaliste — ${provider}*\n_Générée depuis la vraie photo_`
+    : `🎬 *Vidéo IA — ${provider}*\n_${prompt.slice(0, 100)}_`;
 
   let delivered = false;
   try {
@@ -1931,20 +2014,21 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     } catch { /* both failed */ }
   }
 
-  const modeLabel = mode === 'image-to-video' ? `image réelle de ${carDisplayName}` : 'description texte';
-  if (delivered) return `✅ Vidéo IA créée (Kling 1.6) depuis ${modeLabel} — envoyée sur Telegram ↑`;
-  return `⚠️ Vidéo générée (${modeLabel}) mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  const modeLabel = carImageUrl ? `image réelle de ${carDisplayName}` : 'description texte';
+  if (delivered) return `✅ Vidéo IA créée (${provider}) depuis ${modeLabel} — envoyée sur Telegram ↑`;
+  return `⚠️ Vidéo générée via ${provider} (${modeLabel}) mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
 }
 
 async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
-  const falKey = env.FAL_KEY;
-  if (!falKey) return '❌ FAL_KEY non configuré dans Railway. Ajoute-le dans Railway → Variables.';
+  const falKey      = env.FAL_KEY;
+  const runwayToken = env.RUNWAY_API_TOKEN;
+  if (!falKey && !runwayToken) return '❌ Aucun provider vidéo configuré. Ajoute FAL_KEY ou RUNWAY_API_TOKEN dans Railway → Variables.';
 
   const chatId       = chatIdFromSession(sessionId);
   const carName      = input['car_name'] as string | undefined;
   const motionPrompt = (input['motion_prompt'] as string) ?? 'car moving forward smoothly, cinematic camera pan, golden hour lighting';
 
-  let imageUrl = input['image_url'] as string | undefined;
+  let imageUrl    = input['image_url'] as string | undefined;
   let displayName = 'voiture';
 
   if (!imageUrl) {
@@ -1957,52 +2041,47 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
       imageUrl    = car.image_url;
       displayName = car.name;
     } else {
-      // No name provided — pick first available car with image
       const { data: cars } = await supabase.from('cars').select('id, name, image_url').eq('available', true);
       const car = (cars ?? []).find((c: any) => c.image_url) as any;
-      if (!car?.image_url) {
-        return '❌ Aucune voiture avec photo trouvée. Précise car_name ou fournis image_url.';
-      }
+      if (!car?.image_url) return '❌ Aucune voiture avec photo trouvée. Précise car_name ou fournis image_url.';
       imageUrl    = car.image_url as string;
       displayName = car.name as string;
     }
   }
 
-  await sendTelegramForMarketing(chatId, `🎬 *Animation photo IA — Kling 1.6*\n_${displayName} · "${motionPrompt.slice(0, 60)}"_\n⏳ 60-240 secondes...`);
+  const providerHint = runwayToken ? 'Runway Gen-3' : 'Kling 1.6';
+  await sendTelegramForMarketing(chatId,
+    `🎬 *Animation photo IA — ${providerHint}*\n_${displayName} · "${motionPrompt.slice(0, 60)}"_\n⏳ 60-240 secondes...`);
 
-  const videoUrl = await falGenerate(
-    'fal-ai/kling-video/v1.6/standard/image-to-video',
-    {
-      image_url:    imageUrl,
-      prompt:       motionPrompt,
-      duration:     '5',
-      aspect_ratio: '9:16',
-    },
+  const { url: videoUrl, provider } = await generateVehicleVideo({
+    imageUrl: imageUrl ?? null,
+    prompt:   motionPrompt,
+    duration: 5,
     falKey,
-    240_000,
-  );
+    runwayToken,
+  });
+  console.log(`[animateCarPhotoTool] provider utilisé: ${provider}`);
 
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
   const buffer = Buffer.from(resp.data as ArrayBuffer);
 
   if (!isValidMp4Buffer(buffer)) {
-    throw new Error(`fal.ai a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
+    throw new Error(`${provider} a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
   }
 
   let delivered = false;
   try {
-    await sendVideoBuffer(chatId, buffer, `🎬 *${displayName} animé — Kling 1.6*\n_${motionPrompt.slice(0, 80)}_`);
+    await sendVideoBuffer(chatId, buffer, `🎬 *${displayName} animé — ${provider}*\n_${motionPrompt.slice(0, 80)}_`);
     delivered = true;
   } catch (err: any) {
     console.error('[animateCarPhotoTool] sendVideoBuffer failed:', err.message);
     try {
-      await sendTelegramForMarketing(chatId, `🎬 *${displayName} animé — Kling 1.6*\n_${motionPrompt.slice(0, 60)}_\n\n⚠️ Envoi direct impossible (fichier trop lourd).\n[Télécharger la vidéo](${videoUrl})`);
+      await sendTelegramForMarketing(chatId,
+        `🎬 *${displayName} animé — ${provider}*\n_${motionPrompt.slice(0, 60)}_\n\n⚠️ Envoi direct impossible.\n[Télécharger la vidéo](${videoUrl})`);
       delivered = true;
     } catch { /* both failed */ }
   }
 
-  if (delivered) {
-    return `✅ Photo de ${displayName} animée (Kling 1.6) et envoyée sur Telegram ↑`;
-  }
-  return `⚠️ Vidéo générée mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  if (delivered) return `✅ Photo de ${displayName} animée (${provider}) et envoyée sur Telegram ↑`;
+  return `⚠️ Vidéo générée (${provider}) mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
 }
