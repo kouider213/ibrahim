@@ -1800,8 +1800,18 @@ async function generateImageTool(input: Record<string, unknown>, sessionId?: str
     90_000,
   );
 
-  await sendTelegramPhoto(chatId, imageUrl, `🎨 *Image générée — Flux.1 Pro*\n_${prompt.slice(0, 100)}_`);
-  return `✅ Image Flux.1 générée et envoyée sur Telegram ↑\nURL: ${imageUrl}`;
+  let delivered = false;
+  try {
+    await sendTelegramPhoto(chatId, imageUrl, `🎨 *Image générée — Flux.1 Pro*\n_${prompt.slice(0, 100)}_`);
+    delivered = true;
+  } catch (err: any) {
+    console.error('[generateImageTool] sendTelegramPhoto failed:', err.message);
+  }
+
+  if (delivered) {
+    return `✅ Image Flux.1 générée et envoyée sur Telegram ↑\nURL: ${imageUrl}`;
+  }
+  return `⚠️ Image générée mais envoi Telegram échoué.\nURL directe: ${imageUrl}`;
 }
 
 async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -1828,8 +1838,26 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
   const buffer = Buffer.from(resp.data as ArrayBuffer);
 
-  await sendVideoBuffer(chatId, buffer, `🎬 *Vidéo IA — Kling 1.6*\n_${prompt.slice(0, 100)}_`);
-  return `✅ Vidéo IA créée (Kling 1.6) et envoyée sur Telegram ↑`;
+  if (!isValidMp4Buffer(buffer)) {
+    throw new Error(`fal.ai a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
+  }
+
+  let delivered = false;
+  try {
+    await sendVideoBuffer(chatId, buffer, `🎬 *Vidéo IA — Kling 1.6*\n_${prompt.slice(0, 100)}_`);
+    delivered = true;
+  } catch (err: any) {
+    console.error('[generateAiVideoTool] sendVideoBuffer failed:', err.message);
+    try {
+      await sendTelegramForMarketing(chatId, `🎬 *Vidéo IA générée — Kling 1.6*\n_${prompt.slice(0, 80)}_\n\n⚠️ Envoi direct impossible (fichier trop lourd).\n[Télécharger la vidéo](${videoUrl})`);
+      delivered = true;
+    } catch { /* both failed */ }
+  }
+
+  if (delivered) {
+    return `✅ Vidéo IA créée (Kling 1.6) et envoyée sur Telegram ↑`;
+  }
+  return `⚠️ Vidéo générée mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
 }
 
 async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -1873,6 +1901,24 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
   const buffer = Buffer.from(resp.data as ArrayBuffer);
 
-  await sendVideoBuffer(chatId, buffer, `🎬 *${displayName} animé — Kling 1.6*\n_${motionPrompt.slice(0, 80)}_`);
-  return `✅ Photo de ${displayName} animée (Kling 1.6) et envoyée sur Telegram ↑`;
+  if (!isValidMp4Buffer(buffer)) {
+    throw new Error(`fal.ai a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
+  }
+
+  let delivered = false;
+  try {
+    await sendVideoBuffer(chatId, buffer, `🎬 *${displayName} animé — Kling 1.6*\n_${motionPrompt.slice(0, 80)}_`);
+    delivered = true;
+  } catch (err: any) {
+    console.error('[animateCarPhotoTool] sendVideoBuffer failed:', err.message);
+    try {
+      await sendTelegramForMarketing(chatId, `🎬 *${displayName} animé — Kling 1.6*\n_${motionPrompt.slice(0, 60)}_\n\n⚠️ Envoi direct impossible (fichier trop lourd).\n[Télécharger la vidéo](${videoUrl})`);
+      delivered = true;
+    } catch { /* both failed */ }
+  }
+
+  if (delivered) {
+    return `✅ Photo de ${displayName} animée (Kling 1.6) et envoyée sur Telegram ↑`;
+  }
+  return `⚠️ Vidéo générée mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
 }
