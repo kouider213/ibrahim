@@ -292,7 +292,7 @@ router.post('/webhook', async (req, res) => {
     return;
   }
 
-  // /test_fal — vrai test génération vidéo (consomme des crédits, ~60-120s)
+  // /test_fal — vrai test génération vidéo (~60-120s, crédits consommés)
   if (msg.text?.startsWith('/test_fal')) {
     await sendTyping(chatId);
     const falKey = env.FAL_KEY;
@@ -300,53 +300,92 @@ router.post('/webhook', async (req, res) => {
       await sendMessage(chatId, `❌ *fal.ai — FAL\\_KEY manquant*\n\nVariable à ajouter dans Railway → Variables : \`FAL_KEY\``);
       return;
     }
-    await sendMessage(chatId, '🎬 *Test génération fal.ai (Kling 1.6)...*\n⏳ 60-120 secondes — crédits consommés.');
+    const MODEL = 'fal-ai/kling-video/v1.6/standard/text-to-video';
+    await sendMessage(chatId, `🎬 *Test génération fal.ai*\n• Modèle : \`${MODEL}\`\n• Endpoint : queue.fal.run\n⏳ 60-120 secondes...`);
     try {
       const { default: ax } = await import('axios');
-      // Step 1 — submit job
-      const submitResp = await ax.post(
-        'https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video',
-        { prompt: 'red sports car driving on a road, cinematic', duration: '5', aspect_ratio: '9:16' },
-        { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 30_000 },
-      );
-      const { request_id } = submitResp.data as { request_id: string };
-      if (!request_id) throw new Error('Pas de request_id dans la réponse fal.ai');
+
+      // Step 1 — submit job, capture response_url + status_url provided by fal.ai
+      let submitStatus = 0;
+      let request_id = '';
+      let response_url = '';
+      let status_url = '';
+      try {
+        const submitResp = await ax.post(
+          `https://queue.fal.run/${MODEL}`,
+          { prompt: 'red sports car driving on a road, cinematic', duration: '5', aspect_ratio: '9:16' },
+          { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 30_000, validateStatus: () => true },
+        );
+        submitStatus = submitResp.status;
+        if (submitStatus < 200 || submitStatus >= 300) {
+          await sendMessage(chatId, `❌ *fal.ai — Submit FAIL*\n\n• Étape : soumission job\n• URL : https://queue.fal.run/${MODEL}\n• HTTP : ${submitStatus}\n• Body : ${JSON.stringify(submitResp.data).slice(0, 200)}`);
+          return;
+        }
+        const d = submitResp.data as any;
+        request_id  = d.request_id  ?? '';
+        response_url = d.response_url ?? '';
+        status_url   = d.status_url  ?? '';
+      } catch (e: any) {
+        await sendMessage(chatId, `❌ *fal.ai — Submit erreur réseau*\n\n• ${e.message}`);
+        return;
+      }
+
+      if (!request_id) {
+        await sendMessage(chatId, `❌ *fal.ai — Pas de request\\_id*\n\nLa soumission a réussi (HTTP ${submitStatus}) mais la réponse ne contient pas de request\\_id.`);
+        return;
+      }
+
+      // Use URLs from fal.ai response — never construct (source of previous 405)
+      const pollUrl   = status_url   || `https://queue.fal.run/${MODEL}/requests/${request_id}/status`;
+      const resultUrl = response_url || `https://queue.fal.run/${MODEL}/requests/${request_id}`;
 
       // Step 2 — poll until COMPLETED (max 120s)
-      const MODEL = 'fal-ai/kling-video/v1.6/standard/text-to-video';
       const deadline = Date.now() + 120_000;
       let videoUrl: string | null = null;
       while (Date.now() < deadline) {
         await new Promise(r => setTimeout(r, 5000));
-        const st = await ax.get(`https://queue.fal.run/${MODEL}/requests/${request_id}/status`, {
-          headers: { Authorization: `Key ${falKey}` }, timeout: 15_000,
-        });
+        const st = await ax.get(pollUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
+        if (st.status !== 200) {
+          await sendMessage(chatId, `❌ *fal.ai — Polling FAIL*\n\n• URL poll : ${pollUrl}\n• HTTP : ${st.status}`);
+          return;
+        }
         const { status } = st.data as { status: string };
         if (status === 'COMPLETED') {
-          const res = await ax.get(`https://queue.fal.run/${MODEL}/requests/${request_id}`, {
-            headers: { Authorization: `Key ${falKey}` }, timeout: 15_000,
-          });
+          // Step 3 — fetch result via response_url
+          const res = await ax.get(resultUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
+          if (res.status !== 200) {
+            await sendMessage(chatId, `❌ *fal.ai — Result fetch FAIL*\n\n• URL résultat : ${resultUrl}\n• HTTP : ${res.status}\n• Body : ${JSON.stringify(res.data).slice(0, 200)}`);
+            return;
+          }
           videoUrl = (res.data as any)?.video?.url as string ?? null;
           break;
         }
-        if (status === 'FAILED') throw new Error('fal.ai: job échoué');
+        if (status === 'FAILED') {
+          await sendMessage(chatId, `❌ *fal.ai — Job échoué*\n\n• request\\_id : ${request_id}\n• Status fal.ai : FAILED`);
+          return;
+        }
       }
-      if (!videoUrl) throw new Error('fal.ai: timeout 120s dépassé, pas de vidéo');
 
-      // Step 3 — download + validate MP4
+      if (!videoUrl) {
+        await sendMessage(chatId, `❌ *fal.ai — Timeout 120s*\n\n• Génération pas terminée dans les 120s.\n• request\\_id : ${request_id}`);
+        return;
+      }
+
+      // Step 4 — download + validate MP4
       const dlResp = await ax.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
       const buf = Buffer.from(dlResp.data as ArrayBuffer);
       const validMp4 = isValidMp4Buffer(buf);
       await sendMessage(chatId,
-        `✅ *fal.ai — Test génération OK*\n\n• FAL\\_KEY : présent ✅\n• Job soumis : ✅ (request\\_id obtenu)\n• Vidéo générée : ✅ (${(buf.length / 1024).toFixed(0)} KB)\n• Validation MP4 (ftyp magic) : ${validMp4 ? '✅ valide' : '❌ fichier corrompu'}\n• URL : ${videoUrl.slice(0, 60)}...`);
+        `✅ *fal.ai — Test génération OK*\n\n• Modèle : \`${MODEL}\`\n• Job soumis : ✅\n• request\\_id : ${request_id.slice(0, 16)}...\n• Vidéo générée : ✅ (${(buf.length / 1024).toFixed(0)} KB)\n• MP4 valide (ftyp magic) : ${validMp4 ? '✅' : '❌ corrompu'}\n• URL : ${videoUrl.slice(0, 70)}...`);
     } catch (e: any) {
-      const status = (e as any)?.response?.status;
-      await sendMessage(chatId, `❌ *fal.ai — Test génération FAIL*\n\n• FAL\\_KEY : présent ✅\n• Erreur : ${status ? `HTTP ${status}` : e.message}`);
+      const s = (e as any)?.response?.status;
+      await sendMessage(chatId, `❌ *fal.ai — Erreur inattendue*\n\n• ${s ? `HTTP ${s}` : e.message}`);
     }
     return;
   }
 
-  // /test_replicate — vrai test génération image Flux.1 (consomme des crédits, ~15-30s)
+  // /test_replicate — vrai test génération image Flux.1 (~15-30s, crédits consommés)
+  // Télécharge l'image immédiatement pour valider avant expiration de l'URL
   if (msg.text?.startsWith('/test_replicate')) {
     await sendTyping(chatId);
     const token = env.REPLICATE_API_TOKEN;
@@ -354,16 +393,18 @@ router.post('/webhook', async (req, res) => {
       await sendMessage(chatId, `❌ *Replicate — REPLICATE\\_API\\_TOKEN manquant*\n\nVariable à ajouter dans Railway → Variables : \`REPLICATE_API_TOKEN\``);
       return;
     }
-    await sendMessage(chatId, '🎨 *Test génération Replicate (Flux.1)...*\n⏳ 15-30 secondes — crédits consommés.');
+    const MODEL_REP = 'black-forest-labs/flux-1.1-pro';
+    await sendMessage(chatId, `🎨 *Test génération Replicate*\n• Modèle : \`${MODEL_REP}\`\n⏳ 15-30 secondes...`);
     try {
       const { default: ax } = await import('axios');
+      type Pred = { id: string; status: string; output: unknown; error?: string };
+
       // Step 1 — submit prediction
       const createResp = await ax.post(
-        'https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro/predictions',
+        `https://api.replicate.com/v1/models/${MODEL_REP}/predictions`,
         { input: { prompt: 'red sports car, 4K', aspect_ratio: '1:1', output_format: 'jpg', output_quality: 50 } },
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'wait=10' }, timeout: 30_000 },
       );
-      type Pred = { id: string; status: string; output: unknown; error?: string };
       let pred = createResp.data as Pred;
 
       // Step 2 — poll until succeeded (max 90s)
@@ -379,13 +420,34 @@ router.post('/webhook', async (req, res) => {
       if (pred.status !== 'succeeded') throw new Error('Replicate: timeout 90s dépassé');
 
       const imageUrl = String(Array.isArray(pred.output) ? pred.output[0] : pred.output);
+
+      // Step 3 — télécharge IMMÉDIATEMENT (l'URL expire vite)
+      const dlResp = await ax.get(imageUrl, { responseType: 'arraybuffer', timeout: 30_000, validateStatus: () => true });
+      const dlStatus = dlResp.status;
+      const contentType = String(dlResp.headers['content-type'] ?? '');
+      const buf = Buffer.from(dlResp.data as ArrayBuffer);
+      const isImage = contentType.startsWith('image/') && buf.length > 0;
+
+      if (!isImage || dlStatus !== 200) {
+        await sendMessage(chatId,
+          `⚠️ *Replicate — Image générée mais téléchargement FAIL*\n\n• prediction\\_id : ${pred.id}\n• URL : ${imageUrl.slice(0, 60)}...\n• HTTP téléchargement : ${dlStatus}\n• Content-Type : ${contentType || 'inconnu'}\n• Taille : ${buf.length} bytes\n\n_URL Replicate expirée ou inaccessible._`);
+        return;
+      }
+
+      // Step 4 — envoie l'image dans Telegram pour confirmation visuelle
+      let tgOk = false;
+      try {
+        await sendPhoto(chatId, imageUrl, `🎨 *Test Replicate — Flux.1 Pro*\n_Image test générée avec succès_`);
+        tgOk = true;
+      } catch { /* fallback — on déjà validé le download */ }
+
       await sendMessage(chatId,
-        `✅ *Replicate — Test génération OK*\n\n• REPLICATE\\_API\\_TOKEN : présent ✅\n• Image générée : ✅\n• URL : ${imageUrl.slice(0, 60)}...\n\n_Flux.1 Pro opérationnel._`);
+        `✅ *Replicate — Test génération OK*\n\n• Modèle : \`${MODEL_REP}\`\n• prediction\\_id : ${pred.id}\n• Image générée : ✅\n• Téléchargement : ✅ (${(buf.length / 1024).toFixed(0)} KB)\n• Content-Type : ${contentType}\n• Telegram sendPhoto : ${tgOk ? '✅' : '⚠️ fallback (URL déjà expirée pour Telegram)'}`);
     } catch (e: any) {
       const status = (e as any)?.response?.status;
       await sendMessage(chatId, status === 401
-        ? `❌ *Replicate — Token invalide (401)*\n\n• REPLICATE\\_API\\_TOKEN : présent mais rejeté ❌\n\nVérifie la valeur dans Railway.`
-        : `❌ *Replicate — Test génération FAIL*\n\n• Erreur : ${status ? `HTTP ${status}` : e.message}`);
+        ? `❌ *Replicate — Token invalide (401)*\n\n• REPLICATE\\_API\\_TOKEN rejeté ❌\n\nVérifie la valeur dans Railway.`
+        : `❌ *Replicate — Test FAIL*\n\n• Erreur : ${status ? `HTTP ${status}` : e.message}`);
     }
     return;
   }

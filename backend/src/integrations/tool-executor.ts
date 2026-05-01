@@ -1723,40 +1723,41 @@ async function falGenerate(
   falKey: string,
   maxMs = 180_000,
 ): Promise<string> {
+  type FalQueue = {
+    request_id: string;
+    status?: string;
+    response_url?: string;  // fal.ai provides exact result URL
+    status_url?: string;    // fal.ai provides exact status URL
+  };
+
   // Submit to fal.ai queue
   const submitResp = await axios.post(
     `https://queue.fal.run/${modelId}`,
     input,
-    {
-      headers: {
-        Authorization: `Key ${falKey}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 30_000,
-    },
+    { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 30_000 },
   );
 
-  type FalQueue = { request_id: string; status?: string };
-  const { request_id } = submitResp.data as FalQueue;
+  const queued = submitResp.data as FalQueue;
+  const { request_id, response_url, status_url } = queued;
+
+  // Use URLs from fal.ai response — never construct manually (avoids 405 on result fetch)
+  const pollUrl    = status_url   ?? `https://queue.fal.run/${modelId}/requests/${request_id}/status`;
+  const resultUrl  = response_url ?? `https://queue.fal.run/${modelId}/requests/${request_id}`;
 
   // Poll for completion
   const start = Date.now();
+  let completed = false;
   while (Date.now() - start < maxMs) {
     await new Promise(r => setTimeout(r, 4000));
-    const statusResp = await axios.get(
-      `https://queue.fal.run/${modelId}/requests/${request_id}/status`,
-      { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 },
-    );
+    const statusResp = await axios.get(pollUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 });
     const { status } = statusResp.data as { status: string };
-    if (status === 'COMPLETED') break;
+    if (status === 'COMPLETED') { completed = true; break; }
     if (status === 'FAILED') throw new Error('fal.ai: prediction failed');
   }
+  if (!completed) throw new Error(`fal.ai: timeout après ${Math.round(maxMs / 1000)}s`);
 
-  // Fetch result
-  const resultResp = await axios.get(
-    `https://queue.fal.run/${modelId}/requests/${request_id}`,
-    { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 },
-  );
+  // Fetch result via response_url
+  const resultResp = await axios.get(resultUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 });
 
   const result = resultResp.data as Record<string, unknown>;
   // fal.ai returns { video: { url } } or { images: [{ url }] }
