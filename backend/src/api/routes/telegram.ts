@@ -92,7 +92,14 @@ router.post('/webhook', async (req, res) => {
       `"regarde les concurrents TikTok"\n\n` +
       `*✅ APPROBATION VIDÉO*\n` +
       `\`Oke\` → publier la vidéo en attente\n` +
-      `\`Non\` → annuler la vidéo en attente`);
+      `\`Non\` → annuler la vidéo en attente\n\n` +
+      `*🔧 DIAGNOSTICS*\n` +
+      `/health — état de tous les services\n` +
+      `/capabilities — fonctions disponibles\n` +
+      `/selftest — tests réels (Supabase, météo...)\n` +
+      `/test_fal — connectivité fal.ai (Kling vidéo IA)\n` +
+      `/test_replicate — connectivité Replicate (Flux.1 image)\n` +
+      `/test_ai — diagnostic complet IA`);
     return;
   }
 
@@ -209,6 +216,110 @@ router.post('/webhook', async (req, res) => {
     const passed = res.filter(r => r.ok).length;
     const lines = res.map(r => `${r.ok ? '✅' : '❌'} *${r.t}* — ${r.d}`);
     await sendMessage(chatId, `🧪 *RÉSULTATS SELF-TEST*\n\n${lines.join('\n')}\n\n_${passed}/${res.length} tests passés_`);
+    return;
+  }
+
+  // /test_fal — test connectivité fal.ai (Kling vidéo IA)
+  if (msg.text?.startsWith('/test_fal')) {
+    await sendTyping(chatId);
+    const falKey = env.FAL_KEY;
+    if (!falKey) {
+      await sendMessage(chatId, `❌ *fal.ai — FAL_KEY manquant*\n\nAjoute la variable \`FAL_KEY\` dans Railway → Variables.\n\n_Note: \`FAL_API_KEY\` est aussi accepté comme alias._`);
+      return;
+    }
+    await sendMessage(chatId, '🧪 *Test fal.ai en cours...*');
+    try {
+      const { default: ax } = await import('axios');
+      const r = await ax.head('https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video', {
+        headers: { Authorization: `Key ${falKey}` },
+        timeout: 10_000,
+        validateStatus: (s: number) => s < 500,
+      });
+      const ok = r.status < 500;
+      await sendMessage(chatId, ok
+        ? `✅ *fal.ai — OK*\n\n• FAL\\_KEY: présent ✅\n• Endpoint Kling 1.6: accessible (HTTP ${r.status}) ✅\n\n_Prêt pour génération vidéo IA et animation photo._`
+        : `⚠️ *fal.ai — HTTP ${r.status}*\n\n• FAL\\_KEY: présent ✅\n• Endpoint: réponse ${r.status} ❌`);
+    } catch (e: any) {
+      await sendMessage(chatId, `❌ *fal.ai — Erreur réseau*\n\n• FAL\\_KEY: présent ✅\n• Connexion: ${e.message} ❌`);
+    }
+    return;
+  }
+
+  // /test_replicate — test connectivité Replicate (Flux.1 image IA)
+  if (msg.text?.startsWith('/test_replicate')) {
+    await sendTyping(chatId);
+    const token = env.REPLICATE_API_TOKEN;
+    if (!token) {
+      await sendMessage(chatId, `❌ *Replicate — REPLICATE_API_TOKEN manquant*\n\nAjoute la variable \`REPLICATE_API_TOKEN\` dans Railway → Variables.`);
+      return;
+    }
+    await sendMessage(chatId, '🧪 *Test Replicate en cours...*');
+    try {
+      const { default: ax } = await import('axios');
+      const r = await ax.get('https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro', {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10_000,
+      });
+      const ok = r.status === 200 && Boolean(r.data?.name);
+      await sendMessage(chatId, ok
+        ? `✅ *Replicate — OK*\n\n• REPLICATE\\_API\\_TOKEN: présent ✅\n• Modèle flux-1.1-pro: accessible ✅\n\n_Prêt pour génération image IA._`
+        : `⚠️ *Replicate — Réponse inattendue (HTTP ${r.status})*`);
+    } catch (e: any) {
+      const status = (e as any)?.response?.status;
+      await sendMessage(chatId, status === 401
+        ? `❌ *Replicate — Token invalide (401)*\n\n• REPLICATE\\_API\\_TOKEN: présent mais invalide ❌\n\nVérifie la valeur dans Railway.`
+        : `❌ *Replicate — Erreur réseau*\n\n• REPLICATE\\_API\\_TOKEN: présent ✅\n• Connexion: ${e.message} ❌`);
+    }
+    return;
+  }
+
+  // /test_ai — diagnostic complet fal.ai + Replicate
+  if (msg.text?.startsWith('/test_ai')) {
+    await sendTyping(chatId);
+    await sendMessage(chatId, '🧪 *Diagnostic IA complet...*');
+
+    const falKey = env.FAL_KEY;
+    const repToken = env.REPLICATE_API_TOKEN;
+    const diag: string[] = [
+      `• FAL\\_KEY présent : ${falKey ? '✅ oui' : '❌ non'}`,
+      `• REPLICATE\\_API\\_TOKEN présent : ${repToken ? '✅ oui' : '❌ non'}`,
+    ];
+
+    // fal.ai test
+    if (!falKey) {
+      diag.push('• fal.ai test génération : ⏭ SKIP (FAL\\_KEY absent)');
+    } else {
+      try {
+        const { default: ax } = await import('axios');
+        const r = await ax.head('https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video', {
+          headers: { Authorization: `Key ${falKey}` },
+          timeout: 10_000,
+          validateStatus: (s: number) => s < 500,
+        });
+        diag.push(`• fal.ai test génération : ${r.status < 500 ? `✅ OK (HTTP ${r.status})` : `❌ FAIL (HTTP ${r.status})`}`);
+      } catch (e: any) {
+        diag.push(`• fal.ai test génération : ❌ FAIL (${e.message})`);
+      }
+    }
+
+    // Replicate test
+    if (!repToken) {
+      diag.push('• Replicate test génération : ⏭ SKIP (REPLICATE\\_API\\_TOKEN absent)');
+    } else {
+      try {
+        const { default: ax } = await import('axios');
+        const r = await ax.get('https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro', {
+          headers: { Authorization: `Bearer ${repToken}` },
+          timeout: 10_000,
+        });
+        diag.push(`• Replicate test génération : ${r.status === 200 ? '✅ OK' : `⚠️ HTTP ${r.status}`}`);
+      } catch (e: any) {
+        const status = (e as any)?.response?.status;
+        diag.push(`• Replicate test génération : ❌ FAIL${status ? ` (HTTP ${status})` : ` (${e.message})`}`);
+      }
+    }
+
+    await sendMessage(chatId, `🤖 *DIAGNOSTIC IA — DZARYX*\n\n${diag.join('\n')}\n\n_Tape /test\\_fal ou /test\\_replicate pour détails._`);
     return;
   }
 

@@ -54,6 +54,10 @@ const envSchema = z.object({
 });
 
 function loadEnv() {
+  // FAL_API_KEY accepted as alias — canonical name in Railway is FAL_KEY
+  if (!process.env.FAL_KEY && process.env.FAL_API_KEY) {
+    process.env.FAL_KEY = process.env.FAL_API_KEY;
+  }
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
     console.error('❌ Invalid environment variables:');
