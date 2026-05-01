@@ -1744,15 +1744,20 @@ async function falGenerate(
   const pollUrl    = status_url   ?? `https://queue.fal.run/${modelId}/requests/${request_id}/status`;
   const resultUrl  = response_url ?? `https://queue.fal.run/${modelId}/requests/${request_id}`;
 
-  // Poll for completion
+  // Poll for completion — HTTP 200 and 202 both mean "still running", only body status matters
   const start = Date.now();
   let completed = false;
   while (Date.now() - start < maxMs) {
-    await new Promise(r => setTimeout(r, 4000));
-    const statusResp = await axios.get(pollUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 });
-    const { status } = statusResp.data as { status: string };
-    if (status === 'COMPLETED') { completed = true; break; }
-    if (status === 'FAILED') throw new Error('fal.ai: prediction failed');
+    await new Promise(r => setTimeout(r, 5000));
+    const statusResp = await axios.get(pollUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
+    const httpStatus = statusResp.status;
+    if (httpStatus === 401 || httpStatus === 403) throw new Error(`fal.ai: auth rejetée (${httpStatus})`);
+    if (httpStatus === 404) throw new Error('fal.ai: endpoint introuvable (404)');
+    if (httpStatus >= 500) throw new Error(`fal.ai: erreur serveur (${httpStatus})`);
+    const jobStatus: string = (statusResp.data as any)?.status ?? (statusResp.data as any)?.state ?? '';
+    if (jobStatus === 'COMPLETED') { completed = true; break; }
+    if (jobStatus === 'FAILED' || jobStatus === 'ERROR') throw new Error(`fal.ai: job échoué (status=${jobStatus})`);
+    // IN_QUEUE / IN_PROGRESS / HTTP 202 → continue polling
   }
   if (!completed) throw new Error(`fal.ai: timeout après ${Math.round(maxMs / 1000)}s`);
 

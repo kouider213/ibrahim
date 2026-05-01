@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import axios from 'axios';
 import {
-  sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo, sendDocument,
+  sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo, sendVideoBuffer, sendDocument,
   type TelegramUpdate, type TelegramMessage,
 } from '../../integrations/telegram.js';
 import { chatWithTools } from '../../integrations/claude-api.js';
@@ -195,7 +195,7 @@ router.post('/webhook', async (req, res) => {
     ];
     const ready = feats.filter(f => f.ok);
     const missing = feats.filter(f => !f.ok);
-    const capMsg = `⚡ *DZARYX CAPABILITIES — ${ready.length}/${feats.length}*\n\n✅ *Opérationnel*\n${ready.map(f => `  • ${f.n}`).join('\n')}\n\n❌ *Non configuré ou invalide*\n${missing.map(f => `  • ${f.n}`).join('\n')}`;
+    const capMsg = `⚡ *DZARYX CAPABILITIES — ${ready.length}/${feats.length}*\n\n✅ *Opérationnel*\n${ready.map(f => `  • ${f.n}`).join('\n')}\n\n❌ *Non configuré ou invalide*\n${missing.map(f => `  • ${f.n}`).join('\n')}\n\n_Note: fal.ai ✅ = auth clé OK. Génération vidéo réelle → /test\\_fal_`;
     await sendMessage(chatId, capMsg);
     return;
   }
@@ -335,48 +335,93 @@ router.post('/webhook', async (req, res) => {
         return;
       }
 
-      // Use URLs from fal.ai response — never construct (source of previous 405)
+      // Use URLs from fal.ai response — never construct (constructed URLs gave 405)
       const pollUrl   = status_url   || `https://queue.fal.run/${MODEL}/requests/${request_id}/status`;
       const resultUrl = response_url || `https://queue.fal.run/${MODEL}/requests/${request_id}`;
 
-      // Step 2 — poll until COMPLETED (max 120s)
-      const deadline = Date.now() + 120_000;
+      // Step 2 — poll until COMPLETED (240s timeout, 6s interval)
+      // HTTP 200 or 202 during polling = still in progress → continue
+      // Only FAIL on 401/403/404/405/5xx or status=FAILED in body
+      const TIMEOUT_MS = 240_000;
+      const POLL_INTERVAL = 6_000;
+      const startPoll = Date.now();
+      let pollCount = 0;
       let videoUrl: string | null = null;
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, 5000));
+      let lastJobStatus = '';
+      let pollFail = '';
+
+      while (Date.now() - startPoll < TIMEOUT_MS) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        pollCount++;
+        const elapsed = Math.round((Date.now() - startPoll) / 1000);
+
         const st = await ax.get(pollUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
-        if (st.status !== 200) {
-          await sendMessage(chatId, `❌ *fal.ai — Polling FAIL*\n\n• URL poll : ${pollUrl}\n• HTTP : ${st.status}`);
-          return;
-        }
-        const { status } = st.data as { status: string };
-        if (status === 'COMPLETED') {
-          // Step 3 — fetch result via response_url
+        const httpStatus = st.status;
+        const body = st.data as any;
+        const jobStatus: string = body?.status ?? body?.state ?? '';
+        lastJobStatus = jobStatus || `HTTP ${httpStatus}`;
+
+        console.log(`[test_fal] poll #${pollCount} — HTTP ${httpStatus} — status="${jobStatus}" — ${elapsed}s`);
+
+        // Fatal HTTP errors — abort immediately
+        if (httpStatus === 401 || httpStatus === 403) { pollFail = `Auth rejetée (HTTP ${httpStatus}) — clé invalide`; break; }
+        if (httpStatus === 404) { pollFail = `Endpoint introuvable (404)`; break; }
+        if (httpStatus === 405) { pollFail = `Méthode rejetée (405)`; break; }
+        if (httpStatus >= 500)  { pollFail = `Erreur serveur fal.ai (HTTP ${httpStatus})`; break; }
+
+        // Job failure in body
+        if (jobStatus === 'FAILED' || jobStatus === 'ERROR') { pollFail = `Job échoué — status=${jobStatus}`; break; }
+
+        // Job complete — fetch result
+        if (jobStatus === 'COMPLETED') {
           const res = await ax.get(resultUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
           if (res.status !== 200) {
-            await sendMessage(chatId, `❌ *fal.ai — Result fetch FAIL*\n\n• URL résultat : ${resultUrl}\n• HTTP : ${res.status}\n• Body : ${JSON.stringify(res.data).slice(0, 200)}`);
-            return;
+            pollFail = `Result fetch HTTP ${res.status} — body: ${JSON.stringify(res.data).slice(0, 150)}`;
+            break;
           }
           videoUrl = (res.data as any)?.video?.url as string ?? null;
           break;
         }
-        if (status === 'FAILED') {
-          await sendMessage(chatId, `❌ *fal.ai — Job échoué*\n\n• request\\_id : ${request_id}\n• Status fal.ai : FAILED`);
-          return;
-        }
+
+        // HTTP 200/202 + status IN_QUEUE/IN_PROGRESS/PENDING/empty → continue polling
+        // (202 = Accepted, job still running — NOT a failure)
       }
 
-      if (!videoUrl) {
-        await sendMessage(chatId, `❌ *fal.ai — Timeout 120s*\n\n• Génération pas terminée dans les 120s.\n• request\\_id : ${request_id}`);
+      const totalElapsed = Math.round((Date.now() - startPoll) / 1000);
+
+      if (pollFail) {
+        await sendMessage(chatId, `❌ *fal.ai — Polling FAIL*\n\n• request\\_id : \`${request_id.slice(0, 20)}...\`\n• Cause : ${pollFail}\n• Dernier status : ${lastJobStatus}\n• Polls : ${pollCount}\n• Durée : ${totalElapsed}s`);
         return;
       }
 
-      // Step 4 — download + validate MP4
+      if (!videoUrl) {
+        await sendMessage(chatId, `⏳ *fal.ai — Timeout ${totalElapsed}s*\n\nLa génération n'est pas terminée après ${totalElapsed}s.\n• request\\_id : \`${request_id.slice(0, 20)}...\`\n• Dernier status : ${lastJobStatus}\n• Polls : ${pollCount}\n\nRéessaie /test\\_fal dans quelques minutes.`);
+        return;
+      }
+
+      // Step 3 — download + validate MP4
       const dlResp = await ax.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
       const buf = Buffer.from(dlResp.data as ArrayBuffer);
       const validMp4 = isValidMp4Buffer(buf);
+
+      // Step 4 — send video to Telegram
+      let tgVideoOk = false;
+      if (validMp4) {
+        try {
+          await sendVideoBuffer(chatId, buf, `🎬 *Test fal.ai — Kling 1.6*\n_Vidéo test générée avec succès_`);
+          tgVideoOk = true;
+        } catch { /* report in summary */ }
+      }
+
       await sendMessage(chatId,
-        `✅ *fal.ai — Test génération OK*\n\n• Modèle : \`${MODEL}\`\n• Job soumis : ✅\n• request\\_id : ${request_id.slice(0, 16)}...\n• Vidéo générée : ✅ (${(buf.length / 1024).toFixed(0)} KB)\n• MP4 valide (ftyp magic) : ${validMp4 ? '✅' : '❌ corrompu'}\n• URL : ${videoUrl.slice(0, 70)}...`);
+        `${tgVideoOk ? '✅' : '⚠️'} *fal.ai — Test génération ${tgVideoOk ? 'OK' : 'partiel'}*\n\n` +
+        `• Modèle : \`${MODEL}\`\n` +
+        `• request\\_id : \`${request_id.slice(0, 20)}...\`\n` +
+        `• Polls : ${pollCount} (${totalElapsed}s total)\n` +
+        `• video\\_url reçue : ✅\n` +
+        `• MP4 téléchargé : ✅ (${(buf.length / 1024).toFixed(0)} KB)\n` +
+        `• MP4 valide (ftyp) : ${validMp4 ? '✅' : '❌ corrompu'}\n` +
+        `• Telegram sendVideo : ${tgVideoOk ? '✅' : '❌ (voir logs)'}`);
     } catch (e: any) {
       const s = (e as any)?.response?.status;
       await sendMessage(chatId, `❌ *fal.ai — Erreur inattendue*\n\n• ${s ? `HTTP ${s}` : e.message}`);
