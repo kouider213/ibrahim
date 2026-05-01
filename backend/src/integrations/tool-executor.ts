@@ -1179,7 +1179,7 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
       : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
 
     await sendTelegramForMarketing(chatId,
-      `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ 60-90 secondes...`
+      `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ 60-240 secondes...`
     ).catch(() => {});
 
     try {
@@ -1190,7 +1190,7 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
         'fal-ai/kling-video/v1.6/standard/image-to-video',
         { image_url: car.image_url, prompt: motionPrompt, duration: '5', aspect_ratio: '9:16' },
         falKey,
-        180_000,
+        240_000,
       );
       const resp = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
       const rawBuf = Buffer.from(resp.data as ArrayBuffer);
@@ -1721,7 +1721,7 @@ async function falGenerate(
   modelId: string,
   input: Record<string, unknown>,
   falKey: string,
-  maxMs = 180_000,
+  maxMs = 240_000,
 ): Promise<string> {
   type FalQueue = {
     request_id: string;
@@ -1828,7 +1828,7 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   const duration = Number(input['duration'] ?? 5) as 5 | 10;
   const chatId   = chatIdFromSession(sessionId);
 
-  await sendTelegramForMarketing(chatId, `🎬 *Génération vidéo IA — Kling 1.6*\n_"${prompt.slice(0, 80)}"_\n⏳ 60-120 secondes, patience...`);
+  await sendTelegramForMarketing(chatId, `🎬 *Génération vidéo IA — Kling 1.6*\n_"${prompt.slice(0, 80)}"_\n⏳ 60-240 secondes, patience...`);
 
   const videoUrl = await falGenerate(
     'fal-ai/kling-video/v1.6/standard/text-to-video',
@@ -1838,7 +1838,7 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       aspect_ratio: '9:16',
     },
     falKey,
-    180_000,
+    240_000,
   );
 
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
@@ -1890,7 +1890,7 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
     displayName = car.name as string;
   }
 
-  await sendTelegramForMarketing(chatId, `🎬 *Animation photo IA — Kling 1.6*\n_${displayName} · "${motionPrompt.slice(0, 60)}"_\n⏳ 60-90 secondes...`);
+  await sendTelegramForMarketing(chatId, `🎬 *Animation photo IA — Kling 1.6*\n_${displayName} · "${motionPrompt.slice(0, 60)}"_\n⏳ 60-240 secondes...`);
 
   const videoUrl = await falGenerate(
     'fal-ai/kling-video/v1.6/standard/image-to-video',
@@ -1901,7 +1901,7 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
       aspect_ratio: '9:16',
     },
     falKey,
-    180_000,
+    240_000,
   );
 
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
