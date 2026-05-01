@@ -881,11 +881,12 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'generate_ai_video',
-    description: 'Générer une vidéo IA depuis un texte (qualité Kling/Runway). Utiliser quand Kouider dit "génère une vidéo IA de...", "crée une vidéo avec IA", "génère une vidéo de [scène]". ⚠️ Prend 60-120 secondes. Envoie la vidéo directement sur Telegram.',
+    description: 'Générer une vidéo IA d\'une voiture (Kling 1.6, ~60-240s). Si une voiture de la flotte est mentionnée, TOUJOURS passer car_name — Dzaryx récupère la vraie photo depuis Supabase et génère une vidéo réaliste depuis l\'image (image-to-video). Si aucune voiture précise, génère depuis le texte (text-to-video). Envoie le MP4 directement sur Telegram.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        prompt:   { type: 'string', description: 'Description de la vidéo à générer (en anglais pour meilleur résultat). Ex: "luxury SUV driving through Oran coastal road at sunset, cinematic slow motion, 4K"' },
+        prompt:   { type: 'string', description: 'Scène à générer en anglais. Ex: "Renault Duster driving on Oran coastal road at golden hour, cinematic 4K, premium". Toujours inclure contexte Oran + style premium si possible.' },
+        car_name: { type: 'string', description: 'Nom exact ou partiel de la voiture de la flotte (ex: "Duster", "Clio 5", "Jumpy"). Passer ce paramètre si Kouider mentionne un modèle précis — active le mode image réelle.' },
         duration: { type: 'number', enum: [5, 10], description: 'Durée en secondes (5 ou 10). Défaut: 5.' },
       },
       required: ['prompt'],
@@ -893,7 +894,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'animate_car_photo',
-    description: 'Animer une photo de voiture existante avec l\'IA Kling (image → vidéo cinématique). Utiliser quand Kouider dit "anime la photo de [voiture]", "transforme cette photo en vidéo", "fais bouger la voiture". ⚠️ Prend 60-90 secondes. Envoie la vidéo sur Telegram.',
+    description: 'Animer une photo de voiture existante avec l\'IA Kling (image → vidéo cinématique). Utiliser quand Kouider dit "anime la photo de [voiture]", "transforme cette photo en vidéo", "fais bouger la voiture". ⚠️ Prend 60-240 secondes. Envoie la vidéo sur Telegram.',
     input_schema: {
       type: 'object' as const,
       properties: {

@@ -1717,6 +1717,33 @@ async function replicateGenerate(
   throw new Error('Replicate: timeout après 2 minutes');
 }
 
+// ── Shared helper: find car by partial/insensitive name, return id+name+image_url ──
+async function findCarByName(name: string): Promise<{ id: string; name: string; image_url: string } | null> {
+  const { data: cars } = await supabase.from('cars').select('id, name, image_url');
+  if (!cars?.length) return null;
+  const q = name.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  // 1. Exact match
+  let hit = cars.find(c => c.name.toLowerCase() === q);
+  if (hit) return hit as { id: string; name: string; image_url: string };
+
+  // 2. Contains (car name ⊇ query OR query ⊇ car name)
+  hit = cars.find(c => {
+    const cn = c.name.toLowerCase();
+    return cn.includes(q) || q.includes(cn);
+  });
+  if (hit) return hit as { id: string; name: string; image_url: string };
+
+  // 3. Any significant word match (>= 3 chars)
+  const words = q.split(/\s+/).filter(w => w.length >= 3);
+  for (const word of words) {
+    hit = cars.find(c => c.name.toLowerCase().includes(word));
+    if (hit) return hit as { id: string; name: string; image_url: string };
+  }
+
+  return null;
+}
+
 async function falGenerate(
   modelId: string,
   input: Record<string, unknown>,
@@ -1825,21 +1852,61 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   if (!falKey) return '❌ FAL_KEY non configuré dans Railway. Ajoute-le dans Railway → Variables.';
 
   const prompt   = input['prompt'] as string;
-  const duration = Number(input['duration'] ?? 5) as 5 | 10;
+  const duration = Number(input['duration'] ?? 5);
+  const carName  = input['car_name'] as string | undefined;
   const chatId   = chatIdFromSession(sessionId);
 
-  await sendTelegramForMarketing(chatId, `🎬 *Génération vidéo IA — Kling 1.6*\n_"${prompt.slice(0, 80)}"_\n⏳ 60-240 secondes, patience...`);
+  // ── Lookup car in Supabase when name provided ──────────────────────────────
+  let carImageUrl:   string | null = null;
+  let carDisplayName = '';
+  let mode: 'image-to-video' | 'text-to-video' = 'text-to-video';
 
-  const videoUrl = await falGenerate(
-    'fal-ai/kling-video/v1.6/standard/text-to-video',
-    {
-      prompt,
-      duration:     String(duration),
-      aspect_ratio: '9:16',
-    },
-    falKey,
-    240_000,
-  );
+  if (carName) {
+    const car = await findCarByName(carName);
+    console.log(`[generateAiVideoTool] Recherche voiture: "${carName}" →`, car ? `trouvée: ${car.name} (id:${car.id}, image:${car.image_url ? 'oui' : 'non'})` : 'non trouvée');
+
+    if (car?.image_url) {
+      try {
+        await axios.head(car.image_url, { timeout: 8_000 });
+        carImageUrl    = car.image_url;
+        carDisplayName = car.name;
+        mode           = 'image-to-video';
+        console.log(`[generateAiVideoTool] ✅ image-to-video: ${car.name} — ${car.image_url}`);
+      } catch {
+        console.log(`[generateAiVideoTool] ⚠️ Image inaccessible pour ${car.name} — fallback text-to-video`);
+      }
+    }
+  }
+
+  // ── Notify user which mode we use ─────────────────────────────────────────
+  if (mode === 'image-to-video') {
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo IA — Kling 1.6*\n✅ Photo réelle de *${carDisplayName}* trouvée\n_Génération vidéo réaliste depuis l'image..._\n⏳ 60-240 secondes, patience...`);
+  } else {
+    const reason = carName
+      ? `⚠️ Aucune photo réelle trouvée pour "${carName}" — génération depuis description uniquement`
+      : `Génération depuis description texte`;
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo IA — Kling 1.6*\n_${reason}_\n⏳ 60-240 secondes, patience...`);
+  }
+
+  // ── Generate video ─────────────────────────────────────────────────────────
+  let videoUrl: string;
+  if (mode === 'image-to-video') {
+    const motionPrompt = `${prompt}, smooth natural car movement, cinematic premium quality`;
+    console.log(`[generateAiVideoTool] image-to-video prompt: ${motionPrompt.slice(0, 100)}`);
+    videoUrl = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/image-to-video',
+      { image_url: carImageUrl!, prompt: motionPrompt, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+  } else {
+    videoUrl = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/text-to-video',
+      { prompt, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+  }
 
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
   const buffer = Buffer.from(resp.data as ArrayBuffer);
@@ -1848,22 +1915,25 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     throw new Error(`fal.ai a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
   }
 
+  const caption = mode === 'image-to-video'
+    ? `🎬 *${carDisplayName} — Vidéo IA réaliste — Kling 1.6*\n_Générée depuis la vraie photo_`
+    : `🎬 *Vidéo IA — Kling 1.6*\n_${prompt.slice(0, 100)}_`;
+
   let delivered = false;
   try {
-    await sendVideoBuffer(chatId, buffer, `🎬 *Vidéo IA — Kling 1.6*\n_${prompt.slice(0, 100)}_`);
+    await sendVideoBuffer(chatId, buffer, caption);
     delivered = true;
   } catch (err: any) {
     console.error('[generateAiVideoTool] sendVideoBuffer failed:', err.message);
     try {
-      await sendTelegramForMarketing(chatId, `🎬 *Vidéo IA générée — Kling 1.6*\n_${prompt.slice(0, 80)}_\n\n⚠️ Envoi direct impossible (fichier trop lourd).\n[Télécharger la vidéo](${videoUrl})`);
+      await sendTelegramForMarketing(chatId, `${caption}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${videoUrl})`);
       delivered = true;
     } catch { /* both failed */ }
   }
 
-  if (delivered) {
-    return `✅ Vidéo IA créée (Kling 1.6) et envoyée sur Telegram ↑`;
-  }
-  return `⚠️ Vidéo générée mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  const modeLabel = mode === 'image-to-video' ? `image réelle de ${carDisplayName}` : 'description texte';
+  if (delivered) return `✅ Vidéo IA créée (Kling 1.6) depuis ${modeLabel} — envoyée sur Telegram ↑`;
+  return `⚠️ Vidéo générée (${modeLabel}) mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
 }
 
 async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -1878,16 +1948,24 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
   let displayName = 'voiture';
 
   if (!imageUrl) {
-    const { data: cars } = await supabase.from('cars').select('name, image_url').eq('available', true);
-    const pool = carName
-      ? (cars ?? []).filter((c: any) => c.name.toLowerCase().includes(carName.toLowerCase()) && c.image_url)
-      : (cars ?? []).filter((c: any) => c.image_url);
-    const car = pool[0] as any;
-    if (!car?.image_url) {
-      return '❌ Aucune voiture avec photo trouvée. Précise car_name ou fournis image_url.';
+    if (carName) {
+      const car = await findCarByName(carName);
+      console.log(`[animateCarPhotoTool] Recherche: "${carName}" →`, car ? `${car.name} (image:${car.image_url ? 'oui' : 'non'})` : 'non trouvée');
+      if (!car?.image_url) {
+        return `❌ Voiture "${carName}" non trouvée dans la flotte ou sans photo. Vérifie le nom ou fournis image_url.`;
+      }
+      imageUrl    = car.image_url;
+      displayName = car.name;
+    } else {
+      // No name provided — pick first available car with image
+      const { data: cars } = await supabase.from('cars').select('id, name, image_url').eq('available', true);
+      const car = (cars ?? []).find((c: any) => c.image_url) as any;
+      if (!car?.image_url) {
+        return '❌ Aucune voiture avec photo trouvée. Précise car_name ou fournis image_url.';
+      }
+      imageUrl    = car.image_url as string;
+      displayName = car.name as string;
     }
-    imageUrl    = car.image_url as string;
-    displayName = car.name as string;
   }
 
   await sendTelegramForMarketing(chatId, `🎬 *Animation photo IA — Kling 1.6*\n_${displayName} · "${motionPrompt.slice(0, 60)}"_\n⏳ 60-240 secondes...`);
