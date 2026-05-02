@@ -888,14 +888,14 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         prompt:   { type: 'string', description: 'Scène à générer en anglais. Ex: "Renault Duster driving on Oran coastal road at golden hour". Inclure contexte Oran si possible.' },
         car_name: { type: 'string', description: 'Nom exact ou partiel de la voiture (ex: "Duster", "Clio 5", "Jumpy"). Passer si un modèle est mentionné — active le mode image réelle depuis Supabase.' },
         duration: { type: 'number', enum: [5, 10], description: 'Durée en secondes (5 ou 10). Défaut: 5.' },
-        provider: { type: 'string', enum: ['auto', 'runway', 'kling'], description: '"auto" = Runway si configuré sinon Kling. "runway" = force Runway (erreur explicite si non configuré, pas de fallback silencieux). "kling" = force Kling.' },
+        provider: { type: 'string', enum: ['auto', 'runway', 'kling'], description: '"auto" = Runway si configuré sinon Kling. "runway" = force Runway si Kouider demande Runway. Ne jamais passer "kling" sauf si Kouider dit explicitement "utilise Kling" ou "sans Runway".' },
       },
       required: ['prompt'],
     },
   },
   {
     name: 'animate_car_photo',
-    description: 'Animer une photo réelle de voiture (image → vidéo réaliste). Providers : Runway Gen-3 (si RUNWAY_API_KEY) ou Kling 1.6. Si Kouider dit "avec Runway" ou "force Runway" → provider: "runway". Mode auto par défaut. ⚠️ Prend 60-240 secondes. Envoie le MP4 sur Telegram.',
+    description: 'Animer une photo réelle de voiture (image → vidéo réaliste). Providers : Runway Gen-3 (si RUNWAY_API_KEY) ou Kling 1.6. Si Kouider dit "avec Runway" ou "force Runway" → provider: "runway". Mode auto par défaut. ⚠️ Prend 60-240 secondes. Envoie le MP4 sur Telegram. ⚠️ IMPORTANT : NE PAS appeler si generate_ai_video a déjà été invoqué dans ce même message — un seul outil vidéo par message. Ne pas passer provider:"kling" sauf si Kouider dit explicitement "utilise Kling" ou "sans Runway".',
     input_schema: {
       type: 'object' as const,
       properties: {

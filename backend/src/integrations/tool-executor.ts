@@ -47,6 +47,10 @@ import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
 import { runCodeAgent } from '../agents/code-agent.js';
 
+// ── In-memory lock — prevents duplicate video generations per chat ─────────────
+// Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
+const videoGenLocks = new Set<string>();
+
 export async function executeTool(
   name: string,
   input: Record<string, unknown>,
@@ -2058,6 +2062,15 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   const forceProvider   = (input['provider'] as 'auto' | 'runway' | 'kling' | undefined) ?? 'auto';
   const chatId          = chatIdFromSession(sessionId);
 
+  // ── Duplicate lock ─────────────────────────────────────────────────────────
+  const lockKey = chatId || sessionId || 'global';
+  if (videoGenLocks.has(lockKey)) {
+    console.log(`[generateAiVideoTool] duplicate video generation skipped (lockKey=${lockKey})`);
+    return '⏳ Génération vidéo déjà en cours pour cette session. La précédente se termine dans 1-4 min.';
+  }
+  videoGenLocks.add(lockKey);
+
+  try {
   console.log(`[generateAiVideoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'non précisée'}"`);
 
   // ── Lookup real car photo from Supabase ────────────────────────────────────
@@ -2137,6 +2150,9 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   const modeLabel = mode === 'image-to-video' ? `image réelle de ${carDisplayName}` : 'description texte';
   if (delivered) return `✅ Vidéo réaliste créée (${provider}, ${mode}) depuis ${modeLabel} — envoyée sur Telegram ↑`;
   return `⚠️ Vidéo générée via ${provider} (${mode}) depuis ${modeLabel} mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  } finally {
+    videoGenLocks.delete(lockKey);
+  }
 }
 
 async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -2154,6 +2170,15 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
 
   console.log(`[animateCarPhotoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'auto'}"`);
 
+  // ── Duplicate lock ─────────────────────────────────────────────────────────
+  const lockKey = chatId || sessionId || 'global';
+  if (videoGenLocks.has(lockKey)) {
+    console.log(`[animateCarPhotoTool] duplicate video generation skipped (lockKey=${lockKey})`);
+    return '⏳ Génération vidéo déjà en cours pour cette session. La précédente se termine dans 1-4 min.';
+  }
+  videoGenLocks.add(lockKey);
+
+  try {
   if (!imageUrl) {
     if (carName) {
       const car = await findCarByName(carName);
@@ -2218,4 +2243,7 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
 
   if (delivered) return `✅ Photo de ${displayName} animée (${provider}, ${mode}) et envoyée sur Telegram ↑`;
   return `⚠️ Vidéo générée (${provider}) mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  } finally {
+    videoGenLocks.delete(lockKey);
+  }
 }
