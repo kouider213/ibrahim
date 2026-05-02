@@ -881,26 +881,28 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'generate_ai_video',
-    description: 'Générer une vidéo IA d\'une voiture (Kling 1.6, ~60-240s). Si une voiture de la flotte est mentionnée, TOUJOURS passer car_name — Dzaryx récupère la vraie photo depuis Supabase et génère une vidéo réaliste depuis l\'image (image-to-video). Si aucune voiture précise, génère depuis le texte (text-to-video). Envoie le MP4 directement sur Telegram.',
+    description: 'Générer une vidéo IA réaliste d\'une voiture. Providers : Runway Gen-3 (haute fidélité, si RUNWAY_API_KEY configurée) et Kling 1.6 (fallback). Mode auto par défaut : Runway si disponible, sinon Kling. IMPORTANT : si Kouider dit "avec Runway", "force Runway", "génère avec Runway", "teste Runway", "premium Runway" → passer provider: "runway". Si une voiture de la flotte est mentionnée, TOUJOURS passer car_name — Dzaryx récupère la vraie photo Supabase et génère depuis l\'image (image-to-video, plus réaliste). Envoie le MP4 sur Telegram.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        prompt:   { type: 'string', description: 'Scène à générer en anglais. Ex: "Renault Duster driving on Oran coastal road at golden hour, cinematic 4K, premium". Toujours inclure contexte Oran + style premium si possible.' },
-        car_name: { type: 'string', description: 'Nom exact ou partiel de la voiture de la flotte (ex: "Duster", "Clio 5", "Jumpy"). Passer ce paramètre si Kouider mentionne un modèle précis — active le mode image réelle.' },
+        prompt:   { type: 'string', description: 'Scène à générer en anglais. Ex: "Renault Duster driving on Oran coastal road at golden hour". Inclure contexte Oran si possible.' },
+        car_name: { type: 'string', description: 'Nom exact ou partiel de la voiture (ex: "Duster", "Clio 5", "Jumpy"). Passer si un modèle est mentionné — active le mode image réelle depuis Supabase.' },
         duration: { type: 'number', enum: [5, 10], description: 'Durée en secondes (5 ou 10). Défaut: 5.' },
+        provider: { type: 'string', enum: ['auto', 'runway', 'kling'], description: '"auto" = Runway si configuré sinon Kling. "runway" = force Runway (erreur explicite si non configuré, pas de fallback silencieux). "kling" = force Kling.' },
       },
       required: ['prompt'],
     },
   },
   {
     name: 'animate_car_photo',
-    description: 'Animer une photo de voiture existante avec l\'IA Kling (image → vidéo cinématique). Utiliser quand Kouider dit "anime la photo de [voiture]", "transforme cette photo en vidéo", "fais bouger la voiture". ⚠️ Prend 60-240 secondes. Envoie la vidéo sur Telegram.',
+    description: 'Animer une photo réelle de voiture (image → vidéo réaliste). Providers : Runway Gen-3 (si RUNWAY_API_KEY) ou Kling 1.6. Si Kouider dit "avec Runway" ou "force Runway" → provider: "runway". Mode auto par défaut. ⚠️ Prend 60-240 secondes. Envoie le MP4 sur Telegram.',
     input_schema: {
       type: 'object' as const,
       properties: {
         car_name:      { type: 'string', description: 'Nom de la voiture de la flotte (ex: "Duster", "Clio"). Si vide, choisit automatiquement.' },
         image_url:     { type: 'string', description: 'URL d\'une photo à animer (optionnel — sans = utilise photo de la flotte).' },
         motion_prompt: { type: 'string', description: 'Description du mouvement voulu (en anglais). Défaut: "car moving forward smoothly, cinematic camera pan, golden hour lighting".' },
+        provider:      { type: 'string', enum: ['auto', 'runway', 'kling'], description: '"auto" = Runway si configuré sinon Kling. "runway" = force Runway. "kling" = force Kling.' },
       },
     },
   },

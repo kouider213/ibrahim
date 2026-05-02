@@ -1822,10 +1822,12 @@ async function runwayGenerate(
 
   const taskId: string = (submitResp.data as any)?.id;
   if (!taskId) throw new Error('Runway: pas de task ID dans la réponse');
+  console.log(`[runwayGenerate] taskId=${taskId} — polling jusqu'à SUCCEEDED...`);
 
   const start = Date.now();
   while (Date.now() - start < maxMs) {
     await new Promise(r => setTimeout(r, 5000));
+    const elapsed = Math.round((Date.now() - start) / 1000);
     const statusResp = await axios.get(
       `https://api.dev.runwayml.com/v1/tasks/${taskId}`,
       { headers, timeout: 15_000, validateStatus: () => true },
@@ -1836,9 +1838,13 @@ async function runwayGenerate(
     if (httpStatus >= 500) throw new Error(`Runway: erreur serveur (${httpStatus})`);
     const task   = statusResp.data as any;
     const status = (task?.status ?? '') as string;
+    console.log(`[runwayGenerate] taskId=${taskId} status=${status || 'unknown'} (${elapsed}s)`);
     if (status === 'SUCCEEDED') {
       const output = task?.output as string[] | undefined;
-      if (output?.[0]) return output[0];
+      if (output?.[0]) {
+        console.log(`[runwayGenerate] ✅ SUCCEEDED — output[0]=${output[0]}`);
+        return output[0];
+      }
       throw new Error('Runway: SUCCEEDED mais aucune URL vidéo dans output');
     }
     if (status === 'FAILED') {
@@ -1910,25 +1916,54 @@ async function prepareSourceImage(imageUrl: string): Promise<{ valid: boolean; s
 }
 
 async function generateVehicleVideo(opts: {
-  imageUrl:    string | null;
-  userPrompt:  string;
-  carName:     string;
-  duration:    number;
-  falKey:      string | undefined;
-  runwayKey:   string | undefined;
+  imageUrl:       string | null;
+  userPrompt:     string;
+  carName:        string;
+  duration:       number;
+  falKey:         string | undefined;
+  runwayKey:      string | undefined;
+  forceProvider?: 'runway' | 'kling' | 'auto';
 }): Promise<{ url: string; provider: string; mode: 'image-to-video' | 'text-to-video' }> {
-  const { imageUrl, userPrompt, carName, duration, falKey, runwayKey } = opts;
+  const { imageUrl, userPrompt, carName, duration, falKey, runwayKey, forceProvider = 'auto' } = opts;
   const dur  = (duration <= 5 ? 5 : 10) as 5 | 10;
   const mode: 'image-to-video' | 'text-to-video' = imageUrl ? 'image-to-video' : 'text-to-video';
 
   const { prompt, negativePrompt } = buildVideoPromptForRealism({ carName, userScene: userPrompt, mode });
-  console.log(`[generateVehicleVideo] mode=${mode} runway=${!!runwayKey} fal=${!!falKey}`);
+  console.log(`[generateVehicleVideo] forceProvider=${forceProvider} mode=${mode} runway=${!!runwayKey} fal=${!!falKey}`);
   console.log(`[generateVehicleVideo] prompt="${prompt.slice(0, 120)}"`);
-  console.log(`[generateVehicleVideo] negative_prompt="${negativePrompt.slice(0, 80)}"`);
 
-  // Provider 1 — Runway (only if RUNWAY_API_KEY configured)
+  // ── FORCED RUNWAY ─────────────────────────────────────────────────────────
+  if (forceProvider === 'runway') {
+    if (!runwayKey) throw new Error('RUNWAY_API_KEY non configurée dans Railway. Ajoute-la dans Railway → Variables → RUNWAY_API_KEY.');
+    if (!imageUrl)  throw new Error('Runway image-to-video nécessite une image source — voiture non trouvée dans la flotte ou sans photo.');
+    console.log(`[generateVehicleVideo] FORCED RUNWAY — imageUrl=${imageUrl}`);
+    const url = await runwayGenerate(imageUrl, prompt, dur, runwayKey, 240_000);
+    return { url, provider: 'Runway Gen-3', mode };
+  }
+
+  // ── FORCED KLING ──────────────────────────────────────────────────────────
+  if (forceProvider === 'kling') {
+    if (!falKey) throw new Error('FAL_KEY non configurée — impossible d\'utiliser Kling.');
+    if (imageUrl) {
+      const url = await falGenerate(
+        'fal-ai/kling-video/v1.6/standard/image-to-video',
+        { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: 0.4, duration: String(duration), aspect_ratio: '9:16' },
+        falKey, 240_000,
+      );
+      return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
+    }
+    const url = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/text-to-video',
+      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+    return { url, provider: 'Kling 1.6', mode: 'text-to-video' };
+  }
+
+  // ── AUTO: Runway first if available ───────────────────────────────────────
   if (imageUrl && runwayKey) {
     try {
+      console.log(`[generateVehicleVideo] AUTO — essai Runway d'abord...`);
       const url = await runwayGenerate(imageUrl, prompt, dur, runwayKey, 240_000);
       return { url, provider: 'Runway Gen-3', mode };
     } catch (err: any) {
@@ -1938,34 +1973,21 @@ async function generateVehicleVideo(opts: {
     console.log('[generateVehicleVideo] Runway non configuré, fallback vers Kling.');
   }
 
-  // Provider 2 — Kling 1.6 image-to-video
-  // cfg_scale=0.4 → weights image fidelity over text prompt (less creative, more faithful)
+  // Kling image-to-video (cfg_scale=0.4 → favors image over text)
   if (imageUrl && falKey) {
     const url = await falGenerate(
       'fal-ai/kling-video/v1.6/standard/image-to-video',
-      {
-        image_url:       imageUrl,
-        prompt,
-        negative_prompt: negativePrompt,
-        cfg_scale:       0.4,
-        duration:        String(duration),
-        aspect_ratio:    '9:16',
-      },
+      { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: 0.4, duration: String(duration), aspect_ratio: '9:16' },
       falKey, 240_000,
     );
     return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
   }
 
-  // Provider 3 — Kling 1.6 text-to-video (last resort — no image available)
+  // Kling text-to-video (last resort)
   if (falKey) {
     const url = await falGenerate(
       'fal-ai/kling-video/v1.6/standard/text-to-video',
-      {
-        prompt,
-        negative_prompt: negativePrompt,
-        duration:        String(duration),
-        aspect_ratio:    '9:16',
-      },
+      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16' },
       falKey, 240_000,
     );
     return { url, provider: 'Kling 1.6', mode: 'text-to-video' };
@@ -2024,12 +2046,19 @@ async function generateImageTool(input: Record<string, unknown>, sessionId?: str
 async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const falKey    = env.FAL_KEY;
   const runwayKey = env.RUNWAY_API_KEY;
+
+  // Startup log — visible in Railway logs every time a video is requested
+  console.log(`[video-providers] Runway configured: ${runwayKey ? 'true ✅' : 'false'} | fal.ai configured: ${falKey ? 'true ✅' : 'false'}`);
+
   if (!falKey && !runwayKey) return '❌ Aucun provider vidéo configuré. Ajoute FAL_KEY dans Railway → Variables.';
 
-  const prompt   = input['prompt'] as string;
-  const duration = Number(input['duration'] ?? 5);
-  const carName  = input['car_name'] as string | undefined;
-  const chatId   = chatIdFromSession(sessionId);
+  const prompt          = input['prompt'] as string;
+  const duration        = Number(input['duration'] ?? 5);
+  const carName         = input['car_name'] as string | undefined;
+  const forceProvider   = (input['provider'] as 'auto' | 'runway' | 'kling' | undefined) ?? 'auto';
+  const chatId          = chatIdFromSession(sessionId);
+
+  console.log(`[generateAiVideoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'non précisée'}"`);
 
   // ── Lookup real car photo from Supabase ────────────────────────────────────
   let carImageUrl:   string | null = null;
@@ -2045,24 +2074,23 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       if (imgCheck.valid) {
         carImageUrl    = car.image_url;
         carDisplayName = car.name;
-        console.log(`[generateAiVideoTool] ✅ mode image-to-video: ${car.name}`);
+        console.log(`[generateAiVideoTool] ✅ mode image-to-video activé: ${car.name}`);
       } else {
         console.log(`[generateAiVideoTool] ⚠️ Image invalide pour ${car.name} (${imgCheck.note}) → text-to-video`);
       }
     } else {
-      console.log(`[generateAiVideoTool] ⚠️ Aucune image_url pour cette voiture → text-to-video`);
+      console.log(`[generateAiVideoTool] ⚠️ Aucune image_url pour "${carName}" → text-to-video`);
     }
   }
 
-  // ── Telegram notification ──────────────────────────────────────────────────
-  if (carImageUrl) {
-    if (runwayKey) {
-      await sendTelegramForMarketing(chatId,
-        `🎬 *Génération vidéo IA — Runway Gen-3*\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Génération réaliste en cours avec Runway..._\n⏳ 60-240 secondes, patience...`);
-    } else {
-      await sendTelegramForMarketing(chatId,
-        `🎬 *Génération vidéo IA — Kling 1.6*\n✅ Photo réelle de *${carDisplayName}* trouvée.\nGénération réaliste en cours avec Kling...\n⏳ 60-240 secondes, patience...`);
-    }
+  // ── Telegram notification — adapté au provider demandé ────────────────────
+  if (forceProvider === 'runway') {
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo — Runway Gen-3* (mode forcé)\n${carImageUrl ? `✅ Photo réelle de *${carDisplayName}* trouvée.` : '⚠️ Aucune photo réelle trouvée.'}\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes, patience...`);
+  } else if (carImageUrl) {
+    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo IA — ${providerLabel}*\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes, patience...`);
   } else {
     await sendTelegramForMarketing(chatId,
       `🎬 *Génération vidéo IA — Kling 1.6*\n⚠️ Aucune photo réelle exploitable trouvée. Génération basée uniquement sur description, le rendu peut être moins fidèle.\n⏳ 60-240 secondes, patience...`);
@@ -2071,12 +2099,13 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   // ── Generate via provider dispatcher ──────────────────────────────────────
   const genStart = Date.now();
   const { url: videoUrl, provider, mode } = await generateVehicleVideo({
-    imageUrl:   carImageUrl,
-    userPrompt: prompt,
-    carName:    carDisplayName || carName || '',
+    imageUrl:      carImageUrl,
+    userPrompt:    prompt,
+    carName:       carDisplayName || carName || '',
     duration,
     falKey,
     runwayKey,
+    forceProvider,
   });
   const genSec = Math.round((Date.now() - genStart) / 1000);
   console.log(`[generateAiVideoTool] ✅ provider=${provider} mode=${mode} durée=${genSec}s`);
@@ -2115,12 +2144,15 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
   const runwayKey = env.RUNWAY_API_KEY;
   if (!falKey && !runwayKey) return '❌ Aucun provider vidéo configuré. Ajoute FAL_KEY dans Railway → Variables.';
 
-  const chatId       = chatIdFromSession(sessionId);
-  const carName      = input['car_name'] as string | undefined;
-  const motionPrompt = (input['motion_prompt'] as string) ?? 'car moving forward smoothly, cinematic camera pan, golden hour lighting';
+  const chatId         = chatIdFromSession(sessionId);
+  const carName        = input['car_name'] as string | undefined;
+  const motionPrompt   = (input['motion_prompt'] as string) ?? 'car moving forward smoothly, cinematic camera pan, golden hour lighting';
+  const forceProvider  = (input['provider'] as 'auto' | 'runway' | 'kling' | undefined) ?? 'auto';
 
   let imageUrl    = input['image_url'] as string | undefined;
   let displayName = 'voiture';
+
+  console.log(`[animateCarPhotoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'auto'}"`);
 
   if (!imageUrl) {
     if (carName) {
@@ -2139,23 +2171,26 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
       displayName = car.name as string;
     }
   }
+  console.log(`[animateCarPhotoTool] image_url: ${imageUrl} | displayName: ${displayName}`);
 
-  if (runwayKey) {
+  if (forceProvider === 'runway') {
     await sendTelegramForMarketing(chatId,
-      `🎬 *Animation photo IA — Runway Gen-3*\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération réaliste en cours avec Runway..._\n⏳ 60-240 secondes...`);
+      `🎬 *Animation photo — Runway Gen-3* (mode forcé)\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes...`);
   } else {
+    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
     await sendTelegramForMarketing(chatId,
-      `🎬 *Animation photo IA — Kling 1.6*\n✅ Photo réelle de *${displayName}* trouvée. Runway non configuré, génération réaliste en cours avec Kling...\n⏳ 60-240 secondes...`);
+      `🎬 *Animation photo IA — ${providerLabel}*\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes...`);
   }
 
   const genStart = Date.now();
   const { url: videoUrl, provider, mode } = await generateVehicleVideo({
-    imageUrl:   imageUrl ?? null,
-    userPrompt: motionPrompt,
-    carName:    displayName,
-    duration:   5,
+    imageUrl:      imageUrl ?? null,
+    userPrompt:    motionPrompt,
+    carName:       displayName,
+    duration:      5,
     falKey,
     runwayKey,
+    forceProvider,
   });
   const genSec = Math.round((Date.now() - genStart) / 1000);
   console.log(`[animateCarPhotoTool] ✅ provider=${provider} mode=${mode} durée=${genSec}s`);
