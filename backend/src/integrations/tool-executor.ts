@@ -1813,20 +1813,54 @@ async function runwayGenerate(
   maxMs = 240_000,
 ): Promise<string> {
   const headers = {
-    Authorization:    `Bearer ${token}`,
+    Authorization:      `Bearer ${token}`,
     'X-Runway-Version': '2024-11-06',
-    'Content-Type':   'application/json',
+    'Content-Type':     'application/json',
   };
 
-  const submitResp = await axios.post(
-    'https://api.dev.runwayml.com/v1/image_to_video',
-    { model: 'gen3a_turbo', promptImage: imageUrl, promptText: prompt, ratio: '720:1280', duration },
-    { headers, timeout: 30_000 },
-  );
+  // gen4.5 supports portrait 720:1280 — gen3a_turbo only supported 768:1280 (caused 400)
+  const payload = {
+    model:       'gen4_turbo',  // gen4.5 confirmed in docs; gen4_turbo also valid
+    promptImage: imageUrl,
+    promptText:  prompt,
+    ratio:       '720:1280',
+    duration,
+  };
+
+  console.log(`[runwayGenerate] POST https://api.dev.runwayml.com/v1/image_to_video`);
+  console.log(`[runwayGenerate] Authorization: ${token ? `Bearer ***${token.slice(-6)}` : 'MISSING'}`);
+  console.log(`[runwayGenerate] X-Runway-Version: 2024-11-06 | Content-Type: application/json`);
+  console.log(`[runwayGenerate] payload: model=${payload.model} ratio=${payload.ratio} duration=${payload.duration}`);
+  console.log(`[runwayGenerate] promptImage: ${imageUrl.slice(0, 100)}`);
+  console.log(`[runwayGenerate] promptText: "${prompt.slice(0, 100)}"`);
+
+  let submitResp;
+  try {
+    submitResp = await axios.post(
+      'https://api.dev.runwayml.com/v1/image_to_video',
+      payload,
+      { headers, timeout: 30_000 },
+    );
+  } catch (err: any) {
+    if (err.response) {
+      const status  = err.response.status as number;
+      const data    = err.response.data;
+      const errMsg  = typeof data === 'object' ? JSON.stringify(data) : String(data);
+      console.error(`[runwayGenerate] ❌ HTTP ${status} — Runway response: ${errMsg}`);
+      if (status === 400) throw new Error(`Runway a rejeté la requête (400): ${errMsg}`);
+      if (status === 401 || status === 403) throw new Error(`Runway: auth rejetée (${status})`);
+      throw new Error(`Runway: erreur HTTP ${status} — ${errMsg}`);
+    }
+    console.error(`[runwayGenerate] ❌ network error:`, err.message);
+    throw err;
+  }
 
   const taskId: string = (submitResp.data as any)?.id;
-  if (!taskId) throw new Error('Runway: pas de task ID dans la réponse');
-  console.log(`[runwayGenerate] taskId=${taskId} — polling jusqu'à SUCCEEDED...`);
+  if (!taskId) {
+    console.error(`[runwayGenerate] ❌ pas de task ID — réponse complète:`, JSON.stringify(submitResp.data));
+    throw new Error('Runway: pas de task ID dans la réponse');
+  }
+  console.log(`[runwayGenerate] ✅ task créée: taskId=${taskId} — polling...`);
 
   const start = Date.now();
   while (Date.now() - start < maxMs) {
