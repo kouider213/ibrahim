@@ -1762,11 +1762,19 @@ async function falGenerate(
   };
 
   // Submit to fal.ai queue
-  const submitResp = await axios.post(
-    `https://queue.fal.run/${modelId}`,
-    input,
-    { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 30_000 },
-  );
+  let submitResp;
+  try {
+    submitResp = await axios.post(
+      `https://queue.fal.run/${modelId}`,
+      input,
+      { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 30_000 },
+    );
+  } catch (submitErr: any) {
+    if (submitErr.response) {
+      throw new Error(`fal.ai submit (${modelId}): HTTP ${submitErr.response.status} — ${JSON.stringify(submitErr.response.data).slice(0, 300)}`);
+    }
+    throw submitErr;
+  }
 
   const queued = submitResp.data as FalQueue;
   const { request_id, response_url, status_url } = queued;
@@ -2020,8 +2028,9 @@ async function extractCarFromBackground(imageUrl: string, falKey: string, maxMs 
   return url;
 }
 
-// ── Step B: Place extracted car in a new scene — fal.ai Flux Kontext ──────────
-// Takes car PNG (transparent bg) + scene description → new scene image
+// ── Step B: Place extracted car in a new scene ────────────────────────────────
+// Primary: fal-ai/flux-kontext/pro (image editing)
+// Fallback: fal-ai/flux/dev/image-to-image (img2img, strength=0.85)
 async function generateCarInNewScene(
   carPngUrl:      string,
   requestedScene: string,
@@ -2029,22 +2038,79 @@ async function generateCarInNewScene(
   falKey:         string,
   maxMs = 120_000,
 ): Promise<string> {
-  const prompt = [
+  const scenePrompt = [
     `Place the ${carName || 'car'} in: ${requestedScene}.`,
     'Professional automotive photography, photorealistic, cinematic lighting, ultra-realistic, 4K.',
     'The car must be clearly visible and naturally integrated into the new environment.',
     'Keep the exact car shape, color and details. No duplicate cars, no artifacts.',
+    'Realistic background, real outdoor scene, no studio backdrop.',
   ].join(' ');
-  console.log(`[generateCarInNewScene] Flux Kontext — prompt="${prompt.slice(0, 100)}" carPNG=${carPngUrl}`);
-  const url = await falGenerate(
-    'fal-ai/flux-kontext/pro',
-    { image_url: carPngUrl, prompt },
-    falKey,
-    maxMs,
-  );
-  if (url.startsWith('{')) throw new Error(`Flux Kontext returned unexpected JSON: ${url.slice(0, 120)}`);
-  console.log(`[generateCarInNewScene] ✅ transformedKeyframe=${url}`);
-  return url;
+
+  // ── Attempt 1: Flux Kontext Pro ──────────────────────────────────────────
+  const endpoint1 = 'fal-ai/flux-kontext/pro';
+  const input1    = { image_url: carPngUrl, prompt: scenePrompt };
+  console.log(`[generateCarInNewScene] Tentative 1/2: endpoint=${endpoint1}`);
+  console.log(`[generateCarInNewScene] input.image_url=${carPngUrl}`);
+  console.log(`[generateCarInNewScene] input.prompt="${scenePrompt}"`);
+  let error1 = '';
+  try {
+    const url = await falGenerate(endpoint1, input1, falKey, Math.round(maxMs * 0.6));
+    if (url.startsWith('{')) throw new Error(`JSON inattendu: ${url.slice(0, 200)}`);
+    console.log(`[generateCarInNewScene] ✅ Tentative 1 OK → ${url}`);
+    return url;
+  } catch (err1: any) {
+    error1 = err1.message;
+    console.warn(`[generateCarInNewScene] ❌ Tentative 1 (${endpoint1}): ${error1}`);
+  }
+
+  // ── Attempt 2: Flux Dev image-to-image ──────────────────────────────────
+  const endpoint2 = 'fal-ai/flux/dev/image-to-image';
+  const input2 = {
+    image_url:           carPngUrl,
+    prompt:              scenePrompt,
+    strength:            0.85,
+    num_inference_steps: 28,
+    guidance_scale:      3.5,
+    num_images:          1,
+  };
+  console.log(`[generateCarInNewScene] Tentative 2/2: endpoint=${endpoint2} strength=0.85`);
+  console.log(`[generateCarInNewScene] input.image_url=${carPngUrl}`);
+  try {
+    const url = await falGenerate(endpoint2, input2, falKey, Math.round(maxMs * 0.8));
+    if (url.startsWith('{')) throw new Error(`JSON inattendu: ${url.slice(0, 200)}`);
+    console.log(`[generateCarInNewScene] ✅ Tentative 2 OK → ${url}`);
+    return url;
+  } catch (err2: any) {
+    const error2 = err2.message;
+    console.error(`[generateCarInNewScene] ❌ Tentative 2 (${endpoint2}): ${error2}`);
+    throw new Error(`generateCarInNewScene échoué — T1 (${endpoint1}): ${error1} | T2 (${endpoint2}): ${error2}`);
+  }
+}
+
+// ── Step B validation: check the transformed keyframe is a real scene image ──
+async function validateTransformedKeyframe(imageUrl: string): Promise<{ valid: boolean; reason: string; sizeKb: number }> {
+  try {
+    const resp = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30_000 });
+    const buf  = Buffer.from(resp.data as ArrayBuffer);
+    const sizeKb = Math.round(buf.length / 1024);
+    const contentType = (resp.headers['content-type'] as string | undefined) ?? '';
+
+    if (!contentType.startsWith('image/')) {
+      return { valid: false, reason: `content-type non image: "${contentType}"`, sizeKb };
+    }
+    if (buf.length < 30_000) {
+      return { valid: false, reason: `image trop petite (${sizeKb} KB) — probablement fond vide ou transparent`, sizeKb };
+    }
+    // Magic bytes: JPEG = FF D8, PNG = 89 50 4E 47
+    const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8;
+    const isPng  = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+    if (!isJpeg && !isPng) {
+      return { valid: false, reason: `format non reconnu (magic: ${buf.slice(0, 4).toString('hex')})`, sizeKb };
+    }
+    return { valid: true, reason: `OK — ${sizeKb} KB, ${contentType}`, sizeKb };
+  } catch (err: any) {
+    return { valid: false, reason: `téléchargement échoué: ${err.message}`, sizeKb: 0 };
+  }
 }
 
 async function generateVehicleVideo(opts: {
@@ -2247,22 +2313,34 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       throw new Error(`Impossible d'isoler correctement la voiture pour transformer le décor. J'ai besoin d'une photo plus propre / mieux cadrée.`);
     }
 
-    // STEP 2 — New scene generation
+    // STEP 2 — New scene generation (no fallback — fail clean if this fails)
     await sendTelegramForMarketing(chatId,
-      `✅ *Voiture extraite.* Étape 2/3 : Création de la nouvelle scène...\n_"${requestedScene.slice(0, 60)}"_\n⏳ 30-60 secondes...`);
+      `✅ *Voiture extraite.* Étape 2/3 : Création de la nouvelle scène...\n_"${requestedScene.slice(0, 60)}"_\n⏳ 30-90 secondes...`);
+    let transformedUrl: string;
     try {
-      const transformedUrl = await generateCarInNewScene(carOnlyUrl, prompt, carDisplayName || carName || '', falKey, 120_000);
-      transformedKeyframeCreated = true;
-      effectiveImageUrl = transformedUrl;
-      console.log(`[generateAiVideoTool] transformedKeyframeCreated=true transformedUrl=${transformedUrl}`);
-      await sendTelegramForMarketing(chatId,
-        `✅ *Nouvelle scène créée.* Étape 3/3 : Animation vidéo en cours...\n⏳ 60-240 secondes...`);
+      transformedUrl = await generateCarInNewScene(carOnlyUrl, prompt, carDisplayName || carName || '', falKey, 150_000);
     } catch (sceneErr: any) {
-      console.warn(`[generateAiVideoTool] scene generation failed (will animate car-only PNG): ${sceneErr.message}`);
-      effectiveImageUrl = carOnlyUrl;
+      console.error(`[generateAiVideoTool] transformedKeyframeCreated=false: ${sceneErr.message}`);
       await sendTelegramForMarketing(chatId,
-        `⚠️ Recréation de scène échouée. Animation sur la voiture extraite en cours...\n⏳ 60-240 secondes...`);
+        `❌ *La recréation de la nouvelle scène a échoué.*\nJe n'ai pas lancé l'animation pour éviter un rendu incohérent.\n_Erreur: ${sceneErr.message.slice(0, 200)}_`);
+      throw new Error(`Transformation de scène échouée : ${sceneErr.message}`);
     }
+
+    // STEP 2b — Validate the transformed keyframe
+    console.log(`[generateAiVideoTool] validation keyframe intermédiaire: ${transformedUrl}`);
+    const kfValidation = await validateTransformedKeyframe(transformedUrl);
+    console.log(`[generateAiVideoTool] transformedKeyframeValidated=${kfValidation.valid} raison="${kfValidation.reason}" sizeKb=${kfValidation.sizeKb}`);
+    if (!kfValidation.valid) {
+      await sendTelegramForMarketing(chatId,
+        `❌ *Image intermédiaire invalide* (${kfValidation.reason}).\nGénération vidéo annulée — la scène créée n'est pas exploitable.`);
+      throw new Error(`Keyframe invalide: ${kfValidation.reason}`);
+    }
+
+    transformedKeyframeCreated = true;
+    effectiveImageUrl = transformedUrl;
+    console.log(`[generateAiVideoTool] transformedKeyframeCreated=true transformedUrl=${transformedUrl}`);
+    await sendTelegramForMarketing(chatId,
+      `✅ *Nouvelle scène créée avec succès* (${kfValidation.sizeKb} KB).\nÉtape 3/3 : Animation vidéo en cours...\n⏳ 60-240 secondes...`);
 
   } else if (forceProvider === 'runway') {
     await sendTelegramForMarketing(chatId,
