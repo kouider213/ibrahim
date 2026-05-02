@@ -1796,11 +1796,13 @@ async function falGenerate(
   const resultResp = await axios.get(resultUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 });
 
   const result = resultResp.data as Record<string, unknown>;
-  // fal.ai returns { video: { url } } or { images: [{ url }] }
+  // fal.ai returns { video:{url} }, { images:[{url}] }, or { image:{url} } (BiRefNet/image models)
   const videoUrl = (result['video'] as any)?.url as string | undefined;
   if (videoUrl) return videoUrl;
   const images = result['images'] as any[] | undefined;
   if (images?.[0]?.url) return images[0].url as string;
+  const singleImage = (result['image'] as any)?.url as string | undefined;
+  if (singleImage) return singleImage;
   return JSON.stringify(result);
 }
 
@@ -2003,6 +2005,48 @@ async function prepareSourceImage(imageUrl: string): Promise<{ valid: boolean; s
   }
 }
 
+// ── Step A: Remove background — fal.ai BiRefNet ───────────────────────────────
+// Returns URL of PNG with transparent background (car only)
+async function extractCarFromBackground(imageUrl: string, falKey: string, maxMs = 90_000): Promise<string> {
+  console.log(`[extractCarFromBackground] BiRefNet — imageUrl=${imageUrl}`);
+  const url = await falGenerate(
+    'fal-ai/birefnet',
+    { image_url: imageUrl, model: 'General Use (Light)' },
+    falKey,
+    maxMs,
+  );
+  if (url.startsWith('{')) throw new Error(`BiRefNet returned unexpected JSON: ${url.slice(0, 120)}`);
+  console.log(`[extractCarFromBackground] ✅ carPNG=${url}`);
+  return url;
+}
+
+// ── Step B: Place extracted car in a new scene — fal.ai Flux Kontext ──────────
+// Takes car PNG (transparent bg) + scene description → new scene image
+async function generateCarInNewScene(
+  carPngUrl:      string,
+  requestedScene: string,
+  carName:        string,
+  falKey:         string,
+  maxMs = 120_000,
+): Promise<string> {
+  const prompt = [
+    `Place the ${carName || 'car'} in: ${requestedScene}.`,
+    'Professional automotive photography, photorealistic, cinematic lighting, ultra-realistic, 4K.',
+    'The car must be clearly visible and naturally integrated into the new environment.',
+    'Keep the exact car shape, color and details. No duplicate cars, no artifacts.',
+  ].join(' ');
+  console.log(`[generateCarInNewScene] Flux Kontext — prompt="${prompt.slice(0, 100)}" carPNG=${carPngUrl}`);
+  const url = await falGenerate(
+    'fal-ai/flux-kontext/pro',
+    { image_url: carPngUrl, prompt },
+    falKey,
+    maxMs,
+  );
+  if (url.startsWith('{')) throw new Error(`Flux Kontext returned unexpected JSON: ${url.slice(0, 120)}`);
+  console.log(`[generateCarInNewScene] ✅ transformedKeyframe=${url}`);
+  return url;
+}
+
 async function generateVehicleVideo(opts: {
   imageUrl:            string | null;
   userPrompt:          string;
@@ -2183,14 +2227,46 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     }
   }
 
-  // ── Telegram notification — adapté au provider et au mode ───────────────
-  if (forceProvider === 'runway') {
+  // ── Scene transformation pipeline (3 steps) ──────────────────────────────
+  // Preprocessing happens here so we can send per-step Telegram progress messages.
+  let effectiveImageUrl: string | null = carImageUrl;
+  let carExtraction           = false;
+  let transformedKeyframeCreated = false;
+
+  if (sceneTransformation && carImageUrl && falKey) {
+    // STEP 1 — Background removal
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Transformation de scène — ${carDisplayName}*\n✅ Photo réelle du véhicule trouvée.\n_Étape 1/3 : Extraction de la voiture (suppression du fond)..._\n⏳ Patience...`);
+    let carOnlyUrl: string;
+    try {
+      carOnlyUrl = await extractCarFromBackground(carImageUrl, falKey, 90_000);
+      carExtraction = true;
+      console.log(`[generateAiVideoTool] carExtraction=true carOnlyUrl=${carOnlyUrl}`);
+    } catch (extractErr: any) {
+      console.warn(`[generateAiVideoTool] carExtraction=FAILED: ${extractErr.message}`);
+      throw new Error(`Impossible d'isoler correctement la voiture pour transformer le décor. J'ai besoin d'une photo plus propre / mieux cadrée.`);
+    }
+
+    // STEP 2 — New scene generation
+    await sendTelegramForMarketing(chatId,
+      `✅ *Voiture extraite.* Étape 2/3 : Création de la nouvelle scène...\n_"${requestedScene.slice(0, 60)}"_\n⏳ 30-60 secondes...`);
+    try {
+      const transformedUrl = await generateCarInNewScene(carOnlyUrl, prompt, carDisplayName || carName || '', falKey, 120_000);
+      transformedKeyframeCreated = true;
+      effectiveImageUrl = transformedUrl;
+      console.log(`[generateAiVideoTool] transformedKeyframeCreated=true transformedUrl=${transformedUrl}`);
+      await sendTelegramForMarketing(chatId,
+        `✅ *Nouvelle scène créée.* Étape 3/3 : Animation vidéo en cours...\n⏳ 60-240 secondes...`);
+    } catch (sceneErr: any) {
+      console.warn(`[generateAiVideoTool] scene generation failed (will animate car-only PNG): ${sceneErr.message}`);
+      effectiveImageUrl = carOnlyUrl;
+      await sendTelegramForMarketing(chatId,
+        `⚠️ Recréation de scène échouée. Animation sur la voiture extraite en cours...\n⏳ 60-240 secondes...`);
+    }
+
+  } else if (forceProvider === 'runway') {
     await sendTelegramForMarketing(chatId,
       `🎬 *Génération vidéo — Runway Gen-3* (mode forcé)\n${carImageUrl ? `✅ Photo réelle de *${carDisplayName}* trouvée.` : '⚠️ Aucune photo réelle trouvée.'}\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes, patience...`);
-  } else if (carImageUrl && sceneTransformation) {
-    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
-    await sendTelegramForMarketing(chatId,
-      `🎬 *Génération vidéo — transformation de scène*\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_La voiture sera replacée dans un nouvel environnement avec ${providerLabel}..._\n⏳ 60-240 secondes, patience...`);
   } else if (carImageUrl) {
     const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
     await sendTelegramForMarketing(chatId,
@@ -2200,20 +2276,25 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       `🎬 *Génération vidéo IA — Kling 1.6*\n⚠️ Aucune photo réelle exploitable trouvée. Génération basée uniquement sur description, le rendu peut être moins fidèle.\n⏳ 60-240 secondes, patience...`);
   }
 
+  const sourceImageType = effectiveImageUrl !== carImageUrl ? 'transformed' : 'original';
+  console.log(`[generateAiVideoTool] sourceImage=${sourceImageType} carExtraction=${carExtraction} transformedKeyframeCreated=${transformedKeyframeCreated} requestedScene="${requestedScene}"`);
+
   // ── Generate via provider dispatcher ──────────────────────────────────────
   const genStart = Date.now();
   const { url: videoUrl, provider, mode } = await generateVehicleVideo({
-    imageUrl:            carImageUrl,
+    imageUrl:            effectiveImageUrl,
     userPrompt:          prompt,
     carName:             carDisplayName || carName || '',
     duration,
     falKey,
     runwayKey,
     forceProvider,
-    sceneTransformation,
+    // If we already built a transformed keyframe, just animate it (motion-only prompt)
+    // If preprocessing was skipped/failed, keep the original sceneTransformation flag
+    sceneTransformation: !transformedKeyframeCreated && sceneTransformation,
   });
   const genSec = Math.round((Date.now() - genStart) / 1000);
-  console.log(`[generateAiVideoTool] ✅ provider=${provider} mode=${mode} sceneTransformation=${sceneTransformation} durée=${genSec}s`);
+  console.log(`[generateAiVideoTool] ✅ provider=${provider} mode=${mode} sceneTransformation=${sceneTransformation} sourceImage=${sourceImageType} durée=${genSec}s`);
   console.log(`[generateAiVideoTool] url vidéo: ${videoUrl}`);
 
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
