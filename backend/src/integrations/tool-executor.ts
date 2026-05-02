@@ -1894,16 +1894,47 @@ async function runwayGenerate(
   throw new Error(`Runway: timeout après ${Math.round(maxMs / 1000)}s`);
 }
 
-// ── Provider dispatcher — Runway → fal.ai image-to-video → text-to-video ──────
-// ── Prompt builder — motion-only for image-to-video, full for text-to-video ───
-// KEY RULE: for image-to-video, NEVER describe the car's appearance in the prompt.
-// The source image IS the visual reference. Describing appearance causes distortions.
+// ── Scene transformation detection — keywords that indicate background relocation ─
+function detectSceneTransformation(userPrompt: string): boolean {
+  const lower = userPrompt.toLowerCase();
+  const keywords = [
+    // FR locations
+    'plage', 'beach',
+    'montagne', 'mountain',
+    ' mer ', ' mer,', ' mer.', 'bord de mer', 'face à la mer', 'vue sur la mer',
+    'sea ', 'ocean', 'côte', 'côtier', 'côtière', 'coastal', 'corniche',
+    'désert', 'desert',
+    'forêt', 'foret', 'forest',
+    'campagne', 'countryside', 'falaise', 'cliff',
+    // Algeria specifics
+    'oran', 'oranais', 'oranaise', 'algérie', 'algerie', 'algérien', 'alger',
+    // Generic transformation intent
+    'arrière-plan', 'arriere-plan', 'background', 'décor', 'decor',
+    'paysage', 'scenery', 'setting',
+    // Relocation verbs / patterns
+    'mets la voiture', 'met la voiture', 'place la voiture',
+    'déplace', 'deplace', 'relocate',
+    'sur une plage', 'sur la plage', 'sur une montagne', 'sur la montagne',
+    'dans le désert', 'dans la forêt', 'dans un décor',
+    'face à la', 'face a la', 'au bord de', 'avec vue sur',
+    'route côtière', 'route cotiere',
+  ];
+  return keywords.some(kw => lower.includes(kw));
+}
+
+// ── Prompt builder ─────────────────────────────────────────────────────────────
+// Strict fidelity  (sceneTransformation=false): motion-only prompt, cfgScale=0.4
+// Scene transform  (sceneTransformation=true) : car identity from image + new env
+// KEY: for image-to-video, NEVER describe the car appearance — image is the reference.
 function buildVideoPromptForRealism(opts: {
-  carName:   string;
-  userScene: string;
-  mode:      'image-to-video' | 'text-to-video';
-}): { prompt: string; negativePrompt: string } {
-  const negativePrompt = [
+  carName:              string;
+  userScene:            string;
+  mode:                 'image-to-video' | 'text-to-video';
+  sceneTransformation?: boolean;
+}): { prompt: string; negativePrompt: string; cfgScale: number } {
+  const { carName, userScene, mode, sceneTransformation = false } = opts;
+
+  const baseNegativePrompt = [
     'morphing, body deformation, shape distortion, color change',
     'concept car, car redesign, stylized render, CGI, anime, cartoon',
     'oversaturated, dramatic fake lighting, neon glow',
@@ -1912,29 +1943,48 @@ function buildVideoPromptForRealism(opts: {
     'AI artifact, glitch, uncanny valley',
   ].join(', ');
 
-  if (opts.mode === 'image-to-video') {
-    const scene = opts.userScene.length > 15 ? opts.userScene : 'coastal road in Oran, Algeria, golden hour';
+  // ── text-to-video (no source image) ─────────────────────────────────────────
+  if (mode === 'text-to-video') {
+    const scene = userScene.length > 15 ? userScene : 'coastal road in Oran, Algeria, golden hour';
     const prompt = [
-      `Real filmed video. ${scene}.`,
-      'Car moves slowly and naturally.',
-      'Minimal camera motion, smooth handheld or gimbal shot.',
-      'Natural daylight, realistic road surface, natural shadows.',
-      'Realistic reflections, no stylization.',
-      'Looks like a real video shot with a camera.',
+      `Real filmed video of a ${carName || 'car'}. ${scene}.`,
+      'Car drives slowly and naturally.',
+      'Camera at 3/4 front angle, smooth and stable.',
+      'Natural lighting, realistic road surface, realistic motion.',
+      'Looks like a real video, not CGI or AI-stylized.',
     ].join(' ');
-    return { prompt, negativePrompt };
+    return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.5 };
   }
 
-  // text-to-video — must describe the car since no source image
-  const scene = opts.userScene.length > 15 ? opts.userScene : 'coastal road in Oran, Algeria, golden hour';
+  // ── image-to-video: scene transformation — car from image, env from text ─────
+  // cfgScale=0.65 → give more weight to prompt so background actually changes
+  if (sceneTransformation) {
+    const prompt = [
+      'Use the provided vehicle image as the identity reference for the car only.',
+      "Preserve the car's exact shape, color, body lines and visible details.",
+      `Relocate the car into a completely new environment: ${userScene}.`,
+      'Replace the original background entirely with the requested new scene.',
+      'The vehicle must appear naturally placed and integrated into the new location.',
+      'Show the new setting clearly — the original background must not remain visible.',
+      'Natural lighting that matches the new environment. Smooth realistic camera motion.',
+      'Looks like a real filmed video.',
+    ].join(' ');
+    const negativePrompt = baseNegativePrompt + ', original background, same scene as source image, unchanged environment';
+    return { prompt, negativePrompt, cfgScale: 0.65 };
+  }
+
+  // ── image-to-video: strict fidelity — preserve car + scene, motion only ──────
+  // cfgScale=0.4 → image-faithful, minimal divergence from source
+  const scene = userScene.length > 15 ? userScene : 'coastal road in Oran, Algeria, golden hour';
   const prompt = [
-    `Real filmed video of a ${opts.carName || 'car'}. ${scene}.`,
-    'Car drives slowly and naturally.',
-    'Camera at 3/4 front angle, smooth and stable.',
-    'Natural lighting, realistic road surface, realistic motion.',
-    'Looks like a real video, not CGI or AI-stylized.',
+    `Real filmed video. ${scene}.`,
+    'Car moves slowly and naturally.',
+    'Minimal camera motion, smooth handheld or gimbal shot.',
+    'Natural daylight, realistic road surface, natural shadows.',
+    'Realistic reflections, no stylization.',
+    'Looks like a real video shot with a camera.',
   ].join(' ');
-  return { prompt, negativePrompt };
+  return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.4 };
 }
 
 // ── Source image quality check (HEAD, no download) ────────────────────────────
@@ -1954,20 +2004,21 @@ async function prepareSourceImage(imageUrl: string): Promise<{ valid: boolean; s
 }
 
 async function generateVehicleVideo(opts: {
-  imageUrl:       string | null;
-  userPrompt:     string;
-  carName:        string;
-  duration:       number;
-  falKey:         string | undefined;
-  runwayKey:      string | undefined;
-  forceProvider?: 'runway' | 'kling' | 'auto';
+  imageUrl:            string | null;
+  userPrompt:          string;
+  carName:             string;
+  duration:            number;
+  falKey:              string | undefined;
+  runwayKey:           string | undefined;
+  forceProvider?:      'runway' | 'kling' | 'auto';
+  sceneTransformation?: boolean;
 }): Promise<{ url: string; provider: string; mode: 'image-to-video' | 'text-to-video' }> {
-  const { imageUrl, userPrompt, carName, duration, falKey, runwayKey, forceProvider = 'auto' } = opts;
+  const { imageUrl, userPrompt, carName, duration, falKey, runwayKey, forceProvider = 'auto', sceneTransformation = false } = opts;
   const dur  = (duration <= 5 ? 5 : 10) as 5 | 10;
   const mode: 'image-to-video' | 'text-to-video' = imageUrl ? 'image-to-video' : 'text-to-video';
 
-  const { prompt, negativePrompt } = buildVideoPromptForRealism({ carName, userScene: userPrompt, mode });
-  console.log(`[generateVehicleVideo] forceProvider=${forceProvider} mode=${mode} runway=${!!runwayKey} fal=${!!falKey}`);
+  const { prompt, negativePrompt, cfgScale } = buildVideoPromptForRealism({ carName, userScene: userPrompt, mode, sceneTransformation });
+  console.log(`[generateVehicleVideo] forceProvider=${forceProvider} mode=${mode} sceneTransformation=${sceneTransformation} cfgScale=${cfgScale} runway=${!!runwayKey} fal=${!!falKey}`);
   console.log(`[generateVehicleVideo] prompt="${prompt.slice(0, 120)}"`);
 
   // ── FORCED RUNWAY ─────────────────────────────────────────────────────────
@@ -1985,7 +2036,7 @@ async function generateVehicleVideo(opts: {
     if (imageUrl) {
       const url = await falGenerate(
         'fal-ai/kling-video/v1.6/standard/image-to-video',
-        { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: 0.4, duration: String(duration), aspect_ratio: '9:16' },
+        { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), aspect_ratio: '9:16' },
         falKey, 240_000,
       );
       return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
@@ -2011,11 +2062,11 @@ async function generateVehicleVideo(opts: {
     console.log('[generateVehicleVideo] Runway non configuré, fallback vers Kling.');
   }
 
-  // Kling image-to-video (cfg_scale=0.4 → favors image over text)
+  // Kling image-to-video — cfgScale from builder (0.4 strict / 0.65 scene transform)
   if (imageUrl && falKey) {
     const url = await falGenerate(
       'fal-ai/kling-video/v1.6/standard/image-to-video',
-      { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: 0.4, duration: String(duration), aspect_ratio: '9:16' },
+      { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), aspect_ratio: '9:16' },
       falKey, 240_000,
     );
     return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
@@ -2105,7 +2156,9 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   videoGenLocks.add(lockKey);
 
   try {
-  console.log(`[generateAiVideoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'non précisée'}"`);
+  const sceneTransformation = detectSceneTransformation(prompt);
+  const requestedScene      = sceneTransformation ? prompt.slice(0, 80) : '';
+  console.log(`[generateAiVideoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'non précisée'}" | sceneTransformation=${sceneTransformation}${sceneTransformation ? ` requestedScene="${requestedScene}"` : ''}`);
 
   // ── Lookup real car photo from Supabase ────────────────────────────────────
   let carImageUrl:   string | null = null;
@@ -2130,10 +2183,14 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     }
   }
 
-  // ── Telegram notification — adapté au provider demandé ────────────────────
+  // ── Telegram notification — adapté au provider et au mode ───────────────
   if (forceProvider === 'runway') {
     await sendTelegramForMarketing(chatId,
       `🎬 *Génération vidéo — Runway Gen-3* (mode forcé)\n${carImageUrl ? `✅ Photo réelle de *${carDisplayName}* trouvée.` : '⚠️ Aucune photo réelle trouvée.'}\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes, patience...`);
+  } else if (carImageUrl && sceneTransformation) {
+    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo — transformation de scène*\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_La voiture sera replacée dans un nouvel environnement avec ${providerLabel}..._\n⏳ 60-240 secondes, patience...`);
   } else if (carImageUrl) {
     const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
     await sendTelegramForMarketing(chatId,
@@ -2146,16 +2203,17 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   // ── Generate via provider dispatcher ──────────────────────────────────────
   const genStart = Date.now();
   const { url: videoUrl, provider, mode } = await generateVehicleVideo({
-    imageUrl:      carImageUrl,
-    userPrompt:    prompt,
-    carName:       carDisplayName || carName || '',
+    imageUrl:            carImageUrl,
+    userPrompt:          prompt,
+    carName:             carDisplayName || carName || '',
     duration,
     falKey,
     runwayKey,
     forceProvider,
+    sceneTransformation,
   });
   const genSec = Math.round((Date.now() - genStart) / 1000);
-  console.log(`[generateAiVideoTool] ✅ provider=${provider} mode=${mode} durée=${genSec}s`);
+  console.log(`[generateAiVideoTool] ✅ provider=${provider} mode=${mode} sceneTransformation=${sceneTransformation} durée=${genSec}s`);
   console.log(`[generateAiVideoTool] url vidéo: ${videoUrl}`);
 
   const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
@@ -2243,13 +2301,14 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
 
   const genStart = Date.now();
   const { url: videoUrl, provider, mode } = await generateVehicleVideo({
-    imageUrl:      imageUrl ?? null,
-    userPrompt:    motionPrompt,
-    carName:       displayName,
-    duration:      5,
+    imageUrl:            imageUrl ?? null,
+    userPrompt:          motionPrompt,
+    carName:             displayName,
+    duration:            5,
     falKey,
     runwayKey,
     forceProvider,
+    sceneTransformation: false,
   });
   const genSec = Math.round((Date.now() - genStart) / 1000);
   console.log(`[animateCarPhotoTool] ✅ provider=${provider} mode=${mode} durée=${genSec}s`);
