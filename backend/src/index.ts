@@ -50,9 +50,84 @@ app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(requestLogger);
 
-// Health check
+// ── Health check (avec statut APIs) ─────────────────────────────────────
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'Dzaryx', version: '2.0-chatWithTools', time: new Date().toISOString() });
+  const falKey         = process.env.FAL_KEY || process.env.FAL_API_KEY;
+  const replicateToken = process.env.REPLICATE_API_TOKEN;
+  res.json({
+    status:  'ok',
+    service: 'Dzaryx',
+    version: '2.0-chatWithTools',
+    time:    new Date().toISOString(),
+    apis: {
+      anthropic:   !!process.env.ANTHROPIC_API_KEY  ? '🟢' : '🔴',
+      elevenlabs:  !!process.env.ELEVENLABS_API_KEY ? '🟢' : '🔴',
+      telegram:    !!process.env.TELEGRAM_BOT_TOKEN ? '🟢' : '🔴',
+      supabase:    !!process.env.SUPABASE_URL        ? '🟢' : '🔴',
+      pexels:      !!process.env.PEXELS_API_KEY      ? '🟢' : '🔴',
+      cloudinary:  !!process.env.CLOUDINARY_API_KEY  ? '🟢' : '🔴',
+      'fal.ai':    !!falKey          ? '🟢' : '🔴',
+      replicate:   !!replicateToken  ? '🟢' : '🔴',
+    },
+  });
+});
+
+// ── /test_fal — test fal.ai connectivity ─────────────────────
+app.get('/test_fal', async (_req, res) => {
+  const falKey = process.env.FAL_KEY || process.env.FAL_API_KEY;
+  if (!falKey) {
+    res.status(400).json({ ok: false, error: 'FAL_KEY manquant ou invalide. Ajoute FAL_KEY dans Railway.' });
+    return;
+  }
+  try {
+    const { default: axios } = await import('axios');
+    await axios.get('https://fal.run/fal-ai/fast-sdxl', {
+      headers: { Authorization: `Key ${falKey}` },
+      timeout: 5_000,
+    }).catch(() => null); // just check auth header accepted
+    res.json({ ok: true, message: 'FAL_KEY présent et valide.', key_prefix: falKey.slice(0, 8) + '...' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── /test_replicate — test Replicate connectivity ─────────────
+app.get('/test_replicate', async (_req, res) => {
+  const token = process.env.REPLICATE_API_TOKEN;
+  if (!token) {
+    res.status(400).json({ ok: false, error: 'REPLICATE_API_TOKEN manquant. Ajoute REPLICATE_API_TOKEN dans Railway.' });
+    return;
+  }
+  try {
+    const { default: axios } = await import('axios');
+    const { data } = await axios.get('https://api.replicate.com/v1/models', {
+      headers: { Authorization: `Token ${token}` },
+      timeout: 8_000,
+    });
+    res.json({ ok: true, message: 'REPLICATE_API_TOKEN valide.', models_count: data?.results?.length ?? '?' });
+  } catch (err: any) {
+    const status = err?.response?.status;
+    if (status === 401) { res.status(401).json({ ok: false, error: 'REPLICATE_API_TOKEN invalide (401).' }); return; }
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── /test_ai — diagnostic complet ────────────────────────────
+app.get('/test_ai', async (_req, res) => {
+  const falKey    = process.env.FAL_KEY || process.env.FAL_API_KEY;
+  const replToken = process.env.REPLICATE_API_TOKEN;
+  res.json({
+    diagnostic: {
+      FAL_KEY_present:              !!falKey,
+      FAL_KEY_source:               process.env.FAL_KEY ? 'FAL_KEY' : process.env.FAL_API_KEY ? 'FAL_API_KEY (fallback)' : 'absent',
+      REPLICATE_API_TOKEN_present:  !!replToken,
+    },
+    tests: {
+      'fal.ai':  falKey    ? 'Clé présente — appelle /test_fal pour valider'  : 'FAIL — FAL_KEY absent',
+      replicate: replToken ? 'Token présent — appelle /test_replicate pour valider' : 'FAIL — REPLICATE_API_TOKEN absent',
+    },
+    note: 'Pour tester en détail: GET /test_fal  et  GET /test_replicate',
+  });
 });
 
 // API routes

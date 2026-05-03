@@ -958,7 +958,7 @@ async function getLateReturns(): Promise<string> {
 
 // ── Marketing TikTok tools ────────────────────────────────────
 
-async function runTikTokResearchTool(sessionId?: string): Promise<string> {
+async function runTikTokResearchTool(_sessionId?: string): Promise<string> {
   const chatId = env.TELEGRAM_CHAT_ID ?? '809747124';
 
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
@@ -999,20 +999,21 @@ async function createMarketingVideoTool(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
-  const chatId   = env.TELEGRAM_CHAT_ID ?? '809747124';
+  const chatId = sessionId?.startsWith('telegram_')
+    ? sessionId.replace('telegram_', '')
+    : (env.TELEGRAM_CHAT_ID ?? '809747124');
   const carName  = (input['car_name'] as string | undefined)?.toLowerCase();
   const style    = (input['style'] as string | undefined) ?? 'reveal';
 
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
   const cars = (carsRaw ?? []) as Car[];
+  const carsWithImage = cars.filter(c => c.image_url);
 
-  if (cars.length === 0) return '⚠️ Aucune voiture disponible.';
+  if (carsWithImage.length === 0) return '⚠️ Aucune voiture avec image disponible.';
 
   const car = carName
-    ? cars.find(c => c.name.toLowerCase().includes(carName)) ?? cars[0]
-    : cars[0];
-
-  if (!car.image_url) return `⚠️ Pas d'image pour ${car.name} — ajoute une photo dans le tableau de bord.`;
+    ? (carsWithImage.find(c => c.name.toLowerCase().includes(carName)) ?? carsWithImage[Math.floor(Math.random() * carsWithImage.length)])
+    : carsWithImage[Math.floor(Math.random() * carsWithImage.length)];
 
   await sendTelegramForMarketing(chatId, `🎬 *Création vidéo pour ${car.name}*...\n_Voix IA + montage en cours (30-60s)_`);
 

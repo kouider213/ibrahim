@@ -40,6 +40,10 @@ const envSchema = z.object({
   // ── TikTok Content Posting API (optionnel — pour publication automatique) ──
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_OPEN_ID:      z.string().optional(),
+  // ── AI Generation APIs ───────────────────────────────────────────────────
+  FAL_KEY:             z.string().optional(),   // fal.ai — nom officiel dans Railway
+  FAL_API_KEY:         z.string().optional(),   // fallback compatibilité
+  REPLICATE_API_TOKEN: z.string().optional(),   // Replicate — nom officiel dans Railway
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_URL:          z.string().url().default('http://localhost:3000'),

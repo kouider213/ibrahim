@@ -10,10 +10,38 @@ function base(): string {
   return `https://api.telegram.org/bot${getToken()}`;
 }
 
+// ── Anti-duplication cache ────────────────────────────────────
+// Blocks identical messages sent within DEDUP_TTL ms to the same chat
+const _dedupeCache = new Map<string, number>();
+const DEDUP_TTL    = 8_000; // 8 seconds
+
+function _dedupeKey(chatId: number | string, text: string): string {
+  return `${chatId}:${text.slice(0, 120)}`;
+}
+
+function _isDuplicate(key: string): boolean {
+  const last = _dedupeCache.get(key);
+  if (last && Date.now() - last < DEDUP_TTL) return true;
+  _dedupeCache.set(key, Date.now());
+  // Cleanup stale entries every 100 checks
+  if (_dedupeCache.size > 200) {
+    const now = Date.now();
+    for (const [k, ts] of _dedupeCache) {
+      if (now - ts > DEDUP_TTL * 10) _dedupeCache.delete(k);
+    }
+  }
+  return false;
+}
+
 export async function sendMessage(chatId: number | string, text: string): Promise<void> {
   const token = getToken();
   if (!token) {
     console.error('[telegram] TELEGRAM_BOT_TOKEN not set — cannot send message');
+    return;
+  }
+  const key = _dedupeKey(chatId, text);
+  if (_isDuplicate(key)) {
+    console.warn(`[telegram] Duplicate blocked: ${key.slice(0, 60)}`);
     return;
   }
   try {

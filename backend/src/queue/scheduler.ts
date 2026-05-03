@@ -109,12 +109,21 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
 };
 
 export async function initScheduler(): Promise<void> {
-  // Register all repeatable jobs
+  // Remove ALL existing repeatable jobs before re-registering
+  // This prevents duplicates on server restart
+  const existing = await schedulerQueue.getRepeatableJobs();
+  for (const job of existing) {
+    await schedulerQueue.removeRepeatableByKey(job.key);
+    console.log(`[scheduler] Removed stale repeatable job: ${job.name}`);
+  }
+
+  // Register all repeatable jobs fresh (one per name, no duplicates)
   for (const job of JOBS) {
     await schedulerQueue.add(
       job.name,
       {},
       {
+        jobId:  `repeatable:${job.name}`,   // stable jobId prevents queue duplicates
         repeat: { pattern: job.cron, tz: job.tz },
         removeOnComplete: { count: 10 },
         removeOnFail:     { count: 5 },
