@@ -34,7 +34,7 @@ export async function savePendingVideo(
     payload:      pending,
     status:       'pending',
     completed_at: null,
-  }).catch(() => {});
+  }).then(null, () => {});
 
   return id;
 }
@@ -54,10 +54,9 @@ export function approveVideo(id: string): PendingVideo | null {
   if (!v) return null;
   v.status = 'approved';
   if (latestId === id) latestId = null;
-  supabase.from('tasks')
+  void supabase.from('tasks')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
-    .eq('payload->>id', id)
-    .catch(() => {});
+    .eq('payload->>id', id);
   return v;
 }
 
@@ -66,8 +65,7 @@ export function rejectVideo(id: string): void {
   if (!v) return;
   v.status = 'rejected';
   if (latestId === id) latestId = null;
-  supabase.from('tasks')
+  void supabase.from('tasks')
     .update({ status: 'cancelled' })
-    .eq('payload->>id', id)
-    .catch(() => {});
+    .eq('payload->>id', id);
 }

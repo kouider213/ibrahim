@@ -65,15 +65,16 @@ function isActionIntent(msg: string): boolean {
 }
 
 // ── Filter old confirmation-only assistant messages from distant history ──
+// Note: \b does not work after accented chars (é, è…) in JS — use explicit char class instead.
 const OLD_CONFIRMATION_PATTERNS: RegExp[] = [
   /^compris parfaitement\b/i,
-  /^c'est (bien )?noté\b/i,
-  /^bien noté\b/i,
-  /^noté[^a-z].*règle/i,
+  /^c'est (bien )?not[eé]/i,
+  /^bien not[eé]/i,
+  /^not[eé]\s.*r[eè]gle/i,
   /^d'accord[,!.\s]/i,
   /^je retiens\b/i,
   /^je vais appliquer\b/i,
-  /^entendu[,!.\s].*règle/i,
+  /^entendu[,!.\s].*r[eè]gle/i,
   /^je comprends (et )?(retiens|note)\b/i,
 ];
 

@@ -1,15 +1,16 @@
 // Patterns matching a Claude response that starts by echoing an old instruction acknowledgement.
 // These are "leaked confirmations" — Claude repeating what it said in a previous session
 // before answering the actual current request.
+// Note: \b does not work after accented chars (é, è, â…) in JS — use explicit delimiters instead.
 const LEAK_PATTERNS: RegExp[] = [
   /^compris parfaitement\b/i,
-  /^c'est (bien )?noté\b/i,
-  /^bien noté\b/i,
-  /^noté\b.*\brègle\b/i,
+  /^c'est (bien )?not[eé]/i,
+  /^bien not[eé]/i,
+  /^not[eé]\s.*r[eè]gle/i,
   /^d'accord[,!.\s]/i,
   /^je retiens\b/i,
   /^je vais appliquer\b/i,
-  /^entendu[,!.\s].*\brègle\b/i,
+  /^entendu[,!.\s].*r[eè]gle/i,
   /^je comprends (et )?(retiens|note)\b/i,
 ];
 
