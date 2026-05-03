@@ -21,6 +21,7 @@ import {
 } from './telegram.js';
 import { synthesizeVoice } from '../notifications/dispatcher.js';
 import type { Car } from './supabase.js';
+import { checkCarAvailability as checkAvailability } from './supabase.js';
 import {
   getPaymentStatus,
   recordPayment,
@@ -233,6 +234,16 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const VALID_PAYMENT_STATUSES = ['PENDING', 'PARTIAL', 'PAID'];
   const paymentStatus = (input['payment_status'] as string) ?? 'PENDING';
   if (!VALID_PAYMENT_STATUSES.includes(paymentStatus)) return `❌ payment_status invalide: ${paymentStatus}. Valeurs: ${VALID_PAYMENT_STATUSES.join(', ')}`;
+
+  // Anti-doublon: vérifie disponibilité avant insertion
+  const isAvailable = await checkAvailability(
+    input['car_id'] as string,
+    input['start_date'] as string,
+    input['end_date'] as string,
+  );
+  if (!isAvailable) {
+    return `❌ Voiture déjà réservée du ${input['start_date']} au ${input['end_date']}. Vérifie avec check_car_availability.`;
+  }
 
   const { data, error } = await supabase
     .from('bookings')
