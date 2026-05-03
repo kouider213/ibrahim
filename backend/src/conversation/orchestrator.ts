@@ -1,5 +1,5 @@
 ﻿import { buildContext }                          from './context-builder.js';
-import { guardResponse }                         from './response-guard.js';
+import { guardResponse, applyScopeGuard }        from './response-guard.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -133,9 +133,11 @@ export async function processMessage(
     console.log(`[orch:${requestId}] Extended Thinking: ${response.thinkingTokens} tokens`);
   }
 
-  // Guard: strip leaked old-confirmation prefixes before emitting / saving
-  const safeText = guardResponse(response.text, userMessage, requestId);
-  console.log(`[orch:${requestId}] done len=${safeText.length} guarded=${safeText !== response.text}`);
+  // Guard pass 1: strip leaked old-confirmation prefixes
+  const guardedText = guardResponse(response.text, userMessage, requestId);
+  // Guard pass 2: remove old video-task paragraphs from non-video responses
+  const safeText    = applyScopeGuard(guardedText, userMessage, requestId);
+  console.log(`[orch:${requestId}] done len=${safeText.length} guard1=${guardedText !== response.text} guard2=${safeText !== guardedText}`);
 
   // 4. Émettre le texte IMMÉDIATEMENT dès que Claude a répondu
   _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
