@@ -47,6 +47,43 @@ export interface ConversationContext {
   sessionId:   string;
 }
 
+// ── Intent detection: action requests need minimal history (avoids echoing old confirmations) ──
+const ACTION_INTENT_PATTERNS: RegExp[] = [
+  /résumé (du jour|de la journée|journée)/i,
+  /rapport (financier|du mois|de la semaine|annuel|hebdo)/i,
+  /disponibilit/i,
+  /(fais|crée|génère|lance) (une? )?(vidéo|pub|tiktok|clip)/i,
+  /(analyse|lis|ocr) (ce |le |la |un |une )?(passeport|permis|document|contrat)/i,
+  /(génère|crée|fais|envoie) (le )?(bon|contrat|pdf) (de réservation |de |pour )/i,
+  /météo\b/i,
+  /actualit|news\b/i,
+  /résumé (de |du )?(week[- ]?end|semaine)/i,
+];
+
+function isActionIntent(msg: string): boolean {
+  return ACTION_INTENT_PATTERNS.some(p => p.test(msg));
+}
+
+// ── Filter old confirmation-only assistant messages from distant history ──
+const OLD_CONFIRMATION_PATTERNS: RegExp[] = [
+  /^compris parfaitement\b/i,
+  /^c'est (bien )?noté\b/i,
+  /^bien noté\b/i,
+  /^noté[^a-z].*règle/i,
+  /^d'accord[,!.\s]/i,
+  /^je retiens\b/i,
+  /^je vais appliquer\b/i,
+  /^entendu[,!.\s].*règle/i,
+  /^je comprends (et )?(retiens|note)\b/i,
+];
+
+function isConfirmationOnlyMessage(msg: Message): boolean {
+  if (msg.role !== 'assistant') return false;
+  const text = typeof msg.content === 'string' ? msg.content.trim() : '';
+  if (text.length > 500) return false; // Long messages contain actual business data — keep them
+  return OLD_CONFIRMATION_PATTERNS.some(p => p.test(text));
+}
+
 export async function buildContext(
   sessionId: string,
   userMessage: string,
@@ -58,10 +95,9 @@ export async function buildContext(
 
   const now = new Date();
 
-  // Chargement parallèle — seulement ce dont on a besoin
-  // Coding sessions need deeper history (10-step procedure spans many messages)
+  // Coding: deep history. Action intents: minimal history (3 msgs) to avoid echoing old confirmations. Default: 10.
   const isCodingContext = /code|fichier|github|railway|deploy|typescript|modifier|écrire|programme|lire|debug|erreur|push|commit/i.test(userMessage);
-  const historyLimit = isCodingContext ? 20 : 10;
+  const historyLimit = isCodingContext ? 20 : isActionIntent(userMessage) ? 3 : 10;
 
   // Cross-channel: voice app also loads recent Telegram messages and vice-versa
   const crossChannelSessionId = sessionId === 'voice_kouider'
@@ -205,16 +241,29 @@ export async function buildContext(
     styleText,
   ].join('');
 
-  // Construire les messages: résumé compaction (si dispo) + historique (6 max) + message courant
+  // Filter old confirmation-only messages from non-recent history to prevent context contamination.
+  // Always keep the last 3 messages intact (immediate context); strip confirmation-only assistant
+  // messages from older history so Claude doesn't echo them in new unrelated responses.
+  const KEEP_RECENT = 3;
+  const recentHistory = history.slice(-KEEP_RECENT);
+  const olderHistory  = history
+    .slice(0, Math.max(0, history.length - KEEP_RECENT))
+    .filter((m: Message) => !isConfirmationOnlyMessage(m));
+  const filteredHistory = [...olderHistory, ...recentHistory];
+
+  // Construire les messages: résumé compaction (si dispo) + historique filtré + message courant
   const compactionMessage: Message[] = compactionSummary
     ? [{ role: 'user', content: compactionSummary }, { role: 'assistant', content: 'Compris, je me souviens de ce contexte.' }]
     : [];
 
   const messages: Message[] = [
     ...compactionMessage,
-    ...history,
+    ...filteredHistory,
     { role: 'user', content: userMessage },
   ];
+
+  console.log(`[ctx:${sessionId.slice(0, 20)}] histLimit=${historyLimit} raw=${history.length} filtered=${filteredHistory.length} action=${isActionIntent(userMessage)}`);
+
 
   return { messages, systemExtra, sessionId };
 }

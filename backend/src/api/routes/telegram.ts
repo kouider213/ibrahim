@@ -8,6 +8,7 @@ import { chatWithTools } from '../../integrations/claude-api.js';
 import { buildContext } from '../../conversation/context-builder.js';
 import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { guardResponse } from '../../conversation/response-guard.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -123,12 +124,15 @@ router.post('/webhook', async (req, res) => {
     const ctx      = await buildContext(sessionId, text);
     const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
 
+    const requestId = `tg_${chatId}_${Date.now()}`;
+    const safeText  = guardResponse(response.text, text, requestId);
+
     const sendPromise = (async () => {
-      for (const chunk of splitMessage(response.text, 4000)) {
+      for (const chunk of splitMessage(safeText, 4000)) {
         await sendMessage(chatId, chunk);
       }
       // Si la réponse contient une URL Supabase (public ou signed) → envoyer la photo
-      const docUrls = response.text.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g);
+      const docUrls = safeText.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g);
       if (docUrls) {
         for (const url of docUrls) {
           await sendPhoto(chatId, url).catch(async () => {
@@ -139,8 +143,8 @@ router.post('/webhook', async (req, res) => {
     })();
 
     const savePromise = Promise.all([
-      saveConversationTurn(sessionId, 'user',      text,          { source: 'telegram' }),
-      saveConversationTurn(sessionId, 'assistant', response.text, { source: 'telegram' }),
+      saveConversationTurn(sessionId, 'user',      text,     { source: 'telegram' }),
+      saveConversationTurn(sessionId, 'assistant', safeText, { source: 'telegram' }),
     ]).catch(e => console.error('[telegram] Save error:', e));
 
     await Promise.all([sendPromise, savePromise]);
