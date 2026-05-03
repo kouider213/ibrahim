@@ -110,26 +110,6 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
   return { level: 'none', budget: 0 };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// FEATURE 3: CITATIONS — Activer pour les requêtes avec documents/sources
-// ══════════════════════════════════════════════════════════════════════════════
-function needsCitations(messages: Message[], systemExtra?: string): boolean {
-  const lastUser = [...messages].reverse().find(m => m.role === 'user');
-  if (!lastUser) return false;
-
-  const content = lastUser.content;
-  const text = (typeof content === 'string' ? content : '').toLowerCase();
-
-  if (/source|document|référence|d'où vient|citation|preuve|selon|d'après/i.test(text)) {
-    return true;
-  }
-
-  if (systemExtra && systemExtra.length > 3000) {
-    return /rapport|règle|grille|historique/i.test(text);
-  }
-
-  return false;
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // FEATURE 4: WEB SEARCH NATIF ANTHROPIC — Server Tool automatique
@@ -238,18 +218,17 @@ export async function chatWithTools(
   const thinkingBudget = complexity.budget;
 
   // ══════════════════════════════════════════════════════════════════════════
-  // CITATIONS: Activer si nécessaire
-  // ══════════════════════════════════════════════════════════════════════════
-  const useCitations = needsCitations(processedMessages, systemExtra);
-
-  // ══════════════════════════════════════════════════════════════════════════
   // WEB SEARCH NATIF: Ajouter le server tool si nécessaire
   // ══════════════════════════════════════════════════════════════════════════
   const useWebSearch = needsWebSearch(processedMessages);
 
-  const tools: Anthropic.Tool[] = useWebSearch
-    ? [...Dzaryx_TOOLS.filter(t => t.name !== 'web_search'), ANTHROPIC_WEB_SEARCH_TOOL]
+  // Quand on ajoute le server tool Anthropic web_search, retirer le tool local du même nom pour éviter le doublon → 400
+  const baseTools = useWebSearch
+    ? Dzaryx_TOOLS.filter(t => t.name !== 'web_search')
     : Dzaryx_TOOLS;
+  const tools: Anthropic.Tool[] = useWebSearch
+    ? [...baseTools, ANTHROPIC_WEB_SEARCH_TOOL]
+    : baseTools;
 
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,
@@ -287,7 +266,6 @@ export async function chatWithTools(
     const preview = typeof lastContent === 'string' ? lastContent.slice(0, 60) : '[image]';
     console.log(`[claude] 🧠 ADAPTIVE THINKING: ${complexity.level} (${thinkingBudget} tokens) pour: "${preview}..."`);
   }
-  if (useCitations)  console.log('[claude] 📚 CITATIONS: Activé pour cette requête');
   if (useWebSearch)  console.log('[claude] 🌐 WEB SEARCH NATIF: Activé pour cette requête');
 
   // Agentic loop — max 30 tool rounds (more for coding tasks)
@@ -316,10 +294,6 @@ export async function chatWithTools(
             type:          'enabled',
             budget_tokens: thinkingBudget,
           };
-        }
-
-        if (useCitations) {
-          (createParams as any).citations = { enabled: true };
         }
 
         const stream = client.messages.stream(createParams as any);
@@ -562,7 +536,7 @@ ACTIONS DISPONIBLES:
 - cancel_reservation: params = { id }
 - list_reservations: params = { status?, vehicle_id?, date? }
 - check_availability: params = { vehicle_id, start_date, end_date }
-- get_financial_report: params = { year?, month? }
+- get_financial_report: params = { year?, month? } — DÉCLENCHER POUR: "rapport financier", "combien j'ai gagné", "bénéfice depuis janvier", "total depuis début d'année", "part Houari", "part Kouider", "bilan", "chiffre d'affaires"
 - set_booking_owner: params = { id, rented_by: "Kouider"|"Houari" }
 - store_document: params = { clientPhone, clientName, type, fileName, base64 }
 - read_site_file: params = { path }
@@ -572,10 +546,11 @@ ACTIONS DISPONIBLES:
 - reply_to_client: TOUJOURS requiresValidation=true
 
 IMPORTANT: Si update_reservation → trouve l'ID UUID dans le contexte en cherchant par nom client ou véhicule mentionné.
+IMPORTANT: Si message contient "depuis janvier", "début d'année", "cette année" → get_financial_report sans month param (rapport annuel).
 
 Retourne UNIQUEMENT un JSON valide:
 {
-  "intent": "reservation|content_generation|pc_command|query|conversation|rule_learning",
+  "intent": "reservation|financial_report|content_generation|pc_command|query|conversation|rule_learning",
   "action": "action_name_or_null",
   "params": {},
   "requiresValidation": false,

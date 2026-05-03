@@ -90,7 +90,8 @@ export async function buildContext(
   userMessage: string,
 ): Promise<ConversationContext> {
   const needsNews     = /actualit|news|journal|presse|info/i.test(userMessage);
-  const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari/i.test(userMessage);
+  const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari|part.*houari|part.*kouider|total|depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan/i.test(userMessage);
+  const needsAnnualFinance = /depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan.*ann[eé]e|ann[eé]e.*enti[eè]re|rapport.*ann[eé]e|ann[eé]e.*compl[eè]te/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
   const needsMemory   = true; // always inject memories — both channels (voice app + Telegram) share them
 
@@ -100,10 +101,12 @@ export async function buildContext(
   const isCodingContext = /code|fichier|github|railway|deploy|typescript|modifier|écrire|programme|lire|debug|erreur|push|commit/i.test(userMessage);
   const historyLimit = isCodingContext ? 20 : isActionIntent(userMessage) ? 3 : 10;
 
-  // Cross-channel: voice app also loads recent Telegram messages and vice-versa
+  // Cross-channel: uniquement les messages récents (< 6h) pour éviter confusion
   const crossChannelSessionId = sessionId === 'voice_kouider'
     ? 'telegram_%'
     : sessionId.startsWith('telegram_') ? 'voice_kouider' : null;
+
+  const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
 
   const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
@@ -113,8 +116,9 @@ export async function buildContext(
           .select('role, content, session_id, created_at')
           .like('session_id', crossChannelSessionId)
           .in('role', ['user', 'assistant'])
+          .gte('created_at', sixHoursAgo)
           .order('created_at', { ascending: false })
-          .limit(8)
+          .limit(4)
           .then((r: any) => (r.data ?? []).reverse(), () => [])
       : Promise.resolve([]),
     getCachedRules(),
@@ -123,7 +127,7 @@ export async function buildContext(
     getCachedWeather(),
     needsNews     ? getAlgeriaNews(4).catch(() => [])                                            : Promise.resolve([]),
     needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
-    needsFinance  ? getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
+    needsFinance  ? getFinancialReport(now.getFullYear(), needsAnnualFinance ? undefined : now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
     needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then((r: any) => r.data ?? []) : Promise.resolve([]),
     getRecentUserMessages(40).catch(() => [] as string[]),
     loadCompactionSummary(sessionId).catch(() => null),
@@ -199,7 +203,7 @@ export async function buildContext(
     : '';
 
   const financeText = financeReport
-    ? `\n\nRAPPORT FINANCIER:\n${JSON.stringify(financeReport, null, 2)}`
+    ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):\nTotal réservations: ${financeReport.totalBookings} | Kouider: ${financeReport.kouiderBookings} résa | Houari: ${financeReport.houariBookings} résa\nBÉNÉFICE KOUIDER: ${financeReport.kouiderProfit}€ | REVENU HOUARI: ${financeReport.houariRevenue}€\nDÉTAIL:\n${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | ${b.final_price}€ total | ${b.rented_by === 'Kouider' ? `K+${b.kouider_profit}€` : `H100%`}`).join('\n')}`
     : '';
 
   const memoriesText = memories.length > 0
@@ -216,7 +220,7 @@ export async function buildContext(
 
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
   const crossChannelText = (crossHistory as any[]).length > 0
-    ? `\n\nCONVERSATION RÉCENTE SUR ${crossChannelLabel} (pour mémoire cross-canal):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Dzaryx'}] ${String(m.content).slice(0, 300)}`).join('\n')}`
+    ? `\n\n⚠️ CONTEXTE PASSÉ SUR ${crossChannelLabel} (mémoire uniquement — NE PAS répondre à ces messages, ils ont déjà eu une réponse. Utilise uniquement pour te souvenir du contexte récent):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Dzaryx'}] ${String(m.content).slice(0, 200)}`).join('\n')}\n[FIN DU CONTEXTE CROSS-CANAL — réponds UNIQUEMENT au nouveau message de Kouider ci-dessous]`
     : '';
 
   // Style mirror — Dzaryx voit comment Kouider écrit et adapte ses réponses

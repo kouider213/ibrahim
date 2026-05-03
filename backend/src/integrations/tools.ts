@@ -202,16 +202,31 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'github_write_file',
-    description: 'Créer ou modifier un fichier dans un repo GitHub. Pour le repo Dzaryx → Railway redéploie automatiquement en 2-3 min. Envoyer le contenu COMPLET du fichier.',
+    description: 'Créer un NOUVEAU fichier dans un repo GitHub (utiliser uniquement pour les nouveaux fichiers courts < 100 lignes). Pour MODIFIER un fichier existant, utiliser github_patch_file à la place.',
     input_schema: {
       type: 'object' as const,
       properties: {
         repo:    { type: 'string', description: 'Nom du repo: ibrahim, autolux-location, ou fik-conciergerie' },
         path:    { type: 'string', description: 'Chemin du fichier ex: backend/src/integrations/tools.ts' },
-        content: { type: 'string', description: 'Contenu COMPLET du fichier (pas de diff, tout le fichier)' },
+        content: { type: 'string', description: 'Contenu COMPLET du fichier (uniquement pour nouveaux fichiers)' },
         message: { type: 'string', description: 'Message de commit (ex: "feat: add booking export tool")' },
       },
       required: ['repo', 'path', 'content'],
+    },
+  },
+  {
+    name: 'github_patch_file',
+    description: 'Modifier CHIRURGICALEMENT un fichier GitHub existant: remplace un extrait précis sans toucher au reste. C\'est l\'outil principal pour coder — JAMAIS réécrire tout le fichier. Utiliser pour: ajouter une fonction, modifier un cron, changer une règle, corriger un bug. RÈGLE: old_string doit être UNIQUE dans le fichier (ajouter du contexte si besoin). Plusieurs patches = plusieurs appels successifs.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        repo:       { type: 'string', description: 'Nom du repo: ibrahim, autolux-location, ou fik-conciergerie' },
+        path:       { type: 'string', description: 'Chemin du fichier ex: backend/src/queue/scheduler.ts' },
+        old_string: { type: 'string', description: 'Extrait EXACT à remplacer (copié mot pour mot depuis github_read_file, espaces et retours à la ligne inclus). Doit être unique dans le fichier.' },
+        new_string: { type: 'string', description: 'Nouveau texte qui remplace old_string' },
+        message:    { type: 'string', description: 'Message de commit ex: "fix: change cron to 8h30"' },
+      },
+      required: ['repo', 'path', 'old_string', 'new_string'],
     },
   },
   {
@@ -238,7 +253,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'supabase_execute',
-    description: 'Exécuter du SQL sur la base de données Supabase (SELECT, INSERT, UPDATE, ALTER TABLE, CREATE TABLE, etc.). Nécessite SUPABASE_ACCESS_TOKEN configuré dans Railway.',
+    description: 'Exécuter une requête SELECT sur la base de données Supabase. Lecture seule — INSERT/UPDATE/DELETE non autorisés. Nécessite SUPABASE_ACCESS_TOKEN configuré dans Railway.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -499,18 +514,6 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
-    name: 'merge_videos',
-    description: 'Fusionner plusieurs vidéos en une seule (dans l\'ordre fourni).',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        video_urls: { type: 'string', description: 'URLs des vidéos séparées par virgule (ex: url1,url2,url3)' },
-        transition: { type: 'string', enum: ['none', 'fade', 'dissolve'], description: 'Transition entre clips (défaut: none)' },
-      },
-      required: ['video_urls'],
-    },
-  },
-  {
     name: 'add_subtitles',
     description: 'Générer et ajouter automatiquement des sous-titres à partir de la détection vocale IA (français, arabe, anglais).',
     input_schema: {
@@ -570,6 +573,21 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         duration:  { type: 'number', description: 'Durée du preview en secondes (défaut: 10)' },
       },
       required: ['video_url'],
+    },
+  },
+  {
+    name: 'generate_tiktok_video',
+    description: 'Créer une vraie vidéo publicitaire TikTok (MP4 9:16, 1080×1920) depuis des images de voitures. Ajoute titre, sous-titre et musique automatiquement. Utiliser quand Kouider demande de créer une pub TikTok, vidéo pub, vidéo marketing, ou vidéo pour réseaux sociaux.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_urls:         { type: 'string', description: 'URLs des images séparées par virgule. Si vide, utilise les images des voitures Fik Conciergerie.' },
+        title:              { type: 'string', description: 'Titre affiché en haut de la vidéo (défaut: "Fik Conciergerie Oran")' },
+        subtitle:           { type: 'string', description: 'Sous-titre affiché en bas (ex: "Location de voitures premium • Oran")' },
+        music:              { type: 'string', enum: ['upbeat', 'chill', 'corporate', 'energetic', 'emotional'], description: 'Style musical (défaut: upbeat)' },
+        duration_per_image: { type: 'number', description: 'Durée d\'affichage par image en secondes (défaut: 3)' },
+      },
+      required: [],
     },
   },
 
@@ -773,12 +791,118 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_marketing_video',
-    description: 'Créer une vidéo TikTok complète avec voix IA (ElevenLabs) pour une voiture de la flotte. Génère le script, la voix, monte la vidéo et l\'envoie sur Telegram pour validation. Utiliser quand Kouider dit "fais une vidéo pour la [voiture]", "crée une pub", "génère une vidéo marketing", "fais une vidéo TikTok".',
+    description: 'Créer une vidéo TikTok MP4 complète (voix française ElevenLabs + montage FFmpeg) pour une voiture de la flotte. Envoie la vidéo dans cette conversation Telegram pour validation Oke/Non. AUSSI utiliser pour MODIFIER une vidéo existante (nouveau script, nouvelle voiture, nouvel effet de fond). Utiliser quand Kouider dit "fais une vidéo", "modifie la vidéo", "change le texte par...", "mets-la sur une plage", "change de voiture".',
     input_schema: {
       type: 'object' as const,
       properties: {
-        car_name: { type: 'string', description: 'Nom ou modèle de la voiture (ex: "Dacia Duster", "BMW"). Si vide, Dzaryx choisit la meilleure option.' },
-        style:    { type: 'string', description: 'Style de vidéo souhaité: "reveal" (dévoilement), "prix" (focus prix choc), "lifestyle" (style de vie), "temoignage" (témoignage client). Défaut: Dzaryx choisit.', enum: ['reveal', 'prix', 'lifestyle', 'temoignage'] },
+        car_name:          { type: 'string', description: 'Nom ou modèle de la voiture (ex: "Dacia Duster", "Creta"). Si vide, choisit automatiquement.' },
+        style:             { type: 'string', description: 'Style: "reveal" (dévoilement), "prix" (focus prix), "lifestyle" (week-end), "temoignage" (avis client). Défaut: reveal.', enum: ['reveal', 'prix', 'lifestyle', 'temoignage'] },
+        custom_script:     { type: 'string', description: 'Texte personnalisé à dire en voix. TOUJOURS en FRANÇAIS. Exemple: "Découvrez la Creta, disponible dès maintenant à Oran pour 4500 dinars par jour !"' },
+        background_effect: { type: 'string', description: 'Effet de fond: mettre la voiture devant un décor. Valeurs: "plage", "ville", "montagne", "desert", "route", "luxe", "foret", "coucher". Utiliser quand Kouider dit "mets-la sur une plage", "fond nuit", etc.', enum: ['plage', 'ville', 'montagne', 'desert', 'route', 'luxe', 'foret', 'coucher', 'nuit'] },
+      },
+    },
+  },
+  {
+    name: 'merge_videos',
+    description: 'Fusionner plusieurs vidéos envoyées par Kouider en une seule vidéo TikTok. Utiliser quand Kouider dit "fusionne ces vidéos", "mets-les ensemble", "combine les clips". IMPORTANT: Kouider doit d\'abord envoyer les vidéos, puis demander la fusion.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Titre optionnel pour la vidéo finale.' },
+      },
+    },
+  },
+  // ── VEILLE CONCURRENTIELLE ────────────────────────────────────
+  {
+    name: 'analyze_competitors',
+    description: 'Analyser la concurrence location voiture à Oran sur TikTok, Telegram et web. Recherche promos, prix, vidéos publiées par les concurrents. Compare avec les prix de Fik Conciergerie et donne des conseils stratégiques. Utiliser quand Kouider dit "regarde ce que font les concurrents", "didanolocation a publié quoi", "est-on compétitif", "analyse la concurrence", "que font mes concurrents".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        competitor: { type: 'string', description: 'Nom ou handle du concurrent (ex: "didanolocation", "auto location oran"). Si vide, cherche tous les concurrents connus.' },
+        platform:   { type: 'string', enum: ['tiktok', 'telegram', 'all'], description: 'Plateforme à surveiller (défaut: all)' },
+        generate_counter_video: { type: 'boolean', description: 'Si true et une promo concurrente est détectée, crée automatiquement une vidéo de réponse TikTok.' },
+      },
+    },
+  },
+  {
+    name: 'watch_my_tiktok',
+    description: 'Voir les stats et vidéos récentes du TikTok de Fik Conciergerie. Analyse ce qui performe, ce qui manque, et donne des recommandations. Utiliser quand Kouider dit "regarde mon TikTok", "comment va mon compte", "mes vidéos performent comment", "stats TikTok".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        handle: { type: 'string', description: 'Handle TikTok sans @. Si vide, utilise le compte Fik Conciergerie configuré.' },
+      },
+    },
+  },
+
+  // ─── CODE AGENT AUTONOME ─────────────────────────────────────
+  {
+    name: 'execute_code_task',
+    description: 'Lancer le Code Agent autonome pour coder une feature, corriger un bug, créer un site/app client. L\'agent lit les fichiers, fait les modifications, vérifie TypeScript, corrige ses propres erreurs et déploie. Utiliser quand Kouider dit "code ça", "ajoute cette feature", "crée un site pour X", "corrige ce bug", "modifie cette fonction". Fonctionne même sans PC.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        task: { type: 'string', description: 'Description précise de ce qui doit être codé. Plus c\'est détaillé, mieux c\'est. Ex: "Ajoute un outil get_client_history qui liste les 5 dernières réservations d\'un client par téléphone"' },
+        repo: { type: 'string', description: 'Repo cible: ibrahim (défaut = Dzaryx), autolux-location, fik-conciergerie, ou nom d\'un nouveau repo client' },
+      },
+      required: ['task'],
+    },
+  },
+  {
+    name: 'create_new_project',
+    description: 'Créer un nouveau projet complet (site vitrine, app, landing page) pour un client. L\'agent crée tous les fichiers, les push sur GitHub, et déploie sur Netlify. Utiliser quand Kouider dit "crée un site pour [client]", "nouveau projet pour [business]", "fais un site [type]".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:   { type: 'string', description: 'Nom du client ou de l\'entreprise' },
+        business_type: { type: 'string', description: 'Type de business: restaurant, coiffeur, garage, médecin, boutique, etc.' },
+        description:   { type: 'string', description: 'Description du projet: ce que le site doit contenir, style, couleurs, fonctionnalités' },
+        phone:         { type: 'string', description: 'Téléphone du client (affiché sur le site)' },
+        city:          { type: 'string', description: 'Ville du client' },
+      },
+      required: ['client_name', 'business_type', 'description'],
+    },
+  },
+
+  // ─── GÉNÉRATION IA (Replicate + fal.ai) ──────────────────────
+  {
+    name: 'generate_image',
+    description: 'Générer une image ultra-réaliste avec l\'IA Flux.1 (qualité Midjourney). Utiliser quand Kouider dit "génère une image", "crée une photo de...", "fais-moi une image...", "génère une photo de voiture". Envoie l\'image directement sur Telegram.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        prompt:       { type: 'string', description: 'Description précise de l\'image à générer (en anglais pour meilleur résultat). Ex: "luxury Renault Duster SUV on Oran beach, golden sunset, cinematic photography, 4K"' },
+        aspect_ratio: { type: 'string', enum: ['9:16', '16:9', '1:1', '4:3'], description: 'Format de l\'image. Défaut: 9:16 (TikTok/Stories). 16:9 pour YouTube/Web, 1:1 pour Instagram.' },
+        style:        { type: 'string', enum: ['photorealistic', 'cinematic', 'artistic', 'luxury'], description: 'Style visuel. Défaut: photorealistic.' },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'generate_ai_video',
+    description: 'Générer une vidéo IA réaliste d\'une voiture. Providers : Runway Gen-3 (haute fidélité, si RUNWAY_API_KEY configurée) et Kling 1.6 (fallback). Mode auto par défaut : Runway si disponible, sinon Kling. IMPORTANT : si Kouider dit "avec Runway", "force Runway", "génère avec Runway", "teste Runway", "premium Runway" → passer provider: "runway". Si une voiture de la flotte est mentionnée, TOUJOURS passer car_name — Dzaryx récupère la vraie photo Supabase et génère depuis l\'image (image-to-video, plus réaliste). Envoie le MP4 sur Telegram.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        prompt:   { type: 'string', description: 'Scène à générer en anglais. Ex: "Renault Duster driving on Oran coastal road at golden hour". Inclure contexte Oran si possible.' },
+        car_name: { type: 'string', description: 'Nom exact ou partiel de la voiture (ex: "Duster", "Clio 5", "Jumpy"). Passer si un modèle est mentionné — active le mode image réelle depuis Supabase.' },
+        duration: { type: 'number', enum: [5, 10], description: 'Durée en secondes (5 ou 10). Défaut: 5.' },
+        provider: { type: 'string', enum: ['auto', 'runway', 'kling'], description: '"auto" = Runway si configuré sinon Kling. "runway" = force Runway si Kouider demande Runway. Ne jamais passer "kling" sauf si Kouider dit explicitement "utilise Kling" ou "sans Runway".' },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'animate_car_photo',
+    description: 'Animer une photo réelle de voiture (image → vidéo réaliste). Providers : Runway Gen-3 (si RUNWAY_API_KEY) ou Kling 1.6. Si Kouider dit "avec Runway" ou "force Runway" → provider: "runway". Mode auto par défaut. ⚠️ Prend 60-240 secondes. Envoie le MP4 sur Telegram. ⚠️ IMPORTANT : NE PAS appeler si generate_ai_video a déjà été invoqué dans ce même message — un seul outil vidéo par message. Ne pas passer provider:"kling" sauf si Kouider dit explicitement "utilise Kling" ou "sans Runway".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:      { type: 'string', description: 'Nom de la voiture de la flotte (ex: "Duster", "Clio"). Si vide, choisit automatiquement.' },
+        image_url:     { type: 'string', description: 'URL d\'une photo à animer (optionnel — sans = utilise photo de la flotte).' },
+        motion_prompt: { type: 'string', description: 'Description du mouvement voulu (en anglais). Défaut: "car moving forward smoothly, cinematic camera pan, golden hour lighting".' },
+        provider:      { type: 'string', enum: ['auto', 'runway', 'kling'], description: '"auto" = Runway si configuré sinon Kling. "runway" = force Runway. "kling" = force Kling.' },
       },
     },
   },

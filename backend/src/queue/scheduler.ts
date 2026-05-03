@@ -14,6 +14,7 @@ import {
   jobWhatsApp24hReminders,
   jobWhatsAppReturnReminders,
   jobAnthropicWatch,
+  jobCompetitorWatch,
 } from './jobs/proactive-jobs.js';
 import { notifyOwner } from '../notifications/pushover.js';
 import { sendMessage as sendTelegram } from '../integrations/telegram.js';
@@ -90,6 +91,11 @@ const JOBS = [
     cron:  '0 10 * * 0',       // 10h chaque dimanche — veille nouveautés Anthropic
     tz:    'Europe/Brussels',
   },
+  {
+    name:  'competitor-watch',
+    cron:  '0 11 * * 1,4',    // 11h lundi + jeudi — veille concurrence TikTok/Telegram
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -106,19 +112,29 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'wa-24h-reminders':         jobWhatsApp24hReminders,
   'wa-return-reminders':      jobWhatsAppReturnReminders,
   'anthropic-watch':          jobAnthropicWatch,
+  'competitor-watch':         jobCompetitorWatch,
 };
 
 export async function initScheduler(): Promise<void> {
-  // Remove ALL existing repeatable jobs before re-registering
-  // This prevents duplicates on server restart
+  // Remove all existing repeatable jobs first — évite les doublons après redéploiement Railway
   const existing = await schedulerQueue.getRepeatableJobs();
-  for (const job of existing) {
-    await schedulerQueue.removeRepeatableByKey(job.key);
-    console.log(`[scheduler] Removed stale repeatable job: ${job.name}`);
+  for (const rj of existing) {
+    await schedulerQueue.removeRepeatableByKey(rj.key);
+    console.log(`[scheduler] Cleaned: ${rj.name}`);
   }
 
-  // Register all repeatable jobs fresh (one per name, no duplicates)
+  // WhatsApp jobs — enregistrés seulement si Twilio configuré
+  const twilioConfigured = Boolean(
+    env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM,
+  );
+  const WA_JOBS = new Set(['wa-booking-confirmations', 'wa-24h-reminders', 'wa-return-reminders']);
+
+  // Register all repeatable jobs (ardoise propre)
   for (const job of JOBS) {
+    if (WA_JOBS.has(job.name) && !twilioConfigured) {
+      console.log(`[scheduler] SKIP (Twilio non configuré): ${job.name}`);
+      continue;
+    }
     await schedulerQueue.add(
       job.name,
       {},
@@ -146,6 +162,17 @@ export async function initScheduler(): Promise<void> {
         }
         return;
       }
+
+      // ── Verrou anti-doublon Redis ─────────────────────────────
+      // Évite qu'une 2ème instance Railway (overlap de déploiement) exécute
+      // le même job cron dans les 30 minutes qui suivent la 1ère exécution.
+      const lockKey = `scheduler:lock:${job.name}:${Math.floor(Date.now() / (30 * 60 * 1000))}`;
+      const acquired = await redis.set(lockKey, '1', 'EX', 1800, 'NX');
+      if (!acquired) {
+        console.log(`[scheduler] SKIP (déjà exécuté par une autre instance): ${job.name}`);
+        return;
+      }
+
       const handler = handlers[job.name];
       if (handler) {
         console.log(`[scheduler] Running: ${job.name}`);

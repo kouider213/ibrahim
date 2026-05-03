@@ -28,13 +28,17 @@ export async function savePendingVideo(
   store.set(id, pending);
   latestId = id;
 
-  await supabase.from('tasks').insert({
-    title:        `Marketing Video: ${video.car_name}`,
-    action_type:  'marketing_video_approval',
-    payload:      pending,
-    status:       'pending',
-    completed_at: null,
-  }).then(null, () => {});
+  try {
+    await supabase.from('tasks').insert({
+      title:        `Marketing Video: ${video.car_name}`,
+      action_type:  'marketing_video_approval',
+      payload:      pending,
+      status:       'pending',
+      completed_at: null,
+    });
+  } catch (_) {
+    // table tasks may not exist — ignore
+  }
 
   return id;
 }
@@ -54,9 +58,12 @@ export function approveVideo(id: string): PendingVideo | null {
   if (!v) return null;
   v.status = 'approved';
   if (latestId === id) latestId = null;
+
   void supabase.from('tasks')
     .update({ status: 'completed', completed_at: new Date().toISOString() })
-    .eq('payload->>id', id);
+    .eq('payload->>id', id)
+    .then(() => {});
+
   return v;
 }
 
@@ -65,7 +72,9 @@ export function rejectVideo(id: string): void {
   if (!v) return;
   v.status = 'rejected';
   if (latestId === id) latestId = null;
+
   void supabase.from('tasks')
     .update({ status: 'cancelled' })
-    .eq('payload->>id', id);
+    .eq('payload->>id', id)
+    .then(() => {});
 }

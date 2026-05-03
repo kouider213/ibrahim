@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import axios from 'axios';
 import {
-  sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo, sendDocument,
+  sendMessage, sendTyping, setWebhook, downloadFile, sendPhoto, sendVideo, sendVideoBuffer, sendDocument,
   type TelegramUpdate, type TelegramMessage,
 } from '../../integrations/telegram.js';
 import { chatWithTools } from '../../integrations/claude-api.js';
@@ -10,11 +10,10 @@ import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { guardResponse, applyScopeGuard } from '../../conversation/response-guard.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
+import { isValidMp4Buffer } from '../../marketing/create-marketing-video.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
+import { addVideoToBuffer } from '../../marketing/video-buffer.js';
 import Anthropic from '@anthropic-ai/sdk';
-import {
-  analyzeImage, optimizeImage, enhanceImage, removeBackground, createSocialVariants,
-} from '../../integrations/media-processing.js';
 import { env } from '../../config/env.js';
 
 const router   = Router();
@@ -89,12 +88,504 @@ router.post('/webhook', async (req, res) => {
 
   // /start
   if (msg.text?.startsWith('/start')) {
-    await sendMessage(chatId, `Salam Kouider ! Je suis Dzaryx 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTu peux me dire ce que tu veux faire avec tes médias !`);
+    await sendMessage(chatId, `Salam Kouider ! Je suis Dzaryx 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTape /help pour voir toutes mes commandes.`);
+    return;
+  }
+
+  // /help
+  if (msg.text?.startsWith('/help')) {
+    await sendMessage(chatId, `🤖 *Dzaryx — Commandes disponibles*\n\n` +
+      `*📋 RÉSERVATIONS*\n` +
+      `"liste les réservations" — voir toutes les réservations\n` +
+      `"crée une réservation pour [client] du [date] au [date]"\n` +
+      `"annule la réservation de [client]"\n` +
+      `"état de la flotte" — quelles voitures sont dispo/louées\n\n` +
+      `*💰 FINANCES*\n` +
+      `"rapport financier" — CA du mois\n` +
+      `"qui a pas payé" — réservations impayées\n` +
+      `"enregistre un paiement de X€ pour [client]"\n` +
+      `"génère le bon de réservation pour [client]"\n\n` +
+      `*📸 PHOTOS & VIDÉOS*\n` +
+      `Envoie une photo → analyse automatique\n` +
+      `Envoie photo + "passeport" → OCR + stockage\n` +
+      `Envoie une vidéo → traitement Cloudinary\n` +
+      `"fais une vidéo TikTok pour [voiture]"\n` +
+      `"génère une image IA de [description]"\n` +
+      `"anime la photo de [voiture]"\n\n` +
+      `*📅 CALENDRIER*\n` +
+      `"synchronise le calendrier"\n` +
+      `"prochains événements agenda"\n\n` +
+      `*🔍 INFORMATIONS*\n` +
+      `"météo Oran" — météo en temps réel\n` +
+      `"qui n'a pas rendu la voiture" — retards\n` +
+      `"regarde les concurrents TikTok"\n\n` +
+      `*✅ APPROBATION VIDÉO*\n` +
+      `\`Oke\` → publier la vidéo en attente\n` +
+      `\`Non\` → annuler la vidéo en attente\n\n` +
+      `*🔧 DIAGNOSTICS*\n` +
+      `/health — état de tous les services\n` +
+      `/capabilities — fonctions disponibles\n` +
+      `/selftest — tests réels (Supabase, météo...)\n` +
+      `/test_fal_light — vérifie clé fal.ai sans générer (rapide)\n` +
+      `/test_fal — vrai test génération vidéo fal.ai (~120s)\n` +
+      `/test_replicate — vrai test génération image Replicate (~30s)\n` +
+      `/test_ai — diagnostic light clé + auth (sans génération)`);
+    return;
+  }
+
+  // /health
+  if (msg.text?.startsWith('/health')) {
+    await sendTyping(chatId);
+    const checks: Array<{ name: string; ok: boolean; note?: string }> = [];
+    checks.push({ name: 'Telegram', ok: true });
+    try {
+      const { error } = await supabase.from('bookings').select('id').limit(1);
+      checks.push({ name: 'Supabase', ok: !error, note: error?.message });
+    } catch { checks.push({ name: 'Supabase', ok: false, note: 'ping échoué' }); }
+    checks.push({ name: 'ElevenLabs TTS', ok: Boolean(env.ELEVENLABS_API_KEY && env.ELEVENLABS_VOICE_ID), note: env.ELEVENLABS_API_KEY ? undefined : 'clé manquante' });
+    const clOk = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+    checks.push({ name: 'Cloudinary', ok: clOk, note: clOk ? undefined : '3 variables manquantes' });
+    checks.push({ name: 'Google Calendar', ok: Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON), note: env.GOOGLE_SERVICE_ACCOUNT_JSON ? undefined : 'GOOGLE_SERVICE_ACCOUNT_JSON manquant' });
+    const twOk = Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM);
+    checks.push({ name: 'WhatsApp Twilio', ok: twOk, note: twOk ? undefined : 'Variables Twilio manquantes' });
+    const pvOk = Boolean(env.PUSHOVER_USER_KEY && env.PUSHOVER_APP_TOKEN);
+    checks.push({ name: 'Pushover', ok: pvOk, note: pvOk ? undefined : 'Pushover vars manquantes' });
+    checks.push({ name: 'GitHub', ok: Boolean(env.GITHUB_TOKEN), note: env.GITHUB_TOKEN ? undefined : 'GITHUB_TOKEN manquant' });
+    checks.push({ name: 'fal.ai (Kling IA)', ok: Boolean(env.FAL_KEY), note: env.FAL_KEY ? undefined : 'FAL_KEY manquant' });
+    checks.push({ name: 'Replicate (Flux.1)', ok: Boolean(env.REPLICATE_API_TOKEN), note: env.REPLICATE_API_TOKEN ? undefined : 'REPLICATE_API_TOKEN manquant' });
+    checks.push({ name: 'Pexels', ok: Boolean(env.PEXELS_API_KEY), note: env.PEXELS_API_KEY ? undefined : 'PEXELS_API_KEY manquant' });
+    const tkOk = Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID);
+    checks.push({ name: 'TikTok API', ok: tkOk, note: tkOk ? undefined : 'Tokens TikTok manquants' });
+    const ok = checks.filter(c => c.ok).length;
+    const lines = checks.map(c => `${c.ok ? '🟢' : '🔴'} *${c.name}*${c.note ? ` — ${c.note}` : ''}`);
+    await sendMessage(chatId, `🏥 *DZARYX HEALTH CHECK*\n\n${lines.join('\n')}\n\n_${ok}/${checks.length} services opérationnels_`);
+    return;
+  }
+
+  // /capabilities
+  if (msg.text?.startsWith('/capabilities')) {
+    await sendTyping(chatId);
+    const has = (v: unknown) => Boolean(v);
+
+    // Live auth check — POST {} to fal.ai queue (422 = key valid, no generation started)
+    let falOk = false;
+    let falNote = 'FAL_KEY manquant';
+    if (env.FAL_KEY) {
+      try {
+        const { default: ax } = await import('axios');
+        const r = await ax.post(
+          'https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video',
+          {},
+          { headers: { Authorization: `Key ${env.FAL_KEY}`, 'Content-Type': 'application/json' }, timeout: 10_000, validateStatus: () => true },
+        );
+        falOk = r.status === 422 || r.status === 200 || r.status === 201 || r.status === 202;
+        falNote = falOk ? 'clé valide' : (r.status === 401 || r.status === 403 ? `clé invalide (${r.status})` : `HTTP ${r.status}`);
+      } catch { falNote = 'erreur réseau'; }
+    }
+
+    // Live auth check — GET /v1/account on Replicate (no generation)
+    let repOk = false;
+    let repNote = 'REPLICATE_API_TOKEN manquant';
+    if (env.REPLICATE_API_TOKEN) {
+      try {
+        const { default: ax } = await import('axios');
+        const r = await ax.get('https://api.replicate.com/v1/account', {
+          headers: { Authorization: `Bearer ${env.REPLICATE_API_TOKEN}` },
+          timeout: 10_000,
+          validateStatus: () => true,
+        });
+        repOk = r.status === 200;
+        repNote = repOk ? 'token valide' : (r.status === 401 ? 'token invalide (401)' : `HTTP ${r.status}`);
+      } catch { repNote = 'erreur réseau'; }
+    }
+
+    const feats = [
+      { n: 'Chat IA + mémoire permanente',        ok: true },
+      { n: 'Réservations + flotte',               ok: true },
+      { n: 'Finances + impayés + rapport CA',     ok: true },
+      { n: 'Bon de réservation PDF',              ok: true },
+      { n: 'OCR passeport / permis',              ok: true },
+      { n: 'Documents clients (stockage + recherche)', ok: true },
+      { n: 'Rappels personnalisés (BullMQ)',       ok: true },
+      { n: 'Météo + actualités',                  ok: true },
+      { n: 'Web search + fetch URL',              ok: true },
+      { n: 'Code Agent autonome',                 ok: has(env.GITHUB_TOKEN) },
+      { n: 'Google Calendar sync',                ok: has(env.GOOGLE_SERVICE_ACCOUNT_JSON) },
+      { n: 'ElevenLabs voix (TTS)',               ok: has(env.ELEVENLABS_API_KEY) },
+      { n: 'Vidéo TikTok FFmpeg (local)',         ok: has(env.ELEVENLABS_API_KEY) },
+      { n: 'Traitement image/vidéo (Cloudinary)', ok: Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET) },
+      { n: `Vidéo IA Kling (fal.ai) — ${falNote}`,     ok: falOk },
+      { n: `Image IA Flux.1 (Replicate) — ${repNote}`, ok: repOk },
+      { n: 'Recherche images Pexels',             ok: has(env.PEXELS_API_KEY) },
+      { n: 'WhatsApp clients (Twilio)',           ok: Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM) },
+      { n: 'Publication TikTok automatique',      ok: Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID) },
+      { n: 'SQL SELECT Supabase',                 ok: has(env.SUPABASE_ACCESS_TOKEN) },
+    ];
+    const ready = feats.filter(f => f.ok);
+    const missing = feats.filter(f => !f.ok);
+    const capMsg = `⚡ *DZARYX CAPABILITIES — ${ready.length}/${feats.length}*\n\n✅ *Opérationnel*\n${ready.map(f => `  • ${f.n}`).join('\n')}\n\n❌ *Non configuré ou invalide*\n${missing.map(f => `  • ${f.n}`).join('\n')}\n\n_Note: fal.ai ✅ = auth clé OK. Génération vidéo réelle → /test\\_fal_`;
+    await sendMessage(chatId, capMsg);
+    return;
+  }
+
+  // /selftest
+  if (msg.text?.startsWith('/selftest')) {
+    await sendTyping(chatId);
+    await sendMessage(chatId, '🧪 *Self-test Dzaryx...*\n_Tests réels en cours._');
+    const res: Array<{ t: string; ok: boolean; d: string }> = [];
+
+    // Supabase bookings
+    try {
+      const { data, error } = await supabase.from('bookings').select('id').limit(1);
+      res.push({ t: 'Supabase bookings', ok: !error, d: error?.message ?? `accessible (${data?.length ?? 0} ligne)` });
+    } catch (e) { res.push({ t: 'Supabase bookings', ok: false, d: String(e) }); }
+
+    // Supabase cars
+    try {
+      const { data, error } = await supabase.from('cars').select('id, name').limit(3);
+      res.push({ t: 'Supabase cars', ok: !error && (data?.length ?? 0) > 0, d: error?.message ?? `${data?.length ?? 0} voiture(s)` });
+    } catch (e) { res.push({ t: 'Supabase cars', ok: false, d: String(e) }); }
+
+    // Mémoire
+    try {
+      const { error } = await supabase.from('ibrahim_memory').select('id').limit(1);
+      res.push({ t: 'Table mémoire', ok: !error, d: error?.message ?? 'accessible' });
+    } catch (e) { res.push({ t: 'Table mémoire', ok: false, d: String(e) }); }
+
+    // Météo Open-Meteo (sans clé API)
+    try {
+      const { default: ax } = await import('axios');
+      const r = await ax.get('https://api.open-meteo.com/v1/forecast?latitude=35.7&longitude=-0.63&current=temperature_2m&timezone=Africa%2FAlgiers', { timeout: 8000 });
+      const temp = (r.data as any)?.current?.temperature_2m;
+      res.push({ t: 'Météo API', ok: temp !== undefined, d: temp !== undefined ? `${temp}°C Oran` : 'Pas de réponse' });
+    } catch (e) { res.push({ t: 'Météo API', ok: false, d: e instanceof Error ? e.message : String(e) }); }
+
+    // FFmpeg
+    try {
+      const { default: ffmpegStatic } = await import('ffmpeg-static');
+      const bin = ffmpegStatic as string | null;
+      res.push({ t: 'FFmpeg (vidéo)', ok: Boolean(bin), d: bin ?? 'ffmpeg-static absent' });
+    } catch (e) { res.push({ t: 'FFmpeg (vidéo)', ok: false, d: String(e) }); }
+
+    // ElevenLabs config
+    res.push({ t: 'ElevenLabs TTS', ok: Boolean(env.ELEVENLABS_API_KEY), d: env.ELEVENLABS_API_KEY ? `voix: ${env.ELEVENLABS_VOICE_ID}` : 'clé absente' });
+
+    // Cloudinary config
+    const clOk2 = Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+    res.push({ t: 'Cloudinary', ok: clOk2, d: clOk2 ? `cloud: ${env.CLOUDINARY_CLOUD_NAME}` : '3 variables manquantes' });
+
+    // Google Calendar
+    res.push({ t: 'Google Calendar', ok: Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON), d: env.GOOGLE_SERVICE_ACCOUNT_JSON ? 'service account présent' : 'GOOGLE_SERVICE_ACCOUNT_JSON absent' });
+
+    const passed = res.filter(r => r.ok).length;
+    const lines = res.map(r => `${r.ok ? '✅' : '❌'} *${r.t}* — ${r.d}`);
+    await sendMessage(chatId, `🧪 *RÉSULTATS SELF-TEST*\n\n${lines.join('\n')}\n\n_${passed}/${res.length} tests passés_`);
+    return;
+  }
+
+  // /test_fal_light — vérifie clé + endpoint SANS lancer de génération
+  // POST body vide → 422 = auth OK (input invalide, pas de job créé) — doit être avant /test_fal
+  if (msg.text?.startsWith('/test_fal_light')) {
+    await sendTyping(chatId);
+    const falKey = env.FAL_KEY;
+    if (!falKey) {
+      await sendMessage(chatId, `❌ *fal.ai — FAL\\_KEY manquant*\n\nVariable à ajouter dans Railway → Variables : \`FAL_KEY\`\n_Alias accepté : \`FAL_API_KEY\`_`);
+      return;
+    }
+    await sendMessage(chatId, '🧪 *Test fal.ai light (sans génération)...*');
+    try {
+      const { default: ax } = await import('axios');
+      const r = await ax.post(
+        'https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video',
+        {},
+        { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 15_000, validateStatus: () => true },
+      );
+      const s = r.status;
+      // 422 = input validation (auth passed, payload vide rejeté → aucun job lancé)
+      // 200/201/202 = job créé (rare avec payload vide)
+      if (s === 422 || s === 200 || s === 201 || s === 202) {
+        await sendMessage(chatId, `✅ *fal.ai — Clé valide*\n\n• FAL\\_KEY : présent ✅\n• Endpoint Kling 1.6 : auth OK (HTTP ${s}) ✅\n• Aucun crédit consommé (payload vide)\n\n_Tape /test\\_fal pour un vrai test de génération._`);
+      } else if (s === 401 || s === 403) {
+        await sendMessage(chatId, `❌ *fal.ai — Clé invalide (HTTP ${s})*\n\n• FAL\\_KEY : présent mais invalide ❌\n\nVérifie la valeur dans Railway → Variables.`);
+      } else if (s === 404) {
+        await sendMessage(chatId, `❌ *fal.ai — Endpoint introuvable (404)*\n\n• Modèle Kling 1.6 peut avoir changé d'URL.`);
+      } else if (s === 405) {
+        await sendMessage(chatId, `❌ *fal.ai — FAIL (HTTP 405 Method Not Allowed)*\n\n• L'endpoint rejette la méthode utilisée.\n• Ce n'est PAS OK — 405 ≠ succès.`);
+      } else {
+        await sendMessage(chatId, `❌ *fal.ai — HTTP ${s}*\n\n• Réponse inattendue. Vérifie Railway logs.`);
+      }
+    } catch (e: any) {
+      await sendMessage(chatId, `❌ *fal.ai — Erreur réseau*\n\n• FAL\\_KEY : présent ✅\n• Erreur : ${e.message}`);
+    }
+    return;
+  }
+
+  // /test_fal — vrai test génération vidéo (~60-120s, crédits consommés)
+  if (msg.text?.startsWith('/test_fal')) {
+    await sendTyping(chatId);
+    const falKey = env.FAL_KEY;
+    if (!falKey) {
+      await sendMessage(chatId, `❌ *fal.ai — FAL\\_KEY manquant*\n\nVariable à ajouter dans Railway → Variables : \`FAL_KEY\``);
+      return;
+    }
+    const MODEL = 'fal-ai/kling-video/v1.6/standard/text-to-video';
+    await sendMessage(chatId, `🎬 *Test génération fal.ai*\n• Modèle : \`${MODEL}\`\n• Endpoint : queue.fal.run\n⏳ 60-120 secondes...`);
+    try {
+      const { default: ax } = await import('axios');
+
+      // Step 1 — submit job, capture response_url + status_url provided by fal.ai
+      let submitStatus = 0;
+      let request_id = '';
+      let response_url = '';
+      let status_url = '';
+      try {
+        const submitResp = await ax.post(
+          `https://queue.fal.run/${MODEL}`,
+          { prompt: 'red sports car driving on a road, cinematic', duration: '5', aspect_ratio: '9:16' },
+          { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 30_000, validateStatus: () => true },
+        );
+        submitStatus = submitResp.status;
+        if (submitStatus < 200 || submitStatus >= 300) {
+          await sendMessage(chatId, `❌ *fal.ai — Submit FAIL*\n\n• Étape : soumission job\n• URL : https://queue.fal.run/${MODEL}\n• HTTP : ${submitStatus}\n• Body : ${JSON.stringify(submitResp.data).slice(0, 200)}`);
+          return;
+        }
+        const d = submitResp.data as any;
+        request_id  = d.request_id  ?? '';
+        response_url = d.response_url ?? '';
+        status_url   = d.status_url  ?? '';
+      } catch (e: any) {
+        await sendMessage(chatId, `❌ *fal.ai — Submit erreur réseau*\n\n• ${e.message}`);
+        return;
+      }
+
+      if (!request_id) {
+        await sendMessage(chatId, `❌ *fal.ai — Pas de request\\_id*\n\nLa soumission a réussi (HTTP ${submitStatus}) mais la réponse ne contient pas de request\\_id.`);
+        return;
+      }
+
+      // Use URLs from fal.ai response — never construct (constructed URLs gave 405)
+      const pollUrl   = status_url   || `https://queue.fal.run/${MODEL}/requests/${request_id}/status`;
+      const resultUrl = response_url || `https://queue.fal.run/${MODEL}/requests/${request_id}`;
+
+      // Step 2 — poll until COMPLETED (240s timeout, 6s interval)
+      // HTTP 200 or 202 during polling = still in progress → continue
+      // Only FAIL on 401/403/404/405/5xx or status=FAILED in body
+      const TIMEOUT_MS = 240_000;
+      const POLL_INTERVAL = 6_000;
+      const startPoll = Date.now();
+      let pollCount = 0;
+      let videoUrl: string | null = null;
+      let lastJobStatus = '';
+      let pollFail = '';
+
+      while (Date.now() - startPoll < TIMEOUT_MS) {
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+        pollCount++;
+        const elapsed = Math.round((Date.now() - startPoll) / 1000);
+
+        const st = await ax.get(pollUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
+        const httpStatus = st.status;
+        const body = st.data as any;
+        const jobStatus: string = body?.status ?? body?.state ?? '';
+        lastJobStatus = jobStatus || `HTTP ${httpStatus}`;
+
+        console.log(`[test_fal] poll #${pollCount} — HTTP ${httpStatus} — status="${jobStatus}" — ${elapsed}s`);
+
+        // Fatal HTTP errors — abort immediately
+        if (httpStatus === 401 || httpStatus === 403) { pollFail = `Auth rejetée (HTTP ${httpStatus}) — clé invalide`; break; }
+        if (httpStatus === 404) { pollFail = `Endpoint introuvable (404)`; break; }
+        if (httpStatus === 405) { pollFail = `Méthode rejetée (405)`; break; }
+        if (httpStatus >= 500)  { pollFail = `Erreur serveur fal.ai (HTTP ${httpStatus})`; break; }
+
+        // Job failure in body
+        if (jobStatus === 'FAILED' || jobStatus === 'ERROR') { pollFail = `Job échoué — status=${jobStatus}`; break; }
+
+        // Job complete — fetch result
+        if (jobStatus === 'COMPLETED') {
+          const res = await ax.get(resultUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
+          if (res.status !== 200) {
+            pollFail = `Result fetch HTTP ${res.status} — body: ${JSON.stringify(res.data).slice(0, 150)}`;
+            break;
+          }
+          videoUrl = (res.data as any)?.video?.url as string ?? null;
+          break;
+        }
+
+        // HTTP 200/202 + status IN_QUEUE/IN_PROGRESS/PENDING/empty → continue polling
+        // (202 = Accepted, job still running — NOT a failure)
+      }
+
+      const totalElapsed = Math.round((Date.now() - startPoll) / 1000);
+
+      if (pollFail) {
+        await sendMessage(chatId, `❌ *fal.ai — Polling FAIL*\n\n• request\\_id : \`${request_id.slice(0, 20)}...\`\n• Cause : ${pollFail}\n• Dernier status : ${lastJobStatus}\n• Polls : ${pollCount}\n• Durée : ${totalElapsed}s`);
+        return;
+      }
+
+      if (!videoUrl) {
+        await sendMessage(chatId, `⏳ *fal.ai — Timeout ${totalElapsed}s*\n\nLa génération n'est pas terminée après ${totalElapsed}s.\n• request\\_id : \`${request_id.slice(0, 20)}...\`\n• Dernier status : ${lastJobStatus}\n• Polls : ${pollCount}\n\nRéessaie /test\\_fal dans quelques minutes.`);
+        return;
+      }
+
+      // Step 3 — download + validate MP4
+      const dlResp = await ax.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+      const buf = Buffer.from(dlResp.data as ArrayBuffer);
+      const validMp4 = isValidMp4Buffer(buf);
+
+      // Step 4 — send video to Telegram
+      let tgVideoOk = false;
+      if (validMp4) {
+        try {
+          await sendVideoBuffer(chatId, buf, `🎬 *Test fal.ai — Kling 1.6*\n_Vidéo test générée avec succès_`);
+          tgVideoOk = true;
+        } catch { /* report in summary */ }
+      }
+
+      await sendMessage(chatId,
+        `${tgVideoOk ? '✅' : '⚠️'} *fal.ai — Test génération ${tgVideoOk ? 'OK' : 'partiel'}*\n\n` +
+        `• Modèle : \`${MODEL}\`\n` +
+        `• request\\_id : \`${request_id.slice(0, 20)}...\`\n` +
+        `• Polls : ${pollCount} (${totalElapsed}s total)\n` +
+        `• video\\_url reçue : ✅\n` +
+        `• MP4 téléchargé : ✅ (${(buf.length / 1024).toFixed(0)} KB)\n` +
+        `• MP4 valide (ftyp) : ${validMp4 ? '✅' : '❌ corrompu'}\n` +
+        `• Telegram sendVideo : ${tgVideoOk ? '✅' : '❌ (voir logs)'}`);
+    } catch (e: any) {
+      const s = (e as any)?.response?.status;
+      await sendMessage(chatId, `❌ *fal.ai — Erreur inattendue*\n\n• ${s ? `HTTP ${s}` : e.message}`);
+    }
+    return;
+  }
+
+  // /test_replicate — vrai test génération image Flux.1 (~15-30s, crédits consommés)
+  // Télécharge l'image immédiatement pour valider avant expiration de l'URL
+  if (msg.text?.startsWith('/test_replicate')) {
+    await sendTyping(chatId);
+    const token = env.REPLICATE_API_TOKEN;
+    if (!token) {
+      await sendMessage(chatId, `❌ *Replicate — REPLICATE\\_API\\_TOKEN manquant*\n\nVariable à ajouter dans Railway → Variables : \`REPLICATE_API_TOKEN\``);
+      return;
+    }
+    const MODEL_REP = 'black-forest-labs/flux-1.1-pro';
+    await sendMessage(chatId, `🎨 *Test génération Replicate*\n• Modèle : \`${MODEL_REP}\`\n⏳ 15-30 secondes...`);
+    try {
+      const { default: ax } = await import('axios');
+      type Pred = { id: string; status: string; output: unknown; error?: string };
+
+      // Step 1 — submit prediction
+      const createResp = await ax.post(
+        `https://api.replicate.com/v1/models/${MODEL_REP}/predictions`,
+        { input: { prompt: 'red sports car, 4K', aspect_ratio: '1:1', output_format: 'jpg', output_quality: 50 } },
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'wait=10' }, timeout: 30_000 },
+      );
+      let pred = createResp.data as Pred;
+
+      // Step 2 — poll until succeeded (max 90s)
+      const deadline = Date.now() + 90_000;
+      while (pred.status !== 'succeeded' && Date.now() < deadline) {
+        if (pred.status === 'failed' || pred.status === 'canceled') throw new Error(`Replicate: ${pred.error ?? 'prediction failed'}`);
+        await new Promise(r => setTimeout(r, 3000));
+        const poll = await ax.get(`https://api.replicate.com/v1/predictions/${pred.id}`, {
+          headers: { Authorization: `Bearer ${token}` }, timeout: 15_000,
+        });
+        pred = poll.data;
+      }
+      if (pred.status !== 'succeeded') throw new Error('Replicate: timeout 90s dépassé');
+
+      const imageUrl = String(Array.isArray(pred.output) ? pred.output[0] : pred.output);
+
+      // Step 3 — télécharge IMMÉDIATEMENT (l'URL expire vite)
+      const dlResp = await ax.get(imageUrl, { responseType: 'arraybuffer', timeout: 30_000, validateStatus: () => true });
+      const dlStatus = dlResp.status;
+      const contentType = String(dlResp.headers['content-type'] ?? '');
+      const buf = Buffer.from(dlResp.data as ArrayBuffer);
+      const isImage = contentType.startsWith('image/') && buf.length > 0;
+
+      if (!isImage || dlStatus !== 200) {
+        await sendMessage(chatId,
+          `⚠️ *Replicate — Image générée mais téléchargement FAIL*\n\n• prediction\\_id : ${pred.id}\n• URL : ${imageUrl.slice(0, 60)}...\n• HTTP téléchargement : ${dlStatus}\n• Content-Type : ${contentType || 'inconnu'}\n• Taille : ${buf.length} bytes\n\n_URL Replicate expirée ou inaccessible._`);
+        return;
+      }
+
+      // Step 4 — envoie l'image dans Telegram pour confirmation visuelle
+      let tgOk = false;
+      try {
+        await sendPhoto(chatId, imageUrl, `🎨 *Test Replicate — Flux.1 Pro*\n_Image test générée avec succès_`);
+        tgOk = true;
+      } catch { /* fallback — on déjà validé le download */ }
+
+      await sendMessage(chatId,
+        `✅ *Replicate — Test génération OK*\n\n• Modèle : \`${MODEL_REP}\`\n• prediction\\_id : ${pred.id}\n• Image générée : ✅\n• Téléchargement : ✅ (${(buf.length / 1024).toFixed(0)} KB)\n• Content-Type : ${contentType}\n• Telegram sendPhoto : ${tgOk ? '✅' : '⚠️ fallback (URL déjà expirée pour Telegram)'}`);
+    } catch (e: any) {
+      const status = (e as any)?.response?.status;
+      await sendMessage(chatId, status === 401
+        ? `❌ *Replicate — Token invalide (401)*\n\n• REPLICATE\\_API\\_TOKEN rejeté ❌\n\nVérifie la valeur dans Railway.`
+        : `❌ *Replicate — Test FAIL*\n\n• Erreur : ${status ? `HTTP ${status}` : e.message}`);
+    }
+    return;
+  }
+
+  // /test_ai — diagnostic light (clé + auth, sans génération)
+  if (msg.text?.startsWith('/test_ai')) {
+    await sendTyping(chatId);
+    await sendMessage(chatId, '🧪 *Diagnostic IA (light — sans génération)...*');
+    const falKey = env.FAL_KEY;
+    const repToken = env.REPLICATE_API_TOKEN;
+    const diag: string[] = [
+      `• FAL\\_KEY présent : ${falKey ? '✅ oui' : '❌ non'}`,
+      `• REPLICATE\\_API\\_TOKEN présent : ${repToken ? '✅ oui' : '❌ non'}`,
+    ];
+
+    // fal.ai auth check — POST {} → 422 = clé valide
+    if (!falKey) {
+      diag.push('• fal.ai auth endpoint : ⏭ SKIP (FAL\\_KEY absent)');
+    } else {
+      try {
+        const { default: ax } = await import('axios');
+        const r = await ax.post(
+          'https://queue.fal.run/fal-ai/kling-video/v1.6/standard/text-to-video',
+          {},
+          { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 15_000, validateStatus: () => true },
+        );
+        const s = r.status;
+        const ok = s === 422 || s === 200 || s === 201 || s === 202;
+        const label = ok ? `✅ OK (HTTP ${s} — clé valide)` :
+          s === 401 || s === 403 ? `❌ FAIL (HTTP ${s} — clé invalide)` :
+          s === 405 ? `❌ FAIL (HTTP 405 — méthode rejetée, pas OK)` :
+          `❌ FAIL (HTTP ${s})`;
+        diag.push(`• fal.ai auth endpoint : ${label}`);
+      } catch (e: any) {
+        diag.push(`• fal.ai auth endpoint : ❌ FAIL (${e.message})`);
+      }
+    }
+
+    // Replicate auth check — GET /v1/account
+    if (!repToken) {
+      diag.push('• Replicate auth endpoint : ⏭ SKIP (REPLICATE\\_API\\_TOKEN absent)');
+    } else {
+      try {
+        const { default: ax } = await import('axios');
+        const r = await ax.get('https://api.replicate.com/v1/account', {
+          headers: { Authorization: `Bearer ${repToken}` },
+          timeout: 10_000,
+          validateStatus: () => true,
+        });
+        const ok = r.status === 200;
+        diag.push(`• Replicate auth endpoint : ${ok ? `✅ OK (compte: ${(r.data as any)?.username ?? 'ok'})` : `❌ FAIL (HTTP ${r.status})`}`);
+      } catch (e: any) {
+        diag.push(`• Replicate auth endpoint : ❌ FAIL (${e.message})`);
+      }
+    }
+
+    diag.push('\n_Tape /test\\_fal ou /test\\_replicate pour un vrai test de génération (crédits consommés)._');
+    await sendMessage(chatId, `🤖 *DIAGNOSTIC IA — DZARYX*\n\n${diag.join('\n')}`);
     return;
   }
 
   // ── VIDÉO REÇUE ──
   if (msg.video) {
+    // Store file_id in buffer so merge_videos tool can retrieve it
+    addVideoToBuffer(sessionId, msg.video.file_id);
     await handleVideoMessage(chatId, sessionId, msg);
     return;
   }
@@ -132,15 +623,19 @@ router.post('/webhook', async (req, res) => {
     if (pending) {
       if (isOke) {
         approveVideo(pending.id);
-        await sendMessage(chatId, '✅ *Vidéo validée !* Publication TikTok en cours...');
+        const tiktokConfigured = Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID);
 
-        const result = await publishVideo(pending);
-
-        if (result.success) {
-          await sendMessage(chatId, `🚀 *${result.message}*\n${result.url ?? ''}`);
+        if (tiktokConfigured) {
+          await sendMessage(chatId, '✅ *Vidéo validée !* Publication TikTok en cours...');
+          const result = await publishVideo(pending);
+          if (result.success) {
+            await sendMessage(chatId, `🚀 *${result.message}*\n${result.url ?? ''}`);
+          } else {
+            await sendMessage(chatId, `⚠️ Publication TikTok échouée: ${result.message}\n\n${buildSharePackage(pending)}`);
+          }
         } else {
-          // TikTok API not configured or failed → send ready-to-post package
-          await sendMessage(chatId, buildSharePackage(pending));
+          // TikTok non configuré → paquet manuel directement, sans fausse promesse
+          await sendMessage(chatId, `✅ *Vidéo validée !*\n\n${buildSharePackage(pending)}`);
         }
       } else {
         rejectVideo(pending.id);
@@ -311,186 +806,117 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
   }
 }
 
-// ── TRAITEMENT IMAGE AUTOMATIQUE ──────────────────────────────────
+// ── TRAITEMENT IMAGE — Claude Vision complet ─────────────────────
 async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
-    if (!cloudinary) {
-      await sendMessage(chatId, '⚠️ Cloudinary en cours de chargement, réessaie dans 2 secondes...');
-      return;
-    }
-
     await sendTyping(chatId);
 
+    const caption = msg.caption ?? '';
+
+    // ── Récupérer le fileId et mimeType ──────────────────────────
     let fileId: string;
     let mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' = 'image/jpeg';
 
     if (msg.photo && msg.photo.length > 0) {
       const largest = msg.photo[msg.photo.length - 1];
       if (!largest) { await sendMessage(chatId, '⚠️ Photo illisible.'); return; }
-      fileId   = largest.file_id;
-      mimeType = 'image/jpeg';
+      fileId = largest.file_id;
     } else if (msg.document) {
       fileId = msg.document.file_id;
       const mime = msg.document.mime_type ?? '';
       if (mime === 'image/png')       mimeType = 'image/png';
       else if (mime === 'image/gif')  mimeType = 'image/gif';
       else if (mime === 'image/webp') mimeType = 'image/webp';
-      else                            mimeType = 'image/jpeg';
     } else {
       return;
     }
 
-    const caption = msg.caption ?? '';
-
-    // 1. Télécharger l'image depuis Telegram
-    await sendMessage(chatId, '⏳ Téléchargement de l\'image...');
+    // ── Télécharger l'image ───────────────────────────────────────
     const buffer = await downloadFile(fileId);
-    if (!buffer) {
-      await sendMessage(chatId, '⚠️ Impossible de télécharger l\'image.');
-      return;
-    }
+    if (!buffer) { await sendMessage(chatId, '⚠️ Impossible de télécharger la photo.'); return; }
 
-    // 2. Upload sur Cloudinary
-    await sendMessage(chatId, '☁️ Upload sur Cloudinary...');
-    
-    const uploadResult = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { resource_type: 'image', folder: 'telegram_images' },
-        (error: any, result: any) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(buffer);
-    });
-
-    const imageUrl = uploadResult.secure_url;
-
-    // 3. ANALYSE VISION CLAUDE pour comprendre l'image
-    await sendMessage(chatId, '👁️ Analyse de l\'image...');
     const base64Image = buffer.toString('base64');
 
-    // Détecter si c'est une référence d'interface UI
-    const UI_KEYWORDS = /ressemble|interface|design|style|ui|apparence|copie|même look|même style|jarvis|modifie l'interface|change l'interface/i;
-    const isUIReference = caption && UI_KEYWORDS.test(caption);
+    // ── Vision Claude — analyse complète en une seule passe ───────
+    // Le system prompt donne à Claude tout le contexte Dzaryx
+    const visionPrompt = caption
+      ? `Photo reçue sur Telegram avec ce message: "${caption}"\n\nAnalyse d'abord l'image en détail, puis réponds à la demande.`
+      : `Photo reçue sur Telegram sans message. Analyse-la et dis-moi ce que tu vois avec tous les détails utiles (texte visible, personnes, documents, interface, voiture, lieu, etc.).`;
 
-    const visionSystemPrompt = isUIReference
-      ? `Tu es Dzaryx, assistant IA de Kouider. Analyse cette image d'interface UI avec TOUS les détails visuels:
-- Couleurs exactes (background, texte, boutons, bordures) avec codes hex si possible
-- Layout et disposition des éléments
-- Typographie (police, taille, poids)
-- Effets visuels (gradient, glow, blur, ombre, animation si visible)
-- Composants présents (boutons, cartes, barres, cercles, vagues)
-- Style général (futuriste, minimal, glassmorphism, neon, etc.)
-Sois TRÈS précis et exhaustif — cette description servira à reproduire exactement ce design.`
-      : `Tu es Dzaryx, assistant IA de Kouider (Fik Conciergerie Oran).
-Analyse précisément cette image. Si c'est un tableau/dashboard → liste tous les noms, prix, données visibles.
-Si c'est une capture d'écran → identifie le contenu exact. Sois exhaustif et précis.`;
-
-    const visionResponse = await anthropic.messages.create({
+    const visionResp = await anthropic.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: isUIReference ? 2048 : 1024,
-      system: visionSystemPrompt,
+      max_tokens: 2048,
+      system: `Tu es Dzaryx, assistant IA personnel de Kouider — fondateur de Fik Conciergerie à Oran.
+Tu analyses les images envoyées sur Telegram avec une précision maximale.
+
+SELON LE TYPE D'IMAGE:
+- Passeport/permis → extrais TOUS les champs: nom complet, numéro, date naissance, expiration, nationalité
+- Capture d'écran d'une réservation/tableau → liste toutes les données visibles (noms, prix, dates, statuts)
+- Photo de voiture → identifie le modèle, état, plaque si visible, remarques
+- Interface/design → décris couleurs exactes, layout, composants, effets visuels (pour reproduire)
+- Facture/document commercial → extrais montants, dates, parties concernées
+- Photo générale → décris le contenu de façon précise et utile
+
+RÈGLES:
+- Répondre en FRANÇAIS
+- Sois EXHAUSTIF — mentionne TOUS les détails visibles
+- Si c'est un document client → propose directement de l'enregistrer (store_document)
+- Si c'est une interface UI → propose de modifier l'app pour y ressembler
+- Si c'est une voiture → fais le lien avec la flotte Fik Conciergerie si pertinent
+- Ton conversationnel naturel — tu es Dzaryx, pas un robot d'analyse`,
       messages: [{
         role: 'user',
         content: [
           { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-          { type: 'text',  text: caption ? `Message joint: "${caption}"` : 'Décris ce que tu vois en détail.' },
+          { type: 'text',  text: visionPrompt },
         ],
       }],
     });
 
-    const imageDescription = visionResponse.content
-      .filter(b => b.type === 'text')
-      .map(b => (b as Anthropic.TextBlock).text)
+    const visionText = visionResp.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
       .join('');
 
-    // 4. Détecter si c'est une ACTION à exécuter
-    const ACTION_KEYWORDS = /modif|chang|corrig|mett|updat|prix|montant|réserv|client|supprim|créé|ajoute|ressemble|interface|design|style|ui|apparence|copie|jarvis/i;
+    // ── Passer la description Vision à Dzaryx avec tous ses outils ─
+    const fullMessage = caption
+      ? `[Photo reçue sur Telegram]\n\nVision Claude:\n${visionText}\n\nMessage de Kouider: "${caption}"`
+      : `[Photo reçue sur Telegram]\n\nVision Claude:\n${visionText}`;
 
-    if (caption && ACTION_KEYWORDS.test(caption)) {
-      await sendMessage(chatId, isUIReference ? '🎨 Analyse du design... Je vais modifier mon interface.' : '⚙️ Exécution de l\'action...');
+    const ctx      = await buildContext(sessionId, fullMessage);
+    const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
 
-      const actionMessage = isUIReference
-        ? `[Référence UI reçue — analyse visuelle détaillée:\n${imageDescription}]\n\nDemande de Kouider: "${caption}"\n\nTu dois modifier ton interface mobile pour qu'elle ressemble à cette référence.\nFichiers à modifier dans le repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux fichiers → modifier CSS/TSX pour reproduire le design → github_write_file → Netlify redéploie auto.`
-        : `[Capture d'écran reçue — contenu visible: ${imageDescription}]\n\nDemande de Kouider: ${caption}`;
-
-      const ctx      = await buildContext(sessionId, actionMessage);
-      const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
-
-      await sendMessage(chatId, response.text);
-
-      await Promise.all([
-        saveConversationTurn(sessionId, 'user',      actionMessage,  { source: 'telegram', type: 'image_action', url: imageUrl }),
-        saveConversationTurn(sessionId, 'assistant', response.text,  { source: 'telegram' }),
-      ]);
-
-      return;
+    // Envoyer la réponse de Dzaryx
+    for (const chunk of splitMessage(response.text, 4000)) {
+      await sendMessage(chatId, chunk);
     }
 
-    // 5. SINON → Traitement image selon demande
-    const lowerCaption = caption.toLowerCase();
-    let processedUrl = imageUrl;
-    let action = 'Image reçue et analysée';
-
-    if (/optim|compress|rédui|léger|web/i.test(lowerCaption)) {
-      await sendMessage(chatId, '🔧 Optimisation de l\'image...');
-      const optimized = await optimizeImage(imageUrl, 'web');
-      processedUrl = optimized.url;
-      action = `Optimisée (${optimized.size_reduction_percent}% plus légère)`;
-    } else if (/améliore|enhance|qualité|nettet/i.test(lowerCaption)) {
-      await sendMessage(chatId, '✨ Amélioration qualité...');
-      processedUrl = await enhanceImage(imageUrl);
-      action = 'Qualité améliorée (contraste, luminosité, netteté)';
-    } else if (/fond|background|détour/i.test(lowerCaption)) {
-      await sendMessage(chatId, '🎭 Suppression du fond...');
-      processedUrl = await removeBackground(imageUrl);
-      action = 'Fond supprimé (PNG transparent)';
-    } else if (/social|tiktok|insta|facebook|story|post/i.test(lowerCaption)) {
-      await sendMessage(chatId, '📱 Création variantes réseaux sociaux...');
-      const variants = await createSocialVariants(imageUrl);
-      
-      await sendMessage(chatId,
-        `✅ **Variantes créées:**\n\n` +
-        `📸 **TikTok/Reels (9:16)**\n${variants.tiktok}\n\n` +
-        `📸 **Instagram Post (1:1)**\n${variants.instagram_feed}\n\n` +
-        `📸 **Instagram Story (9:16)**\n${variants.instagram_story}\n\n` +
-        `📸 **YouTube (16:9)**\n${variants.youtube}`
-      );
-
-      await sendPhoto(chatId, variants.tiktok);
-      action = 'Variantes réseaux sociaux créées';
+    // Uploader sur Cloudinary en background (pour les outils media si besoin)
+    let imageUrl = '';
+    if (cloudinary) {
+      try {
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type: 'image', folder: 'telegram_images' },
+            (err: any, res: any) => { if (err) reject(err); else resolve(res); },
+          );
+          stream.end(buffer);
+        });
+        imageUrl = uploadResult.secure_url as string;
+      } catch { /* cloudinary optionnel */ }
     }
 
-    // 6. Analyse qualité
-    const analysis = await analyzeImage(imageUrl);
-
-    // 7. Envoyer résultat
-    const resultMsg = `✅ **Image traitée** — ${action}\n\n` +
-      `👁️ **Vision:**\n${imageDescription}\n\n` +
-      `📊 **Analyse technique:**\n` +
-      `• Résolution: ${analysis.width}x${analysis.height}\n` +
-      `• Taille: ${analysis.size_kb} KB\n` +
-      `• Format: ${analysis.format}\n` +
-      `• Score qualité: ${analysis.quality_score}/100\n\n` +
-      (analysis.suggestions.length > 0 ? `💡 **Suggestions:**\n${analysis.suggestions.join('\n')}\n\n` : '') +
-      `🔗 Lien: ${processedUrl}`;
-
-    await sendMessage(chatId, resultMsg);
-
-    // Envoyer l'image traitée si différente de l'originale
-    if (processedUrl !== imageUrl) {
-      await sendPhoto(chatId, processedUrl);
-    }
-
-    await saveConversationTurn(sessionId, 'user',
-      `[Image reçue${caption ? ` — "${caption}"` : ''} → ${action}]`,
-      { source: 'telegram', type: 'image', url: processedUrl, vision: imageDescription }
-    );
+    await Promise.all([
+      saveConversationTurn(sessionId, 'user',
+        `[Photo Telegram${caption ? ` — "${caption}"` : ''}]\n${visionText.slice(0, 500)}`,
+        { source: 'telegram', type: 'image', url: imageUrl, vision: visionText },
+      ),
+      saveConversationTurn(sessionId, 'assistant', response.text, { source: 'telegram' }),
+    ]).catch(e => console.error('[telegram] save error:', e));
 
   } catch (err) {
     console.error('[telegram] handleImageMessage error:', err instanceof Error ? err.message : String(err));
-    await sendMessage(chatId, `⚠️ Erreur traitement image: ${err instanceof Error ? err.message : String(err)}`);
+    await sendMessage(chatId, `⚠️ Erreur analyse photo: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

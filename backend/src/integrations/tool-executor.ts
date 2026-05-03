@@ -3,14 +3,23 @@ import { createCalendarEvent, syncPendingBookings, listUpcomingEvents } from './
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
-import { learnRule } from './claude-api.js';
+import { learnRule, chat } from './claude-api.js';
+import { formatPricingTable, getPricingForVehicle } from '../config/pricing.js';
 import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
-import { createMarketingVideo } from '../marketing/video-creator.js';
+import { mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
-import { sendMessage as sendTelegramForMarketing, sendVideo as sendTelegramVideo } from './telegram.js';
+import { executeCreateMarketingVideo, isValidMp4Buffer } from '../marketing/create-marketing-video.js';
+import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
+import {
+  sendMessage as sendTelegramForMarketing,
+  sendPhoto as sendTelegramPhoto,
+  sendVoiceBuffer,
+  sendVideoBuffer,
+} from './telegram.js';
+import { synthesizeVoice } from '../notifications/dispatcher.js';
 import type { Car } from './supabase.js';
 import {
   getPaymentStatus,
@@ -32,10 +41,15 @@ import {
 } from './improvement-report.js';
 import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
-import { sendMessage as sendTelegramText, sendPhoto as sendTelegramPhoto, sendDocument as sendTelegramDoc } from './telegram.js';
+import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
+import { runCodeAgent } from '../agents/code-agent.js';
+
+// ── In-memory lock — prevents duplicate video generations per chat ─────────────
+// Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
+const videoGenLocks = new Set<string>();
 
 export async function executeTool(
   name: string,
@@ -60,6 +74,7 @@ export async function executeTool(
       case 'get_news':              return await getNews(input);
       case 'github_read_file':      return await githubReadFile(input);
       case 'github_write_file':     return await githubWriteFile(input);
+      case 'github_patch_file':     return await githubPatchFile(input);
       case 'github_list_files':     return await githubListFiles(input);
       case 'railway_get_logs':      return await railwayGetLogs(input);
       case 'railway_wait_deploy':   return await waitForDeploy(Number(input['timeout_seconds'] ?? 180) * 1000);
@@ -120,7 +135,6 @@ export async function executeTool(
       case 'add_text_overlay':
       case 'analyze_video':
       case 'cut_video':
-      case 'merge_videos':
       case 'add_subtitles':
       case 'optimize_for_platform':
       case 'extract_thumbnail':
@@ -128,7 +142,19 @@ export async function executeTool(
       case 'create_video_preview':       return await executeMediaTool(name, input);
       // ─── MARKETING TIKTOK ───
       case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
+      case 'generate_tiktok_video':      return await createMarketingVideoTool(input, sessionId);
       case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
+      case 'merge_videos':               return await mergeVideosTool(input, sessionId);
+      // ─── VEILLE CONCURRENTIELLE ───
+      case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId ?? '');
+      case 'watch_my_tiktok':            return await watchMyTiktok(input);
+      // ─── CODE AGENT AUTONOME ───
+      case 'execute_code_task':          return await executeCodeTaskTool(input, sessionId);
+      case 'create_new_project':         return await createNewProjectTool(input, sessionId);
+      // ─── GÉNÉRATION IA (Replicate + fal.ai) ───
+      case 'generate_image':             return await generateImageTool(input, sessionId);
+      case 'generate_ai_video':          return await generateAiVideoTool(input, sessionId);
+      case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -337,9 +363,58 @@ async function recallMemory(input: Record<string, unknown>): Promise<string> {
   return data.map((m: any) => `[${m.category}] ${m.content}`).join('\n');
 }
 
-async function getWeather(_input: Record<string, unknown>): Promise<string> {
-  const data = await getOranWeather();
-  return JSON.stringify(data);
+async function getWeather(input: Record<string, unknown>): Promise<string> {
+  const city    = (input['city'] as string | undefined)?.trim();
+  const country = (input['country'] as string | undefined)?.trim();
+
+  // Sans ville spécifiée → météo Oran (défaut)
+  if (!city || city.toLowerCase().includes('oran')) {
+    const data = await getOranWeather();
+    return JSON.stringify(data);
+  }
+
+  // Avec ville → geocoding Open-Meteo puis météo
+  try {
+    const geoQuery  = country ? `${city}, ${country}` : city;
+    const geoResp   = await axios.get(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(geoQuery)}&count=1&language=fr&format=json`,
+      { timeout: 8_000 },
+    );
+    const results = (geoResp.data as any).results as Array<{ latitude: number; longitude: number; name: string; country: string; timezone: string }> | undefined;
+    if (!results?.length) return `❌ Ville introuvable: ${geoQuery}`;
+
+    const loc      = results[0];
+    const timezone = encodeURIComponent(loc.timezone ?? 'auto');
+    const wxResp   = await axios.get(
+      `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weathercode,is_day&timezone=${timezone}`,
+      { timeout: 8_000 },
+    );
+    const c    = (wxResp.data as any).current;
+    const WMO: Record<number, { label: string; icon: string }> = {
+      0: { label: 'Ciel dégagé', icon: '☀️' }, 1: { label: 'Principalement dégagé', icon: '🌤️' },
+      2: { label: 'Partiellement nuageux', icon: '⛅' }, 3: { label: 'Couvert', icon: '☁️' },
+      45: { label: 'Brouillard', icon: '🌫️' }, 48: { label: 'Brouillard givrant', icon: '🌫️' },
+      51: { label: 'Bruine légère', icon: '🌦️' }, 61: { label: 'Pluie légère', icon: '🌧️' },
+      63: { label: 'Pluie modérée', icon: '🌧️' }, 65: { label: 'Pluie forte', icon: '⛈️' },
+      80: { label: 'Averses légères', icon: '🌦️' }, 81: { label: 'Averses modérées', icon: '🌧️' },
+      82: { label: 'Averses violentes', icon: '⛈️' }, 95: { label: 'Orage', icon: '⛈️' },
+      99: { label: 'Orage avec grêle', icon: '🌩️' },
+    };
+    const wmo = WMO[c.weathercode as number] ?? { label: 'Inconnu', icon: '❓' };
+    return JSON.stringify({
+      city:          loc.name,
+      country:       loc.country,
+      temperature:   Math.round(c.temperature_2m as number),
+      apparent_temp: Math.round(c.apparent_temperature as number),
+      humidity:      c.relative_humidity_2m as number,
+      wind_speed:    Math.round(c.wind_speed_10m as number),
+      condition:     wmo.label,
+      icon:          wmo.icon,
+      is_day:        c.is_day === 1,
+    });
+  } catch (err) {
+    return `❌ Erreur météo pour ${city}: ${err instanceof Error ? err.message : String(err)}`;
+  }
 }
 
 async function getNews(input: Record<string, unknown>): Promise<string> {
@@ -372,6 +447,35 @@ async function githubWriteFile(input: Record<string, unknown>): Promise<string> 
   const result = await updateFile(path, content, message, repo);
   if (!result) return `Erreur: impossible de mettre à jour ${path}`;
   return `✅ Fichier mis à jour: ${path} (commit: ${result.commitSha})`;
+}
+
+async function githubPatchFile(input: Record<string, unknown>): Promise<string> {
+  const repo      = (input['repo']       as string) || 'ibrahim';
+  const path      = input['path']       as string;
+  const oldString = input['old_string'] as string;
+  const newString = input['new_string'] as string;
+  const message   = (input['message']   as string) || 'patch: surgical edit';
+
+  if (!path || oldString === undefined || newString === undefined)
+    return '❌ repo, path, old_string et new_string sont requis';
+
+  const result = await getFileContent(path, repo);
+  if (!result) return `❌ Fichier non trouvé: ${path} dans ${repo}`;
+
+  const content = result.content;
+  const occurrences = content.split(oldString).length - 1;
+
+  if (occurrences === 0)
+    return `❌ Extrait non trouvé dans ${path}.\nVérifie que le texte est copié mot pour mot (espaces, indentation, retours à la ligne inclus).\nAstuce: utilise github_read_file pour récupérer l'extrait exact.`;
+  if (occurrences > 1)
+    return `❌ Extrait trouvé ${occurrences} fois dans ${path} — ambigu.\nAjoute plus de contexte autour (lignes voisines) pour le rendre unique.`;
+
+  const newContent = content.replace(oldString, newString);
+  const writeResult = await updateFile(path, newContent, message, repo);
+  if (!writeResult) return `❌ Impossible de commiter ${path}`;
+
+  const preview = oldString.split('\n')[0].trim().slice(0, 60);
+  return `✅ Patch appliqué dans ${path} (commit: ${writeResult.commitSha})\n→ "${preview}..." remplacé avec succès`;
 }
 
 async function githubListFiles(input: Record<string, unknown>): Promise<string> {
@@ -958,8 +1062,13 @@ async function getLateReturns(): Promise<string> {
 
 // ── Marketing TikTok tools ────────────────────────────────────
 
-async function runTikTokResearchTool(_sessionId?: string): Promise<string> {
-  const chatId = env.TELEGRAM_CHAT_ID ?? '809747124';
+function chatIdFromSession(sessionId?: string): string {
+  if (sessionId?.startsWith('telegram_')) return sessionId.slice('telegram_'.length);
+  return env.TELEGRAM_CHAT_ID ?? '809747124';
+}
+
+async function runTikTokResearchTool(sessionId?: string): Promise<string> {
+  const chatId = chatIdFromSession(sessionId);
 
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
   const cars = (carsRaw ?? []) as Car[];
@@ -999,73 +1108,1390 @@ async function createMarketingVideoTool(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
-  const chatId = sessionId?.startsWith('telegram_')
-    ? sessionId.replace('telegram_', '')
-    : (env.TELEGRAM_CHAT_ID ?? '809747124');
-  const carName  = (input['car_name'] as string | undefined)?.toLowerCase();
-  const style    = (input['style'] as string | undefined) ?? 'reveal';
+  const chatId       = chatIdFromSession(sessionId);
+  const falKey       = env.FAL_KEY;
 
+  // ── Paramètres ────────────────────────────────────────────────
+  const carNameFilter    = (input['car_name'] as string | undefined)?.toLowerCase();
+  const style            = (input['style'] as string | undefined) ?? 'reveal';
+  const customScript     = input['custom_script'] as string | undefined;
+  const backgroundEffect = input['background_effect'] as string | undefined;
+
+  // ── Chercher la voiture ───────────────────────────────────────
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
   const cars = (carsRaw ?? []) as Car[];
+  if (cars.length === 0) return '⚠️ Aucune voiture disponible.';
+
   const carsWithImage = cars.filter(c => c.image_url);
+  if (carsWithImage.length === 0) return '⚠️ Aucune voiture avec photo — ajoute des photos dans le tableau de bord.';
 
-  if (carsWithImage.length === 0) return '⚠️ Aucune voiture avec image disponible.';
-
-  const car = carName
-    ? (carsWithImage.find(c => c.name.toLowerCase().includes(carName)) ?? carsWithImage[Math.floor(Math.random() * carsWithImage.length)])
+  const car = carNameFilter
+    ? (carsWithImage.find(c => c.name.toLowerCase().includes(carNameFilter)) ?? carsWithImage[Math.floor(Math.random() * carsWithImage.length)])
     : carsWithImage[Math.floor(Math.random() * carsWithImage.length)];
 
-  await sendTelegramForMarketing(chatId, `🎬 *Création vidéo pour ${car.name}*...\n_Voix IA + montage en cours (30-60s)_`);
+  // ── Prix depuis la grille tarifaire ──────────────────────────
+  const pricing      = getPricingForVehicle(car.name);
+  const priceKouider = pricing?.kouiderPrice ?? null;
+  const priceHouari  = pricing?.houariPrice  ?? null;
+  const priceDisplay = priceKouider ? `${priceKouider}€/j` : (priceHouari ? `${priceHouari}€/j` : 'prix sur demande');
 
-  // Generate a targeted idea based on style
-  const stylePrompts: Record<string, string> = {
-    reveal:    `Car reveal dramatique — dévoilement de la ${car.name} avec musique, prix en gros plan`,
-    prix:      `Format "Prix choc" — ${car.name} à ${car.base_price} DZD/j, comparer avec la concurrence`,
-    lifestyle: `POV lifestyle — imaginer son weekend avec la ${car.name} à Oran`,
-    temoignage:`Témoignage client fictif en darija — "wallah hada sers" pour la ${car.name}`,
-  };
-
-  const ideaPrompt = stylePrompts[style] ?? stylePrompts['reveal'];
-  const report = await runTikTokMarketResearch([car]);
-  const idea = report.top_ideas[0] ?? {
-    title:            `${car.name} — Fik Conciergerie Oran`,
-    concept:          ideaPrompt,
-    voiceover_script: `Wach tabghi troh f weekend b ${car.name}? Fik Conciergerie Oran — ${car.base_price.toLocaleString()} DA par jour seulement. Appelle maintenant !`,
-    caption:          `🚗 ${car.name} à Oran — ${car.base_price.toLocaleString()} DZD/j | Fik Conciergerie`,
-    hashtags:         ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre'],
-    best_time:        'Ce soir 20h-22h',
-    car_suggestion:   car.name,
-  };
-
-  const videoResult = await createMarketingVideo(car, idea).catch(err => {
-    console.error('[tool:create_marketing_video] failed:', err);
-    return null;
-  });
-
-  if (!videoResult) {
-    return `⚠️ Création vidéo échouée. Script prêt:\n"${idea.voiceover_script}"`;
+  // ── Script IA ou personnalisé ─────────────────────────────────
+  let script: string;
+  if (customScript) {
+    script = customScript;
+  } else {
+    const month  = new Date().getMonth() + 1;
+    const season = month >= 6 && month <= 8 ? 'Saison MRE (forte demande diaspora)'
+      : month === 3 || month === 4            ? 'Ramadan (sorties nocturnes, famille)'
+      : 'Période standard (clients locaux + pros)';
+    const styleDesc: Record<string, string> = {
+      reveal:     'dévoilement dramatique, suspense puis révélation prix',
+      prix:       'choc du prix en premier, insister sur le rapport qualité/prix',
+      lifestyle:  'émotion, voyage, liberté, week-end parfait',
+      temoignage: 'témoignage client enthousiaste, très authentique',
+    };
+    const sr = await chat([{
+      role: 'user',
+      content: `Script voix-off TikTok, 20-25 sec, FRANÇAIS uniquement, style ${style} (${styleDesc[style] ?? style}).
+VOITURE: ${car.name} (${car.category}) | PRIX: ${priceDisplay} | ${season}
+Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQUEMENT avec le script, sans guillemets.`,
+    }], undefined);
+    script = sr.text.trim().replace(/^["']|["']$/g, '');
   }
 
+  const caption  = `🚗 ${car.name} à Oran — ${priceDisplay} | Fik Conciergerie`;
+  const hashtags = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
+
+  // ── Tentative 1 : Kling IA (fal.ai) image→vidéo ─────────────
+  let videoBuffer: Buffer | null = null;
+  let method = 'photo';
+
+  if (falKey) {
+    const bgMotion: Record<string, string> = {
+      plage:    'car on Algerian beach, ocean waves, golden sunset, cinematic pan shot',
+      ville:    'car in Oran city streets, urban lights, dynamic tracking shot',
+      montagne: 'car on mountain road Algeria, dramatic landscape, sweeping camera move',
+      desert:   'car in Sahara desert, sand dunes, epic wide establishing shot',
+      route:    'car driving on coastal road Oran, smooth tracking shot',
+      luxe:     'luxury car, premium setting, elegant slow motion reveal',
+      foret:    'car on forest road, dappled golden light, cinematic dolly shot',
+      coucher:  'car at golden hour sunset, warm tones, silhouette reveal',
+      nuit:     'car at night, city lights bokeh, dramatic neon reflections',
+    };
+    const motionPrompt = backgroundEffect
+      ? (bgMotion[backgroundEffect] ?? `${backgroundEffect} scenery, cinematic car reveal, smooth camera`)
+      : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
+
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ 60-240 secondes...`
+    ).catch(() => {});
+
+    try {
+      // Vérifier que l'image est publiquement accessible
+      await axios.head(car.image_url, { timeout: 8_000 });
+
+      const videoUrl = await falGenerate(
+        'fal-ai/kling-video/v1.6/standard/image-to-video',
+        { image_url: car.image_url, prompt: motionPrompt, duration: '5', aspect_ratio: '9:16' },
+        falKey,
+        240_000,
+      );
+      const resp = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+      const rawBuf = Buffer.from(resp.data as ArrayBuffer);
+      if (!isValidMp4Buffer(rawBuf)) {
+        throw new Error(`Kling IA a retourné un fichier invalide (${rawBuf.length} bytes, magic bytes incorrects — pas un MP4).`);
+      }
+      videoBuffer = rawBuf;
+      method      = 'Kling IA';
+      console.log('[tool:create_marketing_video] ✅ Kling MP4 validé:', videoBuffer.length, 'bytes');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[tool:create_marketing_video] Kling failed:', msg);
+      await sendTelegramForMarketing(chatId,
+        `⚠️ _Kling IA indisponible (\`${msg.slice(0, 120)}\`) — FFmpeg fallback..._`
+      ).catch(() => {});
+    }
+  }
+
+  // ── Tentative 2 : FFmpeg + ElevenLabs (local, fiable) ────────
+  if (!videoBuffer) {
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Vidéo TikTok — ${car.name}*\n_Montage FFmpeg HD 1080×1920${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ Génération voix + montage...`
+    ).catch(() => {});
+
+    try {
+      // Utilise executeCreateMarketingVideo — le module complet avec upload Supabase
+      const result = await executeCreateMarketingVideo(
+        {
+          car_name:          car.name,
+          style:             style as 'reveal' | 'prix' | 'lifestyle' | 'temoignage',
+          custom_script:     customScript,
+          background_effect: backgroundEffect,
+        },
+        chatId,
+      );
+      const deliveryNote = result.telegram_delivered ? 'envoyée sur Telegram ↑' : '⚠️ générée mais envoi Telegram échoué';
+      const prefix = result.telegram_delivered ? '✅' : '⚠️';
+      return `${prefix} Vidéo ${result.method === 'ffmpeg' ? 'FFmpeg HD' : 'photo'} pour ${result.car_name} — ${deliveryNote} (ID: ${result.pending_id}).\nScript: "${result.script.slice(0, 80)}..."`;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[tool:create_marketing_video] FFmpeg failed:', msg);
+      await sendTelegramForMarketing(chatId,
+        `❌ _FFmpeg aussi échoué:_ \`${msg.slice(0, 200)}\`\n_Envoi photo + voix..._`
+      ).catch(() => {});
+    }
+  }
+
+  // ── Voix ElevenLabs (pour Kling ou fallback photo) ───────────
+  const audioBuffer = await synthesizeVoice(script).catch(() => null);
+
+  // ── Workflow approbation ──────────────────────────────────────
   const pendingId = await savePendingVideo({
-    video_url: videoResult.video_url,
-    caption:   videoResult.caption,
-    hashtags:  videoResult.hashtags,
-    car_name:  videoResult.car_name,
+    video_url: car.image_url,
+    caption,
+    hashtags,
+    car_name:  car.name,
     car_id:    car.id,
-    script:    videoResult.script,
+    script,
   });
 
   const approvalMsg = [
-    `🎬 *Vidéo créée — ${car.name}*`,
-    `📝 _${videoResult.script}_`,
+    `🎬 *Vidéo TikTok — ${car.name}* (${method})`,
     ``,
-    `✅ Réponds *Oke* pour publier`,
-    `❌ Réponds *Non* pour annuler`,
+    `📋 ${caption}`,
+    `🏷️ ${hashtags.join(' ')}`,
+    ``,
+    `📝 Script:\n_${script.slice(0, 200)}_`,
+    ``,
+    `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
   ].join('\n');
 
-  await sendTelegramVideo(chatId, videoResult.video_url, approvalMsg).catch(async () => {
-    await sendTelegramForMarketing(chatId, `${approvalMsg}\n\n🔗 ${videoResult.video_url}`);
+  // ── Envoi Telegram ────────────────────────────────────────────
+  let videoActuallySent = false;
+  if (videoBuffer) {
+    try {
+      await sendVideoBuffer(chatId, videoBuffer, approvalMsg);
+      videoActuallySent = true;
+    } catch (sendErr) {
+      console.error('[tool:create_marketing_video] sendVideoBuffer failed:', sendErr instanceof Error ? sendErr.message : sendErr);
+      await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    }
+  } else {
+    await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+  }
+
+  if (audioBuffer) {
+    await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+  }
+
+  let resultMsg: string;
+  if (videoActuallySent) {
+    resultMsg = `✅ Vidéo ${method} créée et envoyée ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  } else if (videoBuffer) {
+    resultMsg = `⚠️ Vidéo générée mais envoi Telegram échoué — photo envoyée à la place ↑ (ID: ${pendingId}). En attente de ta validation.`;
+  } else {
+    resultMsg = `Je n'ai pas pu créer la vidéo. La génération a échoué (Kling IA et FFmpeg ont tous les deux échoué). Une photo + voix ont été envoyées à la place ↑ (ID: ${pendingId}).`;
+  }
+  return resultMsg.substring(0, 3000);
+}
+
+async function mergeVideosTool(
+  _input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const chatId  = chatIdFromSession(sessionId);
+  const fileIds = getVideoBuffer(sessionId ?? '');
+
+  if (fileIds.length < 2) {
+    return `⚠️ Envoie au moins 2 vidéos sur Telegram avant de demander la fusion. Tu n'as envoyé que ${fileIds.length} vidéo(s) dans cette session.`;
+  }
+
+  await sendTelegramForMarketing(chatId, `🎬 *Fusion de ${fileIds.length} vidéos en cours...*\n_Normalisation + montage_ ⏳`);
+
+  // Download all videos from Telegram
+  const { downloadFile: downloadTelegramFile } = await import('./telegram.js');
+  const buffers: Buffer[] = [];
+  for (const fileId of fileIds) {
+    const buf = await downloadTelegramFile(fileId);
+    if (!buf) {
+      await sendTelegramForMarketing(chatId, `⚠️ Impossible de télécharger la vidéo (ID: ${fileId}) — elle a peut-être expiré.`);
+      return `⚠️ Échec téléchargement d'une vidéo.`;
+    }
+    buffers.push(buf);
+  }
+
+  const merged = await mergeVideos(buffers).catch(async (err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[tool:merge_videos] failed:', msg);
+    await sendTelegramForMarketing(chatId, `⚠️ Fusion échouée: ${msg.slice(0, 120)}`);
+    return null;
   });
 
-  return `✅ Vidéo créée pour ${car.name} et envoyée sur Telegram pour validation (ID: ${pendingId}).`;
+  if (!merged) return '⚠️ Fusion des vidéos échouée.';
+
+  clearVideoBuffer(sessionId ?? '');
+
+  const caption = `🎬 *Vidéo fusionnée — ${fileIds.length} clips*\n\nFusionnée par Dzaryx ✨`;
+  await sendVideoBuffer(chatId, merged, caption).catch(async (err) => {
+    console.error('[tool] merge sendVideoBuffer failed:', err instanceof Error ? err.message : err);
+    await sendTelegramForMarketing(chatId, `⚠️ Upload vidéo fusionnée échoué: ${err instanceof Error ? err.message : String(err)}`);
+  });
+
+  return `✅ ${fileIds.length} vidéos fusionnées et envoyées juste au-dessus ↑`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── VEILLE CONCURRENTIELLE ────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+
+async function jSearch(query: string, maxChars = 1500): Promise<string> {
+  try {
+    const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(query)}`, {
+      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      timeout: 15_000,
+    });
+    return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
+  } catch {
+    return 'Aucun résultat.';
+  }
+}
+
+async function jFetch(url: string, maxChars = 2500): Promise<string> {
+  try {
+    const { data } = await axios.get(`https://r.jina.ai/${encodeURIComponent(url)}`, {
+      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      timeout: 20_000,
+    });
+    return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
+  } catch {
+    return 'Page inaccessible.';
+  }
+}
+
+async function apifyRun(actorId: string, inputPayload: Record<string, unknown>): Promise<any[]> {
+  const apiKey = env.APIFY_API_KEY;
+  if (!apiKey) return [];
+
+  const runResp = await axios.post(
+    `https://api.apify.com/v2/acts/${actorId}/runs?token=${apiKey}`,
+    inputPayload,
+    { timeout: 30_000 },
+  );
+
+  const runId: string = runResp.data?.data?.id ?? '';
+  if (!runId) return [];
+
+  // Attendre la fin du run (max 120s)
+  let datasetId = '';
+  for (let i = 0; i < 24; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const statusResp = await axios.get(
+      `https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`,
+      { timeout: 10_000 },
+    );
+    const status: string = statusResp.data?.data?.status ?? '';
+    if (status === 'SUCCEEDED') { datasetId = statusResp.data?.data?.defaultDatasetId ?? ''; break; }
+    if (status === 'FAILED' || status === 'ABORTED') return [];
+  }
+
+  if (!datasetId) return [];
+
+  const itemsResp = await axios.get(
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=40`,
+    { timeout: 15_000 },
+  );
+  return itemsResp.data ?? [];
+}
+
+function formatTikTokItems(items: any[]): string {
+  if (!items.length) return 'Aucun résultat TikTok trouvé.';
+
+  const byAuthor: Record<string, any[]> = {};
+  for (const item of items) {
+    const handle = item.authorMeta?.name ?? item.author?.uniqueId ?? 'inconnu';
+    if (!byAuthor[handle]) byAuthor[handle] = [];
+    byAuthor[handle].push(item);
+  }
+
+  let output = '';
+  for (const [handle, videos] of Object.entries(byAuthor)) {
+    const first = videos[0];
+    const m = first?.authorMeta ?? first?.author ?? {};
+    output += `\n📊 @${handle} — Abonnés: ${m.fans ?? m.followerCount ?? '?'} | Likes total: ${m.heart ?? m.heartCount ?? '?'}\n`;
+    for (const v of videos.slice(0, 6)) {
+      const date = v.createTimeISO ?? (v.createTime ? new Date(v.createTime * 1000).toLocaleDateString('fr-FR') : '?');
+      const desc = (v.text ?? v.desc ?? '(sans description)').slice(0, 100);
+      const tags = (v.hashtags ?? []).map((h: any) => `#${h.name ?? h}`).join(' ');
+      output += `  • "${desc}" ${tags}\n`;
+      output += `    👁 ${v.playCount ?? v.stats?.playCount ?? '?'} vues | ❤️ ${v.diggCount ?? v.stats?.diggCount ?? '?'} | ${date}\n`;
+    }
+    output += '\n';
+  }
+  return output;
+}
+
+async function analyzeCompetitors(input: Record<string, unknown>, sessionId: string): Promise<string> {
+  const competitor = input['competitor'] as string | undefined;
+  const makeVideo  = input['generate_counter_video'] as boolean | undefined;
+  const chatId     = chatIdFromSession(sessionId);
+
+  // ── Notification de démarrage ──────────────────────────────
+  await sendTelegramForMarketing(chatId,
+    `🕵️ *Veille concurrentielle lancée*\n${competitor ? `_Cible: ${competitor}_` : '_Scan général: location voiture Oran_'}\n⏳ Recherche web en cours...`
+  ).catch(() => {});
+
+  // ── Sources à scraper ──────────────────────────────────────
+  const COMPETITOR_HANDLES = competitor
+    ? [competitor.replace('@', '').trim()]
+    : ['didanolocation', 'locationoranalgerie', 'orancar', 'autolocationoran'];
+
+  const TIKTOK_HASHTAGS = ['locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture', 'oranalgerie'];
+
+  let tiktokData = '';
+
+  // ── APIFY (si clé disponible) ──────────────────────────────
+  if (env.APIFY_API_KEY) {
+    if (competitor && competitor.startsWith('@')) {
+      const items = await apifyRun('clockworks~tiktok-scraper', {
+        profiles:             [competitor.replace('@', '').trim()],
+        resultsPerPage:       15,
+        shouldDownloadVideos: false,
+        shouldDownloadCovers: false,
+      });
+      tiktokData = formatTikTokItems(items);
+    } else if (competitor) {
+      const items = await apifyRun('clockworks~tiktok-scraper', {
+        searchQueries:        [competitor, `location voiture oran ${competitor}`],
+        resultsPerPage:       20,
+        shouldDownloadVideos: false,
+        shouldDownloadCovers: false,
+      });
+      tiktokData = formatTikTokItems(items);
+    } else {
+      const items = await apifyRun('clockworks~tiktok-scraper', {
+        hashtags:             TIKTOK_HASHTAGS,
+        resultsPerPage:       15,
+        shouldDownloadVideos: false,
+        shouldDownloadCovers: false,
+      });
+      tiktokData = formatTikTokItems(items);
+    }
+  }
+
+  // ── Fallback multi-sources web (sans APIFY ou complément) ──
+  if (!tiktokData || tiktokData === 'Aucun résultat TikTok trouvé.') {
+    const searches: Array<Promise<string>> = [];
+
+    // 1. Recherches TikTok via Jina (moteur de recherche)
+    const tiktokQueries = competitor
+      ? [`tiktok ${competitor} location voiture oran`, `site:tiktok.com ${competitor}`]
+      : [
+          'tiktok location voiture oran algerie hashtag',
+          'site:tiktok.com locationoran locationvoitureoran',
+          'tiktok didanolocation location oran algerie',
+        ];
+
+    for (const q of tiktokQueries) {
+      searches.push(jSearch(q, 2000));
+    }
+
+    // 2. Pages TikTok directes des concurrents connus
+    const profileFetches = COMPETITOR_HANDLES.slice(0, 3).map(h =>
+      jFetch(`https://www.tiktok.com/@${h}`, 1500)
+        .then(txt => `\n--- PROFIL @${h} ---\n${txt}`)
+        .catch(() => `\n--- @${h}: inaccessible ---\n`)
+    );
+    searches.push(...profileFetches);
+
+    // 3. Recherches Google sur les concurrents à Oran
+    searches.push(jSearch('location voiture oran prix tarifs 2024 2025 concurrents', 1500));
+    searches.push(jSearch('agence location voiture oran algerie avis google maps', 1500));
+
+    // 4. Facebook/Instagram (souvent plus accessibles)
+    searches.push(jSearch('facebook location voiture oran algerie promo prix', 1500));
+
+    const results = await Promise.all(searches);
+    tiktokData = results
+      .filter(r => r && r.length > 50 && !r.includes('Aucun résultat'))
+      .join('\n\n---\n\n')
+      .slice(0, 8000);
+
+    if (!tiktokData || tiktokData.length < 100) {
+      tiktokData = '⚠️ Données web limitées — TikTok bloque le scraping. Analyse basée sur les bonnes pratiques du marché.';
+    }
+  }
+
+  const pricing = formatPricingTable();
+
+  // ── Analyse Claude avec les données collectées ─────────────
+  const analysis = await chat([{
+    role: 'user',
+    content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
+Analyse ces données RÉELLES collectées sur internet concernant la concurrence location voitures à Oran.
+Les données proviennent de TikTok, Google, Facebook, pages web des concurrents.
+
+DONNÉES COLLECTÉES:
+${tiktokData}
+
+GRILLE TARIFAIRE FIK CONCIERGERIE (nos vrais prix):
+${pricing}
+
+Réponds en français, format structuré Telegram (markdown bold avec **):
+
+**🕵️ CONCURRENTS DÉTECTÉS & ACTIVITÉ**
+(liste les comptes/agences trouvés, leur activité, fréquence de publication, types de contenu — si données limitées, dis-le clairement)
+
+**💰 COMPARAISON TARIFAIRE**
+(prix concurrents vs nos prix — si trouvés dans les données)
+
+**📊 OPPORTUNITÉS MARCHÉ**
+(ce que personne ne fait encore, lacunes, tendances à exploiter à Oran)
+
+**⚡ ACTION IMMÉDIATE RECOMMANDÉE**
+(une seule action très précise et concrète à faire aujourd'hui)
+
+**📱 SCRIPT VIDÉO SUGGÉRÉ**
+(15-20 sec en français, exploite une lacune détectée)`,
+  }], undefined);
+
+  // ── Envoi de l'analyse sur Telegram ────────────────────────
+  if (makeVideo) {
+    await sendTelegramForMarketing(chatId, `${analysis.text}\n\n⏳ _Création de la contre-pub en cours..._`);
+    const { data: cars } = await supabase.from('cars').select('*').eq('available', true).limit(1);
+    const car = (cars ?? [])[Math.floor(Math.random() * (cars ?? []).length)] as Car | undefined;
+    if (car) {
+      await createMarketingVideoTool({ car_name: car.name, style: 'prix' }, sessionId);
+    }
+    return '✅ Analyse concurrents envoyée + vidéo contre-pub créée.';
+  }
+
+  // Envoyer l'analyse sur Telegram et la retourner aussi dans la réponse (tronquée pour Claude)
+  await sendTelegramForMarketing(chatId, analysis.text).catch(() => {});
+  return analysis.text.substring(0, 3000);
+}
+
+async function watchMyTiktok(input: Record<string, unknown>): Promise<string> {
+  const handle = ((input['handle'] as string | undefined) ?? 'fikconciergerieoran').replace('@', '');
+
+  const [profileData, searchData] = await Promise.all([
+    jFetch(`https://www.tiktok.com/@${handle}`, 3000),
+    jSearch(`@${handle} tiktok location voiture oran fik conciergerie`, 2000),
+  ]);
+
+  const analysis = await chat([{
+    role: 'user',
+    content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran. Analyse notre compte TikTok @${handle}.
+
+DONNÉES PROFIL TIKTOK:
+${profileData}
+
+RÉSULTATS RECHERCHE:
+${searchData}
+
+Analyse en français, format Telegram (markdown):
+
+**📊 ÉTAT DU COMPTE @${handle}**
+(abonnés, vues, engagement approximatif si visible)
+
+**🎬 VIDÉOS RÉCENTES**
+(titres, sujets, performance si disponible)
+
+**✅ CE QUI FONCTIONNE**
+(types de contenu qui marchent bien)
+
+**❌ CE QUI MANQUE**
+(opportunités non exploitées, types de vidéos à essayer)
+
+**🚀 3 RECOMMANDATIONS CONCRÈTES**
+(actions spécifiques à faire cette semaine)
+
+Si les données sont limitées (TikTok bloque souvent les scrapers), dis-le et propose quand même des pistes basées sur les bonnes pratiques du secteur location voiture Oran.`,
+  }], undefined);
+
+  return analysis.text.substring(0, 3000);
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── CODE AGENT AUTONOME ───────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+
+async function executeCodeTaskTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const task   = input['task'] as string;
+  const repo   = (input['repo'] as string | undefined) ?? 'ibrahim';
+  const chatId = chatIdFromSession(sessionId);
+
+  if (!task) return '❌ task requis — décris ce qui doit être codé';
+
+  // Lance l'agent en arrière-plan (non-bloquant)
+  runCodeAgent(task, chatId, repo).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    sendTelegramForMarketing(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
+  });
+
+  return `✅ Code Agent lancé pour: "${task.slice(0, 80)}"\n⏳ Je te tiens informé sur Telegram au fur et à mesure (5-15 min selon la complexité).`;
+}
+
+async function createNewProjectTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const clientName   = input['client_name']   as string;
+  const businessType = input['business_type'] as string;
+  const description  = input['description']   as string;
+  const phone        = (input['phone']        as string | undefined) ?? '';
+  const city         = (input['city']         as string | undefined) ?? 'Oran';
+  const chatId       = chatIdFromSession(sessionId);
+
+  if (!clientName || !businessType || !description)
+    return '❌ client_name, business_type et description sont requis';
+
+  const repoName = `client-${clientName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+  const task = `Créer un site web professionnel complet pour un client.
+
+CLIENT: ${clientName}
+TYPE DE BUSINESS: ${businessType}
+VILLE: ${city}
+TÉLÉPHONE: ${phone || 'à définir'}
+DESCRIPTION / CONTENU SOUHAITÉ: ${description}
+
+INSTRUCTIONS TECHNIQUES:
+1. Créer les fichiers dans le dossier clients/${repoName}/ du repo ibrahim
+2. Fichiers minimum: index.html, style.css, script.js
+3. Design: moderne, responsive, professionnel
+4. Langue: français (ou arabe si demandé)
+5. Inclure: header avec nom + logo placeholder, section services, contact avec téléphone, footer
+6. Couleurs: choisir selon le type de business (restaurant → chaleureux, médecin → bleu/blanc, etc.)
+7. Après création → verify_deploy pour confirmer
+
+À la fin, annoncer que le site est prêt et indiquer comment le déployer sur Netlify.`;
+
+  runCodeAgent(task, chatId, 'ibrahim').catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    sendTelegramForMarketing(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
+  });
+
+  return `✅ Création du site pour ${clientName} (${businessType}) lancée!\n⏳ Code Agent au travail — résultat sur Telegram dans 10-20 min.`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ── GÉNÉRATION IA — Replicate (images) + fal.ai (vidéos) ─────
+// ════════════════════════════════════════════════════════════════
+
+async function replicateGenerate(
+  model: string,
+  input: Record<string, unknown>,
+  token: string,
+  maxMs = 120_000,
+): Promise<string> {
+  const createResp = await axios.post(
+    `https://api.replicate.com/v1/models/${model}/predictions`,
+    { input },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Prefer: 'wait=10',
+      },
+      timeout: 30_000,
+    },
+  );
+
+  type Prediction = { id: string; status: string; output: unknown; error?: string };
+  let pred = createResp.data as Prediction;
+
+  if (pred.status === 'succeeded') {
+    const out = Array.isArray(pred.output) ? pred.output[0] : pred.output;
+    return String(out);
+  }
+
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    await new Promise(r => setTimeout(r, 3000));
+    const poll = await axios.get(`https://api.replicate.com/v1/predictions/${pred.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15_000,
+    });
+    pred = poll.data;
+    if (pred.status === 'succeeded') {
+      const out = Array.isArray(pred.output) ? pred.output[0] : pred.output;
+      return String(out);
+    }
+    if (pred.status === 'failed' || pred.status === 'canceled') {
+      throw new Error(`Replicate: ${pred.error ?? 'prediction failed'}`);
+    }
+  }
+  throw new Error('Replicate: timeout après 2 minutes');
+}
+
+// ── Shared helper: find car by partial/insensitive name, return id+name+image_url ──
+async function findCarByName(name: string): Promise<{ id: string; name: string; image_url: string } | null> {
+  const { data: cars } = await supabase.from('cars').select('id, name, image_url');
+  if (!cars?.length) return null;
+  const q = name.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  // 1. Exact match
+  let hit = cars.find(c => c.name.toLowerCase() === q);
+  if (hit) return hit as { id: string; name: string; image_url: string };
+
+  // 2. Contains (car name ⊇ query OR query ⊇ car name)
+  hit = cars.find(c => {
+    const cn = c.name.toLowerCase();
+    return cn.includes(q) || q.includes(cn);
+  });
+  if (hit) return hit as { id: string; name: string; image_url: string };
+
+  // 3. Any significant word match (>= 3 chars)
+  const words = q.split(/\s+/).filter(w => w.length >= 3);
+  for (const word of words) {
+    hit = cars.find(c => c.name.toLowerCase().includes(word));
+    if (hit) return hit as { id: string; name: string; image_url: string };
+  }
+
+  return null;
+}
+
+async function falGenerate(
+  modelId: string,
+  input: Record<string, unknown>,
+  falKey: string,
+  maxMs = 240_000,
+): Promise<string> {
+  type FalQueue = {
+    request_id: string;
+    status?: string;
+    response_url?: string;  // fal.ai provides exact result URL
+    status_url?: string;    // fal.ai provides exact status URL
+  };
+
+  // Submit to fal.ai queue
+  let submitResp;
+  try {
+    submitResp = await axios.post(
+      `https://queue.fal.run/${modelId}`,
+      input,
+      { headers: { Authorization: `Key ${falKey}`, 'Content-Type': 'application/json' }, timeout: 30_000 },
+    );
+  } catch (submitErr: any) {
+    if (submitErr.response) {
+      throw new Error(`fal.ai submit (${modelId}): HTTP ${submitErr.response.status} — ${JSON.stringify(submitErr.response.data).slice(0, 300)}`);
+    }
+    throw submitErr;
+  }
+
+  const queued = submitResp.data as FalQueue;
+  const { request_id, response_url, status_url } = queued;
+
+  // Use URLs from fal.ai response — never construct manually (avoids 405 on result fetch)
+  const pollUrl    = status_url   ?? `https://queue.fal.run/${modelId}/requests/${request_id}/status`;
+  const resultUrl  = response_url ?? `https://queue.fal.run/${modelId}/requests/${request_id}`;
+
+  // Poll for completion — HTTP 200 and 202 both mean "still running", only body status matters
+  const start = Date.now();
+  let completed = false;
+  while (Date.now() - start < maxMs) {
+    await new Promise(r => setTimeout(r, 5000));
+    const statusResp = await axios.get(pollUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000, validateStatus: () => true });
+    const httpStatus = statusResp.status;
+    if (httpStatus === 401 || httpStatus === 403) throw new Error(`fal.ai: auth rejetée (${httpStatus})`);
+    if (httpStatus === 404) throw new Error('fal.ai: endpoint introuvable (404)');
+    if (httpStatus >= 500) throw new Error(`fal.ai: erreur serveur (${httpStatus})`);
+    const jobStatus: string = (statusResp.data as any)?.status ?? (statusResp.data as any)?.state ?? '';
+    if (jobStatus === 'COMPLETED') { completed = true; break; }
+    if (jobStatus === 'FAILED' || jobStatus === 'ERROR') throw new Error(`fal.ai: job échoué (status=${jobStatus})`);
+    // IN_QUEUE / IN_PROGRESS / HTTP 202 → continue polling
+  }
+  if (!completed) throw new Error(`fal.ai: timeout après ${Math.round(maxMs / 1000)}s`);
+
+  // Fetch result via response_url
+  const resultResp = await axios.get(resultUrl, { headers: { Authorization: `Key ${falKey}` }, timeout: 15_000 });
+
+  const result = resultResp.data as Record<string, unknown>;
+  // fal.ai returns { video:{url} }, { images:[{url}] }, or { image:{url} } (BiRefNet/image models)
+  const videoUrl = (result['video'] as any)?.url as string | undefined;
+  if (videoUrl) return videoUrl;
+  const images = result['images'] as any[] | undefined;
+  if (images?.[0]?.url) return images[0].url as string;
+  const singleImage = (result['image'] as any)?.url as string | undefined;
+  if (singleImage) return singleImage;
+  return JSON.stringify(result);
+}
+
+// ── Runway Gen-3 Alpha Turbo — image-to-video ─────────────────────────────────
+async function runwayGenerate(
+  imageUrl: string,
+  prompt: string,
+  duration: 5 | 10,
+  token: string,
+  maxMs = 240_000,
+): Promise<string> {
+  const headers = {
+    Authorization:      `Bearer ${token}`,
+    'X-Runway-Version': '2024-11-06',
+    'Content-Type':     'application/json',
+  };
+
+  // gen4.5 supports portrait 720:1280 — gen3a_turbo only supported 768:1280 (caused 400)
+  const payload = {
+    model:       'gen4_turbo',  // gen4.5 confirmed in docs; gen4_turbo also valid
+    promptImage: imageUrl,
+    promptText:  prompt,
+    ratio:       '720:1280',
+    duration,
+  };
+
+  console.log(`[runwayGenerate] POST https://api.dev.runwayml.com/v1/image_to_video`);
+  console.log(`[runwayGenerate] Authorization: ${token ? `Bearer ***${token.slice(-6)}` : 'MISSING'}`);
+  console.log(`[runwayGenerate] X-Runway-Version: 2024-11-06 | Content-Type: application/json`);
+  console.log(`[runwayGenerate] payload: model=${payload.model} ratio=${payload.ratio} duration=${payload.duration}`);
+  console.log(`[runwayGenerate] promptImage: ${imageUrl.slice(0, 100)}`);
+  console.log(`[runwayGenerate] promptText: "${prompt.slice(0, 100)}"`);
+
+  let submitResp;
+  try {
+    submitResp = await axios.post(
+      'https://api.dev.runwayml.com/v1/image_to_video',
+      payload,
+      { headers, timeout: 30_000 },
+    );
+  } catch (err: any) {
+    if (err.response) {
+      const status  = err.response.status as number;
+      const data    = err.response.data;
+      const errMsg  = typeof data === 'object' ? JSON.stringify(data) : String(data);
+      console.error(`[runwayGenerate] ❌ HTTP ${status} — Runway response: ${errMsg}`);
+      if (status === 400) throw new Error(`Runway a rejeté la requête (400): ${errMsg}`);
+      if (status === 401 || status === 403) throw new Error(`Runway: auth rejetée (${status})`);
+      throw new Error(`Runway: erreur HTTP ${status} — ${errMsg}`);
+    }
+    console.error(`[runwayGenerate] ❌ network error:`, err.message);
+    throw err;
+  }
+
+  const taskId: string = (submitResp.data as any)?.id;
+  if (!taskId) {
+    console.error(`[runwayGenerate] ❌ pas de task ID — réponse complète:`, JSON.stringify(submitResp.data));
+    throw new Error('Runway: pas de task ID dans la réponse');
+  }
+  console.log(`[runwayGenerate] ✅ task créée: taskId=${taskId} — polling...`);
+
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    await new Promise(r => setTimeout(r, 5000));
+    const elapsed = Math.round((Date.now() - start) / 1000);
+    const statusResp = await axios.get(
+      `https://api.dev.runwayml.com/v1/tasks/${taskId}`,
+      { headers, timeout: 15_000, validateStatus: () => true },
+    );
+    const httpStatus = statusResp.status;
+    if (httpStatus === 401 || httpStatus === 403) throw new Error(`Runway: auth rejetée (${httpStatus})`);
+    if (httpStatus === 404) throw new Error(`Runway: task introuvable (${taskId})`);
+    if (httpStatus >= 500) throw new Error(`Runway: erreur serveur (${httpStatus})`);
+    const task   = statusResp.data as any;
+    const status = (task?.status ?? '') as string;
+    console.log(`[runwayGenerate] taskId=${taskId} status=${status || 'unknown'} (${elapsed}s)`);
+    if (status === 'SUCCEEDED') {
+      const output = task?.output as string[] | undefined;
+      if (output?.[0]) {
+        console.log(`[runwayGenerate] ✅ SUCCEEDED — output[0]=${output[0]}`);
+        return output[0];
+      }
+      throw new Error('Runway: SUCCEEDED mais aucune URL vidéo dans output');
+    }
+    if (status === 'FAILED') {
+      const reason = task?.failure ?? task?.failureCode ?? 'raison inconnue';
+      throw new Error(`Runway: génération échouée — ${reason}`);
+    }
+    // PENDING / RUNNING → continue polling
+  }
+  throw new Error(`Runway: timeout après ${Math.round(maxMs / 1000)}s`);
+}
+
+// ── Scene transformation detection — keywords that indicate background relocation ─
+function detectSceneTransformation(userPrompt: string): boolean {
+  const lower = userPrompt.toLowerCase();
+  const keywords = [
+    // FR locations
+    'plage', 'beach',
+    'montagne', 'mountain',
+    ' mer ', ' mer,', ' mer.', 'bord de mer', 'face à la mer', 'vue sur la mer',
+    'sea ', 'ocean', 'côte', 'côtier', 'côtière', 'coastal', 'corniche',
+    'désert', 'desert',
+    'forêt', 'foret', 'forest',
+    'campagne', 'countryside', 'falaise', 'cliff',
+    // Algeria specifics
+    'oran', 'oranais', 'oranaise', 'algérie', 'algerie', 'algérien', 'alger',
+    // Generic transformation intent
+    'arrière-plan', 'arriere-plan', 'background', 'décor', 'decor',
+    'paysage', 'scenery', 'setting',
+    // Relocation verbs / patterns
+    'mets la voiture', 'met la voiture', 'place la voiture',
+    'déplace', 'deplace', 'relocate',
+    'sur une plage', 'sur la plage', 'sur une montagne', 'sur la montagne',
+    'dans le désert', 'dans la forêt', 'dans un décor',
+    'face à la', 'face a la', 'au bord de', 'avec vue sur',
+    'route côtière', 'route cotiere',
+  ];
+  return keywords.some(kw => lower.includes(kw));
+}
+
+// ── Prompt builder ─────────────────────────────────────────────────────────────
+// Strict fidelity  (sceneTransformation=false): motion-only prompt, cfgScale=0.4
+// Scene transform  (sceneTransformation=true) : car identity from image + new env
+// KEY: for image-to-video, NEVER describe the car appearance — image is the reference.
+function buildVideoPromptForRealism(opts: {
+  carName:              string;
+  userScene:            string;
+  mode:                 'image-to-video' | 'text-to-video';
+  sceneTransformation?: boolean;
+}): { prompt: string; negativePrompt: string; cfgScale: number } {
+  const { carName, userScene, mode, sceneTransformation = false } = opts;
+
+  const baseNegativePrompt = [
+    'morphing, body deformation, shape distortion, color change',
+    'concept car, car redesign, stylized render, CGI, anime, cartoon',
+    'oversaturated, dramatic fake lighting, neon glow',
+    'speed blur, drift, stunt, explosion, smoke',
+    'unrealistic reflections, plastic look, blurry, low quality',
+    'AI artifact, glitch, uncanny valley',
+  ].join(', ');
+
+  // ── text-to-video (no source image) ─────────────────────────────────────────
+  if (mode === 'text-to-video') {
+    const scene = userScene.length > 15 ? userScene : 'coastal road in Oran, Algeria, golden hour';
+    const prompt = [
+      `Real filmed video of a ${carName || 'car'}. ${scene}.`,
+      'Car drives slowly and naturally.',
+      'Camera at 3/4 front angle, smooth and stable.',
+      'Natural lighting, realistic road surface, realistic motion.',
+      'Looks like a real video, not CGI or AI-stylized.',
+    ].join(' ');
+    return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.5 };
+  }
+
+  // ── image-to-video: scene transformation — car from image, env from text ─────
+  // cfgScale=0.65 → give more weight to prompt so background actually changes
+  if (sceneTransformation) {
+    const prompt = [
+      'Use the provided vehicle image as the identity reference for the car only.',
+      "Preserve the car's exact shape, color, body lines and visible details.",
+      `Relocate the car into a completely new environment: ${userScene}.`,
+      'Replace the original background entirely with the requested new scene.',
+      'The vehicle must appear naturally placed and integrated into the new location.',
+      'Show the new setting clearly — the original background must not remain visible.',
+      'Natural lighting that matches the new environment. Smooth realistic camera motion.',
+      'Looks like a real filmed video.',
+    ].join(' ');
+    const negativePrompt = baseNegativePrompt + ', original background, same scene as source image, unchanged environment';
+    return { prompt, negativePrompt, cfgScale: 0.65 };
+  }
+
+  // ── image-to-video: strict fidelity — preserve car + scene, motion only ──────
+  // cfgScale=0.4 → image-faithful, minimal divergence from source
+  const scene = userScene.length > 15 ? userScene : 'coastal road in Oran, Algeria, golden hour';
+  const prompt = [
+    `Real filmed video. ${scene}.`,
+    'Car moves slowly and naturally.',
+    'Minimal camera motion, smooth handheld or gimbal shot.',
+    'Natural daylight, realistic road surface, natural shadows.',
+    'Realistic reflections, no stylization.',
+    'Looks like a real video shot with a camera.',
+  ].join(' ');
+  return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.4 };
+}
+
+// ── Source image quality check (HEAD, no download) ────────────────────────────
+async function prepareSourceImage(imageUrl: string): Promise<{ valid: boolean; sizeKb: number; note: string }> {
+  try {
+    const resp   = await axios.head(imageUrl, { timeout: 8_000, validateStatus: () => true });
+    if (resp.status >= 400) return { valid: false, sizeKb: 0, note: `HTTP ${resp.status}` };
+    const bytes  = Number(resp.headers['content-length'] ?? 0);
+    const sizeKb = bytes > 0 ? Math.round(bytes / 1024) : 0;
+    const note   = sizeKb > 0
+      ? (sizeKb < 15 ? `⚠️ image petite (${sizeKb}KB) — qualité peut varier` : `OK (${sizeKb}KB)`)
+      : 'OK (taille inconnue)';
+    return { valid: true, sizeKb, note };
+  } catch (err: any) {
+    return { valid: false, sizeKb: 0, note: `Inaccessible: ${err.message}` };
+  }
+}
+
+// ── Step A: Remove background — fal.ai BiRefNet ───────────────────────────────
+// Returns URL of PNG with transparent background (car only)
+async function extractCarFromBackground(imageUrl: string, falKey: string, maxMs = 90_000): Promise<string> {
+  console.log(`[extractCarFromBackground] BiRefNet — imageUrl=${imageUrl}`);
+  const url = await falGenerate(
+    'fal-ai/birefnet',
+    { image_url: imageUrl, model: 'General Use (Light)' },
+    falKey,
+    maxMs,
+  );
+  if (url.startsWith('{')) throw new Error(`BiRefNet returned unexpected JSON: ${url.slice(0, 120)}`);
+  console.log(`[extractCarFromBackground] ✅ carPNG=${url}`);
+  return url;
+}
+
+// ── Step B: Place extracted car in a new scene ────────────────────────────────
+// Uses BRIA product-shot: car PNG is the fixed foreground asset, only the
+// background is generated. The car is NEVER redrawn → color/shape preserved.
+// Primary:  fal-ai/bria/product-shot  (purpose-built for product-on-new-bg)
+// Fallback: fal-ai/bria/background-generation  (same BRIA family, alt name)
+async function generateCarInNewScene(
+  carPngUrl:      string,
+  requestedScene: string,
+  _carName:       string,   // kept for API compatibility — BRIA infers car from image
+  falKey:         string,
+  maxMs = 120_000,
+): Promise<string> {
+  // Scene prompt describes only the environment — car identity comes from the PNG
+  const scenePrompt = [
+    `${requestedScene}.`,
+    'Professional automotive photography, photorealistic, cinematic lighting, 4K.',
+    'Realistic outdoor environment, natural light, no studio backdrop.',
+    'Car is the main subject, naturally integrated.',
+  ].join(' ');
+
+  // ── Attempt 1: BRIA product-shot ─────────────────────────────────────────
+  // The image_url (car PNG, transparent bg) becomes the fixed foreground.
+  // BRIA generates only the background around it — car pixels unchanged.
+  const endpoint1 = 'fal-ai/bria/product-shot';
+  const input1 = { image_url: carPngUrl, prompt: scenePrompt, num_results: 1 };
+  console.log(`[generateCarInNewScene] T1: ${endpoint1} | car is fixed foreground (color/shape auto-preserved)`);
+  console.log(`[generateCarInNewScene] input.image_url=${carPngUrl}`);
+  console.log(`[generateCarInNewScene] input.prompt="${scenePrompt}"`);
+  let error1 = '';
+  try {
+    const url = await falGenerate(endpoint1, input1, falKey, Math.round(maxMs * 0.65));
+    if (url.startsWith('{')) throw new Error(`JSON inattendu: ${url.slice(0, 200)}`);
+    console.log(`[generateCarInNewScene] ✅ T1 BRIA product-shot OK → ${url}`);
+    return url;
+  } catch (err1: any) {
+    error1 = err1.message;
+    console.warn(`[generateCarInNewScene] ❌ T1 (${endpoint1}): ${error1}`);
+  }
+
+  // ── Attempt 2: BRIA background-generation (same family, alternative endpoint) ──
+  const endpoint2 = 'fal-ai/bria/background-generation';
+  const input2 = { image_url: carPngUrl, prompt: scenePrompt };
+  console.log(`[generateCarInNewScene] T2: ${endpoint2}`);
+  try {
+    const url = await falGenerate(endpoint2, input2, falKey, Math.round(maxMs * 0.8));
+    if (url.startsWith('{')) throw new Error(`JSON inattendu: ${url.slice(0, 200)}`);
+    console.log(`[generateCarInNewScene] ✅ T2 BRIA background-generation OK → ${url}`);
+    return url;
+  } catch (err2: any) {
+    const error2 = err2.message;
+    console.error(`[generateCarInNewScene] ❌ T2 (${endpoint2}): ${error2}`);
+    throw new Error(`generateCarInNewScene: T1 (${endpoint1}): ${error1} | T2 (${endpoint2}): ${error2}`);
+  }
+}
+
+// ── Step B validation: check the transformed keyframe is a real scene image ──
+async function validateTransformedKeyframe(imageUrl: string): Promise<{ valid: boolean; reason: string; sizeKb: number }> {
+  try {
+    const resp = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30_000 });
+    const buf  = Buffer.from(resp.data as ArrayBuffer);
+    const sizeKb = Math.round(buf.length / 1024);
+    const contentType = (resp.headers['content-type'] as string | undefined) ?? '';
+
+    if (!contentType.startsWith('image/')) {
+      return { valid: false, reason: `content-type non image: "${contentType}"`, sizeKb };
+    }
+    if (buf.length < 30_000) {
+      return { valid: false, reason: `image trop petite (${sizeKb} KB) — probablement fond vide ou transparent`, sizeKb };
+    }
+    // Magic bytes: JPEG = FF D8, PNG = 89 50 4E 47
+    const isJpeg = buf[0] === 0xFF && buf[1] === 0xD8;
+    const isPng  = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+    if (!isJpeg && !isPng) {
+      return { valid: false, reason: `format non reconnu (magic: ${buf.slice(0, 4).toString('hex')})`, sizeKb };
+    }
+    return { valid: true, reason: `OK — ${sizeKb} KB, ${contentType}`, sizeKb };
+  } catch (err: any) {
+    return { valid: false, reason: `téléchargement échoué: ${err.message}`, sizeKb: 0 };
+  }
+}
+
+async function generateVehicleVideo(opts: {
+  imageUrl:            string | null;
+  userPrompt:          string;
+  carName:             string;
+  duration:            number;
+  falKey:              string | undefined;
+  runwayKey:           string | undefined;
+  forceProvider?:      'runway' | 'kling' | 'auto';
+  sceneTransformation?: boolean;
+}): Promise<{ url: string; provider: string; mode: 'image-to-video' | 'text-to-video' }> {
+  const { imageUrl, userPrompt, carName, duration, falKey, runwayKey, forceProvider = 'auto', sceneTransformation = false } = opts;
+  const dur  = (duration <= 5 ? 5 : 10) as 5 | 10;
+  const mode: 'image-to-video' | 'text-to-video' = imageUrl ? 'image-to-video' : 'text-to-video';
+
+  const { prompt, negativePrompt, cfgScale } = buildVideoPromptForRealism({ carName, userScene: userPrompt, mode, sceneTransformation });
+  console.log(`[generateVehicleVideo] forceProvider=${forceProvider} mode=${mode} sceneTransformation=${sceneTransformation} cfgScale=${cfgScale} runway=${!!runwayKey} fal=${!!falKey}`);
+  console.log(`[generateVehicleVideo] prompt="${prompt.slice(0, 120)}"`);
+
+  // ── FORCED RUNWAY ─────────────────────────────────────────────────────────
+  if (forceProvider === 'runway') {
+    if (!runwayKey) throw new Error('RUNWAY_API_KEY non configurée dans Railway. Ajoute-la dans Railway → Variables → RUNWAY_API_KEY.');
+    if (!imageUrl)  throw new Error('Runway image-to-video nécessite une image source — voiture non trouvée dans la flotte ou sans photo.');
+    console.log(`[generateVehicleVideo] FORCED RUNWAY — imageUrl=${imageUrl}`);
+    const url = await runwayGenerate(imageUrl, prompt, dur, runwayKey, 240_000);
+    return { url, provider: 'Runway Gen-3', mode };
+  }
+
+  // ── FORCED KLING ──────────────────────────────────────────────────────────
+  if (forceProvider === 'kling') {
+    if (!falKey) throw new Error('FAL_KEY non configurée — impossible d\'utiliser Kling.');
+    if (imageUrl) {
+      const url = await falGenerate(
+        'fal-ai/kling-video/v1.6/standard/image-to-video',
+        { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), aspect_ratio: '9:16' },
+        falKey, 240_000,
+      );
+      return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
+    }
+    const url = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/text-to-video',
+      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+    return { url, provider: 'Kling 1.6', mode: 'text-to-video' };
+  }
+
+  // ── AUTO: Runway first if available ───────────────────────────────────────
+  if (imageUrl && runwayKey) {
+    try {
+      console.log(`[generateVehicleVideo] AUTO — essai Runway d'abord...`);
+      const url = await runwayGenerate(imageUrl, prompt, dur, runwayKey, 240_000);
+      return { url, provider: 'Runway Gen-3', mode };
+    } catch (err: any) {
+      console.warn('[generateVehicleVideo] Runway failed → Kling fallback:', err.message);
+    }
+  } else if (imageUrl && !runwayKey) {
+    console.log('[generateVehicleVideo] Runway non configuré, fallback vers Kling.');
+  }
+
+  // Kling image-to-video — cfgScale from builder (0.4 strict / 0.65 scene transform)
+  if (imageUrl && falKey) {
+    const url = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/image-to-video',
+      { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+    return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
+  }
+
+  // Kling text-to-video (last resort)
+  if (falKey) {
+    const url = await falGenerate(
+      'fal-ai/kling-video/v1.6/standard/text-to-video',
+      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16' },
+      falKey, 240_000,
+    );
+    return { url, provider: 'Kling 1.6', mode: 'text-to-video' };
+  }
+
+  throw new Error('Aucun provider vidéo configuré — ajoute FAL_KEY dans Railway → Variables');
+}
+
+async function generateImageTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const token = env.REPLICATE_API_TOKEN;
+  if (!token) return '❌ REPLICATE_API_TOKEN non configuré dans Railway. Ajoute-le dans Railway → Variables.';
+
+  const prompt      = input['prompt'] as string;
+  const aspectRatio = (input['aspect_ratio'] as string) ?? '9:16';
+  const style       = (input['style'] as string) ?? 'photorealistic';
+  const chatId      = chatIdFromSession(sessionId);
+
+  const styleModifier: Record<string, string> = {
+    photorealistic: 'ultra-realistic, photographic, DSLR quality, 4K',
+    cinematic:      'cinematic photography, film grain, professional lighting, movie scene',
+    artistic:       'artistic, vibrant colors, creative composition',
+    luxury:         'luxury brand photography, glossy, premium, elegant',
+  };
+
+  const fullPrompt = `${prompt}, ${styleModifier[style] ?? styleModifier['photorealistic']}`;
+
+  await sendTelegramForMarketing(chatId, `🎨 *Génération image IA — Flux.1*\n_"${prompt.slice(0, 80)}"_\n⏳ 15-30 secondes...`);
+
+  const imageUrl = await replicateGenerate(
+    'black-forest-labs/flux-1.1-pro',
+    {
+      prompt:         fullPrompt,
+      aspect_ratio:   aspectRatio,
+      output_format:  'jpg',
+      output_quality: 90,
+      safety_tolerance: 2,
+    },
+    token,
+    90_000,
+  );
+
+  let delivered = false;
+  try {
+    await sendTelegramPhoto(chatId, imageUrl, `🎨 *Image générée — Flux.1 Pro*\n_${prompt.slice(0, 100)}_`);
+    delivered = true;
+  } catch (err: any) {
+    console.error('[generateImageTool] sendTelegramPhoto failed:', err.message);
+  }
+
+  if (delivered) {
+    return `✅ Image Flux.1 générée et envoyée sur Telegram ↑\nURL: ${imageUrl}`;
+  }
+  return `⚠️ Image générée mais envoi Telegram échoué.\nURL directe: ${imageUrl}`;
+}
+
+async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const falKey    = env.FAL_KEY;
+  const runwayKey = env.RUNWAY_API_KEY;
+
+  // Startup log — visible in Railway logs every time a video is requested
+  console.log(`[video-providers] Runway configured: ${runwayKey ? 'true ✅' : 'false'} | fal.ai configured: ${falKey ? 'true ✅' : 'false'}`);
+
+  if (!falKey && !runwayKey) return '❌ Aucun provider vidéo configuré. Ajoute FAL_KEY dans Railway → Variables.';
+
+  const prompt          = input['prompt'] as string;
+  const duration        = Number(input['duration'] ?? 5);
+  const carName         = input['car_name'] as string | undefined;
+  const forceProvider   = (input['provider'] as 'auto' | 'runway' | 'kling' | undefined) ?? 'auto';
+  const chatId          = chatIdFromSession(sessionId);
+
+  // ── Duplicate lock ─────────────────────────────────────────────────────────
+  const lockKey = chatId || sessionId || 'global';
+  if (videoGenLocks.has(lockKey)) {
+    console.log(`[generateAiVideoTool] duplicate video generation skipped (lockKey=${lockKey})`);
+    return '⏳ Génération vidéo déjà en cours pour cette session. La précédente se termine dans 1-4 min.';
+  }
+  videoGenLocks.add(lockKey);
+
+  try {
+  const sceneTransformation = detectSceneTransformation(prompt);
+  const requestedScene      = sceneTransformation ? prompt.slice(0, 80) : '';
+  console.log(`[generateAiVideoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'non précisée'}" | sceneTransformation=${sceneTransformation}${sceneTransformation ? ` requestedScene="${requestedScene}"` : ''}`);
+
+  // ── Lookup real car photo from Supabase ────────────────────────────────────
+  let carImageUrl:   string | null = null;
+  let carDisplayName = '';
+
+  if (carName) {
+    const car = await findCarByName(carName);
+    console.log(`[generateAiVideoTool] voiture demandée: "${carName}" → ${car ? `trouvée: "${car.name}"` : 'non trouvée'}`);
+    if (car?.image_url) {
+      console.log(`[generateAiVideoTool] image_url: ${car.image_url}`);
+      const imgCheck = await prepareSourceImage(car.image_url);
+      console.log(`[generateAiVideoTool] image check: ${imgCheck.note}`);
+      if (imgCheck.valid) {
+        carImageUrl    = car.image_url;
+        carDisplayName = car.name;
+        console.log(`[generateAiVideoTool] ✅ mode image-to-video activé: ${car.name}`);
+      } else {
+        console.log(`[generateAiVideoTool] ⚠️ Image invalide pour ${car.name} (${imgCheck.note}) → text-to-video`);
+      }
+    } else {
+      console.log(`[generateAiVideoTool] ⚠️ Aucune image_url pour "${carName}" → text-to-video`);
+    }
+  }
+
+  // ── Scene transformation pipeline (3 steps) ──────────────────────────────
+  // Preprocessing happens here so we can send per-step Telegram progress messages.
+  let effectiveImageUrl: string | null = carImageUrl;
+  let carExtraction           = false;
+  let transformedKeyframeCreated = false;
+
+  if (sceneTransformation && carImageUrl && falKey) {
+    // STEP 1 — Background removal
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Transformation de scène — ${carDisplayName}*\n✅ Photo réelle du véhicule trouvée.\n_Étape 1/3 : Extraction de la voiture (suppression du fond)..._\n⏳ Patience...`);
+    let carOnlyUrl: string;
+    try {
+      carOnlyUrl = await extractCarFromBackground(carImageUrl, falKey, 90_000);
+      carExtraction = true;
+      console.log(`[generateAiVideoTool] carExtraction=true carOnlyUrl=${carOnlyUrl}`);
+    } catch (extractErr: any) {
+      console.warn(`[generateAiVideoTool] carExtraction=FAILED: ${extractErr.message}`);
+      throw new Error(`Impossible d'isoler correctement la voiture pour transformer le décor. J'ai besoin d'une photo plus propre / mieux cadrée.`);
+    }
+
+    // STEP 2 — New scene generation (no fallback — fail clean if this fails)
+    await sendTelegramForMarketing(chatId,
+      `✅ *Voiture extraite.* Étape 2/3 : Création de la nouvelle scène...\n_"${requestedScene.slice(0, 60)}"_\n⏳ 30-90 secondes...`);
+    let transformedUrl: string;
+    try {
+      transformedUrl = await generateCarInNewScene(carOnlyUrl, prompt, carDisplayName || carName || '', falKey, 150_000);
+    } catch (sceneErr: any) {
+      console.error(`[generateAiVideoTool] transformedKeyframeCreated=false: ${sceneErr.message}`);
+      await sendTelegramForMarketing(chatId,
+        `❌ *La recréation de la nouvelle scène a échoué.*\nJe n'ai pas lancé l'animation pour éviter un rendu incohérent.\n_Erreur: ${sceneErr.message.slice(0, 200)}_`);
+      throw new Error(`Transformation de scène échouée : ${sceneErr.message}`);
+    }
+
+    // STEP 2b — Validate the transformed keyframe
+    console.log(`[generateAiVideoTool] validation keyframe intermédiaire: ${transformedUrl}`);
+    const kfValidation = await validateTransformedKeyframe(transformedUrl);
+    console.log(`[generateAiVideoTool] transformedKeyframeValidated=${kfValidation.valid} raison="${kfValidation.reason}" sizeKb=${kfValidation.sizeKb}`);
+    if (!kfValidation.valid) {
+      await sendTelegramForMarketing(chatId,
+        `❌ *Image intermédiaire invalide* (${kfValidation.reason}).\nGénération vidéo annulée — la scène créée n'est pas exploitable.`);
+      throw new Error(`Keyframe invalide: ${kfValidation.reason}`);
+    }
+
+    transformedKeyframeCreated = true;
+    effectiveImageUrl = transformedUrl;
+    console.log(`[generateAiVideoTool] transformedKeyframeCreated=true transformedUrl=${transformedUrl}`);
+    await sendTelegramForMarketing(chatId,
+      `✅ *Nouvelle scène créée avec succès* (${kfValidation.sizeKb} KB).\nÉtape 3/3 : Animation vidéo en cours...\n⏳ 60-240 secondes...`);
+
+  } else if (forceProvider === 'runway') {
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo — Runway Gen-3* (mode forcé)\n${carImageUrl ? `✅ Photo réelle de *${carDisplayName}* trouvée.` : '⚠️ Aucune photo réelle trouvée.'}\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes, patience...`);
+  } else if (carImageUrl) {
+    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo IA — ${providerLabel}*\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes, patience...`);
+  } else {
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo IA — Kling 1.6*\n⚠️ Aucune photo réelle exploitable trouvée. Génération basée uniquement sur description, le rendu peut être moins fidèle.\n⏳ 60-240 secondes, patience...`);
+  }
+
+  const sourceImageType = effectiveImageUrl !== carImageUrl ? 'transformed' : 'original';
+  console.log(`[generateAiVideoTool] sourceImage=${sourceImageType} carExtraction=${carExtraction} transformedKeyframeCreated=${transformedKeyframeCreated} requestedScene="${requestedScene}"`);
+
+  // ── Generate via provider dispatcher ──────────────────────────────────────
+  const genStart = Date.now();
+  const { url: videoUrl, provider, mode } = await generateVehicleVideo({
+    imageUrl:            effectiveImageUrl,
+    userPrompt:          prompt,
+    carName:             carDisplayName || carName || '',
+    duration,
+    falKey,
+    runwayKey,
+    forceProvider,
+    // If we already built a transformed keyframe, just animate it (motion-only prompt)
+    // If preprocessing was skipped/failed, keep the original sceneTransformation flag
+    sceneTransformation: !transformedKeyframeCreated && sceneTransformation,
+  });
+  const genSec = Math.round((Date.now() - genStart) / 1000);
+  console.log(`[generateAiVideoTool] ✅ provider=${provider} mode=${mode} sceneTransformation=${sceneTransformation} sourceImage=${sourceImageType} durée=${genSec}s`);
+  console.log(`[generateAiVideoTool] url vidéo: ${videoUrl}`);
+
+  const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+  const buffer = Buffer.from(resp.data as ArrayBuffer);
+
+  if (!isValidMp4Buffer(buffer)) {
+    throw new Error(`${provider} a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
+  }
+
+  const caption = mode === 'image-to-video'
+    ? `🎬 *${carDisplayName} — Vidéo réaliste — ${provider}*\n_Générée depuis la vraie photo_`
+    : `🎬 *Vidéo IA — ${provider}*\n_${prompt.slice(0, 100)}_`;
+
+  let delivered = false;
+  try {
+    await sendVideoBuffer(chatId, buffer, caption);
+    delivered = true;
+  } catch (err: any) {
+    console.error('[generateAiVideoTool] sendVideoBuffer failed:', err.message);
+    try {
+      await sendTelegramForMarketing(chatId, `${caption}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${videoUrl})`);
+      delivered = true;
+    } catch { /* both failed */ }
+  }
+
+  const modeLabel = mode === 'image-to-video' ? `image réelle de ${carDisplayName}` : 'description texte';
+  if (delivered) return `✅ Vidéo réaliste créée (${provider}, ${mode}) depuis ${modeLabel} — envoyée sur Telegram ↑`;
+  return `⚠️ Vidéo générée via ${provider} (${mode}) depuis ${modeLabel} mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  } finally {
+    videoGenLocks.delete(lockKey);
+  }
+}
+
+async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const falKey    = env.FAL_KEY;
+  const runwayKey = env.RUNWAY_API_KEY;
+  if (!falKey && !runwayKey) return '❌ Aucun provider vidéo configuré. Ajoute FAL_KEY dans Railway → Variables.';
+
+  const chatId         = chatIdFromSession(sessionId);
+  const carName        = input['car_name'] as string | undefined;
+  const motionPrompt   = (input['motion_prompt'] as string) ?? 'car moving forward smoothly, cinematic camera pan, golden hour lighting';
+  const forceProvider  = (input['provider'] as 'auto' | 'runway' | 'kling' | undefined) ?? 'auto';
+
+  let imageUrl    = input['image_url'] as string | undefined;
+  let displayName = 'voiture';
+
+  console.log(`[animateCarPhotoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'auto'}"`);
+
+  // ── Duplicate lock ─────────────────────────────────────────────────────────
+  const lockKey = chatId || sessionId || 'global';
+  if (videoGenLocks.has(lockKey)) {
+    console.log(`[animateCarPhotoTool] duplicate video generation skipped (lockKey=${lockKey})`);
+    return '⏳ Génération vidéo déjà en cours pour cette session. La précédente se termine dans 1-4 min.';
+  }
+  videoGenLocks.add(lockKey);
+
+  try {
+  if (!imageUrl) {
+    if (carName) {
+      const car = await findCarByName(carName);
+      console.log(`[animateCarPhotoTool] Recherche: "${carName}" →`, car ? `${car.name} (image:${car.image_url ? 'oui' : 'non'})` : 'non trouvée');
+      if (!car?.image_url) {
+        return `❌ Voiture "${carName}" non trouvée dans la flotte ou sans photo. Vérifie le nom ou fournis image_url.`;
+      }
+      imageUrl    = car.image_url;
+      displayName = car.name;
+    } else {
+      const { data: cars } = await supabase.from('cars').select('id, name, image_url').eq('available', true);
+      const car = (cars ?? []).find((c: any) => c.image_url) as any;
+      if (!car?.image_url) return '❌ Aucune voiture avec photo trouvée. Précise car_name ou fournis image_url.';
+      imageUrl    = car.image_url as string;
+      displayName = car.name as string;
+    }
+  }
+  console.log(`[animateCarPhotoTool] image_url: ${imageUrl} | displayName: ${displayName}`);
+
+  if (forceProvider === 'runway') {
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Animation photo — Runway Gen-3* (mode forcé)\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes...`);
+  } else {
+    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Animation photo IA — ${providerLabel}*\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes...`);
+  }
+
+  const genStart = Date.now();
+  const { url: videoUrl, provider, mode } = await generateVehicleVideo({
+    imageUrl:            imageUrl ?? null,
+    userPrompt:          motionPrompt,
+    carName:             displayName,
+    duration:            5,
+    falKey,
+    runwayKey,
+    forceProvider,
+    sceneTransformation: false,
+  });
+  const genSec = Math.round((Date.now() - genStart) / 1000);
+  console.log(`[animateCarPhotoTool] ✅ provider=${provider} mode=${mode} durée=${genSec}s`);
+  console.log(`[animateCarPhotoTool] url vidéo: ${videoUrl}`);
+
+  const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+  const buffer = Buffer.from(resp.data as ArrayBuffer);
+
+  if (!isValidMp4Buffer(buffer)) {
+    throw new Error(`${provider} a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
+  }
+
+  const caption = `🎬 *${displayName} — Vidéo réaliste — ${provider}*\n_Générée depuis la vraie photo_`;
+  let delivered = false;
+  try {
+    await sendVideoBuffer(chatId, buffer, caption);
+    delivered = true;
+  } catch (err: any) {
+    console.error('[animateCarPhotoTool] sendVideoBuffer failed:', err.message);
+    try {
+      await sendTelegramForMarketing(chatId, `${caption}\n\n⚠️ Envoi direct impossible.\n[Télécharger la vidéo](${videoUrl})`);
+      delivered = true;
+    } catch { /* both failed */ }
+  }
+
+  if (delivered) return `✅ Photo de ${displayName} animée (${provider}, ${mode}) et envoyée sur Telegram ↑`;
+  return `⚠️ Vidéo générée (${provider}) mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  } finally {
+    videoGenLocks.delete(lockKey);
+  }
 }

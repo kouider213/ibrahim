@@ -5,6 +5,7 @@
  */
 
 import * as media from './media-processing.js';
+import { env } from '../config/env.js';
 
 // ─── Helper: Convertir MM:SS ou HH:MM:SS → secondes ──────────────
 
@@ -25,6 +26,10 @@ function parseTimeToSeconds(time: string | number): number {
 }
 
 export async function executeMediaTool(toolName: string, args: any): Promise<string> {
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+    return `❌ Cloudinary non configuré — ajoute CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET dans Railway pour activer le traitement image/vidéo.`;
+  }
+
   try {
     switch (toolName) {
       // ─── IMAGE ──────────────────────────────────────────────────
@@ -237,6 +242,31 @@ ${result.transcription}
 
 ✅ Aperçu créé (extrait du début de la vidéo).
 💡 Parfait pour teaser sur réseaux sociaux !`;
+      }
+
+      case 'generate_tiktok_video': {
+        const imageUrls: string[] = Array.isArray(args.image_urls)
+          ? args.image_urls
+          : (typeof args.image_urls === 'string' ? args.image_urls.split(',').map((s: string) => s.trim()) : []);
+
+        const result = await media.generateTikTokVideo({
+          image_urls: imageUrls,
+          title:      args.title     as string | undefined,
+          subtitle:   args.subtitle  as string | undefined,
+          music:      args.music     as string | undefined,
+          duration_per_image: args.duration_per_image ? Number(args.duration_per_image) : undefined,
+        });
+
+        return `🎬 **VIDÉO TIKTOK GÉNÉRÉE** ✅
+
+🎥 **Vidéo (MP4 9:16 TikTok):**
+${result.video_url}
+
+🖼️ **Miniature:**
+${result.thumbnail_url}
+
+✅ Vidéo prête — 1080×1920px, musique de fond, texte en overlay.
+💡 Poste directement sur TikTok, Instagram Reels ou Facebook Reels.`;
       }
 
       default:
