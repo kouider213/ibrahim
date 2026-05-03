@@ -5,6 +5,7 @@ import { getFinancialReport } from '../integrations/finance.js';
 import { formatPricingTable } from '../config/pricing.js';
 import type { Message } from '../integrations/claude-api.js';
 import { loadCompactionSummary } from './compaction.js';
+import { detectLanguage } from './language-detector.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -230,7 +231,12 @@ export async function buildContext(
 
   const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;
 
+  const langDetection = detectLanguage(userMessage);
+  const langHint = `\n\n${langDetection.systemHint}`;
+  console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}"`);
+
   const systemExtra = [
+    langHint,
     channelInfo,
     dateInfo,
     weatherText,
