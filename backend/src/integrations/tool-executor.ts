@@ -2029,61 +2029,57 @@ async function extractCarFromBackground(imageUrl: string, falKey: string, maxMs 
 }
 
 // ── Step B: Place extracted car in a new scene ────────────────────────────────
-// Primary: fal-ai/flux-kontext/pro (image editing)
-// Fallback: fal-ai/flux/dev/image-to-image (img2img, strength=0.85)
+// Uses BRIA product-shot: car PNG is the fixed foreground asset, only the
+// background is generated. The car is NEVER redrawn → color/shape preserved.
+// Primary:  fal-ai/bria/product-shot  (purpose-built for product-on-new-bg)
+// Fallback: fal-ai/bria/background-generation  (same BRIA family, alt name)
 async function generateCarInNewScene(
   carPngUrl:      string,
   requestedScene: string,
-  carName:        string,
+  _carName:       string,   // kept for API compatibility — BRIA infers car from image
   falKey:         string,
   maxMs = 120_000,
 ): Promise<string> {
+  // Scene prompt describes only the environment — car identity comes from the PNG
   const scenePrompt = [
-    `Place the ${carName || 'car'} in: ${requestedScene}.`,
-    'Professional automotive photography, photorealistic, cinematic lighting, ultra-realistic, 4K.',
-    'The car must be clearly visible and naturally integrated into the new environment.',
-    'Keep the exact car shape, color and details. No duplicate cars, no artifacts.',
-    'Realistic background, real outdoor scene, no studio backdrop.',
+    `${requestedScene}.`,
+    'Professional automotive photography, photorealistic, cinematic lighting, 4K.',
+    'Realistic outdoor environment, natural light, no studio backdrop.',
+    'Car is the main subject, naturally integrated.',
   ].join(' ');
 
-  // ── Attempt 1: Flux Kontext Pro ──────────────────────────────────────────
-  const endpoint1 = 'fal-ai/flux-kontext/pro';
-  const input1    = { image_url: carPngUrl, prompt: scenePrompt };
-  console.log(`[generateCarInNewScene] Tentative 1/2: endpoint=${endpoint1}`);
+  // ── Attempt 1: BRIA product-shot ─────────────────────────────────────────
+  // The image_url (car PNG, transparent bg) becomes the fixed foreground.
+  // BRIA generates only the background around it — car pixels unchanged.
+  const endpoint1 = 'fal-ai/bria/product-shot';
+  const input1 = { image_url: carPngUrl, prompt: scenePrompt, num_results: 1 };
+  console.log(`[generateCarInNewScene] T1: ${endpoint1} | car is fixed foreground (color/shape auto-preserved)`);
   console.log(`[generateCarInNewScene] input.image_url=${carPngUrl}`);
   console.log(`[generateCarInNewScene] input.prompt="${scenePrompt}"`);
   let error1 = '';
   try {
-    const url = await falGenerate(endpoint1, input1, falKey, Math.round(maxMs * 0.6));
+    const url = await falGenerate(endpoint1, input1, falKey, Math.round(maxMs * 0.65));
     if (url.startsWith('{')) throw new Error(`JSON inattendu: ${url.slice(0, 200)}`);
-    console.log(`[generateCarInNewScene] ✅ Tentative 1 OK → ${url}`);
+    console.log(`[generateCarInNewScene] ✅ T1 BRIA product-shot OK → ${url}`);
     return url;
   } catch (err1: any) {
     error1 = err1.message;
-    console.warn(`[generateCarInNewScene] ❌ Tentative 1 (${endpoint1}): ${error1}`);
+    console.warn(`[generateCarInNewScene] ❌ T1 (${endpoint1}): ${error1}`);
   }
 
-  // ── Attempt 2: Flux Dev image-to-image ──────────────────────────────────
-  const endpoint2 = 'fal-ai/flux/dev/image-to-image';
-  const input2 = {
-    image_url:           carPngUrl,
-    prompt:              scenePrompt,
-    strength:            0.85,
-    num_inference_steps: 28,
-    guidance_scale:      3.5,
-    num_images:          1,
-  };
-  console.log(`[generateCarInNewScene] Tentative 2/2: endpoint=${endpoint2} strength=0.85`);
-  console.log(`[generateCarInNewScene] input.image_url=${carPngUrl}`);
+  // ── Attempt 2: BRIA background-generation (same family, alternative endpoint) ──
+  const endpoint2 = 'fal-ai/bria/background-generation';
+  const input2 = { image_url: carPngUrl, prompt: scenePrompt };
+  console.log(`[generateCarInNewScene] T2: ${endpoint2}`);
   try {
     const url = await falGenerate(endpoint2, input2, falKey, Math.round(maxMs * 0.8));
     if (url.startsWith('{')) throw new Error(`JSON inattendu: ${url.slice(0, 200)}`);
-    console.log(`[generateCarInNewScene] ✅ Tentative 2 OK → ${url}`);
+    console.log(`[generateCarInNewScene] ✅ T2 BRIA background-generation OK → ${url}`);
     return url;
   } catch (err2: any) {
     const error2 = err2.message;
-    console.error(`[generateCarInNewScene] ❌ Tentative 2 (${endpoint2}): ${error2}`);
-    throw new Error(`generateCarInNewScene échoué — T1 (${endpoint1}): ${error1} | T2 (${endpoint2}): ${error2}`);
+    console.error(`[generateCarInNewScene] ❌ T2 (${endpoint2}): ${error2}`);
+    throw new Error(`generateCarInNewScene: T1 (${endpoint1}): ${error1} | T2 (${endpoint2}): ${error2}`);
   }
 }
 
