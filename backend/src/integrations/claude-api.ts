@@ -248,7 +248,7 @@ export async function chatWithTools(
   const useWebSearch = needsWebSearch(processedMessages);
 
   const tools: Anthropic.Tool[] = useWebSearch
-    ? [...Dzaryx_TOOLS, ANTHROPIC_WEB_SEARCH_TOOL]
+    ? [...Dzaryx_TOOLS.filter(t => t.name !== 'web_search'), ANTHROPIC_WEB_SEARCH_TOOL]
     : Dzaryx_TOOLS;
 
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
