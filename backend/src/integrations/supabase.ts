@@ -38,6 +38,9 @@ export interface Booking {
   final_price:           number;
   profit:                number;
   status:                'PENDING' | 'CONFIRMED' | 'REJECTED' | 'COMPLETED' | 'ACTIVE';
+  payment_status?:       'PENDING' | 'PARTIAL' | 'PAID';
+  paid_amount?:          number;
+  rented_by?:            string;
   notes?:                string;
   whatsapp_sent:         boolean;
   sms_sent:              boolean;
