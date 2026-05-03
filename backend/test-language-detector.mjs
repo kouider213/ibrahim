@@ -9,7 +9,7 @@
 const ARABIC_CHARS   = /[؀-ۿ]/g;
 const PUNCT_DIGITS   = /[\s\d!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g;
 const FR_TOKENS      = /\b(?:le|la|les|de|du|des|je|tu|il|elle|nous|vous|ils|elles|un|une|et|est|sont|avec|pour|dans|sur|pas|plus|mais|comme|voiture|disponible|r[eé]servation|bonjour|bonsoir|merci|oui|non|ça|bien|faire|avoir|[eê]tre|mon|ma|mes|ton|ta|tes|son|sa|ses|ce|cet|cette|ces|moi|toi|lui|c'est|j'ai|qu'est|qu'il|fais|peut|veut|veux|suis|[eê]tes|avez|avons|aussi|donc|alors|très|trop|beaucoup|quel|quelle|quand|o[uù]|pourquoi|comment|combien|même|tout|toute|tous|toutes|autre|chaque|ici|l[aà]|déjà)\b/gi;
-const DARIJA_TOKENS  = /\b(?:wach|wesh|bghit|bgha|khoya|kho|khti|wlad|rani|raki|rak|wayed|bzzaf|bezzaf|nta|nti|ntuma|ana|hna|fhamt|tfhmt|barak|saha|mzyan|mzien|kima|kifah|kifash|mazal|mazel|sahbi|bsah|zwina|zwin|machi|shi|hadi|hada|hadak|hadik|bessah|deja|druk|daba|taah|seer|rouh|jib|dir(?:i)?|chof|chki|dyal|mta3|mte3|wakha|wakhha|bled|lblad|yallah|wallah|nshaAllah|hamdullah|tbarkallah|khlass|bach|ila|wila|kifkif|ghi|raho|rahi|howa|hiya|lazem|lazm|kh[ae]s|bghina|jina|ji|tjini|tji|ma?chi|maachi|zid|kima|nti|sahbi|sah|3lash|3la|fe(?:in)?|fin|hh+)\b/gi;
+const DARIJA_TOKENS  = /\b(?:wach|wesh|bghit|bgha|khoya|kho|khti|wlad|rani|raki|rak|wayed|bzzaf|bezzaf|nta|nti|ntuma|ana|hna|fhamt|tfhmt|barak|saha|mzyan|mzien|kima|kifah|kifash|mazal|mazel|sahbi|bsah|zwina|zwin|machi|shi|hadi|hada|hadak|hadik|bessah|deja|druk|daba|taah|seer|rouh|jib|dir(?:i)?|chof|chki|dyal|mta3|mte3|wakha|wakhha|bled|lblad|yallah|wallah|nshaAllah|hamdullah|tbarkallah|khlass|bach|ila|wila|kifkif|ghi|raho|rahi|howa|hiya|lazem|lazm|kh[ae]s|bghina|jina|ji|tjini|tji|ma?chi|maachi|zid|sah|3lash|3la|fe(?:in)?|hh+|salam|slam|kayna|kayn|labas|nkri|nakri)\b/gi;
 const DARIJA_AR_TOKENS = /(?:راك|راكي|باغي|باغية|خويا|واش|بزاف|مزيان|كيما|كيفاه|دابا|درك|ماشي|هادي|هادا|صاحبي|بصح|والو|خلاص)/g;
 const EN_TOKENS      = /\b(?:the|this|that|is|are|was|were|have|has|do|does|will|would|can|could|should|my|your|his|her|our|their|hello|hi|hey|thanks|please|yes|no|okay|car|rental|available|booking|price|when|where|how|what|why|want|need|book|check|call|send|tell|get|go|come|see|i(?:'m|'ve|'ll|'d)?|we|you|they|it)\b/gi;
 
@@ -61,7 +61,17 @@ const tests = [
   { input: 'Hi, is the car available this weekend?',                             expect: 'en',       desc: 'English — availability' },
   { input: 'What is the rental price for 3 days?',                              expect: 'en',       desc: 'English — price' },
   { input: 'I would like to book the Jumpy please',                             expect: 'en',       desc: 'English — booking' },
-  // Edge cases
+  // ── Audit test cases (user-specified) ────────────────────────────────────────
+  { input: 'Bonjour, je cherche une voiture à Oran du 10 au 20 août.',          expect: 'fr',       desc: 'Audit 1 — French availability' },
+  { input: 'Salam khoya, kayna Clio 5 dispo f Oran ?',                          expect: 'darija',   desc: 'Audit 2 — Darija greeting' },
+  { input: 'السلام عليكم، هل توجد سيارة متاحة في وهران؟',                      expect: 'ar',       desc: 'Audit 3 — Arabic standard' },
+  { input: 'Hello, can you check if a car is available in Oran?',               expect: 'en',       desc: 'Audit 4 — English' },
+  { input: 'Salam, je cherche une voiture dispo f Oran pour juillet.',           expect: 'fr+darija',desc: 'Audit 5 — Mix fr+darija with salam' },
+  // ── False-positive regression checks ─────────────────────────────────────────
+  { input: 'fin du mois',                                                        expect: 'fr',       desc: 'No false positive — "fin" is French' },
+  { input: 'à la fin de la réservation, je paie le solde',                       expect: 'fr',       desc: 'No false positive — "fin" inside French sentence' },
+  { input: 'rapport financier de fin de mois',                                   expect: 'fr',       desc: 'No false positive — "fin de mois" finance request' },
+  // ── Edge cases
   { input: 'ok',                                                                 expect: 'unknown',  desc: 'Too short — fallback' },
   { input: '',                                                                   expect: 'unknown',  desc: 'Empty — fallback' },
   { input: '!!!',                                                                expect: 'unknown',  desc: 'Punctuation only — fallback' },
