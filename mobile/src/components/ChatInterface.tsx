@@ -8,8 +8,8 @@ import {
 } from '../services/api.js';
 
 // ── Types ─────────────────────────────────────────────────────────
-type JarvisState  = 'idle' | 'listen' | 'think' | 'speak';
-type OverlayMode  = 'none' | 'text' | 'camera' | 'menu';
+type JarvisState = 'idle' | 'listen' | 'think' | 'speak';
+type OverlayMode = 'none' | 'text' | 'camera' | 'menu';
 
 function toJarvis(s: IbrahimStatus): JarvisState {
   if (s === 'listening') return 'listen';
@@ -77,13 +77,13 @@ function resizeImageToBase64(file: File, maxPx: number): Promise<string> {
 const STATE_LABEL: Record<JarvisState, string> = {
   idle:   'EN ATTENTE',
   listen: 'ÉCOUTE ACTIVE',
-  think:  'TRAITEMENT IA',
-  speak:  'RÉPONSE',
+  think:  'ANALYSE IA',
+  speak:  'RÉPONSE VOCALE',
 };
 const STATE_SUB: Record<JarvisState, string> = {
-  idle:   'Appuyer pour démarrer',
-  listen: 'Je vous écoute...',
-  think:  'Analyse en cours...',
+  idle:   'Appuyer sur le micro pour démarrer',
+  listen: 'Je vous écoute, Kouider...',
+  think:  'Traitement en cours...',
   speak:  'Dzaryx répond...',
 };
 
@@ -97,14 +97,50 @@ const MicSVG = () => (
   </svg>
 );
 
-// ── Menu items ────────────────────────────────────────────────────
-const MENU_ACTIONS = [
-  { ico: '📋', label: 'Réservations',      cmd: 'Liste-moi les réservations actives' },
-  { ico: '💰', label: 'Finances',           cmd: 'Rapport financier du mois' },
-  { ico: '🚗', label: 'Flotte',             cmd: 'État de la flotte' },
-  { ico: '📅', label: 'Agenda',             cmd: 'Agenda de la semaine' },
-  { ico: '📊', label: 'Rapport',            cmd: 'Rapport complet de la journée' },
-  { ico: '🔔', label: 'Rappels',            cmd: 'Rappels et tâches en attente' },
+// ── Capability chips (shown in idle) ─────────────────────────────
+const CAPS = [
+  { ico: '🚗', label: 'Réservations',  cmd: 'Liste-moi les réservations actives' },
+  { ico: '💰', label: 'Finances',      cmd: 'Rapport financier du mois' },
+  { ico: '🎥', label: 'TikTok',        cmd: 'Crée une vidéo marketing pour la Creta' },
+  { ico: '🌤', label: 'Météo',         cmd: 'Météo à Oran maintenant' },
+  { ico: '📸', label: 'Vision',        cmd: 'Analyse vision' },
+  { ico: '📊', label: 'Rapport',       cmd: 'Rapport complet de la journée' },
+];
+
+// ── Menu items with sections ──────────────────────────────────────
+type MenuItem = { ico: string; label: string; cmd: string; tag?: string };
+type MenuSection = { section: string; items: MenuItem[] };
+
+const MENU_SECTIONS: MenuSection[] = [
+  {
+    section: 'BUSINESS',
+    items: [
+      { ico: '📋', label: 'Réservations actives',   cmd: 'Liste-moi les réservations actives' },
+      { ico: '💰', label: 'Rapport financier',       cmd: 'Rapport financier du mois' },
+      { ico: '🚗', label: 'État de la flotte',       cmd: 'État de la flotte' },
+      { ico: '📅', label: 'Agenda semaine',          cmd: 'Agenda de la semaine' },
+      { ico: '📊', label: 'Rapport du jour',         cmd: 'Rapport complet de la journée' },
+      { ico: '🔔', label: 'Tâches & rappels',        cmd: 'Rappels et tâches en attente' },
+      { ico: '⏱',  label: 'Retards de retour',      cmd: 'Quelles voitures ne sont pas encore rendues ?' },
+    ],
+  },
+  {
+    section: 'MARKETING',
+    items: [
+      { ico: '🎥', label: 'Vidéo TikTok',            cmd: 'Crée une vidéo marketing pour la Creta', tag: 'IA' },
+      { ico: '🔍', label: 'Analyse concurrents',      cmd: 'Analyse la concurrence location voiture Oran' },
+      { ico: '📈', label: 'Tendances TikTok',         cmd: 'Recherche les tendances TikTok location voiture Algérie' },
+    ],
+  },
+  {
+    section: 'INTELLIGENCE',
+    items: [
+      { ico: '🌤', label: 'Météo Oran',               cmd: 'Météo à Oran maintenant' },
+      { ico: '🌍', label: 'Actualités Algérie',       cmd: 'Actualités en Algérie aujourd\'hui' },
+      { ico: '🤖', label: 'Code Agent',               cmd: 'Qu\'est-ce que tu peux coder pour moi ?', tag: 'DEV' },
+      { ico: '🧠', label: 'Ma mémoire',               cmd: 'Qu\'est-ce que tu te rappelles de moi ?' },
+    ],
+  },
 ];
 
 // ══════════════════════════════════════════════════════════════════
@@ -119,6 +155,7 @@ export default function ChatInterface() {
   const [overlay,      setOverlay]      = useState<OverlayMode>('none');
   const [textInput,    setTextInput]    = useState('');
   const [started,      setStarted]      = useState(false);
+  const [toolLabel,    setToolLabel]    = useState<string | null>(null);
 
   // ── Camera state ───────────────────────────────────────────────
   const [liveVision,   setLiveVision]   = useState(false);
@@ -147,12 +184,12 @@ export default function ChatInterface() {
   const textInputRef       = useRef<HTMLInputElement>(null);
 
   // Canvas refs
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const rafRef      = useRef<number>(0);
-  const rotYRef     = useRef(0);
-  const rotXRef     = useRef(0.18);
-  const ampRef      = useRef(0);
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const rafRef       = useRef<number>(0);
+  const rotYRef      = useRef(0);
+  const rotXRef      = useRef(0.18);
+  const ampRef       = useRef(0);
+  const analyserRef  = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
 
   // ── Error helper ───────────────────────────────────────────────
@@ -166,6 +203,7 @@ export default function ChatInterface() {
   const applyState = useCallback((s: JarvisState) => {
     stateRef.current = s;
     setState(s);
+    if (s !== 'think') setToolLabel(null);
   }, []);
 
   // ── Overlay helpers ────────────────────────────────────────────
@@ -336,10 +374,10 @@ export default function ChatInterface() {
     if (!ctx) return;
 
     const COLORS: Record<JarvisState, { dot: string; line: string; glow: string }> = {
-      idle:   { dot: 'rgba(0,229,255,',   line: 'rgba(0,180,220,',   glow: 'rgba(0,200,255,'  },
-      listen: { dot: 'rgba(0,255,136,',   line: 'rgba(0,200,100,',   glow: 'rgba(0,255,136,'  },
-      think:  { dot: 'rgba(168,85,247,',  line: 'rgba(130,60,200,',  glow: 'rgba(168,85,247,' },
-      speak:  { dot: 'rgba(255,215,0,',   line: 'rgba(220,170,0,',   glow: 'rgba(255,220,50,' },
+      idle:   { dot: 'rgba(0,212,255,',   line: 'rgba(0,170,220,',   glow: 'rgba(0,212,255,'  },
+      listen: { dot: 'rgba(0,255,135,',   line: 'rgba(0,200,100,',   glow: 'rgba(0,255,135,'  },
+      think:  { dot: 'rgba(144,97,249,',  line: 'rgba(110,70,200,',  glow: 'rgba(144,97,249,' },
+      speak:  { dot: 'rgba(255,171,0,',   line: 'rgba(220,140,0,',   glow: 'rgba(255,200,50,' },
     };
     const SPEED: Record<JarvisState, number> = { idle: 0.003, listen: 0.01, think: 0.007, speak: 0.013 };
 
@@ -433,8 +471,11 @@ export default function ChatInterface() {
   // ── Socket events ──────────────────────────────────────────────
   useEffect(() => {
     connectSocket(sessionId, {
-      onStatus: (s, toolLabel) => {
-        if (s === 'thinking' && toolLabel === undefined) { setResponseText(''); setShowResponse(false); }
+      onStatus: (s, label) => {
+        if (s === 'thinking') {
+          if (label === undefined) { setResponseText(''); setShowResponse(false); }
+          if (label !== undefined) setToolLabel(label ?? null);
+        }
         if (s === 'idle' && (isAudioPlaying() || window.speechSynthesis?.speaking)) return;
         applyState(toJarvis(s));
       },
@@ -500,7 +541,7 @@ export default function ChatInterface() {
       await startMicAnalyser();
       const hour = new Date().getHours();
       const greet = hour < 12 ? 'Bonjour Kouider' : hour < 18 ? 'Bon après-midi Kouider' : 'Bonsoir Kouider';
-      const greetText = `${greet}, Dzaryx est prêt. Je vous écoute.`;
+      const greetText = `${greet}, Dzaryx est en ligne. Je vous écoute.`;
       applyState('speak');
       setResponseText(greetText); setShowResponse(true);
       iosFallbackSpeak(greetText);
@@ -546,6 +587,16 @@ export default function ChatInterface() {
     void sendText(cmd);
   }, [closeOverlay, started, sendText]);
 
+  const handleCapAction = useCallback((cmd: string) => {
+    if (cmd === 'Analyse vision') { openOverlay('camera'); return; }
+    if (!started) {
+      setStarted(true);
+      loopActive.current = true;
+      unlockAudio();
+    }
+    void sendText(cmd);
+  }, [started, sendText, openOverlay]);
+
   // ── Cleanup ────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
@@ -558,16 +609,30 @@ export default function ChatInterface() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Status label ───────────────────────────────────────────────
+  const statusLabel = state === 'idle' ? 'EN LIGNE'
+    : state === 'listen' ? 'ÉCOUTE'
+    : state === 'think'  ? 'ANALYSE'
+    : 'PARLE';
+
+  const showCaps = started && state === 'idle' && !showResponse;
+
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div className="dz-root" data-state={state}>
 
+      {/* ── HUD corners ── */}
+      <div className="dz-hud-tl" aria-hidden />
+      <div className="dz-hud-tr" aria-hidden />
+      <div className="dz-hud-bl" aria-hidden />
+      <div className="dz-hud-br" aria-hidden />
+
       {/* ── Top bar ── */}
       <div className="dz-topbar">
         <div className="dz-brand">DZARYX</div>
-        <div className="dz-status-row">
+        <div className="dz-status-pill">
           <div className="dz-status-dot" />
-          <span className="dz-status-label">EN LIGNE</span>
+          <span className="dz-status-label">{statusLabel}</span>
         </div>
         <button className="dz-menu-icon" onClick={() => openOverlay('menu')} aria-label="Menu">
           <span/><span/><span/>
@@ -579,32 +644,54 @@ export default function ChatInterface() {
 
       {/* ── Orb section ── */}
       <section className="dz-orb-section">
-        <div className="dz-orb">
-          <div className="dz-ring dz-ring--3" aria-hidden />
-          <div className="dz-ring dz-ring--2" aria-hidden />
-          <div className="dz-ring dz-ring--1" aria-hidden />
-          <canvas ref={canvasRef} className="dz-sphere-canvas" aria-hidden />
-          <button
-            className="dz-center-btn"
-            onClick={handleVoiceBtn}
-            aria-label={started ? (state === 'listen' ? 'Arrêter écoute' : 'Écouter') : 'Démarrer Dzaryx'}
-          >
-            <MicSVG />
-          </button>
+        <div className="dz-orb-wrap">
+          {/* Sweeping arcs */}
+          <div className="dz-arc dz-arc--1" aria-hidden />
+          <div className="dz-arc dz-arc--2" aria-hidden />
+
+          <div className="dz-orb">
+            <div className="dz-ring dz-ring--3" aria-hidden />
+            <div className="dz-ring dz-ring--2" aria-hidden />
+            <div className="dz-ring dz-ring--1" aria-hidden />
+            <canvas ref={canvasRef} className="dz-sphere-canvas" aria-hidden />
+            <button
+              className="dz-center-btn"
+              onClick={handleVoiceBtn}
+              aria-label={started ? (state === 'listen' ? 'Arrêter écoute' : 'Écouter') : 'Démarrer Dzaryx'}
+            >
+              <MicSVG />
+            </button>
+          </div>
         </div>
         <div className="dz-orb-glow" aria-hidden />
       </section>
 
-      {/* ── State text ── */}
+      {/* ── State section ── */}
       <div className="dz-state-section" aria-live="polite">
         <div className="dz-state-label">{STATE_LABEL[state]}</div>
-        <div className="dz-state-sub">{started ? STATE_SUB[state] : 'Appuyer sur le micro pour démarrer'}</div>
+        {toolLabel && state === 'think' ? (
+          <div className="dz-tool-badge">{toolLabel}</div>
+        ) : (
+          <div className="dz-state-sub">{started ? STATE_SUB[state] : STATE_SUB.idle}</div>
+        )}
       </div>
 
       {/* ── Response text ── */}
       <div className={`dz-response${showResponse ? ' visible' : ''}`} aria-live="polite">
         {responseText}
       </div>
+
+      {/* ── Capability chips (idle only) ── */}
+      {showCaps && (
+        <div className="dz-caps">
+          {CAPS.map(c => (
+            <button key={c.label} className="dz-cap" onClick={() => handleCapAction(c.cmd)}>
+              <span className="dz-cap-ico">{c.ico}</span>
+              <span>{c.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Action bar ── */}
       <nav className="dz-action-bar">
@@ -614,7 +701,7 @@ export default function ChatInterface() {
           aria-label="Caméra"
         >
           <span className="dz-act-ico">📷</span>
-          <span className="dz-act-lbl">CAMÉRA</span>
+          <span className="dz-act-lbl">VISION</span>
         </button>
 
         <button
@@ -657,10 +744,10 @@ export default function ChatInterface() {
       </div>
 
       {/* ── Camera overlay ── */}
-      <div className={`dz-overlay dz-camera-overlay${overlay === 'camera' ? ' open' : ''}`} role="dialog" aria-label="Caméra">
+      <div className={`dz-overlay dz-camera-overlay${overlay === 'camera' ? ' open' : ''}`} role="dialog" aria-label="Vision IA">
         <div className="dz-camera-header">
           <button className="dz-camera-back" onClick={closeOverlay}>← RETOUR</button>
-          <span className="dz-camera-title">VISION</span>
+          <span className="dz-camera-title">VISION IA</span>
           <span style={{ width: 80 }} />
         </div>
 
@@ -730,29 +817,35 @@ export default function ChatInterface() {
         <div className="dz-overlay-backdrop" onClick={closeOverlay} />
         <div className="dz-menu-panel">
           <div className="dz-menu-handle" />
-          <div className="dz-menu-head">— DZARYX —</div>
+          <div className="dz-menu-brand">— DZARYX —</div>
 
-          {MENU_ACTIONS.map(item => (
-            <button
-              key={item.label}
-              className="dz-menu-item"
-              onClick={() => handleMenuAction(item.cmd)}
-            >
-              <span className="dz-menu-ico">{item.ico}</span>
-              <span className="dz-menu-lbl">{item.label}</span>
-              <span className="dz-menu-arr">›</span>
-            </button>
+          {MENU_SECTIONS.map(sec => (
+            <div key={sec.section}>
+              <div className="dz-menu-section">{sec.section}</div>
+              {sec.items.map(item => (
+                <button
+                  key={item.label}
+                  className="dz-menu-item"
+                  onClick={() => handleMenuAction(item.cmd)}
+                >
+                  <span className="dz-menu-ico">{item.ico}</span>
+                  <span className="dz-menu-lbl">{item.label}</span>
+                  {item.tag && <span className="dz-menu-tag">{item.tag}</span>}
+                  <span className="dz-menu-arr">›</span>
+                </button>
+              ))}
+            </div>
           ))}
 
+          <div className="dz-menu-section">SYSTÈME</div>
           <div className="dz-menu-item" style={{ cursor: 'default' }}>
             <span className="dz-menu-ico">✈️</span>
             <span className="dz-menu-lbl">Telegram</span>
             <span className="dz-menu-tag">CONNECTÉ</span>
           </div>
-
-          <div className="dz-menu-item" style={{ cursor: 'default', marginTop: 8, opacity: .5 }}>
+          <div className="dz-menu-item" style={{ cursor: 'default', opacity: .45 }}>
             <span className="dz-menu-ico">🔒</span>
-            <span className="dz-menu-lbl" style={{ fontSize: 13 }}>Session: {sessionId.slice(0, 24)}…</span>
+            <span className="dz-menu-lbl" style={{ fontSize: 13 }}>Session: {sessionId.slice(0, 20)}…</span>
           </div>
         </div>
       </div>
