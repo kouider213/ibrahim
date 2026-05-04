@@ -44,6 +44,13 @@ const STORE_KEYWORDS = /passport|passeport|permis|license|licence|contrat|contra
 
 // POST /api/telegram/webhook
 router.post('/webhook', async (req, res) => {
+  // Verify Telegram secret token to reject forged requests
+  const incoming = req.headers['x-telegram-bot-api-secret-token'] as string | undefined;
+  if (incoming !== env.WEBHOOK_SECRET) {
+    res.sendStatus(403);
+    return;
+  }
+
   res.sendStatus(200);
 
   const update = req.body as TelegramUpdate;
@@ -1074,7 +1081,7 @@ function parseCaption(caption: string): {
 router.post('/setup', requireMobileAuth, async (req, res) => {
   const { baseUrl } = req.body as { baseUrl?: string };
   const url = `${baseUrl ?? 'https://ibrahim-backend-production.up.railway.app'}/api/telegram/webhook`;
-  const ok  = await setWebhook(url);
+  const ok  = await setWebhook(url, env.WEBHOOK_SECRET);
   res.json({ ok, webhookUrl: url });
 });
 

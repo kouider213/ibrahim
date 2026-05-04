@@ -35,7 +35,7 @@ interface SRL {
 
 // ── 3D Sphere ─────────────────────────────────
 const N_PARTICLES = 140;
-const CONNECT_DIST = 0.38; // max dot-product for line draw (cos of angle)
+const CONNECT_DIST = 0.38;
 
 interface Particle { x: number; y: number; z: number }
 
@@ -63,7 +63,6 @@ function rotateX(p: Particle, a: number): Particle {
 
 const BASE_PARTICLES = fibonacciSphere(N_PARTICLES);
 
-// Resize image to maxPx on longest side and return base64 JPEG string (no stack overflow)
 function resizeImageToBase64(file: File, maxPx: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -95,14 +94,14 @@ export default function ChatInterface() {
   const [liveVision,   setLiveVision]   = useState(false);
   const [scanMode,     setScanMode]     = useState(false);
   const [scanning,     setScanning]     = useState(false);
+  const [photoQueued,  setPhotoQueued]  = useState(false);
   const [scanResult,   setScanResult]   = useState<{ type: string; data?: Record<string, unknown> } | null>(null);
-  // Pending photo: stored after capture, sent together with the next voice message
+
   const pendingPhotoRef = useRef<{ base64: string; mime: string } | null>(null);
   const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const liveVideoRef   = useRef<HTMLVideoElement>(null);
-  const videoStreamRef = useRef<MediaStream | null>(null);
+  const cameraInputRef  = useRef<HTMLInputElement>(null);
+  const liveVideoRef    = useRef<HTMLVideoElement>(null);
+  const videoStreamRef  = useRef<MediaStream | null>(null);
 
   const stateRef           = useRef<JarvisState>('idle');
   const sending            = useRef(false);
@@ -112,13 +111,12 @@ export default function ChatInterface() {
   const audioFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const elevenlabsReceived = useRef(false);
 
-  // Canvas refs
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const rafRef      = useRef<number>(0);
-  const rotYRef     = useRef(0);
-  const rotXRef     = useRef(0.18);
-  const ampRef      = useRef(0); // microphone amplitude 0..1
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const rafRef       = useRef<number>(0);
+  const rotYRef      = useRef(0);
+  const rotXRef      = useRef(0.18);
+  const ampRef       = useRef(0);
+  const analyserRef  = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
 
   // ── Error display ─────────────────────────────
@@ -137,7 +135,6 @@ export default function ChatInterface() {
   // ── Live camera ───────────────────────────────
   const startLiveCamera = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Toggle off
     if (videoStreamRef.current) {
       videoStreamRef.current.getTracks().forEach(t => t.stop());
       videoStreamRef.current = null;
@@ -145,7 +142,6 @@ export default function ChatInterface() {
       setLiveVision(false);
       return;
     }
-    // getUserMedia — use ideal so it falls back to front camera if no rear
     if (!navigator.mediaDevices?.getUserMedia) {
       showError('Caméra non supportée sur cet appareil');
       return;
@@ -158,7 +154,6 @@ export default function ChatInterface() {
       const video = liveVideoRef.current;
       if (video) {
         video.srcObject = stream;
-        // iOS requires play() after srcObject is set; ignore AbortError
         video.play().catch(() => {});
       }
       setLiveVision(true);
@@ -181,7 +176,7 @@ export default function ChatInterface() {
     return tmp.toDataURL('image/jpeg', 0.7).split(',')[1] ?? null;
   }, []);
 
-  // ── Instant SCAN — Dzaryx analyzes camera view and speaks result ──
+  // ── Instant SCAN ──────────────────────────────
   const handleScan = useCallback(async () => {
     if (scanning) return;
     const frame = captureFrame();
@@ -203,12 +198,10 @@ export default function ChatInterface() {
         applyState('idle');
       });
 
-      // If document detected → auto-send to chat for saving
       if (result.extractedData && ['passport', 'license'].includes(result.type)) {
         const data = result.extractedData;
         const name = (data['name'] as string) || '';
         if (name) {
-          // Brief delay then ask via voice if user wants to save
           setTimeout(() => {
             pendingPhotoRef.current = { base64: frame, mime: 'image/jpeg' };
           }, 500);
@@ -220,9 +213,9 @@ export default function ChatInterface() {
     } finally {
       setScanning(false);
     }
-  }, [scanning, captureFrame, applyState, showError, scanMode]);
+  }, [scanning, captureFrame, applyState, showError]);
 
-  // ── Toggle auto-scan mode ──────────────────────────────────────
+  // ── Toggle auto-scan ──────────────────────────
   const toggleScanMode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setScanMode(prev => {
@@ -235,10 +228,8 @@ export default function ChatInterface() {
     });
   }, []);
 
-  // Auto-scan loop when scan mode active
   useEffect(() => {
     if (scanMode && liveVision && started) {
-      // First scan immediately
       handleScan();
       scanIntervalRef.current = setInterval(() => {
         if (stateRef.current === 'idle') handleScan();
@@ -255,7 +246,7 @@ export default function ChatInterface() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanMode, liveVision, started]);
 
-  // ── Send text (attaches pending photo or live frame if any) ───
+  // ── Send text ─────────────────────────────────
   const sendText = useCallback(async (msg: string) => {
     if (!msg.trim() || sending.current) return;
     sending.current = true;
@@ -264,9 +255,9 @@ export default function ChatInterface() {
     setShowResponse(false);
     elevenlabsReceived.current = false;
 
-    // Priority: pending photo (from 📷) > live frame (from LIVE camera)
     const photo = pendingPhotoRef.current ?? (videoStreamRef.current ? { base64: captureFrame() ?? '', mime: 'image/jpeg' } : null);
     pendingPhotoRef.current = null;
+    setPhotoQueued(false);
 
     try {
       await api.chat(msg, sessionId, false, photo?.base64 || undefined, photo?.mime ?? 'image/jpeg');
@@ -276,7 +267,7 @@ export default function ChatInterface() {
     } finally {
       sending.current = false;
     }
-  }, [sessionId, applyState, showError]);
+  }, [sessionId, applyState, showError, captureFrame]);
 
   // ── Mic amplitude reader ──────────────────────
   const startMicAnalyser = useCallback(async () => {
@@ -290,7 +281,7 @@ export default function ChatInterface() {
       analyser.fftSize = 32;
       src.connect(analyser);
       analyserRef.current = analyser;
-    } catch { /* mic denied — amplitude stays 0 */ }
+    } catch { /* mic denied */ }
   }, []);
 
   // ── SpeechRecognition loop ────────────────────
@@ -326,7 +317,6 @@ export default function ChatInterface() {
       rec.continuous      = false;
       recRef.current      = rec;
 
-      // Safety timeout — if rec hangs >25s with no result, abort and re-schedule
       const listenTimeout = setTimeout(() => {
         if (stateRef.current === 'listen') {
           recRef.current?.stop();
@@ -370,7 +360,6 @@ export default function ChatInterface() {
     function draw(_ts: number) {
       if (!ctx || !canvas) return;
 
-      // Read mic amplitude
       if (analyserRef.current) {
         const buf = new Uint8Array(analyserRef.current.frequencyBinCount);
         analyserRef.current.getByteFrequencyData(buf);
@@ -397,20 +386,13 @@ export default function ChatInterface() {
 
       ctx.clearRect(0, 0, W, H);
 
-      // Project all particles
       const proj = BASE_PARTICLES.map(p => {
         const r1 = rotateY(p, rotYRef.current);
         const r2 = rotateX(r1, rotXRef.current);
-        const depth = (r2.z + 1) / 2; // 0..1
-        return {
-          sx: CX + r2.x * R,
-          sy: CY + r2.y * R,
-          depth,
-          visible: r2.z > -0.15,
-        };
+        const depth = (r2.z + 1) / 2;
+        return { sx: CX + r2.x * R, sy: CY + r2.y * R, depth, visible: r2.z > -0.15 };
       });
 
-      // Draw connecting lines first (back to front via depth)
       ctx.lineWidth = 0.6;
       for (let i = 0; i < N_PARTICLES; i++) {
         const a = proj[i]!;
@@ -432,7 +414,6 @@ export default function ChatInterface() {
         }
       }
 
-      // Draw dots
       for (const p of proj) {
         if (!p.visible) continue;
         const r = (1.8 + p.depth * 2.2) * (1 + pulse * 0.5);
@@ -443,7 +424,6 @@ export default function ChatInterface() {
         ctx.fill();
       }
 
-      // Star burst center
       const burstR = 18 + pulse * 30 + (s === 'speak' ? amp * 20 : 0);
       const burstAlpha = s === 'idle' ? 0.55 : 0.9;
       const burst = ctx.createRadialGradient(CX, CY, 0, CX, CY, burstR);
@@ -455,7 +435,6 @@ export default function ChatInterface() {
       ctx.fillStyle = burst;
       ctx.fill();
 
-      // Rays (speak state)
       if (s === 'speak' || s === 'listen') {
         const nRays = 8;
         for (let i = 0; i < nRays; i++) {
@@ -495,7 +474,6 @@ export default function ChatInterface() {
   useEffect(() => {
     connectSocket(sessionId, {
       onStatus: (s, toolLabel) => {
-        // Clear text only on fresh thinking start — NOT when a tool is running (toolLabel present)
         if (s === 'thinking' && toolLabel === undefined) { setResponseText(''); setShowResponse(false); }
         if (s === 'idle' && (isAudioPlaying() || window.speechSynthesis?.speaking)) return;
         applyState(toJarvis(s));
@@ -510,15 +488,12 @@ export default function ChatInterface() {
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         window.speechSynthesis?.cancel(); enqueueAudioChunk(b64); applyState('speak');
       },
-      onAudioComplete: () => {
-        void flushAudioChunks();
-      },
+      onAudioComplete: () => { void flushAudioChunks(); },
       onTextChunk: (chunk) => { setResponseText(prev => prev + chunk); setShowResponse(true); },
       onTextComplete: (text) => {
         setResponseText(text); setShowResponse(true);
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         if (!elevenlabsReceived.current) {
-          // Wait 3s before fallback — gives ElevenLabs time to arrive on slow networks
           audioFallbackTimer.current = setTimeout(() => {
             audioFallbackTimer.current = null;
             if (!isAudioPlaying() && !elevenlabsReceived.current) {
@@ -554,7 +529,7 @@ export default function ChatInterface() {
     }
   }, [state, startListeningInner, started]);
 
-  // ── Tap to start ──────────────────────────────
+  // ── Tap to start / toggle listen ─────────────
   const handleTap = useCallback(async () => {
     if (!started) {
       setStarted(true);
@@ -572,7 +547,6 @@ export default function ChatInterface() {
       setTimeout(() => { applyState('idle'); scheduleNextListen(); }, Math.max(2500, greetText.length * 65));
       return;
     }
-    // Tap again: toggle listen
     if (stateRef.current === 'listen') {
       recRef.current?.stop();
       applyState('idle');
@@ -581,7 +555,6 @@ export default function ChatInterface() {
     }
   }, [started, applyState, startListeningInner, scheduleNextListen, startMicAnalyser]);
 
-  // ── Camera vision ────────────────────────────
   const stopProp = useCallback((e: React.MouseEvent) => e.stopPropagation(), []);
 
   const handlePhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -592,18 +565,16 @@ export default function ChatInterface() {
     setAnalyzing(true);
     try {
       const base64 = await resizeImageToBase64(file, 1024);
-      // Store photo — it will be attached to the next voice message
       pendingPhotoRef.current = { base64, mime: 'image/jpeg' };
+      setPhotoQueued(true);
       setAnalyzing(false);
 
-      // Ask the user what they want to know about the photo
       const prompt = 'Photo reçue. Posez votre question à voix haute.';
       setResponseText(prompt);
       setShowResponse(true);
       applyState('speak');
       iosFallbackSpeak(prompt, () => {
         applyState('idle');
-        // Auto-start listening so user can immediately ask their question
         if (loopActive.current) startListeningInner();
       });
     } catch {
@@ -625,14 +596,16 @@ export default function ChatInterface() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const speakLabel = !started ? 'START' : state === 'listen' ? 'STOP' : 'PARLER';
+
   return (
     <div className="sphere-ui" data-state={state} onClick={handleTap}>
 
-      {/* Perspective grid background */}
+      {/* Background layers */}
       <div className="hud-grid" />
       <div className="hud-vignette" />
 
-      {/* 3D sphere canvas */}
+      {/* Sphere canvas */}
       <canvas ref={canvasRef} className="sphere-canvas" />
 
       {/* Concentric rings */}
@@ -643,14 +616,20 @@ export default function ChatInterface() {
       {/* Scan line */}
       <div className="scan-line" />
 
-      {/* HUD corner brackets */}
+      {/* HUD corners */}
       <div className="hud-corner hud-tl" />
       <div className="hud-corner hud-tr" />
       <div className="hud-corner hud-bl" />
       <div className="hud-corner hud-br" />
 
-      {/* Telegram connection dot */}
-      <div className="telegram-dot" title="Telegram connecté" />
+      {/* System indicators — top right */}
+      <div className="hud-sys">
+        <div className="hud-sys-row">
+          <span className="hud-sys-dot" />
+          <span className="hud-sys-lbl">SYS ONLINE</span>
+        </div>
+        <div className="telegram-dot" title="Telegram connecté" />
+      </div>
 
       {/* Header */}
       <header className="sphere-header">
@@ -671,64 +650,95 @@ export default function ChatInterface() {
         <div className="sphere-response-text">{responseText}</div>
       </div>
 
-      {/* LIVE vision button */}
-      <button
-        className={`live-btn${liveVision ? ' live-btn--on' : ''}`}
-        onClick={startLiveCamera}
-        aria-label={liveVision ? 'Arrêter la caméra live' : 'Activer la caméra live'}
-      >
-        {liveVision ? <><span className="live-dot" />REC</> : 'LIVE'}
-      </button>
-
-      {/* SCAN button — appears when LIVE is active */}
-      {liveVision && (
-        <button
-          className={`scan-btn${scanning ? ' scan-btn--scanning' : ''}${scanMode ? ' scan-btn--auto' : ''}`}
-          onClick={scanMode ? toggleScanMode : (e) => { e.stopPropagation(); handleScan(); }}
-          onDoubleClick={toggleScanMode}
-          title={scanMode ? 'Mode AUTO actif — double-tap pour arrêter' : 'Tap: scan instant | Double-tap: scan auto'}
-        >
-          {scanning ? '⟳' : scanMode ? '👁️ AUTO' : '👁️ SCAN'}
-        </button>
-      )}
-
-      {/* Scan result badge — document type detected */}
-      {scanResult && liveVision && (
-        <div className="scan-badge">
-          {scanResult.type === 'passport' && '🪪 PASSEPORT DÉTECTÉ'}
-          {scanResult.type === 'license' && '🪪 PERMIS DÉTECTÉ'}
-          {scanResult.type === 'vehicle' && '🚗 VÉHICULE DÉTECTÉ'}
-          {scanResult.type === 'arabic' && '🔤 TEXTE ARABE'}
-          {scanResult.type === 'receipt' && '🧾 REÇU DÉTECTÉ'}
-          {scanResult.type === 'contract' && '📄 CONTRAT DÉTECTÉ'}
+      {/* Camera panel — styled tactical display */}
+      <div className={`cam-panel${liveVision ? ' cam-panel--on' : ''}`}>
+        <div className="cam-hud-tl" />
+        <div className="cam-hud-tr" />
+        <div className="cam-hud-bl" />
+        <div className="cam-hud-br" />
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video ref={liveVideoRef} autoPlay playsInline muted className="cam-video" />
+        {scanning && <div className="cam-sweep" />}
+        <div className="cam-label-live">
+          {liveVision && <span className="cam-rec-dot" />}
+          CAM LIVE
         </div>
-      )}
+        {scanResult && liveVision && (
+          <div className="scan-badge">
+            {scanResult.type === 'passport' && 'PASSEPORT DÉTECTÉ'}
+            {scanResult.type === 'license'  && 'PERMIS DÉTECTÉ'}
+            {scanResult.type === 'vehicle'  && 'VÉHICULE DÉTECTÉ'}
+            {scanResult.type === 'arabic'   && 'TEXTE ARABE'}
+            {scanResult.type === 'receipt'  && 'REÇU DÉTECTÉ'}
+            {scanResult.type === 'contract' && 'CONTRAT DÉTECTÉ'}
+          </div>
+        )}
+      </div>
 
-      {/* Camera button — label wraps input directly so iOS Safari opens camera on first tap */}
-      <label
-        className={`camera-btn${analyzing ? ' analyzing' : ''}${pendingPhotoRef.current ? ' photo-ready' : ''}`}
-        onClick={stopProp}
-        aria-label="Prendre une photo"
-        title={pendingPhotoRef.current ? 'Photo prête — parlez maintenant' : 'Prendre une photo'}
-      >
-        {analyzing ? '⏳' : pendingPhotoRef.current ? '✅' : '📷'}
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={handlePhotoChange}
-        />
-      </label>
+      {/* Control dock — 5 premium buttons */}
+      <div className="ctrl-dock" onClick={stopProp}>
 
-      {/* Live camera preview — visible corner when LIVE active (iOS needs visible video to stream) */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        ref={liveVideoRef}
-        autoPlay playsInline muted
-        className={`live-preview${liveVision ? ' live-preview--on' : ''}`}
-      />
+        {/* PARLER */}
+        <button
+          className={`ctrl-btn ctrl-speak${state === 'listen' ? ' ctrl-active' : ''}${!started ? ' ctrl-start' : ''}`}
+          onClick={(e) => { e.stopPropagation(); void handleTap(); }}
+          aria-label="Parler"
+        >
+          <span className="ctrl-icon">◉</span>
+          <span className="ctrl-label">{speakLabel}</span>
+        </button>
+
+        {/* CAM LIVE */}
+        <button
+          className={`ctrl-btn ctrl-cam${liveVision ? ' ctrl-active' : ''}`}
+          onClick={startLiveCamera}
+          aria-label={liveVision ? 'Arrêter caméra' : 'Activer caméra live'}
+        >
+          {liveVision && <span className="live-dot" />}
+          <span className="ctrl-icon">⬡</span>
+          <span className="ctrl-label">CAM</span>
+        </button>
+
+        {/* PHOTO */}
+        <label
+          className={`ctrl-btn ctrl-photo${analyzing ? ' ctrl-analyzing' : ''}${photoQueued ? ' ctrl-ready' : ''}`}
+          onClick={stopProp}
+          aria-label="Prendre une photo"
+          title={photoQueued ? 'Photo prête — parlez maintenant' : 'Prendre une photo'}
+        >
+          <span className="ctrl-icon">{analyzing ? '⟳' : photoQueued ? '✓' : '⬡'}</span>
+          <span className="ctrl-label">{photoQueued ? 'PRÊTE' : 'PHOTO'}</span>
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={handlePhotoChange}
+          />
+        </label>
+
+        {/* SCAN */}
+        <button
+          className={`ctrl-btn ctrl-scan${!liveVision ? ' ctrl-disabled' : ''}${scanning ? ' ctrl-scanning' : ''}`}
+          onClick={liveVision ? (e) => { e.stopPropagation(); void handleScan(); } : stopProp}
+          aria-label="Scan vision instantané"
+        >
+          <span className="ctrl-icon">◈</span>
+          <span className="ctrl-label">{scanning ? '···' : 'SCAN'}</span>
+        </button>
+
+        {/* AUTO */}
+        <button
+          className={`ctrl-btn ctrl-auto${!liveVision ? ' ctrl-disabled' : ''}${scanMode ? ' ctrl-active' : ''}`}
+          onClick={liveVision ? (e) => toggleScanMode(e) : stopProp}
+          aria-label="Scan automatique"
+        >
+          <span className="ctrl-icon">⟳</span>
+          <span className="ctrl-label">{scanMode ? 'ON' : 'AUTO'}</span>
+        </button>
+
+      </div>
 
       {/* Error toast */}
       <div className={`sphere-error${errorVisible ? ' show' : ''}`}>{errorMsg}</div>
