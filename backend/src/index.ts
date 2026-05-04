@@ -219,11 +219,14 @@ async function registerTelegramWebhook(): Promise<void> {
   const webhookUrl = `${backendUrl}/api/telegram/webhook`;
   try {
     const { default: axios } = await import('axios');
-    const { data } = await axios.post(`https://api.telegram.org/bot${token}/setWebhook`, {
+    const body: Record<string, unknown> = {
       url:                  webhookUrl,
+      allowed_updates:      ['message'],
       drop_pending_updates: false,
       max_connections:      40,
-    }, { timeout: 10_000 });
+    };
+    if (env.WEBHOOK_SECRET) body['secret_token'] = env.WEBHOOK_SECRET;
+    const { data } = await axios.post(`https://api.telegram.org/bot${token}/setWebhook`, body, { timeout: 10_000 });
     if (data.ok) {
       console.log(`✅ Telegram webhook registered: ${webhookUrl}`);
     } else {
