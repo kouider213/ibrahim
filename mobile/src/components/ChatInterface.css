@@ -313,7 +313,7 @@ button, label { font: inherit; }
 .sphere-state {
   position: absolute;
   left: 50%;
-  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 154px);
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 198px);
   z-index: 18;
   width: min(80vw, 540px);
   transform: translateX(-50%);
@@ -331,7 +331,7 @@ button, label { font: inherit; }
 .status-bar {
   position: absolute;
   left: 50%;
-  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 138px);
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 182px);
   z-index: 18;
   width: min(70vw, 560px);
   height: 2px;
@@ -360,7 +360,7 @@ button, label { font: inherit; }
 .sphere-response {
   position: absolute;
   left: 50%;
-  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 16px);
+  bottom: calc(max(20px, env(safe-area-inset-bottom)) + 96px);
   z-index: 19;
   width: min(90vw, 780px);
   max-height: 88px;
@@ -706,13 +706,13 @@ button, label { font: inherit; }
 /* ── Responsive ───────────────────────────────── */
 @media (min-width: 900px) {
   .sphere-response {
-    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 28px);
+    bottom: calc(max(28px, env(safe-area-inset-bottom)) + 108px);
   }
   .sphere-state {
-    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 172px);
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 218px);
   }
   .status-bar {
-    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 156px);
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 202px);
   }
   .ctrl-dock {
     bottom: max(28px, env(safe-area-inset-bottom));
@@ -733,16 +733,16 @@ button, label { font: inherit; }
   .sphere-title::after { width: 24px; margin-inline: 8px; }
 
   .sphere-state {
-    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 148px);
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 188px);
     font-size: 9px;
     letter-spacing: 0.20em;
   }
   .status-bar {
-    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 134px);
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 172px);
     width: 68vw;
   }
   .sphere-response {
-    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 12px);
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 88px);
     max-height: 80px;
     padding: 10px 12px;
   }
