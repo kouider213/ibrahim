@@ -621,11 +621,41 @@ export default function ChatInterface() {
   return (
     <div className="dz-root" data-state={state}>
 
+      {/* Scanlines */}
+      <div className="dz-scanline"  aria-hidden />
+      <div className="dz-scanline2" aria-hidden />
+
       {/* ── HUD corners ── */}
       <div className="dz-hud-tl" aria-hidden />
       <div className="dz-hud-tr" aria-hidden />
       <div className="dz-hud-bl" aria-hidden />
       <div className="dz-hud-br" aria-hidden />
+
+      {/* Corner data panels */}
+      <div className="dz-corner-data dz-corner-data--tl" aria-hidden>
+        <span className="dz-cd-hi">SYS STATUS</span>
+        <span>CORE ···· <span className="dz-cd-blink">ONLINE</span></span>
+        <span>AI ·············· ON</span>
+        <div className="dz-data-bar"><div className="dz-data-bar-fill"/><span>87%</span></div>
+      </div>
+      <div className="dz-corner-data dz-corner-data--tr" aria-hidden>
+        <span className="dz-cd-hi">TARGETING</span>
+        <span>35.6976° N</span>
+        <span>00.6369° E</span>
+        <span className="dz-cd-blink">ORAN · LOCK</span>
+      </div>
+      <div className="dz-corner-data dz-corner-data--bl" aria-hidden>
+        <span className="dz-cd-hi">POWER CORE</span>
+        <span>ARC ········ 100%</span>
+        <span>VOICE ········· ON</span>
+        <span>CAM ··· STANDBY</span>
+      </div>
+      <div className="dz-corner-data dz-corner-data--br" aria-hidden>
+        <span className="dz-cd-hi">FIK CONCIERG</span>
+        <span>FLEET ·········· 8</span>
+        <span>ACTIF ·········· 3</span>
+        <span className="dz-cd-blink">SECURE LINK</span>
+      </div>
 
       {/* ── Top bar ── */}
       <div className="dz-topbar">
@@ -649,11 +679,35 @@ export default function ChatInterface() {
           <div className="dz-arc dz-arc--1" aria-hidden />
           <div className="dz-arc dz-arc--2" aria-hidden />
 
+          {/* Power indicator bars */}
+          <div className="dz-power-bars dz-power-bars--l" aria-hidden>
+            {([5,9,13,9,5] as number[]).map((h,i) => <div key={i} className="dz-power-bar" style={{height:h}}/>)}
+          </div>
+          <div className="dz-power-bars dz-power-bars--r" aria-hidden>
+            {([5,9,13,9,5] as number[]).map((h,i) => <div key={i} className="dz-power-bar" style={{height:h}}/>)}
+          </div>
+
           <div className="dz-orb">
             <div className="dz-ring dz-ring--3" aria-hidden />
             <div className="dz-ring dz-ring--2" aria-hidden />
             <div className="dz-ring dz-ring--1" aria-hidden />
+
+            {/* Rotating tick-mark ring */}
+            <svg className="dz-ticks-svg" viewBox="0 0 200 200" aria-hidden>
+              {(Array.from({length:36}) as unknown[]).map((_,i) => {
+                const a = (i * 10) * Math.PI / 180;
+                const major = i % 3 === 0;
+                const r1 = 96, r2 = major ? 88 : 92;
+                return <line key={i}
+                  x1={100+r1*Math.cos(a)} y1={100+r1*Math.sin(a)}
+                  x2={100+r2*Math.cos(a)} y2={100+r2*Math.sin(a)}
+                  className={major ? 'dz-tick-major' : 'dz-tick-minor'}
+                  strokeWidth={major ? 1.4 : 0.8}/>;
+              })}
+            </svg>
+
             <canvas ref={canvasRef} className="dz-sphere-canvas" aria-hidden />
+            <div className="dz-center-pulse2" aria-hidden />
             <button
               className="dz-center-btn"
               onClick={handleVoiceBtn}

@@ -29,14 +29,13 @@ input  { font: inherit; border: none; outline: none; background: none; }
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Subtle grid */
+/* Hexagonal HUD grid */
 .dz-root::before {
   content:    '';
   position:   absolute;
   inset:      0;
-  background: linear-gradient(rgba(0,212,255,.018) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0,212,255,.018) 1px, transparent 1px);
-  background-size: 44px 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 0 L56 16 L56 48 L28 64 L0 48 L0 16 Z' fill='none' stroke='rgba(0,212,255,0.055)' stroke-width='0.8'/%3E%3Cpath d='M28 36 L56 52 L56 84 L28 100 L0 84 L0 52 Z' fill='none' stroke='rgba(0,212,255,0.055)' stroke-width='0.8'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
   pointer-events: none;
   z-index:    0;
 }
@@ -782,6 +781,96 @@ input  { font: inherit; border: none; outline: none; background: none; }
   border:         1px solid rgba(var(--ar),var(--ag),var(--ab),.25);
   border-radius:  6px;
   padding:        2px 7px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   JARVIS EXTRA — scanlines · corner HUD · tick ring · power bars
+   ══════════════════════════════════════════════════════════════════ */
+
+.dz-scanline, .dz-scanline2 {
+  position: fixed; top:0; left:0; right:0;
+  pointer-events: none; z-index:3;
+}
+.dz-scanline {
+  height: 2px;
+  background: linear-gradient(90deg, transparent 10%, rgba(var(--ar),var(--ag),var(--ab),.85) 50%, transparent 90%);
+  animation: scanline-sweep 7s linear infinite;
+}
+.dz-scanline2 {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 20%, rgba(var(--ar),var(--ag),var(--ab),.35) 50%, transparent 80%);
+  animation: scanline-sweep 7s linear infinite 3.5s;
+  opacity:0;
+}
+@keyframes scanline-sweep {
+  0%   { top:-2px; opacity:0; }
+  4%   { opacity:1; }
+  95%  { opacity:.5; }
+  100% { top:100vh; opacity:0; }
+}
+
+.dz-corner-data {
+  position:fixed; z-index:15; pointer-events:none;
+  font-family:'Share Tech Mono',monospace;
+  font-size:7px; letter-spacing:.08em; line-height:1.75;
+  color:rgba(var(--ar),var(--ag),var(--ab),.28);
+  transition:color .8s;
+}
+.dz-corner-data--tl { top:56px;  left:8px;  text-align:left; }
+.dz-corner-data--tr { top:56px;  right:8px; text-align:right; }
+.dz-corner-data--bl { bottom:90px; left:8px;  text-align:left; }
+.dz-corner-data--br { bottom:90px; right:8px; text-align:right; }
+.dz-corner-data span    { display:block; white-space:nowrap; }
+.dz-corner-data .dz-cd-hi    { color:rgba(var(--ar),var(--ag),var(--ab),.58); }
+.dz-corner-data .dz-cd-blink { animation:dot-pulse 2.4s ease-in-out infinite; }
+.dz-data-bar { display:flex; align-items:center; gap:3px; margin-top:2px; }
+.dz-data-bar-fill {
+  height:1.5px; width:36px; border-radius:1px; overflow:hidden;
+  background:rgba(var(--ar),var(--ag),var(--ab),.1);
+}
+.dz-data-bar-fill::after {
+  content:''; display:block; height:100%; width:87%; border-radius:1px;
+  background:linear-gradient(90deg,rgba(var(--ar),var(--ag),var(--ab),.5),rgba(var(--ar),var(--ag),var(--ab),.9));
+}
+
+.dz-tick-major { stroke:rgba(0,212,255,.6); transition:stroke .8s; }
+.dz-tick-minor { stroke:rgba(0,212,255,.25); transition:stroke .8s; }
+.dz-root[data-state="listen"] .dz-tick-major { stroke:rgba(0,255,135,.65); }
+.dz-root[data-state="listen"] .dz-tick-minor { stroke:rgba(0,255,135,.28); }
+.dz-root[data-state="think"]  .dz-tick-major { stroke:rgba(144,97,249,.65); }
+.dz-root[data-state="think"]  .dz-tick-minor { stroke:rgba(144,97,249,.25); }
+.dz-root[data-state="speak"]  .dz-tick-major { stroke:rgba(255,171,0,.65); }
+.dz-root[data-state="speak"]  .dz-tick-minor { stroke:rgba(255,171,0,.25); }
+
+.dz-ticks-svg {
+  position:absolute; inset:0; width:100%; height:100%;
+  pointer-events:none; z-index:3;
+  animation:ring-spin 35s linear infinite; opacity:.55;
+  transition:opacity .5s;
+}
+.dz-root[data-state="listen"] .dz-ticks-svg { animation-duration:12s; opacity:.75; }
+.dz-root[data-state="speak"]  .dz-ticks-svg { animation-duration:8s;  opacity:.7; }
+
+.dz-power-bars {
+  position:absolute; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:3px;
+  pointer-events:none; z-index:20;
+}
+.dz-power-bars--l { left:-16px; }
+.dz-power-bars--r { right:-16px; }
+.dz-power-bar {
+  width:2.5px; border-radius:1px;
+  background:rgba(var(--ar),var(--ag),var(--ab),.5);
+  box-shadow:0 0 4px rgba(var(--ar),var(--ag),var(--ab),.28);
+  transition:background .8s,box-shadow .8s;
+}
+
+.dz-center-pulse2 {
+  position:absolute; width:90px; height:90px;
+  border-radius:50%; border:1px solid rgba(var(--ar),var(--ag),var(--ab),.08);
+  pointer-events:none; z-index:9;
+  animation:btn-pulse 1.4s ease-in-out infinite .7s;
+  transition:border-color .5s;
 }
 
 /* ══════════════════════════════════════════════════════════════════
