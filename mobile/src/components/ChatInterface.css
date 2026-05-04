@@ -1,1069 +1,654 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&family=Share+Tech+Mono&display=swap');
+/* ══════════════════════════════════════════════════════════════════
+   DZARYX — Jarvis HUD Interface v3
+   ══════════════════════════════════════════════════════════════════ */
 
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+/* ── Reset ─────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+button { font: inherit; cursor: pointer; border: none; background: none; }
+input  { font: inherit; border: none; outline: none; background: none; }
 
-/* ── Root ──────────────────────────────────────────────────────── */
+/* ── State color tokens ────────────────────────────────────────── */
+.dz-root                       { --accent: #00e5ff; --ar: 0;   --ag: 229; --ab: 255; }
+.dz-root[data-state="listen"]  { --accent: #00ff88; --ar: 0;   --ag: 255; --ab: 136; }
+.dz-root[data-state="think"]   { --accent: #a855f7; --ar: 168; --ag: 85;  --ab: 247; }
+.dz-root[data-state="speak"]   { --accent: #ffd700; --ar: 255; --ag: 215; --ab: 0;   }
+
+/* ── Root layout ───────────────────────────────────────────────── */
 .dz-root {
-  position: fixed;
-  inset: 0;
-  background: #00050d;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  font-family: 'Rajdhani', sans-serif;
-  color: #e0f4ff;
-  -webkit-user-select: none;
-  user-select: none;
+  position:        fixed;
+  inset:           0;
+  display:         flex;
+  flex-direction:  column;
+  background:      #000408;
+  font-family:     'Rajdhani', sans-serif;
+  color:           rgba(255,255,255,.9);
+  overflow:        hidden;
+  user-select:     none;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Background ─────────────────────────────────────────────────── */
-.dz-grid {
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(0,200,255,0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,200,255,0.022) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-}
-.dz-vignette {
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(ellipse 80% 80% at 50% 35%, transparent 15%, #00050d 88%);
-  pointer-events: none;
-  z-index: 1;
+.dz-root::before {
+  content:    '';
+  position:   absolute;
+  inset:      0;
+  background: linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+  background-size:  44px 44px;
+  pointer-events:   none;
+  z-index:          0;
 }
 
-/* ── Top status bar ─────────────────────────────────────────────── */
+/* ── Top bar ───────────────────────────────────────────────────── */
 .dz-topbar {
-  position: relative;
-  z-index: 10;
-  flex-shrink: 0;
-  display: flex;
+  position:         relative;
+  z-index:          10;
+  display:          flex;
+  align-items:      center;
+  justify-content:  space-between;
+  padding:          14px 20px 12px;
+  border-bottom:    1px solid rgba(0,229,255,.07);
+  flex-shrink:      0;
+}
+
+.dz-brand {
+  font-family:    'Orbitron', monospace;
+  font-weight:    900;
+  font-size:      18px;
+  letter-spacing: .3em;
+  color:          var(--accent);
+  text-shadow:    0 0 20px rgba(var(--ar),var(--ag),var(--ab),.6),
+                  0 0 40px rgba(var(--ar),var(--ag),var(--ab),.3);
+  transition:     color .5s, text-shadow .5s;
+}
+
+.dz-status-row {
+  display:     flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  border-bottom: 1px solid rgba(0,200,255,0.1);
-  background: rgba(0,5,15,0.85);
-  backdrop-filter: blur(8px);
-  gap: 6px;
+  gap:         8px;
 }
-.dz-badge {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  padding: 3px 7px;
-  border-radius: 2px;
-  white-space: nowrap;
-}
-.dz-badge--online {
-  color: #00ff88;
-  border: 1px solid rgba(0,255,136,0.3);
-  background: rgba(0,255,136,0.04);
-}
-.dz-badge--system {
-  color: #00ccff;
-  border: 1px solid rgba(0,200,255,0.2);
-  background: rgba(0,200,255,0.04);
-}
-.dz-badge-dot {
-  width: 5px; height: 5px;
+
+.dz-status-dot {
+  width:         7px;
+  height:        7px;
   border-radius: 50%;
-  background: #00ff88;
-  box-shadow: 0 0 5px #00ff88;
-  animation: blink 1.6s ease-in-out infinite;
-  flex-shrink: 0;
+  background:    var(--accent);
+  box-shadow:    0 0 8px var(--accent);
+  animation:     dot-blink 2.4s ease-in-out infinite;
+  transition:    background .5s, box-shadow .5s;
 }
-.dz-wave-tiny {
-  display: inline-flex;
-  gap: 1.5px;
-  align-items: flex-end;
-  height: 10px;
+
+@keyframes dot-blink {
+  0%,100% { opacity: 1; }
+  50%     { opacity: .3; }
 }
-.dz-wave-tiny span {
-  display: block;
-  width: 2px;
-  background: #00ccff;
+
+.dz-status-label {
+  font-family:    'Share Tech Mono', monospace;
+  font-size:      10px;
+  letter-spacing: .14em;
+  color:          rgba(255,255,255,.4);
+}
+
+.dz-menu-icon {
+  display:        flex;
+  flex-direction: column;
+  gap:            4px;
+  padding:        6px 4px;
+  opacity:        .5;
+  transition:     opacity .2s;
+}
+.dz-menu-icon:hover, .dz-menu-icon:focus { opacity: 1; }
+.dz-menu-icon span {
+  display:       block;
+  width:         22px;
+  height:        1.5px;
+  background:    rgba(255,255,255,.7);
   border-radius: 1px;
-  animation: wave-bar 1.2s ease-in-out infinite;
-}
-.dz-wave-tiny span:nth-child(1) { height: 4px;  animation-delay: 0s; }
-.dz-wave-tiny span:nth-child(2) { height: 8px;  animation-delay: 0.15s; }
-.dz-wave-tiny span:nth-child(3) { height: 6px;  animation-delay: 0.3s; }
-.dz-wave-tiny span:nth-child(4) { height: 10px; animation-delay: 0.1s; }
-.dz-root[data-state="idle"] .dz-wave-tiny span { animation-play-state: paused; }
-.dz-menu-btn {
-  background: none;
-  border: 1px solid rgba(0,200,255,0.2);
-  border-radius: 2px;
-  padding: 5px 7px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  align-items: center;
-  flex-shrink: 0;
-  transition: border-color 0.2s, background 0.2s;
-}
-.dz-menu-btn span {
-  display: block;
-  width: 15px; height: 1.5px;
-  background: rgba(0,200,255,0.7);
-}
-.dz-menu-btn:active { background: rgba(0,200,255,0.1); }
-
-/* ── Header ─────────────────────────────────────────────────────── */
-.dz-header {
-  position: relative;
-  z-index: 10;
-  flex-shrink: 0;
-  text-align: center;
-  padding: 8px 16px 4px;
-}
-.dz-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: clamp(26px, 9vw, 42px);
-  font-weight: 900;
-  letter-spacing: 0.18em;
-  color: #00ccff;
-  text-shadow:
-    0 0 18px rgba(0,200,255,0.85),
-    0 0 40px rgba(0,200,255,0.4),
-    0 0 80px rgba(0,200,255,0.15);
-  line-height: 1;
-}
-.dz-subtitle {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: clamp(9px, 2.5vw, 12px);
-  letter-spacing: 0.32em;
-  color: rgba(0,200,255,0.45);
-  text-transform: uppercase;
-  margin-top: 2px;
 }
 
-/* ── Main content area ──────────────────────────────────────────── */
-.dz-main {
-  position: relative;
-  z-index: 5;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  padding: 6px 10px;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Home content ────────────────────────────────────────────────── */
-.dz-home-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* ── HUD Module ─────────────────────────────────────────────────── */
-.dz-hud-module {
-  flex: 1;
-  min-height: 0;
-  border: 1px solid rgba(0,200,255,0.22);
-  border-radius: 4px;
-  background: rgba(0,18,32,0.5);
-  backdrop-filter: blur(4px);
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-/* Corner HUD brackets */
-.dz-hud-module::before,
-.dz-hud-module::after {
-  content: '';
-  position: absolute;
-  width: 14px; height: 14px;
-  border-color: rgba(0,200,255,0.65);
-  border-style: solid;
-  z-index: 2;
-  pointer-events: none;
-}
-.dz-hud-module::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-.dz-hud-module::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-/* Extra corners (inner-right-top, inner-left-bottom) */
-.dz-hud-corner-tr,
-.dz-hud-corner-bl {
-  position: absolute;
-  width: 14px; height: 14px;
-  border-color: rgba(0,200,255,0.35);
-  border-style: solid;
-  z-index: 2;
-  pointer-events: none;
-}
-.dz-hud-corner-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
-.dz-hud-corner-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
-
-/* Module header row */
-.dz-module-header {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
+/* ── Orb section (main visual) ─────────────────────────────────── */
+.dz-orb-section {
+  position:        relative;
+  z-index:         5;
+  flex:            1;
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
   justify-content: center;
-  gap: 10px;
-  padding: 7px 14px;
-  border-bottom: 1px solid rgba(0,200,255,0.1);
+  min-height:      0;
+  padding:         16px 0 0;
 }
-.dz-module-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  color: #00ccff;
-  transition: color 0.4s;
-}
-.dz-root[data-state="listen"] .dz-module-title { color: #50ff8c; }
-.dz-root[data-state="think"]  .dz-module-title { color: #60aaff; }
-.dz-root[data-state="speak"]  .dz-module-title { color: #ffc828; }
 
-.dz-wave-mini {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-  height: 14px;
-  flex-shrink: 0;
-}
-.dz-wave-mini span {
-  display: block;
-  width: 2px;
-  background: #00ccff;
-  border-radius: 1px;
-  animation: wave-bar 1.2s ease-in-out infinite;
-  transition: background 0.4s;
-}
-.dz-wave-mini span:nth-child(1) { height: 5px;  animation-delay: 0.0s; }
-.dz-wave-mini span:nth-child(2) { height: 9px;  animation-delay: 0.12s; }
-.dz-wave-mini span:nth-child(3) { height: 13px; animation-delay: 0.22s; }
-.dz-wave-mini span:nth-child(4) { height: 7px;  animation-delay: 0.08s; }
-.dz-root[data-state="idle"]  .dz-wave-mini span { animation-play-state: paused; height: 3px; }
-.dz-root[data-state="listen"] .dz-wave-mini span { animation-duration: 0.6s; background: #50ff8c; }
-.dz-root[data-state="think"]  .dz-wave-mini span { animation-duration: 1.6s; background: #60aaff; }
-.dz-root[data-state="speak"]  .dz-wave-mini span { animation-duration: 0.45s; background: #ffc828; }
-
-/* ── Mic area ────────────────────────────────────────────────────── */
-.dz-mic-area {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  display: flex;
-  align-items: center;
+.dz-orb {
+  position:        relative;
+  width:           clamp(220px, 56vw, 280px);
+  height:          clamp(220px, 56vw, 280px);
+  display:         flex;
+  align-items:     center;
   justify-content: center;
-  overflow: hidden;
+  flex-shrink:     0;
 }
 
-/* Canvas sphere — fills mic area */
+/* Rings */
+.dz-ring {
+  position:      absolute;
+  top:           50%;
+  left:          50%;
+  transform:     translate(-50%, -50%);
+  border-radius: 50%;
+  border:        1px solid rgba(var(--ar),var(--ag),var(--ab),.2);
+  pointer-events: none;
+  transition:    border-color .6s;
+}
+
+.dz-ring--1 { width: 100%; height: 100%; animation: ring-spin  14s linear infinite; }
+.dz-ring--2 { width: 118%; height: 118%; animation: ring-spin  22s linear infinite reverse; opacity: .6; }
+.dz-ring--3 { width: 140%; height: 140%; animation: ring-spin  30s linear infinite; opacity: .35; }
+
+@keyframes ring-spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+
+.dz-root[data-state="listen"] .dz-ring { border-color: rgba(0,255,136,.5); }
+.dz-root[data-state="think"]  .dz-ring { border-color: rgba(168,85,247,.4); }
+.dz-root[data-state="speak"]  .dz-ring { border-color: rgba(255,215,0,.4); }
+
+.dz-root[data-state="listen"] .dz-ring--1 { animation: ring-spin 6s linear infinite,  ring-pulse-out 2s ease-out infinite; }
+.dz-root[data-state="listen"] .dz-ring--2 { animation: ring-spin 10s linear infinite reverse, ring-pulse-out 2s ease-out .6s infinite; }
+.dz-root[data-state="listen"] .dz-ring--3 { animation: ring-spin 14s linear infinite, ring-pulse-out 2s ease-out 1.2s infinite; }
+
+@keyframes ring-pulse-out {
+  0%   { transform: translate(-50%,-50%) scale(1);    opacity: .6; }
+  100% { transform: translate(-50%,-50%) scale(1.3);  opacity: 0;  }
+}
+
+/* 3D sphere canvas */
 .dz-sphere-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-}
-
-/* Waveform bars left/right */
-.dz-waveform {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  z-index: 2;
-  pointer-events: none;
-}
-.dz-waveform--left  { left: 10px; }
-.dz-waveform--right { right: 10px; flex-direction: row-reverse; }
-
-.dz-wave-bar {
-  width: 3px;
-  border-radius: 2px;
-  background: linear-gradient(to top, rgba(0,200,255,0.25), rgba(0,200,255,0.85));
-  animation: wave-bar 1.6s ease-in-out infinite;
-  transition: background 0.4s, height 0.3s;
-}
-.dz-waveform .dz-wave-bar:nth-child(1) { height: 8px;  animation-delay: 0.00s; }
-.dz-waveform .dz-wave-bar:nth-child(2) { height: 14px; animation-delay: 0.10s; }
-.dz-waveform .dz-wave-bar:nth-child(3) { height: 22px; animation-delay: 0.18s; }
-.dz-waveform .dz-wave-bar:nth-child(4) { height: 32px; animation-delay: 0.25s; }
-.dz-waveform .dz-wave-bar:nth-child(5) { height: 42px; animation-delay: 0.30s; }
-.dz-waveform .dz-wave-bar:nth-child(6) { height: 30px; animation-delay: 0.22s; }
-.dz-waveform .dz-wave-bar:nth-child(7) { height: 18px; animation-delay: 0.12s; }
-.dz-waveform .dz-wave-bar:nth-child(8) { height: 10px; animation-delay: 0.05s; }
-
-.dz-root[data-state="idle"] .dz-wave-bar {
-  animation-duration: 3.5s; opacity: 0.25;
-}
-.dz-root[data-state="listen"] .dz-wave-bar {
-  animation-duration: 0.65s; opacity: 1;
-  background: linear-gradient(to top, rgba(80,255,140,0.3), rgba(80,255,140,1));
-}
-.dz-root[data-state="think"] .dz-wave-bar {
-  animation-duration: 1.8s; opacity: 0.55;
-  background: linear-gradient(to top, rgba(80,140,255,0.3), rgba(80,140,255,0.9));
-}
-.dz-root[data-state="speak"] .dz-wave-bar {
-  animation-duration: 0.45s; opacity: 1;
-  background: linear-gradient(to top, rgba(255,200,40,0.3), rgba(255,200,40,1));
-}
-
-/* Mic circle overlay */
-.dz-mic-circle {
-  position: relative;
-  z-index: 3;
-  width: clamp(72px, 20vw, 96px);
-  height: clamp(72px, 20vw, 96px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.dz-mic-ring {
-  position: absolute;
+  position:      absolute;
+  inset:         0;
+  width:         100%;
+  height:        100%;
   border-radius: 50%;
-  border: 1px solid rgba(0,200,255,0.35);
-  top: 50%; left: 50%;
-  animation: pulse-ring 2.8s ease-out infinite;
-  transition: border-color 0.4s;
 }
-.dz-mic-ring--1 { width: 100%;  height: 100%;  transform: translate(-50%,-50%); animation-delay: 0s; }
-.dz-mic-ring--2 { width: 155%;  height: 155%;  transform: translate(-50%,-50%); animation-delay: 0.9s; }
-.dz-mic-ring--3 { width: 215%;  height: 215%;  transform: translate(-50%,-50%); animation-delay: 1.8s; }
 
-.dz-root[data-state="idle"]  .dz-mic-ring { animation-duration: 4s; opacity: 0.35; }
-.dz-root[data-state="listen"] .dz-mic-ring { animation-duration: 1.1s; border-color: rgba(80,255,140,0.55); }
-.dz-root[data-state="think"]  .dz-mic-ring { animation-duration: 2s; border-color: rgba(80,140,255,0.45); }
-.dz-root[data-state="speak"]  .dz-mic-ring { animation-duration: 0.85s; border-color: rgba(255,200,40,0.55); }
-
-.dz-mic-btn {
-  position: relative;
-  z-index: 1;
-  width: 100%; height: 100%;
-  border-radius: 50%;
-  border: 2px solid rgba(0,200,255,0.55);
-  background: rgba(0,18,35,0.85);
-  color: #00ccff;
-  display: flex;
-  align-items: center;
+/* Center mic button inside orb */
+.dz-center-btn {
+  position:        absolute;
+  z-index:         10;
+  width:           70px;
+  height:          70px;
+  border-radius:   50%;
+  display:         flex;
+  align-items:     center;
   justify-content: center;
-  cursor: pointer;
-  transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
-  box-shadow: 0 0 14px rgba(0,200,255,0.18), inset 0 0 14px rgba(0,200,255,0.05);
-  -webkit-tap-highlight-color: transparent;
-}
-.dz-mic-btn svg { width: 34%; height: 34%; }
-.dz-root[data-state="listen"] .dz-mic-btn {
-  border-color: rgba(80,255,140,0.8);
-  box-shadow: 0 0 28px rgba(80,255,140,0.45), inset 0 0 16px rgba(80,255,140,0.08);
-  animation: mic-pulse 0.9s ease-in-out infinite;
-  color: #50ff8c;
-}
-.dz-root[data-state="think"] .dz-mic-btn {
-  border-color: rgba(80,140,255,0.7);
-  box-shadow: 0 0 22px rgba(80,140,255,0.35);
-  color: #60aaff;
-}
-.dz-root[data-state="speak"] .dz-mic-btn {
-  border-color: rgba(255,200,40,0.7);
-  box-shadow: 0 0 28px rgba(255,200,40,0.4);
-  color: #ffc828;
-}
-.dz-mic-btn:active { transform: scale(0.93); }
-
-/* ── Module footer ───────────────────────────────────────────────── */
-.dz-module-footer {
-  flex-shrink: 0;
-  padding: 7px 14px 9px;
-  text-align: center;
-  border-top: 1px solid rgba(0,200,255,0.1);
-}
-.dz-state-main-text {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: clamp(14px, 4vw, 18px);
-  font-weight: 600;
-  color: #00ccff;
-  letter-spacing: 0.03em;
-  transition: color 0.4s;
-  min-height: 22px;
-}
-.dz-root[data-state="listen"] .dz-state-main-text { color: #50ff8c; }
-.dz-root[data-state="think"]  .dz-state-main-text { color: #60aaff; }
-.dz-root[data-state="speak"]  .dz-state-main-text { color: #ffc828; }
-.dz-state-caption {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 9px;
-  color: rgba(0,200,255,0.35);
-  letter-spacing: 0.1em;
-  margin-top: 2px;
-}
-.dz-indicators {
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 6px;
-}
-.dz-indicator {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 8px;
-  letter-spacing: 0.06em;
-  color: rgba(0,200,255,0.3);
-  transition: color 0.3s;
-}
-.dz-indicator--active { color: rgba(0,200,255,0.85); }
-.dz-indicator-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  border: 1px solid rgba(0,200,255,0.3);
-  background: transparent;
-  transition: background 0.3s, box-shadow 0.3s;
-  flex-shrink: 0;
-}
-.dz-indicator--active .dz-indicator-dot {
-  background: #00ccff;
-  box-shadow: 0 0 5px rgba(0,200,255,0.7);
-  border-color: rgba(0,200,255,0.6);
-}
-.dz-root[data-state="listen"] .dz-indicator--listen .dz-indicator-dot { background: #50ff8c; box-shadow: 0 0 5px rgba(80,255,140,0.7); }
-.dz-root[data-state="think"]  .dz-indicator--think  .dz-indicator-dot { background: #60aaff; box-shadow: 0 0 5px rgba(80,140,255,0.7); }
-.dz-root[data-state="speak"]  .dz-indicator--speak  .dz-indicator-dot { background: #ffc828; box-shadow: 0 0 5px rgba(255,200,40,0.7); }
-.dz-root[data-state="listen"] .dz-indicator--listen { color: #50ff8c; }
-.dz-root[data-state="think"]  .dz-indicator--think  { color: #60aaff; }
-.dz-root[data-state="speak"]  .dz-indicator--speak  { color: #ffc828; }
-
-/* ── Action buttons ──────────────────────────────────────────────── */
-.dz-actions {
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-.dz-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 4px;
-  border: 1px solid;
-  cursor: pointer;
-  transition: all 0.2s;
-  position: relative;
-  overflow: hidden;
-  -webkit-tap-highlight-color: transparent;
-  text-align: left;
-}
-.dz-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
-  pointer-events: none;
-}
-.dz-btn:active { transform: scale(0.97); }
-.dz-btn--primary {
-  background: rgba(0,200,255,0.07);
-  border-color: rgba(0,200,255,0.38);
-  color: #00ccff;
-  box-shadow: 0 0 10px rgba(0,200,255,0.08);
-}
-.dz-btn--primary:active, .dz-btn--primary.active {
-  background: rgba(0,200,255,0.18);
-  box-shadow: 0 0 20px rgba(0,200,255,0.3);
-}
-.dz-root[data-state="listen"] .dz-btn--primary {
-  background: rgba(80,255,140,0.07);
-  border-color: rgba(80,255,140,0.4);
-  color: #50ff8c;
-  box-shadow: 0 0 12px rgba(80,255,140,0.12);
-}
-.dz-btn--secondary {
-  background: rgba(0,200,255,0.03);
-  border-color: rgba(0,200,255,0.18);
-  color: rgba(0,200,255,0.65);
-}
-.dz-btn--secondary:active { background: rgba(0,200,255,0.1); border-color: rgba(0,200,255,0.35); }
-.dz-btn--danger {
-  background: rgba(255,80,80,0.06);
-  border-color: rgba(255,80,80,0.3);
-  color: rgba(255,120,120,0.85);
-}
-.dz-btn--danger:active { background: rgba(255,80,80,0.15); }
-.dz-btn-icon { font-size: 20px; flex-shrink: 0; }
-.dz-btn-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.dz-btn-label {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.dz-btn-sub {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  opacity: 0.55;
-  font-weight: 400;
-}
-
-/* ── Response text (floating overlay) ───────────────────────────── */
-.dz-response {
-  position: absolute;
-  left: 10px; right: 10px;
-  bottom: 12px;
-  background: rgba(0,8,20,0.88);
-  border: 1px solid rgba(0,200,255,0.22);
-  border-radius: 4px;
-  padding: 9px 13px;
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  color: rgba(0,220,255,0.9);
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.3s, transform 0.3s;
-  pointer-events: none;
-  max-height: 90px;
-  overflow: hidden;
-  z-index: 20;
+  border:          2px solid var(--accent);
+  background:      rgba(0,0,0,.75);
   backdrop-filter: blur(8px);
+  color:           var(--accent);
+  box-shadow:      0 0 18px rgba(var(--ar),var(--ag),var(--ab),.4),
+                   inset 0 0 14px rgba(var(--ar),var(--ag),var(--ab),.08);
+  transition:      border-color .5s, color .5s, box-shadow .5s, transform .15s;
+}
+.dz-center-btn svg { width: 28px; height: 28px; }
+.dz-center-btn:active { transform: scale(.9); }
+
+.dz-root[data-state="listen"] .dz-center-btn,
+.dz-root[data-state="speak"]  .dz-center-btn {
+  animation: center-pulse 1.2s ease-in-out infinite;
+}
+.dz-root[data-state="speak"] .dz-center-btn { animation-duration: .8s; }
+
+@keyframes center-pulse {
+  0%,100% { box-shadow: 0 0 18px rgba(var(--ar),var(--ag),var(--ab),.4), inset 0 0 14px rgba(var(--ar),var(--ag),var(--ab),.08); }
+  50%     { box-shadow: 0 0 50px rgba(var(--ar),var(--ag),var(--ab),.8), inset 0 0 30px rgba(var(--ar),var(--ag),var(--ab),.18); }
+}
+
+/* Glow below orb */
+.dz-orb-glow {
+  width:          180px;
+  height:         30px;
+  margin-top:     8px;
+  background:     radial-gradient(ellipse, rgba(var(--ar),var(--ag),var(--ab),.22) 0%, transparent 70%);
+  filter:         blur(6px);
+  pointer-events: none;
+  transition:     background .6s;
+  flex-shrink:    0;
+}
+
+/* ── State display ─────────────────────────────────────────────── */
+.dz-state-section {
+  position:        relative;
+  z-index:         5;
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  gap:             5px;
+  padding:         14px 24px 10px;
+  flex-shrink:     0;
+}
+
+.dz-state-label {
+  font-family:    'Orbitron', monospace;
+  font-size:      11px;
+  font-weight:    700;
+  letter-spacing: .28em;
+  color:          var(--accent);
+  text-shadow:    0 0 12px rgba(var(--ar),var(--ag),var(--ab),.5);
+  transition:     color .5s, text-shadow .5s;
+}
+.dz-state-sub {
+  font-size:   13px;
+  font-weight: 400;
+  color:       rgba(255,255,255,.38);
+  letter-spacing: .06em;
+}
+
+/* ── Response text ─────────────────────────────────────────────── */
+.dz-response {
+  position:        relative;
+  z-index:         5;
+  margin:          0 20px;
+  padding:         12px 16px;
+  border:          1px solid rgba(var(--ar),var(--ag),var(--ab),.18);
+  border-radius:   12px;
+  background:      rgba(var(--ar),var(--ag),var(--ab),.04);
+  font-size:       15px;
+  font-weight:     400;
+  line-height:     1.55;
+  color:           rgba(255,255,255,.85);
+  max-height:      130px;
+  overflow-y:      auto;
+  transition:      border-color .5s, background .5s, opacity .3s;
+  flex-shrink:     0;
+  opacity:         0;
+  pointer-events:  none;
 }
 .dz-response.visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
+  opacity:         1;
+  pointer-events:  auto;
+  animation:       fade-up .3s ease;
+}
+.dz-response::-webkit-scrollbar { width: 3px; }
+.dz-response::-webkit-scrollbar-thumb { background: rgba(var(--ar),var(--ag),var(--ab),.4); border-radius: 2px; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Stat cards ──────────────────────────────────────────────────── */
-.dz-stats {
-  position: relative;
-  z-index: 10;
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 5px;
-  padding: 4px 10px;
-}
-.dz-stat-card {
-  background: rgba(0,12,26,0.7);
-  border: 1px solid rgba(0,200,255,0.14);
-  border-radius: 4px;
-  padding: 7px 5px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  position: relative;
-  overflow: hidden;
-}
-.dz-stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0,200,255,0.4), transparent);
-}
-.dz-stat-lbl {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 6.5px;
-  letter-spacing: 0.07em;
-  color: rgba(0,200,255,0.45);
-  text-align: center;
-}
-.dz-stat-sub {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 7px;
-  color: rgba(0,200,255,0.35);
-  letter-spacing: 0.07em;
-}
-/* Progress ring */
-.dz-progress-ring { position: relative; width: 40px; height: 40px; }
-.dz-progress-ring svg { transform: rotate(-90deg); display: block; }
-.dz-progress-ring-val {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  color: #00ccff;
-}
-/* Brain icon */
-.dz-brain-wrap {
-  width: 40px; height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  filter: drop-shadow(0 0 4px rgba(0,200,255,0.4));
-  animation: brain-pulse 3s ease-in-out infinite;
-}
-.dz-root[data-state="think"] .dz-brain-wrap { animation-duration: 0.7s; filter: drop-shadow(0 0 9px rgba(80,140,255,0.8)); }
-/* Mini sparkline graph */
-.dz-mini-graph { width: 48px; height: 28px; }
-.dz-mini-graph polyline { stroke: #00ccff; stroke-width: 1.5; fill: none; }
-
-/* ── Status strip ───────────────────────────────────────────────── */
-.dz-status-strip {
-  position: relative;
-  z-index: 10;
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 3px 10px 5px;
-  border-top: 1px solid rgba(0,200,255,0.07);
-}
-.dz-status-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.dz-status-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.dz-status-dot--on {
-  background: #00ff88;
-  box-shadow: 0 0 5px #00ff88;
-  animation: blink 2.2s ease-in-out infinite;
-}
-.dz-status-dot--off { background: rgba(255,80,80,0.7); }
-.dz-status-lbl {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 7.5px;
-  letter-spacing: 0.06em;
-  color: rgba(0,200,255,0.65);
-  display: block;
-}
-.dz-status-detail {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 7.5px;
-  color: rgba(0,200,255,0.3);
-  display: block;
-}
-
-/* ── Bottom navbar ──────────────────────────────────────────────── */
-.dz-navbar {
-  position: relative;
-  z-index: 10;
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  background: rgba(0,4,12,0.92);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid rgba(0,200,255,0.1);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-.dz-nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  padding: 8px 2px 7px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  position: relative;
-  color: rgba(0,200,255,0.28);
-  transition: color 0.2s;
-  -webkit-tap-highlight-color: transparent;
-}
-.dz-nav-item.active { color: #00ccff; }
-.dz-nav-item.active::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 15%; right: 15%;
-  height: 2px;
-  background: #00ccff;
-  box-shadow: 0 0 8px rgba(0,200,255,0.9);
-  border-radius: 0 0 2px 2px;
-}
-.dz-nav-icon { font-size: 16px; line-height: 1; }
-.dz-nav-label {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 6.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-/* Voice tab — elevated circle */
-.dz-nav-item--voice {
-  margin-top: -14px;
-  z-index: 2;
-}
-.dz-nav-voice-btn {
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  background: rgba(0,18,36,0.95);
-  border: 2px solid rgba(0,200,255,0.3);
-  box-shadow: 0 0 12px rgba(0,200,255,0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  transition: all 0.2s;
-}
-.dz-nav-item--voice.active .dz-nav-voice-btn {
-  border-color: rgba(0,200,255,0.7);
-  box-shadow: 0 0 20px rgba(0,200,255,0.4);
-  background: rgba(0,200,255,0.08);
-}
-.dz-root[data-state="listen"] .dz-nav-item--voice .dz-nav-voice-btn {
-  border-color: rgba(80,255,140,0.7);
-  box-shadow: 0 0 20px rgba(80,255,140,0.4);
-}
-
-/* ── Camera panel ───────────────────────────────────────────────── */
-.dz-camera-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.dz-camera-frame {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  border: 1px solid rgba(0,200,255,0.2);
-  border-radius: 4px;
-  background: rgba(0,0,0,0.9);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.dz-live-video {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  display: none;
-}
-.dz-live-video.active { display: block; }
-/* Corner overlays on camera frame */
-.dz-camera-frame::before, .dz-camera-frame::after {
-  content: '';
-  position: absolute;
-  width: 18px; height: 18px;
-  border-color: rgba(0,200,255,0.7);
-  border-style: solid;
-  z-index: 2;
+/* ── Error toast ───────────────────────────────────────────────── */
+.dz-error {
+  position:    fixed;
+  top:         60px;
+  left:        50%;
+  transform:   translateX(-50%) translateY(-16px);
+  z-index:     200;
+  background:  rgba(255,60,60,.1);
+  border:      1px solid rgba(255,60,60,.4);
+  border-radius: 8px;
+  padding:     8px 18px;
+  font-size:   13px;
+  color:       #ff7070;
+  white-space: nowrap;
+  opacity:     0;
   pointer-events: none;
+  transition:  opacity .25s, transform .25s;
 }
-.dz-camera-frame::before { top: 6px; left: 6px; border-width: 2px 0 0 2px; }
-.dz-camera-frame::after  { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
-.dz-camera-empty {
-  display: flex; flex-direction: column; align-items: center; gap: 10px;
-  color: rgba(0,200,255,0.35);
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
-  letter-spacing: 0.1em;
-  text-align: center;
-}
-.dz-camera-empty-icon { font-size: 36px; opacity: 0.4; }
-.dz-scan-badge-overlay {
-  position: absolute;
-  bottom: 10px; left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,200,255,0.12);
-  border: 1px solid rgba(0,200,255,0.45);
-  border-radius: 2px;
-  padding: 4px 14px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  color: #00ccff;
-  letter-spacing: 0.1em;
-  white-space: nowrap;
-  animation: fade-in-up 0.3s ease;
-  z-index: 3;
-}
-.dz-camera-btns {
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-/* ── Telegram panel ─────────────────────────────────────────────── */
-.dz-telegram-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 16px;
-  text-align: center;
-}
-.dz-tg-icon {
-  font-size: 52px;
-  animation: glow-pulse 2.5s ease-in-out infinite;
-  filter: drop-shadow(0 0 10px rgba(0,200,255,0.5));
-}
-.dz-tg-title {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #00ccff;
-}
-.dz-tg-sub {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
-  color: rgba(0,200,255,0.45);
-  letter-spacing: 0.1em;
-  max-width: 260px;
-  line-height: 1.5;
-}
-.dz-tg-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 18px;
-  border: 1px solid rgba(0,255,136,0.3);
-  border-radius: 2px;
-  background: rgba(0,255,136,0.05);
-}
-.dz-tg-status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #00ff88;
-  box-shadow: 0 0 8px #00ff88;
-  animation: blink 1.5s ease-in-out infinite;
-}
-.dz-tg-status-txt {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 11px;
-  color: #00ff88;
-  letter-spacing: 0.1em;
-}
-.dz-tg-note {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 9px;
-  color: rgba(0,200,255,0.28);
-  letter-spacing: 0.08em;
-  max-width: 240px;
-  line-height: 1.6;
-}
-
-/* ── Tools panel ────────────────────────────────────────────────── */
-.dz-tools-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow: hidden;
-}
-.dz-tools-hdr {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.15em;
-  color: rgba(0,200,255,0.6);
-  text-align: center;
-  padding: 4px 0;
-  flex-shrink: 0;
-}
-.dz-tools-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.dz-tool-tile {
-  background: rgba(0,12,26,0.7);
-  border: 1px solid rgba(0,200,255,0.14);
-  border-radius: 4px;
-  padding: 14px 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: all 0.18s;
-  -webkit-tap-highlight-color: transparent;
-}
-.dz-tool-tile:active {
-  background: rgba(0,200,255,0.1);
-  border-color: rgba(0,200,255,0.4);
-  transform: scale(0.95);
-}
-.dz-tool-ico { font-size: 22px; }
-.dz-tool-lbl {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 7.5px;
-  letter-spacing: 0.06em;
-  color: rgba(0,200,255,0.55);
-  text-align: center;
-  line-height: 1.3;
-}
-
-/* ── Profile panel ──────────────────────────────────────────────── */
-.dz-profile-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.dz-profile-top {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 12px 10px;
-  border-bottom: 1px solid rgba(0,200,255,0.1);
-}
-.dz-profile-avatar {
-  width: 58px; height: 58px;
-  border-radius: 50%;
-  border: 2px solid rgba(0,200,255,0.4);
-  background: rgba(0,18,38,0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  box-shadow: 0 0 16px rgba(0,200,255,0.18);
-}
-.dz-profile-name {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 14px;
-  color: #00ccff;
-  letter-spacing: 0.12em;
-}
-.dz-profile-role {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 9px;
-  color: rgba(0,200,255,0.38);
-  letter-spacing: 0.15em;
-}
-.dz-profile-sid {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 8px;
-  color: rgba(0,200,255,0.22);
-  letter-spacing: 0.06em;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.dz-profile-list { padding: 8px; display: flex; flex-direction: column; gap: 5px; }
-.dz-profile-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(0,200,255,0.1);
-  border-radius: 4px;
-  background: rgba(0,12,26,0.5);
-  cursor: pointer;
-  transition: all 0.18s;
-  -webkit-tap-highlight-color: transparent;
-}
-.dz-profile-row:active { background: rgba(0,200,255,0.08); border-color: rgba(0,200,255,0.3); }
-.dz-profile-row-ico { font-size: 16px; }
-.dz-profile-row-txt { flex: 1; }
-.dz-profile-row-lbl {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 13px;
-  color: rgba(0,200,255,0.8);
-}
-.dz-profile-row-sub {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 8px;
-  color: rgba(0,200,255,0.3);
-}
-.dz-profile-row-arr { color: rgba(0,200,255,0.25); font-size: 12px; }
-
-/* ── Error toast ────────────────────────────────────────────────── */
-.dz-toast {
-  position: fixed;
-  top: 48px; left: 50%;
-  transform: translateX(-50%) translateY(-6px);
-  background: rgba(20,0,0,0.9);
-  border: 1px solid rgba(255,80,80,0.4);
-  border-radius: 3px;
-  padding: 7px 20px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  color: #ff7070;
-  letter-spacing: 0.1em;
-  opacity: 0;
-  transition: opacity 0.3s, transform 0.3s;
-  pointer-events: none;
-  z-index: 200;
-  white-space: nowrap;
-  backdrop-filter: blur(8px);
-}
-.dz-toast.show {
-  opacity: 1;
+.dz-error.visible {
+  opacity:   1;
   transform: translateX(-50%) translateY(0);
 }
 
-/* ── Hidden camera input ────────────────────────────────────────── */
-.dz-hidden { display: none !important; }
-
-/* ── Animations ─────────────────────────────────────────────────── */
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.25; }
-}
-@keyframes wave-bar {
-  0%, 100% { transform: scaleY(0.35); }
-  50% { transform: scaleY(1); }
-}
-@keyframes pulse-ring {
-  0% { opacity: 0.75; transform: translate(-50%, -50%) scale(0.88); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.18); }
-}
-@keyframes mic-pulse {
-  0%, 100% { box-shadow: 0 0 22px rgba(80,255,140,0.35), inset 0 0 14px rgba(80,255,140,0.06); }
-  50% { box-shadow: 0 0 38px rgba(80,255,140,0.65), inset 0 0 20px rgba(80,255,140,0.12); }
-}
-@keyframes brain-pulse {
-  0%, 100% { opacity: 0.7; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.06); }
-}
-@keyframes glow-pulse {
-  0%, 100% { filter: drop-shadow(0 0 6px rgba(0,200,255,0.4)); }
-  50% { filter: drop-shadow(0 0 16px rgba(0,200,255,0.85)); }
-}
-@keyframes fade-in-up {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* ── Action bar ────────────────────────────────────────────────── */
+.dz-action-bar {
+  position:        relative;
+  z-index:         10;
+  display:         flex;
+  align-items:     center;
+  justify-content: space-around;
+  padding:         12px 16px max(16px, env(safe-area-inset-bottom));
+  border-top:      1px solid rgba(0,229,255,.07);
+  background:      rgba(0,4,8,.85);
+  backdrop-filter: blur(16px);
+  gap:             8px;
+  flex-shrink:     0;
 }
 
-/* ── Desktop: center + constrain width ──────────────────────────── */
-@media (min-width: 540px) {
+.dz-act-btn {
+  display:         flex;
+  flex-direction:  column;
+  align-items:     center;
+  gap:             5px;
+  padding:         10px 14px;
+  border-radius:   14px;
+  border:          1px solid rgba(255,255,255,.07);
+  background:      rgba(255,255,255,.02);
+  color:           rgba(255,255,255,.45);
+  transition:      all .2s;
+  min-width:       60px;
+  flex-shrink:     0;
+}
+.dz-act-btn:active { transform: scale(.9); }
+.dz-act-btn.active,
+.dz-act-btn:hover  {
+  color:        var(--accent);
+  border-color: rgba(var(--ar),var(--ag),var(--ab),.3);
+  background:   rgba(var(--ar),var(--ag),var(--ab),.07);
+}
+
+.dz-act-ico { font-size: 22px; line-height: 1; }
+.dz-act-lbl { font-family: 'Orbitron', monospace; font-size: 7.5px; font-weight: 700; letter-spacing: .1em; }
+
+/* Center voice button */
+.dz-act-btn--voice {
+  width:           68px;
+  height:          68px;
+  border-radius:   50%;
+  border-width:    2px;
+  border-color:    var(--accent);
+  background:      rgba(var(--ar),var(--ag),var(--ab),.07);
+  color:           var(--accent);
+  box-shadow:      0 0 16px rgba(var(--ar),var(--ag),var(--ab),.3);
+  flex-direction:  row;
+  min-width:       0;
+  padding:         0;
+  transition:      all .5s;
+}
+.dz-act-btn--voice .dz-act-ico { font-size: 26px; }
+.dz-act-btn--voice .dz-act-lbl { display: none; }
+
+.dz-root[data-state="listen"] .dz-act-btn--voice {
+  animation: center-pulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 30px rgba(0,255,136,.7), 0 0 60px rgba(0,255,136,.2);
+}
+.dz-root[data-state="speak"] .dz-act-btn--voice {
+  animation: center-pulse .8s ease-in-out infinite;
+  box-shadow: 0 0 30px rgba(255,215,0,.6), 0 0 60px rgba(255,215,0,.2);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   OVERLAYS
+   ══════════════════════════════════════════════════════════════════ */
+
+.dz-overlay {
+  position:        fixed;
+  inset:           0;
+  z-index:         100;
+  display:         flex;
+  flex-direction:  column;
+  opacity:         0;
+  pointer-events:  none;
+  transition:      opacity .25s;
+}
+.dz-overlay.open {
+  opacity:         1;
+  pointer-events:  auto;
+}
+
+.dz-overlay-backdrop {
+  position:        absolute;
+  inset:           0;
+  background:      rgba(0,0,0,.65);
+  backdrop-filter: blur(4px);
+}
+
+/* ── Text input overlay ────────────────────────────────────────── */
+.dz-text-overlay { justify-content: flex-end; }
+
+.dz-text-panel {
+  position:        relative;
+  z-index:         1;
+  display:         flex;
+  align-items:     center;
+  gap:             12px;
+  padding:         16px 20px max(20px, env(safe-area-inset-bottom));
+  background:      rgba(2,10,18,.97);
+  border-top:      1px solid rgba(0,229,255,.2);
+  backdrop-filter: blur(20px);
+  transform:       translateY(100%);
+  transition:      transform .3s cubic-bezier(.4,0,.2,1);
+}
+.dz-text-overlay.open .dz-text-panel { transform: translateY(0); }
+
+.dz-text-input {
+  flex:        1;
+  padding:     12px 16px;
+  border:      1px solid rgba(0,229,255,.22);
+  border-radius: 10px;
+  background:  rgba(0,229,255,.04);
+  color:       rgba(255,255,255,.9);
+  font-size:   16px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 500;
+  transition:  border-color .2s;
+}
+.dz-text-input::placeholder { color: rgba(255,255,255,.28); }
+.dz-text-input:focus { border-color: rgba(0,229,255,.5); }
+
+.dz-text-send {
+  width:           48px;
+  height:          48px;
+  border-radius:   50%;
+  background:      rgba(0,229,255,.1);
+  border:          1px solid rgba(0,229,255,.4);
+  color:           #00e5ff;
+  font-size:       20px;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  flex-shrink:     0;
+  transition:      all .2s;
+}
+.dz-text-send:active { transform: scale(.88); background: rgba(0,229,255,.2); }
+
+/* ── Camera overlay ────────────────────────────────────────────── */
+.dz-camera-overlay { background: #000408; opacity: 1; pointer-events: none; }
+.dz-camera-overlay.open { pointer-events: auto; }
+
+.dz-camera-header {
+  position:        relative;
+  z-index:         1;
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         14px 20px;
+  border-bottom:   1px solid rgba(0,229,255,.1);
+  flex-shrink:     0;
+}
+.dz-camera-back {
+  font-family:    'Orbitron', monospace;
+  font-size:      11px;
+  letter-spacing: .1em;
+  color:          rgba(255,255,255,.45);
+  padding:        6px 0;
+  transition:     color .2s;
+}
+.dz-camera-back:hover { color: #00e5ff; }
+.dz-camera-title {
+  font-family:    'Orbitron', monospace;
+  font-size:      13px;
+  font-weight:    700;
+  letter-spacing: .2em;
+  color:          #00e5ff;
+}
+
+.dz-camera-view {
+  position:   relative;
+  flex:       1;
+  display:    flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow:   hidden;
+  min-height: 0;
+}
+
+/* HUD corner brackets */
+.dz-camera-view::before,
+.dz-camera-view::after {
+  content:        '';
+  position:       absolute;
+  width:          56px;
+  height:         56px;
+  border-color:   rgba(0,229,255,.5);
+  border-style:   solid;
+  pointer-events: none;
+  z-index:        2;
+}
+.dz-camera-view::before { top: 16px;  left: 16px;  border-width: 2px 0 0 2px; }
+.dz-camera-view::after  { bottom: 100px; right: 16px; border-width: 0 2px 2px 0; }
+
+.dz-live-video {
+  width:      100%;
+  height:     100%;
+  object-fit: cover;
+  opacity:    0;
+  transition: opacity .4s;
+}
+.dz-live-video.active { opacity: 1; }
+
+.dz-camera-empty {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            10px;
+  color:          rgba(255,255,255,.3);
+}
+.dz-camera-empty-ico  { font-size: 56px; opacity: .35; }
+.dz-camera-empty-txt  { font-size: 14px; letter-spacing: .1em; }
+.dz-camera-empty-hint { font-size: 11px; opacity: .5; }
+
+.dz-scan-badge {
+  position:   absolute;
+  bottom:     20px;
+  left:       50%;
+  transform:  translateX(-50%);
+  padding:    7px 18px;
+  background: rgba(0,229,255,.12);
+  border:     1px solid rgba(0,229,255,.45);
+  border-radius: 20px;
+  font-size:  12px;
+  letter-spacing: .12em;
+  color:      #00e5ff;
+  animation:  fade-up .3s ease;
+}
+
+.dz-camera-actions {
+  position:        relative;
+  z-index:         1;
+  display:         flex;
+  align-items:     center;
+  gap:             10px;
+  padding:         14px 16px max(20px, env(safe-area-inset-bottom));
+  border-top:      1px solid rgba(0,229,255,.07);
+  background:      rgba(0,0,0,.85);
+  flex-shrink:     0;
+}
+
+.dz-cam-btn {
+  flex:        1;
+  display:     flex;
+  flex-direction: column;
+  align-items: center;
+  gap:         6px;
+  padding:     14px 8px;
+  border:      1px solid rgba(0,229,255,.14);
+  border-radius: 12px;
+  background:  rgba(0,229,255,.03);
+  color:       rgba(255,255,255,.55);
+  transition:  all .2s;
+  font-size:   inherit;
+}
+.dz-cam-btn:active { transform: scale(.92); }
+.dz-cam-btn.primary {
+  background:   rgba(0,229,255,.1);
+  border-color: rgba(0,229,255,.4);
+  color:        #00e5ff;
+}
+.dz-cam-btn.danger {
+  background:   rgba(255,60,60,.08);
+  border-color: rgba(255,60,60,.4);
+  color:        #ff7070;
+}
+.dz-cam-btn-ico { font-size: 22px; }
+.dz-cam-btn-lbl { font-family: 'Orbitron', monospace; font-size: 8px; letter-spacing: .12em; font-weight: 700; }
+
+/* ── Menu overlay ──────────────────────────────────────────────── */
+.dz-menu-overlay { justify-content: flex-end; }
+
+.dz-menu-panel {
+  position:        relative;
+  z-index:         1;
+  background:      rgba(2,8,16,.97);
+  border-top:      1px solid rgba(0,229,255,.14);
+  border-radius:   20px 20px 0 0;
+  padding:         20px 0 max(24px, env(safe-area-inset-bottom));
+  transform:       translateY(100%);
+  transition:      transform .35s cubic-bezier(.4,0,.2,1);
+}
+.dz-menu-overlay.open .dz-menu-panel { transform: translateY(0); }
+
+.dz-menu-handle {
+  width:         44px;
+  height:        4px;
+  background:    rgba(255,255,255,.12);
+  border-radius: 2px;
+  margin:        0 auto 20px;
+}
+
+.dz-menu-head {
+  font-family:    'Orbitron', monospace;
+  font-size:      10px;
+  font-weight:    700;
+  letter-spacing: .35em;
+  color:          rgba(255,255,255,.25);
+  text-align:     center;
+  margin-bottom:  8px;
+}
+
+.dz-menu-item {
+  display:         flex;
+  align-items:     center;
+  gap:             14px;
+  padding:         14px 24px;
+  color:           rgba(255,255,255,.72);
+  font-size:       16px;
+  font-weight:     500;
+  letter-spacing:  .04em;
+  border-bottom:   1px solid rgba(255,255,255,.04);
+  transition:      all .18s;
+}
+.dz-menu-item:active { background: rgba(0,229,255,.06); color: #00e5ff; }
+.dz-menu-ico { font-size: 20px; width: 28px; text-align: center; }
+.dz-menu-lbl { flex: 1; }
+.dz-menu-arr { color: rgba(255,255,255,.18); font-size: 18px; }
+.dz-menu-tag {
+  font-family:    'Share Tech Mono', monospace;
+  font-size:      9px;
+  letter-spacing: .12em;
+  color:          #00e5ff;
+  background:     rgba(0,229,255,.1);
+  border:         1px solid rgba(0,229,255,.3);
+  border-radius:  4px;
+  padding:        2px 6px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DESKTOP
+   ══════════════════════════════════════════════════════════════════ */
+@media (min-width: 600px) {
   .dz-root {
-    max-width: 480px;
-    left: 50%;
-    transform: translateX(-50%);
-    right: auto;
-    border-left: 1px solid rgba(0,200,255,0.07);
-    border-right: 1px solid rgba(0,200,255,0.07);
+    position:      fixed;
+    top:           50%;
+    left:          50%;
+    transform:     translate(-50%,-50%);
+    width:         420px;
+    height:        min(820px,95vh);
+    border-radius: 24px;
+    border:        1px solid rgba(0,229,255,.1);
+    box-shadow:    0 0 80px rgba(0,229,255,.1), 0 40px 80px rgba(0,0,0,.7);
+    overflow:      hidden;
   }
-  .dz-title { font-size: 46px; }
+  .dz-overlay { border-radius: 24px; }
+  .dz-orb { width: 280px; height: 280px; }
 }

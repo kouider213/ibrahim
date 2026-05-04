@@ -210,9 +210,34 @@ desktopNs.on('connection', (socket) => {
   });
 });
 
+// ── Telegram webhook auto-registration ───────────────────────
+async function registerTelegramWebhook(): Promise<void> {
+  const token = env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  const backendUrl = env.BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
+  if (backendUrl.includes('localhost')) return; // skip in local dev
+  const webhookUrl = `${backendUrl}/api/telegram/webhook`;
+  try {
+    const { default: axios } = await import('axios');
+    const { data } = await axios.post(`https://api.telegram.org/bot${token}/setWebhook`, {
+      url:                  webhookUrl,
+      drop_pending_updates: false,
+      max_connections:      40,
+    }, { timeout: 10_000 });
+    if (data.ok) {
+      console.log(`✅ Telegram webhook registered: ${webhookUrl}`);
+    } else {
+      console.error(`[telegram] Webhook registration failed: ${JSON.stringify(data)}`);
+    }
+  } catch (err) {
+    console.error('[telegram] Webhook registration error:', err instanceof Error ? err.message : err);
+  }
+}
+
 // ── Start server ──────────────────────────────────────────────
 const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
   initScheduler();
+  void registerTelegramWebhook();
 });
