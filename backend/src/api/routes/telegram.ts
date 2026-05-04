@@ -8,6 +8,7 @@ import { chatWithTools } from '../../integrations/claude-api.js';
 import { buildContext } from '../../conversation/context-builder.js';
 import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { guardResponse, applyScopeGuard } from '../../conversation/response-guard.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
 import { isValidMp4Buffer } from '../../marketing/create-marketing-video.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
@@ -18,6 +19,33 @@ import { env } from '../../config/env.js';
 const router   = Router();
 const BUCKET   = 'client-documents';
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+
+// ── Incoming request dedup — blocks identical text sent twice within 30 s ────
+// Applied BEFORE buildContext / Claude API / any tool — no second résumé/report.
+const _incomingDedupeMap = new Map<string, number>();
+const INCOMING_DEDUPE_TTL = 30_000; // 30 seconds
+
+function checkIncomingDuplicate(chatId: number, text: string, messageId: number): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  const key        = `${chatId}:${normalized.slice(0, 120)}`;
+  const now        = Date.now();
+  const last       = _incomingDedupeMap.get(key);
+
+  if (last && now - last < INCOMING_DEDUPE_TTL) {
+    console.log(`[incoming-dedupe] blocked=true key="${key.slice(0, 60)}" messageId=${messageId} age=${now - last}ms`);
+    return true;
+  }
+
+  _incomingDedupeMap.set(key, now);
+  // Cleanup stale entries every 100 insertions
+  if (_incomingDedupeMap.size > 200) {
+    for (const [k, ts] of _incomingDedupeMap) {
+      if (now - ts > INCOMING_DEDUPE_TTL * 2) _incomingDedupeMap.delete(k);
+    }
+  }
+  console.log(`[incoming-dedupe] allowed=true key="${key.slice(0, 60)}" messageId=${messageId}`);
+  return false;
+}
 
 // Cloudinary import dynamique (CommonJS compatible)
 let cloudinary: any;
@@ -588,6 +616,11 @@ router.post('/webhook', async (req, res) => {
   if (!msg.text) return;
   const text = msg.text.trim();
 
+  // ── Incoming dedup — must be FIRST, before any processing ──
+  // Single-word approval messages (Oke/Non) are exempt — they need to reach the approval flow.
+  const isApproval = /^(oke|ok|oké|okay|valide|validé|publie|yes|oui|non|no|annule|annulé|refuse|refus|nope)$/i.test(text);
+  if (!isApproval && checkIncomingDuplicate(msg.chat.id, text, msg.message_id)) return;
+
   // ── Marketing video approval: "Oke" or "Non" ──────────────
   const isOke = /^(oke|ok|oké|okay|valide|validé|publie|yes|oui)$/i.test(text);
   const isNon = /^(non|no|annule|annulé|refuse|refus|nope)$/i.test(text);
@@ -625,12 +658,16 @@ router.post('/webhook', async (req, res) => {
     const ctx      = await buildContext(sessionId, text);
     const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
 
+    const requestId   = `tg_${chatId}_${Date.now()}`;
+    const guardedText = guardResponse(response.text, text, requestId);
+    const safeText    = applyScopeGuard(guardedText, text, requestId);
+
     const sendPromise = (async () => {
-      for (const chunk of splitMessage(response.text, 4000)) {
+      for (const chunk of splitMessage(safeText, 4000)) {
         await sendMessage(chatId, chunk);
       }
       // Si la réponse contient une URL Supabase (public ou signed) → envoyer la photo
-      const docUrls = response.text.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g);
+      const docUrls = safeText.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g);
       if (docUrls) {
         for (const url of docUrls) {
           await sendPhoto(chatId, url).catch(async () => {
@@ -641,8 +678,8 @@ router.post('/webhook', async (req, res) => {
     })();
 
     const savePromise = Promise.all([
-      saveConversationTurn(sessionId, 'user',      text,          { source: 'telegram' }),
-      saveConversationTurn(sessionId, 'assistant', response.text, { source: 'telegram' }),
+      saveConversationTurn(sessionId, 'user',      text,     { source: 'telegram' }),
+      saveConversationTurn(sessionId, 'assistant', safeText, { source: 'telegram' }),
     ]).catch(e => console.error('[telegram] Save error:', e));
 
     await Promise.all([sendPromise, savePromise]);

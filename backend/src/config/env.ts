@@ -39,12 +39,14 @@ const envSchema = z.object({
   // ── TikTok Content Posting API ──
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_OPEN_ID:      z.string().optional(),
+  // ── AI Generation APIs ───────────────────────────────────────────────────
   // ── Kling AI — Génération vidéo IA depuis image ──
   KLING_API_KEY:       z.string().optional(),
   // ── Replicate — Génération IA images (Flux.1) ──
   REPLICATE_API_TOKEN: z.string().optional(),
   // ── fal.ai — Génération vidéos IA (Kling 1.6, WAN 2.1) ──
-  FAL_KEY:             z.string().optional(),
+  FAL_KEY:             z.string().optional(),   // nom officiel dans Railway
+  FAL_API_KEY:         z.string().optional(),   // fallback compatibilité
   // ── Runway — Génération vidéo IA haute fidélité (Gen-3 Alpha Turbo) — optionnel ──
   RUNWAY_API_KEY:      z.string().optional(),
   // ── Apify — Scraping TikTok concurrents ──

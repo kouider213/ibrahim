@@ -139,6 +139,7 @@ export async function initScheduler(): Promise<void> {
       job.name,
       {},
       {
+        jobId:  `repeatable:${job.name}`,   // stable jobId prevents queue duplicates
         repeat: { pattern: job.cron, tz: job.tz },
         removeOnComplete: { count: 10 },
         removeOnFail:     { count: 5 },

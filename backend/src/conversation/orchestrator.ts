@@ -1,4 +1,5 @@
 ﻿import { buildContext }                          from './context-builder.js';
+import { guardResponse, applyScopeGuard }        from './response-guard.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -6,6 +7,9 @@ import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 
 let _io: Namespace | null = null;
+let _reqCounter = 0;
+
+function nextRequestId(): string { return `req_${Date.now()}_${++_reqCounter}`; }
 
 export function initOrchestrator(io: Namespace): void {
   _io = io;
@@ -81,6 +85,9 @@ export async function processMessage(
   imageMime   = 'image/jpeg',
 ): Promise<OrchestratorResponse> {
 
+  const requestId = nextRequestId();
+  console.log(`[orch:${requestId}] session=${sessionId} msg="${userMessage.slice(0, 80)}"`);
+
   // 1. Notifier "thinking" immédiatement
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
 
@@ -123,28 +130,34 @@ export async function processMessage(
 
   // Log thinking tokens si Extended Thinking utilisé
   if (response.thinkingTokens && response.thinkingTokens > 0) {
-    console.log(`[orchestrator] Extended Thinking: ${response.thinkingTokens} tokens de réflexion`);
+    console.log(`[orch:${requestId}] Extended Thinking: ${response.thinkingTokens} tokens`);
   }
 
+  // Guard pass 1: strip leaked old-confirmation prefixes
+  const guardedText = guardResponse(response.text, userMessage, requestId);
+  // Guard pass 2: remove old video-task paragraphs from non-video responses
+  const safeText    = applyScopeGuard(guardedText, userMessage, requestId);
+  console.log(`[orch:${requestId}] done len=${safeText.length} guard1=${guardedText !== response.text} guard2=${safeText !== guardedText}`);
+
   // 4. Émettre le texte IMMÉDIATEMENT dès que Claude a répondu
-  _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: response.text });
+  _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
 
   // 5. Sauvegarder en base (non-bloquant)
-  saveConversationTurn(sessionId, 'assistant', response.text).catch((err: unknown) =>
+  saveConversationTurn(sessionId, 'assistant', safeText).catch((err: unknown) =>
     console.error('[orchestrator] save error:', err),
   );
 
   // 6. Audio ElevenLabs (seulement si app mobile, pas Telegram)
-  if (!textOnly && response.text.length > 0) {
+  if (!textOnly && safeText.length > 0) {
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
-    await streamAudioSentences(response.text, sessionId);
+    await streamAudioSentences(safeText, sessionId);
     _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
   }
 
   // 7. Idle
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
 
-  return { text: response.text, status: 'done' };
+  return { text: safeText, status: 'done' };
 }
 
 async function streamAudioSentences(text: string, sessionId: string): Promise<void> {

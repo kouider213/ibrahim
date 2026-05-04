@@ -168,18 +168,24 @@ export async function deleteCalendarEvent(googleEventId: string): Promise<boolea
 }
 
 export async function syncPendingBookings(): Promise<number> {
-  const { data: bookings } = await supabase
+  const { data: existingEvents } = await supabase
+    .from('calendar_events').select('booking_id');
+  const alreadySyncedIds = (existingEvents ?? []).map((r: { booking_id: string }) => r.booking_id).filter(Boolean);
+
+  let query = supabase
     .from('bookings').select('id, client_name, start_date, end_date, notes, cars(name)')
-    .in('status', ['CONFIRMED', 'ACTIVE'])
-    .not('id', 'in', supabase.from('calendar_events').select('booking_id'));
+    .in('status', ['CONFIRMED', 'ACTIVE']);
+  if (alreadySyncedIds.length > 0) query = query.not('id', 'in', `(${alreadySyncedIds.join(',')})`);
+
+  const { data: bookings } = await query;
   if (!bookings?.length) return 0;
-  let synced = 0;
+  let count = 0;
   type BookingRow = { id: string; client_name: string; start_date: string; end_date: string; notes?: string; cars?: unknown };
   for (const b of bookings as BookingRow[]) {
     const carName = (b.cars as { name?: string } | null)?.name ?? 'Véhicule';
-    if (await createCalendarEvent(b.id, b.client_name, carName, b.start_date, b.end_date, b.notes)) synced++;
+    if (await createCalendarEvent(b.id, b.client_name, carName, b.start_date, b.end_date, b.notes)) count++;
   }
-  return synced;
+  return count;
 }
 
 // ── OAuth (kept for backward compat) ──────────────────────────
