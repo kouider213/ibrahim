@@ -450,7 +450,7 @@ export default function ChatInterface() {
               applyState('speak');
               iosFallbackSpeak(text, () => { applyState('idle'); scheduleNextListen(); });
             }
-          }, 3000);
+          }, 600);
         }
         elevenlabsReceived.current = false;
       },
