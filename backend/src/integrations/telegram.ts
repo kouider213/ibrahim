@@ -172,12 +172,13 @@ export async function sendTyping(chatId: number | string): Promise<void> {
   }).catch(() => {});
 }
 
-export async function setWebhook(url: string): Promise<boolean> {
+export async function setWebhook(url: string, secretToken?: string): Promise<boolean> {
   try {
     const { data } = await axios.post(`${base()}/setWebhook`, {
       url,
       allowed_updates:      ['message'],
       drop_pending_updates: true,
+      ...(secretToken ? { secret_token: secretToken } : {}),
     });
     return (data as { ok: boolean }).ok;
   } catch {

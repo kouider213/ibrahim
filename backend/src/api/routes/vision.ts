@@ -34,6 +34,12 @@ RÈGLES SELON CE QUE TU DÉTECTES:
 
 IMPORTANT: Sois direct, précis, actionnable. Parle comme si tu aidais quelqu'un en temps réel.`;
 
+const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
+function sanitizeMime(m?: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+  return (ALLOWED_MIMES.has(m ?? '') ? m : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+}
+
 // POST /api/vision/analyze — original endpoint (kept for compatibility)
 router.post('/analyze', async (req, res) => {
   const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
@@ -43,7 +49,7 @@ router.post('/analyze', async (req, res) => {
     return;
   }
 
-  const mime = (mimeType ?? 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  const mime = sanitizeMime(mimeType);
 
   try {
     const response = await client.messages.create({
@@ -75,7 +81,7 @@ router.post('/scan', async (req, res) => {
     return;
   }
 
-  const mime = (mimeType ?? 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  const mime = sanitizeMime(mimeType);
 
   try {
     // Step 1: detect what's in the image
