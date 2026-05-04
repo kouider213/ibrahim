@@ -623,7 +623,15 @@ input  { font: inherit; border: none; outline: none; background: none; }
 .dz-camera-view::before { top: 20px; left: 20px; border-width: 2px 0 0 2px; }
 .dz-camera-view::after  { bottom: 20px; right: 20px; border-width: 0 2px 2px 0; }
 
-.dz-live-video { width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .4s; }
+.dz-live-video {
+  position:   absolute;
+  inset:      0;
+  width:      100%;
+  height:     100%;
+  object-fit: cover;
+  opacity:    0;
+  transition: opacity .4s;
+}
 .dz-live-video.active { opacity: 1; }
 
 .dz-camera-empty {
