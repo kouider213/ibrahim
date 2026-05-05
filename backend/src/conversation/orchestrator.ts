@@ -94,7 +94,9 @@ export async function processMessage(
   // 2. Construire le contexte + sauvegarder le message user en parallèle
   const [ctx] = await Promise.all([
     buildContext(sessionId, userMessage),
-    saveConversationTurn(sessionId, 'user', userMessage),
+    saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
+      console.error('[orchestrator] user save error:', err),
+    ),
   ]);
 
   // 3. Claude répond avec Tool Streaming temps réel

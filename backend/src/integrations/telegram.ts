@@ -98,11 +98,15 @@ export async function sendDocumentBuffer(
   form.append('chat_id', String(chatId));
   form.append('document', buffer, { filename, contentType: 'application/pdf', knownLength: buffer.length });
   if (caption) form.append('caption', caption);
-  await axios.post(`${base()}/sendDocument`, form, {
-    headers: { ...form.getHeaders() },
-    maxBodyLength: Infinity,
-    maxContentLength: Infinity,
-  });
+  try {
+    await axios.post(`${base()}/sendDocument`, form, {
+      headers: { ...form.getHeaders() },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+  } catch (err) {
+    console.error('[telegram] sendDocumentBuffer failed:', err instanceof Error ? err.message : String(err));
+  }
 }
 
 export async function sendVideoBuffer(
@@ -116,12 +120,16 @@ export async function sendVideoBuffer(
   form.append('video', buffer, { filename: 'tiktok_video.mp4', contentType: 'video/mp4', knownLength: buffer.length });
   if (caption) { form.append('caption', caption); form.append('parse_mode', 'Markdown'); }
   form.append('supports_streaming', 'true');
-  await axios.post(`${base()}/sendVideo`, form, {
-    headers: { ...form.getHeaders() },
-    maxBodyLength: Infinity,
-    maxContentLength: Infinity,
-    timeout: 120_000,
-  });
+  try {
+    await axios.post(`${base()}/sendVideo`, form, {
+      headers: { ...form.getHeaders() },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 120_000,
+    });
+  } catch (err) {
+    console.error('[telegram] sendVideoBuffer failed:', err instanceof Error ? err.message : String(err));
+  }
 }
 
 export async function sendVoiceBuffer(

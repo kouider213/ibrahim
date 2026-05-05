@@ -49,7 +49,8 @@ function checkIncomingDuplicate(chatId: number, text: string, messageId: number)
 
 // Cloudinary import dynamique (CommonJS compatible)
 let cloudinary: any;
-(async () => {
+let _cloudinaryReady = false;
+const _cloudinaryInit = (async () => {
   const { v2 } = await import('cloudinary');
   const { env: e } = await import('../../config/env.js');
   cloudinary = v2;
@@ -59,7 +60,8 @@ let cloudinary: any;
     api_secret: e.CLOUDINARY_API_SECRET ?? '',
     secure: true,
   });
-})();
+  _cloudinaryReady = true;
+})().catch(err => console.error('[telegram] Cloudinary init failed:', err));
 
 function isAllowed(chatId: number): boolean {
   const allowed = env.TELEGRAM_ALLOWED_CHATS ?? '';
@@ -591,20 +593,41 @@ router.post('/webhook', async (req, res) => {
 
   // ── VIDÉO REÇUE ──
   if (msg.video) {
+    // Dedup: block Telegram retries on the same video within 30s
+    const videoKey = `${chatId}:video:${msg.video.file_id}`;
+    if (checkIncomingDuplicate(msg.chat.id, videoKey, msg.message_id)) return;
     // Store file_id in buffer so merge_videos tool can retrieve it
     addVideoToBuffer(sessionId, msg.video.file_id);
+    // Wait for Cloudinary init before processing (race condition fix)
+    if (!_cloudinaryReady) await _cloudinaryInit;
     await handleVideoMessage(chatId, sessionId, msg);
     return;
   }
 
-  // ── PHOTO OU DOCUMENT IMAGE REÇU ──
+  // ── PHOTO OU DOCUMENT REÇU ──
   if (msg.photo || msg.document) {
     const caption = msg.caption ?? '';
+
+    // Dedup: block Telegram retries on the same photo/doc within 30s
+    const mediaKey = msg.photo
+      ? `photo:${msg.photo[msg.photo.length - 1]?.file_id ?? ''}`
+      : `doc:${msg.document!.file_id}`;
+    if (checkIncomingDuplicate(msg.chat.id, mediaKey, msg.message_id)) return;
 
     // Si la légende contient un mot-clé d'enregistrement → stocker comme avant
     if (STORE_KEYWORDS.test(caption)) {
       await handleFileMessage(chatId, sessionId, msg);
       return;
+    }
+
+    // Documents non-image (PDF, Word, etc.) → traiter comme fichier, pas comme image
+    if (msg.document) {
+      const mime = msg.document.mime_type ?? '';
+      const isImage = mime.startsWith('image/');
+      if (!isImage) {
+        await handleFileMessage(chatId, sessionId, msg);
+        return;
+      }
     }
 
     // Sinon → analyser l'image avec Claude Vision ET proposer traitement
@@ -722,8 +745,7 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
       );
       uploadStream.end(buffer);
     });
-    const videoUrl      = uploadResult.secure_url as string;
-    const videoPublicId = uploadResult.public_id  as string;
+    const videoUrl = uploadResult.secure_url as string;
 
     // Détecte si c'est une référence UI (design à copier)
     const UI_KEYWORDS = /ressemble|interface|design|style|ui|apparence|copie|même look|même style|jarvis|modifie l'interface|change l'interface/i;
@@ -787,7 +809,7 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
     await sendMessage(chatId, '🤖 Dzaryx traite ta demande...');
 
     const userRequest = caption
-      ? `Vidéo reçue via Telegram et uploadée sur Cloudinary.\nURL: ${videoUrl}\nCloudinary public_id: ${videoPublicId}\n\nDemande de Kouider: "${caption}"\n\nUtilise l'outil approprié:\n- cut_video: pour couper/limiter la durée (video_url="${videoUrl}", start_seconds=0, end_seconds=N)\n- create_video_preview: pour garder uniquement les N premières secondes (video_url="${videoUrl}", duration_seconds=N)\n- optimize_for_platform: pour TikTok/YouTube (video_url="${videoUrl}", platform="tiktok"|"youtube")\nRetourne l'URL résultante dans ta réponse.`
+      ? `Vidéo reçue via Telegram et uploadée sur Cloudinary.\nURL: ${videoUrl}\n\nDemande de Kouider: "${caption}"\n\nUtilise l'outil approprié:\n- cut_video: pour couper/limiter la durée (video_url="${videoUrl}", start_seconds=0, end_seconds=N)\n- create_video_preview: pour garder uniquement les N premières secondes (video_url="${videoUrl}", duration_seconds=N)\n- optimize_for_platform: pour TikTok/YouTube (video_url="${videoUrl}", platform="tiktok"|"youtube")\nRetourne l'URL résultante dans ta réponse.`
       : `Vidéo reçue via Telegram.\nURL: ${videoUrl}\n\nAucune instruction. Analyse et propose ce que je peux en faire.`;
 
     const ctx = await buildContext(sessionId, userRequest);
