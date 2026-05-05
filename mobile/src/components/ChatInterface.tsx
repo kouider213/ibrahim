@@ -192,6 +192,7 @@ export default function ChatInterface() {
   const sessionId          = getOrCreateSessionId();
   const recRef             = useRef<SRL | null>(null);
   const loopActive         = useRef(false);
+  const startingRef        = useRef(false);
   const audioFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const elevenlabsReceived = useRef(false);
   const textInputRef       = useRef<HTMLInputElement>(null);
@@ -337,9 +338,9 @@ export default function ChatInterface() {
   const handleSendTextMsg = useCallback(() => {
     const msg = textInput.trim(); if (!msg) return;
     setTextInput(''); closeOverlay();
-    if (!started) { setStarted(true); loopActive.current = true; unlockAudio(); void startMicAnalyser(); }
+    if (!startingRef.current) { startingRef.current = true; setStarted(true); loopActive.current = true; unlockAudio(); void startMicAnalyser(); }
     void sendText(msg);
-  }, [textInput, closeOverlay, started, sendText, startMicAnalyser]);
+  }, [textInput, closeOverlay, sendText, startMicAnalyser]);
 
   const scheduleNextListen = useCallback(() => {
     if (!loopActive.current) return;
@@ -524,7 +525,8 @@ export default function ChatInterface() {
   }, [conversations, overlay]);
 
   const handleTap = useCallback(async () => {
-    if (!started) {
+    if (!started && !startingRef.current) {
+      startingRef.current = true;
       setStarted(true); loopActive.current = true; unlockAudio();
       await startMicAnalyser();
       const hour = new Date().getHours();
@@ -544,6 +546,10 @@ export default function ChatInterface() {
 
   const handlePhotoFile = useCallback(async (file: File) => {
     setAnalyzing(true);
+    if (!startingRef.current) {
+      startingRef.current = true;
+      setStarted(true); loopActive.current = true; unlockAudio(); void startMicAnalyser();
+    }
     try {
       const base64 = await resizeImageToBase64(file, 1024);
       if (photoPreviewUrlRef.current) URL.revokeObjectURL(photoPreviewUrlRef.current);
@@ -556,7 +562,7 @@ export default function ChatInterface() {
       iosFallbackSpeak(prompt, () => { applyState('idle'); if (loopActive.current) startListeningInner(); });
     } catch { setAnalyzing(false); showError('Impossible de lire la photo'); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applyState, showError, closeOverlay]);
+  }, [applyState, showError, closeOverlay, startMicAnalyser]);
 
   const handlePhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; e.target.value = ''; await handlePhotoFile(file);
@@ -566,9 +572,9 @@ export default function ChatInterface() {
     if (cmd === '__text__')    { setOverlay('text'); return; }
     if (cmd === '__history__') { setOverlay('history'); return; }
     closeOverlay();
-    if (!started) { setStarted(true); loopActive.current = true; unlockAudio(); void startMicAnalyser(); }
+    if (!startingRef.current) { startingRef.current = true; setStarted(true); loopActive.current = true; unlockAudio(); void startMicAnalyser(); }
     void sendText(cmd);
-  }, [closeOverlay, started, sendText, startMicAnalyser]);
+  }, [closeOverlay, sendText, startMicAnalyser]);
 
   useEffect(() => {
     return () => {
