@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════
-   DZARYX — Interface Jarvis v5 (Iron Man Edition)
+   DZARYX — Interface Jarvis v6 (Iron Man Edition)
    ══════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
@@ -14,6 +14,7 @@ input  { font: inherit; border: none; outline: none; background: none; }
 .dz-root[data-state="listen"]  { --accent:#00FF87; --ar:0;   --ag:255; --ab:135; }
 .dz-root[data-state="think"]   { --accent:#9061F9; --ar:144; --ag:97;  --ab:249; }
 .dz-root[data-state="speak"]   { --accent:#FFAB00; --ar:255; --ag:171; --ab:0;   }
+.dz-root[data-state="error"]   { --accent:#FF4444; --ar:255; --ag:68;  --ab:68;  }
 
 /* ── Root layout ───────────────────────────────────────────────── */
 .dz-root {
@@ -64,8 +65,8 @@ input  { font: inherit; border: none; outline: none; background: none; }
   pointer-events: none;
   transition:     border-color .8s;
 }
-.dz-hud-tl { top: 10px;  left: 10px;  border-width: 1.5px 0 0 1.5px; }
-.dz-hud-tr { top: 10px;  right: 10px; border-width: 1.5px 1.5px 0 0; }
+.dz-hud-tl { top: 10px;    left: 10px;  border-width: 1.5px 0 0 1.5px; }
+.dz-hud-tr { top: 10px;    right: 10px; border-width: 1.5px 1.5px 0 0; }
 .dz-hud-bl { bottom: 10px; left: 10px;  border-width: 0 0 1.5px 1.5px; }
 .dz-hud-br { bottom: 10px; right: 10px; border-width: 0 1.5px 1.5px 0; }
 
@@ -197,6 +198,8 @@ input  { font: inherit; border: none; outline: none; background: none; }
 .dz-root[data-state="listen"] .dz-arc--2 { animation-duration: 7s; }
 .dz-root[data-state="think"]  .dz-arc--1 { animation-duration: 5s; border-right-color: rgba(var(--ar),var(--ag),var(--ab),.22); }
 .dz-root[data-state="think"]  .dz-arc--2 { animation-duration: 9s; border-left-color:  rgba(var(--ar),var(--ag),var(--ab),.14); }
+.dz-root[data-state="error"]  .dz-arc--1 { animation-duration: 2s; }
+.dz-root[data-state="error"]  .dz-arc--2 { animation-duration: 3.5s; }
 
 /* ── Orb ───────────────────────────────────────────────────────── */
 .dz-orb {
@@ -229,10 +232,13 @@ input  { font: inherit; border: none; outline: none; background: none; }
 .dz-root[data-state="listen"] .dz-ring { border-color: rgba(0,255,135,.4); }
 .dz-root[data-state="think"]  .dz-ring { border-color: rgba(144,97,249,.35); }
 .dz-root[data-state="speak"]  .dz-ring { border-color: rgba(255,171,0,.35); }
+.dz-root[data-state="error"]  .dz-ring { border-color: rgba(255,68,68,.4); }
 
 .dz-root[data-state="listen"] .dz-ring--1 { animation-duration: 5s; }
 .dz-root[data-state="listen"] .dz-ring--2 { animation-duration: 9s; }
 .dz-root[data-state="listen"] .dz-ring--3 { animation-duration: 13s; }
+.dz-root[data-state="error"]  .dz-ring--1 { animation-duration: 4s; }
+.dz-root[data-state="error"]  .dz-ring--2 { animation-duration: 7s; }
 
 /* Canvas */
 .dz-sphere-canvas {
@@ -269,23 +275,74 @@ input  { font: inherit; border: none; outline: none; background: none; }
   animation: btn-pulse 1.4s ease-in-out infinite;
 }
 .dz-root[data-state="speak"] .dz-center-btn { animation-duration: .85s; }
+.dz-root[data-state="error"] .dz-center-btn {
+  animation: btn-pulse-error 0.6s ease-in-out infinite;
+}
 
 @keyframes btn-pulse {
   0%,100% { box-shadow: 0 0 28px rgba(var(--ar),var(--ag),var(--ab),.3),  inset 0 0 22px rgba(var(--ar),var(--ag),var(--ab),.08); }
   50%     { box-shadow: 0 0 55px rgba(var(--ar),var(--ag),var(--ab),.68), inset 0 0 28px rgba(var(--ar),var(--ag),var(--ab),.16); }
 }
+@keyframes btn-pulse-error {
+  0%,100% { box-shadow: 0 0 28px rgba(255,68,68,.3),  inset 0 0 22px rgba(255,68,68,.08); }
+  50%     { box-shadow: 0 0 60px rgba(255,68,68,.8),  inset 0 0 30px rgba(255,68,68,.2); }
+}
+
+/* ── Voice wave bars ───────────────────────────────────────────── */
+.dz-voice-wave {
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             4px;
+  height:          36px;
+  margin-top:      10px;
+  opacity:         0;
+  pointer-events:  none;
+  transition:      opacity .5s;
+  flex-shrink:     0;
+}
+.dz-root[data-state="listen"] .dz-voice-wave,
+.dz-root[data-state="speak"]  .dz-voice-wave { opacity: 1; }
+
+.dz-vbar {
+  width:          3px;
+  border-radius:  2px;
+  background:     var(--accent);
+  box-shadow:     0 0 6px rgba(var(--ar),var(--ag),var(--ab),.55);
+  transform-origin: center;
+  transition:     background .5s, box-shadow .5s;
+}
+
+.dz-vbar:nth-child(1) { height: 6px;  animation: vbar .85s ease-in-out infinite 0.00s; }
+.dz-vbar:nth-child(2) { height: 12px; animation: vbar .85s ease-in-out infinite 0.09s; }
+.dz-vbar:nth-child(3) { height: 20px; animation: vbar .85s ease-in-out infinite 0.18s; }
+.dz-vbar:nth-child(4) { height: 28px; animation: vbar .85s ease-in-out infinite 0.27s; }
+.dz-vbar:nth-child(5) { height: 36px; animation: vbar .85s ease-in-out infinite 0.36s; }
+.dz-vbar:nth-child(6) { height: 28px; animation: vbar .85s ease-in-out infinite 0.27s; }
+.dz-vbar:nth-child(7) { height: 20px; animation: vbar .85s ease-in-out infinite 0.18s; }
+.dz-vbar:nth-child(8) { height: 12px; animation: vbar .85s ease-in-out infinite 0.09s; }
+.dz-vbar:nth-child(9) { height: 6px;  animation: vbar .85s ease-in-out infinite 0.00s; }
+
+@keyframes vbar {
+  0%, 100% { transform: scaleY(0.22); opacity: .35; }
+  50%      { transform: scaleY(1.0);  opacity: 1;   }
+}
+
+.dz-root[data-state="speak"] .dz-vbar { animation-duration: .55s; }
 
 /* Glow below orb */
 .dz-orb-glow {
   width:          190px;
   height:         28px;
-  margin-top:     10px;
+  margin-top:     6px;
   background:     radial-gradient(ellipse, rgba(var(--ar),var(--ag),var(--ab),.24) 0%, transparent 70%);
   filter:         blur(12px);
   pointer-events: none;
   transition:     background .8s;
   flex-shrink:    0;
 }
+.dz-root[data-state="listen"] .dz-orb-glow,
+.dz-root[data-state="speak"]  .dz-orb-glow { opacity: 0; }
 
 /* ── State section ─────────────────────────────────────────────── */
 .dz-state-section {
@@ -293,7 +350,7 @@ input  { font: inherit; border: none; outline: none; background: none; }
   flex-direction:  column;
   align-items:     center;
   gap:             5px;
-  padding:         12px 24px 8px;
+  padding:         10px 24px 6px;
   flex-shrink:     0;
   position:        relative;
   z-index:         5;
@@ -309,9 +366,9 @@ input  { font: inherit; border: none; outline: none; background: none; }
 }
 
 .dz-state-sub {
-  font-size:   13.5px;
-  font-weight: 400;
-  color:       rgba(255,255,255,.28);
+  font-size:      13.5px;
+  font-weight:    400;
+  color:          rgba(255,255,255,.28);
   letter-spacing: .03em;
 }
 
@@ -327,6 +384,64 @@ input  { font: inherit; border: none; outline: none; background: none; }
   animation:      fade-up .3s ease;
 }
 
+/* ── Photo preview badge ───────────────────────────────────────── */
+.dz-photo-badge {
+  position:       relative;
+  z-index:        5;
+  display:        flex;
+  align-items:    center;
+  gap:            10px;
+  margin:         4px 16px 4px;
+  padding:        10px 12px;
+  background:     rgba(var(--ar),var(--ag),var(--ab),.05);
+  border:         1px solid rgba(var(--ar),var(--ag),var(--ab),.2);
+  border-radius:  14px;
+  flex-shrink:    0;
+  animation:      fade-up .3s ease;
+}
+
+.dz-photo-thumb {
+  width:         44px;
+  height:        44px;
+  border-radius: 9px;
+  object-fit:    cover;
+  border:        1px solid rgba(var(--ar),var(--ag),var(--ab),.3);
+  flex-shrink:   0;
+}
+
+.dz-photo-info {
+  flex:        1;
+  display:     flex;
+  flex-direction: column;
+  gap:         3px;
+}
+.dz-photo-info > div:first-child {
+  font-family:    'Share Tech Mono', monospace;
+  font-size:      10px;
+  letter-spacing: .12em;
+  color:          var(--accent);
+}
+.dz-photo-hint {
+  font-size:   12px;
+  color:       rgba(255,255,255,.3);
+}
+
+.dz-photo-close {
+  width:           30px;
+  height:          30px;
+  border-radius:   50%;
+  border:          1px solid rgba(255,255,255,.1);
+  background:      rgba(255,255,255,.04);
+  color:           rgba(255,255,255,.35);
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  font-size:       13px;
+  flex-shrink:     0;
+  transition:      all .2s;
+}
+.dz-photo-close:active { background: rgba(255,68,68,.15); color: #f87171; }
+
 /* ── Response text ─────────────────────────────────────────────── */
 .dz-response {
   position:       relative;
@@ -340,7 +455,7 @@ input  { font: inherit; border: none; outline: none; background: none; }
   font-weight:    500;
   line-height:    1.6;
   color:          rgba(255,255,255,.85);
-  max-height:     115px;
+  max-height:     110px;
   overflow-y:     auto;
   opacity:        0;
   pointer-events: none;
@@ -366,7 +481,7 @@ input  { font: inherit; border: none; outline: none; background: none; }
   flex-wrap:       wrap;
   justify-content: center;
   gap:             7px;
-  padding:         8px 16px 4px;
+  padding:         6px 16px 2px;
   flex-shrink:     0;
   position:        relative;
   z-index:         5;
@@ -428,27 +543,28 @@ input  { font: inherit; border: none; outline: none; background: none; }
   display:         flex;
   align-items:     center;
   justify-content: space-around;
-  padding:         12px 28px max(20px,env(safe-area-inset-bottom));
+  padding:         10px 16px max(18px,env(safe-area-inset-bottom));
   border-top:      1px solid rgba(var(--ar),var(--ag),var(--ab),.08);
   background:      rgba(2,8,18,.92);
   backdrop-filter: blur(24px);
-  gap:             12px;
+  gap:             8px;
   flex-shrink:     0;
   transition:      border-color .6s;
 }
 
 .dz-act-btn {
+  position:        relative;
   display:         flex;
   flex-direction:  column;
   align-items:     center;
-  gap:             6px;
-  padding:         11px 18px;
+  gap:             5px;
+  padding:         10px 14px;
   border-radius:   14px;
   border:          1px solid rgba(255,255,255,.05);
   background:      rgba(255,255,255,.025);
   color:           rgba(255,255,255,.33);
   transition:      all .2s;
-  min-width:       64px;
+  min-width:       58px;
   flex-shrink:     0;
 }
 .dz-act-btn:active { transform: scale(.9); background: rgba(255,255,255,.05); }
@@ -458,17 +574,37 @@ input  { font: inherit; border: none; outline: none; background: none; }
   background:   rgba(var(--ar),var(--ag),var(--ab),.08);
 }
 
-.dz-act-ico { font-size: 21px; line-height: 1; }
+.dz-act-ico { font-size: 20px; line-height: 1; }
 .dz-act-lbl {
   font-family:    'Share Tech Mono', monospace;
   font-size:      8px;
   letter-spacing: .1em;
 }
 
+/* History badge */
+.dz-act-badge {
+  position:      absolute;
+  top:           6px;
+  right:         6px;
+  min-width:     16px;
+  height:        16px;
+  border-radius: 8px;
+  background:    var(--accent);
+  color:         #020B18;
+  font-family:   'Share Tech Mono', monospace;
+  font-size:     9px;
+  font-weight:   700;
+  display:       flex;
+  align-items:   center;
+  justify-content: center;
+  padding:       0 4px;
+  transition:    background .5s;
+}
+
 /* Center voice button */
 .dz-act-btn--voice {
-  width:           66px;
-  height:          66px;
+  width:           64px;
+  height:          64px;
   border-radius:   50%;
   border:          1.5px solid rgba(var(--ar),var(--ag),var(--ab),.5);
   background:      rgba(var(--ar),var(--ag),var(--ab),.09);
@@ -479,7 +615,7 @@ input  { font: inherit; border: none; outline: none; background: none; }
   padding:         0;
   transition:      all .5s;
 }
-.dz-act-btn--voice .dz-act-ico { font-size: 24px; }
+.dz-act-btn--voice .dz-act-ico { font-size: 22px; }
 .dz-act-btn--voice .dz-act-lbl { display: none; }
 
 .dz-root[data-state="listen"] .dz-act-btn--voice {
@@ -652,6 +788,27 @@ input  { font: inherit; border: none; outline: none; background: none; }
 }
 .dz-camera-empty-hint { font-size: 13px; color: rgba(255,255,255,.28); }
 
+/* Camera flip button */
+.dz-cam-flip {
+  position:        absolute;
+  top:             14px;
+  right:           16px;
+  width:           42px;
+  height:          42px;
+  border-radius:   50%;
+  background:      rgba(0,0,0,.55);
+  border:          1px solid rgba(255,255,255,.18);
+  color:           rgba(255,255,255,.75);
+  font-size:       18px;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  z-index:         3;
+  backdrop-filter: blur(8px);
+  transition:      transform .2s, background .2s;
+}
+.dz-cam-flip:active { transform: scale(.88) rotate(180deg); background: rgba(255,255,255,.12); }
+
 .dz-scan-badge {
   position:      absolute;
   bottom:        18px; left: 50%;
@@ -684,12 +841,13 @@ input  { font: inherit; border: none; outline: none; background: none; }
   align-items:     center;
   justify-content: center;
   gap:             6px;
-  padding:         14px 8px;
+  padding:         12px 6px;
   border:          1px solid rgba(255,255,255,.07);
   border-radius:   14px;
   background:      rgba(255,255,255,.04);
   color:           rgba(255,255,255,.5);
   transition:      all .2s;
+  cursor:          pointer;
 }
 .dz-cam-btn:active { transform: scale(.93); }
 .dz-cam-btn.primary {
@@ -702,11 +860,114 @@ input  { font: inherit; border: none; outline: none; background: none; }
   border-color: rgba(239,68,68,.35);
   color:        #f87171;
 }
-.dz-cam-btn-ico { font-size: 22px; }
+.dz-cam-btn-ico { font-size: 20px; }
 .dz-cam-btn-lbl {
   font-family:    'Share Tech Mono', monospace;
+  font-size:      8px;
+  letter-spacing: .1em;
+}
+
+/* ── History overlay ───────────────────────────────────────────── */
+.dz-history-overlay { justify-content: flex-end; }
+
+.dz-history-panel {
+  position:        relative;
+  z-index:         1;
+  background:      rgba(2,9,20,.98);
+  border-top:      1px solid rgba(var(--ar),var(--ag),var(--ab),.12);
+  border-radius:   24px 24px 0 0;
+  max-height:      72vh;
+  display:         flex;
+  flex-direction:  column;
+  transform:       translateY(100%);
+  transition:      transform .35s cubic-bezier(.4,0,.2,1);
+}
+.dz-history-overlay.open .dz-history-panel { transform: translateY(0); }
+
+.dz-history-header {
+  display:         flex;
+  align-items:     center;
+  justify-content: space-between;
+  padding:         16px 22px 14px;
+  border-bottom:   1px solid rgba(var(--ar),var(--ag),var(--ab),.08);
+  flex-shrink:     0;
+}
+.dz-history-title {
+  font-family:    'Share Tech Mono', monospace;
+  font-size:      12px;
+  letter-spacing: .22em;
+  color:          var(--accent);
+  text-shadow:    0 0 12px rgba(var(--ar),var(--ag),var(--ab),.5);
+}
+.dz-history-close {
+  font-family:    'Share Tech Mono', monospace;
+  font-size:      10px;
+  letter-spacing: .1em;
+  color:          rgba(255,255,255,.35);
+  padding:        4px 10px;
+  border:         1px solid rgba(255,255,255,.08);
+  border-radius:  8px;
+  transition:     all .2s;
+}
+.dz-history-close:active { background: rgba(255,255,255,.06); color: rgba(255,255,255,.7); }
+
+.dz-history-list {
+  flex:       1;
+  overflow-y: auto;
+  padding:    16px 16px max(20px,env(safe-area-inset-bottom));
+  display:    flex;
+  flex-direction: column;
+  gap:        12px;
+}
+.dz-history-list::-webkit-scrollbar { width: 3px; }
+.dz-history-list::-webkit-scrollbar-thumb { background: rgba(var(--ar),var(--ag),var(--ab),.2); border-radius: 2px; }
+
+.dz-history-empty {
+  text-align:  center;
+  color:       rgba(255,255,255,.2);
+  font-size:   13px;
+  padding:     32px 0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size:   11px;
+  letter-spacing: .1em;
+}
+
+.dz-conv-msg {
+  display:        flex;
+  flex-direction: column;
+  max-width:      85%;
+  gap:            4px;
+  animation:      fade-up .25s ease;
+}
+.dz-conv-msg--user { align-self: flex-end; align-items: flex-end; }
+.dz-conv-msg--ai   { align-self: flex-start; align-items: flex-start; }
+
+.dz-conv-bubble {
+  padding:     11px 15px;
+  border-radius: 18px;
+  font-size:   14.5px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+.dz-conv-msg--user .dz-conv-bubble {
+  background:              rgba(var(--ar),var(--ag),var(--ab),.1);
+  border:                  1px solid rgba(var(--ar),var(--ag),var(--ab),.22);
+  color:                   rgba(255,255,255,.9);
+  border-bottom-right-radius: 5px;
+}
+.dz-conv-msg--ai .dz-conv-bubble {
+  background:             rgba(255,255,255,.04);
+  border:                 1px solid rgba(255,255,255,.08);
+  color:                  rgba(255,255,255,.75);
+  border-bottom-left-radius: 5px;
+}
+
+.dz-conv-time {
+  font-family:    'Share Tech Mono', monospace;
   font-size:      9px;
-  letter-spacing: .12em;
+  letter-spacing: .08em;
+  color:          rgba(255,255,255,.18);
+  padding:        0 4px;
 }
 
 /* ── Menu overlay ──────────────────────────────────────────────── */

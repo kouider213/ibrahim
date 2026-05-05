@@ -8,8 +8,9 @@ import {
 } from '../services/api.js';
 
 // ── Types ─────────────────────────────────────────────────────────
-type JarvisState = 'idle' | 'listen' | 'think' | 'speak';
-type OverlayMode = 'none' | 'text' | 'camera' | 'menu';
+type JarvisState = 'idle' | 'listen' | 'think' | 'speak' | 'error';
+type OverlayMode = 'none' | 'text' | 'camera' | 'menu' | 'history';
+type ConvMsg = { role: 'user' | 'ai'; text: string; time: string };
 
 function toJarvis(s: IbrahimStatus): JarvisState {
   if (s === 'listening') return 'listen';
@@ -79,12 +80,14 @@ const STATE_LABEL: Record<JarvisState, string> = {
   listen: 'ÉCOUTE ACTIVE',
   think:  'ANALYSE IA',
   speak:  'RÉPONSE VOCALE',
+  error:  'ERREUR SYSTÈME',
 };
 const STATE_SUB: Record<JarvisState, string> = {
   idle:   'Appuyer sur le micro pour démarrer',
   listen: 'Je vous écoute, Kouider...',
   think:  'Traitement en cours...',
   speak:  'Dzaryx répond...',
+  error:  'Réessayez dans un instant',
 };
 
 // ── Mic SVG ───────────────────────────────────────────────────────
@@ -157,12 +160,21 @@ export default function ChatInterface() {
   const [started,      setStarted]      = useState(false);
   const [toolLabel,    setToolLabel]    = useState<string | null>(null);
 
+  // ── Conversation history ───────────────────────────────────────
+  const [conversations, setConversations] = useState<ConvMsg[]>([]);
+  const historyEndRef = useRef<HTMLDivElement>(null);
+
   // ── Camera state ───────────────────────────────────────────────
   const [liveVision,   setLiveVision]   = useState(false);
   const [scanning,     setScanning]     = useState(false);
   const [scanMode,     setScanMode]     = useState(false);
   const [scanResult,   setScanResult]   = useState<{ type: string } | null>(null);
   const [analyzing,    setAnalyzing]    = useState(false);
+  const [facingMode,   setFacingMode]   = useState<'environment' | 'user'>('environment');
+
+  // ── Photo preview ──────────────────────────────────────────────
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoPreviewUrlRef = useRef<string | null>(null);
 
   // ── Error state ────────────────────────────────────────────────
   const [errorMsg,     setErrorMsg]     = useState('');
@@ -172,6 +184,7 @@ export default function ChatInterface() {
   const pendingPhotoRef    = useRef<{ base64: string; mime: string } | null>(null);
   const scanIntervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const cameraInputRef     = useRef<HTMLInputElement>(null);
+  const galleryInputRef    = useRef<HTMLInputElement>(null);
   const liveVideoRef       = useRef<HTMLVideoElement>(null);
   const videoStreamRef     = useRef<MediaStream | null>(null);
   const stateRef           = useRef<JarvisState>('idle');
@@ -182,6 +195,7 @@ export default function ChatInterface() {
   const audioFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const elevenlabsReceived = useRef(false);
   const textInputRef       = useRef<HTMLInputElement>(null);
+  const errorTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Canvas refs
   const canvasRef    = useRef<HTMLCanvasElement>(null);
@@ -191,6 +205,16 @@ export default function ChatInterface() {
   const ampRef       = useRef(0);
   const analyserRef  = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+
+  // ── Photo preview cleanup ──────────────────────────────────────
+  const clearPhotoPreview = useCallback(() => {
+    if (photoPreviewUrlRef.current) {
+      URL.revokeObjectURL(photoPreviewUrlRef.current);
+      photoPreviewUrlRef.current = null;
+    }
+    setPhotoPreview(null);
+    pendingPhotoRef.current = null;
+  }, []);
 
   // ── Error helper ───────────────────────────────────────────────
   const showError = useCallback((msg: string) => {
@@ -204,6 +228,13 @@ export default function ChatInterface() {
     stateRef.current = s;
     setState(s);
     if (s !== 'think') setToolLabel(null);
+    if (s === 'error') {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = setTimeout(() => {
+        stateRef.current = 'idle';
+        setState('idle');
+      }, 2500);
+    }
   }, []);
 
   // ── Overlay helpers ────────────────────────────────────────────
@@ -211,19 +242,28 @@ export default function ChatInterface() {
   const closeOverlay = useCallback(() => setOverlay('none'), []);
 
   // ── Live camera ────────────────────────────────────────────────
-  const startLiveCamera = useCallback(async (e: React.MouseEvent) => {
+  const startLiveCamera = useCallback(async (e: React.MouseEvent, facing?: 'environment' | 'user') => {
     e.stopPropagation();
-    if (videoStreamRef.current) {
+    const mode = facing ?? facingMode;
+    if (videoStreamRef.current && facing === undefined) {
+      // Toggle off
       videoStreamRef.current.getTracks().forEach(t => t.stop());
       videoStreamRef.current = null;
       if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
       setLiveVision(false);
       return;
     }
+    // Stop existing stream before starting new
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach(t => t.stop());
+      videoStreamRef.current = null;
+      if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
+      setLiveVision(false);
+    }
     if (!navigator.mediaDevices?.getUserMedia) { showError('Caméra non supportée'); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: { ideal: mode }, width: { ideal: 640 }, height: { ideal: 480 } },
       });
       videoStreamRef.current = stream;
       const video = liveVideoRef.current;
@@ -234,7 +274,16 @@ export default function ChatInterface() {
         ? 'Permission caméra refusée' : 'Caméra non accessible';
       showError(msg);
     }
-  }, [showError]);
+  }, [facingMode, showError]);
+
+  const flipCamera = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newMode);
+    if (liveVision) {
+      await startLiveCamera(e, newMode);
+    }
+  }, [facingMode, liveVision, startLiveCamera]);
 
   const captureFrame = useCallback((): string | null => {
     const video = liveVideoRef.current;
@@ -283,6 +332,9 @@ export default function ChatInterface() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanMode, liveVision, started]);
 
+  // ── Timestamp helper ──────────────────────────────────────────
+  const nowTime = () => new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
   // ── Send message ───────────────────────────────────────────────
   const sendText = useCallback(async (msg: string) => {
     if (!msg.trim() || sending.current) return;
@@ -291,13 +343,19 @@ export default function ChatInterface() {
     applyState('think');
     setShowResponse(false);
     elevenlabsReceived.current = false;
+    setConversations(prev => [...prev, { role: 'user', text: msg, time: nowTime() }]);
     const photo = pendingPhotoRef.current ?? (videoStreamRef.current ? { base64: captureFrame() ?? '', mime: 'image/jpeg' } : null);
     pendingPhotoRef.current = null;
+    clearPhotoPreview();
     try {
       await api.chat(msg, sessionId, false, photo?.base64 || undefined, photo?.mime ?? 'image/jpeg');
-    } catch { showError('Erreur de connexion'); applyState('idle'); }
+    } catch {
+      showError('Erreur de connexion');
+      applyState('error');
+    }
     finally { sending.current = false; }
-  }, [sessionId, applyState, showError, captureFrame]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, applyState, showError, captureFrame, clearPhotoPreview]);
 
   // ── Text input overlay send ────────────────────────────────────
   const handleSendTextMsg = useCallback(() => {
@@ -378,8 +436,9 @@ export default function ChatInterface() {
       listen: { dot: 'rgba(0,255,135,',   line: 'rgba(0,200,100,',   glow: 'rgba(0,255,135,'  },
       think:  { dot: 'rgba(144,97,249,',  line: 'rgba(110,70,200,',  glow: 'rgba(144,97,249,' },
       speak:  { dot: 'rgba(255,171,0,',   line: 'rgba(220,140,0,',   glow: 'rgba(255,200,50,' },
+      error:  { dot: 'rgba(255,68,68,',   line: 'rgba(220,50,50,',   glow: 'rgba(255,80,80,'  },
     };
-    const SPEED: Record<JarvisState, number> = { idle: 0.003, listen: 0.01, think: 0.007, speak: 0.013 };
+    const SPEED: Record<JarvisState, number> = { idle: 0.003, listen: 0.01, think: 0.007, speak: 0.013, error: 0.016 };
 
     function draw() {
       if (!ctx || !canvas) return;
@@ -391,7 +450,7 @@ export default function ChatInterface() {
 
       const s = stateRef.current;
       const speed = SPEED[s], amp = ampRef.current;
-      const pulse = s === 'speak' ? 0.06 + amp * 0.12 : s === 'listen' ? 0.04 + amp * 0.14 : 0;
+      const pulse = s === 'speak' ? 0.06 + amp * 0.12 : s === 'listen' ? 0.04 + amp * 0.14 : s === 'error' ? 0.05 : 0;
       rotYRef.current += speed + amp * 0.01;
       rotXRef.current += speed * 0.4;
 
@@ -493,6 +552,7 @@ export default function ChatInterface() {
       onTextChunk: (chunk) => { setResponseText(prev => prev + chunk); setShowResponse(true); },
       onTextComplete: (text) => {
         setResponseText(text); setShowResponse(true);
+        setConversations(prev => [...prev, { role: 'ai', text, time: nowTime() }]);
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         if (!elevenlabsReceived.current) {
           audioFallbackTimer.current = setTimeout(() => {
@@ -532,6 +592,13 @@ export default function ChatInterface() {
     }
   }, [overlay]);
 
+  // ── Auto-scroll conversation ───────────────────────────────────
+  useEffect(() => {
+    if (overlay === 'history') {
+      setTimeout(() => historyEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+  }, [conversations, overlay]);
+
   // ── Main tap / start ───────────────────────────────────────────
   const handleTap = useCallback(async () => {
     if (!started) {
@@ -544,6 +611,7 @@ export default function ChatInterface() {
       const greetText = `${greet}, Dzaryx est en ligne. Je vous écoute.`;
       applyState('speak');
       setResponseText(greetText); setShowResponse(true);
+      setConversations([{ role: 'ai', text: greetText, time: nowTime() }]);
       iosFallbackSpeak(greetText);
       setTimeout(() => { applyState('idle'); scheduleNextListen(); }, Math.max(2500, greetText.length * 65));
       return;
@@ -557,17 +625,18 @@ export default function ChatInterface() {
     void handleTap();
   }, [handleTap]);
 
-  const handlePhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
+  const handlePhotoFile = useCallback(async (file: File) => {
     setAnalyzing(true);
     try {
       const base64 = await resizeImageToBase64(file, 1024);
+      if (photoPreviewUrlRef.current) URL.revokeObjectURL(photoPreviewUrlRef.current);
+      const previewUrl = URL.createObjectURL(file);
+      photoPreviewUrlRef.current = previewUrl;
+      setPhotoPreview(previewUrl);
       pendingPhotoRef.current = { base64, mime: 'image/jpeg' };
       setAnalyzing(false);
       closeOverlay();
-      const prompt = 'Photo reçue. Posez votre question à voix haute ou par écrit.';
+      const prompt = 'Photo chargée. Posez votre question à voix haute ou par écrit.';
       setResponseText(prompt); setShowResponse(true); applyState('speak');
       iosFallbackSpeak(prompt, () => { applyState('idle'); if (loopActive.current) startListeningInner(); });
     } catch {
@@ -576,6 +645,13 @@ export default function ChatInterface() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applyState, showError, closeOverlay]);
+
+  const handlePhotoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    await handlePhotoFile(file);
+  }, [handlePhotoFile]);
 
   const handleMenuAction = useCallback((cmd: string) => {
     closeOverlay();
@@ -603,19 +679,23 @@ export default function ChatInterface() {
       loopActive.current = false;
       recRef.current?.stop();
       if (audioFallbackTimer.current) clearTimeout(audioFallbackTimer.current);
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
       cancelAnimationFrame(rafRef.current);
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       videoStreamRef.current?.getTracks().forEach(t => t.stop());
+      if (photoPreviewUrlRef.current) URL.revokeObjectURL(photoPreviewUrlRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Status label ───────────────────────────────────────────────
+  // ── Derived ────────────────────────────────────────────────────
   const statusLabel = state === 'idle' ? 'EN LIGNE'
     : state === 'listen' ? 'ÉCOUTE'
     : state === 'think'  ? 'ANALYSE'
+    : state === 'error'  ? 'ERREUR'
     : 'PARLE';
 
   const showCaps = started && state === 'idle' && !showResponse;
+  const historyCount = conversations.length;
 
   // ── Render ─────────────────────────────────────────────────────
   return (
@@ -717,6 +797,12 @@ export default function ChatInterface() {
             </button>
           </div>
         </div>
+
+        {/* Voice wave bars — visible during listen/speak */}
+        <div className="dz-voice-wave" aria-hidden>
+          {[...Array(9)].map((_, i) => <div key={i} className="dz-vbar" />)}
+        </div>
+
         <div className="dz-orb-glow" aria-hidden />
       </section>
 
@@ -729,6 +815,18 @@ export default function ChatInterface() {
           <div className="dz-state-sub">{started ? STATE_SUB[state] : STATE_SUB.idle}</div>
         )}
       </div>
+
+      {/* ── Photo preview badge ── */}
+      {photoPreview && (
+        <div className="dz-photo-badge">
+          <img src={photoPreview} alt="Photo" className="dz-photo-thumb" />
+          <div className="dz-photo-info">
+            <div>PHOTO PRÊTE</div>
+            <div className="dz-photo-hint">Posez votre question</div>
+          </div>
+          <button className="dz-photo-close" onClick={clearPhotoPreview} aria-label="Supprimer photo">✕</button>
+        </div>
+      )}
 
       {/* ── Response text ── */}
       <div className={`dz-response${showResponse ? ' visible' : ''}`} aria-live="polite">
@@ -773,6 +871,16 @@ export default function ChatInterface() {
         >
           <span className="dz-act-ico">⌨️</span>
           <span className="dz-act-lbl">TEXTE</span>
+        </button>
+
+        <button
+          className={`dz-act-btn${overlay === 'history' ? ' active' : ''}`}
+          onClick={() => openOverlay('history')}
+          aria-label="Historique"
+        >
+          <span className="dz-act-ico">💬</span>
+          {historyCount > 0 && <span className="dz-act-badge">{historyCount}</span>}
+          <span className="dz-act-lbl">HIST.</span>
         </button>
       </nav>
 
@@ -829,6 +937,12 @@ export default function ChatInterface() {
               {scanResult.type === 'contract' && '📄 CONTRAT DÉTECTÉ'}
             </div>
           )}
+          {/* Camera flip button */}
+          {liveVision && (
+            <button className="dz-cam-flip" onClick={flipCamera} aria-label="Retourner caméra">
+              🔄
+            </button>
+          )}
         </div>
 
         <div className="dz-camera-actions">
@@ -851,9 +965,10 @@ export default function ChatInterface() {
             </button>
           )}
 
+          {/* Camera capture */}
           <label className={`dz-cam-btn${analyzing ? '' : pendingPhotoRef.current ? ' primary' : ''}`}>
-            <span className="dz-cam-btn-ico">{analyzing ? '⏳' : pendingPhotoRef.current ? '✅' : '📷'}</span>
-            <span className="dz-cam-btn-lbl">{analyzing ? 'LECTURE...' : pendingPhotoRef.current ? 'PRÊTE' : 'PHOTO'}</span>
+            <span className="dz-cam-btn-ico">{analyzing ? '⏳' : '📷'}</span>
+            <span className="dz-cam-btn-lbl">{analyzing ? 'CHARGEMENT...' : 'PHOTO'}</span>
             <input
               ref={cameraInputRef}
               type="file"
@@ -863,6 +978,42 @@ export default function ChatInterface() {
               onChange={handlePhotoChange}
             />
           </label>
+
+          {/* Gallery upload */}
+          <label className="dz-cam-btn">
+            <span className="dz-cam-btn-ico">🖼</span>
+            <span className="dz-cam-btn-lbl">GALERIE</span>
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handlePhotoChange}
+            />
+          </label>
+        </div>
+      </div>
+
+      {/* ── History overlay ── */}
+      <div className={`dz-overlay dz-history-overlay${overlay === 'history' ? ' open' : ''}`} role="dialog" aria-label="Historique">
+        <div className="dz-overlay-backdrop" onClick={closeOverlay} />
+        <div className="dz-history-panel">
+          <div className="dz-menu-handle" />
+          <div className="dz-history-header">
+            <span className="dz-history-title">CONVERSATION</span>
+            <button className="dz-history-close" onClick={closeOverlay}>FERMER</button>
+          </div>
+          <div className="dz-history-list">
+            {conversations.length === 0 ? (
+              <div className="dz-history-empty">Aucune conversation pour l'instant</div>
+            ) : conversations.map((msg, i) => (
+              <div key={i} className={`dz-conv-msg dz-conv-msg--${msg.role}`}>
+                <div className="dz-conv-bubble">{msg.text}</div>
+                <div className="dz-conv-time">{msg.time}</div>
+              </div>
+            ))}
+            <div ref={historyEndRef} />
+          </div>
         </div>
       </div>
 
