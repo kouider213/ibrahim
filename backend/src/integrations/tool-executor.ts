@@ -13,6 +13,18 @@ import { mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
 import { saveVideoSession, getLatestVideoSession } from '../marketing/video-session-store.js';
 import { executeCreateMarketingVideo, isValidMp4Buffer, mergeVideoWithAudio } from '../marketing/create-marketing-video.js';
+import {
+  generateUISceneFile, addOverlayToClip, concatScenesWithVoice,
+  ensureSceneFont,
+} from '../marketing/scene-assembler.js';
+import {
+  saveVideoProject, updateVideoProject,
+  buildClientSearchStoryboard, buildAirportArrivalStoryboard,
+  buildFleetRevealStoryboard, buildCornicheDriveStoryboard,
+} from '../marketing/video-project-store.js';
+
+const PROJ_W = 1080;
+const PROJ_H = 1920;
 import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
 import {
   sendMessage as sendTelegramForMarketing,
@@ -149,6 +161,7 @@ export async function executeTool(
       case 'edit_marketing_video':       return await editMarketingVideoTool(input, sessionId);
       case 'regenerate_voice':           return await regenerateVoiceTool(input, sessionId);
       case 'create_scenario_video':      return await createScenarioVideoTool(input, sessionId);
+      case 'create_video_project':       return await createVideoProjectTool(input, sessionId);
       case 'merge_videos':               return await mergeVideosTool(input, sessionId);
       // ─── VEILLE CONCURRENTIELLE ───
       case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId ?? '');
@@ -1665,6 +1678,252 @@ async function createScenarioVideoTool(
   }
 
   return `✅ Scénario "${sc.label}" généré (${provider}) et envoyé ↑ (ID: ${pendingId})`;
+}
+
+// ── CRÉER UN PROJET VIDÉO MULTI-SCÈNES ───────────────────────────────────────
+async function createVideoProjectTool(
+  input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const chatId    = chatIdFromSession(sessionId);
+  const scenario  = (input['scenario']  as string) ?? 'client_search';
+  const carName   = (input['car_name']  as string | undefined);
+  const style     = (input['style']     as string | undefined) ?? 'tiktok';
+  const falKey    = env.FAL_KEY;
+  const runwayKey = env.RUNWAY_API_KEY;
+
+  if (!falKey && !runwayKey) {
+    return '❌ Aucun provider vidéo configuré (RUNWAY_API_KEY ou FAL_KEY requis dans Railway).';
+  }
+
+  // ── Find car ───────────────────────────────────────────────────────────────
+  const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
+  const cars           = (carsRaw ?? []) as Car[];
+  const carsWithImage  = cars.filter(c => c.image_url);
+  if (!carsWithImage.length) return '⚠️ Aucune voiture avec photo disponible dans la flotte.';
+
+  const car = carName
+    ? (carsWithImage.find(c => c.name.toLowerCase().includes(carName.toLowerCase())) ?? carsWithImage[0])
+    : carsWithImage[0];
+
+  const pricing      = getPricingForVehicle(car.name);
+  const priceDisplay = pricing?.kouiderPrice ? `${pricing.kouiderPrice}€/j` : 'prix sur demande';
+
+  // ── Build storyboard ───────────────────────────────────────────────────────
+  const storyboards: Record<string, ReturnType<typeof buildClientSearchStoryboard>> = {
+    client_search:    buildClientSearchStoryboard(car.name, priceDisplay),
+    airport_arrival:  buildAirportArrivalStoryboard(car.name, priceDisplay),
+    fleet_reveal:     buildFleetRevealStoryboard(car.name, priceDisplay),
+    corniche_drive:   buildCornicheDriveStoryboard(car.name, priceDisplay),
+  };
+  const board = storyboards[scenario] ?? storyboards['client_search'];
+
+  // ── Send brief ─────────────────────────────────────────────────────────────
+  const totalDur  = board.scenes.reduce((s, sc) => s + sc.duration, 0);
+  const sceneList = board.scenes.map((sc, i) =>
+    `*${i + 1}. ${sc.label}* (${sc.duration}s) — ${sc.overlayText ?? sc.type}`
+  ).join('\n');
+
+  const brief = [
+    `🎬 *Projet vidéo — ${board.title}*`,
+    `🚗 ${car.name} — ${priceDisplay} | ⏱️ ${totalDur}s | 📱 9:16 TikTok`,
+    ``,
+    `📋 *Plan scène par scène :*`,
+    sceneList,
+    ``,
+    `🎤 *Voix off :*`,
+    `_${board.voiceScript.slice(0, 250)}_`,
+    ``,
+    `🏷️ ${board.hashtags.slice(0, 5).join(' ')}`,
+    ``,
+    `⏳ Génération en cours (car scenes = Runway/Kling, UI scenes = FFmpeg instantané)...`,
+  ].join('\n');
+  await sendTelegramForMarketing(chatId, brief).catch(() => {});
+
+  // ── Save project ───────────────────────────────────────────────────────────
+  const project = saveVideoProject({
+    title:       board.title,
+    scenario,
+    carName:     car.name,
+    carImageUrl: car.image_url,
+    carId:       car.id,
+    voiceScript: board.voiceScript,
+    scenes:      board.scenes,
+    hashtags:    board.hashtags,
+    caption:     `${car.name} — ${priceDisplay} | Fik Conciergerie Oran`,
+    style,
+    pendingId:   '',
+    finalBuffer: null,
+    audioBuffer: null,
+    provider:    'pending',
+    version:     1,
+  });
+
+  // ── Generate all scenes ────────────────────────────────────────────────────
+  const tmpDir   = await import('os').then(o => import('fs/promises').then(f =>
+    f.mkdtemp(o.tmpdir() + '/dzaryx-proj-')
+  ));
+  const fontPath = await ensureSceneFont();
+  const scenePaths: string[] = [];
+  let   usedProvider = 'FFmpeg';
+
+  try {
+    for (let i = 0; i < board.scenes.length; i++) {
+      const sc      = board.scenes[i];
+      const outPath = `${tmpDir}/scene_${i}.mp4`;
+
+      if (sc.type.startsWith('ui_')) {
+        // FFmpeg synthetic — instant
+        await sendTelegramForMarketing(chatId,
+          `🖥️ _Scène ${i + 1}/${board.scenes.length} — ${sc.label} (FFmpeg)_`
+        ).catch(() => {});
+        await generateUISceneFile(sc, outPath, fontPath);
+        scenePaths.push(outPath);
+
+      } else {
+        // Car scene — Runway/Kling
+        await sendTelegramForMarketing(chatId,
+          `🎬 _Scène ${i + 1}/${board.scenes.length} — ${sc.label} (Runway/Kling ~90s)_`
+        ).catch(() => {});
+
+        let carClipBuffer: Buffer | null = null;
+        try {
+          await axios.head(car.image_url, { timeout: 8_000 });
+          const prompt = sc.prompt ?? `Cinematic automotive shot of a ${car.name}. ${sc.overlayText ?? 'Professional car advertisement'}. Real filmed footage quality. TikTok vertical format.`;
+          const result = await generateVehicleVideo({
+            imageUrl:          car.image_url,
+            userPrompt:        prompt,
+            carName:           car.name,
+            duration:          Math.min(sc.duration, 5) as 5 | 10,
+            falKey,
+            runwayKey,
+            forceProvider:     'auto',
+            sceneTransformation: true,
+          });
+          const resp = await axios.get(result.url, { responseType: 'arraybuffer', timeout: 60_000 });
+          const raw  = Buffer.from(resp.data as ArrayBuffer);
+          if (isValidMp4Buffer(raw)) {
+            carClipBuffer = raw;
+            usedProvider  = result.provider;
+          }
+        } catch (err: any) {
+          console.error(`[create_video_project] scene ${i + 1} AI failed:`, err.message);
+        }
+
+        // If AI failed, fallback: generate a static image clip
+        if (!carClipBuffer) {
+          await sendTelegramForMarketing(chatId,
+            `⚠️ _Scène ${i + 1} IA indisponible — image statique utilisée_`
+          ).catch(() => {});
+          // Create a simple static scene from car image using FFmpeg
+          try {
+            const imgBuf = await axios.get(car.image_url, { responseType: 'arraybuffer', timeout: 20_000 })
+              .then(r => Buffer.from(r.data as ArrayBuffer));
+            const imgPath = `${tmpDir}/car_${i}.jpg`;
+            await import('fs/promises').then(f => f.writeFile(imgPath, imgBuf));
+            await runFFmpegForProject([
+              '-y', '-loop', '1', '-i', imgPath,
+              '-t', String(sc.duration),
+              '-vf', `scale=${PROJ_W}:${PROJ_H}:force_original_aspect_ratio=increase,crop=${PROJ_W}:${PROJ_H},eq=saturation=1.5:contrast=1.1`,
+              '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26',
+              '-pix_fmt', 'yuv420p', '-r', '25', '-movflags', '+faststart',
+              outPath,
+            ]);
+            carClipBuffer = await import('fs/promises').then(f => f.readFile(outPath));
+          } catch (fbErr: any) {
+            console.error(`[create_video_project] static fallback failed:`, fbErr.message);
+            // Skip this scene
+            continue;
+          }
+        }
+
+        // Add text overlay
+        if (sc.overlayText && carClipBuffer) {
+          const withOverlay = await addOverlayToClip(carClipBuffer, sc.overlayText, fontPath)
+            .catch(() => carClipBuffer!);
+          await import('fs/promises').then(f => f.writeFile(outPath, withOverlay));
+        } else if (carClipBuffer) {
+          await import('fs/promises').then(f => f.writeFile(outPath, carClipBuffer));
+        }
+        scenePaths.push(outPath);
+      }
+    }
+
+    if (!scenePaths.length) {
+      return '❌ Impossible de générer les scènes. Vérifie la connexion et les clés API.';
+    }
+
+    // ── Generate voice ─────────────────────────────────────────────────────
+    await sendTelegramForMarketing(chatId, '🎙️ _Génération voix off ElevenLabs..._').catch(() => {});
+    const audioBuffer = await synthesizeVoice(board.voiceScript).catch(() => null);
+
+    // ── Assemble ──────────────────────────────────────────────────────────
+    await sendTelegramForMarketing(chatId, '🎞️ _Assemblage final FFmpeg..._').catch(() => {});
+    const finalBuffer = await concatScenesWithVoice(scenePaths, audioBuffer, tmpDir);
+
+    // ── Save pending + session ────────────────────────────────────────────
+    const pendingId = await savePendingVideo({
+      video_url: car.image_url,
+      caption:   project.caption,
+      hashtags:  board.hashtags,
+      car_name:  car.name,
+      car_id:    car.id,
+      script:    board.voiceScript,
+    });
+
+    updateVideoProject(project.id, { finalBuffer, audioBuffer, pendingId, provider: usedProvider });
+
+    saveVideoSession({
+      carName:     car.name,
+      carImageUrl: car.image_url,
+      carId:       car.id,
+      script:      board.voiceScript,
+      videoBuffer: finalBuffer,
+      audioBuffer,
+      prompt:      scenario,
+      provider:    usedProvider,
+      background:  scenario,
+      scenario,
+      caption:     project.caption,
+      hashtags:    board.hashtags,
+      pendingId,
+    });
+
+    // ── Send to Telegram ──────────────────────────────────────────────────
+    const approvalMsg = [
+      `🎬 *Projet vidéo — ${board.title}*`,
+      `🚗 ${car.name} | ⏱️ ${totalDur}s | 📱 9:16 | ${usedProvider}`,
+      ``,
+      `✅ *Oke* pour publier sur TikTok | ❌ *Non* pour annuler`,
+      `✏️ _"modifie la scène X", "change la voix", "refais le CTA"_`,
+    ].join('\n');
+
+    await sendVideoBuffer(chatId, finalBuffer, approvalMsg).catch(async () => {
+      await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    });
+
+    return `✅ Projet vidéo "${board.title}" (${scenePaths.length} scènes, ${usedProvider}) envoyé sur Telegram ↑ (ID: ${pendingId}).`;
+
+  } finally {
+    await import('fs/promises').then(f => f.rm(tmpDir, { recursive: true, force: true })).catch(() => {});
+  }
+}
+
+function runFFmpegForProject(args: string[]): Promise<void> {
+  // @ts-ignore
+  const ffmpegPath = require('ffmpeg-static') as string | null;
+  if (!ffmpegPath) throw new Error('ffmpeg-static not found');
+  const { spawn } = require('child_process') as typeof import('child_process');
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegPath, args, { stdio: 'pipe' });
+    let stderr = '';
+    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+    proc.on('close', (code: number | null) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-400)}`));
+    });
+    proc.on('error', reject);
+  });
 }
 
 async function mergeVideosTool(

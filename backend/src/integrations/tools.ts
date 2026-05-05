@@ -843,6 +843,23 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'create_video_project',
+    description: 'Créer une vidéo publicitaire TikTok MULTI-SCÈNES ultra-réaliste pour Fik Conciergerie. Génère un vrai storyboard (6-7 scènes), produit chaque scène (voiture = Runway/Kling, écrans téléphone/WhatsApp/TikTok = FFmpeg toujours lisible), assemble avec la voix ElevenLabs, et envoie le MP4 final. UTILISER pour : "fais une vidéo réaliste où un client galère", "crée une pub TikTok complète", "vidéo avec scène aéroport + WhatsApp + CTA", "vidéo storytelling client", "vidéo multi-scènes". Scénarios disponibles : client_search (client galère puis trouve Fik), airport_arrival (client arrive à l\'aéroport, voiture qui attend), fleet_reveal (présentation cinématique du véhicule), corniche_drive (voiture sur la Corniche d\'Oran, lifestyle). Envoie toujours le brief complet avant de générer.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        scenario: {
+          type: 'string',
+          enum: ['client_search', 'airport_arrival', 'fleet_reveal', 'corniche_drive'],
+          description: 'client_search: client galère (6 scènes : hook téléphone → problème → TikTok → WhatsApp → voiture → CTA). airport_arrival: client à l\'aéroport Ahmed Ben Bella (5 scènes). fleet_reveal: présentation cinématique du véhicule (3 scènes). corniche_drive: voiture sur la Corniche, lifestyle (3 scènes).',
+        },
+        car_name: { type: 'string', description: 'Nom ou modèle de la voiture. Si vide, choisit automatiquement dans la flotte.' },
+        style:    { type: 'string', enum: ['tiktok', 'luxe', 'dynamique', 'serieux'], description: 'Style général de la vidéo. Défaut: tiktok.' },
+      },
+      required: ['scenario'],
+    },
+  },
+  {
     name: 'merge_videos',
     description: 'Fusionner plusieurs vidéos envoyées par Kouider en une seule vidéo TikTok. Utiliser quand Kouider dit "fusionne ces vidéos", "mets-les ensemble", "combine les clips". IMPORTANT: Kouider doit d\'abord envoyer les vidéos, puis demander la fusion.',
     input_schema: {
