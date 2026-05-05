@@ -522,6 +522,7 @@ input  { font: inherit; border: none; outline: none; background: none; }
   display:             -webkit-box;
   -webkit-line-clamp:  3;
   -webkit-box-orient:  vertical;
+  white-space:         pre-line;
   transition:          color .4s;
 }
 .dz-resp-panel--lit .dz-resp-text { color: rgba(255,255,255,.88); }

@@ -505,6 +505,17 @@ export default function ChatInterface() {
   useEffect(() => { if (overlay === 'text') setTimeout(() => textInputRef.current?.focus(), 300); }, [overlay]);
 
   useEffect(() => {
+    if (overlay !== 'camera' && videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach(t => t.stop());
+      videoStreamRef.current = null;
+      if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
+      setLiveVision(false);
+      setScanMode(false);
+      setScanResult(null);
+    }
+  }, [overlay]);
+
+  useEffect(() => {
     if (overlay === 'history') setTimeout(() => historyEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }, [conversations, overlay]);
 
@@ -581,7 +592,7 @@ export default function ChatInterface() {
     ? `⚙ ${toolLabel}...`
     : started
     ? STATE_SUB[state]
-    : "Je vous écoute...\nComment puis-je vous aider ?";
+    : "Appuyez sur VOICE INPUT pour commencer";
 
   return (
     <div className="dz-root" data-state={state}>
