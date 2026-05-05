@@ -684,8 +684,8 @@ input  { font: inherit; border: none; outline: none; background: none; }
 .dz-text-send:active { transform: scale(.88); }
 
 /* ── Camera overlay ────────────────────────────────────────────── */
-.dz-camera-overlay { background: #000; opacity: 1; pointer-events: none; }
-.dz-camera-overlay.open { pointer-events: auto; }
+.dz-camera-overlay { background: #000; }
+.dz-camera-overlay.open { opacity: 1; }
 
 .dz-camera-header {
   position:        relative;
