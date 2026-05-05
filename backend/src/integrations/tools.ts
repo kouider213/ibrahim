@@ -803,6 +803,46 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'edit_marketing_video',
+    description: 'Modifier une vidéo marketing déjà générée. Utiliser quand Kouider dit "je n\'aime pas cette scène", "rends-la plus réaliste", "change l\'arrière-plan", "mets la voiture devant l\'aéroport", "fais tourner la caméra", "change la lumière", "modifie la voix", "change le script". Ne pas utiliser pour créer une nouvelle vidéo — utiliser create_marketing_video pour ça.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        modification: { type: 'string', description: 'Description précise de la modification demandée. Ex: "Change l\'arrière-plan et mets la voiture devant l\'aéroport Ahmed Ben Bella", "Rends la scène plus réaliste avec une lumière naturelle", "Fais tourner la caméra autour de la voiture".' },
+        new_script:   { type: 'string', description: 'Nouveau script voix off si Kouider veut changer le texte parlé. En FRANÇAIS.' },
+        tone:         { type: 'string', enum: ['professionnel', 'dynamique', 'chaleureux', 'commercial'], description: 'Nouveau ton de la voix si Kouider veut changer l\'ambiance.' },
+      },
+      required: ['modification'],
+    },
+  },
+  {
+    name: 'regenerate_voice',
+    description: 'Regénérer uniquement la voix off d\'une vidéo existante sans refaire la vidéo. Utiliser quand Kouider dit "change la voix", "remplace cette voix", "elle ne fait pas assez professionnelle", "rends la voix plus dynamique", "corrige la phrase X", "raccourcis le texte", "nouvelle voix".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        script: { type: 'string', description: 'Nouveau texte de la voix off en FRANÇAIS. Si vide, garde le script original avec le nouveau ton.' },
+        tone:   { type: 'string', enum: ['professionnel', 'dynamique', 'chaleureux', 'commercial'], description: 'Ton souhaité: professionnel (sérieux), dynamique (énergique), chaleureux (accueillant), commercial (vendeur percutant).' },
+      },
+    },
+  },
+  {
+    name: 'create_scenario_video',
+    description: 'Créer une vidéo TikTok basée sur un scénario narratif complet avec structure scène par scène, voix off adaptée, hashtags et CTA. Utiliser pour des scénarios comme: client qui arrive à l\'aéroport d\'Oran, client qui cherche une location, présentation de la flotte Fik Conciergerie, balade sur la Corniche. Toujours envoie d\'abord le brief complet (durée, scènes, voix, hashtags, CTA) puis la vidéo.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        scenario: {
+          type: 'string',
+          enum: ['airport_arrival', 'client_search', 'fleet_reveal', 'corniche_drive'],
+          description: 'airport_arrival: client arrive à l\'aéroport Ahmed Ben Bella, trouve la voiture Fik Conciergerie qui l\'attend. client_search: client galère à trouver une location puis découvre Fik Conciergerie. fleet_reveal: présentation soignée de la flotte. corniche_drive: voiture sur la Corniche d\'Oran, ambiance lifestyle.',
+        },
+        car_name: { type: 'string', description: 'Nom de la voiture à utiliser. Si vide, choisit automatiquement.' },
+      },
+      required: ['scenario'],
+    },
+  },
+  {
     name: 'merge_videos',
     description: 'Fusionner plusieurs vidéos envoyées par Kouider en une seule vidéo TikTok. Utiliser quand Kouider dit "fusionne ces vidéos", "mets-les ensemble", "combine les clips". IMPORTANT: Kouider doit d\'abord envoyer les vidéos, puis demander la fusion.',
     input_schema: {

@@ -11,6 +11,7 @@ import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
 import { mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
+import { saveVideoSession, getLatestVideoSession } from '../marketing/video-session-store.js';
 import { executeCreateMarketingVideo, isValidMp4Buffer, mergeVideoWithAudio } from '../marketing/create-marketing-video.js';
 import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
 import {
@@ -145,6 +146,9 @@ export async function executeTool(
       case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
       case 'generate_tiktok_video':      return await createMarketingVideoTool(input, sessionId);
       case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
+      case 'edit_marketing_video':       return await editMarketingVideoTool(input, sessionId);
+      case 'regenerate_voice':           return await regenerateVoiceTool(input, sessionId);
+      case 'create_scenario_video':      return await createScenarioVideoTool(input, sessionId);
       case 'merge_videos':               return await mergeVideosTool(input, sessionId);
       // ─── VEILLE CONCURRENTIELLE ───
       case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId ?? '');
@@ -1178,21 +1182,23 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
   let videoBuffer: Buffer | null = null;
   let method = 'photo';
 
+  // Hoist motionPrompt so it's available for saveVideoSession outside the block
+  const bgMotion: Record<string, string> = {
+    plage:    'car on Algerian beach, ocean waves, golden sunset, cinematic pan shot',
+    ville:    'car in Oran city streets, urban lights, dynamic tracking shot',
+    montagne: 'car on mountain road Algeria, dramatic landscape, sweeping camera move',
+    desert:   'car in Sahara desert, sand dunes, epic wide establishing shot',
+    route:    'car driving on coastal road Oran, smooth tracking shot',
+    luxe:     'luxury car, premium setting, elegant slow motion reveal',
+    foret:    'car on forest road, dappled golden light, cinematic dolly shot',
+    coucher:  'car at golden hour sunset, warm tones, silhouette reveal',
+    nuit:     'car at night, city lights bokeh, dramatic neon reflections',
+  };
+  let motionPrompt = backgroundEffect
+    ? (bgMotion[backgroundEffect] ?? `${backgroundEffect} scenery, cinematic car reveal, smooth camera`)
+    : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
+
   if (runwayKey || falKey) {
-    const bgMotion: Record<string, string> = {
-      plage:    'car on Algerian beach, ocean waves, golden sunset, cinematic pan shot',
-      ville:    'car in Oran city streets, urban lights, dynamic tracking shot',
-      montagne: 'car on mountain road Algeria, dramatic landscape, sweeping camera move',
-      desert:   'car in Sahara desert, sand dunes, epic wide establishing shot',
-      route:    'car driving on coastal road Oran, smooth tracking shot',
-      luxe:     'luxury car, premium setting, elegant slow motion reveal',
-      foret:    'car on forest road, dappled golden light, cinematic dolly shot',
-      coucher:  'car at golden hour sunset, warm tones, silhouette reveal',
-      nuit:     'car at night, city lights bokeh, dramatic neon reflections',
-    };
-    const motionPrompt = backgroundEffect
-      ? (bgMotion[backgroundEffect] ?? `${backgroundEffect} scenery, cinematic car reveal, smooth camera`)
-      : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
 
     const providerLabel = runwayKey ? 'Runway Gen-4 Turbo' : 'Kling IA';
     await sendTelegramForMarketing(chatId,
@@ -1287,6 +1293,23 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
     script,
   });
 
+  // ── Save session for modifications ───────────────────────────
+  saveVideoSession({
+    carName:     car.name,
+    carImageUrl: car.image_url,
+    carId:       car.id,
+    script,
+    videoBuffer: videoBuffer ?? null,
+    audioBuffer: audioBuffer ?? null,
+    prompt:      motionPrompt,
+    provider:    method,
+    background:  backgroundEffect ?? '',
+    scenario:    '',
+    caption,
+    hashtags,
+    pendingId,
+  });
+
   const approvalMsg = [
     `🎬 *Vidéo TikTok — ${car.name}* (${method})`,
     ``,
@@ -1326,6 +1349,322 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
     resultMsg = `Je n'ai pas pu créer la vidéo. La génération a échoué (Kling IA et FFmpeg ont tous les deux échoué). Une photo + voix ont été envoyées à la place ↑ (ID: ${pendingId}).`;
   }
   return resultMsg.substring(0, 3000);
+}
+
+async function editMarketingVideoTool(
+  input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const chatId    = chatIdFromSession(sessionId);
+  const session   = getLatestVideoSession();
+  const modification = (input['modification'] as string | undefined) ?? '';
+
+  if (!session) {
+    return '⚠️ Aucune vidéo en mémoire. Génère d\'abord une vidéo avec "fais une vidéo TikTok pour [voiture]".';
+  }
+
+  const runwayKey = env.RUNWAY_API_KEY;
+  const falKey    = env.FAL_KEY;
+
+  if (!runwayKey && !falKey) {
+    return '❌ Aucun provider vidéo configuré (RUNWAY_API_KEY ou FAL_KEY requis).';
+  }
+
+  // Determine modification type
+  const mod = modification.toLowerCase();
+  const isVoiceOnly = /voix|voice|script|ton|tone|phrase|texte|parle/i.test(mod) && !/fond|background|scène|scene|caméra|camera|arrière/i.test(mod);
+  const isVideoOnly = /fond|background|scène|scene|caméra|camera|arrière|décor|lumière|aéroport|corniche|plage/i.test(mod);
+
+  await sendTelegramForMarketing(chatId,
+    `✏️ *Modification vidéo — ${session.carName}*\n_"${modification.slice(0, 80)}"_\n⏳ En cours...`
+  ).catch(() => {});
+
+  // Re-generate voice if script/tone changed
+  let audioBuffer = session.audioBuffer;
+  if (!isVideoOnly) {
+    const newScript = (input['new_script'] as string | undefined) ?? session.script;
+    const tone      = (input['tone'] as string | undefined);
+    const tonePrefix = tone === 'professionnel' ? 'Ton professionnel et sérieux. ' :
+                       tone === 'dynamique'      ? 'Ton dynamique et énergique. ' :
+                       tone === 'chaleureux'      ? 'Ton chaleureux et accueillant. ' :
+                       tone === 'commercial'      ? 'Ton commercial percutant. ' : '';
+    const scriptToUse = tonePrefix + newScript;
+    audioBuffer = await synthesizeVoice(scriptToUse).catch(() => session.audioBuffer);
+  }
+
+  // Re-generate video if scene/background changed
+  let videoBuffer = session.videoBuffer;
+  let provider    = session.provider;
+  if (!isVoiceOnly && session.carImageUrl) {
+    try {
+      const newScene = modification.length > 10 ? modification : session.prompt;
+      const result   = await generateVehicleVideo({
+        imageUrl:            session.carImageUrl,
+        userPrompt:          newScene,
+        carName:             session.carName,
+        duration:            5,
+        falKey,
+        runwayKey,
+        forceProvider:       'auto',
+        sceneTransformation: true,
+      });
+      const resp   = await axios.get(result.url, { responseType: 'arraybuffer', timeout: 60_000 });
+      const rawBuf = Buffer.from(resp.data as ArrayBuffer);
+      if (isValidMp4Buffer(rawBuf)) {
+        videoBuffer = rawBuf;
+        provider    = result.provider;
+      }
+    } catch (err: any) {
+      console.error('[edit_marketing_video] regen failed:', err.message);
+    }
+  }
+
+  // Merge video + audio
+  let finalVideo = videoBuffer;
+  if (videoBuffer && audioBuffer) {
+    try {
+      const merged = await mergeVideoWithAudio(videoBuffer, audioBuffer);
+      if (isValidMp4Buffer(merged)) finalVideo = merged;
+    } catch { /* keep unmerged */ }
+  }
+
+  // Save new session
+  saveVideoSession({
+    ...session,
+    videoBuffer:  finalVideo,
+    audioBuffer,
+    script:       (input['new_script'] as string | undefined) ?? session.script,
+    provider,
+    prompt:       modification,
+  });
+
+  // Send to Telegram
+  const approvalMsg = `✏️ *Vidéo modifiée — ${session.carName}*\n_${modification.slice(0, 100)}_\n\n✅ *Oke* pour publier | ❌ *Non* pour annuler`;
+
+  if (finalVideo) {
+    await sendVideoBuffer(chatId, finalVideo, approvalMsg).catch(async () => {
+      await sendTelegramForMarketing(chatId, approvalMsg).catch(() => {});
+    });
+  } else {
+    await sendTelegramForMarketing(chatId, approvalMsg).catch(() => {});
+  }
+
+  return `✅ Vidéo modifiée (${provider}) et envoyée ↑`;
+}
+
+async function regenerateVoiceTool(
+  input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const chatId  = chatIdFromSession(sessionId);
+  const session = getLatestVideoSession();
+
+  if (!session) {
+    return '⚠️ Aucune vidéo en mémoire. Génère d\'abord une vidéo.';
+  }
+
+  const newScript = (input['script'] as string | undefined) ?? session.script;
+  const tone      = (input['tone'] as string | undefined) ?? '';
+
+  const tonePrefix = tone === 'professionnel' ? 'Ton professionnel et sérieux. ' :
+                     tone === 'dynamique'      ? 'Ton dynamique et énergique. ' :
+                     tone === 'chaleureux'      ? 'Ton chaleureux et accueillant. ' :
+                     tone === 'commercial'      ? 'Ton commercial percutant. ' : '';
+
+  await sendTelegramForMarketing(chatId, `🎙️ *Nouvelle voix en cours...*\n_Ton: ${tone || 'standard'}_`).catch(() => {});
+
+  const audioBuffer = await synthesizeVoice(tonePrefix + newScript);
+  if (!audioBuffer) return '❌ ElevenLabs indisponible — vérifie ELEVENLABS_API_KEY dans Railway.';
+
+  // Merge with existing video if available
+  let finalVideo = session.videoBuffer;
+  if (session.videoBuffer && audioBuffer) {
+    try {
+      const merged = await mergeVideoWithAudio(session.videoBuffer, audioBuffer);
+      if (isValidMp4Buffer(merged)) finalVideo = merged;
+    } catch { /* keep old video */ }
+  }
+
+  // Update session
+  saveVideoSession({ ...session, audioBuffer, videoBuffer: finalVideo, script: newScript });
+
+  // Send
+  if (finalVideo) {
+    await sendVideoBuffer(chatId, finalVideo,
+      `🎙️ *Voix modifiée — ${session.carName}*\n_Script: "${newScript.slice(0, 100)}_"\n\n✅ *Oke* pour publier | ❌ *Non* pour annuler`
+    ).catch(async () => {
+      await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+    });
+  } else {
+    await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+  }
+
+  return `✅ Nouvelle voix générée et envoyée ↑`;
+}
+
+async function createScenarioVideoTool(
+  input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const chatId    = chatIdFromSession(sessionId);
+  const scenario  = (input['scenario'] as string) ?? 'airport_arrival';
+  const carName   = (input['car_name'] as string | undefined);
+  const falKey    = env.FAL_KEY;
+  const runwayKey = env.RUNWAY_API_KEY;
+
+  if (!falKey && !runwayKey) {
+    return '❌ Aucun provider vidéo configuré.';
+  }
+
+  // Lookup car
+  const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
+  const cars = (carsRaw ?? []) as Car[];
+  const carsWithImage = cars.filter(c => c.image_url);
+  const car = carName
+    ? (carsWithImage.find(c => c.name.toLowerCase().includes(carName.toLowerCase())) ?? carsWithImage[0])
+    : carsWithImage[0];
+
+  if (!car) return '⚠️ Aucune voiture avec photo disponible dans la flotte.';
+
+  const pricing      = getPricingForVehicle(car.name);
+  const priceDisplay = pricing?.kouiderPrice ? `${pricing.kouiderPrice}€/j` : 'prix sur demande';
+
+  // Build scenario details
+  const scenarios: Record<string, { label: string; voiceScript: string; description: string; hashtags: string[] }> = {
+    airport_arrival: {
+      label:       'Arrivée aéroport Ahmed Ben Bella',
+      voiceScript: `Vous arrivez à l'aéroport d'Oran ? Fik Conciergerie vous attend avec votre ${car.name}, propre et prête. Livraison directe à l'aéroport. Appelez-nous maintenant !`,
+      description: `Scène à l'aéroport Ahmed Ben Bella d'Oran — client qui arrive avec valises, ${car.name} propre qui attend, remise de clés professionnelle. Service sérieux et rapide de Fik Conciergerie.`,
+      hashtags:    ['#locationvoiture', '#oran', '#aeroportoran', '#fikconcierge', '#algerie', '#mre', '#tiktokalgerie', '#voiturelocation'],
+    },
+    client_search: {
+      label:       'Client qui cherche une location',
+      voiceScript: `Arrêtez de chercher ! Fik Conciergerie à Oran. ${car.name} disponible dès maintenant. Service rapide, prix transparent, livraison à l'aéroport. WhatsApp maintenant !`,
+      description: `Client qui cherche une voiture, appelle plusieurs agences sans succès, puis découvre Fik Conciergerie sur WhatsApp et obtient une réponse immédiate. Transformation du problème en solution.`,
+      hashtags:    ['#locationvoiture', '#oran', '#fikconcierge', '#algerie', '#mre', '#locationauto', '#tiktokalgerie'],
+    },
+    fleet_reveal: {
+      label:       'Présentation flotte Fik Conciergerie',
+      voiceScript: `La flotte Fik Conciergerie à Oran. ${car.name} et bien plus encore. Location de voitures premium, service personnalisé, livraison aéroport. Réservez dès maintenant !`,
+      description: `Présentation soignée de la ${car.name} — révélation progressiste, détails du véhicule, intérieur et extérieur. Ambiance premium et professionnelle.`,
+      hashtags:    ['#locationvoiture', '#oran', '#fikconcierge', '#algerie', '#flotte', '#premium', '#tiktokalgerie'],
+    },
+    corniche_drive: {
+      label:       'Balade Corniche d\'Oran',
+      voiceScript: `La ${car.name} sur la Corniche d'Oran. Location à ${priceDisplay}. Profitez de l'Algérie avec style. Fik Conciergerie — votre partenaire mobilité à Oran.`,
+      description: `${car.name} sur la Corniche d'Oran, mer Méditerranée en arrière-plan, lumière dorée. Ambiance lifestyle et liberté, invite au voyage et à la découverte.`,
+      hashtags:    ['#locationvoiture', '#oran', '#corniche', '#fikconcierge', '#algerie', '#lifestyle', '#tiktokalgerie'],
+    },
+  };
+
+  const sc = scenarios[scenario] ?? scenarios['airport_arrival'];
+
+  await sendTelegramForMarketing(chatId,
+    `🎬 *Scénario : ${sc.label}*\n_${car.name} — ${priceDisplay}_\n⏳ Génération Runway/Kling en cours...`
+  ).catch(() => {});
+
+  // Send structured brief first
+  const brief = [
+    `📋 *Brief vidéo — ${sc.label}*`,
+    ``,
+    `🚗 Voiture : ${car.name} (${priceDisplay})`,
+    `⏱️ Durée : 5-10 secondes`,
+    `📱 Format : 9:16 TikTok`,
+    ``,
+    `🎬 Scène : ${sc.description}`,
+    ``,
+    `🎤 Voix off :`,
+    `_${sc.voiceScript}_`,
+    ``,
+    `🏷️ Hashtags : ${sc.hashtags.join(' ')}`,
+    ``,
+    `📣 CTA : WhatsApp → Fik Conciergerie`,
+  ].join('\n');
+  await sendTelegramForMarketing(chatId, brief).catch(() => {});
+
+  // Generate video
+  let videoBuffer: Buffer | null = null;
+  let provider = 'inconnu';
+  try {
+    await axios.head(car.image_url, { timeout: 8_000 });
+    const result = await generateVehicleVideo({
+      imageUrl:            car.image_url,
+      userPrompt:          sc.description,
+      carName:             car.name,
+      duration:            5,
+      falKey,
+      runwayKey,
+      forceProvider:       'auto',
+      sceneTransformation: true,
+      scenario,
+    });
+    const resp   = await axios.get(result.url, { responseType: 'arraybuffer', timeout: 60_000 });
+    const rawBuf = Buffer.from(resp.data as ArrayBuffer);
+    if (isValidMp4Buffer(rawBuf)) {
+      videoBuffer = rawBuf;
+      provider    = result.provider;
+    }
+  } catch (err: any) {
+    console.error('[create_scenario_video] video gen failed:', err.message);
+    await sendTelegramForMarketing(chatId, `⚠️ Vidéo IA indisponible, photo envoyée à la place.`).catch(() => {});
+  }
+
+  // Generate voice
+  const audioBuffer = await synthesizeVoice(sc.voiceScript).catch(() => null);
+
+  // Merge
+  let finalVideo = videoBuffer;
+  if (videoBuffer && audioBuffer) {
+    try {
+      const merged = await mergeVideoWithAudio(videoBuffer, audioBuffer);
+      if (isValidMp4Buffer(merged)) finalVideo = merged;
+    } catch { /* keep unmerged */ }
+  }
+
+  // Save session
+  const pendingId = await savePendingVideo({
+    video_url: car.image_url,
+    caption:   `${car.name} — ${priceDisplay} | Fik Conciergerie Oran`,
+    hashtags:  sc.hashtags,
+    car_name:  car.name,
+    car_id:    car.id,
+    script:    sc.voiceScript,
+  });
+
+  saveVideoSession({
+    carName:     car.name,
+    carImageUrl: car.image_url,
+    carId:       car.id,
+    script:      sc.voiceScript,
+    videoBuffer: finalVideo,
+    audioBuffer,
+    prompt:      sc.description,
+    provider,
+    background:  scenario,
+    scenario,
+    caption:     `${car.name} — ${priceDisplay} | Fik Conciergerie Oran`,
+    hashtags:    sc.hashtags,
+    pendingId,
+  });
+
+  const approvalMsg = [
+    `🎬 *${sc.label}* (${provider})`,
+    `🚗 ${car.name} — ${priceDisplay}`,
+    ``,
+    `✅ *Oke* pour publier sur TikTok | ❌ *Non* pour annuler`,
+    `✏️ Dis "modifie la scène" ou "change la voix" pour ajuster`,
+  ].join('\n');
+
+  if (finalVideo) {
+    await sendVideoBuffer(chatId, finalVideo, approvalMsg).catch(async () => {
+      await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    });
+  } else if (car.image_url) {
+    await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    if (audioBuffer) await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+  }
+
+  return `✅ Scénario "${sc.label}" généré (${provider}) et envoyé ↑ (ID: ${pendingId})`;
 }
 
 async function mergeVideosTool(
@@ -1966,16 +2305,14 @@ function detectSceneTransformation(userPrompt: string): boolean {
 }
 
 // ── Prompt builder ─────────────────────────────────────────────────────────────
-// Strict fidelity  (sceneTransformation=false): motion-only prompt, cfgScale=0.4
-// Scene transform  (sceneTransformation=true) : car identity from image + new env
-// KEY: for image-to-video, NEVER describe the car appearance — image is the reference.
 function buildVideoPromptForRealism(opts: {
   carName:              string;
   userScene:            string;
   mode:                 'image-to-video' | 'text-to-video';
   sceneTransformation?: boolean;
+  scenario?:            string;
 }): { prompt: string; negativePrompt: string; cfgScale: number } {
-  const { carName, userScene, mode, sceneTransformation = false } = opts;
+  const { carName, userScene, mode, sceneTransformation = false, scenario } = opts;
 
   const baseNegativePrompt = [
     'morphing, body deformation, shape distortion, color change',
@@ -1983,49 +2320,93 @@ function buildVideoPromptForRealism(opts: {
     'oversaturated, dramatic fake lighting, neon glow',
     'speed blur, drift, stunt, explosion, smoke',
     'unrealistic reflections, plastic look, blurry, low quality',
-    'AI artifact, glitch, uncanny valley',
+    'AI artifact, glitch, uncanny valley, watermark, text overlay',
+    'duplicate car, multiple cars',
   ].join(', ');
 
-  // ── text-to-video (no source image) ─────────────────────────────────────────
-  if (mode === 'text-to-video') {
-    const scene = userScene.length > 15 ? userScene : 'coastal road in Oran, Algeria, golden hour';
+  // ── Scenario-specific prompts ────────────────────────────────────────────────
+  if (scenario === 'airport_arrival') {
     const prompt = [
-      `Real filmed video of a ${carName || 'car'}. ${scene}.`,
-      'Car drives slowly and naturally.',
-      'Camera at 3/4 front angle, smooth and stable.',
-      'Natural lighting, realistic road surface, realistic motion.',
-      'Looks like a real video, not CGI or AI-stylized.',
+      'Cinematic shot at Oran Ahmed Ben Bella International Airport, Algeria.',
+      'Modern white terminal building visible in background, palm trees, clear blue sky.',
+      `A clean well-presented ${carName || 'rental car'} parked at the arrivals area.`,
+      'A traveler with luggage walks out of the terminal and approaches the vehicle.',
+      'Smooth tracking camera shot, golden hour sunlight, professional and welcoming atmosphere.',
+      'Looks like a real filmed commercial video.',
     ].join(' ');
     return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.5 };
   }
 
-  // ── image-to-video: scene transformation — car from image, env from text ─────
-  // cfgScale=0.65 → give more weight to prompt so background actually changes
+  if (scenario === 'city_drive') {
+    const prompt = [
+      `Cinematic tracking shot of a ${carName || 'car'} driving through Oran city center, Algeria.`,
+      'Mediterranean architecture, wide boulevard, light traffic.',
+      'Camera follows at side angle, smooth gimbal motion.',
+      'Warm afternoon sunlight, realistic road reflections, professional automotive feel.',
+      'Looks exactly like a real filmed car commercial.',
+    ].join(' ');
+    return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.5 };
+  }
+
+  if (scenario === 'corniche') {
+    const prompt = [
+      `Cinematic shot of a ${carName || 'car'} parked on the Corniche d'Oran with Mediterranean Sea visible.`,
+      'Rocky coastline, crystal blue water, clear Algerian sky.',
+      'Camera slowly orbits around the vehicle at low angle.',
+      'Golden hour warm tones, realistic sea breeze atmosphere.',
+      'Premium automotive commercial look, real filmed footage style.',
+    ].join(' ');
+    return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.5 };
+  }
+
+  if (scenario === 'reveal') {
+    const prompt = [
+      `Dramatic cinematic reveal of a ${carName || 'car'}.`,
+      'Camera starts close on a detail (door handle or wheel), slowly pulls back to reveal the full vehicle.',
+      'Soft dramatic lighting, clean professional background.',
+      'Smooth dolly or crane camera movement, premium automotive advertisement style.',
+      'Realistic filmed footage, not CGI.',
+    ].join(' ');
+    return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.45 };
+  }
+
+  // ── text-to-video (no source image) ─────────────────────────────────────────
+  if (mode === 'text-to-video') {
+    const scene = userScene.length > 15 ? userScene : 'coastal road in Oran Algeria, golden hour';
+    const prompt = [
+      `Real filmed commercial video of a ${carName || 'car'}. ${scene}.`,
+      'Car moves slowly and naturally on road.',
+      'Camera at smooth 3/4 front angle, stable gimbal shot.',
+      'Natural Mediterranean sunlight, realistic road surface, realistic shadows and reflections.',
+      'Professional automotive advertisement quality, looks like a real video, not CGI.',
+    ].join(' ');
+    return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.5 };
+  }
+
+  // ── image-to-video: scene transformation ────────────────────────────────────
   if (sceneTransformation) {
     const prompt = [
-      'Use the provided vehicle image as the identity reference for the car only.',
-      "Preserve the car's exact shape, color, body lines and visible details.",
-      `Relocate the car into a completely new environment: ${userScene}.`,
-      'Replace the original background entirely with the requested new scene.',
-      'The vehicle must appear naturally placed and integrated into the new location.',
-      'Show the new setting clearly — the original background must not remain visible.',
-      'Natural lighting that matches the new environment. Smooth realistic camera motion.',
-      'Looks like a real filmed video.',
+      'Use the provided vehicle image as the exact identity reference for the car.',
+      "Preserve the car's exact shape, color, body lines, wheels and all visible details precisely.",
+      `Place this exact vehicle in a completely new environment: ${userScene}.`,
+      'Replace the original background entirely with the new scene.',
+      'The vehicle must appear naturally integrated and parked or slowly moving in the new location.',
+      'Natural lighting that matches the environment. Smooth realistic camera motion.',
+      'Professional automotive commercial quality, looks like real filmed footage.',
     ].join(' ');
-    const negativePrompt = baseNegativePrompt + ', original background, same scene as source image, unchanged environment';
+    const negativePrompt = baseNegativePrompt + ', original background, unchanged environment, same scene as photo';
     return { prompt, negativePrompt, cfgScale: 0.65 };
   }
 
-  // ── image-to-video: strict fidelity — preserve car + scene, motion only ──────
-  // cfgScale=0.4 → image-faithful, minimal divergence from source
-  const scene = userScene.length > 15 ? userScene : 'coastal road in Oran, Algeria, golden hour';
+  // ── image-to-video: strict fidelity — preserve car exactly, add natural motion ─
+  const scene = userScene.length > 15 ? userScene : 'coastal road in Oran Algeria, warm golden hour light';
   const prompt = [
-    `Real filmed video. ${scene}.`,
-    'Car moves slowly and naturally.',
-    'Minimal camera motion, smooth handheld or gimbal shot.',
-    'Natural daylight, realistic road surface, natural shadows.',
-    'Realistic reflections, no stylization.',
-    'Looks like a real video shot with a camera.',
+    `Photorealistic filmed video. ${scene}.`,
+    'The car in the image moves very slowly and naturally forward.',
+    'Smooth handheld or gimbal camera — slight natural movement.',
+    'Sunlight creates realistic reflections on the bodywork.',
+    'Natural shadows, realistic road surface, no stylization.',
+    'Looks exactly like real footage shot with a professional camera.',
   ].join(' ');
   return { prompt, negativePrompt: baseNegativePrompt, cfgScale: 0.4 };
 }
@@ -2151,12 +2532,13 @@ async function generateVehicleVideo(opts: {
   runwayKey:           string | undefined;
   forceProvider?:      'runway' | 'kling' | 'auto';
   sceneTransformation?: boolean;
+  scenario?:           string;
 }): Promise<{ url: string; provider: string; mode: 'image-to-video' | 'text-to-video' }> {
-  const { imageUrl, userPrompt, carName, duration, falKey, runwayKey, forceProvider = 'auto', sceneTransformation = false } = opts;
+  const { imageUrl, userPrompt, carName, duration, falKey, runwayKey, forceProvider = 'auto', sceneTransformation = false, scenario } = opts;
   const dur  = (duration <= 5 ? 5 : 10) as 5 | 10;
   const mode: 'image-to-video' | 'text-to-video' = imageUrl ? 'image-to-video' : 'text-to-video';
 
-  const { prompt, negativePrompt, cfgScale } = buildVideoPromptForRealism({ carName, userScene: userPrompt, mode, sceneTransformation });
+  const { prompt, negativePrompt, cfgScale } = buildVideoPromptForRealism({ carName, userScene: userPrompt, mode, sceneTransformation, scenario });
   console.log(`[generateVehicleVideo] forceProvider=${forceProvider} mode=${mode} sceneTransformation=${sceneTransformation} cfgScale=${cfgScale} runway=${!!runwayKey} fal=${!!falKey}`);
   console.log(`[generateVehicleVideo] prompt="${prompt.slice(0, 120)}"`);
 
