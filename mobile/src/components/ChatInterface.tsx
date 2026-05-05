@@ -179,6 +179,7 @@ export default function ChatInterface() {
 
   const [errorMsg,     setErrorMsg]     = useState('');
   const [errorVisible, setErrorVisible] = useState(false);
+  const errorVisibleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pendingPhotoRef    = useRef<{ base64: string; mime: string } | null>(null);
   const scanIntervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -202,6 +203,7 @@ export default function ChatInterface() {
   const rotXRef     = useRef(0.18);
   const ampRef      = useRef(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const micStreamRef= useRef<MediaStream | null>(null);
 
   const clearPhotoPreview = useCallback(() => {
@@ -212,7 +214,8 @@ export default function ChatInterface() {
 
   const showError = useCallback((msg: string) => {
     setErrorMsg(msg); setErrorVisible(true);
-    setTimeout(() => setErrorVisible(false), 3000);
+    if (errorVisibleTimer.current) clearTimeout(errorVisibleTimer.current);
+    errorVisibleTimer.current = setTimeout(() => setErrorVisible(false), 3000);
   }, []);
 
   const applyState = useCallback((s: JarvisState) => {
@@ -318,24 +321,25 @@ export default function ChatInterface() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, applyState, showError, captureFrame, clearPhotoPreview]);
 
-  const handleSendTextMsg = useCallback(() => {
-    const msg = textInput.trim(); if (!msg) return;
-    setTextInput(''); closeOverlay();
-    if (!started) { setStarted(true); loopActive.current = true; unlockAudio(); }
-    void sendText(msg);
-  }, [textInput, closeOverlay, started, sendText]);
-
   const startMicAnalyser = useCallback(async () => {
     if (analyserRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
       const ctx = new AudioContext();
+      audioCtxRef.current = ctx;
       const src = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser(); analyser.fftSize = 32;
       src.connect(analyser); analyserRef.current = analyser;
     } catch { /* denied */ }
   }, []);
+
+  const handleSendTextMsg = useCallback(() => {
+    const msg = textInput.trim(); if (!msg) return;
+    setTextInput(''); closeOverlay();
+    if (!started) { setStarted(true); loopActive.current = true; unlockAudio(); void startMicAnalyser(); }
+    void sendText(msg);
+  }, [textInput, closeOverlay, started, sendText, startMicAnalyser]);
 
   const scheduleNextListen = useCallback(() => {
     if (!loopActive.current) return;
@@ -562,17 +566,19 @@ export default function ChatInterface() {
     if (cmd === '__text__')    { setOverlay('text'); return; }
     if (cmd === '__history__') { setOverlay('history'); return; }
     closeOverlay();
-    if (!started) { setStarted(true); loopActive.current = true; unlockAudio(); }
+    if (!started) { setStarted(true); loopActive.current = true; unlockAudio(); void startMicAnalyser(); }
     void sendText(cmd);
-  }, [closeOverlay, started, sendText]);
+  }, [closeOverlay, started, sendText, startMicAnalyser]);
 
   useEffect(() => {
     return () => {
       loopActive.current = false; recRef.current?.stop();
       if (audioFallbackTimer.current) clearTimeout(audioFallbackTimer.current);
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      if (errorVisibleTimer.current) clearTimeout(errorVisibleTimer.current);
       cancelAnimationFrame(rafRef.current);
       micStreamRef.current?.getTracks().forEach(t => t.stop());
+      void audioCtxRef.current?.close();
       videoStreamRef.current?.getTracks().forEach(t => t.stop());
       if (photoPreviewUrlRef.current) URL.revokeObjectURL(photoPreviewUrlRef.current);
     };
