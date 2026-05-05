@@ -11,7 +11,7 @@ import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
 import { mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
-import { executeCreateMarketingVideo, isValidMp4Buffer } from '../marketing/create-marketing-video.js';
+import { executeCreateMarketingVideo, isValidMp4Buffer, mergeVideoWithAudio } from '../marketing/create-marketing-video.js';
 import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
 import {
   sendMessage as sendTelegramForMarketing,
@@ -1259,8 +1259,23 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
     }
   }
 
-  // ── Voix ElevenLabs (pour Kling ou fallback photo) ───────────
+  // ── Voix ElevenLabs ──────────────────────────────────────────
   const audioBuffer = await synthesizeVoice(script).catch(() => null);
+
+  // ── Fusion voix + vidéo IA (Runway/Kling) ────────────────────
+  // Si on a une vidéo IA ET une voix → on fusionne avec FFmpeg pour
+  // obtenir un seul MP4 avec audio intégré (prêt à poster sur TikTok)
+  if (videoBuffer && audioBuffer) {
+    try {
+      const merged = await mergeVideoWithAudio(videoBuffer, audioBuffer);
+      if (isValidMp4Buffer(merged)) {
+        videoBuffer = merged;
+        console.log(`[tool:create_marketing_video] ✅ Voix fusionnée dans la vidéo (${merged.length} bytes)`);
+      }
+    } catch (mergeErr) {
+      console.error('[tool:create_marketing_video] merge audio failed:', mergeErr instanceof Error ? mergeErr.message : mergeErr);
+    }
+  }
 
   // ── Workflow approbation ──────────────────────────────────────
   const pendingId = await savePendingVideo({
@@ -1297,7 +1312,8 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
     await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
   }
 
-  if (audioBuffer) {
+  // Envoyer la voix séparément seulement si la vidéo n'a pas pu être générée
+  if (!videoBuffer && audioBuffer) {
     await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
   }
 

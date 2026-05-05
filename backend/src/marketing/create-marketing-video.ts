@@ -98,6 +98,55 @@ export function isValidMp4Buffer(buf: Buffer): boolean {
   );
 }
 
+/**
+ * Merge a video buffer (Runway/Kling MP4) with an audio buffer (ElevenLabs MP3)
+ * using FFmpeg. Video stream is copied as-is (no re-encode). Audio is encoded
+ * to AAC 128k. Output stops when the shorter stream ends (-shortest).
+ */
+export async function mergeVideoWithAudio(
+  videoBuffer: Buffer,
+  audioBuffer: Buffer,
+): Promise<Buffer> {
+  const bin = ffmpegPath as string | null;
+  if (!bin) throw new Error('ffmpeg-static not found');
+
+  const tmpDir    = await fs.mkdtemp(path.join(os.tmpdir(), 'dzaryx-merge-'));
+  const videoPath = path.join(tmpDir, 'input.mp4');
+  const audioPath = path.join(tmpDir, 'voice.mp3');
+  const outPath   = path.join(tmpDir, 'merged.mp4');
+
+  try {
+    await fs.writeFile(videoPath, videoBuffer);
+    await fs.writeFile(audioPath, audioBuffer);
+
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn(bin, [
+        '-y',
+        '-i', videoPath,
+        '-i', audioPath,
+        '-c:v', 'copy',          // keep Runway/Kling video quality as-is
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-shortest',             // stop at end of shortest stream
+        '-movflags', '+faststart',
+        outPath,
+      ], { stdio: 'pipe' });
+
+      let stderr = '';
+      proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+      proc.on('close', code => {
+        if (code === 0) resolve();
+        else reject(new Error(`ffmpeg merge exit ${code}: ${stderr.slice(-300)}`));
+      });
+      proc.on('error', reject);
+    });
+
+    return await fs.readFile(outPath);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 /** Nettoyage texte pour filtres FFmpeg drawtext */
 function dt(text: string): string {
   return text
