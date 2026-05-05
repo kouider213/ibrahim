@@ -1173,11 +1173,12 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
   const caption  = `🚗 ${car.name} à Oran — ${priceDisplay} | Fik Conciergerie`;
   const hashtags = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
 
-  // ── Tentative 1 : Kling IA (fal.ai) image→vidéo ─────────────
+  // ── Tentative 1 : Runway Gen-4 Turbo (si RUNWAY_API_KEY) → Kling IA fallback ──
+  const runwayKey    = env.RUNWAY_API_KEY;
   let videoBuffer: Buffer | null = null;
   let method = 'photo';
 
-  if (falKey) {
+  if (runwayKey || falKey) {
     const bgMotion: Record<string, string> = {
       plage:    'car on Algerian beach, ocean waves, golden sunset, cinematic pan shot',
       ville:    'car in Oran city streets, urban lights, dynamic tracking shot',
@@ -1193,33 +1194,38 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
       ? (bgMotion[backgroundEffect] ?? `${backgroundEffect} scenery, cinematic car reveal, smooth camera`)
       : `${car.name} cinematic reveal, smooth camera pan, golden hour, professional automotive photography`;
 
+    const providerLabel = runwayKey ? 'Runway Gen-4 Turbo' : 'Kling IA';
     await sendTelegramForMarketing(chatId,
-      `🎬 *Vidéo TikTok — ${car.name}*\n_Kling IA${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ 60-240 secondes...`
+      `🎬 *Vidéo TikTok — ${car.name}*\n_${providerLabel}${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ 60-240 secondes...`
     ).catch(() => {});
 
     try {
       // Vérifier que l'image est publiquement accessible
       await axios.head(car.image_url, { timeout: 8_000 });
 
-      const videoUrl = await falGenerate(
-        'fal-ai/kling-video/v1.6/standard/image-to-video',
-        { image_url: car.image_url, prompt: motionPrompt, duration: '5', aspect_ratio: '9:16' },
+      const result = await generateVehicleVideo({
+        imageUrl:      car.image_url,
+        userPrompt:    motionPrompt,
+        carName:       car.name,
+        duration:      5,
         falKey,
-        240_000,
-      );
-      const resp = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+        runwayKey,
+        forceProvider: 'auto',
+      });
+
+      const resp = await axios.get(result.url, { responseType: 'arraybuffer', timeout: 60_000 });
       const rawBuf = Buffer.from(resp.data as ArrayBuffer);
       if (!isValidMp4Buffer(rawBuf)) {
-        throw new Error(`Kling IA a retourné un fichier invalide (${rawBuf.length} bytes, magic bytes incorrects — pas un MP4).`);
+        throw new Error(`${result.provider} a retourné un fichier invalide (${rawBuf.length} bytes — pas un MP4).`);
       }
       videoBuffer = rawBuf;
-      method      = 'Kling IA';
-      console.log('[tool:create_marketing_video] ✅ Kling MP4 validé:', videoBuffer.length, 'bytes');
+      method      = result.provider;
+      console.log(`[tool:create_marketing_video] ✅ MP4 validé (${result.provider} ${result.mode}):`, videoBuffer.length, 'bytes');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[tool:create_marketing_video] Kling failed:', msg);
+      console.error('[tool:create_marketing_video] IA vidéo failed:', msg);
       await sendTelegramForMarketing(chatId,
-        `⚠️ _Kling IA indisponible (\`${msg.slice(0, 120)}\`) — FFmpeg fallback..._`
+        `⚠️ _IA vidéo indisponible (\`${msg.slice(0, 120)}\`) — FFmpeg fallback..._`
       ).catch(() => {});
     }
   }
