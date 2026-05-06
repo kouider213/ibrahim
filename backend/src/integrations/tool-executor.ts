@@ -1697,9 +1697,9 @@ async function createVideoProjectTool(
   const style     = (input['style']     as string | undefined) ?? 'tiktok';
   const falKey    = env.FAL_KEY;
   const runwayKey = env.RUNWAY_API_KEY;
-
-  if (!falKey && !runwayKey) {
-    return '❌ Aucun provider vidéo configuré (RUNWAY_API_KEY ou FAL_KEY requis dans Railway).';
+  const hasAiVideo = !!(falKey || runwayKey);
+  if (!hasAiVideo) {
+    console.warn('[create_video_project] No AI video key — car scenes will use static image fallback');
   }
 
   // ── Find car ───────────────────────────────────────────────────────────────
@@ -1785,13 +1785,15 @@ async function createVideoProjectTool(
         scenePaths.push(outPath);
 
       } else {
-        // Car scene — Runway/Kling
+        // Car scene — Runway/Kling (or static fallback if no AI key)
+        const aiLabel = hasAiVideo ? 'Runway/Kling ~90s' : 'image statique';
         await sendTelegramForMarketing(chatId,
-          `🎬 _Scène ${i + 1}/${board.scenes.length} — ${sc.label} (Runway/Kling ~90s)_`
+          `🎬 _Scène ${i + 1}/${board.scenes.length} — ${sc.label} (${aiLabel})_`
         ).catch(() => {});
 
         let carClipBuffer: Buffer | null = null;
         try {
+          if (!hasAiVideo) throw new Error('No AI key — skipping to static fallback');
           await axios.head(car.image_url, { timeout: 8_000 });
           const prompt = sc.prompt ?? `Cinematic automotive shot of a ${car.name}. ${sc.overlayText ?? 'Professional car advertisement'}. Real filmed footage quality. TikTok vertical format.`;
           const result = await generateVehicleVideo({
