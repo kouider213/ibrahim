@@ -26,6 +26,15 @@ const FPS = 25;
 const FONT_URL   = 'https://github.com/google/fonts/raw/main/ofl/montserrat/static/Montserrat-Bold.ttf';
 const FONT_CACHE = path.join(os.tmpdir(), 'dzaryx-scene-font.ttf');
 
+const SYSTEM_FONT_PATHS = [
+  '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+  '/usr/share/fonts/liberation/LiberationSans-Bold.ttf',
+  '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+  '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+  '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf',
+];
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type SceneType =
@@ -52,20 +61,74 @@ export interface SceneSpec {
 // ── Font helper ───────────────────────────────────────────────────────────────
 
 export async function ensureSceneFont(): Promise<string | null> {
+  // 1. Try cached downloaded font
   try {
     await fs.access(FONT_CACHE);
+    console.log('[scene-assembler] Font: using cached', FONT_CACHE);
     return FONT_CACHE;
-  } catch {
-    try {
-      const { data } = await axios.get<ArrayBuffer>(FONT_URL, {
-        responseType: 'arraybuffer', timeout: 15_000,
-      });
-      await fs.writeFile(FONT_CACHE, Buffer.from(data));
-      return FONT_CACHE;
-    } catch {
-      return null;
-    }
+  } catch { /* not cached yet */ }
+
+  // 2. Try to download Montserrat Bold
+  try {
+    const { data } = await axios.get<ArrayBuffer>(FONT_URL, {
+      responseType: 'arraybuffer', timeout: 15_000,
+    });
+    await fs.writeFile(FONT_CACHE, Buffer.from(data));
+    console.log('[scene-assembler] Font: downloaded Montserrat →', FONT_CACHE);
+    return FONT_CACHE;
+  } catch (err: any) {
+    console.warn('[scene-assembler] Font download failed:', err.message);
   }
+
+  // 3. Try system fonts (available on most Linux servers including Railway)
+  for (const fp of SYSTEM_FONT_PATHS) {
+    try {
+      await fs.access(fp);
+      console.log('[scene-assembler] Font: using system font', fp);
+      return fp;
+    } catch { /* not found */ }
+  }
+
+  console.warn('[scene-assembler] No font found — drawtext will use FFmpeg default');
+  return null;
+}
+
+// ── FFmpeg capability probe ───────────────────────────────────────────────────
+
+type FFmpegCaps = { drawtext: boolean; roundedBox: boolean };
+let _capsCache: FFmpegCaps | null = null;
+
+export async function probeFFmpegCaps(fontPath: string | null): Promise<FFmpegCaps> {
+  if (_capsCache) return _capsCache;
+  const bin = ffmpegPath as string | null;
+  if (!bin) {
+    _capsCache = { drawtext: false, roundedBox: false };
+    console.warn('[scene-assembler] ffmpeg-static binary not found');
+    return _capsCache;
+  }
+
+  const probe = (vf: string): Promise<boolean> => new Promise(resolve => {
+    const p = spawn(bin, [
+      '-y', '-f', 'lavfi', '-i', `color=c=black:s=64x64:r=1:d=0.04`,
+      '-vf', vf, '-frames:v', '1', '-f', 'null', '-',
+    ], { stdio: 'pipe' });
+    let ok = false;
+    p.on('close', code => { ok = code === 0; resolve(ok); });
+    p.on('error', () => resolve(false));
+  });
+
+  const dtVf = fontPath
+    ? `drawtext=fontfile='${fontPath}'\\:text='ok'\\:fontsize=10\\:fontcolor=white`
+    : `drawtext=text='ok':fontsize=10:fontcolor=white`;
+
+  const [drawtext, roundedBox] = await Promise.all([
+    probe(dtVf),
+    probe('drawbox=x=5:y=5:w=20:h=20:color=white:t=fill:r=4'),
+  ]);
+
+  _capsCache = { drawtext, roundedBox };
+  console.log(`[scene-assembler] FFmpeg caps: drawtext=${drawtext} roundedBox=${roundedBox} font=${fontPath ?? 'none'}`);
+  return _capsCache;
 }
 
 // ── Text escape for FFmpeg drawtext ──────────────────────────────────────────
@@ -94,16 +157,24 @@ function dt(text: string, fontPath: string | null, extra = ''): string {
 
 function runFFmpeg(args: string[]): Promise<void> {
   const bin = ffmpegPath as string | null;
-  if (!bin) throw new Error('ffmpeg-static not found');
+  if (!bin) throw new Error('ffmpeg-static binary not found');
+  console.log('[scene-assembler] ffmpeg', args.slice(0, 6).join(' '), '...');
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: 'pipe' });
     let stderr = '';
     proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
     proc.on('close', code => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-500)}`));
+      if (code === 0) {
+        resolve();
+      } else {
+        console.error('[scene-assembler] ffmpeg error:', stderr.slice(-600));
+        reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-400)}`));
+      }
     });
-    proc.on('error', reject);
+    proc.on('error', (err) => {
+      console.error('[scene-assembler] ffmpeg spawn error:', err.message);
+      reject(err);
+    });
   });
 }
 
@@ -128,10 +199,10 @@ async function genPhoneSearch(
 
   const vf: string[] = [
     // Search bar
-    `drawbox=x=60:y=90:w=960:h=110:color=0x2c2c2e:t=fill:r=55`,
+    `drawbox=x=60:y=90:w=960:h=110:color=0x2c2c2e:t=fill`,
     dt(title, fp, `fontsize=42:fontcolor=0x8e8e93:x=110:y=132`),
     // Magnifier icon placeholder
-    `drawbox=x=80:y=120:w=28:h=28:color=0x8e8e93:t=fill:r=14`,
+    `drawbox=x=80:y=120:w=28:h=28:color=0x8e8e93:t=fill`,
     // Results list
     ...lines.flatMap((l, i) => {
       const y = 260 + i * 105;
@@ -173,18 +244,18 @@ async function genWhatsApp(
   const vf: string[] = [
     // Header
     `drawbox=x=0:y=0:w=${W}:h=170:color=0x075e54:t=fill`,
-    `drawbox=x=60:y=50:w=110:h=110:color=0x128c7e:t=fill:r=55`,
+    `drawbox=x=60:y=50:w=110:h=110:color=0x128c7e:t=fill`,
     dt('Fik Conciergerie', fp, `fontsize=48:fontcolor=white:x=200:y=58`),
     dt('En ligne', fp, `fontsize=34:fontcolor=0x9de0d4:x=200:y=118`),
     // Background
     `drawbox=x=0:y=170:w=${W}:h=${H - 170}:color=0xece5dd:t=fill`,
     // Client bubble
-    `drawbox=x=50:y=${cY}:w=720:h=${cH}:color=white:t=fill:r=25`,
+    `drawbox=x=50:y=${cY}:w=720:h=${cH}:color=white:t=fill`,
     ...client.map((l, i) =>
       dt(l, fp, `fontsize=36:fontcolor=0x303030:x=78:y=${cY + 20 + i * 65}`)
     ),
     // Agent bubble
-    `drawbox=x=${W - 770}:y=${aY}:w=720:h=${aH}:color=0xdcf8c6:t=fill:r=25`,
+    `drawbox=x=${W - 770}:y=${aY}:w=720:h=${aH}:color=0xdcf8c6:t=fill`,
     ...agent.map((l, i) =>
       dt(l, fp, `fontsize=36:fontcolor=0x303030:x=${W - 742}:y=${aY + 20 + i * 65}`)
     ),
@@ -220,9 +291,9 @@ async function genTikTok(
     // Video card
     `drawbox=x=0:y=113:w=${W}:h=${H - 113}:color=0x111111:t=fill`,
     // Right sidebar icons
-    `drawbox=x=${W - 130}:y=400:w=100:h=100:color=0x222222:t=fill:r=50`,
+    `drawbox=x=${W - 130}:y=400:w=100:h=100:color=0x222222:t=fill`,
     dt('Like', fp, `fontsize=28:fontcolor=0xaaaaaa:x=${W - 120}:y=515`),
-    `drawbox=x=${W - 130}:y=560:w=100:h=100:color=0x222222:t=fill:r=50`,
+    `drawbox=x=${W - 130}:y=560:w=100:h=100:color=0x222222:t=fill`,
     dt('Comm.', fp, `fontsize=28:fontcolor=0xaaaaaa:x=${W - 125}:y=675`),
     // Bottom info
     `drawbox=x=0:y=${H - 350}:w=${W}:h=350:color=0x000000@0.6:t=fill`,
@@ -301,19 +372,57 @@ async function genCTA(
   ]);
 }
 
+// ── Plain background fallback (when drawtext is unavailable) ─────────────────
+
+async function genPlainBg(spec: SceneSpec, outPath: string, roundedBox: boolean): Promise<void> {
+  const bgColor =
+    spec.type === 'ui_cta'         ? '0x0a0a0a' :
+    spec.type === 'ui_problem'     ? '0x1a0000' :
+    spec.type === 'ui_whatsapp'    ? '0xece5dd' :
+    spec.type === 'ui_tiktok'      ? '0x010101' :
+    '0x1c1c1e';
+
+  const rb = roundedBox ? ':r=12' : '';
+  const vf = [
+    `drawbox=x=60:y=90:w=960:h=110:color=0x2c2c2e:t=fill${rb}`,
+    `drawbox=x=60:y=260:w=960:h=3:color=0x444444:t=fill`,
+    `drawbox=x=60:y=1700:w=960:h=80:color=0xFFD700:t=fill${rb}`,
+  ].join(',');
+
+  await runFFmpeg([
+    '-y', '-f', 'lavfi', '-i', `color=c=${bgColor}:s=${W}x${H}:r=${FPS}`,
+    '-t', String(spec.duration), '-vf', vf,
+    ...BASE_OUT_ARGS, outPath,
+  ]);
+}
+
 // ── Generate one UI scene to file ─────────────────────────────────────────────
 
 export async function generateUISceneFile(
   spec: SceneSpec, outPath: string, fontPath: string | null,
 ): Promise<void> {
-  switch (spec.type) {
-    case 'ui_phone_search': return genPhoneSearch(spec, outPath, fontPath);
-    case 'ui_whatsapp':     return genWhatsApp(spec, outPath, fontPath);
-    case 'ui_tiktok':       return genTikTok(spec, outPath, fontPath);
-    case 'ui_problem':      return genProblem(spec, outPath, fontPath);
-    case 'ui_cta':          return genCTA(spec, outPath, fontPath);
-    default:
-      throw new Error(`Unknown UI scene type: ${(spec as SceneSpec).type}`);
+  const caps = await probeFFmpegCaps(fontPath);
+
+  if (!caps.drawtext) {
+    console.warn(`[scene-assembler] drawtext unavailable — plain bg for ${spec.type}`);
+    return genPlainBg(spec, outPath, caps.roundedBox);
+  }
+
+  try {
+    switch (spec.type) {
+      case 'ui_phone_search': return await genPhoneSearch(spec, outPath, fontPath);
+      case 'ui_whatsapp':     return await genWhatsApp(spec, outPath, fontPath);
+      case 'ui_tiktok':       return await genTikTok(spec, outPath, fontPath);
+      case 'ui_problem':      return await genProblem(spec, outPath, fontPath);
+      case 'ui_cta':          return await genCTA(spec, outPath, fontPath);
+      default:
+        throw new Error(`Unknown UI scene type: ${(spec as SceneSpec).type}`);
+    }
+  } catch (err: any) {
+    // drawtext may fail at runtime (font issue, filter not compiled) → degrade gracefully
+    console.error(`[scene-assembler] UI scene ${spec.type} failed (${err.message}) — falling back to plain bg`);
+    _capsCache = null; // reset caps so next call re-probes
+    await genPlainBg(spec, outPath, caps.roundedBox);
   }
 }
 

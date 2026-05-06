@@ -60,6 +60,12 @@ import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
 import axios from 'axios';
 import { runCodeAgent } from '../agents/code-agent.js';
+import * as fsPromises from 'fs/promises';
+import * as nodeos    from 'os';
+import * as nodepath  from 'path';
+import { spawn as spawnProc } from 'child_process';
+// @ts-ignore
+import ffmpegStaticBin from 'ffmpeg-static';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
@@ -1760,9 +1766,7 @@ async function createVideoProjectTool(
   });
 
   // ── Generate all scenes ────────────────────────────────────────────────────
-  const tmpDir   = await import('os').then(o => import('fs/promises').then(f =>
-    f.mkdtemp(o.tmpdir() + '/dzaryx-proj-')
-  ));
+  const tmpDir   = await fsPromises.mkdtemp(nodepath.join(nodeos.tmpdir(), 'dzaryx-proj-'));
   const fontPath = await ensureSceneFont();
   const scenePaths: string[] = [];
   let   usedProvider = 'FFmpeg';
@@ -1819,8 +1823,8 @@ async function createVideoProjectTool(
           try {
             const imgBuf = await axios.get(car.image_url, { responseType: 'arraybuffer', timeout: 20_000 })
               .then(r => Buffer.from(r.data as ArrayBuffer));
-            const imgPath = `${tmpDir}/car_${i}.jpg`;
-            await import('fs/promises').then(f => f.writeFile(imgPath, imgBuf));
+            const imgPath = nodepath.join(tmpDir, `car_${i}.jpg`);
+            await fsPromises.writeFile(imgPath, imgBuf);
             await runFFmpegForProject([
               '-y', '-loop', '1', '-i', imgPath,
               '-t', String(sc.duration),
@@ -1829,7 +1833,7 @@ async function createVideoProjectTool(
               '-pix_fmt', 'yuv420p', '-r', '25', '-movflags', '+faststart',
               outPath,
             ]);
-            carClipBuffer = await import('fs/promises').then(f => f.readFile(outPath));
+            carClipBuffer = await fsPromises.readFile(outPath);
           } catch (fbErr: any) {
             console.error(`[create_video_project] static fallback failed:`, fbErr.message);
             // Skip this scene
@@ -1841,9 +1845,9 @@ async function createVideoProjectTool(
         if (sc.overlayText && carClipBuffer) {
           const withOverlay = await addOverlayToClip(carClipBuffer, sc.overlayText, fontPath)
             .catch(() => carClipBuffer!);
-          await import('fs/promises').then(f => f.writeFile(outPath, withOverlay));
+          await fsPromises.writeFile(outPath, withOverlay);
         } else if (carClipBuffer) {
-          await import('fs/promises').then(f => f.writeFile(outPath, carClipBuffer));
+          await fsPromises.writeFile(outPath, carClipBuffer);
         }
         scenePaths.push(outPath);
       }
@@ -1905,24 +1909,30 @@ async function createVideoProjectTool(
     return `✅ Projet vidéo "${board.title}" (${scenePaths.length} scènes, ${usedProvider}) envoyé sur Telegram ↑ (ID: ${pendingId}).`;
 
   } finally {
-    await import('fs/promises').then(f => f.rm(tmpDir, { recursive: true, force: true })).catch(() => {});
+    await fsPromises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
 function runFFmpegForProject(args: string[]): Promise<void> {
-  // @ts-ignore
-  const ffmpegPath = require('ffmpeg-static') as string | null;
-  if (!ffmpegPath) throw new Error('ffmpeg-static not found');
-  const { spawn } = require('child_process') as typeof import('child_process');
+  const bin = ffmpegStaticBin as string | null;
+  if (!bin) throw new Error('ffmpeg-static not found on this environment');
+  console.log('[runFFmpegForProject] bin:', bin, 'args:', args.join(' ').slice(0, 200));
   return new Promise((resolve, reject) => {
-    const proc = spawn(ffmpegPath, args, { stdio: 'pipe' });
+    const proc = spawnProc(bin, args, { stdio: 'pipe' });
     let stderr = '';
     proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
     proc.on('close', (code: number | null) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-400)}`));
+      if (code === 0) {
+        resolve();
+      } else {
+        console.error('[runFFmpegForProject] exit', code, stderr.slice(-600));
+        reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-400)}`));
+      }
     });
-    proc.on('error', reject);
+    proc.on('error', (err) => {
+      console.error('[runFFmpegForProject] spawn error:', err.message);
+      reject(err);
+    });
   });
 }
 
