@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEXUS — Agent IA PC</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   NEXUS JARVIS INTERFACE — Fik Conciergerie Oran
+═══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #050510;
+  --bg2:      #080820;
+  --cyan:     #00d4ff;
+  --cyan2:    #00a8cc;
+  --purple:   #7b2fff;
+  --orange:   #ff6b35;
+  --green:    #00ff88;
+  --red:      #ff3366;
+  --text:     #c8d8e8;
+  --dim:      #3a5060;
+  --dim2:     #5a7080;
+  --glow:     0 0 24px rgba(0,212,255,0.55);
+  --glow-sm:  0 0 10px rgba(0,212,255,0.45);
+  --glow-hud: 0 0 30px rgba(0,212,255,0.3);
+}
+
+html, body {
+  height: 100%; overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── BACKGROUND ─────────────────────────────────────────────────── */
+.bg-grid {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.bg-radial {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -5%,  rgba(0,212,255,0.06)  0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 90% 100%, rgba(123,47,255,0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 35% at 5%  80%,  rgba(0,212,255,0.03)  0%, transparent 60%);
+}
+
+/* ── LAYOUT ─────────────────────────────────────────────────────── */
+.shell {
+  position: relative; z-index: 1;
+  height: 100vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── HEADER ─────────────────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 18px;
+  border-bottom: 1px solid rgba(0,212,255,0.12);
+  background: rgba(5,5,16,0.9);
+  backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-pulse {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: var(--glow-sm);
+  animation: pulse-ring 2.2s ease-in-out infinite;
+}
+.brand-name {
+  font-size: 15px; font-weight: bold;
+  letter-spacing: 8px; color: var(--cyan);
+  text-shadow: var(--glow-sm);
+}
+.brand-sub { font-size: 9px; letter-spacing: 3px; color: var(--dim2); }
+
+.status-bar { display: flex; gap: 18px; align-items: center; }
+.st { display: flex; align-items: center; gap: 5px; font-size: 9px; letter-spacing: 1.5px; color: var(--dim2); }
+.st-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--dim);
+  transition: background 0.4s, box-shadow 0.4s;
+}
+.st-dot.on  { background: var(--green);  box-shadow: 0 0 7px var(--green); }
+.st-dot.off { background: var(--orange); box-shadow: 0 0 5px var(--orange); }
+
+/* ── MAIN CONTENT ───────────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+
+/* ── NEXUS LOGO SECTION ─────────────────────────────────────────── */
+.logo-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 0 6px;
+  flex-shrink: 0;
+}
+
+.nexus-svg { width: 140px; height: 140px; }
+
+/* SVG ring animations */
+.ring-outer  { animation: spin-cw  14s linear infinite; transform-origin: center; }
+.ring-inner  { animation: spin-ccw  9s linear infinite; transform-origin: center; }
+.ring-med    { animation: spin-cw  22s linear infinite; transform-origin: center; }
+.core-group  { animation: core-pulse 3.5s ease-in-out infinite; transform-origin: center; }
+
+/* Waveform */
+.waveform {
+  display: flex; align-items: center; gap: 3px;
+  height: 38px; margin-top: 4px;
+}
+.wv-bar {
+  width: 5px; border-radius: 3px;
+  background: var(--cyan);
+  height: 5px; opacity: 0.25;
+  transition: opacity 0.2s;
+}
+.waveform.active .wv-bar { opacity: 1; }
+.waveform.active .wv-bar:nth-child(1) { animation: wv 0.75s ease-in-out infinite 0.00s; }
+.waveform.active .wv-bar:nth-child(2) { animation: wv 0.75s ease-in-out infinite 0.10s; }
+.waveform.active .wv-bar:nth-child(3) { animation: wv 0.75s ease-in-out infinite 0.20s; }
+.waveform.active .wv-bar:nth-child(4) { animation: wv 0.75s ease-in-out infinite 0.05s; }
+.waveform.active .wv-bar:nth-child(5) { animation: wv 0.75s ease-in-out infinite 0.15s; }
+.waveform.active .wv-bar:nth-child(6) { animation: wv 0.75s ease-in-out infinite 0.25s; }
+.waveform.active .wv-bar:nth-child(7) { animation: wv 0.75s ease-in-out infinite 0.12s; }
+.waveform.active .wv-bar:nth-child(8) { animation: wv 0.75s ease-in-out infinite 0.22s; }
+
+/* ── WIDGETS ────────────────────────────────────────────────────── */
+.widgets {
+  display: flex; gap: 8px; padding: 4px 16px 6px;
+  overflow-x: auto; flex-shrink: 0;
+  scrollbar-width: none;
+}
+.widgets::-webkit-scrollbar { display: none; }
+
+.widget {
+  background: rgba(0,212,255,0.04);
+  border: 1px solid rgba(0,212,255,0.12);
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-width: 130px; flex-shrink: 0;
+  animation: slide-down 0.35s ease;
+}
+.wg-title { font-size: 8px; letter-spacing: 2.5px; color: var(--dim2); margin-bottom: 5px; }
+.wg-val   { font-size: 20px; font-weight: bold; color: var(--text); line-height: 1.1; }
+.wg-sub   { font-size: 10px; color: var(--dim2); margin-top: 2px; }
+
+.disk-bar { height: 3px; background: rgba(0,212,255,0.15); border-radius: 2px; margin-top: 6px; }
+.disk-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--cyan), var(--purple));
+  transition: width 0.6s ease;
+}
+
+/* ── CHAT ───────────────────────────────────────────────────────── */
+.chat {
+  flex: 1; overflow-y: auto; min-height: 0;
+  padding: 8px 16px 4px;
+  display: flex; flex-direction: column; gap: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,212,255,0.18) transparent;
+}
+.chat::-webkit-scrollbar { width: 4px; }
+.chat::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.18); border-radius: 2px; }
+
+.msg {
+  max-width: 88%; padding: 9px 13px;
+  border-radius: 8px; line-height: 1.55;
+  animation: msg-in 0.25s ease;
+}
+.msg.nexus {
+  align-self: flex-start;
+  background: rgba(0,212,255,0.06);
+  border: 1px solid rgba(0,212,255,0.18);
+  border-left: 3px solid var(--cyan);
+}
+.msg.user {
+  align-self: flex-end;
+  background: rgba(123,47,255,0.09);
+  border: 1px solid rgba(123,47,255,0.2);
+  border-right: 3px solid var(--purple);
+}
+.msg.system {
+  align-self: center; max-width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--dim2); font-size: 10px; letter-spacing: 1px;
+  text-align: center; padding: 3px 0;
+}
+.msg-from { font-size: 8px; letter-spacing: 2px; opacity: 0.45; margin-bottom: 4px; }
+
+/* Thinking dots */
+.thinking { display: flex; gap: 4px; padding: 6px 0 2px; }
+.thinking i {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--cyan); opacity: 0;
+  animation: think 1.3s ease-in-out infinite;
+}
+.thinking i:nth-child(2) { animation-delay: 0.22s; }
+.thinking i:nth-child(3) { animation-delay: 0.44s; }
+
+/* ── INPUT BAR ──────────────────────────────────────────────────── */
+.input-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(0,212,255,0.1);
+  background: rgba(5,5,16,0.95);
+  flex-shrink: 0;
+}
+.input-field {
+  flex: 1;
+  background: rgba(0,212,255,0.04);
+  border: 1px solid rgba(0,212,255,0.14);
+  border-radius: 6px;
+  padding: 9px 13px;
+  color: var(--text);
+  font-family: inherit; font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-field:focus {
+  border-color: rgba(0,212,255,0.38);
+  box-shadow: var(--glow-sm);
+}
+.input-field::placeholder { color: var(--dim); }
+
+.btn-mic {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid rgba(0,212,255,0.25);
+  background: rgba(0,212,255,0.04);
+  color: var(--cyan);
+  font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.btn-mic:hover { background: rgba(0,212,255,0.12); }
+.btn-mic.active {
+  background: rgba(0,212,255,0.2);
+  box-shadow: var(--glow);
+  animation: pulse-ring 1s ease-in-out infinite;
+}
+
+/* ── SCAN LINE (subtle effect) ──────────────────────────────────── */
+.scan-line {
+  position: fixed; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,212,255,0.18), transparent);
+  pointer-events: none; z-index: 99;
+  animation: scan 8s linear infinite;
+}
+
+/* ── ANIMATIONS ─────────────────────────────────────────────────── */
+@keyframes spin-cw  { to { transform: rotate(360deg);  } }
+@keyframes spin-ccw { to { transform: rotate(-360deg); } }
+@keyframes core-pulse {
+  0%,100% { filter: drop-shadow(0 0 8px  rgba(0,212,255,0.6)); opacity: 0.85; }
+  50%      { filter: drop-shadow(0 0 20px rgba(0,212,255,0.9)); opacity: 1;    }
+}
+@keyframes pulse-ring {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+@keyframes wv {
+  0%,100% { height: 4px; }
+  50%      { height: 30px; }
+}
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes msg-in {
+  from { opacity: 0; transform: translateX(6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes think {
+  0%,60%,100% { opacity: 0; transform: scale(1); }
+  30%          { opacity: 1; transform: scale(1.25); }
+}
+@keyframes scan {
+  0%   { top: -2px; }
+  100% { top: 100vh; }
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-radial"></div>
+<div class="scan-line"></div>
+
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-pulse"></div>
+      <div>
+        <div class="brand-name">NEXUS</div>
+        <div class="brand-sub">FIK CONCIERGERIE · ORAN</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="st"><div class="st-dot" id="dot-backend"></div><span>BACKEND</span></div>
+      <div class="st"><div class="st-dot" id="dot-local"></div><span>LOCAL</span></div>
+      <div class="st"><div class="st-dot" id="dot-mic"></div><span>MIC</span></div>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- Logo + Waveform -->
+    <div class="logo-wrap">
+      <svg class="nexus-svg" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="glow3">
+            <feGaussianBlur stdDeviation="3" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow6">
+            <feGaussianBlur stdDeviation="6" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Outermost subtle ring -->
+        <circle cx="70" cy="70" r="65" fill="none" stroke="rgba(0,212,255,0.08)" stroke-width="1"/>
+
+        <!-- Outer ring (rotating dashes) -->
+        <g class="ring-outer">
+          <circle cx="70" cy="70" r="60" fill="none" stroke="#00d4ff"
+                  stroke-width="1" stroke-dasharray="5 9" opacity="0.45" filter="url(#glow3)"/>
+          <!-- Cardinal markers -->
+          <rect x="67" y="8"   width="6" height="2" rx="1" fill="#00d4ff" opacity="0.9"/>
+          <rect x="67" y="130" width="6" height="2" rx="1" fill="#00d4ff" opacity="0.9"/>
+          <rect x="8"  y="67"  width="2" height="6" rx="1" fill="#00d4ff" opacity="0.9"/>
+          <rect x="130" y="67" width="2" height="6" rx="1" fill="#00d4ff" opacity="0.9"/>
+        </g>
+
+        <!-- Med ring (slow CW) -->
+        <g class="ring-med">
+          <circle cx="70" cy="70" r="52" fill="none" stroke="#7b2fff"
+                  stroke-width="0.8" stroke-dasharray="14 7" opacity="0.3" filter="url(#glow3)"/>
+        </g>
+
+        <!-- Inner ring (CCW) -->
+        <g class="ring-inner">
+          <circle cx="70" cy="70" r="44" fill="none" stroke="#00d4ff"
+                  stroke-width="1.5" stroke-dasharray="10 6" opacity="0.5" filter="url(#glow3)"/>
+          <!-- Dot markers -->
+          <circle cx="70" cy="26" r="2" fill="#00d4ff" opacity="0.8"/>
+          <circle cx="114" cy="70" r="2" fill="#00d4ff" opacity="0.8"/>
+          <circle cx="70" cy="114" r="2" fill="#00d4ff" opacity="0.8"/>
+          <circle cx="26"  cy="70" r="2" fill="#00d4ff" opacity="0.8"/>
+        </g>
+
+        <!-- Static cross hairs -->
+        <line x1="70" y1="35" x2="70" y2="45" stroke="#00d4ff" stroke-width="0.5" opacity="0.3"/>
+        <line x1="70" y1="95" x2="70" y2="105" stroke="#00d4ff" stroke-width="0.5" opacity="0.3"/>
+        <line x1="35" y1="70" x2="45" y2="70" stroke="#00d4ff" stroke-width="0.5" opacity="0.3"/>
+        <line x1="95" y1="70" x2="105" y2="70" stroke="#00d4ff" stroke-width="0.5" opacity="0.3"/>
+
+        <!-- Core (pulsing) -->
+        <g class="core-group" filter="url(#glow6)">
+          <circle cx="70" cy="70" r="32" fill="rgba(0,212,255,0.04)" stroke="#00d4ff" stroke-width="1.2" opacity="0.7"/>
+          <circle cx="70" cy="70" r="22" fill="rgba(0,212,255,0.07)"/>
+          <circle cx="70" cy="70" r="8"  fill="#00d4ff" opacity="0.85"/>
+          <circle cx="70" cy="70" r="4"  fill="#fff"    opacity="0.6"/>
+        </g>
+
+        <!-- NEXUS text (static) -->
+        <text x="70" y="74" text-anchor="middle"
+              font-family="'Courier New',monospace" font-size="10"
+              font-weight="bold" letter-spacing="5"
+              fill="#00d4ff" filter="url(#glow3)" opacity="0.9">NEXUS</text>
+      </svg>
+
+      <!-- Waveform bars -->
+      <div class="waveform" id="waveform">
+        <div class="wv-bar"></div>
+        <div class="wv-bar"></div>
+        <div class="wv-bar"></div>
+        <div class="wv-bar"></div>
+        <div class="wv-bar"></div>
+        <div class="wv-bar"></div>
+        <div class="wv-bar"></div>
+        <div class="wv-bar"></div>
+      </div>
+    </div>
+
+    <!-- Widgets row (populated dynamically) -->
+    <div class="widgets" id="widgets"></div>
+
+    <!-- Chat history -->
+    <div class="chat" id="chat"></div>
+  </div>
+
+  <!-- Input bar -->
+  <div class="input-bar">
+    <input class="input-field" id="inp" type="text"
+           placeholder="Commande pour NEXUS…" autocomplete="off" spellcheck="false"/>
+    <button class="btn-mic" id="btn-mic" title="Micro (Ctrl+M)">🎤</button>
+  </div>
+
+</div>
+
+<script>
+/* ── NEXUS GUI Controller ───────────────────────────────────────── */
+const WS_URL = 'ws://localhost:7778';
+
+const chat    = document.getElementById('chat');
+const inp     = document.getElementById('inp');
+const waveform= document.getElementById('waveform');
+const widgets = document.getElementById('widgets');
+const btnMic  = document.getElementById('btn-mic');
+const dotBE   = document.getElementById('dot-backend');
+const dotLoc  = document.getElementById('dot-local');
+const dotMic  = document.getElementById('dot-mic');
+
+let ws = null, micActive = false, thinkEl = null;
+
+/* ── WebSocket ───────────────────────────────────────────────── */
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen    = () => { setDot(dotLoc, true);  sys('━━━ NEXUS LOCAL CONNECTÉ ━━━'); };
+  ws.onclose   = () => { setDot(dotLoc, false); setTimeout(connect, 2500); };
+  ws.onerror   = () => setDot(dotLoc, false);
+  ws.onmessage = e  => handle(JSON.parse(e.data));
+}
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN)
+    ws.send(JSON.stringify(obj));
+}
+
+/* ── Message handler ────────────────────────────────────────── */
+function handle(d) {
+  switch(d.type) {
+    case 'speak':
+      rmThink();
+      addMsg('nexus', d.text);
+      break;
+
+    case 'waveform':
+      waveform.classList.toggle('active', !!d.active);
+      break;
+
+    case 'thinking':
+      d.active ? showThink() : rmThink();
+      break;
+
+    case 'status':
+      if (d.backend !== undefined) setDot(dotBE, d.backend);
+      if (d.text) sys(d.text);
+      break;
+
+    case 'widget':
+      renderWidget(d.widget, d.data);
+      break;
+
+    case 'journal':
+      sys('📡 ' + d.text);
+      break;
+  }
+}
+
+/* ── Chat helpers ───────────────────────────────────────────── */
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  if (role !== 'system') {
+    const from = document.createElement('div');
+    from.className = 'msg-from';
+    from.textContent = role === 'nexus' ? 'NEXUS' : 'KOUIDER';
+    div.appendChild(from);
+  }
+  const body = document.createElement('div');
+  body.textContent = text;
+  div.appendChild(body);
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function sys(t)  { addMsg('system', t); }
+
+function showThink() {
+  if (thinkEl) return;
+  thinkEl = document.createElement('div');
+  thinkEl.className = 'msg nexus';
+  thinkEl.innerHTML = '<div class="msg-from">NEXUS</div><div class="thinking"><i></i><i></i><i></i></div>';
+  chat.appendChild(thinkEl);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function rmThink() {
+  if (thinkEl) { thinkEl.remove(); thinkEl = null; }
+}
+
+/* ── Status dots ────────────────────────────────────────────── */
+function setDot(el, on) {
+  el.className = 'st-dot ' + (on ? 'on' : 'off');
+}
+
+/* ── Widgets ────────────────────────────────────────────────── */
+function renderWidget(type, data) {
+  const old = document.querySelector(`[data-wg="${type}"]`);
+  if (old) old.remove();
+
+  const w = document.createElement('div');
+  w.className = 'widget';
+  w.dataset.wg = type;
+
+  if (type === 'disk') {
+    const pct  = data.pct;
+    const free = (data.free / 1e9).toFixed(1);
+    const color = pct > 85 ? 'var(--orange)' : 'var(--cyan)';
+    w.innerHTML = `
+      <div class="wg-title">DISQUE C:</div>
+      <div class="wg-val" style="color:${color}">${pct}%</div>
+      <div class="wg-sub">${free} GB libres</div>
+      <div class="disk-bar"><div class="disk-fill" style="width:${pct}%"></div></div>`;
+  }
+  else if (type === 'bookings') {
+    w.innerHTML = `
+      <div class="wg-title">RÉSERVATIONS</div>
+      <div class="wg-val">${data.count}</div>
+      <div class="wg-sub">aujourd'hui</div>`;
+  }
+  else if (type === 'weather') {
+    w.innerHTML = `
+      <div class="wg-title">MÉTÉO ORAN</div>
+      <div class="wg-val">${data.temp}°C</div>
+      <div class="wg-sub">${data.desc}</div>`;
+  }
+  else if (type === 'railway') {
+    const ok = data.status === 'ok';
+    w.innerHTML = `
+      <div class="wg-title">RAILWAY</div>
+      <div class="wg-val" style="color:${ok?'var(--green)':'var(--red)'}">${ok?'●':'✗'}</div>
+      <div class="wg-sub">${data.status}</div>`;
+  }
+  else {
+    w.innerHTML = `<div class="wg-title">${type.toUpperCase()}</div><div class="wg-val">${JSON.stringify(data)}</div>`;
+  }
+
+  widgets.appendChild(w);
+}
+
+/* ── Input ──────────────────────────────────────────────────── */
+function sendMsg(text) {
+  text = text.trim();
+  if (!text) return;
+  addMsg('user', text);
+  showThink();
+  send({ type: 'message', text });
+}
+
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { sendMsg(inp.value); inp.value = ''; }
+  if (e.key === 'Escape') inp.blur();
+});
+
+/* ── Mic ────────────────────────────────────────────────────── */
+function toggleMic() {
+  micActive = !micActive;
+  btnMic.classList.toggle('active', micActive);
+  setDot(dotMic, micActive);
+  send({ type: 'mic_toggle', active: micActive });
+}
+btnMic.addEventListener('click', toggleMic);
+
+/* ── Keyboard shortcuts ─────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'm') { e.preventDefault(); toggleMic(); }
+  if (e.ctrlKey && e.key === 'd') { e.preventDefault(); send({ type: 'widget_request', widget: 'disk' }); }
+  if (!e.ctrlKey && !e.altKey && e.key.length === 1) inp.focus();
+});
+
+/* ── Boot ───────────────────────────────────────────────────── */
+connect();
+setTimeout(() => sys('━━━ NEXUS INITIALIZED ━━━'), 400);
+</script>
+</body>
+</html>

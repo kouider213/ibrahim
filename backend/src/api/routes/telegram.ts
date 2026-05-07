@@ -10,6 +10,7 @@ import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { guardResponse, applyScopeGuard } from '../../conversation/response-guard.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
+import { isNexusOnline, sendToNexus } from '../../actions/handlers/nexus-relay.js';
 import { isValidMp4Buffer } from '../../marketing/create-marketing-video.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import { addVideoToBuffer } from '../../marketing/video-buffer.js';
@@ -675,6 +676,33 @@ router.post('/webhook', async (req, res) => {
     }
     // No pending video — let Claude handle naturally
   }
+
+  // ── NEXUS triggers ──────────────────────────────────────────────────────
+  const NEXUS_WAKE_RE = /nexus\s*(r[eé]veille[\s-]toi|wake[\s-]up|en[\s-]ligne|allume|d[eé]marre)/i;
+  const NEXUS_CMD_RE  = /^nexus[,\s:]+(.+)/is;
+
+  if (NEXUS_WAKE_RE.test(text)) {
+    if (isNexusOnline()) {
+      sendToNexus('nexus:wake', { source: 'telegram', chatId });
+      await sendMessage(chatId, '🖥️ Signal de réveil envoyé à *NEXUS*.');
+    } else {
+      await sendMessage(chatId, '🖥️ *NEXUS* est hors ligne.\nPC éteint ou agent non démarré.');
+    }
+    return;
+  }
+
+  const nexusCmdMatch = NEXUS_CMD_RE.exec(text);
+  if (nexusCmdMatch) {
+    const cmd = nexusCmdMatch[1].trim();
+    if (isNexusOnline()) {
+      sendToNexus('nexus:command', { text: cmd, source: 'telegram', chatId });
+      await sendMessage(chatId, `📡 Commande envoyée à *NEXUS*:\n_${cmd}_`);
+    } else {
+      await sendMessage(chatId, '🖥️ *NEXUS* est hors ligne. Lance *start.bat* sur ton PC.');
+    }
+    return;
+  }
+  // ── END NEXUS triggers ───────────────────────────────────────────────────
 
   try {
     await sendTyping(chatId);

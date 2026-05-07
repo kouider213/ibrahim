@@ -39,6 +39,7 @@ import { initScheduler }   from './queue/scheduler.js';
 import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
+import { initNexusRelay } from './actions/handlers/nexus-relay.js';
 
 // ── Express setup ─────────────────────────────────────────────
 const app    = express();
@@ -169,6 +170,7 @@ initOrchestrator(mobileNs);
 initApprover(mobileNs);
 initDispatcher(mobileNs);
 initPcRelay(io);
+initNexusRelay(io);
 
 mobileNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;
