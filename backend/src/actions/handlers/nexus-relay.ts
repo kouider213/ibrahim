@@ -1,9 +1,11 @@
+import dgram                from 'dgram';
 import type { Server as SocketServer, Socket } from 'socket.io';
 import { processMessage }  from '../../conversation/orchestrator.js';
 import { env }             from '../../config/env.js';
 
-let _nexusSocket: Socket | null = null;
-let _nexusMac:    string        = '';
+let _nexusSocket:    Socket | null = null;
+let _nexusMac:       string        = '';
+let _nexusPublicIp:  string        = '';   // last known public IP of the PC
 
 // ── Init /nexus namespace ─────────────────────────────────────────────────────
 
@@ -19,13 +21,16 @@ export function initNexusRelay(io: SocketServer): void {
   });
 
   nexusNs.on('connection', (socket: Socket) => {
-    console.log('[NEXUS] PC Agent connected:', socket.id);
+    // Capture public IP (works through Railway proxy via X-Forwarded-For)
+    const xfwd = socket.handshake.headers['x-forwarded-for'] as string | undefined;
+    _nexusPublicIp = (xfwd ? xfwd.split(',')[0] : socket.handshake.address).trim();
+    console.log(`[NEXUS] PC Agent connected: ${socket.id} — IP: ${_nexusPublicIp}`);
     _nexusSocket = socket;
 
     // ── Register MAC for WoL ───────────────────────────────────────────────
     socket.on('nexus:register', (data: { mac?: string }) => {
       _nexusMac = data?.mac ?? '';
-      console.log(`[NEXUS] MAC registered: ${_nexusMac}`);
+      console.log(`[NEXUS] MAC registered: ${_nexusMac} / IP: ${_nexusPublicIp}`);
     });
 
     // ── Message from NEXUS → Dzaryx AI → ack back to NEXUS ───────────────
@@ -36,7 +41,6 @@ export function initNexusRelay(io: SocketServer): void {
       const { text } = data;
       console.log(`[NEXUS] → AI: ${text.slice(0, 70)}`);
       try {
-        // textOnly=true: NEXUS handles its own ElevenLabs audio locally
         const result = await processMessage(text, 'nexus-kouider', true);
         if (typeof ack === 'function') ack({ text: result.text });
       } catch (err) {
@@ -61,7 +65,7 @@ export function initNexusRelay(io: SocketServer): void {
   });
 }
 
-// ── External API (used by telegram.ts) ───────────────────────────────────────
+// ── External API ──────────────────────────────────────────────────────────────
 
 export function isNexusOnline(): boolean {
   return _nexusSocket !== null;
@@ -73,8 +77,54 @@ export function sendToNexus(event: string, data: unknown): boolean {
   return true;
 }
 
-export function getNexusMac(): string {
-  return _nexusMac;
+export function getNexusMac(): string { return _nexusMac; }
+export function getNexusIp():  string { return _nexusPublicIp; }
+
+/** Send Wake-on-LAN magic packet to last known PC IP.
+ *  Requires router port forwarding: UDP 9 → PC local IP. */
+export async function triggerWol(): Promise<{ sent: boolean; mac: string; ip: string }> {
+  const mac = _nexusMac;
+  const ip  = _nexusPublicIp;
+
+  if (!mac || mac.length < 12) {
+    return { sent: false, mac, ip };
+  }
+
+  const sent = await _sendWolPacket(mac, ip || '255.255.255.255');
+  console.log(`[NEXUS WoL] Sent to ${ip || 'broadcast'} MAC=${mac} → ${sent}`);
+  return { sent, mac, ip };
+}
+
+// ── WoL UDP implementation ────────────────────────────────────────────────────
+
+function _sendWolPacket(mac: string, ip: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const clean = mac.replace(/[^0-9a-fA-F]/g, '');
+      if (clean.length !== 12) { resolve(false); return; }
+
+      const macBuf = Buffer.from(clean, 'hex');
+      const magic  = Buffer.concat([Buffer.alloc(6, 0xff), ...Array<Buffer>(16).fill(macBuf)]);
+
+      const sock = dgram.createSocket('udp4');
+      sock.once('listening', () => {
+        try {
+          sock.setBroadcast(true);
+          sock.send(magic, 0, magic.length, 9, ip, (err) => {
+            sock.close();
+            resolve(!err);
+          });
+        } catch {
+          sock.close();
+          resolve(false);
+        }
+      });
+      sock.once('error', () => resolve(false));
+      sock.bind();
+    } catch {
+      resolve(false);
+    }
+  });
 }
 
 // ── Helper: send Telegram notification ───────────────────────────────────────

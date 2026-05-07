@@ -10,7 +10,7 @@ import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { guardResponse, applyScopeGuard } from '../../conversation/response-guard.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
-import { isNexusOnline, sendToNexus } from '../../actions/handlers/nexus-relay.js';
+import { isNexusOnline, sendToNexus, triggerWol, getNexusMac, getNexusIp } from '../../actions/handlers/nexus-relay.js';
 import { isValidMp4Buffer } from '../../marketing/create-marketing-video.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import { addVideoToBuffer } from '../../marketing/video-buffer.js';
@@ -684,9 +684,33 @@ router.post('/webhook', async (req, res) => {
   if (NEXUS_WAKE_RE.test(text)) {
     if (isNexusOnline()) {
       sendToNexus('nexus:wake', { source: 'telegram', chatId });
-      await sendMessage(chatId, '🖥️ Signal de réveil envoyé à *NEXUS*.');
+      await sendMessage(chatId, '🖥️ Signal de réveil envoyé à *NEXUS*. Il répond sous peu.');
     } else {
-      await sendMessage(chatId, '🖥️ *NEXUS* est hors ligne.\nPC éteint ou agent non démarré.');
+      // Try Wake-on-LAN to wake the PC
+      const mac = getNexusMac();
+      const ip  = getNexusIp();
+      if (mac) {
+        await sendMessage(chatId, `🖥️ *NEXUS* est hors ligne — envoi signal WoL au PC...\n_MAC: ${mac}_`);
+        const wol = await triggerWol();
+        if (wol.sent) {
+          await sendMessage(chatId,
+            '📡 Paquet WoL envoyé. Le PC devrait se réveiller dans 10-30 secondes.\n' +
+            '_NEXUS démarre automatiquement après le réveil._\n\n' +
+            '⚠️ Si le PC est complètement éteint \\(pas en veille\\), cette méthode ne fonctionne ' +
+            'que si la redirection UDP port 9 est configurée sur ton routeur.'
+          );
+        } else {
+          await sendMessage(chatId,
+            '❌ WoL échoué \\(PC peut-être éteint ou routeur non configuré\\).\n' +
+            'Allume le PC manuellement — NEXUS démarrera automatiquement.'
+          );
+        }
+      } else {
+        await sendMessage(chatId,
+          '🖥️ *NEXUS* est hors ligne et aucune adresse PC mémorisée.\n' +
+          'Démarre le PC — NEXUS se lance automatiquement au démarrage.'
+        );
+      }
     }
     return;
   }
