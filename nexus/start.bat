@@ -31,6 +31,8 @@ if not exist ".deps_ok" (
     echo Installation des dependances...
     pip install -r requirements.txt
     if errorlevel 1 ( echo ERREUR installation & pause & exit /b 1 )
+    echo Installation pyaudio ^(optionnel - micro^)...
+    pip install pyaudio >nul 2>&1 || echo pyaudio non installe - micro desactive, tout le reste fonctionne.
     echo. > .deps_ok
     echo Dependances installees.
 )

@@ -161,52 +161,73 @@ header {
   transition: width 0.6s ease;
 }
 
-/* ── CHAT ───────────────────────────────────────────────────────── */
+/* ── CHAT (minimal — voice-only mode) ──────────────────────────── */
 .chat {
-  flex: 1; overflow-y: auto; min-height: 0;
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end;
   padding: 8px 16px 4px;
-  display: flex; flex-direction: column; gap: 6px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0,212,255,0.18) transparent;
+  gap: 4px;
+  overflow: hidden;
 }
-.chat::-webkit-scrollbar { width: 4px; }
-.chat::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.18); border-radius: 2px; }
 
-.msg {
-  max-width: 88%; padding: 9px 13px;
-  border-radius: 8px; line-height: 1.55;
+/* Only last status line visible */
+.msg { display: none; }
+.msg.system {
+  display: block;
+  color: var(--dim2); font-size: 10px; letter-spacing: 1.5px;
+  text-align: center; opacity: 0.6;
   animation: msg-in 0.25s ease;
 }
-.msg.nexus {
-  align-self: flex-start;
-  background: rgba(0,212,255,0.06);
-  border: 1px solid rgba(0,212,255,0.18);
-  border-left: 3px solid var(--cyan);
+.msg.system:not(:last-child) { display: none; }
+.msg.nexus, .msg.user { display: none; }
+
+/* Status text under waveform */
+.status-text {
+  font-size: 11px; letter-spacing: 2px; color: var(--dim2);
+  text-align: center; min-height: 18px;
+  transition: opacity 0.3s;
 }
-.msg.user {
-  align-self: flex-end;
-  background: rgba(123,47,255,0.09);
-  border: 1px solid rgba(123,47,255,0.2);
-  border-right: 3px solid var(--purple);
-}
-.msg.system {
-  align-self: center; max-width: 100%;
-  background: transparent;
-  border: none;
-  color: var(--dim2); font-size: 10px; letter-spacing: 1px;
-  text-align: center; padding: 3px 0;
-}
-.msg-from { font-size: 8px; letter-spacing: 2px; opacity: 0.45; margin-bottom: 4px; }
 
 /* Thinking dots */
-.thinking { display: flex; gap: 4px; padding: 6px 0 2px; }
-.thinking i {
+.thinking-wrap {
+  display: flex; align-items: center; gap: 5px;
+  height: 20px; justify-content: center;
+}
+.thinking-wrap i {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--cyan); opacity: 0;
   animation: think 1.3s ease-in-out infinite;
 }
-.thinking i:nth-child(2) { animation-delay: 0.22s; }
-.thinking i:nth-child(3) { animation-delay: 0.44s; }
+.thinking-wrap i:nth-child(2) { animation-delay: 0.22s; }
+.thinking-wrap i:nth-child(3) { animation-delay: 0.44s; }
+
+/* Agent badge */
+.agent-badge {
+  font-size: 8px; letter-spacing: 3px; font-weight: bold;
+  padding: 3px 10px; border-radius: 12px;
+  background: rgba(123,47,255,0.15);
+  border: 1px solid rgba(123,47,255,0.4);
+  color: var(--purple);
+  text-shadow: 0 0 8px var(--purple);
+  animation: slide-down 0.3s ease;
+}
+
+/* Response box (agent/NEXUS long responses) */
+.response-box {
+  max-width: 680px; width: 90%;
+  max-height: 110px; overflow-y: auto;
+  background: rgba(0,212,255,0.04);
+  border: 1px solid rgba(0,212,255,0.12);
+  border-left: 3px solid var(--cyan);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px; line-height: 1.6; color: var(--text);
+  scrollbar-width: thin; scrollbar-color: rgba(0,212,255,0.2) transparent;
+  animation: slide-down 0.3s ease;
+}
+.response-box::-webkit-scrollbar { width: 3px; }
+.response-box::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.2); }
 
 /* ── INPUT BAR ──────────────────────────────────────────────────── */
 .input-bar {
@@ -396,8 +417,15 @@ header {
     <!-- Widgets row (populated dynamically) -->
     <div class="widgets" id="widgets"></div>
 
-    <!-- Chat history -->
-    <div class="chat" id="chat"></div>
+    <!-- Status (voice-only — shows current action) -->
+    <div class="chat" id="chat">
+      <div class="thinking-wrap" id="think-wrap" style="display:none">
+        <i></i><i></i><i></i>
+      </div>
+      <div class="agent-badge" id="agent-badge" style="display:none"></div>
+      <div class="response-box" id="response-box" style="display:none"></div>
+      <div class="status-text" id="status-text">EN ATTENTE</div>
+    </div>
   </div>
 
   <!-- Input bar -->
@@ -413,16 +441,20 @@ header {
 /* ── NEXUS GUI Controller ───────────────────────────────────────── */
 const WS_URL = 'ws://localhost:7778';
 
-const chat    = document.getElementById('chat');
-const inp     = document.getElementById('inp');
-const waveform= document.getElementById('waveform');
-const widgets = document.getElementById('widgets');
-const btnMic  = document.getElementById('btn-mic');
-const dotBE   = document.getElementById('dot-backend');
-const dotLoc  = document.getElementById('dot-local');
-const dotMic  = document.getElementById('dot-mic');
+const inp         = document.getElementById('inp');
+const waveform    = document.getElementById('waveform');
+const widgets     = document.getElementById('widgets');
+const btnMic      = document.getElementById('btn-mic');
+const dotBE       = document.getElementById('dot-backend');
+const dotLoc      = document.getElementById('dot-local');
+const dotMic      = document.getElementById('dot-mic');
+const thinkWrap   = document.getElementById('think-wrap');
+const statusTxt   = document.getElementById('status-text');
+const agentBadge  = document.getElementById('agent-badge');
+const responseBox = document.getElementById('response-box');
 
-let ws = null, micActive = false, thinkEl = null;
+let ws = null, micActive = false;
+let _hideResponseTimer = null;
 
 /* ── WebSocket ───────────────────────────────────────────────── */
 function connect() {
@@ -442,21 +474,30 @@ function send(obj) {
 function handle(d) {
   switch(d.type) {
     case 'speak':
-      rmThink();
-      addMsg('nexus', d.text);
+      showThink(false);
+      setStatus('NEXUS PARLE…');
+      if (d.text && d.text.length > 80) showResponse(d.text);
       break;
 
     case 'waveform':
       waveform.classList.toggle('active', !!d.active);
+      if (!d.active) setStatus('EN ATTENTE');
       break;
 
     case 'thinking':
-      d.active ? showThink() : rmThink();
+      showThink(!!d.active);
+      if (d.active) setStatus('RÉFLEXION…');
       break;
 
     case 'status':
       if (d.backend !== undefined) setDot(dotBE, d.backend);
-      if (d.text) sys(d.text);
+      if (d.text) {
+        setStatus(d.text);
+        // Agent name display
+        const m = d.text.match(/^AGENT\s+(\w+)/i);
+        if (m) showAgent(m[1]);
+        else hideAgent();
+      }
       break;
 
     case 'widget':
@@ -464,41 +505,31 @@ function handle(d) {
       break;
 
     case 'journal':
-      sys('📡 ' + d.text);
+      setStatus('📡 ' + d.text.slice(0, 50));
       break;
   }
 }
 
-/* ── Chat helpers ───────────────────────────────────────────── */
-function addMsg(role, text) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + role;
-  if (role !== 'system') {
-    const from = document.createElement('div');
-    from.className = 'msg-from';
-    from.textContent = role === 'nexus' ? 'NEXUS' : 'KOUIDER';
-    div.appendChild(from);
-  }
-  const body = document.createElement('div');
-  body.textContent = text;
-  div.appendChild(body);
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+/* ── Status helpers ─────────────────────────────────────────── */
+function setStatus(t) { statusTxt.textContent = t.toUpperCase().slice(0, 70); }
+function showThink(on) { thinkWrap.style.display = on ? 'flex' : 'none'; }
+function sys(t) { setStatus(t); }
+
+function showAgent(name) {
+  agentBadge.textContent = '⬡ AGENT ' + name.toUpperCase();
+  agentBadge.style.display = 'block';
 }
-
-function sys(t)  { addMsg('system', t); }
-
-function showThink() {
-  if (thinkEl) return;
-  thinkEl = document.createElement('div');
-  thinkEl.className = 'msg nexus';
-  thinkEl.innerHTML = '<div class="msg-from">NEXUS</div><div class="thinking"><i></i><i></i><i></i></div>';
-  chat.appendChild(thinkEl);
-  chat.scrollTop = chat.scrollHeight;
+function hideAgent() {
+  agentBadge.style.display = 'none';
 }
-
-function rmThink() {
-  if (thinkEl) { thinkEl.remove(); thinkEl = null; }
+function showResponse(text) {
+  responseBox.textContent = text;
+  responseBox.style.display = 'block';
+  if (_hideResponseTimer) clearTimeout(_hideResponseTimer);
+  _hideResponseTimer = setTimeout(() => {
+    responseBox.style.display = 'none';
+    hideAgent();
+  }, 20000);
 }
 
 /* ── Status dots ────────────────────────────────────────────── */
@@ -555,8 +586,8 @@ function renderWidget(type, data) {
 function sendMsg(text) {
   text = text.trim();
   if (!text) return;
-  addMsg('user', text);
-  showThink();
+  setStatus(text.slice(0, 60));
+  showThink(true);
   send({ type: 'message', text });
 }
 

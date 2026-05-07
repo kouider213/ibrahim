@@ -48,11 +48,12 @@ class VoiceModule:
         if self._el_client:
             try:
                 from elevenlabs import stream as el_stream
-                audio = self._el_client.generate(
+                # SDK >= 1.0: text_to_speech.convert()
+                audio = self._el_client.text_to_speech.convert(
+                    voice_id=VOICE_ID,
                     text=text,
-                    voice=VOICE_ID,
-                    model='eleven_multilingual_v2',
-                    stream=True,
+                    model_id='eleven_multilingual_v2',
+                    output_format='mp3_44100_128',
                 )
                 el_stream(audio)
                 return
