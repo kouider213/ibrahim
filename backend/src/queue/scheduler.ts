@@ -164,22 +164,24 @@ export async function initScheduler(): Promise<void> {
       }
 
       // ── Verrou anti-doublon Redis ─────────────────────────────
-      // Jobs quotidiens (1x/jour) → verrou par date calendaire
-      // Autres jobs → verrou par fenêtre de 30 minutes
-      const DAILY_JOBS = new Set([
-        'morning-briefing', 'idle-vehicle-alert', 'check-anomalies',
-        'late-return-alert', 'wa-24h-reminders', 'wa-return-reminders',
-        'end-rental-reminder',
-      ]);
-      const today = new Date().toISOString().slice(0, 10);
-      const lockSuffix = DAILY_JOBS.has(job.name)
-        ? today
-        : String(Math.floor(Date.now() / (30 * 60 * 1000)));
+      // Railway démarre parfois 2 instances simultanément au redéploiement.
+      // Chaque type de job a une fenêtre de verrou adaptée à sa fréquence.
+      const EVERY_10MIN_JOBS = new Set(['wa-booking-confirmations']);
+      const EVERY_6H_JOBS    = new Set(['unpaid-reminder']);
+      // Tous les autres : 1x/jour ou 1x/semaine → verrou par date
+      const now10  = Math.floor(Date.now() / (10 * 60 * 1000));
+      const now6h  = Math.floor(Date.now() / (6  * 60 * 60 * 1000));
+      const today  = new Date().toISOString().slice(0, 10);
+      const lockSuffix = EVERY_10MIN_JOBS.has(job.name) ? String(now10)
+                       : EVERY_6H_JOBS.has(job.name)    ? String(now6h)
+                       : today;
+      const lockTTL = EVERY_10MIN_JOBS.has(job.name) ? 600
+                    : EVERY_6H_JOBS.has(job.name)     ? 21600
+                    : 86400;
       const lockKey  = `scheduler:lock:${job.name}:${lockSuffix}`;
-      const lockTTL  = DAILY_JOBS.has(job.name) ? 86400 : 1800;
       const acquired = await redis.set(lockKey, '1', 'EX', lockTTL, 'NX');
       if (!acquired) {
-        console.log(`[scheduler] SKIP (déjà exécuté aujourd'hui): ${job.name}`);
+        console.log(`[scheduler] SKIP (doublon bloqué): ${job.name}`);
         return;
       }
 
