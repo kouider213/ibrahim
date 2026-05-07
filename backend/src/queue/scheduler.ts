@@ -164,12 +164,22 @@ export async function initScheduler(): Promise<void> {
       }
 
       // ── Verrou anti-doublon Redis ─────────────────────────────
-      // Évite qu'une 2ème instance Railway (overlap de déploiement) exécute
-      // le même job cron dans les 30 minutes qui suivent la 1ère exécution.
-      const lockKey = `scheduler:lock:${job.name}:${Math.floor(Date.now() / (30 * 60 * 1000))}`;
-      const acquired = await redis.set(lockKey, '1', 'EX', 1800, 'NX');
+      // Jobs quotidiens (1x/jour) → verrou par date calendaire
+      // Autres jobs → verrou par fenêtre de 30 minutes
+      const DAILY_JOBS = new Set([
+        'morning-briefing', 'idle-vehicle-alert', 'check-anomalies',
+        'late-return-alert', 'wa-24h-reminders', 'wa-return-reminders',
+        'end-rental-reminder',
+      ]);
+      const today = new Date().toISOString().slice(0, 10);
+      const lockSuffix = DAILY_JOBS.has(job.name)
+        ? today
+        : String(Math.floor(Date.now() / (30 * 60 * 1000)));
+      const lockKey  = `scheduler:lock:${job.name}:${lockSuffix}`;
+      const lockTTL  = DAILY_JOBS.has(job.name) ? 86400 : 1800;
+      const acquired = await redis.set(lockKey, '1', 'EX', lockTTL, 'NX');
       if (!acquired) {
-        console.log(`[scheduler] SKIP (déjà exécuté par une autre instance): ${job.name}`);
+        console.log(`[scheduler] SKIP (déjà exécuté aujourd'hui): ${job.name}`);
         return;
       }
 
