@@ -42,6 +42,8 @@ from modules.auto_unlock      import save_password, unlock_pc, is_configured
 from modules.tiktok           import TikTokAnalyzer
 from modules.file_manager     import FileManager
 from modules.input_control    import InputControl
+from modules.app_installer    import AppInstaller
+from modules.git_manager      import GitManager
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,7 +86,7 @@ _UNLOCK_RE     = re.compile(r'\b(d[eé]verrouille|unlock|ouvre\s+le\s+pc|mot\s+d
 _SAVE_PASS_RE  = re.compile(r'\b(enregistre\s+(mon\s+)?mot\s+de\s+passe|sauvegarde\s+(mon\s+)?mot\s+de\s+passe)\b', re.I)
 
 _BRIEFING_RE   = re.compile(r'\b(briefing|rapport\s+(du\s+)?matin|r[eé]sum[eé]\s+(du\s+)?jour)\b', re.I)
-_AGENT_RE      = re.compile(r'\b(strat[eè]ge?|agent\s+dev|agent\s+design|agent\s+anal|agent\s+market|agent\s+supervis|agent\s+architect)\b', re.I)
+_AGENT_RE      = re.compile(r'\b(strat[eè]ge?|agent\s+dev|agent\s+design|agent\s+anal|agent\s+market|agent\s+supervis|agent\s+architect|agent\s+git|agent\s+r[eé]seau|agent\s+vid[eé]o)\b', re.I)
 _CLAUDE_RE     = re.compile(r'\b(claude\s+code|lance\s+claude|ouvre\s+claude\s+code)\b', re.I)
 _CLAUDE_TASK_RE= re.compile(r'\b(claude\s+(t[aâ]che|task)|ex[eé]cute\s+avec\s+claude)\b', re.I)
 _METEO_RE      = re.compile(r"\b(m[eé]t[eé]o|temps\s+qu[i']l\s+fait|temp[eé]rature|quel\s+temps)\b", re.I)
@@ -104,6 +106,13 @@ _INPUT_TYPE_RE = re.compile(r'\b(tape|[eé]cris?|type|saisis?)\b', re.I)
 _INPUT_KEY_RE  = re.compile(r'\b(appuie?\s+sur|presse?\s+|press\s+)\b', re.I)
 _INPUT_SCROLL_RE= re.compile(r'\b(scroll|d[eé]file?)\b', re.I)
 _CAPCUT_RE     = re.compile(r'\b(capcut|ouvre?\s+capcut|lance?\s+capcut)\b', re.I)
+_RUNWAY_RE     = re.compile(r'\b(runway|ouvre?\s+runway|lance?\s+runway)\b', re.I)
+_INSTALL_RE    = re.compile(r'\b(installe?|t[eé]l[eé]charge?r?\s+(?:et\s+installer?)?|download\s+(?:and\s+install)?|install)\s+(\w[\w\s\-+.]+)', re.I)
+_GIT_RE        = re.compile(r'\b(git\s+(?:status|diff|log|commit|push|pull|branch|stash)|commit\s+(?:tout|mes\s+modif|et\s+push)|push\s+(?:sur|vers)\s+(?:github|origin))\b', re.I)
+_CODEX_RE      = re.compile(r'\b(codex|ouvre?\s+codex|lance?\s+codex)\b', re.I)
+_NETWORK_RE    = re.compile(r'\b(analyse?\s+(?:les?\s+)?(?:r[eé]seau[xz]|concurrents?|seo|r[eé]seaux\s+sociaux|le\s+march[eé])|veille\s+(?:concurrentielle|r[eé]seau|march[eé])|benchmark\s+(?:concurrent|march[eé]))\b', re.I)
+_VIDEO_PIPE_RE = re.compile(r'\b(cr[eé]e?r?\s+(?:une?\s+)?(?:pipeline\s+)?vid[eé]o|pipeline\s+vid[eé]o|produire?\s+(?:une?\s+)?vid[eé]o|script\s+(?:vid[eé]o|voix\s+off|voiceover)|plan\s+(?:de\s+)?montage)\b', re.I)
+_CODE_REVIEW_RE= re.compile(r'\b(review\s+(?:le?\s+)?code|r[eé]vise?\s+(?:le?\s+)?code|audite?\s+(?:le?\s+)?code|analyse?\s+(?:ce\s+)?code|v[eé]rifie?\s+(?:le?\s+)?code|cherche?\s+(?:les?\s+)?bugs?\s+dans)\b', re.I)
 
 
 class NexusApp:
@@ -123,6 +132,8 @@ class NexusApp:
         self.tiktok   = TikTokAnalyzer(self)
         self.files    = FileManager()
         self.input    = InputControl()
+        self.installer= AppInstaller()
+        self.git_mgr  = GitManager()
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -430,6 +441,101 @@ class NexusApp:
                 await self.speak(result)
             else:
                 await self.ws.journal(result)
+            return
+
+        # ── 5f. Runway ───────────────────────────────────────────────────────
+        if _RUNWAY_RE.search(tl):
+            import webbrowser
+            webbrowser.open('https://app.runwayml.com')
+            result = '✅ Runway ML ouvert dans le navigateur'
+            if source == 'nexus':
+                await self.speak(result)
+            else:
+                await self.ws.journal(result)
+            return
+
+        # ── 5g. Codex CLI ────────────────────────────────────────────────────
+        if _CODEX_RE.search(tl):
+            import subprocess as _sp
+            try:
+                _sp.Popen(['wt.exe', '-d', str(Path.home() / 'OneDrive' / 'Bureau' / 'ibrahim' / 'ibrahim'), 'cmd', '/k', 'codex'])
+                result = '✅ Codex lancé dans Windows Terminal'
+            except FileNotFoundError:
+                try:
+                    _sp.Popen(['cmd.exe', '/k', 'codex'])
+                    result = '✅ Codex lancé (cmd)'
+                except Exception as e:
+                    result = f'❌ Codex introuvable — installe via: npm install -g @openai/codex\nErreur: {e}'
+            if source == 'nexus':
+                await self.speak(result)
+            else:
+                await self.ws.journal(result)
+            return
+
+        # ── 5h. Installer d'applications ─────────────────────────────────────
+        if _INSTALL_RE.search(tl):
+            m_inst = _INSTALL_RE.search(t)
+            app_name = m_inst.group(2).strip() if m_inst else t
+            await self.gui_send({'type': 'thinking', 'active': True})
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, self.installer.install, app_name)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(result)
+            else:
+                await self.ws.journal(result)
+            await self.journal(f'📦 Install: {app_name}')
+            return
+
+        # ── 5i. Git Manager ───────────────────────────────────────────────────
+        if _GIT_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            loop = asyncio.get_running_loop()
+            git_result = await loop.run_in_executor(None, self.git_mgr.try_handle, t)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if git_result:
+                if source == 'nexus':
+                    await self.speak(git_result[:400])
+                else:
+                    await self.ws.journal(git_result)
+                await self.journal(f'🔧 Git: {git_result[:60]}')
+                return
+
+        # ── 5j. Network Analyst ───────────────────────────────────────────────
+        if _NETWORK_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            result = await self.agents.route_and_run(t, force_agent='network_analyst')
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(result.response[:400])
+            else:
+                await self.ws.journal(result.response)
+            await self.journal('🌐 Analyse réseau concurrence')
+            return
+
+        # ── 5k. Code Reviewer ────────────────────────────────────────────────
+        if _CODE_REVIEW_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            result = await self.agents.route_and_run(t, force_agent='code_reviewer')
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(result.response[:400])
+            else:
+                await self.ws.journal(result.response)
+            await self.journal('🔍 Code review')
+            return
+
+        # ── 5l. Video Creator Pipeline ───────────────────────────────────────
+        if _VIDEO_PIPE_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            result = await self.agents.route_and_run(t, force_agent='video_creator')
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(result.response[:400])
+            else:
+                await self.ws.journal(result.response)
+            await self.gui_send({'type': 'widget', 'widget': 'agent', 'data': {'agent': 'video_creator', 'result': result.response[:200]}})
+            await self.journal('🎬 Pipeline vidéo')
             return
 
         # ── 6. PC control local ──────────────────────────────────────────────

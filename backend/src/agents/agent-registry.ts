@@ -139,16 +139,91 @@ TOUJOURS: lire le fichier avant de modifier, vérifier le déploiement Railway a
   priority:  8,
 };
 
+// ── Agent 9: Designer UI/UX ───────────────────────────────────────────────────
+const DESIGNER_AGENT: AgentDefinition = {
+  id:   'designer',
+  name: '🎨 Agent Designer',
+  systemExtra: `Tu es l'Agent Designer UI/UX de Dzaryx pour Fik Conciergerie Oran.
+SPÉCIALITÉ: concevoir des interfaces, maquettes, composants React/CSS, charte graphique, expérience utilisateur.
+Style de marque: sombre, luxueux, professionnel (noir #0D0D0D, cyan #00D4FF, violet #8B5CF6).
+TOUJOURS: produire du code React/CSS directement utilisable, penser mobile-first, accessibilité, animations fluides.`,
+  toolNames: [
+    'generate_image','search_images','enhance_image','create_social_variants',
+    'web_search','github_read_file','github_write_file',
+  ],
+  keywords:  /\b(design|ui|ux|interface|maquette|composant|css|layout|couleur|palette|logo|icône|figma|wireframe|prototype|style|thème|charte graphique)\b/i,
+  priority:  7,
+};
+
+// ── Agent 10: Code Reviewer ───────────────────────────────────────────────────
+const CODE_REVIEWER_AGENT: AgentDefinition = {
+  id:   'code_reviewer',
+  name: '🔍 Agent Code Reviewer',
+  systemExtra: `Tu es l'Agent Réviseur de Code de Dzaryx.
+SPÉCIALITÉ: audit de code TypeScript/Python/React — bugs, failles de sécurité, performances, dette technique.
+Format: 🔴 Critique | 🟡 Avertissement | 🟢 Amélioration — une ligne par problème + correction exacte.
+TOUJOURS: lire le fichier avant d'analyser, prioriser la sécurité (injections, SSRF, secrets exposés), vérifier Railway après fix.`,
+  toolNames: [
+    'github_read_file','github_list_files','github_search_code','github_patch_file',
+    'railway_get_logs','web_search','supabase_execute',
+  ],
+  keywords:  /\b(review|révise?|audit|analyse?\s+(?:le?\s+)?code|cherche?\s+(?:les?\s+)?bugs?|faille|sécurité\s+code|dette\s+technique|refactor|nettoyer?\s+(?:le\s+)?code)\b/i,
+  priority:  9,
+};
+
+// ── Agent 11: Network Analyst ─────────────────────────────────────────────────
+const NETWORK_ANALYST_AGENT: AgentDefinition = {
+  id:   'network_analyst',
+  name: '🌐 Agent Analyse Réseau',
+  systemExtra: `Tu es l'Agent Analyste Concurrence & Réseaux Sociaux de Dzaryx pour Fik Conciergerie Oran.
+SPÉCIALITÉ: analyser les concurrents location voiture en Algérie, stratégies TikTok/Instagram, SEO local Oran, benchmark.
+Tu identifies: hashtags qui performent, angles de contenu non exploités, faiblesses concurrents, opportunités.
+TOUJOURS: donner des chiffres concrets, des noms de concurrents réels, des actions immédiates classées par impact.`,
+  toolNames: [
+    'web_search','run_tiktok_research','analyze_competitors','watch_my_tiktok',
+    'get_news','search_images',
+  ],
+  keywords:  /\b(analyse?\s+(?:les?\s+)?(?:r[eé]seaux?|concurrents?|march[eé]|seo)|veille\s+(?:concurrentielle|r[eé]seau|march[eé])|benchmark|concurrent|part\s+de\s+march[eé]|positionnement|croissance\s+(?:tiktok|instagram|r[eé]seaux))\b/i,
+  priority:  7,
+};
+
+// ── Agent 12: Video Creator ───────────────────────────────────────────────────
+const VIDEO_CREATOR_AGENT: AgentDefinition = {
+  id:   'video_creator',
+  name: '🎬 Agent Créateur Vidéo',
+  systemExtra: `Tu es l'Agent Créateur Vidéo de Dzaryx pour Fik Conciergerie Oran.
+SPÉCIALITÉ: pipelines complets de production vidéo TikTok/Reels — du concept au montage final.
+Tu produis:
+  1) Script voiceover exact (< 60s, darija/français percutant)
+  2) Instructions montage CapCut précises (cuts, transitions, effets, timing)
+  3) Prompts Runway ML pour effets IA (si applicable)
+  4) Textes d'overlay avec timing exact (secondes)
+  5) Appel generate_tiktok_video ou create_marketing_video pour lancer la production
+TOUJOURS: format vertical 9:16, musique tendance Oran, optimisé partage.`,
+  toolNames: [
+    'create_marketing_video','edit_marketing_video','regenerate_voice',
+    'create_scenario_video','generate_tiktok_video','merge_videos',
+    'generate_ai_video','add_subtitles','add_background_music',
+    'publish_to_socials','run_tiktok_research','web_search',
+  ],
+  keywords:  /\b(cr[eé]e?r?\s+(?:une?\s+)?(?:pipeline\s+)?vid[eé]o|pipeline\s+vid[eé]o|produire?\s+(?:une?\s+)?vid[eé]o|script\s+(?:vid[eé]o|voix\s+off|voiceover)|plan\s+(?:de\s+)?montage|capcut\s+(?:projet|montage)|runway\s+vid[eé]o|voiceover)\b/i,
+  priority:  6,
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 export const AGENT_REGISTRY: AgentDefinition[] = [
   BOOKING_AGENT,
   FINANCE_AGENT,
   CODE_AGENT,
+  CODE_REVIEWER_AGENT,
   CLIENTS_AGENT,
   PLANNING_AGENT,
   MARKETING_AGENT,
   TIKTOK_AGENT,
   MEMORY_AGENT,
+  DESIGNER_AGENT,
+  NETWORK_ANALYST_AGENT,
+  VIDEO_CREATOR_AGENT,
 ].sort((a, b) => b.priority - a.priority);
 
 export const AGENT_MAP = new Map<string, AgentDefinition>(
