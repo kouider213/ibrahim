@@ -65,6 +65,14 @@ export function initNexusRelay(io: SocketServer): void {
       void _sendTelegramPhoto(image, caption ?? '📸 Screenshot NEXUS');
     });
 
+    // ── File (document) from NEXUS → Telegram ─────────────────────────────
+    socket.on('nexus:telegram_file', (data: { data: string; filename: string; caption?: string }) => {
+      const { data: b64, filename, caption } = data;
+      if (!b64 || !filename) return;
+      console.log(`[NEXUS] File received for Telegram: ${filename}`);
+      void _sendTelegramDocument(b64, filename, caption ?? `📎 ${filename}`);
+    });
+
     socket.on('disconnect', () => {
       console.log('[NEXUS] PC Agent disconnected');
       if (_nexusSocket?.id === socket.id) _nexusSocket = null;
@@ -150,6 +158,30 @@ async function _sendTelegram(text: string): Promise<void> {
     );
   } catch {
     // non-critical
+  }
+}
+
+// ── Helper: send Telegram document (base64) ──────────────────────────────────
+
+async function _sendTelegramDocument(base64: string, filename: string, caption: string): Promise<void> {
+  const token  = env.TELEGRAM_BOT_TOKEN;
+  const chatId = env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    const { default: axios } = await import('axios');
+    const FormData = (await import('form-data')).default;
+    const buf  = Buffer.from(base64, 'base64');
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption);
+    form.append('document', buf, { filename });
+    await axios.post(
+      `https://api.telegram.org/bot${token}/sendDocument`,
+      form,
+      { headers: form.getHeaders(), timeout: 30_000 },
+    );
+  } catch (e) {
+    console.error('[NEXUS] Telegram document error:', e);
   }
 }
 

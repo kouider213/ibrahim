@@ -19,6 +19,12 @@ VISION_SYSTEM = (
     "Si tu vois Kouider, adresse-toi à lui directement. Parle en français."
 )
 
+SCREEN_SYSTEM = (
+    "Tu es NEXUS, l'assistant IA de Kouider (Fik Conciergerie Oran). "
+    "Tu vois une capture de son écran Windows. Décris ou analyse ce que tu vois selon la question posée. "
+    "Sois précis, concis. Parle en français. Si c'est du code, identifie le fichier et le problème."
+)
+
 
 class VisionModule:
     def __init__(self, app) -> None:
@@ -99,6 +105,62 @@ class VisionModule:
         except Exception as e:
             log.error('Vision API error: %s', e)
             return f'Erreur vision: {e}'
+
+    # ── Desktop screen capture + describe ───────────────────────────────────
+
+    async def describe_screen(self, prompt: str = '') -> str:
+        """Capture l'écran Windows (pas la webcam) et envoie à Claude Vision."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._sync_screen_describe, prompt)
+
+    def _sync_screen_describe(self, prompt: str = '') -> str:
+        if not self._client:
+            return "Claude Vision non disponible (ANTHROPIC_API_KEY manquant)"
+        try:
+            import mss
+            import mss.tools
+        except ImportError:
+            return "mss non installé — pip install mss"
+
+        try:
+            with mss.mss() as sct:
+                monitor = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
+                shot    = sct.grab(monitor)
+                # Encode PNG in memory via raw bytes then re-encode as JPEG for Claude
+                import io
+                png_bytes = mss.tools.to_png(shot.rgb, shot.size)
+                img_b64 = base64.b64encode(png_bytes).decode()
+                mime_type = 'image/png'
+        except Exception as e:
+            log.error('Screen capture error: %s', e)
+            return f'Erreur capture écran: {e}'
+
+        user_text = prompt if prompt else "Décris ce que tu vois sur cet écran."
+        try:
+            import anthropic
+            resp = self._client.messages.create(
+                model='claude-sonnet-4-6',
+                max_tokens=600,
+                system=SCREEN_SYSTEM,
+                messages=[{
+                    'role': 'user',
+                    'content': [
+                        {
+                            'type':   'image',
+                            'source': {
+                                'type':       'base64',
+                                'media_type': mime_type,
+                                'data':       img_b64,
+                            },
+                        },
+                        {'type': 'text', 'text': user_text},
+                    ],
+                }],
+            )
+            return resp.content[0].text.strip()
+        except Exception as e:
+            log.error('Screen Vision API error: %s', e)
+            return f'Erreur vision écran: {e}'
 
     # ── Flux live → GUI ──────────────────────────────────────────────────────
 

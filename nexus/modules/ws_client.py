@@ -120,6 +120,27 @@ class NexusWSClient:
             except Exception:
                 pass
 
+    async def send_file_telegram(self, file_path: str, caption: str = '') -> bool:
+        """Envoie un fichier quelconque via le backend (nexus:telegram_file)."""
+        if not self._connected or not self._sio:
+            log.warning('send_file_telegram: backend non connecté')
+            return False
+        import base64, os
+        try:
+            with open(file_path, 'rb') as f:
+                b64 = base64.b64encode(f.read()).decode()
+            filename = os.path.basename(file_path)
+            await self._sio.emit(
+                'nexus:telegram_file',
+                {'data': b64, 'filename': filename, 'caption': caption or f'📎 {filename}'},
+                namespace='/nexus',
+            )
+            log.info('Fichier envoyé au backend pour Telegram: %s (%d chars b64)', filename, len(b64))
+            return True
+        except Exception as e:
+            log.error('send_file_telegram error: %s', e)
+            return False
+
     async def send_photo_telegram(self, file_path: str, caption: str = '') -> bool:
         """Envoie une photo via le backend (nexus:telegram_photo event)."""
         if not self._connected or not self._sio:

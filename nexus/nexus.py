@@ -34,6 +34,8 @@ from modules.vision           import VisionModule
 from modules.music            import MusicController
 from modules.auto_unlock      import save_password, unlock_pc, is_configured
 from modules.tiktok           import TikTokAnalyzer
+from modules.file_manager     import FileManager
+from modules.input_control    import InputControl
 
 logging.basicConfig(
     level=logging.INFO,
@@ -76,6 +78,19 @@ _DISK_RE       = re.compile(r'\b(disque|stockage|espace\s+libre|disk)\b', re.I)
 _VOLUME_RE     = re.compile(r'\bvolume\s+(\d+)\b', re.I)
 _TIKTOK_RE     = re.compile(r'\b(tiktok|analyse?\s+tiktok|analyse?\s+concurrent|hashtags?|trending\s+oran)\b', re.I)
 
+# Phase 4
+_SCREEN_RE     = re.compile(r'\b(analyse?\s+(?:l[a\'])?[eé]cran|que\s+vois[\s-]?tu\s+(?:sur\s+)?(?:l[a\'])?[eé]cran|regarde?\s+(?:l[a\'])?[eé]cran|capture\s+[eé]cran\s+et\s+analyse?|d[eé]cris\s+(?:l[a\'])?[eé]cran)\b', re.I)
+_FILE_LIST_RE  = re.compile(r'\b(liste|montre|affiche|voir|lister)\s+(?:les\s+)?fichiers?\b', re.I)
+_FILE_FIND_RE  = re.compile(r'\b(cherche?|trouve?|find)\s+(?:le\s+fichier\s+)?(.+)', re.I)
+_FILE_OPEN_RE  = re.compile(r'\b(ouvre?\s+(?:le\s+fichier\s+)?|lance?\s+le\s+fichier\s+)(.+)', re.I)
+_FILE_SEND_RE  = re.compile(r'\b(envoie?|send)\s+(?:le\s+fichier\s+|le\s+)?(.+?)\s+(?:sur|via|à)\s+telegram\b', re.I)
+_FILE_RECENT_RE= re.compile(r'\b(r[eé]cents?|derniers?\s+fichiers?|recent\s+files?)\b', re.I)
+_INPUT_CLICK_RE= re.compile(r'\b(clique?|click|clic)\b', re.I)
+_INPUT_TYPE_RE = re.compile(r'\b(tape|[eé]cris?|type|saisis?)\b', re.I)
+_INPUT_KEY_RE  = re.compile(r'\b(appuie?\s+sur|presse?\s+|press\s+)\b', re.I)
+_INPUT_SCROLL_RE= re.compile(r'\b(scroll|d[eé]file?)\b', re.I)
+_CAPCUT_RE     = re.compile(r'\b(capcut|ouvre?\s+capcut|lance?\s+capcut)\b', re.I)
+
 
 class NexusApp:
     def __init__(self) -> None:
@@ -92,6 +107,8 @@ class NexusApp:
         self.vision   = VisionModule(self)
         self.music    = MusicController()
         self.tiktok   = TikTokAnalyzer(self)
+        self.files    = FileManager()
+        self.input    = InputControl()
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -268,6 +285,89 @@ class NexusApp:
                 await self.speak(f'Disque C: {pct} pourcent utilisé, {round(f/1e9,1)} giga libres.')
             return
 
+        # ── 5b. Phase 4: Screen Vision ───────────────────────────────────────
+        if _SCREEN_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            prompt = re.sub(_SCREEN_RE, '', t).strip() or "Décris ce que tu vois sur l'écran."
+            description = await self.vision.describe_screen(prompt)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(description)
+            else:
+                await self.ws.journal(description)
+            await self.journal('🖥️ Analyse écran')
+            return
+
+        # ── 5c. Phase 4: File Manager ────────────────────────────────────────
+        if _FILE_SEND_RE.search(tl):
+            m2 = _FILE_SEND_RE.search(tl)
+            name = m2.group(2).strip() if m2 else t
+            path = self.files.get_file_path_for_telegram(name)
+            if path:
+                ok = await self.ws.send_file_telegram(str(path), f'📎 {path.name}')
+                reply = f'✅ Fichier envoyé: {path.name}' if ok else f'❌ Envoi Telegram échoué: {path.name}'
+            else:
+                reply = f'❌ Fichier introuvable: {name}'
+            if source == 'nexus':
+                await self.speak(reply)
+            else:
+                await self.ws.journal(reply)
+            return
+
+        if _FILE_RECENT_RE.search(tl):
+            folder = 'bureau'
+            result = self.files.get_recent_files(folder)
+            if source == 'nexus':
+                await self.speak(result[:300])
+            else:
+                await self.ws.journal(result)
+            return
+
+        if _FILE_LIST_RE.search(tl):
+            result = self.files.try_handle(t) or self.files.list_dir()
+            if source == 'nexus':
+                await self.speak(result[:300])
+            else:
+                await self.ws.journal(result)
+            return
+
+        m_find = _FILE_FIND_RE.search(tl)
+        if m_find:
+            result = self.files.find_file(m_find.group(2).strip())
+            if source == 'nexus':
+                await self.speak(result[:300])
+            else:
+                await self.ws.journal(result)
+            return
+
+        m_open = _FILE_OPEN_RE.search(t)
+        if m_open:
+            result = self.files.open_file(m_open.group(2).strip())
+            if source == 'nexus':
+                await self.speak(result)
+            else:
+                await self.ws.journal(result)
+            return
+
+        # ── 5d. Phase 4: Input Control ───────────────────────────────────────
+        if any(r.search(tl) for r in (_INPUT_CLICK_RE, _INPUT_TYPE_RE, _INPUT_KEY_RE, _INPUT_SCROLL_RE)):
+            result = self.input.try_handle(t)
+            if result:
+                if source == 'nexus':
+                    await self.speak(result)
+                else:
+                    await self.ws.journal(result)
+                return
+
+        # ── 5e. Phase 4: CapCut ───────────────────────────────────────────────
+        if _CAPCUT_RE.search(tl):
+            result = self._launch_capcut()
+            if source == 'nexus':
+                await self.speak(result)
+            else:
+                await self.ws.journal(result)
+            return
+
         # ── 6. PC control local ──────────────────────────────────────────────
         pc_result = self.pc.try_handle(t)
         if pc_result:
@@ -341,6 +441,29 @@ class NexusApp:
         await self.gui_send({'type': 'thinking', 'active': False})
         if response and source == 'nexus':
             await self.speak(response)
+
+    # ── CapCut launcher ──────────────────────────────────────────────────────
+    def _launch_capcut(self) -> str:
+        import subprocess, glob as _glob
+        paths = [
+            str(Path.home() / 'AppData' / 'Local' / 'CapCut' / 'Apps' / 'CapCut.exe'),
+            r'C:\Program Files\CapCut\CapCut.exe',
+            r'C:\Program Files (x86)\CapCut\CapCut.exe',
+        ]
+        # Also search via glob for versioned install folders
+        pattern = str(Path.home() / 'AppData' / 'Local' / 'CapCut' / 'Apps' / '*' / 'CapCut.exe')
+        paths += _glob.glob(pattern)
+        for p in paths:
+            if Path(p).exists():
+                subprocess.Popen([p])
+                return '✅ CapCut lancé'
+        # Fallback: try via shell (if in PATH or Start Menu)
+        try:
+            subprocess.Popen('start capcut', shell=True)
+            return '✅ CapCut lancé'
+        except Exception:
+            pass
+        return '❌ CapCut introuvable — installe-le depuis https://www.capcut.com'
 
     # ── Journal ──────────────────────────────────────────────────────────────
     async def journal(self, message: str) -> None:
