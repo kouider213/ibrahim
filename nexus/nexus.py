@@ -614,9 +614,9 @@ class NexusApp:
                         asyncio.create_task(self.handle_widget_request(data.get('widget', '')))
                     elif t2 == 'camera_toggle':
                         if self.vision.is_live():
-                            r = self.vision.stop_live()
+                            r = self.vision.stop_all_live()
                         else:
-                            r = self.vision.start_live_window()
+                            r = self.vision.start_live_both()
                         await self.gui_send({'type': 'status', 'text': r})
             except Exception:
                 pass
