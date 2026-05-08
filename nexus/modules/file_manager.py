@@ -145,6 +145,50 @@ class FileManager:
                     return f
         return None
 
+    # ── Sauvegarde organisée (photos/docs reçus de Dzaryx) ───────────────────
+
+    # Dossier racine pour tous les fichiers reçus de Dzaryx
+    DZARYX_ROOT = USER_HOME / 'OneDrive' / 'Bureau' / 'Dzaryx'
+
+    def save_organized_file(
+        self,
+        data_b64: str,
+        filename:  str,
+        folder:    str,
+        caption:   str = '',
+        open_explorer: bool = True,
+    ) -> str:
+        """
+        Sauvegarde un fichier dans un dossier organisé sous ~/OneDrive/Bureau/Dzaryx/.
+        Crée le dossier (et tous les parents) si nécessaire.
+        Retourne le chemin absolu du fichier sauvegardé.
+        """
+        import base64
+
+        # Nettoyer le chemin reçu de Dzaryx (caractères interdits Windows)
+        safe_folder = re.sub(r'[<>:"|?*]', '_', folder.strip('/\\'))
+        target_dir  = self.DZARYX_ROOT / safe_folder
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Nom de fichier avec timestamp pour éviter les doublons
+        ts    = datetime.now().strftime('%Y%m%d_%H%M%S')
+        stem  = Path(filename).stem[:40]
+        ext   = Path(filename).suffix or '.jpg'
+        safe_name = re.sub(r'[<>:"|?*\\/ ]', '_', f'{ts}_{stem}{ext}')
+        dest  = target_dir / safe_name
+
+        dest.write_bytes(base64.b64decode(data_b64))
+        log.info('Fichier sauvegardé: %s', dest)
+
+        # Ouvrir l'explorateur sur le dossier et sélectionner le fichier
+        if open_explorer:
+            try:
+                subprocess.Popen(['explorer', f'/select,{dest}'])
+            except Exception:
+                pass
+
+        return str(dest)
+
     def try_handle(self, text: str) -> str | None:
         t = text.strip()
         tl = t.lower()

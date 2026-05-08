@@ -90,6 +90,37 @@ class NexusWSClient:
                 self.app.speak("NEXUS en ligne. Qu'est-ce qu'on fait Kouider ?")
             )
 
+        @sio.on('nexus:save_file', namespace='/nexus')
+        async def on_save_file(data: dict):
+            """Reçoit un fichier de Dzaryx, le sauvegarde dans un dossier organisé et
+            ouvre l'explorateur dessus. Affiche aussi sur l'écran si demandé."""
+            import base64 as _b64, time as _time
+            b64      = data.get('data', '')
+            filename = data.get('filename', f'file_{int(_time.time())}.jpg')
+            folder   = data.get('folder', 'Divers')
+            caption  = data.get('caption', '')
+            display  = data.get('display', False)
+            if not b64:
+                return
+            try:
+                saved = self.app.files.save_organized_file(
+                    b64, filename, folder, caption, open_explorer=True,
+                )
+                log.info('Fichier organisé: %s', saved)
+                if display:
+                    try:
+                        os.startfile(saved)
+                    except Exception:
+                        pass
+                msg = (
+                    f"Fichier sauvegardé dans {folder}. "
+                    f"{'Affiché sur l\'écran.' if display else 'Dossier ouvert dans l\'explorateur.'}"
+                )
+                asyncio.create_task(self.app.speak(msg))
+            except Exception as e:
+                log.error('save_file error: %s', e)
+                asyncio.create_task(self.app.speak(f"Erreur sauvegarde: {e}"))
+
         @sio.on('nexus:display_image', namespace='/nexus')
         async def on_display_image(data: dict):
             """Reçoit une image depuis Telegram/Dzaryx et l'affiche sur l'écran du PC."""

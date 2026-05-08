@@ -889,6 +889,7 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
 
 // ── TRAITEMENT IMAGE — Claude Vision complet ─────────────────────
 const DISPLAY_PC_RE = /affiche?.*(?:sur\s+(?:le|mon)\s+(?:pc|[eé]cran))|montre.*(?:sur\s+(?:le|mon)\s+pc)|mets?\s+(?:ça\s+)?(?:sur|à\s+l[a'])\s*[eé]cran|display.*pc/i;
+const SAVE_PC_RE    = /(?:sauvegarde?|enregistre?|range?|classe?|mets?\s+dans\s+(?:un\s+)?dossier|stocke?|archive?|garde?)\s*(?:sur\s+(?:le\s+)?pc|(?:dans|en)\s+(?:un\s+)?dossier|(?:ça\s+)?(?:sur|dans)\s+(?:le\s+)?(?:pc|ordinateur))|(?:nexus\s+)?(?:classe?|range?|organise?|sauvegarde?)\s*(?:ça|cette?\s+photo|ce\s+fichier|ces?\s+photos?)/i;
 
 async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
@@ -919,14 +920,6 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
     if (!buffer) { await sendMessage(chatId, '⚠️ Impossible de télécharger la photo.'); return; }
 
     const base64Image = buffer.toString('base64');
-
-    // ── Afficher sur PC si demandé ────────────────────────────────
-    if (DISPLAY_PC_RE.test(caption) && isNexusOnline()) {
-      const ext      = mimeType === 'image/png' ? 'png' : 'jpg';
-      const filename = `telegram_photo_${Date.now()}.${ext}`;
-      sendToNexus('nexus:display_image', { data: base64Image, filename, caption });
-      await sendMessage(chatId, '🖥️ Photo envoyée à NEXUS — affichage sur le PC en cours...');
-    }
 
     // ── Vision Claude — analyse complète en une seule passe ───────
     // Le system prompt donne à Claude tout le contexte Dzaryx
@@ -968,6 +961,46 @@ RÈGLES:
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map(b => b.text)
       .join('');
+
+    // ── Afficher sur PC (nexus:display_image) ─────────────────────
+    const wantDisplay = DISPLAY_PC_RE.test(caption) && isNexusOnline();
+    // ── Sauvegarder dans dossier organisé (nexus:save_file) ───────
+    const wantSave    = SAVE_PC_RE.test(caption) && isNexusOnline();
+
+    if (wantDisplay && !wantSave) {
+      const ext      = mimeType === 'image/png' ? 'png' : 'jpg';
+      const filename = `photo_${Date.now()}.${ext}`;
+      sendToNexus('nexus:display_image', { data: base64Image, filename, caption });
+      await sendMessage(chatId, '🖥️ Photo envoyée à NEXUS — affichage sur le PC...');
+    }
+
+    if (wantSave && isNexusOnline()) {
+      // Demander à Claude de suggérer le nom de dossier le plus pertinent
+      try {
+        const folderResp = await anthropic.messages.create({
+          model:      'claude-haiku-4-5-20251001',
+          max_tokens: 60,
+          messages:   [{
+            role:    'user',
+            content: `Caption utilisateur: "${caption}"\nDescription image: "${visionText.slice(0, 400)}"\n\nSuggère un chemin de dossier Windows court et logique pour classer ce fichier. Format: "Dossier/SousDossier". Un seul chemin, rien d'autre. Exemples: "Accidents/2025-05-08", "Factures/2025", "Documents Clients/Passeports", "Flotte/Photos", "Incidents/Parking".`,
+          }],
+        });
+        const folder  = (folderResp.content[0] as Anthropic.TextBlock).text.trim().replace(/[<>:"|?*]/g, '_').slice(0, 80);
+        const ext     = mimeType === 'image/png' ? 'png' : 'jpg';
+        const filename = `photo_${Date.now()}.${ext}`;
+        sendToNexus('nexus:save_file', {
+          data: base64Image, filename, folder, caption,
+          display: wantDisplay || DISPLAY_PC_RE.test(caption),
+        });
+        await sendMessage(chatId, `🖥️ Sauvegarde sur le PC dans *${folder}*...`);
+      } catch (e) {
+        console.error('[telegram] folder suggestion failed:', e);
+        const ext      = mimeType === 'image/png' ? 'png' : 'jpg';
+        const filename = `photo_${Date.now()}.${ext}`;
+        sendToNexus('nexus:save_file', { data: base64Image, filename, folder: 'Divers', caption, display: wantDisplay });
+        await sendMessage(chatId, '🖥️ Sauvegarde sur le PC dans *Divers*...');
+      }
+    }
 
     // ── Passer la description Vision à Dzaryx avec tous ses outils ─
     const fullMessage = caption
