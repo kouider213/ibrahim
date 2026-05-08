@@ -29,7 +29,8 @@ SCREEN_SYSTEM = (
 class VisionModule:
     def __init__(self, app) -> None:
         self.app = app
-        self._live = False
+        self._live        = False   # stream → GUI WebSocket (app mobile)
+        self._live_window = False   # stream → fenêtre Windows cv2
         self._thread: threading.Thread | None = None
         self._client = None
         self._setup_claude()
@@ -162,111 +163,121 @@ class VisionModule:
             log.error('Screen Vision API error: %s', e)
             return f'Erreur vision écran: {e}'
 
-    # ── Flux live → GUI WebSocket ────────────────────────────────────────────
+    # ── Flux live — thread unique, deux sorties possibles ───────────────────
+    #   _live        = True → envoie frames à l'app mobile via GUI WebSocket
+    #   _live_window = True → affiche fenêtre Windows cv2 sur le bureau PC
+    #   Les deux peuvent être True simultanément (une seule capture caméra)
 
     def start_live(self) -> str:
-        if self._live:
-            return "Caméra déjà active"
+        """Active le stream vers l'app mobile (GUI WebSocket)."""
         self._live = True
-        self._thread = threading.Thread(target=self._live_loop, daemon=True)
-        self._thread.start()
-        return "✅ Caméra activée (stream GUI)"
+        self._ensure_capture_thread()
+        return "✅ Caméra activée (stream app)"
+
+    def start_live_window(self) -> str:
+        """Ouvre une fenêtre Windows avec le flux caméra en direct sur le PC."""
+        self._live_window = True
+        self._ensure_capture_thread()
+        return "✅ Fenêtre live ouverte sur le PC"
 
     def stop_live(self) -> str:
         self._live = False
+        if not self._live_window:
+            log.info('Caméra arrêtée (plus aucun output actif)')
+        return "✅ Stream app désactivé"
+
+    def stop_live_window(self) -> str:
+        self._live_window = False
+        return "✅ Fenêtre caméra fermée"
+
+    def stop_all_live(self) -> str:
+        self._live = False
+        self._live_window = False
         return "✅ Caméra désactivée"
 
     def is_live(self) -> bool:
-        return self._live
+        return self._live or self._live_window
 
-    def _live_loop(self) -> None:
+    def _ensure_capture_thread(self) -> None:
+        """Démarre le thread de capture s'il n'est pas déjà actif."""
+        if self._thread and self._thread.is_alive():
+            return
+        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread.start()
+
+    def _capture_loop(self) -> None:
+        """Thread unique : capture la caméra et alimente toutes les sorties actives."""
         try:
             import cv2
         except ImportError:
             log.error('opencv-python non installé')
-            self._live = False
+            self._live = self._live_window = False
             return
 
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             log.error('Caméra inaccessible')
-            self._live = False
+            self._live = self._live_window = False
             return
 
-        log.info('Live camera started (GUI stream)')
-        while self._live:
+        log.info('Capture caméra démarrée (live=%s, window=%s)', self._live, self._live_window)
+        WIN = 'NEXUS — Live Caméra'
+        window_open = False
+
+        while self._live or self._live_window:
             ret, frame = cap.read()
             if not ret:
-                time.sleep(0.1)
+                time.sleep(0.05)
                 continue
 
-            h, w = frame.shape[:2]
-            if w > 640:
-                scale = 640 / w
-                frame = cv2.resize(frame, (640, int(h * scale)))
+            # ── Sortie 1 : GUI WebSocket (app mobile, ~5 fps) ────────────────
+            if self._live:
+                h, w = frame.shape[:2]
+                small = frame
+                if w > 640:
+                    small = cv2.resize(frame, (640, int(h * 640 / w)))
+                _, buf = cv2.imencode('.jpg', small, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                b64 = base64.b64encode(buf).decode()
+                if self.app.loop:
+                    asyncio.run_coroutine_threadsafe(
+                        self.app.gui_send({'type': 'camera_frame', 'data': b64}),
+                        self.app.loop,
+                    )
 
-            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-            b64 = base64.b64encode(buf).decode()
+            # ── Sortie 2 : fenêtre Windows cv2 (~30 fps) ─────────────────────
+            if self._live_window:
+                if not window_open:
+                    cv2.namedWindow(WIN, cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow(WIN, 800, 600)
+                    window_open = True
+                cv2.imshow(WIN, frame)
+                key = cv2.waitKey(1) & 0xFF
+                # Fermeture si q pressé ou fenêtre fermée manuellement
+                try:
+                    if key == ord('q') or cv2.getWindowProperty(WIN, cv2.WND_PROP_VISIBLE) < 1:
+                        self._live_window = False
+                except Exception:
+                    self._live_window = False
+            elif window_open:
+                # _live_window vient d'être mis à False → ferme la fenêtre
+                try:
+                    cv2.destroyWindow(WIN)
+                except Exception:
+                    pass
+                window_open = False
 
-            if self.app.loop:
-                asyncio.run_coroutine_threadsafe(
-                    self.app.gui_send({'type': 'camera_frame', 'data': b64}),
-                    self.app.loop,
-                )
-            time.sleep(0.2)  # ~5fps
+            time.sleep(0.033)  # ~30 fps max
 
+        # Nettoyage
         cap.release()
+        if window_open:
+            try:
+                cv2.destroyWindow(WIN)
+            except Exception:
+                pass
         if self.app.loop:
             asyncio.run_coroutine_threadsafe(
                 self.app.gui_send({'type': 'camera_frame', 'data': None}),
                 self.app.loop,
             )
-        log.info('Live camera stopped')
-
-    # ── Flux live → Fenêtre Windows (cv2.imshow) ─────────────────────────────
-
-    def start_live_window(self) -> str:
-        """Ouvre une vraie fenêtre Windows avec le flux caméra en direct."""
-        if self._live:
-            return "Caméra déjà active"
-        self._live = True
-        self._thread = threading.Thread(target=self._live_window_loop, daemon=True)
-        self._thread.start()
-        return "✅ Caméra activée — fenêtre live ouverte sur le PC"
-
-    def _live_window_loop(self) -> None:
-        try:
-            import cv2
-        except ImportError:
-            log.error('opencv-python non installé')
-            self._live = False
-            return
-
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            log.error('Caméra inaccessible')
-            self._live = False
-            return
-
-        log.info('Live camera window started')
-        cv2.namedWindow('NEXUS — Live Caméra', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('NEXUS — Live Caméra', 800, 600)
-
-        while self._live:
-            ret, frame = cap.read()
-            if not ret:
-                time.sleep(0.05)
-                continue
-            cv2.imshow('NEXUS — Live Caméra', frame)
-            # q ou fermeture fenêtre → stop
-            key = cv2.waitKey(33) & 0xFF
-            if key == ord('q') or cv2.getWindowProperty('NEXUS — Live Caméra', cv2.WND_PROP_VISIBLE) < 1:
-                break
-
-        self._live = False
-        cap.release()
-        try:
-            cv2.destroyWindow('NEXUS — Live Caméra')
-        except Exception:
-            pass
-        log.info('Live camera window stopped')
+        log.info('Capture caméra arrêtée')

@@ -64,6 +64,7 @@ _PREV_RE       = re.compile(r'\b(pr[eé]c[eé]dent|previous|chanson\s+d\'?avant)
 
 _CAMERA_RE     = re.compile(r'\b(regarde[\s-]?moi|active\s+la\s+cam[eé]ra?|ouvre\s+la\s+cam|cam[eé]ra?\s+on|que\s+vois[\s-]?tu|que\s+tu\s+vois|vois[\s-]?tu)\b', re.I)
 _CAMERA_OFF_RE = re.compile(r'\b(cam[eé]ra?\s+off|ferme\s+la\s+cam|stop\s+cam|d[eé]sactive\s+la\s+cam)\b', re.I)
+_CAMERA_PC_RE  = re.compile(r'\b((?:active|ouvre?|mets?|affiche?|lance?)\s+(?:le\s+)?live\s+(?:aussi\s+)?sur\s+(?:le\s+)?pc|live\s+(?:sur\s+(?:le\s+)?pc|fen[eê]tre)|cam[eé]ra?\s+(?:sur\s+(?:le\s+)?pc|fen[eê]tre))\b', re.I)
 _VISION_RE     = re.compile(
     r"\b(qu[e']\s+vois[\s-]?tu"
     r"|d[eé]cris\s+ce\s+que"
@@ -243,21 +244,33 @@ class NexusApp:
 
         # ── 3. Caméra / Vision ───────────────────────────────────────────────
         if _CAMERA_OFF_RE.search(tl):
-            r = self.vision.stop_live()
+            r = self.vision.stop_all_live()
             if source == 'nexus':
                 await self.speak(r)
             return
 
+        # "active le live sur le pc" → fenêtre Windows sans stopper le stream app
+        if _CAMERA_PC_RE.search(tl):
+            result = self.vision.start_live_window()
+            reply  = f'✅ {result}'
+            if source == 'nexus':
+                await self.speak(reply)
+            else:
+                await self.ws.journal(reply)
+            await self.journal('🖥️ Live caméra → PC')
+            return
+
         if _CAMERA_RE.search(tl):
-            # Ouvre une fenêtre Windows en direct + décrit immédiatement
+            # Ouvre fenêtre Windows + stream app en même temps + décrit
             await self.gui_send({'type': 'thinking', 'active': True})
+            self.vision.start_live()
             self.vision.start_live_window()
             prompt = re.sub(_CAMERA_RE, '', t).strip() or 'Décris ce que tu vois et salue Kouider.'
             description = await self.vision.capture_and_describe(prompt)
             await self.gui_send({'type': 'thinking', 'active': False})
             if source == 'nexus':
                 await self.speak(description)
-            await self.journal('📷 Vision activée')
+            await self.journal('📷 Vision activée (app + PC)')
             return
 
         if _VISION_RE.search(tl):
