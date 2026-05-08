@@ -57,6 +57,14 @@ export function initNexusRelay(io: SocketServer): void {
       void _sendTelegram(`🖥️ *NEXUS*: ${text}`);
     });
 
+    // ── Photo from NEXUS → Telegram ────────────────────────────────────────
+    socket.on('nexus:telegram_photo', (data: { image: string; caption?: string }) => {
+      const { image, caption } = data;
+      if (!image) return;
+      console.log('[NEXUS] Photo received for Telegram');
+      void _sendTelegramPhoto(image, caption ?? '📸 Screenshot NEXUS');
+    });
+
     socket.on('disconnect', () => {
       console.log('[NEXUS] PC Agent disconnected');
       if (_nexusSocket?.id === socket.id) _nexusSocket = null;
@@ -127,7 +135,7 @@ function _sendWolPacket(mac: string, ip: string): Promise<boolean> {
   });
 }
 
-// ── Helper: send Telegram notification ───────────────────────────────────────
+// ── Helper: send Telegram text ────────────────────────────────────────────────
 
 async function _sendTelegram(text: string): Promise<void> {
   const token  = env.TELEGRAM_BOT_TOKEN;
@@ -142,5 +150,29 @@ async function _sendTelegram(text: string): Promise<void> {
     );
   } catch {
     // non-critical
+  }
+}
+
+// ── Helper: send Telegram photo (base64) ─────────────────────────────────────
+
+async function _sendTelegramPhoto(base64: string, caption: string): Promise<void> {
+  const token  = env.TELEGRAM_BOT_TOKEN;
+  const chatId = env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    const { default: axios } = await import('axios');
+    const FormData = (await import('form-data')).default;
+    const buf = Buffer.from(base64, 'base64');
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption);
+    form.append('photo', buf, { filename: 'screenshot.png', contentType: 'image/png' });
+    await axios.post(
+      `https://api.telegram.org/bot${token}/sendPhoto`,
+      form,
+      { headers: form.getHeaders(), timeout: 20_000 },
+    );
+  } catch (e) {
+    console.error('[NEXUS] Telegram photo error:', e);
   }
 }
