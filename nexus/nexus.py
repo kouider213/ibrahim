@@ -249,10 +249,9 @@ class NexusApp:
             return
 
         if _CAMERA_RE.search(tl):
-            # Activate live camera feed + describe immediately
+            # Ouvre une fenêtre Windows en direct + décrit immédiatement
             await self.gui_send({'type': 'thinking', 'active': True})
-            self.vision.start_live()
-            # Describe what it sees
+            self.vision.start_live_window()
             prompt = re.sub(_CAMERA_RE, '', t).strip() or 'Décris ce que tu vois et salue Kouider.'
             description = await self.vision.capture_and_describe(prompt)
             await self.gui_send({'type': 'thinking', 'active': False})
@@ -558,7 +557,7 @@ class NexusApp:
                         if self.vision.is_live():
                             r = self.vision.stop_live()
                         else:
-                            r = self.vision.start_live()
+                            r = self.vision.start_live_window()
                         await self.gui_send({'type': 'status', 'text': r})
             except Exception:
                 pass

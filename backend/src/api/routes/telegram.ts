@@ -888,6 +888,8 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
 }
 
 // ── TRAITEMENT IMAGE — Claude Vision complet ─────────────────────
+const DISPLAY_PC_RE = /affiche?.*(?:sur\s+(?:le|mon)\s+(?:pc|[eé]cran))|montre.*(?:sur\s+(?:le|mon)\s+pc)|mets?\s+(?:ça\s+)?(?:sur|à\s+l[a'])\s*[eé]cran|display.*pc/i;
+
 async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
     await sendTyping(chatId);
@@ -917,6 +919,14 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
     if (!buffer) { await sendMessage(chatId, '⚠️ Impossible de télécharger la photo.'); return; }
 
     const base64Image = buffer.toString('base64');
+
+    // ── Afficher sur PC si demandé ────────────────────────────────
+    if (DISPLAY_PC_RE.test(caption) && isNexusOnline()) {
+      const ext      = mimeType === 'image/png' ? 'png' : 'jpg';
+      const filename = `telegram_photo_${Date.now()}.${ext}`;
+      sendToNexus('nexus:display_image', { data: base64Image, filename, caption });
+      await sendMessage(chatId, '🖥️ Photo envoyée à NEXUS — affichage sur le PC en cours...');
+    }
 
     // ── Vision Claude — analyse complète en une seule passe ───────
     // Le system prompt donne à Claude tout le contexte Dzaryx

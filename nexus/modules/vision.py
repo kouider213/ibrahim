@@ -162,7 +162,7 @@ class VisionModule:
             log.error('Screen Vision API error: %s', e)
             return f'Erreur vision écran: {e}'
 
-    # ── Flux live → GUI ──────────────────────────────────────────────────────
+    # ── Flux live → GUI WebSocket ────────────────────────────────────────────
 
     def start_live(self) -> str:
         if self._live:
@@ -170,7 +170,7 @@ class VisionModule:
         self._live = True
         self._thread = threading.Thread(target=self._live_loop, daemon=True)
         self._thread.start()
-        return "✅ Caméra activée"
+        return "✅ Caméra activée (stream GUI)"
 
     def stop_live(self) -> str:
         self._live = False
@@ -193,14 +193,13 @@ class VisionModule:
             self._live = False
             return
 
-        log.info('Live camera started')
+        log.info('Live camera started (GUI stream)')
         while self._live:
             ret, frame = cap.read()
             if not ret:
                 time.sleep(0.1)
                 continue
 
-            # Resize for bandwidth
             h, w = frame.shape[:2]
             if w > 640:
                 scale = 640 / w
@@ -223,3 +222,51 @@ class VisionModule:
                 self.app.loop,
             )
         log.info('Live camera stopped')
+
+    # ── Flux live → Fenêtre Windows (cv2.imshow) ─────────────────────────────
+
+    def start_live_window(self) -> str:
+        """Ouvre une vraie fenêtre Windows avec le flux caméra en direct."""
+        if self._live:
+            return "Caméra déjà active"
+        self._live = True
+        self._thread = threading.Thread(target=self._live_window_loop, daemon=True)
+        self._thread.start()
+        return "✅ Caméra activée — fenêtre live ouverte sur le PC"
+
+    def _live_window_loop(self) -> None:
+        try:
+            import cv2
+        except ImportError:
+            log.error('opencv-python non installé')
+            self._live = False
+            return
+
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            log.error('Caméra inaccessible')
+            self._live = False
+            return
+
+        log.info('Live camera window started')
+        cv2.namedWindow('NEXUS — Live Caméra', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('NEXUS — Live Caméra', 800, 600)
+
+        while self._live:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.05)
+                continue
+            cv2.imshow('NEXUS — Live Caméra', frame)
+            # q ou fermeture fenêtre → stop
+            key = cv2.waitKey(33) & 0xFF
+            if key == ord('q') or cv2.getWindowProperty('NEXUS — Live Caméra', cv2.WND_PROP_VISIBLE) < 1:
+                break
+
+        self._live = False
+        cap.release()
+        try:
+            cv2.destroyWindow('NEXUS — Live Caméra')
+        except Exception:
+            pass
+        log.info('Live camera window stopped')

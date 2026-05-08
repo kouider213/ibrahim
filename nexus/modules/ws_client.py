@@ -90,6 +90,32 @@ class NexusWSClient:
                 self.app.speak("NEXUS en ligne. Qu'est-ce qu'on fait Kouider ?")
             )
 
+        @sio.on('nexus:display_image', namespace='/nexus')
+        async def on_display_image(data: dict):
+            """Reçoit une image depuis Telegram/Dzaryx et l'affiche sur l'écran du PC."""
+            import base64 as _b64, tempfile, time as _time
+            b64      = data.get('data', '')
+            filename = data.get('filename', f'nexus_{int(_time.time())}.jpg')
+            caption  = data.get('caption', '')
+            if not b64:
+                return
+            img_bytes = _b64.b64decode(b64)
+            path = os.path.join(tempfile.gettempdir(), filename)
+            with open(path, 'wb') as f:
+                f.write(img_bytes)
+            try:
+                os.startfile(path)
+                log.info('Image affichée sur PC: %s', path)
+            except Exception as e:
+                log.error('Erreur affichage image: %s', e)
+                import subprocess
+                try:
+                    subprocess.Popen(['explorer', path])
+                except Exception:
+                    pass
+            msg = f"Photo reçue{' — ' + caption if caption else ''} — affichée sur l'écran."
+            asyncio.create_task(self.app.speak(msg))
+
     async def send_to_dzaryx(self, text: str, source: str = 'nexus') -> str | None:
         """Send message to Dzaryx AI, receive response via ack."""
         if not self._connected or not self._sio:
