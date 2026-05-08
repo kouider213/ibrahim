@@ -840,6 +840,14 @@ async function listCalendarEventsTool(input: Record<string, unknown>): Promise<s
   ).join('\n')}`;
 }
 
+async function deleteCalendarEventTool(input: Record<string, unknown>): Promise<string> {
+  const googleEventId = input['google_event_id'] as string | undefined;
+  if (!googleEventId) return '❌ google_event_id requis';
+  const ok = await deleteCalendarEvent(googleEventId);
+  if (!ok) return `❌ Impossible de supprimer l'événement ${googleEventId}`;
+  return `✅ Événement ${googleEventId} supprimé de Google Agenda`;
+}
+
 async function searchImages(input: Record<string, unknown>): Promise<string> {
   const query       = input['query'] as string;
   const count       = Math.min(Number(input['count'] ?? 4), 10);
