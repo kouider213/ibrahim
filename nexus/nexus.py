@@ -4,6 +4,12 @@ NEXUS — Agent PC Windows
 Canal 3 de Dzaryx · Fik Conciergerie Oran
 Lance: start.bat  ou  python nexus.py
 """
+import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 import asyncio
 import http.server
 import json
