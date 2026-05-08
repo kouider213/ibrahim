@@ -29,9 +29,11 @@ SCREEN_SYSTEM = (
 class VisionModule:
     def __init__(self, app) -> None:
         self.app = app
-        self._live        = False   # stream → GUI WebSocket (app mobile)
-        self._live_window = False   # stream → fenêtre Windows cv2
-        self._thread: threading.Thread | None = None
+        self._live        = False   # caméra → app mobile (GUI WebSocket)
+        self._live_window = False   # caméra → fenêtre Windows cv2
+        self._live_screen = False   # écran PC → app mobile en direct
+        self._thread:        threading.Thread | None = None   # thread capture caméra
+        self._screen_thread: threading.Thread | None = None   # thread capture écran
         self._client = None
         self._setup_claude()
 
@@ -163,37 +165,109 @@ class VisionModule:
             log.error('Screen Vision API error: %s', e)
             return f'Erreur vision écran: {e}'
 
-    # ── Flux live — thread unique, deux sorties possibles ───────────────────
-    #   _live        = True → envoie frames à l'app mobile via GUI WebSocket
-    #   _live_window = True → affiche fenêtre Windows cv2 sur le bureau PC
+    # ════════════════════════════════════════════════════════════════════════
+    #  CAMÉRA LIVE — thread unique, 3 sorties indépendantes
+    #   _live        → stream caméra vers app mobile  (GUI WebSocket)
+    #   _live_window → stream caméra vers fenêtre Windows cv2
     #   Les deux peuvent être True simultanément (une seule capture caméra)
+    # ════════════════════════════════════════════════════════════════════════
 
     def start_live(self) -> str:
-        """Active le stream vers l'app mobile (GUI WebSocket)."""
+        """Caméra → app mobile uniquement."""
         self._live = True
         self._ensure_capture_thread()
-        return "✅ Caméra activée (stream app)"
+        return "✅ Caméra live — app mobile activée"
 
     def start_live_window(self) -> str:
-        """Ouvre une fenêtre Windows avec le flux caméra en direct sur le PC."""
+        """Caméra → fenêtre Windows sur le PC uniquement."""
         self._live_window = True
         self._ensure_capture_thread()
-        return "✅ Fenêtre live ouverte sur le PC"
+        return "✅ Caméra live — fenêtre PC ouverte"
+
+    def start_live_both(self) -> str:
+        """Caméra → app mobile ET fenêtre PC simultanément."""
+        self._live        = True
+        self._live_window = True
+        self._ensure_capture_thread()
+        return "✅ Caméra live — app mobile + fenêtre PC activées"
 
     def stop_live(self) -> str:
         self._live = False
-        if not self._live_window:
-            log.info('Caméra arrêtée (plus aucun output actif)')
-        return "✅ Stream app désactivé"
+        return "✅ Stream caméra app désactivé"
 
     def stop_live_window(self) -> str:
         self._live_window = False
-        return "✅ Fenêtre caméra fermée"
+        return "✅ Fenêtre caméra PC fermée"
 
     def stop_all_live(self) -> str:
-        self._live = False
-        self._live_window = False
-        return "✅ Caméra désactivée"
+        self._live = self._live_window = self._live_screen = False
+        return "✅ Toutes les visions désactivées"
+
+    def is_live(self) -> bool:
+        return self._live or self._live_window or self._live_screen
+
+    # ════════════════════════════════════════════════════════════════════════
+    #  ÉCRAN PC EN DIRECT — thread indépendant
+    #   Capture l'écran Windows et le streame vers l'app mobile (~2 fps)
+    #   Permet de voir en temps réel ce qui se passe sur le PC
+    # ════════════════════════════════════════════════════════════════════════
+
+    def start_screen_live(self) -> str:
+        """Stream l'écran du PC vers l'app mobile en direct."""
+        self._live_screen = True
+        self._ensure_screen_thread()
+        return "✅ Vision écran PC activée — l'app affiche ton bureau en direct"
+
+    def stop_screen_live(self) -> str:
+        self._live_screen = False
+        return "✅ Vision écran PC arrêtée"
+
+    def is_screen_live(self) -> bool:
+        return self._live_screen
+
+    def _ensure_screen_thread(self) -> None:
+        if self._screen_thread and self._screen_thread.is_alive():
+            return
+        self._screen_thread = threading.Thread(target=self._screen_live_loop, daemon=True)
+        self._screen_thread.start()
+
+    def _screen_live_loop(self) -> None:
+        try:
+            import mss
+            import cv2
+            import numpy as np
+        except ImportError as e:
+            log.error('Dépendance manquante pour screen live: %s', e)
+            self._live_screen = False
+            return
+
+        log.info('Screen live stream démarré')
+        with mss.mss() as sct:
+            while self._live_screen:
+                try:
+                    mon   = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
+                    shot  = sct.grab(mon)
+                    img   = np.array(shot)[:, :, :3]  # BGRA → BGR
+                    h, w  = img.shape[:2]
+                    if w > 1280:
+                        img = cv2.resize(img, (1280, int(h * 1280 / w)))
+                    _, buf = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 55])
+                    b64 = base64.b64encode(buf).decode()
+                    if self.app.loop:
+                        asyncio.run_coroutine_threadsafe(
+                            self.app.gui_send({'type': 'screen_frame', 'data': b64}),
+                            self.app.loop,
+                        )
+                except Exception as e:
+                    log.error('Screen live error: %s', e)
+                time.sleep(0.5)  # ~2 fps
+
+        if self.app.loop:
+            asyncio.run_coroutine_threadsafe(
+                self.app.gui_send({'type': 'screen_frame', 'data': None}),
+                self.app.loop,
+            )
+        log.info('Screen live stream arrêté')
 
     def is_live(self) -> bool:
         return self._live or self._live_window

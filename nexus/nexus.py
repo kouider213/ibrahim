@@ -62,9 +62,16 @@ _PAUSE_RE      = re.compile(r'\b(pause|stop\s+la\s+musique|coupe\s+le\s+son)\b',
 _NEXT_RE       = re.compile(r'\b(suivant|next|prochaine?\s+chanson)\b', re.I)
 _PREV_RE       = re.compile(r'\b(pr[eé]c[eé]dent|previous|chanson\s+d\'?avant)\b', re.I)
 
-_CAMERA_RE     = re.compile(r'\b(regarde[\s-]?moi|active\s+la\s+cam[eé]ra?|ouvre\s+la\s+cam|cam[eé]ra?\s+on|que\s+vois[\s-]?tu|que\s+tu\s+vois|vois[\s-]?tu)\b', re.I)
-_CAMERA_OFF_RE = re.compile(r'\b(cam[eé]ra?\s+off|ferme\s+la\s+cam|stop\s+cam|d[eé]sactive\s+la\s+cam)\b', re.I)
-_CAMERA_PC_RE  = re.compile(r'\b((?:active|ouvre?|mets?|affiche?|lance?)\s+(?:le\s+)?live\s+(?:aussi\s+)?sur\s+(?:le\s+)?pc|live\s+(?:sur\s+(?:le\s+)?pc|fen[eê]tre)|cam[eé]ra?\s+(?:sur\s+(?:le\s+)?pc|fen[eê]tre))\b', re.I)
+_CAMERA_OFF_RE   = re.compile(r'\b(cam[eé]ra?\s+off|ferme\s+la\s+cam|stop\s+(?:cam|live|tout)|d[eé]sactive\s+(?:la\s+cam|tout|les\s+visions?))\b', re.I)
+# Caméra → app mobile uniquement
+_CAM_PHONE_RE    = re.compile(r'\b(cam[eé]ra?\s+(?:t[eé]l[eé]?|app|mobile)|live\s+(?:t[eé]l[eé]?|(?:sur\s+)?l[a\']app|sur\s+(?:le\s+)?t[eé]l)|juste\s+(?:sur\s+)?l[a\']app|uniquement\s+(?:sur\s+)?(?:le\s+)?t[eé]l)\b', re.I)
+# Caméra → PC/fenêtre uniquement
+_CAM_PC_RE       = re.compile(r'\b(cam[eé]ra?\s+(?:pc|fen[eê]tre|(?:sur\s+)?l[e\']?\s*[eé]cran\s*pc)|live\s+(?:sur\s+(?:le\s+)?pc|fen[eê]tre)|(?:active|ouvre?|mets?|affiche?|lance?)\s+(?:le\s+)?live\s+(?:(?:aussi\s+)?sur\s+(?:le\s+)?pc|fen[eê]tre))\b', re.I)
+# Caméra → les deux (app + PC)
+_CAMERA_RE       = re.compile(r'\b(regarde[\s-]?moi|active\s+la\s+cam[eé]ra?|ouvre\s+la\s+cam|cam[eé]ra?\s+on|que\s+vois[\s-]?tu|que\s+tu\s+vois|vois[\s-]?tu|cam[eé]ra?\s+(?:les\s+deux|app\s+et\s+pc))\b', re.I)
+# Écran PC en live (stream bureau)
+_SCREEN_LIVE_RE  = re.compile(r'\b((?:active|lance?|d[eé]marre?|montre?|stream)\s+(?:le?\s+)?(?:live\s+)?[eé]cran\s*(?:en\s+(?:live|direct))?|live\s+[eé]cran|stream\s*[eé]cran|vois?\s+(?:mon\s+)?[eé]cran\s+en\s+(?:live|direct)|regarde?\s+(?:mon\s+)?[eé]cran\s+en\s+(?:live|direct))\b', re.I)
+_SCREEN_OFF_RE   = re.compile(r'\b(stop\s+[eé]cran|arr[eê]te?\s+(?:le\s+)?(?:live\s+|stream\s+)?[eé]cran|d[eé]sactive?\s+(?:le\s+)?(?:stream|vision|live)\s+[eé]cran)\b', re.I)
 _VISION_RE     = re.compile(
     r"\b(qu[e']\s+vois[\s-]?tu"
     r"|d[eé]cris\s+ce\s+que"
@@ -242,35 +249,74 @@ class NexusApp:
             await self.journal(f'🎵 Musique: {query}')
             return
 
-        # ── 3. Caméra / Vision ───────────────────────────────────────────────
+        # ── 3. Caméra / Vision / Écran ──────────────────────────────────────────
+
+        # Stop tout
         if _CAMERA_OFF_RE.search(tl):
             r = self.vision.stop_all_live()
             if source == 'nexus':
                 await self.speak(r)
-            return
-
-        # "active le live sur le pc" → fenêtre Windows sans stopper le stream app
-        if _CAMERA_PC_RE.search(tl):
-            result = self.vision.start_live_window()
-            reply  = f'✅ {result}'
-            if source == 'nexus':
-                await self.speak(reply)
             else:
-                await self.ws.journal(reply)
-            await self.journal('🖥️ Live caméra → PC')
+                await self.ws.journal(r)
             return
 
-        if _CAMERA_RE.search(tl):
-            # Ouvre fenêtre Windows + stream app en même temps + décrit
+        # Stop écran live seulement
+        if _SCREEN_OFF_RE.search(tl):
+            r = self.vision.stop_screen_live()
+            if source == 'nexus':
+                await self.speak(r)
+            else:
+                await self.ws.journal(r)
+            return
+
+        # Écran PC en live → app mobile
+        if _SCREEN_LIVE_RE.search(tl):
+            r = self.vision.start_screen_live()
+            if source == 'nexus':
+                await self.speak(r)
+            else:
+                await self.ws.journal(r)
+            await self.journal('🖥️ Stream écran PC → app')
+            return
+
+        # Caméra → téléphone/app uniquement
+        if _CAM_PHONE_RE.search(tl):
             await self.gui_send({'type': 'thinking', 'active': True})
-            self.vision.start_live()
-            self.vision.start_live_window()
-            prompt = re.sub(_CAMERA_RE, '', t).strip() or 'Décris ce que tu vois et salue Kouider.'
-            description = await self.vision.capture_and_describe(prompt)
+            r = self.vision.start_live()
+            prompt = re.sub(_CAM_PHONE_RE, '', t).strip() or 'Décris ce que tu vois.'
+            desc = await self.vision.capture_and_describe(prompt)
             await self.gui_send({'type': 'thinking', 'active': False})
             if source == 'nexus':
-                await self.speak(description)
-            await self.journal('📷 Vision activée (app + PC)')
+                await self.speak(desc)
+            else:
+                await self.ws.journal(f'{r} — {desc}')
+            await self.journal('📱 Caméra → app uniquement')
+            return
+
+        # Caméra → PC/fenêtre uniquement
+        if _CAM_PC_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            r = self.vision.start_live_window()
+            prompt = re.sub(_CAM_PC_RE, '', t).strip() or 'Décris ce que tu vois.'
+            desc = await self.vision.capture_and_describe(prompt)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(desc)
+            else:
+                await self.ws.journal(f'{r} — {desc}')
+            await self.journal('🖥️ Caméra → PC uniquement')
+            return
+
+        # Caméra → app + PC (les deux)
+        if _CAMERA_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            self.vision.start_live_both()
+            prompt = re.sub(_CAMERA_RE, '', t).strip() or 'Décris ce que tu vois et salue Kouider.'
+            desc = await self.vision.capture_and_describe(prompt)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(desc)
+            await self.journal('📷 Caméra → app + PC')
             return
 
         if _VISION_RE.search(tl):
