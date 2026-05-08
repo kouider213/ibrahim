@@ -166,6 +166,8 @@ export async function executeTool(
       // ─── VEILLE CONCURRENTIELLE ───
       case 'analyze_competitors':        return await analyzeCompetitors(input, sessionId ?? '');
       case 'watch_my_tiktok':            return await watchMyTiktok(input);
+      // ─── PHASE 5: MULTI-PLATFORM ───
+      case 'publish_to_socials':         return await publishToSocialsTool(input, sessionId ?? '');
       // ─── CODE AGENT AUTONOME ───
       case 'execute_code_task':          return await executeCodeTaskTool(input, sessionId);
       case 'create_new_project':         return await createNewProjectTool(input, sessionId);
@@ -2243,6 +2245,40 @@ Si les données sont limitées (TikTok bloque souvent les scrapers), dis-le et p
 }
 
 // ════════════════════════════════════════════════════════════════
+// ── Phase 5: publish_to_socials ───────────────────────────────
+
+async function publishToSocialsTool(input: Record<string, unknown>, sessionId: string): Promise<string> {
+  const { getLatestPendingVideo, getPendingVideoById, approveVideo } = await import('../marketing/approval-store.js');
+  const { publishVideo, buildSharePackage }                          = await import('../marketing/social-poster.js');
+
+  const pendingId = input['pending_id'] as string | undefined;
+  const video = pendingId ? getPendingVideoById(pendingId) : getLatestPendingVideo();
+
+  if (!video) return '❌ Aucune vidéo en attente — génère-en une avec `create_marketing_video` d\'abord.';
+
+  approveVideo(video.id);
+
+  const chatId = chatIdFromSession(sessionId);
+  const tiktokConfigured = Boolean(
+    (await import('../config/env.js')).env.TIKTOK_ACCESS_TOKEN &&
+    (await import('../config/env.js')).env.TIKTOK_OPEN_ID,
+  );
+
+  if (tiktokConfigured) {
+    await sendTelegramForMarketing(chatId, `🚀 *Publication multi-plateforme en cours...*\nTikTok + Instagram Reels`).catch(() => {});
+    const result = await publishVideo(video);
+    const reply  = result.success
+      ? `✅ *Publié sur ${result.platform}*\n${result.message}${result.url ? `\n🔗 ${result.url}` : ''}`
+      : `⚠️ *Problème publication:* ${result.message}\n\n${buildSharePackage(video)}`;
+    await sendTelegramForMarketing(chatId, reply).catch(() => {});
+    return reply;
+  }
+
+  const pkg = buildSharePackage(video);
+  await sendTelegramForMarketing(chatId, pkg).catch(() => {});
+  return pkg;
+}
+
 // ── CODE AGENT AUTONOME ───────────────────────────────────────
 // ════════════════════════════════════════════════════════════════
 

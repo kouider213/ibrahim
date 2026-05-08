@@ -311,6 +311,54 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   console.log('[job:tiktok] Weekly marketing job complete');
 }
 
+// ── Phase 5: Mercredi lifestyle + Vendredi prix choc ─────────
+
+async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', label: string): Promise<void> {
+  const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
+  const cars = ((carsRaw ?? []) as Car[]).filter(c => c.image_url);
+
+  if (cars.length === 0) {
+    await tg(`📱 *${label}*: aucune voiture avec photo disponible.`);
+    return;
+  }
+
+  const car = cars[Math.floor(Math.random() * cars.length)];
+  await tg(`🎬 *${label}*\n_Création vidéo ${style} pour ${car.name}..._`);
+
+  const { executeCreateMarketingVideo } = await import('../../marketing/create-marketing-video.js');
+  let result: Awaited<ReturnType<typeof executeCreateMarketingVideo>> | null = null;
+
+  try {
+    result = await executeCreateMarketingVideo(
+      { car_name: car.name, style },
+      ownerChatId(),
+    );
+  } catch (err) {
+    console.error(`[job:${style}] video failed:`, err);
+    await tg(`⚠️ *${label}*: création vidéo échouée. Réessaie manuellement.`);
+    return;
+  }
+
+  await tg([
+    `✅ *${label} — ${result.car_name}*`,
+    ``,
+    `📝 _${result.script}_`,
+    `🏷️ ${result.hashtags.slice(0, 4).join(' ')}`,
+    ``,
+    `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
+  ].join('\n'));
+}
+
+export async function jobWednesdayContent(_job: Job): Promise<void> {
+  console.log('[job:wednesday] Vidéo lifestyle mercredi...');
+  await createWeeklyVideo('lifestyle', '🌅 Contenu Mercredi — Lifestyle');
+}
+
+export async function jobFridayContent(_job: Job): Promise<void> {
+  console.log('[job:friday] Vidéo prix vendredi...');
+  await createWeeklyVideo('prix', '🔥 Contenu Vendredi — Prix Choc');
+}
+
 // ════════════════════════════════════════════════════════════════
 // ── 4. RELANCE CLIENTS IMPAYÉS — PHASE 5 ÉTAPE 3 ─────────────
 // Logique:

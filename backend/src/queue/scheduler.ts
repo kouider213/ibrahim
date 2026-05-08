@@ -5,6 +5,8 @@ import {
   jobEndRentalReminder,
   jobIdleVehicleAlert,
   jobTikTokSuggestion,
+  jobWednesdayContent,
+  jobFridayContent,
   jobUnpaidReminder,
   jobWeeklyReport,
   jobPatternDetection,
@@ -42,7 +44,17 @@ const JOBS = [
   },
   {
     name:  'tiktok-suggestion',
-    cron:  '0 9 * * 1',        // 9h chaque lundi
+    cron:  '0 9 * * 1',        // 9h chaque lundi — reveal/témoignage + rapport marketing
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'wednesday-content',
+    cron:  '0 14 * * 3',       // 14h mercredi — style lifestyle
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'friday-content',
+    cron:  '0 18 * * 5',       // 18h vendredi — style prix choc
     tz:    'Africa/Algiers',
   },
   {
@@ -103,6 +115,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'end-rental-reminder':      jobEndRentalReminder,
   'idle-vehicle-alert':       jobIdleVehicleAlert,
   'tiktok-suggestion':        jobTikTokSuggestion,
+  'wednesday-content':        jobWednesdayContent,
+  'friday-content':           jobFridayContent,
   'unpaid-reminder':          jobUnpaidReminder,
   'weekly-report':            jobWeeklyReport,
   'pattern-detection':        jobPatternDetection,
@@ -190,8 +204,8 @@ export async function initScheduler(): Promise<void> {
 
 // Manual trigger (for testing/admin)
 export async function triggerJob(jobName: string): Promise<boolean> {
-  const valid = JOBS.map(j => j.name);
-  if (!valid.includes(jobName as typeof valid[number])) return false;
+  const valid = JOBS.map(j => j.name) as string[];
+  if (!valid.includes(jobName)) return false;
   await schedulerQueue.add(jobName, {}, { priority: 1 });
   return true;
 }

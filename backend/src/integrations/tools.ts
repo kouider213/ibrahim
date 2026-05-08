@@ -893,6 +893,18 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ── Phase 5: Publication multi-plateforme ─────────────────────
+  {
+    name: 'publish_to_socials',
+    description: 'Publier une vidéo validée sur TikTok + Instagram Reels en même temps. Utiliser quand Kouider dit "publie la vidéo", "poste sur TikTok et Instagram", "publie sur tous les réseaux", "partage la dernière vidéo". Si pending_id est vide, utilise la dernière vidéo en attente.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        pending_id: { type: 'string', description: 'ID de la vidéo à publier (optionnel — utilise la dernière par défaut)' },
+      },
+    },
+  },
+
   // ─── CODE AGENT AUTONOME ─────────────────────────────────────
   {
     name: 'execute_code_task',

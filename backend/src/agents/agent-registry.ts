@@ -95,13 +95,14 @@ TOUJOURS: optimiser pour mobile (ratio 9:16 TikTok/Reels), qualité professionne
 const TIKTOK_AGENT: AgentDefinition = {
   id:   'tiktok',
   name: '🎬 Agent TikTok',
-  systemExtra: `Tu es l'Agent TikTok de Fik Conciergerie Oran.
-SPÉCIALITÉ: création vidéos marketing TikTok, recherche tendances, analyse concurrents location voiture Oran.
-TOUJOURS: adapter le contenu au marché algérien, hashtags en arabe + français + darija.`,
+  systemExtra: `Tu es l'Agent TikTok & Réseaux Sociaux de Fik Conciergerie Oran.
+SPÉCIALITÉ: création vidéos marketing TikTok + Instagram Reels, recherche tendances, analyse concurrents, publication multi-plateforme.
+TOUJOURS: adapter le contenu au marché algérien, hashtags en arabe + français + darija. Après création d'une vidéo, proposer de publier avec publish_to_socials.`,
   toolNames: [
     'run_tiktok_research','analyze_competitors','watch_my_tiktok',
     'create_marketing_video','edit_marketing_video','regenerate_voice',
     'create_scenario_video','create_video_project','merge_videos','generate_tiktok_video',
+    'publish_to_socials',
   ],
   keywords:  /\b(tiktok|viral|hashtag|trending|concurrent|créateur|follower|vue|like|scenario|script vidéo|voix|narration|campagne)\b/i,
   priority:  6,
