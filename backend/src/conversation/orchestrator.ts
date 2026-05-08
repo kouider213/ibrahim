@@ -3,7 +3,7 @@ import { guardResponse, applyScopeGuard }        from './response-guard.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
-import { classifyRequest, callGroq, callOpenAI, isOpenAIAvailable } from '../integrations/llm-router.js';
+import { classifyRequest, callGroq, callGemini, callOpenAI, isOpenAIAvailable, isGeminiAvailable } from '../integrations/llm-router.js';
 import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 
@@ -104,11 +104,16 @@ export async function processMessage(
   const route = classifyRequest(userMessage, !!imageBase64, ctx.messages.length);
   console.log(`[router] provider=${route.provider} reason="${route.reason}" fallback=${route.fallback}`);
 
-  // ── Fast path: Groq (simple queries, no tools) ────────────────────────────
-  if (route.fastPath && route.provider === 'groq') {
+  // ── Fast path: Groq or Gemini (no agentic loop) ───────────────────────────
+  if (route.fastPath && (route.provider === 'groq' || route.provider === 'gemini')) {
     try {
-      const groqText = await callGroq(userMessage, ctx.systemExtra);
-      const safeText = guardResponse(groqText, userMessage, requestId);
+      let fastText: string;
+      if (route.provider === 'groq') {
+        fastText = await callGroq(userMessage, ctx.systemExtra);
+      } else {
+        fastText = await callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime);
+      }
+      const safeText = guardResponse(fastText, userMessage, requestId);
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
       saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
       if (!textOnly && safeText.length > 0) {
@@ -118,8 +123,8 @@ export async function processMessage(
       }
       _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
       return { text: safeText, status: 'done' };
-    } catch (groqErr) {
-      console.warn(`[router] Groq failed (${groqErr instanceof Error ? groqErr.message : groqErr}) — falling back to Claude`);
+    } catch (fastErr) {
+      console.warn(`[router] ${route.provider} failed (${fastErr instanceof Error ? fastErr.message : fastErr}) — falling back to Claude`);
       // Fall through to Claude below
     }
   }
@@ -151,16 +156,21 @@ export async function processMessage(
   } catch (claudeErr) {
     console.error(`[orch:${requestId}] Claude failed:`, claudeErr);
 
-    // ── OpenAI fallback ────────────────────────────────────────────────────
-    if (isOpenAIAvailable()) {
-      console.warn('[router] Attempting OpenAI GPT-4o fallback…');
+    // ── Fallback chain: OpenAI → Gemini ───────────────────────────────────
+    const plainMessages = ctx.messages.map(m => ({
+      role:    m.role as 'user' | 'assistant',
+      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+    }));
+
+    const fallbackProviders: Array<{ name: string; fn: () => Promise<string> }> = [];
+    if (isOpenAIAvailable()) fallbackProviders.push({ name: 'OpenAI GPT-4o', fn: () => callOpenAI(plainMessages, ctx.systemExtra) });
+    if (isGeminiAvailable()) fallbackProviders.push({ name: 'Gemini Flash', fn: () => callGemini(userMessage, ctx.systemExtra) });
+
+    for (const fb of fallbackProviders) {
+      console.warn(`[router] Attempting ${fb.name} fallback…`);
       try {
-        const plainMessages = ctx.messages.map(m => ({
-          role:    m.role as 'user' | 'assistant',
-          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-        }));
-        const fallbackText = await callOpenAI(plainMessages, ctx.systemExtra);
-        const safeText = guardResponse(fallbackText, userMessage, requestId);
+        const fallbackText = await fb.fn();
+        const safeText     = guardResponse(fallbackText, userMessage, requestId);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
         if (!textOnly && safeText.length > 0) {
@@ -170,8 +180,8 @@ export async function processMessage(
         }
         _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
         return { text: safeText, status: 'done' };
-      } catch (openaiErr) {
-        console.error('[router] OpenAI fallback also failed:', openaiErr);
+      } catch (fbErr) {
+        console.error(`[router] ${fb.name} fallback failed:`, fbErr);
       }
     }
 
