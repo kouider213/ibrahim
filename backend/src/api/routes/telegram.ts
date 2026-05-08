@@ -77,7 +77,7 @@ const STORE_KEYWORDS = /passport|passeport|permis|license|licence|contrat|contra
 router.post('/webhook', async (req, res) => {
   // Verify Telegram secret token to reject forged requests
   const incoming = req.headers['x-telegram-bot-api-secret-token'] as string | undefined;
-  if (incoming !== env.WEBHOOK_SECRET) {
+  if (!env.WEBHOOK_SECRET || incoming !== env.WEBHOOK_SECRET) {
     res.sendStatus(403);
     return;
   }

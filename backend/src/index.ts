@@ -41,6 +41,26 @@ import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
 import { initNexusRelay } from './actions/handlers/nexus-relay.js';
 
+// ── Simple in-memory rate limiter ─────────────────────────────
+function makeRateLimiter(maxReqs: number, windowMs: number) {
+  const hits = new Map<string, { count: number; reset: number }>();
+  return function rateLimiter(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const key = (req.headers['x-forwarded-for'] as string ?? req.ip ?? 'unknown').split(',')[0].trim();
+    const now = Date.now();
+    let entry = hits.get(key);
+    if (!entry || now > entry.reset) { entry = { count: 0, reset: now + windowMs }; hits.set(key, entry); }
+    entry.count++;
+    if (entry.count > maxReqs) {
+      res.setHeader('Retry-After', String(Math.ceil((entry.reset - now) / 1000)));
+      res.status(429).json({ error: 'Too many requests' });
+      return;
+    }
+    next();
+  };
+}
+const apiLimiter  = makeRateLimiter(120, 60_000); // 120 req/min general
+const chatLimiter = makeRateLimiter(20,  60_000); // 20  req/min on /api/chat
+
 // ── Express setup ─────────────────────────────────────────────
 const app    = express();
 const server = http.createServer(app);
@@ -132,25 +152,25 @@ app.get('/test_ai', async (_req, res) => {
 });
 
 // API routes
-app.use('/api/chat',          chatRoutes);
-app.use('/api/tasks',         tasksRoutes);
-app.use('/api/validations',   validationsRoutes);
-app.use('/api/notifications', notificationsRoutes);
+app.use('/api/chat',          chatLimiter, chatRoutes);
+app.use('/api/tasks',         apiLimiter, tasksRoutes);
+app.use('/api/validations',   apiLimiter, validationsRoutes);
+app.use('/api/notifications', apiLimiter, notificationsRoutes);
 app.use('/api/bootstrap',     bootstrapRoutes);
-app.use('/api/calendar',      calendarRoutes);
-app.use('/api/clients',       clientsRoutes);
-app.use('/api/bookings',      bookingsRoutes);
-app.use('/api/weather',       weatherRoutes);
-app.use('/api/siri',          siriRoutes);
-app.use('/api/github',        githubRoutes);
-app.use('/api/whatsapp',      whatsappRoutes);
-app.use('/api/scheduler',     schedulerRoutes);
-app.use('/api/widget',        widgetRoutes);
-app.use('/api/finance',       financeRoutes);
-app.use('/api/documents',     documentsRoutes);
+app.use('/api/calendar',      apiLimiter, calendarRoutes);
+app.use('/api/clients',       apiLimiter, clientsRoutes);
+app.use('/api/bookings',      apiLimiter, bookingsRoutes);
+app.use('/api/weather',       apiLimiter, weatherRoutes);
+app.use('/api/siri',          apiLimiter, siriRoutes);
+app.use('/api/github',        apiLimiter, githubRoutes);
+app.use('/api/whatsapp',      apiLimiter, whatsappRoutes);
+app.use('/api/scheduler',     apiLimiter, schedulerRoutes);
+app.use('/api/widget',        apiLimiter, widgetRoutes);
+app.use('/api/finance',       apiLimiter, financeRoutes);
+app.use('/api/documents',     apiLimiter, documentsRoutes);
 app.use('/api/telegram',      telegramRoutes);
-app.use('/api/tts',           ttsRoutes);
-app.use('/api/vision',        visionRoutes);
+app.use('/api/tts',           apiLimiter, ttsRoutes);
+app.use('/api/vision',        apiLimiter, visionRoutes);
 
 app.use(errorHandler);
 

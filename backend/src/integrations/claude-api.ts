@@ -235,6 +235,12 @@ export async function chatWithTools(
     content: m.content,
   }));
 
+  // Guard: ignore oversized images (Claude limit ~5 MB decoded ≈ 6.7 MB base64)
+  if (imageBase64 && imageBase64.length > 6_700_000) {
+    console.warn('[vision] Image trop grande (%d chars b64) — ignorée', imageBase64.length);
+    imageBase64 = undefined;
+  }
+
   // Inject live camera frame into the last user message if provided
   if (imageBase64) {
     const mime = (imageMime ?? 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
@@ -272,8 +278,13 @@ export async function chatWithTools(
   const lastText = (processedMessages.at(-1)?.content ?? '').toString().toLowerCase();
   const isCodingTask = /code|fichier|github|modifier|écrire|lire|debug|railway|deploy|typescript|push|commit|programme|script/i.test(lastText);
   const maxRounds = isCodingTask ? 30 : 15;
+  const loopDeadline = Date.now() + 5 * 60_000; // 5 min wall-clock max
 
   for (let round = 0; round < maxRounds; round++) {
+    if (Date.now() > loopDeadline) {
+      console.warn('[claude] ⏱ Wall-clock timeout — agentic loop interrompu après 5 min');
+      break;
+    }
     let response: Awaited<ReturnType<typeof client.messages.create>> | null = null;
     let currentMessages = apiMessages;
 
@@ -419,7 +430,16 @@ export async function chatWithTools(
         }
 
         console.log(`[tools] Executing: ${block.name}`, block.input);
-        const raw     = await executeTool(block.name, block.input as Record<string, unknown>, sid);
+        let raw: string;
+        for (let t = 0; ; t++) {
+          try {
+            raw = await executeTool(block.name, block.input as Record<string, unknown>, sid);
+            break;
+          } catch (toolErr) {
+            if (t >= 2) { raw = `Tool error: ${toolErr instanceof Error ? toolErr.message : String(toolErr)}`; break; }
+            await new Promise(r => setTimeout(r, 1_000 * 2 ** t));
+          }
+        }
         const content = typeof raw === 'string' ? raw : JSON.stringify(raw);
         console.log(`[tools] Result: ${content.slice(0, 200)}`);
 
