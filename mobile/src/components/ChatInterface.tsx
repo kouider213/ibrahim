@@ -207,8 +207,23 @@ export default function ChatInterface() {
   }, []);
 
   // ── Overlay helpers ────────────────────────────────────────────
-  const openOverlay  = useCallback((m: OverlayMode) => setOverlay(m), []);
-  const closeOverlay = useCallback(() => setOverlay('none'), []);
+  const openOverlay = useCallback((m: OverlayMode) => setOverlay(m), []);
+
+  const stopCamera = useCallback(() => {
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach(t => t.stop());
+      videoStreamRef.current = null;
+    }
+    if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
+    setLiveVision(false);
+    setScanMode(false);
+    if (scanIntervalRef.current) { clearInterval(scanIntervalRef.current); scanIntervalRef.current = null; }
+  }, []);
+
+  const closeOverlay = useCallback(() => {
+    stopCamera();
+    setOverlay('none');
+  }, [stopCamera]);
 
   // ── Live camera ────────────────────────────────────────────────
   const startLiveCamera = useCallback(async (e: React.MouseEvent) => {
@@ -282,6 +297,21 @@ export default function ChatInterface() {
     return () => { if (scanIntervalRef.current) { clearInterval(scanIntervalRef.current); scanIntervalRef.current = null; } };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanMode, liveVision, started]);
+
+  // Auto-start camera when Vision overlay opens
+  useEffect(() => {
+    if (overlay === 'camera' && !videoStreamRef.current && navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+      }).then(stream => {
+        videoStreamRef.current = stream;
+        const video = liveVideoRef.current;
+        if (video) { video.srcObject = stream; video.play().catch(() => {}); }
+        setLiveVision(true);
+      }).catch(() => showError('Permission caméra refusée'));
+    }
+    if (overlay !== 'camera') stopCamera();
+  }, [overlay, showError, stopCamera]);
 
   // ── Send message ───────────────────────────────────────────────
   const sendText = useCallback(async (msg: string) => {
@@ -800,22 +830,24 @@ export default function ChatInterface() {
       {/* ── Camera overlay ── */}
       <div className={`dz-overlay dz-cam-overlay${overlay === 'camera' ? ' open' : ''}`} role="dialog" aria-label="Vision IA">
         <div className="dz-cam-header">
-          <button className="dz-cam-back" onClick={closeOverlay}>← RETOUR</button>
+          <button type="button" className="dz-cam-back" onClick={closeOverlay}>← RETOUR</button>
           <span className="dz-cam-title">VISION IA</span>
           <span style={{ width: 80 }} />
         </div>
 
-        <div className="dz-cam-view">
+        <div className={`dz-cam-view${scanning ? ' scanning-active' : ''}`}>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video
             ref={liveVideoRef}
             autoPlay playsInline muted
             className={`dz-live-vid${liveVision ? ' on' : ''}`}
           />
+          {liveVision && <div className="dz-cam-scanline" />}
           {!liveVision && (
             <div className="dz-cam-empty">
               <span className="dz-cam-empty-ico">◉</span>
-              <span className="dz-cam-empty-txt">CAMÉRA INACTIVE</span>
+              <span className="dz-cam-empty-txt">ACTIVATION EN COURS...</span>
+              <span className="dz-cam-empty-hint">AUTORISER L'ACCÈS CAMÉRA</span>
             </div>
           )}
           {scanResult && liveVision && (
@@ -830,27 +862,33 @@ export default function ChatInterface() {
           )}
         </div>
 
+        <div className="dz-cam-status">
+          <span className={`dz-cam-status-dot${liveVision ? ' live' : ''}`} />
+          <span>{liveVision ? (scanning ? 'ANALYSE EN COURS' : 'CAMÉRA ACTIVE') : 'EN ATTENTE'}</span>
+        </div>
+
         <div className="dz-cam-actions">
           <button
-            className={`dz-cam-btn${liveVision ? ' danger' : ' primary'}`}
+            type="button"
+            className={`dz-cam-btn${liveVision ? ' danger' : ''}`}
             onClick={startLiveCamera}
           >
             <span className="dz-cam-btn-ico">{liveVision ? '⏹' : '◉'}</span>
             <span className="dz-cam-btn-lbl">{liveVision ? 'STOP' : 'LIVE'}</span>
           </button>
 
-          {liveVision && (
-            <button
-              className={`dz-cam-btn${scanMode ? ' primary' : ''}`}
-              onClick={scanMode ? toggleScanMode : (e) => { e.stopPropagation(); void handleScan(); }}
-              onDoubleClick={toggleScanMode}
-            >
-              <span className="dz-cam-btn-ico">{scanning ? '⟳' : '👁'}</span>
-              <span className="dz-cam-btn-lbl">{scanning ? 'SCAN...' : scanMode ? 'AUTO ON' : 'SCANNER'}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className={`dz-cam-btn${scanning ? ' active' : scanMode ? ' active' : ''}`}
+            onClick={scanMode ? toggleScanMode : (e) => { e.stopPropagation(); void handleScan(); }}
+            onDoubleClick={toggleScanMode}
+            disabled={!liveVision}
+          >
+            <span className="dz-cam-btn-ico">{scanning ? '⟳' : '👁'}</span>
+            <span className="dz-cam-btn-lbl">{scanning ? 'SCAN...' : scanMode ? 'AUTO ON' : 'SCANNER'}</span>
+          </button>
 
-          <label className={`dz-cam-btn${analyzing ? '' : pendingPhotoRef.current ? ' primary' : ''}`}>
+          <label className={`dz-cam-btn${analyzing ? ' active' : pendingPhotoRef.current ? ' active' : ''}`}>
             <span className="dz-cam-btn-ico">{analyzing ? '⏳' : pendingPhotoRef.current ? '✅' : '📷'}</span>
             <span className="dz-cam-btn-lbl">{analyzing ? 'LECTURE...' : pendingPhotoRef.current ? 'PRÊTE' : 'PHOTO'}</span>
             <input
