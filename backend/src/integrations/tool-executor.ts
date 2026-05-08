@@ -1,5 +1,5 @@
 ﻿import { supabase } from './supabase.js';
-import { createCalendarEvent, syncPendingBookings, listUpcomingEvents } from './google-calendar.js';
+import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
