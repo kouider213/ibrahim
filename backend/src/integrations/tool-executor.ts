@@ -2265,7 +2265,7 @@ async function publishToSocialsTool(input: Record<string, unknown>, sessionId: s
   );
 
   if (tiktokConfigured) {
-    await sendTelegramForMarketing(chatId, `🚀 *Publication multi-plateforme en cours...*\nTikTok + Instagram Reels`).catch(() => {});
+    await sendTelegramForMarketing(chatId, `🚀 *Publication TikTok en cours...*`).catch(() => {});
     const result = await publishVideo(video);
     const reply  = result.success
       ? `✅ *Publié sur ${result.platform}*\n${result.message}${result.url ? `\n🔗 ${result.url}` : ''}`

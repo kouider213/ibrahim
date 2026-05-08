@@ -39,9 +39,6 @@ const envSchema = z.object({
   // ── TikTok Content Posting API ──
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_OPEN_ID:      z.string().optional(),
-  // ── Instagram Graph API (Reels auto-posting) ──
-  INSTAGRAM_USER_ID:      z.string().optional(),   // ID numérique du compte Instagram
-  INSTAGRAM_ACCESS_TOKEN: z.string().optional(),   // Long-lived token Meta Graph API
   // ── AI Generation APIs ───────────────────────────────────────────────────
   // ── Kling AI — Génération vidéo IA depuis image ──
   KLING_API_KEY:       z.string().optional(),

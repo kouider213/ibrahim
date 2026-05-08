@@ -72,7 +72,7 @@ const TOOL_LABELS: Record<string, string> = {
   extract_thumbnail:    '🖼️ Extraction miniature…',
   add_background_music: '🎵 Ajout musique…',
   create_video_preview: '🎬 Création aperçu vidéo…',
-  publish_to_socials:   '🚀 Publication TikTok + Instagram…',
+  publish_to_socials:   '🚀 Publication TikTok…',
 };
 
 function getToolLabel(toolName: string): string {

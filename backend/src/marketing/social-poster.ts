@@ -2,72 +2,6 @@ import axios from 'axios';
 import { env } from '../config/env.js';
 import type { PendingVideo } from './approval-store.js';
 
-// ── Instagram Reels posting (Graph API) ──────────────────────
-
-async function postToInstagramReels(video: PendingVideo): Promise<PostResult> {
-  const userId = env.INSTAGRAM_USER_ID;
-  const token  = env.INSTAGRAM_ACCESS_TOKEN;
-
-  if (!userId || !token) {
-    return { platform: 'instagram', success: false, message: 'Instagram non configuré — clés manquantes' };
-  }
-  if (!video.video_url?.startsWith('http')) {
-    return { platform: 'instagram', success: false, message: 'URL vidéo non publique — Instagram Reels impossible' };
-  }
-
-  const caption = `${video.caption}\n\n${video.hashtags.join(' ')}`.slice(0, 2200);
-  const BASE = 'https://graph.facebook.com/v19.0';
-
-  try {
-    // Step 1: Create Reels container
-    const { data: container } = await axios.post<{ id: string }>(
-      `${BASE}/${userId}/media`,
-      null,
-      {
-        params: {
-          media_type:  'REELS',
-          video_url:   video.video_url,
-          caption,
-          access_token: token,
-        },
-        timeout: 20_000,
-      },
-    );
-    const containerId = container.id;
-
-    // Step 2: Poll until container ready (max ~100s)
-    for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 5_000));
-      const { data: status } = await axios.get<{ status_code: string }>(
-        `${BASE}/${containerId}`,
-        { params: { fields: 'status_code', access_token: token }, timeout: 10_000 },
-      );
-      if (status.status_code === 'FINISHED') break;
-      if (status.status_code === 'ERROR') throw new Error('Container Instagram — statut ERROR');
-    }
-
-    // Step 3: Publish
-    const { data: pub } = await axios.post<{ id: string }>(
-      `${BASE}/${userId}/media_publish`,
-      null,
-      { params: { creation_id: containerId, access_token: token }, timeout: 15_000 },
-    );
-
-    return {
-      platform: 'instagram',
-      success:  true,
-      post_id:  pub.id,
-      message:  `✅ Reel Instagram publié !`,
-    };
-  } catch (err) {
-    return {
-      platform: 'instagram',
-      success:  false,
-      message:  `❌ Instagram API: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-}
-
 export interface PostResult {
   platform: string;
   success:  boolean;
@@ -182,23 +116,8 @@ export function buildSharePackage(video: PendingVideo): string {
   ].join('\n');
 }
 
-// ── Publish to all configured platforms ──────────────────────
+// ── Publish (TikTok API si configuré, sinon package manuel) ──
 
 export async function publishVideo(video: PendingVideo): Promise<PostResult> {
-  const tiktok = await postToTikTokDirect(video);
-
-  // Instagram Reels en parallèle si configuré + URL publique disponible
-  if (env.INSTAGRAM_USER_ID && env.INSTAGRAM_ACCESS_TOKEN && video.video_url?.startsWith('http')) {
-    const ig = await postToInstagramReels(video);
-    const parts = [tiktok.message, ig.success ? ig.message : `⚠️ IG: ${ig.message}`];
-    return {
-      platform: tiktok.success || ig.success ? 'tiktok+instagram' : 'none',
-      success:  tiktok.success || ig.success,
-      post_id:  tiktok.post_id ?? ig.post_id,
-      url:      tiktok.url,
-      message:  parts.join('\n'),
-    };
-  }
-
-  return tiktok;
+  return postToTikTokDirect(video);
 }
