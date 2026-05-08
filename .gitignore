@@ -4,3 +4,6 @@ mobile/.env.local
 */node_modules/
 */dist/
 .netlify/
+**/__pycache__/
+**/*.pyc
+nexus/.deps_ok

@@ -12,11 +12,24 @@ echo  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚
 echo  AGENT PC ^| FIK CONCIERGERIE ^| ORAN
 echo.
 
-REM Vérifie Python
+REM Trouve Python (PATH ou chemins connus)
+set PYTHON=python
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ERREUR: Python non trouvé. Installe Python 3.11+
-    pause & exit /b 1
+    if exist "%LOCALAPPDATA%\Python\bin\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Python\bin\python.exe
+    ) else if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Programs\Python\Python311\python.exe
+    ) else if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Programs\Python\Python312\python.exe
+    ) else if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Programs\Python\Python313\python.exe
+    ) else if exist "C:\Python311\python.exe" (
+        set PYTHON=C:\Python311\python.exe
+    ) else (
+        echo ERREUR: Python non trouve. Installe Python 3.11+
+        pause & exit /b 1
+    )
 )
 
 REM Vérifie .env
@@ -29,15 +42,15 @@ if not exist ".env" (
 REM Installe les dépendances si nécessaire
 if not exist ".deps_ok" (
     echo Installation des dependances...
-    pip install -r requirements.txt
+    %PYTHON% -m pip install -r requirements.txt
     if errorlevel 1 ( echo ERREUR installation & pause & exit /b 1 )
     echo Installation pyaudio ^(optionnel - micro^)...
-    pip install pyaudio >nul 2>&1 || echo pyaudio non installe - micro desactive, tout le reste fonctionne.
+    %PYTHON% -m pip install pyaudio >nul 2>&1 || echo pyaudio non installe - micro desactive, tout le reste fonctionne.
     echo. > .deps_ok
     echo Dependances installees.
 )
 
 echo Lancement de NEXUS...
 echo.
-python nexus.py
+%PYTHON% nexus.py
 pause
