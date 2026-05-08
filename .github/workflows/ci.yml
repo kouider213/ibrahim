@@ -1,0 +1,52 @@
+name: CI — TypeScript check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  typecheck-backend:
+    name: Backend TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: backend
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+        working-directory: backend
+
+  typecheck-mobile:
+    name: Mobile TypeScript + Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: mobile
+
+      - name: TypeScript + Build
+        run: npm run build
+        working-directory: mobile
+        env:
+          VITE_BACKEND_URL: https://ibrahim-backend-production.up.railway.app
+          VITE_WS_URL: wss://ibrahim-backend-production.up.railway.app
+          VITE_ACCESS_TOKEN: dummy-ci-token
