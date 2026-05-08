@@ -95,7 +95,7 @@ class NexusWSClient:
         if not self._connected or not self._sio:
             return "Je suis hors ligne — backend Dzaryx inaccessible."
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
 
         def ack(data):
@@ -119,3 +119,23 @@ class NexusWSClient:
                 await self._sio.emit('nexus:journal', {'text': message}, namespace='/nexus')
             except Exception:
                 pass
+
+    async def send_photo_telegram(self, file_path: str, caption: str = '') -> bool:
+        """Envoie une photo via le backend (nexus:telegram_photo event)."""
+        if not self._connected or not self._sio:
+            log.warning('send_photo_telegram: backend non connecté')
+            return False
+        import base64
+        try:
+            with open(file_path, 'rb') as f:
+                b64 = base64.b64encode(f.read()).decode()
+            await self._sio.emit(
+                'nexus:telegram_photo',
+                {'image': b64, 'caption': caption or '📸 Screenshot NEXUS'},
+                namespace='/nexus',
+            )
+            log.info('Photo envoyée au backend pour Telegram (%d chars b64)', len(b64))
+            return True
+        except Exception as e:
+            log.error('send_photo_telegram error: %s', e)
+            return False

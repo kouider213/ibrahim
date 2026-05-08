@@ -41,7 +41,7 @@ class VoiceModule:
     async def speak(self, text: str) -> None:
         if not text:
             return
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._speak_sync, text)
 
     def _speak_sync(self, text: str) -> None:

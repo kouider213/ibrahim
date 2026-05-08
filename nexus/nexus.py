@@ -13,6 +13,7 @@ import re
 import socketserver
 import subprocess
 import threading
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -32,6 +33,7 @@ from modules.night_watch      import NightWatch
 from modules.vision           import VisionModule
 from modules.music            import MusicController
 from modules.auto_unlock      import save_password, unlock_pc, is_configured
+from modules.tiktok           import TikTokAnalyzer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,7 +56,13 @@ _PREV_RE       = re.compile(r'\b(pr[eé]c[eé]dent|previous|chanson\s+d\'?avant)
 
 _CAMERA_RE     = re.compile(r'\b(regarde[\s-]?moi|active\s+la\s+cam[eé]ra?|ouvre\s+la\s+cam|cam[eé]ra?\s+on|que\s+vois[\s-]?tu|que\s+tu\s+vois|vois[\s-]?tu)\b', re.I)
 _CAMERA_OFF_RE = re.compile(r'\b(cam[eé]ra?\s+off|ferme\s+la\s+cam|stop\s+cam|d[eé]sactive\s+la\s+cam)\b', re.I)
-_VISION_RE     = re.compile(r'\b(qu[''e]\s+vois[\s-]?tu|d[eé]cris\s+ce\s+que|analyse\s+(ce\s+que\s+tu\s+vois|l[''a]\s[eé]cran)|regarde\s+(ça|cela|l[''a]\s[eé]cran))\b', re.I)
+_VISION_RE     = re.compile(
+    r"\b(qu[e']\s+vois[\s-]?tu"
+    r"|d[eé]cris\s+ce\s+que"
+    r"|analyse\s+(?:ce\s+que\s+tu\s+vois|l[a']\s[eé]cran)"
+    r"|regarde\s+(?:ça|cela|l[a']\s[eé]cran))\b",
+    re.I,
+)
 
 _UNLOCK_RE     = re.compile(r'\b(d[eé]verrouille|unlock|ouvre\s+le\s+pc|mot\s+de\s+passe\s+windows)\b', re.I)
 _SAVE_PASS_RE  = re.compile(r'\b(enregistre\s+(mon\s+)?mot\s+de\s+passe|sauvegarde\s+(mon\s+)?mot\s+de\s+passe)\b', re.I)
@@ -63,9 +71,10 @@ _BRIEFING_RE   = re.compile(r'\b(briefing|rapport\s+(du\s+)?matin|r[eé]sum[eé]
 _AGENT_RE      = re.compile(r'\b(strat[eè]ge?|agent\s+dev|agent\s+design|agent\s+anal|agent\s+market|agent\s+supervis|agent\s+architect)\b', re.I)
 _CLAUDE_RE     = re.compile(r'\b(claude\s+code|lance\s+claude|ouvre\s+claude\s+code)\b', re.I)
 _CLAUDE_TASK_RE= re.compile(r'\b(claude\s+(t[aâ]che|task)|ex[eé]cute\s+avec\s+claude)\b', re.I)
-_METEO_RE      = re.compile(r'\b(m[eé]t[eé]o|temps\s+qu[''i]l\s+fait|temp[eé]rature|quel\s+temps)\b', re.I)
+_METEO_RE      = re.compile(r"\b(m[eé]t[eé]o|temps\s+qu[i']l\s+fait|temp[eé]rature|quel\s+temps)\b", re.I)
 _DISK_RE       = re.compile(r'\b(disque|stockage|espace\s+libre|disk)\b', re.I)
 _VOLUME_RE     = re.compile(r'\bvolume\s+(\d+)\b', re.I)
+_TIKTOK_RE     = re.compile(r'\b(tiktok|analyse?\s+tiktok|analyse?\s+concurrent|hashtags?|trending\s+oran)\b', re.I)
 
 
 class NexusApp:
@@ -82,11 +91,13 @@ class NexusApp:
         self.night    = NightWatch(self)
         self.vision   = VisionModule(self)
         self.music    = MusicController()
+        self.tiktok   = TikTokAnalyzer(self)
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
         self.mic_active = False
-        self._chat_history: list[dict] = []  # {role, text}
+        self._chat_history: list[dict] = []   # {role, text}
+        self._journal_history: list[dict] = []  # {ts, text}
 
     # ── GUI broadcast ────────────────────────────────────────────────────────
     async def gui_send(self, data: dict) -> None:
@@ -106,11 +117,11 @@ class NexusApp:
         self._chat_history.append({'role': role, 'text': text})
         if len(self._chat_history) > 20:
             self._chat_history.pop(0)
-        # Send last 5 to GUI
-        asyncio.create_task(self.gui_send({
-            'type':    'chat_history',
-            'history': self._chat_history[-5:],
-        }))
+        if self.loop and self.loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                self.gui_send({'type': 'chat_history', 'history': self._chat_history[-5:]}),
+                self.loop,
+            )
 
     # ── Speak ────────────────────────────────────────────────────────────────
     async def speak(self, text: str) -> None:
@@ -191,17 +202,17 @@ class NexusApp:
             query = re.sub(r'\b(sur|depuis|avec|via)\s+(youtube|spotify)\b', '', query, flags=re.I).strip()
             query = query or t
 
-            platform = 'auto'
+            plat = 'auto'
             if _YOUTUBE_RE.search(tl):
-                platform = 'youtube'
+                plat = 'youtube'
             elif _SPOTIFY_RE.search(tl):
-                platform = 'spotify'
+                plat = 'spotify'
 
             await self.gui_send({'type': 'thinking', 'active': True})
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, self.music.play, query, platform)
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, self.music.play, query, plat)
             await self.gui_send({'type': 'thinking', 'active': False})
-            await self.gui_send({'type': 'widget', 'widget': 'music', 'data': {'query': query, 'platform': platform}})
+            await self.gui_send({'type': 'widget', 'widget': 'music', 'data': {'query': query, 'platform': plat}})
             if source == 'nexus':
                 await self.speak(result)
             await self.journal(f'🎵 Musique: {query}')
@@ -260,9 +271,25 @@ class NexusApp:
         # ── 6. PC control local ──────────────────────────────────────────────
         pc_result = self.pc.try_handle(t)
         if pc_result:
-            if source == 'nexus':
-                await self.speak(pc_result)
-            await self.journal(f'🖥️ {pc_result}')
+            # Screenshot → envoie sur Telegram si la commande vient de Telegram
+            import os
+            if isinstance(pc_result, str) and os.path.isfile(pc_result) and pc_result.endswith('.png'):
+                fname = os.path.basename(pc_result)
+                send_tg = 'telegram' in source or 'app' in source
+                if send_tg:
+                    ok = await self.ws.send_photo_telegram(pc_result, f'📸 Screenshot — {fname}')
+                    reply = f'✅ Screenshot envoyé sur Telegram' if ok else f'✅ Screenshot: {fname} (envoi Telegram échoué)'
+                else:
+                    reply = f'✅ Screenshot: {fname}'
+                if source == 'nexus':
+                    await self.speak(reply)
+                else:
+                    await self.ws.journal(reply)
+                await self.journal(f'📸 {reply}')
+            else:
+                if source == 'nexus':
+                    await self.speak(pc_result)
+                await self.journal(f'🖥️ {pc_result}')
             return
 
         # ── 7. Claude Code ───────────────────────────────────────────────────
@@ -285,6 +312,18 @@ class NexusApp:
                 await self.journal(f'🤖 Claude task done')
             return
 
+        # ── 7b. TikTok ───────────────────────────────────────────────────────────
+        if _TIKTOK_RE.search(tl):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            keyword = re.sub(_TIKTOK_RE, '', t).strip() or None
+            result = await self.tiktok.analyze(keyword)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(result[:400])
+            await self.gui_send({'type': 'widget', 'widget': 'tiktok', 'data': {'result': result[:180]}})
+            await self.journal('📱 Analyse TikTok')
+            return
+
         # ── 8. Multi-agents ──────────────────────────────────────────────────
         if self.agents.is_available() and _AGENT_RE.search(tl):
             await self.gui_send({'type': 'thinking', 'active': True})
@@ -305,7 +344,14 @@ class NexusApp:
 
     # ── Journal ──────────────────────────────────────────────────────────────
     async def journal(self, message: str) -> None:
-        await self.gui_send({'type': 'journal', 'text': message})
+        entry = {'ts': datetime.now().strftime('%H:%M:%S'), 'text': message}
+        self._journal_history.append(entry)
+        if len(self._journal_history) > 30:
+            self._journal_history.pop(0)
+        await self.gui_send({
+            'type': 'journal', 'text': message,
+            'history': self._journal_history[-20:],
+        })
         await self.ws.journal(message)
 
     # ── Mic ──────────────────────────────────────────────────────────────────

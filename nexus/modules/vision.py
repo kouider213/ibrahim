@@ -44,7 +44,7 @@ class VisionModule:
 
     async def capture_and_describe(self, prompt: str = '') -> str:
         """Prend une photo, l'envoie à Claude Vision, retourne la description."""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._sync_capture_describe, prompt)
 
     def _sync_capture_describe(self, prompt: str = '') -> str:

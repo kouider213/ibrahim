@@ -82,6 +82,7 @@ class ProactiveMonitor:
     # ── Bookings widget refresh ──────────────────────────────────────────────
 
     async def _bookings_loop(self) -> None:
+        await self._refresh_bookings()  # refresh immédiat au démarrage
         while True:
             await asyncio.sleep(BOOKINGS_INTERVAL)
             await self._refresh_bookings()

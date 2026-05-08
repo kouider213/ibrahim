@@ -131,18 +131,44 @@ class PCControl:
 
     def take_screenshot(self) -> str:
         import time
+        ts   = time.strftime('%Y%m%d_%H%M%S')
+        dest = str(USER_HOME / 'OneDrive' / 'Bureau' / f'screenshot_{ts}.png')
+
+        # 1. mss — rapide, pas de dépendance Pillow
         try:
-            import pyautogui
-            ts   = time.strftime('%Y%m%d_%H%M%S')
-            dest = str(USER_HOME / 'OneDrive' / 'Bureau' / f'screenshot_{ts}.png')
-            pyautogui.screenshot(dest)
+            import mss
+            import mss.tools
+            with mss.mss() as sct:
+                monitor = sct.monitors[0]  # tout l'écran
+                shot = sct.grab(monitor)
+                mss.tools.to_png(shot.rgb, shot.size, output=dest)
             subprocess.Popen(['explorer', '/select,', dest])
-            return f'✅ Screenshot: screenshot_{ts}.png'
-        except ImportError:
-            subprocess.Popen('snippingtool', shell=True)
-            return '✅ Outil capture ouvert'
-        except Exception as e:
-            return f'Erreur screenshot: {e}'
+            return dest  # retourne le chemin pour envoi Telegram
+
+        except Exception:
+            pass
+
+        # 2. PowerShell — fallback universel Windows
+        try:
+            ps = (
+                "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;"
+                "$bmp=New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width,"
+                "[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height);"
+                "$g=[System.Drawing.Graphics]::FromImage($bmp);"
+                "$g.CopyFromScreen(0,0,0,0,$bmp.Size);"
+                f"$bmp.Save('{dest}');"
+                "$g.Dispose();$bmp.Dispose()"
+            )
+            subprocess.run(['powershell', '-c', ps], timeout=12, capture_output=True)
+            if Path(dest).exists():
+                subprocess.Popen(['explorer', '/select,', dest])
+                return dest
+        except Exception:
+            pass
+
+        # 3. Dernier recours
+        subprocess.Popen('snippingtool', shell=True)
+        return '✅ Outil capture ouvert (sauvegarde manuelle)'
 
     def sleep_pc(self) -> str:
         subprocess.run('rundll32.exe powrprof.dll,SetSuspendState 0,1,0', shell=True)

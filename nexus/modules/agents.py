@@ -96,7 +96,7 @@ class MultiAgentSystem:
         if not self._client:
             return AgentResult('nexus', 'Multi-agent non disponible — ANTHROPIC_API_KEY manquant.')
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         agent_name = force_agent if force_agent in AGENTS else await loop.run_in_executor(
             None, self._route, query

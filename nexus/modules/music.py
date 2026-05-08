@@ -64,7 +64,7 @@ class MusicController:
         # URI Spotify
         uri = f'spotify:search:{urllib.parse.quote(query)}'
         try:
-            subprocess.Popen(['cmd', '/c', f'start {uri}'], shell=False)
+            subprocess.Popen(f'start "" "{uri}"', shell=True)
             log.info('Spotify URI: %s', uri)
             # Skip track if already playing (space) après 2s
             time.sleep(2)
