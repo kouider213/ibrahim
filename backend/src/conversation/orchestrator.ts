@@ -3,6 +3,7 @@ import { guardResponse, applyScopeGuard }        from './response-guard.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
+import { classifyRequest, callGroq, callOpenAI, isOpenAIAvailable } from '../integrations/llm-router.js';
 import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 
@@ -99,6 +100,30 @@ export async function processMessage(
     ),
   ]);
 
+  // ── LLM Router — choose provider ──────────────────────────────────────────
+  const route = classifyRequest(userMessage, !!imageBase64, ctx.messages.length);
+  console.log(`[router] provider=${route.provider} reason="${route.reason}" fallback=${route.fallback}`);
+
+  // ── Fast path: Groq (simple queries, no tools) ────────────────────────────
+  if (route.fastPath && route.provider === 'groq') {
+    try {
+      const groqText = await callGroq(userMessage, ctx.systemExtra);
+      const safeText = guardResponse(groqText, userMessage, requestId);
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
+      saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
+      if (!textOnly && safeText.length > 0) {
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+        await streamAudioSentences(safeText, sessionId);
+        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      }
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: safeText, status: 'done' };
+    } catch (groqErr) {
+      console.warn(`[router] Groq failed (${groqErr instanceof Error ? groqErr.message : groqErr}) — falling back to Claude`);
+      // Fall through to Claude below
+    }
+  }
+
   // 3. Claude répond avec Tool Streaming temps réel
   let response: Awaited<ReturnType<typeof chatWithTools>>;
   try {
@@ -123,8 +148,34 @@ export async function processMessage(
       imageBase64,
       imageMime,
     );
-  } catch (err) {
-    const errorText = `Erreur Dzaryx: ${err instanceof Error ? err.message : String(err)}`;
+  } catch (claudeErr) {
+    console.error(`[orch:${requestId}] Claude failed:`, claudeErr);
+
+    // ── OpenAI fallback ────────────────────────────────────────────────────
+    if (isOpenAIAvailable()) {
+      console.warn('[router] Attempting OpenAI GPT-4o fallback…');
+      try {
+        const plainMessages = ctx.messages.map(m => ({
+          role:    m.role as 'user' | 'assistant',
+          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        }));
+        const fallbackText = await callOpenAI(plainMessages, ctx.systemExtra);
+        const safeText = guardResponse(fallbackText, userMessage, requestId);
+        _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
+        saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
+        if (!textOnly && safeText.length > 0) {
+          _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+          await streamAudioSentences(safeText, sessionId);
+          _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+        }
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+        return { text: safeText, status: 'done' };
+      } catch (openaiErr) {
+        console.error('[router] OpenAI fallback also failed:', openaiErr);
+      }
+    }
+
+    const errorText = `Erreur Dzaryx: ${claudeErr instanceof Error ? claudeErr.message : String(claudeErr)}`;
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: errorText });
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: errorText, status: 'error' };

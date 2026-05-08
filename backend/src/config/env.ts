@@ -51,6 +51,9 @@ const envSchema = z.object({
   RUNWAY_API_KEY:      z.string().optional(),
   // ── Apify — Scraping TikTok concurrents ──
   APIFY_API_KEY:       z.string().optional(),
+  // ── Phase 2: Multi-LLM Router ────────────────────────────────────────────
+  GROQ_API_KEY:        z.string().optional(),   // LLaMA 3.3 70B — fast path (gratuit)
+  OPENAI_API_KEY:      z.string().optional(),   // GPT-4o — fallback Claude
   PORT:                 z.coerce.number().int().positive().default(3000),
   NODE_ENV:             z.enum(['development', 'production', 'test']).default('development'),
   BACKEND_URL:          z.string().url().default('http://localhost:3000'),
