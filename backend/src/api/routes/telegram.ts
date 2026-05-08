@@ -688,7 +688,7 @@ router.post('/webhook', async (req, res) => {
     } else {
       // Try Wake-on-LAN to wake the PC
       const mac = getNexusMac();
-      const ip  = getNexusIp();
+      getNexusIp();
       if (mac) {
         await sendMessage(chatId, `🖥️ *NEXUS* est hors ligne — envoi signal WoL au PC...\n_MAC: ${mac}_`);
         const wol = await triggerWol();
