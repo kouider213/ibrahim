@@ -161,6 +161,7 @@ export async function chatWithTools(
   onTextChunk?:   (chunk: string) => void,
   imageBase64?:   string,
   imageMime?:     string,
+  toolOverride?:  Anthropic.Tool[],  // Phase 3: agent-specific tool subset
 ): Promise<ClaudeResponse> {
 
   const sid = sessionId ?? randomUUID();
@@ -222,10 +223,11 @@ export async function chatWithTools(
   // ══════════════════════════════════════════════════════════════════════════
   const useWebSearch = needsWebSearch(processedMessages);
 
-  // Quand on ajoute le server tool Anthropic web_search, retirer le tool local du même nom pour éviter le doublon → 400
+  // Phase 3: use agent-specific tool subset if provided, else full tool set
+  const activeDzaryxTools = toolOverride ?? Dzaryx_TOOLS;
   const baseTools = useWebSearch
-    ? Dzaryx_TOOLS.filter(t => t.name !== 'web_search')
-    : Dzaryx_TOOLS;
+    ? activeDzaryxTools.filter(t => t.name !== 'web_search')
+    : activeDzaryxTools;
   const tools: Anthropic.Tool[] = useWebSearch
     ? [...baseTools, ANTHROPIC_WEB_SEARCH_TOOL]
     : baseTools;

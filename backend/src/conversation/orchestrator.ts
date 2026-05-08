@@ -4,6 +4,7 @@ import { chatWithTools }                         from '../integrations/claude-ap
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
 import { classifyRequest, callGroq, callGemini, callOpenAI, isOpenAIAvailable, isGeminiAvailable } from '../integrations/llm-router.js';
+import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
 import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 
@@ -129,12 +130,26 @@ export async function processMessage(
     }
   }
 
+  // ── Phase 3: CoreRouter — pick specialized agent ──────────────────────────
+  const agentRoute   = routeToAgent(userMessage) ?? { agent: null, agentTools: undefined, label: '🤖 Dzaryx' };
+  // If no agent matched but history implies a domain → keep context agent
+  if (!agentRoute.agent) {
+    const historyAgent = detectAgentFromHistory(ctx.messages);
+    if (historyAgent) {
+      const { Dzaryx_TOOLS } = await import('../integrations/tools.js');
+      agentRoute.agentTools = Dzaryx_TOOLS.filter((t: { name: string }) => historyAgent.toolNames.includes(t.name));
+      agentRoute.label = historyAgent.name;
+    }
+  }
+  const agentSystemExtra = buildAgentSystem(agentRoute, ctx.systemExtra);
+  console.log(`[agent] ${agentRoute.label} — ${agentRoute.agentTools?.length ?? 'all'} tools`);
+
   // 3. Claude répond avec Tool Streaming temps réel
   let response: Awaited<ReturnType<typeof chatWithTools>>;
   try {
     response = await chatWithTools(
       ctx.messages,
-      ctx.systemExtra,
+      agentSystemExtra,
       sessionId,
       // onToolStart → émettre "Dzaryx utilise l'outil X…"
       (toolName: string, _toolInput: Record<string, unknown>) => {
@@ -152,6 +167,7 @@ export async function processMessage(
       },
       imageBase64,
       imageMime,
+      agentRoute.agentTools,   // Phase 3: scoped tool subset
     );
   } catch (claudeErr) {
     console.error(`[orch:${requestId}] Claude failed:`, claudeErr);
