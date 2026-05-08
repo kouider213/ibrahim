@@ -136,6 +136,7 @@ export async function executeTool(
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'sync_calendar':             return await syncCalendarTool();
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
+      case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'get_late_returns':                   return await getLateReturns();
       case 'generate_reservation_voucher':       return await generateVoucherTool(input, sessionId);
       case 'get_fleet_status':                   return await getFleetStatus();
