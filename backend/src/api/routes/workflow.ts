@@ -1,69 +1,125 @@
 /**
- * POST /api/workflow/test9
- * Lance le pipeline autonome end-to-end :
- *   1. Developer Agent détecte + patch (LLM)
- *   2. Nexus écrit le patch + exécute tsc --noEmit
- *   3. Code Reviewer valide ou refuse (LLM)
- *   4. Commit GitHub ou rollback automatique
- *   5. Rapport Telegram complet
+ * Workflow routes — autonomous pipeline TEST 9.
+ *
+ * POST /api/workflow/test9         — start pipeline (async, returns jobId + 202)
+ * GET  /api/workflow/result/:jobId — poll for result (returns 200 when done, 202 while running)
+ * GET  /api/workflow/status        — quick status check
+ *
+ * Pipeline runs in background to avoid Railway's 60s HTTP timeout.
+ * Full report arrives via Telegram; result/:jobId for programmatic polling.
  */
 import { Router }            from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { runAutonomousPipeline } from '../../workflow/autonomous-pipeline.js';
+import { runAutonomousPipeline, type PipelineReport } from '../../workflow/autonomous-pipeline.js';
 import { isNexusOnline }     from '../../actions/handlers/nexus-relay.js';
 
 const router = Router();
 
-router.post('/test9', requireMobileAuth, async (req, res) => {
+// ── In-memory job store (pipeline runs take 60-180s) ─────────────────────────
+interface Job {
+  requestId:  string;
+  status:     'running' | 'done' | 'error';
+  startedAt:  number;
+  report?:    PipelineReport;
+  error?:     string;
+}
+
+const JOBS = new Map<string, Job>();
+
+// ── POST /api/workflow/test9 ──────────────────────────────────────────────────
+router.post('/test9', requireMobileAuth, (req, res) => {
   const requestId = `pipeline_${Date.now()}`;
-  console.log(`[workflow] ${requestId} — autonomous pipeline starting`);
+  console.log(`[workflow] ${requestId} — starting background pipeline (nexus=${isNexusOnline()})`);
 
-  const nexusStatus = isNexusOnline();
-  console.log(`[workflow] ${requestId} — nexus online: ${nexusStatus}`);
+  const job: Job = { requestId, status: 'running', startedAt: Date.now() };
+  JOBS.set(requestId, job);
 
-  try {
-    const report = await runAutonomousPipeline(requestId);
-
-    res.json({
-      ok:           true,
-      requestId,
-      decision:     report.decision,
-      commit_sha:   report.commitSha ?? null,
-      rollback_reason: report.rollbackReason ?? null,
-      total_ms:     report.totalMs,
-      total_cost_usd: report.totalCostUsd,
-      nexus_online: report.nexusOnline,
-      telegram_sent: report.telegramSent,
-      started_at:   report.startedAt,
-      completed_at: report.completedAt,
-      steps: report.steps.map(s => ({
-        step:          s.step,
-        status:        s.status,
-        agent_id:      s.agentId ?? null,
-        provider:      s.provider ?? null,
-        model:         s.model ?? null,
-        latency_ms:    s.latencyMs,
-        input_tokens:  s.inputTokens ?? 0,
-        output_tokens: s.outputTokens ?? 0,
-        cost_usd:      s.costUsd ?? 0,
-        output:        s.output.slice(0, 600),
-        details:       s.details ?? null,
-      })),
+  // Fire-and-forget — result arrives via Telegram + GET /result/:jobId
+  runAutonomousPipeline(requestId)
+    .then(report => {
+      job.status = 'done';
+      job.report = report;
+      console.log(`[workflow] ${requestId} DONE — decision=${report.decision} totalMs=${report.totalMs}`);
+    })
+    .catch(err => {
+      job.status = 'error';
+      job.error  = err instanceof Error ? err.message : String(err);
+      console.error(`[workflow] ${requestId} CRASHED: ${job.error}`);
     });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[workflow] ${requestId} CRASHED: ${msg}`);
-    res.status(500).json({ ok: false, requestId, error: msg });
-  }
+
+  res.status(202).json({
+    ok:         true,
+    requestId,
+    status:     'running',
+    poll_url:   `/api/workflow/result/${requestId}`,
+    note:       'Pipeline started. Poll poll_url every 10s or wait for Telegram report.',
+    nexus_online: isNexusOnline(),
+  });
 });
 
-// Quick status check
+// ── GET /api/workflow/result/:jobId ───────────────────────────────────────────
+router.get('/result/:jobId', requireMobileAuth, (req, res) => {
+  const job = JOBS.get(req.params.jobId!);
+  if (!job) {
+    res.status(404).json({ ok: false, error: 'Job not found' });
+    return;
+  }
+
+  if (job.status === 'running') {
+    res.status(202).json({
+      ok:          true,
+      requestId:   job.requestId,
+      status:      'running',
+      elapsed_ms:  Date.now() - job.startedAt,
+      message:     'Pipeline still running — retry in 10s',
+    });
+    return;
+  }
+
+  if (job.status === 'error') {
+    res.status(500).json({ ok: false, requestId: job.requestId, status: 'error', error: job.error });
+    return;
+  }
+
+  const r = job.report!;
+  res.json({
+    ok:              true,
+    requestId:       r.requestId,
+    status:          'done',
+    decision:        r.decision,
+    commit_sha:      r.commitSha ?? null,
+    rollback_reason: r.rollbackReason ?? null,
+    total_ms:        r.totalMs,
+    total_cost_usd:  r.totalCostUsd,
+    nexus_online:    r.nexusOnline,
+    telegram_sent:   r.telegramSent,
+    started_at:      r.startedAt,
+    completed_at:    r.completedAt,
+    steps: r.steps.map(s => ({
+      step:          s.step,
+      status:        s.status,
+      agent_id:      s.agentId ?? null,
+      provider:      s.provider ?? null,
+      model:         s.model ?? null,
+      latency_ms:    s.latencyMs,
+      input_tokens:  s.inputTokens ?? 0,
+      output_tokens: s.outputTokens ?? 0,
+      cost_usd:      s.costUsd ?? 0,
+      output:        s.output.slice(0, 800),
+      details:       s.details ?? null,
+    })),
+  });
+});
+
+// ── GET /api/workflow/status ──────────────────────────────────────────────────
 router.get('/status', requireMobileAuth, (_req, res) => {
+  const running = [...JOBS.values()].filter(j => j.status === 'running').length;
   res.json({
     nexus_online:      isNexusOnline(),
     buggy_file:        'backend/src/test/buggy_rental_calc.ts',
+    active_jobs:       running,
     pipeline_endpoint: 'POST /api/workflow/test9',
-    note:              'Nexus doit être connecté pour les étapes TSC et git. Sinon fallback statique.',
+    note:              'Pipeline runs async. Poll GET /api/workflow/result/:jobId every 10s.',
   });
 });
 
