@@ -88,7 +88,8 @@ _SAVE_PASS_RE  = re.compile(r'\b(enregistre\s+(mon\s+)?mot\s+de\s+passe|sauvegar
 
 _BRIEFING_RE   = re.compile(r'\b(briefing|rapport\s+(du\s+)?matin|r[eé]sum[eé]\s+(du\s+)?jour)\b', re.I)
 _AGENT_RE      = re.compile(r'\b(strat[eè]ge?|agent\s+dev|agent\s+design|agent\s+anal|agent\s+market|agent\s+supervis|agent\s+architect|agent\s+git|agent\s+r[eé]seau|agent\s+vid[eé]o)\b', re.I)
-_CLAUDE_RE     = re.compile(r'\b(claude\s+code|lance\s+claude|ouvre\s+claude\s+code)\b', re.I)
+_CLAUDE_RE     = re.compile(r'\b(claude\s+code|lance\s+claude|ouvre\s+claude(\s+code)?|d[eé]marre\s+claude)\b', re.I)
+_CLAUDE_FOLDER_RE = re.compile(r'\b(dans|sur|pour|in)\s+(.+)$', re.I)
 _CLAUDE_TASK_RE= re.compile(r'\b(claude\s+(t[aâ]che|task)|ex[eé]cute\s+avec\s+claude)\b', re.I)
 _METEO_RE      = re.compile(r"\b(m[eé]t[eé]o|temps\s+qu[i']l\s+fait|temp[eé]rature|quel\s+temps)\b", re.I)
 _DISK_RE       = re.compile(r'\b(disque|stockage|espace\s+libre|disk)\b', re.I)
@@ -567,11 +568,20 @@ class NexusApp:
 
         # ── 7. Claude Code ───────────────────────────────────────────────────
         if _CLAUDE_RE.search(tl):
+            # Extract folder from "ouvre claude code dans <folder>"
+            after_verb = re.sub(_CLAUDE_RE, '', t, flags=re.I).strip()
+            folder_match = _CLAUDE_FOLDER_RE.search(after_verb)
+            cwd = None
+            if folder_match:
+                folder_hint = folder_match.group(2).strip().lower()
+                from modules.pc_agent import _resolve
+                resolved = _resolve(folder_hint)
+                if resolved.exists():
+                    cwd = str(resolved)
             await self.gui_send({'type': 'thinking', 'active': True})
-            result = await self.claude.launch(auto_accept=True)
+            result = await self.claude.launch(auto_accept=True, cwd=cwd) if cwd else await self.claude.launch(auto_accept=True)
             await self.gui_send({'type': 'thinking', 'active': False})
-            if source == 'nexus':
-                await self.speak(result)
+            await self._reply(result, source)
             return
 
         if _CLAUDE_TASK_RE.search(tl):
