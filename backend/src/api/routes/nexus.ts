@@ -102,7 +102,7 @@ router.post('/test-phantom', requireMobileAuth, (req, res) => {
 
   const result = phantomGuard(
     testCase.simulatedResponse,
-    testCase.toolsExecuted,
+    [...testCase.toolsExecuted],
     testCase.userMessage,
     `test_${Date.now()}`,
   );

@@ -520,6 +520,7 @@ export async function chat(
     inputTokens:  response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
     stopReason:   response.stop_reason ?? 'end_turn',
+    toolsExecuted: [],
   };
 }
 
@@ -556,7 +557,7 @@ export async function chatStream(
     }
   }
 
-  return { text: fullText, inputTokens, outputTokens, stopReason };
+  return { text: fullText, inputTokens, outputTokens, stopReason, toolsExecuted: [] };
 }
 
 export async function detectIntent(userMessage: string, context: string): Promise<{

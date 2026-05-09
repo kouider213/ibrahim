@@ -2734,7 +2734,7 @@ async function runwayGenerate(
 function detectSceneTransformation(userPrompt: string): boolean {
   const lower = userPrompt.toLowerCase();
   const keywords = [
-    // FR locations
+    // FR locations (explicit scene settings — not city names alone)
     'plage', 'beach',
     'montagne', 'mountain',
     ' mer ', ' mer,', ' mer.', 'bord de mer', 'face à la mer', 'vue sur la mer',
@@ -2742,12 +2742,10 @@ function detectSceneTransformation(userPrompt: string): boolean {
     'désert', 'desert',
     'forêt', 'foret', 'forest',
     'campagne', 'countryside', 'falaise', 'cliff',
-    // Algeria specifics
-    'oran', 'oranais', 'oranaise', 'algérie', 'algerie', 'algérien', 'alger',
     // Generic transformation intent
     'arrière-plan', 'arriere-plan', 'background', 'décor', 'decor',
     'paysage', 'scenery', 'setting',
-    // Relocation verbs / patterns
+    // Relocation verbs / patterns — explicit intent required
     'mets la voiture', 'met la voiture', 'place la voiture',
     'déplace', 'deplace', 'relocate',
     'sur une plage', 'sur la plage', 'sur une montagne', 'sur la montagne',
@@ -2755,6 +2753,8 @@ function detectSceneTransformation(userPrompt: string): boolean {
     'face à la', 'face a la', 'au bord de', 'avec vue sur',
     'route côtière', 'route cotiere',
   ];
+  // City names alone ("à Oran", "en Algérie") do NOT trigger scene transformation —
+  // they are business context, not requests to change the car's background.
   return keywords.some(kw => lower.includes(kw));
 }
 
@@ -3197,21 +3197,72 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       carExtraction = true;
       console.log(`[generateAiVideoTool] carExtraction=true carOnlyUrl=${carOnlyUrl}`);
     } catch (extractErr: any) {
-      console.warn(`[generateAiVideoTool] carExtraction=FAILED: ${extractErr.message}`);
-      throw new Error(`Impossible d'isoler correctement la voiture pour transformer le décor. J'ai besoin d'une photo plus propre / mieux cadrée.`);
+      console.warn(`[generateAiVideoTool] carExtraction=FAILED: ${extractErr.message} — fallback image originale`);
+      await sendTelegramForMarketing(chatId,
+        `⚠️ *Extraction fond échouée — on anime directement la photo originale.*\n_${extractErr.message.slice(0, 120)}_`);
+      // Fallback: skip BRIA pipeline entirely, animate original Supabase image
+      carOnlyUrl = carImageUrl;
+      // Skip to video generation without transformed keyframe
+      effectiveImageUrl = carImageUrl;
+      // Jump out of the BRIA block so generateVehicleVideo runs with original image
+      // We set sceneTransformation=false so Runway/Kling prompt stays simple
+      await sendTelegramForMarketing(chatId,
+        `🎬 *Génération vidéo depuis la photo originale...*\n⏳ 60-240 secondes...`);
+      const genStartFb = Date.now();
+      const { url: fbUrl, provider: fbProvider, mode: fbMode } = await generateVehicleVideo({
+        imageUrl:   carImageUrl,
+        userPrompt: prompt,
+        carName:    carDisplayName || carName || '',
+        duration,
+        falKey,
+        runwayKey,
+        forceProvider,
+        sceneTransformation: false,
+      });
+      const genSecFb = Math.round((Date.now() - genStartFb) / 1000);
+      console.log(`[generateAiVideoTool] fallback provider=${fbProvider} mode=${fbMode} durée=${genSecFb}s`);
+      const respFb   = await axios.get(fbUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+      const bufferFb = Buffer.from(respFb.data as ArrayBuffer);
+      if (!isValidMp4Buffer(bufferFb)) throw new Error(`${fbProvider} a retourné un fichier invalide`);
+      const captionFb = `🎬 *${carDisplayName} — Vidéo IA — ${fbProvider}*\n_Photo originale (extraction fond échouée)_`;
+      try { await sendVideoBuffer(chatId, bufferFb, captionFb); } catch {
+        await sendTelegramForMarketing(chatId, `${captionFb}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${fbUrl})`);
+      }
+      return `✅ Vidéo créée (${fbProvider}, fallback — extraction fond échouée) — envoyée sur Telegram ↑`;
     }
 
-    // STEP 2 — New scene generation (no fallback — fail clean if this fails)
+    // STEP 2 — New scene generation — fallback to original image if BRIA fails
     await sendTelegramForMarketing(chatId,
       `✅ *Voiture extraite.* Étape 2/3 : Création de la nouvelle scène...\n_"${requestedScene.slice(0, 60)}"_\n⏳ 30-90 secondes...`);
     let transformedUrl: string;
     try {
       transformedUrl = await generateCarInNewScene(carOnlyUrl, prompt, carDisplayName || carName || '', falKey, 150_000);
     } catch (sceneErr: any) {
-      console.error(`[generateAiVideoTool] transformedKeyframeCreated=false: ${sceneErr.message}`);
+      console.warn(`[generateAiVideoTool] BRIA scene FAILED: ${sceneErr.message} — fallback image originale`);
       await sendTelegramForMarketing(chatId,
-        `❌ *La recréation de la nouvelle scène a échoué.*\nJe n'ai pas lancé l'animation pour éviter un rendu incohérent.\n_Erreur: ${sceneErr.message.slice(0, 200)}_`);
-      throw new Error(`Transformation de scène échouée : ${sceneErr.message}`);
+        `⚠️ *Création nouvelle scène échouée — on anime la photo originale.*\n_${sceneErr.message.slice(0, 120)}_`);
+      // Fallback: animate original Supabase image without scene transformation
+      const genStartFb2 = Date.now();
+      const { url: fbUrl2, provider: fbProv2, mode: fbMode2 } = await generateVehicleVideo({
+        imageUrl:   carImageUrl,
+        userPrompt: prompt,
+        carName:    carDisplayName || carName || '',
+        duration,
+        falKey,
+        runwayKey,
+        forceProvider,
+        sceneTransformation: false,
+      });
+      const genSecFb2 = Math.round((Date.now() - genStartFb2) / 1000);
+      console.log(`[generateAiVideoTool] fallback2 provider=${fbProv2} mode=${fbMode2} durée=${genSecFb2}s`);
+      const respFb2   = await axios.get(fbUrl2, { responseType: 'arraybuffer', timeout: 60_000 });
+      const bufferFb2 = Buffer.from(respFb2.data as ArrayBuffer);
+      if (!isValidMp4Buffer(bufferFb2)) throw new Error(`${fbProv2} a retourné un fichier invalide`);
+      const captionFb2 = `🎬 *${carDisplayName} — Vidéo IA — ${fbProv2}*\n_Photo originale (transformation scène échouée)_`;
+      try { await sendVideoBuffer(chatId, bufferFb2, captionFb2); } catch {
+        await sendTelegramForMarketing(chatId, `${captionFb2}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${fbUrl2})`);
+      }
+      return `✅ Vidéo créée (${fbProv2}, fallback — transformation scène échouée) — envoyée sur Telegram ↑`;
     }
 
     // STEP 2b — Validate the transformed keyframe
