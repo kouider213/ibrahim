@@ -821,18 +821,31 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
 
 // ─── RAPPELS PERSONNALISÉS ────────────────────────────────────────────────────
 
+// Type interne pour le résultat structuré du rappel
+interface ReminderResult {
+  status:           'created' | 'duplicate_blocked';
+  idempotency_key:  string;
+  source_channel:   string;
+  request_id:       string;
+  job_id?:          string;
+  delay_ms?:        number;
+  human_delay?:     string;
+  message:          string;
+  existing_job_id?: string;
+}
+
 async function scheduleReminder(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
-  const message      = input['message']       as string;
+  const message      = input['message']       as string | undefined;
   const delayMinutes = input['delay_minutes'] as number | undefined;
   const atTime       = input['at_time']       as string | undefined;
 
-  if (!message) return '❌ message requis';
+  if (!message) return JSON.stringify({ error: '❌ message requis' });
 
-  // ── Déterminer source_channel ──────────────────────────────────────────
-  const source_channel = sessionId?.startsWith('telegram_')
+  // ── 1. Déterminer source_channel depuis le sessionId ───────────────────
+  const source_channel: string = sessionId?.startsWith('telegram_')
     ? 'telegram'
     : sessionId?.startsWith('voice_')
     ? 'mobile_voice'
@@ -840,71 +853,106 @@ async function scheduleReminder(
     ? 'mobile_text'
     : 'backend_internal';
 
-  // ── Générer request_id unique ──────────────────────────────────────────
+  // ── 2. Générer un request_id unique pour ce call précis ───────────────
   const request_id = `rem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+  // ── 3. Calculer le délai en ms ─────────────────────────────────────────
   let delayMs = 0;
 
-  if (delayMinutes && delayMinutes > 0) {
-    delayMs = delayMinutes * 60 * 1000;
+  if (delayMinutes !== undefined && Number(delayMinutes) > 0) {
+    delayMs = Number(delayMinutes) * 60 * 1000;
   } else if (atTime) {
     const match = /^(\d{1,2}):(\d{2})$/.exec(atTime);
-    if (!match) return '❌ at_time invalide — format HH:MM (ex: "14:30")';
+    if (!match) return JSON.stringify({ error: '❌ at_time invalide — format HH:MM (ex: "14:30")' });
     const [, h, m] = match;
-    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Brussels' }));
+    // Heure locale Algérie (UTC+1)
+    const now    = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Algiers' }));
     const target = new Date(now);
     target.setHours(Number(h), Number(m), 0, 0);
-    if (target <= now) target.setDate(target.getDate() + 1);
+    if (target <= now) target.setDate(target.getDate() + 1); // Demain si l'heure est passée
     delayMs = target.getTime() - now.getTime();
   } else {
-    return '❌ Spécifie delay_minutes ou at_time';
+    return JSON.stringify({ error: '❌ Spécifie delay_minutes (ex: 30) ou at_time (ex: "14:30")' });
   }
 
-  // ── Idempotency key — hash(userId + message + heure cible arrondie 5min) ──
-  const userId       = sessionId ?? 'global';
-  const targetMin    = Math.floor(Date.now() / (5 * 60 * 1000)) + Math.floor(delayMs / (5 * 60 * 1000));
-  const idemRaw      = `${userId}:${message.trim().toLowerCase()}:${targetMin}`;
-  const idempotency_key = crypto.createHash('sha256').update(idemRaw).digest('hex').slice(0, 32);
+  // ── 4. Idempotency key — SHA256( userId + message + fenêtre 5min cible ) ─
+  //   On arrondit la cible au bloc de 5 minutes afin d'absorber les légers
+  //   décalages d'horloge entre deux appels identiques.
+  const userId      = sessionId ?? 'global';
+  const targetBlock = Math.floor((Date.now() + delayMs) / (5 * 60 * 1000)); // bloc 5min
+  const idemRaw     = `${userId}:${message.trim().toLowerCase()}:${targetBlock}`;
+  const idempotency_key = crypto
+    .createHash('sha256')
+    .update(idemRaw)
+    .digest('hex')
+    .slice(0, 32);
+
   const redisKey     = `reminder:idem:${idempotency_key}`;
-  const IDEM_TTL_SEC = 300; // 5 minutes
+  const IDEM_TTL_SEC = 300; // 5 minutes de fenêtre anti-doublon
 
-  // ── Vérifier doublon Redis ─────────────────────────────────────────────
-  let duplicate_blocked = false;
-  let reminder_created  = false;
-
-  const existing = await redis.get(redisKey);
-  if (existing) {
-    duplicate_blocked = true;
+  // ── 5. Vérifier doublon Redis ──────────────────────────────────────────
+  const existingJobId = await redis.get(redisKey);
+  if (existingJobId) {
+    const result: ReminderResult = {
+      status:          'duplicate_blocked',
+      idempotency_key,
+      source_channel,
+      request_id,
+      message,
+      existing_job_id: existingJobId,
+    };
     console.log(
       `[schedule_reminder] source_channel=${source_channel} request_id=${request_id} ` +
-      `idempotency_key=${idempotency_key} reminder_created=false duplicate_blocked=true ` +
-      `existing_job=${existing}`,
+      `idempotency_key=${idempotency_key} status=duplicate_blocked ` +
+      `existing_job_id=${existingJobId}`,
     );
-    return '⚠️ Rappel déjà existant — doublon bloqué. (même message et même heure, demandé il y a moins de 5 min)';
+    return JSON.stringify(result);
   }
 
-  // ── Créer le rappel BullMQ ─────────────────────────────────────────────
+  // ── 6. Créer le job BullMQ ─────────────────────────────────────────────
   const job = await schedulerQueue.add(
     'custom-reminder',
-    { message, request_id, source_channel },
-    { delay: delayMs, removeOnComplete: { count: 10 }, removeOnFail: { count: 3 } },
+    {
+      message,
+      request_id,
+      source_channel,
+      idempotency_key,
+    },
+    {
+      delay:             delayMs,
+      removeOnComplete:  { count: 10 },
+      removeOnFail:      { count: 3 },
+    },
   );
 
-  // ── Marquer dans Redis (TTL 5 min) ────────────────────────────────────
+  // ── 7. Marquer dans Redis avec TTL 5 min ──────────────────────────────
   await redis.set(redisKey, job.id ?? request_id, 'EX', IDEM_TTL_SEC);
-  reminder_created = true;
 
-  console.log(
-    `[schedule_reminder] source_channel=${source_channel} request_id=${request_id} ` +
-    `idempotency_key=${idempotency_key} reminder_created=${reminder_created} ` +
-    `duplicate_blocked=${duplicate_blocked} job_id=${job.id} delay_ms=${delayMs}`,
-  );
-
-  const mins = Math.round(delayMs / 60000);
-  const hDisplay = mins >= 60
+  // ── 8. Affichage humain du délai ───────────────────────────────────────
+  const mins = Math.round(delayMs / 60_000);
+  const human_delay = mins >= 60
     ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : ''}`
     : `${mins}min`;
-  return `✅ Rappel programmé dans ${hDisplay}: "${message}"`;
+
+  const result: ReminderResult = {
+    status:          'created',
+    idempotency_key,
+    source_channel,
+    request_id,
+    job_id:          job.id ?? request_id,
+    delay_ms:        delayMs,
+    human_delay,
+    message,
+  };
+
+  // ── 9. Log structuré (visible dans Railway) ───────────────────────────
+  console.log(
+    `[schedule_reminder] source_channel=${source_channel} request_id=${request_id} ` +
+    `idempotency_key=${idempotency_key} status=created ` +
+    `job_id=${job.id} delay_ms=${delayMs} human_delay=${human_delay}`,
+  );
+
+  return JSON.stringify(result);
 }
 
 // ─── PHASE 15 — Recherche d'images (Pexels) ──────────────────────────────
