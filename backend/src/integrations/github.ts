@@ -96,6 +96,64 @@ export async function triggerNetlifyDeploy(siteId = 'fik-conciergerie-oran'): Pr
   }
 }
 
+// ── Vercel API — déploiements & vérifications ────────────────
+
+export async function vercelGetDeployments(projectName: string): Promise<any[]> {
+  const token = env.VERCEL_TOKEN ?? '';
+  if (!token) return [];
+  try {
+    const { data } = await axios.get(
+      `https://api.vercel.com/v6/deployments?projectId=${encodeURIComponent(projectName)}&limit=5`,
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 10_000 },
+    );
+    return (data as any).deployments ?? [];
+  } catch (err) {
+    console.error('[vercel] getDeployments:', err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
+export async function vercelGetDeploymentLogs(deploymentId: string): Promise<string> {
+  const token = env.VERCEL_TOKEN ?? '';
+  if (!token) return 'VERCEL_TOKEN non configuré';
+  try {
+    const { data } = await axios.get(
+      `https://api.vercel.com/v2/deployments/${deploymentId}/events`,
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 15_000 },
+    );
+    const events = (data as any[]).slice(-30);
+    return events.map((e: any) => `[${e.type}] ${e.payload?.text ?? e.payload?.info ?? JSON.stringify(e.payload).slice(0, 80)}`).join('\n') || 'Aucun log';
+  } catch (err) {
+    return `Erreur logs Vercel: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+export async function vercelCheckUrl(url: string): Promise<{ status: number; ok: boolean }> {
+  try {
+    const resp = await axios.get(url, { timeout: 10_000, validateStatus: () => true });
+    return { status: resp.status, ok: resp.status === 200 };
+  } catch {
+    return { status: 0, ok: false };
+  }
+}
+
+export async function vercelRedeploy(deploymentId: string): Promise<string> {
+  const token = env.VERCEL_TOKEN ?? '';
+  if (!token) return 'VERCEL_TOKEN non configuré dans Railway';
+  try {
+    const { data } = await axios.post(
+      `https://api.vercel.com/v13/deployments?forceNew=1`,
+      { deploymentId },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, timeout: 15_000 },
+    );
+    const newId  = (data as any).id ?? '?';
+    const newUrl = (data as any).url ?? '?';
+    return `✅ Redéploiement Vercel lancé — ID: ${newId} | URL: https://${newUrl}`;
+  } catch (err: any) {
+    return `❌ Erreur redéploiement Vercel: ${err.response?.data?.error?.message ?? err.message}`;
+  }
+}
+
 // ── Get recent commits ─────────────────────────────────────────
 
 export async function getRecentCommits(
