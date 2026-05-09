@@ -3135,15 +3135,28 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   const requestedScene      = sceneTransformation ? prompt.slice(0, 80) : '';
   console.log(`[generateAiVideoTool] provider demandé: ${forceProvider} | voiture: "${carName ?? 'non précisée'}" | sceneTransformation=${sceneTransformation}${sceneTransformation ? ` requestedScene="${requestedScene}"` : ''}`);
 
-  // ── Lookup real car photo from Supabase ────────────────────────────────────
+  // ── Lookup real car photo from Supabase (or use direct image_url if provided) ─
   let carImageUrl:   string | null = null;
   let carDisplayName = '';
 
-  if (carName) {
+  // Allow passing image_url directly (for direct Runway tests without Supabase)
+  const directImageUrl = input['image_url'] as string | undefined;
+  if (directImageUrl) {
+    console.log(`[generateAiVideoTool] image_url direct fourni: ${directImageUrl}`);
+    const imgCheck = await prepareSourceImage(directImageUrl);
+    console.log(`[generateAiVideoTool] image check (direct): ${imgCheck.note}`);
+    if (imgCheck.valid) {
+      carImageUrl    = directImageUrl;
+      carDisplayName = carName ?? 'voiture';
+      console.log(`[generateAiVideoTool] ✅ mode image-to-video activé (direct url)`);
+    } else {
+      console.warn(`[generateAiVideoTool] ⚠️ Image directe invalide: ${imgCheck.note}`);
+    }
+  } else if (carName) {
     const car = await findCarByName(carName);
     console.log(`[generateAiVideoTool] voiture demandée: "${carName}" → ${car ? `trouvée: "${car.name}"` : 'non trouvée'}`);
     if (car?.image_url) {
-      console.log(`[generateAiVideoTool] image_url: ${car.image_url}`);
+      console.log(`[generateAiVideoTool] image_url Supabase: ${car.image_url}`);
       const imgCheck = await prepareSourceImage(car.image_url);
       console.log(`[generateAiVideoTool] image check: ${imgCheck.note}`);
       if (imgCheck.valid) {
