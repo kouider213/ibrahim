@@ -34,7 +34,7 @@ interface Job {
 const JOBS = new Map<string, Job>();
 
 // ── POST /api/workflow/test9 ──────────────────────────────────────────────────
-router.post('/test9', requireMobileAuth, (req, res) => {
+router.post('/test9', requireMobileAuth, (_req, res) => {
   const requestId = `pipeline_${Date.now()}`;
   console.log(`[workflow] ${requestId} — starting background pipeline (nexus=${isNexusOnline()})`);
 
@@ -66,7 +66,7 @@ router.post('/test9', requireMobileAuth, (req, res) => {
 
 // ── GET /api/workflow/result/:jobId ───────────────────────────────────────────
 router.get('/result/:jobId', requireMobileAuth, (req, res) => {
-  const job = JOBS.get(req.params.jobId!);
+  const job = JOBS.get(req.params['jobId'] as string);
   if (!job) {
     res.status(404).json({ ok: false, error: 'Job not found' });
     return;
@@ -249,7 +249,7 @@ async function runNexusProof(jobId: string): Promise<void> {
 }
 
 // ── POST /api/workflow/nexus-proof ───────────────────────────────────────────
-router.post('/nexus-proof', requireMobileAuth, (req, res) => {
+router.post('/nexus-proof', requireMobileAuth, (_req, res) => {
   const nexusStatus = getNexusStatus();
 
   if (!nexusStatus.online) {
@@ -298,7 +298,7 @@ router.post('/nexus-proof', requireMobileAuth, (req, res) => {
 
 // ── GET /api/workflow/nexus-result/:jobId ────────────────────────────────────
 router.get('/nexus-result/:jobId', requireMobileAuth, (req, res) => {
-  const job = NEXUS_JOBS.get(req.params.jobId!);
+  const job = NEXUS_JOBS.get(req.params['jobId'] as string);
   if (!job) {
     res.status(404).json({ ok: false, error: 'Nexus proof job not found' });
     return;
