@@ -177,22 +177,32 @@ ${originalCode}
     return finalize(requestId, startedAt, steps, 'aborted', totalCostUsd, false, undefined, msg, Date.now() - t0, nexusOnline);
   }
 
-  // ── STEP 3: APPLY PATCH → NEXUS WRITE FILE ───────────────────────────────
+  // ── STEP 3: APPLY PATCH → GitHub API (temp commit) + Nexus git pull ─────
   const t3 = Date.now();
+  const tempCommitMsg = `wip(test9-pipeline): apply autonomous patch — ${requestId} [TEMP — will rollback if rejected]`;
+  const tempCommit = await updateFile(BUGGY_FILE_GITHUB, fixedCode, tempCommitMsg, IBRAHIM_REPO);
+
+  if (!tempCommit) {
+    addStep({ step: 'APPLY_PATCH_GITHUB', status: 'failure', latencyMs: Date.now() - t3,
+      output: '❌ GitHub API write failed — cannot apply patch' });
+    return finalize(requestId, startedAt, steps, 'aborted', totalCostUsd, false, undefined, 'GitHub patch apply failed', Date.now() - t0, nexusOnline);
+  }
+
+  addStep({ step: 'APPLY_PATCH_GITHUB', status: 'success', latencyMs: Date.now() - t3,
+    output: `✅ Patch temporary-committed to GitHub — sha: ${tempCommit.commitSha.slice(0, 7)}`,
+    details: { commitSha: tempCommit.commitSha, path: BUGGY_FILE_GITHUB } });
+
+  // Nexus pulls the patch from GitHub
   if (nexusOnline) {
     try {
-      const wr = await nexusWriteFile(BUGGY_FILE_LOCAL, fixedCode);
-      addStep({ step: 'APPLY_PATCH_NEXUS', status: wr.ok ? 'success' : 'failure',
-        latencyMs: Date.now() - t3,
-        output: wr.ok ? `✅ Patch écrit: ${BUGGY_FILE_LOCAL}` : `❌ Écriture échouée: ${wr.error ?? ''}`,
-        details: wr as Record<string, unknown> });
+      const pull = await nexusRunCommand('git pull origin main', IBRAHIM_LOCAL, 30_000);
+      addStep({ step: 'NEXUS_GIT_PULL', status: pull.ok ? 'success' : 'info',
+        latencyMs: 0,
+        output: pull.ok ? `✅ git pull OK — patch on PC disk` : `⚠️ pull partial: ${pull.stderr.slice(0, 150)}` });
     } catch (err: unknown) {
-      addStep({ step: 'APPLY_PATCH_NEXUS', status: 'failure', latencyMs: Date.now() - t3,
-        output: err instanceof Error ? err.message : String(err) });
+      addStep({ step: 'NEXUS_GIT_PULL', status: 'info', latencyMs: 0,
+        output: `pull skipped: ${err instanceof Error ? err.message : String(err)}` });
     }
-  } else {
-    addStep({ step: 'APPLY_PATCH_NEXUS', status: 'skipped', latencyMs: 0,
-      output: '⚠️ NEXUS hors ligne — écriture locale ignorée' });
   }
 
   // ── STEP 4: RUN TESTS — TSC VIA NEXUS ────────────────────────────────────
@@ -206,7 +216,7 @@ ${originalCode}
       const tsc = await nexusRunCommand(
         'npx tsc --noEmit --skipLibCheck 2>&1',
         `${IBRAHIM_LOCAL}\\backend`,
-        55_000,
+        60_000,
       );
       testsPass  = tsc.ok;
       testStdout = tsc.stdout.slice(0, 2000);
@@ -214,13 +224,12 @@ ${originalCode}
       addStep({ step: 'RUN_TSC_NEXUS', status: tsc.ok ? 'success' : 'failure',
         latencyMs: Date.now() - t4,
         output: tsc.ok
-          ? `✅ TypeScript compilation: 0 erreurs`
-          : `❌ tsc erreurs:\nSTDOUT: ${testStdout.slice(0, 300)}\nSTDERR: ${testStderr.slice(0, 200)}`,
+          ? `✅ npx tsc --noEmit: 0 erreurs`
+          : `❌ tsc erreurs:\n${testStdout.slice(0, 400)}\n${testStderr.slice(0, 200)}`,
         details: { exit_code: tsc.exit_code, command: tsc.command } });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       addStep({ step: 'RUN_TSC_NEXUS', status: 'failure', latencyMs: Date.now() - t4, output: msg });
-      // Tests inconclusive — proceed to review with testsPass=false
     }
   } else {
     // Static analysis fallback: check that the specific bugs are NOT in the fixed code
@@ -307,19 +316,27 @@ Critères: logique correcte, pas de régression, bugs clairement fixés.`;
       ? `Code Reviewer a rejeté le patch: "${reviewText.slice(0, 100)}"`
       : `TypeScript tests failed:\n${testStdout.slice(0, 200)}`;
 
-    if (nexusOnline) {
-      try {
-        const wr = await nexusWriteFile(BUGGY_FILE_LOCAL, originalCode);
-        addStep({ step: 'ROLLBACK_NEXUS', status: wr.ok ? 'success' : 'failure',
-          latencyMs: Date.now() - t6,
-          output: wr.ok ? `✅ Original restauré sur PC — ${rollbackReason.slice(0, 80)}` : `❌ Rollback échoué: ${wr.error}` });
-      } catch (err: unknown) {
-        addStep({ step: 'ROLLBACK_NEXUS', status: 'failure', latencyMs: 0,
-          output: err instanceof Error ? err.message : String(err) });
+    // Rollback: restore original buggy code on GitHub (undo the temp commit)
+    const rollbackCommit = await updateFile(
+      BUGGY_FILE_GITHUB, originalCode,
+      `revert(test9-pipeline): rollback — ${rollbackReason?.slice(0, 80)} — ${requestId}`,
+      IBRAHIM_REPO,
+    );
+    if (rollbackCommit) {
+      addStep({ step: 'ROLLBACK_GITHUB', status: 'success', latencyMs: Date.now() - t6,
+        output: `✅ Original restauré sur GitHub — sha: ${rollbackCommit.commitSha.slice(0, 7)}\nRaison: ${rollbackReason?.slice(0, 100)}`,
+        details: { commitSha: rollbackCommit.commitSha } });
+      // Also pull on Nexus to restore local copy
+      if (nexusOnline) {
+        try {
+          const pull = await nexusRunCommand('git pull origin main', IBRAHIM_LOCAL, 20_000);
+          addStep({ step: 'ROLLBACK_NEXUS_PULL', status: pull.ok ? 'success' : 'info',
+            latencyMs: 0, output: pull.ok ? `✅ git pull OK — original restauré sur PC` : pull.stderr.slice(0, 100) });
+        } catch { /* non-critical */ }
       }
     } else {
-      addStep({ step: 'ROLLBACK_INFO', status: 'info', latencyMs: 0,
-        output: `Rollback décidé (NEXUS hors ligne — GitHub intact): ${rollbackReason.slice(0, 120)}` });
+      addStep({ step: 'ROLLBACK_GITHUB', status: 'failure', latencyMs: Date.now() - t6,
+        output: `❌ GitHub rollback API failed — manual restore needed for ${BUGGY_FILE_GITHUB}` });
     }
   }
 

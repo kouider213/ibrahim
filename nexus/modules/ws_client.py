@@ -103,13 +103,13 @@ class NexusWSClient:
             )
 
         @sio.on('nexus:run_command', namespace='/nexus')
-        async def on_run_command(data: dict, ack=None):
-            """Run a shell command on the PC, return stdout/stderr/exit_code via ack."""
+        async def on_run_command(data: dict):
+            """Run a shell command on the PC, return stdout/stderr/exit_code via return-value ack."""
             import subprocess as _sp
             cmd       = data.get('command', '')
             cwd       = data.get('cwd') or None
             timeout_s = int(data.get('timeout', 30))
-            log.info('nexus:run_command — %s (cwd=%s timeout=%ss)', cmd[:80], cwd, timeout_s)
+            log.info('nexus:run_command ▶ %s (cwd=%s timeout=%ss)', cmd[:80], cwd, timeout_s)
             loop = asyncio.get_event_loop()
             try:
                 result = await loop.run_in_executor(None, lambda: _sp.run(
@@ -124,7 +124,7 @@ class NexusWSClient:
                     'stderr':    result.stderr[:2000],
                     'command':   cmd,
                 }
-                log.info('run_command exit=%d stdout=%d chars stderr=%d chars',
+                log.info('run_command ✅ exit=%d stdout=%d stderr=%d',
                          result.returncode, len(result.stdout), len(result.stderr))
             except _sp.TimeoutExpired:
                 payload = {'ok': False, 'exit_code': -1, 'stdout': '', 'stderr': f'Timeout {timeout_s}s', 'command': cmd}
@@ -132,16 +132,15 @@ class NexusWSClient:
             except Exception as e:
                 payload = {'ok': False, 'exit_code': -1, 'stdout': '', 'stderr': str(e), 'command': cmd}
                 log.error('run_command ERROR: %s', e)
-            if callable(ack):
-                ack(payload)
+            return payload
 
         @sio.on('nexus:write_file', namespace='/nexus')
-        async def on_write_file(data: dict, ack=None):
-            """Write text content to a local file path on the PC."""
+        async def on_write_file(data: dict):
+            """Write text content to a local file path on the PC — return-value ack."""
             import os as _os
             path    = data.get('path', '')
             content = data.get('content', '')
-            log.info('nexus:write_file — %s (%d chars)', path, len(content))
+            log.info('nexus:write_file ▶ %s (%d chars)', path, len(content))
             try:
                 dir_path = _os.path.dirname(path)
                 if dir_path:
@@ -149,12 +148,11 @@ class NexusWSClient:
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 payload = {'ok': True, 'path': path, 'size': len(content)}
-                log.info('write_file OK: %s', path)
+                log.info('write_file ✅ %s', path)
             except Exception as e:
                 payload = {'ok': False, 'path': path, 'error': str(e)}
                 log.error('write_file ERROR: %s', e)
-            if callable(ack):
-                ack(payload)
+            return payload
 
         @sio.on('nexus:save_file', namespace='/nexus')
         async def on_save_file(data: dict):
