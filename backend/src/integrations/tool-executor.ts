@@ -58,7 +58,9 @@ import { sendWhatsApp } from './whatsapp.js';
 import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 import { schedulerQueue } from '../queue/scheduler.js';
+import { redis } from '../queue/queue.js';
 import axios from 'axios';
+import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
