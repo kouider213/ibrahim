@@ -583,6 +583,44 @@ async function netlifyDeploy(input: Record<string, unknown>): Promise<string> {
   return ok ? `✅ Déploiement Netlify déclenché pour: ${siteId}` : `❌ Échec du déploiement Netlify pour: ${siteId}`;
 }
 
+// ─── VERCEL TOOLS ─────────────────────────────────────────────────────────────
+
+async function vercelGetDeploymentsTool(input: Record<string, unknown>): Promise<string> {
+  const project = (input['project'] as string | undefined) ?? 'autolux-location';
+  const deploys = await vercelGetDeployments(project);
+  if (!deploys.length) {
+    return `❌ Aucun déploiement trouvé pour "${project}". Vérifie VERCEL_TOKEN dans Railway ou le nom du projet.`;
+  }
+  const lines = deploys.map((d: any) => {
+    const state   = d.state   ?? d.readyState ?? '?';
+    const created = d.created ? new Date(d.created).toLocaleString('fr-FR') : '?';
+    const url     = d.url     ? `https://${d.url}` : '?';
+    const commit  = d.meta?.githubCommitSha?.slice(0, 7) ?? '?';
+    return `${state === 'READY' ? '✅' : state === 'ERROR' ? '❌' : '⏳'} [${commit}] ${state} — ${created}\n   🔗 ${url}`;
+  });
+  return `📦 **Deployments Vercel — ${project}** (${deploys.length} derniers)\n\n${lines.join('\n\n')}`;
+}
+
+async function vercelGetDeploymentLogsTool(input: Record<string, unknown>): Promise<string> {
+  const deploymentId = input['deployment_id'] as string | undefined;
+  if (!deploymentId) return '❌ deployment_id requis (obtiens-le via vercel_get_deployments)';
+  return vercelGetDeploymentLogs(deploymentId);
+}
+
+async function vercelCheckUrlTool(input: Record<string, unknown>): Promise<string> {
+  const url = (input['url'] as string | undefined) ?? 'https://autolux-location.vercel.app';
+  const result = await vercelCheckUrl(url);
+  if (result.ok) return `✅ ${url} → HTTP ${result.status} (OK)`;
+  if (result.status === 0) return `❌ ${url} → inaccessible (timeout ou DNS)`;
+  return `⚠️ ${url} → HTTP ${result.status} (${result.status === 404 ? 'page non trouvée' : result.status === 500 ? 'erreur serveur' : 'voir logs'})`;
+}
+
+async function vercelRedeployTool(input: Record<string, unknown>): Promise<string> {
+  const deploymentId = input['deployment_id'] as string | undefined;
+  if (!deploymentId) return '❌ deployment_id requis (obtiens-le via vercel_get_deployments)';
+  return vercelRedeploy(deploymentId);
+}
+
 // ─── PHASE 13 — APPRENTISSAGE CONTINU ─────────────────────────────────────
 
 async function recordFeedbackTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
