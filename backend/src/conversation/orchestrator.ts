@@ -13,6 +13,13 @@ let _reqCounter = 0;
 
 function nextRequestId(): string { return `req_${Date.now()}_${++_reqCounter}`; }
 
+function detectSourceChannel(sessionId: string): 'telegram' | 'mobile_voice' | 'mobile_text' | 'backend_internal' {
+  if (sessionId.startsWith('telegram_'))  return 'telegram';
+  if (sessionId.startsWith('voice_'))     return 'mobile_voice';
+  if (sessionId.startsWith('mobile_'))    return 'mobile_text';
+  return 'backend_internal';
+}
+
 export function initOrchestrator(io: Namespace): void {
   _io = io;
 }
