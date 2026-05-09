@@ -3,10 +3,31 @@ import type { Server as SocketServer, Socket } from 'socket.io';
 import { processMessage }  from '../../conversation/orchestrator.js';
 import { env }             from '../../config/env.js';
 
-let _nexusSocket:    Socket | null = null;
-let _launcherSocket: Socket | null = null;
-let _nexusMac:       string        = '';
-let _nexusPublicIp:  string        = '';   // last known public IP of the PC
+let _nexusSocket:       Socket | null = null;
+let _launcherSocket:    Socket | null = null;
+let _nexusMac:          string        = '';
+let _nexusPublicIp:     string        = '';
+
+// ── WebSocket telemetry (for offline diagnostics) ─────────────────────────────
+interface NexusTelemetry {
+  lastConnectedAt:    string | null;
+  lastDisconnectedAt: string | null;
+  totalConnections:   number;
+  totalDisconnections:number;
+  lastDisconnectReason: string | null;
+  lastHostname:       string | null;
+  lastSocketId:       string | null;
+}
+
+const _tel: NexusTelemetry = {
+  lastConnectedAt:    null,
+  lastDisconnectedAt: null,
+  totalConnections:   0,
+  totalDisconnections:0,
+  lastDisconnectReason: null,
+  lastHostname:       null,
+  lastSocketId:       null,
+};
 
 // ── Init /nexus namespace ─────────────────────────────────────────────────────
 
@@ -27,11 +48,15 @@ export function initNexusRelay(io: SocketServer): void {
     _nexusPublicIp = (xfwd ? xfwd.split(',')[0] : socket.handshake.address).trim();
     console.log(`[NEXUS] PC Agent connected: ${socket.id} — IP: ${_nexusPublicIp}`);
     _nexusSocket = socket;
+    _tel.lastConnectedAt  = new Date().toISOString();
+    _tel.lastSocketId     = socket.id;
+    _tel.totalConnections += 1;
     void _sendTelegram('🖥️ *NEXUS* en ligne — PC connecté');
 
     // ── Register MAC for WoL ───────────────────────────────────────────────
-    socket.on('nexus:register', (data: { mac?: string }) => {
+    socket.on('nexus:register', (data: { mac?: string; hostname?: string }) => {
       _nexusMac = data?.mac ?? '';
+      if (data?.hostname) _tel.lastHostname = data.hostname;
       console.log(`[NEXUS] MAC registered: ${_nexusMac} / IP: ${_nexusPublicIp}`);
     });
 
@@ -75,9 +100,14 @@ export function initNexusRelay(io: SocketServer): void {
       void _sendTelegramDocument(b64, filename, caption ?? `📎 ${filename}`);
     });
 
-    socket.on('disconnect', () => {
-      console.log('[NEXUS] PC Agent disconnected');
-      if (_nexusSocket?.id === socket.id) _nexusSocket = null;
+    socket.on('disconnect', (reason: string) => {
+      console.log('[NEXUS] PC Agent disconnected:', reason);
+      if (_nexusSocket?.id === socket.id) {
+        _nexusSocket = null;
+        _tel.lastDisconnectedAt    = new Date().toISOString();
+        _tel.lastDisconnectReason  = reason;
+        _tel.totalDisconnections  += 1;
+      }
       void _sendTelegram('🖥️ *NEXUS* hors ligne');
     });
   });
@@ -129,6 +159,52 @@ export function sendToNexus(event: string, data: unknown): boolean {
 
 export function getNexusMac(): string { return _nexusMac; }
 export function getNexusIp():  string { return _nexusPublicIp; }
+
+export function getNexusStatus(): {
+  online: boolean;
+  socketId: string | null;
+  publicIp: string;
+  mac: string;
+  telemetry: NexusTelemetry;
+} {
+  return {
+    online:   _nexusSocket !== null,
+    socketId: _nexusSocket?.id ?? null,
+    publicIp: _nexusPublicIp,
+    mac:      _nexusMac,
+    telemetry: { ..._tel },
+  };
+}
+
+/** Take a real desktop screenshot on the PC via PowerShell, return base64 PNG. */
+export async function nexusScreenshot(
+  timeoutMs = 20_000,
+): Promise<{ ok: boolean; base64?: string; path?: string; error?: string }> {
+  if (!_nexusSocket) return { ok: false, error: 'Nexus not connected' };
+  const tmpPath = String.raw`C:\Users\douba\AppData\Local\Temp\nexus_screen_${Date.now()}.png`;
+  const psCmd = [
+    `Add-Type -AssemblyName System.Windows.Forms`,
+    `$s=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds`,
+    `$bmp=New-Object System.Drawing.Bitmap($s.Width,$s.Height)`,
+    `$g=[System.Drawing.Graphics]::FromImage($bmp)`,
+    `$g.CopyFromScreen($s.Location,[System.Drawing.Point]::Empty,$s.Size)`,
+    `$bmp.Save('${tmpPath}')`,
+  ].join('; ');
+  const captureRes = await nexusRunCommand(`powershell -Command "${psCmd}"`, undefined, timeoutMs);
+  if (!captureRes.ok && captureRes.exit_code !== 0) {
+    return { ok: false, error: `Screenshot capture failed: ${captureRes.stderr}` };
+  }
+  const readRes = await nexusRunCommand(
+    `powershell -Command "[Convert]::ToBase64String([IO.File]::ReadAllBytes('${tmpPath}'))"`,
+    undefined,
+    timeoutMs,
+  );
+  await nexusRunCommand(`del "${tmpPath}"`, undefined, 5_000).catch(() => undefined);
+  if (!readRes.ok || !readRes.stdout.trim()) {
+    return { ok: false, error: `Screenshot read failed: ${readRes.stderr}` };
+  }
+  return { ok: true, base64: readRes.stdout.trim(), path: tmpPath };
+}
 
 export function isLauncherOnline(): boolean {
   return _launcherSocket !== null;

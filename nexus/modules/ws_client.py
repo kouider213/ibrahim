@@ -67,7 +67,8 @@ class NexusWSClient:
         async def connect():
             self._connected = True
             log.info('✅ Connected to Dzaryx /nexus')
-            await sio.emit('nexus:register', {'mac': _get_mac()}, namespace='/nexus')
+            import platform as _platform
+            await sio.emit('nexus:register', {'mac': _get_mac(), 'hostname': _platform.node()}, namespace='/nexus')
             await self.app.gui_send({'type': 'status', 'backend': True})
 
         @sio.event(namespace='/nexus')
