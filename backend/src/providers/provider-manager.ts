@@ -145,6 +145,11 @@ async function _groq(
   };
 }
 
+// ── Test options (used by /api/multi-agent/test-fallback only) ────────────────
+export interface ProviderTestOptions {
+  forceUnavailable?: ProviderName[];  // simulate provider(s) being down
+}
+
 // ── Main unified call (with fallback + timeout) ───────────────────────────────
 
 export async function callProvider(
@@ -152,20 +157,26 @@ export async function callProvider(
   userMessage:  string,
   systemPrompt: string,
   timeoutMs:    number,
+  testOptions?: ProviderTestOptions,
 ): Promise<ProviderResult> {
   const t0 = Date.now();
   let provider     = config.provider;
   let model        = config.model;
   let usedFallback = false;
 
+  const forcedDown = testOptions?.forceUnavailable ?? [];
+
+  // isAvailableEff: respects both real availability and forced-down list
+  const isAvailableEff = (p: ProviderName) => !forcedDown.includes(p) && isAvailable(p);
+
   // Resolve provider availability
-  if (!isAvailable(provider)) {
+  if (!isAvailableEff(provider)) {
     const fb = config.fallback ?? 'claude';
-    if (isAvailable(fb)) {
-      console.log(`[provider-mgr] ${provider} unavail → fallback ${fb}`);
+    if (isAvailableEff(fb)) {
+      console.log(`[provider-mgr] ${provider} unavail → fallback ${fb}${forcedDown.includes(provider) ? ' [forced-down]' : ''}`);
       provider = fb; model = defaultModel(fb); usedFallback = true;
-    } else if (isAvailable('claude')) {
-      console.log(`[provider-mgr] ${provider} + ${config.fallback ?? 'none'} unavail → claude`);
+    } else if (isAvailableEff('claude')) {
+      console.log(`[provider-mgr] ${provider} + ${config.fallback ?? 'none'} unavail → claude${forcedDown.includes(provider) ? ' [forced-down]' : ''}`);
       provider = 'claude'; model = defaultModel('claude'); usedFallback = true;
     } else {
       throw new Error(`[provider-mgr] No LLM available (wanted: ${config.provider})`);

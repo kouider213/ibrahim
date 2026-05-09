@@ -10,7 +10,7 @@
  * Chaque agent a son propre provider/model/temperature — le fallback est automatique
  * si le provider n'est pas configuré.
  */
-import { callProvider } from '../providers/provider-manager.js';
+import { callProvider, type ProviderTestOptions } from '../providers/provider-manager.js';
 import { BUSINESS_AGENT }     from './definitions/business-agent.js';
 import { FINANCE_AGENT }      from './definitions/finance-agent.js';
 import { SOCIAL_AGENT }       from './definitions/social-agent.js';
@@ -118,6 +118,7 @@ async function runSingleAgent(
   businessCtx:   string,
   requestId:     string,
   agentTimeoutMs: number,
+  testOptions?:  ProviderTestOptions,
 ): Promise<AgentTaskResult> {
   const agent = AGENT_MAP.get(agentId);
   if (!agent) {
@@ -145,6 +146,7 @@ async function runSingleAgent(
       question,
       systemPrompt,
       agentTimeoutMs,
+      testOptions,
     );
 
     console.log(
@@ -246,29 +248,48 @@ export async function runMultiAgent(
   agentIds:       AgentId[],
   requestId:      string,
   agentTimeoutMs  = 30_000,
+  testOptions?:   ProviderTestOptions,
+  sequential      = false,   // if true: each agent sees previous agents' outputs
 ): Promise<MultiAgentReport> {
   const t0 = Date.now();
 
   console.log(
     `[multi-agent:${requestId}] ▶ START ` +
     `agents=[${agentIds.join(',')}] ` +
-    `providers: ${agentIds.map(id => AGENT_MAP.get(id)?.provider ?? '?').join(',')}`,
+    `mode=${sequential ? 'sequential' : 'parallel'} ` +
+    `providers: ${agentIds.map(id => AGENT_MAP.get(id)?.provider ?? '?').join(',')}` +
+    (testOptions?.forceUnavailable?.length ? ` forceDown=[${testOptions.forceUnavailable.join(',')}]` : ''),
   );
 
-  // Run all agents in parallel — never let one failure block others
-  const settled = await Promise.allSettled(
-    agentIds.map(id => runSingleAgent(id, userMessage, businessContext, requestId, agentTimeoutMs)),
-  );
+  let agentResults: AgentTaskResult[];
 
-  const agentResults: AgentTaskResult[] = settled.map((s, i) => {
-    if (s.status === 'fulfilled') return s.value;
-    const id = agentIds[i]!;
-    return {
-      agentId: id, agentName: id, desiredProvider: '?', actualProvider: '?',
-      model: '', usedFallback: false, text: '', inputTokens: 0, outputTokens: 0,
-      latencyMs: agentTimeoutMs, costEstUsd: 0, success: false, error: s.reason?.message ?? 'unknown',
-    };
-  });
+  if (sequential) {
+    // Sequential mode: each agent receives context from previous agent outputs
+    agentResults = [];
+    for (const id of agentIds) {
+      const priorCtx = agentResults.length
+        ? `\n\n--- ANALYSES PRÉCÉDENTES ---\n` +
+          agentResults.filter(r => r.success).map(r => `[${r.agentName}]: ${r.text.slice(0, 800)}`).join('\n\n')
+        : '';
+      const enriched = businessContext + priorCtx;
+      const r = await runSingleAgent(id, userMessage, enriched, requestId, agentTimeoutMs, testOptions);
+      agentResults.push(r);
+    }
+  } else {
+    // Parallel mode (default): Promise.allSettled — never let one failure block others
+    const settled = await Promise.allSettled(
+      agentIds.map(id => runSingleAgent(id, userMessage, businessContext, requestId, agentTimeoutMs, testOptions)),
+    );
+    agentResults = settled.map((s, i) => {
+      if (s.status === 'fulfilled') return s.value;
+      const id = agentIds[i]!;
+      return {
+        agentId: id, agentName: id, desiredProvider: '?', actualProvider: '?',
+        model: '', usedFallback: false, text: '', inputTokens: 0, outputTokens: 0,
+        latencyMs: agentTimeoutMs, costEstUsd: 0, success: false, error: s.reason?.message ?? 'unknown',
+      };
+    });
+  }
 
   const { text: fusedResponse, latencyMs: fusionLatencyMs } = await fuseResponses(userMessage, agentResults, requestId);
 
