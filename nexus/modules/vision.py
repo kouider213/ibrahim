@@ -7,6 +7,7 @@ import asyncio
 import base64
 import logging
 import os
+import queue
 import threading
 import time
 
@@ -34,6 +35,9 @@ class VisionModule:
         self._live_screen = False   # écran PC → app mobile en direct
         self._thread:        threading.Thread | None = None   # thread capture caméra
         self._screen_thread: threading.Thread | None = None   # thread capture écran
+        self._relay_thread:  threading.Thread | None = None   # thread affichage relay app→PC
+        self._relay_active  = False
+        self._relay_queue:   queue.Queue = queue.Queue(maxsize=10)
         self._client = None
         self._setup_claude()
 
@@ -268,6 +272,76 @@ class VisionModule:
                 self.app.loop,
             )
         log.info('Screen live stream arrêté')
+
+    # ── Relay display : app camera → fenêtre Windows ─────────────────────────
+
+    def push_relay_frame(self, b64_data: str) -> None:
+        """Reçoit une frame depuis l'app Dzaryx et l'ajoute à la file d'affichage."""
+        if not self._relay_active:
+            self.start_relay_display()
+        try:
+            self._relay_queue.put_nowait(b64_data)
+        except queue.Full:
+            try:
+                self._relay_queue.get_nowait()
+                self._relay_queue.put_nowait(b64_data)
+            except Exception:
+                pass
+
+    def start_relay_display(self) -> str:
+        self._relay_active = True
+        if not self._relay_thread or not self._relay_thread.is_alive():
+            self._relay_thread = threading.Thread(target=self._relay_loop, daemon=True)
+            self._relay_thread.start()
+        return '✅ Relay caméra app → PC activé'
+
+    def stop_relay_display(self) -> str:
+        self._relay_active = False
+        return '✅ Relay caméra arrêté'
+
+    def _relay_loop(self) -> None:
+        try:
+            import cv2
+            import numpy as np
+        except ImportError:
+            log.error('opencv-python manquant pour relay display')
+            self._relay_active = False
+            return
+
+        WIN = 'Dzaryx — Caméra Live (App)'
+        window_ok = False
+
+        while self._relay_active:
+            try:
+                b64 = self._relay_queue.get(timeout=3)
+                img_bytes = base64.b64decode(b64)
+                arr = np.frombuffer(img_bytes, np.uint8)
+                frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if frame is None:
+                    continue
+                frame = cv2.flip(frame, 1)  # mirror
+                frame = cv2.resize(frame, (800, 600), interpolation=cv2.INTER_LINEAR)
+                if not window_ok:
+                    cv2.namedWindow(WIN, cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow(WIN, 800, 600)
+                    cv2.moveWindow(WIN, 50, 50)
+                    window_ok = True
+                cv2.imshow(WIN, frame)
+                key = cv2.waitKey(1) & 0xFF
+                try:
+                    if key == ord('q') or cv2.getWindowProperty(WIN, cv2.WND_PROP_VISIBLE) < 1:
+                        self._relay_active = False
+                except Exception:
+                    self._relay_active = False
+            except queue.Empty:
+                if window_ok:
+                    cv2.waitKey(1)
+
+        try:
+            cv2.destroyWindow(WIN)
+        except Exception:
+            pass
+        log.info('Relay display arrêté')
 
     def is_live(self) -> bool:
         return self._live or self._live_window

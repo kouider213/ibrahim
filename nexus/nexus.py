@@ -65,6 +65,8 @@ _PAUSE_RE      = re.compile(r'\b(pause|stop\s+la\s+musique|coupe\s+le\s+son|arr[
 _NEXT_RE       = re.compile(r'\b(suivant|next|prochaine?\s+chanson|chanson\s+suivante)\b', re.I)
 _PREV_RE       = re.compile(r'\b(pr[eé]c[eé]dent|previous|chanson\s+d\'?avant|chanson\s+pr[eé]c[eé]dente)\b', re.I)
 
+_RELAY_START_RE  = re.compile(r'\b(envoie?\s+le\s+live|montre?\s+le\s+live|relay|live\s+(?:sur|vers)\s+(?:le\s+)?pc|affiche?\s+(?:la\s+)?cam[eé]ra?\s+(?:sur|vers)\s+(?:le\s+)?pc)\b', re.I)
+_RELAY_STOP_RE   = re.compile(r'\b(stop\s+(?:le\s+)?relay|arr[eê]te?\s+(?:le\s+)?relay|ferme?\s+(?:la\s+)?fen[eê]tre?\s+cam[eé]ra?|stop\s+live\s+pc)\b', re.I)
 _CAMERA_OFF_RE   = re.compile(r'\b(cam[eé]ra?\s+off|ferme\s+la\s+cam|stop\s+(?:cam|live|tout)|d[eé]sactive\s+(?:la\s+cam|tout|les\s+visions?))\b', re.I)
 # Caméra → app mobile uniquement
 _CAM_PHONE_RE    = re.compile(r'\b(cam[eé]ra?\s+(?:t[eé]l[eé]?|app|mobile)|live\s+(?:t[eé]l[eé]?|(?:sur\s+)?l[a\']app|sur\s+(?:le\s+)?t[eé]l)|juste\s+(?:sur\s+)?l[a\']app|uniquement\s+(?:sur\s+)?(?:le\s+)?t[eé]l)\b', re.I)
@@ -266,9 +268,21 @@ class NexusApp:
 
         # ── 3. Caméra / Vision / Écran ──────────────────────────────────────────
 
+        # ── Relay app → PC ──────────────────────────────────────────────────────
+        if _RELAY_START_RE.search(tl):
+            r = self.vision.start_relay_display()
+            await self._reply(r, source)
+            return
+
+        if _RELAY_STOP_RE.search(tl):
+            r = self.vision.stop_relay_display()
+            await self._reply(r, source)
+            return
+
         # Stop tout
         if _CAMERA_OFF_RE.search(tl):
             r = self.vision.stop_all_live()
+            self.vision.stop_relay_display()
             if source == 'nexus':
                 await self.speak(r)
             else:

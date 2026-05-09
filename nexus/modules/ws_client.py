@@ -122,16 +122,14 @@ class NexusWSClient:
 
         @sio.on('nexus:live_frame', namespace='/nexus')
         async def on_live_frame(data: dict):
-            """Reçoit une frame live de la caméra Dzaryx et l'affiche sur le PC en temps réel."""
-            import base64 as _b64, tempfile, time as _time
+            """Reçoit une frame live de la caméra Dzaryx et l'affiche sur le PC via OpenCV."""
             b64 = data.get('data', '')
             if not b64:
                 return
-            img_bytes = _b64.b64decode(b64)
-            path = os.path.join(tempfile.gettempdir(), 'nexus_live_frame.jpg')
-            with open(path, 'wb') as f:
-                f.write(img_bytes)
-            await self.app.gui_send({'type': 'live_frame', 'path': path, 'data': b64})
+            # Affiche dans une fenêtre OpenCV dédiée (thread séparé)
+            self.app.vision.push_relay_frame(b64)
+            # Aussi transmet au GUI browser pour visualisation
+            await self.app.gui_send({'type': 'live_frame', 'data': b64})
 
         @sio.on('nexus:display_image', namespace='/nexus')
         async def on_display_image(data: dict):
