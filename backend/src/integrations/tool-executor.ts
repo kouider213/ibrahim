@@ -192,6 +192,8 @@ export async function executeTool(
       case 'generate_image':             return await generateImageTool(input, sessionId);
       case 'generate_ai_video':          return await generateAiVideoTool(input, sessionId);
       case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
+      // ─── IMAGE-TO-IMAGE avec conservation visage ───
+      case 'transform_image':            return await executeImageToImage(input, sessionId);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
