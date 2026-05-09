@@ -95,8 +95,11 @@ export async function processMessage(
   imageMime   = 'image/jpeg',
 ): Promise<OrchestratorResponse> {
 
-  const requestId = nextRequestId();
-  console.log(`[orch:${requestId}] session=${sessionId} msg="${userMessage.slice(0, 80)}"`);
+  const requestId     = nextRequestId();
+  const source_channel = detectSourceChannel(sessionId);
+  console.log(
+    `[orch:${requestId}] source_channel=${source_channel} session=${sessionId} msg="${userMessage.slice(0, 80)}"`,
+  );
 
   // 1. Notifier "thinking" immédiatement
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
