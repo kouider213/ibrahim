@@ -62,6 +62,7 @@ import { redis } from '../queue/queue.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
+import { executeImageToImage } from './image-to-image.js';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
