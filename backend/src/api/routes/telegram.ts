@@ -11,6 +11,7 @@ import { requireMobileAuth } from '../middleware/auth.js';
 import { guardResponse, applyScopeGuard } from '../../conversation/response-guard.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
 import { isNexusOnline, sendToNexus, triggerWol, getNexusMac, getNexusIp } from '../../actions/handlers/nexus-relay.js';
+import { routeNexusMessage } from '../../actions/handlers/nexus-nl-router.js';
 import { isValidMp4Buffer } from '../../marketing/create-marketing-video.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import { addVideoToBuffer } from '../../marketing/video-buffer.js';
@@ -717,13 +718,20 @@ router.post('/webhook', async (req, res) => {
 
   const nexusCmdMatch = NEXUS_CMD_RE.exec(text);
   if (nexusCmdMatch) {
-    const cmd = nexusCmdMatch[1].trim();
-    if (isNexusOnline()) {
-      sendToNexus('nexus:command', { text: cmd, source: 'telegram', chatId });
-      await sendMessage(chatId, `📡 Commande envoyée à *NEXUS*:\n_${cmd}_`);
-    } else {
+    if (!isNexusOnline()) {
       await sendMessage(chatId, '🖥️ *NEXUS* est hors ligne. Lance *start.bat* sur ton PC.');
+      return;
     }
+    const nlResult = await routeNexusMessage(text);
+    for (const log of nlResult.logs) console.log(log);
+    if (nlResult.handled) {
+      for (const msg of nlResult.messages) await sendMessage(chatId, msg);
+      return;
+    }
+    // Unknown intent — fall through to Python AI
+    const cmd = nexusCmdMatch[1].trim();
+    sendToNexus('nexus:command', { text: cmd, source: 'telegram', chatId });
+    await sendMessage(chatId, `📡 Commande envoyée à *NEXUS*:\n_${cmd}_`);
     return;
   }
   // ── Auto-route PC/music commands to NEXUS ───────────────────────────────

@@ -7,6 +7,7 @@ import {
 } from '../../actions/handlers/nexus-relay.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
+import { testNlParser, detectIntent, splitCommands } from '../../actions/handlers/nexus-nl-router.js';
 
 const router = Router();
 
@@ -241,6 +242,41 @@ router.post('/test-phantom', requireMobileAuth, (req, res) => {
     test_passed:        wasBlocked === (key === 'phantom_no_tool' || key === 'phantom_failed_tool'),
     phantom_refusal_msg: PHANTOM_REFUSAL,
   });
+});
+
+// POST /api/nexus/nl-test — test the NL router without executing (dry-run)
+router.post('/nl-test', requireMobileAuth, (req, res) => {
+  const { text, cases } = req.body as { text?: string; cases?: Array<{ input: string; expected_intents: string[] }> };
+
+  // If custom test cases provided, run batch
+  if (Array.isArray(cases) && cases.length) {
+    const results = testNlParser(cases as Parameters<typeof testNlParser>[0]);
+    const passed  = results.filter(r => r.passed).length;
+    res.json({ ok: true, total: results.length, passed, failed: results.length - passed, results });
+    return;
+  }
+
+  // Single text — run default suite + the provided text
+  const defaultCases = [
+    { input: 'Nexus, montre-moi mon bureau',                   expected_intents: ['screen_understand'] },
+    { input: 'Nexus, screenshot',                              expected_intents: ['screenshot'] },
+    { input: 'Nexus, lance chrome',                            expected_intents: ['app_launch'] },
+    { input: 'Nexus, liste les fenêtres ouvertes',             expected_intents: ['window_list'] },
+    { input: 'Nexus, liste les processus',                     expected_intents: ['process_list'] },
+    { input: 'Nexus,\n1. montre-moi mon bureau\n2. lance chrome', expected_intents: ['screen_understand', 'app_launch'] },
+    { input: 'Nexus,\n- screenshot\n- liste les fichiers du bureau\n- lance spotify', expected_intents: ['screenshot', 'file_list', 'app_launch'] },
+  ] as Parameters<typeof testNlParser>[0];
+
+  if (text?.trim()) {
+    const cmds = splitCommands(text);
+    const single = cmds.map(cmd => ({ cmd, ...detectIntent(cmd) }));
+    res.json({ ok: true, input: text, commands: cmds, detected: single, suite: testNlParser(defaultCases) });
+    return;
+  }
+
+  const results = testNlParser(defaultCases);
+  const passed  = results.filter(r => r.passed).length;
+  res.json({ ok: true, total: results.length, passed, failed: results.length - passed, results });
 });
 
 export default router;
