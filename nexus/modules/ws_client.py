@@ -83,6 +83,17 @@ class NexusWSClient:
             log.info('← Remote command: %s', text[:60])
             asyncio.create_task(self.app.handle_command(text, source))
 
+        @sio.on('nexus:ping', namespace='/nexus')
+        async def on_ping(_data, ack=None):
+            import platform
+            payload = {
+                'time':     datetime.now().isoformat(),
+                'hostname': platform.node() or 'PC-Kouider',
+            }
+            log.info('PING received → PONG %s', payload['time'])
+            if callable(ack):
+                ack(payload)
+
         @sio.on('nexus:wake', namespace='/nexus')
         async def on_wake(_data):
             log.info('Wake signal received')

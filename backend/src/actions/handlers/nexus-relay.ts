@@ -96,6 +96,24 @@ export function sendToNexus(event: string, data: unknown): boolean {
 export function getNexusMac(): string { return _nexusMac; }
 export function getNexusIp():  string { return _nexusPublicIp; }
 
+/** Ping NEXUS PC agent and wait for pong with real PC timestamp. */
+export function pingNexus(): Promise<{ time: string; hostname: string; latency_ms: number }> {
+  return new Promise((resolve, reject) => {
+    if (!_nexusSocket) { reject(new Error('Nexus not connected')); return; }
+    const t0 = Date.now();
+    const timer = setTimeout(() => reject(new Error('Ping timeout (5s) — NEXUS ne répond pas')), 5_000);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_nexusSocket as any).emit('nexus:ping', {}, (data: { time?: string; hostname?: string } | undefined) => {
+      clearTimeout(timer);
+      resolve({
+        time:       data?.time     ?? new Date().toISOString(),
+        hostname:   data?.hostname ?? 'unknown',
+        latency_ms: Date.now() - t0,
+      });
+    });
+  });
+}
+
 /** Send Wake-on-LAN magic packet to last known PC IP.
  *  Requires router port forwarding: UDP 9 → PC local IP. */
 export async function triggerWol(): Promise<{ sent: boolean; mac: string; ip: string }> {

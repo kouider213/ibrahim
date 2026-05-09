@@ -73,6 +73,22 @@ export const api = {
       method: 'POST',
       body:   JSON.stringify({ imageBase64, mimeType }),
     }),
+
+  nexusStatus: () =>
+    fetch(`${BACKEND_URL}/api/nexus/status`, {
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    }).then(r => r.json() as Promise<{ connected: boolean; mac: string | null; ip: string | null }>)
+      .catch(() => ({ connected: false, mac: null, ip: null })),
+
+  nexusPing: () =>
+    apiFetch<{ ok: boolean; time?: string; hostname?: string; latency_ms?: number; error?: string }>(
+      '/api/nexus/ping', { method: 'POST' }
+    ),
+
+  healthCheck: () =>
+    fetch(`${BACKEND_URL}/health`, {
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    }).then(r => r.json()).catch(() => ({ status: 'error' })),
 };
 
 export interface FinanceDashboardData {

@@ -1,5 +1,5 @@
 ﻿import { supabase } from './supabase.js';
-import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent } from './google-calendar.js';
+import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
@@ -137,6 +137,12 @@ export async function executeTool(
       case 'sync_calendar':             return await syncCalendarTool();
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
+      case 'update_calendar_event':     return await updateCalendarEventTool(input);
+      // ─── NEXUS PC AGENT ───
+      case 'ping_nexus':               return await pingNexusTool();
+      case 'send_nexus_command':       return await sendNexusCommandTool(input);
+      // ─── HEALTH CHECK ───
+      case 'health_check_all':         return await healthCheckAllTool();
       case 'get_late_returns':                   return await getLateReturns();
       case 'generate_reservation_voucher':       return await generateVoucherTool(input, sessionId);
       case 'get_fleet_status':                   return await getFleetStatus();
@@ -3213,4 +3219,89 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
   } finally {
     videoGenLocks.delete(lockKey);
   }
+}
+
+// ─── NEXUS PC AGENT ──────────────────────────────────────────────────────────
+
+async function pingNexusTool(): Promise<string> {
+  const { isNexusOnline, pingNexus } = await import('../actions/handlers/nexus-relay.js');
+  if (!isNexusOnline()) {
+    return '❌ NEXUS hors ligne — lance start.bat sur le PC Windows pour démarrer l\'agent local.';
+  }
+  try {
+    const result = await pingNexus();
+    return `✅ NEXUS répond!\n🖥️ PC: ${result.hostname}\n⏰ Heure PC: ${result.time}\n📡 Latence: ${result.latency_ms}ms\nLa connexion Dzaryx ↔ NEXUS est opérationnelle.`;
+  } catch (err) {
+    return `⚠️ NEXUS connecté mais ne répond pas au ping: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function sendNexusCommandTool(input: Record<string, unknown>): Promise<string> {
+  const command = (input['command'] as string | undefined)?.trim();
+  if (!command) return '❌ Commande requise (ex: "ouvre spotify", "screenshot")';
+  const { isNexusOnline, sendToNexus } = await import('../actions/handlers/nexus-relay.js');
+  if (!isNexusOnline()) {
+    return '❌ NEXUS hors ligne — impossible d\'envoyer la commande. Lance start.bat sur le PC.';
+  }
+  sendToNexus('nexus:command', { text: command, source: 'dzaryx-app' });
+  return `✅ Commande envoyée à NEXUS: "${command}"\n📡 NEXUS va l\'exécuter et envoyer le résultat via Telegram ou journal.`;
+}
+
+// ─── GOOGLE CALENDAR — update manquant ───────────────────────────────────────
+
+async function updateCalendarEventTool(input: Record<string, unknown>): Promise<string> {
+  const googleEventId = (input['google_event_id'] as string | undefined)?.trim();
+  if (!googleEventId) return '❌ google_event_id requis — appelle list_calendar_events pour obtenir l\'ID';
+  const updates: { summary?: string; startDate?: string; endDate?: string; description?: string } = {};
+  if (input['summary'])     updates.summary     = input['summary']     as string;
+  if (input['start_date'])  updates.startDate   = input['start_date']  as string;
+  if (input['end_date'])    updates.endDate     = input['end_date']    as string;
+  if (input['description']) updates.description = input['description'] as string;
+  if (!Object.keys(updates).length) return '❌ Au moins un champ à modifier requis (summary, start_date, end_date, description)';
+  const ok = await updateCalendarEvent(googleEventId, updates);
+  if (!ok) return `❌ Impossible de modifier l'événement ${googleEventId} — vérifie GOOGLE_SERVICE_ACCOUNT_JSON`;
+  return `✅ Événement ${googleEventId} modifié dans Google Agenda!\n${Object.entries(updates).map(([k, v]) => `  ${k}: ${v}`).join('\n')}`;
+}
+
+// ─── HEALTH CHECK COMPLET ────────────────────────────────────────────────────
+
+async function healthCheckAllTool(): Promise<string> {
+  const results: string[] = [];
+
+  results.push('✅ Railway backend — en ligne (tu parles avec moi)');
+
+  if (env.ANTHROPIC_API_KEY) results.push('✅ Claude API (Anthropic) — clé configurée');
+  else results.push('❌ Claude API — ANTHROPIC_API_KEY manquant');
+
+  if (env.ELEVENLABS_API_KEY) results.push('✅ ElevenLabs (TTS) — clé configurée');
+  else results.push('⚠️ ElevenLabs — ELEVENLABS_API_KEY manquant (voix désactivée)');
+
+  try {
+    const { error } = await supabase.from('bookings').select('id').limit(1);
+    if (error) results.push(`❌ Supabase — ${error.message}`);
+    else results.push('✅ Supabase (base de données) — connexion OK');
+  } catch (e) {
+    results.push(`❌ Supabase — ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  try {
+    const events = await listUpcomingEvents(1);
+    if (events === null) results.push('❌ Google Calendar — token invalide ou GOOGLE_SERVICE_ACCOUNT_JSON manquant');
+    else results.push('✅ Google Calendar — connexion OK');
+  } catch (e) {
+    results.push(`❌ Google Calendar — ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) results.push('✅ Telegram — configuré');
+  else results.push('⚠️ Telegram — TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID manquant');
+
+  if (env.GITHUB_TOKEN) results.push('✅ GitHub — token présent (coder activé)');
+  else results.push('⚠️ GitHub — GITHUB_TOKEN manquant (coder sans GitHub impossible)');
+
+  const { isNexusOnline } = await import('../actions/handlers/nexus-relay.js');
+  if (isNexusOnline()) results.push('✅ NEXUS — connecté (PC en ligne)');
+  else results.push('❌ NEXUS — hors ligne (lance start.bat sur le PC)');
+
+  const now = new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', hour12: false });
+  return `🔍 HEALTH CHECK DZARYX\n📅 ${now} (Oran)\n\n${results.join('\n')}`;
 }

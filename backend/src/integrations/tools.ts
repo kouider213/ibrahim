@@ -975,4 +975,46 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
       },
     },
   },
+
+  // ─── NEXUS PC AGENT ──────────────────────────────────────────────
+  {
+    name: 'ping_nexus',
+    description: 'Tester si NEXUS (agent PC local Kouider) est connecté. Retourne l\'heure réelle du PC + latence. Utiliser quand Kouider demande "est-ce que Nexus est connecté ?", "ping Nexus", "teste la connexion PC".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'send_nexus_command',
+    description: 'Envoyer une commande directe au PC de Kouider via NEXUS. NEXUS peut: ouvrir des apps (Spotify, Chrome, VS Code, CapCut...), prendre un screenshot, lister/organiser fichiers, contrôler souris/clavier, lancer une musique, ouvrir un dossier. IMPORTANT: appeler ping_nexus d\'abord pour vérifier que NEXUS est en ligne. NE PAS envoyer de commandes de suppression de fichiers sans confirmation explicite.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        command: { type: 'string', description: 'Commande en français naturel. Ex: "ouvre spotify", "screenshot", "liste fichiers bureau", "ouvre chrome sur youtube.com", "volume 70"' },
+      },
+      required: ['command'],
+    },
+  },
+
+  // ─── GOOGLE CALENDAR — outil manquant ────────────────────────────
+  {
+    name: 'update_calendar_event',
+    description: 'Modifier un événement existant dans Google Agenda (titre, dates, description). Appeler list_calendar_events d\'abord pour obtenir l\'ID exact de l\'événement à modifier.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        google_event_id: { type: 'string', description: 'ID Google de l\'événement (ex: "abc123xyz" — obtenu via list_calendar_events)' },
+        summary:         { type: 'string', description: 'Nouveau titre' },
+        start_date:      { type: 'string', description: 'Nouvelle date début YYYY-MM-DD' },
+        end_date:        { type: 'string', description: 'Nouvelle date fin YYYY-MM-DD' },
+        description:     { type: 'string', description: 'Nouvelle description' },
+      },
+      required: ['google_event_id'],
+    },
+  },
+
+  // ─── HEALTH CHECK SYSTÈME COMPLET ────────────────────────────────
+  {
+    name: 'health_check_all',
+    description: 'Tester tous les services système: Railway, Claude API, ElevenLabs, Supabase, Google Calendar, Telegram, NEXUS, GitHub. Retourne ✅/❌/⚠️ pour chaque. Utiliser quand Kouider dit "teste tout", "health check", "statut des services", "qu\'est-ce qui fonctionne".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
 ];

@@ -167,6 +167,11 @@ export default function ChatInterface() {
   const pcRelayRef                      = useRef(false);
   const pcRelayTimer                    = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ── Nexus status ───────────────────────────────────────────────
+  const [nexusOnline,  setNexusOnline]  = useState<boolean | null>(null);
+  const [showHealth,   setShowHealth]   = useState(false);
+  const [healthData,   setHealthData]   = useState<{ apis: Record<string, string> } | null>(null);
+
   // ── Error state ────────────────────────────────────────────────
   const [errorMsg,     setErrorMsg]     = useState('');
   const [errorVisible, setErrorVisible] = useState(false);
@@ -590,6 +595,31 @@ export default function ChatInterface() {
     }
   }, [state, startListeningInner, started]);
 
+  // ── Nexus status polling ───────────────────────────────────────
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await api.nexusStatus();
+        setNexusOnline(r.connected);
+      } catch {
+        setNexusOnline(false);
+      }
+    };
+    poll();
+    const iv = setInterval(poll, 10_000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const handleHealthCheck = useCallback(async () => {
+    setShowHealth(true);
+    try {
+      const data = await api.healthCheck();
+      setHealthData(data as { apis: Record<string, string> });
+    } catch {
+      setHealthData(null);
+    }
+  }, []);
+
   // ── Text overlay auto-focus ────────────────────────────────────
   useEffect(() => {
     if (overlay === 'text') {
@@ -716,10 +746,12 @@ export default function ChatInterface() {
         <span>CAM ··· STANDBY</span>
       </div>
       <div className="dz-corner-data dz-corner-data--br" aria-hidden>
-        <span className="dz-cd-hi">FIK CONCIERG</span>
-        <span>FLEET ·········· 8</span>
-        <span>ACTIF ·········· 3</span>
-        <span className="dz-cd-blink">SECURE LINK</span>
+        <span className="dz-cd-hi">NEXUS LINK</span>
+        <span>PC ···· {nexusOnline === null ? 'CHECK…' : nexusOnline ? 'ONLINE' : 'OFFLINE'}</span>
+        <span className={nexusOnline ? 'dz-cd-blink' : ''}>
+          {nexusOnline ? '● CONNECTÉ' : nexusOnline === false ? '○ DÉCONNECTÉ' : '· · ·'}
+        </span>
+        <span>FIK CONCIERG</span>
       </div>
 
       {/* ── Top bar ── */}
@@ -975,6 +1007,20 @@ export default function ChatInterface() {
           ))}
 
           <div className="dz-menu-sec">SYSTÈME</div>
+          <button className="dz-menu-item" onClick={() => { closeOverlay(); void handleHealthCheck(); }}>
+            <span className="dz-menu-ico">🔍</span>
+            <span className="dz-menu-lbl">Health Check</span>
+            <span className="dz-menu-tag">TEST</span>
+            <span className="dz-menu-arr">›</span>
+          </button>
+          <button className="dz-menu-item" onClick={() => handleMenuAction('ping nexus')}>
+            <span className="dz-menu-ico">🖥️</span>
+            <span className="dz-menu-lbl">Ping NEXUS</span>
+            <span className={`dz-menu-tag${nexusOnline ? '' : ' dz-menu-tag--off'}`}>
+              {nexusOnline === null ? '···' : nexusOnline ? 'ONLINE' : 'OFF'}
+            </span>
+            <span className="dz-menu-arr">›</span>
+          </button>
           <div className="dz-menu-item" style={{ cursor: 'default' }}>
             <span className="dz-menu-ico">✈️</span>
             <span className="dz-menu-lbl">Telegram</span>
@@ -986,6 +1032,43 @@ export default function ChatInterface() {
           </div>
         </div>
       </div>
+
+      {/* ── Health check modal ── */}
+      {showHealth && (
+        <div className="dz-overlay dz-menu-overlay open" role="dialog" aria-label="Health Check">
+          <div className="dz-overlay-bg" onClick={() => setShowHealth(false)} />
+          <div className="dz-menu-panel">
+            <div className="dz-menu-handle" />
+            <div className="dz-menu-brand">— HEALTH CHECK —</div>
+            <div className="dz-menu-sec">SERVICES</div>
+            {healthData ? (
+              Object.entries(healthData.apis ?? {}).map(([k, v]) => (
+                <div key={k} className="dz-menu-item" style={{ cursor: 'default' }}>
+                  <span className="dz-menu-ico">{v === '🟢' ? '✅' : '❌'}</span>
+                  <span className="dz-menu-lbl">{k}</span>
+                  <span className="dz-menu-tag">{v === '🟢' ? 'OK' : 'FAIL'}</span>
+                </div>
+              ))
+            ) : (
+              <div className="dz-menu-item" style={{ cursor: 'default' }}>
+                <span className="dz-menu-ico">⏳</span>
+                <span className="dz-menu-lbl">Test en cours…</span>
+              </div>
+            )}
+            <div className="dz-menu-sec">NEXUS</div>
+            <div className="dz-menu-item" style={{ cursor: 'default' }}>
+              <span className="dz-menu-ico">{nexusOnline ? '✅' : '❌'}</span>
+              <span className="dz-menu-lbl">NEXUS PC Agent</span>
+              <span className="dz-menu-tag">{nexusOnline ? 'ONLINE' : 'OFF'}</span>
+            </div>
+            <button className="dz-menu-item" onClick={() => setShowHealth(false)}
+              style={{ marginTop: 16, color: 'var(--dz-cyan, #00d4ff)' }}>
+              <span className="dz-menu-ico">←</span>
+              <span className="dz-menu-lbl">Fermer</span>
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );
