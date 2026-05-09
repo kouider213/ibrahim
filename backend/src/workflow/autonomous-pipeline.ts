@@ -14,7 +14,7 @@
 import axios from 'axios';
 import { callProvider }                    from '../providers/provider-manager.js';
 import { getFileContent, updateFile }      from '../integrations/github.js';
-import { isNexusOnline, nexusRunCommand, nexusWriteFile } from '../actions/handlers/nexus-relay.js';
+import { isNexusOnline, nexusRunCommand }                 from '../actions/handlers/nexus-relay.js';
 import { DEVELOPER_AGENT }                 from '../agents/definitions/developer-agent.js';
 import { CODE_REVIEWER_AGENT }             from '../agents/definitions/code-reviewer-agent.js';
 import { env }                             from '../config/env.js';
@@ -22,7 +22,6 @@ import { env }                             from '../config/env.js';
 // ── Constants ─────────────────────────────────────────────────────────────────
 const BUGGY_FILE_GITHUB = 'backend/src/test/buggy_rental_calc.ts';
 const IBRAHIM_LOCAL     = 'C:\\Users\\douba\\OneDrive\\Bureau\\ibrahim\\ibrahim';
-const BUGGY_FILE_LOCAL  = `${IBRAHIM_LOCAL}\\backend\\src\\test\\buggy_rental_calc.ts`;
 const IBRAHIM_REPO      = 'ibrahim';
 
 // ── Types ─────────────────────────────────────────────────────────────────────

@@ -61,7 +61,7 @@ function buildPrompt(userPrompt: string, style?: string): string {
 
 // ── Télécharger une image en base64 ──────────────────────────────────────────
 
-async function downloadImageAsBase64(imageUrl: string): Promise<{ base64: string; mimeType: string; sizeKb: number }> {
+export async function downloadImageAsBase64(imageUrl: string): Promise<{ base64: string; mimeType: string; sizeKb: number }> {
   const resp = await axios.get(imageUrl, {
     responseType: 'arraybuffer',
     timeout: 30_000,

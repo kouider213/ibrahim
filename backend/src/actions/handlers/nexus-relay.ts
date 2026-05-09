@@ -25,6 +25,12 @@ interface NexusTelemetry {
   lastHeartbeatAt:      string | null;
   lastHeartbeatLatency: number | null;
   missedHeartbeats:     number;
+  lastOs:               string | null;
+  lastOsRelease:        string | null;
+  lastRamUsedMb:        number | null;
+  lastRamTotalMb:       number | null;
+  lastCpuPercent:       number | null;
+  lastUptimeS:          number | null;
 }
 
 const _tel: NexusTelemetry = {
@@ -40,6 +46,12 @@ const _tel: NexusTelemetry = {
   lastHeartbeatAt:      null,
   lastHeartbeatLatency: null,
   missedHeartbeats:     0,
+  lastOs:               null,
+  lastOsRelease:        null,
+  lastRamUsedMb:        null,
+  lastRamTotalMb:       null,
+  lastCpuPercent:       null,
+  lastUptimeS:          null,
 };
 
 // ── Security: blocked command patterns ───────────────────────────────────────
@@ -176,15 +188,23 @@ export function initNexusRelay(io: SocketServer): void {
     _startHeartbeat(socket);
     void _sendTelegram('🖥️ *NEXUS* en ligne — PC connecté');
 
-    // ── Register MAC + sysinfo ────────────────────────────────────────────
+    // ── Register MAC + full sysinfo ───────────────────────────────────────
     socket.on('nexus:register', (data: {
       mac?: string; hostname?: string; python?: string; py_ver?: string;
+      os?: string; os_release?: string;
+      ram_used_mb?: number; ram_total_mb?: number; cpu_percent?: number; uptime_s?: number;
     }) => {
       _nexusMac = data?.mac ?? '';
-      if (data?.hostname) _tel.lastHostname   = data.hostname;
-      if (data?.python)   _tel.lastPythonExe  = data.python;
-      if (data?.py_ver)   _tel.lastPythonVer  = data.py_ver;
-      console.log(`[NEXUS] Registered: MAC=${_nexusMac} host=${_tel.lastHostname} py=${_tel.lastPythonExe}`);
+      if (data?.hostname)    _tel.lastHostname    = data.hostname;
+      if (data?.python)      _tel.lastPythonExe   = data.python;
+      if (data?.py_ver)      _tel.lastPythonVer   = data.py_ver;
+      if (data?.os)          _tel.lastOs          = data.os;
+      if (data?.os_release)  _tel.lastOsRelease   = data.os_release;
+      if (data?.ram_used_mb  != null) _tel.lastRamUsedMb  = data.ram_used_mb;
+      if (data?.ram_total_mb != null) _tel.lastRamTotalMb = data.ram_total_mb;
+      if (data?.cpu_percent  != null) _tel.lastCpuPercent = data.cpu_percent;
+      if (data?.uptime_s     != null) _tel.lastUptimeS    = data.uptime_s;
+      console.log(`[NEXUS] Registered: MAC=${_nexusMac} host=${_tel.lastHostname} py=${_tel.lastPythonExe} ram=${_tel.lastRamUsedMb}/${_tel.lastRamTotalMb}MB cpu=${_tel.lastCpuPercent}%`);
     });
 
     // ── Message NEXUS → AI → ack ──────────────────────────────────────────

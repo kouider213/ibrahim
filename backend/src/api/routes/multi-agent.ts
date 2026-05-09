@@ -12,7 +12,7 @@
 import { Router }        from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { runMultiAgent, needsMultiAgent, selectAgents, MULTI_AGENTS } from '../../agents/multi-agent-orchestrator.js';
-import { isAvailable, callProvider }   from '../../providers/provider-manager.js';
+import { isAvailable }                  from '../../providers/provider-manager.js';
 
 const router = Router();
 
@@ -171,7 +171,7 @@ router.post('/test-fallback', requireMobileAuth, async (req, res) => {
 
 // ── POST /api/multi-agent/test-isolation ─────────────────────────────────────
 // Prouve l'isolation mémoire : Business reçoit un secret, Finance ne le voit pas.
-router.post('/test-isolation', requireMobileAuth, async (req, res) => {
+router.post('/test-isolation', requireMobileAuth, async (_req, res) => {
   const secretCode = `SECRET_TOKEN_${Date.now()}`;
   const requestId  = `iso_${Date.now()}`;
 

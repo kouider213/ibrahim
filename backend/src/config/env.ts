@@ -19,6 +19,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID:     z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI:  z.string().optional(),
+  VERCEL_TOKEN:         z.string().optional(),
   NETLIFY_TOKEN:        z.string().optional(),
   RAILWAY_TOKEN:        z.string().optional(),
   RAILWAY_PROJECT_ID:   z.string().optional(),
