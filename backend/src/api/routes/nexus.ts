@@ -134,6 +134,7 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
   if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus offline — cannot restart' }); return; }
 
   const NEXUS_DIR  = String.raw`C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus`;
+  const NEXUS_EXE  = String.raw`C:\Users\douba\AppData\Local\Python\bin\python3.exe`;
   const beforeId   = getNexusStatus().socketId;
 
   res.json({
@@ -147,7 +148,7 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
   let oldPid: string | null = null;
   try {
     const pidRes = await nexusRunCommand(
-      `wmic process where "commandline like '%nexus_main%'" get processid /format:value`,
+      `wmic process where "commandline like '%nexus.py%'" get processid /format:value`,
       NEXUS_DIR, 10_000,
     );
     const m = pidRes.stdout.match(/ProcessId=(\d+)/i);
@@ -156,12 +157,12 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
 
   // Step 2 — launch new Nexus as detached process (new window, independent lifecycle)
   const launchCmd = [
-    `powershell -Command "Start-Process -FilePath 'py'`,
-    `-ArgumentList 'nexus_main.py'`,
+    `powershell -Command "Start-Process -FilePath '${NEXUS_EXE}'`,
+    `-ArgumentList 'nexus.py'`,
     `-WorkingDirectory '${NEXUS_DIR}'`,
-    `-WindowStyle Minimized`,
-    `-RedirectStandardOutput 'nexus_restart.log'`,
-    `-RedirectStandardError 'nexus_restart_err.log'"`,
+    `-WindowStyle Hidden`,
+    `-RedirectStandardOutput '${NEXUS_DIR}\\nexus_restart.log'`,
+    `-RedirectStandardError '${NEXUS_DIR}\\nexus_restart_err.log'"`,
   ].join(' ');
   try {
     await nexusRunCommand(launchCmd, NEXUS_DIR, 15_000);

@@ -33,6 +33,7 @@ import telegramRoutes      from './api/routes/telegram.js';
 import ttsRoutes           from './api/routes/tts.js';
 import visionRoutes        from './api/routes/vision.js';
 import nexusRoutes         from './api/routes/nexus.js';
+import nexusOsRoutes       from './api/routes/nexus-os.js';
 import multiAgentRoutes    from './api/routes/multi-agent.js';
 import workflowRoutes      from './api/routes/workflow.js';
 
@@ -175,6 +176,7 @@ app.use('/api/telegram',      telegramRoutes);
 app.use('/api/tts',           apiLimiter, ttsRoutes);
 app.use('/api/vision',        apiLimiter, visionRoutes);
 app.use('/api/nexus',         apiLimiter, nexusRoutes);
+app.use('/api/nexus/os',     apiLimiter, nexusOsRoutes);
 app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
 app.use('/api/workflow',     apiLimiter, workflowRoutes);
 

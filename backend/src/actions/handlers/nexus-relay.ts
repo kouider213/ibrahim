@@ -381,6 +381,27 @@ export function nexusRunCommand(
   });
 }
 
+// ── Generic emit helper ───────────────────────────────────────────────────────
+
+function _nexusEmit<T = Record<string, unknown>>(
+  event:     string,
+  data:      unknown,
+  timeoutMs: number,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    if (!_nexusSocket) { reject(new Error('Nexus not connected')); return; }
+    const timer = setTimeout(
+      () => reject(new Error(`${event} timeout ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_nexusSocket as any).emit(event, data ?? {}, (result: T | undefined) => {
+      clearTimeout(timer);
+      resolve(result ?? ({} as T));
+    });
+  });
+}
+
 // ── nexusWriteFile ────────────────────────────────────────────────────────────
 
 export function nexusWriteFile(
@@ -553,6 +574,61 @@ function _sendWolPacket(mac: string, ip: string): Promise<boolean> {
     } catch { resolve(false); }
   });
 }
+
+// ── OS Agent — File Explorer ──────────────────────────────────────────────────
+
+export interface OsResult { ok: boolean; job_id: string; error?: string; [k: string]: unknown }
+
+export const nexusFileList    = (path?: string, ms = 20_000) =>
+  _nexusEmit<OsResult>('nexus:file_list',   { path },              ms);
+
+export const nexusFileSearch  = (query: string, root?: string, maxResults = 50, ms = 30_000) =>
+  _nexusEmit<OsResult>('nexus:file_search', { query, root, max_results: maxResults }, ms);
+
+export const nexusFileRead    = (path: string, ms = 15_000) =>
+  _nexusEmit<OsResult>('nexus:file_read',   { path },              ms);
+
+export const nexusFileSend    = (path: string, caption?: string, ms = 30_000) =>
+  _nexusEmit<OsResult>('nexus:file_send',   { path, caption },     ms);
+
+export const nexusFileOpen    = (path: string, ms = 10_000) =>
+  _nexusEmit<OsResult>('nexus:file_open',   { path },              ms);
+
+// ── OS Agent — Window Manager ─────────────────────────────────────────────────
+
+export const nexusWindowList       = (ms = 10_000) =>
+  _nexusEmit<OsResult>('nexus:window_list',       {},               ms);
+
+export const nexusWindowFocus      = (title: string, ms = 10_000) =>
+  _nexusEmit<OsResult>('nexus:window_focus',      { title },        ms);
+
+export const nexusWindowClose      = (title: string, ms = 10_000) =>
+  _nexusEmit<OsResult>('nexus:window_close',      { title },        ms);
+
+export const nexusWindowScreenshot = (caption?: string, ms = 35_000) =>
+  _nexusEmit<OsResult>('nexus:window_screenshot', { caption },      ms);
+
+// ── OS Agent — Process Manager ────────────────────────────────────────────────
+
+export const nexusProcessList = (top = 30, sort: 'ram' | 'cpu' = 'ram', ms = 15_000) =>
+  _nexusEmit<OsResult>('nexus:process_list', { top, sort },                ms);
+
+export const nexusProcessKill = (name?: string, pid?: number, ms = 10_000) =>
+  _nexusEmit<OsResult>('nexus:process_kill', { name, pid },                ms);
+
+// ── OS Agent — App Launcher ───────────────────────────────────────────────────
+
+export const nexusAppLaunch = (app: string, ms = 10_000) =>
+  _nexusEmit<OsResult>('nexus:app_launch', { app },                        ms);
+
+// ── OS Agent — Screen Understanding ──────────────────────────────────────────
+
+export const nexusScreenUnderstand = (
+  question?: string,
+  sendToTelegram = true,
+  caption?: string,
+  ms = 60_000,
+) => _nexusEmit<OsResult>('nexus:screen_understand', { question, send_to_telegram: sendToTelegram, caption }, ms);
 
 // ── Telegram helpers ──────────────────────────────────────────────────────────
 

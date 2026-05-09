@@ -460,6 +460,81 @@ class NexusWSClient:
             self.app.vision.push_relay_frame(b64)
             await self.app.gui_send({'type': 'live_frame', 'data': b64})
 
+        # ── OS Agent — File Explorer ─────────────────────────────────────────
+
+        @sio.on('nexus:file_list', namespace='/nexus')
+        async def on_file_list(data: dict):
+            from .os_agent import file_list
+            return await file_list(data)
+
+        @sio.on('nexus:file_search', namespace='/nexus')
+        async def on_file_search(data: dict):
+            from .os_agent import file_search
+            return await file_search(data)
+
+        @sio.on('nexus:file_read', namespace='/nexus')
+        async def on_file_read(data: dict):
+            from .os_agent import file_read
+            return await file_read(data)
+
+        @sio.on('nexus:file_send', namespace='/nexus')
+        async def on_file_send(data: dict):
+            from .os_agent import file_send
+            return await file_send(data, sio)
+
+        @sio.on('nexus:file_open', namespace='/nexus')
+        async def on_file_open(data: dict):
+            from .os_agent import file_open
+            return await file_open(data)
+
+        # ── OS Agent — Window Manager ─────────────────────────────────────────
+
+        @sio.on('nexus:window_list', namespace='/nexus')
+        async def on_window_list(data: dict):
+            from .os_agent import window_list
+            return await window_list(data)
+
+        @sio.on('nexus:window_focus', namespace='/nexus')
+        async def on_window_focus(data: dict):
+            from .os_agent import window_focus
+            return await window_focus(data)
+
+        @sio.on('nexus:window_close', namespace='/nexus')
+        async def on_window_close(data: dict):
+            from .os_agent import window_close
+            return await window_close(data)
+
+        @sio.on('nexus:window_screenshot', namespace='/nexus')
+        async def on_window_screenshot(data: dict):
+            from .os_agent import window_screenshot
+            return await window_screenshot(data, sio)
+
+        # ── OS Agent — Process Manager ────────────────────────────────────────
+
+        @sio.on('nexus:process_list', namespace='/nexus')
+        async def on_process_list(data: dict):
+            from .os_agent import process_list
+            return await process_list(data)
+
+        @sio.on('nexus:process_kill', namespace='/nexus')
+        async def on_process_kill(data: dict):
+            from .os_agent import process_kill
+            return await process_kill(data)
+
+        # ── OS Agent — App Launcher ───────────────────────────────────────────
+
+        @sio.on('nexus:app_launch', namespace='/nexus')
+        async def on_app_launch(data: dict):
+            from .os_agent import app_launch
+            return await app_launch(data)
+
+        # ── OS Agent — Screen Understanding ──────────────────────────────────
+
+        @sio.on('nexus:screen_understand', namespace='/nexus')
+        async def on_screen_understand(data: dict):
+            from .os_agent import screen_understand
+            return await screen_understand(data, sio)
+
         # ── Display image on screen ───────────────────────────────────────────
 
         @sio.on('nexus:display_image', namespace='/nexus')
