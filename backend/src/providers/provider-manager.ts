@@ -190,12 +190,39 @@ export async function callProvider(
       new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`provider timeout ${timeoutMs}ms`)), timeoutMs)),
     ]);
 
+  const callForProvider = (p: ProviderName) => {
+    switch (p) {
+      case 'claude': return withTimeout(_claude(userMessage, systemPrompt, model, config.temperature, config.maxTokens));
+      case 'openai': return withTimeout(_openai(userMessage, systemPrompt, model, config.temperature, config.maxTokens));
+      case 'gemini': return withTimeout(_gemini(userMessage, systemPrompt, model, config.temperature, config.maxTokens));
+      case 'groq':   return withTimeout(_groq(userMessage, systemPrompt, model, config.temperature, config.maxTokens));
+    }
+  };
+
   let r: { text: string; inputTokens: number; outputTokens: number };
-  switch (provider) {
-    case 'claude': r = await withTimeout(_claude(userMessage, systemPrompt, model, config.temperature, config.maxTokens)); break;
-    case 'openai': r = await withTimeout(_openai(userMessage, systemPrompt, model, config.temperature, config.maxTokens)); break;
-    case 'gemini': r = await withTimeout(_gemini(userMessage, systemPrompt, model, config.temperature, config.maxTokens)); break;
-    case 'groq':   r = await withTimeout(_groq(userMessage, systemPrompt, model, config.temperature, config.maxTokens)); break;
+  try {
+    r = await callForProvider(provider);
+  } catch (primaryErr: unknown) {
+    // Runtime error (429, network, etc.) — try fallback even if primary was "available"
+    const errMsg = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+    const is429  = errMsg.includes('429') || errMsg.includes('rate limit') || errMsg.includes('quota');
+    const fb     = config.fallback ?? 'claude';
+
+    if (fb !== provider && isAvailableEff(fb)) {
+      console.warn(`[provider-mgr] ${provider} RUNTIME ERR (${errMsg.slice(0, 60)}) → fallback ${fb}`);
+      provider     = fb;
+      model        = defaultModel(fb);
+      usedFallback = true;
+      r            = await callForProvider(provider);
+    } else if (is429 && isAvailableEff('claude') && provider !== 'claude') {
+      console.warn(`[provider-mgr] ${provider} 429 → hard fallback claude`);
+      provider     = 'claude';
+      model        = defaultModel('claude');
+      usedFallback = true;
+      r            = await callForProvider(provider);
+    } else {
+      throw primaryErr;
+    }
   }
 
   const latencyMs  = Date.now() - t0;
