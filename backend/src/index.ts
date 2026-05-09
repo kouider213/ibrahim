@@ -33,6 +33,7 @@ import telegramRoutes      from './api/routes/telegram.js';
 import ttsRoutes           from './api/routes/tts.js';
 import visionRoutes        from './api/routes/vision.js';
 import nexusRoutes         from './api/routes/nexus.js';
+import multiAgentRoutes    from './api/routes/multi-agent.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -173,6 +174,7 @@ app.use('/api/telegram',      telegramRoutes);
 app.use('/api/tts',           apiLimiter, ttsRoutes);
 app.use('/api/vision',        apiLimiter, visionRoutes);
 app.use('/api/nexus',         apiLimiter, nexusRoutes);
+app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
 
 app.use(errorHandler);
 

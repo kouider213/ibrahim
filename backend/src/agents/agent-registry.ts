@@ -1,7 +1,17 @@
 /**
- * Agent Registry — Phase 3
- * 8 specialized agents, each with its own system prompt + tool subset.
+ * Agent Registry — Phase 3 + Multi-Agent LLM config.
+ * Each agent has its own system prompt, tool subset, AND preferred LLM provider.
+ * The llm field is used by multi-agent-orchestrator.ts for per-agent provider routing.
  */
+import type { ProviderName } from '../providers/provider-manager.js';
+
+export interface AgentLLMConfig {
+  provider:    ProviderName;
+  model:       string;
+  temperature: number;
+  maxTokens:   number;
+  fallback?:   ProviderName;
+}
 
 export interface AgentDefinition {
   id:          string;
@@ -10,6 +20,7 @@ export interface AgentDefinition {
   toolNames:   string[];
   keywords:    RegExp;
   priority:    number;   // higher = checked first
+  llm:         AgentLLMConfig;
 }
 
 // ── Agent 1: Réservations ─────────────────────────────────────────────────────
@@ -26,6 +37,7 @@ TOUJOURS: confirmer les dates, vérifier la disponibilité voiture avant toute c
   ],
   keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule)\b/i,
   priority:  10,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500 },
 };
 
 // ── Agent 2: Finance ──────────────────────────────────────────────────────────
@@ -42,6 +54,7 @@ TOUJOURS: donner des chiffres précis avec devise (€/DZD), indiquer la périod
   ],
   keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|encaissé|dette)\b/i,
   priority:  9,
+  llm: { provider: 'openai', model: 'gpt-4o', temperature: 0.3, maxTokens: 1500, fallback: 'claude' },
 };
 
 // ── Agent 3: Clients ──────────────────────────────────────────────────────────
@@ -57,6 +70,7 @@ TOUJOURS: vérifier l'identité avant d'envoyer des données sensibles.`,
   ],
   keywords:  /\b(client|document|contrat|passeport|permis|whatsapp|sms|message|envoyer|notif|noter|évaluation|historique client)\b/i,
   priority:  8,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1200 },
 };
 
 // ── Agent 4: Planning ─────────────────────────────────────────────────────────
@@ -72,6 +86,7 @@ TOUJOURS: confirmer le fuseau horaire (Oran = UTC+1), format dates DD/MM/YYYY.`,
   ],
   keywords:  /\b(calendrier|agenda|rappel|planifier|rdv|rendez-vous|météo|temps|actualité|news|événement|réunion|demain|semaine prochaine)\b/i,
   priority:  7,
+  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.5, maxTokens: 1000 },
 };
 
 // ── Agent 5: Marketing Image/Vidéo ───────────────────────────────────────────
@@ -89,6 +104,7 @@ TOUJOURS: optimiser pour mobile (ratio 9:16 TikTok/Reels), qualité professionne
   ],
   keywords:  /\b(image|photo|vidéo|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|réseaux|instagram|reel|story|banner|logo|supprimer fond|optimiser)\b/i,
   priority:  6,
+  llm: { provider: 'gemini', model: 'gemini-1.5-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
 };
 
 // ── Agent 6: TikTok ───────────────────────────────────────────────────────────
@@ -106,6 +122,7 @@ TOUJOURS: adapter le contenu au marché algérien, hashtags en arabe + français
   ],
   keywords:  /\b(tiktok|viral|hashtag|trending|concurrent|créateur|follower|vue|like|scenario|script vidéo|voix|narration|campagne)\b/i,
   priority:  6,
+  llm: { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.85, maxTokens: 1000, fallback: 'claude' },
 };
 
 // ── Agent 7: Mémoire & Apprentissage ─────────────────────────────────────────
@@ -121,6 +138,7 @@ TOUJOURS: confirmer ce qui a été mémorisé, citer la source si rappel.`,
   ],
   keywords:  /\b(souviens|rappelle|mémorise|retiens|oublie|préférence|habitude|apprentissage|évolution|amélioration|feedback|règle)\b/i,
   priority:  5,
+  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.4, maxTokens: 800 },
 };
 
 // ── Agent 8: Code & Infra ─────────────────────────────────────────────────────
@@ -137,6 +155,7 @@ TOUJOURS: lire le fichier avant de modifier, vérifier le déploiement Railway a
   ],
   keywords:  /\b(code|github|deploy|railway|bug|typescript|react|fichier|modifier|créer|fonction|erreur ts|patch|commit|push|netlify|supabase)\b/i,
   priority:  8,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.4, maxTokens: 2000 },
 };
 
 // ── Agent 9: Designer UI/UX ───────────────────────────────────────────────────
@@ -153,6 +172,7 @@ TOUJOURS: produire du code React/CSS directement utilisable, penser mobile-first
   ],
   keywords:  /\b(design|ui|ux|interface|maquette|composant|css|layout|couleur|palette|logo|icône|figma|wireframe|prototype|style|thème|charte graphique)\b/i,
   priority:  7,
+  llm: { provider: 'gemini', model: 'gemini-1.5-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
 };
 
 // ── Agent 10: Code Reviewer ───────────────────────────────────────────────────
@@ -169,6 +189,7 @@ TOUJOURS: lire le fichier avant d'analyser, prioriser la sécurité (injections,
   ],
   keywords:  /\b(review|révise?|audit|analyse?\s+(?:le?\s+)?code|cherche?\s+(?:les?\s+)?bugs?|faille|sécurité\s+code|dette\s+technique|refactor|nettoyer?\s+(?:le\s+)?code)\b/i,
   priority:  9,
+  llm: { provider: 'openai', model: 'gpt-4o', temperature: 0.2, maxTokens: 1500, fallback: 'claude' },
 };
 
 // ── Agent 11: Network Analyst ─────────────────────────────────────────────────
@@ -185,6 +206,7 @@ TOUJOURS: donner des chiffres concrets, des noms de concurrents réels, des acti
   ],
   keywords:  /\b(analyse?\s+(?:les?\s+)?(?:r[eé]seaux?|concurrents?|march[eé]|seo)|veille\s+(?:concurrentielle|r[eé]seau|march[eé])|benchmark|concurrent|part\s+de\s+march[eé]|positionnement|croissance\s+(?:tiktok|instagram|r[eé]seaux))\b/i,
   priority:  7,
+  llm: { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.6, maxTokens: 1000, fallback: 'gemini' },
 };
 
 // ── Agent 12: Video Creator ───────────────────────────────────────────────────
@@ -208,6 +230,7 @@ TOUJOURS: format vertical 9:16, musique tendance Oran, optimisé partage.`,
   ],
   keywords:  /\b(cr[eé]e?r?\s+(?:une?\s+)?(?:pipeline\s+)?vid[eé]o|pipeline\s+vid[eé]o|produire?\s+(?:une?\s+)?vid[eé]o|script\s+(?:vid[eé]o|voix\s+off|voiceover)|plan\s+(?:de\s+)?montage|capcut\s+(?:projet|montage)|runway\s+vid[eé]o|voiceover)\b/i,
   priority:  6,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.75, maxTokens: 1500 },
 };
 
 // ── Registry ──────────────────────────────────────────────────────────────────

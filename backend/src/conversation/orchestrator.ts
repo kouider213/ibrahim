@@ -5,6 +5,7 @@ import { saveConversationTurn }                  from '../integrations/supabase.
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
 import { classifyRequest, callGroq, callGemini, callOpenAI, isOpenAIAvailable, isGeminiAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
+import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agents/multi-agent-orchestrator.js';
 import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 
@@ -111,6 +112,37 @@ export async function processMessage(
       console.error('[orchestrator] user save error:', err),
     ),
   ]);
+
+  // ── Multi-Agent path — cross-domain analysis ─────────────────────────────
+  // Triggered when the request covers multiple business domains simultaneously
+  // (e.g. "analyse Fik Conciergerie et propose des améliorations pour l'été").
+  if (!imageBase64 && needsMultiAgent(userMessage)) {
+    const agentIds = selectAgents(userMessage) as Parameters<typeof runMultiAgent>[2];
+    console.log(`[orch:${requestId}] MULTI-AGENT ▶ agents=[${agentIds.join(',')}]`);
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: `🤖 Multi-agents: ${agentIds.length} spécialistes...` });
+
+    try {
+      const report = await runMultiAgent(userMessage, ctx.systemExtra, agentIds, requestId);
+      const multiText = guardResponse(report.fusedResponse, userMessage, requestId);
+      const safeMulti = phantomGuard(multiText, [], userMessage, requestId);
+
+      // Execution trace
+      console.log(`[multi-agent-trace] request_id=${requestId} agents=${agentIds.length} succeeded=${report.agentsSucceeded} cost=$${report.totalCostUsd.toFixed(6)} ms=${report.totalLatencyMs}`);
+
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeMulti });
+      saveConversationTurn(sessionId, 'assistant', safeMulti).catch(() => {});
+      if (!textOnly && safeMulti.length > 0) {
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+        await streamAudioSentences(safeMulti, sessionId);
+        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      }
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: safeMulti, status: 'done' };
+    } catch (maErr) {
+      console.error(`[orch:${requestId}] multi-agent failed, falling through to single-agent:`, maErr);
+      // Fall through to single-agent path below
+    }
+  }
 
   // ── LLM Router — choose provider ──────────────────────────────────────────
   const route = classifyRequest(userMessage, !!imageBase64, ctx.messages.length);
