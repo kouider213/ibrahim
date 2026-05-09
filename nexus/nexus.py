@@ -57,12 +57,12 @@ HTTP_PORT = int(os.environ.get('NEXUS_HTTP_PORT', 7777))
 WS_PORT   = int(os.environ.get('NEXUS_WS_PORT',   7778))
 
 # ── Regex patterns ────────────────────────────────────────────────────────────
-_MUSIC_RE      = re.compile(r'\b(joue?|lance|play|écoute?|mets?|met)\b', re.I)
+_MUSIC_RE      = re.compile(r'\b(joue[rz]?|lance[rz]?|play|[eé]coute[rz]?|mets?|mettre|d[eé]marre[rz]?\s+(?:spotify|youtube|musique)|ouvre[rz]?\s+(?:spotify|youtube)|musique|chanson|lacrim|jul\b|soolking|sch\b|nekfeu|booba|kaaris)\b', re.I)
 _YOUTUBE_RE    = re.compile(r'\byoutube\b', re.I)
 _SPOTIFY_RE    = re.compile(r'\bspotify\b', re.I)
-_PAUSE_RE      = re.compile(r'\b(pause|stop\s+la\s+musique|coupe\s+le\s+son)\b', re.I)
-_NEXT_RE       = re.compile(r'\b(suivant|next|prochaine?\s+chanson)\b', re.I)
-_PREV_RE       = re.compile(r'\b(pr[eé]c[eé]dent|previous|chanson\s+d\'?avant)\b', re.I)
+_PAUSE_RE      = re.compile(r'\b(pause|stop\s+la\s+musique|coupe\s+le\s+son|arr[eê]te\s+la\s+musique|silence)\b', re.I)
+_NEXT_RE       = re.compile(r'\b(suivant|next|prochaine?\s+chanson|chanson\s+suivante)\b', re.I)
+_PREV_RE       = re.compile(r'\b(pr[eé]c[eé]dent|previous|chanson\s+d\'?avant|chanson\s+pr[eé]c[eé]dente)\b', re.I)
 
 _CAMERA_OFF_RE   = re.compile(r'\b(cam[eé]ra?\s+off|ferme\s+la\s+cam|stop\s+(?:cam|live|tout)|d[eé]sactive\s+(?:la\s+cam|tout|les\s+visions?))\b', re.I)
 # Caméra → app mobile uniquement
@@ -242,9 +242,9 @@ class NexusApp:
         if _MUSIC_RE.search(tl):
             # Extract the query (remove the action verb)
             query = re.sub(
-                r'\b(joue?|lance|play|[eé]coute?|mets?|met)\b\s*', '', t, flags=re.I
+                r'\b(joue[rz]?|lance[rz]?|play|[eé]coute[rz]?|mets?|mettre|d[eé]marre[rz]?|ouvre[rz]?|musique|chanson)\b\s*', '', t, flags=re.I
             ).strip()
-            query = re.sub(r'\b(sur|depuis|avec|via)\s+(youtube|spotify)\b', '', query, flags=re.I).strip()
+            query = re.sub(r'\b(sur|depuis|avec|via|de\s+la|du|de)\s*(youtube|spotify)?\b', '', query, flags=re.I).strip()
             query = query or t
 
             plat = 'auto'

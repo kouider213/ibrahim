@@ -727,7 +727,7 @@ router.post('/webhook', async (req, res) => {
     return;
   }
   // ── Auto-route PC/music commands to NEXUS ───────────────────────────────
-  const NEXUS_MUSIC_RE  = /\b(joue?|lance|play|[eé]coute?|mets?|met)\b/i;
+  const NEXUS_MUSIC_RE  = /\b(joue[rz]?|lance[rz]?|play|[eé]coute[rz]?|mets?|mettre|d[eé]marre[rz]?\s+(?:spotify|youtube|musique)|ouvre[rz]?\s+(?:spotify|youtube)|musique|chanson|lacrim|jul\b|soolking|sch\b|nekfeu|booba|kaaris)\b/i;
   const NEXUS_VOL_RE    = /\b(volume|son)\s*\d+/i;
   const NEXUS_PAUSE_RE  = /\b(pause|stop|arr[eê]te)\b.*\b(musique|chanson|son|spotify|youtube)\b|\b(musique|chanson)\b.*\b(pause|stop|arr[eê]te)\b/i;
   const NEXUS_MEDIA_RE  = /\b(piste\s+suivante|next\s+track|chanson\s+suivante|piste\s+pr[eé]c|previous\s+track)\b/i;
