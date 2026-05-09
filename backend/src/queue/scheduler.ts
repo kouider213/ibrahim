@@ -167,7 +167,23 @@ export async function initScheduler(): Promise<void> {
     SCHEDULER_QUEUE,
     async (job: Job) => {
       if (job.name === 'custom-reminder') {
-        const msg = (job.data as { message: string }).message;
+        const data = job.data as {
+          message:         string;
+          request_id?:     string;
+          source_channel?: string;
+          idempotency_key?: string;
+        };
+        const msg             = data.message;
+        const source_channel  = data.source_channel  ?? 'unknown';
+        const idempotency_key = data.idempotency_key ?? 'n/a';
+        const request_id      = data.request_id      ?? 'n/a';
+
+        console.log(
+          `[scheduler] custom-reminder executing — ` +
+          `source_channel=${source_channel} request_id=${request_id} ` +
+          `idempotency_key=${idempotency_key} job_id=${job.id}`,
+        );
+
         const chatId = env.TELEGRAM_CHAT_ID;
         if (chatId) {
           await sendTelegram(chatId, `⏰ *Rappel Dzaryx*\n\n${msg}`);
