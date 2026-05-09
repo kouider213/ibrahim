@@ -2,7 +2,7 @@
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
-import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode } from './github.js';
+import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
 import { formatPricingTable, getPricingForVehicle } from '../config/pricing.js';
 import { getOranWeather } from './web-search.js';
