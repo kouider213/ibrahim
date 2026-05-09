@@ -136,7 +136,7 @@ export async function executeTool(
       case 'web_search':                 return await webSearch(input);
       case 'fetch_url':                  return await fetchUrl(input);
       // ─── Rappels ───
-      case 'schedule_reminder':          return await scheduleReminder(input);
+      case 'schedule_reminder':          return await scheduleReminder(input, sessionId);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
       // ─── GOOGLE CALENDAR ───
