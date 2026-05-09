@@ -821,12 +821,27 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
 
 // ─── RAPPELS PERSONNALISÉS ────────────────────────────────────────────────────
 
-async function scheduleReminder(input: Record<string, unknown>): Promise<string> {
+async function scheduleReminder(
+  input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
   const message      = input['message']       as string;
   const delayMinutes = input['delay_minutes'] as number | undefined;
   const atTime       = input['at_time']       as string | undefined;
 
   if (!message) return '❌ message requis';
+
+  // ── Déterminer source_channel ──────────────────────────────────────────
+  const source_channel = sessionId?.startsWith('telegram_')
+    ? 'telegram'
+    : sessionId?.startsWith('voice_')
+    ? 'mobile_voice'
+    : sessionId?.startsWith('mobile_')
+    ? 'mobile_text'
+    : 'backend_internal';
+
+  // ── Générer request_id unique ──────────────────────────────────────────
+  const request_id = `rem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   let delayMs = 0;
 
@@ -845,10 +860,44 @@ async function scheduleReminder(input: Record<string, unknown>): Promise<string>
     return '❌ Spécifie delay_minutes ou at_time';
   }
 
-  await schedulerQueue.add(
+  // ── Idempotency key — hash(userId + message + heure cible arrondie 5min) ──
+  const userId       = sessionId ?? 'global';
+  const targetMin    = Math.floor(Date.now() / (5 * 60 * 1000)) + Math.floor(delayMs / (5 * 60 * 1000));
+  const idemRaw      = `${userId}:${message.trim().toLowerCase()}:${targetMin}`;
+  const idempotency_key = crypto.createHash('sha256').update(idemRaw).digest('hex').slice(0, 32);
+  const redisKey     = `reminder:idem:${idempotency_key}`;
+  const IDEM_TTL_SEC = 300; // 5 minutes
+
+  // ── Vérifier doublon Redis ─────────────────────────────────────────────
+  let duplicate_blocked = false;
+  let reminder_created  = false;
+
+  const existing = await redis.get(redisKey);
+  if (existing) {
+    duplicate_blocked = true;
+    console.log(
+      `[schedule_reminder] source_channel=${source_channel} request_id=${request_id} ` +
+      `idempotency_key=${idempotency_key} reminder_created=false duplicate_blocked=true ` +
+      `existing_job=${existing}`,
+    );
+    return '⚠️ Rappel déjà existant — doublon bloqué. (même message et même heure, demandé il y a moins de 5 min)';
+  }
+
+  // ── Créer le rappel BullMQ ─────────────────────────────────────────────
+  const job = await schedulerQueue.add(
     'custom-reminder',
-    { message },
+    { message, request_id, source_channel },
     { delay: delayMs, removeOnComplete: { count: 10 }, removeOnFail: { count: 3 } },
+  );
+
+  // ── Marquer dans Redis (TTL 5 min) ────────────────────────────────────
+  await redis.set(redisKey, job.id ?? request_id, 'EX', IDEM_TTL_SEC);
+  reminder_created = true;
+
+  console.log(
+    `[schedule_reminder] source_channel=${source_channel} request_id=${request_id} ` +
+    `idempotency_key=${idempotency_key} reminder_created=${reminder_created} ` +
+    `duplicate_blocked=${duplicate_blocked} job_id=${job.id} delay_ms=${delayMs}`,
   );
 
   const mins = Math.round(delayMs / 60000);
