@@ -102,6 +102,60 @@ class NexusWSClient:
                 self.app.speak("NEXUS en ligne. Qu'est-ce qu'on fait Kouider ?")
             )
 
+        @sio.on('nexus:run_command', namespace='/nexus')
+        async def on_run_command(data: dict, ack=None):
+            """Run a shell command on the PC, return stdout/stderr/exit_code via ack."""
+            import subprocess as _sp
+            cmd       = data.get('command', '')
+            cwd       = data.get('cwd') or None
+            timeout_s = int(data.get('timeout', 30))
+            log.info('nexus:run_command — %s (cwd=%s timeout=%ss)', cmd[:80], cwd, timeout_s)
+            loop = asyncio.get_event_loop()
+            try:
+                result = await loop.run_in_executor(None, lambda: _sp.run(
+                    cmd, shell=True, capture_output=True, text=True,
+                    cwd=cwd, timeout=timeout_s,
+                    encoding='utf-8', errors='replace',
+                ))
+                payload = {
+                    'ok':        result.returncode == 0,
+                    'exit_code': result.returncode,
+                    'stdout':    result.stdout[:4000],
+                    'stderr':    result.stderr[:2000],
+                    'command':   cmd,
+                }
+                log.info('run_command exit=%d stdout=%d chars stderr=%d chars',
+                         result.returncode, len(result.stdout), len(result.stderr))
+            except _sp.TimeoutExpired:
+                payload = {'ok': False, 'exit_code': -1, 'stdout': '', 'stderr': f'Timeout {timeout_s}s', 'command': cmd}
+                log.warning('run_command TIMEOUT: %s', cmd[:60])
+            except Exception as e:
+                payload = {'ok': False, 'exit_code': -1, 'stdout': '', 'stderr': str(e), 'command': cmd}
+                log.error('run_command ERROR: %s', e)
+            if callable(ack):
+                ack(payload)
+
+        @sio.on('nexus:write_file', namespace='/nexus')
+        async def on_write_file(data: dict, ack=None):
+            """Write text content to a local file path on the PC."""
+            import os as _os
+            path    = data.get('path', '')
+            content = data.get('content', '')
+            log.info('nexus:write_file — %s (%d chars)', path, len(content))
+            try:
+                dir_path = _os.path.dirname(path)
+                if dir_path:
+                    _os.makedirs(dir_path, exist_ok=True)
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                payload = {'ok': True, 'path': path, 'size': len(content)}
+                log.info('write_file OK: %s', path)
+            except Exception as e:
+                payload = {'ok': False, 'path': path, 'error': str(e)}
+                log.error('write_file ERROR: %s', e)
+            if callable(ack):
+                ack(payload)
+
         @sio.on('nexus:save_file', namespace='/nexus')
         async def on_save_file(data: dict):
             """Reçoit un fichier de Dzaryx, le sauvegarde dans un dossier organisé."""

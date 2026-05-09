@@ -165,6 +165,63 @@ export function getLauncherStatus(): Promise<Record<string, unknown>> {
   });
 }
 
+/** Run a shell command on the PC via Nexus, wait for result. */
+export function nexusRunCommand(
+  command:   string,
+  cwd?:      string,
+  timeoutMs  = 45_000,
+): Promise<{ ok: boolean; exit_code: number; stdout: string; stderr: string; command: string }> {
+  return new Promise((resolve, reject) => {
+    if (!_nexusSocket) { reject(new Error('Nexus not connected')); return; }
+    const timer = setTimeout(
+      () => reject(new Error(`nexusRunCommand timeout ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    (_nexusSocket as any).emit(
+      'nexus:run_command',
+      { command, cwd: cwd ?? null, timeout: Math.max(5, Math.floor(timeoutMs / 1000) - 5) },
+      (data: { ok?: boolean; exit_code?: number; stdout?: string; stderr?: string; command?: string } | undefined) => {
+        clearTimeout(timer);
+        resolve({
+          ok:        data?.ok        ?? false,
+          exit_code: data?.exit_code ?? -1,
+          stdout:    data?.stdout    ?? '',
+          stderr:    data?.stderr    ?? 'No ack from Nexus',
+          command,
+        });
+      },
+    );
+  });
+}
+
+/** Write text content to a file path on the PC via Nexus, wait for confirmation. */
+export function nexusWriteFile(
+  filePath:  string,
+  content:   string,
+  timeoutMs  = 15_000,
+): Promise<{ ok: boolean; path: string; size?: number; error?: string }> {
+  return new Promise((resolve, reject) => {
+    if (!_nexusSocket) { reject(new Error('Nexus not connected')); return; }
+    const timer = setTimeout(
+      () => reject(new Error(`nexusWriteFile timeout ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    (_nexusSocket as any).emit(
+      'nexus:write_file',
+      { path: filePath, content },
+      (data: { ok?: boolean; path?: string; size?: number; error?: string } | undefined) => {
+        clearTimeout(timer);
+        resolve({
+          ok:    data?.ok    ?? false,
+          path:  data?.path  ?? filePath,
+          size:  data?.size,
+          error: data?.error,
+        });
+      },
+    );
+  });
+}
+
 /** Ping NEXUS PC agent and wait for pong with real PC timestamp. */
 export function pingNexus(): Promise<{ time: string; hostname: string; latency_ms: number }> {
   return new Promise((resolve, reject) => {

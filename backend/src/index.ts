@@ -34,6 +34,7 @@ import ttsRoutes           from './api/routes/tts.js';
 import visionRoutes        from './api/routes/vision.js';
 import nexusRoutes         from './api/routes/nexus.js';
 import multiAgentRoutes    from './api/routes/multi-agent.js';
+import workflowRoutes      from './api/routes/workflow.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -175,6 +176,7 @@ app.use('/api/tts',           apiLimiter, ttsRoutes);
 app.use('/api/vision',        apiLimiter, visionRoutes);
 app.use('/api/nexus',         apiLimiter, nexusRoutes);
 app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
+app.use('/api/workflow',     apiLimiter, workflowRoutes);
 
 app.use(errorHandler);
 
