@@ -92,14 +92,15 @@ class NexusWSClient:
 
         @sio.on('nexus:save_file', namespace='/nexus')
         async def on_save_file(data: dict):
-            """Reçoit un fichier de Dzaryx, le sauvegarde dans un dossier organisé et
-            ouvre l'explorateur dessus. Affiche aussi sur l'écran si demandé."""
-            import base64 as _b64, time as _time
+            """Reçoit un fichier de Dzaryx, le sauvegarde dans un dossier organisé."""
+            import base64 as _b64, time as _time, re as _re
             b64      = data.get('data', '')
             filename = data.get('filename', f'file_{int(_time.time())}.jpg')
             folder   = data.get('folder', 'Divers')
             caption  = data.get('caption', '')
             display  = data.get('display', False)
+            open_after = data.get('open_after', False)
+            chat_id  = data.get('chatId')
             if not b64:
                 return
             try:
@@ -107,19 +108,30 @@ class NexusWSClient:
                     b64, filename, folder, caption, open_explorer=True,
                 )
                 log.info('Fichier organisé: %s', saved)
-                if display:
+                if display or open_after:
                     try:
                         os.startfile(saved)
                     except Exception:
                         pass
-                msg = (
-                    f"Fichier sauvegardé dans {folder}. "
-                    f"{'Affiché sur l\'écran.' if display else 'Dossier ouvert dans l\'explorateur.'}"
-                )
-                asyncio.create_task(self.app.speak(msg))
+                reply = f'✅ Sauvegardé dans *{folder}/*\n`{os.path.basename(saved)}`'
+                asyncio.create_task(self.journal(reply))
+                asyncio.create_task(self.app.speak(f"Fichier sauvegardé dans {folder}."))
             except Exception as e:
                 log.error('save_file error: %s', e)
-                asyncio.create_task(self.app.speak(f"Erreur sauvegarde: {e}"))
+                asyncio.create_task(self.journal(f'❌ Erreur sauvegarde: {e}'))
+
+        @sio.on('nexus:live_frame', namespace='/nexus')
+        async def on_live_frame(data: dict):
+            """Reçoit une frame live de la caméra Dzaryx et l'affiche sur le PC en temps réel."""
+            import base64 as _b64, tempfile, time as _time
+            b64 = data.get('data', '')
+            if not b64:
+                return
+            img_bytes = _b64.b64decode(b64)
+            path = os.path.join(tempfile.gettempdir(), 'nexus_live_frame.jpg')
+            with open(path, 'wb') as f:
+                f.write(img_bytes)
+            await self.app.gui_send({'type': 'live_frame', 'path': path, 'data': b64})
 
         @sio.on('nexus:display_image', namespace='/nexus')
         async def on_display_image(data: dict):

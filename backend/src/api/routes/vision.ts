@@ -172,4 +172,17 @@ Réponds en 2 phrases max, naturellement, comme si tu décrivais à quelqu'un en
   }
 });
 
+// ── Live relay: forward camera frame from app to NEXUS PC ────────────────────
+router.post('/relay-frame', async (req, res) => {
+  res.sendStatus(200); // Respond immediately — no blocking
+  const { data } = req.body as { data?: string };
+  if (!data) return;
+  try {
+    const { isNexusOnline, sendToNexus } = await import('../../actions/handlers/nexus-relay.js');
+    if (isNexusOnline()) {
+      sendToNexus('nexus:live_frame', { data });
+    }
+  } catch (_) {}
+});
+
 export default router;

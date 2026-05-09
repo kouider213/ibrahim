@@ -44,6 +44,7 @@ from modules.file_manager     import FileManager
 from modules.input_control    import InputControl
 from modules.app_installer    import AppInstaller
 from modules.git_manager      import GitManager
+from modules.pc_agent         import PCAgent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -134,6 +135,7 @@ class NexusApp:
         self.input    = InputControl()
         self.installer= AppInstaller()
         self.git_mgr  = GitManager()
+        self.pc_agent = PCAgent()
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -606,12 +608,15 @@ class NexusApp:
             await self.journal(f'🧠 Agent {result.agent}')
             return
 
-        # ── 9. Dzaryx AI (fallback) ──────────────────────────────────────────
+        # ── 9. PC Agent (fallback — Claude AI local avec outils PC) ─────────────
         await self.gui_send({'type': 'thinking', 'active': True})
-        response = await self.ws.send_to_dzaryx(t, source)
+        if self.pc_agent.available:
+            response = await self.pc_agent.run(t)
+        else:
+            response = await self.ws.send_to_dzaryx(t, source)
         await self.gui_send({'type': 'thinking', 'active': False})
-        if response and source == 'nexus':
-            await self.speak(response)
+        if response:
+            await self._reply(response, source)
 
     # ── CapCut launcher ──────────────────────────────────────────────────────
     def _launch_capcut(self) -> str:

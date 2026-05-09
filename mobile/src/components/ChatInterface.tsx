@@ -163,6 +163,9 @@ export default function ChatInterface() {
   const [scanMode,     setScanMode]     = useState(false);
   const [scanResult,   setScanResult]   = useState<{ type: string } | null>(null);
   const [analyzing,    setAnalyzing]    = useState(false);
+  const [pcRelay,      setPcRelay]      = useState(false);
+  const pcRelayRef                      = useRef(false);
+  const pcRelayTimer                    = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Error state ────────────────────────────────────────────────
   const [errorMsg,     setErrorMsg]     = useState('');
@@ -209,6 +212,37 @@ export default function ChatInterface() {
   // ── Overlay helpers ────────────────────────────────────────────
   const openOverlay = useCallback((m: OverlayMode) => setOverlay(m), []);
 
+  const stopPcRelay = useCallback(() => {
+    pcRelayRef.current = false;
+    setPcRelay(false);
+    if (pcRelayTimer.current) { clearInterval(pcRelayTimer.current); pcRelayTimer.current = null; }
+  }, []);
+
+  const startPcRelay = useCallback(() => {
+    if (pcRelayRef.current) { stopPcRelay(); return; }
+    pcRelayRef.current = true;
+    setPcRelay(true);
+    pcRelayTimer.current = setInterval(() => {
+      if (!pcRelayRef.current) return;
+      const video = liveVideoRef.current;
+      if (!video || video.readyState < 2) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = 320; canvas.height = 240;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, 320, 240);
+      const data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+      const _e = ((import.meta as unknown) as { env?: Record<string, string> }).env ?? {};
+      const apiUrl = _e['VITE_BACKEND_URL'] ?? '';
+      const token  = _e['VITE_ACCESS_TOKEN'] ?? '';
+      fetch(`${apiUrl}/api/vision/relay-frame`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ data }),
+      }).catch(() => {});
+    }, 500);
+  }, [stopPcRelay]);
+
   const stopCamera = useCallback(() => {
     if (videoStreamRef.current) {
       videoStreamRef.current.getTracks().forEach(t => t.stop());
@@ -217,8 +251,9 @@ export default function ChatInterface() {
     if (liveVideoRef.current) liveVideoRef.current.srcObject = null;
     setLiveVision(false);
     setScanMode(false);
+    stopPcRelay();
     if (scanIntervalRef.current) { clearInterval(scanIntervalRef.current); scanIntervalRef.current = null; }
-  }, []);
+  }, [stopPcRelay]);
 
   const closeOverlay = useCallback(() => {
     stopCamera();
@@ -886,6 +921,17 @@ export default function ChatInterface() {
           >
             <span className="dz-cam-btn-ico">{scanning ? '⟳' : '👁'}</span>
             <span className="dz-cam-btn-lbl">{scanning ? 'SCAN...' : scanMode ? 'AUTO ON' : 'SCANNER'}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`dz-cam-btn${pcRelay ? ' danger' : ''}`}
+            onClick={startPcRelay}
+            disabled={!liveVision}
+            title="Envoyer le live sur le PC NEXUS"
+          >
+            <span className="dz-cam-btn-ico">{pcRelay ? '📡' : '🖥️'}</span>
+            <span className="dz-cam-btn-lbl">{pcRelay ? 'PC ON' : 'PC'}</span>
           </button>
 
           <label className={`dz-cam-btn${analyzing ? ' active' : pendingPhotoRef.current ? ' active' : ''}`}>
