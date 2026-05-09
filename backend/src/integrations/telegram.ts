@@ -129,6 +129,7 @@ export async function sendVideoBuffer(
     });
   } catch (err) {
     console.error('[telegram] sendVideoBuffer failed:', err instanceof Error ? err.message : String(err));
+    throw err;
   }
 }
 

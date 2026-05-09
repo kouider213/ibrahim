@@ -3314,11 +3314,13 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   console.log(`[generateAiVideoTool] ✅ provider=${provider} mode=${mode} sceneTransformation=${sceneTransformation} sourceImage=${sourceImageType} durée=${genSec}s`);
   console.log(`[generateAiVideoTool] url vidéo: ${videoUrl}`);
 
-  const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 60_000 });
+  const resp   = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 120_000 });
   const buffer = Buffer.from(resp.data as ArrayBuffer);
+  const sizeKb = Math.round(buffer.length / 1024);
+  console.log(`[generateAiVideoTool] vidéo téléchargée: ${sizeKb} KB`);
 
   if (!isValidMp4Buffer(buffer)) {
-    throw new Error(`${provider} a retourné un fichier invalide (${buffer.length} bytes — pas un MP4 valide)`);
+    throw new Error(`${provider} a retourné un fichier invalide (${sizeKb} KB — pas un MP4 valide)`);
   }
 
   const caption = mode === 'image-to-video'
@@ -3326,15 +3328,24 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     : `🎬 *Vidéo IA — ${provider}*\n_${prompt.slice(0, 100)}_`;
 
   let delivered = false;
-  try {
-    await sendVideoBuffer(chatId, buffer, caption);
-    delivered = true;
-  } catch (err: any) {
-    console.error('[generateAiVideoTool] sendVideoBuffer failed:', err.message);
+  // Telegram sendVideo API limit: 50 MB. Send URL link for larger files.
+  if (sizeKb > 45_000) {
+    console.warn(`[generateAiVideoTool] vidéo trop lourde pour Telegram API (${sizeKb} KB > 45 MB) — envoi lien direct`);
     try {
-      await sendTelegramForMarketing(chatId, `${caption}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${videoUrl})`);
+      await sendTelegramForMarketing(chatId, `${caption}\n\n📎 Fichier trop lourd pour envoi direct.\n[▶ Télécharger la vidéo](${videoUrl})`);
       delivered = true;
-    } catch { /* both failed */ }
+    } catch { /* ignore */ }
+  } else {
+    try {
+      await sendVideoBuffer(chatId, buffer, caption);
+      delivered = true;
+    } catch (err: any) {
+      console.error('[generateAiVideoTool] sendVideoBuffer failed:', err.message);
+      try {
+        await sendTelegramForMarketing(chatId, `${caption}\n\n⚠️ Envoi direct échoué (${sizeKb} KB).\n[▶ Télécharger la vidéo](${videoUrl})`);
+        delivered = true;
+      } catch { /* both failed */ }
+    }
   }
 
   const modeLabel = mode === 'image-to-video' ? `image réelle de ${carDisplayName}` : 'description texte';
