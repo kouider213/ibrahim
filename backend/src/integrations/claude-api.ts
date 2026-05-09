@@ -13,6 +13,12 @@ export interface Message {
   content: string | Anthropic.ContentBlockParam[];
 }
 
+export interface ToolExecution {
+  name:    string;
+  success: boolean;
+  result:  string;
+}
+
 export interface ClaudeResponse {
   text:              string;
   inputTokens:       number;
@@ -23,6 +29,7 @@ export interface ClaudeResponse {
   stopReason:        string;
   mode?:             'fast' | 'normal' | 'thinking';
   citations?:        CitationInfo[];
+  toolsExecuted:     ToolExecution[];  // ← tracking réel des outils appelés
 }
 
 // ── Citation info pour traçabilité ────────────────────────────────────────────
@@ -192,6 +199,7 @@ export async function chatWithTools(
       outputTokens: response.usage.output_tokens,
       stopReason:   response.stop_reason ?? 'end_turn',
       mode:         'fast',
+      toolsExecuted: [],  // fast mode: aucun outil appelé
     };
   }
 
@@ -268,6 +276,7 @@ export async function chatWithTools(
   let thinkingTokens   = 0;
   let finalText        = '';
   let allCitations: CitationInfo[] = [];
+  const toolsExecuted: ToolExecution[] = [];  // ← tracking réel
 
   if (useThinking) {
     const lastContent = processedMessages[processedMessages.length - 1]?.content;
@@ -390,6 +399,7 @@ export async function chatWithTools(
         stopReason: response.stop_reason,
         mode,
         citations: allCitations.length > 0 ? allCitations : undefined,
+        toolsExecuted,
       };
     }
 
@@ -405,6 +415,7 @@ export async function chatWithTools(
         stopReason: response.stop_reason ?? 'end_turn',
         mode,
         citations: allCitations.length > 0 ? allCitations : undefined,
+        toolsExecuted,
       };
     }
 
@@ -433,16 +444,24 @@ export async function chatWithTools(
 
         console.log(`[tools] Executing: ${block.name}`, block.input);
         let raw: string;
+        let toolSuccess = false;
         for (let t = 0; ; t++) {
           try {
             raw = await executeTool(block.name, block.input as Record<string, unknown>, sid);
+            // Considéré succès si pas de "Tool error:" et ne commence pas par ❌
+            toolSuccess = !raw.startsWith('Tool error:') && !raw.trimStart().startsWith('❌');
             break;
           } catch (toolErr) {
-            if (t >= 2) { raw = `Tool error: ${toolErr instanceof Error ? toolErr.message : String(toolErr)}`; break; }
+            if (t >= 2) { raw = `Tool error: ${toolErr instanceof Error ? toolErr.message : String(toolErr)}`; toolSuccess = false; break; }
             await new Promise(r => setTimeout(r, 1_000 * 2 ** t));
           }
         }
         const content = typeof raw === 'string' ? raw : JSON.stringify(raw);
+
+        // ── Execution trace obligatoire ─────────────────────────────────
+        toolsExecuted.push({ name: block.name, success: toolSuccess, result: content.slice(0, 300) });
+        console.log(`[execution-trace] tool_name=${block.name} tool_called=true tool_success=${toolSuccess} result="${content.slice(0, 100).replace(/\n/g, '↵')}"`);
+
         console.log(`[tools] Result: ${content.slice(0, 200)}`);
 
         if (onToolDone) {
@@ -472,6 +491,7 @@ export async function chatWithTools(
     stopReason: 'end_turn',
     mode,
     citations: allCitations.length > 0 ? allCitations : undefined,
+    toolsExecuted,
   };
 }
 

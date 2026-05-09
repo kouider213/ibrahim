@@ -4,6 +4,7 @@ import {
   isLauncherOnline, wakeNexus, getLauncherStatus,
 } from '../../actions/handlers/nexus-relay.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
 
 const router = Router();
 
@@ -61,6 +62,62 @@ router.get('/full-status', requireMobileAuth, async (_req, res) => {
   res.json({
     nexus:   { connected: isNexusOnline(), mac: getNexusMac() || null, ip: getNexusIp() || null },
     launcher: { connected: launcherOnline, ...launcherStatus },
+  });
+});
+
+// POST /api/nexus/test-phantom — TEST RÉEL du phantom guard (pas d'auth stricte pour debug)
+// Prouve que la protection bloque une réponse "corrigé" sans outil réel
+router.post('/test-phantom', requireMobileAuth, (req, res) => {
+  const { scenario } = req.body as { scenario?: string };
+
+  const cases = {
+    // CAS 1 : Claude prétend avoir corrigé sans aucun outil → DOIT être bloqué
+    phantom_no_tool: {
+      simulatedResponse: '✅ Corrigé — j\'ai modifié votre site et pushé sur GitHub.',
+      toolsExecuted: [],
+      userMessage: 'corrige mon site',
+    },
+    // CAS 2 : Claude dit corrigé AVEC l'outil write qui a réussi → DOIT passer
+    legitimate_with_tool: {
+      simulatedResponse: '✅ Corrigé — j\'ai modifié le fichier cars.ts.',
+      toolsExecuted: [{ name: 'github_patch_file', success: true, result: '✅ Fichier modifié' }],
+      userMessage: 'corrige mon site',
+    },
+    // CAS 3 : Claude dit corrigé mais l'outil a ÉCHOUÉ → DOIT être bloqué
+    phantom_failed_tool: {
+      simulatedResponse: '✅ Corrigé — j\'ai modifié votre site.',
+      toolsExecuted: [{ name: 'github_patch_file', success: false, result: '❌ Erreur GitHub 404' }],
+      userMessage: 'corrige mon site',
+    },
+    // CAS 4 : Réponse normale sans claim → DOIT passer
+    normal_response: {
+      simulatedResponse: 'Je peux regarder votre site. Quel fichier voulez-vous modifier ?',
+      toolsExecuted: [],
+      userMessage: 'corrige mon site',
+    },
+  } as const;
+
+  const key = (scenario ?? 'phantom_no_tool') as keyof typeof cases;
+  const testCase = cases[key] ?? cases.phantom_no_tool;
+
+  const result = phantomGuard(
+    testCase.simulatedResponse,
+    testCase.toolsExecuted,
+    testCase.userMessage,
+    `test_${Date.now()}`,
+  );
+
+  const wasBlocked = result === PHANTOM_REFUSAL;
+
+  res.json({
+    scenario:           key,
+    input_response:     testCase.simulatedResponse,
+    tools_executed:     testCase.toolsExecuted,
+    output_response:    result,
+    phantom_blocked:    wasBlocked,
+    expected_blocked:   key === 'phantom_no_tool' || key === 'phantom_failed_tool',
+    test_passed:        wasBlocked === (key === 'phantom_no_tool' || key === 'phantom_failed_tool'),
+    phantom_refusal_msg: PHANTOM_REFUSAL,
   });
 });
 

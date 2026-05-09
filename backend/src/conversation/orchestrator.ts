@@ -1,5 +1,5 @@
 ﻿import { buildContext }                          from './context-builder.js';
-import { guardResponse, applyScopeGuard }        from './response-guard.js';
+import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL } from './response-guard.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -115,7 +115,9 @@ export async function processMessage(
       } else {
         fastText = await callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime);
       }
-      const safeText = guardResponse(fastText, userMessage, requestId);
+      const guarded1  = guardResponse(fastText, userMessage, requestId);
+      // Fast path = aucun outil appelé → phantom guard obligatoire
+      const safeText  = phantomGuard(guarded1, [], userMessage, requestId);
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
       saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
       if (!textOnly && safeText.length > 0) {
@@ -187,7 +189,9 @@ export async function processMessage(
       console.warn(`[router] Attempting ${fb.name} fallback…`);
       try {
         const fallbackText = await fb.fn();
-        const safeText     = guardResponse(fallbackText, userMessage, requestId);
+        const guarded1     = guardResponse(fallbackText, userMessage, requestId);
+        // Fallback providers = aucun outil → phantom guard
+        const safeText     = phantomGuard(guarded1, [], userMessage, requestId);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
         if (!textOnly && safeText.length > 0) {
@@ -214,10 +218,23 @@ export async function processMessage(
   }
 
   // Guard pass 1: strip leaked old-confirmation prefixes
-  const guardedText = guardResponse(response.text, userMessage, requestId);
+  const guardedText  = guardResponse(response.text, userMessage, requestId);
   // Guard pass 2: remove old video-task paragraphs from non-video responses
-  const safeText    = applyScopeGuard(guardedText, userMessage, requestId);
-  console.log(`[orch:${requestId}] done len=${safeText.length} guard1=${guardedText !== response.text} guard2=${safeText !== guardedText}`);
+  const scopedText   = applyScopeGuard(guardedText, userMessage, requestId);
+  // Guard pass 3: PHANTOM GUARD — bloque toute affirmation d'action sans outil write réel
+  const safeText     = phantomGuard(scopedText, response.toolsExecuted, userMessage, requestId);
+  // Log trace complète
+  const phantomBlocked = safeText === PHANTOM_REFUSAL;
+  console.log(
+    `[execution-trace] {` +
+    `"execution_trace_id":"${requestId}",` +
+    `"tools_called":[${response.toolsExecuted.map(t => `"${t.name}"`).join(',')}],` +
+    `"write_tool_success":${response.toolsExecuted.some(t => t.success)},` +
+    `"response_allowed":${!phantomBlocked},` +
+    `"phantom_blocked":${phantomBlocked}` +
+    `}`,
+  );
+  console.log(`[orch:${requestId}] done len=${safeText.length} guard1=${guardedText !== response.text} guard2=${scopedText !== guardedText} guard3_phantom=${safeText !== scopedText}`);
 
   // 4. Émettre le texte IMMÉDIATEMENT dès que Claude a répondu
   _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
