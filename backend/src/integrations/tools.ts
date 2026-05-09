@@ -1022,6 +1022,32 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  // ─── IMAGE-TO-IMAGE avec conservation du visage ──────────────────
+  {
+    name: 'transform_image',
+    description: 'Transformer une image en conservant le visage/identité de la personne. Utiliser quand Kouider envoie une photo et demande de changer le décor, appliquer un style (guerrier algérien, savane, anime...) ou modifier l\'arrière-plan tout en gardant le visage exact. Mode image-to-image réel — pas text-to-image. Providers: fal.ai IP-Adapter FaceID (conservation visage maximale) → Flux Dev I2I → Replicate PhotoMaker (fallback).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        image_url:        { type: 'string', description: 'URL publique de l\'image source (Supabase, Telegram, etc.)' },
+        telegram_file_id: { type: 'string', description: 'File ID Telegram de l\'image envoyée dans le chat (alternatif à image_url)' },
+        prompt:           { type: 'string', description: 'Description de la transformation en anglais. Ex: "child in African savanna with lion beside, cinematic realistic lighting" ou "Algerian warrior costume, desert background, dramatic lighting"' },
+        style: {
+          type: 'string',
+          enum: ['realistic', 'anime', 'warrior', 'background_only', 'cinematic'],
+          description: 'Style prédéfini: realistic (photo naturelle), anime (dessin animé), warrior (guerrier algérien), background_only (changer seulement le fond), cinematic (style film).',
+        },
+        strength: { type: 'number', description: 'Intensité transformation 0-1: 0.3 = très fidèle à la source, 0.7 = équilibré (défaut), 0.9 = très libre. Utiliser 0.5-0.7 pour conserver le visage.' },
+        provider: {
+          type: 'string',
+          enum: ['auto', 'fal_ip_adapter', 'fal_flux', 'replicate'],
+          description: 'auto = cascade automatique. fal_ip_adapter = conservation visage maximale. fal_flux = Flux style transfer. replicate = PhotoMaker portrait.',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
+
   // ─── HEALTH CHECK SYSTÈME COMPLET ────────────────────────────────
   {
     name: 'health_check_all',
