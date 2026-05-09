@@ -726,6 +726,25 @@ router.post('/webhook', async (req, res) => {
     }
     return;
   }
+  // ── Auto-route PC/music commands to NEXUS ───────────────────────────────
+  const NEXUS_MUSIC_RE  = /\b(joue?|lance|play|[eé]coute?|mets?|met)\b/i;
+  const NEXUS_VOL_RE    = /\b(volume|son)\s*\d+/i;
+  const NEXUS_PAUSE_RE  = /\b(pause|stop|arr[eê]te)\b.*\b(musique|chanson|son|spotify|youtube)\b|\b(musique|chanson)\b.*\b(pause|stop|arr[eê]te)\b/i;
+  const NEXUS_MEDIA_RE  = /\b(piste\s+suivante|next\s+track|chanson\s+suivante|piste\s+pr[eé]c|previous\s+track)\b/i;
+  const NEXUS_SCREEN_RE = /\b(screenshot|capture\s+[eé]cran|[eé]cran\s+PC|[eé]teins?\s+(le\s+)?[eé]cran|[eé]cran\s+noir|verrouille?\s+(le\s+)?PC|d[eé]verrouille?\s+(le\s+)?PC)\b/i;
+
+  const isNexusPCCmd = isNexusOnline() && (
+    NEXUS_MUSIC_RE.test(text) ||
+    NEXUS_VOL_RE.test(text) ||
+    NEXUS_PAUSE_RE.test(text) ||
+    NEXUS_MEDIA_RE.test(text) ||
+    NEXUS_SCREEN_RE.test(text)
+  );
+
+  if (isNexusPCCmd) {
+    sendToNexus('nexus:command', { text, source: 'telegram', chatId });
+    return;
+  }
   // ── END NEXUS triggers ───────────────────────────────────────────────────
 
   try {

@@ -175,6 +175,13 @@ class NexusApp:
         await self.voice.speak(text)
         await self.gui_send({'type': 'waveform', 'active': False})
 
+    async def _reply(self, text: str, source: str) -> None:
+        """Speak if local, send journal to Telegram if remote."""
+        if source == 'nexus':
+            await self.speak(text)
+        elif text:
+            await self.journal(text)
+
     # ── Master command router ─────────────────────────────────────────────────
     async def handle_command(self, text: str, source: str = 'nexus') -> None:
         log.info('Command [%s]: %s', source, text[:80])
@@ -213,27 +220,23 @@ class NexusApp:
         # ── 2. Musique ───────────────────────────────────────────────────────
         if _PAUSE_RE.search(tl):
             r = self.music.pause_media()
-            if source == 'nexus':
-                await self.speak(r)
+            await self._reply(r, source)
             return
 
         if _NEXT_RE.search(tl):
             r = self.music.next_track()
-            if source == 'nexus':
-                await self.speak(r)
+            await self._reply(r, source)
             return
 
         if _PREV_RE.search(tl):
             r = self.music.prev_track()
-            if source == 'nexus':
-                await self.speak(r)
+            await self._reply(r, source)
             return
 
         vol_m = _VOLUME_RE.search(tl)
         if vol_m:
             r = self.music.set_volume(int(vol_m.group(1)))
-            if source == 'nexus':
-                await self.speak(r)
+            await self._reply(r, source)
             return
 
         if _MUSIC_RE.search(tl):
@@ -255,9 +258,7 @@ class NexusApp:
             result = await loop.run_in_executor(None, self.music.play, query, plat)
             await self.gui_send({'type': 'thinking', 'active': False})
             await self.gui_send({'type': 'widget', 'widget': 'music', 'data': {'query': query, 'platform': plat}})
-            if source == 'nexus':
-                await self.speak(result)
-            await self.journal(f'🎵 Musique: {query}')
+            await self._reply(result, source)
             return
 
         # ── 3. Caméra / Vision / Écran ──────────────────────────────────────────
