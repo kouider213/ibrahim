@@ -238,6 +238,8 @@ export async function processMessage(
   console.log(
     `[execution-trace] {` +
     `"execution_trace_id":"${requestId}",` +
+    `"source_channel":"${source_channel}",` +
+    `"session":"${sessionId}",` +
     `"tools_called":[${response.toolsExecuted.map(t => `"${t.name}"`).join(',')}],` +
     `"write_tool_success":${response.toolsExecuted.some(t => t.success)},` +
     `"response_allowed":${!phantomBlocked},` +
