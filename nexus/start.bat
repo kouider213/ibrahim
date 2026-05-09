@@ -50,6 +50,14 @@ if not exist ".deps_ok" (
     echo Dependances installees.
 )
 
+REM Kill toute instance NEXUS existante (libere les ports 7777/7778)
+echo Nettoyage des anciens processus NEXUS...
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":7777 \|:7778 "') do (
+    taskkill /F /PID %%a >nul 2>&1
+)
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq NEXUS*" >nul 2>&1
+timeout /t 1 /nobreak >nul
+
 echo Lancement de NEXUS...
 echo.
 %PYTHON% nexus.py
