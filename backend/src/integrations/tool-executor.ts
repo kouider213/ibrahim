@@ -94,6 +94,11 @@ export async function executeTool(
       case 'railway_wait_deploy':   return await waitForDeploy(Number(input['timeout_seconds'] ?? 180) * 1000);
       case 'supabase_execute':      return await supabaseExecute(input);
       case 'netlify_deploy':        return await netlifyDeploy(input);
+      // ─── VERCEL (autolux-location) ───
+      case 'vercel_get_deployments':     return await vercelGetDeploymentsTool(input);
+      case 'vercel_get_deployment_logs': return await vercelGetDeploymentLogsTool(input);
+      case 'vercel_check_url':           return await vercelCheckUrlTool(input);
+      case 'vercel_redeploy':            return await vercelRedeployTool(input);
       // ─── PHASE 5 ───
       case 'get_payment_status':    return await getPaymentStatus(input['booking_id'] as string | undefined);
       case 'record_payment':        return await recordPayment(
