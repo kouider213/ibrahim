@@ -40,7 +40,7 @@ import { initScheduler }   from './queue/scheduler.js';
 import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
-import { initNexusRelay } from './actions/handlers/nexus-relay.js';
+import { initNexusRelay, initLauncherRelay } from './actions/handlers/nexus-relay.js';
 
 // ── Simple in-memory rate limiter ─────────────────────────────
 function makeRateLimiter(maxReqs: number, windowMs: number) {
@@ -193,6 +193,7 @@ initApprover(mobileNs);
 initDispatcher(mobileNs);
 initPcRelay(io);
 initNexusRelay(io);
+initLauncherRelay(io);
 
 mobileNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;

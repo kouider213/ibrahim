@@ -4,6 +4,7 @@ import { processMessage }  from '../../conversation/orchestrator.js';
 import { env }             from '../../config/env.js';
 
 let _nexusSocket:    Socket | null = null;
+let _launcherSocket: Socket | null = null;
 let _nexusMac:       string        = '';
 let _nexusPublicIp:  string        = '';   // last known public IP of the PC
 
@@ -26,6 +27,7 @@ export function initNexusRelay(io: SocketServer): void {
     _nexusPublicIp = (xfwd ? xfwd.split(',')[0] : socket.handshake.address).trim();
     console.log(`[NEXUS] PC Agent connected: ${socket.id} — IP: ${_nexusPublicIp}`);
     _nexusSocket = socket;
+    void _sendTelegram('🖥️ *NEXUS* en ligne — PC connecté');
 
     // ── Register MAC for WoL ───────────────────────────────────────────────
     socket.on('nexus:register', (data: { mac?: string }) => {
@@ -81,6 +83,38 @@ export function initNexusRelay(io: SocketServer): void {
   });
 }
 
+// ── Init /launcher namespace ──────────────────────────────────────────────────
+
+export function initLauncherRelay(io: SocketServer): void {
+  const launcherNs = io.of('/launcher');
+
+  launcherNs.use((socket, next) => {
+    const token = socket.handshake.auth['token'] as string | undefined;
+    if (!token || token !== env.PC_AGENT_TOKEN) {
+      return next(new Error('Unauthorized'));
+    }
+    next();
+  });
+
+  launcherNs.on('connection', (socket: Socket) => {
+    console.log(`[LAUNCHER] Service connecté: ${socket.id}`);
+    _launcherSocket = socket;
+    void _sendTelegram('🚀 *NEXUS Launcher* en ligne — PC joignable');
+
+    socket.on('launcher:hello', (data: Record<string, unknown>) => {
+      const nexusRunning = data['nexus_running'] ? '✅' : '⭕';
+      console.log(`[LAUNCHER] Hello — nexus_running=${data['nexus_running']} hostname=${data['hostname']}`);
+      void _sendTelegram(`🚀 *Launcher* connecté — Nexus: ${nexusRunning} | Host: ${data['hostname'] ?? 'PC'}`);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('[LAUNCHER] Service déconnecté');
+      if (_launcherSocket?.id === socket.id) _launcherSocket = null;
+      void _sendTelegram('⚠️ *NEXUS Launcher* hors ligne — PC injoignable');
+    });
+  });
+}
+
 // ── External API ──────────────────────────────────────────────────────────────
 
 export function isNexusOnline(): boolean {
@@ -95,6 +129,41 @@ export function sendToNexus(event: string, data: unknown): boolean {
 
 export function getNexusMac(): string { return _nexusMac; }
 export function getNexusIp():  string { return _nexusPublicIp; }
+
+export function isLauncherOnline(): boolean {
+  return _launcherSocket !== null;
+}
+
+export function wakeNexus(): Promise<{ success: boolean; status: string; message: string }> {
+  return new Promise((resolve, reject) => {
+    if (!_launcherSocket) {
+      reject(new Error('Launcher hors ligne — le PC doit être allumé avec install-nexus-launcher.bat exécuté'));
+      return;
+    }
+    const timer = setTimeout(() => reject(new Error('Wake timeout (30s) — Nexus ne démarre pas')), 30_000);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_launcherSocket as any).emit('launcher:wake', {}, (data: { success?: boolean; status?: string; message?: string } | undefined) => {
+      clearTimeout(timer);
+      resolve({
+        success: data?.success ?? false,
+        status:  data?.status  ?? 'unknown',
+        message: data?.message ?? 'Pas de réponse du launcher',
+      });
+    });
+  });
+}
+
+export function getLauncherStatus(): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    if (!_launcherSocket) { reject(new Error('Launcher hors ligne')); return; }
+    const timer = setTimeout(() => reject(new Error('Status timeout (8s)')), 8_000);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (_launcherSocket as any).emit('launcher:status_request', {}, (data: Record<string, unknown> | undefined) => {
+      clearTimeout(timer);
+      resolve(data ?? {});
+    });
+  });
+}
 
 /** Ping NEXUS PC agent and wait for pong with real PC timestamp. */
 export function pingNexus(): Promise<{ time: string; hostname: string; latency_ms: number }> {

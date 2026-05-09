@@ -994,6 +994,17 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
 
+  {
+    name: 'wake_nexus',
+    description: 'Réveiller / démarrer NEXUS (agent PC Kouider) à distance via le Launcher permanent. Le Launcher est un service léger installé sur le PC via install-nexus-launcher.bat — il tourne même quand Nexus est éteint. Utiliser quand Kouider dit "réveille Nexus", "lance Nexus", "démarre Nexus", "allume Nexus", "start Nexus". NE PAS utiliser si Nexus est déjà actif (ping_nexus d\'abord si incertain).',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'nexus_full_status',
+    description: 'Obtenir l\'état complet du système NEXUS: Nexus actif ?, Launcher connecté ?, hostname PC, uptime Launcher, dernière réveil, dernière erreur. Utiliser quand Kouider demande "état de Nexus", "status PC", "est-ce que le launcher tourne", "info système".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+
   // ─── GOOGLE CALENDAR — outil manquant ────────────────────────────
   {
     name: 'update_calendar_event',

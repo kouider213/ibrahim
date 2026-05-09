@@ -141,6 +141,8 @@ export async function executeTool(
       // ─── NEXUS PC AGENT ───
       case 'ping_nexus':               return await pingNexusTool();
       case 'send_nexus_command':       return await sendNexusCommandTool(input);
+      case 'wake_nexus':               return await wakeNexusTool();
+      case 'nexus_full_status':        return await nexusFullStatusTool();
       // ─── HEALTH CHECK ───
       case 'health_check_all':         return await healthCheckAllTool();
       case 'get_late_returns':                   return await getLateReturns();
@@ -3245,6 +3247,75 @@ async function sendNexusCommandTool(input: Record<string, unknown>): Promise<str
   }
   sendToNexus('nexus:command', { text: command, source: 'dzaryx-app' });
   return `✅ Commande envoyée à NEXUS: "${command}"\n📡 NEXUS va l\'exécuter et envoyer le résultat via Telegram ou journal.`;
+}
+
+async function wakeNexusTool(): Promise<string> {
+  const { isNexusOnline, isLauncherOnline, wakeNexus } = await import('../actions/handlers/nexus-relay.js');
+
+  if (isNexusOnline()) {
+    return '✅ Nexus est déjà actif et connecté — aucune action nécessaire.';
+  }
+
+  if (!isLauncherOnline()) {
+    return [
+      '❌ Launcher hors ligne — impossible de réveiller Nexus.',
+      '',
+      '🔧 Pour activer le Launcher:',
+      '  1. Allume le PC Windows',
+      '  2. Exécute install-nexus-launcher.bat (une seule fois)',
+      '  3. Le Launcher démarrera automatiquement à chaque session',
+    ].join('\n');
+  }
+
+  try {
+    const result = await wakeNexus();
+    if (result.success) {
+      const statusIcon = result.status === 'started' ? '🟢' : result.status === 'already_running' ? '✅' : '⏳';
+      return `${statusIcon} ${result.message}`;
+    }
+    return `❌ Réveil échoué: ${result.message}`;
+  } catch (err) {
+    return `❌ Erreur réveil Nexus: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function nexusFullStatusTool(): Promise<string> {
+  const { isNexusOnline, isLauncherOnline, getNexusMac, getNexusIp, getLauncherStatus } = await import('../actions/handlers/nexus-relay.js');
+
+  const lines: string[] = ['📊 **État système NEXUS**\n'];
+
+  const nexusOk    = isNexusOnline();
+  const launcherOk = isLauncherOnline();
+
+  lines.push(`🖥️ Nexus Agent:  ${nexusOk    ? '🟢 EN LIGNE' : '🔴 HORS LIGNE'}`);
+  lines.push(`🚀 Launcher:     ${launcherOk ? '🟢 EN LIGNE' : '🔴 HORS LIGNE'}`);
+
+  if (nexusOk) {
+    const mac = getNexusMac();
+    const ip  = getNexusIp();
+    if (mac) lines.push(`🔗 MAC: ${mac}`);
+    if (ip)  lines.push(`🌐 IP:  ${ip}`);
+  }
+
+  if (launcherOk) {
+    try {
+      const status = await getLauncherStatus();
+      if (status['hostname'])   lines.push(`💻 Hostname:    ${status['hostname']}`);
+      if (status['uptime'])     lines.push(`⏱️ Uptime:      ${status['uptime']}`);
+      if (status['last_wake'])  lines.push(`⏰ Dernier réveil: ${status['last_wake']}`);
+      if (status['last_error']) lines.push(`⚠️ Dernière erreur: ${status['last_error']}`);
+    } catch {
+      lines.push('⚠️ Statut Launcher: timeout');
+    }
+  }
+
+  if (!nexusOk && !launcherOk) {
+    lines.push('\n💡 Pour activer: exécute install-nexus-launcher.bat sur le PC Windows');
+  } else if (!nexusOk && launcherOk) {
+    lines.push('\n💡 Nexus hors ligne mais Launcher disponible — dis "réveille Nexus" pour le démarrer');
+  }
+
+  return lines.join('\n');
 }
 
 // ─── GOOGLE CALENDAR — update manquant ───────────────────────────────────────

@@ -85,6 +85,18 @@ export const api = {
       '/api/nexus/ping', { method: 'POST' }
     ),
 
+  nexusWake: () =>
+    apiFetch<{ ok: boolean; status?: string; message?: string; error?: string }>(
+      '/api/nexus/wake', { method: 'POST' }
+    ).catch(() => ({ ok: false, error: 'Erreur réseau' })),
+
+  nexusFullStatus: () =>
+    apiFetch<{
+      nexus:    { connected: boolean; mac: string | null; ip: string | null };
+      launcher: { connected: boolean; hostname?: string; uptime?: string; nexus_running?: boolean; last_wake?: string | null; last_error?: string | null };
+    }>('/api/nexus/full-status')
+    .catch(() => ({ nexus: { connected: false, mac: null, ip: null }, launcher: { connected: false } })),
+
   healthCheck: () =>
     fetch(`${BACKEND_URL}/health`, {
       headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
