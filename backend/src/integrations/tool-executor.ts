@@ -3164,7 +3164,17 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   let carExtraction           = false;
   let transformedKeyframeCreated = false;
 
-  if (sceneTransformation && carImageUrl && falKey) {
+  // RÈGLE ABSOLUE: si provider forcé (runway ou kling), on court-circuite
+  // TOUT pré-traitement fal.ai/bria et on envoie directement l'image à Runway/Kling.
+  // La transformation de scène est décrite dans le prompt texte — le modèle s'en charge.
+  if (forceProvider !== 'auto' && sceneTransformation && carImageUrl) {
+    const provLabel = forceProvider === 'runway' ? 'Runway Gen-3' : 'Kling 1.6';
+    await sendTelegramForMarketing(chatId,
+      `🎬 *Génération vidéo — ${provLabel}* (provider forcé)\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Scène décrite dans le prompt — aucun pré-traitement fal.ai._\n⏳ 60-240 secondes...`
+    ).catch(() => {});
+    // effectiveImageUrl reste = carImageUrl (photo Supabase originale)
+    // sceneTransformation reste true pour que le prompt texte soit envoyé tel quel
+  } else if (sceneTransformation && carImageUrl && falKey) {
     // STEP 1 — Background removal
     await sendTelegramForMarketing(chatId,
       `🎬 *Transformation de scène — ${carDisplayName}*\n✅ Photo réelle du véhicule trouvée.\n_Étape 1/3 : Extraction de la voiture (suppression du fond)..._\n⏳ Patience...`);
