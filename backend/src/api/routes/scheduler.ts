@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { schedulerQueue, triggerJob, triggerCustomReminder, getSchedulerStatus } from '../../queue/scheduler.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { buildMemoryContext } from '../../conversation/memory-selector.js';
+import { sendMessage as sendTelegram } from '../../integrations/telegram.js';
+import { env } from '../../config/env.js';
 
 const router = Router();
 
@@ -49,6 +52,50 @@ router.post('/test-telegram', requireMobileAuth, async (req, res) => {
       message:          msg,
       queued_at:        new Date().toISOString(),
       note:             'Check Telegram — message should arrive in <5s if worker is alive',
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/scheduler/memory-test — P12b runtime proof: call buildMemoryContext, return JSON + send Telegram
+router.get('/memory-test', requireMobileAuth, async (_req, res) => {
+  try {
+    const query = 'P12b test: qui je suis objectif Dzaryx business Fik';
+    const result = await buildMemoryContext(query, 300);
+
+    const verdict = result.source === 'memory_facts' && result.selectedFacts > 0
+      ? 'VERIFIED'
+      : result.source === 'ibrahim_memory' && result.selectedFacts > 0
+        ? 'PARTIAL — fallback ibrahim_memory'
+        : 'FAIL — no memory';
+
+    const telegramLines = [
+      `🧪 *P12b Memory Engine Test*`,
+      `📊 Source: \`${result.source}\``,
+      `📦 Facts: ${result.selectedFacts}/${result.totalFacts} selected`,
+      `🪙 Tokens: ~${result.tokenEstimate}/300`,
+      `✅ Verdict: *${verdict}*`,
+      ``,
+      `*Top facts:*`,
+      ...result.entries.slice(0, 5).map(e => `• [${e.category}] ${e.content.slice(0, 80)}`),
+    ];
+
+    if (env.TELEGRAM_CHAT_ID) {
+      await sendTelegram(env.TELEGRAM_CHAT_ID, telegramLines.join('\n'));
+    }
+
+    res.json({
+      ok:            true,
+      verdict,
+      source:        result.source,
+      totalFacts:    result.totalFacts,
+      selectedFacts: result.selectedFacts,
+      tokenEstimate: result.tokenEstimate,
+      budgetTokens:  300,
+      entries:       result.entries,
+      telegram_sent: !!env.TELEGRAM_CHAT_ID,
+      tested_at:     new Date().toISOString(),
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
