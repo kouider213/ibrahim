@@ -6,6 +6,7 @@ import { formatPricingTable } from '../config/pricing.js';
 import type { Message } from '../integrations/claude-api.js';
 import { loadCompactionSummary } from './compaction.js';
 import { detectLanguage } from './language-detector.js';
+import { buildMemoryContext, type MemoryContextResult } from './memory-selector.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -94,7 +95,7 @@ export async function buildContext(
   const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari|part.*houari|part.*kouider|total|depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan/i.test(userMessage);
   const needsAnnualFinance = /depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan.*ann[eé]e|ann[eé]e.*enti[eè]re|rapport.*ann[eé]e|ann[eé]e.*compl[eè]te/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
-  const needsMemory   = true; // always inject memories — both channels (voice app + Telegram) share them
+  // memory always fetched via buildMemoryContext (memory-selector.ts)
 
   const now = new Date();
 
@@ -129,7 +130,7 @@ export async function buildContext(
     needsNews     ? getAlgeriaNews(4).catch(() => [])                                            : Promise.resolve([]),
     needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
     needsFinance  ? getFinancialReport(now.getFullYear(), needsAnnualFinance ? undefined : now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
-    needsMemory   ? supabase.from('ibrahim_memory').select('content, category').order('created_at', { ascending: false }).limit(20).then((r: any) => r.data ?? []) : Promise.resolve([]),
+    buildMemoryContext(userMessage, 300),
     getRecentUserMessages(40).catch(() => [] as string[]),
     loadCompactionSummary(sessionId).catch(() => null),
   ]);
@@ -207,8 +208,9 @@ export async function buildContext(
     ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):\nTotal réservations: ${financeReport.totalBookings} | Kouider: ${financeReport.kouiderBookings} résa | Houari: ${financeReport.houariBookings} résa\nBÉNÉFICE KOUIDER: ${financeReport.kouiderProfit}€ | REVENU HOUARI: ${financeReport.houariRevenue}€\nDÉTAIL:\n${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | ${b.final_price}€ total | ${b.rented_by === 'Kouider' ? `K+${b.kouider_profit}€` : `H100%`}`).join('\n')}`
     : '';
 
-  const memoriesText = memories.length > 0
-    ? `\n\nMÉMOIRE Dzaryx (infos permanentes):\n${(memories as any[]).map((m: any) => `[${m.category}] ${m.content}`).join('\n')}`
+  const memResult = memories as MemoryContextResult;
+  const memoriesText = memResult.entries.length > 0
+    ? `\n\nMÉMOIRE Dzaryx (infos permanentes):\n${memResult.entries.map(m => `[${m.category}] ${m.content}`).join('\n')}`
     : '';
 
   const currentChannel = sessionId === 'voice_kouider'
@@ -273,8 +275,10 @@ export async function buildContext(
     { role: 'user', content: userMessage },
   ];
 
-  console.log(`[ctx:${sessionId.slice(0, 20)}] histLimit=${historyLimit} raw=${history.length} filtered=${filteredHistory.length} action=${isActionIntent(userMessage)}`);
-
+  const systemExtraTokenEst = Math.round(systemExtra.length / 4);
+  console.log(
+    `[ctx:${sessionId.slice(0, 20)}] histLimit=${historyLimit} raw=${history.length} filtered=${filteredHistory.length} action=${isActionIntent(userMessage)} | systemExtra~${systemExtraTokenEst}tok | memory: source=${memResult.source} total=${memResult.totalFacts} selected=${memResult.selectedFacts} ~${memResult.tokenEstimate}tok`,
+  );
 
   return { messages, systemExtra, sessionId };
 }
