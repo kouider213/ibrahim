@@ -29,6 +29,17 @@ export interface NlRouterResult {
   handled: boolean;
   messages: string[];
   logs: string[];
+  proofs: NlProof[];
+}
+
+export interface NlProof {
+  cmd:        string;
+  intent:     IntentType;
+  confidence: number;
+  route:      'os_agent' | 'python_ai' | 'unknown';
+  jobId?:     string;
+  ok:         boolean;
+  elapsedMs:  number;
 }
 
 export interface TestCase {
@@ -114,7 +125,7 @@ export function splitCommands(text: string): string[] {
 
 // ── Intent patterns ───────────────────────────────────────────────────────────
 
-const SCREEN_UNDERSTAND_RE = /\b(qu[e']?est[-\s]ce\s+(qu[e']?il\s+y\s+a\s+[àa])?\s*l[''']?[eé]cran|analyse[sz]?\s+l[''']?[eé]cran|que\s+vois[\s-]tu|dis[\s-]moi\s+ce\s+que\s+tu\s+vois|regarde[sz]?\s+(mon\s+)?[eé]cran|comprends?\s+mon\s+[eé]cran|qu[e']?est[\s-]ce\s+que\s+tu\s+vois|montre[\s-]moi\s+mon\s+bureau|montre\s+moi\s+le\s+bureau)\b/i;
+const SCREEN_UNDERSTAND_RE = /\b(qu[e']?est[-\s]ce\s+(qu[e']?il\s+y\s+a\s+[àa])?\s*l[''']?[eé]cran|analyse[sz]?\s+(?:l[''']?|mon\s+|ton\s+|cet?\s+)?[eé]cran|que\s+vois[\s-]tu|dis[\s-]moi\s+ce\s+que\s+tu\s+vois|regarde[sz]?\s+(mon\s+)?[eé]cran|comprends?\s+mon\s+[eé]cran|qu[e']?est[\s-]ce\s+que\s+tu\s+vois|montre[\s-]moi\s+mon\s+bureau|montre\s+moi\s+le\s+bureau)\b/i;
 const SCREENSHOT_RE         = /\b(screenshot|capture\s+[eé]cran|prends?\s+(un\s+)?screenshot|fais?\s+(un\s+)?screenshot|prends?\s+(une\s+)?capture|montre[\s-]moi\s+(l[''']?[eé]cran|ce\s+qui\s+se\s+passe\s+[àa]l?\s*[eé]cran))\b/i;
 const APP_LAUNCH_RE         = /\b(ouvre[sz]?\s+|lance[sz]?\s+|d[eé]marre[sz]?\s+|start\s+|ouvre[sz]?\s+l[''']?app(?:lication)?\s+)\s*(chrome|google|navigateur|vscode|vs\s*code|[eé]diteur|editeur|telegram|tg|spotify|terminal|cmd|powershell|console|wt|notepad|bloc[\s-]notes|explorer|explorateur|dzaryx|capcut)\b/i;
 const PROCESS_KILL_RE       = /\b(tu[e]r?|kill|ferme[sz]?\s+(?:le\s+)?processus|termine[sz]?\s+(?:le\s+)?processus)\s+(\S+)\b/i;
@@ -283,14 +294,16 @@ function fmtWindowList(r: Record<string, unknown>): string {
 
 // ── executeIntent ─────────────────────────────────────────────────────────────
 
-async function executeIntent(intent: DetectedIntent, rawCmd: string): Promise<{ message: string; ok: boolean }> {
+interface IntentResult { message: string; ok: boolean; jobId?: string; }
+
+async function executeIntent(intent: DetectedIntent, rawCmd: string): Promise<IntentResult> {
   const { type, args } = intent;
 
   switch (type) {
     case 'screenshot': {
       const r = await nexusScreenshot(undefined, 35_000);
       if (!r.ok) return { ok: false, message: `❌ Screenshot échoué : ${r.error ?? 'erreur inconnue'}` };
-      const kb = r['size_bytes'] ? Math.round((r['size_bytes'] as number) / 1024) : '?';
+      const kb = r.size_bytes ? Math.round(r.size_bytes / 1024) : '?';
       return { ok: true, message: `📸 Screenshot pris et envoyé sur Telegram _(${kb} KB)_` };
     }
 
@@ -299,22 +312,22 @@ async function executeIntent(intent: DetectedIntent, rawCmd: string): Promise<{ 
       const r = await nexusScreenUnderstand(question, true, undefined, 60_000);
       if (!r.ok) return { ok: false, message: `❌ Analyse écran échouée : ${r.error ?? 'erreur inconnue'}` };
       const analysis = (r['analysis'] as string | undefined)?.trim();
-      if (analysis) return { ok: true, message: `👁️ *Analyse de l'écran* :\n\n${analysis}` };
-      return { ok: true, message: `👁️ Analyse terminée — envoyée sur Telegram.` };
+      if (analysis) return { ok: true, jobId: r['job_id'] as string | undefined, message: `👁️ *Analyse de l'écran* :\n\n${analysis}` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `👁️ Analyse terminée — envoyée sur Telegram.` };
     }
 
     case 'file_list': {
       const path = args['path'] as string | undefined;
       const r = await nexusFileList(path);
       if (!r.ok) return { ok: false, message: `❌ Liste fichiers échouée : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: fmtFileList(r as Record<string, unknown>) };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: fmtFileList(r as Record<string, unknown>) };
     }
 
     case 'file_search': {
       const query = args['query'] as string;
       const r = await nexusFileSearch(query);
       if (!r.ok) return { ok: false, message: `❌ Recherche échouée : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: fmtFileSearch(r as Record<string, unknown>) };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: fmtFileSearch(r as Record<string, unknown>) };
     }
 
     case 'file_read': {
@@ -322,54 +335,54 @@ async function executeIntent(intent: DetectedIntent, rawCmd: string): Promise<{ 
       const r = await nexusFileRead(path);
       if (!r.ok) return { ok: false, message: `❌ Lecture échouée : ${r.error ?? 'erreur inconnue'}` };
       const content = (r['content'] as string | undefined)?.slice(0, 3000) ?? '(vide)';
-      return { ok: true, message: `📄 *Contenu* :\n\`\`\`\n${content}\n\`\`\`` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `📄 *Contenu* :\n\`\`\`\n${content}\n\`\`\`` };
     }
 
     case 'file_send': {
       const path = args['path'] as string;
       const r = await nexusFileSend(path);
       if (!r.ok) return { ok: false, message: `❌ Envoi échoué : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: `📤 Fichier envoyé sur Telegram.` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `📤 Fichier envoyé sur Telegram.` };
     }
 
     case 'file_open': {
       const path = args['path'] as string;
       const r = await nexusFileOpen(path);
       if (!r.ok) return { ok: false, message: `❌ Ouverture échouée : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: `📂 Fichier ouvert.` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `📂 Fichier ouvert.` };
     }
 
     case 'window_list': {
       const r = await nexusWindowList();
       if (!r.ok) return { ok: false, message: `❌ Liste fenêtres échouée : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: fmtWindowList(r as Record<string, unknown>) };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: fmtWindowList(r as Record<string, unknown>) };
     }
 
     case 'window_focus': {
       const title = args['title'] as string;
       const r = await nexusWindowFocus(title);
       if (!r.ok) return { ok: false, message: `❌ Focus échoué : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: `🪟 Fenêtre "${title}" mise en avant.` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `🪟 Fenêtre "${title}" mise en avant.` };
     }
 
     case 'window_close': {
       const title = args['title'] as string;
       const r = await nexusWindowClose(title);
       if (!r.ok) return { ok: false, message: `❌ Fermeture échouée : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: `🪟 Fenêtre "${title}" fermée.` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `🪟 Fenêtre "${title}" fermée.` };
     }
 
     case 'window_screenshot': {
       const r = await nexusWindowScreenshot();
       if (!r.ok) return { ok: false, message: `❌ Screenshot fenêtre échoué : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: `📸 Screenshot fenêtre envoyé sur Telegram.` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `📸 Screenshot fenêtre envoyé sur Telegram.` };
     }
 
     case 'process_list': {
       const sort = (args['sort'] as 'ram' | 'cpu') ?? 'ram';
       const r = await nexusProcessList(20, sort);
       if (!r.ok) return { ok: false, message: `❌ Liste processus échouée : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: fmtProcessList(r as Record<string, unknown>) };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: fmtProcessList(r as Record<string, unknown>) };
     }
 
     case 'process_kill': {
@@ -377,14 +390,14 @@ async function executeIntent(intent: DetectedIntent, rawCmd: string): Promise<{ 
       const pid  = args['pid']  as number | undefined;
       const r = await nexusProcessKill(name, pid);
       if (!r.ok) return { ok: false, message: `❌ Kill échoué : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: `⚙️ Processus "${name ?? pid}" terminé.` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `⚙️ Processus "${name ?? pid}" terminé.` };
     }
 
     case 'app_launch': {
       const app = args['app'] as string;
       const r = await nexusAppLaunch(app);
       if (!r.ok) return { ok: false, message: `❌ Lancement échoué : ${r.error ?? 'erreur inconnue'}` };
-      return { ok: true, message: `🚀 ${app} lancé.` };
+      return { ok: true, jobId: r['job_id'] as string | undefined, message: `🚀 ${app} lancé.` };
     }
 
     case 'nexus_status': {
@@ -402,6 +415,7 @@ async function executeIntent(intent: DetectedIntent, rawCmd: string): Promise<{ 
 export async function routeNexusMessage(text: string): Promise<NlRouterResult> {
   const logs: string[] = [];
   const messages: string[] = [];
+  const proofs: NlProof[] = [];
   let anyHandled = false;
 
   const cmds = splitCommands(text);
@@ -413,7 +427,9 @@ export async function routeNexusMessage(text: string): Promise<NlRouterResult> {
     const parseMs = Date.now() - t0;
 
     if (intent.type === 'unknown' || intent.confidence < 0.70) {
+      const elapsedMs = Date.now() - t0;
       logs.push(`[NL-ROUTER] cmd="${cmd.slice(0, 60)}" intent=unknown confidence=${intent.confidence.toFixed(2)} route=python_ai elapsed=${parseMs}ms`);
+      proofs.push({ cmd, intent: 'unknown', confidence: intent.confidence, route: 'python_ai', ok: false, elapsedMs });
       if (isMulti) {
         messages.push(`ℹ️ Non reconnu : _${cmd}_`);
         anyHandled = true;
@@ -427,19 +443,35 @@ export async function routeNexusMessage(text: string): Promise<NlRouterResult> {
       const result = await executeIntent(intent, cmd);
       const totalMs = Date.now() - t0;
       logs.push(`[NL-ROUTER] executed intent=${intent.type} success=${result.ok} elapsed=${totalMs}ms`);
+
+      proofs.push({
+        cmd,
+        intent: intent.type,
+        confidence: intent.confidence,
+        route: 'os_agent',
+        jobId: result.jobId,
+        ok: result.ok,
+        elapsedMs: totalMs,
+      });
+
       if (result.message) {
-        messages.push(result.message);
+        const confPct = Math.round(intent.confidence * 100);
+        const jobPart = result.jobId ? ` | job: \`${result.jobId}\`` : '';
+        const header = `🎯 *${intent.type}* | conf: ${confPct}%${jobPart}\n`;
+        messages.push(header + result.message);
         anyHandled = true;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      const elapsedMs = Date.now() - t0;
       logs.push(`[NL-ROUTER] ERROR intent=${intent.type} err="${msg}"`);
+      proofs.push({ cmd, intent: intent.type, confidence: intent.confidence, route: 'os_agent', ok: false, elapsedMs });
       messages.push(`❌ Erreur NEXUS \\(${intent.type}\\) : ${msg}`);
       anyHandled = true;
     }
   }
 
-  return { handled: anyHandled, messages, logs };
+  return { handled: anyHandled, messages, logs, proofs };
 }
 
 // ── testNlParser ──────────────────────────────────────────────────────────────
