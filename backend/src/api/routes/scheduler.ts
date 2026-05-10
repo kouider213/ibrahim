@@ -104,11 +104,12 @@ router.get('/memory-test', requireMobileAuth, async (_req, res) => {
 });
 
 // GET /api/scheduler/proactive-test — P12c: run memory-aware engine NOW, return trigger results
-// ?force=true clears Redis locks so notifications fire even if already sent today/week
+// ?force=true clears Redis locks | ?demo=true bypasses day/time/temp conditions (sends [DEMO] messages)
 router.get('/proactive-test', requireMobileAuth, async (req, res) => {
   const force = req.query['force'] === 'true';
+  const demo  = req.query['demo']  === 'true';
   try {
-    const results = await runProactiveEngine(undefined, force);
+    const results = await runProactiveEngine(undefined, force, demo);
     const sent    = results.filter(r => r.status === 'SENT').length;
     const skipped = results.filter(r => r.status === 'SKIPPED').length;
     const errors  = results.filter(r => r.status === 'ERROR').length;
@@ -116,6 +117,7 @@ router.get('/proactive-test', requireMobileAuth, async (req, res) => {
     res.json({
       ok:        true,
       force,
+      demo,
       triggers:  results,
       summary:   { sent, skipped, errors },
       tested_at: new Date().toISOString(),

@@ -77,15 +77,15 @@ function getLocalTime(tz: string): { hour: number; minute: number; dayOfWeek: nu
 // ── Trigger 1: Pre-work commute reminder ─────────────────────────
 // Fires once daily, ~15min before ideal departure time
 async function triggerPreWorkReminder(
-  workDays: number[], workStart: string, commute: number, tz: string,
+  workDays: number[], workStart: string, commute: number, tz: string, demo: boolean,
 ): Promise<TriggerResult> {
   const { hour, minute, dayOfWeek } = getLocalTime(tz);
-  if (!workDays.includes(dayOfWeek)) {
+  if (!demo && !workDays.includes(dayOfWeek)) {
     return { trigger: 'pre-work', status: 'SKIPPED', reason: 'pas un jour de travail' };
   }
   const nowMin    = hour * 60 + minute;
   const departMin = timeToMinutes(workStart) - commute;
-  if (nowMin < departMin - 15 || nowMin > departMin + 15) {
+  if (!demo && (nowMin < departMin - 15 || nowMin > departMin + 15)) {
     const dH = Math.floor(departMin / 60);
     const dM = String(departMin % 60).padStart(2, '0');
     return { trigger: 'pre-work', status: 'SKIPPED', reason: `fenêtre ${dH}h${dM} ±15min (actuel ${hour}h${String(minute).padStart(2,'0')})` };
@@ -95,36 +95,38 @@ async function triggerPreWorkReminder(
   }
   const dH = Math.floor(departMin / 60);
   const dM = String(departMin % 60).padStart(2, '0');
-  await tg(`🚗 *Rappel trajet Bruxelles*\nDépart idéal : *${dH}h${dM}* (trajet ~${commute}min)\nPrise en charge : ${workStart.slice(0, 5)} ✅`);
+  const prefix = demo ? '🧪 [DEMO] ' : '';
+  await tg(`${prefix}🚗 *Rappel trajet Bruxelles*\nDépart idéal : *${dH}h${dM}* (trajet ~${commute}min)\nPrise en charge : ${workStart.slice(0, 5)} ✅`);
   return { trigger: 'pre-work', status: 'SENT' };
 }
 
 // ── Trigger 2: After-work rest / famille ─────────────────────────
 // Fires once daily, 0–30min after work_end
 async function triggerAfterWorkRest(
-  workDays: number[], workEnd: string, tz: string,
+  workDays: number[], workEnd: string, tz: string, demo: boolean,
 ): Promise<TriggerResult> {
   const { hour, minute, dayOfWeek } = getLocalTime(tz);
-  if (!workDays.includes(dayOfWeek)) {
+  if (!demo && !workDays.includes(dayOfWeek)) {
     return { trigger: 'after-work', status: 'SKIPPED', reason: 'pas un jour de travail' };
   }
   const nowMin = hour * 60 + minute;
   const endMin = timeToMinutes(workEnd);
-  if (nowMin < endMin || nowMin > endMin + 30) {
+  if (!demo && (nowMin < endMin || nowMin > endMin + 30)) {
     return { trigger: 'after-work', status: 'SKIPPED', reason: 'hors fenêtre post-travail' };
   }
   if (!await acquireDailyLock('after-work')) {
     return { trigger: 'after-work', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
   }
-  await tg(`🏠 *Bonne soirée Kouider !*\nTravail terminé — profite de ta famille. 👨‍👩‍👦\nDzaryx surveille Fik Conciergerie. 🛡️`);
+  const prefix = demo ? '🧪 [DEMO] ' : '';
+  await tg(`${prefix}🏠 *Bonne soirée Kouider !*\nTravail terminé — profite de ta famille. 👨‍👩‍👦\nDzaryx surveille Fik Conciergerie. 🛡️`);
   return { trigger: 'after-work', status: 'SENT' };
 }
 
 // ── Trigger 3: Oran heat alert (>35°C) ───────────────────────────
 // Fires once daily if temp > threshold between 10h–20h Algiers
-async function triggerHeatAlert(): Promise<TriggerResult> {
+async function triggerHeatAlert(demo: boolean): Promise<TriggerResult> {
   const { hour } = getLocalTime('Africa/Algiers');
-  if (hour < 10 || hour > 20) {
+  if (!demo && (hour < 10 || hour > 20)) {
     return { trigger: 'heat-alert', status: 'SKIPPED', reason: 'hors fenêtre 10h–20h Oran' };
   }
   let weather;
@@ -133,14 +135,15 @@ async function triggerHeatAlert(): Promise<TriggerResult> {
   } catch {
     return { trigger: 'heat-alert', status: 'SKIPPED', reason: 'météo non disponible' };
   }
-  if (weather.temperature < 35) {
+  if (!demo && weather.temperature < 35) {
     return { trigger: 'heat-alert', status: 'SKIPPED', reason: `${weather.temperature}°C < 35°C` };
   }
   if (!await acquireDailyLock('heat-alert')) {
     return { trigger: 'heat-alert', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
   }
+  const prefix = demo ? `🧪 [DEMO ${weather.temperature}°C — prod se déclenche si >35°C] ` : '';
   const msg = [
-    `🌡️ *Alerte chaleur Oran : ${weather.temperature}°C* (ressenti ${weather.apparent_temp}°C)`,
+    `${prefix}🌡️ *Alerte chaleur Oran : ${weather.temperature}°C* (ressenti ${weather.apparent_temp}°C)`,
     ``,
     `💡 Rappelle aux clients :`,
     `  • Stationnement ombragé obligatoire`,
@@ -148,26 +151,28 @@ async function triggerHeatAlert(): Promise<TriggerResult> {
     `  • Prévoir eau + clim en marche`,
   ].join('\n');
   await tg(msg);
-  await notifyOwner(`🌡️ Chaleur Oran ${weather.temperature}°C`, 'Conseille stationnement ombragé aux clients', false);
+  if (!demo) await notifyOwner(`🌡️ Chaleur Oran ${weather.temperature}°C`, 'Conseille stationnement ombragé aux clients', false);
   return { trigger: 'heat-alert', status: 'SENT' };
 }
 
 // ── Trigger 4: TikTok weekly reminder ────────────────────────────
 // Fires once per week on Wednesday ≥14h or Friday ≥14h (Algiers)
-async function triggerTikTokReminder(): Promise<TriggerResult> {
+async function triggerTikTokReminder(demo: boolean): Promise<TriggerResult> {
   const { hour, dayOfWeek } = getLocalTime('Africa/Algiers');
-  if (dayOfWeek !== 3 && dayOfWeek !== 5) {
+  if (!demo && dayOfWeek !== 3 && dayOfWeek !== 5) {
     return { trigger: 'tiktok-reminder', status: 'SKIPPED', reason: 'pas mercredi/vendredi' };
   }
-  if (hour < 14) {
+  if (!demo && hour < 14) {
     return { trigger: 'tiktok-reminder', status: 'SKIPPED', reason: 'avant 14h Algiers' };
   }
   if (!await acquireWeeklyLock('tiktok-reminder')) {
     return { trigger: 'tiktok-reminder', status: 'SKIPPED', reason: 'déjà rappelé cette semaine' };
   }
-  const day = dayOfWeek === 3 ? 'mercredi' : 'vendredi';
+  const dayNames: Record<number, string> = { 0: 'dimanche', 1: 'lundi', 2: 'mardi', 3: 'mercredi', 4: 'jeudi', 5: 'vendredi', 6: 'samedi' };
+  const day = dayNames[dayOfWeek] ?? 'aujourd\'hui';
+  const prefix = demo ? '🧪 [DEMO] ' : '';
   await tg([
-    `📱 *Rappel TikTok — ${day}*`,
+    `${prefix}📱 *Rappel TikTok — ${day}*`,
     `Objectif : 2 vidéos minimum cette semaine (Fik Conciergerie)`,
     ``,
     `💡 Dis "génère une idée TikTok" ou déclenche une vidéo depuis l'app.`,
@@ -177,7 +182,11 @@ async function triggerTikTokReminder(): Promise<TriggerResult> {
 }
 
 // ── Main orchestrator ─────────────────────────────────────────────
-export async function runProactiveEngine(_job?: Job, force = false): Promise<TriggerResult[]> {
+export async function runProactiveEngine(
+  _job?: Job,
+  force = false,
+  demo = false,
+): Promise<TriggerResult[]> {
   if (force) {
     await Promise.all([clearDailyLocks(), clearWeeklyLocks()]);
     console.log('[p12c] Force mode — locks cleared');
@@ -196,16 +205,16 @@ export async function runProactiveEngine(_job?: Job, force = false): Promise<Tri
   const tzWork    = profile.timezone_primary    ?? 'Europe/Brussels';
 
   const [r1, r2, r3, r4] = await Promise.all([
-    triggerPreWorkReminder(workDays, workStart, commute, tzWork).catch(err => ({
+    triggerPreWorkReminder(workDays, workStart, commute, tzWork, demo).catch(err => ({
       trigger: 'pre-work',        status: 'ERROR' as const, reason: (err as Error).message,
     })),
-    triggerAfterWorkRest(workDays, workEnd, tzWork).catch(err => ({
+    triggerAfterWorkRest(workDays, workEnd, tzWork, demo).catch(err => ({
       trigger: 'after-work',      status: 'ERROR' as const, reason: (err as Error).message,
     })),
-    triggerHeatAlert().catch(err => ({
+    triggerHeatAlert(demo).catch(err => ({
       trigger: 'heat-alert',      status: 'ERROR' as const, reason: (err as Error).message,
     })),
-    triggerTikTokReminder().catch(err => ({
+    triggerTikTokReminder(demo).catch(err => ({
       trigger: 'tiktok-reminder', status: 'ERROR' as const, reason: (err as Error).message,
     })),
   ]);
