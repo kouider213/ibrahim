@@ -1,4 +1,5 @@
 import { redis } from '../queue/queue.js';
+import { emitBIRefresh } from './bi-socket.js';
 import { sendMessage } from '../integrations/telegram.js';
 import { notifyOwner } from '../notifications/pushover.js';
 import { env } from '../config/env.js';
@@ -90,6 +91,7 @@ export async function runBIEngine(forceTelegram = false): Promise<BIReport> {
   };
 
   await redis.set(CACHE_KEY, JSON.stringify(report), 'EX', 1800);
+  emitBIRefresh('full');
 
   if (forceTelegram && env.TELEGRAM_CHAT_ID) {
     const msg = formatBITelegram(report);

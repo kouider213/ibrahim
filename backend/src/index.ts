@@ -39,6 +39,7 @@ import workflowRoutes      from './api/routes/workflow.js';
 import biRoutes            from './api/routes/bi.js';
 
 // Integrations
+import { setBISocket } from './bi/bi-socket.js';
 import { initOrchestrator } from './conversation/orchestrator.js';
 import { initScheduler }   from './queue/scheduler.js';
 import { initApprover }     from './validations/approver.js';
@@ -196,6 +197,7 @@ const io = new SocketServer(server, {
 const mobileNs = io.of('/mobile');
 
 // Initialize services with the mobile namespace so events reach mobile clients
+setBISocket(mobileNs);
 initOrchestrator(mobileNs);
 initApprover(mobileNs);
 initDispatcher(mobileNs);

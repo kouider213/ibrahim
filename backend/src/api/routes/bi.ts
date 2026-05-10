@@ -7,6 +7,8 @@ import { getSmartReminders }    from '../../bi/smart-reminders.js';
 import { getTikTokIntelligence, generateViralHook } from '../../bi/tiktok-intelligence.js';
 import { analyzeWhatsAppMessage, generateAutoResponse } from '../../bi/whatsapp-intelligence.js';
 import { redis } from '../../queue/queue.js';
+import { supabase } from '../../integrations/supabase.js';
+import { getSchedulerStatus } from '../../queue/scheduler.js';
 
 const router = Router();
 
@@ -138,6 +140,77 @@ router.get('/test', requireMobileAuth, async (_req, res) => {
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/bi/heatmap — booking counts per day for last 60 days
+router.get('/heatmap', requireMobileAuth, async (_req, res) => {
+  try {
+    const ago60 = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('start_date')
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .gte('start_date', ago60);
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    const counts: Record<string, number> = {};
+    for (const row of (data ?? []) as Array<{ start_date: string }>) {
+      counts[row.start_date] = (counts[row.start_date] ?? 0) + 1;
+    }
+    const result = Object.entries(counts).map(([date, count]) => ({ date, count }));
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/bi/health — comprehensive system health check
+router.get('/health', requireMobileAuth, async (_req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Redis ping
+    const t0 = Date.now();
+    let redisOk = false;
+    try { await redis.ping(); redisOk = true; } catch { /* */ }
+    const redisPingMs = Date.now() - t0;
+
+    // Supabase ping
+    const t1 = Date.now();
+    let supabaseOk = false;
+    try {
+      const { error } = await supabase.from('bookings').select('id').limit(1);
+      supabaseOk = !error;
+    } catch { /* */ }
+    const supabasePingMs = Date.now() - t1;
+
+    // Scheduler status
+    const scheduler = await getSchedulerStatus().catch(() => null);
+
+    // Claude token stats
+    const [callsRaw, tokensInRaw, tokensOutRaw] = await Promise.all([
+      redis.get(`claude:calls:${today}`),
+      redis.get(`claude:tokens:in:${today}`),
+      redis.get(`claude:tokens:out:${today}`),
+    ]);
+
+    res.json({
+      redis:    { ok: redisOk,    ping_ms: redisPingMs    },
+      supabase: { ok: supabaseOk, ping_ms: supabasePingMs },
+      scheduler: scheduler ?? { error: 'unavailable' },
+      process: {
+        uptime_s:  Math.round(process.uptime()),
+        memory_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      },
+      claude: {
+        calls_today:      parseInt(callsRaw    ?? '0', 10),
+        tokens_in_today:  parseInt(tokensInRaw  ?? '0', 10),
+        tokens_out_today: parseInt(tokensOutRaw ?? '0', 10),
+      },
+      generated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 

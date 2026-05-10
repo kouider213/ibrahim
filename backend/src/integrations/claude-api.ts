@@ -515,6 +515,12 @@ export async function chat(
     .map(b => (b as { type: 'text'; text: string }).text)
     .join('');
 
+  const today = new Date().toISOString().slice(0, 10);
+  const { redis: r } = await import('../queue/queue.js');
+  r.incrby(`claude:tokens:in:${today}`,  response.usage.input_tokens).catch(() => {});
+  r.incrby(`claude:tokens:out:${today}`, response.usage.output_tokens).catch(() => {});
+  r.incr(`claude:calls:${today}`).catch(() => {});
+
   return {
     text,
     inputTokens:  response.usage.input_tokens,

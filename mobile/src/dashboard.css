@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@theme {
+  --color-jarvis-bg:      #030712;
+  --color-jarvis-panel:   #0d1117;
+  --color-jarvis-card:    #0f172a;
+  --color-jarvis-border:  rgba(6,182,212,0.18);
+  --color-jarvis-cyan:    #06b6d4;
+  --color-jarvis-violet:  #8b5cf6;
+  --color-jarvis-green:   #10b981;
+  --color-jarvis-amber:   #f59e0b;
+  --color-jarvis-red:     #ef4444;
+  --color-jarvis-glow:    rgba(6,182,212,0.08);
+}
+
+/* Scan line animation */
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes pulse-ring {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+@keyframes data-stream {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  50%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(4px); }
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.dash-scanline::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(6,182,212,0.3), transparent);
+  animation: scanline 8s linear infinite;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.dash-card {
+  background: rgba(15,23,42,0.85);
+  border: 1px solid rgba(6,182,212,0.18);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+}
+
+.dash-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(6,182,212,0.4), transparent);
+}
+
+.dash-glow {
+  box-shadow: 0 0 20px rgba(6,182,212,0.08), inset 0 0 20px rgba(6,182,212,0.02);
+}
+
+.dash-glow-violet {
+  box-shadow: 0 0 20px rgba(139,92,246,0.1), inset 0 0 20px rgba(139,92,246,0.02);
+}
+
+.status-pulse {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+.data-tick {
+  animation: data-stream 2s ease-in-out infinite;
+}
+
+.cursor-blink {
+  animation: blink-cursor 1s step-end infinite;
+}
+
+/* Score badges */
+.badge-vip      { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+.badge-frequent { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+.badge-regular  { background: rgba(6,182,212,0.15);  color: #22d3ee; border: 1px solid rgba(6,182,212,0.3);  }
+.badge-new      { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+
+/* Priority badges */
+.badge-high   { background: rgba(239,68,68,0.15);   color: #f87171; border: 1px solid rgba(239,68,68,0.3);   }
+.badge-medium { background: rgba(245,158,11,0.15);  color: #fbbf24; border: 1px solid rgba(245,158,11,0.3);  }
+.badge-low    { background: rgba(16,185,129,0.15);  color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3);  }
+
+/* Vehicle status */
+.status-available  { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.25); }
+.status-occupied   { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.25);  }
+.status-returning  { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+
+/* Heatmap cells */
+.heatmap-0  { background: rgba(6,182,212,0.04); }
+.heatmap-1  { background: rgba(6,182,212,0.15); }
+.heatmap-2  { background: rgba(6,182,212,0.3);  }
+.heatmap-3  { background: rgba(6,182,212,0.5);  }
+.heatmap-4  { background: rgba(6,182,212,0.75); }
+
+/* Scrollbar */
+.dash-scroll::-webkit-scrollbar { width: 4px; }
+.dash-scroll::-webkit-scrollbar-track { background: transparent; }
+.dash-scroll::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.3); border-radius: 2px; }
