@@ -5,7 +5,7 @@
  * @audit-test true — managed by code-audit-runner, do not edit manually
  */
 
-export function calculateRevenue(price: number, days: number): number {
+export function calculateRevenue(price: string, days: number): number {
   // TS2362: The left-hand side of an arithmetic operation must be of type
   // 'any', 'number', 'bigint' or an enum type. Type 'string' is not assignable.
   return price * days;
