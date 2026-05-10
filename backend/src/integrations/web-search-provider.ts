@@ -1,0 +1,339 @@
+/**
+ * Multi-provider web search — resilient, no single point of failure.
+ *
+ * Priority order (per user spec):
+ *   1. APIFY Google Search Scraper  — requires APIFY_API_KEY, highest quality, ~20-40s
+ *   2. DuckDuckGo HTML              — free, no key, ~2s
+ *   3. Bing HTML                    — free, no key, ~3s
+ *   4. Google Custom Search API     — requires GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_ENGINE_ID, ~1s
+ *   5. Jina AI                      — optional JINA_API_KEY, fallback only
+ *
+ * Rules:
+ *   - Never invents data
+ *   - If all providers fail → explicit NO_DATA result, confidence='low'
+ *   - Every call logs which provider succeeded/failed and why
+ */
+
+import axios from 'axios';
+import { env } from '../config/env.js';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type SearchProvider = 'apify' | 'duckduckgo' | 'bing' | 'google_api' | 'jina';
+export type SearchConfidence = 'high' | 'medium' | 'low';
+
+export interface WebSearchResult {
+  text:               string;
+  source:             SearchProvider;
+  confidence:         SearchConfidence;
+  results_count:      number;
+  duration_ms:        number;
+  attempted_providers: string[];
+}
+
+// ── Provider 1: APIFY Google Search Scraper ───────────────────────────────────
+// Uses apify/google-search-scraper actor with 30s polling deadline.
+
+async function searchWithApify(query: string): Promise<WebSearchResult | null> {
+  if (!env.APIFY_API_KEY) return null;
+  const t0  = Date.now();
+  const key = env.APIFY_API_KEY;
+
+  type RunResp  = { data: { id: string } };
+  type PollResp = { data: { status: string; defaultDatasetId: string } };
+
+  try {
+    const runResp = await axios.post<RunResp>(
+      `https://api.apify.com/v2/acts/apify~google-search-scraper/runs?token=${key}`,
+      { queries: query, maxPagesPerQuery: 1, resultsPerPage: 6, countryCode: 'dz', languageCode: 'fr' },
+      { timeout: 15_000 },
+    );
+    const runId = runResp.data?.data?.id ?? '';
+    if (!runId) return null;
+
+    // Poll max 10 × 3s = 30s
+    let datasetId = '';
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 3_000));
+      const poll = await axios.get<PollResp>(
+        `https://api.apify.com/v2/actor-runs/${runId}?token=${key}`,
+        { timeout: 8_000 },
+      );
+      const status = poll.data?.data?.status ?? '';
+      if (status === 'SUCCEEDED') { datasetId = poll.data.data.defaultDatasetId; break; }
+      if (status === 'FAILED' || status === 'ABORTED') return null;
+    }
+    if (!datasetId) return null;
+
+    const items = await axios.get<unknown[]>(
+      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${key}&limit=6`,
+      { timeout: 10_000 },
+    );
+    const rows = Array.isArray(items.data) ? items.data : [];
+    if (rows.length === 0) return null;
+
+    const organic = (rows[0] as Record<string, unknown>)['organicResults'];
+    const results = Array.isArray(organic) ? organic : [];
+    if (results.length === 0) return null;
+
+    const text = results
+      .slice(0, 6)
+      .map((r: unknown) => {
+        const rr = r as Record<string, unknown>;
+        return `• ${rr['title'] ?? ''}\n  ${rr['url'] ?? ''}\n  ${rr['description'] ?? ''}`;
+      })
+      .join('\n\n');
+
+    if (text.length < 100) return null;
+
+    return {
+      text:               text.slice(0, 4000),
+      source:             'apify',
+      confidence:         'high',
+      results_count:      results.length,
+      duration_ms:        Date.now() - t0,
+      attempted_providers: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Provider 2: DuckDuckGo HTML scraping ─────────────────────────────────────
+// POST to html.duckduckgo.com/html/ — more reliable than GET (avoids redirect)
+
+async function searchWithDuckDuckGo(query: string): Promise<WebSearchResult | null> {
+  const t0 = Date.now();
+  try {
+    const { data } = await axios.post(
+      'https://html.duckduckgo.com/html/',
+      `q=${encodeURIComponent(query)}&kl=fr-fr`,
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+          'Accept':       'text/html,application/xhtml+xml',
+        },
+        timeout: 10_000,
+      },
+    );
+    if (typeof data !== 'string' || data.length < 500) return null;
+
+    const titles:   string[] = [];
+    const snippets: string[] = [];
+
+    for (const m of data.matchAll(/<a[^>]+class="result__a"[^>]*>(.*?)<\/a>/gs)) {
+      const t = m[1]?.replace(/<[^>]+>/g, '').trim();
+      if (t && t.length > 3) titles.push(t);
+    }
+    for (const m of data.matchAll(/<(?:div|span)[^>]+class="result__snippet"[^>]*>(.*?)<\/(?:div|span)>/gs)) {
+      const s = m[1]?.replace(/<[^>]+>/g, '').trim();
+      if (s && s.length > 20) snippets.push(s);
+    }
+
+    if (titles.length === 0 && snippets.length === 0) return null;
+
+    const lines = titles.slice(0, 8).map((t, i) => {
+      const s = snippets[i] ?? '';
+      return s ? `• ${t}\n  ${s}` : `• ${t}`;
+    });
+    const text = lines.join('\n\n');
+    if (text.length < 80) return null;
+
+    return {
+      text:               text.slice(0, 4000),
+      source:             'duckduckgo',
+      confidence:         'medium',
+      results_count:      titles.length,
+      duration_ms:        Date.now() - t0,
+      attempted_providers: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Provider 3: Bing HTML scraping ───────────────────────────────────────────
+
+async function searchWithBing(query: string): Promise<WebSearchResult | null> {
+  const t0 = Date.now();
+  try {
+    const { data } = await axios.get(
+      `https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=fr&cc=DZ&count=8`,
+      {
+        headers: {
+          'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'fr-FR,fr;q=0.9',
+          'Accept':       'text/html',
+        },
+        timeout: 10_000,
+      },
+    );
+    if (typeof data !== 'string' || data.length < 500) return null;
+
+    const titles:   string[] = [];
+    const snippets: string[] = [];
+
+    // Extract from .b_algo divs (standard Bing result structure)
+    for (const m of data.matchAll(/<h2[^>]*><a[^>]*>(.*?)<\/a><\/h2>/gs)) {
+      const t = m[1]?.replace(/<[^>]+>/g, '').trim();
+      if (t && t.length > 3) titles.push(t);
+    }
+    for (const m of data.matchAll(/<p[^>]*class="[^"]*b_lineclamp[^"]*"[^>]*>(.*?)<\/p>/gs)) {
+      const s = m[1]?.replace(/<[^>]+>/g, '').trim();
+      if (s && s.length > 20) snippets.push(s);
+    }
+    // Fallback: any <p> inside b_caption
+    if (snippets.length === 0) {
+      for (const m of data.matchAll(/<div[^>]+class="b_caption"[^>]*>.*?<p[^>]*>(.*?)<\/p>/gs)) {
+        const s = m[1]?.replace(/<[^>]+>/g, '').trim();
+        if (s && s.length > 20) snippets.push(s);
+      }
+    }
+
+    if (titles.length === 0) return null;
+
+    const lines = titles.slice(0, 8).map((t, i) => {
+      const s = snippets[i] ?? '';
+      return s ? `• ${t}\n  ${s}` : `• ${t}`;
+    });
+    const text = lines.join('\n\n');
+    if (text.length < 80) return null;
+
+    return {
+      text:               text.slice(0, 4000),
+      source:             'bing',
+      confidence:         'medium',
+      results_count:      titles.length,
+      duration_ms:        Date.now() - t0,
+      attempted_providers: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Provider 4: Google Custom Search API ─────────────────────────────────────
+// Requires GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_ENGINE_ID
+
+async function searchWithGoogle(query: string): Promise<WebSearchResult | null> {
+  if (!env.GOOGLE_SEARCH_API_KEY || !env.GOOGLE_SEARCH_ENGINE_ID) return null;
+  const t0 = Date.now();
+  try {
+    const { data } = await axios.get<{ items?: unknown[] }>('https://www.googleapis.com/customsearch/v1', {
+      params: {
+        key: env.GOOGLE_SEARCH_API_KEY,
+        cx:  env.GOOGLE_SEARCH_ENGINE_ID,
+        q:   query,
+        num: 8,
+        lr:  'lang_fr',
+        gl:  'dz',
+      },
+      timeout: 10_000,
+    });
+
+    const items = data.items ?? [];
+    if (items.length === 0) return null;
+
+    const text = items
+      .slice(0, 8)
+      .map((r: unknown) => {
+        const rr = r as Record<string, unknown>;
+        return `• ${rr['title'] ?? ''}\n  ${rr['snippet'] ?? ''}`;
+      })
+      .join('\n\n');
+
+    return {
+      text:               text.slice(0, 4000),
+      source:             'google_api',
+      confidence:         'high',
+      results_count:      items.length,
+      duration_ms:        Date.now() - t0,
+      attempted_providers: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Provider 5: Jina AI (fallback) ───────────────────────────────────────────
+
+async function searchWithJina(query: string): Promise<WebSearchResult | null> {
+  const t0 = Date.now();
+  const headers: Record<string, string> = {
+    'Accept': 'text/plain',
+    'X-Retain-Images': 'none',
+  };
+  if (env.JINA_API_KEY) headers['Authorization'] = `Bearer ${env.JINA_API_KEY}`;
+
+  try {
+    const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(query)}`, {
+      headers,
+      timeout: 15_000,
+    });
+    const text = typeof data === 'string' ? data : JSON.stringify(data);
+    if (!text || text.length < 100) return null;
+
+    return {
+      text:               text.slice(0, 4000),
+      source:             'jina',
+      confidence:         'medium',
+      results_count:      1,
+      duration_ms:        Date.now() - t0,
+      attempted_providers: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+const PROVIDERS: Array<{ name: SearchProvider; fn: (q: string) => Promise<WebSearchResult | null> }> = [
+  { name: 'apify',      fn: searchWithApify },
+  { name: 'duckduckgo', fn: searchWithDuckDuckGo },
+  { name: 'bing',       fn: searchWithBing },
+  { name: 'google_api', fn: searchWithGoogle },
+  { name: 'jina',       fn: searchWithJina },
+];
+
+export async function multiProviderWebSearch(
+  query:     string,
+  requestId?: string,
+): Promise<WebSearchResult> {
+  const tag      = `[web-search${requestId ? ':' + requestId : ''}]`;
+  const attempted: string[] = [];
+
+  for (const { name, fn } of PROVIDERS) {
+    attempted.push(name);
+    const t0 = Date.now();
+    try {
+      const result = await fn(query);
+      if (result && result.text.length >= 80) {
+        console.log(`${tag} ✅ source=${name} results=${result.results_count} chars=${result.text.length} ${Date.now() - t0}ms`);
+        return { ...result, attempted_providers: attempted };
+      }
+      console.log(`${tag} ⚠️ ${name} → empty/short (${Date.now() - t0}ms) → next`);
+    } catch (err) {
+      console.log(`${tag} ❌ ${name} → ${err instanceof Error ? err.message : String(err)} (${Date.now() - t0}ms) → next`);
+    }
+  }
+
+  console.log(`${tag} ❌ ALL_PROVIDERS_FAILED query="${query.slice(0, 60)}" tried=[${attempted.join(',')}]`);
+  return {
+    text:               `NO_DATA — Toutes les sources de recherche ont échoué. Requête: "${query}"`,
+    source:             'jina',
+    confidence:         'low',
+    results_count:      0,
+    duration_ms:        0,
+    attempted_providers: attempted,
+  };
+}
+
+// ── Re-export Jina headers helper for fetchUrl ────────────────────────────────
+export function jinaAuthHeaders(): Record<string, string> {
+  const h: Record<string, string> = { 'Accept': 'text/plain', 'X-Retain-Images': 'none' };
+  if (env.JINA_API_KEY) h['Authorization'] = `Bearer ${env.JINA_API_KEY}`;
+  return h;
+}

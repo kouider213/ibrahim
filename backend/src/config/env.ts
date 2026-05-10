@@ -54,6 +54,9 @@ const envSchema = z.object({
   APIFY_API_KEY:       z.string().optional(),
   // ── Jina AI — Recherche web (s.jina.ai) + fetch URL (r.jina.ai) ──
   JINA_API_KEY:        z.string().optional(),
+  // ── Google Custom Search API — alternative web search ──
+  GOOGLE_SEARCH_API_KEY:    z.string().optional(),
+  GOOGLE_SEARCH_ENGINE_ID:  z.string().optional(),
   // ── Phase 2: Multi-LLM Router ────────────────────────────────────────────
   GROQ_API_KEY:        z.string().optional(),   // LLaMA 3.3 70B — fast path (gratuit)
   OPENAI_API_KEY:      z.string().optional(),   // GPT-4o — fallback Claude

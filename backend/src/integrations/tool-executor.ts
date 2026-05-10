@@ -63,6 +63,7 @@ import axios from 'axios';
 import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
 import { executeImageToImage } from './image-to-image.js';
+import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.js';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
@@ -790,26 +791,15 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   return results.join('\n\n');
 }
 
-function jinaHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'Accept': 'text/plain', 'X-Retain-Images': 'none' };
-  if (env.JINA_API_KEY) headers['Authorization'] = `Bearer ${env.JINA_API_KEY}`;
-  return headers;
-}
-
 async function webSearch(input: Record<string, unknown>): Promise<string> {
   const query = input['query'] as string;
   if (!query) return 'Query requise';
-  try {
-    const encoded = encodeURIComponent(query);
-    const { data } = await axios.get(`https://s.jina.ai/${encoded}`, {
-      headers: jinaHeaders(),
-      timeout: 15_000,
-    });
-    const text = typeof data === 'string' ? data : JSON.stringify(data);
-    return text.slice(0, 4000) || 'Aucun résultat trouvé.';
-  } catch (err) {
-    return `Erreur recherche web: ${err instanceof Error ? err.message : String(err)}`;
-  }
+  const result = await multiProviderWebSearch(query);
+  // Return structured text + metadata so agents can cite the source
+  const meta = `[source:${result.source} confidence:${result.confidence} results:${result.results_count} tried:${result.attempted_providers.join('>')}]`;
+  return result.results_count > 0
+    ? `${meta}\n\n${result.text}`
+    : result.text; // NO_DATA message already included
 }
 
 async function fetchUrl(input: Record<string, unknown>): Promise<string> {
@@ -818,7 +808,7 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
   try {
     const encoded = encodeURIComponent(url);
     const { data } = await axios.get(`https://r.jina.ai/${encoded}`, {
-      headers: jinaHeaders(),
+      headers: jinaAuthHeaders(),
       timeout: 20_000,
     });
     const text = typeof data === 'string' ? data : JSON.stringify(data);
@@ -2161,21 +2151,14 @@ async function mergeVideosTool(
 // ════════════════════════════════════════════════════════════════
 
 async function jSearch(query: string, maxChars = 1500): Promise<string> {
-  try {
-    const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(query)}`, {
-      headers: jinaHeaders(),
-      timeout: 15_000,
-    });
-    return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
-  } catch {
-    return 'Aucun résultat.';
-  }
+  const result = await multiProviderWebSearch(query);
+  return result.text.slice(0, maxChars);
 }
 
 async function jFetch(url: string, maxChars = 2500): Promise<string> {
   try {
     const { data } = await axios.get(`https://r.jina.ai/${encodeURIComponent(url)}`, {
-      headers: jinaHeaders(),
+      headers: jinaAuthHeaders(),
       timeout: 20_000,
     });
     return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
