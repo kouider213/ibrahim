@@ -35,28 +35,27 @@ function _isDuplicate(key: string): boolean {
 
 export async function sendMessage(chatId: number | string, text: string): Promise<void> {
   const token = getToken();
-  if (!token) {
-    console.error('[telegram] TELEGRAM_BOT_TOKEN not set — cannot send message');
-    return;
-  }
+  if (!token) throw new Error('TELEGRAM_SEND_FAILED: TELEGRAM_BOT_TOKEN not set');
+
   const key = _dedupeKey(chatId, text);
   if (_isDuplicate(key)) {
+    // Dedup-blocked = already sent recently, not a failure
     console.warn(`[telegram] Duplicate blocked: ${key.slice(0, 60)}`);
     return;
   }
+
   try {
-    await axios.post(`${base()}/sendMessage`, {
-      chat_id:    chatId,
-      text,
-      parse_mode: 'Markdown',
-    });
+    await axios.post(`${base()}/sendMessage`, { chat_id: chatId, text, parse_mode: 'Markdown' });
+    return;
   } catch {
     // Retry without markdown
-    try {
-      await axios.post(`${base()}/sendMessage`, { chat_id: chatId, text });
-    } catch (err2) {
-      console.error('[telegram] sendMessage failed:', err2 instanceof Error ? err2.message : String(err2));
-    }
+  }
+
+  try {
+    await axios.post(`${base()}/sendMessage`, { chat_id: chatId, text });
+  } catch (err2) {
+    const reason = err2 instanceof Error ? err2.message : String(err2);
+    throw new Error(`TELEGRAM_SEND_FAILED: ${reason}`);
   }
 }
 

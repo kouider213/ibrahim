@@ -102,16 +102,15 @@ export async function getPendingDue(bufferSeconds = 90): Promise<ReminderRow[]> 
   return (data ?? []) as ReminderRow[];
 }
 
-// Get FAILED reminders eligible for retry (retry_count < 3, last attempt > 5min ago)
+// Get FAILED reminders eligible for retry (retry_count < 3, past due).
+// Throttling is handled by the Redis lock (5min TTL) in reminder-worker — not by this query.
 export async function getRetryEligible(): Promise<ReminderRow[]> {
-  const retryAfter = new Date(Date.now() - 5 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('reminders')
     .select()
     .eq('status', 'FAILED')
     .lt('retry_count', 3)
-    .lte('remind_at', new Date().toISOString()) // already past due
-    .lt('remind_at', retryAfter) // failed more than 5min ago (use created_at as proxy here)
+    .lte('remind_at', new Date().toISOString())
     .order('remind_at', { ascending: true })
     .limit(20);
 

@@ -24,6 +24,7 @@ import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { notifyOwner } from '../notifications/pushover.js';
 import { sendMessage as sendTelegram } from '../integrations/telegram.js';
 import { env } from '../config/env.js';
+import { supabase } from '../integrations/supabase.js';
 
 const SCHEDULER_QUEUE = 'Dzaryx-scheduler';
 
@@ -188,28 +189,72 @@ export async function initScheduler(): Promise<void> {
     SCHEDULER_QUEUE,
     async (job: Job) => {
       if (job.name === 'custom-reminder') {
+        // BullMQ custom-reminder is now a SAFE FALLBACK only.
+        // Primary delivery = reminder-worker DB polling (single source of truth).
+        // This handler guards against double-send using the same Redis lock key as the worker.
         const data = job.data as {
-          message:         string;
-          request_id?:     string;
-          source_channel?: string;
+          message:          string;
+          request_id?:      string;
+          source_channel?:  string;
           idempotency_key?: string;
         };
         const msg             = data.message;
-        const source_channel  = data.source_channel  ?? 'unknown';
-        const idempotency_key = data.idempotency_key ?? 'n/a';
-        const request_id      = data.request_id      ?? 'n/a';
+        const idempotency_key = data.idempotency_key;
+        const request_id      = data.request_id ?? 'n/a';
 
-        console.log(
-          `[scheduler] custom-reminder executing — ` +
-          `source_channel=${source_channel} request_id=${request_id} ` +
-          `idempotency_key=${idempotency_key} job_id=${job.id}`,
-        );
+        // Shared lock key — same prefix/key used by reminder-worker
+        const lockKey = `reminder:sending:${idempotency_key ?? request_id}`;
+        const acquired = await redis.set(lockKey, `bullmq:${job.id ?? 'unknown'}`, 'EX', 300, 'NX');
+        if (!acquired) {
+          console.log(`[scheduler] custom-reminder SKIP — lock held (worker already delivered): idem=${idempotency_key}`);
+          return;
+        }
 
-        const chatId = env.TELEGRAM_CHAT_ID;
-        if (chatId) {
-          await sendTelegram(chatId, `⏰ *Rappel Dzaryx*\n\n${msg}`);
-        } else {
-          await notifyOwner('⏰ Rappel Dzaryx', msg);
+        // Check DB — if worker already marked SENT, skip
+        if (idempotency_key) {
+          const { data: dbRow } = await supabase
+            .from('reminders')
+            .select('id, status')
+            .eq('dedup_key', idempotency_key)
+            .maybeSingle();
+          if (dbRow?.status === 'SENT') {
+            console.log(`[scheduler] custom-reminder SKIP — DB status=SENT: id=${dbRow.id}`);
+            await redis.del(lockKey);
+            return;
+          }
+        }
+
+        console.log(`[scheduler] custom-reminder DELIVERING — request_id=${request_id} idem=${idempotency_key} job_id=${job.id}`);
+
+        try {
+          const chatId = env.TELEGRAM_CHAT_ID;
+          if (chatId) {
+            await sendTelegram(chatId, `⏰ *Rappel Dzaryx*\n\n${msg}`);
+          } else {
+            await notifyOwner('⏰ Rappel Dzaryx', msg);
+          }
+          // Update DB status if we have a dedup_key
+          if (idempotency_key) {
+            await supabase
+              .from('reminders')
+              .update({ status: 'SENT', sent_at: new Date().toISOString(), provider_response: `bullmq:${job.id ?? 'unknown'}` })
+              .eq('dedup_key', idempotency_key)
+              .eq('status', 'PENDING');
+          }
+          console.log(`[scheduler] custom-reminder ✅ SENT: idem=${idempotency_key}`);
+        } catch (sendErr) {
+          const reason = sendErr instanceof Error ? sendErr.message : String(sendErr);
+          console.error(`[scheduler] custom-reminder ❌ SEND FAILED: ${reason}`);
+          // Release lock so reminder-worker can retry
+          await redis.del(lockKey);
+          // Update DB to FAILED if we have a key
+          if (idempotency_key) {
+            await supabase
+              .from('reminders')
+              .update({ status: 'FAILED', failed_reason: `bullmq_send_failed: ${reason}` })
+              .eq('dedup_key', idempotency_key)
+              .eq('status', 'PENDING');
+          }
         }
         return;
       }

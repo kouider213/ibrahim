@@ -65,7 +65,7 @@ import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
 import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
-import { schedulerQueue } from '../queue/scheduler.js';
+// schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
 import { redis } from '../queue/queue.js';
 import axios from 'axios';
 import crypto from 'crypto';
@@ -984,19 +984,10 @@ async function scheduleReminder(
     } satisfies ReminderResult);
   }
 
-  // ── 7. BullMQ — best-effort (DB est source de vérité) ───────────────
-  let jobId = request_id;
-  try {
-    const job = await schedulerQueue.add(
-      'custom-reminder',
-      { message, request_id, source_channel, idempotency_key },
-      { delay: delayMs, removeOnComplete: { count: 10 }, removeOnFail: { count: 3 } },
-    );
-    jobId = job.id ?? request_id;
-    void supabase.from('reminders').update({ job_id: jobId }).eq('id', dbRow.id);
-  } catch (err) {
-    console.warn(`[schedule_reminder] BullMQ failed (DB persisted, worker will send): ${err instanceof Error ? err.message : err}`);
-  }
+  // ── 7. Single delivery path: reminder-worker polls DB every 30s ─────
+  // BullMQ custom-reminder no longer used — eliminates double-send race.
+  // Worker picks up PENDING rows due within 90s window → single authoritative send.
+  const jobId = `worker:${dbRow.id}`;
 
   await redis.set(redisKey, jobId, 'EX', IDEM_TTL_SEC);
 

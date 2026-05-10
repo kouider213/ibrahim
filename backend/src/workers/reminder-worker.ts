@@ -37,7 +37,9 @@ async function deliver(row: ReminderRow): Promise<string> {
 
 // ── Process one pending/retry reminder ───────────────────────────────────────
 async function processReminder(row: ReminderRow): Promise<void> {
-  const lockKey = `${LOCK_PREFIX}${row.id}`;
+  // Use dedup_key when available — shared with BullMQ path to prevent cross-path double-send.
+  // Falls back to row.id for reminders created without a dedup_key.
+  const lockKey = `${LOCK_PREFIX}${row.dedup_key ?? row.id}`;
 
   // Acquire Redis dedup lock — NX prevents double-send across Railway instances
   const acquired = await redis.set(lockKey, '1', 'EX', LOCK_TTL_S, 'NX');
