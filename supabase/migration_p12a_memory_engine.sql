@@ -87,7 +87,8 @@ CREATE INDEX IF NOT EXISTS idx_user_profile_user_id
   ON user_profile(user_id);
 
 ALTER TABLE user_profile ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "service_role_all_user_profile"
+DROP POLICY IF EXISTS "service_role_all_user_profile" ON user_profile;
+CREATE POLICY "service_role_all_user_profile"
   ON user_profile FOR ALL USING (true) WITH CHECK (true);
 
 DROP TRIGGER IF EXISTS trg_user_profile_updated_at ON user_profile;
@@ -154,7 +155,8 @@ CREATE INDEX IF NOT EXISTS idx_facts_importance
   ON memory_facts(user_id, confidence DESC);
 
 ALTER TABLE memory_facts ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "service_role_all_memory_facts"
+DROP POLICY IF EXISTS "service_role_all_memory_facts" ON memory_facts;
+CREATE POLICY "service_role_all_memory_facts"
   ON memory_facts FOR ALL USING (true) WITH CHECK (true);
 
 DROP TRIGGER IF EXISTS trg_memory_facts_updated_at ON memory_facts;
@@ -226,7 +228,8 @@ CREATE TRIGGER trg_episode_search_vector
   FOR EACH ROW EXECUTE FUNCTION update_episode_search_vector();
 
 ALTER TABLE memory_episodes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "service_role_all_memory_episodes"
+DROP POLICY IF EXISTS "service_role_all_memory_episodes" ON memory_episodes;
+CREATE POLICY "service_role_all_memory_episodes"
   ON memory_episodes FOR ALL USING (true) WITH CHECK (true);
 
 -- ════════════════════════════════════════════════════════════════
@@ -275,7 +278,8 @@ CREATE INDEX IF NOT EXISTS idx_habits_schedule
   ON memory_habits(user_id, schedule_type);
 
 ALTER TABLE memory_habits ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "service_role_all_memory_habits"
+DROP POLICY IF EXISTS "service_role_all_memory_habits" ON memory_habits;
+CREATE POLICY "service_role_all_memory_habits"
   ON memory_habits FOR ALL USING (true) WITH CHECK (true);
 
 -- ════════════════════════════════════════════════════════════════
