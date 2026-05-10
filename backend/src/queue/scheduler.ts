@@ -226,4 +226,48 @@ export async function triggerJob(jobName: string): Promise<boolean> {
   return true;
 }
 
+// Trigger a one-shot custom-reminder (sends text to Telegram/Pushover)
+export async function triggerCustomReminder(message: string, idempotencyKey: string): Promise<string> {
+  const job = await schedulerQueue.add(
+    'custom-reminder',
+    { message, source_channel: 'api-test', idempotency_key: idempotencyKey, request_id: `test_${Date.now()}` },
+    { priority: 1, removeOnComplete: 5, removeOnFail: 5 },
+  );
+  return job.id ?? 'unknown';
+}
+
+// Queue health snapshot
+export async function getSchedulerStatus(): Promise<{
+  queue: string;
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+  repeatable: number;
+  redis_ping_ms: number;
+}> {
+  const [waiting, active, completed, failed, delayed, repeatable] = await Promise.all([
+    schedulerQueue.getWaitingCount(),
+    schedulerQueue.getActiveCount(),
+    schedulerQueue.getCompletedCount(),
+    schedulerQueue.getFailedCount(),
+    schedulerQueue.getDelayedCount(),
+    schedulerQueue.getRepeatableJobs(),
+  ]);
+  const t0 = Date.now();
+  await redis.ping();
+  const redis_ping_ms = Date.now() - t0;
+  return {
+    queue:         SCHEDULER_QUEUE,
+    waiting,
+    active,
+    completed,
+    failed,
+    delayed,
+    repeatable:    repeatable.length,
+    redis_ping_ms,
+  };
+}
+
 export { SCHEDULER_QUEUE };
