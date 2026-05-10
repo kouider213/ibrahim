@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { schedulerQueue, triggerJob, triggerCustomReminder, getSchedulerStatus } from '../../queue/scheduler.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { buildMemoryContext } from '../../conversation/memory-selector.js';
+import { runProactiveEngine } from '../../conversation/proactive-engine.js';
 import { sendMessage as sendTelegram } from '../../integrations/telegram.js';
 import { env } from '../../config/env.js';
 
@@ -96,6 +97,28 @@ router.get('/memory-test', requireMobileAuth, async (_req, res) => {
       entries:       result.entries,
       telegram_sent: !!env.TELEGRAM_CHAT_ID,
       tested_at:     new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/scheduler/proactive-test — P12c: run memory-aware engine NOW, return trigger results
+// ?force=true clears Redis locks so notifications fire even if already sent today/week
+router.get('/proactive-test', requireMobileAuth, async (req, res) => {
+  const force = req.query['force'] === 'true';
+  try {
+    const results = await runProactiveEngine(undefined, force);
+    const sent    = results.filter(r => r.status === 'SENT').length;
+    const skipped = results.filter(r => r.status === 'SKIPPED').length;
+    const errors  = results.filter(r => r.status === 'ERROR').length;
+
+    res.json({
+      ok:        true,
+      force,
+      triggers:  results,
+      summary:   { sent, skipped, errors },
+      tested_at: new Date().toISOString(),
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });

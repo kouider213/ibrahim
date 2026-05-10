@@ -18,6 +18,7 @@ import {
   jobAnthropicWatch,
   jobCompetitorWatch,
 } from './jobs/proactive-jobs.js';
+import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { notifyOwner } from '../notifications/pushover.js';
 import { sendMessage as sendTelegram } from '../integrations/telegram.js';
 import { env } from '../config/env.js';
@@ -108,6 +109,11 @@ const JOBS = [
     cron:  '0 11 * * 1,4',    // 11h lundi + jeudi — veille concurrence TikTok/Telegram
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'proactive-engine',
+    cron:  '*/15 * * * *',     // toutes les 15min — moteur proactif P12c (memory-aware)
+    tz:    'Europe/Brussels',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -127,6 +133,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'wa-return-reminders':      jobWhatsAppReturnReminders,
   'anthropic-watch':          jobAnthropicWatch,
   'competitor-watch':         jobCompetitorWatch,
+  'proactive-engine':         async (job: Job) => { await runProactiveEngine(job); },
 };
 
 export async function initScheduler(): Promise<void> {
