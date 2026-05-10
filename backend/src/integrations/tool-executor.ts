@@ -790,13 +790,19 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   return results.join('\n\n');
 }
 
+function jinaHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Accept': 'text/plain', 'X-Retain-Images': 'none' };
+  if (env.JINA_API_KEY) headers['Authorization'] = `Bearer ${env.JINA_API_KEY}`;
+  return headers;
+}
+
 async function webSearch(input: Record<string, unknown>): Promise<string> {
   const query = input['query'] as string;
   if (!query) return 'Query requise';
   try {
     const encoded = encodeURIComponent(query);
     const { data } = await axios.get(`https://s.jina.ai/${encoded}`, {
-      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      headers: jinaHeaders(),
       timeout: 15_000,
     });
     const text = typeof data === 'string' ? data : JSON.stringify(data);
@@ -812,7 +818,7 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
   try {
     const encoded = encodeURIComponent(url);
     const { data } = await axios.get(`https://r.jina.ai/${encoded}`, {
-      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      headers: jinaHeaders(),
       timeout: 20_000,
     });
     const text = typeof data === 'string' ? data : JSON.stringify(data);
@@ -2157,7 +2163,7 @@ async function mergeVideosTool(
 async function jSearch(query: string, maxChars = 1500): Promise<string> {
   try {
     const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(query)}`, {
-      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      headers: jinaHeaders(),
       timeout: 15_000,
     });
     return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
@@ -2169,7 +2175,7 @@ async function jSearch(query: string, maxChars = 1500): Promise<string> {
 async function jFetch(url: string, maxChars = 2500): Promise<string> {
   try {
     const { data } = await axios.get(`https://r.jina.ai/${encodeURIComponent(url)}`, {
-      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
+      headers: jinaHeaders(),
       timeout: 20_000,
     });
     return (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, maxChars);
