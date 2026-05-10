@@ -15,6 +15,7 @@ import { requireMobileAuth } from '../middleware/auth.js';
 import { runMultiAgent, needsMultiAgent, selectAgents, MULTI_AGENTS } from '../../agents/multi-agent-orchestrator.js';
 import { isAvailable, callProvider }    from '../../providers/provider-manager.js';
 import { runFinanceAgentWithTools }     from '../../agents/finance-agent-runner.js';
+import { runCompetitorAgentWithTools }  from '../../agents/competitor-agent-runner.js';
 
 const router = Router();
 
@@ -328,6 +329,69 @@ router.post('/finance-tool-test', requireMobileAuth, async (req, res) => {
         })),
         tool_count:     result.tool_count,
         raw_data_chars: result.raw_data_chars,
+
+        // Execution metrics
+        input_tokens:  result.input_tokens,
+        output_tokens: result.output_tokens,
+        total_ms:      result.total_ms,
+
+        // Raw analysis (full, untruncated)
+        analysis_full:  result.analysis,
+        analysis_chars: result.analysis.length,
+
+        // Verdict
+        verdict:        result.verdict,
+        verdict_reason: result.verdict_reason,
+        error:          result.error ?? null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── POST /api/multi-agent/competitor-tool-test ───────────────────────────────
+// Test direct du competitor-agent tool-aware : appelle web_search (Jina AI),
+// retourne réponse brute + proof outils + concurrents trouvés + verdict VERIFIED/PARTIAL/FAKE.
+router.post('/competitor-tool-test', requireMobileAuth, async (req, res) => {
+  const {
+    message = 'Analyse les concurrents de Fik Conciergerie sur le marché location voiture Oran : prix, présence digitale, avis clients, recommandations.',
+  } = req.body as { message?: string };
+
+  const requestId = `comp_${Date.now()}`;
+  console.log(`[competitor-tool-test:${requestId}] msg="${message.slice(0, 80)}"`);
+
+  try {
+    const result = await runCompetitorAgentWithTools(message, requestId, 120_000);
+
+    res.json({
+      ok:   true,
+      test: 'competitor_agent_tool_aware',
+      requestId,
+      proof: {
+        // Identity
+        agent_id:      result.agent_id,
+        agent_name:    result.agent_name,
+        provider:      result.provider,
+        model:         result.model,
+        system_prompt: result.system_prompt,
+        tools_allowed: result.tools_allowed,
+
+        // Tool execution proof
+        tools_called: result.tools_called.map(t => ({
+          tool_name:    t.tool_name,
+          tool_input:   t.tool_input,
+          duration_ms:  t.duration_ms,
+          blocked:      t.blocked,
+          data_quality: t.data_quality,
+          chars_returned: t.chars_returned,
+          result_preview: t.tool_result.slice(0, 500),
+        })),
+        tool_count:     result.tool_count,
+        raw_data_chars: result.raw_data_chars,
+
+        // Competitor intelligence
+        competitors_found: result.competitors_found,
 
         // Execution metrics
         input_tokens:  result.input_tokens,

@@ -17,7 +17,8 @@ import { SOCIAL_AGENT }       from './definitions/social-agent.js';
 import { COMPETITOR_AGENT }   from './definitions/competitor-agent.js';
 import { DEVELOPER_AGENT }    from './definitions/developer-agent.js';
 import { CODE_REVIEWER_AGENT }from './definitions/code-reviewer-agent.js';
-import { runFinanceAgentWithTools } from './finance-agent-runner.js';
+import { runFinanceAgentWithTools }    from './finance-agent-runner.js';
+import { runCompetitorAgentWithTools } from './competitor-agent-runner.js';
 
 // ── Agent catalog (pour multi-agent seulement) ────────────────────────────────
 const MULTI_AGENTS = [
@@ -151,6 +152,30 @@ async function runSingleAgent(
       costEstUsd:      (fr.input_tokens * 3.00 + fr.output_tokens * 15.00) / 1_000_000,
       success:         fr.verdict !== 'FAILED',
       error:           fr.error,
+    };
+  }
+
+  // ── Competitor agent uses tool-aware runner (web_search via Jina AI) ─────────
+  if (agentId === 'competitor') {
+    const agentRequestId = `${requestId}_competitor`;
+    const fullMessage = businessCtx
+      ? `${userMessage}\n\nCONTEXTE MÉTIER: ${businessCtx.slice(0, 1000)}`
+      : userMessage;
+    const cr = await runCompetitorAgentWithTools(fullMessage, agentRequestId, agentTimeoutMs);
+    return {
+      agentId:         'competitor',
+      agentName:       cr.agent_name,
+      desiredProvider: 'groq',        // original desired provider from definition
+      actualProvider:  cr.provider,   // claude (tool-aware runner)
+      model:           cr.model,
+      usedFallback:    true,  // competitor-agent uses tool-aware Claude runner, not Groq
+      text:            cr.analysis,
+      inputTokens:     cr.input_tokens,
+      outputTokens:    cr.output_tokens,
+      latencyMs:       cr.total_ms,
+      costEstUsd:      (cr.input_tokens * 3.00 + cr.output_tokens * 15.00) / 1_000_000,
+      success:         cr.verdict !== 'FAKE',
+      error:           cr.error,
     };
   }
 
