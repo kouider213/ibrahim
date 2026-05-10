@@ -1,116 +1,194 @@
 import { chat } from '../integrations/claude-api.js';
+import {
+  scrapeTikTokForOranCars,
+  formatTikTokDataForReport,
+  serializeTikTokData,
+  type TikTokRealData,
+} from '../integrations/apify-tiktok.js';
 import type { Car } from '../integrations/supabase.js';
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
 export interface VideoIdea {
-  title: string;
-  concept: string;
+  title:            string;
+  concept:          string;
   voiceover_script: string;
-  caption: string;
-  hashtags: string[];
-  best_time: string;
-  car_suggestion?: string;
+  caption:          string;
+  hashtags:         string[];
+  best_time:        string;
+  car_suggestion?:  string;
+  data_basis:       'real_tiktok' | 'no_data'; // NEVER omit — prevents hiding data source
 }
 
 export interface MarketResearchReport {
-  week: string;
-  trends: string[];
-  top_ideas: VideoIdea[];
-  summary: string;
+  week:           string;
+  scraped_at:     string;
+  data_quality:   'real' | 'partial' | 'no_data';
+  data_source:    string;
+  real_metrics:   {
+    videos_analyzed:    number;
+    avg_engagement_pct: number | null;
+    top_hashtags:       Array<{ tag: string; avgViews: number; count: number }>;
+    top_authors:        Array<{ handle: string; totalViews: number; followers: number | null }>;
+  } | null;
+  trends:         string[];
+  top_ideas:      VideoIdea[];
+  summary:        string;
+  raw_json:       string; // serialized TikTokRealData for audit — always present
 }
+
+// ── Seasonal context (real calendar logic) ────────────────────────────────────
 
 function getSeasonalContext(month: number): string {
   if (month >= 6 && month <= 8) return 'Saison MRE — forte demande, familles diaspora, tourisme estival Oran';
   if (month === 3 || month === 4) return 'Ramadan — location nocturne populaire, sorties après iftar, famille étendue';
   if (month === 12 || month === 1) return 'Hiver — longue durée, voyages familiaux, fêtes de fin d\'année';
-  if (month === 5) return 'Pré-saison — anticiper les vacances d\'été, réservations anticipées';
+  if (month === 5)                return 'Pré-saison — anticiper les vacances d\'été, réservations anticipées';
   if (month === 9 || month === 10) return 'Rentrée — déplacements professionnels, étudiants, business';
   return 'Période standard — clients locaux professionnels et loisirs';
 }
 
-export async function runTikTokMarketResearch(cars: Car[]): Promise<MarketResearchReport> {
-  const week = new Date().toISOString().slice(0, 10);
-  const month = new Date().getMonth() + 1;
-  const seasonalContext = getSeasonalContext(month);
-  const carList = cars.map(c => `${c.name} (${c.category}, ${c.base_price} DZD/j)`).join(', ');
+// ── Claude prompts ─────────────────────────────────────────────────────────────
 
-  const prompt = `Tu es un expert marketing TikTok et réseaux sociaux spécialisé dans la location de voitures en Algérie.
+function buildPromptWithData(carList: string, season: string, week: string, formattedData: string): string {
+  return `Tu es un expert marketing TikTok spécialisé location de voitures en Algérie.
 
-CONTEXTE ENTREPRISE:
-- Société: Fik Conciergerie — location de voitures à Oran, Algérie
-- Flotte disponible: ${carList}
-- Semaine du: ${week}
-- Saison: ${seasonalContext}
-- Marché cible: Oranais locaux + MRE (Algériens de la diaspora en visite)
-- Concurrence: agences classiques peu actives sur TikTok → opportunité ÉNORME
+CONTRAINTE ABSOLUE : Base ton analyse UNIQUEMENT sur les données réelles ci-dessous.
+- Ne jamais inventer de chiffres (vues, likes, abonnés, engagement).
+- Ne jamais inventer de hashtags ou tendances non présents dans ces données.
+- Si une info est absente des données, écris "données non disponibles".
 
-ANALYSE TENDANCES TIKTOK LOCATION VOITURE:
-Analyse ces tendances prouvées qui cartonnent pour la location de voitures:
-1. "Car reveal" — dévoilement dramatique d'une voiture avec musique
-2. "Prix choc" — afficher le prix daily en gros plan, choquer par le rapport qualité/prix
-3. "Avant/après" — voiture sale livrée propre, ou client hésitant → client satisfait
-4. "POV: tu loues une ${cars[0]?.name ?? 'BMW'} pour le weekend" — style lifestyle
-5. "Tu savais que tu peux louer une voiture à Oran pour X DZD/jour?" — format éducatif
-6. Témoignage client (darija/français mixte) — très authentique, fort engagement
-7. "Day in my life with a rental car" — touriste ou MRE qui visite Oran
-8. Coulisses agence — préparation véhicule, équipe, processus sérieux
+FLOTTE FIK CONCIERGERIE : ${carList}
+SAISON : ${season}
+SEMAINE : ${week}
 
-MISSION: Génère 3 concepts de vidéos TikTok ULTRA-CONCRETS pour CETTE SEMAINE.
+DONNÉES TIKTOK RÉELLES (APIFY clockworks~tiktok-scraper) :
+${formattedData}
 
-RÈGLES:
-- Scripts en darija/français mélangé (naturel algérien)
-- Ton: dynamique, authentique, pas corporate
-- Durée vidéo idéale: 15-30 secondes pour TikTok
-- Chaque vidéo doit donner envie de réserver IMMÉDIATEMENT
-- Hashtags mix: populaires (#locationvoiture) + niches (#oran #algerie #mre2025)
-
-RÉPONDS UNIQUEMENT EN JSON VALIDE:
+Génère en JSON valide strictement :
 {
-  "trends": ["tendance1 qui marche cette semaine", "tendance2", "tendance3"],
+  "trends": [
+    "Tendance avec chiffres RÉELS ex: #locationoran — 45K vues moy. sur 12 vidéos",
+    "...maximum 5 tendances tirées directement des données ci-dessus"
+  ],
   "top_ideas": [
     {
-      "title": "Titre accrocheur max 8 mots",
-      "concept": "Description de ce qu'on voit dans la vidéo (2-3 phrases concrètes)",
-      "voiceover_script": "Le texte exact à dire à voix haute (20-35 mots, darija/français, punchy)",
-      "caption": "Légende TikTok avec emojis max 150 caractères",
-      "hashtags": ["#locationvoiture", "#oran", "#algerie", "#fikconciergeire", "#mre", "#voiture", "#oran2025", "#locationoran"],
-      "best_time": "Jour + heure optimale ex: Vendredi 20h-22h",
-      "car_suggestion": "nom exact de la voiture de la flotte à mettre en avant"
+      "title": "Titre basé sur contenu réel observé dans les données",
+      "concept": "Concept inspiré d'une vraie vidéo performante des données (cite le compte source si pertinent)",
+      "voiceover_script": "Script 20-35 mots darija/français, punchy, exploite une vraie lacune détectée",
+      "caption": "Légende avec les vrais hashtags performants des données, max 150 chars",
+      "hashtags": ["#hashtag_réel_des_données", "..."],
+      "best_time": "Basé sur les dates/heures des vidéos les plus vues dans les données",
+      "car_suggestion": "voiture de la flotte la plus adaptée à la tendance",
+      "data_basis": "real_tiktok"
     }
   ],
-  "summary": "Stratégie de la semaine en 2 phrases — pourquoi ces idées vont exploser les vues"
+  "summary": "Stratégie basée sur données réelles — cite 2-3 chiffres concrets tirés des données"
 }`;
-
-  const response = await chat([{ role: 'user', content: prompt }]);
-
-  try {
-    const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON');
-    const data = JSON.parse(jsonMatch[0]) as Partial<MarketResearchReport>;
-    return {
-      week,
-      trends:    Array.isArray(data.trends)    ? data.trends    : [],
-      top_ideas: Array.isArray(data.top_ideas) ? data.top_ideas : [],
-      summary:   data.summary ?? '',
-    };
-  } catch {
-    return fallbackReport(week, cars);
-  }
 }
 
-function fallbackReport(week: string, cars: Car[]): MarketResearchReport {
-  const car = cars[0];
+function buildPromptNoData(carList: string, season: string, week: string, error: string): string {
+  return `Tu es un expert marketing TikTok spécialisé location de voitures en Algérie.
+
+AVERTISSEMENT CRITIQUE : Les données TikTok réelles ne sont PAS disponibles.
+Raison technique : ${error}
+
+RÈGLES STRICTES :
+- N'invente AUCUN chiffre (vues, likes, abonnés, engagement).
+- N'invente AUCUNE tendance comme si elle était prouvée par des données.
+- Chaque idée doit clairement indiquer qu'elle n'est PAS basée sur des données réelles.
+
+FLOTTE : ${carList}
+SAISON : ${season}
+SEMAINE : ${week}
+
+Génère en JSON valide :
+{
+  "trends": [],
+  "top_ideas": [
+    {
+      "title": "Idée créative (SANS données réelles)",
+      "concept": "Concept basé sur bonnes pratiques générales — pas de données TikTok disponibles cette semaine",
+      "voiceover_script": "Script 20-35 mots darija/français",
+      "caption": "Légende max 150 chars",
+      "hashtags": ["#locationoran", "#locationvoiture", "#oran", "#algerie", "#mre"],
+      "best_time": "Vendredi 19h-21h (estimation générale — aucune donnée réelle)",
+      "car_suggestion": "voiture de la flotte",
+      "data_basis": "no_data"
+    }
+  ],
+  "summary": "⚠️ Rapport basé sur bonnes pratiques générales — aucune donnée TikTok réelle disponible. Raison: ${error}"
+}`;
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+export async function runTikTokMarketResearch(cars: Car[]): Promise<MarketResearchReport> {
+  const week   = new Date().toISOString().slice(0, 10);
+  const month  = new Date().getMonth() + 1;
+  const season = getSeasonalContext(month);
+  const carList = cars.map(c => `${c.name} (${c.category}, ${c.base_price} DZD/j)`).join(', ');
+
+  // ── Step 1: Scrape real TikTok data ─────────────────────────────────────────
+  let tiktokData: TikTokRealData;
+  try {
+    tiktokData = await scrapeTikTokForOranCars();
+  } catch (err) {
+    tiktokData = {
+      source:        'unavailable',
+      scrapedAt:     new Date().toISOString(),
+      hashtags:      [],
+      profiles:      [],
+      videos:        [],
+      topHashtags:   [],
+      topAuthors:    [],
+      avgEngagement: null,
+      error:         err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  const hasRealData = tiktokData.source === 'apify' && tiktokData.videos.length > 0;
+  const dataQuality: MarketResearchReport['data_quality'] = !hasRealData
+    ? 'no_data'
+    : tiktokData.videos.length >= 10 ? 'real' : 'partial';
+
+  // ── Step 2: Build prompt using real data only ────────────────────────────────
+  const formattedData = formatTikTokDataForReport(tiktokData);
+  const prompt = hasRealData
+    ? buildPromptWithData(carList, season, week, formattedData)
+    : buildPromptNoData(carList, season, week, tiktokData.error ?? 'raison inconnue');
+
+  // ── Step 3: Claude generates ideas grounded in real data ────────────────────
+  const response = await chat([{ role: 'user', content: prompt }]);
+  let parsed: { trends?: string[]; top_ideas?: VideoIdea[]; summary?: string } = {};
+  try {
+    const m = response.text.match(/\{[\s\S]*\}/);
+    if (m) parsed = JSON.parse(m[0]) as typeof parsed;
+  } catch { /* leave parsed empty */ }
+
+  // ── Step 4: Return structured report with audit trail ───────────────────────
   return {
     week,
-    trends: ['Car reveal dramatique', 'Prix choc format court', 'Témoignage darija authentique'],
-    top_ideas: [{
-      title: 'Location voiture Oran — Prix imbattable',
-      concept: 'Dévoilement de la voiture avec le prix en gros plan, musique dynamique.',
-      voiceover_script: `Wach tabghi troh f weekend b ${car?.name ?? 'voiture premium'}? Fik Conciergerie Oran — ${car?.base_price ?? 3000} DA par jour. Réserve maintenant !`,
-      caption: `🚗 Location ${car?.name ?? 'voiture'} à Oran — Prix imbattable ! Réserve maintenant 📞`,
-      hashtags: ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#voitureoran'],
-      best_time: 'Vendredi 19h-21h',
-      car_suggestion: car?.name,
-    }],
-    summary: 'Cette semaine: mise en avant du rapport qualité/prix et de la disponibilité immédiate.',
+    scraped_at:   tiktokData.scrapedAt,
+    data_quality: dataQuality,
+    data_source:  hasRealData
+      ? `APIFY clockworks~tiktok-scraper — ${tiktokData.videos.length} vidéos récupérées`
+      : `Données indisponibles — ${tiktokData.error ?? 'raison inconnue'}`,
+    real_metrics: hasRealData ? {
+      videos_analyzed:    tiktokData.videos.length,
+      avg_engagement_pct: tiktokData.avgEngagement,
+      top_hashtags:       tiktokData.topHashtags,                        // { tag, avgViews, count }
+      top_authors:        tiktokData.topAuthors.map(a => ({              // normalise to interface
+        handle:      a.handle,
+        totalViews:  a.totalViews,
+        followers:   a.followers,
+      })),
+    } : null,
+    trends:    Array.isArray(parsed.trends)    ? parsed.trends    : [],
+    top_ideas: Array.isArray(parsed.top_ideas) ? parsed.top_ideas : [],
+    summary:   parsed.summary ?? (hasRealData
+      ? '⚠️ Claude n\'a pas généré de summary.'
+      : `⚠️ Aucune donnée TikTok réelle disponible. ${tiktokData.error ?? ''}`),
+    raw_json: serializeTikTokData(tiktokData),
   };
 }

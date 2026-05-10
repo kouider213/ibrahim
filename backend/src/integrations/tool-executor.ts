@@ -1273,14 +1273,29 @@ async function runTikTokResearchTool(sessionId?: string): Promise<string> {
 
   const report = await runTikTokMarketResearch(cars);
 
+  const qualityBadge = report.data_quality === 'real'    ? '✅ DONNÉES RÉELLES'
+                     : report.data_quality === 'partial'  ? '⚠️ DONNÉES PARTIELLES'
+                     : '❌ PAS DE DONNÉES RÉELLES';
+
   const msg = [
     `📊 *RAPPORT MARKETING — ${report.week}*`,
     ``,
-    `📈 *Tendances:*`,
-    report.trends.map(t => `• ${t}`).join('\n'),
+    `🔍 *Source:* ${qualityBadge}`,
+    `_${report.data_source}_`,
+    report.real_metrics ? [
+      ``,
+      `📈 *Métriques réelles:*`,
+      `• Vidéos analysées: ${report.real_metrics.videos_analyzed}`,
+      `• Engagement moyen: ${report.real_metrics.avg_engagement_pct !== null ? `${report.real_metrics.avg_engagement_pct}%` : 'N/A'}`,
+      `• Top hashtag: #${report.real_metrics.top_hashtags[0]?.tag ?? '?'} (~${report.real_metrics.top_hashtags[0]?.avgViews.toLocaleString('fr-FR') ?? '?'} vues moy.)`,
+    ].join('\n') : '',
+    ``,
+    report.trends.length
+      ? `📈 *Tendances (données réelles):*\n${report.trends.map(t => `• ${t}`).join('\n')}`
+      : `📈 *Tendances:* aucune donnée réelle disponible cette semaine`,
     ``,
     report.top_ideas.map((idea, i) => [
-      `*[${i + 1}] ${idea.title}*`,
+      `*[${i + 1}] ${idea.title}*${idea.data_basis === 'no_data' ? ' _(pas de données réelles)_' : ''}`,
       `🎬 ${idea.concept}`,
       `🎤 _${idea.voiceover_script}_`,
       `📱 ${idea.caption}`,
@@ -1290,10 +1305,10 @@ async function runTikTokResearchTool(sessionId?: string): Promise<string> {
     `💡 ${report.summary}`,
     ``,
     `💬 Dis "fais une vidéo pour [voiture]" pour créer une vidéo automatiquement !`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   await sendTelegramForMarketing(chatId, msg);
-  return `✅ Rapport TikTok envoyé sur Telegram (${report.top_ideas.length} idées générées).`;
+  return `✅ Rapport TikTok envoyé (qualité: ${report.data_quality}, ${report.top_ideas.length} idées, source: ${report.data_source.slice(0, 60)}).`;
 }
 
 async function createMarketingVideoTool(

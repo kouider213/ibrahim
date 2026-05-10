@@ -223,13 +223,28 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   }
 
   // 3. Send research report to Telegram
+  const qualityBadge = report.data_quality === 'real'    ? '✅ DONNÉES RÉELLES'
+                     : report.data_quality === 'partial'  ? '⚠️ DONNÉES PARTIELLES'
+                     : '❌ PAS DE DONNÉES RÉELLES';
+
   const researchMsg = [
     `📊 *RAPPORT MARKETING SEMAINE DU ${report.week}*`,
     ``,
-    `📈 *Tendances qui cartonnent:*`,
-    report.trends.map(t => `• ${t}`).join('\n'),
+    `🔍 *Source:* ${qualityBadge}`,
+    `_${report.data_source}_`,
+    report.real_metrics ? [
+      ``,
+      `📈 *Métriques réelles:*`,
+      `• Vidéos analysées: ${report.real_metrics.videos_analyzed}`,
+      `• Engagement moyen: ${report.real_metrics.avg_engagement_pct !== null ? `${report.real_metrics.avg_engagement_pct}%` : 'N/A'}`,
+      `• Top hashtag: #${report.real_metrics.top_hashtags[0]?.tag ?? '?'} (~${report.real_metrics.top_hashtags[0]?.avgViews.toLocaleString('fr-FR') ?? '?'} vues)`,
+    ].join('\n') : '',
     ``,
-    `🎯 *${report.top_ideas.length} idées vidéos générées*`,
+    report.trends.length
+      ? `📈 *Tendances (données réelles):*\n${report.trends.map(t => `• ${t}`).join('\n')}`
+      : `📈 *Tendances:* aucune donnée réelle disponible`,
+    ``,
+    `🎯 *${report.top_ideas.length} idées vidéos${report.data_quality === 'no_data' ? ' (sans données réelles)' : ''}*`,
     ``,
     report.top_ideas.map((idea, i) => [
       `*[${i + 1}] ${idea.title}*`,
@@ -241,7 +256,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
     `💡 *Stratégie:* ${report.summary}`,
     ``,
     `⏳ _Création vidéo de la meilleure idée en cours..._`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   await tg(researchMsg);
 
