@@ -17,6 +17,7 @@ import { isAvailable, callProvider }    from '../../providers/provider-manager.j
 import { runFinanceAgentWithTools }     from '../../agents/finance-agent-runner.js';
 import { runCompetitorAgentWithTools }  from '../../agents/competitor-agent-runner.js';
 import { runSocialAgentWithTools }      from '../../agents/social-agent-runner.js';
+import { runCodeAudit }                 from '../../agents/code-audit-runner.js';
 
 const router = Router();
 
@@ -479,6 +480,84 @@ router.post('/competitor-tool-test', requireMobileAuth, async (req, res) => {
         analysis_chars: result.analysis.length,
 
         // Verdict
+        verdict:        result.verdict,
+        verdict_reason: result.verdict_reason,
+        error:          result.error ?? null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── POST /api/multi-agent/code-audit ─────────────────────────────────────────
+// P8 — audit coding autonome : plante un bug TS, laisse l'agent le trouver + corriger.
+// Prouve: read_file réel → bug identifié → apply_patch (commit réel) → re-read verify.
+router.post('/code-audit', requireMobileAuth, async (_req, res) => {
+  const requestId = `ca_${Date.now()}`;
+  console.log(`[code-audit-route:${requestId}] START`);
+
+  try {
+    const result = await runCodeAudit(requestId, 120_000);
+
+    res.json({
+      ok:   true,
+      test: 'code_audit_autonomous',
+      requestId,
+      proof: {
+        // Identity
+        agent_id:      result.agent_id,
+        provider:      result.provider,
+        model:         result.model,
+        tools_allowed: result.tools_allowed,
+
+        // Bug planted
+        test_file:          result.test_file_path,
+        bug_description:    result.bug_description,
+        before_commit_sha:  result.before_commit_sha,
+        before_content:     result.before_content,
+
+        // Tool execution proof
+        tools_called: result.tools_called.map(t => ({
+          tool_name:      t.tool_name,
+          tool_input:     t.tool_input,
+          duration_ms:    t.duration_ms,
+          blocked:        t.blocked,
+          commit_sha:     t.commit_sha ?? null,
+          result_preview: t.tool_result.slice(0, 500),
+          result_chars:   t.tool_result.length,
+        })),
+        tool_count: result.tool_count,
+
+        // Patches
+        patches_applied: result.patches_applied.map(p => ({
+          file_path:   p.file_path,
+          old_string:  p.old_string,
+          new_string:  p.new_string,
+          commit_sha:  p.commit_sha,
+          commit_msg:  p.commit_msg,
+          applied_at:  p.applied_at,
+        })),
+
+        // Before / after comparison
+        after_content:  result.after_content,
+        diff_summary: result.after_content && result.before_content !== result.after_content
+          ? '✅ Fichier modifié — contenu avant ≠ contenu après'
+          : '❌ Fichier identique — aucune modification détectée',
+
+        // Metrics
+        input_tokens:  result.input_tokens,
+        output_tokens: result.output_tokens,
+        total_ms:      result.total_ms,
+
+        // Agent's final analysis
+        analysis_full:  result.analysis,
+        analysis_chars: result.analysis.length,
+
+        // Verdict
+        bug_found:    result.bug_found,
+        bug_fixed:    result.bug_fixed,
+        fix_verified: result.fix_verified,
         verdict:        result.verdict,
         verdict_reason: result.verdict_reason,
         error:          result.error ?? null,
