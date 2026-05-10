@@ -406,7 +406,7 @@ async function execNexusTool(
 
   if (value === null) {
     return {
-      result:  `❌ ${toolName} TIMEOUT/ERREUR après ${maxRetries + 1} tentative(s): ${error ?? 'unknown'}`,
+      result:  `❌ ${toolName} TIMEOUT/ERREUR après 2 tentative(s): ${error ?? 'unknown'}`,
       success: false,
       retried,
     };
