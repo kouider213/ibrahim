@@ -281,31 +281,59 @@ Jamais prouvé en production dans les logs de commits. Le dernier commit mention
 
 ## 11. Multi-agents LLM
 
-**Fichiers :** `backend/src/agents/multi-agent-orchestrator.ts`, `backend/src/api/routes/multi-agent.ts`, `backend/src/conversation/orchestrator.ts`
+**Fichiers :** `backend/src/agents/multi-agent-orchestrator.ts`, `backend/src/api/routes/multi-agent.ts`, `backend/src/agents/finance-agent-runner.ts`, `backend/src/agents/definitions/*.ts`
 
 ### Ce que le code fait réellement
 
 - `needsMultiAgent()` détecte les requêtes cross-domain
 - `selectAgents()` sélectionne les agents pertinents
 - `runMultiAgent()` exécute en parallèle via `Promise.allSettled`
-- 6 agents : business, finance, social, competitor, code_reviewer, ops
+- 6 agents : business, finance, social, competitor, developer, code_reviewer
 - Providers : Claude (primary), OpenAI (finance/code), Gemini (social), Groq (competitor/social)
 - **Branché dans `orchestrator.ts:119`** — appelé pour chaque message cross-domain
 - Fusion via Claude claude-sonnet-4-6
 
+### Finance-Agent — Tool-Aware (P5)
+
+**Fichier :** `backend/src/agents/finance-agent-runner.ts`
+
+Le finance-agent est le **premier vrai agent outil** — il ne raisonne pas dans le vide, il appelle des outils réels contre Supabase.
+
+**Outils autorisés (allowlist stricte) :**
+```
+get_finance_dashboard   → CA mois courant/précédent, évolution %, impayés
+get_financial_report    → Bénéfice Kouider + revenu total par véhicule
+get_revenue_report      → CA semaine/mois/année breakdown véhicule
+get_payment_status      → Statut encaissements réservations actives
+get_unpaid_bookings     → Clients PENDING/PARTIAL classés par urgence
+check_anomalies         → Prix anormaux + réservations >2000€
+```
+
+**Boucle d'exécution (Claude native tool_use) :**
+```
+message → Claude + FINANCE_TOOLS → tool_use → executeTool() → Supabase réel
+       → résultat injecté → Claude → tool_use (si besoin) → end_turn → analyse
+```
+
+**Verdict VERIFIED** uniquement si :
+- ≥2 outils réellement appelés (pas bloqués par allowlist)
+- Analyse produite de >100 chars basée sur données Supabase réelles
+
+**Test direct :** `POST /api/multi-agent/finance-tool-test`
+
 ### Dépendances critiques
 
 ```
-OPENAI_API_KEY  →  optionnel
-GEMINI_API_KEY  →  optionnel
-GROQ_API_KEY    →  optionnel
+ANTHROPIC_API_KEY  →  obligatoire (finance-agent tool-aware)
+OPENAI_API_KEY     →  optionnel (autres agents)
+GEMINI_API_KEY     →  optionnel
+GROQ_API_KEY       →  optionnel
 ```
 
-**Claude path est VERIFIED** (ANTHROPIC_API_KEY obligatoire). Tous les autres providers sont des fallbacks.
+### Statut : ⚠️ PARTIAL → VERIFIED pending test Telegram réel
 
-Si OPENAI/GEMINI/GROQ absents → tous les agents tombent sur Claude. Parallélisme réel (différents modèles) non prouvé.
-
-### Statut : ✅ VERIFIED (architecture + Claude path) / ⚠️ PARTIAL (multi-provider réel sans confirmation des API keys)
+**finance-agent :** PARTIAL (code correct, test runtime requis pour VERIFIED)
+**autres agents :** ✅ VERIFIED architecture — agents LLM purs, pas d'outils
 
 ---
 

@@ -17,6 +17,7 @@ import { SOCIAL_AGENT }       from './definitions/social-agent.js';
 import { COMPETITOR_AGENT }   from './definitions/competitor-agent.js';
 import { DEVELOPER_AGENT }    from './definitions/developer-agent.js';
 import { CODE_REVIEWER_AGENT }from './definitions/code-reviewer-agent.js';
+import { runFinanceAgentWithTools } from './finance-agent-runner.js';
 
 // ── Agent catalog (pour multi-agent seulement) ────────────────────────────────
 const MULTI_AGENTS = [
@@ -126,6 +127,30 @@ async function runSingleAgent(
       agentId, agentName: agentId, desiredProvider: 'unknown', actualProvider: 'unknown',
       model: '', usedFallback: false, text: '', inputTokens: 0, outputTokens: 0,
       latencyMs: 0, costEstUsd: 0, success: false, error: `Agent ${agentId} not found`,
+    };
+  }
+
+  // ── Finance agent uses tool-aware runner (accesses real Supabase data) ───────
+  if (agentId === 'finance') {
+    const agentRequestId = `${requestId}_finance`;
+    const fullMessage = businessCtx
+      ? `${userMessage}\n\nCONTEXTE MÉTIER: ${businessCtx.slice(0, 1000)}`
+      : userMessage;
+    const fr = await runFinanceAgentWithTools(fullMessage, agentRequestId, agentTimeoutMs);
+    return {
+      agentId:         'finance',
+      agentName:       fr.agent_name,
+      desiredProvider: 'openai',        // original desired provider from definition
+      actualProvider:  fr.provider,     // claude (tool-aware runner)
+      model:           fr.model,
+      usedFallback:    true,  // finance-agent uses tool-aware Claude runner, not GPT-4o
+      text:            fr.analysis,
+      inputTokens:     fr.input_tokens,
+      outputTokens:    fr.output_tokens,
+      latencyMs:       fr.total_ms,
+      costEstUsd:      (fr.input_tokens * 3.00 + fr.output_tokens * 15.00) / 1_000_000,
+      success:         fr.verdict !== 'FAILED',
+      error:           fr.error,
     };
   }
 
