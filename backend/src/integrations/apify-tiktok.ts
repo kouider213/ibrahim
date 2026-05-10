@@ -70,6 +70,12 @@ export async function apifyRun(actorId: string, input: Record<string, unknown>):
 
 // ── Parser ─────────────────────────────────────────────────────────────────────
 
+// Strip lone Unicode surrogates that APIFY sometimes emits (truncated emoji sequences).
+// Claude's JSON parser rejects them with "no low surrogate" errors.
+function stripSurrogates(s: string): string {
+  return s.replace(/[\uD800-\uDFFF]/g, '');
+}
+
 export function parseVideo(raw: unknown): TikTokVideo {
   const v = raw as Record<string, unknown>;
   const am  = ((v['authorMeta'] ?? v['author']) as Record<string, unknown> | undefined) ?? {};
@@ -100,7 +106,7 @@ export function parseVideo(raw: unknown): TikTokVideo {
                      ?? (v['authorUniqueId'] as string | undefined)
                      ?? 'unknown',
     authorFollowers: followers,
-    description:     ((v['text'] as string | undefined) ?? (v['desc'] as string | undefined) ?? '').slice(0, 200),
+    description:     stripSurrogates(((v['text'] as string | undefined) ?? (v['desc'] as string | undefined) ?? '').slice(0, 200)),
     hashtags,
     views,
     likes,

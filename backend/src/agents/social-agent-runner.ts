@@ -152,6 +152,11 @@ APRÈS COLLECTE — produis uniquement ce que les données confirment :
 FORMAT : cite la source pour chaque chiffre (ex: "selon get_tiktok_market : @didanolocation 26K abonnés").
 JAMAIS : inventer des followers, des vues, des hashtags ou des tendances.`;
 
+// Strip lone surrogates before sending to Claude (defensive — already done in parseVideo)
+function sanitizeForClaude(s: string): string {
+  return s.replace(/[\uD800-\uDFFF]/g, '');
+}
+
 // ── Tool executors ─────────────────────────────────────────────────────────────
 
 async function runGetTikTokMarket(): Promise<{ text: string; videos_count: number }> {
@@ -369,7 +374,7 @@ export async function runSocialAgentWithTools(
           duration_ms: duration, blocked, data_quality: dataQuality,
           tiktok_videos: videosThisCall,
         });
-        toolResults.push({ type: 'tool_result', tool_use_id: tb.id, content: result });
+        toolResults.push({ type: 'tool_result', tool_use_id: tb.id, content: sanitizeForClaude(result) });
       }
 
       messages.push({ role: 'user', content: toolResults });
@@ -420,9 +425,33 @@ export async function runSocialAgentWithTools(
     };
 
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+    const errMsg  = err instanceof Error ? err.message : String(err);
+    const totalMs = Date.now() - t0;
     console.error(`[social-agent:${requestId}] ❌ ${errMsg}`);
-    return makeFailedResult(requestId, model, toolsCalled, totalInputTokens, totalOutputTokens, Date.now() - t0, errMsg);
+    // Preserve all tool calls + fik_profile even on crash
+    const realCalls    = toolsCalled.filter(t => !t.blocked);
+    const rawDataChars = realCalls.reduce((s, t) => s + t.tool_result.length, 0);
+    return {
+      request_id:          requestId,
+      agent_id:            'social',
+      agent_name:          '📱 Agent Social Media',
+      provider:            'claude',
+      model,
+      system_prompt:       SYSTEM_PROMPT,
+      tools_allowed:       [...SOCIAL_ALLOWED],
+      tools_called:        toolsCalled,
+      tool_count:          realCalls.length,
+      raw_data_chars:      rawDataChars,
+      tiktok_videos_found: totalTikTokVideos,
+      fik_profile,
+      analysis:            finalAnalysis,
+      input_tokens:        totalInputTokens,
+      output_tokens:       totalOutputTokens,
+      total_ms:            totalMs,
+      verdict:             'FAKE',
+      verdict_reason:      `❌ ${errMsg}`,
+      error:               errMsg,
+    };
   }
 }
 
