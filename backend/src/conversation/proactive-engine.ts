@@ -225,9 +225,6 @@ async function triggerUnpaidReminder(demo: boolean): Promise<TriggerResult> {
   if (!demo && (hour < 9 || hour > 20)) {
     return { trigger: 'unpaid-reminder', status: 'SKIPPED', reason: 'hors fenêtre 9h–20h' };
   }
-  if (!await acquireDailyLock('unpaid-reminder')) {
-    return { trigger: 'unpaid-reminder', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
-  }
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
@@ -255,8 +252,11 @@ async function triggerUnpaidReminder(demo: boolean): Promise<TriggerResult> {
   const withRemaining = overdue.filter(b => (b.final_price ?? 0) - (b.paid_amount ?? 0) > 0);
 
   if (!withRemaining.length) {
-    // Lock already acquired — release it so next day re-checks cleanly
     return { trigger: 'unpaid-reminder', status: 'SKIPPED', reason: 'aucun impayé > 7j' };
+  }
+  // Lock only AFTER data confirmed — avoids blocking the day when no data found
+  if (!await acquireDailyLock('unpaid-reminder')) {
+    return { trigger: 'unpaid-reminder', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
   }
 
   const totalDue  = withRemaining.reduce((s, b) => s + (b.final_price - (b.paid_amount ?? 0)), 0);
@@ -286,9 +286,6 @@ async function triggerLateReturn(demo: boolean): Promise<TriggerResult> {
   if (!demo && (hour < 8 || hour > 13)) {
     return { trigger: 'late-return', status: 'SKIPPED', reason: 'hors fenêtre 8h–13h Oran' };
   }
-  if (!await acquireDailyLock('late-return')) {
-    return { trigger: 'late-return', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
-  }
 
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
@@ -309,6 +306,9 @@ async function triggerLateReturn(demo: boolean): Promise<TriggerResult> {
 
   if (!overdue.length) {
     return { trigger: 'late-return', status: 'SKIPPED', reason: 'aucun retard de retour' };
+  }
+  if (!await acquireDailyLock('late-return')) {
+    return { trigger: 'late-return', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
   }
 
   const p = demo ? '🧪 [DEMO] ' : '';
@@ -334,9 +334,6 @@ async function triggerBookingTomorrow(demo: boolean): Promise<TriggerResult> {
   if (!demo && (hour < 17 || hour > 22)) {
     return { trigger: 'booking-tomorrow', status: 'SKIPPED', reason: 'hors fenêtre 17h–22h' };
   }
-  if (!await acquireDailyLock('booking-tomorrow')) {
-    return { trigger: 'booking-tomorrow', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
-  }
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -361,6 +358,9 @@ async function triggerBookingTomorrow(demo: boolean): Promise<TriggerResult> {
 
   if (!bookings.length) {
     return { trigger: 'booking-tomorrow', status: 'SKIPPED', reason: `aucune location prévue le ${tStr}` };
+  }
+  if (!await acquireDailyLock('booking-tomorrow')) {
+    return { trigger: 'booking-tomorrow', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
   }
 
   const starts  = bookings.filter(b => b.start_date === tStr);
