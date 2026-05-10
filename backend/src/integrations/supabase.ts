@@ -69,14 +69,128 @@ export type TaskStatus =
   | 'completed' | 'failed' | 'cancelled';
 
 export interface IbrahimRule {
+  id:           string;
+  category:     string;
+  rule:         string;
+  conditions:   Record<string, unknown>;
+  action:       Record<string, unknown>;
+  confidence:   number;
+  source:       string;
+  active:       boolean;
+  // P12a columns
+  priority?:    number;
+  trigger_type?: string;
+  auto_apply?:  boolean;
+  last_applied?: string;
+  apply_count?:  number;
+}
+
+export interface IbrahimMemory {
   id:         string;
+  content:    string;
   category:   string;
-  rule:       string;
-  conditions: Record<string, unknown>;
-  action:     Record<string, unknown>;
-  confidence: number;
-  source:     string;
-  active:     boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── P12 Memory Engine types ───────────────────────────────────
+
+export type MemoryDomain =
+  | 'identity' | 'habit' | 'routine' | 'preference' | 'goal'
+  | 'health' | 'family' | 'business' | 'vehicle' | 'client'
+  | 'finance' | 'learning' | 'general';
+
+export interface MemoryFact {
+  id:          string;
+  user_id:     string;
+  domain:      MemoryDomain;
+  key:         string;
+  value:       string;
+  value_type:  'text' | 'boolean' | 'number' | 'json' | 'date';
+  value_json?: Record<string, unknown>;
+  confidence:  number;
+  source:      string;
+  verified:    boolean;
+  is_current:  boolean;
+  valid_from?:  string;
+  valid_until?: string;
+  created_at:  string;
+  updated_at:  string;
+}
+
+export type EpisodeType =
+  | 'conversation_summary' | 'booking_event' | 'calendar_event'
+  | 'financial_event' | 'vehicle_event' | 'notification_sent'
+  | 'user_request' | 'proactive_trigger' | 'document_scan' | 'manual';
+
+export interface MemoryEpisode {
+  id:           string;
+  episode_type: EpisodeType;
+  summary:      string;
+  entities:     Record<string, unknown>;
+  sentiment:    'positive' | 'neutral' | 'negative' | 'urgent';
+  importance:   1 | 2 | 3 | 4 | 5;
+  session_id?:  string;
+  source:       'telegram' | 'app' | 'cron' | 'nexus' | 'system' | 'manual';
+  occurred_at:  string;
+  expires_at:   string;
+}
+
+export interface MemoryHabit {
+  id:             string;
+  user_id:        string;
+  habit_name:     string;
+  schedule_type:  'daily' | 'weekly' | 'interval' | 'condition';
+  schedule_cron?: string;
+  interval_hours?: number;
+  condition?:     string;
+  description:    string;
+  action_type:    'remind' | 'check' | 'notify' | 'auto_do';
+  action_data:    Record<string, unknown>;
+  last_done_at?:  string;
+  streak_days:    number;
+  missed_count:   number;
+  active:         boolean;
+  created_at:     string;
+}
+
+export interface UserProfile {
+  id:                    string;
+  user_id:               string;
+  name:                  string;
+  languages:             string[];
+  location_primary:      string;
+  location_secondary:    string;
+  timezone_primary:      string;
+  timezone_secondary:    string;
+  work_days:             number[];
+  work_start:            string;
+  work_end:              string;
+  flex_hours:            boolean;
+  commute_mode:          string;
+  commute_minutes_avg:   number;
+  wake_time:             string;
+  morning_vitamins:      boolean;
+  morning_coffee:        boolean;
+  breakfast:             boolean;
+  sleep_time:            string;
+  wind_down_minutes:     number;
+  family_members:        unknown[];
+  quality_time_gap_days: number;
+  medications:           string[];
+  supplements:           string[];
+  health_reminders:      boolean;
+  preferred_channel:     string;
+  response_style:        string;
+  voice_mode:            boolean;
+  language_auto:         boolean;
+  business_name:         string;
+  business_role:         string;
+  business_partner:      string;
+  business_location:     string;
+  profit_split_pct:      number;
+  created_at:            string;
+  updated_at:            string;
 }
 
 // ── Fik Conciergerie queries ───────────────────────────────────
@@ -263,4 +377,114 @@ export async function checkVehicleAvailability(
 export async function isVipClient(phone: string): Promise<boolean> {
   const { isVip } = await getClientHistory(phone);
   return isVip;
+}
+
+// ── P12 Memory Engine helpers ──────────────────────────────────
+
+export async function getUserProfile(userId = 'kouider'): Promise<UserProfile | null> {
+  const { data, error } = await supabase
+    .from('user_profile')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  if (error) return null;
+  return data as UserProfile;
+}
+
+export async function getMemoryFacts(filters?: {
+  domain?: MemoryDomain;
+  is_current?: boolean;
+  limit?: number;
+  user_id?: string;
+}): Promise<MemoryFact[]> {
+  let query = supabase
+    .from('memory_facts')
+    .select('*')
+    .eq('user_id', filters?.user_id ?? 'kouider')
+    .order('confidence', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(filters?.limit ?? 50);
+
+  if (filters?.domain)     query = query.eq('domain', filters.domain);
+  if (filters?.is_current !== undefined) query = query.eq('is_current', filters.is_current);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`memory_facts fetch failed: ${error.message}`);
+  return (data ?? []) as MemoryFact[];
+}
+
+export async function upsertMemoryFact(
+  domain: MemoryDomain,
+  key: string,
+  value: string,
+  opts?: Partial<Pick<MemoryFact, 'value_type' | 'value_json' | 'confidence' | 'source' | 'verified' | 'valid_from' | 'valid_until'>>,
+  userId = 'kouider',
+): Promise<void> {
+  const { error } = await supabase
+    .from('memory_facts')
+    .upsert(
+      {
+        user_id:    userId,
+        domain,
+        key,
+        value,
+        value_type:  opts?.value_type  ?? 'text',
+        value_json:  opts?.value_json,
+        confidence:  opts?.confidence  ?? 1.0,
+        source:      opts?.source      ?? 'explicit',
+        verified:    opts?.verified    ?? true,
+        valid_from:  opts?.valid_from,
+        valid_until: opts?.valid_until,
+        is_current:  true,
+        updated_at:  new Date().toISOString(),
+      },
+      { onConflict: 'user_id,domain,key' },
+    );
+  if (error) throw new Error(`upsertMemoryFact failed [${domain}/${key}]: ${error.message}`);
+}
+
+export async function addMemoryEpisode(
+  episode: Omit<MemoryEpisode, 'id' | 'occurred_at' | 'expires_at'> & {
+    occurred_at?: string;
+    expires_at?: string;
+  },
+): Promise<MemoryEpisode> {
+  const { data, error } = await supabase
+    .from('memory_episodes')
+    .insert(episode)
+    .select()
+    .single();
+  if (error) throw new Error(`addMemoryEpisode failed: ${error.message}`);
+  return data as MemoryEpisode;
+}
+
+export async function getRecentEpisodes(options?: {
+  episode_type?: EpisodeType;
+  min_importance?: number;
+  limit?: number;
+}): Promise<MemoryEpisode[]> {
+  let query = supabase
+    .from('memory_episodes')
+    .select('*')
+    .gt('expires_at', new Date().toISOString())
+    .order('occurred_at', { ascending: false })
+    .limit(options?.limit ?? 20);
+
+  if (options?.episode_type)    query = query.eq('episode_type', options.episode_type);
+  if (options?.min_importance)  query = query.gte('importance', options.min_importance);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`getRecentEpisodes failed: ${error.message}`);
+  return (data ?? []) as MemoryEpisode[];
+}
+
+export async function getActiveHabits(userId = 'kouider'): Promise<MemoryHabit[]> {
+  const { data, error } = await supabase
+    .from('memory_habits')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('created_at');
+  if (error) throw new Error(`getActiveHabits failed: ${error.message}`);
+  return (data ?? []) as MemoryHabit[];
 }

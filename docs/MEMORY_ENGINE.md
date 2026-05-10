@@ -1,7 +1,39 @@
 # MEMORY ENGINE — Architecture Dzaryx
-**Version :** 1.0 — P12 Design  
+**Version :** 1.1 — P12a Fondation  
 **Date :** 2026-05-10  
-**Statut :** Architecture (pré-implémentation)
+**Statut :** Phase A terminée ✅
+
+---
+
+## Statut d'implémentation
+
+| Phase | Scope | Statut | Branch |
+|-------|-------|--------|--------|
+| **P12a** | Tables SQL + migration + types TS | ✅ **DONE** | `feat/p12a-memory-engine` |
+| P12b | `context-builder.ts` score-based + token budget | ⏳ À faire | — |
+| P12c | `proactive-engine` BullMQ (12 triggers) | ⏳ À faire | — |
+| P12d | Redis active context + auto-episode + cleanup | ⏳ À faire | — |
+
+### P12a — Ce qui a été créé
+
+**Fichiers SQL :**
+- `supabase/migration_p12a_memory_engine.sql` — migration UP (idempotente)
+- `supabase/migration_p12a_memory_engine_rollback.sql` — migration DOWN
+
+**Tables créées :**
+- `user_profile` — profil structuré Kouider (1 ligne seed)
+- `memory_facts` — facts sémantiques permanents (13 seeds + migration ibrahim_memory)
+- `memory_episodes` — mémoire épisodique 30j avec full-text search
+- `memory_habits` — patterns comportementaux récurrents
+
+**Enrichissement :**
+- `ibrahim_rules` — 5 colonnes ajoutées (priority, trigger_type, auto_apply, last_applied, apply_count)
+
+**TypeScript (`backend/src/integrations/supabase.ts`) :**
+- Types : `MemoryFact`, `MemoryEpisode`, `MemoryHabit`, `UserProfile`, `IbrahimMemory`
+- Helpers : `getUserProfile()`, `getMemoryFacts()`, `upsertMemoryFact()`, `addMemoryEpisode()`, `getRecentEpisodes()`, `getActiveHabits()`
+
+**Non-destructif :** `ibrahim_memory` et les tools existants (`recall_memory`, `remember_info`) sont intacts.
 
 ---
 
