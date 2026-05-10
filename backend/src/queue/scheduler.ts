@@ -17,6 +17,8 @@ import {
   jobWhatsAppReturnReminders,
   jobAnthropicWatch,
   jobCompetitorWatch,
+  jobBIDaily,
+  jobBIReminders,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { notifyOwner } from '../notifications/pushover.js';
@@ -114,6 +116,16 @@ const JOBS = [
     cron:  '*/15 * * * *',     // toutes les 15min — moteur proactif P12c (memory-aware)
     tz:    'Europe/Brussels',
   },
+  {
+    name:  'bi-daily',
+    cron:  '0 8 * * *',        // 8h chaque matin — rapport BI complet + Telegram
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'bi-reminders',
+    cron:  '*/30 * * * *',     // toutes les 30min — alertes smart reminders HIGH priority
+    tz:    'Europe/Brussels',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -134,6 +146,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'anthropic-watch':          jobAnthropicWatch,
   'competitor-watch':         jobCompetitorWatch,
   'proactive-engine':         async (job: Job) => { await runProactiveEngine(job); },
+  'bi-daily':                 jobBIDaily,
+  'bi-reminders':             jobBIReminders,
 };
 
 export async function initScheduler(): Promise<void> {

@@ -36,6 +36,7 @@ import nexusRoutes         from './api/routes/nexus.js';
 import nexusOsRoutes       from './api/routes/nexus-os.js';
 import multiAgentRoutes    from './api/routes/multi-agent.js';
 import workflowRoutes      from './api/routes/workflow.js';
+import biRoutes            from './api/routes/bi.js';
 
 // Integrations
 import { initOrchestrator } from './conversation/orchestrator.js';
@@ -179,6 +180,7 @@ app.use('/api/nexus',         apiLimiter, nexusRoutes);
 app.use('/api/nexus/os',     apiLimiter, nexusOsRoutes);
 app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
 app.use('/api/workflow',     apiLimiter, workflowRoutes);
+app.use('/api/bi',           apiLimiter, biRoutes);
 
 app.use(errorHandler);
 

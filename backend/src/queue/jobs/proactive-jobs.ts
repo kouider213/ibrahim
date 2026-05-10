@@ -920,6 +920,39 @@ Format court, 10 lignes max.`,
   }
 }
 
+// ── P13 — Business Intelligence jobs ─────────────────────────
+
+export async function jobBIDaily(_job: Job): Promise<void> {
+  console.log('[job:bi-daily] Démarrage rapport BI quotidien...');
+  try {
+    const { runBIEngine } = await import('../../bi/bi-engine.js');
+    await runBIEngine(true);
+    console.log('[job:bi-daily] ✅ Rapport BI envoyé');
+  } catch (err) {
+    console.error('[job:bi-daily] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+export async function jobBIReminders(_job: Job): Promise<void> {
+  try {
+    const { getSmartReminders } = await import('../../bi/smart-reminders.js');
+    const reminders = await getSmartReminders();
+    const highPri   = reminders.filter(r => r.priority === 'HIGH');
+    if (!highPri.length) { console.log('[job:bi-reminders] ℹ️ Aucune alerte haute priorité'); return; }
+
+    const chatId = env.TELEGRAM_CHAT_ID;
+    if (!chatId) return;
+
+    for (const r of highPri.slice(0, 5)) {
+      const emoji = r.type === 'age_alert' ? '🔞' : r.type === 'missing_passport' ? '🪪' : '⚡';
+      await sendMessage(chatId, `${emoji} *${r.message}*\n💡 ${r.action}`);
+    }
+    console.log(`[job:bi-reminders] ✅ ${highPri.length} alerte(s) HIGH envoyées`);
+  } catch (err) {
+    console.error('[job:bi-reminders] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ── Veille Anthropic — chaque dimanche 10h ────────────────────
 export async function jobAnthropicWatch(_job: Job): Promise<void> {
   try {
