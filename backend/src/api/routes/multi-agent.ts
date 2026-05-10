@@ -1,18 +1,19 @@
 /**
  * Multi-Agent routes — test complet de l'architecture réelle.
  *
- * GET  /api/multi-agent/providers     — statut providers
- * GET  /api/multi-agent/catalog       — catalogue complet des 6 agents (prompts, config, isolation)
- * POST /api/multi-agent/run           — exécution parallèle avec rapport complet
- * POST /api/multi-agent/detect        — détection si multi-agent serait déclenché
- * POST /api/multi-agent/test-fallback — prouve que Claude prend le relais si provider forcé-down
- * POST /api/multi-agent/test-isolation— prouve l'isolation mémoire entre agents
+ * GET  /api/multi-agent/providers       — statut providers
+ * GET  /api/multi-agent/catalog         — catalogue complet des 6 agents (prompts, config, isolation)
+ * POST /api/multi-agent/run             — exécution parallèle avec rapport complet
+ * POST /api/multi-agent/detect          — détection si multi-agent serait déclenché
+ * POST /api/multi-agent/test-fallback   — prouve que Claude prend le relais si provider forcé-down
+ * POST /api/multi-agent/test-isolation  — prouve l'isolation mémoire entre agents
  * POST /api/multi-agent/test-sequential — mode agent-to-agent séquentiel (Business → Finance)
+ * POST /api/multi-agent/audit           — audit complet : réponse brute + attribution + verdict VERIFIED/PARTIAL/FAILED
  */
 import { Router }        from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { runMultiAgent, needsMultiAgent, selectAgents, MULTI_AGENTS } from '../../agents/multi-agent-orchestrator.js';
-import { isAvailable }                  from '../../providers/provider-manager.js';
+import { isAvailable, callProvider }    from '../../providers/provider-manager.js';
 
 const router = Router();
 
@@ -286,6 +287,176 @@ router.post('/test-sequential', requireMobileAuth, async (req, res) => {
   } catch (err: unknown) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// ── POST /api/multi-agent/audit ──────────────────────────────────────────────
+// Audit complet des 6 agents : provider réel, modèle, prompt, réponse brute,
+// latence, tokens, coût, preuve parallèle, verdict VERIFIED/PARTIAL/FAILED,
+// + attribution des idées dans la fusion.
+router.post('/audit', requireMobileAuth, async (req, res) => {
+  const {
+    message = 'Analyse complète de Fik Conciergerie Oran : stratégie été, finances, réseaux sociaux, concurrence, technique, sécurité code.',
+    agents,
+  } = req.body as { message?: string; agents?: string[] };
+
+  const requestId  = `audit_${Date.now()}`;
+  const t0         = Date.now();
+  const t0ISO      = new Date().toISOString();
+  const agentIds   = (agents?.length
+    ? agents
+    : ['business', 'finance', 'social', 'competitor', 'developer', 'code_reviewer']
+  ) as Parameters<typeof runMultiAgent>[2];
+
+  console.log(`[audit:${requestId}] START agents=[${agentIds.join(',')}]`);
+
+  let report: Awaited<ReturnType<typeof runMultiAgent>>;
+  try {
+    report = await runMultiAgent(message, '', agentIds, requestId, 45_000);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+
+  // ── Attribution step: ask Claude which ideas came from which agent ─────────
+  let attribution = '⚠️ Attribution non calculée.';
+  const successfulAgents = report.agentResults.filter(r => r.success && r.text.trim().length > 30);
+  if (successfulAgents.length >= 2 && report.fusedResponse.length > 100) {
+    try {
+      const attrPrompt = `Voici la réponse fusionnée de ${successfulAgents.length} agents IA, suivie de leurs réponses brutes.
+
+RÉPONSE FUSIONNÉE:
+${report.fusedResponse}
+
+RÉPONSES BRUTES:
+${successfulAgents.map(r => `### ${r.agentName.toUpperCase()} (${r.actualProvider}/${r.model})\n${r.text.slice(0, 700)}`).join('\n\n---\n\n')}
+
+Pour les 6-8 points/idées les plus importants de la réponse fusionnée, identifie quel agent l'a fourni.
+Format strict — une ligne par idée:
+• [Idée clé courte] → Source: [NOM_AGENT] (provider/modèle)
+
+Si une idée est une synthèse de plusieurs agents, indique tous les agents sources.`;
+
+      const attrResult = await callProvider(
+        { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.2, maxTokens: 600 },
+        attrPrompt,
+        'Tu es un analyseur de sources. Sois précis et bref.',
+        20_000,
+      );
+      attribution = attrResult.text;
+    } catch { /* keep default */ }
+  }
+
+  // ── Parallel proof (wall clock vs sum of individual latencies) ───────────
+  const sumIndividualMs = report.agentResults.reduce((s, r) => s + r.latencyMs, 0);
+  const wallClockMs     = report.totalLatencyMs;
+  const parallelGainMs  = sumIndividualMs - wallClockMs - report.fusionLatencyMs;
+  const parallelProven  = parallelGainMs > 500; // at least 500ms saved = definitely parallel
+
+  // ── Per-agent verdict ─────────────────────────────────────────────────────
+  const agentAudit = report.agentResults.map(r => {
+    const def = MULTI_AGENTS.find(a => a.id === r.agentId);
+    const verdict: 'VERIFIED' | 'PARTIAL' | 'FAILED' =
+      !r.success  ? 'FAILED'  :
+      r.usedFallback ? 'PARTIAL' :
+      'VERIFIED';
+
+    return {
+      // Identity
+      agent_id:   r.agentId,
+      agent_name: r.agentName,
+
+      // Provider proof
+      desired_provider:   r.desiredProvider,
+      actual_provider:    r.actualProvider,
+      model:              r.model,
+      used_fallback:      r.usedFallback,
+      provider_available: isAvailable(r.actualProvider as Parameters<typeof isAvailable>[0]),
+
+      // System prompt (full, for inspection)
+      system_prompt: def?.systemPrompt ?? '(définition introuvable)',
+
+      // Tool execution note (architectural fact)
+      tools_executed: false,
+      tools_note: 'Les agents multi-agent sont des analystes LLM purs — ils ne lancent pas d\'outils. L\'exécution d\'outils se fait dans le flow Telegram via tool-executor.ts.',
+
+      // Execution metrics
+      success:         r.success,
+      latency_ms:      r.latencyMs,
+      input_tokens:    r.inputTokens,
+      output_tokens:   r.outputTokens,
+      cost_usd:        r.costEstUsd,
+      timed_out:       r.timedOut ?? false,
+      error:           r.error ?? null,
+
+      // Raw response (full — not truncated)
+      raw_response: r.text,
+      raw_response_chars: r.text.length,
+      raw_response_words: r.text.split(/\s+/).filter(Boolean).length,
+
+      // Verdict
+      verdict,
+      verdict_reason: verdict === 'VERIFIED'
+        ? `✅ ${r.desiredProvider}/${r.model} utilisé comme prévu — réponse réelle de ${r.text.length} chars`
+        : verdict === 'PARTIAL'
+          ? `⚠️ Fallback utilisé: ${r.desiredProvider} → ${r.actualProvider} — réponse valide mais provider secondaire`
+          : `❌ Agent échoué: ${r.error ?? 'erreur inconnue'}`,
+    };
+  });
+
+  const verifiedCount = agentAudit.filter(a => a.verdict === 'VERIFIED').length;
+  const partialCount  = agentAudit.filter(a => a.verdict === 'PARTIAL').length;
+  const failedCount   = agentAudit.filter(a => a.verdict === 'FAILED').length;
+
+  console.log(`[audit:${requestId}] DONE verified=${verifiedCount} partial=${partialCount} failed=${failedCount} parallel=${parallelProven}`);
+
+  res.json({
+    ok: true,
+    audit: {
+      requestId,
+      test_message:  message,
+      audit_started: t0ISO,
+
+      // ── Parallel execution proof ─────────────────────────────────────────
+      parallel_execution: {
+        model: 'Promise.allSettled — tous les agents démarrent à T0 simultanément',
+        t0_unix_ms:              t0,
+        wall_clock_ms:           wallClockMs,
+        fusion_latency_ms:       report.fusionLatencyMs,
+        agents_net_ms:           wallClockMs - report.fusionLatencyMs,
+        sum_individual_ms:       sumIndividualMs,
+        parallel_gain_ms:        parallelGainMs,
+        parallel_proven:         parallelProven,
+        parallel_proof: parallelProven
+          ? `✅ PARALLÈLE PROUVÉ — Si séquentiel: ~${sumIndividualMs}ms. Réel: ${wallClockMs - report.fusionLatencyMs}ms. Gain: ${parallelGainMs}ms économisés.`
+          : `⚠️ Gain faible (${parallelGainMs}ms) — possible si agents très rapides ou si un seul agent a tourné.`,
+      },
+
+      // ── Summary ──────────────────────────────────────────────────────────
+      summary: {
+        agents_requested:    report.agentsRequested,
+        agents_succeeded:    report.agentsSucceeded,
+        agents_failed:       report.agentsFailed,
+        total_latency_ms:    report.totalLatencyMs,
+        total_input_tokens:  report.totalInputTokens,
+        total_output_tokens: report.totalOutputTokens,
+        total_cost_usd:      report.totalCostUsd,
+        verified:            verifiedCount,
+        partial:             partialCount,
+        failed:              failedCount,
+      },
+
+      // ── Per-agent full audit ─────────────────────────────────────────────
+      agents: agentAudit,
+
+      // ── Fusion + attribution ─────────────────────────────────────────────
+      fusion: {
+        model:         'claude-sonnet-4-6',
+        latency_ms:    report.fusionLatencyMs,
+        response_full: report.fusedResponse,
+        attribution,
+      },
+    },
+  });
 });
 
 export default router;
