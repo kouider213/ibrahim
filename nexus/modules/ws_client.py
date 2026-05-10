@@ -416,6 +416,59 @@ class NexusWSClient:
                 except Exception:
                     pass
 
+        # ── Screenshot → base64 in ack (no Telegram) ─────────────────────────
+        # Used by Dzaryx agent to return screenshot directly in HTTP response.
+
+        @sio.on('nexus:screenshot_base64', namespace='/nexus')
+        async def on_screenshot_base64(data: dict):
+            import subprocess as _sp, tempfile as _tmp, base64 as _b64, platform as _platform
+            tmp_path = _tmp.mktemp(suffix='.png', prefix='nexus_b64_')
+            ps_cmd = (
+                f"Add-Type -AssemblyName System.Windows.Forms,System.Drawing; "
+                f"$s=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; "
+                f"$bmp=New-Object System.Drawing.Bitmap($s.Width,$s.Height); "
+                f"$g=[System.Drawing.Graphics]::FromImage($bmp); "
+                f"$g.CopyFromScreen($s.Location,[System.Drawing.Point]::Empty,$s.Size); "
+                f"$bmp.Save('{tmp_path}'); $bmp.Dispose(); $g.Dispose()"
+            )
+            log.info('nexus:screenshot_base64 ▶ %s', tmp_path)
+            loop = asyncio.get_event_loop()
+            try:
+                result = await loop.run_in_executor(None, lambda: _sp.run(
+                    ['powershell', '-NonInteractive', '-Command', ps_cmd],
+                    capture_output=True, text=True, timeout=20,
+                ))
+                if result.returncode != 0:
+                    err = (result.stderr or result.stdout or 'unknown').strip()[:500]
+                    log.error('screenshot_base64 PowerShell failed exit=%d: %s', result.returncode, err)
+                    return {'ok': False, 'error': f'PowerShell exit {result.returncode}: {err}'}
+                if not os.path.exists(tmp_path):
+                    return {'ok': False, 'error': 'PNG not created by PowerShell'}
+                with open(tmp_path, 'rb') as f:
+                    img_bytes = f.read()
+                b64 = _b64.b64encode(img_bytes).decode()
+                log.info('screenshot_base64 ✅ %d bytes (%.1f KB)', len(img_bytes), len(img_bytes) / 1024)
+                nexus_log.info('screenshot_b64_sent size_bytes=%d', len(img_bytes))
+                return {
+                    'ok':           True,
+                    'image_base64': b64,
+                    'size_bytes':   len(img_bytes),
+                    'size_kb':      round(len(img_bytes) / 1024, 1),
+                    'timestamp':    datetime.now().isoformat(),
+                    'hostname':     _platform.node(),
+                }
+            except _sp.TimeoutExpired:
+                log.error('screenshot_base64 TIMEOUT 20s')
+                return {'ok': False, 'error': 'PowerShell screenshot timeout 20s'}
+            except Exception as e:
+                log.error('screenshot_base64 ERROR: %s', e)
+                return {'ok': False, 'error': str(e)}
+            finally:
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
+
         # ── Sysinfo + telemetry (full) ────────────────────────────────────────
 
         @sio.on('nexus:sysinfo', namespace='/nexus')

@@ -9,6 +9,22 @@ let _nexusSocket:    Socket | null = null;
 let _launcherSocket: Socket | null = null;
 let _nexusMac:       string        = '';
 let _nexusPublicIp:  string        = '';
+let _busyTask:       string | null = null;
+let _busySince:      number | null = null;
+
+export function setNexusBusy(task: string): void {
+  _busyTask  = task;
+  _busySince = Date.now();
+}
+export function clearNexusBusy(): void {
+  _busyTask  = null;
+  _busySince = null;
+}
+export function isNexusBusy(): boolean   { return _busyTask !== null; }
+export function getNexusBusyTask(): string | null { return _busyTask; }
+export function getNexusBusyMs(): number | null {
+  return _busySince ? Date.now() - _busySince : null;
+}
 
 // ── Telemetry ─────────────────────────────────────────────────────────────────
 
@@ -312,6 +328,9 @@ export function getNexusStatus(): {
   socketId:  string | null;
   publicIp:  string;
   mac:       string;
+  busy:      boolean;
+  busyTask:  string | null;
+  busyMs:    number | null;
   telemetry: NexusTelemetry;
 } {
   return {
@@ -319,6 +338,9 @@ export function getNexusStatus(): {
     socketId:  _nexusSocket?.id ?? null,
     publicIp:  _nexusPublicIp,
     mac:       _nexusMac,
+    busy:      _busyTask !== null,
+    busyTask:  _busyTask,
+    busyMs:    _busySince ? Date.now() - _busySince : null,
     telemetry: { ..._tel },
   };
 }
@@ -460,6 +482,31 @@ export function nexusScreenshot(
       },
     );
   });
+}
+
+// ── nexusScreenshotBase64 ─────────────────────────────────────────────────────
+
+/**
+ * Take a real desktop screenshot and return the raw base64 in the ack.
+ * Uses nexus:screenshot_base64 event (no Telegram send) — image returned directly.
+ * Timeout: 35s (PowerShell screenshot takes ~5s on average).
+ */
+export function nexusScreenshotBase64(
+  timeoutMs = 35_000,
+): Promise<{ ok: boolean; image_base64?: string; size_bytes?: number; size_kb?: number; timestamp?: string; hostname?: string; error?: string }> {
+  return _nexusEmit<{ ok?: boolean; image_base64?: string; size_bytes?: number; size_kb?: number; timestamp?: string; hostname?: string; error?: string }>(
+    'nexus:screenshot_base64',
+    {},
+    timeoutMs,
+  ).then(r => ({
+    ok:           r.ok           ?? false,
+    image_base64: r.image_base64,
+    size_bytes:   r.size_bytes,
+    size_kb:      r.size_kb,
+    timestamp:    r.timestamp,
+    hostname:     r.hostname,
+    error:        r.error,
+  }));
 }
 
 // ── nexusSysinfo ──────────────────────────────────────────────────────────────

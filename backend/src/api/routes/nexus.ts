@@ -2,9 +2,10 @@ import { Router } from 'express';
 import {
   isNexusOnline, pingNexus, getNexusMac, getNexusIp, getNexusStatus,
   isLauncherOnline, wakeNexus, getLauncherStatus,
-  nexusRunCommand, nexusSysinfo, nexusScreenshot,
+  nexusRunCommand, nexusSysinfo, nexusScreenshot, nexusScreenshotBase64,
   listNexusJobs, getNexusJob,
 } from '../../actions/handlers/nexus-relay.js';
+import { runNexusAgent }   from '../../agents/nexus-agent-runner.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
 import { testNlParser, detectIntent, splitCommands } from '../../actions/handlers/nexus-nl-router.js';
@@ -277,6 +278,143 @@ router.post('/nl-test', requireMobileAuth, (req, res) => {
   const results = testNlParser(defaultCases);
   const passed  = results.filter(r => r.passed).length;
   res.json({ ok: true, total: results.length, passed, failed: results.length - passed, results });
+});
+
+// ── GET /api/nexus/live-status — état complet + busy task en temps réel ───────
+router.get('/live-status', requireMobileAuth, (_req, res) => {
+  const s = getNexusStatus();
+  res.json({
+    ok:           true,
+    nexus_online: s.online,
+    nexus_busy:   s.busy,
+    busy_task:    s.busyTask,
+    busy_ms:      s.busyMs,
+    hostname:     s.telemetry.lastHostname,
+    os:           s.telemetry.lastOs,
+    os_release:   s.telemetry.lastOsRelease,
+    ram_used_mb:  s.telemetry.lastRamUsedMb,
+    ram_total_mb: s.telemetry.lastRamTotalMb,
+    cpu_percent:  s.telemetry.lastCpuPercent,
+    uptime_s:     s.telemetry.lastUptimeS,
+    heartbeat_at: s.telemetry.lastHeartbeatAt,
+    latency_ms:   s.telemetry.lastHeartbeatLatency,
+    mac:          s.mac || null,
+    public_ip:    s.publicIp || null,
+    socket_id:    s.socketId,
+    launcher_online: isLauncherOnline(),
+    connections:  s.telemetry.totalConnections,
+  });
+});
+
+// ── POST /api/nexus/screenshot-b64 — screenshot retourné en base64 HTTP ───────
+// Contrairement à /screenshot (Telegram uniquement), retourne l'image directement.
+router.post('/screenshot-b64', requireMobileAuth, async (_req, res) => {
+  if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus offline' }); return; }
+  try {
+    const r = await nexusScreenshotBase64(35_000);
+    if (!r.ok) {
+      res.status(502).json({ ok: false, error: r.error ?? 'Screenshot failed' });
+      return;
+    }
+    res.json({
+      ok:           true,
+      size_bytes:   r.size_bytes,
+      size_kb:      r.size_kb,
+      timestamp:    r.timestamp,
+      hostname:     r.hostname,
+      image_base64: r.image_base64,  // PNG encodé base64
+    });
+  } catch (err) {
+    res.status(504).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── POST /api/nexus/agent — Dzaryx AI layer: natural language → Nexus actions ─
+// P9: couche intelligence Dzaryx au-dessus de Nexus.
+// Corps: { message: "Nexus, montre mon bureau" }
+// Retourne: proof complet (tools_called, screenshots, windows, verdict)
+router.post('/agent', requireMobileAuth, async (req, res) => {
+  const { message, timeout_ms } = req.body as { message?: string; timeout_ms?: number };
+  if (!message?.trim()) {
+    res.status(400).json({ ok: false, error: 'message requis — ex: "Nexus, montre mon bureau"' });
+    return;
+  }
+  const requestId = `na_${Date.now()}`;
+  const timeoutMs = Math.min(timeout_ms ?? 90_000, 120_000);
+
+  console.log(`[nexus-agent-route:${requestId}] "${message.slice(0, 80)}"`);
+
+  try {
+    const result = await runNexusAgent(message, requestId, timeoutMs);
+
+    res.json({
+      ok:           true,
+      test:         'nexus_agent_p9',
+      requestId,
+      proof: {
+        // Identity
+        agent_id:       result.agent_id,
+        provider:       result.provider,
+        model:          result.model,
+        tools_allowed:  result.tools_allowed,
+
+        // Connection
+        nexus_online:    result.nexus_online,
+        nexus_hostname:  result.nexus_hostname,
+        nexus_os:        result.nexus_os,
+        nexus_latency_ms: result.nexus_latency_ms,
+
+        // User command
+        user_message: result.user_message,
+
+        // Tool execution proof
+        tools_called: result.tools_called.map(t => ({
+          tool_name:      t.tool_name,
+          tool_input:     t.tool_input,
+          duration_ms:    t.duration_ms,
+          retried:        t.retried,
+          blocked:        t.blocked,
+          success:        t.success,
+          result_preview: t.tool_result.slice(0, 400),
+          result_chars:   t.tool_result.length,
+        })),
+        tool_count:    result.tool_count,
+
+        // Screenshots (base64)
+        screenshots: result.screenshots.map(s => ({
+          captured_at:  s.captured_at,
+          size_bytes:   s.size_bytes,
+          size_kb:      s.size_kb,
+          hostname:     s.hostname,
+          image_base64: s.image_base64,  // full PNG
+        })),
+        screenshot_count: result.screenshots.length,
+
+        // Other outputs
+        screen_analysis: result.screen_analysis,
+        windows_found:   result.windows_found,
+        processes_found: result.processes_found,
+
+        // Final Claude answer
+        analysis:      result.analysis,
+        analysis_chars: result.analysis.length,
+
+        // Cost
+        input_tokens:  result.input_tokens,
+        output_tokens: result.output_tokens,
+        total_ms:      result.total_ms,
+
+        // Verdict
+        verdict:        result.verdict,
+        verdict_reason: result.verdict_reason,
+        error:          result.error ?? null,
+      },
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[nexus-agent-route:${requestId}] ❌ ${errMsg}`);
+    res.status(500).json({ ok: false, error: errMsg });
+  }
 });
 
 export default router;
