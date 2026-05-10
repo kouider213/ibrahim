@@ -3,7 +3,7 @@ import {
   isNexusOnline, pingNexus, getNexusMac, getNexusIp, getNexusStatus,
   isLauncherOnline, wakeNexus, getLauncherStatus,
   nexusRunCommand, nexusSysinfo, nexusScreenshot, nexusScreenshotBase64,
-  listNexusJobs, getNexusJob,
+  nexusWriteFile, listNexusJobs, getNexusJob,
 } from '../../actions/handlers/nexus-relay.js';
 import { runNexusAgent }   from '../../agents/nexus-agent-runner.js';
 import { requireMobileAuth } from '../middleware/auth.js';
@@ -132,18 +132,21 @@ router.get('/jobs/:jobId', requireMobileAuth, (req, res) => {
 });
 
 // POST /api/nexus/restart — restart Nexus process remotely (safe rolling restart)
+// Strategy: write a Python launcher script (no PowerShell — avoids EPERM), launch with
+// NEXUS_HTTP_PORT=7779 / NEXUS_WS_PORT=7780 (avoids port conflict with running instance),
+// wait for new socket_id, THEN kill old PID.
 router.post('/restart', requireMobileAuth, async (_req, res) => {
   if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus offline — cannot restart' }); return; }
 
   const NEXUS_DIR  = String.raw`C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus`;
-  const NEXUS_EXE  = String.raw`C:\Users\douba\AppData\Local\Python\bin\python3.exe`;
+  const PYTHON_EXE = String.raw`C:\Users\douba\AppData\Local\Python\pythoncore-3.14-64\python.exe`;
   const beforeId   = getNexusStatus().socketId;
 
   res.json({
-    ok:        true,
-    message:   'Restart initiated — new Nexus process launching. Poll GET /api/nexus/telemetry to confirm new socket_id.',
+    ok:               true,
+    message:          'Restart initiated — new Nexus process launching with alt GUI ports (7779/7780).',
     before_socket_id: beforeId,
-    poll:      'GET /api/nexus/telemetry every 5s — done when socket_id changes and python_exe is non-null',
+    poll:             'GET /api/nexus/live-status every 5s — done when socket_id changes',
   });
 
   // Step 1 — get old PID
@@ -154,38 +157,63 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
       NEXUS_DIR, 10_000,
     );
     const m = pidRes.stdout.match(/ProcessId=(\d+)/i);
-    if (m) oldPid = m[1];
-  } catch { /* non-critical */ }
+    if (m) { oldPid = m[1]; console.log(`[NEXUS restart] old PID=${oldPid}`); }
+    else { console.warn(`[NEXUS restart] PID not found via wmic — stdout="${pidRes.stdout?.slice(0, 200)}"`); }
+  } catch (e) { console.warn('[NEXUS restart] PID lookup failed:', e); }
 
-  // Step 2 — launch new Nexus as detached process (new window, independent lifecycle)
-  const launchCmd = [
-    `powershell -Command "Start-Process -FilePath '${NEXUS_EXE}'`,
-    `-ArgumentList 'nexus.py'`,
-    `-WorkingDirectory '${NEXUS_DIR}'`,
-    `-WindowStyle Hidden`,
-    `-RedirectStandardOutput '${NEXUS_DIR}\\nexus_restart.log'`,
-    `-RedirectStandardError '${NEXUS_DIR}\\nexus_restart_err.log'"`,
-  ].join(' ');
+  // Step 2 — write a Python launcher (avoids PowerShell EPERM on this machine)
+  const launcherScript = [
+    'import subprocess, os',
+    `env = dict(os.environ, NEXUS_HTTP_PORT='7779', NEXUS_WS_PORT='7780')`,
+    `p = subprocess.Popen(`,
+    `    [r'${PYTHON_EXE}', 'nexus.py'],`,
+    `    cwd=r'${NEXUS_DIR}',`,
+    `    env=env,`,
+    `    creationflags=8,`,
+    `    stdout=open(r'${NEXUS_DIR}\\\\nexus_restart.log', 'w'),`,
+    `    stderr=open(r'${NEXUS_DIR}\\\\nexus_restart_err.log', 'w'),`,
+    `)`,
+    `print('NEWPID:' + str(p.pid))`,
+  ].join('\n');
+
+  const launcherPath = `${NEXUS_DIR}\\nexus_launcher_tmp.py`;
   try {
-    await nexusRunCommand(launchCmd, NEXUS_DIR, 15_000);
-    console.log(`[NEXUS] New process launched. Old PID=${oldPid}`);
-  } catch (e) {
-    console.error('[NEXUS] Failed to launch new process:', e);
-    return;
-  }
+    const wf = await nexusWriteFile(launcherPath, launcherScript, 10_000);
+    if (!wf.ok) { console.error('[NEXUS restart] write_file failed:', wf.error); return; }
+    console.log(`[NEXUS restart] launcher script written — ${wf.size} bytes`);
+  } catch (e) { console.error('[NEXUS restart] write_file error:', e); return; }
 
-  // Step 3 — wait 20s for new Nexus to connect and become active _nexusSocket
-  await new Promise(r => setTimeout(r, 20_000));
+  // Step 3 — execute the launcher (Python, not PowerShell)
+  let newPid: string | null = null;
+  try {
+    const launchRes = await nexusRunCommand(
+      `"${PYTHON_EXE}" nexus_launcher_tmp.py`,
+      NEXUS_DIR, 20_000,
+    );
+    console.log(`[NEXUS restart] launcher exit=${launchRes.exit_code} stdout="${launchRes.stdout?.trim()}" stderr="${launchRes.stderr?.slice(0, 300)}"`);
+    const m2 = launchRes.stdout?.match(/NEWPID:(\d+)/);
+    if (m2) newPid = m2[1];
+  } catch (e) { console.error('[NEXUS restart] launcher exec failed:', e); return; }
 
-  // Step 4 — kill old PID via new connection (if different socket now)
+  console.log(`[NEXUS restart] new PID=${newPid} — waiting 35s for connection...`);
+
+  // Step 4 — wait up to 35s for new Nexus to connect (Socket.IO reconnect takes ~10-20s)
+  await new Promise(r => setTimeout(r, 35_000));
+
   const afterId = getNexusStatus().socketId;
-  if (oldPid && afterId !== beforeId) {
-    try {
-      await nexusRunCommand(`taskkill /PID ${oldPid} /F`, undefined, 8_000);
-      console.log(`[NEXUS] Old PID ${oldPid} killed. New socket: ${afterId}`);
-    } catch { /* old process may have exited already */ }
-  } else if (afterId === beforeId) {
-    console.warn('[NEXUS] Socket ID unchanged after 20s — new process may not have connected yet');
+  console.log(`[NEXUS restart] before=${beforeId} after=${afterId}`);
+
+  // Step 5 — kill old PID only if new socket connected
+  if (afterId && afterId !== beforeId) {
+    if (oldPid) {
+      try {
+        const kill = await nexusRunCommand(`taskkill /PID ${oldPid} /F`, undefined, 8_000);
+        console.log(`[NEXUS restart] taskkill PID ${oldPid} exit=${kill.exit_code}`);
+      } catch { /* old process may have self-exited */ }
+    }
+    console.log(`[NEXUS restart] ✅ SUCCESS — new socket_id=${afterId}`);
+  } else {
+    console.warn(`[NEXUS restart] ⚠️  socket_id unchanged after 35s — new process may have failed to connect`);
   }
 });
 
