@@ -40,6 +40,7 @@ import biRoutes            from './api/routes/bi.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
+import { initReminderWorker } from './workers/reminder-worker.js';
 import { initOrchestrator } from './conversation/orchestrator.js';
 import { initScheduler }   from './queue/scheduler.js';
 import { initApprover }     from './validations/approver.js';
@@ -277,5 +278,6 @@ const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
   initScheduler();
+  initReminderWorker();
   void registerTelegramWebhook();
 });

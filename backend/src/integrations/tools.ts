@@ -697,13 +697,19 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   // ─── RAPPELS PERSONNALISÉS ────────────────────────────────────
   {
     name: 'schedule_reminder',
-    description: 'Programmer un rappel Pushover à Kouider. Exemples: "rappelle-moi dans 30min de appeler Houari", "rappel à 14h30 rendez-vous médecin".',
+    description: `Programmer un rappel réel avec persistance DB + BullMQ.
+RÈGLE ABSOLUE: tu ne peux JAMAIS dire "rappel programmé / c'est noté / je te rappellerai" sans avoir appelé cet outil ET reçu status=created avec db_id ET job_id dans la réponse.
+Si la réponse contient status=db_failed ou une erreur → tu dois dire explicitement: "ÉCHEC: rappel non programmé."
+Si status=duplicate_blocked → tu dois dire: "Rappel déjà programmé (doublon bloqué)."
+Timezone par défaut: Europe/Brussels. Algiers si Oran/voyage.
+Retourne: { status, db_id, job_id, remind_at_iso, human_delay } — cite ces champs dans ta confirmation.`,
     input_schema: {
       type: 'object' as const,
       properties: {
-        message:       { type: 'string',  description: 'Texte du rappel' },
-        delay_minutes: { type: 'number',  description: 'Délai en minutes (ex: 30 pour "dans 30 minutes")' },
-        at_time:       { type: 'string',  description: 'Heure exacte HH:MM heure Bruxelles (ex: "14:30") — alternatif à delay_minutes' },
+        message:       { type: 'string', description: 'Texte du rappel' },
+        delay_minutes: { type: 'number', description: 'Délai en minutes (ex: 30 pour "dans 30 minutes")' },
+        at_time:       { type: 'string', description: 'Heure exacte HH:MM (ex: "18:00") — timezone par défaut Europe/Brussels' },
+        timezone:      { type: 'string', description: 'Timezone IANA optionnelle (défaut: Europe/Brussels, ex: Africa/Algiers si Oran)' },
       },
       required: ['message'],
     },

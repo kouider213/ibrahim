@@ -5,6 +5,8 @@ import { buildMemoryContext } from '../../conversation/memory-selector.js';
 import { runProactiveEngine } from '../../conversation/proactive-engine.js';
 import { sendMessage as sendTelegram } from '../../integrations/telegram.js';
 import { env } from '../../config/env.js';
+import { insertReminder, listReminders, getPendingDue, getRetryEligible } from '../../db/reminders.js';
+import { triggerScanNow } from '../../workers/reminder-worker.js';
 
 const router = Router();
 
@@ -121,6 +123,112 @@ router.get('/proactive-test', requireMobileAuth, async (req, res) => {
       triggers:  results,
       summary:   { sent, skipped, errors },
       tested_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── P15 — Reminder Reliability endpoints ─────────────────────────────────
+
+// GET /api/scheduler/reminders — list recent DB reminders with status audit
+router.get('/reminders', requireMobileAuth, async (req, res) => {
+  try {
+    const limit    = parseInt(req.query['limit'] as string ?? '30', 10);
+    const reminders = await listReminders(Math.min(limit, 100));
+    const pending  = reminders.filter(r => r.status === 'PENDING').length;
+    const sent     = reminders.filter(r => r.status === 'SENT').length;
+    const failed   = reminders.filter(r => r.status === 'FAILED').length;
+    res.json({
+      count: reminders.length,
+      summary: { pending, sent, failed },
+      reminders,
+      generated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/scheduler/reminder-test — create a real reminder in N minutes, return full proof
+// body: { message, delay_minutes } — default delay: 2min
+router.post('/reminder-test', requireMobileAuth, async (req, res) => {
+  try {
+    const { message = 'Test P15 — reminder-worker sanity check', delay_minutes = 2 } = req.body as {
+      message?: string;
+      delay_minutes?: number;
+    };
+
+    const delayMs  = Number(delay_minutes) * 60 * 1000;
+    const remindAt = new Date(Date.now() + delayMs);
+    const dedup    = `test_${Date.now()}`;
+
+    // 1. DB insert
+    const dbRow = await insertReminder({
+      message,
+      remind_at: remindAt,
+      timezone:  'Europe/Brussels',
+      created_by: 'reminder-test-api',
+      dedup_key:  dedup,
+      telegram_target: env.TELEGRAM_CHAT_ID ?? undefined,
+    });
+
+    if (!dbRow) {
+      res.status(500).json({ ok: false, error: 'DB insert failed — table may not exist. Run reminders_migration.sql in Supabase.' });
+      return;
+    }
+
+    // 2. BullMQ job
+    const job = await schedulerQueue.add(
+      'custom-reminder',
+      { message, request_id: dedup, source_channel: 'reminder-test-api', idempotency_key: dedup },
+      { delay: delayMs, removeOnComplete: { count: 5 }, removeOnFail: { count: 3 } },
+    );
+
+    res.json({
+      ok:             true,
+      proof: {
+        db_id:         dbRow.id,
+        job_id:        job.id ?? 'unknown',
+        remind_at_iso: remindAt.toISOString(),
+        remind_at_local: remindAt.toLocaleString('fr-FR', { timeZone: 'Europe/Brussels' }),
+        delay_minutes,
+        message,
+        status:        dbRow.status,
+        dedup_key:     dedup,
+        telegram_target: dbRow.telegram_target,
+      },
+      instruction: `Attends ${delay_minutes} min(s) puis vérifie Telegram ET GET /api/scheduler/reminders?limit=5`,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/scheduler/reminder-scan — force a scan cycle NOW (admin/debug)
+router.post('/reminder-scan', requireMobileAuth, async (_req, res) => {
+  try {
+    const { processed, rows } = await triggerScanNow();
+    res.json({
+      ok: true,
+      processed,
+      scanned_at: new Date().toISOString(),
+      rows: rows.map(r => ({ id: r.id, status: r.status, message: r.message.slice(0, 60), remind_at: r.remind_at })),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/scheduler/reminder-audit — snapshot: pending + due + retries
+router.get('/reminder-audit', requireMobileAuth, async (_req, res) => {
+  try {
+    const [pending, retries] = await Promise.all([getPendingDue(86400), getRetryEligible()]);
+    res.json({
+      ok: true,
+      pending_due_24h: pending.map(r => ({ id: r.id, message: r.message.slice(0, 60), remind_at: r.remind_at, retry_count: r.retry_count })),
+      retry_eligible:  retries.map(r => ({ id: r.id, message: r.message.slice(0, 60), remind_at: r.remind_at, retry_count: r.retry_count, failed_reason: r.failed_reason })),
+      generated_at: new Date().toISOString(),
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });

@@ -1,4 +1,5 @@
 ﻿import { supabase } from './supabase.js';
+import { insertReminder, findByDedupKey } from '../db/reminders.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
@@ -822,15 +823,18 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
 
 // Type interne pour le résultat structuré du rappel
 interface ReminderResult {
-  status:           'created' | 'duplicate_blocked';
+  status:           'created' | 'duplicate_blocked' | 'db_failed';
   idempotency_key:  string;
   source_channel:   string;
   request_id:       string;
   job_id?:          string;
+  db_id?:           string;
+  remind_at_iso?:   string;
   delay_ms?:        number;
   human_delay?:     string;
   message:          string;
   existing_job_id?: string;
+  existing_db_id?:  string;
 }
 
 async function scheduleReminder(
@@ -840,10 +844,11 @@ async function scheduleReminder(
   const message      = input['message']       as string | undefined;
   const delayMinutes = input['delay_minutes'] as number | undefined;
   const atTime       = input['at_time']       as string | undefined;
+  const tzInput      = input['timezone']      as string | undefined;
 
   if (!message) return JSON.stringify({ error: '❌ message requis' });
 
-  // ── 1. Déterminer source_channel depuis le sessionId ───────────────────
+  // ── 1. Timezone + source_channel ─────────────────────────────────────
   const source_channel: string = sessionId?.startsWith('telegram_')
     ? 'telegram'
     : sessionId?.startsWith('voice_')
@@ -852,33 +857,38 @@ async function scheduleReminder(
     ? 'mobile_text'
     : 'backend_internal';
 
-  // ── 2. Générer un request_id unique pour ce call précis ───────────────
+  // Brussels default; Algiers for Telegram sessions (user in Oran); override if explicit
+  const timezone = tzInput
+    ?? (source_channel === 'telegram' ? 'Africa/Algiers' : 'Europe/Brussels');
+
+  // ── 2. request_id unique ──────────────────────────────────────────────
   const request_id = `rem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  // ── 3. Calculer le délai en ms ─────────────────────────────────────────
-  let delayMs = 0;
+  // ── 3. Calculer le délai + remind_at absolu ───────────────────────────
+  let delayMs  = 0;
+  let remindAt = new Date();
 
   if (delayMinutes !== undefined && Number(delayMinutes) > 0) {
-    delayMs = Number(delayMinutes) * 60 * 1000;
+    delayMs  = Number(delayMinutes) * 60 * 1000;
+    remindAt = new Date(Date.now() + delayMs);
   } else if (atTime) {
     const match = /^(\d{1,2}):(\d{2})$/.exec(atTime);
     if (!match) return JSON.stringify({ error: '❌ at_time invalide — format HH:MM (ex: "14:30")' });
     const [, h, m] = match;
-    // Heure locale Algérie (UTC+1)
-    const now    = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Algiers' }));
-    const target = new Date(now);
+    // Build target datetime in the user's timezone
+    const now    = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+    const target = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
     target.setHours(Number(h), Number(m), 0, 0);
-    if (target <= now) target.setDate(target.getDate() + 1); // Demain si l'heure est passée
-    delayMs = target.getTime() - now.getTime();
+    if (target <= now) target.setDate(target.getDate() + 1);
+    delayMs  = target.getTime() - now.getTime();
+    remindAt = new Date(Date.now() + delayMs);
   } else {
     return JSON.stringify({ error: '❌ Spécifie delay_minutes (ex: 30) ou at_time (ex: "14:30")' });
   }
 
-  // ── 4. Idempotency key — SHA256( userId + message + fenêtre 5min cible ) ─
-  //   On arrondit la cible au bloc de 5 minutes afin d'absorber les légers
-  //   décalages d'horloge entre deux appels identiques.
+  // ── 4. Idempotency key ────────────────────────────────────────────────
   const userId      = sessionId ?? 'global';
-  const targetBlock = Math.floor((Date.now() + delayMs) / (5 * 60 * 1000)); // bloc 5min
+  const targetBlock = Math.floor(remindAt.getTime() / (5 * 60 * 1000));
   const idemRaw     = `${userId}:${message.trim().toLowerCase()}:${targetBlock}`;
   const idempotency_key = crypto
     .createHash('sha256')
@@ -887,9 +897,9 @@ async function scheduleReminder(
     .slice(0, 32);
 
   const redisKey     = `reminder:idem:${idempotency_key}`;
-  const IDEM_TTL_SEC = 300; // 5 minutes de fenêtre anti-doublon
+  const IDEM_TTL_SEC = 300;
 
-  // ── 5. Vérifier doublon Redis ──────────────────────────────────────────
+  // ── 5. Dedup — check Redis then DB ───────────────────────────────────
   const existingJobId = await redis.get(redisKey);
   if (existingJobId) {
     const result: ReminderResult = {
@@ -900,34 +910,72 @@ async function scheduleReminder(
       message,
       existing_job_id: existingJobId,
     };
-    console.log(
-      `[schedule_reminder] source_channel=${source_channel} request_id=${request_id} ` +
-      `idempotency_key=${idempotency_key} status=duplicate_blocked ` +
-      `existing_job_id=${existingJobId}`,
-    );
+    console.log(`[schedule_reminder] DUPLICATE_BLOCKED req=${request_id} idem=${idempotency_key}`);
     return JSON.stringify(result);
   }
 
-  // ── 6. Créer le job BullMQ ─────────────────────────────────────────────
-  const job = await schedulerQueue.add(
-    'custom-reminder',
-    {
-      message,
-      request_id,
-      source_channel,
+  const dbExisting = await findByDedupKey(idempotency_key);
+  if (dbExisting) {
+    const result: ReminderResult = {
+      status:          'duplicate_blocked',
       idempotency_key,
-    },
-    {
-      delay:             delayMs,
-      removeOnComplete:  { count: 10 },
-      removeOnFail:      { count: 3 },
-    },
-  );
+      source_channel,
+      request_id,
+      message,
+      existing_job_id: dbExisting.job_id ?? 'db_only',
+      existing_db_id:  dbExisting.id,
+    };
+    console.log(`[schedule_reminder] DUPLICATE_BLOCKED (DB) req=${request_id} db_id=${dbExisting.id}`);
+    return JSON.stringify(result);
+  }
 
-  // ── 7. Marquer dans Redis avec TTL 5 min ──────────────────────────────
-  await redis.set(redisKey, job.id ?? request_id, 'EX', IDEM_TTL_SEC);
+  // ── 6. Persister en DB AVANT BullMQ — source de vérité ───────────────
+  const dbRow = await insertReminder({
+    message,
+    remind_at:       remindAt,
+    timezone,
+    created_by:      source_channel,
+    session_id:      sessionId,
+    telegram_target: env.TELEGRAM_CHAT_ID ?? undefined,
+    dedup_key:       idempotency_key,
+  });
 
-  // ── 8. Affichage humain du délai ───────────────────────────────────────
+  if (!dbRow) {
+    // DB insert failed — refuse to confirm reminder
+    console.error(`[schedule_reminder] DB INSERT FAILED req=${request_id} — NOT_SCHEDULED`);
+    return JSON.stringify({
+      status:      'db_failed',
+      message:     '❌ FAILED: Impossible de persister le rappel en base de données. NOT_SCHEDULED.',
+      request_id,
+      idempotency_key,
+      source_channel,
+    } satisfies ReminderResult);
+  }
+
+  // ── 7. BullMQ job (best-effort, DB is the source of truth) ───────────
+  let jobId = request_id; // fallback if BullMQ fails
+  try {
+    const job = await schedulerQueue.add(
+      'custom-reminder',
+      { message, request_id, source_channel, idempotency_key },
+      {
+        delay:            delayMs,
+        removeOnComplete: { count: 10 },
+        removeOnFail:     { count: 3 },
+      },
+    );
+    jobId = job.id ?? request_id;
+    // Backfill job_id into DB row
+    await supabase.from('reminders').update({ job_id: jobId }).eq('id', dbRow.id);
+  } catch (err) {
+    console.warn(`[schedule_reminder] BullMQ add failed (DB still persisted): ${err instanceof Error ? err.message : err}`);
+    // Worker will still scan DB and send — reminder is NOT lost
+  }
+
+  // ── 8. Redis dedup mark ───────────────────────────────────────────────
+  await redis.set(redisKey, jobId, 'EX', IDEM_TTL_SEC);
+
+  // ── 9. Human-readable delay ───────────────────────────────────────────
   const mins = Math.round(delayMs / 60_000);
   const human_delay = mins >= 60
     ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : ''}`
@@ -938,17 +986,18 @@ async function scheduleReminder(
     idempotency_key,
     source_channel,
     request_id,
-    job_id:          job.id ?? request_id,
+    job_id:          jobId,
+    db_id:           dbRow.id,
+    remind_at_iso:   remindAt.toISOString(),
     delay_ms:        delayMs,
     human_delay,
     message,
   };
 
-  // ── 9. Log structuré (visible dans Railway) ───────────────────────────
   console.log(
-    `[schedule_reminder] source_channel=${source_channel} request_id=${request_id} ` +
-    `idempotency_key=${idempotency_key} status=created ` +
-    `job_id=${job.id} delay_ms=${delayMs} human_delay=${human_delay}`,
+    `[schedule_reminder] CREATED req=${request_id} db_id=${dbRow.id} ` +
+    `job_id=${jobId} remind_at=${remindAt.toISOString()} tz=${timezone} ` +
+    `delay=${human_delay}`,
   );
 
   return JSON.stringify(result);
