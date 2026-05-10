@@ -6,6 +6,11 @@ const BACKEND_URL  = (_env['VITE_BACKEND_URL']  as string | undefined) ?? 'http:
 const WS_URL       = (_env['VITE_WS_URL']        as string | undefined) ?? 'ws://localhost:3000';
 const ACCESS_TOKEN = (_env['VITE_ACCESS_TOKEN']  as string | undefined) ?? '';
 
+// ── Device timezone detection ──────────────────────────────────
+function getDeviceTimezone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'Europe/Brussels'; }
+}
+
 // ── REST helpers ──────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -14,6 +19,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     headers: {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${ACCESS_TOKEN}`,
+      'X-Timezone':    getDeviceTimezone(),
       ...options.headers,
     },
   });

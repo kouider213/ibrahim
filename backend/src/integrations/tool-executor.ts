@@ -1,5 +1,12 @@
 ﻿import { supabase } from './supabase.js';
 import { insertReminder, findByDedupKey } from '../db/reminders.js';
+import {
+  resolveTimezone,
+  parseLocalHHMM,
+  getUTCOffsetString,
+  toLocalISO,
+  isValidTimezone,
+} from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
@@ -823,18 +830,24 @@ async function fetchUrl(input: Record<string, unknown>): Promise<string> {
 
 // Type interne pour le résultat structuré du rappel
 interface ReminderResult {
-  status:           'created' | 'duplicate_blocked' | 'db_failed';
-  idempotency_key:  string;
-  source_channel:   string;
-  request_id:       string;
-  job_id?:          string;
-  db_id?:           string;
-  remind_at_iso?:   string;
-  delay_ms?:        number;
-  human_delay?:     string;
-  message:          string;
-  existing_job_id?: string;
-  existing_db_id?:  string;
+  status:            'created' | 'duplicate_blocked' | 'db_failed' | 'TIMEZONE_UNKNOWN';
+  idempotency_key?:  string;
+  source_channel:    string;
+  request_id:        string;
+  job_id?:           string;
+  db_id?:            string;
+  // Timezone proof — MUST be cited in Claude's confirmation
+  remind_at_utc?:    string;
+  local_time?:       string;
+  timezone_used?:    string;
+  timezone_source?:  string;
+  utc_offset?:       string;
+  delay_ms?:         number;
+  human_delay?:      string;
+  message:           string;
+  existing_job_id?:  string;
+  existing_db_id?:   string;
+  error?:            string;
 }
 
 async function scheduleReminder(
@@ -846,9 +859,8 @@ async function scheduleReminder(
   const atTime       = input['at_time']       as string | undefined;
   const tzInput      = input['timezone']      as string | undefined;
 
-  if (!message) return JSON.stringify({ error: '❌ message requis' });
+  if (!message) return JSON.stringify({ error: '❌ message requis', source_channel: 'unknown', request_id: 'none', message: '' });
 
-  // ── 1. Timezone + source_channel ─────────────────────────────────────
   const source_channel: string = sessionId?.startsWith('telegram_')
     ? 'telegram'
     : sessionId?.startsWith('voice_')
@@ -857,14 +869,37 @@ async function scheduleReminder(
     ? 'mobile_text'
     : 'backend_internal';
 
-  // Brussels default; Algiers for Telegram sessions (user in Oran); override if explicit
-  const timezone = tzInput
-    ?? (source_channel === 'telegram' ? 'Africa/Algiers' : 'Europe/Brussels');
-
-  // ── 2. request_id unique ──────────────────────────────────────────────
   const request_id = `rem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  // ── 3. Calculer le délai + remind_at absolu ───────────────────────────
+  // ── 1. Timezone — priority chain ────────────────────────────────────
+  // Priority: explicit → Redis session → Redis global → Europe/Brussels
+  // NEVER hardcode Africa/Algiers
+  const sessionTzKey = sessionId ? `user:tz:${sessionId}` : null;
+  const [sessionTzRaw, globalTzRaw] = await Promise.all([
+    sessionTzKey ? redis.get(sessionTzKey) : Promise.resolve(null),
+    redis.get('user:tz'),
+  ]);
+  const sessionTz = (sessionTzRaw && isValidTimezone(sessionTzRaw)) ? sessionTzRaw : null;
+  const globalTz  = (globalTzRaw  && isValidTimezone(globalTzRaw))  ? globalTzRaw  : null;
+
+  const resolved = resolveTimezone(tzInput ?? null, sessionTz ?? globalTz ?? null);
+
+  // Anti-hallucination: if explicit timezone given but invalid → reject
+  if (tzInput && !resolved.valid) {
+    const result: ReminderResult = {
+      status:          'TIMEZONE_UNKNOWN',
+      source_channel,
+      request_id,
+      message,
+      error:           `❌ TIMEZONE_UNKNOWN: "${tzInput}" n'est pas un timezone IANA valide. Rappel NON programmé.`,
+    };
+    console.error(`[schedule_reminder] TIMEZONE_UNKNOWN tz="${tzInput}" req=${request_id}`);
+    return JSON.stringify(result);
+  }
+
+  const timezone = resolved.timezone;
+
+  // ── 2. Calculer remind_at (UTC) ──────────────────────────────────────
   let delayMs  = 0;
   let remindAt = new Date();
 
@@ -872,21 +907,21 @@ async function scheduleReminder(
     delayMs  = Number(delayMinutes) * 60 * 1000;
     remindAt = new Date(Date.now() + delayMs);
   } else if (atTime) {
-    const match = /^(\d{1,2}):(\d{2})$/.exec(atTime);
-    if (!match) return JSON.stringify({ error: '❌ at_time invalide — format HH:MM (ex: "14:30")' });
-    const [, h, m] = match;
-    // Build target datetime in the user's timezone
-    const now    = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-    const target = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-    target.setHours(Number(h), Number(m), 0, 0);
-    if (target <= now) target.setDate(target.getDate() + 1);
-    delayMs  = target.getTime() - now.getTime();
-    remindAt = new Date(Date.now() + delayMs);
+    const parsed = parseLocalHHMM(atTime, timezone);
+    if (!parsed) {
+      return JSON.stringify({ error: '❌ at_time invalide — format HH:MM (ex: "14:30")', source_channel, request_id, message });
+    }
+    remindAt = parsed;
+    delayMs  = remindAt.getTime() - Date.now();
   } else {
-    return JSON.stringify({ error: '❌ Spécifie delay_minutes (ex: 30) ou at_time (ex: "14:30")' });
+    return JSON.stringify({ error: '❌ Spécifie delay_minutes ou at_time', source_channel, request_id, message });
   }
 
-  // ── 4. Idempotency key ────────────────────────────────────────────────
+  // ── 3. Timezone enrichment ───────────────────────────────────────────
+  const utcOffset    = getUTCOffsetString(timezone, remindAt);
+  const localTimeISO = toLocalISO(remindAt, timezone);
+
+  // ── 4. Idempotency key ───────────────────────────────────────────────
   const userId      = sessionId ?? 'global';
   const targetBlock = Math.floor(remindAt.getTime() / (5 * 60 * 1000));
   const idemRaw     = `${userId}:${message.trim().toLowerCase()}:${targetBlock}`;
@@ -899,24 +934,21 @@ async function scheduleReminder(
   const redisKey     = `reminder:idem:${idempotency_key}`;
   const IDEM_TTL_SEC = 300;
 
-  // ── 5. Dedup — check Redis then DB ───────────────────────────────────
+  // ── 5. Dedup — Redis then DB ─────────────────────────────────────────
   const existingJobId = await redis.get(redisKey);
   if (existingJobId) {
-    const result: ReminderResult = {
+    return JSON.stringify({
       status:          'duplicate_blocked',
       idempotency_key,
       source_channel,
       request_id,
       message,
       existing_job_id: existingJobId,
-    };
-    console.log(`[schedule_reminder] DUPLICATE_BLOCKED req=${request_id} idem=${idempotency_key}`);
-    return JSON.stringify(result);
+    } satisfies ReminderResult);
   }
-
   const dbExisting = await findByDedupKey(idempotency_key);
   if (dbExisting) {
-    const result: ReminderResult = {
+    return JSON.stringify({
       status:          'duplicate_blocked',
       idempotency_key,
       source_channel,
@@ -924,80 +956,78 @@ async function scheduleReminder(
       message,
       existing_job_id: dbExisting.job_id ?? 'db_only',
       existing_db_id:  dbExisting.id,
-    };
-    console.log(`[schedule_reminder] DUPLICATE_BLOCKED (DB) req=${request_id} db_id=${dbExisting.id}`);
-    return JSON.stringify(result);
-  }
-
-  // ── 6. Persister en DB AVANT BullMQ — source de vérité ───────────────
-  const dbRow = await insertReminder({
-    message,
-    remind_at:       remindAt,
-    timezone,
-    created_by:      source_channel,
-    session_id:      sessionId,
-    telegram_target: env.TELEGRAM_CHAT_ID ?? undefined,
-    dedup_key:       idempotency_key,
-  });
-
-  if (!dbRow) {
-    // DB insert failed — refuse to confirm reminder
-    console.error(`[schedule_reminder] DB INSERT FAILED req=${request_id} — NOT_SCHEDULED`);
-    return JSON.stringify({
-      status:      'db_failed',
-      message:     '❌ FAILED: Impossible de persister le rappel en base de données. NOT_SCHEDULED.',
-      request_id,
-      idempotency_key,
-      source_channel,
     } satisfies ReminderResult);
   }
 
-  // ── 7. BullMQ job (best-effort, DB is the source of truth) ───────────
-  let jobId = request_id; // fallback if BullMQ fails
+  // ── 6. Persister en DB AVANT BullMQ — source de vérité ──────────────
+  const dbRow = await insertReminder({
+    message,
+    remind_at:        remindAt,
+    timezone,
+    utc_offset:       utcOffset,
+    local_time_iso:   localTimeISO,
+    timezone_source:  resolved.source,
+    created_by:       source_channel,
+    session_id:       sessionId,
+    telegram_target:  env.TELEGRAM_CHAT_ID ?? undefined,
+    dedup_key:        idempotency_key,
+  });
+
+  if (!dbRow) {
+    console.error(`[schedule_reminder] DB INSERT FAILED req=${request_id} — NOT_SCHEDULED`);
+    return JSON.stringify({
+      status:      'db_failed',
+      source_channel,
+      request_id,
+      message,
+      error:       '❌ FAILED: DB insert échoué. Rappel NON programmé. Vérifie que la table reminders existe (migration SQL).',
+    } satisfies ReminderResult);
+  }
+
+  // ── 7. BullMQ — best-effort (DB est source de vérité) ───────────────
+  let jobId = request_id;
   try {
     const job = await schedulerQueue.add(
       'custom-reminder',
       { message, request_id, source_channel, idempotency_key },
-      {
-        delay:            delayMs,
-        removeOnComplete: { count: 10 },
-        removeOnFail:     { count: 3 },
-      },
+      { delay: delayMs, removeOnComplete: { count: 10 }, removeOnFail: { count: 3 } },
     );
     jobId = job.id ?? request_id;
-    // Backfill job_id into DB row
-    await supabase.from('reminders').update({ job_id: jobId }).eq('id', dbRow.id);
+    void supabase.from('reminders').update({ job_id: jobId }).eq('id', dbRow.id);
   } catch (err) {
-    console.warn(`[schedule_reminder] BullMQ add failed (DB still persisted): ${err instanceof Error ? err.message : err}`);
-    // Worker will still scan DB and send — reminder is NOT lost
+    console.warn(`[schedule_reminder] BullMQ failed (DB persisted, worker will send): ${err instanceof Error ? err.message : err}`);
   }
 
-  // ── 8. Redis dedup mark ───────────────────────────────────────────────
   await redis.set(redisKey, jobId, 'EX', IDEM_TTL_SEC);
 
-  // ── 9. Human-readable delay ───────────────────────────────────────────
+  // ── 8. Human delay ───────────────────────────────────────────────────
   const mins = Math.round(delayMs / 60_000);
   const human_delay = mins >= 60
     ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? String(mins % 60).padStart(2, '0') : ''}`
     : `${mins}min`;
 
   const result: ReminderResult = {
-    status:          'created',
+    status:           'created',
     idempotency_key,
     source_channel,
     request_id,
-    job_id:          jobId,
-    db_id:           dbRow.id,
-    remind_at_iso:   remindAt.toISOString(),
-    delay_ms:        delayMs,
+    job_id:           jobId,
+    db_id:            dbRow.id,
+    // Timezone proof — Claude MUST include these in confirmation
+    remind_at_utc:    remindAt.toISOString(),
+    local_time:       localTimeISO,
+    timezone_used:    timezone,
+    timezone_source:  resolved.source,
+    utc_offset:       utcOffset,
+    delay_ms:         delayMs,
     human_delay,
     message,
   };
 
   console.log(
     `[schedule_reminder] CREATED req=${request_id} db_id=${dbRow.id} ` +
-    `job_id=${jobId} remind_at=${remindAt.toISOString()} tz=${timezone} ` +
-    `delay=${human_delay}`,
+    `job_id=${jobId} tz=${timezone} source=${resolved.source} ` +
+    `local=${localTimeISO} utc=${remindAt.toISOString()} offset=${utcOffset} delay=${human_delay}`,
   );
 
   return JSON.stringify(result);

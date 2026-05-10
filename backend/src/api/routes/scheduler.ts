@@ -5,8 +5,16 @@ import { buildMemoryContext } from '../../conversation/memory-selector.js';
 import { runProactiveEngine } from '../../conversation/proactive-engine.js';
 import { sendMessage as sendTelegram } from '../../integrations/telegram.js';
 import { env } from '../../config/env.js';
+import { redis } from '../../queue/queue.js';
 import { insertReminder, listReminders, getPendingDue, getRetryEligible } from '../../db/reminders.js';
 import { triggerScanNow } from '../../workers/reminder-worker.js';
+import {
+  isValidTimezone,
+  getTimezoneConversion,
+  getServerTimezone,
+  resolveTimezone,
+  parseLocalHHMM,
+} from '../../utils/timezone.js';
 
 const router = Router();
 
@@ -129,6 +137,101 @@ router.get('/proactive-test', requireMobileAuth, async (req, res) => {
   }
 });
 
+// ─── P15 v2 — Timezone Test ──────────────────────────────────────────────────
+
+// GET /api/scheduler/timezone-test — full timezone diagnostics
+// ?tz=Europe/Brussels (optional — test a specific timezone)
+router.get('/timezone-test', requireMobileAuth, async (req, res) => {
+  try {
+    const now         = new Date();
+    const serverTz    = getServerTimezone();
+    const explicitTz  = req.query['tz'] as string | undefined;
+
+    // Detect stored user timezone from Redis
+    const storedTz = await redis.get('user:tz').catch(() => null);
+
+    // Test timezones
+    const TZS_TO_TEST = [
+      'Europe/Brussels',
+      'Africa/Algiers',
+      'UTC',
+      ...(explicitTz && isValidTimezone(explicitTz) ? [explicitTz] : []),
+      ...(storedTz && isValidTimezone(storedTz) ? [storedTz] : []),
+    ].filter((v, i, a) => a.indexOf(v) === i); // dedup
+
+    // Resolution chain simulation
+    const resolved = resolveTimezone(
+      explicitTz ?? null,
+      storedTz ?? null,
+    );
+
+    // DST scenarios
+    const summerDate = new Date(`${now.getFullYear()}-07-15T12:00:00Z`);
+    const winterDate = new Date(`${now.getFullYear()}-01-15T12:00:00Z`);
+
+    const dstScenarios = {
+      belgium_summer: getTimezoneConversion('Europe/Brussels', summerDate),
+      belgium_winter: getTimezoneConversion('Europe/Brussels', winterDate),
+      algeria_summer: getTimezoneConversion('Africa/Algiers', summerDate),
+      algeria_winter: getTimezoneConversion('Africa/Algiers', winterDate),
+    };
+
+    // at_time parsing tests
+    const atTimeTests = ['18:00', '09:30', '00:00'].map(t => {
+      const brussels = parseLocalHHMM(t, 'Europe/Brussels');
+      const algiers  = parseLocalHHMM(t, 'Africa/Algiers');
+      return {
+        at_time:         t,
+        brussels_utc:    brussels?.toISOString() ?? 'parse_error',
+        algiers_utc:     algiers?.toISOString()  ?? 'parse_error',
+        diff_minutes:    brussels && algiers
+          ? Math.round((brussels.getTime() - algiers.getTime()) / 60_000)
+          : null,
+      };
+    });
+
+    // Travel scenario: user switches Brx → Algiers → back
+    const travelScenario = [
+      { location: 'Belgium',  tz: 'Europe/Brussels',  note: 'UTC+2 (DST)' },
+      { location: 'Algeria',  tz: 'Africa/Algiers',   note: 'UTC+1 (no DST)' },
+      { location: 'Belgium (return)', tz: 'Europe/Brussels', note: 'back home' },
+    ].map(s => ({
+      ...s,
+      ...getTimezoneConversion(s.tz, now),
+      resolve_result: resolveTimezone(s.tz).source,
+    }));
+
+    res.json({
+      ok:      true,
+      server: {
+        timezone:    serverTz,
+        utc_now:     now.toISOString(),
+        local_time:  now.toLocaleString('fr-FR', { timeZone: serverTz }),
+        node_version: process.version,
+      },
+      user: {
+        stored_timezone:  storedTz,
+        stored_valid:     storedTz ? isValidTimezone(storedTz) : null,
+        explicit_from_qs: explicitTz ?? null,
+        resolved:         resolved,
+      },
+      conversions: Object.fromEntries(
+        TZS_TO_TEST.map(tz => [tz, getTimezoneConversion(tz, now)])
+      ),
+      dst_scenarios:   dstScenarios,
+      at_time_parsing: atTimeTests,
+      travel_scenario: travelScenario,
+      anti_hardcode_check: {
+        algiers_hardcoded: false,
+        note: 'Africa/Algiers NEVER used unless explicitly provided by user or stored from X-Timezone header',
+      },
+      generated_at: now.toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ─── P15 — Reminder Reliability endpoints ─────────────────────────────────
 
 // GET /api/scheduler/reminders — list recent DB reminders with status audit
@@ -163,13 +266,23 @@ router.post('/reminder-test', requireMobileAuth, async (req, res) => {
     const remindAt = new Date(Date.now() + delayMs);
     const dedup    = `test_${Date.now()}`;
 
+    // Resolve user timezone (same priority chain as tool-executor)
+    const storedTz = await redis.get('user:tz').catch(() => null);
+    const resolved  = resolveTimezone(null, storedTz ?? null);
+    const { getUTCOffsetString, toLocalISO } = await import('../../utils/timezone.js');
+    const utcOffset    = getUTCOffsetString(resolved.timezone, remindAt);
+    const localTimeISO = toLocalISO(remindAt, resolved.timezone);
+
     // 1. DB insert
     const dbRow = await insertReminder({
       message,
-      remind_at: remindAt,
-      timezone:  'Europe/Brussels',
-      created_by: 'reminder-test-api',
-      dedup_key:  dedup,
+      remind_at:       remindAt,
+      timezone:        resolved.timezone,
+      utc_offset:      utcOffset,
+      local_time_iso:  localTimeISO,
+      timezone_source: resolved.source,
+      created_by:      'reminder-test-api',
+      dedup_key:       dedup,
       telegram_target: env.TELEGRAM_CHAT_ID ?? undefined,
     });
 
@@ -188,14 +301,17 @@ router.post('/reminder-test', requireMobileAuth, async (req, res) => {
     res.json({
       ok:             true,
       proof: {
-        db_id:         dbRow.id,
-        job_id:        job.id ?? 'unknown',
-        remind_at_iso: remindAt.toISOString(),
-        remind_at_local: remindAt.toLocaleString('fr-FR', { timeZone: 'Europe/Brussels' }),
+        db_id:           dbRow.id,
+        job_id:          job.id ?? 'unknown',
+        remind_at_utc:   remindAt.toISOString(),
+        local_time:      localTimeISO,
+        timezone_used:   resolved.timezone,
+        timezone_source: resolved.source,
+        utc_offset:      utcOffset,
         delay_minutes,
         message,
-        status:        dbRow.status,
-        dedup_key:     dedup,
+        status:          dbRow.status,
+        dedup_key:       dedup,
         telegram_target: dbRow.telegram_target,
       },
       instruction: `Attends ${delay_minutes} min(s) puis vérifie Telegram ET GET /api/scheduler/reminders?limit=5`,

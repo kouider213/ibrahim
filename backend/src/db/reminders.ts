@@ -6,6 +6,9 @@ export interface ReminderRow {
   message:           string;
   remind_at:         string;
   timezone:          string;
+  utc_offset:        string | null;
+  local_time_iso:    string | null;
+  timezone_source:   string | null;
   status:            'PENDING' | 'SENT' | 'FAILED' | 'CANCELLED' | 'DUPLICATE';
   sent_at:           string | null;
   failed_reason:     string | null;
@@ -21,16 +24,19 @@ export interface ReminderRow {
 }
 
 export interface InsertReminderInput {
-  message:         string;
-  remind_at:       Date;
-  timezone?:       string;
-  title?:          string;
-  created_by?:     string;
-  session_id?:     string;
+  message:          string;
+  remind_at:        Date;
+  timezone?:        string;
+  utc_offset?:      string;
+  local_time_iso?:  string;
+  timezone_source?: string;
+  title?:           string;
+  created_by?:      string;
+  session_id?:      string;
   telegram_target?: string;
   pushover_target?: boolean;
-  dedup_key?:      string;
-  job_id?:         string;
+  dedup_key?:       string;
+  job_id?:          string;
 }
 
 // Insert a new PENDING reminder — returns null if dedup_key already exists
@@ -44,17 +50,20 @@ export async function insertReminder(input: InsertReminderInput): Promise<Remind
   const { data, error } = await supabase
     .from('reminders')
     .insert({
-      message:         input.message,
-      remind_at:       input.remind_at.toISOString(),
-      timezone:        input.timezone ?? 'Europe/Brussels',
-      title:           input.title ?? null,
-      created_by:      input.created_by ?? null,
-      session_id:      input.session_id ?? null,
-      telegram_target: input.telegram_target ?? null,
-      pushover_target: input.pushover_target ?? true,
-      dedup_key:       input.dedup_key ?? null,
-      job_id:          input.job_id ?? null,
-      status:          'PENDING',
+      message:          input.message,
+      remind_at:        input.remind_at.toISOString(),
+      timezone:         input.timezone ?? 'Europe/Brussels',
+      utc_offset:       input.utc_offset ?? null,
+      local_time_iso:   input.local_time_iso ?? null,
+      timezone_source:  input.timezone_source ?? null,
+      title:            input.title ?? null,
+      created_by:       input.created_by ?? null,
+      session_id:       input.session_id ?? null,
+      telegram_target:  input.telegram_target ?? null,
+      pushover_target:  input.pushover_target ?? true,
+      dedup_key:        input.dedup_key ?? null,
+      job_id:           input.job_id ?? null,
+      status:           'PENDING',
     })
     .select()
     .single();

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { processMessage } from '../../conversation/orchestrator.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { getConversationHistory } from '../../integrations/supabase.js';
+import { redis } from '../../queue/queue.js';
+import { isValidTimezone } from '../../utils/timezone.js';
 
 const router = Router();
 
@@ -23,6 +25,13 @@ router.post('/', requireMobileAuth, async (req, res) => {
   }
 
   const { message, sessionId, textOnly, imageBase64, imageMime } = parsed.data;
+
+  // Persist timezone from X-Timezone header — used by schedule_reminder priority chain
+  const headerTz = req.headers['x-timezone'] as string | undefined;
+  if (headerTz && isValidTimezone(headerTz)) {
+    redis.set(`user:tz:${sessionId}`, headerTz, 'EX', 7 * 86_400).catch(() => {});
+    redis.set('user:tz', headerTz, 'EX', 7 * 86_400).catch(() => {}); // global fallback
+  }
 
   // Acknowledge immediately — result delivered via Socket.IO (Dzaryx:text_complete + audio chunks)
   res.status(202).json({ status: 'processing', sessionId });

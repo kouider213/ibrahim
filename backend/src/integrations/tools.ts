@@ -698,11 +698,17 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   {
     name: 'schedule_reminder',
     description: `Programmer un rappel réel avec persistance DB + BullMQ.
-RÈGLE ABSOLUE: tu ne peux JAMAIS dire "rappel programmé / c'est noté / je te rappellerai" sans avoir appelé cet outil ET reçu status=created avec db_id ET job_id dans la réponse.
-Si la réponse contient status=db_failed ou une erreur → tu dois dire explicitement: "ÉCHEC: rappel non programmé."
-Si status=duplicate_blocked → tu dois dire: "Rappel déjà programmé (doublon bloqué)."
-Timezone par défaut: Europe/Brussels. Algiers si Oran/voyage.
-Retourne: { status, db_id, job_id, remind_at_iso, human_delay } — cite ces champs dans ta confirmation.`,
+
+RÈGLES ABSOLUES:
+1. Tu ne peux JAMAIS dire "rappel programmé" sans recevoir status=created + db_id + job_id dans la réponse.
+2. Si status=db_failed → dire "ÉCHEC: rappel non programmé (DB inaccessible)."
+3. Si status=TIMEZONE_UNKNOWN → dire "ÉCHEC: timezone invalide, rappel non programmé."
+4. Si status=duplicate_blocked → dire "Rappel déjà programmé (doublon bloqué), db_id=[existing_db_id]."
+5. Ta confirmation DOIT citer: db_id, local_time, timezone_used, utc_offset.
+
+TIMEZONE: Priorité = explicit > header X-Timezone de l'app > Europe/Brussels.
+JAMAIS Africa/Algiers par défaut — seul l'utilisateur peut le définir.
+Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc_offset, human_delay }`,
     input_schema: {
       type: 'object' as const,
       properties: {
