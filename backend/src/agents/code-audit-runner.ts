@@ -249,7 +249,7 @@ async function execGetRailwayLogs(limit: number): Promise<string> {
 
 export async function runCodeAudit(
   requestId:  string,
-  timeoutMs   = 120_000,
+  timeoutMs   = 90_000,
 ): Promise<CodeAuditResult> {
   const t0    = Date.now();
   const model = 'claude-sonnet-4-6';
@@ -270,23 +270,39 @@ export async function runCodeAudit(
     return makeFailedResult(requestId, model, toolsCalled, patchesApplied, 0, 0, Date.now() - t0, 'GITHUB_TOKEN absent — impossible d\'écrire sur GitHub');
   }
 
-  // ── Step 1: Plant the bug ────────────────────────────────────────────────────
-  console.log(`[code-audit:${requestId}] PLANT bug → ${AUDIT_FILE}`);
-  const plantResult = await updateFile(
-    AUDIT_FILE,
-    BUGGY_CODE,
-    `P8 audit: plant deliberate TypeScript bug (TS2362) in ${AUDIT_FILE}`,
-    AUDIT_REPO,
-  );
+  // ── Step 1: Read pre-existing buggy file (no plant commit = no Railway restart) ──
+  console.log(`[code-audit:${requestId}] READ existing file → ${AUDIT_FILE}`);
+  const existingFile = await getFileContent(AUDIT_FILE, AUDIT_REPO);
 
-  if (!plantResult) {
+  if (!existingFile) {
     return makeFailedResult(requestId, model, toolsCalled, patchesApplied, 0, 0, Date.now() - t0,
-      `Impossible de créer le fichier test ${AUDIT_FILE} — GITHUB_TOKEN invalide ou repo inaccessible`);
+      `Fichier test non trouvé: ${AUDIT_FILE} — committer backend/audit-test/revenue-calc.ts dans le repo`);
   }
 
-  const beforeCommitSha = plantResult.commitSha;
-  const beforeContent   = BUGGY_CODE;
-  console.log(`[code-audit:${requestId}] BUG PLANTED commit=${beforeCommitSha}`);
+  const hasBug = existingFile.content.includes('price: string');
+  let beforeContent   = existingFile.content;
+  let beforeCommitSha = existingFile.sha;
+
+  if (!hasBug) {
+    // Bug was already fixed by a previous audit run — restore it synchronously.
+    // Railway deploy takes ~2-3 min; agent finishes in ~60-90s → response sent before restart.
+    console.log(`[code-audit:${requestId}] Bug absent (déjà corrigé) — RESTORE bug → ${AUDIT_FILE}`);
+    const restoreResult = await updateFile(
+      AUDIT_FILE,
+      BUGGY_CODE,
+      `P8 audit: restore test bug (TS2362) for re-run`,
+      AUDIT_REPO,
+    );
+    if (!restoreResult) {
+      return makeFailedResult(requestId, model, toolsCalled, patchesApplied, 0, 0, Date.now() - t0,
+        `Impossible de restaurer le bug test dans ${AUDIT_FILE}`);
+    }
+    beforeContent   = BUGGY_CODE;
+    beforeCommitSha = restoreResult.commitSha;
+    console.log(`[code-audit:${requestId}] BUG RESTORED commit=${beforeCommitSha}`);
+  } else {
+    console.log(`[code-audit:${requestId}] Bug présent (price: string) — sha=${beforeCommitSha.slice(0, 7)}`);
+  }
 
   // ── Step 2: Run agent ────────────────────────────────────────────────────────
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -298,7 +314,7 @@ export async function runCodeAudit(
     },
   ];
 
-  const MAX_ITER = 12;
+  const MAX_ITER = 8;
   let iterCount  = 0;
 
   try {
