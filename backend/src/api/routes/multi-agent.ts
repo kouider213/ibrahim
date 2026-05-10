@@ -16,6 +16,7 @@ import { runMultiAgent, needsMultiAgent, selectAgents, MULTI_AGENTS } from '../.
 import { isAvailable, callProvider }    from '../../providers/provider-manager.js';
 import { runFinanceAgentWithTools }     from '../../agents/finance-agent-runner.js';
 import { runCompetitorAgentWithTools }  from '../../agents/competitor-agent-runner.js';
+import { runSocialAgentWithTools }      from '../../agents/social-agent-runner.js';
 
 const router = Router();
 
@@ -336,6 +337,81 @@ router.post('/finance-tool-test', requireMobileAuth, async (req, res) => {
         total_ms:      result.total_ms,
 
         // Raw analysis (full, untruncated)
+        analysis_full:  result.analysis,
+        analysis_chars: result.analysis.length,
+
+        // Verdict
+        verdict:        result.verdict,
+        verdict_reason: result.verdict_reason,
+        error:          result.error ?? null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── POST /api/multi-agent/social-tool-test ───────────────────────────────────
+// Test direct social-agent tool-aware : APIFY TikTok + web_search.
+// Teste aussi le profil TikTok Fik Conciergerie (compte existant ou non).
+router.post('/social-tool-test', requireMobileAuth, async (req, res) => {
+  const {
+    message = 'Analyse le marché TikTok location voiture Oran : concurrents, hashtags, métriques réelles. Vérifie aussi si Fik Conciergerie a un compte TikTok actif et donne ses vraies stats.',
+  } = req.body as { message?: string };
+
+  const requestId = `soc_${Date.now()}`;
+  console.log(`[social-tool-test:${requestId}] msg="${message.slice(0, 80)}"`);
+
+  try {
+    const result = await runSocialAgentWithTools(message, requestId, 180_000);
+
+    res.json({
+      ok:   true,
+      test: 'social_agent_tool_aware',
+      requestId,
+      proof: {
+        // Identity
+        agent_id:      result.agent_id,
+        agent_name:    result.agent_name,
+        provider:      result.provider,
+        model:         result.model,
+        system_prompt: result.system_prompt,
+        tools_allowed: result.tools_allowed,
+
+        // Tool execution proof
+        tools_called: result.tools_called.map(t => ({
+          tool_name:     t.tool_name,
+          tool_input:    t.tool_input,
+          duration_ms:   t.duration_ms,
+          blocked:       t.blocked,
+          data_quality:  t.data_quality,
+          tiktok_videos: t.tiktok_videos ?? 0,
+          result_preview: t.tool_result.slice(0, 600),
+          result_chars:   t.tool_result.length,
+        })),
+        tool_count:          result.tool_count,
+        raw_data_chars:      result.raw_data_chars,
+        tiktok_videos_found: result.tiktok_videos_found,
+
+        // Fik Conciergerie TikTok probe
+        fik_tiktok_profile: result.fik_profile
+          ? {
+              handle:      result.fik_profile.handle,
+              found:       result.fik_profile.found,
+              followers:   result.fik_profile.followers,
+              total_views: result.fik_profile.total_views,
+              video_count: result.fik_profile.video_count,
+              top_videos:  result.fik_profile.top_videos,
+              why_not_found: result.fik_profile.why_not_found ?? null,
+            }
+          : { handle: 'non vérifié', found: false, why_not_found: 'agent n\'a pas appelé get_tiktok_profile' },
+
+        // Execution metrics
+        input_tokens:  result.input_tokens,
+        output_tokens: result.output_tokens,
+        total_ms:      result.total_ms,
+
+        // Raw analysis (full)
         analysis_full:  result.analysis,
         analysis_chars: result.analysis.length,
 

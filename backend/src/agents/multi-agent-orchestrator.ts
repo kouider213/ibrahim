@@ -19,6 +19,7 @@ import { DEVELOPER_AGENT }    from './definitions/developer-agent.js';
 import { CODE_REVIEWER_AGENT }from './definitions/code-reviewer-agent.js';
 import { runFinanceAgentWithTools }    from './finance-agent-runner.js';
 import { runCompetitorAgentWithTools } from './competitor-agent-runner.js';
+import { runSocialAgentWithTools }     from './social-agent-runner.js';
 
 // ── Agent catalog (pour multi-agent seulement) ────────────────────────────────
 const MULTI_AGENTS = [
@@ -152,6 +153,30 @@ async function runSingleAgent(
       costEstUsd:      (fr.input_tokens * 3.00 + fr.output_tokens * 15.00) / 1_000_000,
       success:         fr.verdict !== 'FAILED',
       error:           fr.error,
+    };
+  }
+
+  // ── Social agent uses tool-aware runner (APIFY TikTok + web_search) ──────────
+  if (agentId === 'social') {
+    const agentRequestId = `${requestId}_social`;
+    const fullMessage = businessCtx
+      ? `${userMessage}\n\nCONTEXTE MÉTIER: ${businessCtx.slice(0, 1000)}`
+      : userMessage;
+    const sr = await runSocialAgentWithTools(fullMessage, agentRequestId, agentTimeoutMs);
+    return {
+      agentId:         'social',
+      agentName:       sr.agent_name,
+      desiredProvider: 'groq',
+      actualProvider:  sr.provider,
+      model:           sr.model,
+      usedFallback:    true,
+      text:            sr.analysis,
+      inputTokens:     sr.input_tokens,
+      outputTokens:    sr.output_tokens,
+      latencyMs:       sr.total_ms,
+      costEstUsd:      (sr.input_tokens * 3.00 + sr.output_tokens * 15.00) / 1_000_000,
+      success:         sr.verdict !== 'FAKE',
+      error:           sr.error,
     };
   }
 

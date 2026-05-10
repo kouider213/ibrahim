@@ -31,7 +31,7 @@ export interface TikTokRealData {
 
 // ── APIFY runner ──────────────────────────────────────────────────────────────
 
-async function apifyRun(actorId: string, input: Record<string, unknown>): Promise<unknown[]> {
+export async function apifyRun(actorId: string, input: Record<string, unknown>): Promise<unknown[]> {
   const apiKey = env.APIFY_API_KEY;
   if (!apiKey) return [];
 
@@ -70,7 +70,7 @@ async function apifyRun(actorId: string, input: Record<string, unknown>): Promis
 
 // ── Parser ─────────────────────────────────────────────────────────────────────
 
-function parseVideo(raw: unknown): TikTokVideo {
+export function parseVideo(raw: unknown): TikTokVideo {
   const v = raw as Record<string, unknown>;
   const am  = ((v['authorMeta'] ?? v['author']) as Record<string, unknown> | undefined) ?? {};
   const st  = (v['stats']  as Record<string, unknown> | undefined) ?? {};
