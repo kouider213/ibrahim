@@ -80,13 +80,15 @@ router.post('/analyze', async (req, res) => {
   }
 
   const mime = sanitizeMime(mimeType);
+  console.log(`[MOBILE_RUNTIME] channel=mobile endpoint=/api/vision/analyze task=vision len=${imageBase64.length} mime=${mime}`);
 
   try {
     const text = await analyzeImageWithFallback(imageBase64, mime, SMART_VISION_PROMPT, 'Analyse cette image.', 300);
+    console.log(`[MOBILE_RUNTIME] endpoint=/api/vision/analyze task=vision status=success chars=${text.length}`);
     res.json({ description: text });
   } catch (err) {
-    console.error('[vision] analyze failed:', err instanceof Error ? err.message : String(err));
-    res.status(500).json({ error: 'Vision analysis failed' });
+    console.error(`[MOBILE_RUNTIME] endpoint=/api/vision/analyze task=vision status=FAILED error="${err instanceof Error ? err.message : String(err)}"`);
+    res.status(500).json({ error: 'Vision indisponible. Réessaie dans quelques secondes.' });
   }
 });
 
@@ -100,6 +102,7 @@ router.post('/scan', async (req, res) => {
   }
 
   const mime = sanitizeMime(mimeType);
+  console.log(`[MOBILE_RUNTIME] channel=mobile endpoint=/api/vision/scan task=vision len=${imageBase64.length} mime=${mime}`);
 
   try {
     // Step 1: detect what's in the image
@@ -167,8 +170,8 @@ Réponds en 2 phrases max, naturellement, comme si tu décrivais à quelqu'un en
     });
 
   } catch (err) {
-    console.error('[vision] scan failed:', err instanceof Error ? err.message : String(err));
-    res.status(500).json({ error: 'Scan failed' });
+    console.error(`[MOBILE_RUNTIME] endpoint=/api/vision/scan task=vision status=FAILED error="${err instanceof Error ? err.message : String(err)}"`);
+    res.status(500).json({ error: 'Vision indisponible. Réessaie dans quelques secondes.' });
   }
 });
 

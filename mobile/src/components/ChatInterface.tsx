@@ -305,19 +305,20 @@ export default function ChatInterface() {
   const handleScan = useCallback(async () => {
     if (scanning) return;
     const frame = captureFrame();
-    if (!frame) { showError('Caméra non prête'); return; }
+    if (!frame) { showError('Caméra non prête — attends que le flux démarre'); return; }
     setScanning(true);
     applyState('think');
     clearAudioQueue();
     try {
-      const result = await api.scan(frame, 'image/jpeg');
-      setScanResult({ type: result.type });
-      const spoken = result.description || 'Je ne peux pas analyser cette image.';
-      setResponseText(spoken); setShowResponse(true); applyState('speak');
-      iosFallbackSpeak(spoken, () => applyState('idle'));
-    } catch { showError('Erreur scan vision'); applyState('idle'); }
+      // Use /api/chat → Gemini Vision → ElevenLabs TTS via socket.io (same as voice)
+      await api.chat(
+        'Décris précisément ce que tu vois sur cette image en 2-3 phrases en français.',
+        sessionId, false, frame, 'image/jpeg',
+      );
+      // Response arrives async via socket.io: Dzaryx:text_complete + Dzaryx:audio_chunk
+    } catch { showError('Erreur vision — connexion impossible'); applyState('idle'); }
     finally { setScanning(false); }
-  }, [scanning, captureFrame, applyState, showError]);
+  }, [scanning, captureFrame, applyState, showError, sessionId]);
 
   const toggleScanMode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -361,10 +362,13 @@ export default function ChatInterface() {
     applyState('think');
     setShowResponse(false);
     elevenlabsReceived.current = false;
-    const photo = pendingPhotoRef.current ?? (videoStreamRef.current ? { base64: captureFrame() ?? '', mime: 'image/jpeg' } : null);
+    const rawPhoto = pendingPhotoRef.current ?? (videoStreamRef.current ? { base64: captureFrame() ?? '', mime: 'image/jpeg' } : null);
     pendingPhotoRef.current = null;
+    // Guard: only attach image if base64 is non-empty (captureFrame may return null if camera not ready)
+    const photo = rawPhoto?.base64 ? rawPhoto : null;
+    if (rawPhoto && !photo) console.warn('[vision] captureFrame returned empty — sending text-only');
     try {
-      await api.chat(msg, sessionId, false, photo?.base64 || undefined, photo?.mime ?? 'image/jpeg');
+      await api.chat(msg, sessionId, false, photo?.base64, photo?.mime ?? 'image/jpeg');
     } catch { showError('Erreur de connexion'); applyState('idle'); }
     finally { sending.current = false; }
   }, [sessionId, applyState, showError, captureFrame]);
