@@ -1,6 +1,6 @@
 ﻿import { Router } from 'express';
 import { z } from 'zod';
-import { processMessage } from '../../conversation/orchestrator.js';
+import { processWithOrchestration } from '../../orchestrator/orchestrator-engine.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { getConversationHistory } from '../../integrations/supabase.js';
 import { redis } from '../../queue/queue.js';
@@ -36,8 +36,8 @@ router.post('/', requireMobileAuth, async (req, res) => {
   // Acknowledge immediately — result delivered via Socket.IO (Dzaryx:text_complete + audio chunks)
   res.status(202).json({ status: 'processing', sessionId });
 
-  processMessage(message, sessionId, textOnly, imageBase64, imageMime).catch(err => {
-    console.error('[chat] processMessage error:', err instanceof Error ? err.message : String(err));
+  processWithOrchestration(message, sessionId, textOnly, imageBase64, imageMime).catch(err => {
+    console.error('[chat] processWithOrchestration error:', err instanceof Error ? err.message : String(err));
   });
 });
 
