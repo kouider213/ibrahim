@@ -157,7 +157,8 @@ export async function processMessage(
     const fpCascade: FP[] = [];
 
     if (imageBase64) {
-      // Vision: Groq can't do images — Gemini Vision → OpenAI Vision only
+      // Vision: Groq can't do images — Gemini Vision → OpenAI Vision only (never Anthropic)
+      console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()}`);
       if (isGeminiAvailable())   fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime) });
       if (isOpenAIAvailable())   fpCascade.push({ key: 'openai', fn: () => callOpenAIVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
     } else {
@@ -176,11 +177,15 @@ export async function processMessage(
     }
 
     for (const fp of fpCascade) {
+      if (imageBase64) console.log(`[VISION_RUNTIME] provider_attempt=${fp.key}`);
       try {
         const fastText = await fp.fn();
         redis.incr(`provider:calls:${fastToday}:${fp.key}`).catch(() => {});
         const guarded1 = guardResponse(fastText, userMessage, requestId);
         const safeText = phantomGuard(guarded1, [], userMessage, requestId);
+        if (imageBase64) {
+          console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
+        }
         console.log(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=${fp.key} fast_path=true router_used=true legacy=false`);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
@@ -193,10 +198,29 @@ export async function processMessage(
         return { text: safeText, status: 'done' };
       } catch (fpErr) {
         const _axErr = fpErr as { response?: { status?: number; data?: unknown }; message?: string };
-        console.warn(`[MOBILE_RUNTIME] fast_path=${fp.key} FAILED status=${_axErr.response?.status ?? 'network'} body=${JSON.stringify(_axErr.response?.data ?? {}).slice(0, 100)} session=${sessionId} — trying next`);
+        if (imageBase64) {
+          console.warn(`[VISION_RUNTIME] ${fp.key}_status=failed http=${_axErr.response?.status ?? 'network'} reason=${JSON.stringify(_axErr.response?.data ?? {}).slice(0, 400)} msg="${_axErr.message ?? ''}" session=${sessionId}`);
+        } else {
+          console.warn(`[MOBILE_RUNTIME] fast_path=${fp.key} FAILED status=${_axErr.response?.status ?? 'network'} body=${JSON.stringify(_axErr.response?.data ?? {}).slice(0, 100)} session=${sessionId} — trying next`);
+        }
       }
     }
-    // All cheap providers exhausted → fall through to Claude agentic loop
+
+    // Vision: never fall through to Claude — return user-friendly error
+    if (imageBase64) {
+      console.error(`[VISION_RUNTIME] ALL_PROVIDERS_FAILED session=${sessionId} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()}`);
+      const visionErr = 'Vision IA indisponible pour le moment. Réessaie dans quelques secondes.';
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: visionErr });
+      if (!textOnly) {
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+        await streamAudioSentences(visionErr, sessionId);
+        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      }
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: visionErr, status: 'error' };
+    }
+
+    // Text: all cheap providers exhausted → fall through to Claude agentic loop
     console.warn(`[MOBILE_RUNTIME] all fast providers exhausted — falling to Claude. session=${sessionId}`);
   }
 

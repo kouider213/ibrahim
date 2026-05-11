@@ -106,17 +106,27 @@ export async function callGemini(
 
   const systemPrompt = [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
 
-  // Build parts array — supports text + optional image
-  const parts: unknown[] = [{ text: `${systemPrompt}\n\nUtilisateur: ${userMessage}` }];
+  // Build parts — image MUST come before text for Gemini multimodal
+  const parts: unknown[] = [];
   if (imageBase64) {
     parts.push({ inline_data: { mime_type: imageMime, data: imageBase64 } });
+    parts.push({ text: userMessage });
+  } else {
+    parts.push({ text: `${systemPrompt}\n\nUtilisateur: ${userMessage}` });
+  }
+
+  const requestBody: Record<string, unknown> = {
+    contents: [{ role: 'user', parts }],
+  };
+  // Use systemInstruction for vision requests (avoids stuffing system into user turn)
+  if (imageBase64) {
+    requestBody['systemInstruction'] = { parts: [{ text: systemPrompt }] };
   }
 
   const { default: axios } = await import('axios');
-  const model = imageBase64 ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
   const { data } = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
-    { contents: [{ role: 'user', parts }] },
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+    requestBody,
     { timeout: 30_000 },
   );
 
