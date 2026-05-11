@@ -2,6 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
 import { supabase } from '../../integrations/supabase.js';
+import { callGroq, callGemini, callOpenAI, isGroqAvailable, isGeminiAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -112,18 +113,44 @@ router.post('/chat', async (req, res) => {
   try {
     const fleetContext = await getLiveFleetContext();
     const systemPrompt = WIDGET_BASE_PROMPT + fleetContext;
+    const lastUserMsg  = message.trim().slice(0, 500);
 
-    const response = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      system:     systemPrompt,
-      messages,
-    });
+    let text = '';
 
-    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    // Groq first (free/fast for simple chat), then Gemini, then OpenAI, then Haiku
+    if (isGroqAvailable()) {
+      try {
+        text = await callGroq(lastUserMsg, systemPrompt);
+        console.log('[AI_ROUTER] provider=groq route=widget');
+      } catch {}
+    }
+    if (!text && isGeminiAvailable()) {
+      try {
+        text = await callGemini(lastUserMsg, systemPrompt);
+        console.log('[AI_ROUTER] provider=gemini route=widget');
+      } catch {}
+    }
+    if (!text && isOpenAIAvailable()) {
+      try {
+        text = await callOpenAI(messages, systemPrompt);
+        console.log('[AI_ROUTER] provider=openai route=widget');
+      } catch {}
+    }
+    if (!text) {
+      // Haiku fallback
+      console.log('[AI_ROUTER] provider=claude-haiku route=widget fallback=true');
+      const response = await anthropic.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        system:     systemPrompt,
+        messages,
+      });
+      text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    }
+
     res.json({ reply: text });
   } catch (err) {
-    console.error('[widget] Claude error:', err);
+    console.error('[widget] AI error:', err);
     res.status(500).json({ error: 'Service temporairement indisponible.' });
   }
 });

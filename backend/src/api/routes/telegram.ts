@@ -8,7 +8,6 @@ import { chatWithTools } from '../../integrations/claude-api.js';
 import { buildContext } from '../../conversation/context-builder.js';
 import { saveConversationTurn, supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { guardResponse, applyScopeGuard } from '../../conversation/response-guard.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
 import { isNexusOnline, sendToNexus, triggerWol, getNexusMac, getNexusIp } from '../../actions/handlers/nexus-relay.js';
 import { routeNexusMessage } from '../../actions/handlers/nexus-nl-router.js';
@@ -17,10 +16,99 @@ import { publishVideo, buildSharePackage } from '../../marketing/social-poster.j
 import { addVideoToBuffer } from '../../marketing/video-buffer.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
+import { processWithOrchestration } from '../../orchestrator/orchestrator-engine.js';
+import { callGroq, callGemini, callOpenAI, isGeminiAvailable, isGroqAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+
+// ── AI Router helpers — Gemini first, Claude fallback ──────────────────────────
+
+// Vision: Gemini Flash Vision primary, Claude Vision fallback
+async function callVisionGemini(
+  base64: string,
+  mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+  systemExtra: string,
+  userPrompt: string,
+  maxTokens = 2048,
+): Promise<string> {
+  if (isGeminiAvailable()) {
+    try {
+      const text = await callGemini(userPrompt, systemExtra, base64, mimeType);
+      console.log(`[AI_ROUTER] provider=gemini task=vision`);
+      return text;
+    } catch (gErr) {
+      console.warn(`[AI_ROUTER] provider=gemini vision failed: ${gErr instanceof Error ? gErr.message : gErr} — trying claude`);
+    }
+  }
+  console.log(`[AI_ROUTER] provider=claude task=vision fallback=true`);
+  const resp = await anthropic.messages.create({
+    model:      'claude-sonnet-4-6',
+    max_tokens: maxTokens,
+    messages:   [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+        { type: 'text',  text: systemExtra ? `${systemExtra}\n\n${userPrompt}` : userPrompt },
+      ],
+    }],
+  });
+  return resp.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('');
+}
+
+// Simple text: Groq (free/fast) → Gemini → Haiku fallback
+async function callTextWithFallback(prompt: string, maxTokens = 80): Promise<string> {
+  if (isGroqAvailable()) {
+    try {
+      const t = await callGroq(prompt);
+      console.log('[AI_ROUTER] provider=groq task=text');
+      return t;
+    } catch {}
+  }
+  if (isGeminiAvailable()) {
+    try {
+      const t = await callGemini(prompt);
+      console.log('[AI_ROUTER] provider=gemini task=text');
+      return t;
+    } catch {}
+  }
+  console.log('[AI_ROUTER] provider=claude-haiku task=text fallback=true');
+  const r = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  return (r.content[0] as Anthropic.TextBlock).text.trim();
+}
+
+// chatWithTools with Groq → OpenAI → Gemini fallback when Claude fails
+async function chatWithFallback(
+  messages: Parameters<typeof chatWithTools>[0],
+  systemExtra: string | undefined,
+  userText: string,
+  sessionId: string,
+): Promise<{ text: string }> {
+  try {
+    return await chatWithTools(messages, systemExtra, sessionId);
+  } catch (claudeErr) {
+    console.warn(`[AI_ROUTER] provider=claude status=failed reason="${claudeErr instanceof Error ? claudeErr.message.slice(0, 60) : 'unknown'}" session=${sessionId}`);
+    const plain = messages.map(m => ({
+      role: m.role as 'user' | 'assistant',
+      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+    }));
+    if (isGroqAvailable()) {
+      try { const t = await callGroq(userText, systemExtra); console.log(`[AI_ROUTER] provider=groq fallback=true`); return { text: t }; } catch {}
+    }
+    if (isOpenAIAvailable()) {
+      try { const t = await callOpenAI(plain, systemExtra); console.log(`[AI_ROUTER] provider=openai fallback=true`); return { text: t }; } catch {}
+    }
+    if (isGeminiAvailable()) {
+      try { const t = await callGemini(userText, systemExtra); console.log(`[AI_ROUTER] provider=gemini fallback=true`); return { text: t }; } catch {}
+    }
+    throw claudeErr;
+  }
+}
 
 // ── Incoming request dedup — blocks identical text sent twice within 30 s ────
 // Applied BEFORE buildContext / Claude API / any tool — no second résumé/report.
@@ -757,34 +845,22 @@ router.post('/webhook', async (req, res) => {
 
   try {
     await sendTyping(chatId);
-    const ctx      = await buildContext(sessionId, text);
-    const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
+    // Full P15 pipeline: focus-manager + priority-engine + Groq → OpenAI → Gemini fallback
+    const response = await processWithOrchestration(text, sessionId, true);
+    const safeText = response.text;
 
-    const requestId   = `tg_${chatId}_${Date.now()}`;
-    const guardedText = guardResponse(response.text, text, requestId);
-    const safeText    = applyScopeGuard(guardedText, text, requestId);
-
-    const sendPromise = (async () => {
-      for (const chunk of splitMessage(safeText, 4000)) {
-        await sendMessage(chatId, chunk);
+    for (const chunk of splitMessage(safeText, 4000)) {
+      await sendMessage(chatId, chunk);
+    }
+    // Supabase document URLs → send as photo/document
+    const docUrls = safeText.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g);
+    if (docUrls) {
+      for (const url of docUrls) {
+        await sendPhoto(chatId, url).catch(async () => {
+          await sendDocument(chatId, url).catch(() => {});
+        });
       }
-      // Si la réponse contient une URL Supabase (public ou signed) → envoyer la photo
-      const docUrls = safeText.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g);
-      if (docUrls) {
-        for (const url of docUrls) {
-          await sendPhoto(chatId, url).catch(async () => {
-            await sendDocument(chatId, url).catch(() => {});
-          });
-        }
-      }
-    })();
-
-    const savePromise = Promise.all([
-      saveConversationTurn(sessionId, 'user',      text,     { source: 'telegram' }),
-      saveConversationTurn(sessionId, 'assistant', safeText, { source: 'telegram' }),
-    ]).catch(e => console.error('[telegram] Save error:', e));
-
-    await Promise.all([sendPromise, savePromise]);
+    }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error('[telegram] Error:', errMsg);
@@ -846,10 +922,10 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
       if (frameBuffer) {
         const base64Frame = frameBuffer.toString('base64');
 
-        const visionResp = await anthropic.messages.create({
-          model:      'claude-sonnet-4-6',
-          max_tokens: 2048,
-          system: `Analyse cette interface UI avec TOUS les détails visuels:
+        const uiDescription = await callVisionGemini(
+          base64Frame,
+          'image/jpeg',
+          `Analyse cette interface UI avec TOUS les détails visuels:
 - Couleurs exactes (background, texte, boutons, bordures) avec codes hex si possible
 - Layout et disposition des éléments
 - Typographie (police, taille, poids)
@@ -857,24 +933,13 @@ async function handleVideoMessage(chatId: number, sessionId: string, msg: Telegr
 - Composants présents (boutons, cartes, barres, cercles, vagues)
 - Style général (futuriste, minimal, glassmorphism, neon, etc.)
 Sois TRÈS précis — cette description servira à reproduire exactement ce design.`,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Frame } },
-              { type: 'text',  text: `Demande: "${caption}" — Décris ce design en détail.` },
-            ],
-          }],
-        });
-
-        const uiDescription = visionResp.content
-          .filter(b => b.type === 'text')
-          .map(b => (b as Anthropic.TextBlock).text)
-          .join('');
+          `Demande: "${caption}" — Décris ce design en détail.`,
+        );
 
         const actionMessage = `[Référence UI extraite d'une vidéo — analyse visuelle:\n${uiDescription}]\n\nDemande de Kouider: "${caption}"\n\nModifie l'interface mobile Dzaryx pour qu'elle ressemble à ce design.\nFichiers dans repo "ibrahim":\n- mobile/src/components/ChatInterface.tsx\n- mobile/src/components/ChatInterface.css\n\nProcédure: github_read_file les deux → modifier → github_write_file → Netlify redéploie.`;
 
         const ctx      = await buildContext(sessionId, actionMessage);
-        const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
+        const response = await chatWithFallback(ctx.messages, ctx.systemExtra, actionMessage, sessionId);
         await sendMessage(chatId, response.text);
         await saveConversationTurn(sessionId, 'user', `[Vidéo UI ref — "${caption}"]`, { source: 'telegram', type: 'video_ui', url: videoUrl });
         return;
@@ -892,7 +957,7 @@ Sois TRÈS précis — cette description servira à reproduire exactement ce des
       : `Vidéo reçue via Telegram.\nURL: ${videoUrl}\n\nAucune instruction. Analyse et propose ce que je peux en faire.`;
 
     const ctx = await buildContext(sessionId, userRequest);
-    const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
+    const response = await chatWithFallback(ctx.messages, ctx.systemExtra, userRequest, sessionId);
 
     await sendMessage(chatId, response.text);
 
@@ -954,11 +1019,10 @@ async function handleImageMessage(chatId: number, sessionId: string, msg: Telegr
       ? `Photo reçue sur Telegram avec ce message: "${caption}"\n\nAnalyse d'abord l'image en détail, puis réponds à la demande.`
       : `Photo reçue sur Telegram sans message. Analyse-la et dis-moi ce que tu vois avec tous les détails utiles (texte visible, personnes, documents, interface, voiture, lieu, etc.).`;
 
-    const visionResp = await anthropic.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 2048,
-      system: `Tu es Dzaryx, assistant IA personnel de Kouider — fondateur de Fik Conciergerie à Oran.
-Tu analyses les images envoyées sur Telegram avec une précision maximale.
+    const visionText = await callVisionGemini(
+      base64Image,
+      mimeType,
+      `Tu analyses les images envoyées sur Telegram avec une précision maximale.
 
 SELON LE TYPE D'IMAGE:
 - Passeport/permis → extrais TOUS les champs: nom complet, numéro, date naissance, expiration, nationalité
@@ -971,23 +1035,12 @@ SELON LE TYPE D'IMAGE:
 RÈGLES:
 - Répondre en FRANÇAIS
 - Sois EXHAUSTIF — mentionne TOUS les détails visibles
-- Si c'est un document client → propose directement de l'enregistrer (store_document)
+- Si c'est un document client → propose directement de l'enregistrer
 - Si c'est une interface UI → propose de modifier l'app pour y ressembler
 - Si c'est une voiture → fais le lien avec la flotte Fik Conciergerie si pertinent
 - Ton conversationnel naturel — tu es Dzaryx, pas un robot d'analyse`,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64Image } },
-          { type: 'text',  text: visionPrompt },
-        ],
-      }],
-    });
-
-    const visionText = visionResp.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map(b => b.text)
-      .join('');
+      visionPrompt,
+    );
 
     // ── Afficher sur PC (nexus:display_image) ─────────────────────
     const wantDisplay = DISPLAY_PC_RE.test(caption) && isNexusOnline();
@@ -1004,15 +1057,11 @@ RÈGLES:
     if (wantSave && isNexusOnline()) {
       // Demander à Claude de suggérer le nom de dossier le plus pertinent
       try {
-        const folderResp = await anthropic.messages.create({
-          model:      'claude-haiku-4-5-20251001',
-          max_tokens: 60,
-          messages:   [{
-            role:    'user',
-            content: `Caption utilisateur: "${caption}"\nDescription image: "${visionText.slice(0, 400)}"\n\nSuggère un chemin de dossier Windows court et logique pour classer ce fichier. Format: "Dossier/SousDossier". Un seul chemin, rien d'autre. Exemples: "Accidents/2025-05-08", "Factures/2025", "Documents Clients/Passeports", "Flotte/Photos", "Incidents/Parking".`,
-          }],
-        });
-        const folder  = (folderResp.content[0] as Anthropic.TextBlock).text.trim().replace(/[<>:"|?*]/g, '_').slice(0, 80);
+        const folderRaw = await callTextWithFallback(
+          `Caption utilisateur: "${caption}"\nDescription image: "${visionText.slice(0, 400)}"\n\nSuggère un chemin de dossier Windows court et logique pour classer ce fichier. Format: "Dossier/SousDossier". Un seul chemin, rien d'autre. Exemples: "Accidents/2025-05-08", "Factures/2025", "Documents Clients/Passeports", "Flotte/Photos", "Incidents/Parking".`,
+          60,
+        );
+        const folder = folderRaw.trim().replace(/[<>:"|?*]/g, '_').slice(0, 80);
         const ext     = mimeType === 'image/png' ? 'png' : 'jpg';
         const filename = `photo_${Date.now()}.${ext}`;
         sendToNexus('nexus:save_file', {
@@ -1035,7 +1084,7 @@ RÈGLES:
       : `[Photo reçue sur Telegram]\n\nVision Claude:\n${visionText}`;
 
     const ctx      = await buildContext(sessionId, fullMessage);
-    const response = await chatWithTools(ctx.messages, ctx.systemExtra, sessionId);
+    const response = await chatWithFallback(ctx.messages, ctx.systemExtra, fullMessage, sessionId);
 
     // Envoyer la réponse de Dzaryx
     for (const chunk of splitMessage(response.text, 4000)) {
@@ -1131,19 +1180,13 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
           ? 'Extrais les infos de ce passeport. JSON UNIQUEMENT:\n{"name":"","passport_number":"","birth_date":"","expiry_date":"","nationality":""}'
           : 'Extrais les infos de ce permis de conduire. JSON UNIQUEMENT:\n{"name":"","license_number":"","birth_date":"","expiry_date":"","category":""}';
 
-        const ocrResp = await anthropic.messages.create({
-          model:      'claude-sonnet-4-6',
-          max_tokens: 256,
-          messages:   [{
-            role:    'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: base64Image } },
-              { type: 'text',  text: prompt },
-            ],
-          }],
-        });
-
-        const raw = ocrResp.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('');
+        const raw = await callVisionGemini(
+          base64Image,
+          mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+          'IMPORTANT: Réponds uniquement avec du JSON pur, aucun texte supplémentaire.',
+          prompt,
+          256,
+        );
         const match = raw.match(/\{[\s\S]*\}/);
         if (match) {
           ocrExtracted = JSON.parse(match[0]) as Record<string, string>;

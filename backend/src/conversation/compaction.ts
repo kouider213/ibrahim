@@ -16,6 +16,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
 import type { Message } from '../integrations/claude-api.js';
+import { callGroq, callGemini, isGroqAvailable, isGeminiAvailable } from '../integrations/llm-router.js';
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -63,6 +64,28 @@ ${conversationText}
 Réponds avec un résumé structuré en français, max 500 mots, format bullet points.
 Commence par: "📋 RÉSUMÉ SESSION PRÉCÉDENTE:"`;
 
+  // Try cheap providers first — summarization is a simple text task
+  if (isGroqAvailable()) {
+    try {
+      const text = await callGroq(prompt);
+      console.log('[compaction] summarized via Groq');
+      return text;
+    } catch (e) {
+      console.warn('[compaction] Groq summarization failed:', e instanceof Error ? e.message : e);
+    }
+  }
+  if (isGeminiAvailable()) {
+    try {
+      const text = await callGemini(prompt);
+      console.log('[compaction] summarized via Gemini');
+      return text;
+    } catch (e) {
+      console.warn('[compaction] Gemini summarization failed:', e instanceof Error ? e.message : e);
+    }
+  }
+
+  // Claude Haiku fallback
+  console.log('[compaction] summarized via Claude Haiku (fallback)');
   const response = await client.messages.create({
     model:      'claude-haiku-4-5-20251001',
     max_tokens: 600,

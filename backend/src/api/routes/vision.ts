@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
+import { callGemini, isGeminiAvailable } from '../../integrations/llm-router.js';
 
 const router = Router();
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -40,6 +41,38 @@ function sanitizeMime(m?: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'i
   return (ALLOWED_MIMES.has(m ?? '') ? m : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 }
 
+// Vision analysis: Gemini Flash Vision first (cheaper), Claude fallback
+async function analyzeImageWithFallback(
+  imageBase64: string,
+  mime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+  systemExtra: string,
+  userPrompt: string,
+  maxTokens: number,
+): Promise<string> {
+  if (isGeminiAvailable()) {
+    try {
+      const text = await callGemini(userPrompt, systemExtra, imageBase64, mime);
+      console.log('[AI_ROUTER] provider=gemini task=vision route=vision.ts');
+      return text;
+    } catch (gErr) {
+      console.warn(`[AI_ROUTER] provider=gemini vision failed: ${gErr instanceof Error ? gErr.message : gErr} — trying claude`);
+    }
+  }
+  console.log('[AI_ROUTER] provider=claude task=vision route=vision.ts fallback=true');
+  const response = await client.messages.create({
+    model:      'claude-sonnet-4-6',
+    max_tokens: maxTokens,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mime, data: imageBase64 } },
+        { type: 'text',  text: systemExtra ? `${systemExtra}\n\n${userPrompt}` : userPrompt },
+      ],
+    }],
+  });
+  return response.content.find(b => b.type === 'text')?.text ?? '';
+}
+
 // POST /api/vision/analyze — original endpoint (kept for compatibility)
 router.post('/analyze', async (req, res) => {
   const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
@@ -52,19 +85,7 @@ router.post('/analyze', async (req, res) => {
   const mime = sanitizeMime(mimeType);
 
   try {
-    const response = await client.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 300,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mime, data: imageBase64 } },
-          { type: 'text',  text: SMART_VISION_PROMPT },
-        ],
-      }],
-    });
-
-    const text = response.content.find(b => b.type === 'text')?.text ?? '';
+    const text = await analyzeImageWithFallback(imageBase64, mime, SMART_VISION_PROMPT, 'Analyse cette image.', 300);
     res.json({ description: text });
   } catch (err) {
     console.error('[vision] analyze failed:', err instanceof Error ? err.message : String(err));
@@ -85,19 +106,14 @@ router.post('/scan', async (req, res) => {
 
   try {
     // Step 1: detect what's in the image
-    const detectResp = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 50,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mime, data: imageBase64 } },
-          { type: 'text',  text: 'What type of content is in this image? Reply with ONLY one word: PASSPORT, LICENSE, CONTRACT, VEHICLE, ARABIC, RECEIPT, SCENE' },
-        ],
-      }],
-    });
-
-    const detectedType = detectResp.content.find(b => b.type === 'text')?.text?.trim().toUpperCase() ?? 'SCENE';
+    const detectedRaw = await analyzeImageWithFallback(
+      imageBase64,
+      mime,
+      'Réponds avec UN seul mot en majuscules: PASSPORT, LICENSE, CONTRACT, VEHICLE, ARABIC, RECEIPT, or SCENE.',
+      'What type of content is in this image?',
+      50,
+    );
+    const detectedType = detectedRaw.trim().toUpperCase().split(/\s/)[0] ?? 'SCENE';
 
     // Step 2: Smart analysis based on type
     let prompt = SMART_VISION_PROMPT;
@@ -126,19 +142,7 @@ Réponds en 2 phrases max, naturellement, comme si tu décrivais à quelqu'un en
       maxTokens = 200;
     }
 
-    const response = await client.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: maxTokens,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mime, data: imageBase64 } },
-          { type: 'text',  text: prompt },
-        ],
-      }],
-    });
-
-    const rawText = response.content.find(b => b.type === 'text')?.text ?? '';
+    const rawText = await analyzeImageWithFallback(imageBase64, mime, '', prompt, maxTokens);
 
     // Extract JSON if document
     let extractedData: Record<string, unknown> | null = null;
@@ -151,7 +155,6 @@ Réponds en 2 phrases max, naturellement, comme si tu décrivais à quelqu'un en
           extractedData = JSON.parse(match[1]!) as Record<string, unknown>;
         } catch { /* ignore */ }
       }
-      // Get the spoken part (after the JSON block)
       spokenText = rawText.replace(/```json[\s\S]*?```/g, '').trim();
       if (!spokenText && extractedData) {
         const name = extractedData['name'] as string || '';
