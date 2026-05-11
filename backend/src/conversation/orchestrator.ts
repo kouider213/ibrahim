@@ -3,11 +3,12 @@ import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL } from '.
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
-import { classifyRequest, callGroq, callGemini, callOpenAI, isOpenAIAvailable, isGeminiAvailable } from '../integrations/llm-router.js';
+import { classifyRequest, callGroq, callGemini, callOpenAI, isOpenAIAvailable, isGeminiAvailable, isGroqAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
 import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agents/multi-agent-orchestrator.js';
 import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
+import { redis }                                 from '../queue/queue.js';
 
 let _io: Namespace | null = null;
 let _reqCounter = 0;
@@ -157,6 +158,9 @@ export async function processMessage(
       } else {
         fastText = await callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime);
       }
+      // Track fast-path provider usage
+      const fastToday = new Date().toISOString().slice(0, 10);
+      redis.incr(`provider:calls:${fastToday}:${route.provider}`).catch(() => {});
       const guarded1  = guardResponse(fastText, userMessage, requestId);
       // Fast path = aucun outil appelé → phantom guard obligatoire
       const safeText  = phantomGuard(guarded1, [], userMessage, requestId);
@@ -217,20 +221,30 @@ export async function processMessage(
   } catch (claudeErr) {
     console.error(`[orch:${requestId}] Claude failed:`, claudeErr);
 
-    // ── Fallback chain: OpenAI → Gemini ───────────────────────────────────
+    // ── Fallback chain: Groq → OpenAI → Gemini ────────────────────────────
+    const today = new Date().toISOString().slice(0, 10);
+    redis.incr(`provider:fallback:${today}:claude`).catch(() => {});
+    console.warn(`[provider-monitor] Claude failed — entering fallback chain. session=${sessionId}`);
+
     const plainMessages = ctx.messages.map(m => ({
       role:    m.role as 'user' | 'assistant',
       content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
     }));
 
-    const fallbackProviders: Array<{ name: string; fn: () => Promise<string> }> = [];
-    if (isOpenAIAvailable()) fallbackProviders.push({ name: 'OpenAI GPT-4o', fn: () => callOpenAI(plainMessages, ctx.systemExtra) });
-    if (isGeminiAvailable()) fallbackProviders.push({ name: 'Gemini Flash', fn: () => callGemini(userMessage, ctx.systemExtra) });
+    const fallbackProviders: Array<{ name: string; key: string; fn: () => Promise<string> }> = [];
+    // Groq first — fastest + cheapest ($0.59/MTok input vs $3.00 Claude)
+    if (isGroqAvailable())   fallbackProviders.push({ name: 'Groq LLaMA3', key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
+    if (isOpenAIAvailable()) fallbackProviders.push({ name: 'OpenAI GPT-4o', key: 'openai', fn: () => callOpenAI(plainMessages, ctx.systemExtra) });
+    if (isGeminiAvailable()) fallbackProviders.push({ name: 'Gemini Flash',  key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra) });
 
     for (const fb of fallbackProviders) {
       console.warn(`[router] Attempting ${fb.name} fallback…`);
       try {
         const fallbackText = await fb.fn();
+        // Track successful fallback in Redis
+        redis.incr(`provider:calls:${today}:${fb.key}`).catch(() => {});
+        redis.incr(`provider:fallback:${today}:${fb.key}:success`).catch(() => {});
+        console.warn(`[provider-monitor] Fallback success: ${fb.name}. session=${sessionId}`);
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
         // Fallback providers = aucun outil → phantom guard
         const safeText     = phantomGuard(guarded1, [], userMessage, requestId);

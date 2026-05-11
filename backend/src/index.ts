@@ -38,6 +38,7 @@ import multiAgentRoutes    from './api/routes/multi-agent.js';
 import workflowRoutes      from './api/routes/workflow.js';
 import biRoutes            from './api/routes/bi.js';
 import orchestratorRoutes  from './api/routes/orchestrator.js';
+import healthAiRoutes      from './api/routes/health-ai.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -186,6 +187,7 @@ app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
 app.use('/api/workflow',     apiLimiter, workflowRoutes);
 app.use('/api/bi',           apiLimiter, biRoutes);
 app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
+app.use('/api/health-ai',   apiLimiter, healthAiRoutes);
 
 app.use(errorHandler);
 
