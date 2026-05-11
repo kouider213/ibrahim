@@ -37,6 +37,7 @@ import nexusOsRoutes       from './api/routes/nexus-os.js';
 import multiAgentRoutes    from './api/routes/multi-agent.js';
 import workflowRoutes      from './api/routes/workflow.js';
 import biRoutes            from './api/routes/bi.js';
+import orchestratorRoutes  from './api/routes/orchestrator.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -184,6 +185,7 @@ app.use('/api/nexus/os',     apiLimiter, nexusOsRoutes);
 app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
 app.use('/api/workflow',     apiLimiter, workflowRoutes);
 app.use('/api/bi',           apiLimiter, biRoutes);
+app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
 
 app.use(errorHandler);
 
