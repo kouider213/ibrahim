@@ -60,6 +60,15 @@ function buildDedupKey(value: string, domain: string, userId: string): string {
   return crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
 }
 
+/**
+ * Exported for callers (e.g. rememberInfo) to compute a stable key before calling writeMemory.
+ * Passing this as the `key` param means writeMemory's Step 2 domain+key check catches
+ * normalized near-duplicates (punctuation/case variations of the same fact).
+ */
+export function computeMemoryKey(content: string, domain: string, userId = 'kouider'): string {
+  return buildDedupKey(content, domain, userId);
+}
+
 export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemoryResult> {
   const { key, value, domain, confidence = 0.9, source = 'orchestrator' } = params;
   // user_id: use source as user discriminator (rememberInfo passes 'remember_info')

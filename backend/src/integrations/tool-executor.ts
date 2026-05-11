@@ -68,7 +68,7 @@ import { generateReservationVoucher } from './generate-voucher.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
 import { redis } from '../queue/queue.js';
 import { recordToolExecution } from '../orchestrator/action-engine.js';
-import { writeMemory, type MemoryDomain } from '../orchestrator/memory-engine.js';
+import { writeMemory, computeMemoryKey, type MemoryDomain } from '../orchestrator/memory-engine.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
@@ -461,7 +461,8 @@ async function rememberInfo(input: Record<string, unknown>): Promise<string> {
   const category = (input['category'] as string | undefined) ?? 'fact';
   const content  = input['content'] as string;
   const domain: MemoryDomain = CATEGORY_TO_DOMAIN[category] ?? 'note';
-  const key = content.slice(0, 80);
+  // Normalized SHA256 hash → same fact with punctuation/case variations = same key = UPDATE not INSERT
+  const key = computeMemoryKey(content, domain);
 
   // Write to modern memory_facts first
   const modernResult = await writeMemory({ key, value: content, domain, source: 'remember_info' });
