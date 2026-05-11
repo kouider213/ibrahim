@@ -7,16 +7,26 @@ const DEDUP_WINDOW_SEC = 30;
 const HISTORY_TTL_SEC  = 3_600;
 const HISTORY_MAX_LEN  = 50;
 
-// Keys that may contain large binary data — strip before storing
-const LARGE_ARG_KEYS = new Set(['imageBase64', 'image_base64', 'base64', 'content', 'buffer']);
+// Keys that contain truly binary / base64 data — strip before storing in Redis
+// NOTE: 'content' is intentionally NOT in this list — it is human-readable text
+// and should be stored as a truncated UTF-8 string (max MAX_ARG_STR_LEN chars).
+const BINARY_ARG_KEYS = new Set(['imageBase64', 'image_base64', 'base64', 'buffer']);
 const MAX_ARG_STR_LEN = 120;
+
+// Heuristic: detect pure base64 strings (length ≥ 64, only base64 charset)
+const BASE64_RE = /^[A-Za-z0-9+/]{64,}={0,2}$/;
 
 function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(args)) {
-    if (LARGE_ARG_KEYS.has(k)) {
+    if (BINARY_ARG_KEYS.has(k)) {
+      // Known binary key → always replace with placeholder
+      out[k] = '[binary]';
+    } else if (typeof v === 'string' && BASE64_RE.test(v)) {
+      // Looks like pure base64 payload → replace regardless of key name
       out[k] = '[binary]';
     } else if (typeof v === 'string' && v.length > MAX_ARG_STR_LEN) {
+      // Long readable string (e.g. content, message) → truncate, keep readable
       out[k] = v.slice(0, MAX_ARG_STR_LEN) + '…';
     } else {
       out[k] = v;
