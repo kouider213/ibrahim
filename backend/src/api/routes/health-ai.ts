@@ -98,4 +98,48 @@ router.get('/', requireMobileAuth, async (_req, res) => {
   });
 });
 
+// GET /api/health-ai/details
+// Migration audit: which endpoints still call Anthropic directly vs using router
+router.get('/details', requireMobileAuth, (_req, res) => {
+  res.json({
+    migration_status: {
+      total_endpoints: 14,
+      migrated: 8,
+      partial: 2,
+      not_migrated: 4,
+      migration_pct: '57%',
+    },
+    migrated: [
+      { endpoint: 'telegram.ts main chat',       provider: 'processWithOrchestration → Groq/OpenAI/Gemini fallback' },
+      { endpoint: 'telegram.ts vision (image)',   provider: 'Gemini Vision → Claude fallback' },
+      { endpoint: 'telegram.ts vision (video UI)', provider: 'Gemini Vision → Claude fallback' },
+      { endpoint: 'telegram.ts OCR',             provider: 'Gemini Vision → Claude fallback' },
+      { endpoint: 'telegram.ts folder suggest',  provider: 'Groq → Gemini → Haiku fallback' },
+      { endpoint: 'vision.ts /analyze',          provider: 'Gemini Vision → Claude fallback' },
+      { endpoint: 'vision.ts /scan',             provider: 'Gemini Vision → Claude fallback' },
+      { endpoint: 'widget.ts /chat',             provider: 'Groq → Gemini → OpenAI → Haiku fallback' },
+      { endpoint: 'compaction.ts summarize',     provider: 'Groq → Gemini → Haiku fallback' },
+    ],
+    partial: [
+      { endpoint: 'orchestrator.ts main chat',   note: 'Has fallback chain (Groq→OpenAI→Gemini) but ONLY after Claude throws' },
+      { endpoint: 'generate-voucher.ts',         note: 'Uses Anthropic for OCR — not user-facing chat path' },
+    ],
+    not_migrated: [
+      { endpoint: 'agents/code-agent.ts',            note: 'Uses Claude tool_use — cannot migrate without rewrite' },
+      { endpoint: 'agents/nexus-agent-runner.ts',    note: 'Uses Claude tool_use — cannot migrate without rewrite' },
+      { endpoint: 'agents/code-audit-runner.ts',     note: 'Uses Claude tool_use — cannot migrate without rewrite' },
+      { endpoint: 'agents/finance-agent-runner.ts',  note: 'Uses Claude tool_use — cannot migrate without rewrite' },
+      { endpoint: 'agents/social-agent-runner.ts',   note: 'Uses Claude tool_use — cannot migrate without rewrite' },
+    ],
+    note: 'Tool-use agentic loops (code-agent, nexus-agent, etc.) require Anthropic tool_use feature — no drop-in replacement. These fail gracefully when Claude is down.',
+    providers_active: {
+      claude:  !!process.env['ANTHROPIC_API_KEY'],
+      groq:    isGroqAvailable(),
+      gemini:  isGeminiAvailable(),
+      openai:  isOpenAIAvailable(),
+      ollama:  false,
+    },
+  });
+});
+
 export default router;
