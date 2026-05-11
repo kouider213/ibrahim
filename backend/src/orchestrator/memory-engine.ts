@@ -42,11 +42,70 @@ interface MemoryFactRow {
   updated_at: string;
 }
 
+// ── Normalize content for dedup comparison ───────────────────────────────────
+// Lowercase, trim, strip simple punctuation, collapse whitespace
+function normalizeContent(content: string): string {
+  return content
+    .toLowerCase()
+    .trim()
+    .replace(/[.!?;:]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// ── Build a SHA256 dedup_key from normalized content + domain + user_id ──────
+function buildDedupKey(value: string, domain: string, userId: string): string {
+  const normalized = normalizeContent(value);
+  const raw = `${normalized}|${domain}|${userId}`;
+  return crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
+}
+
 export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemoryResult> {
   const { key, value, domain, confidence = 0.9, source = 'orchestrator' } = params;
+  // user_id: use source as user discriminator (rememberInfo passes 'remember_info')
+  const userId = source;
+  const dedupKey = buildDedupKey(value, domain, userId);
 
   try {
-    // Check for existing active fact with same domain+key
+    // ── Step 1: Dedup check via normalized SHA256 hash ───────────────────────
+    // Try to use the dedup_key column if it exists in the schema.
+    // If the column does not exist, Supabase returns an error — we catch it and
+    // fall back to a fuzzy ILIKE search on the first 100 chars of normalised value.
+    let existingId: string | null = null;
+
+    const { data: dedupHit, error: dedupErr } = await supabase
+      .from('memory_facts')
+      .select('id')
+      .eq('dedup_key', dedupKey)
+      .eq('is_current', true)
+      .maybeSingle();
+
+    if (!dedupErr && dedupHit) {
+      // Exact hash match — definitive duplicate
+      existingId = (dedupHit as { id: string }).id;
+      console.log(`[memory-engine] DUPLICATE_SKIPPED (hash) domain=${domain} dedup_key=${dedupKey.slice(0, 16)}… source=${source}`);
+      return { success: true, id: existingId, operation: 'updated' };
+    }
+
+    if (dedupErr) {
+      // dedup_key column probably doesn't exist yet → fallback: ILIKE on normalised content
+      const normalizedSlice = normalizeContent(value).slice(0, 100);
+      const { data: ilikHit } = await supabase
+        .from('memory_facts')
+        .select('id')
+        .eq('domain', domain)
+        .ilike('value', `%${normalizedSlice}%`)
+        .eq('is_current', true)
+        .maybeSingle();
+
+      if (ilikHit) {
+        existingId = (ilikHit as { id: string }).id;
+        console.log(`[memory-engine] DUPLICATE_SKIPPED (ilike fallback) domain=${domain} source=${source}`);
+        return { success: true, id: existingId, operation: 'updated' };
+      }
+    }
+
+    // ── Step 2: Check for existing fact with same domain+key (for update) ────
     const { data: existing, error: fetchErr } = await supabase
       .from('memory_facts')
       .select('id')
@@ -58,9 +117,17 @@ export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemor
     if (fetchErr) throw fetchErr;
 
     if (existing) {
+      // Build update payload — include dedup_key if column exists
+      const updatePayload: Record<string, unknown> = {
+        value,
+        confidence,
+        updated_at: new Date().toISOString(),
+      };
+      if (!dedupErr) updatePayload['dedup_key'] = dedupKey;
+
       const { error: updateErr } = await supabase
         .from('memory_facts')
-        .update({ value, confidence, updated_at: new Date().toISOString() })
+        .update(updatePayload)
         .eq('id', (existing as { id: string }).id);
 
       if (updateErr) throw updateErr;
@@ -69,16 +136,21 @@ export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemor
       return { success: true, id: (existing as { id: string }).id, operation: 'updated' };
     }
 
-    // Insert new fact
+    // ── Step 3: Insert new fact with dedup_key if column exists ──────────────
+    const insertPayload: Record<string, unknown> = {
+      domain, key, value, confidence, is_current: true, source,
+    };
+    if (!dedupErr) insertPayload['dedup_key'] = dedupKey;
+
     const { data: inserted, error: insertErr } = await supabase
       .from('memory_facts')
-      .insert({ domain, key, value, confidence, is_current: true, source })
+      .insert(insertPayload)
       .select('id')
       .single();
 
     if (insertErr) throw insertErr;
 
-    console.log(`[memory-engine] CREATED domain=${domain} key="${key}" source=${source}`);
+    console.log(`[memory-engine] CREATED domain=${domain} key="${key}" dedup_key=${dedupKey.slice(0, 16)}… source=${source}`);
     return { success: true, id: (inserted as { id: string }).id, operation: 'created' };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
