@@ -219,7 +219,8 @@ export async function processMessage(
       agentRoute.agentTools,   // Phase 3: scoped tool subset
     );
   } catch (claudeErr) {
-    console.error(`[orch:${requestId}] Claude failed:`, claudeErr);
+    const _cAxErr = claudeErr as { response?: { status?: number; data?: unknown } };
+    console.error(`[PROVIDER_ROUTER] provider=claude FAILED status=${_cAxErr.response?.status ?? 'unknown'} body=${JSON.stringify(_cAxErr.response?.data ?? {}).slice(0, 200)} msg="${claudeErr instanceof Error ? claudeErr.message : String(claudeErr)}" session=${sessionId}`);
 
     // ── Fallback chain: Groq → OpenAI → Gemini ────────────────────────────
     const today = new Date().toISOString().slice(0, 10);
@@ -258,7 +259,8 @@ export async function processMessage(
         _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
         return { text: safeText, status: 'done' };
       } catch (fbErr) {
-        console.error(`[router] ${fb.name} fallback failed:`, fbErr);
+        const _fbAxErr = fbErr as { response?: { status?: number; data?: unknown }; message?: string };
+        console.error(`[PROVIDER_ROUTER] provider=${fb.key} FAILED status=${_fbAxErr.response?.status ?? 'network'} body=${JSON.stringify(_fbAxErr.response?.data ?? {}).slice(0, 200)} msg="${_fbAxErr.message ?? ''}" session=${sessionId}`);
       }
     }
 

@@ -39,7 +39,8 @@ async function callVisionGemini(
       console.log(`[AI_ROUTER] provider=gemini task=vision`);
       return text;
     } catch (gErr) {
-      console.warn(`[AI_ROUTER] provider=gemini vision failed: ${gErr instanceof Error ? gErr.message : gErr} — trying claude`);
+      const _gAxErr = gErr as { response?: { status?: number; data?: unknown }; message?: string };
+      console.warn(`[AI_ROUTER] provider=gemini vision FAILED status=${_gAxErr.response?.status ?? 'network'} body=${JSON.stringify(_gAxErr.response?.data ?? {}).slice(0, 150)} msg="${_gAxErr.message ?? ''}" — trying claude`);
     }
   }
   console.log(`[AI_ROUTER] provider=claude task=vision fallback=true`);
@@ -844,6 +845,7 @@ router.post('/webhook', async (req, res) => {
   // ── END NEXUS triggers ───────────────────────────────────────────────────
 
   try {
+    console.log(`[TELEGRAM_RUNTIME] handler=main_text message="${text.slice(0, 60)}" len=${text.length} session=${sessionId} router=processWithOrchestration`);
     await sendTyping(chatId);
     // Full P15 pipeline: focus-manager + priority-engine + Groq → OpenAI → Gemini fallback
     const response = await processWithOrchestration(text, sessionId, true);
@@ -871,6 +873,8 @@ router.post('/webhook', async (req, res) => {
 // ── TRAITEMENT VIDÉO AUTOMATIQUE ──────────────────────────────────
 async function handleVideoMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
+    console.log(`[TELEGRAM_RUNTIME] handler=video session=${sessionId} caption="${(msg.caption ?? '').slice(0, 40)}" vision=callVisionGemini`);
+
     if (!cloudinary) {
       await sendMessage(chatId, '⚠️ Cloudinary non configuré.');
       return;
@@ -985,6 +989,7 @@ const SAVE_PC_RE    = /(?:sauvegarde?|enregistre?|range?|classe?|mets?\s+dans\s+
 
 async function handleImageMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
+    console.log(`[TELEGRAM_RUNTIME] handler=image session=${sessionId} caption="${(msg.caption ?? '').slice(0, 40)}" vision=callVisionGemini chat=chatWithFallback`);
     await sendTyping(chatId);
 
     const caption = msg.caption ?? '';
@@ -1123,6 +1128,7 @@ RÈGLES:
 // ── Enregistrement document (passeport, permis, contrat) ──────
 async function handleFileMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
   try {
+    console.log(`[TELEGRAM_RUNTIME] handler=file session=${sessionId} caption="${(msg.caption ?? '').slice(0, 40)}" vision=callVisionGemini`);
     await sendTyping(chatId);
 
     let fileId:   string;

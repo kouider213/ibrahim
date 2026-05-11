@@ -29,9 +29,11 @@ const SIMPLE_QUERY  = /^(comment (ça|ca) va|ça va|ca va|tu vas bien|quoi de ne
 const SIMPLE_WHOAMI = /^(qui es[- ]tu|c'est quoi dzaryx|présente[- ]toi|dis[- ]moi qui tu es|tu t'appelles comment)[\s!?.]*$/i;
 
 function classifyRequest(text: string, hasImage: boolean, messageCount: number): RouteDecision {
-  // Vision always needs Claude
+  // Vision: Gemini Flash first (cheaper, 1M context), Claude fallback
   if (hasImage) {
-    return { provider: 'claude', fallback: 'gemini', fastPath: false, reason: 'image/vision' };
+    return GEMINI_KEY
+      ? { provider: 'gemini', fallback: 'claude', fastPath: false, reason: 'image/vision-gemini' }
+      : { provider: 'claude', fallback: 'gemini',  fastPath: false, reason: 'image/vision' };
   }
 
   // Business tools keywords → Claude agentic loop
@@ -47,6 +49,13 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
   // Long messages → Claude (complex reasoning likely needed)
   if (text.length > 300) {
     return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'long message' };
+  }
+
+  // Short messages (≤ 100 chars, no tools needed) → cheap provider FIRST
+  // Must be before messageCount check — "Ça va Dzaryx" in multi-turn must NOT hit Claude
+  if (text.length <= 100) {
+    if (GROQ_KEY)   return { provider: 'groq',   fallback: 'claude', fastPath: true, reason: 'short/groq-first' };
+    if (GEMINI_KEY) return { provider: 'gemini', fallback: 'claude', fastPath: true, reason: 'short/gemini-first' };
   }
 
   // Multi-turn conversation context → Claude (has memory/context)
