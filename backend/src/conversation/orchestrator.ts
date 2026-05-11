@@ -3,7 +3,7 @@ import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL } from '.
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
-import { classifyRequest, callGroq, callGemini, callOpenAI, callOpenAIVision, isOpenAIAvailable, isGeminiAvailable, isGroqAvailable } from '../integrations/llm-router.js';
+import { classifyRequest, callGroq, callGemini, callOpenAI, callOpenAIVision, callClaudeVision, isOpenAIAvailable, isGeminiAvailable, isGroqAvailable, isClaudeAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
 import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agents/multi-agent-orchestrator.js';
 import type { Namespace }                        from 'socket.io';
@@ -157,10 +157,11 @@ export async function processMessage(
     const fpCascade: FP[] = [];
 
     if (imageBase64) {
-      // Vision: Groq can't do images — Gemini Vision → OpenAI Vision only (never Anthropic)
-      console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()}`);
+      // Vision cascade: Gemini → OpenAI → Claude (lightweight, no tool loop) → clean error
+      console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} claude=${isClaudeAvailable()}`);
       if (isGeminiAvailable())   fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime) });
       if (isOpenAIAvailable())   fpCascade.push({ key: 'openai', fn: () => callOpenAIVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      if (isClaudeAvailable())   fpCascade.push({ key: 'claude', fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
     } else {
       // Text: primary provider first, then alternatives, then OpenAI
       if (route.provider === 'groq') {
@@ -206,9 +207,9 @@ export async function processMessage(
       }
     }
 
-    // Vision: never fall through to Claude — return user-friendly error
+    // Vision: Gemini+OpenAI+Claude all failed — return clean message, never crash
     if (imageBase64) {
-      console.error(`[VISION_RUNTIME] ALL_PROVIDERS_FAILED session=${sessionId} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()}`);
+      console.error(`[VISION_RUNTIME] ALL_PROVIDERS_FAILED session=${sessionId} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} claude=${isClaudeAvailable()}`);
       const visionErr = 'Vision IA indisponible pour le moment. Réessaie dans quelques secondes.';
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: visionErr });
       if (!textOnly) {

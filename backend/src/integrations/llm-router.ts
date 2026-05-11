@@ -200,8 +200,55 @@ export async function callOpenAIVision(
   return text;
 }
 
+// ── Claude Vision (lightweight, no tool loop — fallback when Gemini+OpenAI fail) ─
+const ANTHROPIC_KEY = process.env['ANTHROPIC_API_KEY'];
+
+export async function callClaudeVision(
+  userMessage: string,
+  systemExtra?: string,
+  imageBase64?: string,
+  imageMime   = 'image/jpeg',
+): Promise<string> {
+  if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
+
+  const systemPrompt = [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
+  const SAFE_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  const safeMedia  = (SAFE_MIMES.has(imageMime) ? imageMime : 'image/jpeg') as
+    'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
+  const userContent: unknown[] = [];
+  if (imageBase64) {
+    userContent.push({ type: 'image', source: { type: 'base64', media_type: safeMedia, data: imageBase64 } });
+  }
+  userContent.push({ type: 'text', text: userMessage });
+
+  const { default: axios } = await import('axios');
+  const { data } = await axios.post(
+    'https://api.anthropic.com/v1/messages',
+    {
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      system:     systemPrompt,
+      messages:   [{ role: 'user', content: userContent }],
+    },
+    {
+      headers: {
+        'x-api-key':         ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type':      'application/json',
+      },
+      timeout: 30_000,
+    },
+  );
+  const text = (data.content?.[0]?.text as string | undefined) ?? '';
+  if (!text) throw new Error('Claude Vision returned empty response');
+  console.log(`[claude-vision] ✅ ${text.length} chars`);
+  return text;
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 export { classifyRequest };
 export function isGroqAvailable():   boolean { return !!GROQ_KEY; }
 export function isOpenAIAvailable(): boolean { return !!OPENAI_KEY; }
 export function isGeminiAvailable(): boolean { return !!GEMINI_KEY; }
+export function isClaudeAvailable(): boolean { return !!ANTHROPIC_KEY; }
