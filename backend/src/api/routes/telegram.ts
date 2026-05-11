@@ -17,7 +17,7 @@ import { addVideoToBuffer } from '../../marketing/video-buffer.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
 import { processWithOrchestration } from '../../orchestrator/orchestrator-engine.js';
-import { callGroq, callGemini, callOpenAI, isGeminiAvailable, isGroqAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
+import { callGroq, callGemini, callOpenAI, callOpenAIVision, isGeminiAvailable, isGroqAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
@@ -25,37 +25,36 @@ const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 // ── AI Router helpers — Gemini first, Claude fallback ──────────────────────────
 
-// Vision: Gemini Flash Vision primary, Claude Vision fallback
+// Vision: Gemini Flash Vision primary, OpenAI Vision fallback — never Anthropic direct
 async function callVisionGemini(
   base64: string,
   mimeType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
   systemExtra: string,
   userPrompt: string,
-  maxTokens = 2048,
+  _maxTokens = 2048,
 ): Promise<string> {
   if (isGeminiAvailable()) {
     try {
       const text = await callGemini(userPrompt, systemExtra, base64, mimeType);
-      console.log(`[AI_ROUTER] provider=gemini task=vision`);
+      console.log(`[AI_ROUTER] task=vision provider=gemini fallback_reason=primary`);
       return text;
     } catch (gErr) {
       const _gAxErr = gErr as { response?: { status?: number; data?: unknown }; message?: string };
-      console.warn(`[AI_ROUTER] provider=gemini vision FAILED status=${_gAxErr.response?.status ?? 'network'} body=${JSON.stringify(_gAxErr.response?.data ?? {}).slice(0, 150)} msg="${_gAxErr.message ?? ''}" — trying claude`);
+      console.warn(`[AI_ROUTER] task=vision provider=gemini FAILED status=${_gAxErr.response?.status ?? 'network'} body=${JSON.stringify(_gAxErr.response?.data ?? {}).slice(0, 150)} msg="${_gAxErr.message ?? ''}" — trying openai`);
     }
   }
-  console.log(`[AI_ROUTER] provider=claude task=vision fallback=true`);
-  const resp = await anthropic.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: maxTokens,
-    messages:   [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-        { type: 'text',  text: systemExtra ? `${systemExtra}\n\n${userPrompt}` : userPrompt },
-      ],
-    }],
-  });
-  return resp.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('');
+  if (isOpenAIAvailable()) {
+    try {
+      const text = await callOpenAIVision(userPrompt, systemExtra, base64, mimeType);
+      console.log(`[AI_ROUTER] task=vision provider=openai fallback_reason=gemini_failed`);
+      return text;
+    } catch (oErr) {
+      const _oAxErr = oErr as { response?: { status?: number; data?: unknown }; message?: string };
+      console.warn(`[AI_ROUTER] task=vision provider=openai FAILED status=${_oAxErr.response?.status ?? 'network'} body=${JSON.stringify(_oAxErr.response?.data ?? {}).slice(0, 150)} — all vision providers exhausted`);
+    }
+  }
+  console.error(`[AI_ROUTER] task=vision ALL_PROVIDERS_FAILED gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} — NEVER calling Anthropic`);
+  throw new Error('Vision indisponible: Gemini et OpenAI Vision ont échoué. Envoie une description textuelle à la place.');
 }
 
 // Simple text: Groq (free/fast) → Gemini → Haiku fallback

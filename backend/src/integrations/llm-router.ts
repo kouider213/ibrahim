@@ -29,11 +29,11 @@ const SIMPLE_QUERY  = /^(comment (ça|ca) va|ça va|ca va|tu vas bien|quoi de ne
 const SIMPLE_WHOAMI = /^(qui es[- ]tu|c'est quoi dzaryx|présente[- ]toi|dis[- ]moi qui tu es|tu t'appelles comment)[\s!?.]*$/i;
 
 function classifyRequest(text: string, hasImage: boolean, messageCount: number): RouteDecision {
-  // Vision: Gemini Flash first (cheaper, 1M context), Claude fallback
+  // Vision: Gemini Flash first (cheaper, 1M context), OpenAI Vision fallback
   if (hasImage) {
     return GEMINI_KEY
-      ? { provider: 'gemini', fallback: 'claude', fastPath: false, reason: 'image/vision-gemini' }
-      : { provider: 'claude', fallback: 'gemini',  fastPath: false, reason: 'image/vision' };
+      ? { provider: 'gemini', fallback: OPENAI_KEY ? 'openai' : 'claude', fastPath: true, reason: 'image/vision-gemini' }
+      : { provider: 'claude', fallback: 'gemini', fastPath: false, reason: 'image/vision' };
   }
 
   // Business tools keywords → Claude agentic loop
@@ -153,6 +153,40 @@ export async function callOpenAI(
   const text = (data.choices?.[0]?.message?.content as string | undefined) ?? '';
   if (!text) throw new Error('OpenAI returned empty response');
   console.log(`[openai-fallback] ✅ ${text.length} chars`);
+  return text;
+}
+
+// ── OpenAI GPT-4o Vision (image fallback when Gemini Vision fails) ────────────
+export async function callOpenAIVision(
+  userMessage: string,
+  systemExtra?: string,
+  imageBase64?: string,
+  imageMime = 'image/jpeg',
+): Promise<string> {
+  if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY not configured');
+
+  const systemPrompt = [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
+
+  const userContent: unknown[] = [];
+  if (imageBase64) {
+    userContent.push({ type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageBase64}` } });
+  }
+  userContent.push({ type: 'text', text: userMessage });
+
+  const { default: axios } = await import('axios');
+  const { data } = await axios.post(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      model:       'gpt-4o',
+      messages:    [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
+      max_tokens:  2048,
+      temperature: 0.7,
+    },
+    { headers: { Authorization: `Bearer ${OPENAI_KEY}` }, timeout: 30_000 },
+  );
+  const text = (data.choices?.[0]?.message?.content as string | undefined) ?? '';
+  if (!text) throw new Error('OpenAI Vision returned empty response');
+  console.log(`[openai-vision] ✅ ${text.length} chars`);
   return text;
 }
 

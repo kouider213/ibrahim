@@ -1,10 +1,7 @@
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../../config/env.js';
-import { callGemini, isGeminiAvailable } from '../../integrations/llm-router.js';
+import { callGemini, callOpenAIVision, isGeminiAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
 
 const router = Router();
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 const SMART_VISION_PROMPT = `Tu es Dzaryx, assistant IA avec vision. Analyse cette image et donne une réponse concise en français (max 3 phrases) adaptée à ce que tu vois.
 
@@ -41,36 +38,36 @@ function sanitizeMime(m?: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'i
   return (ALLOWED_MIMES.has(m ?? '') ? m : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 }
 
-// Vision analysis: Gemini Flash Vision first (cheaper), Claude fallback
+// Vision: Gemini Flash Vision primary, OpenAI Vision fallback — never Anthropic direct
 async function analyzeImageWithFallback(
   imageBase64: string,
   mime: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
   systemExtra: string,
   userPrompt: string,
-  maxTokens: number,
+  _maxTokens: number,
 ): Promise<string> {
   if (isGeminiAvailable()) {
     try {
       const text = await callGemini(userPrompt, systemExtra, imageBase64, mime);
-      console.log('[AI_ROUTER] provider=gemini task=vision route=vision.ts');
+      console.log('[AI_ROUTER] task=vision provider=gemini fallback_reason=primary route=vision.ts');
       return text;
     } catch (gErr) {
-      console.warn(`[AI_ROUTER] provider=gemini vision failed: ${gErr instanceof Error ? gErr.message : gErr} — trying claude`);
+      const _gAxErr = gErr as { response?: { status?: number; data?: unknown }; message?: string };
+      console.warn(`[AI_ROUTER] task=vision provider=gemini FAILED status=${_gAxErr.response?.status ?? 'network'} body=${JSON.stringify(_gAxErr.response?.data ?? {}).slice(0, 150)} — trying openai`);
     }
   }
-  console.log('[AI_ROUTER] provider=claude task=vision route=vision.ts fallback=true');
-  const response = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: maxTokens,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mime, data: imageBase64 } },
-        { type: 'text',  text: systemExtra ? `${systemExtra}\n\n${userPrompt}` : userPrompt },
-      ],
-    }],
-  });
-  return response.content.find(b => b.type === 'text')?.text ?? '';
+  if (isOpenAIAvailable()) {
+    try {
+      const text = await callOpenAIVision(userPrompt, systemExtra, imageBase64, mime);
+      console.log('[AI_ROUTER] task=vision provider=openai fallback_reason=gemini_failed route=vision.ts');
+      return text;
+    } catch (oErr) {
+      const _oAxErr = oErr as { response?: { status?: number; data?: unknown }; message?: string };
+      console.warn(`[AI_ROUTER] task=vision provider=openai FAILED status=${_oAxErr.response?.status ?? 'network'} body=${JSON.stringify(_oAxErr.response?.data ?? {}).slice(0, 150)}`);
+    }
+  }
+  console.error(`[AI_ROUTER] task=vision ALL_PROVIDERS_FAILED gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()}`);
+  throw new Error('Vision indisponible: Gemini et OpenAI Vision ont échoué.');
 }
 
 // POST /api/vision/analyze — original endpoint (kept for compatibility)
