@@ -3,7 +3,7 @@ import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL } from '.
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
-import { classifyRequest, callGroq, callGemini, callOpenAI, isOpenAIAvailable, isGeminiAvailable, isGroqAvailable } from '../integrations/llm-router.js';
+import { classifyRequest, callGroq, callGemini, callOpenAI, callOpenAIVision, isOpenAIAvailable, isGeminiAvailable, isGroqAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
 import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agents/multi-agent-orchestrator.js';
 import type { Namespace }                        from 'socket.io';
@@ -149,34 +149,55 @@ export async function processMessage(
   const route = classifyRequest(userMessage, !!imageBase64, ctx.messages.length);
   console.log(`[router] provider=${route.provider} reason="${route.reason}" fallback=${route.fallback}`);
 
-  // ── Fast path: Groq or Gemini (no agentic loop) ───────────────────────────
+  // ── Fast path cascade: Groq/Gemini/OpenAI before any Claude call ─────────
   if (route.fastPath && (route.provider === 'groq' || route.provider === 'gemini')) {
-    try {
-      let fastText: string;
+    const fastToday = new Date().toISOString().slice(0, 10);
+
+    type FP = { key: string; fn: () => Promise<string> };
+    const fpCascade: FP[] = [];
+
+    if (imageBase64) {
+      // Vision: Groq can't do images — Gemini Vision → OpenAI Vision only
+      if (isGeminiAvailable())   fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      if (isOpenAIAvailable())   fpCascade.push({ key: 'openai', fn: () => callOpenAIVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+    } else {
+      // Text: primary provider first, then alternatives, then OpenAI
       if (route.provider === 'groq') {
-        fastText = await callGroq(userMessage, ctx.systemExtra);
+        fpCascade.push({ key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
+        if (isGeminiAvailable()) fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra) });
       } else {
-        fastText = await callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime);
+        fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra) });
+        if (isGroqAvailable())   fpCascade.push({ key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
       }
-      // Track fast-path provider usage
-      const fastToday = new Date().toISOString().slice(0, 10);
-      redis.incr(`provider:calls:${fastToday}:${route.provider}`).catch(() => {});
-      const guarded1  = guardResponse(fastText, userMessage, requestId);
-      // Fast path = aucun outil appelé → phantom guard obligatoire
-      const safeText  = phantomGuard(guarded1, [], userMessage, requestId);
-      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
-      saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
-      if (!textOnly && safeText.length > 0) {
-        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
-        await streamAudioSentences(safeText, sessionId);
-        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      if (isOpenAIAvailable()) {
+        const plain = ctx.messages.map(m => ({ role: m.role as 'user' | 'assistant', content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
+        fpCascade.push({ key: 'openai', fn: () => callOpenAI(plain, ctx.systemExtra) });
       }
-      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
-      return { text: safeText, status: 'done' };
-    } catch (fastErr) {
-      console.warn(`[router] ${route.provider} failed (${fastErr instanceof Error ? fastErr.message : fastErr}) — falling back to Claude`);
-      // Fall through to Claude below
     }
+
+    for (const fp of fpCascade) {
+      try {
+        const fastText = await fp.fn();
+        redis.incr(`provider:calls:${fastToday}:${fp.key}`).catch(() => {});
+        const guarded1 = guardResponse(fastText, userMessage, requestId);
+        const safeText = phantomGuard(guarded1, [], userMessage, requestId);
+        console.log(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=${fp.key} fast_path=true router_used=true legacy=false`);
+        _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
+        saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
+        if (!textOnly && safeText.length > 0) {
+          _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+          await streamAudioSentences(safeText, sessionId);
+          _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+        }
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+        return { text: safeText, status: 'done' };
+      } catch (fpErr) {
+        const _axErr = fpErr as { response?: { status?: number; data?: unknown }; message?: string };
+        console.warn(`[MOBILE_RUNTIME] fast_path=${fp.key} FAILED status=${_axErr.response?.status ?? 'network'} body=${JSON.stringify(_axErr.response?.data ?? {}).slice(0, 100)} session=${sessionId} — trying next`);
+      }
+    }
+    // All cheap providers exhausted → fall through to Claude agentic loop
+    console.warn(`[MOBILE_RUNTIME] all fast providers exhausted — falling to Claude. session=${sessionId}`);
   }
 
   // ── Phase 3: CoreRouter — pick specialized agent ──────────────────────────
@@ -245,7 +266,7 @@ export async function processMessage(
         // Track successful fallback in Redis
         redis.incr(`provider:calls:${today}:${fb.key}`).catch(() => {});
         redis.incr(`provider:fallback:${today}:${fb.key}:success`).catch(() => {});
-        console.warn(`[provider-monitor] Fallback success: ${fb.name}. session=${sessionId}`);
+        console.warn(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=${fb.key} fast_path=false fallback=true router_used=true legacy=false`);
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
         // Fallback providers = aucun outil → phantom guard
         const safeText     = phantomGuard(guarded1, [], userMessage, requestId);
@@ -264,7 +285,8 @@ export async function processMessage(
       }
     }
 
-    const errorText = `Erreur Dzaryx: ${claudeErr instanceof Error ? claudeErr.message : String(claudeErr)}`;
+    console.error(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} ALL_PROVIDERS_FAILED error=true router_used=true legacy=false`);
+    const errorText = `⚠️ Service temporairement indisponible. Réessaie dans quelques secondes.`;
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: errorText });
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: errorText, status: 'error' };

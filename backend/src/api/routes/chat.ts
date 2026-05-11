@@ -26,6 +26,9 @@ router.post('/', requireMobileAuth, async (req, res) => {
 
   const { message, sessionId, textOnly, imageBase64, imageMime } = parsed.data;
 
+  const _channel = sessionId.startsWith('voice_') ? 'mobile_voice' : 'mobile_text';
+  console.log(`[MOBILE_RUNTIME] channel=${_channel} endpoint=/api/chat session=${sessionId.slice(0, 30)} len=${message.length} has_image=${!!imageBase64} router_used=true legacy=false`);
+
   // Persist timezone from X-Timezone header — used by schedule_reminder priority chain
   const headerTz = req.headers['x-timezone'] as string | undefined;
   if (headerTz && isValidTimezone(headerTz)) {
