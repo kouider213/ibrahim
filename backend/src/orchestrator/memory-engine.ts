@@ -1,5 +1,6 @@
 import { supabase } from '../integrations/supabase.js';
 import { buildMemoryContext, type MemoryContextResult } from '../conversation/memory-selector.js';
+import crypto from 'crypto';
 
 export type MemoryDomain =
   | 'identity'
