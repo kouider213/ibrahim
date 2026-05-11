@@ -3,7 +3,7 @@
 mobile/.env.local
 */node_modules/
 */dist/
-.netlify/
+**/.netlify/
 **/__pycache__/
 **/*.pyc
 nexus/.deps_ok
