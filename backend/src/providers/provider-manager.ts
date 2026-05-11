@@ -63,7 +63,7 @@ export function defaultModel(p: ProviderName): string {
   switch (p) {
     case 'claude': return 'claude-sonnet-4-6';
     case 'openai': return 'gpt-4o';
-    case 'gemini': return 'gemini-1.5-flash';
+    case 'gemini': return 'gemini-2.0-flash';
     case 'groq':   return 'llama-3.3-70b-versatile';
   }
 }

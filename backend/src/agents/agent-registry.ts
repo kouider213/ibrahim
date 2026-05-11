@@ -104,7 +104,7 @@ TOUJOURS: optimiser pour mobile (ratio 9:16 TikTok/Reels), qualité professionne
   ],
   keywords:  /\b(image|photo|vidéo|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|réseaux|instagram|reel|story|banner|logo|supprimer fond|optimiser)\b/i,
   priority:  6,
-  llm: { provider: 'gemini', model: 'gemini-1.5-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
+  llm: { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
 };
 
 // ── Agent 6: TikTok ───────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ TOUJOURS: produire du code React/CSS directement utilisable, penser mobile-first
   ],
   keywords:  /\b(design|ui|ux|interface|maquette|composant|css|layout|couleur|palette|logo|icône|figma|wireframe|prototype|style|thème|charte graphique)\b/i,
   priority:  7,
-  llm: { provider: 'gemini', model: 'gemini-1.5-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
+  llm: { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
 };
 
 // ── Agent 10: Code Reviewer ───────────────────────────────────────────────────
