@@ -68,6 +68,7 @@ import { generateReservationVoucher } from './generate-voucher.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
 import { redis } from '../queue/queue.js';
 import { recordToolExecution } from '../orchestrator/action-engine.js';
+import { writeMemory, type MemoryDomain } from '../orchestrator/memory-engine.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
@@ -444,16 +445,47 @@ async function learnRuleTool(input: Record<string, unknown>): Promise<string> {
   return `✅ Règle apprise [${result.category}]: ${result.rule}`;
 }
 
-async function rememberInfo(input: Record<string, unknown>): Promise<string> {
-  const { error } = await supabase
-    .from('ibrahim_memory')
-    .insert({
-      category: input['category'] ?? 'fact',
-      content:  input['content'],
-    });
+const CATEGORY_TO_DOMAIN: Record<string, MemoryDomain> = {
+  identity:   'identity',
+  business:   'business',
+  health:     'health',
+  family:     'family',
+  goal:       'goal',
+  habit:      'habit',
+  preference: 'preference',
+  note:       'note',
+  fact:       'note',
+};
 
-  if (error) return `Erreur mémoire: ${error.message}`;
-  return `✅ Mémorisé [${input['category']}]: ${input['content']}`;
+async function rememberInfo(input: Record<string, unknown>): Promise<string> {
+  const category = (input['category'] as string | undefined) ?? 'fact';
+  const content  = input['content'] as string;
+  const domain: MemoryDomain = CATEGORY_TO_DOMAIN[category] ?? 'note';
+  const key = content.slice(0, 80);
+
+  // Write to modern memory_facts first
+  const modernResult = await writeMemory({ key, value: content, domain, source: 'remember_info' });
+
+  // Always write legacy ibrahim_memory (don't break old recall flow)
+  const { error: legacyError } = await supabase
+    .from('ibrahim_memory')
+    .insert({ category, content });
+
+  if (modernResult.success && !legacyError) {
+    return `✅ Mémorisé [${category}]: ${content}`;
+  }
+
+  if (modernResult.success && legacyError) {
+    console.warn(`[rememberInfo] legacy write failed: ${legacyError.message}`);
+    return `✅ Mémorisé [${category}]: ${content} (⚠️ index legacy non mis à jour)`;
+  }
+
+  if (!modernResult.success && !legacyError) {
+    return `⚠️ Sauvegardé legacy uniquement [${category}]: ${content} — mémoire moderne échouée: ${modernResult.error}`;
+  }
+
+  // Both failed
+  return `❌ Erreur mémoire [${category}]: moderne="${modernResult.error}" legacy="${legacyError!.message}"`;
 }
 
 async function recallMemory(input: Record<string, unknown>): Promise<string> {
