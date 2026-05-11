@@ -7,6 +7,31 @@ const DEDUP_WINDOW_SEC = 30;
 const HISTORY_TTL_SEC  = 3_600;
 const HISTORY_MAX_LEN  = 50;
 
+// Keys that may contain large binary data — strip before storing
+const LARGE_ARG_KEYS = new Set(['imageBase64', 'image_base64', 'base64', 'content', 'buffer']);
+const MAX_ARG_STR_LEN = 120;
+
+function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (LARGE_ARG_KEYS.has(k)) {
+      out[k] = '[binary]';
+    } else if (typeof v === 'string' && v.length > MAX_ARG_STR_LEN) {
+      out[k] = v.slice(0, MAX_ARG_STR_LEN) + '…';
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+function channelFromSession(sessionId: string): string {
+  if (sessionId.startsWith('telegram_')) return 'telegram';
+  if (sessionId.startsWith('voice_'))    return 'mobile_voice';
+  if (sessionId.startsWith('mobile_'))   return 'mobile_text';
+  return 'unknown';
+}
+
 // Read-only tools — no dedup needed
 const IDEMPOTENT_TOOLS = new Set([
   'list_bookings', 'check_car_availability', 'get_financial_report',
@@ -29,7 +54,21 @@ export interface ActionRecord {
   timestamp: number;
   success:   boolean;
   sessionId: string;
+  channel:   string;
+  args?:     Record<string, unknown>;
   result?:   string;
+  latencyMs?: number;
+  error?:    string;
+}
+
+export interface ToolExecutionParams {
+  sessionId: string;
+  toolName:  string;
+  args:      Record<string, unknown>;
+  result:    string;
+  success:   boolean;
+  latencyMs: number;
+  error?:    string;
 }
 
 function argsFingerprint(toolName: string, args: Record<string, unknown>): string {
@@ -80,6 +119,7 @@ export async function recordAction(
     timestamp: Date.now(),
     success:   execution.success,
     sessionId,
+    channel:   channelFromSession(sessionId),
     result:    execution.result?.slice(0, 200),
   };
 
@@ -103,6 +143,39 @@ export async function recordAllActions(
   for (const exec of executions) {
     await recordAction(sessionId, exec);
   }
+}
+
+// Primary hook — called directly from tool-executor.ts after every executeTool
+export async function recordToolExecution(params: ToolExecutionParams): Promise<void> {
+  const { sessionId, toolName, args, result, success, latencyMs, error } = params;
+  const channel = channelFromSession(sessionId);
+
+  const record: ActionRecord = {
+    toolName,
+    timestamp: Date.now(),
+    success,
+    sessionId,
+    channel,
+    args:      sanitizeArgs(args),
+    result:    result.slice(0, 200),
+    latencyMs,
+    error,
+  };
+
+  const listKey = `action:history:${sessionId}`;
+  await redis.lpush(listKey, JSON.stringify(record)).catch(() => {});
+  await redis.ltrim(listKey, 0, HISTORY_MAX_LEN - 1).catch(() => {});
+  await redis.expire(listKey, HISTORY_TTL_SEC).catch(() => {});
+
+  console.log(
+    `[action-engine] RECORDED` +
+    ` tool=${toolName}` +
+    ` success=${success}` +
+    ` ms=${latencyMs}` +
+    ` channel=${channel}` +
+    ` session=${sessionId.slice(0, 20)}` +
+    (error ? ` error="${error.slice(0, 80)}"` : ''),
+  );
 }
 
 export async function getActionHistory(sessionId: string, limit = 10): Promise<ActionRecord[]> {

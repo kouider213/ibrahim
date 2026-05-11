@@ -67,6 +67,7 @@ import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc } from
 import { generateReservationVoucher } from './generate-voucher.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
 import { redis } from '../queue/queue.js';
+import { recordToolExecution } from '../orchestrator/action-engine.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
@@ -77,7 +78,37 @@ import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.j
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
 const videoGenLocks = new Set<string>();
 
+// ── Public entry point — wraps _dispatch with timing + action recording ──────
 export async function executeTool(
+  name: string,
+  input: Record<string, unknown>,
+  sessionId?: string,
+): Promise<string> {
+  const t0     = Date.now();
+  const sid    = sessionId ?? 'unknown';
+  const result = await _dispatch(name, input, sessionId);
+  const ms     = Date.now() - t0;
+
+  // Detect real errors: "Erreur outil X:" prefix or "Outil inconnu: X"
+  const isError =
+    result.startsWith(`Erreur outil ${name}:`) ||
+    result.startsWith(`Outil inconnu: ${name}`);
+
+  // Fire-and-forget — never block the tool response
+  recordToolExecution({
+    sessionId: sid,
+    toolName:  name,
+    args:      input,
+    result,
+    success:   !isError,
+    latencyMs: ms,
+    error:     isError ? result.slice(0, 200) : undefined,
+  }).catch(err => console.error('[action-engine] recordToolExecution failed:', err instanceof Error ? err.message : err));
+
+  return result;
+}
+
+async function _dispatch(
   name: string,
   input: Record<string, unknown>,
   sessionId?: string,
