@@ -78,6 +78,29 @@ import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.j
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
 const videoGenLocks = new Set<string>();
 
+// ── Failure detection — covers catch-block errors AND business soft-failures ──
+// Patterns anchored at START (safe — no valid result begins with these)
+const FAIL_START_PATTERNS: RegExp[] = [
+  /^Erreur\b/i,       // "Erreur outil X:", "Erreur mémoire:", "Erreur recall:", "Erreur:"
+  /^Error\b/i,        // English catch-block
+  /^Outil inconnu:/,  // unknown tool name
+  /^Impossible\b/i,   // "Impossible de faire..."
+  /^[Éé]chec\b/,      // "Échec de..."
+  /^Failed\b/i,       // English explicit failure
+];
+// Phrases anywhere — slightly higher false-positive risk, kept narrow
+const FAIL_PHRASE_PATTERNS: RegExp[] = [
+  /\bintrouvable\b/i,  // "Réservation introuvable", "Client introuvable"
+  /\bnot\s+found\b/i,  // English not-found
+];
+
+function isToolFailureResult(result: string, toolName: string): boolean {
+  if (result.startsWith(`Outil inconnu: ${toolName}`)) return true;
+  if (FAIL_START_PATTERNS.some(p => p.test(result)))   return true;
+  if (FAIL_PHRASE_PATTERNS.some(p => p.test(result)))   return true;
+  return false;
+}
+
 // ── Public entry point — wraps _dispatch with timing + action recording ──────
 export async function executeTool(
   name: string,
@@ -89,10 +112,7 @@ export async function executeTool(
   const result = await _dispatch(name, input, sessionId);
   const ms     = Date.now() - t0;
 
-  // Detect real errors: "Erreur outil X:" prefix or "Outil inconnu: X"
-  const isError =
-    result.startsWith(`Erreur outil ${name}:`) ||
-    result.startsWith(`Outil inconnu: ${name}`);
+  const isError = isToolFailureResult(result, name);
 
   // Fire-and-forget — never block the tool response
   recordToolExecution({
