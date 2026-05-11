@@ -175,6 +175,7 @@ export default function ChatInterface() {
   // ── Error state ────────────────────────────────────────────────
   const [errorMsg,     setErrorMsg]     = useState('');
   const [errorVisible, setErrorVisible] = useState(false);
+  const [debugMsg,     setDebugMsg]     = useState('');
 
   // ── Refs ───────────────────────────────────────────────────────
   const pendingPhotoRef    = useRef<{ base64: string; mime: string } | null>(null);
@@ -302,23 +303,75 @@ export default function ChatInterface() {
     return tmp.toDataURL('image/jpeg', 0.7).split(',')[1] ?? null;
   }, []);
 
+  const captureFrameWithRetry = useCallback(async (): Promise<string | null> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const video = liveVideoRef.current;
+      if (!video || !videoStreamRef.current) {
+        console.warn(`[VISION_UI] captureFrame attempt=${attempt + 1} no_video_or_stream`);
+        await new Promise<void>(r => setTimeout(r, 300));
+        continue;
+      }
+      const readyState = video.readyState;
+      const w = video.videoWidth, h = video.videoHeight;
+      console.log(`[VISION_UI] video_ready width=${w} height=${h} readyState=${readyState}`);
+      if (readyState < 2 || w === 0 || h === 0) {
+        console.warn(`[VISION_UI] not_ready attempt=${attempt + 1} readyState=${readyState} w=${w} h=${h}`);
+        await new Promise<void>(r => setTimeout(r, 300));
+        continue;
+      }
+      const cw = Math.min(w, 640), ch = Math.min(h, 480);
+      const tmp = document.createElement('canvas');
+      tmp.width = cw; tmp.height = ch;
+      tmp.getContext('2d')!.drawImage(video, 0, 0, cw, ch);
+      const base64 = tmp.toDataURL('image/jpeg', 0.7).split(',')[1] ?? null;
+      if (!base64 || base64.length < 1000) {
+        console.warn(`[VISION_UI] canvas_capture_fail attempt=${attempt + 1} base64_length=${base64?.length ?? 0}`);
+        await new Promise<void>(r => setTimeout(r, 300));
+        continue;
+      }
+      console.log(`[VISION_UI] canvas_capture_ok base64_length=${base64.length}`);
+      return base64;
+    }
+    console.error('[VISION_UI] captureFrame failed after 3 attempts');
+    return null;
+  }, []);
+
   const handleScan = useCallback(async () => {
     if (scanning) return;
-    const frame = captureFrame();
-    if (!frame) { showError('Caméra non prête — attends que le flux démarre'); return; }
+    console.log('[VISION_UI] scanner_clicked');
+    setDebugMsg('Capture en cours…');
+
+    const frame = await captureFrameWithRetry();
+    if (!frame) {
+      setDebugMsg('');
+      showError('Image non capturée — caméra non prête');
+      return;
+    }
+
     setScanning(true);
     applyState('think');
     clearAudioQueue();
+    unlockAudio();
+
+    // Close overlay so socket.io response text is visible in main UI
+    closeOverlay();
+    setDebugMsg('');
+
+    console.log(`[VISION_UI] sending_to_api endpoint=/api/chat image_length=${frame.length}`);
     try {
-      // Use /api/chat → Gemini Vision → ElevenLabs TTS via socket.io (same as voice)
       await api.chat(
         'Décris précisément ce que tu vois sur cette image en 2-3 phrases en français.',
         sessionId, false, frame, 'image/jpeg',
       );
-      // Response arrives async via socket.io: Dzaryx:text_complete + Dzaryx:audio_chunk
-    } catch { showError('Erreur vision — connexion impossible'); applyState('idle'); }
-    finally { setScanning(false); }
-  }, [scanning, captureFrame, applyState, showError, sessionId]);
+      console.log('[VISION_UI] api_response status=202_accepted');
+    } catch (err) {
+      console.error('[VISION_UI] api_response status=error', err);
+      showError('Erreur vision — connexion impossible');
+      applyState('idle');
+    } finally {
+      setScanning(false);
+    }
+  }, [scanning, captureFrameWithRetry, applyState, showError, sessionId, closeOverlay]);
 
   const toggleScanMode = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -554,11 +607,13 @@ export default function ChatInterface() {
         applyState(toJarvis(s));
       },
       onAudio: (b64) => {
+        console.log('[VISION_UI] tts_start provider=elevenlabs_full');
         elevenlabsReceived.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         window.speechSynthesis?.cancel(); clearAudioQueue(); playBase64Audio(b64); applyState('speak');
       },
       onAudioChunk: (b64) => {
+        console.log('[VISION_UI] tts_start provider=elevenlabs_chunk');
         elevenlabsReceived.current = true;
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         window.speechSynthesis?.cancel(); enqueueAudioChunk(b64); applyState('speak');
@@ -566,12 +621,14 @@ export default function ChatInterface() {
       onAudioComplete: () => { void flushAudioChunks(); },
       onTextChunk: (chunk) => { setResponseText(prev => prev + chunk); setShowResponse(true); },
       onTextComplete: (text) => {
+        console.log(`[VISION_UI] text_complete chars=${text.length}`);
         setResponseText(text); setShowResponse(true);
         if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
         if (!elevenlabsReceived.current) {
           audioFallbackTimer.current = setTimeout(() => {
             audioFallbackTimer.current = null;
             if (!isAudioPlaying() && !elevenlabsReceived.current) {
+              console.log('[VISION_UI] tts_start provider=browser_fallback');
               applyState('speak');
               iosFallbackSpeak(text, () => { applyState('idle'); scheduleNextListen(); });
             }
@@ -935,7 +992,7 @@ export default function ChatInterface() {
 
         <div className="dz-cam-status">
           <span className={`dz-cam-status-dot${liveVision ? ' live' : ''}`} />
-          <span>{liveVision ? (scanning ? 'ANALYSE EN COURS' : 'CAMÉRA ACTIVE') : 'EN ATTENTE'}</span>
+          <span>{debugMsg || (liveVision ? (scanning ? 'ANALYSE EN COURS' : 'CAMÉRA ACTIVE') : 'EN ATTENTE')}</span>
         </div>
 
         <div className="dz-cam-actions">
