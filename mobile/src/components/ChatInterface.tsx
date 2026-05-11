@@ -161,7 +161,7 @@ export default function ChatInterface() {
   const [liveVision,   setLiveVision]   = useState(false);
   const [scanning,     setScanning]     = useState(false);
   const [scanMode,     setScanMode]     = useState(false);
-  const [scanResult,   setScanResult]   = useState<{ type: string } | null>(null);
+  const [scanResult]                    = useState<{ type: string } | null>(null);
   const [analyzing,    setAnalyzing]    = useState(false);
   const [pcRelay,      setPcRelay]      = useState(false);
   const pcRelayRef                      = useRef(false);
