@@ -37,6 +37,9 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN:     z.string().optional(),
   TELEGRAM_CHAT_ID:       z.string().optional(),
   TELEGRAM_ALLOWED_CHATS: z.string().optional(),
+  // Comma-separated Telegram chat IDs with full admin access (document storage, sensitive OCR, etc.)
+  // Defaults to TELEGRAM_CHAT_ID if not set.
+  TELEGRAM_ADMIN_IDS:     z.string().optional(),
   // ── TikTok Content Posting API ──
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_OPEN_ID:      z.string().optional(),
@@ -85,3 +88,18 @@ function loadEnv() {
 
 export const env = loadEnv();
 export type Env = typeof env;
+
+// ── Admin helpers ─────────────────────────────────────────────────────────────
+
+let _adminSet: Set<string> | null = null;
+
+function _getAdminSet(): Set<string> {
+  if (_adminSet) return _adminSet;
+  const raw = env.TELEGRAM_ADMIN_IDS ?? env.TELEGRAM_CHAT_ID ?? '';
+  _adminSet  = new Set(raw.split(',').map(s => s.trim()).filter(Boolean));
+  return _adminSet;
+}
+
+export function isTelegramAdmin(chatId: number): boolean {
+  return _getAdminSet().has(String(chatId));
+}

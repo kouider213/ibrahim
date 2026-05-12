@@ -1,5 +1,5 @@
 ﻿import { buildContext }                          from './context-builder.js';
-import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL } from './response-guard.js';
+import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -113,6 +113,18 @@ export async function processMessage(
       console.error('[orchestrator] user save error:', err),
     ),
   ]);
+
+  // ── Early tool-availability gate ─────────────────────────────────────────
+  // Blocks requests that require unavailable APIs (e.g. TikTok without Apify key)
+  // BEFORE invoking Claude — prevents any chance of hallucinated data.
+  const earlyBlock = earlyToolAvailabilityCheck(userMessage, requestId);
+  if (earlyBlock) {
+    console.log(`[orch:${requestId}] EARLY_BLOCK tool_unavailable`);
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: earlyBlock });
+    saveConversationTurn(sessionId, 'assistant', earlyBlock).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: earlyBlock, status: 'done' };
+  }
 
   // ── Multi-Agent path — cross-domain analysis ─────────────────────────────
   // Triggered when the request covers multiple business domains simultaneously

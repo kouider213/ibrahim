@@ -23,8 +23,10 @@ import { isValidMp4Buffer } from '../../marketing/create-marketing-video.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import { addVideoToBuffer } from '../../marketing/video-buffer.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../../config/env.js';
+import { env, isTelegramAdmin } from '../../config/env.js';
 import { processWithOrchestration } from '../../orchestrator/orchestrator-engine.js';
+import { maskPassportOcr, maskLicenseOcr } from '../../security/document-mask.js';
+import { logDocumentAccess } from '../../security/document-access-log.js';
 import { callGroq, callGemini, callOpenAI, callOpenAIVision, isGeminiAvailable, isGroqAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
 
 const router   = Router();
@@ -1238,8 +1240,11 @@ RÈGLES:
 
 // ── Enregistrement document (passeport, permis, contrat) ──────
 async function handleFileMessage(chatId: number, sessionId: string, msg: TelegramMessage): Promise<void> {
+  const isAdmin = isTelegramAdmin(chatId);
+  const ts      = new Date().toISOString();
+
   try {
-    console.log(`[TELEGRAM_RUNTIME] handler=file session=${sessionId} caption="${(msg.caption ?? '').slice(0, 40)}" vision=callVisionGemini`);
+    console.log(`[TELEGRAM_RUNTIME] handler=file session=${sessionId} admin=${isAdmin} caption="${(msg.caption ?? '').slice(0, 40)}" vision=callVisionGemini`);
     await sendTyping(chatId);
 
     let fileId:   string;
@@ -1260,14 +1265,29 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
       return;
     }
 
+    const caption = msg.caption ?? '';
+    const { docType, clientName, clientPhone, bookingNote } = parseCaption(caption);
+
+    // ── Non-admin gate: download + OCR only, no storage, masked preview ──────
+    if (!isAdmin) {
+      void logDocumentAccess({
+        user_id: chatId, action: 'refused', doc_type: docType,
+        client_name: clientName, client_phone: clientPhone,
+        is_admin: false, masked: true, timestamp: ts,
+      });
+      await sendMessage(chatId,
+        '🔒 *Accès refusé* — stockage de documents réservé au compte administrateur.\n' +
+        'Ce document n\'a pas été enregistré. Contacte l\'admin pour valider.',
+      );
+      return;
+    }
+
+    // ── Admin path: download, OCR, store, send back ───────────────────────────
     const buffer = await downloadFile(fileId);
     if (!buffer) {
       await sendMessage(chatId, '⚠️ Impossible de télécharger le fichier.');
       return;
     }
-
-    const caption = msg.caption ?? '';
-    const { docType, clientName, clientPhone, bookingNote } = parseCaption(caption);
 
     await supabase.storage.createBucket(BUCKET, { public: true }).catch(() => {});
 
@@ -1307,10 +1327,14 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
         const match = raw.match(/\{[\s\S]*\}/);
         if (match) {
           ocrExtracted = JSON.parse(match[0]) as Record<string, string>;
+          // Admin: show full OCR. Non-admin: already blocked above, but mask as safety net.
+          const display = isAdmin ? ocrExtracted
+            : docType === 'passport' ? maskPassportOcr(ocrExtracted)
+            : maskLicenseOcr(ocrExtracted);
           if (docType === 'passport') {
-            ocrText = `\n\n📋 *Info extraite:*\n• Nom: ${ocrExtracted['name'] || '?'}\n• N°: ${ocrExtracted['passport_number'] || '?'}\n• Né(e): ${ocrExtracted['birth_date'] || '?'}\n• Expire: ${ocrExtracted['expiry_date'] || '?'}\n• Nationalité: ${ocrExtracted['nationality'] || '?'}`;
+            ocrText = `\n\n📋 *Info extraite:*\n• Nom: ${display['name'] || '?'}\n• N°: ${display['passport_number'] || '?'}\n• Né(e): ${display['birth_date'] || '?'}\n• Expire: ${display['expiry_date'] || '?'}\n• Nationalité: ${display['nationality'] || '?'}`;
           } else {
-            ocrText = `\n\n📋 *Info extraite:*\n• Nom: ${ocrExtracted['name'] || '?'}\n• N°: ${ocrExtracted['license_number'] || '?'}\n• Né(e): ${ocrExtracted['birth_date'] || '?'}\n• Expire: ${ocrExtracted['expiry_date'] || '?'}\n• Catégorie: ${ocrExtracted['category'] || '?'}`;
+            ocrText = `\n\n📋 *Info extraite:*\n• Nom: ${display['name'] || '?'}\n• N°: ${display['license_number'] || '?'}\n• Né(e): ${display['birth_date'] || '?'}\n• Expire: ${display['expiry_date'] || '?'}\n• Catégorie: ${display['category'] || '?'}`;
           }
         }
       } catch (ocrErr) {
@@ -1363,6 +1387,13 @@ async function handleFileMessage(chatId: number, sessionId: string, msg: Telegra
     });
 
     if (dbError) console.error('[telegram] DB insert failed:', dbError.message);
+
+    void logDocumentAccess({
+      user_id: chatId, action: 'store', doc_type: docType,
+      client_name:  resolvedName  ?? undefined,
+      client_phone: resolvedPhone ?? undefined,
+      is_admin: true, masked: false, timestamp: ts,
+    });
 
     const label = docType === 'passport' ? 'Passeport'
                 : docType === 'license'  ? 'Permis'

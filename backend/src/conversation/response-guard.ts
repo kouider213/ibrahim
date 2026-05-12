@@ -1,5 +1,6 @@
 // Note: \b does not work after accented chars (é, è, â…) in JS — use explicit char class instead.
 import type { ToolExecution } from '../integrations/claude-api.js';
+import { env } from '../config/env.js';
 
 // ── Phantom action guard ──────────────────────────────────────────────────────
 // Outils write: leur succès légitime une confirmation d'action
@@ -72,6 +73,96 @@ export function phantomGuard(
     `"action_claim_detected":true` +
     `}`);
   return PHANTOM_REFUSAL;
+}
+
+// ── Tool-required guard ───────────────────────────────────────────────────────
+// Certain user requests REQUIRE a specific real tool to have succeeded.
+// If the tool didn't run successfully, block any response that claims data or results.
+
+interface ToolRequirement {
+  /** Regex matching user messages that trigger this requirement */
+  trigger:    RegExp;
+  /** The tool name that must have succeeded */
+  tool:       string;
+  /** Check whether the tool is even available (key configured, etc.) */
+  available?: () => boolean;
+  /** Message returned when tool is unavailable */
+  unavailableMsg: string;
+  /** Message returned when tool is available but didn't run/succeed */
+  missingMsg: string;
+}
+
+const TOOL_REQUIREMENTS: ToolRequirement[] = [
+  {
+    trigger:      /(analyse|voir|montre|stats?|rapport|performance|compte).*(tiktok)/i,
+    tool:         'run_tiktok_research',
+    available:    () => Boolean(env.APIFY_API_KEY),
+    unavailableMsg:
+      '⚠️ *Analyse TikTok indisponible* — aucune clé API Apify configurée.\n' +
+      'Je ne peux pas accéder aux données réelles. Configure `APIFY_API_KEY` dans Railway pour activer cette fonctionnalité.',
+    missingMsg:
+      '⚠️ *Données TikTok non récupérées* — l\'outil `run_tiktok_research` n\'a pas été appelé ou a échoué.\n' +
+      'Je ne génère pas de statistiques inventées.',
+  },
+  {
+    trigger:      /(tiktok).*(analyse|stats?|compte|profil|vues|followers|abonné)/i,
+    tool:         'run_tiktok_research',
+    available:    () => Boolean(env.APIFY_API_KEY),
+    unavailableMsg:
+      '⚠️ *TikTok API indisponible* — clé Apify absente. Aucune donnée réelle disponible.',
+    missingMsg:
+      '⚠️ *Analyse TikTok sans données réelles* — l\'outil de scraping n\'a pas tourné.',
+  },
+];
+
+/**
+ * Check if the user's message requires a specific tool.
+ * Returns a blocking message if the tool is unavailable or didn't succeed,
+ * or null if the request is fine to proceed.
+ *
+ * Call BEFORE sending the message to Claude.
+ */
+export function checkToolRequirements(
+  userMessage:   string,
+  toolsExecuted: ToolExecution[],
+  requestId:     string,
+): string | null {
+  for (const req of TOOL_REQUIREMENTS) {
+    if (!req.trigger.test(userMessage)) continue;
+
+    // Tool available at all?
+    if (req.available && !req.available()) {
+      console.log(`[tool-required:${requestId}] tool=${req.tool} unavailable (API key missing)`);
+      return req.unavailableMsg;
+    }
+
+    // Tool ran and succeeded?
+    const ranOk = toolsExecuted.some(t => t.name === req.tool && t.success);
+    if (!ranOk) {
+      // Only block if we're POST-response — if called pre-response, return null to allow Claude to call the tool.
+      // Callers use this for PRE-response checks (return the unavailable message right away).
+      // For POST-response phantom check, phantomGuard handles it.
+      if (req.available && req.available()) return null; // tool available — let Claude decide
+      return req.missingMsg;
+    }
+  }
+  return null;
+}
+
+/**
+ * Early-exit check for requests that require unavailable tools.
+ * Returns a refusal string if the required API key is missing, null otherwise.
+ * Call BEFORE invoking Claude.
+ */
+export function earlyToolAvailabilityCheck(userMessage: string, requestId: string): string | null {
+  for (const req of TOOL_REQUIREMENTS) {
+    if (!req.trigger.test(userMessage)) continue;
+    if (req.available && !req.available()) {
+      console.log(`[tool-available:${requestId}] BLOCKED tool=${req.tool} msg="${userMessage.slice(0, 60)}"`);
+      return req.unavailableMsg;
+    }
+  }
+  return null;
 }
 
 // ── Leaked-confirmation guard ─────────────────────────────────────────────────
