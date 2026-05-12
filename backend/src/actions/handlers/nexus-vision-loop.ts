@@ -226,7 +226,8 @@ async function _buildContextHint(): Promise<{ hint: string; openApps: string[] }
 const VISION_EXTRA = `RÔLE: Tu es le cerveau de contrôle PC de Dzaryx. Tu analyses des captures d'écran Windows.
 RÈGLE: Réponds UNIQUEMENT en JSON valide — aucun texte avant ou après.
 ACTIONS: SCREENSHOT_DESKTOP, LIST_DESKTOP_FILES, OPEN_FOLDER, OPEN_URL (payload:{url}), OPEN_CHROME, OPEN_VSCODE, SYSTEM_INFO, TERMINAL_COMMAND_SAFE (payload:{command}), WAIT (payload:{ms:2000}), LOCAL_OCR, DONE.
-DONE = objectif atteint. WAIT = attendre chargement.`;
+DONE = objectif atteint. WAIT = attendre chargement.
+IMPORTANT: Si tu viens de lancer une app (OPEN_VSCODE/OPEN_CHROME) et qu'elle n'est pas encore visible dans le screenshot (fenêtre en arrière-plan possible), utilise LOCAL_OCR pour vérifier la liste des fenêtres ouvertes AVANT de relancer. Ne jamais relancer une app sans avoir fait LOCAL_OCR d'abord.`;
 
 function _parseDecision(raw: string): VisionDecision | null {
   const m = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/) ?? raw.match(/(\{[\s\S]+\})/s);
@@ -403,6 +404,7 @@ export async function runVisionLoop(
   let screenshotCount              = 0;
   let consecutiveErrors            = 0;
   let sameActionCount              = 0;
+  let resetHashOnNextStep          = false; // true after app-launch: window may still be loading
   let prevActionType               = '';
   let contextHint                  = '';
 
@@ -491,6 +493,15 @@ export async function runVisionLoop(
 
     // Anti-loop: same screen hash
     const hash = _hashScreen(base64);
+
+    // After an app-launch action, reset hash counters: the window is still loading
+    // and the unchanged screenshot is expected, not a loop.
+    if (resetHashOnNextStep) {
+      screenshotHashes.clear();
+      resetHashOnNextStep = false;
+      console.log(`[NEXUS_VISION] hash_reset after app_launch step=${step}`);
+    }
+
     const hashCount = (screenshotHashes.get(hash) ?? 0) + 1;
     screenshotHashes.set(hash, hashCount);
 
@@ -601,7 +612,8 @@ export async function runVisionLoop(
       }
 
     } else if (COMMAND_TYPES.has(at)) {
-      const delay = APP_LAUNCH_COMMANDS.has(at) ? APP_LAUNCH_DELAY_MS : stepDelay;
+      const isLaunch = APP_LAUNCH_COMMANDS.has(at);
+      const delay    = isLaunch ? APP_LAUNCH_DELAY_MS : stepDelay;
       console.log(`[NEXUS_AUTOMATION] action=${at} step=${step} delay=${delay}ms payload=${JSON.stringify(ap).slice(0, 80)}`);
       if (demoTelegram) void _notify(`🖱️ *Action:* \`${at}\``);
       try {
@@ -613,6 +625,8 @@ export async function runVisionLoop(
       } catch (err) {
         console.error(`[NEXUS_AUTOMATION] error ${at}: ${err instanceof Error ? err.message : String(err)}`);
       }
+      // App-launch: next screenshot may still show old foreground app while new app loads
+      if (isLaunch) resetHashOnNextStep = true;
       await new Promise(r => setTimeout(r, delay));
 
     } else {
