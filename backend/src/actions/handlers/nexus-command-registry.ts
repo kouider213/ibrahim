@@ -243,6 +243,7 @@ const _handlers: Record<CommandType, Handler> = {
     if (!sec.ok) throw new Error(sec.reason);
     console.log(`[NEXUS_ACTION] OPEN_FOLDER path="${sec.path}"`);
     const { result } = await _withRetry(() => nexusFileOpen(sec.path, 10_000));
+    if (!(result as { ok?: boolean }).ok) throw new Error((result as { error?: string }).error ?? 'Path not accessible');
     if (payload['notify_telegram']) void _notify(`📁 Dossier ouvert: \`${sec.path}\``);
     return result;
   },
