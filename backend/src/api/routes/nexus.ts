@@ -705,7 +705,9 @@ router.get('/environment', requireMobileAuth, async (_req, res) => {
   if (isNexusOnline()) {
     try {
       const r = await nexusGetEnvironment(4_000);
-      pcEnv = r.result;
+      // r is the flat OsResult returned by Python get_environment()
+      const { ok: _ok, job_id: _jid, ...envFields } = r;
+      pcEnv = envFields;
     } catch { /* not critical */ }
   }
   res.json({ ok: true, environment: local, pc_environment: pcEnv, nexus_online: isNexusOnline() });
@@ -731,9 +733,9 @@ router.post('/terminal/run', requireMobileAuth, async (req, res) => {
       () => nexusTerminalRun(command.trim(), project, cwd, timeoutS),
       `terminal:${command.trim().slice(0, 24)}`,
     );
-    const result = r.result as Record<string, unknown>;
-    console.log(`[nexus/terminal/run] cmd="${command.slice(0,60)}" ok=${result['ok']} exit=${result['exit_code']} elapsed=${result['elapsed_ms']}ms`);
-    res.status(result['ok'] ? 200 : 422).json({ ok: result['ok'] ?? false, ...result });
+    // r is the flat OsResult from Python terminal_run(): {ok, job_id, exit_code, stdout, stderr, ...}
+    console.log(`[nexus/terminal/run] cmd="${command.slice(0,60)}" ok=${r.ok} exit=${r['exit_code']} elapsed=${r['elapsed_ms']}ms`);
+    res.status(r.ok ? 200 : 422).json({ ...r, ok: r.ok ?? false });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
@@ -784,8 +786,8 @@ router.post('/claude/start', requireMobileAuth, async (req, res) => {
       () => nexusClaudeCodeStart(proj.key, prompt?.trim(), timeoutS),
       `claude:${proj.key}`,
     );
-    const result = r.result as Record<string, unknown>;
-    res.status(result['ok'] ? 200 : 422).json({ ok: result['ok'] ?? false, project: proj.key, ...result });
+    // r is the flat OsResult from Python claude_code_start(): {ok, job_id, output, exit_code, ...}
+    res.status(r.ok ? 200 : 422).json({ ...r, ok: r.ok ?? false, project: proj.key });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }

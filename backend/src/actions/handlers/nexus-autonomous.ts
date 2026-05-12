@@ -51,8 +51,7 @@ export async function autonomousFixTypeScript(projectToken: string): Promise<Aut
   // ── Step 1: initial tsc check ─────────────────────────────────────────────
   const tsc1 = await step('tsc_initial', async () => {
     const r   = await nexusTerminalRun('npx tsc --noEmit 2>&1', proj.key, undefined, 60);
-    const res = r.result as Record<string, unknown>;
-    const out = [String(res['stdout'] ?? ''), String(res['stderr'] ?? '')].join('\n').trim();
+    const out = [String(r['stdout'] ?? ''), String(r['stderr'] ?? '')].join('\n').trim();
     return { ok: !out.includes('error TS'), output: out };
   });
 
@@ -76,16 +75,14 @@ export async function autonomousFixTypeScript(projectToken: string): Promise<Aut
     `Erreurs:\n${tsc1.output.slice(0, 3_000)}`;
 
   await step('claude_code_fix', async () => {
-    const r   = await nexusClaudeCodeStart(proj.key, prompt, 180);
-    const res = r.result as Record<string, unknown>;
-    return { ok: Boolean(res['ok']), output: String(res['output'] ?? '').slice(0, 2_000) };
+    const r = await nexusClaudeCodeStart(proj.key, prompt, 180);
+    return { ok: Boolean(r.ok), output: String(r['output'] ?? '').slice(0, 2_000) };
   });
 
   // ── Step 3: tsc verify ────────────────────────────────────────────────────
   const tsc2 = await step('tsc_verify', async () => {
     const r   = await nexusTerminalRun('npx tsc --noEmit 2>&1', proj.key, undefined, 60);
-    const res = r.result as Record<string, unknown>;
-    const out = [String(res['stdout'] ?? ''), String(res['stderr'] ?? '')].join('\n').trim();
+    const out = [String(r['stdout'] ?? ''), String(r['stderr'] ?? '')].join('\n').trim();
     return { ok: !out.includes('error TS'), output: out };
   });
 
@@ -100,8 +97,7 @@ export async function autonomousFixTypeScript(projectToken: string): Promise<Aut
         `git add -A && git commit -m "fix: TypeScript errors auto-fixed by Nexus autonomous mode"`,
         proj.key, undefined, 30,
       );
-      const res = r.result as Record<string, unknown>;
-      return { ok: Boolean(res['ok']), output: String(res['stdout'] ?? '') };
+      return { ok: Boolean(r.ok), output: String(r['stdout'] ?? '') };
     });
     committed = commit.ok;
   }
