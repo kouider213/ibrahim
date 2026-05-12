@@ -4,6 +4,7 @@ import {
   isLauncherOnline, wakeNexus, getLauncherStatus,
   nexusRunCommand, nexusSysinfo, nexusScreenshot, nexusScreenshotBase64,
   nexusWriteFile, listNexusJobs, getNexusJob,
+  getOrCreateJobEmitter,
 } from '../../actions/handlers/nexus-relay.js';
 import { runNexusAgent }   from '../../agents/nexus-agent-runner.js';
 import {
@@ -23,6 +24,10 @@ import {
 } from '../../actions/handlers/nexus-task-runner.js';
 import type { TaskStep } from '../../actions/handlers/nexus-task-runner.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { nexusRateLimiter, nexusIpLogger, nexusAntiReplay } from '../middleware/nexus-security.js';
+import { nexusQueue } from '../../actions/handlers/nexus-command-queue.js';
+import { runAutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
+import type { AutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
 import { testNlParser, detectIntent, splitCommands } from '../../actions/handlers/nexus-nl-router.js';
 import {
@@ -33,6 +38,9 @@ import {
 } from '../../actions/handlers/nexus-relay.js';
 
 const router = Router();
+
+// Nexus-specific security: IP log + rate limit (30/min) + optional anti-replay
+router.use(nexusIpLogger, nexusRateLimiter, nexusAntiReplay);
 
 // GET /api/nexus/status — état connexion NEXUS (enrichi: state, last_seen, pending_commands)
 router.get('/status', requireMobileAuth, (_req, res) => {
@@ -719,7 +727,10 @@ router.post('/terminal/run', requireMobileAuth, async (req, res) => {
   }
   try {
     const timeoutS = Math.min(timeout_s ?? 30, 60);
-    const r = await nexusTerminalRun(command.trim(), project, cwd, timeoutS);
+    const r = await nexusQueue.enqueue(
+      () => nexusTerminalRun(command.trim(), project, cwd, timeoutS),
+      `terminal:${command.trim().slice(0, 24)}`,
+    );
     const result = r.result as Record<string, unknown>;
     console.log(`[nexus/terminal/run] cmd="${command.slice(0,60)}" ok=${result['ok']} exit=${result['exit_code']} elapsed=${result['elapsed_ms']}ms`);
     res.status(result['ok'] ? 200 : 422).json({ ok: result['ok'] ?? false, ...result });
@@ -769,12 +780,103 @@ router.post('/claude/start', requireMobileAuth, async (req, res) => {
   const timeoutS = Math.min(timeout_s ?? 90, 180);
   console.log(`[nexus/claude/start] project=${proj.key} prompt="${(prompt ?? '').slice(0,60)}" timeout=${timeoutS}s`);
   try {
-    const r = await nexusClaudeCodeStart(proj.key, prompt?.trim(), timeoutS);
+    const r = await nexusQueue.enqueue(
+      () => nexusClaudeCodeStart(proj.key, prompt?.trim(), timeoutS),
+      `claude:${proj.key}`,
+    );
     const result = r.result as Record<string, unknown>;
     res.status(result['ok'] ? 200 : 422).json({ ok: result['ok'] ?? false, project: proj.key, ...result });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SSE STREAMING
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/nexus/jobs/:jobId/stream — SSE stream of live terminal output
+// PC emits nexus:terminal_chunk { job_id, chunk, done, exit_code } events.
+// Client opens this endpoint with the jobId returned from terminal/run.
+router.get('/jobs/:jobId/stream', requireMobileAuth, (req, res) => {
+  const jobId = req.params['jobId'] as string;
+
+  res.setHeader('Content-Type',  'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection',    'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');  // disable nginx buffering
+  res.flushHeaders();
+
+  const em = getOrCreateJobEmitter(jobId);
+
+  const onChunk = (chunk: string) => {
+    res.write(`data: ${JSON.stringify({ type: 'chunk', chunk })}\n\n`);
+  };
+  const onDone = (d: { exit_code: number }) => {
+    res.write(`data: ${JSON.stringify({ type: 'done', exit_code: d.exit_code })}\n\n`);
+    cleanup();
+    res.end();
+  };
+  const onError = (err: Error) => {
+    res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+    cleanup();
+    res.end();
+  };
+
+  function cleanup() {
+    clearInterval(heartbeat);
+    clearTimeout(autoTimeout);
+    em.off('chunk', onChunk);
+    em.off('done',  onDone);
+    em.off('error', onError);
+  }
+
+  em.on('chunk', onChunk);
+  em.on('done',  onDone);
+  em.on('error', onError);
+
+  const heartbeat   = setInterval(() => res.write(': heartbeat\n\n'), 15_000);
+  const autoTimeout = setTimeout(() => {
+    res.write(`data: ${JSON.stringify({ type: 'timeout' })}\n\n`);
+    cleanup();
+    res.end();
+  }, 10 * 60_000);
+
+  req.on('close', cleanup);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUTONOMOUS MODE
+// ══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/nexus/autonomous — run a multi-step autonomous task on the PC
+// Body: { task: "fix_typescript", project: string }
+// Returns full step-by-step result + summary Telegram notification.
+router.post('/autonomous', requireMobileAuth, async (req, res) => {
+  const { task, project } = req.body as { task?: string; project?: string };
+  if (!task) {
+    res.status(400).json({ ok: false, error: 'task requis', available_tasks: ['fix_typescript'] });
+    return;
+  }
+  if (!isNexusOnline()) {
+    res.status(503).json({ ok: false, error: 'NEXUS hors ligne' });
+    return;
+  }
+  console.log(`[nexus/autonomous] task=${task} project=${project ?? 'default'}`);
+  try {
+    const result = await nexusQueue.enqueue(
+      () => runAutonomousTask(task as AutonomousTask, project ?? 'dzaryx'),
+      `auto:${task}`,
+    );
+    res.status(result.success ? 200 : 422).json({ ok: result.success, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── GET /api/nexus/queue — command queue status ───────────────────────────────
+router.get('/queue', requireMobileAuth, (_req, res) => {
+  res.json({ ok: true, busy: nexusQueue.busy, depth: nexusQueue.depth });
 });
 
 export default router;

@@ -1,4 +1,5 @@
 import dgram                from 'dgram';
+import { EventEmitter }    from 'events';
 import type { Server as SocketServer, Socket } from 'socket.io';
 import { processMessage }  from '../../conversation/orchestrator.js';
 import { env }             from '../../config/env.js';
@@ -125,6 +126,21 @@ function _isDangerous(cmd: string): string | null {
     if (pat.test(cmd)) return pat.toString();
   }
   return null;
+}
+
+// ── SSE streaming EventEmitter bus ───────────────────────────────────────────
+// jobId → EventEmitter; chunks emitted by PC via nexus:terminal_chunk event.
+
+const _jobEmitters = new Map<string, EventEmitter>();
+
+export function getOrCreateJobEmitter(jobId: string): EventEmitter {
+  let em = _jobEmitters.get(jobId);
+  if (!em) { em = new EventEmitter(); em.setMaxListeners(5); _jobEmitters.set(jobId, em); }
+  return em;
+}
+
+export function deleteJobEmitter(jobId: string): void {
+  _jobEmitters.delete(jobId);
 }
 
 // ── Job store ─────────────────────────────────────────────────────────────────
@@ -391,6 +407,22 @@ export function initNexusRelay(io: SocketServer): void {
       if (!b64 || !filename) return;
       console.log(`[NEXUS] File → Telegram: ${filename}`);
       void _sendTelegramDocument(b64, filename, caption ?? `📎 ${filename}`);
+    });
+
+    // ── Terminal streaming chunks (PC → SSE clients) ──────────────────────
+    socket.on('nexus:terminal_chunk', (data: {
+      job_id: string; chunk?: string; done?: boolean; exit_code?: number;
+    }) => {
+      const { job_id, chunk, done, exit_code } = data ?? {};
+      if (!job_id) return;
+      const em = _jobEmitters.get(job_id);
+      if (!em) return;
+      if (chunk) em.emit('chunk', chunk);
+      if (done) {
+        em.emit('done', { exit_code: exit_code ?? 0 });
+        // keep emitter alive 30s for late SSE clients
+        setTimeout(() => deleteJobEmitter(job_id), 30_000);
+      }
     });
 
     // ── Disconnect ────────────────────────────────────────────────────────
@@ -935,4 +967,31 @@ async function _sendTelegramPhoto(base64: string, caption: string): Promise<void
       { headers: form.getHeaders(), timeout: 20_000 },
     );
   } catch (e) { console.error('[NEXUS] Telegram photo error:', e); }
+}
+
+// ── Structured Telegram notification ─────────────────────────────────────────
+// Formats ✅/❌/⚠️/ℹ️ + title + optional summary + optional details code block.
+// details are truncated to 800 chars to stay within Telegram message limits.
+
+const _STATUS_ICONS = { ok: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' } as const;
+
+export async function sendTelegramStructured(opts: {
+  status:   'ok' | 'error' | 'warning' | 'info';
+  title:    string;
+  summary?: string;
+  details?: string;
+  durationMs?: number;
+}): Promise<void> {
+  const icon  = _STATUS_ICONS[opts.status];
+  const lines: string[] = [`${icon} *${opts.title}*`];
+
+  if (opts.summary)    lines.push(opts.summary);
+  if (opts.durationMs) lines.push(`_Durée: ${(opts.durationMs / 1000).toFixed(1)}s_`);
+
+  if (opts.details) {
+    const snippet = opts.details.trim().slice(0, 800);
+    lines.push('```', snippet, '```');
+  }
+
+  await _sendTelegram(lines.join('\n'));
 }
