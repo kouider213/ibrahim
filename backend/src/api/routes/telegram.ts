@@ -11,6 +11,14 @@ import { requireMobileAuth } from '../middleware/auth.js';
 import { getLatestPendingVideo, approveVideo, rejectVideo } from '../../marketing/approval-store.js';
 import { isNexusOnline, sendToNexus, triggerWol, getNexusMac, getNexusIp } from '../../actions/handlers/nexus-relay.js';
 import { routeNexusMessage } from '../../actions/handlers/nexus-nl-router.js';
+import {
+  triggerEmergencyStop,
+  getVisionContext,
+} from '../../actions/handlers/nexus-vision-loop.js';
+import {
+  getRecentTasks, getTopWorkflows, getSuccessfulWorkflow,
+  getProviderStats, getVisionStats,
+} from '../../actions/handlers/nexus-memory.js';
 import { isValidMp4Buffer } from '../../marketing/create-marketing-video.js';
 import { publishVideo, buildSharePackage } from '../../marketing/social-poster.js';
 import { addVideoToBuffer } from '../../marketing/video-buffer.js';
@@ -228,7 +236,14 @@ router.post('/webhook', async (req, res) => {
       `/test_fal_light — vérifie clé fal.ai sans générer (rapide)\n` +
       `/test_fal — vrai test génération vidéo fal.ai (~120s)\n` +
       `/test_replicate — vrai test génération image Replicate (~30s)\n` +
-      `/test_ai — diagnostic light clé + auth (sans génération)`);
+      `/test_ai — diagnostic light clé + auth (sans génération)\n\n` +
+      `*🖥️ NEXUS OPERATOR MODE*\n` +
+      `/tasks — dernières tâches vision\n` +
+      `/memory — workflows mémorisés\n` +
+      `/providers — stats providers IA\n` +
+      `/visionstats — taux succès vision\n` +
+      `/abort — arrêt d'urgence vision\n` +
+      `/workflow <objectif> — détails workflow`);
     return;
   }
 
@@ -765,6 +780,103 @@ router.post('/webhook', async (req, res) => {
     }
     // No pending video — let Claude handle naturally
   }
+
+  // ── NEXUS Operator Mode ────────────────────────────────────────────────
+  if (msg.text?.startsWith('/tasks')) {
+    await sendTyping(chatId);
+    const tasks = await getRecentTasks(8);
+    if (!tasks.length) {
+      await sendMessage(chatId, '📋 *Aucune tâche vision.*\n_Lance: "nexus ouvre chrome"_');
+      return;
+    }
+    const lines = tasks.map(t => {
+      const e = t.status === 'completed' ? '✅' : t.status === 'failed' ? '❌' : '⚠️';
+      return `${e} \`${t.task_id.slice(-6)}\` ${t.objective.slice(0, 45)} | ${t.steps}s ${((t.duration_ms ?? 0) / 1000).toFixed(0)}s`;
+    });
+    await sendMessage(chatId, `📋 *NEXUS — Tâches récentes*\n\n${lines.join('\n')}`);
+    return;
+  }
+
+  if (msg.text?.startsWith('/memory')) {
+    await sendTyping(chatId);
+    const wf = await getTopWorkflows(6);
+    if (!wf.length) {
+      await sendMessage(chatId, '🧠 *Aucun workflow mémorisé.*\n_Nexus apprend après chaque tâche._');
+      return;
+    }
+    const lines = wf.map(w =>
+      `• \`${(w.reliability * 100).toFixed(0)}%\` — ${w.objective.slice(0, 55)} (${w.success_count}✅/${w.fail_count}❌)`
+    );
+    await sendMessage(chatId, `🧠 *NEXUS — Mémoire workflows*\n\n${lines.join('\n')}`);
+    return;
+  }
+
+  if (msg.text?.startsWith('/providers')) {
+    await sendTyping(chatId);
+    const stats = await getProviderStats();
+    if (!stats.length) {
+      await sendMessage(chatId, '📊 *Aucune statistique provider.*');
+      return;
+    }
+    const lines = stats.map(s => {
+      const rel = `${(s.reliability * 100).toFixed(0)}%`;
+      const lat = s.avg_latency_ms > 0 ? `${s.avg_latency_ms.toFixed(0)}ms` : '?';
+      const cd  = s.cooldown_until && new Date(s.cooldown_until) > new Date() ? ' ❄️CD' : '';
+      return `• *${s.provider}* — ${rel} (${s.success_count}✅/${s.fail_count}❌) ~${lat}${cd}`;
+    });
+    await sendMessage(chatId, `📊 *NEXUS — Providers*\n\n${lines.join('\n')}`);
+    return;
+  }
+
+  if (msg.text?.startsWith('/visionstats')) {
+    await sendTyping(chatId);
+    const vs  = await getVisionStats();
+    const ctx = getVisionContext();
+    await sendMessage(chatId,
+      `👁️ *NEXUS Vision — Stats*\n\n` +
+      `• Total tâches: ${vs.total}\n` +
+      `• Complétées: ${vs.completed} (${vs.successRate}%)\n` +
+      `• Durée moyenne: ${(vs.avgDuration / 1000).toFixed(1)}s\n` +
+      `• Meilleur provider: *${vs.bestProvider}*\n` +
+      `• Dernier objectif: _${ctx.objective?.slice(0, 60) ?? 'aucun'}_\n` +
+      `• Provider actuel: ${ctx.lastProvider ?? '?'}`,
+    );
+    return;
+  }
+
+  if (msg.text?.startsWith('/abort')) {
+    triggerEmergencyStop();
+    await sendMessage(chatId, '🛑 *NEXUS Vision — Arrêt d\'urgence déclenché.*\nToutes les boucles actives s\'arrêtent immédiatement.');
+    return;
+  }
+
+  if (msg.text?.startsWith('/workflow')) {
+    await sendTyping(chatId);
+    const arg = msg.text.replace('/workflow', '').trim();
+    if (!arg) {
+      const workflows = await getTopWorkflows(4);
+      if (!workflows.length) { await sendMessage(chatId, '🔄 *Aucun workflow.*'); return; }
+      const lines = workflows.map(w =>
+        `• \`${w.objective_hash}\` ${w.objective.slice(0, 40)} — ${(w.reliability * 100).toFixed(0)}% (${w.success_count + w.fail_count} runs)`
+      );
+      await sendMessage(chatId, `🔄 *Workflows disponibles:*\n${lines.join('\n')}`);
+    } else {
+      const wf = await getSuccessfulWorkflow(arg);
+      if (!wf) {
+        await sendMessage(chatId, `❌ Workflow \`${arg}\` non trouvé.`);
+      } else {
+        await sendMessage(chatId,
+          `🔄 *${wf.objective.slice(0, 60)}*\n\n` +
+          `• Fiabilité: ${(wf.reliability * 100).toFixed(0)}%\n` +
+          `• Succès/Échecs: ${wf.success_count}/${wf.fail_count}\n` +
+          `• Séquence: ${wf.action_sequence.join(' → ')}\n` +
+          `• Étapes moy: ${wf.avg_steps.toFixed(1)} | Durée moy: ${(wf.avg_duration_ms / 1000).toFixed(1)}s`,
+        );
+      }
+    }
+    return;
+  }
+  // ── END Operator Mode ────────────────────────────────────────────────────
 
   // ── NEXUS triggers ──────────────────────────────────────────────────────
   const NEXUS_WAKE_RE = /nexus\s*(r[eé]veille[\s-]toi|wake[\s-]up|en[\s-]ligne|allume|d[eé]marre)/i;
