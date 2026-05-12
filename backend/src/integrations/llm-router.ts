@@ -204,14 +204,17 @@ export async function callOpenAIVision(
 const ANTHROPIC_KEY = process.env['ANTHROPIC_API_KEY'];
 
 export async function callClaudeVision(
-  userMessage: string,
-  systemExtra?: string,
-  imageBase64?: string,
-  imageMime   = 'image/jpeg',
+  userMessage:    string,
+  systemExtra?:   string,
+  imageBase64?:   string,
+  imageMime       = 'image/jpeg',
+  skipBasePrompt  = false,   // true for structured JSON calls — skip Dzaryx persona
 ): Promise<string> {
   if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
 
-  const systemPrompt = [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
+  const systemPrompt = skipBasePrompt
+    ? (systemExtra ?? '')
+    : [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
   const SAFE_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
   const safeMedia  = (SAFE_MIMES.has(imageMime) ? imageMime : 'image/jpeg') as
     'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';

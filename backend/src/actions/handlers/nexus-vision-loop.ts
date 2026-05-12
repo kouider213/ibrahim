@@ -195,7 +195,7 @@ export async function analyzeScreen(
   try {
     raw = provider === 'gemini'
       ? await callGemini(prompt, VISION_EXTRA, base64, 'image/jpeg')
-      : await callClaudeVision(prompt, VISION_EXTRA, base64, 'image/jpeg');
+      : await callClaudeVision(prompt, VISION_EXTRA, base64, 'image/jpeg', true);
   } catch (err) {
     console.error(`[NEXUS_VISION] analysis_error: ${err instanceof Error ? err.message : String(err)}`);
     return null;
