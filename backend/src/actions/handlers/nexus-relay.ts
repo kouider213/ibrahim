@@ -847,6 +847,9 @@ export const nexusAppLaunch = (app: string, ms = 15_000) =>
 export const nexusFocusApp = (app: string, ms = 10_000) =>
   _nexusEmit<OsResult>('nexus:focus_app',  { app },                        ms);
 
+export const nexusOpenUrl = (url: string, ms = 10_000) =>
+  nexusRunCommand(`cmd /c start "" "${url.replace(/"/g, '')}"`, undefined, ms);
+
 // ── OS Agent — Screen Understanding ──────────────────────────────────────────
 
 export const nexusScreenUnderstand = (
