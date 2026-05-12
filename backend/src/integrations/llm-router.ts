@@ -227,7 +227,7 @@ export async function callClaudeVision(
     'https://api.anthropic.com/v1/messages',
     {
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 512,
+      max_tokens: 1024,
       system:     systemPrompt,
       messages:   [{ role: 'user', content: userContent }],
     },

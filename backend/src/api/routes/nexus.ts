@@ -33,7 +33,7 @@ router.get('/status', requireMobileAuth, (_req, res) => {
   const s = getNexusStatus();
   res.json({
     connected:           s.online,
-    state:               s.state,            // 'online' | 'offline' | 'suspect'
+    state:               s.state,            // NexusWsState: ONLINE|SUSPECT|RECONNECTING|OFFLINE_CONFIRMED|DISCONNECTED
     last_seen:           s.last_seen,         // ISO timestamp last heartbeat pong
     pending_commands:    s.pending_commands,  // commands buffered while offline
     last_command_status: s.last_command_status,

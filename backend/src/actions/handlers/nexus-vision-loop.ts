@@ -107,9 +107,18 @@ export function clearEmergencyStop(): void {
 }
 export function isEmergencyStopped(): boolean { return _emergencyStop; }
 
-// Rate limiter — max 20 actions / minute
+// Rate limiter — max 10 actions / minute (conservative)
 const _actionTs: number[] = [];
-const MAX_ACTIONS_PER_MIN = 20;
+const MAX_ACTIONS_PER_MIN = 10;
+
+// Hard limit per vision loop run — overrides caller-supplied maxSteps
+const MAX_AUTONOMOUS_STEPS = 5;
+
+// Forbidden actions — never execute regardless of AI decision
+const FORBIDDEN_ACTIONS = new Set<string>([
+  'SHUTDOWN', 'RESTART', 'FORMAT', 'DELETE', 'KILL_PROCESS',
+  'REGISTRY_EDIT', 'ADMIN_CMD', 'DISABLE_ANTIVIRUS',
+]);
 
 function _checkRate(): boolean {
   const now = Date.now();
@@ -215,7 +224,7 @@ export async function runVisionLoop(
   },
 ): Promise<VisionLoopResult> {
   const taskId       = options?.taskId      ?? `vl_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-  const maxSteps     = options?.maxSteps    ?? 10;
+  const maxSteps     = Math.min(options?.maxSteps ?? MAX_AUTONOMOUS_STEPS, MAX_AUTONOMOUS_STEPS);
   const stepDelay    = options?.stepDelay   ?? 2_000;
   const demoTelegram = options?.demoTelegram ?? true;
   const t0           = Date.now();
@@ -286,6 +295,15 @@ export async function runVisionLoop(
     // Execute
     const at = d.next_action.type;
     const ap = d.next_action.payload ?? {};
+
+    // Forbidden action guard — hard block regardless of AI decision
+    if (FORBIDDEN_ACTIONS.has(at.toUpperCase())) {
+      console.error(`[NEXUS_VISION] forbidden_action="${at}" step=${step} — emergency_stop`);
+      if (demoTelegram) void _notify(`🚫 *Action interdite bloquée:* \`${at}\` — arrêt d'urgence`);
+      _emergencyStop = true;
+      return done('stopped', step, `Forbidden action: ${at}`);
+    }
+
     actionHistory.push(at);
     _ctx.lastActionType = at;
     _ctx.actionHistory  = actionHistory.slice(-10);

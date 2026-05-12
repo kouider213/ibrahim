@@ -3,7 +3,20 @@ import type { Server as SocketServer, Socket } from 'socket.io';
 import { processMessage }  from '../../conversation/orchestrator.js';
 import { env }             from '../../config/env.js';
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── WebSocket State Machine ───────────────────────────────────────────────────
+
+export type NexusWsState =
+  | 'DISCONNECTED'       // Never connected or fully reset
+  | 'ONLINE'             // Active socket, heartbeat OK
+  | 'SUSPECT'            // 2 missed heartbeats — socket still alive
+  | 'OFFLINE_CONFIRMED'  // 4 missed heartbeats or grace expired
+  | 'RECONNECTING';      // Disconnected, within grace period
+
+let _wsState:             NexusWsState  = 'DISCONNECTED';
+let _connectionSessionId: string | null = null;
+let _reconnectAttempt:    number        = 0;
+let _lastOfflineReason:   string | null = null;
+let _lastNotificationAt:  number        = 0;
 
 let _nexusSocket:    Socket | null = null;
 let _launcherSocket: Socket | null = null;
@@ -11,35 +24,25 @@ let _nexusMac:       string        = '';
 let _nexusPublicIp:  string        = '';
 let _busyTask:       string | null = null;
 let _busySince:      number | null = null;
-let _nexusSuspect:   boolean       = false;
 
-// ── Notification state (spam prevention) ──────────────────────────────────────
-
-type NexusNotifyState = 'online' | 'offline';
-let _lastNotifiedState: NexusNotifyState | null = null;
-let _lastNotifyTs: Record<NexusNotifyState, number> = { online: 0, offline: 0 };
 let _offlineGraceTimer: ReturnType<typeof setTimeout> | null = null;
 
-const NOTIFY_COOLDOWN_MS = 10 * 60 * 1_000; // 10 min between same-state notifications
-const OFFLINE_GRACE_MS   = 30 * 1_000;       // 30s grace — skip offline if reconnect arrives
+// Silent reconnect within 60s — no notification spam
+const OFFLINE_GRACE_MS   = 60 * 1_000;
+// Minimum interval between same-kind Telegram notification
+const NOTIFY_COOLDOWN_MS = 5 * 60 * 1_000;
 
-function _notifyNexusState(next: NexusNotifyState, reason: string, message: string): void {
-  const now        = Date.now();
-  const prev       = _lastNotifiedState;
-  const lastSameMs = now - _lastNotifyTs[next];
-  const cooldown   = lastSameMs < NOTIFY_COOLDOWN_MS;
+let _lastNotifyKind: 'online' | 'offline' | null = null;
 
-  if (prev === next || cooldown) {
-    console.log(
-      `[NEXUS_STATUS] previous=${prev ?? 'null'} next=${next} reason=${reason} ` +
-      `notified=false cooldown=${cooldown} same_state=${prev === next}`,
-    );
+function _notifyNexusOnce(kind: 'online' | 'offline', message: string): void {
+  const now = Date.now();
+  if (_lastNotifyKind === kind && now - _lastNotificationAt < NOTIFY_COOLDOWN_MS) {
+    console.log(`[NEXUS_WS] notify_suppressed kind=${kind} cooldown_remaining=${Math.round((NOTIFY_COOLDOWN_MS - (now - _lastNotificationAt)) / 1000)}s`);
     return;
   }
-
-  console.log(`[NEXUS_STATUS] previous=${prev ?? 'null'} next=${next} reason=${reason} notified=true`);
-  _lastNotifiedState  = next;
-  _lastNotifyTs[next] = now;
+  _lastNotifyKind     = kind;
+  _lastNotificationAt = now;
+  console.log(`[NEXUS_WS] notify kind=${kind}`);
   void _sendTelegram(message);
 }
 
@@ -193,40 +196,46 @@ export function listNexusJobs(): NexusJob[] {
   return [..._jobStore.values()];
 }
 
-// ── Heartbeat ─────────────────────────────────────────────────────────────────
+// ── Heartbeat Watchdog ────────────────────────────────────────────────────────
 
 let _heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-function _startHeartbeat(socket: Socket): void {
+function _startHeartbeat(socket: Socket, sessionId: string): void {
   _stopHeartbeat();
   _tel.missedHeartbeats = 0;
-  _nexusSuspect = false;
   _heartbeatInterval = setInterval(() => {
-    if (!_nexusSocket) { _stopHeartbeat(); return; }
-    const t0 = Date.now();
+    // Stale session guard — only active session drives heartbeat
+    if (!_nexusSocket || _connectionSessionId !== sessionId) { _stopHeartbeat(); return; }
+
+    const t0    = Date.now();
     const timer = setTimeout(() => {
       _tel.missedHeartbeats += 1;
-      console.warn(`[NEXUS_HEARTBEAT] missed=${_tel.missedHeartbeats}/3 socket=${socket.id}`);
-      if (_tel.missedHeartbeats >= 2 && !_nexusSuspect) {
-        _nexusSuspect = true;
-        console.warn(`[NEXUS_HEARTBEAT] state=suspect missed=${_tel.missedHeartbeats} socket=${socket.id}`);
+      console.warn(`[NEXUS_WS] ping_missed missed=${_tel.missedHeartbeats}/4 session=${sessionId.slice(-6)} state=${_wsState}`);
+
+      if (_tel.missedHeartbeats >= 2 && _wsState === 'ONLINE') {
+        _wsState = 'SUSPECT';
+        console.warn(`[NEXUS_WS] state=SUSPECT missed=${_tel.missedHeartbeats} session=${sessionId.slice(-6)}`);
       }
-      if (_tel.missedHeartbeats >= 3) {
-        console.error(`[NEXUS_HEARTBEAT] state=zombie missed=3 forcing_disconnect socket=${socket.id}`);
-        void _sendTelegram('⚠️ *NEXUS* — heartbeat timeout, connexion zombie détectée');
+      if (_tel.missedHeartbeats >= 4) {
+        console.error(`[NEXUS_WS] state=OFFLINE_CONFIRMED missed=4 forcing_disconnect session=${sessionId.slice(-6)}`);
+        _wsState           = 'OFFLINE_CONFIRMED';
+        _lastOfflineReason = 'heartbeat_timeout';
+        _notifyNexusOnce('offline', '🖥️ *NEXUS* hors ligne — heartbeat timeout (4 pings manqués)');
         socket.disconnect(true);
         _stopHeartbeat();
       }
     }, 8_000);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (_nexusSocket as any).emit('nexus:ping', {}, (data: { time?: string; hostname?: string } | undefined) => {
       clearTimeout(timer);
       _tel.lastHeartbeatAt      = new Date().toISOString();
       _tel.lastHeartbeatLatency = Date.now() - t0;
       _tel.missedHeartbeats     = 0;
-      if (_nexusSuspect) {
-        _nexusSuspect = false;
-        console.log(`[NEXUS_HEARTBEAT] state=recovered latency=${_tel.lastHeartbeatLatency}ms socket=${socket.id}`);
+
+      if (_wsState === 'SUSPECT') {
+        _wsState = 'ONLINE';
+        console.log(`[NEXUS_WS] state=ONLINE reason=pong_recovered latency=${_tel.lastHeartbeatLatency}ms session=${sessionId.slice(-6)}`);
       }
       if (data?.hostname && data.hostname !== 'unknown') {
         _tel.lastHostname = data.hostname;
@@ -282,29 +291,48 @@ export function initNexusRelay(io: SocketServer): void {
   });
 
   nexusNs.on('connection', (socket: Socket) => {
-    const xfwd = socket.handshake.headers['x-forwarded-for'] as string | undefined;
-    _nexusPublicIp = (xfwd ? xfwd.split(',')[0] : socket.handshake.address).trim();
-    console.log(`[NEXUS] PC Agent connected: ${socket.id} — IP: ${_nexusPublicIp}`);
-    _nexusSocket            = socket;
-    _nexusSuspect           = false;
-    _tel.lastConnectedAt    = new Date().toISOString();
-    _tel.lastSocketId       = socket.id;
-    _tel.totalConnections  += 1;
-    _startHeartbeat(socket);
+    const xfwd      = socket.handshake.headers['x-forwarded-for'] as string | undefined;
+    _nexusPublicIp  = (xfwd ? xfwd.split(',')[0] : socket.handshake.address).trim();
+    const prevState = _wsState;
+    const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-    // Drain offline command queue — setImmediate gives socket time to settle
+    // ── Destroy stale socket (prevent duplicate listeners) ────────────────
+    if (_nexusSocket && _nexusSocket.id !== socket.id) {
+      console.warn(`[NEXUS_WS] stale_socket old=${_nexusSocket.id} new=${socket.id} — destroying stale`);
+      _nexusSocket.removeAllListeners();
+      _nexusSocket.disconnect(true);
+    }
+
+    _nexusSocket           = socket;
+    _connectionSessionId   = sessionId;
+    _wsState               = 'ONLINE';
+    _tel.lastConnectedAt   = new Date().toISOString();
+    _tel.lastSocketId      = socket.id;
+    _tel.totalConnections += 1;
+    _startHeartbeat(socket, sessionId);
+
+    console.log(`[NEXUS_WS] connected socketId=${socket.id} session=${sessionId.slice(-6)} prevState=${prevState} ip=${_nexusPublicIp}`);
+
+    // ── Cancel grace timer (fast reconnect within 60s) ───────────────────
+    if (_offlineGraceTimer) {
+      clearTimeout(_offlineGraceTimer);
+      _offlineGraceTimer = null;
+      _reconnectAttempt += 1;
+      console.log(`[NEXUS_WS] reconnect_fast attempt=${_reconnectAttempt} session=${sessionId.slice(-6)}`);
+    }
+
+    // ── Drain offline command queue ───────────────────────────────────────
     if (_commandQueue.length > 0) {
       console.log(`[NEXUS_QUEUE] reconnected — draining ${_commandQueue.length} queued commands`);
       setImmediate(_drainCommandQueue);
     }
 
-    // Cancel pending offline notification (fast reconnect within grace period)
-    if (_offlineGraceTimer) {
-      clearTimeout(_offlineGraceTimer);
-      _offlineGraceTimer = null;
-      console.log('[NEXUS_STATUS] previous=online next=online reason=fast_reconnect notified=false grace_cancelled=true');
+    // ── Notify ONLINE only on first connect or confirmed-offline recovery ─
+    if (prevState === 'DISCONNECTED' || prevState === 'OFFLINE_CONFIRMED') {
+      _notifyNexusOnce('online', '🖥️ *NEXUS* en ligne — PC connecté');
+    } else {
+      console.log(`[NEXUS_WS] reconnect_silent prevState=${prevState} session=${sessionId.slice(-6)} no_notify`);
     }
-    _notifyNexusState('online', 'connection', '🖥️ *NEXUS* en ligne — PC connecté');
 
     // ── Register MAC + full sysinfo ───────────────────────────────────────
     socket.on('nexus:register', (data: {
@@ -367,19 +395,28 @@ export function initNexusRelay(io: SocketServer): void {
 
     // ── Disconnect ────────────────────────────────────────────────────────
     socket.on('disconnect', (reason: string) => {
-      console.log('[NEXUS] PC Agent disconnected:', reason);
-      if (_nexusSocket?.id === socket.id) {
-        _nexusSocket                  = null;
-        _tel.lastDisconnectedAt       = new Date().toISOString();
-        _tel.lastDisconnectReason     = reason;
-        _tel.totalDisconnections     += 1;
-        _stopHeartbeat();
+      // Only active session socket triggers state change
+      if (_nexusSocket?.id !== socket.id) {
+        console.log(`[NEXUS_WS] disconnect_ignored stale socketId=${socket.id} reason=${reason}`);
+        return;
       }
-      // Grace period: wait 30s — if reconnect arrives, cancel (no notification)
+      _nexusSocket              = null;
+      _lastOfflineReason        = reason;
+      _tel.lastDisconnectedAt   = new Date().toISOString();
+      _tel.lastDisconnectReason = reason;
+      _tel.totalDisconnections += 1;
+      _stopHeartbeat();
+      _wsState = 'RECONNECTING';
+
+      console.log(`[NEXUS_WS] state=RECONNECTING reason=${reason} grace=${OFFLINE_GRACE_MS / 1000}s session=${_connectionSessionId?.slice(-6) ?? '?'}`);
+
+      // Grace: if PC reconnects within 60s → no notification (transport close = Railway restart)
       if (_offlineGraceTimer) clearTimeout(_offlineGraceTimer);
       _offlineGraceTimer = setTimeout(() => {
         _offlineGraceTimer = null;
-        _notifyNexusState('offline', reason, `🖥️ *NEXUS* hors ligne — ${reason}`);
+        _wsState           = 'OFFLINE_CONFIRMED';
+        console.warn(`[NEXUS_WS] state=OFFLINE_CONFIRMED grace_expired reason=${reason}`);
+        _notifyNexusOnce('offline', `🖥️ *NEXUS* hors ligne — ${reason}`);
       }, OFFLINE_GRACE_MS);
     });
   });
@@ -419,7 +456,8 @@ export function initLauncherRelay(io: SocketServer): void {
 
 // ── External API ──────────────────────────────────────────────────────────────
 
-export function isNexusOnline(): boolean   { return _nexusSocket !== null; }
+export function isNexusOnline(): boolean   { return _nexusSocket !== null && (_wsState === 'ONLINE' || _wsState === 'SUSPECT'); }
+export function getNexusWsState(): NexusWsState { return _wsState; }
 export function isLauncherOnline(): boolean { return _launcherSocket !== null; }
 export function getNexusMac(): string       { return _nexusMac; }
 export function getNexusIp():  string       { return _nexusPublicIp; }
@@ -431,29 +469,29 @@ export function sendToNexus(event: string, data: unknown): boolean {
 }
 
 export function getNexusStatus(): {
-  online:              boolean;
-  suspect:             boolean;
-  state:               'online' | 'offline' | 'suspect';
-  last_seen:           string | null;
-  socketId:            string | null;
-  publicIp:            string;
-  mac:                 string;
-  busy:                boolean;
-  busyTask:            string | null;
-  busyMs:              number | null;
-  pending_commands:    number;
-  last_command_status: NexusJobStatus | null;
-  telemetry:           NexusTelemetry;
+  online:               boolean;
+  state:                NexusWsState;
+  last_seen:            string | null;
+  socketId:             string | null;
+  publicIp:             string;
+  mac:                  string;
+  busy:                 boolean;
+  busyTask:             string | null;
+  busyMs:               number | null;
+  pending_commands:     number;
+  last_command_status:  NexusJobStatus | null;
+  connectionSessionId:  string | null;
+  reconnectAttempt:     number;
+  lastOfflineReason:    string | null;
+  lastNotificationAt:   string | null;
+  telemetry:            NexusTelemetry;
 } {
-  const allJobs  = [..._jobStore.values()];
-  const lastJob  = allJobs.length > 0 ? allJobs[allJobs.length - 1] : null;
-  const state: 'online' | 'offline' | 'suspect' =
-    _nexusSocket !== null ? (_nexusSuspect ? 'suspect' : 'online') : 'offline';
+  const allJobs = [..._jobStore.values()];
+  const lastJob = allJobs.length > 0 ? allJobs[allJobs.length - 1] : null;
 
   return {
-    online:              _nexusSocket !== null,
-    suspect:             _nexusSuspect,
-    state,
+    online:              isNexusOnline(),
+    state:               _wsState,
     last_seen:           _tel.lastHeartbeatAt,
     socketId:            _nexusSocket?.id ?? null,
     publicIp:            _nexusPublicIp,
@@ -463,6 +501,10 @@ export function getNexusStatus(): {
     busyMs:              _busySince ? Date.now() - _busySince : null,
     pending_commands:    _commandQueue.length,
     last_command_status: lastJob?.status ?? null,
+    connectionSessionId: _connectionSessionId,
+    reconnectAttempt:    _reconnectAttempt,
+    lastOfflineReason:   _lastOfflineReason,
+    lastNotificationAt:  _lastNotificationAt > 0 ? new Date(_lastNotificationAt).toISOString() : null,
     telemetry:           { ..._tel },
   };
 }
