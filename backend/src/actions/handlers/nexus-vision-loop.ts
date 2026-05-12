@@ -18,14 +18,16 @@ import { env } from '../../config/env.js';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface VisionContext {
-  pcId:           string;
-  objective:      string | null;
-  lastScreenshot: string | null;   // '[captured]' when serialized externally
-  lastAnalysis:   string | null;
-  lastOcrText:    string | null;
-  lastActionType: string | null;
-  actionHistory:  string[];
-  updatedAt:      number | null;
+  pcId:              string;
+  objective:         string | null;
+  lastScreenshot:    string | null;   // '[captured]' when serialized externally
+  lastAnalysis:      string | null;
+  lastAnalysisError: string | null;   // last error from analyzeScreen (debug)
+  lastRawResponse:   string | null;   // first 300 chars of last AI raw response
+  lastOcrText:       string | null;
+  lastActionType:    string | null;
+  actionHistory:     string[];
+  updatedAt:         number | null;
 }
 
 export interface VisionDecision {
@@ -68,14 +70,16 @@ interface LoopEntry {
 // ── Vision context (singleton) ────────────────────────────────────────────────
 
 const _ctx: VisionContext = {
-  pcId:           'default',
-  objective:      null,
-  lastScreenshot: null,
-  lastAnalysis:   null,
-  lastOcrText:    null,
-  lastActionType: null,
-  actionHistory:  [],
-  updatedAt:      null,
+  pcId:              'default',
+  objective:         null,
+  lastScreenshot:    null,
+  lastAnalysis:      null,
+  lastAnalysisError: null,
+  lastRawResponse:   null,
+  lastOcrText:       null,
+  lastActionType:    null,
+  actionHistory:     [],
+  updatedAt:         null,
 };
 
 export function getVisionContext(): VisionContext {
@@ -177,6 +181,13 @@ function _parseDecision(raw: string): VisionDecision | null {
   try { return JSON.parse((m[1] ?? m[2] ?? '').trim()) as VisionDecision; } catch { return null; }
 }
 
+// Auto-detect image MIME type from base64 magic bytes
+function _detectMime(b64: string): 'image/jpeg' | 'image/png' | 'image/webp' {
+  if (b64.startsWith('iVBORw0KGgo')) return 'image/png';   // 89 50 4E 47
+  if (b64.startsWith('UklGR'))       return 'image/webp';  // 52 49 46 46
+  return 'image/jpeg';                                       // FF D8 FF (default)
+}
+
 export async function analyzeScreen(
   objective:     string,
   base64:        string,
@@ -184,26 +195,37 @@ export async function analyzeScreen(
   step:          number,
   maxSteps:      number,
 ): Promise<VisionDecision | null> {
-  const history = actionHistory.slice(-5).join(' → ') || 'aucune';
-  const prompt  = `OBJECTIF: ${objective}\nÉTAPE: ${step}/${maxSteps}\nHISTORIQUE: ${history}\n\nAnalyse l'écran. JSON uniquement:\n{"screen_analysis":"...","ui_elements":["..."],"detected_errors":[],"objective_status":"in_progress|completed|failed|blocked","next_action":{"type":"...","payload":{}},"reasoning":"...","confidence":0.0}`;
+  const history  = actionHistory.slice(-5).join(' → ') || 'aucune';
+  const mime     = _detectMime(base64);
+  const prompt   = `OBJECTIF: ${objective}\nÉTAPE: ${step}/${maxSteps}\nHISTORIQUE: ${history}\n\nAnalyse l'écran. JSON uniquement:\n{"screen_analysis":"...","ui_elements":["..."],"detected_errors":[],"objective_status":"in_progress|completed|failed|blocked","next_action":{"type":"...","payload":{}},"reasoning":"...","confidence":0.0}`;
 
   const provider = isGeminiAvailable() ? 'gemini' : isClaudeAvailable() ? 'claude' : null;
-  console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} provider=${provider ?? 'none'} obj="${objective.slice(0, 50)}"`);
+  console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} provider=${provider ?? 'none'} mime=${mime} obj="${objective.slice(0, 50)}"`);
   if (!provider) { console.error('[NEXUS_VISION] no_vision_provider'); return null; }
 
   let raw = '';
   try {
     raw = provider === 'gemini'
-      ? await callGemini(prompt, VISION_EXTRA, base64, 'image/jpeg')
-      : await callClaudeVision(prompt, VISION_EXTRA, base64, 'image/jpeg', true);
+      ? await callGemini(prompt, VISION_EXTRA, base64, mime)
+      : await callClaudeVision(prompt, VISION_EXTRA, base64, mime, true);
   } catch (err) {
-    console.error(`[NEXUS_VISION] analysis_error: ${err instanceof Error ? err.message : String(err)}`);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[NEXUS_VISION] analysis_error: ${msg}`);
+    _ctx.lastAnalysisError = msg;
     return null;
   }
 
+  _ctx.lastRawResponse   = raw.slice(0, 300);
+  _ctx.lastAnalysisError = null;
+
   const d = _parseDecision(raw);
-  if (!d) console.warn(`[NEXUS_VISION] json_parse_failed raw="${raw.slice(0, 150)}"`);
-  else console.log(`[NEXUS_VISION] decision status=${d.objective_status} next=${d.next_action.type} conf=${d.confidence}`);
+  if (!d) {
+    const parseErr = `json_parse_failed raw="${raw.slice(0, 200)}"`;
+    console.warn(`[NEXUS_VISION] ${parseErr}`);
+    _ctx.lastAnalysisError = parseErr;
+  } else {
+    console.log(`[NEXUS_VISION] decision status=${d.objective_status} next=${d.next_action.type} conf=${d.confidence}`);
+  }
   return d;
 }
 
