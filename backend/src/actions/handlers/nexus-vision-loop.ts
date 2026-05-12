@@ -513,9 +513,9 @@ export async function runVisionLoop(
       return finish('failed', step - 1, `Écran identique depuis ${hashCount} étapes — boucle détectée`);
     }
 
-    // AI Analysis (pass context hint only on step 1, then clear it)
-    const hint1 = step === 1 ? contextHint : undefined;
-    const d = await analyzeScreen(objective, base64, actionHistory, step, maxSteps, hint1, providerStats.length > 0 ? providerStats : undefined);
+    // AI Analysis: pass contextHint on step 1 OR whenever updated by LOCAL_OCR
+    const d = await analyzeScreen(objective, base64, actionHistory, step, maxSteps, contextHint || undefined, providerStats.length > 0 ? providerStats : undefined);
+    if (step === 1) contextHint = ''; // clear initial pre-OCR hint after first use; LOCAL_OCR updates will re-populate
 
     if (!d) {
       consecutiveErrors++;
@@ -607,6 +607,11 @@ export async function runVisionLoop(
       console.log(`[NEXUS_AUTOMATION] LOCAL_OCR step=${step}`);
       const ocr = await performLocalOcr();
       _ctx.lastOcrText = ocr.text;
+      // Inject OCR result into context for next analysis step
+      if (ocr.windows.length > 0) {
+        contextHint = `FENÊTRES OUVERTES (OCR step ${step}): ${ocr.windows.slice(0, 10).join(' | ')}`;
+        console.log(`[NEXUS_AUTOMATION] LOCAL_OCR context_updated windows=${ocr.windows.length}`);
+      }
       if (demoTelegram && ocr.windows.length > 0) {
         void _notify(`🔍 *Fenêtres:*\n${ocr.windows.slice(0, 8).map(w => `• ${w}`).join('\n')}`);
       }
