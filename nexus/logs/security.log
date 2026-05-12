@@ -1,0 +1,4 @@
+{"ts": "2026-05-09T17:26:46.319409+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=net user"}}
+{"ts": "2026-05-09T17:55:59.121309+00:00", "channel": "security", "level": "WARNING", "msg": "file_read_denied", "data": {"detail": "path=C:\\Windows\\System32\\hosts"}}
+{"ts": "2026-05-09T17:55:59.286390+00:00", "channel": "security", "level": "WARNING", "msg": "process_kill_denied", "data": {"detail": "process=svchost"}}
+{"ts": "2026-05-10T10:30:39.802073+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /PID 3536 /F"}}

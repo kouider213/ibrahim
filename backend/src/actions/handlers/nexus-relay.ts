@@ -850,6 +850,28 @@ export const nexusFocusApp = (app: string, ms = 10_000) =>
 export const nexusOpenUrl = (url: string, ms = 10_000) =>
   nexusRunCommand(`cmd /c start "" "${url.replace(/"/g, '')}"`, undefined, ms);
 
+// ── Terminal Manager ──────────────────────────────────────────────────────────
+
+export const nexusTerminalRun = (
+  command: string,
+  project?: string,
+  cwd?: string,
+  timeoutS = 30,
+  ms = (timeoutS + 10) * 1_000,
+) =>
+  _nexusEmit<OsResult>('nexus:terminal_run', { command, project, cwd, timeout_s: timeoutS }, ms);
+
+export const nexusClaudeCodeStart = (
+  project: string,
+  prompt?: string,
+  timeoutS = 90,
+  ms = (timeoutS + 15) * 1_000,
+) =>
+  _nexusEmit<OsResult>('nexus:claude_code_start', { project, prompt, timeout_s: timeoutS }, ms);
+
+export const nexusGetEnvironment = (ms = 5_000) =>
+  _nexusEmit<OsResult>('nexus:get_environment', {}, ms);
+
 // ── OS Agent — Screen Understanding ──────────────────────────────────────────
 
 export const nexusScreenUnderstand = (

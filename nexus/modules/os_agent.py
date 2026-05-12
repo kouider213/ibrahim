@@ -613,6 +613,327 @@ async def app_launch(data: dict) -> dict:
     }
 
 
+# ── Terminal Manager ─────────────────────────────────────────────────────────
+
+# Project registry (key → absolute path)
+_PROJECT_PATHS: dict[str, str] = {
+    'dzaryx':        r'C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim',
+    'ibrahim':       r'C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim',
+    'nexus':         r'C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus',
+    'backend':       r'C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\backend',
+    'bot-avion':     r'C:\Users\douba\OneDrive\Bureau\BOT AVION',
+    'cekolib':       r'C:\Users\douba\OneDrive\Bureau\cekolib',
+    'dzking':        r'C:\Users\douba\OneDrive\Bureau\dzking',
+    'fik':           r'C:\Users\douba\OneDrive\Bureau\fik',
+    'jarvis':        r'C:\Users\douba\OneDrive\Bureau\jarvis',
+    'loc':           r'C:\Users\douba\OneDrive\Bureau\loc',
+    'rental-system': r'C:\Users\douba\OneDrive\Bureau\rental-system',
+}
+
+# Project name aliases → canonical key
+_PROJECT_ALIASES: list[tuple[str, str]] = [
+    ('dzaryx',  'dzaryx'), ('ibrahim', 'dzaryx'), ('projet', 'dzaryx'),
+    ('backend', 'backend'), ('nexus', 'nexus'),
+    ('bot avion', 'bot-avion'), ('bot-avion', 'bot-avion'), ('avion', 'bot-avion'),
+    ('cekolib', 'cekolib'), ('dzking', 'dzking'), ('fik', 'fik'),
+    ('jarvis', 'jarvis'), ('loc', 'loc'),
+    ('rental', 'rental-system'), ('rental-system', 'rental-system'),
+]
+
+# Allowed root dirs for cwd validation
+_ALLOWED_CWD_ROOTS: tuple[str, ...] = (
+    r'C:\Users\douba\OneDrive\Bureau',
+    r'C:\Users\douba\AppData\Local\Temp',
+)
+
+# Commands that are ALWAYS blocked regardless of other checks
+_DANGEROUS_CMD_RE = re.compile(
+    r'\b(shutdown|restart-computer|format\s|del\s+/s|rmdir\s+/s\s|rd\s+/s\s|'
+    r'reg\s+delete|bcdedit|diskpart|net\s+user|netsh\s+firewall|taskkill\s+/f\s+/im\s+\*|'
+    r'Remove-Item\s+.*-Recurse.*-Force|cipher\s+/w|mklink\s+/d|'
+    r'icacls.*\bDeny\b|takeown\s+/f\s+/r)\b',
+    re.IGNORECASE,
+)
+
+# Allowed developer commands (whitelist)
+_DEV_SAFE_CMD_RE = re.compile(
+    r'^('
+    # git
+    r'git\s+(status|pull|push(\s+origin)?|log(\s|$)|diff(\s|$)|branch(\s|$)|'
+    r'checkout\s|add\s|commit\s|stash(\s|$)|fetch(\s|$)|merge\s|show(\s|$)|'
+    r'remote(\s|$)|clean\s+-fd|reset\s+HEAD|tag(\s|$))'
+    r'|npm\s+(run\s+\S+|install(\s+|$)|build(\s|$)|test(\s|$)|start(\s|$)|'
+    r'ci(\s|$)|list(\s|$)|outdated(\s|$)|update(\s|$)|init(\s|$))'
+    r'|npx\s+\S+'
+    r'|node\s+\S+'
+    r'|python(\s+\S+|\s+-m\s+\S+|3?\s+\S+)'
+    r'|py\s+\S+'
+    r'|pip\s+(install\s+\S+|list(\s|$)|show\s+\S+|freeze(\s|$))'
+    r'|claude(\s+.+)?'            # claude CLI with any args
+    r'|dir(\s|/|$)'
+    r'|ls(\s|$)'
+    r'|type\s+\S+'
+    r'|echo\s+'
+    r'|pwd$'
+    r'|ipconfig(\s|/|$)'
+    r'|ping\s+\S+'
+    r'|netstat(\s|/|$)'
+    r'|tasklist(\s|/|$)'
+    r'|systeminfo$'
+    r'|whoami$|hostname$'
+    r'|where\s+\S+|which\s+\S+'
+    r'|tsc(\s|$)'
+    r'|eslint(\s|$)'
+    r')',
+    re.IGNORECASE,
+)
+
+# Session environment state (mutable, module-level)
+_env_state: dict = {
+    'activeProject':        None,
+    'activeWorkingDir':     None,
+    'activeTerminalPid':    None,
+    'activeClaudeCodePid':  None,
+    'lastCommand':          None,
+    'lastCommandStatus':    None,
+    'lastCommandOutput':    None,
+    'lastCommandElapsedMs': None,
+    'lastUpdatedAt':        None,
+}
+
+
+def _resolve_project(token: str) -> tuple[str, str] | None:
+    """Return (project_key, absolute_path) or None."""
+    lower = token.lower().strip()
+    for alias, key in _PROJECT_ALIASES:
+        if lower == alias or lower.endswith(alias) or alias in lower:
+            path = _PROJECT_PATHS.get(key)
+            if path:
+                return key, path
+    return None
+
+
+def _validate_cwd(cwd: str | None) -> tuple[bool, str]:
+    if not cwd:
+        return True, ''
+    norm = os.path.normpath(cwd)
+    for root in _ALLOWED_CWD_ROOTS:
+        if norm.startswith(os.path.normpath(root)):
+            return True, ''
+    return False, f'cwd "{cwd}" hors des répertoires autorisés'
+
+
+def _validate_dev_cmd(cmd: str) -> tuple[bool, str]:
+    if _DANGEROUS_CMD_RE.search(cmd):
+        return False, f'Commande dangereuse bloquée: "{cmd[:60]}"'
+    if _DEV_SAFE_CMD_RE.match(cmd.strip()):
+        return True, ''
+    return False, f'Commande non autorisée: "{cmd[:60]}"'
+
+
+async def terminal_run(data: dict) -> dict:
+    """Run a dev command in a project dir and return stdout/stderr."""
+    cmd         = (data.get('command') or '').strip()
+    project_key = (data.get('project') or '').strip().lower()
+    cwd         = data.get('cwd') or _PROJECT_PATHS.get(project_key)
+    timeout_s   = min(int(data.get('timeout_s', 30)), 60)
+    jid         = _jid()
+
+    # Resolve project alias if cwd still missing
+    if not cwd and project_key:
+        resolved = _resolve_project(project_key)
+        if resolved:
+            _, cwd = resolved
+
+    if not cmd:
+        return {'ok': False, 'job_id': jid, 'error': 'command requis'}
+
+    cwd_ok, cwd_err = _validate_cwd(cwd)
+    if not cwd_ok:
+        log.warning('[NEXUS_TERMINAL] blocked cwd=%s', cwd)
+        return {'ok': False, 'job_id': jid, 'error': cwd_err}
+
+    cmd_ok, cmd_err = _validate_dev_cmd(cmd)
+    if not cmd_ok:
+        log.warning('[NEXUS_TERMINAL] blocked cmd=%s', cmd[:80])
+        return {'ok': False, 'job_id': jid, 'error': cmd_err}
+
+    log.info('[NEXUS_TERMINAL] run cmd="%s" cwd=%s timeout=%ds', cmd[:80], cwd, timeout_s)
+    t0 = time.monotonic()
+
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            cwd=cwd or None,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(
+                proc.communicate(), timeout=float(timeout_s)
+            )
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            elapsed = round((time.monotonic() - t0) * 1000)
+            _env_state.update({
+                'lastCommand': cmd, 'lastCommandStatus': 'timeout',
+                'lastCommandOutput': f'[timeout after {timeout_s}s]',
+                'lastCommandElapsedMs': elapsed,
+            })
+            return {'ok': False, 'job_id': jid, 'error': f'timeout après {timeout_s}s',
+                    'command': cmd, 'cwd': cwd, 'elapsed_ms': elapsed}
+
+        elapsed = round((time.monotonic() - t0) * 1000)
+        rc      = proc.returncode
+        stdout  = stdout_b.decode('utf-8', errors='replace').strip()
+        stderr  = stderr_b.decode('utf-8', errors='replace').strip()
+        ok      = rc == 0
+
+        # Keep last 4000 chars of stdout, 1000 of stderr
+        stdout_preview = stdout[-4000:] if len(stdout) > 4000 else stdout
+        stderr_preview = stderr[-1000:] if len(stderr) > 1000 else stderr
+        output_preview = (stdout_preview or stderr_preview or '')[:500]
+
+        _env_state.update({
+            'activeWorkingDir':     cwd,
+            'lastCommand':          cmd,
+            'lastCommandStatus':    'ok' if ok else 'error',
+            'lastCommandOutput':    output_preview,
+            'lastCommandElapsedMs': elapsed,
+        })
+
+        log.info('[NEXUS_TERMINAL] done cmd="%s" rc=%d elapsed=%dms stdout_len=%d',
+                 cmd[:60], rc, elapsed, len(stdout))
+        return {
+            'ok':          ok,
+            'job_id':      jid,
+            'command':     cmd,
+            'cwd':         cwd,
+            'exit_code':   rc,
+            'stdout':      stdout_preview,
+            'stderr':      stderr_preview,
+            'elapsed_ms':  elapsed,
+        }
+
+    except Exception as e:
+        elapsed = round((time.monotonic() - t0) * 1000)
+        log.error('[NEXUS_TERMINAL] error cmd="%s" err=%s', cmd[:60], e)
+        return {'ok': False, 'job_id': jid, 'error': str(e), 'command': cmd, 'elapsed_ms': elapsed}
+
+
+async def claude_code_start(data: dict) -> dict:
+    """Run Claude Code CLI in a project dir with a prompt."""
+    project_key = (data.get('project') or 'dzaryx').strip().lower()
+    prompt      = (data.get('prompt') or '').strip()
+    timeout_s   = min(int(data.get('timeout_s', 90)), 180)
+    jid         = _jid()
+
+    # Resolve project
+    cwd = _PROJECT_PATHS.get(project_key)
+    if not cwd:
+        resolved = _resolve_project(project_key)
+        if resolved:
+            project_key, cwd = resolved
+    if not cwd:
+        return {'ok': False, 'job_id': jid, 'error': f'Projet inconnu: {project_key}',
+                'available': list(_PROJECT_PATHS.keys())}
+
+    # Claude CLI path
+    claude_cmd = r'C:\Users\douba\AppData\Roaming\npm\claude.cmd'
+    if not os.path.exists(claude_cmd):
+        claude_cmd = 'claude'  # fallback to PATH
+
+    if not prompt:
+        # Just open VS Code in the project (non-blocking)
+        log.info('[NEXUS_CLAUDE] open vscode project=%s cwd=%s', project_key, cwd)
+        import subprocess as _sp
+        _sp.Popen([r'C:\Users\douba\AppData\Local\Programs\Microsoft VS Code\Code.exe', cwd],
+                  creationflags=_sp.DETACHED_PROCESS)
+        _env_state.update({'activeProject': project_key, 'activeWorkingDir': cwd})
+        return {'ok': True, 'job_id': jid, 'project': project_key, 'cwd': cwd,
+                'launched': 'vscode', 'prompt': None}
+
+    # Run claude --print with piped empty stdin to suppress stdin warning
+    # cmd: echo. | claude.cmd --print "prompt" --dangerously-skip-permissions
+    safe_prompt = prompt.replace('"', '\\"')
+    shell_cmd   = f'echo. | "{claude_cmd}" --print "{safe_prompt}" --dangerously-skip-permissions'
+
+    log.info('[NEXUS_CLAUDE] start project=%s prompt="%s" timeout=%ds cwd=%s',
+             project_key, prompt[:80], timeout_s, cwd)
+    t0 = time.monotonic()
+
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            shell_cmd,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _env_state.update({
+            'activeProject':       project_key,
+            'activeWorkingDir':    cwd,
+            'activeClaudeCodePid': proc.pid,
+        })
+
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(
+                proc.communicate(), timeout=float(timeout_s)
+            )
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            elapsed = round((time.monotonic() - t0) * 1000)
+            return {'ok': False, 'job_id': jid, 'error': f'Claude Code timeout après {timeout_s}s',
+                    'project': project_key, 'cwd': cwd, 'elapsed_ms': elapsed}
+
+        elapsed = round((time.monotonic() - t0) * 1000)
+        rc      = proc.returncode
+        stdout  = stdout_b.decode('utf-8', errors='replace').strip()
+        stderr  = stderr_b.decode('utf-8', errors='replace').strip()
+
+        # Strip known noise lines
+        output = '\n'.join(
+            line for line in stdout.splitlines()
+            if not line.startswith('Warning:') and line.strip()
+        ).strip()
+        output_preview = output[-4000:] if len(output) > 4000 else output
+
+        _env_state.update({
+            'activeClaudeCodePid':  None,  # process done
+            'lastCommand':          f'claude --print "{prompt[:60]}"',
+            'lastCommandStatus':    'ok' if rc == 0 else 'error',
+            'lastCommandOutput':    output_preview[:500],
+            'lastCommandElapsedMs': elapsed,
+        })
+
+        log.info('[NEXUS_CLAUDE] done project=%s rc=%d elapsed=%dms output_len=%d',
+                 project_key, rc, elapsed, len(output))
+        return {
+            'ok':         rc == 0,
+            'job_id':     jid,
+            'project':    project_key,
+            'cwd':        cwd,
+            'prompt':     prompt,
+            'output':     output_preview,
+            'exit_code':  rc,
+            'elapsed_ms': elapsed,
+        }
+
+    except Exception as e:
+        elapsed = round((time.monotonic() - t0) * 1000)
+        log.error('[NEXUS_CLAUDE] error project=%s err=%s', project_key, e)
+        return {'ok': False, 'job_id': jid, 'error': str(e), 'project': project_key, 'elapsed_ms': elapsed}
+
+
+def get_environment() -> dict:
+    return dict(_env_state)
+
+
 # ── Screen Understanding ──────────────────────────────────────────────────────
 
 async def screen_understand(data: dict, sio) -> dict:

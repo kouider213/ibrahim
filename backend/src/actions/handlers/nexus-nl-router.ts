@@ -6,7 +6,9 @@ import {
   nexusWindowList, nexusWindowFocus, nexusWindowClose, nexusWindowScreenshot,
   nexusProcessList, nexusProcessKill,
   nexusAppLaunch, nexusFocusApp, nexusOpenUrl,
+  nexusTerminalRun, nexusClaudeCodeStart,
 } from './nexus-relay.js';
+import { resolveProject, PROJECT_REGISTRY } from './nexus-environment.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +21,9 @@ export type IntentType =
   | 'app_close'           // close local app by name
   | 'focus_app'           // bring local app to foreground
   | 'url_open'            // open URL in local browser (Claude, GitHub, Codex…)
+  | 'terminal_run'        // run dev command in project dir (git, npm, python…)
+  | 'project_open'        // open project in VS Code
+  | 'claude_code_start'   // launch Claude Code CLI in project with optional prompt
   | 'nexus_status'
   | 'web_search'          // explicit web query — only when NO system keyword present
   | 'unknown';
@@ -81,6 +86,10 @@ const _SYS_KEYWORDS = [
   'explorer', 'explorateur', 'dzaryx', 'capcut',
   // Web apps opened locally (URL in local browser)
   'claude', 'codex', 'github', 'chatgpt',
+  // Developer / project
+  'git', 'npm', 'npx', 'node', 'python', 'pip', 'tsc',
+  'build', 'pull', 'push', 'commit', 'status',
+  'projet', 'project', 'backend', 'nexus',
   // System concepts
   'bureau', 'desktop',
   'fenêtre', 'fenetre', 'window',
@@ -255,6 +264,54 @@ const FILE_SEARCH_RE       = /\b(cherche[sz]?\s+(?:un\s+)?fichier|trouve[sz]?\s+
 const FILE_LIST_RE         = /\b(liste[sz]?\s+(?:les?\s+)?(?:fichiers?|dossiers?|contenus?)|affiche[sz]?\s+(?:les?\s+)?(?:fichiers?|dossiers?)|montre[sz]?\s+(moi\s+)?(?:les?\s+)?(?:fichiers?|dossiers?))\b/i;
 const NEXUS_STATUS_RE      = /\b(nexus\s+(en\s+ligne|online|connect[eé]|status|[eé]tat|actif)|est[\s-]ce\s+que\s+nexus|nexus\s+est[\s-]il|tu\s+es\s+l[àa])\b/i;
 
+// Terminal / project / Claude Code patterns
+const TERMINAL_CMD_RE = /\b(fais?\s+|exécute[sz]?\s+|run\s+|lance[sz]?\s+(?:la\s+commande\s+)?|execute\s+)\s*(git\s+\S+|npm\s+\S+|npx\s+\S+|node\s+\S+|python\s+\S+|py\s+\S+|pip\s+\S+|tsc(\s|$)|eslint(\s|$)|ls(\s|$)|dir(\s|$)|type\s+|claude(\s+|$))/i;
+const PROJECT_OPEN_RE  = /\b(ouvre[sz]?\s+(?:le\s+)?projet|open\s+project|charge[sz]?\s+(?:le\s+)?projet|travaille[sz]?\s+(?:sur\s+|dans\s+)?(?:le\s+projet\s+)?)\s*(\S+)/i;
+const CLAUDE_CODE_RE   = /\b(lance[sz]?\s+claude\s+code|lance[sz]?\s+claude|démarre[sz]?\s+claude\s+code|start\s+claude|ouvre[sz]?\s+claude\s+code|claude\s+code\s+dans\s+|nexus\s+claude\s+)\s*(\S*)/i;
+const CLAUDE_PROMPT_RE = /\b(claude\s+code\s+(?:fais?|crée?|modifie?|explique?|analyse?|aide?|écris?|génère?|fixe?)\s+.{5,}|demande[sz]?\s+[àa]\s+claude\s+.{5,})/i;
+
+// Known dev command prefixes for shorthand matching
+const _DEV_CMD_PREFIXES = /^(git|npm|npx|node|python|python3|py|pip|tsc|eslint|claude)\s/i;
+
+// Single-word shorthands (after "nexus " prefix stripped)
+const _GIT_SHORTHAND: Record<string, string> = {
+  'pull': 'git pull', 'push': 'git push', 'status': 'git status',
+  'diff': 'git diff', 'log': 'git log', 'branch': 'git branch',
+  'fetch': 'git fetch', 'stash': 'git stash',
+};
+const _NPM_SHORTHAND: Record<string, string> = {
+  'build': 'npm run build', 'dev': 'npm run dev', 'test': 'npm test',
+  'install': 'npm install', 'ci': 'npm ci',
+};
+
+function _extractTerminalCmd(cmd: string): { command: string } | undefined {
+  const trimmed = cmd.trim();
+  const lower   = trimmed.toLowerCase();
+  // Single-word git shorthand: "pull" → "git pull"
+  if (_GIT_SHORTHAND[lower]) return { command: _GIT_SHORTHAND[lower]! };
+  // Single-word npm shorthand: "build" → "npm run build"
+  if (_NPM_SHORTHAND[lower]) return { command: _NPM_SHORTHAND[lower]! };
+  // Direct: "git status", "npm run build", etc.
+  if (_DEV_CMD_PREFIXES.test(trimmed)) return { command: trimmed };
+  // "fais git status", "run npm build", etc.
+  const m = TERMINAL_CMD_RE.exec(cmd);
+  if (m) {
+    const rawCmd = cmd.slice(m.index + m[1]!.length).trim();
+    return { command: rawCmd };
+  }
+  return undefined;
+}
+
+function _extractProject(cmd: string): string | undefined {
+  // "dans dzaryx", "dans le projet nexus", "pour dzaryx"
+  const m = cmd.match(/\b(?:dans|in|dans\s+le\s+projet|project|projet)\s+([a-zA-Z0-9_-]+)\b/i);
+  if (m) {
+    const proj = resolveProject(m[1]!);
+    if (proj) return proj.key;
+  }
+  return undefined;
+}
+
 // Explicit web search patterns (only matched when no sys priority)
 const WEB_SEARCH_RE = /\b(cherche\s+(?:sur\s+(le\s+web|google|internet))|recherche\s+(?:en\s+ligne|sur\s+(?:le\s+web|google))|google\s+(?:pour|recherche)|search\s+(?:online|web|for))\b/i;
 
@@ -381,12 +438,42 @@ export function detectIntent(cmd: string): DetectedIntent {
     return { type: 'file_list', confidence: 0.85, sysPriority: true, args: { path } };
   }
 
-  // ── 17. nexus_status
+  // ── 17. claude_code_start — "lance claude code dans dzaryx", "claude code fais X"
+  if (CLAUDE_CODE_RE.test(cmd) || CLAUDE_PROMPT_RE.test(cmd)) {
+    const projKey = _extractProject(cmd) ?? 'dzaryx';
+    // Check if there's a prompt after the trigger
+    const promptM = cmd.match(/(?:claude\s+code|claude)\s+(?:fais?|crée?|modifie?|explique?|analyse?|aide?|écris?|génère?|fixe?|dans\s+\w+\s+)(.{5,})/i)
+      ?? cmd.match(/demande[sz]?\s+[àa]\s+claude\s+(.{5,})/i);
+    const prompt = promptM?.[1]?.trim();
+    return { type: 'claude_code_start', confidence: 0.88, sysPriority: true, args: { project: projKey, prompt } };
+  }
+
+  // ── 18. project_open — "ouvre le projet dzaryx", "charge nexus"
+  const projOpenM = PROJECT_OPEN_RE.exec(cmd);
+  if (projOpenM) {
+    const raw = projOpenM[2]?.trim() ?? '';
+    const proj = resolveProject(raw);
+    if (proj) {
+      return { type: 'project_open', confidence: 0.88, sysPriority: true, args: { project: proj.key, path: proj.path } };
+    }
+  }
+
+  // ── 19. terminal_run — git/npm/python shorthand OR "fais git status"
+  const termExtracted = _extractTerminalCmd(cmd);
+  if (termExtracted) {
+    const projKey = _extractProject(cmd);
+    return {
+      type: 'terminal_run', confidence: 0.87, sysPriority: true,
+      args: { command: termExtracted.command, project: projKey },
+    };
+  }
+
+  // ── 20. nexus_status
   if (NEXUS_STATUS_RE.test(cmd)) {
     return { type: 'nexus_status', confidence: 0.90, sysPriority: false, args: {} };
   }
 
-  // ── 18. Fallback logic
+  // ── 21. Fallback logic
   if (sysPriority) {
     // System keyword detected but no intent matched — block web fallback
     const matched = matchedSysKeywords(cmd);
@@ -579,6 +666,49 @@ async function executeIntent(intent: DetectedIntent, rawCmd: string): Promise<In
       return { ok: true, jobId: r['job_id'] as string | undefined, toolUsed: 'nexus:process_kill', message: `⚙️ Processus "${name ?? pid}" terminé.` };
     }
 
+    case 'terminal_run': {
+      const command  = args['command'] as string;
+      const project  = args['project'] as string | undefined;
+      if (!command) return { ok: false, toolUsed: 'nexus:terminal_run', message: '❌ Commande vide.' };
+      const r = await nexusTerminalRun(command, project, undefined, 30);
+      const result = r.result as Record<string, unknown>;
+      if (!result['ok']) return { ok: false, toolUsed: 'nexus:terminal_run', message: `❌ Erreur : ${result['error'] ?? `exit ${result['exit_code']}`}` };
+      const stdout = ((result['stdout'] as string | undefined) ?? '').slice(0, 2000);
+      const projTag = project ? ` \\(${project}\\)` : '';
+      return {
+        ok: true, jobId: r['job_id'] as string | undefined, toolUsed: 'nexus:terminal_run',
+        message: `💻 *${command}*${projTag} \\(${result['elapsed_ms']}ms\\)\n\`\`\`\n${stdout || '(vide)'}\n\`\`\``,
+      };
+    }
+
+    case 'project_open': {
+      const project = args['project'] as string;
+      const proj    = resolveProject(project) ?? { key: project, path: PROJECT_REGISTRY[project] ?? '' };
+      if (!proj.path) return { ok: false, toolUsed: 'nexus:app_launch', message: `❌ Projet inconnu: ${project}` };
+      const r = await nexusAppLaunch('vscode', 20_000);
+      if (!r.ok) return { ok: false, toolUsed: 'nexus:app_launch', message: `❌ VS Code launch échoué: ${r.error ?? '?'}` };
+      return { ok: true, toolUsed: 'nexus:app_launch', message: `📂 *${project}* ouvert dans VS Code.\n\`${proj.path}\`` };
+    }
+
+    case 'claude_code_start': {
+      const project = (args['project'] as string | undefined) ?? 'dzaryx';
+      const prompt  = args['prompt'] as string | undefined;
+      const timeoutS = prompt ? 90 : 5;
+      const r = await nexusClaudeCodeStart(project, prompt, timeoutS);
+      const result = r.result as Record<string, unknown>;
+      if (!result['ok'] && !result['launched']) {
+        return { ok: false, toolUsed: 'nexus:claude_code_start', message: `❌ Claude Code échoué: ${result['error'] ?? '?'}` };
+      }
+      if (result['output']) {
+        const output = (result['output'] as string).slice(0, 2000);
+        return {
+          ok: true, jobId: result['job_id'] as string | undefined, toolUsed: 'nexus:claude_code_start',
+          message: `🤖 *Claude Code* \\(${project}\\) ${result['elapsed_ms']}ms :\n\n${output}`,
+        };
+      }
+      return { ok: true, toolUsed: 'nexus:claude_code_start', message: `🤖 *Claude Code* lancé dans *${project}*.` };
+    }
+
     case 'nexus_status': {
       const online = isNexusOnline();
       return { ok: true, toolUsed: 'internal:nexus_status', message: online ? '🟢 NEXUS est en ligne.' : '🔴 NEXUS est hors ligne.' };
@@ -717,6 +847,9 @@ function _toolName(intent: DetectedIntent): string {
     file_read:        'nexus:file_read',
     file_send:        'nexus:file_send',
     file_open:        'nexus:file_open',
+    terminal_run:     'nexus:terminal_run',
+    project_open:     'nexus:app_launch',
+    claude_code_start:'nexus:claude_code_start',
     nexus_status:     'internal:nexus_status',
     web_search:       'python_ai:claude',
     unknown:          'none',

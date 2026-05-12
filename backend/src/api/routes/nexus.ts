@@ -25,6 +25,12 @@ import type { TaskStep } from '../../actions/handlers/nexus-task-runner.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
 import { testNlParser, detectIntent, splitCommands } from '../../actions/handlers/nexus-nl-router.js';
+import {
+  getEnvironment, resolveProject, PROJECT_REGISTRY,
+} from '../../actions/handlers/nexus-environment.js';
+import {
+  nexusTerminalRun, nexusClaudeCodeStart, nexusGetEnvironment,
+} from '../../actions/handlers/nexus-relay.js';
 
 const router = Router();
 
@@ -675,6 +681,97 @@ router.get('/debug/screenshot-probe', requireMobileAuth, async (_req, res) => {
         groq:   isGroqAvailable(),
       },
     });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TERMINAL + PROJECT + CLAUDE CODE
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/nexus/environment — active session state (project, cwd, last command)
+router.get('/environment', requireMobileAuth, async (_req, res) => {
+  const local = getEnvironment();
+  let pcEnv: unknown = null;
+  if (isNexusOnline()) {
+    try {
+      const r = await nexusGetEnvironment(4_000);
+      pcEnv = r.result;
+    } catch { /* not critical */ }
+  }
+  res.json({ ok: true, environment: local, pc_environment: pcEnv, nexus_online: isNexusOnline() });
+});
+
+// POST /api/nexus/terminal/run — run a dev command in a project directory
+// Body: { command: string, project?: string, cwd?: string, timeout_s?: number }
+router.post('/terminal/run', requireMobileAuth, async (req, res) => {
+  const { command, project, cwd, timeout_s } = req.body as {
+    command?: string; project?: string; cwd?: string; timeout_s?: number;
+  };
+  if (!command?.trim()) {
+    res.status(400).json({ ok: false, error: 'command requis' });
+    return;
+  }
+  if (!isNexusOnline()) {
+    res.status(503).json({ ok: false, error: 'NEXUS hors ligne' });
+    return;
+  }
+  try {
+    const timeoutS = Math.min(timeout_s ?? 30, 60);
+    const r = await nexusTerminalRun(command.trim(), project, cwd, timeoutS);
+    const result = r.result as Record<string, unknown>;
+    console.log(`[nexus/terminal/run] cmd="${command.slice(0,60)}" ok=${result['ok']} exit=${result['exit_code']} elapsed=${result['elapsed_ms']}ms`);
+    res.status(result['ok'] ? 200 : 422).json({ ok: result['ok'] ?? false, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/nexus/project/open — open VS Code in a project directory
+// Body: { project: string }
+router.post('/project/open', requireMobileAuth, async (req, res) => {
+  const { project } = req.body as { project?: string };
+  if (!project?.trim()) {
+    res.status(400).json({
+      ok: false, error: 'project requis',
+      available: Object.keys(PROJECT_REGISTRY),
+    });
+    return;
+  }
+  const proj = resolveProject(project.trim());
+  if (!proj) {
+    res.status(400).json({
+      ok: false, error: `Projet inconnu: "${project}"`,
+      available: Object.keys(PROJECT_REGISTRY),
+    });
+    return;
+  }
+  try {
+    const record = await executeNexusCommand('PROJECT_OPEN', { project: proj.key });
+    res.status(record.success ? 200 : 502).json({ ok: record.success, project: proj.key, path: proj.path, ...record });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/nexus/claude/start — run Claude Code CLI in a project
+// Body: { project?: string, prompt?: string, timeout_s?: number }
+router.post('/claude/start', requireMobileAuth, async (req, res) => {
+  const { project, prompt, timeout_s } = req.body as {
+    project?: string; prompt?: string; timeout_s?: number;
+  };
+  if (!isNexusOnline()) {
+    res.status(503).json({ ok: false, error: 'NEXUS hors ligne' });
+    return;
+  }
+  const proj = resolveProject(project?.trim() ?? 'dzaryx') ?? { key: 'dzaryx', path: PROJECT_REGISTRY['dzaryx']! };
+  const timeoutS = Math.min(timeout_s ?? 90, 180);
+  console.log(`[nexus/claude/start] project=${proj.key} prompt="${(prompt ?? '').slice(0,60)}" timeout=${timeoutS}s`);
+  try {
+    const r = await nexusClaudeCodeStart(proj.key, prompt?.trim(), timeoutS);
+    const result = r.result as Record<string, unknown>;
+    res.status(result['ok'] ? 200 : 422).json({ ok: result['ok'] ?? false, project: proj.key, ...result });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }

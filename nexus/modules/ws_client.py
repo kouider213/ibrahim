@@ -586,6 +586,23 @@ class NexusWSClient:
             from .os_agent import focus_app
             return await focus_app(data)
 
+        # ── Terminal Manager ──────────────────────────────────────────────────
+
+        @sio.on('nexus:terminal_run', namespace='/nexus')
+        async def on_terminal_run(data: dict):
+            from .os_agent import terminal_run
+            return await terminal_run(data)
+
+        @sio.on('nexus:claude_code_start', namespace='/nexus')
+        async def on_claude_code_start(data: dict):
+            from .os_agent import claude_code_start
+            return await claude_code_start(data)
+
+        @sio.on('nexus:get_environment', namespace='/nexus')
+        async def on_get_environment(_data: dict):
+            from .os_agent import get_environment
+            return get_environment()
+
         # ── OS Agent — Screen Understanding ──────────────────────────────────
 
         @sio.on('nexus:screen_understand', namespace='/nexus')

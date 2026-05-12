@@ -11,9 +11,13 @@ import {
   nexusFocusApp,
   nexusSysinfo,
   nexusRunCommand,
+  nexusTerminalRun,
+  nexusClaudeCodeStart,
+  nexusGetEnvironment,
   isNexusOnline,
 } from './nexus-relay.js';
 import { env } from '../../config/env.js';
+import { resolveProject, updateEnvironment, getEnvironment, PROJECT_REGISTRY } from './nexus-environment.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,7 +30,11 @@ export type CommandType =
   | 'OPEN_VSCODE'
   | 'FOCUS_APP'
   | 'SYSTEM_INFO'
-  | 'TERMINAL_COMMAND_SAFE';
+  | 'TERMINAL_COMMAND_SAFE'
+  | 'TERMINAL_RUN'
+  | 'PROJECT_OPEN'
+  | 'PROJECT_STATUS'
+  | 'CLAUDE_CODE_START';
 
 export interface NexusCommandRecord {
   id:           string;
@@ -48,11 +56,15 @@ export interface NexusCapabilities {
   app_launch:    boolean;
   chrome:        boolean;
   vscode:        boolean;
-  focus_app:     boolean;
-  terminal_safe: boolean;
-  system_info:   boolean;
+  focus_app:      boolean;
+  terminal_safe:  boolean;
+  terminal_run:   boolean;
+  project_open:   boolean;
+  claude_code:    boolean;
+  system_info:    boolean;
   telegram_photo: boolean;
-  commands:      CommandType[];
+  commands:       CommandType[];
+  projects:       string[];
 }
 
 // ── Command history (last 50) ─────────────────────────────────────────────────
@@ -336,6 +348,96 @@ const _handlers: Record<CommandType, Handler> = {
     console.log(`[NEXUS_ACTION] TERMINAL_COMMAND_SAFE exit=${result.exit_code} stdout_len=${result.stdout.length} retries=${retries}`);
     return result;
   },
+
+  // ── TERMINAL_RUN — extended dev command whitelist, project-aware ──────────
+  async TERMINAL_RUN(payload) {
+    const command   = (payload['command'] as string | undefined)?.trim() ?? '';
+    const project   = (payload['project'] as string | undefined)?.trim().toLowerCase();
+    const cwd       = (payload['cwd'] as string | undefined)?.trim();
+    const timeoutS  = Math.min((payload['timeout_s'] as number | undefined) ?? 30, 60);
+    if (!command) throw new Error('command requis');
+    console.log(`[NEXUS_ACTION] TERMINAL_RUN cmd="${command.slice(0, 80)}" project=${project ?? '-'} timeout=${timeoutS}s`);
+    const { result } = await _withRetry(
+      () => nexusTerminalRun(command, project, cwd, timeoutS),
+    );
+    const r = result as Record<string, unknown>;
+    console.log(`[NEXUS_ACTION] TERMINAL_RUN exit=${r['exit_code']} elapsed=${r['elapsed_ms']}ms ok=${r['ok']}`);
+    if (!r['ok']) throw new Error((r['error'] as string | undefined) ?? `Command failed (exit ${r['exit_code']})`);
+    updateEnvironment({
+      activeProject:        project ?? null,
+      activeWorkingDir:     (r['cwd'] as string | undefined) ?? null,
+      lastCommand:          command,
+      lastCommandStatus:    'ok',
+      lastCommandOutput:    ((r['stdout'] as string | undefined) ?? '').slice(0, 500),
+      lastCommandElapsedMs: (r['elapsed_ms'] as number | undefined) ?? null,
+    });
+    return result;
+  },
+
+  // ── PROJECT_OPEN — open VS Code in project directory ─────────────────────
+  async PROJECT_OPEN(payload) {
+    const raw = (payload['project'] as string | undefined)?.trim() ?? '';
+    if (!raw) throw new Error('project requis');
+    const proj = resolveProject(raw);
+    if (!proj) {
+      throw new Error(`Projet inconnu: "${raw}". Disponibles: ${Object.keys(PROJECT_REGISTRY).join(', ')}`);
+    }
+    console.log(`[NEXUS_ACTION] PROJECT_OPEN project=${proj.key} path=${proj.path}`);
+    // Launch VS Code in project directory
+    const { result } = await _withRetry(
+      () => nexusAppLaunch('vscode', 20_000),
+    );
+    // Also send OPEN_FOLDER so VS Code opens the right directory
+    void nexusRunCommand(
+      `"${String.raw`C:\Users\douba\AppData\Local\Programs\Microsoft VS Code\Code.exe`}" "${proj.path}"`,
+      undefined, 10_000,
+    ).catch(() => {/* non-critical */});
+    updateEnvironment({ activeProject: proj.key, activeWorkingDir: proj.path });
+    void _notify(`📂 *${proj.key}* ouvert dans VS Code\n\`${proj.path}\``);
+    return { ok: true, project: proj.key, path: proj.path, vscode: result };
+  },
+
+  // ── PROJECT_STATUS — return environment + last command status ────────────
+  async PROJECT_STATUS(_payload) {
+    console.log('[NEXUS_ACTION] PROJECT_STATUS');
+    const env_ = getEnvironment();
+    const r = await nexusGetEnvironment(5_000);
+    const pcEnv = r.result as Record<string, unknown> | undefined;
+    return { ok: true, environment: env_, pc_environment: pcEnv };
+  },
+
+  // ── CLAUDE_CODE_START — run claude CLI in project with optional prompt ────
+  async CLAUDE_CODE_START(payload) {
+    const raw     = (payload['project'] as string | undefined)?.trim() ?? 'dzaryx';
+    const prompt  = (payload['prompt'] as string | undefined)?.trim();
+    const timeoutS = Math.min((payload['timeout_s'] as number | undefined) ?? 90, 180);
+
+    const proj = resolveProject(raw) ?? resolveProject('dzaryx')!;
+    console.log(`[NEXUS_ACTION] CLAUDE_CODE_START project=${proj.key} prompt="${(prompt ?? '').slice(0, 60)}" timeout=${timeoutS}s`);
+
+    const { result } = await _withRetry(
+      () => nexusClaudeCodeStart(proj.key, prompt, timeoutS),
+    );
+    const r = result as Record<string, unknown>;
+
+    if (r['output']) {
+      const outputPreview = (r['output'] as string).slice(0, 800);
+      void _notify(`🤖 *Claude Code* \\(${proj.key}\\)\n\n${outputPreview}`);
+      updateEnvironment({
+        activeProject:        proj.key,
+        activeWorkingDir:     proj.path,
+        lastCommand:          prompt ? `claude --print "${prompt.slice(0, 60)}"` : 'claude',
+        lastCommandStatus:    r['ok'] ? 'ok' : 'error',
+        lastCommandOutput:    outputPreview.slice(0, 500),
+        lastCommandElapsedMs: (r['elapsed_ms'] as number | undefined) ?? null,
+      });
+    }
+
+    if (!r['ok'] && !r['launched']) {
+      throw new Error((r['error'] as string | undefined) ?? 'Claude Code failed');
+    }
+    return result;
+  },
 };
 
 // ── Main dispatch ─────────────────────────────────────────────────────────────
@@ -395,6 +497,10 @@ export function getNexusCapabilities(): NexusCapabilities {
     terminal_safe:  true,
     system_info:    true,
     telegram_photo: true,
+    terminal_run:   true,
+    project_open:   true,
+    claude_code:    true,
     commands:       Object.keys(_handlers) as CommandType[],
+    projects:       Object.keys(PROJECT_REGISTRY),
   };
 }
