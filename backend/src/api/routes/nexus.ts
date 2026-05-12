@@ -13,6 +13,15 @@ import {
   getCommandById,
 } from '../../actions/handlers/nexus-command-registry.js';
 import type { CommandType } from '../../actions/handlers/nexus-command-registry.js';
+import {
+  startVisionLoop, getLoopStatus, listLoops, getVisionContext,
+  analyzeScreen, performLocalOcr,
+  triggerEmergencyStop, clearEmergencyStop, isEmergencyStopped,
+} from '../../actions/handlers/nexus-vision-loop.js';
+import {
+  createAndStartTask, getTask, listTasks, cancelTask,
+} from '../../actions/handlers/nexus-task-runner.js';
+import type { TaskStep } from '../../actions/handlers/nexus-task-runner.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
 import { testNlParser, detectIntent, splitCommands } from '../../actions/handlers/nexus-nl-router.js';
@@ -501,6 +510,138 @@ router.post('/agent', requireMobileAuth, async (req, res) => {
     console.error(`[nexus-agent-route:${requestId}] ❌ ${errMsg}`);
     res.status(500).json({ ok: false, error: errMsg });
   }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VISION LOOP
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/nexus/vision/context — current vision state (no base64)
+router.get('/vision/context', requireMobileAuth, (_req, res) => {
+  res.json({ ok: true, ...getVisionContext() });
+});
+
+// POST /api/nexus/vision/analyze — one-shot: screenshot + AI analysis → structured decision
+router.post('/vision/analyze', requireMobileAuth, async (req, res) => {
+  if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus hors ligne' }); return; }
+  const { objective = 'Décris l\'état de l\'écran et les éléments visibles' } = req.body as { objective?: string };
+  try {
+    const shot = await nexusScreenshotBase64(35_000);
+    if (!shot.ok || !shot.image_base64) {
+      res.status(502).json({ ok: false, error: shot.error ?? 'Screenshot failed' });
+      return;
+    }
+    const decision = await analyzeScreen(objective, shot.image_base64, [], 1, 1);
+    res.json({ ok: true, objective, screenshot_kb: shot.size_kb, hostname: shot.hostname, ...decision });
+  } catch (err) {
+    res.status(504).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/nexus/vision/loop — start autonomous vision loop in background
+// Body: { objective, maxSteps?, stepDelay?, demoTelegram? }
+router.post('/vision/loop', requireMobileAuth, (req, res) => {
+  if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus hors ligne' }); return; }
+  if (isEmergencyStopped()) { res.status(503).json({ ok: false, error: 'Emergency stop actif — /nexus/emergency-clear requis' }); return; }
+
+  const { objective, maxSteps, stepDelay, demoTelegram } = req.body as {
+    objective?: string; maxSteps?: number; stepDelay?: number; demoTelegram?: boolean;
+  };
+  if (!objective?.trim()) { res.status(400).json({ ok: false, error: 'objective requis' }); return; }
+
+  const taskId = startVisionLoop(objective.trim(), {
+    maxSteps:     Math.min(maxSteps ?? 10, 20),
+    stepDelay:    Math.min(stepDelay ?? 2_000, 10_000),
+    demoTelegram: demoTelegram ?? true,
+  });
+  res.json({ ok: true, taskId, poll: `GET /api/nexus/vision/loop/${taskId}` });
+});
+
+// GET /api/nexus/vision/loop/:taskId — poll vision loop status
+router.get('/vision/loop/:taskId', requireMobileAuth, (req, res) => {
+  const entry = getLoopStatus(req.params['taskId'] as string);
+  if (!entry) { res.status(404).json({ ok: false, error: 'Vision loop not found' }); return; }
+  res.json({ ok: true, ...entry });
+});
+
+// GET /api/nexus/vision/loops — list all vision loops
+router.get('/vision/loops', requireMobileAuth, (_req, res) => {
+  res.json({ ok: true, loops: listLoops() });
+});
+
+// GET /api/nexus/vision/ocr — local OCR via Windows Get-Process window titles
+router.get('/vision/ocr', requireMobileAuth, async (_req, res) => {
+  if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus hors ligne' }); return; }
+  try {
+    const result = await performLocalOcr(15_000);
+    res.json({ ok: result.ok, windows: result.windows, text: result.text, error: result.error ?? null });
+  } catch (err) {
+    res.status(504).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TASK RUNNER
+// ══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/nexus/task — create + run task (AI-decomposed or predefined steps)
+// Body: { objective, steps?, demoTelegram? }
+router.post('/task', requireMobileAuth, async (req, res) => {
+  if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus hors ligne' }); return; }
+
+  const { objective, steps, demoTelegram } = req.body as {
+    objective?: string;
+    steps?:     Array<Partial<TaskStep>>;
+    demoTelegram?: boolean;
+  };
+  if (!objective?.trim()) { res.status(400).json({ ok: false, error: 'objective requis' }); return; }
+
+  try {
+    const task = await createAndStartTask(objective.trim(), steps, demoTelegram ?? true);
+    res.json({
+      ok: true, taskId: task.id,
+      status: task.status, steps: task.steps.length,
+      poll: `GET /api/nexus/tasks/${task.id}`,
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/nexus/tasks — list recent tasks
+router.get('/tasks', requireMobileAuth, (req, res) => {
+  const limit = Math.min(parseInt((req.query['limit'] as string | undefined) ?? '20', 10), 100);
+  res.json({ ok: true, tasks: listTasks(limit) });
+});
+
+// GET /api/nexus/tasks/:id — get specific task with full step details
+router.get('/tasks/:id', requireMobileAuth, (req, res) => {
+  const task = getTask(req.params['id'] as string);
+  if (!task) { res.status(404).json({ ok: false, error: 'Task not found' }); return; }
+  res.json({ ok: true, ...task });
+});
+
+// POST /api/nexus/tasks/:id/cancel — cancel a running task
+router.post('/tasks/:id/cancel', requireMobileAuth, (req, res) => {
+  const cancelled = cancelTask(req.params['id'] as string);
+  if (!cancelled) { res.status(409).json({ ok: false, error: 'Task not found or already terminal' }); return; }
+  res.json({ ok: true, cancelled: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SAFETY
+// ══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/nexus/emergency-stop — halt all vision loops immediately
+router.post('/emergency-stop', requireMobileAuth, (_req, res) => {
+  triggerEmergencyStop();
+  res.json({ ok: true, emergency_stop: true, message: 'Tous les loops vision arrêtés. Utilisez /emergency-clear pour reprendre.' });
+});
+
+// POST /api/nexus/emergency-clear — re-enable vision loops
+router.post('/emergency-clear', requireMobileAuth, (_req, res) => {
+  clearEmergencyStop();
+  res.json({ ok: true, emergency_stop: false, message: 'Emergency stop levé.' });
 });
 
 export default router;
