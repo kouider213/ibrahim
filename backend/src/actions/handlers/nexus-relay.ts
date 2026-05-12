@@ -12,6 +12,36 @@ let _nexusPublicIp:  string        = '';
 let _busyTask:       string | null = null;
 let _busySince:      number | null = null;
 
+// ── Notification state (spam prevention) ──────────────────────────────────────
+
+type NexusNotifyState = 'online' | 'offline';
+let _lastNotifiedState: NexusNotifyState | null = null;
+let _lastNotifyTs: Record<NexusNotifyState, number> = { online: 0, offline: 0 };
+let _offlineGraceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const NOTIFY_COOLDOWN_MS = 10 * 60 * 1_000; // 10 min between same-state notifications
+const OFFLINE_GRACE_MS   = 30 * 1_000;       // 30s grace — skip offline if reconnect arrives
+
+function _notifyNexusState(next: NexusNotifyState, reason: string, message: string): void {
+  const now        = Date.now();
+  const prev       = _lastNotifiedState;
+  const lastSameMs = now - _lastNotifyTs[next];
+  const cooldown   = lastSameMs < NOTIFY_COOLDOWN_MS;
+
+  if (prev === next || cooldown) {
+    console.log(
+      `[NEXUS_STATUS] previous=${prev ?? 'null'} next=${next} reason=${reason} ` +
+      `notified=false cooldown=${cooldown} same_state=${prev === next}`,
+    );
+    return;
+  }
+
+  console.log(`[NEXUS_STATUS] previous=${prev ?? 'null'} next=${next} reason=${reason} notified=true`);
+  _lastNotifiedState  = next;
+  _lastNotifyTs[next] = now;
+  void _sendTelegram(message);
+}
+
 export function setNexusBusy(task: string): void {
   _busyTask  = task;
   _busySince = Date.now();
@@ -202,7 +232,14 @@ export function initNexusRelay(io: SocketServer): void {
     _tel.lastSocketId       = socket.id;
     _tel.totalConnections  += 1;
     _startHeartbeat(socket);
-    void _sendTelegram('🖥️ *NEXUS* en ligne — PC connecté');
+
+    // Cancel pending offline notification (fast reconnect within grace period)
+    if (_offlineGraceTimer) {
+      clearTimeout(_offlineGraceTimer);
+      _offlineGraceTimer = null;
+      console.log('[NEXUS_STATUS] previous=online next=online reason=fast_reconnect notified=false grace_cancelled=true');
+    }
+    _notifyNexusState('online', 'connection', '🖥️ *NEXUS* en ligne — PC connecté');
 
     // ── Register MAC + full sysinfo ───────────────────────────────────────
     socket.on('nexus:register', (data: {
@@ -273,7 +310,12 @@ export function initNexusRelay(io: SocketServer): void {
         _tel.totalDisconnections     += 1;
         _stopHeartbeat();
       }
-      void _sendTelegram(`🖥️ *NEXUS* hors ligne — reason: ${reason}`);
+      // Grace period: wait 30s — if reconnect arrives, cancel (no notification)
+      if (_offlineGraceTimer) clearTimeout(_offlineGraceTimer);
+      _offlineGraceTimer = setTimeout(() => {
+        _offlineGraceTimer = null;
+        _notifyNexusState('offline', reason, `🖥️ *NEXUS* hors ligne — ${reason}`);
+      }, OFFLINE_GRACE_MS);
     });
   });
 }
