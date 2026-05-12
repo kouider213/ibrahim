@@ -524,17 +524,29 @@ export async function runVisionLoop(
       );
     }
 
+    const at = d.next_action.type;
+    const ap = d.next_action.payload ?? {};
+
+    // Save step analysis immediately — before any early returns so every step is persisted
+    void saveStep({
+      task_id: taskId, step, action: at,
+      payload: ap as Record<string, unknown>,
+      success: d.objective_status !== 'failed',
+      error: d.objective_status === 'failed' ? d.reasoning?.slice(0, 500) ?? null : null,
+      screen_hash: hash,
+      provider: _ctx.lastProvider,
+      latency_ms: 0,
+      confidence: d.confidence,
+    });
+
     // Objective complete
-    if (d.objective_status === 'completed' || d.next_action.type === 'DONE') {
+    if (d.objective_status === 'completed' || at === 'DONE') {
       console.log(`[NEXUS_VISION] completed step=${step}`);
       return finish('completed', step, null);
     }
     if (d.objective_status === 'failed') {
       return finish('failed', step, d.reasoning);
     }
-
-    const at = d.next_action.type;
-    const ap = d.next_action.payload ?? {};
 
     // Forbidden action guard — absolute block
     if (FORBIDDEN_ACTIONS.has(at.toUpperCase())) {
@@ -569,17 +581,6 @@ export async function runVisionLoop(
     actionHistory.push(at);
     _ctx.lastActionType = at;
     _ctx.actionHistory  = actionHistory.slice(-10);
-
-    // Save step to memory (fire and forget)
-    void saveStep({
-      task_id: taskId, step, action: at,
-      payload: ap as Record<string, unknown>,
-      success: true, error: null,
-      screen_hash: hash,
-      provider: _ctx.lastProvider,
-      latency_ms: 0,
-      confidence: d.confidence,
-    });
 
     // Execute action
     if (at === 'WAIT') {
