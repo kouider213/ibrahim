@@ -6,6 +6,13 @@ import {
   nexusWriteFile, listNexusJobs, getNexusJob,
 } from '../../actions/handlers/nexus-relay.js';
 import { runNexusAgent }   from '../../agents/nexus-agent-runner.js';
+import {
+  executeNexusCommand,
+  getNexusCapabilities,
+  getCommandHistory,
+  getCommandById,
+} from '../../actions/handlers/nexus-command-registry.js';
+import type { CommandType } from '../../actions/handlers/nexus-command-registry.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
 import { testNlParser, detectIntent, splitCommands } from '../../actions/handlers/nexus-nl-router.js';
@@ -361,6 +368,51 @@ router.post('/screenshot-b64', requireMobileAuth, async (_req, res) => {
   } catch (err) {
     res.status(504).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// ── GET /api/nexus/capabilities — what Nexus can do ──────────────────────────
+router.get('/capabilities', requireMobileAuth, (_req, res) => {
+  res.json({ ok: true, ...getNexusCapabilities() });
+});
+
+// ── POST /api/nexus/command — execute a typed desktop command ─────────────────
+// Body: { type: CommandType, payload?: Record<string, unknown> }
+// Returns: NexusCommandRecord (full lifecycle with result/error)
+router.post('/command', requireMobileAuth, async (req, res) => {
+  const { type, payload } = req.body as {
+    type?:    string;
+    payload?: Record<string, unknown>;
+  };
+
+  if (!type) {
+    res.status(400).json({ ok: false, error: 'type requis', available_commands: getNexusCapabilities().commands });
+    return;
+  }
+
+  const validTypes: CommandType[] = getNexusCapabilities().commands;
+  if (!validTypes.includes(type as CommandType)) {
+    res.status(400).json({ ok: false, error: `Type inconnu: ${type}`, available_commands: validTypes });
+    return;
+  }
+
+  try {
+    const record = await executeNexusCommand(type as CommandType, payload ?? {});
+    res.status(record.success ? 200 : 502).json({ ok: record.success ?? false, ...record });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── GET /api/nexus/command-history — last 50 executed commands ────────────────
+router.get('/command-history', requireMobileAuth, (_req, res) => {
+  res.json({ ok: true, commands: getCommandHistory() });
+});
+
+// ── GET /api/nexus/command-history/:id — single command by id ────────────────
+router.get('/command-history/:id', requireMobileAuth, (req, res) => {
+  const record = getCommandById(req.params['id'] as string);
+  if (!record) { res.status(404).json({ ok: false, error: 'Command not found' }); return; }
+  res.json({ ok: true, ...record });
 });
 
 // ── POST /api/nexus/agent — Dzaryx AI layer: natural language → Nexus actions ─
