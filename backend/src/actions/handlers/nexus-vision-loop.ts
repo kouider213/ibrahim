@@ -235,10 +235,14 @@ export async function analyzeScreen(
       console.log(`[NEXUS_VISION] provider=${p} ok mime=${mime}`);
       break;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      lastErr = `${p}: ${msg.slice(0, 80)}`;
-      console.warn(`[NEXUS_VISION] provider=${p} fail="${msg.slice(0, 80)}" — trying next`);
-      // Try next provider regardless of error type (429, 400, 500 etc.)
+      // Extract Axios response body for richer error detail (e.g. Claude's actual 400 reason)
+      const axiosBody = (err as { response?: { data?: { error?: { message?: string; type?: string } } } })
+        .response?.data?.error;
+      const bodyDetail = axiosBody ? ` [${axiosBody.type ?? ''}:${axiosBody.message ?? ''}]` : '';
+      const baseMsg    = err instanceof Error ? err.message : String(err);
+      const msg        = `${baseMsg}${bodyDetail}`;
+      lastErr = `${p}: ${msg.slice(0, 120)}`;
+      console.warn(`[NEXUS_VISION] provider=${p} fail="${msg.slice(0, 120)}" — trying next`);
       continue;
     }
   }
