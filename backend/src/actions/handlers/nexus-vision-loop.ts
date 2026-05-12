@@ -225,9 +225,12 @@ async function _buildContextHint(): Promise<{ hint: string; openApps: string[] }
 
 const VISION_EXTRA = `RÔLE: Tu es le cerveau de contrôle PC de Dzaryx. Tu analyses des captures d'écran Windows.
 RÈGLE: Réponds UNIQUEMENT en JSON valide — aucun texte avant ou après.
-ACTIONS: SCREENSHOT_DESKTOP, LIST_DESKTOP_FILES, OPEN_FOLDER, OPEN_URL (payload:{url}), OPEN_CHROME, OPEN_VSCODE, SYSTEM_INFO, TERMINAL_COMMAND_SAFE (payload:{command}), WAIT (payload:{ms:2000}), LOCAL_OCR, DONE.
+ACTIONS: SCREENSHOT_DESKTOP, LIST_DESKTOP_FILES, OPEN_FOLDER, OPEN_URL (payload:{url}), OPEN_CHROME, OPEN_VSCODE, FOCUS_APP (payload:{app:"vscode"|"chrome"|"telegram"}), SYSTEM_INFO, TERMINAL_COMMAND_SAFE (payload:{command}), WAIT (payload:{ms:2000}), LOCAL_OCR, DONE.
 DONE = objectif atteint. WAIT = attendre chargement.
-IMPORTANT: Si tu viens de lancer une app (OPEN_VSCODE/OPEN_CHROME) et qu'elle n'est pas encore visible dans le screenshot (fenêtre en arrière-plan possible), utilise LOCAL_OCR pour vérifier la liste des fenêtres ouvertes AVANT de relancer. Ne jamais relancer une app sans avoir fait LOCAL_OCR d'abord.`;
+RÈGLES APP:
+- Après OPEN_VSCODE/OPEN_CHROME: l'app se lance ET se met en premier plan automatiquement.
+- Si app non visible dans screenshot mais CONTEXTE dit qu'elle est ouverte → utilise FOCUS_APP pour la ramener.
+- Ne jamais relancer une app déjà ouverte. Vérifier via LOCAL_OCR d'abord.`;
 
 function _parseDecision(raw: string): VisionDecision | null {
   const m = raw.match(/```(?:json)?\s*([\s\S]+?)\s*```/) ?? raw.match(/(\{[\s\S]+\})/s);
@@ -348,7 +351,7 @@ export async function analyzeScreen(
 
 const COMMAND_TYPES = new Set<string>([
   'SCREENSHOT_DESKTOP', 'LIST_DESKTOP_FILES', 'OPEN_FOLDER', 'OPEN_URL',
-  'OPEN_CHROME', 'OPEN_VSCODE', 'SYSTEM_INFO', 'TERMINAL_COMMAND_SAFE',
+  'OPEN_CHROME', 'OPEN_VSCODE', 'FOCUS_APP', 'SYSTEM_INFO', 'TERMINAL_COMMAND_SAFE',
 ]);
 
 // App launch commands: need extra time for window to appear before next screenshot

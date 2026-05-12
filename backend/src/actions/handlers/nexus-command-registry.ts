@@ -8,6 +8,7 @@ import {
   nexusFileList,
   nexusFileOpen,
   nexusAppLaunch,
+  nexusFocusApp,
   nexusSysinfo,
   nexusRunCommand,
   isNexusOnline,
@@ -23,6 +24,7 @@ export type CommandType =
   | 'OPEN_URL'
   | 'OPEN_CHROME'
   | 'OPEN_VSCODE'
+  | 'FOCUS_APP'
   | 'SYSTEM_INFO'
   | 'TERMINAL_COMMAND_SAFE';
 
@@ -46,6 +48,7 @@ export interface NexusCapabilities {
   app_launch:    boolean;
   chrome:        boolean;
   vscode:        boolean;
+  focus_app:     boolean;
   terminal_safe: boolean;
   system_info:   boolean;
   telegram_photo: boolean;
@@ -271,11 +274,23 @@ const _handlers: Record<CommandType, Handler> = {
 
   async OPEN_VSCODE(_payload) {
     console.log('[NEXUS_VSCODE] attempt');
-    const { result } = await _withRetry(() => nexusAppLaunch('vscode', 15_000));
-    const r = result as { ok?: boolean; error?: string; path?: string };
-    console.log(`[NEXUS_VSCODE] success=${r.ok} path=${r.path ?? 'n/a'} error=${r.error ?? 'none'}`);
+    // nexusAppLaunch now includes auto-focus (wait+AppActivate loop in os_agent.py)
+    const { result } = await _withRetry(() => nexusAppLaunch('vscode', 20_000));
+    const r = result as { ok?: boolean; error?: string; path?: string; focused?: boolean; verified?: boolean };
+    console.log(`[NEXUS_VSCODE] launched=${r.ok} focused=${r.focused ?? 'n/a'} verified=${r.verified ?? 'n/a'} path=${r.path ?? 'n/a'} error=${r.error ?? 'none'}`);
     if (!r.ok) throw new Error(r.error ?? 'VS Code launch failed');
-    void _notify('💻 *VS Code* lancé depuis NEXUS');
+    void _notify(`💻 *VS Code* lancé${r.focused ? ' et mis au premier plan' : ''} depuis NEXUS`);
+    return result;
+  },
+
+  async FOCUS_APP(payload) {
+    const app = (payload['app'] as string | undefined) ?? 'vscode';
+    console.log(`[NEXUS_FOCUS] app=${app}`);
+    const { result } = await _withRetry(() => nexusFocusApp(app, 10_000));
+    const r = result as { ok?: boolean; focused?: boolean; detail?: string };
+    console.log(`[NEXUS_FOCUS] app=${app} success=${r.ok} focused=${r.focused} detail=${r.detail ?? ''}`);
+    if (!r.ok) throw new Error(`Focus failed for ${app}: ${r.detail ?? 'unknown'}`);
+    void _notify(`🎯 *${app}* mis au premier plan`);
     return result;
   },
 
@@ -376,6 +391,7 @@ export function getNexusCapabilities(): NexusCapabilities {
     app_launch:     true,
     chrome:         true,
     vscode:         true,
+    focus_app:      true,
     terminal_safe:  true,
     system_info:    true,
     telegram_photo: true,

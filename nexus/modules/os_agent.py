@@ -61,6 +61,16 @@ _APP_REGISTRY: dict[str, list[str]] = {
     'capcut':   ['powershell', '-Command', 'Start-Process "shell:AppsFolder\\7468.309454D4F49E_wbnn1bbqfj7rb!App"'],
 }
 
+# Windows process name (no .exe) used for focus/verify operations
+_APP_PROCESS_NAMES: dict[str, str] = {
+    'vscode':   'Code',
+    'chrome':   'chrome',
+    'telegram': 'Telegram',
+    'spotify':  'Spotify',
+    'terminal': 'WindowsTerminal',
+    'notepad':  'notepad',
+}
+
 # Extra candidates tried in order when the primary _APP_REGISTRY path is missing.
 # First existing path wins. For entries without an absolute primary (e.g. 'wt', 'notepad'),
 # this list is never consulted (they resolve via PATH directly).
@@ -450,6 +460,58 @@ async def process_kill(data: dict) -> dict:
         return {'ok': False, 'job_id': jid, 'error': str(e)}
 
 
+# ── Window Focus ──────────────────────────────────────────────────────────────
+
+def _focus_window_ps(proc_name: str, timeout: int = 6) -> tuple[bool, str]:
+    """Bring the main window of proc_name to foreground via AppActivate (WScript.Shell).
+    Returns (success, detail_message)."""
+    # AppActivate by process ID is the most reliable method on Windows.
+    # We find the PID of the first process with a visible main window, then activate it.
+    ps_cmd = (
+        f'$p = Get-Process -Name "{proc_name}" -EA SilentlyContinue '
+        f'| Where-Object {{$_.MainWindowHandle -ne 0}} '
+        f'| Select-Object -First 1; '
+        f'if ($p) {{ '
+        f'  $sh = New-Object -ComObject WScript.Shell; '
+        f'  $ok = $sh.AppActivate($p.Id); '
+        f'  Write-Output "pid=$($p.Id) ok=$ok" '
+        f'}} else {{ Write-Output "no_window" }}'
+    )
+    out, err, rc = _ps(ps_cmd, timeout)
+    if 'no_window' in out:
+        return False, f'no visible window for process {proc_name}'
+    if 'ok=True' in out or 'ok=true' in out:
+        return True, out.strip()
+    return False, f'AppActivate returned False or error: {out} | {err}'
+
+
+async def focus_app(data: dict) -> dict:
+    """Bring an app window to foreground. payload: {app: 'vscode'|'chrome'|...}"""
+    app_key  = data.get('app', '').strip().lower()
+    jid      = _jid()
+    proc_name = _APP_PROCESS_NAMES.get(app_key)
+    if not proc_name:
+        return {
+            'ok': False, 'job_id': jid,
+            'error': f'Unknown app: {app_key}',
+            'available': list(_APP_PROCESS_NAMES.keys()),
+        }
+
+    log.info('[NEXUS_FOCUS] app=%s proc=%s', app_key, proc_name)
+    loop = asyncio.get_event_loop()
+    ok, detail = await loop.run_in_executor(None, lambda: _focus_window_ps(proc_name))
+
+    log.info('[NEXUS_FOCUS] app=%s success=%s detail=%s', app_key, ok, detail)
+    return {
+        'ok':     ok,
+        'job_id': jid,
+        'app':    app_key,
+        'proc':   proc_name,
+        'detail': detail,
+        'focused': ok,
+    }
+
+
 # ── Application Launcher ──────────────────────────────────────────────────────
 
 async def app_launch(data: dict) -> dict:
@@ -504,8 +566,7 @@ async def app_launch(data: dict) -> dict:
 
     # ── Launch ────────────────────────────────────────────────────────────────
     final_exe = cmd[0]
-    # .cmd files require shell=True on Windows
-    use_shell = final_exe.lower().endswith('.cmd')
+    use_shell  = final_exe.lower().endswith('.cmd')
     try:
         subprocess.Popen(
             cmd if not use_shell else ' '.join(f'"{c}"' if ' ' in c else c for c in cmd),
@@ -515,13 +576,41 @@ async def app_launch(data: dict) -> dict:
         )
         log.info('[NEXUS_APP_LAUNCH] success app=%s exe=%s shell=%s', app_key, final_exe, use_shell)
         jobs_log.info('app_launch', extra={'data': {'job_id': jid, 'app': app_key, 'cmd': final_exe}})
-        return {'ok': True, 'job_id': jid, 'app': app_key, 'launched': True, 'path': final_exe}
     except FileNotFoundError:
         log.warning('[NEXUS_APP_LAUNCH] FileNotFoundError exe=%s', final_exe)
         return {'ok': False, 'job_id': jid, 'error': f'Executable not found: {final_exe}'}
     except Exception as e:
         log.error('[NEXUS_APP_LAUNCH] exception app=%s err=%s', app_key, e)
         return {'ok': False, 'job_id': jid, 'error': str(e)}
+
+    # ── Post-launch: wait then focus window ───────────────────────────────────
+    proc_name = _APP_PROCESS_NAMES.get(app_key)
+    focused   = False
+    verified  = False
+    if proc_name:
+        # Wait for process to start and create a window (up to 5 attempts × 800 ms)
+        loop = asyncio.get_event_loop()
+        for attempt in range(1, 6):
+            await asyncio.sleep(0.8)
+            ok, detail = await loop.run_in_executor(None, lambda: _focus_window_ps(proc_name))
+            log.info('[NEXUS_VSCODE] attempt=%d proc=%s focused=%s detail=%s', attempt, proc_name, ok, detail)
+            if ok:
+                focused  = True
+                verified = True
+                log.info('[NEXUS_VSCODE] launched=true focused=true verified=true path=%s', final_exe)
+                break
+        if not focused:
+            log.warning('[NEXUS_VSCODE] launched=true focused=false verified=false proc=%s', proc_name)
+
+    return {
+        'ok':      True,
+        'job_id':  jid,
+        'app':     app_key,
+        'launched': True,
+        'focused':  focused,
+        'verified': verified,
+        'path':    final_exe,
+    }
 
 
 # ── Screen Understanding ──────────────────────────────────────────────────────

@@ -841,8 +841,11 @@ export const nexusProcessKill = (name?: string, pid?: number, ms = 10_000) =>
 
 // ── OS Agent — App Launcher ───────────────────────────────────────────────────
 
-export const nexusAppLaunch = (app: string, ms = 10_000) =>
+export const nexusAppLaunch = (app: string, ms = 15_000) =>
   _nexusEmit<OsResult>('nexus:app_launch', { app },                        ms);
+
+export const nexusFocusApp = (app: string, ms = 10_000) =>
+  _nexusEmit<OsResult>('nexus:focus_app',  { app },                        ms);
 
 // ── OS Agent — Screen Understanding ──────────────────────────────────────────
 

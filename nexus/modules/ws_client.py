@@ -581,6 +581,11 @@ class NexusWSClient:
             from .os_agent import app_launch
             return await app_launch(data)
 
+        @sio.on('nexus:focus_app', namespace='/nexus')
+        async def on_focus_app(data: dict):
+            from .os_agent import focus_app
+            return await focus_app(data)
+
         # ── OS Agent — Screen Understanding ──────────────────────────────────
 
         @sio.on('nexus:screen_understand', namespace='/nexus')
