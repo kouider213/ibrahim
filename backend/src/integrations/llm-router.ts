@@ -73,7 +73,8 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
   return { provider: 'claude', fallback, fastPath: false, reason: 'default' };
 }
 
-// ── Groq Vision (Llama 3.2 Vision — free tier, high limits) ──────────────────
+// ── Groq Vision (Llama 4 Scout — vision-capable, free tier) ─────────────────
+// llama-3.2-11b-vision-preview was decommissioned by Groq (April 2025)
 export async function callGroqVision(
   userMessage:   string,
   systemExtra?:  string,
@@ -96,7 +97,7 @@ export async function callGroqVision(
   const { data } = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
-      model:       'llama-3.2-11b-vision-preview',
+      model:       'meta-llama/llama-4-scout-17b-16e-instruct',
       messages:    [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
       max_tokens:  1024,
       temperature: 0.2,
@@ -160,16 +161,30 @@ export async function callGemini(
   }
 
   const { default: axios } = await import('axios');
-  const { data } = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-    requestBody,
-    { timeout: 30_000 },
-  );
-
-  const text = (data.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined) ?? '';
-  if (!text) throw new Error('Gemini returned empty response');
-  console.log(`[gemini] ✅ ${text.length} chars`);
-  return text;
+  const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
+  let lastErr = '';
+  for (const model of GEMINI_MODELS) {
+    try {
+      const { data } = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
+        requestBody,
+        { timeout: 30_000 },
+      );
+      const text = (data.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined) ?? '';
+      if (!text) throw new Error(`${model} empty response`);
+      console.log(`[gemini/${model}] ✅ ${text.length} chars`);
+      return text;
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      lastErr = err instanceof Error ? err.message : String(err);
+      if (status === 429 || status === 503) {
+        console.warn(`[gemini/${model}] ${status} quota/overload — trying next model`);
+        continue;
+      }
+      throw err; // non-quota errors: rethrow immediately
+    }
+  }
+  throw new Error(`Gemini all models failed: ${lastErr}`);
 }
 
 // ── OpenAI GPT-4o (fallback — no tools, degraded mode) ───────────────────────

@@ -143,6 +143,29 @@ app.get('/test_replicate', async (_req, res) => {
   }
 });
 
+// ── /debug_llm — LLM provider presence check (no keys exposed) ──────────────
+app.get('/debug_llm', (_req, res) => {
+  const groqKey    = process.env['GROQ_API_KEY']    ?? '';
+  const geminiKey  = process.env['GEMINI_API_KEY']  ?? '';
+  const openaiKey  = process.env['OPENAI_API_KEY']  ?? '';
+  const anthropic  = process.env['ANTHROPIC_API_KEY'] ?? '';
+  res.json({
+    anthropic:          !!anthropic,
+    gemini:             !!geminiKey,
+    groq:               !!groqKey,
+    openai:             !!openaiKey,
+    anthropicLength:    anthropic.length,
+    geminiLength:       geminiKey.length,
+    groqLength:         groqKey.length,
+    openaiLength:       openaiKey.length,
+    nodeEnv:            process.env['NODE_ENV'],
+    railwayEnvironment: process.env['RAILWAY_ENVIRONMENT'],
+    railwayService:     process.env['RAILWAY_SERVICE_NAME'],
+    groqModel:          'meta-llama/llama-4-scout-17b-16e-instruct',
+    geminiModels:       ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'],
+  });
+});
+
 // ── /test_ai — diagnostic complet ────────────────────────────
 app.get('/test_ai', async (_req, res) => {
   const falKey    = process.env.FAL_KEY || process.env.FAL_API_KEY;
