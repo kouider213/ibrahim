@@ -22,10 +22,11 @@ export interface VisionContext {
   objective:         string | null;
   lastScreenshot:    string | null;   // '[captured]' when serialized externally
   lastAnalysis:      string | null;
-  lastAnalysisError: string | null;   // last error from analyzeScreen (debug)
+  lastAnalysisError: string | null;
   lastRawResponse:   string | null;   // first 300 chars of last AI raw response
   lastOcrText:       string | null;
   lastActionType:    string | null;
+  lastProvider:      string | null;   // which AI provider succeeded last
   actionHistory:     string[];
   updatedAt:         number | null;
 }
@@ -78,6 +79,7 @@ const _ctx: VisionContext = {
   lastRawResponse:   null,
   lastOcrText:       null,
   lastActionType:    null,
+  lastProvider:      null,
   actionHistory:     [],
   updatedAt:         null,
 };
@@ -98,7 +100,7 @@ export function listLoops(): Array<{ taskId: string } & LoopEntry> {
   return [..._loopStore.entries()].map(([taskId, e]) => ({ taskId, ...e }));
 }
 
-// ── Safety ────────────────────────────────────────────────────────────────────
+// ── Safety constants ──────────────────────────────────────────────────────────
 
 let _emergencyStop = false;
 export function triggerEmergencyStop(): void {
@@ -111,18 +113,26 @@ export function clearEmergencyStop(): void {
 }
 export function isEmergencyStopped(): boolean { return _emergencyStop; }
 
-// Rate limiter — max 10 actions / minute (conservative)
-const _actionTs: number[] = [];
-const MAX_ACTIONS_PER_MIN = 10;
+const MAX_ACTIONS_PER_MIN    = 10;
+const MAX_AUTONOMOUS_STEPS   = 5;
+const MAX_CONSECUTIVE_ERRORS = 3;   // AI failures before aborting loop
+const MAX_SAME_ACTION        = 3;   // Same action repeated before aborting
+const MAX_SAME_SCREENSHOT    = 3;   // Same screen hash before aborting
 
-// Hard limit per vision loop run — overrides caller-supplied maxSteps
-const MAX_AUTONOMOUS_STEPS = 5;
+const MIN_CONFIDENCE         = 0.35; // Below this: skip action, WAIT instead
+const MIN_CONFIDENCE_RISKY   = 0.60; // For terminal/file commands
 
-// Forbidden actions — never execute regardless of AI decision
+// Actions that require higher confidence
+const RISKY_ACTIONS = new Set<string>(['TERMINAL_COMMAND_SAFE', 'OPEN_FOLDER', 'REGISTRY_EDIT', 'ADMIN_CMD']);
+
+// Actions that must never execute
 const FORBIDDEN_ACTIONS = new Set<string>([
   'SHUTDOWN', 'RESTART', 'FORMAT', 'DELETE', 'KILL_PROCESS',
   'REGISTRY_EDIT', 'ADMIN_CMD', 'DISABLE_ANTIVIRUS',
 ]);
+
+// Rate limiter
+const _actionTs: number[] = [];
 
 function _checkRate(): boolean {
   const now = Date.now();
@@ -132,11 +142,12 @@ function _checkRate(): boolean {
   return true;
 }
 
-// Loop detection — 3 identical consecutive actions
-function _isLooping(history: string[]): boolean {
-  if (history.length < 3) return false;
-  const tail = history.slice(-3);
-  return tail.every(a => a === tail[0]);
+// Fast djb2-like fingerprint — not cryptographic, just screen identity
+function _hashScreen(b64: string): string {
+  let h = 5381;
+  const sample = b64.slice(0, 5000);
+  for (let i = 0; i < sample.length; i++) h = (((h << 5) + h) + sample.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16).padStart(8, '0');
 }
 
 // ── Telegram ──────────────────────────────────────────────────────────────────
@@ -151,7 +162,30 @@ async function _notify(text: string): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-// ── Local OCR via Windows Get-Process window titles ───────────────────────────
+async function _sendFinalSummary(
+  result:       VisionLoopResult,
+  screenshots:  number,
+  provider:     string,
+  actionLog:    string[],
+): Promise<void> {
+  const e   = result.status === 'completed' ? '✅' : result.status === 'stopped' ? '🛑' : '⚠️';
+  const dur = (result.durationMs / 1000).toFixed(1);
+  const actions = actionLog.length > 0
+    ? actionLog.slice(-8).join(' → ')
+    : 'aucune';
+  const msg = [
+    `${e} *Vision — Rapport Final*`,
+    `*Objectif:* ${result.objective.slice(0, 80)}`,
+    `*Statut:* \`${result.status}\``,
+    `*Étapes:* ${result.steps} | *Screenshots:* ${screenshots}`,
+    `*Provider:* ${provider} | *Durée:* ${dur}s`,
+    `*Actions:* ${actions.slice(0, 200)}`,
+    result.error ? `*Erreur:* ${result.error.slice(0, 120)}` : '',
+  ].filter(Boolean).join('\n');
+  await _notify(msg);
+}
+
+// ── Local OCR ─────────────────────────────────────────────────────────────────
 
 export async function performLocalOcr(timeoutMs = 15_000): Promise<OcrResult> {
   const cmd = `powershell -NoProfile -Command "Get-Process | Where-Object {$_.MainWindowTitle -ne ''} | Select-Object -ExpandProperty MainWindowTitle | Sort-Object -Unique"`;
@@ -168,7 +202,7 @@ export async function performLocalOcr(timeoutMs = 15_000): Promise<OcrResult> {
   }
 }
 
-// ── Screen analysis via AI vision ─────────────────────────────────────────────
+// ── Screen analysis ───────────────────────────────────────────────────────────
 
 const VISION_EXTRA = `RÔLE: Tu es le cerveau de contrôle PC de Dzaryx. Tu analyses des captures d'écran Windows.
 RÈGLE: Réponds UNIQUEMENT en JSON valide — aucun texte avant ou après.
@@ -200,8 +234,7 @@ function _normalizeB64(raw: string): { b64: string; mime: 'image/jpeg' | 'image/
       : 'image/jpeg';
   }
 
-  // Strip all whitespace — Python encodebytes() inserts \n every 76 chars
-  // Anthropic API rejects base64 with whitespace → "source.data does not look like valid base64"
+  // Strip whitespace — Python encodebytes() inserts \n every 76 chars
   data = data.replace(/\s/g, '');
 
   return { b64: data, mime };
@@ -218,7 +251,6 @@ export async function analyzeScreen(
   const { b64: cleanB64, mime } = _normalizeB64(base64);
   const prompt   = `OBJECTIF: ${objective}\nÉTAPE: ${step}/${maxSteps}\nHISTORIQUE: ${history}\n\nAnalyse l'écran. JSON uniquement:\n{"screen_analysis":"...","ui_elements":["..."],"detected_errors":[],"objective_status":"in_progress|completed|failed|blocked","next_action":{"type":"...","payload":{}},"reasoning":"...","confidence":0.0}`;
 
-  // Provider chain: Groq first (free, high limits), then paid providers
   const providerOrder = [
     ...(isGroqAvailable()    ? ['groq']    : []),
     ...(isGeminiAvailable()  ? ['gemini']  : []),
@@ -227,10 +259,10 @@ export async function analyzeScreen(
   ] as Array<'groq' | 'gemini' | 'claude' | 'openai'>;
 
   if (providerOrder.length === 0) { console.error('[NEXUS_VISION] no_vision_provider'); return null; }
-  console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} providers=[${providerOrder.join(',')}] mime=${mime} obj="${objective.slice(0, 50)}"`);
+  console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} providers=[${providerOrder.join(',')}] mime=${mime} b64len=${cleanB64.length}`);
 
   const _call = (p: 'groq' | 'gemini' | 'claude' | 'openai') =>
-    p === 'groq'   ? callGroqVision(prompt, VISION_EXTRA, cleanB64, mime)
+    p === 'groq'   ? callGroqVision(prompt, VISION_EXTRA, cleanB64, mime, true)
     : p === 'gemini' ? callGemini(prompt, VISION_EXTRA, cleanB64, mime)
     : p === 'openai' ? callOpenAIVision(prompt, VISION_EXTRA, cleanB64, mime)
     : callClaudeVision(prompt, VISION_EXTRA, cleanB64, mime, true);
@@ -240,22 +272,21 @@ export async function analyzeScreen(
   for (const p of providerOrder) {
     try {
       raw = await _call(p);
+      _ctx.lastProvider      = p;
       _ctx.lastAnalysisError = null;
-      console.log(`[NEXUS_VISION] provider=${p} ok mime=${mime}`);
+      console.log(`[NEXUS_VISION] provider=${p} ok mime=${mime} len=${raw.length}`);
       break;
     } catch (err) {
-      // Extract Axios response body for richer error detail (e.g. Claude's actual 400 reason)
       const axiosBody = (err as { response?: { data?: { error?: { message?: string; type?: string } } } })
         .response?.data?.error;
       const bodyDetail = axiosBody ? ` [${axiosBody.type ?? ''}:${axiosBody.message ?? ''}]` : '';
       const baseMsg    = err instanceof Error ? err.message : String(err);
       const msg        = `${baseMsg}${bodyDetail}`;
-      const entry      = `${p}: ${msg.slice(0, 100)}`;
-      providerErrors.push(entry);
+      providerErrors.push(`${p}: ${msg.slice(0, 100)}`);
       console.warn(`[NEXUS_VISION] provider=${p} fail="${msg.slice(0, 120)}" — trying next`);
-      continue;
     }
   }
+
   if (!raw) {
     const allErrors = providerErrors.join(' | ');
     console.error(`[NEXUS_VISION] all_providers_failed errors="${allErrors}"`);
@@ -303,32 +334,42 @@ export async function runVisionLoop(
   console.log(`[NEXUS_VISION] loop_start taskId=${taskId} maxSteps=${maxSteps} obj="${objective.slice(0, 60)}"`);
   _ctx.objective = objective;
 
+  // Tracking state
+  const actionHistory:    string[] = [];
+  const screenshotHashes           = new Map<string, number>();
+  let screenshotCount              = 0;
+  let consecutiveErrors            = 0;
+  let sameActionCount              = 0;
+  let prevActionType               = '';
+
   const done = (status: VisionLoopResult['status'], steps: number, error: string | null): VisionLoopResult =>
     ({ taskId, objective, status, steps, lastAnalysis: _ctx.lastAnalysis, error, durationMs: Date.now() - t0, startedAt });
 
-  if (demoTelegram) void _notify(`👁️ *Dzaryx analyse l'écran*\n_Objectif:_ ${objective}`);
+  // Wraps done() + sends Telegram final summary on every exit path
+  const finish = (status: VisionLoopResult['status'], steps: number, error: string | null): VisionLoopResult => {
+    const r = done(status, steps, error);
+    if (demoTelegram) void _sendFinalSummary(r, screenshotCount, _ctx.lastProvider ?? 'aucun', actionHistory);
+    return r;
+  };
 
-  const actionHistory: string[] = [];
+  if (demoTelegram) void _notify(`👁️ *Dzaryx Vision — Démarrage*\n_Objectif:_ ${objective}`);
 
   for (let step = 1; step <= maxSteps; step++) {
+
+    // ── Guards ────────────────────────────────────────────────────────────────
     if (_emergencyStop) {
       console.warn(`[NEXUS_VISION] emergency_stop step=${step}`);
       if (demoTelegram) void _notify('🛑 *NEXUS Vision — Arrêt d\'urgence*');
-      return done('stopped', step - 1, 'Emergency stop');
+      return finish('stopped', step - 1, 'Emergency stop');
     }
-    if (!isNexusOnline()) return done('failed', step - 1, 'Nexus hors ligne');
+    if (!isNexusOnline()) return finish('failed', step - 1, 'Nexus hors ligne');
     if (!_checkRate()) {
       console.warn(`[NEXUS_VISION] rate_limit step=${step} — waiting 10s`);
       await new Promise(r => setTimeout(r, 10_000));
       continue;
     }
-    if (_isLooping(actionHistory)) {
-      console.warn(`[NEXUS_VISION] loop_detected repeated="${actionHistory.slice(-1)[0]}"`);
-      if (demoTelegram) void _notify(`⚠️ *Boucle détectée* — arrêt\n_Répété:_ ${actionHistory.slice(-1)[0]}`);
-      return done('failed', step - 1, 'Boucle détectée');
-    }
 
-    // Screenshot
+    // ── Screenshot ────────────────────────────────────────────────────────────
     console.log(`[NEXUS_VISION] screenshot step=${step}/${maxSteps}`);
     let base64: string;
     try {
@@ -337,47 +378,91 @@ export async function runVisionLoop(
       base64 = shot.image_base64;
       _ctx.lastScreenshot = base64;
       _ctx.updatedAt      = Date.now();
+      screenshotCount++;
     } catch (err) {
-      return done('failed', step - 1, `Screenshot: ${err instanceof Error ? err.message : String(err)}`);
+      return finish('failed', step - 1, `Screenshot: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    // Analyze
-    const d = await analyzeScreen(objective, base64, actionHistory, step, maxSteps);
-    if (!d) { await new Promise(r => setTimeout(r, stepDelay)); continue; }
+    // Anti-loop: same screen hash
+    const hash = _hashScreen(base64);
+    const hashCount = (screenshotHashes.get(hash) ?? 0) + 1;
+    screenshotHashes.set(hash, hashCount);
+    if (hashCount > MAX_SAME_SCREENSHOT) {
+      console.warn(`[NEXUS_VISION] same_screen hash=${hash} count=${hashCount} — abort`);
+      return finish('failed', step - 1, `Écran identique depuis ${hashCount} étapes — boucle détectée`);
+    }
 
-    _ctx.lastAnalysis   = d.screen_analysis;
-    _ctx.lastOcrText    = d.ui_elements.join(', ');
+    // ── AI Analysis ───────────────────────────────────────────────────────────
+    const d = await analyzeScreen(objective, base64, actionHistory, step, maxSteps);
+    if (!d) {
+      consecutiveErrors++;
+      console.warn(`[NEXUS_VISION] analysis_failed consecutive=${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}`);
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        return finish('failed', step - 1, `Vision AI indisponible (${MAX_CONSECUTIVE_ERRORS} erreurs consécutives)`);
+      }
+      await new Promise(r => setTimeout(r, stepDelay));
+      continue;
+    }
+    consecutiveErrors = 0;
+
+    _ctx.lastAnalysis  = d.screen_analysis;
+    _ctx.lastOcrText   = d.ui_elements.join(', ');
 
     if (demoTelegram) {
-      void _notify(`🧠 *Étape ${step}/${maxSteps}*\n${d.screen_analysis.slice(0, 180)}\n→ \`${d.next_action.type}\``);
+      void _notify(
+        `🧠 *Étape ${step}/${maxSteps}* [${_ctx.lastProvider ?? '?'}]\n` +
+        `${d.screen_analysis.slice(0, 160)}\n` +
+        `→ \`${d.next_action.type}\` conf=${(d.confidence * 100).toFixed(0)}%`,
+      );
     }
 
+    // ── Objective complete / failed ───────────────────────────────────────────
     if (d.objective_status === 'completed' || d.next_action.type === 'DONE') {
       console.log(`[NEXUS_VISION] completed step=${step}`);
-      if (demoTelegram) void _notify(`✅ *Objectif atteint!*\n_${objective}_`);
-      return done('completed', step, null);
+      return finish('completed', step, null);
     }
     if (d.objective_status === 'failed') {
-      if (demoTelegram) void _notify(`❌ *Objectif échoué*\n${d.reasoning}`);
-      return done('failed', step, d.reasoning);
+      return finish('failed', step, d.reasoning);
     }
 
-    // Execute
+    // ── Action selection ──────────────────────────────────────────────────────
     const at = d.next_action.type;
     const ap = d.next_action.payload ?? {};
 
-    // Forbidden action guard — hard block regardless of AI decision
+    // Forbidden action guard
     if (FORBIDDEN_ACTIONS.has(at.toUpperCase())) {
-      console.error(`[NEXUS_VISION] forbidden_action="${at}" step=${step} — emergency_stop`);
-      if (demoTelegram) void _notify(`🚫 *Action interdite bloquée:* \`${at}\` — arrêt d'urgence`);
+      console.error(`[NEXUS_VISION] forbidden_action="${at}" step=${step}`);
+      if (demoTelegram) void _notify(`🚫 *Action interdite bloquée:* \`${at}\``);
       _emergencyStop = true;
-      return done('stopped', step, `Forbidden action: ${at}`);
+      return finish('stopped', step, `Forbidden action: ${at}`);
     }
+
+    // Confidence threshold
+    const minConf = RISKY_ACTIONS.has(at.toUpperCase()) ? MIN_CONFIDENCE_RISKY : MIN_CONFIDENCE;
+    if (d.confidence < minConf) {
+      console.warn(`[NEXUS_VISION] low_confidence=${d.confidence.toFixed(2)} < ${minConf} action=${at} step=${step} — WAIT`);
+      actionHistory.push(`WAIT_LOW_CONF(${at})`);
+      await new Promise(r => setTimeout(r, 3_000));
+      continue;
+    }
+
+    // Same action loop guard
+    if (at !== 'WAIT' && at === prevActionType) {
+      sameActionCount++;
+      if (sameActionCount >= MAX_SAME_ACTION) {
+        console.warn(`[NEXUS_VISION] same_action_loop action="${at}" count=${sameActionCount}`);
+        return finish('failed', step, `Action "${at}" répétée ${sameActionCount}x — boucle détectée`);
+      }
+    } else {
+      sameActionCount = 0;
+    }
+    prevActionType = at;
 
     actionHistory.push(at);
     _ctx.lastActionType = at;
     _ctx.actionHistory  = actionHistory.slice(-10);
 
+    // ── Execute ───────────────────────────────────────────────────────────────
     if (at === 'WAIT') {
       const ms = Math.min((ap['ms'] as number | undefined) ?? 2_000, 10_000);
       console.log(`[NEXUS_AUTOMATION] WAIT ms=${ms} step=${step}`);
@@ -392,11 +477,13 @@ export async function runVisionLoop(
       }
 
     } else if (COMMAND_TYPES.has(at)) {
-      console.log(`[NEXUS_AUTOMATION] action=${at} step=${step}`);
+      console.log(`[NEXUS_AUTOMATION] action=${at} step=${step} payload=${JSON.stringify(ap).slice(0, 80)}`);
       if (demoTelegram) void _notify(`🖱️ *Action:* \`${at}\``);
       try {
         const rec = await executeNexusCommand(at as CommandType, { ...ap, notify_telegram: false });
-        if (!rec.success) console.warn(`[NEXUS_AUTOMATION] failed action=${at} err="${rec.error?.slice(0, 80)}"`);
+        if (!rec.success) {
+          console.warn(`[NEXUS_AUTOMATION] failed action=${at} err="${rec.error?.slice(0, 80)}"`);
+        }
       } catch (err) {
         console.error(`[NEXUS_AUTOMATION] error ${at}: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -409,8 +496,7 @@ export async function runVisionLoop(
   }
 
   console.warn(`[NEXUS_VISION] max_steps taskId=${taskId}`);
-  if (demoTelegram) void _notify(`⚠️ *Limite atteinte* (${maxSteps} étapes)\n_${objective}_`);
-  return done('max_steps', maxSteps, null);
+  return finish('max_steps', maxSteps, null);
 }
 
 // ── Background launcher ───────────────────────────────────────────────────────

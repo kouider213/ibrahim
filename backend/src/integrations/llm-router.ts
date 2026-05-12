@@ -75,14 +75,17 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
 
 // ── Groq Vision (Llama 3.2 Vision — free tier, high limits) ──────────────────
 export async function callGroqVision(
-  userMessage: string,
-  systemExtra?: string,
-  imageBase64?: string,
-  imageMime = 'image/jpeg',
+  userMessage:   string,
+  systemExtra?:  string,
+  imageBase64?:  string,
+  imageMime      = 'image/jpeg',
+  skipBasePrompt = false,
 ): Promise<string> {
   if (!GROQ_KEY) throw new Error('GROQ_API_KEY not configured');
 
-  const systemPrompt = [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
+  const systemPrompt = skipBasePrompt
+    ? (systemExtra ?? '')
+    : [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
   const userContent: unknown[] = [];
   if (imageBase64) {
     userContent.push({ type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageBase64}` } });
