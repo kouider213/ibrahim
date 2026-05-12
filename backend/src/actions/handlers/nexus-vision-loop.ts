@@ -203,16 +203,35 @@ export async function analyzeScreen(
   console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} provider=${provider ?? 'none'} mime=${mime} obj="${objective.slice(0, 50)}"`);
   if (!provider) { console.error('[NEXUS_VISION] no_vision_provider'); return null; }
 
+  const _callProvider = () =>
+    provider === 'gemini'
+      ? callGemini(prompt, VISION_EXTRA, base64, mime)
+      : callClaudeVision(prompt, VISION_EXTRA, base64, mime, true);
+
   let raw = '';
   try {
-    raw = provider === 'gemini'
-      ? await callGemini(prompt, VISION_EXTRA, base64, mime)
-      : await callClaudeVision(prompt, VISION_EXTRA, base64, mime, true);
+    raw = await _callProvider();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[NEXUS_VISION] analysis_error: ${msg}`);
-    _ctx.lastAnalysisError = msg;
-    return null;
+    // 429 rate limit — wait 60s then retry once
+    if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+      console.warn(`[NEXUS_VISION] rate_limit_429 provider=${provider} — waiting 60s then retry`);
+      _ctx.lastAnalysisError = `429 rate_limit — retrying after 60s`;
+      await new Promise(r => setTimeout(r, 60_000));
+      try {
+        raw = await _callProvider();
+        _ctx.lastAnalysisError = null;
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        console.error(`[NEXUS_VISION] analysis_retry_fail: ${retryMsg}`);
+        _ctx.lastAnalysisError = `retry_fail: ${retryMsg}`;
+        return null;
+      }
+    } else {
+      console.error(`[NEXUS_VISION] analysis_error: ${msg}`);
+      _ctx.lastAnalysisError = msg;
+      return null;
+    }
   }
 
   _ctx.lastRawResponse   = raw.slice(0, 300);
