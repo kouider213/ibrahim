@@ -644,4 +644,40 @@ router.post('/emergency-clear', requireMobileAuth, (_req, res) => {
   res.json({ ok: true, emergency_stop: false, message: 'Emergency stop levé.' });
 });
 
+// GET /api/nexus/debug/screenshot-probe — check base64 format + AI provider availability
+// Shows first 80 chars of screenshot base64 and which providers are available
+router.get('/debug/screenshot-probe', requireMobileAuth, async (_req, res) => {
+  if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'NEXUS offline' }); return; }
+  try {
+    const shot = await nexusScreenshotBase64(35_000);
+    const b64  = shot.image_base64 ?? '';
+    const isDataUri = b64.startsWith('data:');
+    const prefix    = b64.slice(0, 80);
+    // Detect MIME from magic bytes (after stripping prefix if any)
+    const rawB64    = isDataUri ? b64.slice(b64.indexOf(',') + 1) : b64;
+    const detectedMime = rawB64.startsWith('iVBORw0KGgo') ? 'image/png'
+      : rawB64.startsWith('UklGR') ? 'image/webp'
+      : rawB64.startsWith('/9j/') ? 'image/jpeg'
+      : 'unknown';
+    const { isGeminiAvailable, isClaudeAvailable, isOpenAIAvailable, isGroqAvailable } = await import('../../integrations/llm-router.js');
+    res.json({
+      ok:            shot.ok,
+      size_kb:       shot.size_kb,
+      hostname:      shot.hostname,
+      b64_prefix:    prefix,
+      b64_length:    b64.length,
+      is_data_uri:   isDataUri,
+      detected_mime: detectedMime,
+      providers: {
+        gemini: isGeminiAvailable(),
+        claude: isClaudeAvailable(),
+        openai: isOpenAIAvailable(),
+        groq:   isGroqAvailable(),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;
