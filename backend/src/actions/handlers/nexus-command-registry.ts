@@ -270,9 +270,11 @@ const _handlers: Record<CommandType, Handler> = {
   },
 
   async OPEN_VSCODE(_payload) {
-    console.log('[NEXUS_ACTION] OPEN_VSCODE');
-    const { result } = await _withRetry(() => nexusAppLaunch('vscode', 12_000));
-    if (!(result as { ok?: boolean }).ok) throw new Error((result as { error?: string }).error ?? 'VS Code launch failed');
+    console.log('[NEXUS_VSCODE] attempt');
+    const { result } = await _withRetry(() => nexusAppLaunch('vscode', 15_000));
+    const r = result as { ok?: boolean; error?: string; path?: string };
+    console.log(`[NEXUS_VSCODE] success=${r.ok} path=${r.path ?? 'n/a'} error=${r.error ?? 'none'}`);
+    if (!r.ok) throw new Error(r.error ?? 'VS Code launch failed');
     void _notify('💻 *VS Code* lancé depuis NEXUS');
     return result;
   },

@@ -61,6 +61,27 @@ _APP_REGISTRY: dict[str, list[str]] = {
     'capcut':   ['powershell', '-Command', 'Start-Process "shell:AppsFolder\\7468.309454D4F49E_wbnn1bbqfj7rb!App"'],
 }
 
+# Extra candidates tried in order when the primary _APP_REGISTRY path is missing.
+# First existing path wins. For entries without an absolute primary (e.g. 'wt', 'notepad'),
+# this list is never consulted (they resolve via PATH directly).
+_APP_CANDIDATES: dict[str, list[str]] = {
+    'vscode': [
+        r'C:\Users\douba\AppData\Local\Programs\Microsoft VS Code\Code.exe',
+        r'C:\Program Files\Microsoft VS Code\Code.exe',
+        r'C:\Program Files (x86)\Microsoft VS Code\Code.exe',
+        r'C:\Users\douba\AppData\Local\Programs\Microsoft VS Code\bin\code.cmd',
+    ],
+    'chrome': [
+        r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+        r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+        r'C:\Users\douba\AppData\Local\Google\Chrome\Application\chrome.exe',
+    ],
+    'telegram': [
+        r'C:\Users\douba\AppData\Roaming\Telegram Desktop\Telegram.exe',
+        r'C:\Program Files\Telegram Desktop\Telegram.exe',
+    ],
+}
+
 
 def _is_allowed(path: Path) -> bool:
     try:
@@ -439,29 +460,67 @@ async def app_launch(data: dict) -> dict:
     if app_key not in _APP_REGISTRY:
         return {'ok': False, 'job_id': jid, 'error': f'Unknown app: {app_key}', 'available': list(_APP_REGISTRY.keys())}
 
-    cmd = _APP_REGISTRY[app_key]
+    cmd  = list(_APP_REGISTRY[app_key])  # mutable copy
     loop = asyncio.get_event_loop()
-    try:
-        # If first token is absolute path, verify it exists; try where.exe fallback
-        exe = cmd[0]
-        if os.path.isabs(exe) and not os.path.exists(exe):
-            wo, _, _ = await loop.run_in_executor(None, lambda: _ps(f'where.exe "{os.path.basename(exe)}"', 5))
-            if wo:
-                cmd = [wo.splitlines()[0].strip()] + cmd[1:]
-            else:
-                return {'ok': False, 'job_id': jid, 'error': f'Executable not found: {exe}'}
+    exe  = cmd[0]
 
+    log.info('[NEXUS_APP_LAUNCH] attempt app=%s primary=%s', app_key, exe)
+
+    # ── Path resolution: primary → candidates → where.exe ────────────────────
+    if os.path.isabs(exe) and not os.path.exists(exe):
+        candidates = _APP_CANDIDATES.get(app_key, [])
+        resolved: str | None = None
+
+        # 1. Try candidate paths in order
+        for cand in candidates:
+            log.info('[NEXUS_APP_LAUNCH] trying candidate=%s', cand)
+            if os.path.exists(cand):
+                resolved = cand
+                log.info('[NEXUS_APP_LAUNCH] found at candidate path=%s', cand)
+                break
+
+        # 2. where.exe fallback using base name without extension
+        if not resolved:
+            base_no_ext = os.path.splitext(os.path.basename(exe))[0].lower()
+            log.info('[NEXUS_APP_LAUNCH] candidates exhausted — trying where.exe for %s', base_no_ext)
+            wo, _, _ = await loop.run_in_executor(
+                None,
+                lambda: _ps(f'where.exe {base_no_ext} 2>$null | Select-Object -First 1', 5),
+            )
+            if wo and os.path.exists(wo.splitlines()[0].strip()):
+                resolved = wo.splitlines()[0].strip()
+                log.info('[NEXUS_APP_LAUNCH] found via where.exe path=%s', resolved)
+
+        if not resolved:
+            tried = [exe] + candidates
+            err = (
+                f'{app_key} introuvable. Chemins testés: {", ".join(tried[:3])}. '
+                f'Installe {app_key} ou ajoute-le au PATH Windows.'
+            )
+            log.warning('[NEXUS_APP_LAUNCH] not_found app=%s tried=%d paths', app_key, len(tried))
+            return {'ok': False, 'job_id': jid, 'error': err, 'paths_tried': tried}
+
+        cmd = [resolved] + cmd[1:]
+
+    # ── Launch ────────────────────────────────────────────────────────────────
+    final_exe = cmd[0]
+    # .cmd files require shell=True on Windows
+    use_shell = final_exe.lower().endswith('.cmd')
+    try:
         subprocess.Popen(
-            cmd,
+            cmd if not use_shell else ' '.join(f'"{c}"' if ' ' in c else c for c in cmd),
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
+            shell=use_shell,
         )
-        jobs_log.info('app_launch', extra={'data': {'job_id': jid, 'app': app_key, 'cmd': cmd[0]}})
-        return {'ok': True, 'job_id': jid, 'app': app_key, 'launched': True}
+        log.info('[NEXUS_APP_LAUNCH] success app=%s exe=%s shell=%s', app_key, final_exe, use_shell)
+        jobs_log.info('app_launch', extra={'data': {'job_id': jid, 'app': app_key, 'cmd': final_exe}})
+        return {'ok': True, 'job_id': jid, 'app': app_key, 'launched': True, 'path': final_exe}
     except FileNotFoundError:
-        return {'ok': False, 'job_id': jid, 'error': f'Executable not found for: {app_key}'}
+        log.warning('[NEXUS_APP_LAUNCH] FileNotFoundError exe=%s', final_exe)
+        return {'ok': False, 'job_id': jid, 'error': f'Executable not found: {final_exe}'}
     except Exception as e:
-        log.error('app_launch ERROR: %s', e)
+        log.error('[NEXUS_APP_LAUNCH] exception app=%s err=%s', app_key, e)
         return {'ok': False, 'job_id': jid, 'error': str(e)}
 
 
