@@ -10,8 +10,8 @@ import {
 import { executeNexusCommand } from './nexus-command-registry.js';
 import type { CommandType } from './nexus-command-registry.js';
 import {
-  callGemini, callClaudeVision, callOpenAIVision,
-  isGeminiAvailable, isClaudeAvailable, isOpenAIAvailable,
+  callGemini, callClaudeVision, callOpenAIVision, callGroqVision,
+  isGeminiAvailable, isClaudeAvailable, isOpenAIAvailable, isGroqAvailable,
 } from '../../integrations/llm-router.js';
 import { env } from '../../config/env.js';
 
@@ -218,18 +218,20 @@ export async function analyzeScreen(
   const { b64: cleanB64, mime } = _normalizeB64(base64);
   const prompt   = `OBJECTIF: ${objective}\nÉTAPE: ${step}/${maxSteps}\nHISTORIQUE: ${history}\n\nAnalyse l'écran. JSON uniquement:\n{"screen_analysis":"...","ui_elements":["..."],"detected_errors":[],"objective_status":"in_progress|completed|failed|blocked","next_action":{"type":"...","payload":{}},"reasoning":"...","confidence":0.0}`;
 
-  // Provider chain: try each in order, skip on 429, abort on hard error
+  // Provider chain: Groq first (free, high limits), then paid providers
   const providerOrder = [
+    ...(isGroqAvailable()    ? ['groq']    : []),
     ...(isGeminiAvailable()  ? ['gemini']  : []),
     ...(isClaudeAvailable()  ? ['claude']  : []),
     ...(isOpenAIAvailable()  ? ['openai']  : []),
-  ] as Array<'gemini' | 'claude' | 'openai'>;
+  ] as Array<'groq' | 'gemini' | 'claude' | 'openai'>;
 
   if (providerOrder.length === 0) { console.error('[NEXUS_VISION] no_vision_provider'); return null; }
   console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} providers=[${providerOrder.join(',')}] mime=${mime} obj="${objective.slice(0, 50)}"`);
 
-  const _call = (p: 'gemini' | 'claude' | 'openai') =>
-    p === 'gemini' ? callGemini(prompt, VISION_EXTRA, cleanB64, mime)
+  const _call = (p: 'groq' | 'gemini' | 'claude' | 'openai') =>
+    p === 'groq'   ? callGroqVision(prompt, VISION_EXTRA, cleanB64, mime)
+    : p === 'gemini' ? callGemini(prompt, VISION_EXTRA, cleanB64, mime)
     : p === 'openai' ? callOpenAIVision(prompt, VISION_EXTRA, cleanB64, mime)
     : callClaudeVision(prompt, VISION_EXTRA, cleanB64, mime, true);
 

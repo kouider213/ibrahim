@@ -73,6 +73,39 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
   return { provider: 'claude', fallback, fastPath: false, reason: 'default' };
 }
 
+// ── Groq Vision (Llama 3.2 Vision — free tier, high limits) ──────────────────
+export async function callGroqVision(
+  userMessage: string,
+  systemExtra?: string,
+  imageBase64?: string,
+  imageMime = 'image/jpeg',
+): Promise<string> {
+  if (!GROQ_KEY) throw new Error('GROQ_API_KEY not configured');
+
+  const systemPrompt = [Dzaryx.SYSTEM_PROMPT as string, systemExtra ?? ''].filter(Boolean).join('\n\n');
+  const userContent: unknown[] = [];
+  if (imageBase64) {
+    userContent.push({ type: 'image_url', image_url: { url: `data:${imageMime};base64,${imageBase64}` } });
+  }
+  userContent.push({ type: 'text', text: userMessage });
+
+  const { default: axios } = await import('axios');
+  const { data } = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      model:       'llama-3.2-11b-vision-preview',
+      messages:    [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
+      max_tokens:  1024,
+      temperature: 0.2,
+    },
+    { headers: { Authorization: `Bearer ${GROQ_KEY}` }, timeout: 30_000 },
+  );
+  const text = (data.choices?.[0]?.message?.content as string | undefined) ?? '';
+  if (!text) throw new Error('Groq Vision returned empty response');
+  console.log(`[groq-vision] ✅ ${text.length} chars`);
+  return text;
+}
+
 // ── Groq (OpenAI-compatible API, LLaMA 3.3 70B) ──────────────────────────────
 export async function callGroq(userMessage: string, systemExtra?: string): Promise<string> {
   if (!GROQ_KEY) throw new Error('GROQ_API_KEY not configured');
