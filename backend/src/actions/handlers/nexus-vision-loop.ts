@@ -10,8 +10,8 @@ import {
 import { executeNexusCommand } from './nexus-command-registry.js';
 import type { CommandType } from './nexus-command-registry.js';
 import {
-  callGemini, callClaudeVision,
-  isGeminiAvailable, isClaudeAvailable,
+  callGemini, callClaudeVision, callOpenAIVision,
+  isGeminiAvailable, isClaudeAvailable, isOpenAIAvailable,
 } from '../../integrations/llm-router.js';
 import { env } from '../../config/env.js';
 
@@ -199,14 +199,17 @@ export async function analyzeScreen(
   const mime     = _detectMime(base64);
   const prompt   = `OBJECTIF: ${objective}\nÉTAPE: ${step}/${maxSteps}\nHISTORIQUE: ${history}\n\nAnalyse l'écran. JSON uniquement:\n{"screen_analysis":"...","ui_elements":["..."],"detected_errors":[],"objective_status":"in_progress|completed|failed|blocked","next_action":{"type":"...","payload":{}},"reasoning":"...","confidence":0.0}`;
 
-  const provider = isGeminiAvailable() ? 'gemini' : isClaudeAvailable() ? 'claude' : null;
+  const provider = isGeminiAvailable() ? 'gemini'
+    : isClaudeAvailable()  ? 'claude'
+    : isOpenAIAvailable()  ? 'openai'
+    : null;
   console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} provider=${provider ?? 'none'} mime=${mime} obj="${objective.slice(0, 50)}"`);
   if (!provider) { console.error('[NEXUS_VISION] no_vision_provider'); return null; }
 
   const _callProvider = () =>
-    provider === 'gemini'
-      ? callGemini(prompt, VISION_EXTRA, base64, mime)
-      : callClaudeVision(prompt, VISION_EXTRA, base64, mime, true);
+    provider === 'gemini' ? callGemini(prompt, VISION_EXTRA, base64, mime)
+    : provider === 'openai' ? callOpenAIVision(prompt, VISION_EXTRA, base64, mime)
+    : callClaudeVision(prompt, VISION_EXTRA, base64, mime, true);
 
   let raw = '';
   try {
