@@ -350,6 +350,10 @@ const COMMAND_TYPES = new Set<string>([
   'OPEN_CHROME', 'OPEN_VSCODE', 'SYSTEM_INFO', 'TERMINAL_COMMAND_SAFE',
 ]);
 
+// App launch commands: need extra time for window to appear before next screenshot
+const APP_LAUNCH_COMMANDS = new Set<string>(['OPEN_CHROME', 'OPEN_VSCODE', 'OPEN_URL', 'OPEN_FOLDER']);
+const APP_LAUNCH_DELAY_MS = 6_000;
+
 export async function runVisionLoop(
   objective: string,
   options?: {
@@ -597,7 +601,8 @@ export async function runVisionLoop(
       }
 
     } else if (COMMAND_TYPES.has(at)) {
-      console.log(`[NEXUS_AUTOMATION] action=${at} step=${step} payload=${JSON.stringify(ap).slice(0, 80)}`);
+      const delay = APP_LAUNCH_COMMANDS.has(at) ? APP_LAUNCH_DELAY_MS : stepDelay;
+      console.log(`[NEXUS_AUTOMATION] action=${at} step=${step} delay=${delay}ms payload=${JSON.stringify(ap).slice(0, 80)}`);
       if (demoTelegram) void _notify(`🖱️ *Action:* \`${at}\``);
       try {
         const rec = await executeNexusCommand(at as CommandType, { ...ap, notify_telegram: false });
@@ -608,7 +613,7 @@ export async function runVisionLoop(
       } catch (err) {
         console.error(`[NEXUS_AUTOMATION] error ${at}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      await new Promise(r => setTimeout(r, stepDelay));
+      await new Promise(r => setTimeout(r, delay));
 
     } else {
       console.warn(`[NEXUS_VISION] unknown_action="${at}" step=${step} — skip`);
