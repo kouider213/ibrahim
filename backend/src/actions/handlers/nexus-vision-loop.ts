@@ -181,23 +181,30 @@ function _parseDecision(raw: string): VisionDecision | null {
   try { return JSON.parse((m[1] ?? m[2] ?? '').trim()) as VisionDecision; } catch { return null; }
 }
 
-// Normalize base64: strip data URI prefix + detect MIME
+// Normalize base64: strip data URI prefix, detect MIME, strip whitespace
 function _normalizeB64(raw: string): { b64: string; mime: 'image/jpeg' | 'image/png' | 'image/webp' } {
+  let data = raw;
+  let mime: 'image/jpeg' | 'image/png' | 'image/webp' = 'image/jpeg';
+
   if (raw.startsWith('data:')) {
     const comma = raw.indexOf(',');
     const header = comma > 0 ? raw.slice(0, comma) : '';
-    const data   = comma > 0 ? raw.slice(comma + 1) : raw;
-    const m      = header.match(/data:(image\/[^;]+);base64/);
+    data = comma > 0 ? raw.slice(comma + 1) : raw;
+    const m = header.match(/data:(image\/[^;]+);base64/);
     const declared = m?.[1] ?? '';
     const valid: Array<'image/jpeg' | 'image/png' | 'image/webp'> = ['image/jpeg', 'image/png', 'image/webp'];
-    const mime = (valid.includes(declared as 'image/jpeg') ? declared : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp';
-    return { b64: data, mime };
+    mime = (valid.includes(declared as 'image/jpeg') ? declared : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp';
+  } else {
+    mime = raw.startsWith('iVBORw0KGgo') ? 'image/png'
+      : raw.startsWith('UklGR') ? 'image/webp'
+      : 'image/jpeg';
   }
-  // Raw base64 — detect from magic bytes
-  const mime = raw.startsWith('iVBORw0KGgo') ? 'image/png'
-    : raw.startsWith('UklGR') ? 'image/webp'
-    : 'image/jpeg';
-  return { b64: raw, mime };
+
+  // Strip all whitespace — Python encodebytes() inserts \n every 76 chars
+  // Anthropic API rejects base64 with whitespace → "source.data does not look like valid base64"
+  data = data.replace(/\s/g, '');
+
+  return { b64: data, mime };
 }
 
 export async function analyzeScreen(
@@ -227,7 +234,7 @@ export async function analyzeScreen(
     : callClaudeVision(prompt, VISION_EXTRA, cleanB64, mime, true);
 
   let raw = '';
-  let lastErr = '';
+  const providerErrors: string[] = [];
   for (const p of providerOrder) {
     try {
       raw = await _call(p);
@@ -241,14 +248,16 @@ export async function analyzeScreen(
       const bodyDetail = axiosBody ? ` [${axiosBody.type ?? ''}:${axiosBody.message ?? ''}]` : '';
       const baseMsg    = err instanceof Error ? err.message : String(err);
       const msg        = `${baseMsg}${bodyDetail}`;
-      lastErr = `${p}: ${msg.slice(0, 120)}`;
+      const entry      = `${p}: ${msg.slice(0, 100)}`;
+      providerErrors.push(entry);
       console.warn(`[NEXUS_VISION] provider=${p} fail="${msg.slice(0, 120)}" — trying next`);
       continue;
     }
   }
   if (!raw) {
-    console.error(`[NEXUS_VISION] all_providers_failed last="${lastErr}"`);
-    _ctx.lastAnalysisError = `all_failed: ${lastErr}`;
+    const allErrors = providerErrors.join(' | ');
+    console.error(`[NEXUS_VISION] all_providers_failed errors="${allErrors}"`);
+    _ctx.lastAnalysisError = `all_failed: ${allErrors}`;
     return null;
   }
 
