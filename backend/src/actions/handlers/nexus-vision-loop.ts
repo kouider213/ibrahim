@@ -181,11 +181,23 @@ function _parseDecision(raw: string): VisionDecision | null {
   try { return JSON.parse((m[1] ?? m[2] ?? '').trim()) as VisionDecision; } catch { return null; }
 }
 
-// Auto-detect image MIME type from base64 magic bytes
-function _detectMime(b64: string): 'image/jpeg' | 'image/png' | 'image/webp' {
-  if (b64.startsWith('iVBORw0KGgo')) return 'image/png';   // 89 50 4E 47
-  if (b64.startsWith('UklGR'))       return 'image/webp';  // 52 49 46 46
-  return 'image/jpeg';                                       // FF D8 FF (default)
+// Normalize base64: strip data URI prefix + detect MIME
+function _normalizeB64(raw: string): { b64: string; mime: 'image/jpeg' | 'image/png' | 'image/webp' } {
+  if (raw.startsWith('data:')) {
+    const comma = raw.indexOf(',');
+    const header = comma > 0 ? raw.slice(0, comma) : '';
+    const data   = comma > 0 ? raw.slice(comma + 1) : raw;
+    const m      = header.match(/data:(image\/[^;]+);base64/);
+    const declared = m?.[1] ?? '';
+    const valid: Array<'image/jpeg' | 'image/png' | 'image/webp'> = ['image/jpeg', 'image/png', 'image/webp'];
+    const mime = (valid.includes(declared as 'image/jpeg') ? declared : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp';
+    return { b64: data, mime };
+  }
+  // Raw base64 — detect from magic bytes
+  const mime = raw.startsWith('iVBORw0KGgo') ? 'image/png'
+    : raw.startsWith('UklGR') ? 'image/webp'
+    : 'image/jpeg';
+  return { b64: raw, mime };
 }
 
 export async function analyzeScreen(
@@ -196,7 +208,7 @@ export async function analyzeScreen(
   maxSteps:      number,
 ): Promise<VisionDecision | null> {
   const history  = actionHistory.slice(-5).join(' → ') || 'aucune';
-  const mime     = _detectMime(base64);
+  const { b64: cleanB64, mime } = _normalizeB64(base64);
   const prompt   = `OBJECTIF: ${objective}\nÉTAPE: ${step}/${maxSteps}\nHISTORIQUE: ${history}\n\nAnalyse l'écran. JSON uniquement:\n{"screen_analysis":"...","ui_elements":["..."],"detected_errors":[],"objective_status":"in_progress|completed|failed|blocked","next_action":{"type":"...","payload":{}},"reasoning":"...","confidence":0.0}`;
 
   // Provider chain: try each in order, skip on 429, abort on hard error
@@ -210,9 +222,9 @@ export async function analyzeScreen(
   console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} providers=[${providerOrder.join(',')}] mime=${mime} obj="${objective.slice(0, 50)}"`);
 
   const _call = (p: 'gemini' | 'claude' | 'openai') =>
-    p === 'gemini' ? callGemini(prompt, VISION_EXTRA, base64, mime)
-    : p === 'openai' ? callOpenAIVision(prompt, VISION_EXTRA, base64, mime)
-    : callClaudeVision(prompt, VISION_EXTRA, base64, mime, true);
+    p === 'gemini' ? callGemini(prompt, VISION_EXTRA, cleanB64, mime)
+    : p === 'openai' ? callOpenAIVision(prompt, VISION_EXTRA, cleanB64, mime)
+    : callClaudeVision(prompt, VISION_EXTRA, cleanB64, mime, true);
 
   let raw = '';
   let lastErr = '';
@@ -220,24 +232,19 @@ export async function analyzeScreen(
     try {
       raw = await _call(p);
       _ctx.lastAnalysisError = null;
-      console.log(`[NEXUS_VISION] provider=${p} ok`);
+      console.log(`[NEXUS_VISION] provider=${p} ok mime=${mime}`);
       break;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const is429 = msg.includes('429') || msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('quota');
       lastErr = `${p}: ${msg.slice(0, 80)}`;
-      if (is429) {
-        console.warn(`[NEXUS_VISION] rate_limit_429 provider=${p} — trying next`);
-        continue;
-      }
-      console.error(`[NEXUS_VISION] analysis_error provider=${p}: ${msg}`);
-      _ctx.lastAnalysisError = lastErr;
-      return null;
+      console.warn(`[NEXUS_VISION] provider=${p} fail="${msg.slice(0, 80)}" — trying next`);
+      // Try next provider regardless of error type (429, 400, 500 etc.)
+      continue;
     }
   }
   if (!raw) {
-    console.error(`[NEXUS_VISION] all_providers_failed: ${lastErr}`);
-    _ctx.lastAnalysisError = `all_429: ${lastErr}`;
+    console.error(`[NEXUS_VISION] all_providers_failed last="${lastErr}"`);
+    _ctx.lastAnalysisError = `all_failed: ${lastErr}`;
     return null;
   }
 
