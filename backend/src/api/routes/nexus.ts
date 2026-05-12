@@ -12,12 +12,18 @@ import { testNlParser, detectIntent, splitCommands } from '../../actions/handler
 
 const router = Router();
 
-// GET /api/nexus/status — état connexion NEXUS
+// GET /api/nexus/status — état connexion NEXUS (enrichi: state, last_seen, pending_commands)
 router.get('/status', requireMobileAuth, (_req, res) => {
+  const s = getNexusStatus();
   res.json({
-    connected: isNexusOnline(),
-    mac:       getNexusMac() || null,
-    ip:        getNexusIp()  || null,
+    connected:           s.online,
+    state:               s.state,            // 'online' | 'offline' | 'suspect'
+    last_seen:           s.last_seen,         // ISO timestamp last heartbeat pong
+    pending_commands:    s.pending_commands,  // commands buffered while offline
+    last_command_status: s.last_command_status,
+    uptime_s:            s.telemetry.lastUptimeS,
+    mac:                 s.mac    || null,
+    ip:                  s.publicIp || null,
   });
 });
 

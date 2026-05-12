@@ -11,6 +11,7 @@ let _nexusMac:       string        = '';
 let _nexusPublicIp:  string        = '';
 let _busyTask:       string | null = null;
 let _busySince:      number | null = null;
+let _nexusSuspect:   boolean       = false;
 
 // ── Notification state (spam prevention) ──────────────────────────────────────
 
@@ -143,6 +144,28 @@ export interface NexusJob {
 
 const _jobStore = new Map<string, NexusJob>();
 
+// ── Command Queue (offline buffering) ─────────────────────────────────────────
+
+const MAX_QUEUE       = 20;
+const MAX_QUEUE_AGE_MS = 10 * 60 * 1_000; // 10 min TTL
+
+type NexusCommandResult = {
+  ok: boolean; exit_code: number; stdout: string; stderr: string;
+  command: string; jobId: string; blocked?: boolean;
+};
+
+interface CommandQueueItem {
+  id:        string;
+  command:   string;
+  cwd?:      string;
+  timeoutMs: number;
+  createdAt: number;
+  resolve:   (r: NexusCommandResult) => void;
+  reject:    (e: Error) => void;
+}
+
+const _commandQueue: CommandQueueItem[] = [];
+
 function _newJob(command: string, cwd?: string): NexusJob {
   const jobId = `njob_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const job: NexusJob = {
@@ -177,14 +200,19 @@ let _heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 function _startHeartbeat(socket: Socket): void {
   _stopHeartbeat();
   _tel.missedHeartbeats = 0;
+  _nexusSuspect = false;
   _heartbeatInterval = setInterval(() => {
     if (!_nexusSocket) { _stopHeartbeat(); return; }
     const t0 = Date.now();
     const timer = setTimeout(() => {
       _tel.missedHeartbeats += 1;
-      console.warn(`[NEXUS] Heartbeat missed (${_tel.missedHeartbeats}/3)`);
+      console.warn(`[NEXUS_HEARTBEAT] missed=${_tel.missedHeartbeats}/3 socket=${socket.id}`);
+      if (_tel.missedHeartbeats >= 2 && !_nexusSuspect) {
+        _nexusSuspect = true;
+        console.warn(`[NEXUS_HEARTBEAT] state=suspect missed=${_tel.missedHeartbeats} socket=${socket.id}`);
+      }
       if (_tel.missedHeartbeats >= 3) {
-        console.error('[NEXUS] 3 missed heartbeats — forcing disconnect');
+        console.error(`[NEXUS_HEARTBEAT] state=zombie missed=3 forcing_disconnect socket=${socket.id}`);
         void _sendTelegram('⚠️ *NEXUS* — heartbeat timeout, connexion zombie détectée');
         socket.disconnect(true);
         _stopHeartbeat();
@@ -196,6 +224,10 @@ function _startHeartbeat(socket: Socket): void {
       _tel.lastHeartbeatAt      = new Date().toISOString();
       _tel.lastHeartbeatLatency = Date.now() - t0;
       _tel.missedHeartbeats     = 0;
+      if (_nexusSuspect) {
+        _nexusSuspect = false;
+        console.log(`[NEXUS_HEARTBEAT] state=recovered latency=${_tel.lastHeartbeatLatency}ms socket=${socket.id}`);
+      }
       if (data?.hostname && data.hostname !== 'unknown') {
         _tel.lastHostname = data.hostname;
       }
@@ -207,6 +239,32 @@ function _stopHeartbeat(): void {
   if (_heartbeatInterval) {
     clearInterval(_heartbeatInterval);
     _heartbeatInterval = null;
+  }
+}
+
+// ── Command Queue drain ────────────────────────────────────────────────────────
+
+function _drainCommandQueue(): void {
+  if (_commandQueue.length === 0) return;
+  const now = Date.now();
+
+  // Expire stale items first
+  let expired = 0;
+  while (_commandQueue.length > 0 && now - _commandQueue[0]!.createdAt > MAX_QUEUE_AGE_MS) {
+    const stale = _commandQueue.shift()!;
+    stale.reject(new Error(`Nexus command expired in queue after ${MAX_QUEUE_AGE_MS / 1000}s`));
+    expired++;
+  }
+  if (expired) console.log(`[NEXUS_QUEUE] expired ${expired} stale commands`);
+
+  const pending = _commandQueue.splice(0);
+  if (pending.length === 0) return;
+  console.log(`[NEXUS_QUEUE] draining ${pending.length} queued commands`);
+
+  for (const item of pending) {
+    nexusRunCommand(item.command, item.cwd, item.timeoutMs)
+      .then(item.resolve)
+      .catch(item.reject);
   }
 }
 
@@ -228,10 +286,17 @@ export function initNexusRelay(io: SocketServer): void {
     _nexusPublicIp = (xfwd ? xfwd.split(',')[0] : socket.handshake.address).trim();
     console.log(`[NEXUS] PC Agent connected: ${socket.id} — IP: ${_nexusPublicIp}`);
     _nexusSocket            = socket;
+    _nexusSuspect           = false;
     _tel.lastConnectedAt    = new Date().toISOString();
     _tel.lastSocketId       = socket.id;
     _tel.totalConnections  += 1;
     _startHeartbeat(socket);
+
+    // Drain offline command queue — setImmediate gives socket time to settle
+    if (_commandQueue.length > 0) {
+      console.log(`[NEXUS_QUEUE] reconnected — draining ${_commandQueue.length} queued commands`);
+      setImmediate(_drainCommandQueue);
+    }
 
     // Cancel pending offline notification (fast reconnect within grace period)
     if (_offlineGraceTimer) {
@@ -366,37 +431,61 @@ export function sendToNexus(event: string, data: unknown): boolean {
 }
 
 export function getNexusStatus(): {
-  online:    boolean;
-  socketId:  string | null;
-  publicIp:  string;
-  mac:       string;
-  busy:      boolean;
-  busyTask:  string | null;
-  busyMs:    number | null;
-  telemetry: NexusTelemetry;
+  online:              boolean;
+  suspect:             boolean;
+  state:               'online' | 'offline' | 'suspect';
+  last_seen:           string | null;
+  socketId:            string | null;
+  publicIp:            string;
+  mac:                 string;
+  busy:                boolean;
+  busyTask:            string | null;
+  busyMs:              number | null;
+  pending_commands:    number;
+  last_command_status: NexusJobStatus | null;
+  telemetry:           NexusTelemetry;
 } {
+  const allJobs  = [..._jobStore.values()];
+  const lastJob  = allJobs.length > 0 ? allJobs[allJobs.length - 1] : null;
+  const state: 'online' | 'offline' | 'suspect' =
+    _nexusSocket !== null ? (_nexusSuspect ? 'suspect' : 'online') : 'offline';
+
   return {
-    online:    _nexusSocket !== null,
-    socketId:  _nexusSocket?.id ?? null,
-    publicIp:  _nexusPublicIp,
-    mac:       _nexusMac,
-    busy:      _busyTask !== null,
-    busyTask:  _busyTask,
-    busyMs:    _busySince ? Date.now() - _busySince : null,
-    telemetry: { ..._tel },
+    online:              _nexusSocket !== null,
+    suspect:             _nexusSuspect,
+    state,
+    last_seen:           _tel.lastHeartbeatAt,
+    socketId:            _nexusSocket?.id ?? null,
+    publicIp:            _nexusPublicIp,
+    mac:                 _nexusMac,
+    busy:                _busyTask !== null,
+    busyTask:            _busyTask,
+    busyMs:              _busySince ? Date.now() - _busySince : null,
+    pending_commands:    _commandQueue.length,
+    last_command_status: lastJob?.status ?? null,
+    telemetry:           { ..._tel },
   };
 }
 
 // ── nexusRunCommand ───────────────────────────────────────────────────────────
 
-/** Run shell command on PC. Blocked if command matches dangerous patterns. */
+/** Run shell command on PC. Queued if offline; blocked if dangerous. */
 export function nexusRunCommand(
   command:   string,
   cwd?:      string,
   timeoutMs  = 45_000,
-): Promise<{ ok: boolean; exit_code: number; stdout: string; stderr: string; command: string; jobId: string; blocked?: boolean }> {
+): Promise<NexusCommandResult> {
   return new Promise((resolve, reject) => {
-    if (!_nexusSocket) { reject(new Error('Nexus not connected')); return; }
+    if (!_nexusSocket) {
+      if (_commandQueue.length >= MAX_QUEUE) {
+        reject(new Error('Nexus offline — command queue full'));
+        return;
+      }
+      const qId = `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      _commandQueue.push({ id: qId, command, cwd, timeoutMs, createdAt: Date.now(), resolve, reject });
+      console.log(`[NEXUS_QUEUE] offline_queued id=${qId} total=${_commandQueue.length} cmd="${command.slice(0, 60)}"`);
+      return;
+    }
 
     // Security gate
     const blockedBy = _isDangerous(command);
@@ -412,11 +501,13 @@ export function nexusRunCommand(
 
     const job = _newJob(command, cwd);
     job.status = 'running';
+    console.log(`[NEXUS_COMMAND] emit jobId=${job.jobId} timeout=${timeoutMs}ms cmd="${command.slice(0, 60)}"`);
 
     const timer = setTimeout(() => {
       job.status      = 'timeout';
       job.completedAt = new Date().toISOString();
       job.error       = `timeout ${timeoutMs}ms`;
+      console.warn(`[NEXUS_COMMAND] timeout jobId=${job.jobId} cmd="${command.slice(0, 60)}"`);
       reject(new Error(`nexusRunCommand timeout ${timeoutMs}ms — jobId=${job.jobId}`));
     }, timeoutMs);
 
@@ -431,6 +522,7 @@ export function nexusRunCommand(
         job.exit_code   = data?.exit_code ?? -1;
         job.stdout      = data?.stdout ?? '';
         job.stderr      = data?.stderr ?? '';
+        console.log(`[NEXUS_COMMAND] ack jobId=${job.jobId} status=${job.status} exit=${job.exit_code} stdout_len=${job.stdout.length}`);
         resolve({
           ok:        data?.ok        ?? false,
           exit_code: data?.exit_code ?? -1,
