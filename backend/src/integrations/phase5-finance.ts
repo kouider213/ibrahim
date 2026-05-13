@@ -11,36 +11,64 @@
 import { supabase } from './supabase.js';
 import { getPricingForVehicle } from '../config/pricing.js';
 
-// ── Calcul financier normalisé ────────────────────────────────────────────────
-// Priorité : client_price_per_day explicite > final_price/nb_days > catalogue
+// ── Calcul financier normalisé — SANS fallback catalogue ─────────────────────
+// Règle stricte :
+//   client_ppd = client_price_per_day > final_price/nb_days > null (jamais catalogue)
+//   owner_ppd  = owner_price_per_day  > null  (jamais catalogue)
+//   profit     = null si owner_ppd manquant   (jamais inventé)
+interface ResolvedFinancials {
+  nb_days:      number;
+  client_ppd:   number | null;  // null = données manquantes
+  owner_ppd:    number | null;  // null = non renseigné
+  gross_ca:     number | null;  // client_ppd × nb_days, ou final_price
+  owner_cost:   number | null;  // owner_ppd × nb_days
+  profit:       number | null;  // null = impossible à calculer
+  data_complete: boolean;
+  discount_applied: number;
+}
+
 function resolveFinancials(b: {
-  final_price:          number | null;
-  client_price_per_day: number | null;
-  owner_price_per_day:  number | null;
-  start_date:           string;
-  end_date:             string;
-  nb_days?:             number | null;
-  cars?:                { name: string } | null;
-}): { nb_days: number; client_ppd: number; owner_ppd: number; profit: number; owner_total: number } {
+  final_price:           number | null;
+  client_price_per_day:  number | null;
+  owner_price_per_day:   number | null;
+  start_date:            string;
+  end_date:              string;
+  nb_days?:              number | null;
+  discount_applied?:     number | null;
+}): ResolvedFinancials {
   const nb_days = b.nb_days ?? Math.max(1, Math.ceil(
     (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
   ));
-  const catalog = getPricingForVehicle(b.cars?.name ?? '');
+  const discount_applied = b.discount_applied ?? 0;
 
-  const client_ppd = b.client_price_per_day != null && b.client_price_per_day > 0
-    ? b.client_price_per_day
-    : b.final_price != null && b.final_price > 0 && nb_days > 0
-      ? Math.round((b.final_price / nb_days) * 100) / 100
-      : (catalog?.kouiderPrice ?? 0);
+  // client_ppd: prix négocié réel (jamais catalogue)
+  let client_ppd: number | null;
+  if (b.client_price_per_day != null && b.client_price_per_day > 0) {
+    client_ppd = b.client_price_per_day;
+  } else if (b.final_price != null && b.final_price > 0) {
+    client_ppd = Math.round((b.final_price / nb_days) * 100) / 100;
+  } else {
+    client_ppd = null;
+  }
 
-  const owner_ppd = b.owner_price_per_day != null && b.owner_price_per_day > 0
-    ? b.owner_price_per_day
-    : (catalog?.houariPrice ?? 0);
+  // owner_ppd: prix Houari réel (jamais catalogue)
+  const owner_ppd: number | null =
+    (b.owner_price_per_day != null && b.owner_price_per_day > 0)
+      ? b.owner_price_per_day
+      : null;
 
-  const profit     = Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100;
-  const owner_total = Math.round(owner_ppd * nb_days * 100) / 100;
+  const gross_ca   = client_ppd != null
+    ? Math.round(client_ppd * nb_days * 100) / 100
+    : (b.final_price ?? null);
+  const owner_cost = owner_ppd != null
+    ? Math.round(owner_ppd * nb_days * 100) / 100
+    : null;
+  const profit     = (client_ppd != null && owner_ppd != null)
+    ? Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100
+    : null;
+  const data_complete = client_ppd != null && owner_ppd != null;
 
-  return { nb_days, client_ppd, owner_ppd, profit, owner_total };
+  return { nb_days, client_ppd, owner_ppd, gross_ca, owner_cost, profit, data_complete, discount_applied };
 }
 
 // ─────────────────────────────────────────────
@@ -195,22 +223,26 @@ export async function getCAReport(
   let totalKouider   = 0;
   let totalHouari    = 0;
 
+  let missingOwnerPpd = 0;
+
   for (const b of data as any[]) {
-    const carName  = b.cars?.name ?? 'Inconnu';
+    const carArr   = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    const carName  = carArr?.name ?? 'Inconnu';
     const rentedBy = b.rented_by ?? 'Kouider';
     const fin      = resolveFinancials(b);
 
-    const grossCA = b.final_price ?? (fin.client_ppd * fin.nb_days);
+    const grossCA = fin.gross_ca ?? 0;
 
     if (!byVehicle[carName]) byVehicle[carName] = { count: 0, grossCA: 0, profit: 0, ownerCost: 0 };
     byVehicle[carName].count++;
-    byVehicle[carName].grossCA    += grossCA;
-    byVehicle[carName].ownerCost  += fin.owner_total;
-    byVehicle[carName].profit     += rentedBy === 'Houari' ? 0 : fin.profit;
+    byVehicle[carName].grossCA   += grossCA;
+    byVehicle[carName].ownerCost += fin.owner_cost ?? 0;
+    byVehicle[carName].profit    += rentedBy === 'Houari' ? 0 : (fin.profit ?? 0);
 
     totalGrossCA   += grossCA;
-    totalOwnerCost += fin.owner_total;
-    totalProfit    += rentedBy === 'Houari' ? 0 : fin.profit;
+    totalOwnerCost += fin.owner_cost ?? 0;
+    totalProfit    += rentedBy === 'Houari' ? 0 : (fin.profit ?? 0);
+    if (fin.owner_ppd == null && rentedBy !== 'Houari') missingOwnerPpd++;
     if (rentedBy === 'Houari') totalHouari++;
     else totalKouider++;
   }
@@ -221,13 +253,18 @@ export async function getCAReport(
       `  - ${name}: ${v.count} loc. | CA: ${v.grossCA}€ | Houari: ${v.ownerCost}€ | Bénéfice Kouider: ${v.profit}€`,
     );
 
+  const missingWarn = missingOwnerPpd > 0
+    ? `\n⚠️ DONNÉES MANQUANTES: ${missingOwnerPpd} résa sans owner_price_per_day → bénéfice partiel\n   Impossible de calculer sans données financières réelles pour ces réservations.\n`
+    : '';
+
   return `📊 CHIFFRE D'AFFAIRES — ${period}\n` +
     `${'─'.repeat(40)}\n` +
-    `📈 CA Brut (total clients):  ${totalGrossCA}€\n` +
-    `🏢 Coût Houari:              ${totalOwnerCost}€\n` +
-    `💰 Bénéfice Kouider NET:     ${totalProfit}€\n` +
-    `📋 Réservations: ${data.length} (Kouider: ${totalKouider} | Houari: ${totalHouari})\n\n` +
-    `🚗 PAR VÉHICULE:\n${vehicleRows.join('\n')}`;
+    `📈 CA Brut (prix réels clients): ${totalGrossCA}€\n` +
+    `🏢 Coût Houari (prix réels):     ${totalOwnerCost}€\n` +
+    `💰 Bénéfice Kouider NET:         ${totalProfit}€\n` +
+    `📋 Réservations: ${data.length} (Kouider: ${totalKouider} | Houari: ${totalHouari})\n` +
+    missingWarn +
+    `\n🚗 PAR VÉHICULE:\n${vehicleRows.join('\n')}`;
 }
 
 // ─────────────────────────────────────────────
@@ -381,16 +418,23 @@ export async function getFinancialDashboard(): Promise<string> {
   const prevData = (prevRes.data ?? []) as any[];
   const unpaid   = (unpaidRes.data ?? []) as any[];
 
-  // Calculs mois courant — prix réels
-  const curCA      = curData.reduce((s, b) => s + (b.final_price ?? 0), 0);
-  const curProfit  = curData.reduce((s, b) => {
+  // Calculs mois courant — prix réels uniquement
+  const curData2 = curData.map((b: any) => {
+    const carArr = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    return { ...b, cars: carArr };
+  });
+  const curCA      = curData2.reduce((s: number, b: any) => s + (resolveFinancials(b).gross_ca ?? 0), 0);
+  const curProfit  = curData2.reduce((s: number, b: any) => {
     const fin = resolveFinancials(b);
-    return s + ((b.rented_by ?? 'Kouider') === 'Houari' ? 0 : fin.profit);
+    return s + ((b.rented_by ?? 'Kouider') === 'Houari' ? 0 : (fin.profit ?? 0));
   }, 0);
   const curEncaisse = curData.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
 
-  // Calculs mois précédent
-  const prevCA = prevData.reduce((s, b) => s + (b.final_price ?? 0), 0);
+  // Calculs mois précédent — prix réels
+  const prevCA = prevData.reduce((s: number, b: any) => {
+    const carArr = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    return s + (resolveFinancials({ ...b, cars: carArr }).gross_ca ?? 0);
+  }, 0);
 
   // Évolution
   const evol     = prevCA > 0 ? Math.round(((curCA - prevCA) / prevCA) * 100) : 0;
@@ -405,7 +449,7 @@ export async function getFinancialDashboard(): Promise<string> {
   const daysInMonth    = new Date(year, month, 0).getDate();
   const daysElapsed    = now.getDate();
   const dailyAvg       = daysElapsed > 0 ? Math.round(curCA / daysElapsed) : 0;
-  const projectedMonth = dailyAvg * daysInMonth;
+  const projectedMonth = Math.round(dailyAvg * daysInMonth);
 
   return `📊 TABLEAU DE BORD FINANCIER\n` +
     `${'═'.repeat(40)}\n` +
@@ -450,26 +494,32 @@ export async function checkAnomalies(): Promise<string> {
   const alerts: string[] = [];
 
   for (const b of data as any[]) {
-    const carName = b.cars?.name ?? '?';
-    const fin     = resolveFinancials(b);
+    const carArr  = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    const carName = carArr?.name ?? '?';
+    const fin     = resolveFinancials({ ...b, cars: carArr });
     const pricing = getPricingForVehicle(carName);
 
-    // Alerte si prix client < prix Houari (Kouider perd de l'argent)
-    if (fin.client_ppd > 0 && fin.owner_ppd > 0 && fin.client_ppd < fin.owner_ppd) {
-      alerts.push(`🔴 PERTE: ${b.client_name} | ${carName} | client ${fin.client_ppd}€/j < Houari ${fin.owner_ppd}€/j → perte ${Math.round((fin.owner_ppd - fin.client_ppd) * fin.nb_days)}€`);
+    // Alerte : prix client < prix Houari → perte réelle (seulement si les deux renseignés)
+    if (fin.client_ppd != null && fin.owner_ppd != null && fin.client_ppd < fin.owner_ppd) {
+      alerts.push(`🔴 PERTE RÉELLE: ${b.client_name} | ${carName} | client ${fin.client_ppd}€/j < Houari ${fin.owner_ppd}€/j → perte ${Math.round((fin.owner_ppd - fin.client_ppd) * fin.nb_days)}€`);
     }
 
-    // Alerte si prix client très bas vs catalogue (remise > 30%)
-    if (pricing && fin.client_ppd > 0) {
+    // Alerte : owner_price_per_day manquant → profit inconnu
+    if (fin.owner_ppd == null && (b.rented_by ?? 'Kouider') !== 'Houari') {
+      alerts.push(`⚠️ PROFIT INCONNU: ${b.client_name} | ${carName} | owner_price_per_day absent → Impossible de calculer sans données financières réelles`);
+    }
+
+    // Alerte : remise > 30% vs catalogue (informatif — pas utilisé pour calculs)
+    if (pricing && fin.client_ppd != null && pricing.kouiderPrice > 0) {
       const diff = pricing.kouiderPrice - fin.client_ppd;
       const pct  = Math.round((diff / pricing.kouiderPrice) * 100);
       if (pct > 30) {
-        alerts.push(`⚠️ Remise importante: ${b.client_name} | ${carName} | ${fin.client_ppd}€/j (catalogue ${pricing.kouiderPrice}€/j, remise ${pct}%)`);
+        alerts.push(`🟡 Remise importante: ${b.client_name} | ${carName} | ${fin.client_ppd}€/j (catalogue ref: ${pricing.kouiderPrice}€/j, écart ${pct}%)`);
       }
     }
 
-    // Alerte si montant total > 2000€
-    const total = b.final_price ?? 0;
+    // Alerte : grande réservation > 2000€
+    const total = fin.gross_ca ?? (b.final_price ?? 0);
     if (total > 2000) {
       alerts.push(`🔵 Grande réservation: ${b.client_name} | ${carName} | ${total}€ total`);
     }
@@ -631,27 +681,37 @@ export async function getDashboardData(): Promise<DashboardData> {
   const prev   = (prevRes.data ?? [])   as any[];
   const unpaid = (unpaidRes.data ?? []) as any[];
 
-  const curCA    = cur.reduce((s, b) => s + (b.final_price ?? 0), 0);
-  const prevCA   = prev.reduce((s, b) => s + (b.final_price ?? 0), 0);
+  // Revenus réels : client_price_per_day × nb_days (jamais catalogue)
+  const curCA   = cur.reduce((s: number, b: any) => {
+    const carArr = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    return s + (resolveFinancials({ ...b, cars: carArr }).gross_ca ?? 0);
+  }, 0);
+  const prevCA  = prev.reduce((s: number, b: any) => {
+    const carArr = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    return s + (resolveFinancials({ ...b, cars: carArr }).gross_ca ?? 0);
+  }, 0);
   const evol     = prevCA > 0 ? Math.round(((curCA - prevCA) / prevCA) * 100) : 0;
-  const collected = cur.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
-  const outstanding = unpaid.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - (b.paid_amount ?? 0)), 0);
+  const collected = cur.reduce((s: number, b: any) => s + (b.paid_amount ?? 0), 0);
+  const outstanding = unpaid.reduce((s: number, b: any) => s + Math.max(0, (b.final_price ?? 0) - (b.paid_amount ?? 0)), 0);
 
-  // Profit réel : prix négocié client - prix Houari (pas prix catalogue)
-  const profit = cur.reduce((s, b) => {
-    const fin = resolveFinancials(b);
-    return s + ((b.rented_by ?? 'Kouider') === 'Houari' ? 0 : fin.profit);
+  // Profit réel : client_ppd - owner_ppd (null si owner_ppd manquant)
+  const profit = cur.reduce((s: number, b: any) => {
+    const carArr = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    const fin = resolveFinancials({ ...b, cars: carArr });
+    return s + ((b.rented_by ?? 'Kouider') === 'Houari' ? 0 : (fin.profit ?? 0));
   }, 0);
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const dailyAvg    = now.getDate() > 0 ? Math.round(curCA / now.getDate()) : 0;
 
-  // Répartition par véhicule
+  // Répartition par véhicule — prix réels
   const vehicleMap: Record<string, { ca: number; bookings: number }> = {};
-  for (const b of cur) {
-    const name = (b.cars as any)?.name ?? 'Inconnu';
+  for (const b of cur as any[]) {
+    const carArr = Array.isArray(b.cars) ? b.cars[0] : b.cars;
+    const name   = carArr?.name ?? 'Inconnu';
+    const fin    = resolveFinancials({ ...b, cars: carArr });
     if (!vehicleMap[name]) vehicleMap[name] = { ca: 0, bookings: 0 };
-    vehicleMap[name]!.ca += b.final_price ?? 0;
+    vehicleMap[name]!.ca += fin.gross_ca ?? 0;
     vehicleMap[name]!.bookings++;
   }
   const vehicles = Object.entries(vehicleMap)

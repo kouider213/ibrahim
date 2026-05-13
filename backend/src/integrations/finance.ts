@@ -1,5 +1,7 @@
 import { supabase } from './supabase.js';
-import { VEHICLE_PRICING, getPricingForVehicle } from '../config/pricing.js';
+import { VEHICLE_PRICING } from '../config/pricing.js';
+
+// ── Interfaces ────────────────────────────────────────────────────────────────
 
 export interface FinancialBooking {
   id:                    string;
@@ -8,32 +10,37 @@ export interface FinancialBooking {
   start_date:            string;
   end_date:              string;
   nb_days:               number;
-  final_price:           number;
-  client_price_per_day:  number;
-  owner_price_per_day:   number;
-  owner_total:           number;
+  final_price:           number | null;       // null = non défini en base
+  client_price_per_day:  number | null;       // null = données manquantes (jamais inventé)
+  owner_price_per_day:   number | null;       // null = non renseigné (jamais inventé)
+  owner_total:           number | null;       // null si owner_ppd manquant
   rented_by:             string;
   status:                string;
   payment_status:        string;
   paid_amount:           number;
-  kouider_profit:        number;
-  price_source:          'explicit' | 'computed' | 'catalog_fallback';
+  kouider_profit:        number | null;       // null = impossible à calculer (données manquantes)
+  discount_applied:      number;
+  price_source:          'explicit' | 'computed' | 'missing';
+  data_complete:         boolean;
 }
 
 export interface FinancialReport {
-  period:          string;
-  totalBookings:   number;
-  kouiderBookings: number;
-  houariBookings:  number;
-  grossCA:         number;
-  ownerTotal:      number;
-  kouiderProfit:   number;
-  encaisse:        number;
-  aEncaisser:      number;
-  bookings:        FinancialBooking[];
+  period:             string;
+  totalBookings:      number;
+  kouiderBookings:    number;
+  houariBookings:     number;
+  grossCA:            number;
+  ownerTotal:         number;
+  kouiderProfit:      number;         // somme partielle — voir missingOwnerPrice
+  encaisse:           number;
+  aEncaisser:         number;
+  missingOwnerPrice:  number;         // nb bookings sans owner_price_per_day
+  missingClientPrice: number;         // nb bookings sans client_price_per_day (revenus non fiables)
+  bookings:           FinancialBooking[];
 }
 
-// Seed pricing table — run once to populate Supabase
+// ── Seed pricing table ────────────────────────────────────────────────────────
+
 export async function seedPricingTable(): Promise<void> {
   const rows = VEHICLE_PRICING.map(p => ({
     vehicle_name:  p.name,
@@ -41,24 +48,21 @@ export async function seedPricingTable(): Promise<void> {
     kouider_price: p.kouiderPrice,
     benefit:       p.benefit,
   }));
-
   const { error } = await supabase
     .from('pricing')
     .upsert(rows, { onConflict: 'vehicle_name' });
-
-  if (error) console.warn('[finance] Pricing seed failed (table may not exist yet):', error.message);
+  if (error) console.warn('[finance] Pricing seed failed:', error.message);
   else console.log('[finance] Pricing table seeded:', rows.length, 'vehicles');
 }
 
-/**
- * Calcul normalisé d'une réservation.
- *
- * Priorité des prix :
- * 1. client_price_per_day stocké (prix réellement négocié)
- * 2. final_price / nb_days (calcul depuis prix total réel)
- * 3. Fallback catalogue (UNIQUEMENT si final_price manquant — ne doit pas arriver en prod)
- */
-function computeBookingFinancials(b: {
+// ── Core computation — NO catalog fallback ────────────────────────────────────
+//
+// Règle stricte :
+//   client_ppd  → client_price_per_day si > 0, sinon final_price/nb_days, sinon null
+//   owner_ppd   → owner_price_per_day si > 0, sinon null (JAMAIS catalogue)
+//   profit      → null si owner_ppd manquant (pas inventé)
+//
+export function computeBookingFinancials(b: {
   final_price:          number | null;
   client_price_per_day: number | null;
   owner_price_per_day:  number | null;
@@ -66,85 +70,95 @@ function computeBookingFinancials(b: {
   end_date:             string;
   nb_days?:             number | null;
   paid_amount?:         number | null;
-  payment_status?:      string | null;
   rented_by?:           string | null;
-  cars?:                { name: string } | null;
+  discount_applied?:    number | null;
 }): {
   nb_days:              number;
-  client_price_per_day: number;
-  owner_price_per_day:  number;
-  final_price:          number;
-  owner_total:          number;
-  kouider_profit:       number;
+  client_price_per_day: number | null;
+  owner_price_per_day:  number | null;
+  final_price:          number | null;
+  owner_total:          number | null;
+  kouider_profit:       number | null;
   paid_amount:          number;
-  price_source:         'explicit' | 'computed' | 'catalog_fallback';
+  discount_applied:     number;
+  price_source:         'explicit' | 'computed' | 'missing';
+  data_complete:        boolean;
 } {
-  const startDt = new Date(b.start_date);
-  const endDt   = new Date(b.end_date);
-  const nb_days = b.nb_days ?? Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
+  const nb_days = b.nb_days ?? Math.max(1,
+    Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000),
+  );
+  const paid_amount     = b.paid_amount     ?? 0;
+  const discount_applied = b.discount_applied ?? 0;
+  const rentedBy        = b.rented_by       ?? 'Kouider';
 
-  const final_price  = b.final_price ?? 0;
-  const paid_amount  = b.paid_amount ?? 0;
-  const rentedBy     = b.rented_by ?? 'Kouider';
-  const catalog      = getPricingForVehicle(b.cars?.name ?? '');
-
-  let client_price_per_day: number;
-  let price_source: 'explicit' | 'computed' | 'catalog_fallback';
+  // ── client_ppd (prix négocié réel — jamais catalogue) ──
+  let client_price_per_day: number | null;
+  let price_source: 'explicit' | 'computed' | 'missing';
 
   if (b.client_price_per_day != null && b.client_price_per_day > 0) {
-    // Source 1: prix réel stocké explicitement
     client_price_per_day = b.client_price_per_day;
     price_source = 'explicit';
-  } else if (final_price > 0) {
-    // Source 2: dériver depuis final_price (prix total réel)
-    client_price_per_day = Math.round((final_price / nb_days) * 100) / 100;
+  } else if (b.final_price != null && b.final_price > 0) {
+    client_price_per_day = Math.round((b.final_price / nb_days) * 100) / 100;
     price_source = 'computed';
-  } else if (catalog) {
-    // Source 3: fallback catalogue — uniquement si aucun prix stocké
-    client_price_per_day = catalog.kouiderPrice;
-    price_source = 'catalog_fallback';
   } else {
-    client_price_per_day = 0;
-    price_source = 'catalog_fallback';
+    client_price_per_day = null;
+    price_source = 'missing';
   }
 
-  const owner_price_per_day = b.owner_price_per_day != null && b.owner_price_per_day > 0
-    ? b.owner_price_per_day
-    : (catalog?.houariPrice ?? 0);
+  // ── owner_ppd (prix Houari réel — jamais catalogue) ──
+  const owner_price_per_day: number | null =
+    (b.owner_price_per_day != null && b.owner_price_per_day > 0)
+      ? b.owner_price_per_day
+      : null;
 
-  const effective_final = final_price > 0 ? final_price : client_price_per_day * nb_days;
-  const owner_total     = Math.round(owner_price_per_day * nb_days * 100) / 100;
+  // ── Totaux ──
+  const final_price = client_price_per_day != null
+    ? Math.round(client_price_per_day * nb_days * 100) / 100
+    : (b.final_price ?? null);
 
-  // Kouider profit seulement si c'est sa réservation (pas Houari)
-  const kouider_profit  = rentedBy === 'Houari'
-    ? 0
-    : Math.round((client_price_per_day - owner_price_per_day) * nb_days * 100) / 100;
+  const owner_total = owner_price_per_day != null
+    ? Math.round(owner_price_per_day * nb_days * 100) / 100
+    : null;
 
-  return { nb_days, client_price_per_day, owner_price_per_day, final_price: effective_final, owner_total, kouider_profit, paid_amount, price_source };
+  // Profit Kouider = 0 pour les résa Houari (connu); null si owner_ppd manquant
+  const kouider_profit =
+    rentedBy === 'Houari'
+      ? 0
+      : (client_price_per_day != null && owner_price_per_day != null)
+        ? Math.round((client_price_per_day - owner_price_per_day) * nb_days * 100) / 100
+        : null;
+
+  const data_complete = client_price_per_day != null && owner_price_per_day != null;
+
+  return {
+    nb_days, client_price_per_day, owner_price_per_day,
+    final_price, owner_total, kouider_profit,
+    paid_amount, discount_applied, price_source, data_complete,
+  };
 }
 
-// Get financial report for a given month/year
+// ── Financial report ──────────────────────────────────────────────────────────
+
 export async function getFinancialReport(year: number, month?: number): Promise<FinancialReport> {
   let startDate: string;
   let endDate:   string;
   let period:    string;
 
   if (month) {
-    const monthStr = String(month).padStart(2, '0');
-    startDate = `${year}-${monthStr}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    endDate = `${year}-${monthStr}-${lastDay}`;
-    period = `${monthStr}/${year}`;
+    const mm = String(month).padStart(2, '0');
+    startDate = `${year}-${mm}-01`;
+    endDate   = `${year}-${mm}-${new Date(year, month, 0).getDate()}`;
+    period    = `${mm}/${year}`;
   } else {
     startDate = `${year}-01-01`;
     endDate   = `${year}-12-31`;
     period    = String(year);
   }
 
-  // Réservations dont la période CHEVAUCHE le mois demandé (pas seulement celles qui démarrent)
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client_name, start_date, end_date, nb_days, final_price, client_price_per_day, owner_price_per_day, paid_amount, payment_status, rented_by, status, cars(name)')
+    .select('id, client_name, start_date, end_date, nb_days, final_price, client_price_per_day, owner_price_per_day, discount_applied, paid_amount, payment_status, rented_by, status, cars(name)')
     .in('status', ['CONFIRMED', 'COMPLETED', 'ACTIVE'])
     .lte('start_date', endDate)
     .gte('end_date',   startDate)
@@ -156,6 +170,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
     id: string; client_name: string; start_date: string; end_date: string;
     nb_days?: number | null; final_price: number | null;
     client_price_per_day?: number | null; owner_price_per_day?: number | null;
+    discount_applied?: number | null;
     paid_amount?: number | null; payment_status?: string | null;
     rented_by?: string | null; status: string;
     cars?: { name: string } | { name: string }[] | null;
@@ -163,11 +178,11 @@ export async function getFinancialReport(year: number, month?: number): Promise<
 
   const result: FinancialBooking[] = raw.map(b => {
     const carObj = Array.isArray(b.cars) ? b.cars[0] : b.cars;
-    const calc = computeBookingFinancials({
+    const calc   = computeBookingFinancials({
       ...b,
       client_price_per_day: b.client_price_per_day ?? null,
       owner_price_per_day:  b.owner_price_per_day  ?? null,
-      cars: carObj ?? null,
+      discount_applied:     b.discount_applied      ?? null,
     });
     return {
       id:                   b.id,
@@ -185,62 +200,81 @@ export async function getFinancialReport(year: number, month?: number): Promise<
       payment_status:       b.payment_status ?? 'PENDING',
       paid_amount:          calc.paid_amount,
       kouider_profit:       calc.kouider_profit,
+      discount_applied:     calc.discount_applied,
       price_source:         calc.price_source,
+      data_complete:        calc.data_complete,
     };
   });
 
-  const kouiderBookings = result.filter(b => b.rented_by !== 'Houari').length;
-  const houariBookings  = result.filter(b => b.rented_by === 'Houari').length;
-  const grossCA         = result.reduce((s, b) => s + b.final_price, 0);
-  const ownerTotal      = result.reduce((s, b) => s + b.owner_total, 0);
-  const kouiderProfit   = result.reduce((s, b) => s + b.kouider_profit, 0);
-  const encaisse        = result.reduce((s, b) => s + b.paid_amount, 0);
-  const aEncaisser      = result.reduce((s, b) => s + Math.max(0, b.final_price - b.paid_amount), 0);
+  const kouiderBookings   = result.filter(b => b.rented_by !== 'Houari').length;
+  const houariBookings    = result.filter(b => b.rented_by === 'Houari').length;
+  const grossCA           = result.reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const ownerTotal        = result.reduce((s, b) => s + (b.owner_total ?? 0), 0);
+  const kouiderProfit     = result.reduce((s, b) => s + (b.kouider_profit ?? 0), 0);
+  const encaisse          = result.reduce((s, b) => s + b.paid_amount, 0);
+  const aEncaisser        = result.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0);
+  const missingOwnerPrice = result.filter(b => b.owner_price_per_day === null && b.rented_by !== 'Houari').length;
+  const missingClientPrice = result.filter(b => b.price_source === 'missing').length;
 
   return {
-    period,
-    totalBookings: result.length,
-    kouiderBookings,
-    houariBookings,
-    grossCA,
-    ownerTotal,
-    kouiderProfit,
-    encaisse,
-    aEncaisser,
+    period, totalBookings: result.length,
+    kouiderBookings, houariBookings,
+    grossCA, ownerTotal, kouiderProfit,
+    encaisse, aEncaisser,
+    missingOwnerPrice, missingClientPrice,
     bookings: result,
   };
 }
 
-export function formatFinancialReport(report: FinancialReport): string {
-  const catalogFallbacks = report.bookings.filter(b => b.price_source === 'catalog_fallback');
+// ── Formatted report ──────────────────────────────────────────────────────────
 
+export function formatFinancialReport(report: FinancialReport): string {
   const lines: string[] = [
     `📊 RAPPORT FINANCIER — ${report.period}`,
     `Total: ${report.totalBookings} réservations (Kouider: ${report.kouiderBookings} | Houari: ${report.houariBookings})`,
     ``,
-    `💰 CA BRUT (client total):  ${report.grossCA}€`,
-    `🏢 Coût Houari (propriétaire): ${report.ownerTotal}€`,
-    `✅ BÉNÉFICE KOUIDER NET:    ${report.kouiderProfit}€`,
+    `💰 CA BRUT (prix réels clients):   ${report.grossCA}€`,
+    `🏢 Coût Houari (prix réels):        ${report.ownerTotal}€`,
+    `✅ BÉNÉFICE KOUIDER NET:            ${report.kouiderProfit}€`,
     ``,
     `📥 Encaissé:    ${report.encaisse}€`,
     `⏳ À encaisser: ${report.aEncaisser}€`,
   ];
 
-  if (catalogFallbacks.length > 0) {
-    lines.push(``, `⚠️ ${catalogFallbacks.length} réservation(s) utilisent prix catalogue (client_price_per_day manquant) — vérifier:`);
-    for (const b of catalogFallbacks) {
+  if (report.missingOwnerPrice > 0) {
+    lines.push(
+      ``,
+      `⚠️ DONNÉES MANQUANTES: ${report.missingOwnerPrice} réservation(s) sans owner_price_per_day`,
+      `   → bénéfice partiel (les réservations sans prix Houari sont exclues du calcul)`,
+      `   → renseignez owner_price_per_day dans Supabase pour un calcul complet`,
+    );
+  }
+  if (report.missingClientPrice > 0) {
+    lines.push(
+      ``,
+      `❌ PRIX CLIENT MANQUANT: ${report.missingClientPrice} réservation(s) sans client_price_per_day ni final_price`,
+      `   → Impossible de calculer sans données financières réelles`,
+    );
+    const missing = report.bookings.filter(b => b.price_source === 'missing');
+    for (const b of missing) {
       lines.push(`  → ${b.client_name} | ${b.car_name} | ${b.start_date}`);
     }
   }
 
   lines.push(``, `DÉTAIL:`);
   for (const b of report.bookings) {
-    const src    = b.price_source === 'explicit' ? '' : b.price_source === 'computed' ? ' [calculé]' : ' [⚠️catalogue]';
-    const profit = b.rented_by === 'Houari' ? 'Houari 100%' : `K+${b.kouider_profit}€`;
+    const srcTag    = b.price_source === 'explicit' ? '' : b.price_source === 'computed' ? ' [calculé]' : ' [❌MANQUANT]';
+    const profitTag = b.rented_by === 'Houari'
+      ? 'Houari 100%'
+      : b.kouider_profit != null
+        ? `K+${b.kouider_profit}€`
+        : '❓profit inconnu (owner_ppd manquant)';
+    const clientPpd = b.client_price_per_day != null ? `${b.client_price_per_day}€/j` : '❓';
+    const ownerPpd  = b.owner_price_per_day  != null ? `${b.owner_price_per_day}€/j`  : '❓';
     lines.push(
       `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j` +
-      ` | ${b.client_price_per_day}€/j client - ${b.owner_price_per_day}€/j Houari` +
-      ` | Total: ${b.final_price}€ | [${profit}]${src}`,
+      ` | client: ${clientPpd} — Houari: ${ownerPpd}` +
+      ` | Total: ${b.final_price ?? '?'}€ | [${profitTag}]${srcTag}`,
     );
   }
 
