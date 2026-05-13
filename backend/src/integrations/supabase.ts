@@ -37,6 +37,18 @@ export interface Booking {
   resale_price_snapshot: number;
   final_price:           number;
   profit:                number;
+  // ── Champs financiers normalisés (migration_financial_fields.sql) ──────────
+  /** Prix réellement négocié avec le client par jour */
+  client_price_per_day?: number;
+  /** Prix payé à Houari (propriétaire) par jour */
+  owner_price_per_day?:  number;
+  /** Total payé à Houari = owner_price_per_day × nb_days */
+  owner_total?:          number;
+  /** Bénéfice net Kouider = (client_price_per_day - owner_price_per_day) × nb_days */
+  profit_kouider?:       number;
+  /** Remise accordée au client */
+  discount_applied?:     number;
+  // ──────────────────────────────────────────────────────────────────────────
   status:                'PENDING' | 'CONFIRMED' | 'REJECTED' | 'COMPLETED' | 'ACTIVE';
   payment_status?:       'PENDING' | 'PARTIAL' | 'PAID';
   paid_amount?:          number;

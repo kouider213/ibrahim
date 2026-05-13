@@ -11,6 +11,38 @@
 import { supabase } from './supabase.js';
 import { getPricingForVehicle } from '../config/pricing.js';
 
+// ── Calcul financier normalisé ────────────────────────────────────────────────
+// Priorité : client_price_per_day explicite > final_price/nb_days > catalogue
+function resolveFinancials(b: {
+  final_price:          number | null;
+  client_price_per_day: number | null;
+  owner_price_per_day:  number | null;
+  start_date:           string;
+  end_date:             string;
+  nb_days?:             number | null;
+  cars?:                { name: string } | null;
+}): { nb_days: number; client_ppd: number; owner_ppd: number; profit: number; owner_total: number } {
+  const nb_days = b.nb_days ?? Math.max(1, Math.ceil(
+    (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
+  ));
+  const catalog = getPricingForVehicle(b.cars?.name ?? '');
+
+  const client_ppd = b.client_price_per_day != null && b.client_price_per_day > 0
+    ? b.client_price_per_day
+    : b.final_price != null && b.final_price > 0 && nb_days > 0
+      ? Math.round((b.final_price / nb_days) * 100) / 100
+      : (catalog?.kouiderPrice ?? 0);
+
+  const owner_ppd = b.owner_price_per_day != null && b.owner_price_per_day > 0
+    ? b.owner_price_per_day
+    : (catalog?.houariPrice ?? 0);
+
+  const profit     = Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100;
+  const owner_total = Math.round(owner_ppd * nb_days * 100) / 100;
+
+  return { nb_days, client_ppd, owner_ppd, profit, owner_total };
+}
+
 // ─────────────────────────────────────────────
 // 1. SUIVI ENCAISSEMENTS & ACOMPTES
 // ─────────────────────────────────────────────
@@ -130,8 +162,8 @@ export async function getCAReport(
     startW.setDate(firstDay.getDate() + (week - 1) * 7);
     const endW = new Date(startW);
     endW.setDate(startW.getDate() + 6);
-    startDate = startW.toISOString().split('T')[0];
-    endDate   = endW.toISOString().split('T')[0];
+    startDate = startW.toISOString().split('T')[0]!;
+    endDate   = endW.toISOString().split('T')[0]!;
     period    = `Semaine ${week} — ${month}/${year}`;
   } else if (month !== undefined) {
     const mm  = String(month).padStart(2, '0');
@@ -144,58 +176,56 @@ export async function getCAReport(
     period    = String(year);
   }
 
+  // Réservations dont la période CHEVAUCHE l'intervalle demandé
   const { data, error } = await supabase
     .from('bookings')
-    .select('*, cars(name)')
+    .select('id, client_name, final_price, client_price_per_day, owner_price_per_day, nb_days, start_date, end_date, rented_by, status, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-    .gte('start_date', startDate)
     .lte('start_date', endDate)
+    .gte('end_date',   startDate)
     .order('start_date');
 
   if (error) return `Erreur CA: ${error.message}`;
   if (!data?.length) return `Aucune réservation pour ${period}.`;
 
-  // Calcul CA par véhicule
-  const byVehicle: Record<string, { count: number; ca: number; profit: number }> = {};
-  let totalCA     = 0;
-  let totalProfit = 0;
-  let totalKouider = 0;
-  let totalHouari  = 0;
+  const byVehicle: Record<string, { count: number; grossCA: number; profit: number; ownerCost: number }> = {};
+  let totalGrossCA   = 0;
+  let totalProfit    = 0;
+  let totalOwnerCost = 0;
+  let totalKouider   = 0;
+  let totalHouari    = 0;
 
   for (const b of data as any[]) {
-    const carName = b.cars?.name ?? 'Inconnu';
-    const price   = b.final_price ?? 0;
-    const startDt = new Date(b.start_date);
-    const endDt   = new Date(b.end_date);
-    const nbDays  = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
-    const pricing = getPricingForVehicle(carName);
+    const carName  = b.cars?.name ?? 'Inconnu';
     const rentedBy = b.rented_by ?? 'Kouider';
+    const fin      = resolveFinancials(b);
 
-    let profit = 0;
-    if (pricing) {
-      profit = rentedBy === 'Kouider' ? pricing.benefit * nbDays : 0;
-    }
+    const grossCA = b.final_price ?? (fin.client_ppd * fin.nb_days);
 
-    if (!byVehicle[carName]) byVehicle[carName] = { count: 0, ca: 0, profit: 0 };
+    if (!byVehicle[carName]) byVehicle[carName] = { count: 0, grossCA: 0, profit: 0, ownerCost: 0 };
     byVehicle[carName].count++;
-    byVehicle[carName].ca += price;
-    byVehicle[carName].profit += profit;
+    byVehicle[carName].grossCA    += grossCA;
+    byVehicle[carName].ownerCost  += fin.owner_total;
+    byVehicle[carName].profit     += rentedBy === 'Houari' ? 0 : fin.profit;
 
-    totalCA     += price;
-    totalProfit += profit;
-    if (rentedBy === 'Kouider') totalKouider++;
-    else totalHouari++;
+    totalGrossCA   += grossCA;
+    totalOwnerCost += fin.owner_total;
+    totalProfit    += rentedBy === 'Houari' ? 0 : fin.profit;
+    if (rentedBy === 'Houari') totalHouari++;
+    else totalKouider++;
   }
 
-  // Trier par CA décroissant
   const vehicleRows = Object.entries(byVehicle)
-    .sort(([, a], [, b]) => b.ca - a.ca)
-    .map(([name, v]) => `  - ${name}: ${v.count} loc. | CA: ${v.ca}€ | Bénéfice Kouider: ${v.profit}€`);
+    .sort(([, a], [, b]) => b.grossCA - a.grossCA)
+    .map(([name, v]) =>
+      `  - ${name}: ${v.count} loc. | CA: ${v.grossCA}€ | Houari: ${v.ownerCost}€ | Bénéfice Kouider: ${v.profit}€`,
+    );
 
   return `📊 CHIFFRE D'AFFAIRES — ${period}\n` +
     `${'─'.repeat(40)}\n` +
-    `📈 CA Total: ${totalCA}€\n` +
-    `💰 Bénéfice Kouider: ${totalProfit}€\n` +
+    `📈 CA Brut (total clients):  ${totalGrossCA}€\n` +
+    `🏢 Coût Houari:              ${totalOwnerCost}€\n` +
+    `💰 Bénéfice Kouider NET:     ${totalProfit}€\n` +
     `📋 Réservations: ${data.length} (Kouider: ${totalKouider} | Houari: ${totalHouari})\n\n` +
     `🚗 PAR VÉHICULE:\n${vehicleRows.join('\n')}`;
 }
@@ -324,19 +354,22 @@ export async function getFinancialDashboard(): Promise<string> {
   const mm  = String(month).padStart(2, '0');
   const ppm = String(prevMonth).padStart(2, '0');
 
+  const curEnd  = `${year}-${mm}-${new Date(year, month, 0).getDate()}`;
+  const prevEnd = `${prevYear}-${ppm}-${new Date(prevYear, prevMonth, 0).getDate()}`;
+
   const [curRes, prevRes, unpaidRes] = await Promise.all([
     supabase
       .from('bookings')
-      .select('final_price, paid_amount, payment_status, rented_by, start_date, end_date, cars(name)')
+      .select('final_price, client_price_per_day, owner_price_per_day, paid_amount, payment_status, rented_by, nb_days, start_date, end_date, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-      .gte('start_date', `${year}-${mm}-01`)
-      .lte('start_date', `${year}-${mm}-${new Date(year, month, 0).getDate()}`),
+      .lte('start_date', curEnd)
+      .gte('end_date',   `${year}-${mm}-01`),
     supabase
       .from('bookings')
-      .select('final_price, rented_by, start_date, end_date, cars(name)')
+      .select('final_price, client_price_per_day, owner_price_per_day, rented_by, nb_days, start_date, end_date, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-      .gte('start_date', `${prevYear}-${ppm}-01`)
-      .lte('start_date', `${prevYear}-${ppm}-${new Date(prevYear, prevMonth, 0).getDate()}`),
+      .lte('start_date', prevEnd)
+      .gte('end_date',   `${prevYear}-${ppm}-01`),
     supabase
       .from('bookings')
       .select('final_price, paid_amount')
@@ -348,15 +381,11 @@ export async function getFinancialDashboard(): Promise<string> {
   const prevData = (prevRes.data ?? []) as any[];
   const unpaid   = (unpaidRes.data ?? []) as any[];
 
-  // Calculs mois courant
+  // Calculs mois courant — prix réels
   const curCA      = curData.reduce((s, b) => s + (b.final_price ?? 0), 0);
   const curProfit  = curData.reduce((s, b) => {
-    const startDt = new Date(b.start_date);
-    const endDt   = new Date(b.end_date);
-    const nbDays  = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
-    const pricing = getPricingForVehicle(b.cars?.name ?? '');
-    const rentedBy = b.rented_by ?? 'Kouider';
-    return s + (pricing && rentedBy === 'Kouider' ? pricing.benefit * nbDays : 0);
+    const fin = resolveFinancials(b);
+    return s + ((b.rented_by ?? 'Kouider') === 'Houari' ? 0 : fin.profit);
   }, 0);
   const curEncaisse = curData.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
 
@@ -421,27 +450,28 @@ export async function checkAnomalies(): Promise<string> {
   const alerts: string[] = [];
 
   for (const b of data as any[]) {
-    const total   = b.final_price ?? 0;
-    const startDt = new Date(b.start_date);
-    const endDt   = new Date(b.end_date);
-    const nbDays  = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
-    const daily   = Math.round(total / nbDays);
     const carName = b.cars?.name ?? '?';
+    const fin     = resolveFinancials(b);
     const pricing = getPricingForVehicle(carName);
 
-    // Alerte si prix journalier très différent du prix catalogue
-    if (pricing) {
-      const expected = pricing.kouiderPrice;
-      const diff     = Math.abs(daily - expected);
-      const pct      = Math.round((diff / expected) * 100);
+    // Alerte si prix client < prix Houari (Kouider perd de l'argent)
+    if (fin.client_ppd > 0 && fin.owner_ppd > 0 && fin.client_ppd < fin.owner_ppd) {
+      alerts.push(`🔴 PERTE: ${b.client_name} | ${carName} | client ${fin.client_ppd}€/j < Houari ${fin.owner_ppd}€/j → perte ${Math.round((fin.owner_ppd - fin.client_ppd) * fin.nb_days)}€`);
+    }
+
+    // Alerte si prix client très bas vs catalogue (remise > 30%)
+    if (pricing && fin.client_ppd > 0) {
+      const diff = pricing.kouiderPrice - fin.client_ppd;
+      const pct  = Math.round((diff / pricing.kouiderPrice) * 100);
       if (pct > 30) {
-        alerts.push(`⚠️ ${b.client_name} | ${carName} | ${daily}€/j vs catalogue ${expected}€/j (écart ${pct}%)`);
+        alerts.push(`⚠️ Remise importante: ${b.client_name} | ${carName} | ${fin.client_ppd}€/j (catalogue ${pricing.kouiderPrice}€/j, remise ${pct}%)`);
       }
     }
 
     // Alerte si montant total > 2000€
+    const total = b.final_price ?? 0;
     if (total > 2000) {
-      alerts.push(`🔴 Réservation importante: ${b.client_name} | ${carName} | ${total}€ total`);
+      alerts.push(`🔵 Grande réservation: ${b.client_name} | ${carName} | ${total}€ total`);
     }
   }
 
@@ -577,17 +607,20 @@ export async function getDashboardData(): Promise<DashboardData> {
   const mm  = String(month).padStart(2, '0');
   const ppm = String(prevMonth).padStart(2, '0');
 
+  const curEndDate  = `${year}-${mm}-${new Date(year, month, 0).getDate()}`;
+  const prevEndDate = `${prevYear}-${ppm}-${new Date(prevYear, prevMonth, 0).getDate()}`;
+
   const [curRes, prevRes, unpaidRes] = await Promise.all([
     supabase.from('bookings')
-      .select('id, final_price, paid_amount, payment_status, rented_by, start_date, end_date, cars(name)')
+      .select('id, final_price, client_price_per_day, owner_price_per_day, nb_days, paid_amount, payment_status, rented_by, start_date, end_date, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-      .gte('start_date', `${year}-${mm}-01`)
-      .lte('start_date', `${year}-${mm}-${new Date(year, month, 0).getDate()}`),
+      .lte('start_date', curEndDate)
+      .gte('end_date',   `${year}-${mm}-01`),
     supabase.from('bookings')
-      .select('final_price, rented_by, start_date, end_date, cars(name)')
+      .select('final_price, client_price_per_day, owner_price_per_day, nb_days, rented_by, start_date, end_date, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-      .gte('start_date', `${prevYear}-${ppm}-01`)
-      .lte('start_date', `${prevYear}-${ppm}-${new Date(prevYear, prevMonth, 0).getDate()}`),
+      .lte('start_date', prevEndDate)
+      .gte('end_date',   `${prevYear}-${ppm}-01`),
     supabase.from('bookings')
       .select('id, client_name, client_phone, final_price, paid_amount, cars(name)')
       .in('payment_status', ['PENDING', 'PARTIAL'])
@@ -604,10 +637,10 @@ export async function getDashboardData(): Promise<DashboardData> {
   const collected = cur.reduce((s, b) => s + (b.paid_amount ?? 0), 0);
   const outstanding = unpaid.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - (b.paid_amount ?? 0)), 0);
 
+  // Profit réel : prix négocié client - prix Houari (pas prix catalogue)
   const profit = cur.reduce((s, b) => {
-    const days = Math.max(1, Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000));
-    const p    = getPricingForVehicle(b.cars?.name ?? '');
-    return s + (p && (b.rented_by ?? 'Kouider') === 'Kouider' ? p.benefit * days : 0);
+    const fin = resolveFinancials(b);
+    return s + ((b.rented_by ?? 'Kouider') === 'Houari' ? 0 : fin.profit);
   }, 0);
 
   const daysInMonth = new Date(year, month, 0).getDate();

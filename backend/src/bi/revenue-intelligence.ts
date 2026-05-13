@@ -119,7 +119,7 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
     week_revenue:          weekRevenue,
     month_revenue:         monthRevenue,
     kouider_profit_month:  finReport?.kouiderProfit  ?? 0,
-    houari_revenue_month:  finReport?.houariRevenue  ?? 0,
+    houari_revenue_month:  finReport?.ownerTotal     ?? 0,
     avg_booking_value:     monthRows.length ? Math.round(monthRevenue / monthRows.length) : 0,
     total_bookings_month:  monthRows.length,
     rejected_count:        rejected.length,

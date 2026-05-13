@@ -205,7 +205,7 @@ export async function buildContext(
     : '';
 
   const financeText = financeReport
-    ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):\nTotal réservations: ${financeReport.totalBookings} | Kouider: ${financeReport.kouiderBookings} résa | Houari: ${financeReport.houariBookings} résa\nBÉNÉFICE KOUIDER: ${financeReport.kouiderProfit}€ | REVENU HOUARI: ${financeReport.houariRevenue}€\nDÉTAIL:\n${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | ${b.final_price}€ total | ${b.rented_by === 'Kouider' ? `K+${b.kouider_profit}€` : `H100%`}`).join('\n')}`
+    ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):\nTotal réservations: ${financeReport.totalBookings} | Kouider: ${financeReport.kouiderBookings} résa | Houari: ${financeReport.houariBookings} résa\nBÉNÉFICE KOUIDER: ${financeReport.kouiderProfit}€ | REVENU HOUARI: ${financeReport.ownerTotal}€\nDÉTAIL:\n${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | ${b.final_price}€ total | ${b.rented_by === 'Kouider' ? `K+${b.kouider_profit}€` : `H100%`}`).join('\n')}`
     : '';
 
   const memResult = memories as MemoryContextResult;
