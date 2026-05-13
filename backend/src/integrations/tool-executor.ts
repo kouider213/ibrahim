@@ -1409,6 +1409,22 @@ function chatIdFromSession(sessionId?: string): string {
   return env.TELEGRAM_CHAT_ID ?? '809747124';
 }
 
+/**
+ * Normalise le script personnalisé transmis via l'outil create_marketing_video :
+ *  - Supprime les guillemets enveloppants si présents
+ *  - Préserve les accents, apostrophes, emojis, ponctuation française
+ *  - Tronque à 500 caractères max pour la synthèse ElevenLabs
+ */
+function sanitizeCustomScript(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  return raw
+    .trim()
+    .replace(/^["'«»]/, '')
+    .replace(/["'«»]$/, '')
+    .trim()
+    .slice(0, 500);
+}
+
 async function runTikTokResearchTool(sessionId?: string): Promise<string> {
   const chatId = chatIdFromSession(sessionId);
 
