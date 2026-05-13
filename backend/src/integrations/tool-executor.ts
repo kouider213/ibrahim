@@ -1487,7 +1487,7 @@ async function createMarketingVideoTool(
   // ── Paramètres ────────────────────────────────────────────────
   const carNameFilter    = (input['car_name'] as string | undefined)?.toLowerCase();
   const style            = (input['style'] as string | undefined) ?? 'reveal';
-  const customScript     = input['custom_script'] as string | undefined;
+  const customScript     = sanitizeCustomScript(input['custom_script'] as string | undefined);
   const backgroundEffect = input['background_effect'] as string | undefined;
 
   // ── Chercher la voiture ───────────────────────────────────────
