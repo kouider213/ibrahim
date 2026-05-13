@@ -1,5 +1,6 @@
 ﻿import { buildContext }                          from './context-builder.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
+import { checkAntiHallucination } from '../orchestrator/anti-hallucination.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -339,9 +340,12 @@ export async function processMessage(
   // Guard pass 2: remove old video-task paragraphs from non-video responses
   const scopedText   = applyScopeGuard(guardedText, userMessage, requestId);
   // Guard pass 3: PHANTOM GUARD — bloque toute affirmation d'action sans outil write réel
-  const safeText     = phantomGuard(scopedText, response.toolsExecuted, userMessage, requestId);
+  const phantomText  = phantomGuard(scopedText, response.toolsExecuted, userMessage, requestId);
+  // Guard pass 4: anti-hallucination Gates 2&3 — financial claims + system state claims
+  const halluCheck   = checkAntiHallucination(phantomText, response.toolsExecuted, userMessage, requestId);
+  const safeText     = halluCheck.blocked ?? phantomText;
   // Log trace complète
-  const phantomBlocked = safeText === PHANTOM_REFUSAL;
+  const phantomBlocked = phantomText === PHANTOM_REFUSAL;
   console.log(
     `[execution-trace] {` +
     `"execution_trace_id":"${requestId}",` +
@@ -349,11 +353,12 @@ export async function processMessage(
     `"session":"${sessionId}",` +
     `"tools_called":[${response.toolsExecuted.map(t => `"${t.name}"`).join(',')}],` +
     `"write_tool_success":${response.toolsExecuted.some(t => t.success)},` +
-    `"response_allowed":${!phantomBlocked},` +
-    `"phantom_blocked":${phantomBlocked}` +
+    `"response_allowed":${!halluCheck.blocked && !phantomBlocked},` +
+    `"phantom_blocked":${phantomBlocked},` +
+    `"hallucination_blocked":${halluCheck.reason ?? 'none'}` +
     `}`,
   );
-  console.log(`[orch:${requestId}] done len=${safeText.length} guard1=${guardedText !== response.text} guard2=${scopedText !== guardedText} guard3_phantom=${safeText !== scopedText}`);
+  console.log(`[orch:${requestId}] done len=${safeText.length} guard1=${guardedText !== response.text} guard2=${scopedText !== guardedText} guard3_phantom=${phantomBlocked} guard4_hallu=${halluCheck.reason ?? 'none'}`);
 
   // 4. Émettre le texte IMMÉDIATEMENT dès que Claude a répondu
   _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });

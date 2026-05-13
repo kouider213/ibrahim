@@ -17,7 +17,7 @@ import { checkFocus, type FocusDecision } from './focus-manager.js';
 import { scorePriority, type PriorityScore, type SourceChannel } from './priority-engine.js';
 import { buildOrchestratorContext, detectChannel, type OrchestratorContext } from './context-engine.js';
 import { routeWithContext, formatRoutingLog, type RoutingDecision } from './agent-router.js';
-import { checkAntiHallucination, logExecutionTrace } from './anti-hallucination.js';
+import { logExecutionTrace } from './anti-hallucination.js';
 export { recordAllActions } from './action-engine.js';
 
 let _reqCounter = 0;
@@ -100,22 +100,16 @@ export async function processWithOrchestration(
 
   const latencyMs = Date.now() - t0;
 
-  // ── 5. Post-process: anti-hallucination check on result ───────────────────
-  // processMessage already runs phantom guard internally; this is the enhanced layer
-  const halluCheck = checkAntiHallucination(
-    result.text,
-    [], // tool executions not surfaced from processMessage return — already guarded internally
-    userMessage,
-    requestId,
-  );
+  // ── 5. Post-process: anti-hallucination already applied inside processMessage
+  // Gates 1/2/3 run with real toolsExecuted inside orchestrator.ts — result.text is already safe.
 
   // ── 6. Execution trace ─────────────────────────────────────────────────────
   logExecutionTrace({
     requestId,
     channel,
     sessionId,
-    toolsExecuted:   [], // guarded internally by processMessage
-    responseAllowed: !halluCheck.blocked,
+    toolsExecuted:   [],
+    responseAllowed: true,
     priorityScore:   priority.score,
     priorityLevel:   priority.level,
     agentUsed:       routing.route.label,

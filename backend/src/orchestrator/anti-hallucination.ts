@@ -44,16 +44,21 @@ export function checkAntiHallucination(
     return { safe: false, reason: 'phantom_action', blocked: PHANTOM_REFUSAL };
   }
 
-  // Gate 2: financial report claim without data tool + no tools called at all
+  // Gate 2: financial report claim without data tool
   const isFinancialReport = FINANCIAL_REPORT_PATTERNS.some(p => p.test(text));
-  if (isFinancialReport && toolsExecuted.length === 0) {
+  if (isFinancialReport) {
     const hasDataTool = toolsExecuted.some(t => DATA_TOOLS.has(t.name) && t.success);
     if (!hasDataTool) {
       console.log(
-        `[anti-hallucination:${requestId}] ⚠️ FINANCIAL_REPORT without data tool` +
-        ` tools=none text="${text.slice(0, 100).replace(/\n/g, ' ')}"`,
+        `[anti-hallucination:${requestId}] ⛔ FINANCIAL_REPORT_BLOCKED no data tool` +
+        ` tools=[${toolsExecuted.map(t => t.name).join(',') || 'none'}]` +
+        ` text="${text.slice(0, 100).replace(/\n/g, ' ')}"`,
       );
-      // Log only — context-injected finance data is legitimate from context-builder
+      return {
+        safe:    false,
+        reason:  'financial_claim_no_data',
+        blocked: '⚠️ Impossible de générer ce rapport — aucune donnée financière réelle n\'a été récupérée.\nJe ne fournis pas de chiffres sans avoir consulté la base de données.',
+      };
     }
   }
 
@@ -61,10 +66,14 @@ export function checkAntiHallucination(
   const hasStateClaim = SYSTEM_STATE_CLAIMS.some(p => p.test(text));
   if (hasStateClaim && toolsExecuted.length === 0) {
     console.log(
-      `[anti-hallucination:${requestId}] ⚠️ SYSTEM_STATE_CLAIM no tools` +
+      `[anti-hallucination:${requestId}] ⛔ SYSTEM_STATE_CLAIM_BLOCKED no tools` +
       ` claim="${text.slice(0, 80).replace(/\n/g, ' ')}"`,
     );
-    // Log only — Claude may have data from context system prompt
+    return {
+      safe:    false,
+      reason:  'system_state_claim',
+      blocked: '⚠️ Je ne peux pas affirmer avoir consulté vos données sans avoir exécuté une requête réelle.\nDemandez-moi de vérifier explicitement et je lancerai l\'outil approprié.',
+    };
   }
 
   return { safe: true, reason: null, blocked: null };

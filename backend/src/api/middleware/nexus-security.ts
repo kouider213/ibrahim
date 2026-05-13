@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { redis } from '../../queue/queue.js';
 
 // ── Nexus-specific rate limiter (30 req/min — stricter than global 120) ───────
 
@@ -34,13 +35,10 @@ export function nexusIpLogger(req: Request, _res: Response, next: NextFunction):
 }
 
 // ── Anti-replay: optional X-Request-Time + X-Request-Nonce headers ───────────
-// If headers present: timestamp must be within ±5 min, nonce must be unique per minute-bucket.
+// If headers present: timestamp must be within ±5 min, nonce must be unique (Redis TTL 10min).
 // Headers are optional — requests without them are passed through (mobile app compat).
 
-const _seenNonces = new Set<string>();
-setInterval(() => {
-  if (_seenNonces.size > 10_000) _seenNonces.clear();
-}, 10 * 60_000);
+const NONCE_TTL_S = 600; // 10 minutes
 
 export function nexusAntiReplay(req: Request, res: Response, next: NextFunction): void {
   const reqTime = req.headers['x-request-time'];
@@ -64,14 +62,20 @@ export function nexusAntiReplay(req: Request, res: Response, next: NextFunction)
     return;
   }
 
-  const bucket = Math.floor(ts / 60_000);
-  const key    = `${nonce}:${bucket}`;
-  if (_seenNonces.has(key)) {
-    const ip = ((req.headers['x-forwarded-for'] as string | undefined) ?? req.ip ?? '?').split(',')[0].trim();
-    console.warn(`[NEXUS_SECURITY] anti_replay duplicate_nonce=${nonce} ip=${ip}`);
-    res.status(409).json({ ok: false, error: 'Duplicate request (nonce reuse)' });
-    return;
-  }
-  _seenNonces.add(key);
-  next();
+  const redisKey = `nexus:nonce:${String(nonce).slice(0, 128)}`;
+  // Async Redis check — use SET NX EX (atomic: set only if not exists)
+  redis.set(redisKey, '1', 'EX', NONCE_TTL_S, 'NX').then((result) => {
+    if (result === null) {
+      // Key already existed → duplicate nonce
+      const ip = ((req.headers['x-forwarded-for'] as string | undefined) ?? req.ip ?? '?').split(',')[0].trim();
+      console.warn(`[NEXUS_SECURITY] anti_replay duplicate_nonce=${String(nonce).slice(0, 32)} ip=${ip}`);
+      res.status(409).json({ ok: false, error: 'Duplicate request (nonce reuse)' });
+    } else {
+      next();
+    }
+  }).catch((err: unknown) => {
+    // Redis unavailable — fail open to avoid blocking legitimate requests, log prominently
+    console.error('[NEXUS_SECURITY] anti_replay Redis error — failing open:', err);
+    next();
+  });
 }

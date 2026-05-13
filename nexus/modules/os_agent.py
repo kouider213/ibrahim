@@ -731,8 +731,10 @@ def _validate_dev_cmd(cmd: str) -> tuple[bool, str]:
     return False, f'Commande non autorisée: "{cmd[:60]}"'
 
 
-async def terminal_run(data: dict) -> dict:
-    """Run a dev command in a project dir and return stdout/stderr."""
+async def terminal_run(data: dict, sio=None) -> dict:
+    """Run a dev command in a project dir and return stdout/stderr.
+    If sio is provided, streams stdout/stderr lines via nexus:terminal_chunk events.
+    """
     cmd         = (data.get('command') or '').strip()
     project_key = (data.get('project') or '').strip().lower()
     cwd         = data.get('cwd') or _PROJECT_PATHS.get(project_key)
@@ -758,8 +760,18 @@ async def terminal_run(data: dict) -> dict:
         log.warning('[NEXUS_TERMINAL] blocked cmd=%s', cmd[:80])
         return {'ok': False, 'job_id': jid, 'error': cmd_err}
 
-    log.info('[NEXUS_TERMINAL] run cmd="%s" cwd=%s timeout=%ds', cmd[:80], cwd, timeout_s)
+    log.info('[NEXUS_TERMINAL] run cmd="%s" cwd=%s timeout=%ds streaming=%s',
+             cmd[:80], cwd, timeout_s, sio is not None)
     t0 = time.monotonic()
+
+    async def _emit_chunk(chunk: str, stream: str) -> None:
+        if sio and chunk:
+            try:
+                await sio.emit('nexus:terminal_chunk', {
+                    'job_id': jid, 'chunk': chunk, 'stream': stream,
+                }, namespace='/nexus')
+            except Exception as e:
+                log.warning('[NEXUS_TERMINAL] chunk emit error: %s', e)
 
     try:
         proc = await asyncio.create_subprocess_shell(
@@ -768,10 +780,26 @@ async def terminal_run(data: dict) -> dict:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+
+        stdout_chunks: list[str] = []
+        stderr_chunks: list[str] = []
+
+        async def _read_stream(stream, store: list, stream_name: str) -> None:
+            assert stream is not None
+            async for raw_line in stream:
+                line = raw_line.decode('utf-8', errors='replace')
+                store.append(line)
+                await _emit_chunk(line, stream_name)
+
         try:
-            stdout_b, stderr_b = await asyncio.wait_for(
-                proc.communicate(), timeout=float(timeout_s)
+            await asyncio.wait_for(
+                asyncio.gather(
+                    _read_stream(proc.stdout, stdout_chunks, 'stdout'),
+                    _read_stream(proc.stderr, stderr_chunks, 'stderr'),
+                ),
+                timeout=float(timeout_s),
             )
+            await proc.wait()
         except asyncio.TimeoutError:
             try:
                 proc.kill()
@@ -783,13 +811,14 @@ async def terminal_run(data: dict) -> dict:
                 'lastCommandOutput': f'[timeout after {timeout_s}s]',
                 'lastCommandElapsedMs': elapsed,
             })
+            await _emit_chunk(f'[NEXUS] timeout après {timeout_s}s\n', 'stderr')
             return {'ok': False, 'job_id': jid, 'error': f'timeout après {timeout_s}s',
                     'command': cmd, 'cwd': cwd, 'elapsed_ms': elapsed}
 
         elapsed = round((time.monotonic() - t0) * 1000)
         rc      = proc.returncode
-        stdout  = stdout_b.decode('utf-8', errors='replace').strip()
-        stderr  = stderr_b.decode('utf-8', errors='replace').strip()
+        stdout  = ''.join(stdout_chunks).strip()
+        stderr  = ''.join(stderr_chunks).strip()
         ok      = rc == 0
 
         # Keep last 4000 chars of stdout, 1000 of stderr

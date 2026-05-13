@@ -21,7 +21,7 @@ export async function logDocumentAccess(ev: DocumentAccessEvent): Promise<void> 
   console.log(line);
 
   try {
-    await supabase.from('document_access_logs').insert({
+    const { error } = await supabase.from('document_access_logs').insert({
       user_id:      ev.user_id,
       action:       ev.action,
       doc_type:     ev.doc_type,
@@ -32,7 +32,10 @@ export async function logDocumentAccess(ev: DocumentAccessEvent): Promise<void> 
       ip:           ev.ip ?? null,
       created_at:   ev.timestamp,
     });
-  } catch {
-    // Table may not exist yet — log to console only, non-blocking
+    if (error) {
+      console.error(`[DOC_ACCESS_LOG] Supabase insert failed: ${error.message} (code=${error.code}) — create table document_access_logs if missing`);
+    }
+  } catch (err: unknown) {
+    console.error('[DOC_ACCESS_LOG] Unexpected error writing access log:', err);
   }
 }

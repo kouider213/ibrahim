@@ -591,7 +591,7 @@ class NexusWSClient:
         @sio.on('nexus:terminal_run', namespace='/nexus')
         async def on_terminal_run(data: dict):
             from .os_agent import terminal_run
-            return await terminal_run(data)
+            return await terminal_run(data, sio)
 
         @sio.on('nexus:claude_code_start', namespace='/nexus')
         async def on_claude_code_start(data: dict):
