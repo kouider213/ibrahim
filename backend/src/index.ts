@@ -103,6 +103,55 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// ── /api/marketing/video — déclenchement direct d'une vidéo marketing ───────
+// POST body: { car_name, style, custom_script, background_effect, chat_id? }
+// Authentification : Bearer MOBILE_ACCESS_TOKEN
+app.post('/api/marketing/video', apiLimiter, async (req: express.Request, res: express.Response): Promise<void> => {
+  // Auth
+  const authHeader = req.headers['authorization'] ?? '';
+  const token      = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!token || !validateToken(token, 'mobile')) {
+    res.status(401).json({ ok: false, error: 'Unauthorized — Bearer MOBILE_ACCESS_TOKEN requis' });
+    return;
+  }
+
+  const {
+    car_name,
+    style,
+    custom_script,
+    background_effect,
+    chat_id,
+  } = req.body as {
+    car_name?:          string;
+    style?:             'reveal' | 'prix' | 'lifestyle' | 'temoignage';
+    custom_script?:     string;
+    background_effect?: string;
+    chat_id?:           string;
+  };
+
+  const targetChatId = chat_id ?? env.TELEGRAM_CHAT_ID ?? '809747124';
+
+  try {
+    const { triggerMarketingVideo } = await import('./marketing/run-video-job.js');
+    // Fire-and-forget — la vidéo est livrée via Telegram
+    triggerMarketingVideo(
+      { car_name, style, custom_script, background_effect },
+      targetChatId,
+    ).catch((err: unknown) => {
+      console.error('[marketing/video] background job failed:', err instanceof Error ? err.message : String(err));
+    });
+
+    res.json({
+      ok:       true,
+      message:  `Vidéo marketing lancée — ${car_name ?? 'voiture auto'} (${style ?? 'reveal'}, fond: ${background_effect ?? 'aucun'})`,
+      chat_id:  targetChatId,
+      note:     'La vidéo sera envoyée sur Telegram dans 30-120 secondes selon la charge.',
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── /test_fal — test fal.ai connectivity ─────────────────────
 app.get('/test_fal', async (_req, res) => {
   const falKey = process.env.FAL_KEY || process.env.FAL_API_KEY;
