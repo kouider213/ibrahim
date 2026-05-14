@@ -56,9 +56,9 @@ export interface MarketingVideoResult {
 
 // ─── Constantes ───────────────────────────────────────────────
 
-/** Résolution cible : 9:16 TikTok full-HD */
-const W = 1080;
-const H = 1920;
+/** Résolution cible : 9:16 TikTok — 720p pour Railway (moins de RAM) */
+const W = 720;
+const H = 1280;
 
 const HASHTAGS = ['#locationvoiture', '#oran', '#algerie', '#fikconcierge', '#mre', '#tiktokalgerie'];
 
@@ -248,7 +248,6 @@ function buildVideo1080(params: FFmpegParams): Promise<void> {
     const bin = ffmpegPath as string | null;
     if (!bin) { reject(new Error('ffmpeg-static not found')); return; }
 
-    const frames       = Math.max(Math.ceil(duration * 25), 50);
     const fadeStart    = Math.max(duration - 0.8, 0.5).toFixed(2);
     const hasFont      = Boolean(fontPath);
     const fp           = fontPath ? `'${fontPath}'` : '';
@@ -280,11 +279,10 @@ function buildVideo1080(params: FFmpegParams): Promise<void> {
       args.push('-loop', '1', '-i', carImagePath);      // [1] voiture
       if (audioPath) args.push('-i', audioPath);         // [2] audio
 
-      // Fond : scale + Ken Burns doux + color grade
+      // Fond : scale + color grade (zoompan retiré — trop lourd sur Railway)
       const bgFilter = [
         `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase`,
         `crop=${W}:${H}`,
-        `zoompan=z='min(zoom+0.0002,1.05)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${W}x${H}:fps=25`,
         `eq=saturation=1.1:contrast=1.03[bg]`,
       ].join(',');
 
@@ -320,7 +318,6 @@ function buildVideo1080(params: FFmpegParams): Promise<void> {
       const videoFilters = [
         `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase`,
         `crop=${W}:${H}`,
-        `zoompan=z='min(zoom+0.0008,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${W}x${H}:fps=25`,
         `eq=saturation=1.6:contrast=1.18:brightness=0.06:gamma=1.1`,
         `vignette=angle=PI/4`,
         hasFont ? textFilters : '',

@@ -37,6 +37,7 @@ import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
 import {
   sendMessage as sendTelegramForMarketing,
   sendPhoto as sendTelegramPhoto,
+  sendPhotoBuffer as sendTelegramPhotoBuffer,
   sendVoiceBuffer,
   sendVideoBuffer,
 } from './telegram.js';
@@ -1697,16 +1698,41 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
 
   // ── Envoi Telegram ────────────────────────────────────────────
   let videoActuallySent = false;
+  let photoActuallySent = false;
+
+  // Download car image buffer once for use in fallbacks
+  let carImgBuf: Buffer | null = null;
+  try {
+    const imgResp = await axios.get(car.image_url, { responseType: 'arraybuffer', timeout: 20_000 });
+    carImgBuf = Buffer.from(imgResp.data as ArrayBuffer);
+  } catch {
+    console.error('[tool:create_marketing_video] car image download failed');
+  }
+
   if (videoBuffer) {
     try {
       await sendVideoBuffer(chatId, videoBuffer, approvalMsg);
       videoActuallySent = true;
     } catch (sendErr) {
       console.error('[tool:create_marketing_video] sendVideoBuffer failed:', sendErr instanceof Error ? sendErr.message : sendErr);
-      await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+      if (carImgBuf) {
+        try {
+          await sendTelegramPhotoBuffer(chatId, carImgBuf, approvalMsg);
+          photoActuallySent = true;
+        } catch (photoErr) {
+          console.error('[tool:create_marketing_video] photo fallback failed:', photoErr instanceof Error ? photoErr.message : photoErr);
+        }
+      }
     }
   } else {
-    await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    if (carImgBuf) {
+      try {
+        await sendTelegramPhotoBuffer(chatId, carImgBuf, approvalMsg);
+        photoActuallySent = true;
+      } catch (photoErr) {
+        console.error('[tool:create_marketing_video] photo send failed:', photoErr instanceof Error ? photoErr.message : photoErr);
+      }
+    }
   }
 
   // Envoyer la voix séparément seulement si la vidéo n'a pas pu être générée
@@ -1718,9 +1744,11 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
   if (videoActuallySent) {
     resultMsg = `✅ Vidéo ${method} créée et envoyée ↑ (ID: ${pendingId}). En attente de ta validation.`;
   } else if (videoBuffer) {
-    resultMsg = `⚠️ Vidéo générée mais envoi Telegram échoué — photo envoyée à la place ↑ (ID: ${pendingId}). En attente de ta validation.`;
+    resultMsg = `⚠️ Vidéo générée mais envoi Telegram échoué${photoActuallySent ? ' — photo envoyée ↑' : ''} (ID: ${pendingId}).`;
+  } else if (photoActuallySent) {
+    resultMsg = `❌ Vidéo IA non générée — photo envoyée à la place ↑ (ID: ${pendingId}). Demande "fais une vidéo FFmpeg" pour forcer FFmpeg.`;
   } else {
-    resultMsg = `Je n'ai pas pu créer la vidéo. La génération a échoué (Kling IA et FFmpeg ont tous les deux échoué). Une photo + voix ont été envoyées à la place ↑ (ID: ${pendingId}).`;
+    resultMsg = `❌ Vidéo non créée et envoi Telegram échoué. Kling IA et FFmpeg ont tous les deux échoué. Vérifie les logs Railway.`;
   }
   return resultMsg.substring(0, 3000);
 }
