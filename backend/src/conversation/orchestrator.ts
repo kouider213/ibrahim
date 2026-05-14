@@ -250,7 +250,7 @@ export async function processMessage(
     agentRoute.agent = historyAgent;
   }
   const agentSystemExtra = buildAgentSystem(agentRoute, ctx.systemExtra);
-  console.log(`[agent] ${agentRoute.label} — ${agentRoute.agentTools?.length ?? 'all'} tools`);
+  console.log(`[agent] ${agentRoute.label} — ${agentRoute.agentTools?.length ?? 'all'} tools — history_override=disabled`);
 
   // 3. Claude répond avec Tool Streaming temps réel
   let response: Awaited<ReturnType<typeof chatWithTools>>;
