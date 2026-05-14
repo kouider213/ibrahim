@@ -928,24 +928,22 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   const SUPA_URL = env['SUPABASE_URL' as keyof typeof env] as string;
   const SUPA_KEY = env['SUPABASE_SERVICE_KEY' as keyof typeof env] as string;
 
-  const params = new URLSearchParams();
-  params.set('select', 'id,client_name,client_phone,type,file_url,storage_path,notes,extracted_data,created_at');
-  params.set('order', 'created_at.desc');
-  params.set('limit', '5');
-
-  // Build filters
   const clientName = input['client_name'] as string | undefined;
   const clientPhone = input['client_phone'] as string | undefined;
   const docType = input['type'] as string | undefined;
 
-  if (clientName)  params.set('client_name', `ilike.*${clientName}*`);
-  if (clientPhone) params.set('client_phone', `ilike.*${clientPhone}*`);
-  if (docType)     params.set('type', `eq.${docType}`);
-
   console.log(`[get_client_document] query: client_name=${clientName} phone=${clientPhone} type=${docType}`);
 
+  // Build URL manually — URLSearchParams encodes * to %2A which breaks PostgREST ilike syntax
+  const select = 'id,client_name,client_phone,type,file_url,storage_path,notes,extracted_data,created_at';
+  const filters: string[] = [];
+  if (clientName)  filters.push(`client_name=ilike.*${clientName}*`);
+  if (clientPhone) filters.push(`client_phone=ilike.*${clientPhone}*`);
+  if (docType)     filters.push(`type=eq.${docType}`);
+  const filterStr = filters.length ? `&${filters.join('&')}` : '';
+  const restUrl = `${SUPA_URL}/rest/v1/client_documents?select=${select}&order=created_at.desc&limit=5${filterStr}`;
+
   const { default: axiosModule } = await import('axios');
-  const restUrl = `${SUPA_URL}/rest/v1/client_documents?${params.toString()}`;
 
   type DocRow = { id: string; client_name: string; client_phone: string; type: string; file_url: string; storage_path: string; notes?: string; extracted_data?: Record<string, unknown>; created_at: string };
   let docs: DocRow[] = [];
