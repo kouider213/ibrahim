@@ -132,6 +132,29 @@ export async function sendVideoBuffer(
   }
 }
 
+export async function sendPhotoBuffer(
+  chatId: number | string,
+  buffer: Buffer,
+  caption?: string,
+): Promise<void> {
+  if (!getToken()) return;
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('photo', buffer, { filename: 'photo.jpg', contentType: 'image/jpeg', knownLength: buffer.length });
+  if (caption) { form.append('caption', caption); form.append('parse_mode', 'Markdown'); }
+  try {
+    await axios.post(`${base()}/sendPhoto`, form, {
+      headers: { ...form.getHeaders() },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 30_000,
+    });
+  } catch (err) {
+    console.error('[telegram] sendPhotoBuffer failed:', err instanceof Error ? err.message : String(err));
+    throw err;
+  }
+}
+
 export async function sendVoiceBuffer(
   chatId: number | string,
   buffer: Buffer,
