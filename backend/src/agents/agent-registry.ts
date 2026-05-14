@@ -108,7 +108,7 @@ ENREGISTREMENT DOCUMENT:
     'store_document','get_client_document','send_whatsapp_to_client','send_telegram_message',
     'rate_client','record_feedback',
   ],
-  keywords:  /\b(client|document|contrat|passeport|permis|whatsapp|sms|message|envoyer|notif|noter|évaluation|historique client)\b/i,
+  keywords:  /\b(client|document|contrat|passep|passeport|paseport|pasport|passport|permis|permi|identit|whatsapp|sms|message|envoyer|envoi|notif|noter|évaluation|historique\s+client)\b/i,
   priority:  8,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1200 },
 };
