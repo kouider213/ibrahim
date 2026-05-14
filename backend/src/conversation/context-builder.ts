@@ -205,7 +205,15 @@ export async function buildContext(
     : '';
 
   const financeText = financeReport
-    ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):\nTotal réservations: ${financeReport.totalBookings} | Kouider: ${financeReport.kouiderBookings} résa | Houari: ${financeReport.houariBookings} résa\nBÉNÉFICE KOUIDER: ${financeReport.kouiderProfit}€ | REVENU HOUARI: ${financeReport.ownerTotal}€\nDÉTAIL:\n${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | ${b.final_price}€ total | ${b.rented_by === 'Kouider' ? `K+${b.kouider_profit}€` : `H100%`}`).join('\n')}`
+    ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):
+IMPORTANT: Toutes les réservations sont gérées par KOUIDER. Houari = propriétaire des voitures (fournisseur). "Coût payé à Houari" = ce que Kouider verse au propriétaire par jour × nb jours. Ce n'est PAS un revenu séparé de Houari.
+Total: ${financeReport.totalBookings} réservations gérées par Kouider
+CA BRUT (prix réels clients): ${financeReport.grossCA}€
+COÛT PAYÉ À HOUARI (owner_price × nb_jours): ${financeReport.ownerTotal}€
+BÉNÉFICE NET KOUIDER: ${financeReport.kouiderProfit}€
+${financeReport.missingOwnerPrice > 0 ? `⚠️ ${financeReport.missingOwnerPrice} résa sans owner_price_per_day → bénéfice partiel` : ''}
+DÉTAIL:
+${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | client: ${b.client_price_per_day ?? '?'}€/j — Houari: ${b.owner_price_per_day ?? '?'}€/j | Total client: ${b.final_price ?? '?'}€ | Bénéfice Kouider: ${b.kouider_profit != null ? `${b.kouider_profit}€` : '❓ (owner_ppd manquant)'}`).join('\n')}`
     : '';
 
   const memResult = memories as MemoryContextResult;
