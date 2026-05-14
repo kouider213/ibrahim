@@ -235,7 +235,7 @@ async function _dispatch(
       case 'add_background_music':
       case 'create_video_preview':       return await executeMediaTool(name, input);
       // ─── MARKETING TIKTOK ───
-      case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId);
+      case 'run_tiktok_research':        return await runTikTokResearchTool(sessionId, input);
       case 'generate_tiktok_video':      return await createMarketingVideoTool(input, sessionId);
       case 'create_marketing_video':     return await createMarketingVideoTool(input, sessionId);
       case 'edit_marketing_video':       return await editMarketingVideoTool(input, sessionId);
@@ -1561,8 +1561,10 @@ function sanitizeCustomScript(raw?: string): string | undefined {
     .slice(0, 500);
 }
 
-async function runTikTokResearchTool(sessionId?: string): Promise<string> {
-  const chatId = chatIdFromSession(sessionId);
+async function runTikTokResearchTool(sessionId?: string, input?: Record<string, unknown>): Promise<string> {
+  const chatId      = chatIdFromSession(sessionId);
+  const carFocus    = input?.['car_focus'] as string | undefined;
+  const extraTags   = input?.['hashtags'] as string[] | undefined;
 
   const { data: carsRaw } = await supabase.from('cars').select('*').eq('available', true);
   const cars = (carsRaw ?? []) as Car[];
@@ -1571,9 +1573,10 @@ async function runTikTokResearchTool(sessionId?: string): Promise<string> {
     return '⚠️ Aucune voiture disponible pour la recherche marketing.';
   }
 
-  await sendTelegramForMarketing(chatId, '🔍 *Dzaryx Marketing*\nRecherche TikTok lancée... ⏳');
+  const focusLabel = carFocus ? ` — focus: ${carFocus}` : '';
+  await sendTelegramForMarketing(chatId, `🔍 *Dzaryx Marketing*\nRecherche TikTok lancée${focusLabel}... ⏳`);
 
-  const report = await runTikTokMarketResearch(cars);
+  const report = await runTikTokMarketResearch(cars, carFocus, extraTags);
 
   const qualityBadge = report.data_quality === 'real'    ? '✅ DONNÉES RÉELLES'
                      : report.data_quality === 'partial'  ? '⚠️ DONNÉES PARTIELLES'
@@ -2563,21 +2566,27 @@ function formatTikTokItems(items: any[]): string {
 }
 
 async function analyzeCompetitors(input: Record<string, unknown>, sessionId: string): Promise<string> {
-  const competitor = input['competitor'] as string | undefined;
-  const makeVideo  = input['generate_counter_video'] as boolean | undefined;
-  const chatId     = chatIdFromSession(sessionId);
+  const competitor      = input['competitor'] as string | undefined;
+  const extraHashtags   = input['hashtags'] as string[] | undefined;
+  const carFocus        = input['car_focus'] as string | undefined;
+  const makeVideo       = input['generate_counter_video'] as boolean | undefined;
+  const chatId          = chatIdFromSession(sessionId);
 
   // ── Notification de démarrage ──────────────────────────────
+  const focusLabel = competitor ? `_Cible: ${competitor}_` : carFocus ? `_Focus: ${carFocus}_` : '_Scan général: location voiture Oran_';
   await sendTelegramForMarketing(chatId,
-    `🕵️ *Veille concurrentielle lancée*\n${competitor ? `_Cible: ${competitor}_` : '_Scan général: location voiture Oran_'}\n⏳ Recherche web en cours...`
+    `🕵️ *Veille concurrentielle lancée*\n${focusLabel}\n⏳ 10 recherches en cours...`
   ).catch(() => {});
+
+  // ── Hashtags contextuels ───────────────────────────────────
+  const baseHashtags = ['locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture', 'oranalgerie', 'locationaeroport', 'mre2025'];
+  const carHashtags  = carFocus ? [`${carFocus.toLowerCase().replace(/\s+/g, '')}oran`, carFocus.toLowerCase().replace(/\s+/g, '')] : [];
+  const TIKTOK_HASHTAGS = [...new Set([...baseHashtags, ...carHashtags, ...(extraHashtags ?? [])])];
 
   // ── Sources à scraper ──────────────────────────────────────
   const COMPETITOR_HANDLES = competitor
     ? [competitor.replace('@', '').trim()]
     : ['didanolocation', 'locationoranalgerie', 'orancar', 'autolocationoran'];
-
-  const TIKTOK_HASHTAGS = ['locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture', 'oranalgerie'];
 
   let tiktokData = '';
 
@@ -2610,47 +2619,47 @@ async function analyzeCompetitors(input: Record<string, unknown>, sessionId: str
     }
   }
 
-  // ── Fallback multi-sources web (sans APIFY ou complément) ──
+  // ── Multi-source web search (DDG + Bing + Google API) ─────
   if (!tiktokData || tiktokData === 'Aucun résultat TikTok trouvé.') {
-    const searches: Array<Promise<string>> = [];
-
-    // 1. Recherches TikTok via Jina (moteur de recherche)
-    const tiktokQueries = competitor
-      ? [`tiktok ${competitor} location voiture oran`, `site:tiktok.com ${competitor}`]
+    // Build contextual queries based on competitor/car focus
+    const hashtagStr = TIKTOK_HASHTAGS.slice(0, 4).map(h => `#${h}`).join(' ');
+    const webQueries = competitor
+      ? [
+          `${competitor} oran location voiture algerie 2025`,
+          `tiktok ${competitor} location voiture oran`,
+          `${competitor} facebook instagram oran location`,
+          `location voiture oran algerie tarifs 2025 concurrents`,
+          `agence location voiture oran algerie avis google maps`,
+        ]
       : [
-          'tiktok location voiture oran algerie hashtag',
-          'site:tiktok.com locationoran locationvoitureoran',
-          'tiktok didanolocation location oran algerie',
+          'didanolocation oran location voiture algerie 2025',
+          `tiktok ${hashtagStr} location voiture oran algerie`,
+          'location voiture oran facebook instagram promo tarifs 2025',
+          'youtube location voiture oran algerie 2025',
+          'location voiture oran algerie tarifs prix journalier 2025',
+          'agence location voiture oran algerie avis google maps',
+          'location voiture aeroport ahmed ben bella oran algerie prix',
+          carFocus ? `tiktok #${carFocus.toLowerCase().replace(/\s+/g, '')} location voiture oran algerie` : 'location voiture oran mre été 2025 pas cher',
         ];
 
-    for (const q of tiktokQueries) {
-      searches.push(jSearch(q, 2000));
+    const results = await Promise.all(webQueries.map(q => jSearch(q, 1500)));
+    const validResults = results.filter(r => r && r.length > 80 && !r.includes('NO_DATA'));
+
+    // Complément: fetch TikTok profil direct via Jina (souvent vide mais vaut le coup)
+    const profileFetch = await jFetch(`https://www.tiktok.com/@${COMPETITOR_HANDLES[0]}`, 1200)
+      .then(txt => txt.length > 100 ? `\n--- PROFIL @${COMPETITOR_HANDLES[0]} (TikTok) ---\n${txt}` : '');
+
+    tiktokData = [
+      `[SOURCES WEB — ${validResults.length}/${webQueries.length} avec données]`,
+      ...webQueries.map((q, i) => `[${q}]\n${results[i]?.slice(0, 800) ?? 'no data'}`),
+      profileFetch,
+    ].filter(Boolean).join('\n\n---\n\n').slice(0, 10000);
+
+    if (validResults.length === 0) {
+      tiktokData = `⚠️ Données web limitées cette semaine — ${webQueries.length} requêtes, 0 résultat concret. TikTok et certaines agences locales ne sont pas indexés.`;
     }
 
-    // 2. Pages TikTok directes des concurrents connus
-    const profileFetches = COMPETITOR_HANDLES.slice(0, 3).map(h =>
-      jFetch(`https://www.tiktok.com/@${h}`, 1500)
-        .then(txt => `\n--- PROFIL @${h} ---\n${txt}`)
-        .catch(() => `\n--- @${h}: inaccessible ---\n`)
-    );
-    searches.push(...profileFetches);
-
-    // 3. Recherches Google sur les concurrents à Oran
-    searches.push(jSearch('location voiture oran prix tarifs 2024 2025 concurrents', 1500));
-    searches.push(jSearch('agence location voiture oran algerie avis google maps', 1500));
-
-    // 4. Facebook/Instagram (souvent plus accessibles)
-    searches.push(jSearch('facebook location voiture oran algerie promo prix', 1500));
-
-    const results = await Promise.all(searches);
-    tiktokData = results
-      .filter(r => r && r.length > 50 && !r.includes('Aucun résultat'))
-      .join('\n\n---\n\n')
-      .slice(0, 8000);
-
-    if (!tiktokData || tiktokData.length < 100) {
-      tiktokData = '⚠️ Données web limitées — TikTok bloque le scraping. Analyse basée sur les bonnes pratiques du marché.';
-    }
+    console.log(`[analyze-competitors] web_search: ${validResults.length}/${webQueries.length} résultats valides`);
   }
 
   const pricing = formatPricingTable();

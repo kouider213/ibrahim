@@ -123,7 +123,7 @@ Génère en JSON valide :
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export async function runTikTokMarketResearch(cars: Car[]): Promise<MarketResearchReport> {
+export async function runTikTokMarketResearch(cars: Car[], carFocus?: string, extraHashtags?: string[]): Promise<MarketResearchReport> {
   const week   = new Date().toISOString().slice(0, 10);
   const month  = new Date().getMonth() + 1;
   const season = getSeasonalContext(month);
@@ -132,7 +132,7 @@ export async function runTikTokMarketResearch(cars: Car[]): Promise<MarketResear
   // ── Step 1: Scrape real TikTok data ─────────────────────────────────────────
   let tiktokData: TikTokRealData;
   try {
-    tiktokData = await scrapeTikTokForOranCars();
+    tiktokData = await scrapeTikTokForOranCars(carFocus, extraHashtags);
   } catch (err) {
     tiktokData = {
       source:        'unavailable',

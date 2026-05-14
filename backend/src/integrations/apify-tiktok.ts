@@ -157,14 +157,24 @@ function aggregate(videos: TikTokVideo[], hashtags: string[], profiles: string[]
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-const HASHTAGS  = ['locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture', 'oranalgerie', 'algerie'];
+const HASHTAGS  = [
+  'locationoran', 'locationvoitureoran', 'voitureoran', 'locationvoiture',
+  'oranalgerie', 'algerie', 'locationaeroport', 'mre2025', 'oranete2025',
+  'voitureoranalgerie', 'mreoran', 'locationalgerie', 'fikconcierge',
+];
 const PROFILES  = ['didanolocation', 'locationoranalgerie', 'orancar', 'autolocationoran'];
 
-export async function scrapeTikTokForOranCars(): Promise<TikTokRealData> {
+export async function scrapeTikTokForOranCars(carFocus?: string, extraHashtags?: string[]): Promise<TikTokRealData> {
+  // Build contextual hashtag list
+  const carTags = carFocus
+    ? [carFocus.toLowerCase().replace(/\s+/g, ''), `${carFocus.toLowerCase().replace(/\s+/g, '')}oran`]
+    : [];
+  const allHashtags = [...new Set([...HASHTAGS, ...carTags, ...(extraHashtags ?? [])])];
+
   if (!env.APIFY_API_KEY) {
     return {
       source: 'unavailable', scrapedAt: new Date().toISOString(),
-      hashtags: HASHTAGS, profiles: PROFILES,
+      hashtags: allHashtags, profiles: PROFILES,
       videos: [], topHashtags: [], topAuthors: [], avgEngagement: null,
       error: 'APIFY_API_KEY absent — données TikTok réelles non disponibles',
     };
@@ -173,7 +183,7 @@ export async function scrapeTikTokForOranCars(): Promise<TikTokRealData> {
   // Hashtags + profils concurrents en parallèle
   const [hashItems, profItems] = await Promise.all([
     apifyRun('clockworks~tiktok-scraper', {
-      hashtags: HASHTAGS, resultsPerPage: 20,
+      hashtags: allHashtags, resultsPerPage: 20,
       shouldDownloadVideos: false, shouldDownloadCovers: false,
     }).catch((): unknown[] => []),
     apifyRun('clockworks~tiktok-scraper', {
@@ -186,13 +196,13 @@ export async function scrapeTikTokForOranCars(): Promise<TikTokRealData> {
   if (!all.length) {
     return {
       source: 'unavailable', scrapedAt: new Date().toISOString(),
-      hashtags: HASHTAGS, profiles: PROFILES,
+      hashtags: allHashtags, profiles: PROFILES,
       videos: [], topHashtags: [], topAuthors: [], avgEngagement: null,
       error: 'APIFY run retourné 0 résultats (TikTok anti-scraping actif ou acteur épuisé)',
     };
   }
 
-  return aggregate(all.map(parseVideo), HASHTAGS, PROFILES);
+  return aggregate(all.map(parseVideo), allHashtags, PROFILES);
 }
 
 // ── Formatter for Claude prompt ───────────────────────────────────────────────

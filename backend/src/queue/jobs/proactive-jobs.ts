@@ -856,20 +856,43 @@ export async function jobWhatsAppReturnReminders(_job: Job): Promise<void> {
 export async function jobCompetitorWatch(_job: Job): Promise<void> {
   console.log('[job:competitor-watch] Démarrage veille concurrence...');
   try {
-    const queries = [
-      'didanolocation tiktok location voiture oran promo',
-      'location voiture oran tiktok video récente',
-      'location voiture oran telegram prix promo',
-      'concurrence location auto oran algerie',
+    const { multiProviderWebSearch } = await import('../../integrations/web-search-provider.js');
+
+    // 10 recherches parallèles — sources diversifiées (DDG + Bing + Google API)
+    const SEARCH_QUERIES = [
+      // Concurrents identifiés — présence réelle web
+      'didanolocation oran location voiture algerie 2025',
+      'agence location voiture oran algerie avis google maps tarifs',
+      // TikTok — pages indexées par moteurs de recherche
+      'tiktok #locationoran #locationvoitureoran location voiture algerie',
+      'tiktok location voiture oran hashtag viral 2025',
+      // Facebook/Instagram — plus accessibles que TikTok
+      'location voiture oran facebook promo tarifs 2025',
+      'location voiture oran instagram pas cher mre été 2025',
+      // YouTube — bien indexé
+      'youtube location voiture oran algerie 2025',
+      // Aéroport + MRE — segment fort Fik Conciergerie
+      'location voiture aeroport ahmed ben bella oran algerie prix',
+      'location voiture oran mre été 2025 tarifs pas cher',
+      // Prix marché
+      'location auto oran algerie tarif comparaison prix journalier',
     ];
 
-    const results = await Promise.all(queries.map(async q => {
-      const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(q)}`, {
-        headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none' },
-        timeout: 15_000,
-      }).catch(() => ({ data: '' }));
-      return `[${q}]\n${(typeof data === 'string' ? data : '').slice(0, 1200)}`;
-    }));
+    const searchResults = await Promise.allSettled(
+      SEARCH_QUERIES.map(q => multiProviderWebSearch(q).then(r => ({ q, text: r.text, source: r.source, chars: r.results_count }))),
+    );
+
+    const results = searchResults
+      .map((r, i) => {
+        if (r.status === 'rejected') return `[${SEARCH_QUERIES[i]}]\n❌ Erreur recherche`;
+        const { q, text, source, chars } = r.value;
+        const preview = text.slice(0, 1000);
+        return `[${q}] (source:${source} results:${chars})\n${preview}`;
+      });
+
+    // Filtrer les résultats vides
+    const validResults = results.filter(r => !r.includes('NO_DATA') && r.length > 80);
+    console.log(`[job:competitor-watch] ${validResults.length}/${SEARCH_QUERIES.length} recherches avec données`);
 
     const { formatPricingTable } = await import('../../config/pricing.js');
     const pricing = formatPricingTable();
@@ -877,40 +900,46 @@ export async function jobCompetitorWatch(_job: Job): Promise<void> {
     const { data: carsRaw } = await supabase.from('cars').select('name, resale_price').eq('available', true);
     const availableNames = (carsRaw ?? []).map((c: any) => `${(c as { name: string; resale_price: number }).name} (${(c as { name: string; resale_price: number }).resale_price}€/j)`).join(', ');
 
+    const hasRealData = validResults.length >= 2;
+    const dataLabel = `${validResults.length}/${SEARCH_QUERIES.length} sources avec données réelles`;
+
     const analysis = await chat([{
       role: 'user',
       content: `Tu es Dzaryx, assistant IA de Fik Conciergerie Oran.
 Analyse la concurrence location voiture Oran pour cette semaine.
+RÈGLE ABSOLUE: cite uniquement des faits extraits des données ci-dessous. N'invente AUCUN chiffre, concurrent, hashtag ou prix.
+Si une section manque de données, écris "données non disponibles cette semaine" pour cette section.
 
-RÉSULTATS RECHERCHE WEB:
-${results.join('\n\n---\n\n')}
+DONNÉES COLLECTÉES (${dataLabel}):
+${validResults.length > 0 ? validResults.join('\n\n---\n\n') : '⚠️ Aucune donnée concrète récupérée cette semaine.'}
 
-NOS PRIX (prix Kouider):
+NOS PRIX (prix Kouider — source interne):
 ${pricing}
 
 NOS VOITURES DISPONIBLES: ${availableNames || 'Toute la flotte'}
 
-Donne un rapport court en français pour Telegram (markdown):
+Rapport pour Telegram (markdown, 12 lignes max):
 
-🕵️ **CE QUE FONT LES CONCURRENTS CETTE SEMAINE**
-(promos, prix trouvés, vidéos TikTok, contenus Telegram)
+🕵️ **CONCURRENTS DÉTECTÉS**
+(noms réels trouvés dans les données — sinon "aucun concurrent identifié cette semaine")
 
-📊 **ON EST COMPÉTITIF ?**
-(sur quels modèles oui/non, et à quel prix)
+💰 **PRIX CONCURRENTS TROUVÉS**
+(chiffres exacts des données — sinon "prix non disponibles")
+
+📱 **HASHTAGS & TENDANCES RÉELS**
+(hashtags ou tendances trouvés dans les données — ex: #locationoran, #mre2025 — sinon "non disponible")
 
 ⚡ **ACTION IMMÉDIATE**
-(une seule chose concrète à faire MAINTENANT)
-
-Si aucune info concrète trouvée: dis-le clairement et propose une stratégie proactive.
-Format court, 10 lignes max.`,
+(une action basée sur les données — si pas de données, basée sur notre positionnement prix)`,
     }], undefined);
 
     const msg = [
       `🕵️ *VEILLE CONCURRENCE — ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}*`,
+      hasRealData ? `📊 _${dataLabel}_` : `⚠️ _Données limitées cette semaine (${dataLabel})_`,
       ``,
       analysis.text,
       ``,
-      `💡 _Réponds "vidéo concurrence" pour que je crée une contre-pub, ou "analyse didanolocation" pour cibler un concurrent._`,
+      `💡 _Dis "analyse didanolocation" ou "vidéo concurrence" pour aller plus loin._`,
     ].join('\n');
 
     await tg(msg);
