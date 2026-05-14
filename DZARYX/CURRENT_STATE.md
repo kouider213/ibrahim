@@ -76,14 +76,26 @@ Après ce fix :
 ## Stack rapide
 
 ```
-Backend  : Node.js TypeScript / Express / Railway
-DB       : Supabase (PostgreSQL)
-Cache    : Upstash Redis
-AI       : Claude Sonnet 4.6 (primary)
-Mobile   : React 18 PWA (Vite)
-PC Agent : Python (Nexus) — tourne sur PC Kouider
-Telegram : canal principal Kouider
+Backend   : Node.js TypeScript / Express / Railway (auto-deploy push main)
+DB        : Supabase (PostgreSQL)
+Cache     : Upstash Redis
+AI        : Claude Sonnet 4.6 (primary) + OpenAI/Gemini/Groq fallback
+Mobile    : React 18 PWA (Vite + Tailwind) — Netlify
+PC Agent  : Python Nexus (nexus/) — tourne sur PC Kouider, namespace /nexus
+PC Agent2 : TypeScript pc-agent (pc-agent/) — namespace /pc
+Telegram  : canal principal Kouider
+Flight Bot: Python séparé (flight-bot/) — vols personnels Kouider
 ```
+
+## État des composants
+
+| Composant | Statut | Notes |
+|---|---|---|
+| backend/ | ✅ Déployé Railway | TypeScript 0 erreurs |
+| nexus/ (Python) | ✅ Tourne sur PC | Streaming SSE OK |
+| mobile/ (React) | ✅ Déployé Netlify | Dashboard + Chat |
+| pc-agent/ (TS) | ❓ Non vérifié | Alternative à Nexus |
+| flight-bot/ | ❓ Non vérifié | Indépendant |
 
 ---
 
