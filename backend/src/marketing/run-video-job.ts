@@ -48,10 +48,10 @@ async function notifyTelegram(chatId: string, msg: string): Promise<void> {
 
 /**
  * Déclenche le pipeline complet de création vidéo marketing :
- *  1. Recherche la voiture dans Supabase (Clio 5 Alpine)
- *  2. Utilise le script personnalisé + effet plage
- *  3. Synthèse voix ElevenLabs
- *  4. Montage FFmpeg HD 1080×1920 (voiture + fond plage Pexels + voix + overlays)
+ *  1. Recherche la voiture dans Supabase (ex: Jumpy 9 Places)
+ *  2. Génère un script IA Claude en style "reveal" (ou utilise custom_script)
+ *  3. Synthèse voix ElevenLabs (français)
+ *  4. Montage FFmpeg HD 720×1280 (voiture + fond Pexels optionnel + voix + overlays texte)
  *  5. Upload Supabase Storage bucket "videos"
  *  6. Envoie le MP4 sur Telegram pour validation Oke/Non
  *  7. Retourne les métadonnées de la vidéo
