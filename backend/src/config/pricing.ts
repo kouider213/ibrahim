@@ -6,6 +6,7 @@ export interface VehiclePricing {
 }
 
 export const VEHICLE_PRICING: VehiclePricing[] = [
+  { name: 'Jumpy 9 Places', houariPrice: 44, kouiderPrice: 55, benefit: 11 },
   { name: 'Jumpy 9p',      houariPrice: 44, kouiderPrice: 55, benefit: 11 },
   { name: 'Berlingo',      houariPrice: 44, kouiderPrice: 55, benefit: 11 },
   { name: 'Jogger',        houariPrice: 37, kouiderPrice: 50, benefit: 13 },
