@@ -240,14 +240,19 @@ export async function processMessage(
 
   // ── Phase 3: CoreRouter — pick specialized agent ──────────────────────────
   const agentRoute   = routeToAgent(userMessage) ?? { agent: null, agentTools: undefined, label: '🤖 Dzaryx' };
-  // If no agent matched but history implies a domain → keep context agent
-  if (!agentRoute.agent) {
-    const historyAgent = detectAgentFromHistory(ctx.messages);
-    if (historyAgent) {
-      const { Dzaryx_TOOLS } = await import('../integrations/tools.js');
-      agentRoute.agentTools = Dzaryx_TOOLS.filter((t: { name: string }) => historyAgent.toolNames.includes(t.name));
-      agentRoute.label = historyAgent.name;
-    }
+  // History agent check: no match → use history; lower-priority match → override with history if higher priority
+  const historyAgent = detectAgentFromHistory(ctx.messages);
+  if (!agentRoute.agent && historyAgent) {
+    const { Dzaryx_TOOLS } = await import('../integrations/tools.js');
+    agentRoute.agentTools = Dzaryx_TOOLS.filter((t: { name: string }) => historyAgent.toolNames.includes(t.name));
+    agentRoute.label = historyAgent.name;
+    agentRoute.agent = historyAgent;
+  } else if (agentRoute.agent && historyAgent && historyAgent.priority > agentRoute.agent.priority) {
+    // e.g. "Tu la mis sur l'agenda?" matches PLANNING_AGENT (p7) but booking history → override with BOOKING_AGENT (p10)
+    const { Dzaryx_TOOLS } = await import('../integrations/tools.js');
+    agentRoute.agentTools = Dzaryx_TOOLS.filter((t: { name: string }) => historyAgent.toolNames.includes(t.name));
+    agentRoute.label = historyAgent.name;
+    agentRoute.agent = historyAgent;
   }
   const agentSystemExtra = buildAgentSystem(agentRoute, ctx.systemExtra);
   console.log(`[agent] ${agentRoute.label} — ${agentRoute.agentTools?.length ?? 'all'} tools`);
