@@ -32,10 +32,8 @@ Le système financier est maintenant normalisé. Les profits s'affichent avec le
 
 ## Ce qui ne fonctionne pas / incomplet ❌
 
-### PRIORITÉ 1 — `create_booking` ne stocke pas client/owner price
-- **Fichier** : `backend/src/integrations/tool-executor.ts`
-- **Problème** : Quand Dzaryx crée une réservation via outil, `client_price_per_day` et `owner_price_per_day` ne sont pas stockés → profits manquants pour toutes les nouvelles résa
-- **Fix** : Chercher l'outil `create_booking` dans `tool-executor.ts` → ajouter ces 2 champs dans l'INSERT
+### ~~PRIORITÉ 1~~ ✅ FIXÉ — `create_booking` stocke maintenant client/owner price
+- Fix : `tool-executor.ts` INSERT enrichi + `tools.ts` schema mis à jour
 
 ### PRIORITÉ 2 — `checkAnomalies()` filtre dates incorrect
 - **Fichier** : `backend/src/integrations/phase5-finance.ts` ~ligne 440
@@ -51,12 +49,10 @@ Le système financier est maintenant normalisé. Les profits s'affichent avec le
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-**FIX B001** : `tool-executor.ts` → `create_booking` → ajouter `client_price_per_day` + `owner_price_per_day` dans l'INSERT Supabase.
+**FIX B002** : `checkAnomalies()` dans `phase5-finance.ts` ~ligne 440 — filtre dates incorrect (start_date seulement, pas overlap).
+Fix : `.lte('start_date', monthEnd).gte('end_date', monthStart)`
 
-Après ce fix :
-1. Tester : créer réservation via Dzaryx → vérifier dans Supabase les colonnes sont remplies
-2. Mettre à jour BUGS.md (B001 → FIXÉ)
-3. Mettre à jour CHANGELOG.md
+**FIX B003** : Cache Redis 30 min trop long — ajouter endpoint cache clear ou réduire TTL.
 
 ---
 

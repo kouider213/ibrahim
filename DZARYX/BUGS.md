@@ -8,12 +8,9 @@
 ## Bugs Ouverts 🔴
 
 ### B001 — `create_booking` ne stocke pas les prix réels
-- **Statut** : 🔴 OUVERT
-- **Priorité** : HAUTE
-- **Fichier** : `backend/src/integrations/tool-executor.ts`
-- **Description** : Quand Dzaryx crée une réservation via l'outil `create_booking`, il ne stocke pas `client_price_per_day` et `owner_price_per_day` dans Supabase. Ces colonnes existent maintenant dans la table `bookings` mais ne sont pas envoyées lors de la création.
-- **Impact** : Toutes les nouvelles réservations ont `owner_price_per_day = NULL` → profit = null → rapport financier incomplet.
-- **Fix attendu** : Dans `tool-executor.ts`, trouver l'outil `create_booking` et ajouter les champs `client_price_per_day` et `owner_price_per_day` dans l'INSERT Supabase.
+- **Statut** : ✅ FIXÉ — 2026-05-14
+- **Fichiers** : `backend/src/integrations/tool-executor.ts` + `backend/src/integrations/tools.ts`
+- **Fix** : INSERT Supabase enrichi avec `client_price_per_day`, `owner_price_per_day`, `owner_total`, `profit_kouider`, `discount_applied`, `nb_days`. Schema outil mis à jour — Claude sait maintenant qu'il doit fournir ces champs.
 
 ### B002 — Cache Redis 30 min bloque les tests live
 - **Statut** : 🔴 OUVERT

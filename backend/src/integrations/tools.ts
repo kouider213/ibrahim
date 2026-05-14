@@ -37,7 +37,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_booking',
-    description: 'Créer une nouvelle réservation dans Supabase.',
+    description: 'Créer une nouvelle réservation dans Supabase. IMPORTANT: toujours fournir client_price_per_day ET owner_price_per_day pour permettre le calcul du profit réel. Sans ces champs, le rapport financier ne peut pas calculer le bénéfice Kouider.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -47,7 +47,10 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         client_age:  { type: 'number', description: 'Âge du client' },
         start_date:  { type: 'string', description: 'YYYY-MM-DD' },
         end_date:    { type: 'string', description: 'YYYY-MM-DD' },
-        final_price: { type: 'number' },
+        final_price: { type: 'number', description: 'Prix total facturé au client (obligatoire)' },
+        client_price_per_day: { type: 'number', description: 'Prix négocié avec le client par jour (ex: 50). OBLIGATOIRE pour calcul profit.' },
+        owner_price_per_day:  { type: 'number', description: 'Prix payé à Houari par jour (ex: 44). OBLIGATOIRE pour calcul profit Kouider.' },
+        discount_applied:     { type: 'number', description: 'Remise accordée en euros (ex: 20). Défaut: 0' },
         notes:       { type: 'string' },
         rented_by:      { type: 'string', enum: ['Kouider','Houari'], description: 'Défaut: Kouider' },
         status:         { type: 'string', enum: ['PENDING','CONFIRMED','ACTIVE','COMPLETED','REJECTED'], description: 'Défaut: CONFIRMED. Utiliser COMPLETED pour les anciennes réservations terminées.' },

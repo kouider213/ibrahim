@@ -344,21 +344,37 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     return `❌ Voiture déjà réservée du ${input['start_date']} au ${input['end_date']}. Vérifie avec check_car_availability.`;
   }
 
+  // Calcul nb_days automatique
+  const nb_days = Math.max(1, Math.ceil(
+    (new Date(input['end_date'] as string).getTime() - new Date(input['start_date'] as string).getTime()) / 86_400_000,
+  ));
+
+  const client_ppd = input['client_price_per_day'] != null ? Number(input['client_price_per_day']) : null;
+  const owner_ppd  = input['owner_price_per_day']  != null ? Number(input['owner_price_per_day'])  : null;
+
   const { data, error } = await supabase
     .from('bookings')
     .insert({
-      car_id:         input['car_id'],
-      client_name:    input['client_name'],
-      client_phone:   input['client_phone'] ?? null,
-      client_age:     input['client_age']   ?? null,
-      start_date:     input['start_date'],
-      end_date:       input['end_date'],
-      final_price:    input['final_price'],
-      notes:          input['notes']        ?? null,
-      rented_by:      input['rented_by']    ?? 'Kouider',
+      car_id:               input['car_id'],
+      client_name:          input['client_name'],
+      client_phone:         input['client_phone']      ?? null,
+      client_age:           input['client_age']         ?? null,
+      start_date:           input['start_date'],
+      end_date:             input['end_date'],
+      nb_days,
+      final_price:          input['final_price'],
+      client_price_per_day: client_ppd,
+      owner_price_per_day:  owner_ppd,
+      owner_total:          owner_ppd != null ? Math.round(owner_ppd * nb_days * 100) / 100 : null,
+      profit_kouider:       (client_ppd != null && owner_ppd != null && (input['rented_by'] ?? 'Kouider') !== 'Houari')
+                              ? Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100
+                              : null,
+      discount_applied:     input['discount_applied']  != null ? Number(input['discount_applied']) : 0,
+      notes:                input['notes']              ?? null,
+      rented_by:            input['rented_by']          ?? 'Kouider',
       status,
-      payment_status: paymentStatus,
-      paid_amount:    Number(input['paid_amount'] ?? 0),
+      payment_status:       paymentStatus,
+      paid_amount:          Number(input['paid_amount'] ?? 0),
     })
     .select()
     .single();
