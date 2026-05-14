@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-05-14 — Session nuit (Claude Code / Sonnet 4.6)
+
+### B005 ✅ — Vidéo marketing réellement livrée dans Telegram
+- **Fichiers** : `backend/src/marketing/create-marketing-video.ts`, `backend/src/integrations/tool-executor.ts`
+- **Problème** : Bot disait "✅ Vidéo créée" mais rien dans Telegram. Causes : zoompan OOM Railway, `sendPhoto(URL)` silencieux, phantom guard trompé.
+- **Fix** :
+  - Résolution 1080×1920 → **720×1280** (moins RAM Railway)
+  - **Zoompan retiré** des deux branches FFmpeg (buildVideo1080)
+  - `sendPhotoBuffer` (buffer multipart) remplace `sendPhoto(URL)` dans tous fallbacks outer
+  - Messages échec commencent par `❌` → phantom guard bloque "✅ créée"
+- **Commit** : `956117d`
+
+---
+
+## 2026-05-14 — Session soir (Claude Cowork)
+
+### Obsidian vault "brain dzaryx" — refonte complète
+- **Type** : Documentation
+- **Vault** : `C:\Users\douba\OneDrive\Bureau\ibrahim\brain dzaryx\`
+- **Notes créées/mises à jour** : 12 notes (INDEX, PROJET, ARCHITECTURE, FEUILLE DE ROUTE, BUGS, REGLES AGENT, INFRASTRUCTURE, JOURNAL, LES 12 AGENTS, VIDEO MARKETING, BASE DE DONNEES, FLUX REQUETE, ETAT ACTUEL)
+- **Contenu ajouté** : 12 agents détaillés, flux requête complet, grille tarifaire véhicules, schéma DB, système vidéo
+- **Graphe** : configuré avec couleurs par catégorie, nœuds plus grands, liens visibles
+
+### VIDEO_MARKETING.md — nouveau fichier DZARYX/
+- **Type** : Documentation
+- **Fichier** : `DZARYX/VIDEO_MARKETING.md`
+- **Contenu** : pipeline vidéo complet, styles, fonds Pexels, workflow approbation, bugs connus
+
+---
+
+## 2026-05-14 — Session matin (Claude Code / Sonnet 4.6)
+
+### B001 ✅ — create_booking stocke maintenant les prix réels
+- **Fichiers** : `backend/src/integrations/tool-executor.ts`, `backend/src/integrations/tools.ts`
+- **Champs ajoutés** : `client_price_per_day`, `owner_price_per_day`, `nb_days`, `owner_total`, `profit_kouider`, `discount_applied`
+
+### B004 ✅ — "fais une vidéo" route vers TIKTOK_AGENT
+- **Fichier** : `backend/src/agents/agent-registry.ts`
+- **Fix** : TIKTOK_AGENT priority 6→7, keywords élargis ("fais/crée/génère une vidéo"), LLM groq→claude-sonnet
+
+### B005-partial ✅ — Photo fallback vidéo via buffer multipart
+- **Fichiers** : `backend/src/api/routes/telegram.ts`, `backend/src/marketing/create-marketing-video.ts`
+- **Fix** : `sendPhotoBuffer()` — envoi image en buffer (plus d'URL Supabase privée)
+
+---
+
 ## 2026-05-14
 
 ### Supabase — Backfill owner_price_per_day

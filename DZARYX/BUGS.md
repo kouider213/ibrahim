@@ -7,6 +7,17 @@
 
 ## Bugs Ouverts 🔴
 
+### B005 — Vidéo "créée" mais rien dans Telegram (livraison silencieuse)
+- **Statut** : ✅ FIXÉ — 2026-05-14
+- **Fichiers** : `backend/src/marketing/create-marketing-video.ts` + `backend/src/integrations/tool-executor.ts`
+- **Description** : Bot disait "✅ Vidéo Clio 4 créée" mais rien n'apparaissait dans Telegram.
+- **Causes** : 1) FFmpeg zoompan 1080×1920 → OOM Railway. 2) `sendPhoto(URL)` swallowait erreur, tombait sur texte → `telegramDelivered=true` faux. 3) Message échec sans `❌` → phantom guard passait.
+- **Fix** : Résolution 720×1280, zoompan retiré, `sendPhotoBuffer` (buffer direct) dans tous fallbacks, messages échec avec `❌`.
+
+---
+
+## Bugs Fixés ✅
+
 ### B004 — `create_marketing_video` inaccessible (agent routing cassé)
 - **Statut** : ✅ FIXÉ — 2026-05-14
 - **Fichier** : `backend/src/agents/agent-registry.ts`
