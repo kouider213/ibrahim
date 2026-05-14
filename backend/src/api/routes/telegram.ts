@@ -63,8 +63,29 @@ async function callVisionGemini(
       console.warn(`[AI_ROUTER] task=vision provider=openai FAILED status=${_oAxErr.response?.status ?? 'network'} body=${JSON.stringify(_oAxErr.response?.data ?? {}).slice(0, 150)} — all vision providers exhausted`);
     }
   }
-  console.error(`[AI_ROUTER] task=vision ALL_PROVIDERS_FAILED gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} — NEVER calling Anthropic`);
-  throw new Error('Vision indisponible: Gemini et OpenAI Vision ont échoué. Envoie une description textuelle à la place.');
+  // Claude Vision fallback — Haiku (cheap, supports images natively)
+  if (env.ANTHROPIC_API_KEY) {
+    try {
+      const r = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: _maxTokens,
+        system: systemExtra,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+            { type: 'text', text: userPrompt },
+          ],
+        }],
+      });
+      console.log('[AI_ROUTER] task=vision provider=claude-haiku fallback_reason=gemini+openai_failed');
+      return (r.content[0] as Anthropic.TextBlock).text.trim();
+    } catch (cErr) {
+      console.error('[AI_ROUTER] task=vision provider=claude-haiku FAILED:', cErr instanceof Error ? cErr.message : cErr);
+    }
+  }
+  console.error(`[AI_ROUTER] task=vision ALL_PROVIDERS_FAILED gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} anthropic=${!!env.ANTHROPIC_API_KEY}`);
+  throw new Error('Vision indisponible: Gemini, OpenAI et Claude ont tous échoué. Envoie une description textuelle à la place.');
 }
 
 // Simple text: Groq (free/fast) → Gemini → Haiku fallback
