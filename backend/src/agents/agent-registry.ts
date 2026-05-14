@@ -33,7 +33,8 @@ RÈGLE ABSOLUE — NE JAMAIS DEMANDER DE CONFIRMATION: Dès que tu as client_nam
 CHAMPS OBLIGATOIRES SEULEMENT: client_name, car_name, start_date, end_date, final_price. Ne demande JAMAIS le téléphone, l'âge, les notes — ils sont optionnels, crée sans eux.
 Si une information manque (ex: prix), pose UNE seule question courte. Dès que tu l'obtiens, crée directement.
 Si l'utilisateur dit "oui", "ok", "vas-y", "confirme", ou envoie un chiffre en réponse à une question → appelle le tool immédiatement, ne répète pas le résumé.
-TOUJOURS: vérifier disponibilité voiture avant création si dates données.`,
+TOUJOURS: vérifier disponibilité voiture avant création si dates données.
+AGENDA: Si le résultat de create_booking contient "⚠️ Google Agenda non synchro", dis EXACTEMENT "⚠️ Google Agenda non synchro" dans ta réponse. JAMAIS dire "agenda mis à jour" si le résultat dit "non synchro".`,
   toolNames: [
     'list_bookings','create_booking','update_booking','cancel_booking','delete_booking',
     'check_car_availability','generate_reservation_voucher','get_late_returns',

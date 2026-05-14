@@ -109,8 +109,13 @@ async function calendarRequest<T>(
       data: body,
     });
     return res.data;
-  } catch (err) {
-    console.error(`[google-calendar] ${method} ${path}:`, err instanceof Error ? err.message : err);
+  } catch (err: unknown) {
+    const axErr = err as { response?: { status?: number; data?: unknown } };
+    if (axErr?.response) {
+      console.error(`[google-calendar] ${method} ${path} HTTP ${axErr.response.status}:`, JSON.stringify(axErr.response.data));
+    } else {
+      console.error(`[google-calendar] ${method} ${path}:`, err instanceof Error ? err.message : err);
+    }
     return null;
   }
 }
