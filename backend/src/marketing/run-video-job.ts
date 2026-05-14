@@ -121,10 +121,8 @@ export async function triggerMarketingVideo(
 //
 if (process.argv[1]?.endsWith('run-video-job.js') || process.argv[1]?.endsWith('run-video-job.ts')) {
   triggerMarketingVideo({
-    car_name:          'Clio 5 Alpine',
-    style:             'prix',
-    custom_script:     'Cet été, profitez de la Clio 5 Alpine à seulement 50€ par jour ! Une voiture sportive et élégante pour des vacances inoubliables à Oran. Réservez dès maintenant chez Fik Conciergerie !',
-    background_effect: 'plage',
+    car_name: 'Jumpy 9 Places',
+    style:    'reveal',
   })
     .then(result => {
       console.log('[run-video-job] ✅ Terminé:', JSON.stringify({ pending_id: result.pending_id, method: result.method, car_name: result.car_name }, null, 2));
