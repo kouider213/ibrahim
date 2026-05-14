@@ -64,7 +64,7 @@ import {
 } from './improvement-report.js';
 import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
-import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc } from './telegram.js';
+import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc, sendPhoto as sendTelegramPhotoReal, sendPhotoBuffer as sendTelegramPhotoBuffer2 } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
 import { redis } from '../queue/queue.js';
@@ -995,11 +995,22 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     const caption = `📄 ${d.client_name} — ${d.type}`;
     if (chatId) {
       try {
-        await sendTelegramPhoto(chatId, url, caption);
+        // Use real Telegram sendPhoto (calls /sendPhoto API with URL)
+        await sendTelegramPhotoReal(chatId, url, caption);
         sentUrls.push(url);
-        console.log(`[get_client_document] sent photo to Telegram: ${url.slice(0, 60)}`);
+        console.log(`[get_client_document] ✅ sent photo to Telegram: ${url.slice(0, 60)}`);
       } catch (tgErr) {
-        console.warn('[get_client_document] telegram send failed:', tgErr instanceof Error ? tgErr.message : tgErr);
+        console.warn('[get_client_document] URL photo failed, downloading buffer:', tgErr instanceof Error ? tgErr.message : tgErr);
+        try {
+          // Fallback: download image and upload as buffer
+          const { data: imgData } = await axiosModule.get(url, { responseType: 'arraybuffer', timeout: 20_000 });
+          const buf = Buffer.from(imgData as ArrayBuffer);
+          await sendTelegramPhotoBuffer2(chatId, buf, caption);
+          sentUrls.push(url);
+          console.log(`[get_client_document] ✅ sent photo buffer to Telegram`);
+        } catch (bufErr) {
+          console.error('[get_client_document] both photo methods failed:', bufErr instanceof Error ? bufErr.message : bufErr);
+        }
       }
     }
   }
@@ -1336,7 +1347,7 @@ async function sendTelegramMessage(input: Record<string, unknown>): Promise<stri
 
   try {
     if (photoUrl) {
-      await sendTelegramPhoto(chatId, photoUrl, caption);
+      await sendTelegramPhotoReal(chatId, photoUrl, caption);
       if (message && message !== caption) await sendTelegramText(chatId, message);
       return `✅ Photo envoyée sur Telegram${message ? ` avec message: "${message}"` : ''}`;
     }
