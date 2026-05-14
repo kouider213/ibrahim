@@ -257,45 +257,97 @@ async function searchWithGoogle(query: string): Promise<WebSearchResult | null> 
   }
 }
 
-// ── Provider 5: Jina AI (fallback) ───────────────────────────────────────────
+// ── Provider 5: Jina AI Search (requires JINA_API_KEY) ───────────────────────
 
 async function searchWithJina(query: string): Promise<WebSearchResult | null> {
+  if (!env.JINA_API_KEY) return null; // s.jina.ai requires auth since 2025
   const t0 = Date.now();
-  const headers: Record<string, string> = {
-    'Accept': 'text/plain',
-    'X-Retain-Images': 'none',
-  };
-  if (env.JINA_API_KEY) headers['Authorization'] = `Bearer ${env.JINA_API_KEY}`;
-
   try {
     const { data } = await axios.get(`https://s.jina.ai/${encodeURIComponent(query)}`, {
-      headers,
+      headers: { 'Accept': 'text/plain', 'X-Retain-Images': 'none', 'Authorization': `Bearer ${env.JINA_API_KEY}` },
       timeout: 15_000,
     });
     const text = typeof data === 'string' ? data : JSON.stringify(data);
     if (!text || text.length < 100) return null;
-
     return {
-      text:               text.slice(0, 4000),
-      source:             'jina',
-      confidence:         'medium',
-      results_count:      1,
-      duration_ms:        Date.now() - t0,
-      attempted_providers: [],
+      text: text.slice(0, 4000), source: 'jina', confidence: 'medium',
+      results_count: 1, duration_ms: Date.now() - t0, attempted_providers: [],
     };
   } catch {
     return null;
   }
 }
 
+// ── Provider 6: Jina Reader (YouTube + TikTok) — no key required ─────────────
+// Fetches YouTube search results + TikTok hashtag pages via r.jina.ai reader.
+// Works without API key. Provides real view counts, video titles, hashtag counts.
+
+async function searchWithJinaReader(query: string): Promise<WebSearchResult | null> {
+  const t0 = Date.now();
+  const headers: Record<string, string> = { 'Accept': 'text/plain', 'X-Retain-Images': 'none' };
+  if (env.JINA_API_KEY) headers['Authorization'] = `Bearer ${env.JINA_API_KEY}`;
+
+  const jinaRead = async (url: string): Promise<string> => {
+    try {
+      const { data } = await axios.get(`https://r.jina.ai/${encodeURIComponent(url)}`, { headers, timeout: 18_000 });
+      return (typeof data === 'string' ? data : '').slice(0, 3000);
+    } catch {
+      return '';
+    }
+  };
+
+  // Build URLs to fetch based on query content
+  const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+
+  // Extract hashtag-like terms for TikTok
+  const hashtagMatch = query.match(/\w{4,}/g) ?? [];
+  const shortQuery   = hashtagMatch.slice(0, 3).join('');
+  const tiktokUrl    = shortQuery.length > 3 ? `https://www.tiktok.com/tag/${shortQuery.toLowerCase()}` : '';
+
+  const [ytText, tiktokText] = await Promise.all([
+    jinaRead(ytUrl),
+    tiktokUrl ? jinaRead(tiktokUrl) : Promise.resolve(''),
+  ]);
+
+  // Extract meaningful lines from YouTube (titles + view counts)
+  const ytLines = ytText.split('\n')
+    .filter(l => l.match(/###|##/) || l.match(/\d+[KMB]?\s*views?|\d+[KMB]?\s*vues?/i))
+    .slice(0, 20)
+    .join('\n');
+
+  // Extract TikTok hashtag post count
+  const tiktokPostCount = tiktokText.match(/(\d+[\.,]?\d*)\s*posts?/i)?.[0] ?? '';
+  const tiktokLines = tiktokText.split('\n')
+    .filter(l => l.match(/#\w+/) || l.match(/###/) || l.match(/\d+[KMB]/i))
+    .slice(0, 10)
+    .join('\n');
+
+  const combined = [
+    ytLines.length > 50 ? `📺 YOUTUBE — résultats pour "${query}":\n${ytLines}` : '',
+    tiktokLines.length > 20 ? `📱 TIKTOK ${tiktokPostCount}:\n${tiktokLines}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  if (combined.length < 80) return null;
+
+  return {
+    text:               combined.slice(0, 4000),
+    source:             'jina',
+    confidence:         'medium',
+    results_count:      (ytLines.match(/###/g)?.length ?? 0) + (tiktokLines.match(/###/g)?.length ?? 0),
+    duration_ms:        Date.now() - t0,
+    attempted_providers: [],
+  };
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 const PROVIDERS: Array<{ name: SearchProvider; fn: (q: string) => Promise<WebSearchResult | null> }> = [
   { name: 'apify',      fn: searchWithApify },
-  { name: 'duckduckgo', fn: searchWithDuckDuckGo },
-  { name: 'bing',       fn: searchWithBing },
+  { name: 'jina',       fn: searchWithJina },        // Jina Search (key required)
   { name: 'google_api', fn: searchWithGoogle },
-  { name: 'jina',       fn: searchWithJina },
+  { name: 'duckduckgo', fn: searchWithDuckDuckGo },  // may be blocked by bot detection
+  { name: 'bing',       fn: searchWithBing },        // may be blocked by bot detection
+  { name: 'jina',       fn: searchWithJinaReader },  // Jina Reader (YouTube+TikTok) — always available
 ];
 
 export async function multiProviderWebSearch(
