@@ -113,7 +113,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_client_document',
-    description: 'Récupérer documents et données client (passeport, permis). Peut retourner un champ spécifique (ex: juste le numéro de passeport, juste le téléphone). Cherche par booking_id, client_name ou client_phone.',
+    description: 'Récupérer documents client (passeport, permis, contrat). Retourne les données extraites + une ligne "URL: <url>" contenant l\'URL publique de la photo. Pour envoyer ensuite sur Telegram: extraire l\'URL de la ligne "URL:" et appeler send_telegram_message(photo_url=<url>). Utiliser quand Kouider demande à voir ou envoyer un document client.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -675,19 +675,6 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         car_id:     { type: 'string', description: 'ID de la voiture spécifique (optionnel — sans = toutes les voitures)' },
       },
       required: ['start_date', 'end_date'],
-    },
-  },
-  {
-    name: 'get_client_document',
-    description: 'Récupérer un document client stocké (passeport, permis, contrat) depuis Supabase. Retourne l\'URL publique directe pour afficher la photo. Utiliser quand Kouider demande à voir/envoyer un document client.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        client_name:  { type: 'string', description: 'Nom du client (partiel accepté)' },
-        client_phone: { type: 'string', description: 'Téléphone du client (optionnel)' },
-        type:         { type: 'string', enum: ['passport', 'license', 'contract', 'other'], description: 'Type de document (optionnel)' },
-      },
-      required: [],
     },
   },
   {
