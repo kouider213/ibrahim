@@ -369,8 +369,8 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     const { data: carRow } = await supabase.from('cars').select('name').eq('id', carId).single();
     const carNameForCheck = (carRow as any)?.name as string | undefined;
     if (carNameForCheck) {
-      const { data: pricingRow } = await supabase.from('pricing').select('daily_houari').ilike('car_name', `%${carNameForCheck}%`).limit(1).single();
-      const houariDay = pricingRow ? Number((pricingRow as any).daily_houari) : null;
+      const { data: pricingRow } = await supabase.from('pricing').select('houari_price').ilike('vehicle_name', `%${carNameForCheck}%`).limit(1).single();
+      const houariDay = pricingRow ? Number((pricingRow as any).houari_price) : null;
       if (houariDay !== null) {
         const minTotal = houariDay * nb_days;
         const clientTotal = Number(input['final_price']);
