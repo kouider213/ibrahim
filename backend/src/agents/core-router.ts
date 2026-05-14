@@ -47,10 +47,11 @@ export function buildAgentSystem(route: AgentRoute, baseExtra?: string): string 
 
 // ── Detect if message references a previous agent context ────────────────────
 export function detectAgentFromHistory(messages: Message[]): AgentDefinition | null {
-  // Look at last 4 assistant messages to infer active domain
+  // Look at last 8 messages (user + assistant) to infer active domain
+  // User messages matter: "Créer une réservation" sets context even if
+  // the assistant follow-up asks "quel âge?" (no booking keywords in assistant text)
   const recent = [...messages]
-    .filter(m => m.role === 'assistant')
-    .slice(-4)
+    .slice(-8)
     .map(m => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).slice(0, 300));
 
   const combined = recent.join(' ');
