@@ -38,6 +38,15 @@ export function detectLanguage(text: string): LanguageDetection {
 
   const t = text.trim();
 
+  // Numeric-only messages (phone numbers, prices, amounts, dates) → treat as French
+  if (/^[\+\d][\d\s\-().]+$/.test(t) || /^\d+[€$]?$/.test(t)) {
+    return {
+      lang:       'fr',
+      label:      'Français (réponse numérique)',
+      systemHint: 'LANGUE DÉTECTÉE: français — répondre en français professionnel naturel.',
+    };
+  }
+
   // Arabic script ratio
   const arabicChars = (t.match(ARABIC_CHARS) ?? []).length;
   const latinBase   = t.replace(PUNCT_DIGITS, '').length || 1;
