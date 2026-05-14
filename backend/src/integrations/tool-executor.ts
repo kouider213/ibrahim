@@ -986,32 +986,27 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     return `❌ Champ "${field}" introuvable. Disponibles: ${doc.extracted_data ? Object.keys(doc.extracted_data).join(', ') : 'client_phone, file_url'}`;
   }
 
-  // Auto-send to Telegram if TELEGRAM_CHAT_ID configured and file_url present
+  // Auto-send to Telegram — bucket is private so download with service key then send as buffer
   const chatId = env.TELEGRAM_CHAT_ID ? Number(env.TELEGRAM_CHAT_ID) : null;
   const sentUrls: string[] = [];
   for (const d of docs) {
-    const url = d.file_url;
-    if (!url) continue;
+    if (!d.storage_path && !d.file_url) continue;
     const caption = `📄 ${d.client_name} — ${d.type}`;
-    if (chatId) {
-      try {
-        // Use real Telegram sendPhoto (calls /sendPhoto API with URL)
-        await sendTelegramPhotoReal(chatId, url, caption);
-        sentUrls.push(url);
-        console.log(`[get_client_document] ✅ sent photo to Telegram: ${url.slice(0, 60)}`);
-      } catch (tgErr) {
-        console.warn('[get_client_document] URL photo failed, downloading buffer:', tgErr instanceof Error ? tgErr.message : tgErr);
-        try {
-          // Fallback: download image and upload as buffer
-          const { data: imgData } = await axiosModule.get(url, { responseType: 'arraybuffer', timeout: 20_000 });
-          const buf = Buffer.from(imgData as ArrayBuffer);
-          await sendTelegramPhotoBuffer2(chatId, buf, caption);
-          sentUrls.push(url);
-          console.log(`[get_client_document] ✅ sent photo buffer to Telegram`);
-        } catch (bufErr) {
-          console.error('[get_client_document] both photo methods failed:', bufErr instanceof Error ? bufErr.message : bufErr);
-        }
-      }
+    if (!chatId) continue;
+    try {
+      // Download via authenticated Supabase storage URL (service role key)
+      const authUrl = `${SUPA_URL}/storage/v1/object/client-documents/${d.storage_path}`;
+      const { data: imgData } = await axiosModule.get(authUrl, {
+        responseType: 'arraybuffer',
+        headers: { Authorization: `Bearer ${SUPA_KEY}` },
+        timeout: 20_000,
+      });
+      const buf = Buffer.from(imgData as ArrayBuffer);
+      await sendTelegramPhotoBuffer2(chatId, buf, caption);
+      sentUrls.push(d.storage_path);
+      console.log(`[get_client_document] ✅ sent photo buffer to Telegram: ${d.storage_path}`);
+    } catch (err) {
+      console.error('[get_client_document] photo send failed:', err instanceof Error ? err.message : err);
     }
   }
 
