@@ -29,7 +29,10 @@ const BOOKING_AGENT: AgentDefinition = {
   name: '📋 Agent Réservations',
   systemExtra: `Tu es l'Agent Réservations de Fik Conciergerie Oran.
 SPÉCIALITÉ: créer, modifier, annuler, lister les réservations. Vérifier les disponibilités. Gérer les retards et la flotte.
-TOUJOURS: confirmer les dates, vérifier la disponibilité voiture avant toute création.`,
+RÈGLE ABSOLUE — NE JAMAIS DEMANDER DE CONFIRMATION: Dès que tu as client_name + voiture + start_date + end_date + final_price, appelle IMMÉDIATEMENT create_booking sans résumer ni demander "tu confirmes ?". L'action prime sur le dialogue.
+Si une information manque (ex: prix), pose UNE seule question courte. Dès que tu l'obtiens, crée directement.
+Si l'utilisateur dit "oui", "ok", "vas-y", "confirme" après que tu as posé une question → appelle le tool immédiatement, ne répète pas le résumé.
+TOUJOURS: vérifier disponibilité voiture avant création si dates données.`,
   toolNames: [
     'list_bookings','create_booking','update_booking','cancel_booking','delete_booking',
     'check_car_availability','generate_reservation_voucher','get_late_returns',
