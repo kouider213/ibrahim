@@ -937,7 +937,12 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
 
   const { data, error } = await query;
   if (error) return `Erreur: ${error.message}`;
-  if (!data || data.length === 0) return 'Aucun document trouvé pour ce client.';
+  if (!data || data.length === 0) {
+    // Diagnostic: count total rows in table to distinguish empty table vs name mismatch
+    const { count } = await supabase.from('client_documents').select('*', { count: 'exact', head: true });
+    if (!count || count === 0) return 'Aucun document trouvé — table vide (aucun document enregistré dans la base).';
+    return `Aucun document trouvé pour ce client. (${count} document(s) au total dans la base — vérifier orthographe du nom)`;
+  }
 
   type DocRow = { client_name: string; client_phone: string; type: string; file_url: string; storage_path?: string; notes?: string; extracted_data?: Record<string, unknown>; created_at: string };
   const field = input['field'] as string | undefined;
