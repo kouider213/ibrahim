@@ -37,11 +37,12 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_booking',
-    description: 'Créer une nouvelle réservation dans Supabase. IMPORTANT: toujours fournir client_price_per_day ET owner_price_per_day pour permettre le calcul du profit réel. Sans ces champs, le rapport financier ne peut pas calculer le bénéfice Kouider.',
+    description: 'Créer une nouvelle réservation dans Supabase. Utiliser car_name (ex: "Clio 5 Alpine") OU car_id (UUID). Si seul le nom est connu, utiliser car_name — la recherche UUID est automatique. IMPORTANT: toujours fournir client_price_per_day ET owner_price_per_day pour le calcul du profit réel. Si le client est "Kouider" sans nom de locataire, mettre client_name="Kouider". La réservation est automatiquement ajoutée à Google Agenda.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        car_id:      { type: 'string', description: 'UUID de la voiture' },
+        car_name:    { type: 'string', description: 'Nom ou modèle de la voiture (ex: "Clio 5 Alpine", "Jumpy"). Utiliser si car_id inconnu — recherche automatique dans la flotte.' },
+        car_id:      { type: 'string', description: 'UUID Supabase de la voiture. Optionnel si car_name fourni.' },
         client_name: { type: 'string' },
         client_phone:{ type: 'string' },
         client_age:  { type: 'number', description: 'Âge du client' },
@@ -57,7 +58,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         payment_status: { type: 'string', enum: ['PENDING','PARTIAL','PAID'], description: 'Statut paiement. Défaut: PENDING. PAID si déjà payé, PARTIAL si acompte.' },
         paid_amount:    { type: 'number', description: 'Montant déjà payé en euros (défaut: 0)' },
       },
-      required: ['car_id','client_name','start_date','end_date','final_price'],
+      required: ['client_name','start_date','end_date','final_price'],
     },
   },
   {

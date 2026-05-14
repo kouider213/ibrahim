@@ -321,11 +321,24 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
 }
 
 async function createBooking(input: Record<string, unknown>): Promise<string> {
-  if (!input['car_id'])      return '❌ car_id manquant — spécifie la voiture';
   if (!input['client_name']) return '❌ client_name manquant';
   if (!input['start_date'])  return '❌ start_date manquant (format YYYY-MM-DD)';
   if (!input['end_date'])    return '❌ end_date manquant (format YYYY-MM-DD)';
   if (input['start_date'] > input['end_date']) return '❌ start_date doit être avant end_date';
+
+  // Resolve car_id from car_name if UUID not provided
+  let carId = input['car_id'] as string | undefined;
+  if (!carId && input['car_name']) {
+    const { data: carMatch } = await supabase
+      .from('cars')
+      .select('id, name')
+      .ilike('name', `%${input['car_name']}%`)
+      .limit(1)
+      .single();
+    if (!carMatch) return `❌ Voiture "${input['car_name']}" introuvable dans la flotte. Vérifie le nom exact.`;
+    carId = (carMatch as any).id as string;
+  }
+  if (!carId) return '❌ car_id ou car_name manquant — spécifie la voiture';
 
   const VALID_STATUSES = ['CONFIRMED', 'PENDING', 'ACTIVE', 'COMPLETED', 'REJECTED'];
   const status = (input['status'] as string) ?? 'CONFIRMED';
@@ -337,7 +350,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
 
   // Anti-doublon: vérifie disponibilité avant insertion
   const isAvailable = await checkAvailability(
-    input['car_id'] as string,
+    carId,
     input['start_date'] as string,
     input['end_date'] as string,
   );
@@ -356,7 +369,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const { data, error } = await supabase
     .from('bookings')
     .insert({
-      car_id:               input['car_id'],
+      car_id:               carId,
       client_name:          input['client_name'],
       client_phone:         input['client_phone']      ?? null,
       client_age:           input['client_age']         ?? null,
@@ -385,7 +398,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const booking = data as any;
   let calendarNote = '';
   try {
-    const { data: car } = await supabase.from('cars').select('name').eq('id', input['car_id']).single();
+    const { data: car } = await supabase.from('cars').select('name').eq('id', carId).single();
     const carName = (car as any)?.name ?? 'Véhicule';
     const eventId = await createCalendarEvent(booking.id, input['client_name'] as string, carName, input['start_date'] as string, input['end_date'] as string, input['notes'] as string | undefined);
     calendarNote = eventId ? ' | 📅 Ajouté Google Agenda' : ' | ⚠️ Google Agenda non synchro';
