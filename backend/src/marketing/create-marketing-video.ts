@@ -446,7 +446,10 @@ export async function executeCreateMarketingVideo(
 ): Promise<MarketingVideoResult> {
   const carNameFilter    = input.car_name?.toLowerCase();
   const style            = input.style ?? 'reveal';
-  const customScript     = input.custom_script;
+  // Sanitize: strip wrapping quotes, preserve French chars/emojis, truncate to 500 chars
+  const customScript     = input.custom_script
+    ? input.custom_script.trim().replace(/^["'«»]/, '').replace(/["'«»]$/, '').trim().slice(0, 500)
+    : undefined;
   const backgroundEffect = input.background_effect;
 
   // ── 1. Chercher la voiture dans Supabase ─────────────────────

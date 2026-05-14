@@ -1409,6 +1409,22 @@ function chatIdFromSession(sessionId?: string): string {
   return env.TELEGRAM_CHAT_ID ?? '809747124';
 }
 
+/**
+ * Normalise le script personnalisé transmis via l'outil create_marketing_video :
+ *  - Supprime les guillemets enveloppants si présents
+ *  - Préserve les accents, apostrophes, emojis, ponctuation française
+ *  - Tronque à 500 caractères max pour la synthèse ElevenLabs
+ */
+function sanitizeCustomScript(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  return raw
+    .trim()
+    .replace(/^["'«»]/, '')
+    .replace(/["'«»]$/, '')
+    .trim()
+    .slice(0, 500);
+}
+
 async function runTikTokResearchTool(sessionId?: string): Promise<string> {
   const chatId = chatIdFromSession(sessionId);
 
@@ -1471,7 +1487,7 @@ async function createMarketingVideoTool(
   // ── Paramètres ────────────────────────────────────────────────
   const carNameFilter    = (input['car_name'] as string | undefined)?.toLowerCase();
   const style            = (input['style'] as string | undefined) ?? 'reveal';
-  const customScript     = input['custom_script'] as string | undefined;
+  const customScript     = sanitizeCustomScript(input['custom_script'] as string | undefined);
   const backgroundEffect = input['background_effect'] as string | undefined;
 
   // ── Chercher la voiture ───────────────────────────────────────
