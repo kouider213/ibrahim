@@ -101,8 +101,10 @@ TOUJOURS: optimiser pour mobile (ratio 9:16 TikTok/Reels), qualité professionne
     'add_text_overlay','analyze_video','cut_video','add_subtitles','optimize_for_platform',
     'extract_thumbnail','add_background_music','create_video_preview',
     'generate_image','generate_ai_video','animate_car_photo','search_images',
+    'create_marketing_video','edit_marketing_video','regenerate_voice','create_scenario_video',
+    'generate_tiktok_video','merge_videos','publish_to_socials',
   ],
-  keywords:  /\b(image|photo|vidéo|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|réseaux|instagram|reel|story|banner|logo|supprimer fond|optimiser)\b/i,
+  keywords:  /\b(image|photo|vid[eé]o|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|r[eé]seaux|instagram|reel|story|banner|logo|supprimer\s+fond|optimiser)\b/i,
   priority:  6,
   llm: { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
 };
@@ -120,9 +122,9 @@ TOUJOURS: adapter le contenu au marché algérien, hashtags en arabe + français
     'create_scenario_video','create_video_project','merge_videos','generate_tiktok_video',
     'publish_to_socials',
   ],
-  keywords:  /\b(tiktok|viral|hashtag|trending|concurrent|créateur|follower|vue|like|scenario|script vidéo|voix|narration|campagne)\b/i,
-  priority:  6,
-  llm: { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.85, maxTokens: 1000, fallback: 'claude' },
+  keywords:  /(fais|cr[eé]e?r?|g[eé]n[eè]re?|lance|tourne|produis?|r[eé]alise?)\s+(m[eo]i\s+)?(une?\s+)?(vid[eé]o|pub|clip|tiktok|r[eé]el?)|\b(tiktok|viral|hashtag|trending|concurrent|cr[eé]ateur|follower|vue|like|sc[eé]nario|script\s+vid[eé]o|voix\s+off|narration|campagne)\b/i,
+  priority:  7,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.85, maxTokens: 1500, fallback: 'openai' },
 };
 
 // ── Agent 7: Mémoire & Apprentissage ─────────────────────────────────────────
