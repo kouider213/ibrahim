@@ -924,58 +924,95 @@ async function githubSearchCode(input: Record<string, unknown>): Promise<string>
 }
 
 async function getClientDocument(input: Record<string, unknown>): Promise<string> {
-  let query = supabase
-    .from('client_documents')
-    .select('id, client_name, client_phone, type, file_url, storage_path, notes, extracted_data, created_at')
-    .order('created_at', { ascending: false })
-    .limit(5);
+  // Build REST API URL directly (bypass supabase JS type issues)
+  const SUPA_URL = env['SUPABASE_URL' as keyof typeof env] as string;
+  const SUPA_KEY = env['SUPABASE_SERVICE_KEY' as keyof typeof env] as string;
 
-  if (input['booking_id']) query = query.eq('booking_id', input['booking_id'] as string);
-  if (input['client_name']) query = query.ilike('client_name', `%${input['client_name']}%`);
-  if (input['client_phone']) query = query.ilike('client_phone', `%${input['client_phone']}%`);
-  if (input['type']) query = query.eq('type', input['type']);
+  const params = new URLSearchParams();
+  params.set('select', 'id,client_name,client_phone,type,file_url,storage_path,notes,extracted_data,created_at');
+  params.set('order', 'created_at.desc');
+  params.set('limit', '5');
 
-  const { data, error } = await query;
-  if (error) return `Erreur: ${error.message}`;
-  if (!data || data.length === 0) {
-    // Diagnostic: list all client names in table so we can see orthography
-    const { data: allDocs, count } = await supabase
-      .from('client_documents')
-      .select('client_name, type', { count: 'exact' })
-      .limit(20);
-    if (!count || count === 0) return 'TABLE VIDE — aucun document enregistré dans la base client_documents.';
-    const names = (allDocs ?? []).map((d: { client_name: string; type: string }) => `${d.client_name} (${d.type})`).join(' | ');
-    return `DIAGNOSTIC: "${input['client_name'] ?? '?'}" introuvable. ${count} doc(s) en base: ${names}`;
+  // Build filters
+  const clientName = input['client_name'] as string | undefined;
+  const clientPhone = input['client_phone'] as string | undefined;
+  const docType = input['type'] as string | undefined;
+
+  if (clientName)  params.set('client_name', `ilike.*${clientName}*`);
+  if (clientPhone) params.set('client_phone', `ilike.*${clientPhone}*`);
+  if (docType)     params.set('type', `eq.${docType}`);
+
+  console.log(`[get_client_document] query: client_name=${clientName} phone=${clientPhone} type=${docType}`);
+
+  const { default: axiosModule } = await import('axios');
+  const restUrl = `${SUPA_URL}/rest/v1/client_documents?${params.toString()}`;
+
+  type DocRow = { id: string; client_name: string; client_phone: string; type: string; file_url: string; storage_path: string; notes?: string; extracted_data?: Record<string, unknown>; created_at: string };
+  let docs: DocRow[] = [];
+  try {
+    const { data } = await axiosModule.get<DocRow[]>(restUrl, {
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
+      timeout: 10_000,
+    });
+    docs = data ?? [];
+    console.log(`[get_client_document] found ${docs.length} row(s)`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[get_client_document] REST error:', msg);
+    return `Erreur récupération document: ${msg}`;
   }
 
-  type DocRow = { client_name: string; client_phone: string; type: string; file_url: string; storage_path?: string; notes?: string; extracted_data?: Record<string, unknown>; created_at: string };
-  const field = input['field'] as string | undefined;
-  const docs = data as DocRow[];
-
-  // Specific field requested (e.g. just passport_number or phone)
-  if (field) {
-    const doc = docs[0];
-    if (doc.extracted_data && field in doc.extracted_data) {
-      return `${field}: ${doc.extracted_data[field]}`;
+  if (docs.length === 0) {
+    // Dump all names for diagnosis
+    try {
+      const { data: all } = await axiosModule.get<{client_name:string;type:string}[]>(
+        `${SUPA_URL}/rest/v1/client_documents?select=client_name,type&limit=30`,
+        { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }, timeout: 8_000 },
+      );
+      const total = all?.length ?? 0;
+      if (!total) return 'TABLE VIDE — aucun document enregistré dans la base client_documents.';
+      const names = (all ?? []).map(d => `${d.client_name} (${d.type})`).join(' | ');
+      return `DIAGNOSTIC: "${clientName ?? '?'}" introuvable. ${total} doc(s) en base: ${names}`;
+    } catch {
+      return `Aucun document trouvé pour "${clientName ?? '?'}".`;
     }
+  }
+
+  const field = input['field'] as string | undefined;
+  const doc = docs[0];
+
+  if (field) {
+    if (doc.extracted_data && field in doc.extracted_data) return `${field}: ${doc.extracted_data[field]}`;
     if (field === 'client_phone' || field === 'phone') return doc.client_phone ?? '❌ Téléphone non renseigné';
     if (field === 'file_url' || field === 'url') return doc.file_url ?? '❌ URL non disponible';
     return `❌ Champ "${field}" introuvable. Disponibles: ${doc.extracted_data ? Object.keys(doc.extracted_data).join(', ') : 'client_phone, file_url'}`;
   }
 
-  const results = await Promise.all(docs.map(async (d: DocRow) => {
-    let url = d.file_url;
-    if (d.storage_path) {
-      const { data: signed } = await supabase.storage
-        .from('client-documents')
-        .createSignedUrl(d.storage_path, 3600);
-      if ((signed as any)?.signedUrl) url = (signed as any).signedUrl;
+  // Auto-send to Telegram if TELEGRAM_CHAT_ID configured and file_url present
+  const chatId = env.TELEGRAM_CHAT_ID ? Number(env.TELEGRAM_CHAT_ID) : null;
+  const sentUrls: string[] = [];
+  for (const d of docs) {
+    const url = d.file_url;
+    if (!url) continue;
+    const caption = `📄 ${d.client_name} — ${d.type}`;
+    if (chatId) {
+      try {
+        await sendTelegramPhoto(chatId, url, caption);
+        sentUrls.push(url);
+        console.log(`[get_client_document] sent photo to Telegram: ${url.slice(0, 60)}`);
+      } catch (tgErr) {
+        console.warn('[get_client_document] telegram send failed:', tgErr instanceof Error ? tgErr.message : tgErr);
+      }
     }
-    const extStr = d.extracted_data ? `\nDonnées: ${JSON.stringify(d.extracted_data)}` : '';
-    return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}${url ? `\nURL: ${url}` : ''}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
-  }));
+  }
 
-  return results.join('\n\n');
+  const results = docs.map(d => {
+    const extStr = d.extracted_data ? `\nDonnées: ${JSON.stringify(d.extracted_data)}` : '';
+    return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}\nURL: ${d.file_url}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
+  });
+
+  const telegramStatus = sentUrls.length > 0 ? `\n✅ Photo envoyée sur Telegram (${sentUrls.length} doc)` : '';
+  return results.join('\n\n') + telegramStatus;
 }
 
 async function webSearch(input: Record<string, unknown>): Promise<string> {
