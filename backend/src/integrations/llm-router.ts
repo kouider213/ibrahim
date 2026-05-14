@@ -52,8 +52,12 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
   }
 
   // Short messages (≤ 100 chars, no tools needed) → cheap provider FIRST
-  // Must be before messageCount check — "Ça va Dzaryx" in multi-turn must NOT hit Claude
+  // EXCEPT: numeric replies (phone, price, age) in ongoing conversations need the agentic loop
   if (text.length <= 100) {
+    const isNumericReply = /^[\+\d][\d\s\-().]{2,}$/.test(text.trim()) || /^\d+\s*(ans?|€|\$|eur|dzd|jours?|km)?$/i.test(text.trim());
+    if (messageCount > 2 && isNumericReply) {
+      return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'numeric reply in conversation' };
+    }
     if (GROQ_KEY)   return { provider: 'groq',   fallback: 'claude', fastPath: true, reason: 'short/groq-first' };
     if (GEMINI_KEY) return { provider: 'gemini', fallback: 'claude', fastPath: true, reason: 'short/gemini-first' };
   }
