@@ -7,6 +7,7 @@ const DATA_TOOLS = new Set([
   'list_bookings', 'check_car_availability', 'get_payment_status',
   'get_unpaid_bookings', 'get_late_returns', 'check_anomalies',
   'supabase_execute',
+  'create_booking', 'update_booking', 'cancel_booking',
 ]);
 
 // Financial report patterns — stronger than casual number mentions
