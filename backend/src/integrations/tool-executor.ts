@@ -345,11 +345,6 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const status = (input['status'] as string) ?? 'CONFIRMED';
   if (!VALID_STATUSES.includes(status)) return `❌ status invalide: ${status}. Valeurs: ${VALID_STATUSES.join(', ')}`;
 
-  // Automotolux constraint uses lowercase: CHECK (payment_status IN ('pending','partial','paid'))
-  const paymentStatus = ((input['payment_status'] as string) ?? 'pending').toLowerCase();
-  const VALID_PAYMENT_STATUSES = ['pending', 'partial', 'paid'];
-  if (!VALID_PAYMENT_STATUSES.includes(paymentStatus)) return `❌ payment_status invalide: ${paymentStatus}. Valeurs: ${VALID_PAYMENT_STATUSES.join(', ')}`;
-
   // Anti-doublon: vérifie disponibilité avant insertion
   const isAvailable = await checkAvailability(
     carId,
@@ -360,42 +355,63 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     return `❌ Voiture déjà réservée du ${input['start_date']} au ${input['end_date']}. Vérifie avec check_car_availability.`;
   }
 
-  // Calcul nb_days automatique
+  // Calcul nb_days (variable locale, pas de colonne DB)
   const nb_days = Math.max(1, Math.ceil(
     (new Date(input['end_date'] as string).getTime() - new Date(input['start_date'] as string).getTime()) / 86_400_000,
   ));
 
+  // Vérification prix Houari — refuse si prix client < coût Houari
+  try {
+    const { data: carRow } = await supabase.from('cars').select('name').eq('id', carId).single();
+    const carNameForCheck = (carRow as any)?.name as string | undefined;
+    if (carNameForCheck) {
+      const { data: pricingRow } = await supabase.from('pricing').select('daily_houari').ilike('car_name', `%${carNameForCheck}%`).limit(1).single();
+      const houariDay = pricingRow ? Number((pricingRow as any).daily_houari) : null;
+      if (houariDay !== null) {
+        const minTotal = houariDay * nb_days;
+        const clientTotal = Number(input['final_price']);
+        if (clientTotal < minTotal) {
+          return `⚠️ Prix insuffisant ! ${carNameForCheck} coûte ${houariDay}€/j à Houari → minimum ${minTotal}€ pour ${nb_days} jours. Tu as saisi ${clientTotal}€. Modifie le prix avant de créer.`;
+        }
+      }
+    }
+  } catch { /* si pricing indispo, on continue sans bloquer */ }
+
   const client_ppd = input['client_price_per_day'] != null ? Number(input['client_price_per_day']) : null;
   const owner_ppd  = input['owner_price_per_day']  != null ? Number(input['owner_price_per_day'])  : null;
 
+  // Build INSERT payload — only include columns confirmed to exist in automotolux schema
+  // nb_days and client_age are NOT in automotolux schema → excluded
+  // payment_status constraint value unknown → excluded (let DB use default)
+  const insertPayload: Record<string, unknown> = {
+    car_id:               carId,
+    client_name:          input['client_name'],
+    client_phone:         input['client_phone']      ?? null,
+    start_date:           input['start_date'],
+    end_date:             input['end_date'],
+    final_price:          input['final_price'],
+    notes:                input['notes']              ?? null,
+    rented_by:            input['rented_by']          ?? 'Kouider',
+    status,
+    client_price_per_day: client_ppd,
+    owner_price_per_day:  owner_ppd,
+    owner_total:          owner_ppd != null ? Math.round(owner_ppd * nb_days * 100) / 100 : null,
+    profit_kouider:       (client_ppd != null && owner_ppd != null && (input['rented_by'] ?? 'Kouider') !== 'Houari')
+                            ? Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100
+                            : null,
+    discount_applied:     input['discount_applied']  != null ? Number(input['discount_applied']) : 0,
+  };
+
   const { data, error } = await supabase
     .from('bookings')
-    .insert({
-      car_id:               carId,
-      client_name:          input['client_name'],
-      client_phone:         input['client_phone']      ?? null,
-      client_age:           input['client_age']         ?? null,
-      start_date:           input['start_date'],
-      end_date:             input['end_date'],
-      nb_days,
-      final_price:          input['final_price'],
-      client_price_per_day: client_ppd,
-      owner_price_per_day:  owner_ppd,
-      owner_total:          owner_ppd != null ? Math.round(owner_ppd * nb_days * 100) / 100 : null,
-      profit_kouider:       (client_ppd != null && owner_ppd != null && (input['rented_by'] ?? 'Kouider') !== 'Houari')
-                              ? Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100
-                              : null,
-      discount_applied:     input['discount_applied']  != null ? Number(input['discount_applied']) : 0,
-      notes:                input['notes']              ?? null,
-      rented_by:            input['rented_by']          ?? 'Kouider',
-      status,
-      payment_status:       paymentStatus,
-      paid_amount:          Number(input['paid_amount'] ?? 0),
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
-  if (error) return `Erreur création: ${error.message}`;
+  if (error) {
+    console.error('[create_booking] Supabase INSERT error:', JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint }));
+    return `Erreur création: ${error.message}`;
+  }
 
   const booking = data as any;
   let calendarNote = '';
