@@ -958,13 +958,17 @@ router.post('/webhook', async (req, res) => {
     return;
   }
   // ── Auto-route PC/music commands to NEXUS ───────────────────────────────
-  const NEXUS_MUSIC_RE  = /\b(joue[rz]?|lance[rz]?|play|[eé]coute[rz]?|mets?|mettre|d[eé]marre[rz]?\s+(?:spotify|youtube|musique)|ouvre[rz]?\s+(?:spotify|youtube)|musique|chanson|lacrim|jul\b|soolking|sch\b|nekfeu|booba|kaaris)\b/i;
+  // Guard: réservation/booking keywords → jamais routé vers Nexus
+  const BOOKING_GUARD_RE = /\b(r[eé]servation|r[eé]server|booking|cr[eé]e[rz]?\s+une?\s+r[eé]sa|agenda\s+(?:pour|de|du|les?)|voiture|location|locataire|prix\s+de\s+\d|client\s+(?:pour|de)|passeport|carte\s+d.identit[eé])\b/i;
+
+  // mets?/mettre/joue/lance/écoute doivent être suivis d'un terme musical explicite
+  const NEXUS_MUSIC_RE  = /\b(joue[rz]?\s+(?:la\s+)?(?:spotify|youtube|musique|chanson)|lance[rz]?\s+(?:spotify|youtube|musique)|play\b|[eé]coute[rz]?\s+(?:la\s+)?(?:musique|chanson)|mets?\s+(?:la\s+)?(?:musique|chanson|spotify|youtube)|mettre\s+(?:la\s+)?(?:musique|chanson)|d[eé]marre[rz]?\s+(?:spotify|youtube|musique)|ouvre[rz]?\s+(?:spotify|youtube)|musique\b|chanson\b|lacrim|jul\b|soolking|sch\b|nekfeu|booba|kaaris)\b/i;
   const NEXUS_VOL_RE    = /\b(volume|son)\s*\d+/i;
   const NEXUS_PAUSE_RE  = /\b(pause|stop|arr[eê]te)\b.*\b(musique|chanson|son|spotify|youtube)\b|\b(musique|chanson)\b.*\b(pause|stop|arr[eê]te)\b/i;
   const NEXUS_MEDIA_RE  = /\b(piste\s+suivante|next\s+track|chanson\s+suivante|piste\s+pr[eé]c|previous\s+track)\b/i;
   const NEXUS_SCREEN_RE = /\b(screenshot|capture\s+[eé]cran|[eé]cran\s+PC|[eé]teins?\s+(le\s+)?[eé]cran|[eé]cran\s+noir|verrouille?\s+(le\s+)?PC|d[eé]verrouille?\s+(le\s+)?PC)\b/i;
 
-  const isNexusPCCmd = isNexusOnline() && (
+  const isNexusPCCmd = isNexusOnline() && !BOOKING_GUARD_RE.test(text) && (
     NEXUS_MUSIC_RE.test(text) ||
     NEXUS_VOL_RE.test(text) ||
     NEXUS_PAUSE_RE.test(text) ||
