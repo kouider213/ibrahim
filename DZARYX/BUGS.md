@@ -7,6 +7,12 @@
 
 ## Bugs Ouverts 🔴
 
+### B004 — `create_marketing_video` inaccessible (agent routing cassé)
+- **Statut** : ✅ FIXÉ — 2026-05-14
+- **Fichier** : `backend/src/agents/agent-registry.ts`
+- **Description** : `MARKETING_AGENT` (priority 6) avait `vidéo` dans ses keywords mais pas `create_marketing_video` dans ses toolNames → "fais une vidéo" routait vers cet agent → Claude ne pouvait pas appeler le tool.
+- **Fix** : Keywords `TIKTOK_AGENT` élargis pour catcher "fais/crée/génère une vidéo". Priority TIKTOK_AGENT 6→7. Provider TIKTOK_AGENT : groq → claude (tool-calling). MARKETING_AGENT : ajout des outils vidéo création comme fallback.
+
 ### B001 — `create_booking` ne stocke pas les prix réels
 - **Statut** : ✅ FIXÉ — 2026-05-14
 - **Fichiers** : `backend/src/integrations/tool-executor.ts` + `backend/src/integrations/tools.ts`

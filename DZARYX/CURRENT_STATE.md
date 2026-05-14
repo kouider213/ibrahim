@@ -30,6 +30,10 @@ Le système financier est maintenant normalisé. Les profits s'affichent avec le
 
 ---
 
+## Ce qui fonctionne ✅ (ajout)
+
+- Création vidéo marketing : "fais une vidéo" route maintenant vers TIKTOK_AGENT (create_marketing_video + FFmpeg)
+
 ## Ce qui ne fonctionne pas / incomplet ❌
 
 ### ~~PRIORITÉ 1~~ ✅ FIXÉ — `create_booking` stocke maintenant client/owner price
