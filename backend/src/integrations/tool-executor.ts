@@ -144,6 +144,7 @@ async function _dispatch(
       case 'delete_booking':        return await deleteBooking(input);
       case 'get_financial_report':  return await financialReport(input);
       case 'store_document':        return await storeDocument(input);
+      case 'get_client_document':   return await getClientDocument(input);
       case 'read_site_file':        return await readSiteFile(input);
       case 'update_site_file':      return await updateSiteFile(input);
       case 'learn_rule':            return await learnRuleTool(input);
@@ -454,18 +455,21 @@ async function storeDocument(input: Record<string, unknown>): Promise<string> {
   const { data, error } = await supabase
     .from('client_documents')
     .insert({
-      client_phone: input['client_phone'],
-      client_name:  input['client_name'],
-      booking_id:   input['booking_id'] ?? null,
-      type:         input['type'],
-      file_url:     input['file_url'],
-      notes:        input['notes'] ?? null,
+      client_phone:   input['client_phone']   ?? null,
+      client_name:    input['client_name'],
+      booking_id:     input['booking_id']     ?? null,
+      type:           input['type'],
+      file_url:       input['file_url']       ?? null,
+      notes:          input['notes']          ?? null,
+      extracted_data: input['extracted_data'] ?? null,
     })
     .select()
     .single();
 
   if (error) return `Erreur stockage document: ${error.message}`;
-  return `✅ Document ${input['type']} stocké pour ${input['client_name']}. ID: ${(data as any).id}`;
+  const doc = data as any;
+  const ext = doc.extracted_data ? ` | Données extraites: ${JSON.stringify(doc.extracted_data)}` : '';
+  return `✅ Document ${input['type']} stocké pour ${input['client_name']}. ID: ${doc.id}${ext}`;
 }
 
 async function readSiteFile(input: Record<string, unknown>): Promise<string> {
@@ -900,10 +904,11 @@ async function githubSearchCode(input: Record<string, unknown>): Promise<string>
 async function getClientDocument(input: Record<string, unknown>): Promise<string> {
   let query = supabase
     .from('client_documents')
-    .select('id, client_name, client_phone, type, file_url, storage_path, notes, created_at')
+    .select('id, client_name, client_phone, type, file_url, storage_path, notes, extracted_data, created_at')
     .order('created_at', { ascending: false })
     .limit(5);
 
+  if (input['booking_id']) query = query.eq('booking_id', input['booking_id'] as string);
   if (input['client_name']) query = query.ilike('client_name', `%${input['client_name']}%`);
   if (input['client_phone']) query = query.ilike('client_phone', `%${input['client_phone']}%`);
   if (input['type']) query = query.eq('type', input['type']);
@@ -912,17 +917,31 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   if (error) return `Erreur: ${error.message}`;
   if (!data || data.length === 0) return 'Aucun document trouvé pour ce client.';
 
-  type DocRow = { client_name: string; client_phone: string; type: string; file_url: string; storage_path?: string; notes?: string; created_at: string };
+  type DocRow = { client_name: string; client_phone: string; type: string; file_url: string; storage_path?: string; notes?: string; extracted_data?: Record<string, unknown>; created_at: string };
+  const field = input['field'] as string | undefined;
+  const docs = data as DocRow[];
 
-  const results = await Promise.all((data as DocRow[]).map(async d => {
+  // Specific field requested (e.g. just passport_number or phone)
+  if (field) {
+    const doc = docs[0];
+    if (doc.extracted_data && field in doc.extracted_data) {
+      return `${field}: ${doc.extracted_data[field]}`;
+    }
+    if (field === 'client_phone' || field === 'phone') return doc.client_phone ?? '❌ Téléphone non renseigné';
+    if (field === 'file_url' || field === 'url') return doc.file_url ?? '❌ URL non disponible';
+    return `❌ Champ "${field}" introuvable. Disponibles: ${doc.extracted_data ? Object.keys(doc.extracted_data).join(', ') : 'client_phone, file_url'}`;
+  }
+
+  const results = await Promise.all(docs.map(async (d: DocRow) => {
     let url = d.file_url;
     if (d.storage_path) {
       const { data: signed } = await supabase.storage
         .from('client-documents')
         .createSignedUrl(d.storage_path, 3600);
-      if (signed?.signedUrl) url = signed.signedUrl;
+      if ((signed as any)?.signedUrl) url = (signed as any).signedUrl;
     }
-    return `📄 ${d.client_name} (${d.client_phone}) — ${d.type}\nURL: ${url}\nDate: ${d.created_at.slice(0, 10)}${d.notes ? `\nNote: ${d.notes}` : ''}`;
+    const extStr = d.extracted_data ? `\nDonnées: ${JSON.stringify(d.extracted_data)}` : '';
+    return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}${url ? `\nURL: ${url}` : ''}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
   }));
 
   return results.join('\n\n');

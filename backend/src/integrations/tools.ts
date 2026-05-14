@@ -96,18 +96,33 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'store_document',
-    description: 'Stocker passeport/permis/contrat client dans Supabase Storage.',
+    description: 'Stocker passeport/permis/contrat client + données OCR extraites. Appeler après analyse vision d\'une photo document. extracted_data contient les champs parsés (passport_number, full_name, dob, nationality, expiry_date, etc.).',
     input_schema: {
       type: 'object' as const,
       properties: {
-        client_phone: { type: 'string' },
-        client_name:  { type: 'string' },
-        booking_id:   { type: 'string', description: 'UUID réservation (optionnel)' },
-        type:         { type: 'string', enum: ['passport','license','contract','other'] },
-        file_url:     { type: 'string', description: 'URL publique du fichier' },
-        notes:        { type: 'string' },
+        client_name:    { type: 'string' },
+        client_phone:   { type: 'string', description: 'Optionnel' },
+        booking_id:     { type: 'string', description: 'UUID réservation (optionnel)' },
+        type:           { type: 'string', enum: ['passport','license','contract','other'] },
+        file_url:       { type: 'string', description: 'URL publique du fichier (optionnel si extracted_data fourni)' },
+        notes:          { type: 'string' },
+        extracted_data: { type: 'object', description: 'Données extraites par OCR/Vision: {passport_number, full_name, dob, nationality, expiry_date, address, ...}' },
       },
-      required: ['client_phone','client_name','type','file_url'],
+      required: ['client_name','type'],
+    },
+  },
+  {
+    name: 'get_client_document',
+    description: 'Récupérer documents et données client (passeport, permis). Peut retourner un champ spécifique (ex: juste le numéro de passeport, juste le téléphone). Cherche par booking_id, client_name ou client_phone.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:  { type: 'string', description: 'Nom du client (recherche partielle)' },
+        client_phone: { type: 'string', description: 'Téléphone exact' },
+        booking_id:   { type: 'string', description: 'UUID réservation' },
+        type:         { type: 'string', enum: ['passport','license','contract','other'], description: 'Filtrer par type de document' },
+        field:        { type: 'string', description: 'Champ spécifique à retourner depuis extracted_data: passport_number, full_name, dob, nationality, expiry_date, etc. Si absent, retourne tout.' },
+      },
     },
   },
   {
