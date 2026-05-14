@@ -1,5 +1,6 @@
 /**
  * Multi-provider web search — resilient, no single point of failure.
+ * Updated: 2026-05-14 — Jina Reader provider added (YouTube+TikTok, no key required).
  *
  * Priority order (per user spec):
  *   1. APIFY Google Search Scraper  — requires APIFY_API_KEY, highest quality, ~20-40s
