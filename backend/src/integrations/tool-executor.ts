@@ -311,7 +311,7 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (input['end_date'])     fields['end_date']     = input['end_date'];
   if (input['final_price'] !== undefined) fields['final_price'] = input['final_price'];
   if (input['status'])       fields['status']       = input['status'];
-  if (input['payment_status']) fields['payment_status'] = input['payment_status'];
+  if (input['payment_status']) fields['payment_status'] = (input['payment_status'] as string).toLowerCase();
   if (input['paid_amount'] !== undefined) fields['paid_amount'] = Number(input['paid_amount']);
   if (input['rented_by'])    fields['rented_by']    = input['rented_by'];
   if (input['notes'])        fields['notes']        = input['notes'];
@@ -345,8 +345,9 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const status = (input['status'] as string) ?? 'CONFIRMED';
   if (!VALID_STATUSES.includes(status)) return `❌ status invalide: ${status}. Valeurs: ${VALID_STATUSES.join(', ')}`;
 
-  const VALID_PAYMENT_STATUSES = ['PENDING', 'PARTIAL', 'PAID'];
-  const paymentStatus = (input['payment_status'] as string) ?? 'PENDING';
+  // Automotolux constraint uses lowercase: CHECK (payment_status IN ('pending','partial','paid'))
+  const paymentStatus = ((input['payment_status'] as string) ?? 'pending').toLowerCase();
+  const VALID_PAYMENT_STATUSES = ['pending', 'partial', 'paid'];
   if (!VALID_PAYMENT_STATUSES.includes(paymentStatus)) return `❌ payment_status invalide: ${paymentStatus}. Valeurs: ${VALID_PAYMENT_STATUSES.join(', ')}`;
 
   // Anti-doublon: vérifie disponibilité avant insertion
