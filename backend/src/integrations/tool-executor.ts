@@ -461,7 +461,7 @@ async function storeDocument(input: Record<string, unknown>): Promise<string> {
       type:           input['type'],
       file_url:       input['file_url']       ?? null,
       notes:          input['notes']          ?? null,
-      extracted_data: input['extracted_data'] ?? null,
+      extracted_data: input['extracted_data'] ? (() => { try { return JSON.parse(input['extracted_data'] as string); } catch { return null; } })() : null,
     })
     .select()
     .single();

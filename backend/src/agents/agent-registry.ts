@@ -39,7 +39,6 @@ AGENDA: Si le résultat de create_booking contient "⚠️ Google Agenda non syn
     'list_bookings','create_booking','update_booking','cancel_booking','delete_booking',
     'check_car_availability','generate_reservation_voucher','get_late_returns',
     'get_fleet_status','send_whatsapp_to_client','schedule_reminder','create_calendar_event','rate_client',
-    'store_document','get_client_document',
   ],
   keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule)\b/i,
   priority:  10,

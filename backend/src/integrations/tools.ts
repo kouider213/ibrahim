@@ -106,7 +106,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         type:           { type: 'string', enum: ['passport','license','contract','other'] },
         file_url:       { type: 'string', description: 'URL publique du fichier (optionnel si extracted_data fourni)' },
         notes:          { type: 'string' },
-        extracted_data: { type: 'object', description: 'Données extraites par OCR/Vision: {passport_number, full_name, dob, nationality, expiry_date, address, ...}' },
+        extracted_data: { type: 'string', description: 'JSON string des données extraites par OCR/Vision: {"passport_number":"...", "full_name":"...", "dob":"...", "nationality":"...", "expiry_date":"..."}' },
       },
       required: ['client_name','type'],
     },
