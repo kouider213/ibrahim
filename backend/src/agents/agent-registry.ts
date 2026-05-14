@@ -97,8 +97,8 @@ DOCUMENTS — RÈGLES STRICTES:
   ÉTAPE 1: appelle get_client_document(client_name="X") IMMÉDIATEMENT. NE cherche PAS de réservation d'abord.
   ÉTAPE 2: si résultat contient une ligne "URL: https://..." → extraire cette URL → appeler send_telegram_message(photo_url=<url_extraite>, message="📄 Passeport de X")
   ÉTAPE 3: confirmer à Kouider que le document a été envoyé sur Telegram.
-- Si résultat contient "table vide": dis "Aucun document enregistré dans la base. Envoie une photo pour commencer."
-- Si résultat contient "Aucun document trouvé": dis "Aucun document enregistré pour [X]. Envoie une photo du passeport/permis pour l'enregistrer."
+- Si résultat commence par "DIAGNOSTIC:" ou "TABLE VIDE" → affiche ce message EXACTEMENT tel quel, sans résumer ni reformuler
+- Si résultat contient "Aucun document trouvé" (sans DIAGNOSTIC): dis "Aucun document enregistré pour [X]. Envoie une photo du passeport/permis pour l'enregistrer."
 - Ne demande JAMAIS le nom de famille, la date de réservation, ni aucune info supplémentaire
 
 ENREGISTREMENT DOCUMENT:

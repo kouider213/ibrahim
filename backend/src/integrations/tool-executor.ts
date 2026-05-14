@@ -938,10 +938,14 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   const { data, error } = await query;
   if (error) return `Erreur: ${error.message}`;
   if (!data || data.length === 0) {
-    // Diagnostic: count total rows in table to distinguish empty table vs name mismatch
-    const { count } = await supabase.from('client_documents').select('*', { count: 'exact', head: true });
-    if (!count || count === 0) return 'Aucun document trouvé — table vide (aucun document enregistré dans la base).';
-    return `Aucun document trouvé pour ce client. (${count} document(s) au total dans la base — vérifier orthographe du nom)`;
+    // Diagnostic: list all client names in table so we can see orthography
+    const { data: allDocs, count } = await supabase
+      .from('client_documents')
+      .select('client_name, type', { count: 'exact' })
+      .limit(20);
+    if (!count || count === 0) return 'TABLE VIDE — aucun document enregistré dans la base client_documents.';
+    const names = (allDocs ?? []).map((d: { client_name: string; type: string }) => `${d.client_name} (${d.type})`).join(' | ');
+    return `DIAGNOSTIC: "${input['client_name'] ?? '?'}" introuvable. ${count} doc(s) en base: ${names}`;
   }
 
   type DocRow = { client_name: string; client_phone: string; type: string; file_url: string; storage_path?: string; notes?: string; extracted_data?: Record<string, unknown>; created_at: string };
