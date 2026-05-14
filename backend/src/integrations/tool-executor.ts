@@ -311,7 +311,11 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (input['end_date'])     fields['end_date']     = input['end_date'];
   if (input['final_price'] !== undefined) fields['final_price'] = input['final_price'];
   if (input['status'])       fields['status']       = input['status'];
-  if (input['payment_status']) fields['payment_status'] = (input['payment_status'] as string).toLowerCase();
+  if (input['payment_status']) {
+    // Automotolux values: UNPAID | PARTIAL | PAID (uppercase)
+    const psMap: Record<string, string> = { pending: 'UNPAID', unpaid: 'UNPAID', partial: 'PARTIAL', paid: 'PAID', PENDING: 'UNPAID', UNPAID: 'UNPAID', PARTIAL: 'PARTIAL', PAID: 'PAID' };
+    fields['payment_status'] = psMap[input['payment_status'] as string] ?? (input['payment_status'] as string).toUpperCase();
+  }
   if (input['paid_amount'] !== undefined) fields['paid_amount'] = Number(input['paid_amount']);
   if (input['rented_by'])    fields['rented_by']    = input['rented_by'];
   if (input['notes'])        fields['notes']        = input['notes'];
@@ -380,9 +384,8 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const client_ppd = input['client_price_per_day'] != null ? Number(input['client_price_per_day']) : null;
   const owner_ppd  = input['owner_price_per_day']  != null ? Number(input['owner_price_per_day'])  : null;
 
-  // Build INSERT payload — only include columns confirmed to exist in automotolux schema
-  // nb_days and client_age are NOT in automotolux schema → excluded
-  // payment_status constraint value unknown → excluded (let DB use default)
+  // Automotolux payment_status values: 'UNPAID' | 'PARTIAL' | 'PAID' (DEFAULT 'UNPAID')
+  // nb_days, client_age, notes NOT in automotolux schema → excluded
   const insertPayload: Record<string, unknown> = {
     car_id:               carId,
     client_name:          input['client_name'],
@@ -390,7 +393,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     start_date:           input['start_date'],
     end_date:             input['end_date'],
     final_price:          input['final_price'],
-    notes:                input['notes']              ?? null,
+    payment_status:       'UNPAID',
     rented_by:            input['rented_by']          ?? 'Kouider',
     status,
     client_price_per_day: client_ppd,
