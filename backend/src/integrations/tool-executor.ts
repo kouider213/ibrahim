@@ -385,11 +385,13 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
   const owner_ppd  = input['owner_price_per_day']  != null ? Number(input['owner_price_per_day'])  : null;
 
   // Automotolux payment_status values: 'UNPAID' | 'PARTIAL' | 'PAID' (DEFAULT 'UNPAID')
-  // nb_days, client_age, notes NOT in automotolux schema → excluded
+  // nb_days, notes NOT in automotolux schema → excluded
+  // client_age: column exists, make nullable via: ALTER TABLE bookings ALTER COLUMN client_age DROP NOT NULL
   const insertPayload: Record<string, unknown> = {
     car_id:               carId,
     client_name:          input['client_name'],
     client_phone:         input['client_phone']      ?? null,
+    client_age:           input['client_age']         != null ? Number(input['client_age']) : null,
     start_date:           input['start_date'],
     end_date:             input['end_date'],
     final_price:          input['final_price'],
