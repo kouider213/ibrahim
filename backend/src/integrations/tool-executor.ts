@@ -423,9 +423,24 @@ async function deleteBooking(input: Record<string, unknown>): Promise<string> {
   if (['ACTIVE', 'CONFIRMED'].includes(booking.status as string)) {
     return `❌ Impossible de supprimer une réservation ${booking.status}. Annule-la d'abord avec cancel_booking.`;
   }
+
+  // Delete Google Calendar event if linked
+  let calendarNote = '';
+  try {
+    const { data: calEvent } = await supabase
+      .from('calendar_events')
+      .select('google_event_id')
+      .eq('booking_id', id)
+      .single();
+    if (calEvent?.google_event_id) {
+      await deleteCalendarEvent(calEvent.google_event_id as string);
+      calendarNote = ' | 📅 Agenda supprimé';
+    }
+  } catch { calendarNote = ' | ⚠️ Agenda non supprimé'; }
+
   const { error } = await supabase.from('bookings').delete().eq('id', id);
   if (error) return `Erreur suppression: ${error.message}`;
-  return `✅ Réservation ${id} supprimée définitivement`;
+  return `✅ Réservation ${id} supprimée définitivement${calendarNote}`;
 }
 
 async function financialReport(input: Record<string, unknown>): Promise<string> {
