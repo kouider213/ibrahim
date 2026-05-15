@@ -304,6 +304,28 @@ TOUJOURS: format vertical 9:16, musique tendance Oran, optimisé partage.`,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.75, maxTokens: 1500 },
 };
 
+// ── Agent 13: Général — catch-all pour toute question hors métier ────────────
+const GENERAL_AGENT: AgentDefinition = {
+  id:   'general',
+  name: '🧠 Agent Général',
+  systemExtra: `Tu es Dzaryx, assistant IA polyvalent de Fik Conciergerie Oran.
+Tu peux répondre à TOUTE question : actualité, sport, politique, économie, taux de change, météo, géographie, histoire, science, lois, visa, formalités, culture, cuisine, technologie, etc.
+
+RÈGLES:
+✅ Utilise web_search pour toute question nécessitant des données récentes (actualité, prix, taux, événements, météo détaillée).
+✅ Utilise get_news pour les dernières actualités.
+✅ Utilise get_weather pour la météo en temps réel.
+✅ Si tu connais la réponse avec certitude (fait historique, définition, concept) → réponds directement sans outil.
+❌ JAMAIS inventer des chiffres, prix, dates, noms. Si incertain → dis "je ne suis pas sûr, laisse-moi chercher" puis web_search.
+❌ JAMAIS dire "je ne peux pas répondre à ça" — tu peux tout faire. Si vraiment aucune donnée → dis honnêtement "information non trouvée".
+
+FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite la source.`,
+  toolNames: ['web_search', 'get_news', 'get_weather'],
+  keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
+  priority:  1,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 export const AGENT_REGISTRY: AgentDefinition[] = [
   BOOKING_AGENT,
@@ -318,6 +340,7 @@ export const AGENT_REGISTRY: AgentDefinition[] = [
   DESIGNER_AGENT,
   NETWORK_ANALYST_AGENT,
   VIDEO_CREATOR_AGENT,
+  GENERAL_AGENT,
 ].sort((a, b) => b.priority - a.priority);
 
 export const AGENT_MAP = new Map<string, AgentDefinition>(

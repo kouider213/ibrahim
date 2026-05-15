@@ -18,7 +18,7 @@ export interface RouteDecision {
 }
 
 // ── Keywords that signal tools are required ──────────────────────────────────
-const TOOL_KEYWORDS = /réservation|booking|location|voiture|client|facture|paiement|caisse|finance|météo|news|agenda|calendrier|github|deploy|railway|code|script|whatsapp|telegram|mémoire|souvien|rappelle|mémo|tiktok|vidéo|image|photo|pdf|document|contrat|passeport|permis|envoie|concurrent|concurrentiel|veille|recherche\s+con/i;
+const TOOL_KEYWORDS = /réservation|booking|location|voiture|client|facture|paiement|caisse|finance|météo|news|agenda|calendrier|github|deploy|railway|code|script|whatsapp|telegram|mémoire|souvien|rappelle|mémo|tiktok|vidéo|image|photo|pdf|document|contrat|passeport|permis|envoie|concurrent|concurrentiel|veille|recherche\s+con|actualité|actu|sport|foot|politique|économie|taux|dinar|dzd|dollar|euro|algérie|algérien|alger|oran|condition|visa|formalité|loi|règlement|info\s+sur|qu.est.ce\s+que|c.est\s+quoi|explique|comment\s+(?!ça|ca)|pourquoi|quand\s+(?!même)|où\s+(?!est|sont)|qui\s+est\s+(?!tu)|quel\s+(?!age|âge)/i;
 
 // ── Long-context keywords → Gemini (1M token window) ─────────────────────────
 const LONG_CONTEXT_KEYWORDS = /analyse (ce|cet|ce long|tout ce|l'ensemble)|résume (ce|cet|tout)|lis (ce|cet|tout le)|compare (ces|les deux|plusieurs)/i;
@@ -51,25 +51,23 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
     return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'long message' };
   }
 
-  // Short messages (≤ 100 chars, no tools needed) → cheap provider FIRST
-  // EXCEPT: numeric replies (phone, price, age) in ongoing conversations need the agentic loop
+  // Pure greetings/ack → Groq (no knowledge/tools needed, ultra-fast)
+  // Check BEFORE the short-message block so greetings never fall through to Claude
+  if (GROQ_KEY && (SIMPLE_GREET.test(text) || SIMPLE_QUERY.test(text) || SIMPLE_WHOAMI.test(text))) {
+    return { provider: 'groq', fallback: 'claude', fastPath: true, reason: 'simple greeting' };
+  }
+
+  // Numeric replies in conversation → Claude agentic loop
   if (text.length <= 100) {
     const isNumericReply = /^[\+\d][\d\s\-().]{2,}$/.test(text.trim()) || /^\d+\s*(ans?|€|\$|eur|dzd|jours?|km)?$/i.test(text.trim());
     if (messageCount > 2 && isNumericReply) {
       return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'numeric reply in conversation' };
     }
-    if (GROQ_KEY)   return { provider: 'groq',   fallback: 'claude', fastPath: true, reason: 'short/groq-first' };
-    if (GEMINI_KEY) return { provider: 'gemini', fallback: 'claude', fastPath: true, reason: 'short/gemini-first' };
   }
 
   // Multi-turn conversation context → Claude (has memory/context)
   if (messageCount > 2) {
     return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'conversation context' };
-  }
-
-  // Simple greetings/chitchat → Groq if available (ultra-fast, no tools needed)
-  if (GROQ_KEY && (SIMPLE_GREET.test(text) || SIMPLE_QUERY.test(text) || SIMPLE_WHOAMI.test(text))) {
-    return { provider: 'groq', fallback: 'claude', fastPath: true, reason: 'simple greeting' };
   }
 
   // Default: Claude with full agentic loop
