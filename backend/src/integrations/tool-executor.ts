@@ -2516,35 +2516,40 @@ async function apifyRun(actorId: string, inputPayload: Record<string, unknown>):
   const apiKey = env.APIFY_API_KEY;
   if (!apiKey) return [];
 
-  const runResp = await axios.post(
-    `https://api.apify.com/v2/acts/${actorId}/runs?token=${apiKey}`,
-    inputPayload,
-    { timeout: 30_000 },
-  );
-
-  const runId: string = runResp.data?.data?.id ?? '';
-  if (!runId) return [];
-
-  // Attendre la fin du run (max 120s)
-  let datasetId = '';
-  for (let i = 0; i < 24; i++) {
-    await new Promise(r => setTimeout(r, 5000));
-    const statusResp = await axios.get(
-      `https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`,
-      { timeout: 10_000 },
+  try {
+    const runResp = await axios.post(
+      `https://api.apify.com/v2/acts/${actorId}/runs?token=${apiKey}`,
+      inputPayload,
+      { timeout: 30_000 },
     );
-    const status: string = statusResp.data?.data?.status ?? '';
-    if (status === 'SUCCEEDED') { datasetId = statusResp.data?.data?.defaultDatasetId ?? ''; break; }
-    if (status === 'FAILED' || status === 'ABORTED') return [];
+
+    const runId: string = runResp.data?.data?.id ?? '';
+    if (!runId) return [];
+
+    // Attendre la fin du run (max 120s)
+    let datasetId = '';
+    for (let i = 0; i < 24; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      const statusResp = await axios.get(
+        `https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`,
+        { timeout: 10_000 },
+      );
+      const status: string = statusResp.data?.data?.status ?? '';
+      if (status === 'SUCCEEDED') { datasetId = statusResp.data?.data?.defaultDatasetId ?? ''; break; }
+      if (status === 'FAILED' || status === 'ABORTED') return [];
+    }
+
+    if (!datasetId) return [];
+
+    const itemsResp = await axios.get(
+      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=40`,
+      { timeout: 15_000 },
+    );
+    return itemsResp.data ?? [];
+  } catch {
+    // Pas de crédits, quota dépassé, ou réseau → fallback web_search
+    return [];
   }
-
-  if (!datasetId) return [];
-
-  const itemsResp = await axios.get(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=40`,
-    { timeout: 15_000 },
-  );
-  return itemsResp.data ?? [];
 }
 
 function formatTikTokItems(items: any[]): string {
