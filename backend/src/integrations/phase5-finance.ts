@@ -481,12 +481,15 @@ export async function checkAnomalies(): Promise<string> {
   const month = now.getMonth() + 1;
   const mm    = String(month).padStart(2, '0');
 
+  const monthStart = `${year}-${mm}-01`;
+  const monthEnd   = `${year}-${mm}-${new Date(year, month, 0).getDate()}`;
+
   const { data, error } = await supabase
     .from('bookings')
     .select('client_name, final_price, start_date, end_date, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
-    .gte('start_date', `${year}-${mm}-01`)
-    .lte('start_date', `${year}-${mm}-${new Date(year, month, 0).getDate()}`);
+    .lte('start_date', monthEnd)
+    .gte('end_date', monthStart);
 
   if (error) return `Erreur: ${error.message}`;
   if (!data?.length) return 'Aucune donnée pour analyse.';
