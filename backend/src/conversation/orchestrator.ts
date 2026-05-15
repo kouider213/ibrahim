@@ -1,6 +1,6 @@
 ﻿import { buildContext }                          from './context-builder.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
-import { checkAntiHallucination } from '../orchestrator/anti-hallucination.js';
+import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hallucination.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -195,8 +195,9 @@ export async function processMessage(
       try {
         const fastText = await fp.fn();
         redis.incr(`provider:calls:${fastToday}:${fp.key}`).catch(() => {});
-        const guarded1 = guardResponse(fastText, userMessage, requestId);
-        const safeText = phantomGuard(guarded1, [], userMessage, requestId);
+        const guarded1  = guardResponse(fastText, userMessage, requestId);
+        const phantom1  = phantomGuard(guarded1, [], userMessage, requestId);
+        const safeText  = fastPathGuard(phantom1, userMessage, requestId);
         if (imageBase64) {
           console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
         }
@@ -306,8 +307,9 @@ export async function processMessage(
         redis.incr(`provider:fallback:${today}:${fb.key}:success`).catch(() => {});
         console.warn(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=${fb.key} fast_path=false fallback=true router_used=true legacy=false`);
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
-        // Fallback providers = aucun outil → phantom guard
-        const safeText     = phantomGuard(guarded1, [], userMessage, requestId);
+        // Fallback providers = aucun outil → phantom + fast-path business data guard
+        const phantom1     = phantomGuard(guarded1, [], userMessage, requestId);
+        const safeText     = fastPathGuard(phantom1, userMessage, requestId);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
         if (!textOnly && safeText.length > 0) {

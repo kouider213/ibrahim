@@ -4,7 +4,7 @@
  * No external dependencies (pure function tests).
  */
 import assert from 'assert';
-import { checkAntiHallucination } from '../orchestrator/anti-hallucination.js';
+import { checkAntiHallucination, fastPathGuard, FAST_PATH_REFUSAL } from '../orchestrator/anti-hallucination.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../conversation/response-guard.js';
 import { maskPassportOcr, maskLicenseOcr, maskSensitiveText } from '../security/document-mask.js';
 import type { ToolExecution } from '../integrations/claude-api.js';
@@ -157,6 +157,138 @@ test('maskSensitiveText: MRZ masqué dans texte libre', () => {
   const text = 'P<DZNKOUIDER<<IBRAHIM<<<<<<<<<<<<<<<<<<<<<<<<';
   const masked = maskSensitiveText(text);
   assert.ok(!masked.includes('KOUIDER'), `MRZ not masked: "${masked}"`);
+});
+
+// ── 5. Gate 4: booking count claims ──────────────────────────────────────────
+console.log('\n--- Gate 4: Booking count claim ---');
+
+test('Gate4: "tu as 5 réservations en cours" sans outil → bloqué', () => {
+  const check = checkAntiHallucination(
+    'Tu as 5 réservations en cours ce mois.',
+    [],
+    'combien de réservations',
+    RID,
+  );
+  assert.strictEqual(check.safe, false);
+  assert.strictEqual(check.reason, 'booking_count_claim');
+});
+
+test('Gate4: "tu as 5 réservations" avec list_bookings ✅ → autorisé', () => {
+  const check = checkAntiHallucination(
+    'Tu as 5 réservations en cours ce mois.',
+    [tool('list_bookings')],
+    'combien de réservations',
+    RID,
+  );
+  assert.strictEqual(check.safe, true);
+});
+
+test('Gate4: "aucune réservation ce mois" sans outil → bloqué', () => {
+  const check = checkAntiHallucination(
+    'Aucune réservation ce mois.',
+    [],
+    'résa?',
+    RID,
+  );
+  assert.strictEqual(check.safe, false);
+  assert.strictEqual(check.reason, 'booking_count_claim');
+});
+
+// ── 6. Gate 4b: car availability claims ──────────────────────────────────────
+console.log('\n--- Gate 4b: Car availability ---');
+
+test('Gate4b: "Clio est disponible" sans fleet tool → bloqué', () => {
+  const check = checkAntiHallucination(
+    'Le Clio est disponible pour cette période.',
+    [],
+    'dispo clio?',
+    RID,
+  );
+  assert.strictEqual(check.safe, false);
+  assert.strictEqual(check.reason, 'car_avail_claim');
+});
+
+test('Gate4b: "Sandero disponible" avec check_car_availability ✅ → autorisé', () => {
+  const check = checkAntiHallucination(
+    'Le Sandero est disponible.',
+    [tool('check_car_availability')],
+    'dispo sandero',
+    RID,
+  );
+  assert.strictEqual(check.safe, true);
+});
+
+test('Gate4b: "Jogger indisponible, en location" sans outil → bloqué', () => {
+  const check = checkAntiHallucination(
+    'Le Jogger est indisponible, il est en location.',
+    [],
+    'jogger?',
+    RID,
+  );
+  assert.strictEqual(check.safe, false);
+  assert.strictEqual(check.reason, 'car_avail_claim');
+});
+
+// ── 7. Gate 4c: payment claims ────────────────────────────────────────────────
+console.log('\n--- Gate 4c: Payment claims ---');
+
+test('Gate4c: "montant impayé de 5000 da" sans payment tool → bloqué', () => {
+  const check = checkAntiHallucination(
+    'Il y a un montant impayé de 5000 da.',
+    [],
+    'impayés?',
+    RID,
+  );
+  assert.strictEqual(check.safe, false);
+  assert.strictEqual(check.reason, 'payment_claim');
+});
+
+test('Gate4c: "montant impayé" avec get_unpaid_bookings ✅ → autorisé', () => {
+  const check = checkAntiHallucination(
+    'Il y a un montant impayé de 5000 da.',
+    [tool('get_unpaid_bookings')],
+    'impayés?',
+    RID,
+  );
+  assert.strictEqual(check.safe, true);
+});
+
+// ── 8. fastPathGuard ──────────────────────────────────────────────────────────
+console.log('\n--- fastPathGuard (Groq/Gemini/OpenAI) ---');
+
+test('fastPath: greeting → autorisé', () => {
+  const result = fastPathGuard('Bonjour ! Comment puis-je vous aider ?', 'salut', RID);
+  assert.notStrictEqual(result, FAST_PATH_REFUSAL);
+});
+
+test('fastPath: weather → autorisé', () => {
+  const result = fastPathGuard('Aujourd\'hui à Oran il fait 28°C.', 'météo oran', RID);
+  assert.notStrictEqual(result, FAST_PATH_REFUSAL);
+});
+
+test('fastPath: claim "20000 da" → bloqué', () => {
+  const result = fastPathGuard('Tes revenus ce mois sont 20000 da.', 'revenus?', RID);
+  assert.strictEqual(result, FAST_PATH_REFUSAL);
+});
+
+test('fastPath: "3 réservations" → bloqué', () => {
+  const result = fastPathGuard('Tu as 3 réservations en cours.', 'combien résa', RID);
+  assert.strictEqual(result, FAST_PATH_REFUSAL);
+});
+
+test('fastPath: "disponible maintenant" → bloqué', () => {
+  const result = fastPathGuard('Le Clio est disponible maintenant.', 'dispo clio', RID);
+  assert.strictEqual(result, FAST_PATH_REFUSAL);
+});
+
+test('fastPath: "d\'après mes données" → bloqué', () => {
+  const result = fastPathGuard('D\'après mes données, tu as 2 retards.', 'retards', RID);
+  assert.strictEqual(result, FAST_PATH_REFUSAL);
+});
+
+test('fastPath: "bénéfice de 8000 da" → bloqué', () => {
+  const result = fastPathGuard('Le bénéfice de 8000 da ce mois.', 'profit', RID);
+  assert.strictEqual(result, FAST_PATH_REFUSAL);
 });
 
 // ── Summary ───────────────────────────────────────────────────────────────────
