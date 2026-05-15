@@ -388,20 +388,39 @@ class NexusWSClient:
 
         @sio.on('nexus:find_obsidian_vault', namespace='/nexus')
         async def on_find_obsidian_vault(_data: dict):
-            import subprocess as _sp, os as _os
+            import os as _os
+            import asyncio as _aio
             log.info('nexus:find_obsidian_vault ▶ searching...')
+
+            def _search_vaults() -> list:
+                home = _os.path.expanduser('~')
+                candidates = [
+                    _os.path.join(home, 'Documents'),
+                    _os.path.join(home, 'OneDrive'),
+                    _os.path.join(home, 'Desktop'),
+                    _os.path.join(home, 'Obsidian'),
+                    home,
+                ]
+                found = []
+                for base in candidates:
+                    if not _os.path.isdir(base):
+                        continue
+                    try:
+                        for root, dirs, _ in _os.walk(base):
+                            if '.obsidian' in dirs:
+                                found.append(root)
+                            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('AppData', 'node_modules', '$RECYCLE.BIN')]
+                            if len(found) >= 3:
+                                break
+                    except PermissionError:
+                        continue
+                    if found:
+                        break
+                return found
+
             try:
-                # Search for .obsidian config folder in user profile
-                cmd = (
-                    'Get-ChildItem -Path $env:USERPROFILE -Recurse -Filter ".obsidian" '
-                    '-Directory -ErrorAction SilentlyContinue | '
-                    'Select-Object -First 3 | ForEach-Object { $_.Parent.FullName }'
-                )
-                result = _sp.run(
-                    ['powershell', '-NonInteractive', '-Command', cmd],
-                    capture_output=True, text=True, timeout=20
-                )
-                vaults = [v.strip() for v in result.stdout.strip().splitlines() if v.strip()]
+                loop = _aio.get_event_loop()
+                vaults = await loop.run_in_executor(None, _search_vaults)
                 nexus_log.info('find_obsidian_vault ✅ found=%d vaults=%s', len(vaults), vaults)
                 if vaults:
                     return {'ok': True, 'vault': vaults[0], 'all_vaults': vaults}
