@@ -482,25 +482,84 @@ async function financialReport(input: Record<string, unknown>): Promise<string> 
   return formatFinancialReport(report);
 }
 
+const OCR_DOC_TYPES = /passeport|passport|permis|license|licence|cin|carte.identit/i;
+const IMAGE_EXTS    = /\.(jpg|jpeg|png|webp|bmp)(\?|$)/i;
+
+async function ocrDocumentImage(fileUrl: string, docType: string): Promise<Record<string, string> | null> {
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+
+    const imgRes = await axios.get<ArrayBuffer>(fileUrl, { responseType: 'arraybuffer', timeout: 20_000 });
+    const base64    = Buffer.from(imgRes.data).toString('base64');
+    const mediaType = /\.png(\?|$)/i.test(fileUrl) ? 'image/png' : 'image/jpeg';
+
+    const isPermis = /permis|license|licence/i.test(docType);
+    const fields   = isPermis
+      ? 'nom, prénom, numéro_permis, date_naissance, date_expiration, catégories, pays_délivrance'
+      : 'nom, prénom, numéro_document, date_naissance, date_expiration, nationalité, sexe, pays_délivrance';
+
+    const { content } = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      messages: [{
+        role:    'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text',  text: `Extrais ces champs du document: ${fields}. JSON strict uniquement, sans markdown. Si un champ illisible, mets null.` },
+        ],
+      }],
+    });
+
+    const text = (content[0] as { type: string; text: string }).text ?? '';
+    const json = text.match(/\{[\s\S]*?\}/)?.[0];
+    return json ? JSON.parse(json) as Record<string, string> : null;
+  } catch {
+    return null;
+  }
+}
+
 async function storeDocument(input: Record<string, unknown>): Promise<string> {
+  const fileUrl = input['file_url'] as string | undefined;
+  const docType = input['type']     as string ?? '';
+
+  let extractedData: Record<string, unknown> | null =
+    input['extracted_data']
+      ? (() => { try { return JSON.parse(input['extracted_data'] as string); } catch { return null; } })()
+      : null;
+
+  // Auto-OCR: passeport/permis image sans données déjà extraites
+  if (fileUrl && !extractedData && OCR_DOC_TYPES.test(docType) && IMAGE_EXTS.test(fileUrl)) {
+    extractedData = await ocrDocumentImage(fileUrl, docType);
+  }
+
   const { data, error } = await supabase
     .from('client_documents')
     .insert({
       client_phone:   input['client_phone']   ?? null,
       client_name:    input['client_name'],
       booking_id:     input['booking_id']     ?? null,
-      type:           input['type'],
-      file_url:       input['file_url']       ?? null,
+      type:           docType,
+      file_url:       fileUrl                 ?? null,
       notes:          input['notes']          ?? null,
-      extracted_data: input['extracted_data'] ? (() => { try { return JSON.parse(input['extracted_data'] as string); } catch { return null; } })() : null,
+      extracted_data: extractedData,
     })
     .select()
     .single();
 
   if (error) return `Erreur stockage document: ${error.message}`;
   const doc = data as any;
-  const ext = doc.extracted_data ? ` | Données extraites: ${JSON.stringify(doc.extracted_data)}` : '';
-  return `✅ Document ${input['type']} stocké pour ${input['client_name']}. ID: ${doc.id}${ext}`;
+
+  if (doc.extracted_data) {
+    const d = doc.extracted_data as Record<string, string>;
+    const lines = Object.entries(d)
+      .filter(([, v]) => v && v !== 'null')
+      .map(([k, v]) => `• ${k}: ${v}`)
+      .join('\n');
+    return `✅ Document ${docType} stocké pour ${input['client_name']}. ID: ${doc.id}\n📋 Données extraites:\n${lines}`;
+  }
+
+  return `✅ Document ${docType} stocké pour ${input['client_name']}. ID: ${doc.id}`;
 }
 
 async function readSiteFile(input: Record<string, unknown>): Promise<string> {
