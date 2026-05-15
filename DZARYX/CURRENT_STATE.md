@@ -2,15 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-15 (après-midi)
+> Dernière mise à jour : 2026-05-15 (soir)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phase 6 (Mobile) — TERMINÉE ✅. Phase 5 (Finance) — TERMINÉE ✅. Phase 4 Nexus — TERMINÉE ✅.**
+**Phase active : Anti-hallucination — TERMINÉE ✅. Phase 6 (Mobile) — TERMINÉE ✅. Phase 5 (Finance) — TERMINÉE ✅.**
 
-Système financier normalisé. 12 agents spécialisés opérationnels. Recherche web réelle (SearXNG+Jina). Documents clients récupérés + envoyés Telegram. Réservations créées directement. Vidéo marketing 720×1280 active. Planning Kouider embarqué. Revenus prorabilisés corrects. **Dashboard mobile : 10 panels complets, création réservation depuis mobile, calendrier heatmap, liste clients scorée.**
+Système financier normalisé. 12 agents spécialisés opérationnels. Recherche web réelle (SearXNG+Jina). Documents clients récupérés + envoyés Telegram. Réservations créées directement. Vidéo marketing 720×1280 active. Planning Kouider embarqué. Revenus prorabilisés corrects. Dashboard mobile : 10 panels complets. **Anti-hallucination : 7 gates bloquants + fastPathGuard — Dzaryx ne ment plus, ne fabrique plus de données.**
 
 ---
 
@@ -22,7 +22,9 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 - ✅ Revenus **prorabilisés** : today = 1 jour × tarif, semaine = overlap 7 jours, mois = overlap mois
 - ✅ "Donne moi les revenu" : FINANCE_AGENT + Claude-Sonnet + outils réels (B006 fixé)
 - ✅ Fast-mode exclu pour finance : tous les mots FR (revenu/bénéfice/profit...) → full Claude + tools
-- ✅ Anti-hallucination Gates 1/2/3 : bloquants (pas log-only)
+- ✅ Anti-hallucination Gates 1/2/3/4/4b/4c : bloquants (pas log-only)
+- ✅ fastPathGuard : Groq/Gemini/OpenAI bloqués si claims business data sans outils
+- ✅ System prompt : RÈGLE ABSOLUE CONNAISSANCE EN TEMPS RÉEL
 
 ### Réservations
 - ✅ `create_booking` : crée directement sans confirmation, stocke vrais prix financiers
@@ -84,7 +86,7 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ### Aucun bug critique connu ✅
 
-Tous les bugs B001–B006 sont fixés. Voir `BUGS.md` pour détails.
+Tous les bugs B001–B006 sont fixés. Anti-hallucination complet (Gates 1-4c + fastPathGuard). Voir `BUGS.md` pour détails.
 
 ---
 
@@ -92,6 +94,7 @@ Tous les bugs B001–B006 sont fixés. Voir `BUGS.md` pour détails.
 
 - **Backfill `owner_price_per_day`** dans Supabase (SQL Editor) pour les réservations existantes → profits non null. Voir plan SQL dans `HANDOFF.md`.
 - **Phase 7** : à définir selon besoins Kouider.
+- Tester Dzaryx en prod : demander "tes revenus ce mois" sans tool → doit refuser proprement.
 
 ---
 
@@ -119,7 +122,7 @@ Tous les bugs B001–B006 sont fixés. Voir `BUGS.md` pour détails.
 - B003 fixé : checkAnomalies() overlap date filter correct
 - **Phase 6 Mobile** : BookingForm + CalendarView + ClientsView + BottomNav 10 items
 
-**Dernier commit** : `bc06bc4` feat(mobile): Phase 6 panels
+**Dernier commit** : `71d2b1c` fix(anti-hallucination): Gates 4/4b/4c + fastPathGuard
 
 ---
 

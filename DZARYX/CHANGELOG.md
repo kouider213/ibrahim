@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-05-15 — Session soir (Claude Code / Sonnet 4.6)
+
+### Anti-hallucination — Fix complet ✅
+- **Commit** : `71d2b1c`
+- **Fichiers** :
+  - `backend/src/orchestrator/anti-hallucination.ts` (Gates 4/4b/4c + fastPathGuard)
+  - `backend/src/conversation/orchestrator.ts` (fastPathGuard appliqué fast-path + fallback)
+  - `backend/src/config/constants.ts` (RÈGLE ABSOLUE CONNAISSANCE EN TEMPS RÉEL)
+  - `backend/src/tests/anti-hallucination.test.ts` (26 tests unitaires)
+- **DATA_TOOLS** : ajout `get_fleet_status` + `get_client_document`
+- **Gate 2 étendu** : 6 nouveaux patterns — revenus/bénéfice/profit casual
+- **Gate 3 étendu** : 4 nouveaux patterns — "j'ai consulté la base", "d'après mes données"
+- **Gate 4 (nouveau)** : booking count bloqué sans list_bookings/check_anomalies
+- **Gate 4b (nouveau)** : disponibilité véhicule bloquée sans check_car_availability/get_fleet_status
+- **Gate 4c (nouveau)** : claims paiement bloqués sans get_payment_status/get_unpaid_bookings
+- **fastPathGuard (nouveau)** : Groq/Gemini/OpenAI bloqués dès qu'ils affirment données business (montants, réservations, disponibilités, chiffres) — renvoient refusal propre
+- **System prompt** : RÈGLE ABSOLUE CONNAISSANCE EN TEMPS RÉEL — Dzaryx ne donne aucun chiffre business sans outil appelé dans le même tour
+- **Tests** : 26/26 ✅ — TypeScript 0 erreurs
+
+---
+
 ## 2026-05-15 — Session après-midi (Claude Code / Sonnet 4.6)
 
 ### Phase 6 Mobile ✅ — 3 nouveaux panels Dashboard
