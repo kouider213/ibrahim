@@ -1036,6 +1036,11 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     input_schema: { type: 'object' as const, properties: {} },
   },
   {
+    name: 'restart_nexus',
+    description: 'Redémarrer l\'agent Nexus sur le PC de Kouider. Nexus s\'arrête proprement, le watchdog le relance automatiquement en 3-5 secondes avec le nouveau code. Utiliser quand Kouider dit "redémarre Nexus", "relance Nexus", "restart Nexus", "recharge Nexus". Nécessite que Nexus soit en ligne.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
     name: 'nexus_full_status',
     description: 'Obtenir l\'état complet du système NEXUS: Nexus actif ?, Launcher connecté ?, hostname PC, uptime Launcher, dernière réveil, dernière erreur. Utiliser quand Kouider demande "état de Nexus", "status PC", "est-ce que le launcher tourne", "info système".',
     input_schema: { type: 'object' as const, properties: {} },

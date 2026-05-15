@@ -369,6 +369,21 @@ class NexusWSClient:
                 log.error('list_files ERROR: %s', e)
                 return {'ok': False, 'path': path, 'error': str(e), 'files': []}
 
+        # ── Self-restart (watchdog relance automatiquement) ──────────────────
+
+        @sio.on('nexus:self_restart', namespace='/nexus')
+        async def on_self_restart(_data: dict):
+            import asyncio as _aio
+            nexus_log.info('self_restart requested by backend — exiting for watchdog relaunching')
+            log.info('nexus:self_restart ▶ exiting in 1s...')
+            asyncio.create_task(self.journal('🔄 Nexus redémarre via watchdog...'))
+            async def _do_exit():
+                await _aio.sleep(1.0)
+                import os as _os
+                _os.kill(_os.getpid(), 15)  # SIGTERM → watchdog relance
+            asyncio.create_task(_do_exit())
+            return {'ok': True, 'message': 'Redémarrage en cours, watchdog va relancer Nexus...'}
+
         # ── Find Obsidian vault path ──────────────────────────────────────────
 
         @sio.on('nexus:find_obsidian_vault', namespace='/nexus')

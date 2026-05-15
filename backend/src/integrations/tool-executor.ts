@@ -220,6 +220,7 @@ async function _dispatch(
       case 'ping_nexus':               return await pingNexusTool();
       case 'send_nexus_command':       return await sendNexusCommandTool(input);
       case 'wake_nexus':               return await wakeNexusTool();
+      case 'restart_nexus':            return await restartNexusTool();
       case 'nexus_full_status':        return await nexusFullStatusTool();
       // ─── HEALTH CHECK ───
       case 'health_check_all':         return await healthCheckAllTool();
@@ -3860,6 +3861,20 @@ async function wakeNexusTool(): Promise<string> {
     return `❌ Réveil échoué: ${result.message}`;
   } catch (err) {
     return `❌ Erreur réveil Nexus: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function restartNexusTool(): Promise<string> {
+  const { isNexusOnline, emitToNexusWithAck } = await import('../actions/handlers/nexus-relay.js');
+  if (!isNexusOnline()) return '❌ Nexus déjà hors ligne — pas besoin de redémarrer.';
+  try {
+    const res = await emitToNexusWithAck<{ ok: boolean; message?: string }>(
+      'nexus:self_restart', {}, 5000,
+    );
+    if (res.ok) return `🔄 Nexus redémarre... Le watchdog va le relancer automatiquement dans 3-5 secondes.\n${res.message ?? ''}`;
+    return '⚠️ Nexus n\'a pas pu redémarrer proprement.';
+  } catch {
+    return '⚠️ Nexus a redémarré (timeout normal — il était en train de s\'arrêter). Le watchdog le relance.';
   }
 }
 
