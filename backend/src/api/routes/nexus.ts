@@ -176,18 +176,25 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
   const beforeId = getNexusStatus().socketId;
 
   // Step 0 — detect Python exe + nexus dir dynamically from Nexus itself
-  let PYTHON_EXE = 'python';
-  let NEXUS_DIR  = '.';
-  try {
-    const infoRes = await nexusRunCommand(
-      `python -c "import sys, os; print('EXE:' + sys.executable); print('CWD:' + os.getcwd())"`,
-      undefined, 8_000,
-    );
-    const exeM = infoRes.stdout?.match(/EXE:(.+)/);
-    const cwdM = infoRes.stdout?.match(/CWD:(.+)/);
-    if (exeM) { PYTHON_EXE = exeM[1].trim(); console.log(`[NEXUS restart] python=${PYTHON_EXE}`); }
-    if (cwdM) { NEXUS_DIR  = cwdM[1].trim(); console.log(`[NEXUS restart] cwd=${NEXUS_DIR}`); }
-  } catch (e) { console.warn('[NEXUS restart] path detection failed, using defaults:', e); }
+  // Try py launcher first (Windows), then python3, then python
+  let PYTHON_EXE = 'py';
+  let NEXUS_DIR  = 'C:\\Users\\douba\\OneDrive\\Bureau\\ibrahim\\ibrahim\\nexus';
+  for (const pyCmd of ['py', 'python3', 'python']) {
+    try {
+      const infoRes = await nexusRunCommand(
+        `${pyCmd} -c "import sys, os; print('EXE:' + sys.executable); print('CWD:' + os.getcwd())"`,
+        undefined, 8_000,
+      );
+      const exeM = infoRes.stdout?.match(/EXE:(.+)/);
+      const cwdM = infoRes.stdout?.match(/CWD:(.+)/);
+      if (exeM && cwdM) {
+        PYTHON_EXE = exeM[1].trim();
+        NEXUS_DIR  = cwdM[1].trim();
+        console.log(`[NEXUS restart] python=${PYTHON_EXE} cwd=${NEXUS_DIR}`);
+        break;
+      }
+    } catch { /* try next */ }
+  }
 
   res.json({
     ok:               true,
@@ -202,7 +209,7 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
   let oldPid: string | null = null;
   try {
     const pidRes = await nexusRunCommand(
-      `python -c "import os; print('PID:' + str(os.getpid()))"`,
+      `${PYTHON_EXE} -c "import os; print('PID:' + str(os.getpid()))"`,
       NEXUS_DIR, 8_000,
     );
     const m = pidRes.stdout?.match(/PID:(\d+)/);
@@ -235,7 +242,7 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
   let newPid: string | null = null;
   try {
     const launchRes = await nexusRunCommand(
-      `python nexus_launcher_tmp.py`,
+      `${PYTHON_EXE} nexus_launcher_tmp.py`,
       NEXUS_DIR, 20_000,
     );
     console.log(`[NEXUS restart] launcher exit=${launchRes.exit_code} stdout="${launchRes.stdout?.trim()}" stderr="${launchRes.stderr?.slice(0, 300)}"`);
