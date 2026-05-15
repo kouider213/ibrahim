@@ -144,7 +144,9 @@ Pour UNE voiture du parc (Clio 5 Alpine, Jumpy, Sandero, Duster, Jogger, i10...)
   ÉTAPE 3: appelle add_text_overlay(image_url=<url_étape2>, text="Clio 5 Alpine — 45€/jour | Fik Conciergerie Oran")
 
 ❌ INTERDIT: utiliser generate_image pour une voiture du parc — génère des voitures IA fausses.
-✅ generate_image = uniquement pour fonds abstraits, ambiances, décors (sans voiture spécifique).`,
+✅ generate_image = uniquement pour fonds abstraits, ambiances, décors (sans voiture spécifique).
+
+RÉPONSE FINALE OBLIGATOIRE: après add_text_overlay, ta réponse DOIT contenir l'URL finale (https://res.cloudinary.com/...) sur une ligne seule — sinon l'image ne s'envoie pas sur Telegram.`,
   toolNames: [
     'get_car_photo',
     'analyze_image','optimize_image','create_social_variants','enhance_image','remove_background',

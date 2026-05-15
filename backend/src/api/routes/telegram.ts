@@ -992,10 +992,13 @@ router.post('/webhook', async (req, res) => {
     for (const chunk of splitMessage(safeText, 4000)) {
       await sendMessage(chatId, chunk);
     }
-    // Supabase document URLs → send as photo/document
-    const docUrls = safeText.match(/https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g);
-    if (docUrls) {
-      for (const url of docUrls) {
+    // Cloudinary + Supabase image URLs → send as photo
+    const imageUrls = safeText.match(
+      /https:\/\/res\.cloudinary\.com\/[^\s\n\])"']+|https:\/\/[^\s\n\])"']+supabase[^\s\n\])"']+(?:client-documents|object\/sign)[^\s\n\])"']*/g
+    );
+    if (imageUrls) {
+      const deduped = [...new Set(imageUrls)];
+      for (const url of deduped) {
         await sendPhoto(chatId, url).catch(async () => {
           await sendDocument(chatId, url).catch(() => {});
         });
