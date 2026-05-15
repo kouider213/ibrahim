@@ -33,8 +33,7 @@ function scoreClient(count: number, spent: number): ClientScore['score'] {
   return 'NEW';
 }
 
-// Compute real CA for a booking row — client_price_per_day × nb_days preferred
-// Falls back to final_price. Never uses catalog.
+// Total contract value — used for rejected/lost revenue only
 function realBookingCA(b: {
   client_price_per_day?: number | null;
   final_price?:          number | null;
@@ -49,6 +48,34 @@ function realBookingCA(b: {
     return Math.round(b.client_price_per_day * nb_days * 100) / 100;
   }
   return b.final_price ?? 0;
+}
+
+// Prorated revenue — only the days of the booking that fall within [from, to]
+// today_revenue = 1 day, week_revenue = overlap days in last 7, month = overlap in month
+function proratedCA(b: {
+  client_price_per_day?: number | null;
+  final_price?:          number | null;
+  nb_days?:              number | null;
+  start_date:            string;
+  end_date:              string;
+}, from: string, to: string): number {
+  const bStart  = new Date(b.start_date);
+  const bEnd    = new Date(b.end_date);
+  const wStart  = new Date(from);
+  const wEnd    = new Date(to);
+  const oStart  = new Date(Math.max(bStart.getTime(), wStart.getTime()));
+  const oEnd    = new Date(Math.min(bEnd.getTime(),   wEnd.getTime()));
+  const overlapMs = oEnd.getTime() - oStart.getTime();
+  if (overlapMs < 0) return 0;
+  // At least 1 day when there IS an overlap (handles same-day window = today)
+  const overlapDays = Math.max(1, Math.ceil(overlapMs / 86_400_000));
+  const totalDays   = b.nb_days ?? Math.max(1,
+    Math.ceil((bEnd.getTime() - bStart.getTime()) / 86_400_000),
+  );
+  const dailyRate = b.client_price_per_day != null && b.client_price_per_day > 0
+    ? b.client_price_per_day
+    : Math.round(((b.final_price ?? 0) / totalDays) * 100) / 100;
+  return Math.round(dailyRate * overlapDays * 100) / 100;
 }
 
 export async function getRevenueSummary(): Promise<RevenueSummary> {
@@ -99,14 +126,16 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
 
   type PriceRow = { client_price_per_day?: number | null; final_price?: number | null; nb_days?: number | null; start_date: string; end_date: string };
 
-  const sumCA = (rows: PriceRow[]) => rows.reduce((s, b) => s + realBookingCA(b), 0);
+  const sumCA        = (rows: PriceRow[]) => rows.reduce((s, b) => s + realBookingCA(b), 0);
+  const sumProrated  = (rows: PriceRow[], from: string, to: string) =>
+    rows.reduce((s, b) => s + proratedCA(b, from, to), 0);
 
-  const todayRevenue = sumCA((todayRes.data ?? []) as PriceRow[]);
-  const weekRevenue  = sumCA((weekRes.data  ?? []) as PriceRow[]);
+  const todayRevenue = sumProrated((todayRes.data ?? []) as PriceRow[], today, today);
+  const weekRevenue  = sumProrated((weekRes.data  ?? []) as PriceRow[], weekAgo, today);
 
   type MonthRow = PriceRow & { id: string; client_name: string; client_phone?: string };
   const monthRows    = (monthRes.data ?? []) as MonthRow[];
-  const monthRevenue = sumCA(monthRows);
+  const monthRevenue = sumProrated(monthRows, monthStart, monthEnd);
 
   const rejected     = (rejectedRes.data ?? []) as PriceRow[];
 
