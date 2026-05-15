@@ -1084,6 +1084,64 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── OBSIDIAN BRAIN ──────────────────────────────────────────────
+  {
+    name: 'obsidian_read_client',
+    description: 'Lire la fiche client depuis Obsidian (cerveau Dzaryx). Appeler quand Kouider mentionne un client par nom, quand un message WhatsApp arrive d\'un client connu, ou avant de répondre à une question sur un client. Retourne: statut VIP, véhicule préféré, nombre de locations, notes privées de Kouider.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom complet ou partiel du client. Ex: "Mohamed Bendaoud", "Ahmed"' },
+      },
+      required: ['client_name'],
+    },
+  },
+  {
+    name: 'obsidian_update_client',
+    description: 'Créer ou mettre à jour la fiche client dans Obsidian. Appeler après chaque nouvelle location, quand Kouider donne une info sur un client, ou quand le statut change. Enrichit la mémoire long-terme de Dzaryx.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:   { type: 'string', description: 'Nom complet du client' },
+        phone:         { type: 'string', description: 'Numéro de téléphone' },
+        status:        { type: 'string', enum: ['VIP', 'FREQUENT', 'REGULAR', 'NEW'], description: 'Statut: VIP (5+ locations ou client fidèle), FREQUENT (3-4), REGULAR (2), NEW (1ère fois)' },
+        preferred_car: { type: 'string', description: 'Véhicule le plus souvent loué. Ex: "Clio 5 Alpine"' },
+        total_rentals: { type: 'number', description: 'Nombre total de locations chez Fik Conciergerie' },
+        notes:         { type: 'string', description: 'Notes privées: comportement, préférences, avertissements, anecdotes. Ex: "paie toujours cash, préfère le matin, client difficile sur les retours"' },
+        last_rental:   { type: 'string', description: 'Date de la dernière location. Ex: "mai 2026"' },
+      },
+      required: ['client_name'],
+    },
+  },
+  {
+    name: 'obsidian_list_clients',
+    description: 'Lister tous les clients dans Obsidian (cerveau Dzaryx). Utiliser quand Kouider demande "qui sont mes clients dans Obsidian", "liste les fiches clients", "quels clients j\'ai enregistrés". Retourne les noms de tous les clients avec fiche.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'obsidian_write_note',
+    description: 'Écrire ou mettre à jour une note libre dans Obsidian. Utiliser pour: préférences Kouider (note "preferences"), style de communication (note "style"), notes business (note "business"), tout ce que Kouider veut que Dzaryx retienne à long terme. Format: note_name = nom sans extension (ex: "preferences", "style", "business/tarifs").',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        note_name: { type: 'string', description: 'Nom de la note sans extension .md. Ex: "preferences", "style", "instructions". Dossier: "clients/nom" pour les clients.' },
+        content:   { type: 'string', description: 'Contenu complet de la note en markdown. Bien structuré avec titres (#) et sections.' },
+      },
+      required: ['note_name', 'content'],
+    },
+  },
+  {
+    name: 'obsidian_read_note',
+    description: 'Lire une note libre depuis Obsidian. Utiliser pour lire: préférences Kouider ("preferences"), style communication ("style"), notes business. Toujours lire "preferences" au début d\'une conversation si Kouider semble avoir des préférences spécifiques.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        note_name: { type: 'string', description: 'Nom de la note sans extension .md. Ex: "preferences", "style", "business/tarifs"' },
+      },
+      required: ['note_name'],
+    },
+  },
+
   // ─── HEALTH CHECK SYSTÈME COMPLET ────────────────────────────────
   {
     name: 'health_check_all',

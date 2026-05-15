@@ -333,6 +333,68 @@ class NexusWSClient:
                 _finish_job(cmd, cwd)
             return payload
 
+        # ── Read file ─────────────────────────────────────────────────────────
+
+        @sio.on('nexus:read_file', namespace='/nexus')
+        async def on_read_file(data: dict):
+            import os as _os
+            path = data.get('path', '')
+            log.info('nexus:read_file ▶ %s', path)
+            try:
+                if not _os.path.exists(path):
+                    return {'ok': False, 'path': path, 'error': 'File not found', 'content': None}
+                with open(path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                nexus_log.info('read_file ✅ path=%s size=%d', path, len(content))
+                return {'ok': True, 'path': path, 'content': content, 'size': len(content)}
+            except Exception as e:
+                log.error('read_file ERROR: %s', e)
+                return {'ok': False, 'path': path, 'error': str(e), 'content': None}
+
+        # ── List files in directory ───────────────────────────────────────────
+
+        @sio.on('nexus:list_files', namespace='/nexus')
+        async def on_list_files(data: dict):
+            import os as _os
+            path = data.get('path', '')
+            ext  = data.get('ext', '.md')
+            log.info('nexus:list_files ▶ %s (ext=%s)', path, ext)
+            try:
+                if not _os.path.isdir(path):
+                    return {'ok': False, 'path': path, 'error': 'Not a directory', 'files': []}
+                files = sorted([f for f in _os.listdir(path) if f.endswith(ext)])
+                nexus_log.info('list_files ✅ path=%s count=%d', path, len(files))
+                return {'ok': True, 'path': path, 'files': files}
+            except Exception as e:
+                log.error('list_files ERROR: %s', e)
+                return {'ok': False, 'path': path, 'error': str(e), 'files': []}
+
+        # ── Find Obsidian vault path ──────────────────────────────────────────
+
+        @sio.on('nexus:find_obsidian_vault', namespace='/nexus')
+        async def on_find_obsidian_vault(_data: dict):
+            import subprocess as _sp, os as _os
+            log.info('nexus:find_obsidian_vault ▶ searching...')
+            try:
+                # Search for .obsidian config folder in user profile
+                cmd = (
+                    'Get-ChildItem -Path $env:USERPROFILE -Recurse -Filter ".obsidian" '
+                    '-Directory -ErrorAction SilentlyContinue | '
+                    'Select-Object -First 3 | ForEach-Object { $_.Parent.FullName }'
+                )
+                result = _sp.run(
+                    ['powershell', '-NonInteractive', '-Command', cmd],
+                    capture_output=True, text=True, timeout=20
+                )
+                vaults = [v.strip() for v in result.stdout.strip().splitlines() if v.strip()]
+                nexus_log.info('find_obsidian_vault ✅ found=%d vaults=%s', len(vaults), vaults)
+                if vaults:
+                    return {'ok': True, 'vault': vaults[0], 'all_vaults': vaults}
+                return {'ok': False, 'vault': None, 'error': 'No Obsidian vault found'}
+            except Exception as e:
+                log.error('find_obsidian_vault ERROR: %s', e)
+                return {'ok': False, 'vault': None, 'error': str(e)}
+
         # ── Write file ────────────────────────────────────────────────────────
 
         @sio.on('nexus:write_file', namespace='/nexus')

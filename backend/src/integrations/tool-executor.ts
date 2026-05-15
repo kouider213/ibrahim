@@ -209,6 +209,12 @@ async function _dispatch(
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
+      // ─── OBSIDIAN BRAIN ───
+      case 'obsidian_read_client':     return await obsidianReadClientTool(input);
+      case 'obsidian_update_client':   return await obsidianUpdateClientTool(input);
+      case 'obsidian_list_clients':    return await obsidianListClientsTool();
+      case 'obsidian_write_note':      return await obsidianWriteNoteTool(input);
+      case 'obsidian_read_note':       return await obsidianReadNoteTool(input);
       // ─── NEXUS PC AGENT ───
       case 'ping_nexus':               return await pingNexusTool();
       case 'send_nexus_command':       return await sendNexusCommandTool(input);
@@ -3976,4 +3982,71 @@ async function getCarPhotoTool(input: Record<string, unknown>): Promise<string> 
   }
 
   return `✅ Photo trouvée pour ${car.name}:\nURL: ${car.image_url}\n\nUtilise cette URL avec enhance_image, create_social_variants, ou add_text_overlay pour créer la pub.`;
+}
+
+// ─── OBSIDIAN BRAIN ───────────────────────────────────────────────────────────
+
+async function obsidianReadClientTool(input: Record<string, unknown>): Promise<string> {
+  const clientName = (input['client_name'] as string | undefined)?.trim();
+  if (!clientName) return '❌ client_name requis.';
+  const { readClientNote, getVaultPath } = await import('./obsidian-bridge.js');
+  const vault = await getVaultPath();
+  if (!vault) return '⚠️ Obsidian non configuré. NEXUS hors ligne ou OBSIDIAN_VAULT_PATH non défini. Dis à Kouider de définir la variable ou de lancer Nexus.';
+  const content = await readClientNote(clientName);
+  if (!content) return `📭 Aucune fiche Obsidian pour "${clientName}". Utilise obsidian_update_client pour en créer une.`;
+  return `📓 Fiche Obsidian — ${clientName}:\n\n${content}`;
+}
+
+async function obsidianUpdateClientTool(input: Record<string, unknown>): Promise<string> {
+  const clientName = (input['client_name'] as string | undefined)?.trim();
+  if (!clientName) return '❌ client_name requis.';
+  const { writeClientNote, buildClientNote, getVaultPath } = await import('./obsidian-bridge.js');
+  const vault = await getVaultPath();
+  if (!vault) return '⚠️ Obsidian non configuré. NEXUS hors ligne ou OBSIDIAN_VAULT_PATH non défini.';
+  const content = buildClientNote({
+    name:         clientName,
+    phone:        (input['phone']         as string | undefined),
+    status:       (input['status']        as 'VIP' | 'FREQUENT' | 'REGULAR' | 'NEW' | undefined),
+    preferredCar: (input['preferred_car'] as string | undefined),
+    totalRentals: (input['total_rentals'] as number | undefined),
+    notes:        (input['notes']         as string | undefined),
+    lastRental:   (input['last_rental']   as string | undefined),
+  });
+  const ok = await writeClientNote(clientName, content);
+  return ok
+    ? `✅ Fiche Obsidian mise à jour pour ${clientName}.\n\n${content}`
+    : `❌ Échec écriture fiche Obsidian pour ${clientName}. Vérifier que Nexus est connecté.`;
+}
+
+async function obsidianListClientsTool(): Promise<string> {
+  const { listClientNotes, getVaultPath } = await import('./obsidian-bridge.js');
+  const vault = await getVaultPath();
+  if (!vault) return '⚠️ Obsidian non configuré. NEXUS hors ligne ou OBSIDIAN_VAULT_PATH non défini.';
+  const clients = await listClientNotes();
+  if (clients.length === 0) return '📭 Aucune fiche client dans Obsidian. Utilise obsidian_update_client pour en créer.';
+  return `📓 Clients dans Obsidian (${clients.length}):\n${clients.map(c => `• ${c}`).join('\n')}`;
+}
+
+async function obsidianWriteNoteTool(input: Record<string, unknown>): Promise<string> {
+  const noteName = (input['note_name'] as string | undefined)?.trim();
+  const content  = (input['content']   as string | undefined)?.trim();
+  if (!noteName || !content) return '❌ note_name et content requis.';
+  const { writeNote, getVaultPath } = await import('./obsidian-bridge.js');
+  const vault = await getVaultPath();
+  if (!vault) return '⚠️ Obsidian non configuré. NEXUS hors ligne ou OBSIDIAN_VAULT_PATH non défini.';
+  const ok = await writeNote(noteName, content);
+  return ok
+    ? `✅ Note Obsidian "${noteName}" enregistrée (${content.length} chars).`
+    : `❌ Échec écriture note Obsidian "${noteName}".`;
+}
+
+async function obsidianReadNoteTool(input: Record<string, unknown>): Promise<string> {
+  const noteName = (input['note_name'] as string | undefined)?.trim();
+  if (!noteName) return '❌ note_name requis.';
+  const { readNote, getVaultPath } = await import('./obsidian-bridge.js');
+  const vault = await getVaultPath();
+  if (!vault) return '⚠️ Obsidian non configuré. NEXUS hors ligne ou OBSIDIAN_VAULT_PATH non défini.';
+  const content = await readNote(noteName);
+  if (!content) return `📭 Note "${noteName}" introuvable dans Obsidian.`;
+  return `📓 Note Obsidian "${noteName}":\n\n${content}`;
 }

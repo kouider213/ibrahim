@@ -500,6 +500,17 @@ export function sendToNexus(event: string, data: unknown): boolean {
   return true;
 }
 
+export function emitToNexusWithAck<T = unknown>(event: string, data: unknown, timeoutMs = 8000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    if (!_nexusSocket) { reject(new Error('Nexus offline')); return; }
+    const timer = setTimeout(() => reject(new Error(`Nexus ack timeout (${event})`)), timeoutMs);
+    _nexusSocket.emit(event, data, (response: T) => {
+      clearTimeout(timer);
+      resolve(response);
+    });
+  });
+}
+
 export function getNexusStatus(): {
   online:               boolean;
   state:                NexusWsState;
