@@ -187,6 +187,6 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
     generated_at:          new Date().toISOString(),
   };
 
-  await redis.set(CACHE_KEY, JSON.stringify(result), 'EX', 1800);
+  await redis.set(CACHE_KEY, JSON.stringify(result), 'EX', 300);
   return result;
 }

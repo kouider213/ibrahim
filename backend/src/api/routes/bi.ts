@@ -107,6 +107,23 @@ router.get('/full', requireMobileAuth, async (req, res) => {
   }
 });
 
+// POST /api/bi/cache/clear — vide le cache revenue + BI immédiatement
+router.post('/cache/clear', requireMobileAuth, async (_req, res) => {
+  try {
+    const hour  = new Date().toISOString().slice(0, 13);
+    const biKey = Math.floor(Date.now() / (30 * 60_000));
+    const deleted = await redis.del(
+      `bi:revenue:${hour}`,
+      `bi:full:${biKey}`,
+      `bi:fleet:${hour}`,
+    );
+    console.log(`[bi/cache/clear] deleted ${deleted} keys`);
+    res.json({ ok: true, keys_deleted: deleted, message: 'Cache revenue vidé — prochaine requête récupère données fraîches' });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/bi/test — full run, bypass cache, send Telegram
 router.get('/test', requireMobileAuth, async (_req, res) => {
   try {
