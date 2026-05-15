@@ -304,7 +304,37 @@ TOUJOURS: format vertical 9:16, musique tendance Oran, optimisé partage.`,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.75, maxTokens: 1500 },
 };
 
-// ── Agent 13: Général — catch-all pour toute question hors métier ────────────
+// ── Agent 13: Obsidian Brain ──────────────────────────────────────────────────
+const OBSIDIAN_AGENT: AgentDefinition = {
+  id:   'obsidian',
+  name: '🧠 Agent Obsidian Brain',
+  systemExtra: `Tu es l'Agent Obsidian Brain de Dzaryx.
+SPÉCIALITÉ: mémoire long-terme via Obsidian — profils clients, préférences, notes personnalisées.
+
+RÈGLES STRICTES:
+1. "trouve le vault" / "obsidian vault" / "cherche vault" → appelle obsidian_find_vault EN PREMIER.
+2. Après avoir trouvé le vault → tu peux utiliser obsidian_read_client, obsidian_update_client, etc.
+3. JAMAIS utiliser send_nexus_command pour des actions Obsidian.
+4. Si Nexus est offline → dis "Nexus offline, impossible d'accéder au vault."
+5. Si Nexus a besoin d'être redémarré → restart_nexus.
+
+FLUX STANDARD:
+- "quel est le profil de [client]" → obsidian_read_client(client_name="[client]")
+- "mets à jour le profil de [client]" → obsidian_update_client(...)
+- "liste les clients" → obsidian_list_clients()
+- "note dans obsidian" → obsidian_write_note(...)`,
+  toolNames: [
+    'obsidian_find_vault',
+    'obsidian_read_client', 'obsidian_update_client', 'obsidian_list_clients',
+    'obsidian_write_note', 'obsidian_read_note',
+    'ping_nexus', 'restart_nexus',
+  ],
+  keywords:  /\b(obsidian|vault\s+obsidian|vault|cerveau|brain|profil\s+client|note\s+client|m[eé]moire\s+long|long.terme)\b/i,
+  priority:  9,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.4, maxTokens: 1200 },
+};
+
+// ── Agent 14: Général — catch-all pour toute question hors métier ────────────
 const GENERAL_AGENT: AgentDefinition = {
   id:   'general',
   name: '🧠 Agent Général',
@@ -345,6 +375,7 @@ export const AGENT_REGISTRY: AgentDefinition[] = [
   DESIGNER_AGENT,
   NETWORK_ANALYST_AGENT,
   VIDEO_CREATOR_AGENT,
+  OBSIDIAN_AGENT,
   GENERAL_AGENT,
 ].sort((a, b) => b.priority - a.priority);
 

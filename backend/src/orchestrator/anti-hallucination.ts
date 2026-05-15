@@ -13,7 +13,7 @@ const DATA_TOOLS = new Set([
 
 // Financial report patterns — both formal reports AND casual amount claims
 const FINANCIAL_REPORT_PATTERNS: RegExp[] = [
-  /rapport\s+(financier|mensuel|annuel)/i,
+  /rapport\s+financier/i,
   /chiffre\s+d['']affaires/i,
   /b[eé]n[eé]fice\s+(total|net|brut)/i,
   /revenu\s+(total|mensuel|annuel)/i,
