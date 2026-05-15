@@ -12,6 +12,9 @@ const WhatsAppAI  = lazy(() => import('./panels/WhatsAppAI.js'));
 const TikTokAI    = lazy(() => import('./panels/TikTokAI.js'));
 const DzaryxCore  = lazy(() => import('./panels/DzaryxCore.js'));
 const VoiceMode   = lazy(() => import('./panels/VoiceMode.js'));
+const BookingForm  = lazy(() => import('./panels/BookingForm.js'));
+const CalendarView = lazy(() => import('./panels/CalendarView.js'));
+const ClientsView  = lazy(() => import('./panels/ClientsView.js'));
 
 const PANELS: Record<DashSection, React.LazyExoticComponent<() => JSX.Element>> = {
   fleet:    LiveFleet,
@@ -21,6 +24,9 @@ const PANELS: Record<DashSection, React.LazyExoticComponent<() => JSX.Element>> 
   tiktok:   TikTokAI,
   core:     DzaryxCore,
   voice:    VoiceMode,
+  booking:  BookingForm,
+  calendar: CalendarView,
+  clients:  ClientsView,
 };
 
 function PanelLoader() {

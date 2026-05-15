@@ -7,12 +7,18 @@ export type DashSection =
   | 'whatsapp'
   | 'tiktok'
   | 'core'
-  | 'voice';
+  | 'voice'
+  | 'booking'
+  | 'calendar'
+  | 'clients';
 
 export const NAV_ITEMS: { id: DashSection; icon: string; label: string; badge?: number }[] = [
   { id: 'fleet',    icon: '🚗', label: 'Fleet'    },
   { id: 'revenue',  icon: '₿',  label: 'Revenue'  },
   { id: 'alerts',   icon: '🔔', label: 'Alertes'  },
+  { id: 'booking',  icon: '📝', label: 'Résa'     },
+  { id: 'calendar', icon: '📅', label: 'Calendrier'},
+  { id: 'clients',  icon: '👥', label: 'Clients'  },
   { id: 'whatsapp', icon: '💬', label: 'WhatsApp' },
   { id: 'tiktok',   icon: '🎵', label: 'TikTok'   },
   { id: 'core',     icon: '⚙',  label: 'Core'     },
@@ -28,7 +34,7 @@ interface Props {
 export function BottomNav({ active, onChange, alertCount }: Props) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/90 backdrop-blur-md border-t border-cyan-500/15">
-      <div className="flex">
+      <div className="flex overflow-x-auto no-scrollbar">
         {NAV_ITEMS.map(item => {
           const isActive = active === item.id;
           const count    = item.id === 'alerts' ? alertCount : undefined;
@@ -36,7 +42,7 @@ export function BottomNav({ active, onChange, alertCount }: Props) {
             <button
               key={item.id}
               onClick={() => onChange(item.id)}
-              className="flex-1 flex flex-col items-center py-2.5 gap-0.5 relative transition-colors"
+              className="shrink-0 min-w-[4rem] flex flex-col items-center py-2.5 gap-0.5 relative transition-colors"
             >
               {isActive && (
                 <motion.div
