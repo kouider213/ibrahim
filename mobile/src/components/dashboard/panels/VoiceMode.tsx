@@ -80,11 +80,19 @@ function OrbParticles({ phase }: { phase: Phase }) {
   );
 }
 
+const SpeechRecognitionAPI =
+  typeof window !== 'undefined'
+    ? ((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition ?? null)
+    : null;
+
 export default function VoiceMode() {
-  const [phase, setPhase]   = useState<Phase>('idle');
-  const [text, setText]     = useState('');
-  const [reply, setReply]   = useState('');
-  const [inputText, setInputText] = useState('');
+  const [phase, setPhase]     = useState<Phase>('idle');
+  const [text, setText]       = useState('');
+  const [reply, setReply]     = useState('');
+  const [inputText, setInputText]   = useState('');
+  const [sttSupported]        = useState(Boolean(SpeechRecognitionAPI));
+  const [interim, setInterim] = useState('');
+  const recognitionRef        = useRef<any>(null);
   const sessionId = getOrCreateSessionId();
   const socketRef = useRef<ReturnType<typeof connectSocket> | null>(null);
 
@@ -104,20 +112,56 @@ export default function VoiceMode() {
     return () => { /* keep socket alive across nav */ };
   }, [sessionId]);
 
-  const sendMessage = async () => {
-    if (!inputText.trim()) return;
-    const msg = inputText.trim();
+  const sendMessage = async (overrideText?: string) => {
+    const msg = (overrideText ?? inputText).trim();
+    if (!msg) return;
     setInputText('');
+    setInterim('');
     setText(msg);
     setReply('');
     setPhase('thinking');
     try {
       const result = await api.chat(msg, sessionId, true);
-      if (result.text) { setReply(result.text); setPhase('idle'); }
+      if (result.text) { setReply(result.text); setPhase('speaking'); setTimeout(() => setPhase('idle'), 3000); }
     } catch {
       setReply('Erreur de connexion à Dzaryx.');
       setPhase('idle');
     }
+  };
+
+  const startListening = () => {
+    if (!SpeechRecognitionAPI || phase === 'thinking') return;
+    if (recognitionRef.current) { recognitionRef.current.stop(); return; }
+
+    const rec = new SpeechRecognitionAPI();
+    rec.lang = 'fr-FR';
+    rec.continuous = false;
+    rec.interimResults = true;
+    recognitionRef.current = rec;
+    setPhase('listening');
+    setInterim('');
+
+    rec.onresult = (e: any) => {
+      let final = '';
+      let inter = '';
+      for (const result of Array.from(e.results) as any[]) {
+        if (result.isFinal) final += result[0].transcript;
+        else inter += result[0].transcript;
+      }
+      setInterim(inter || final);
+      if (final) setInputText(final);
+    };
+
+    rec.onend = () => {
+      recognitionRef.current = null;
+      setInterim('');
+      setPhase('idle');
+      setInputText(prev => { if (prev.trim()) { sendMessage(prev.trim()); return ''; } return prev; });
+    };
+
+    rec.onerror = () => { recognitionRef.current = null; setPhase('idle'); setInterim(''); };
+
+    rec.start();
   };
 
   const color = PHASE_COLORS[phase];
@@ -175,28 +219,54 @@ export default function VoiceMode() {
         )}
       </AnimatePresence>
 
+      {/* Interim transcript display */}
+      {interim && (
+        <p className="text-xs text-cyan-400/70 font-mono italic text-center px-4">{interim}</p>
+      )}
+
+      {/* Mic button */}
+      {sttSupported && (
+        <motion.button
+          onClick={startListening}
+          disabled={phase === 'thinking'}
+          className="w-16 h-16 rounded-full flex items-center justify-center border transition-colors disabled:opacity-40"
+          style={{
+            borderColor: phase === 'listening' ? color : '#374151',
+            background:  phase === 'listening' ? `${color}22` : 'transparent',
+            boxShadow:   phase === 'listening' ? `0 0 20px ${color}44` : 'none',
+          }}
+          animate={{ scale: phase === 'listening' ? [1, 1.08, 1] : 1 }}
+          transition={{ duration: 1, repeat: phase === 'listening' ? Infinity : 0 }}
+          title={phase === 'listening' ? 'Arrêter' : 'Parler à Dzaryx'}
+        >
+          <span className="text-2xl">{phase === 'listening' ? '⏹' : '🎤'}</span>
+        </motion.button>
+      )}
+
+      {!sttSupported && (
+        <p className="text-[10px] text-gray-600 font-mono text-center">
+          Micro non supporté — utilise Chrome/Android
+        </p>
+      )}
+
       {/* Text input */}
       <div className="flex gap-2 w-full mt-auto">
         <input
           value={inputText}
           onChange={e => setInputText(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && sendMessage()}
-          placeholder="Message texte à Dzaryx…"
+          placeholder={sttSupported ? 'Parle ou écris…' : 'Message texte à Dzaryx…'}
           disabled={phase === 'thinking'}
           className="flex-1 bg-gray-900/60 border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 disabled:opacity-50"
         />
         <button
-          onClick={sendMessage}
+          onClick={() => sendMessage()}
           disabled={phase === 'thinking' || !inputText.trim()}
           className="bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 rounded-lg px-4 py-2 text-sm font-mono hover:bg-cyan-500/30 transition-colors disabled:opacity-40"
         >
           ↗
         </button>
       </div>
-
-      <p className="text-[10px] text-gray-700 font-mono text-center">
-        Pour la voix complète → interface principale
-      </p>
     </motion.div>
   );
 }

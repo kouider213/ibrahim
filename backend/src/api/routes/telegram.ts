@@ -113,6 +113,54 @@ async function callTextWithFallback(prompt: string, maxTokens = 80): Promise<str
   return (r.content[0] as Anthropic.TextBlock).text.trim();
 }
 
+// ── STT: AssemblyAI → OpenAI Whisper fallback ─────────────────────────────
+async function transcribeVoiceBuffer(buffer: Buffer): Promise<string | null> {
+  const assemblyKey = env.ASSEMBLYAI_API_KEY;
+  const openaiKey   = env.OPENAI_API_KEY;
+
+  if (assemblyKey) {
+    try {
+      const uploadRes = await axios.post('https://api.assemblyai.com/v2/upload', buffer, {
+        headers: { authorization: assemblyKey, 'content-type': 'application/octet-stream' },
+        timeout: 20_000,
+      });
+      const audioUrl = uploadRes.data.upload_url as string;
+
+      const transcriptRes = await axios.post(
+        'https://api.assemblyai.com/v2/transcript',
+        { audio_url: audioUrl, language_detection: true },
+        { headers: { authorization: assemblyKey, 'content-type': 'application/json' } },
+      );
+      const transcriptId = transcriptRes.data.id as string;
+
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const { data } = await axios.get(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+          headers: { authorization: assemblyKey },
+        });
+        if (data.status === 'completed') return (data.text as string) || null;
+        if (data.status === 'error') break;
+      }
+    } catch { /* fall through to Whisper */ }
+  }
+
+  if (openaiKey) {
+    try {
+      const FormData = (await import('form-data')).default;
+      const form = new FormData();
+      form.append('file', buffer, { filename: 'voice.ogg', contentType: 'audio/ogg' });
+      form.append('model', 'whisper-1');
+      const res = await axios.post('https://api.openai.com/v1/audio/transcriptions', form, {
+        headers: { ...form.getHeaders(), Authorization: `Bearer ${openaiKey}` },
+        timeout: 30_000,
+      });
+      return (res.data.text as string) || null;
+    } catch { /* no transcription available */ }
+  }
+
+  return null;
+}
+
 // chatWithTools with Groq → OpenAI → Gemini fallback when Claude fails
 async function chatWithFallback(
   messages: Parameters<typeof chatWithTools>[0],
@@ -729,6 +777,38 @@ router.post('/webhook', async (req, res) => {
     // Wait for Cloudinary init before processing (race condition fix)
     if (!_cloudinaryReady) await _cloudinaryInit;
     await handleVideoMessage(chatId, sessionId, msg);
+    return;
+  }
+
+  // ── MESSAGE VOCAL REÇU ──
+  if (msg.voice || msg.audio) {
+    const voiceObj = msg.voice ?? msg.audio!;
+    const voiceKey = `${chatId}:voice:${voiceObj.file_id}`;
+    if (checkIncomingDuplicate(msg.chat.id, voiceKey, msg.message_id)) return;
+
+    await sendMessage(chatId, '🎤 _Transcription..._');
+    const voiceBuffer = await downloadFile(voiceObj.file_id);
+    if (!voiceBuffer) {
+      await sendMessage(chatId, '⚠️ Téléchargement impossible.');
+      return;
+    }
+
+    const transcript = await transcribeVoiceBuffer(voiceBuffer);
+    if (!transcript?.trim()) {
+      await sendMessage(chatId, '⚠️ Transcription impossible — ASSEMBLYAI_API_KEY ou OPENAI_API_KEY requis.');
+      return;
+    }
+
+    await sendMessage(chatId, `🎤 _"${transcript}"_`);
+    try {
+      await sendTyping(chatId);
+      const response = await processWithOrchestration(transcript, sessionId, true);
+      for (const chunk of splitMessage(response.text, 4000)) {
+        await sendMessage(chatId, chunk);
+      }
+    } catch (err) {
+      await sendMessage(chatId, `⚠️ Erreur: ${err instanceof Error ? err.message.slice(0, 300) : String(err)}`);
+    }
     return;
   }
 

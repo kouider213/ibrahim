@@ -230,6 +230,8 @@ export interface TelegramMessage {
   photo?:     Array<{ file_id: string; file_size?: number }>;
   document?:  { file_id: string; file_name?: string; mime_type?: string };
   video?:     { file_id: string; file_name?: string; mime_type?: string; duration?: number };
+  voice?:     { file_id: string; duration?: number; mime_type?: string };
+  audio?:     { file_id: string; duration?: number; mime_type?: string };
 }
 
 export interface TelegramUpdate {
