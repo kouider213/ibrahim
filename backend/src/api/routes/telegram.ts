@@ -902,8 +902,19 @@ router.post('/webhook', async (req, res) => {
   // ── END Operator Mode ────────────────────────────────────────────────────
 
   // ── NEXUS triggers ──────────────────────────────────────────────────────
-  const NEXUS_WAKE_RE = /nexus\s*(r[eé]veille[\s-]toi|wake[\s-]up|en[\s-]ligne|allume|d[eé]marre)/i;
-  const NEXUS_CMD_RE  = /^nexus[,\s:]+(.+)/is;
+  const NEXUS_WAKE_RE    = /nexus\s*(r[eé]veille[\s-]toi|wake[\s-]up|en[\s-]ligne|allume|d[eé]marre)/i;
+  const NEXUS_RESTART_RE = /\b(red[eé]marre|red[eé]marrer|restart|relance|reboot)\s+(nexus|le\s+nexus)\b|\bnexus\s+(red[eé]marre|restart|relance|reboot)\b/i;
+  const NEXUS_CMD_RE     = /^nexus[,\s:]+(.+)/is;
+
+  if (NEXUS_RESTART_RE.test(text)) {
+    if (!isNexusOnline()) {
+      await sendMessage(chatId, '🖥️ *NEXUS* est hors ligne — impossible de redémarrer. Lance *start.bat* sur ton PC.');
+      return;
+    }
+    sendToNexus('nexus:self_restart', {});
+    await sendMessage(chatId, '🔄 Signal de redémarrage envoyé à *NEXUS*. Il revient dans 5-10 secondes.');
+    return;
+  }
 
   if (NEXUS_WAKE_RE.test(text)) {
     if (isNexusOnline()) {
