@@ -485,14 +485,13 @@ async function financialReport(input: Record<string, unknown>): Promise<string> 
 const OCR_DOC_TYPES = /passeport|passport|permis|license|licence|cin|carte.identit/i;
 const IMAGE_EXTS    = /\.(jpg|jpeg|png|webp|bmp)(\?|$)/i;
 
-async function ocrDocumentImage(fileUrl: string, docType: string): Promise<Record<string, string> | null> {
+async function ocrDocumentBuffer(buffer: Buffer, docType: string, hint?: string): Promise<Record<string, string> | null> {
   try {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
-    const imgRes = await axios.get<ArrayBuffer>(fileUrl, { responseType: 'arraybuffer', timeout: 20_000 });
-    const base64    = Buffer.from(imgRes.data).toString('base64');
-    const mediaType = /\.png(\?|$)/i.test(fileUrl) ? 'image/png' : 'image/jpeg';
+    const base64    = buffer.toString('base64');
+    const mediaType: 'image/jpeg' | 'image/png' = hint?.includes('.png') ? 'image/png' : 'image/jpeg';
 
     const isPermis = /permis|license|licence/i.test(docType);
     const fields   = isPermis
@@ -514,6 +513,15 @@ async function ocrDocumentImage(fileUrl: string, docType: string): Promise<Recor
     const text = (content[0] as { type: string; text: string }).text ?? '';
     const json = text.match(/\{[\s\S]*?\}/)?.[0];
     return json ? JSON.parse(json) as Record<string, string> : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ocrDocumentImage(fileUrl: string, docType: string): Promise<Record<string, string> | null> {
+  try {
+    const imgRes = await axios.get<ArrayBuffer>(fileUrl, { responseType: 'arraybuffer', timeout: 20_000 });
+    return ocrDocumentBuffer(Buffer.from(imgRes.data), docType, fileUrl);
   } catch {
     return null;
   }
@@ -1054,15 +1062,14 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     return `❌ Champ "${field}" introuvable. Disponibles: ${doc.extracted_data ? Object.keys(doc.extracted_data).join(', ') : 'client_phone, file_url'}`;
   }
 
-  // Auto-send to Telegram — bucket is private so download with service key then send as buffer
+  // Auto-send to Telegram + lazy OCR backfill
   const chatId = env.TELEGRAM_CHAT_ID ? Number(env.TELEGRAM_CHAT_ID) : null;
   const sentUrls: string[] = [];
   for (const d of docs) {
     if (!d.storage_path && !d.file_url) continue;
     const caption = `📄 ${d.client_name} — ${d.type}`;
-    if (!chatId) continue;
+
     try {
-      // Download via authenticated Supabase storage URL (service role key)
       const authUrl = `${SUPA_URL}/storage/v1/object/client-documents/${d.storage_path}`;
       const { data: imgData } = await axiosModule.get(authUrl, {
         responseType: 'arraybuffer',
@@ -1070,9 +1077,25 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
         timeout: 20_000,
       });
       const buf = Buffer.from(imgData as ArrayBuffer);
-      await sendTelegramPhotoBuffer2(chatId, buf, caption);
-      sentUrls.push(d.storage_path);
-      console.log(`[get_client_document] ✅ sent photo buffer to Telegram: ${d.storage_path}`);
+
+      // Lazy OCR backfill — si doc sans données et type reconnu
+      if (!d.extracted_data && OCR_DOC_TYPES.test(d.type)) {
+        const ocr = await ocrDocumentBuffer(buf, d.type, d.file_url ?? d.storage_path);
+        if (ocr) {
+          d.extracted_data = ocr;
+          await axiosModule.patch(
+            `${SUPA_URL}/rest/v1/client_documents?id=eq.${d.id}`,
+            { extracted_data: ocr },
+            { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' } },
+          ).catch(() => {});
+          console.log(`[get_client_document] OCR backfill OK for doc ${d.id}`);
+        }
+      }
+
+      if (chatId) {
+        await sendTelegramPhotoBuffer2(chatId, buf, caption);
+        sentUrls.push(d.storage_path);
+      }
     } catch (err) {
       console.error('[get_client_document] photo send failed:', err instanceof Error ? err.message : err);
     }
