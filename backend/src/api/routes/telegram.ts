@@ -939,7 +939,7 @@ router.post('/webhook', async (req, res) => {
     return;
   }
 
-  const nexusCmdMatch = NEXUS_CMD_RE.exec(text);
+  const nexusCmdMatch = /obsidian|vault/i.test(text) ? null : NEXUS_CMD_RE.exec(text);
   if (nexusCmdMatch) {
     if (!isNexusOnline()) {
       await sendMessage(chatId, '🖥️ *NEXUS* est hors ligne. Lance *start.bat* sur ton PC.');
