@@ -36,11 +36,10 @@
 - **Fix** : INSERT Supabase enrichi avec `client_price_per_day`, `owner_price_per_day`, `owner_total`, `profit_kouider`, `discount_applied`, `nb_days`. Schema outil mis à jour — Claude sait maintenant qu'il doit fournir ces champs.
 
 ### B002 — Cache Redis 30 min bloque les tests live
-- **Statut** : 🔴 OUVERT
-- **Priorité** : BASSE
-- **Fichier** : `backend/src/bi/revenue-intelligence.ts` ligne ~37
-- **Description** : `getRevenueSummary()` cache le résultat 1800 secondes (30 min). Après une modification des données Supabase, il faut attendre 30 min ou redémarrer Railway pour voir le changement.
-- **Fix** : Ajouter un endpoint `POST /api/bi/cache/clear` ou réduire TTL à 300s en dev.
+- **Statut** : ✅ FIXÉ — 2026-05-15
+- **Fichiers** : `backend/src/bi/revenue-intelligence.ts`, `backend/src/api/routes/bi.ts`
+- **Fix** : TTL réduit 1800s → 300s (5 min). Endpoint `POST /api/bi/cache/clear` ajouté pour flush immédiat.
+- **Commit** : `0f67e9d`
 
 ### B003 — `checkAnomalies()` filtre start_date seulement (pas overlap)
 - **Statut** : ✅ FIXÉ — 2026-05-15

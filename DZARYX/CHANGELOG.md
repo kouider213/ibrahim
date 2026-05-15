@@ -7,6 +7,11 @@
 
 ## 2026-05-15 — Session matin/midi (Claude Code / Sonnet 4.6)
 
+### B002 ✅ — Cache Redis revenus 30 min → 5 min + endpoint clear
+- **Fichiers** : `backend/src/bi/revenue-intelligence.ts`, `backend/src/api/routes/bi.ts`
+- **Fix** : TTL Redis 1800s → 300s. Endpoint `POST /api/bi/cache/clear` vide `bi:revenue` + `bi:full` + `bi:fleet` instantanément.
+- **Commit** : `0f67e9d`
+
 ### B003 ✅ — `checkAnomalies()` filtre dates corrigé (overlap)
 - **Fichier** : `backend/src/integrations/phase5-finance.ts` ligne ~488
 - **Fix** : `.lte('start_date', monthEnd).gte('end_date', monthStart)` — réservations actives ce mois visibles même si démarrées le mois précédent.
