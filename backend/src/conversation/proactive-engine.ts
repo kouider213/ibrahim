@@ -83,6 +83,22 @@ function getLocalTime(tz: string): { hour: number; minute: number; dayOfWeek: nu
   };
 }
 
+// ── Kouider's real weekly schedule (Brussels time) ────────────────
+const KOUIDER_SCHEDULE: Record<number, {
+  wake:     string;
+  travail?: { start: string; end: string };
+  business: { start: string; end: string };
+  famille:  string;
+}> = {
+  0: { wake: '08:30', travail: { start: '10:00', end: '18:00' }, business: { start: '18:30', end: '20:00' }, famille: 'matin + soir' }, // Dimanche
+  1: { wake: '09:00',                                             business: { start: '14:00', end: '18:00' }, famille: 'matin + soir' }, // Lundi — Congé
+  2: { wake: '10:30', travail: { start: '12:00', end: '20:00' }, business: { start: '09:00', end: '11:30' }, famille: 'après 20h'    }, // Mardi
+  3: { wake: '11:30', travail: { start: '13:00', end: '20:00' }, business: { start: '10:00', end: '12:30' }, famille: 'après 20h'    }, // Mercredi
+  4: { wake: '05:30', travail: { start: '06:30', end: '13:00' }, business: { start: '13:30', end: '18:00' }, famille: 'après 18h'    }, // Jeudi
+  5: { wake: '10:30', travail: { start: '12:00', end: '20:00' }, business: { start: '09:00', end: '11:30' }, famille: 'après 20h'    }, // Vendredi
+  6: { wake: '10:30', travail: { start: '12:00', end: '20:00' }, business: { start: '09:00', end: '11:30' }, famille: 'après 20h'    }, // Samedi
+};
+
 // ── Trigger 1: Pre-work commute reminder ─────────────────────────
 async function triggerPreWorkReminder(
   workDays: number[], workStart: string, commute: number, tz: string, demo: boolean,
@@ -440,40 +456,50 @@ async function triggerCalendarAppointment(commute: number, tz: string, demo: boo
 
 // ── Trigger 10: Personal schedule morning digest ─────────────────
 async function triggerPersonalSchedule(
-  profile: { wake_time: string; work_start: string; work_end: string; commute_minutes_avg: number; sleep_time: string },
-  workDays: number[],
+  profile: { wake_time: string; commute_minutes_avg: number; sleep_time: string },
   tz: string,
   demo: boolean,
 ): Promise<TriggerResult> {
   const { hour, minute, dayOfWeek } = getLocalTime(tz);
-  // Morning 6h30–8h30
-  if (!demo && (hour < 6 || (hour === 6 && minute < 30) || hour > 8 || (hour === 8 && minute > 30))) {
-    return { trigger: 'personal-schedule', status: 'SKIPPED', reason: 'hors fenêtre 6h30–8h30' };
+  const daySchedule = KOUIDER_SCHEDULE[dayOfWeek];
+  const wakeStr     = daySchedule?.wake ?? profile.wake_time;
+  const wakeMin     = timeToMinutes(wakeStr);
+  const nowMin      = hour * 60 + minute;
+
+  // Fire within 45min after wake time (5min grace before)
+  if (!demo && (nowMin < wakeMin - 5 || nowMin > wakeMin + 45)) {
+    return { trigger: 'personal-schedule', status: 'SKIPPED', reason: `hors fenêtre réveil ${wakeStr} (actuel ${hour}h${String(minute).padStart(2, '0')})` };
   }
   if (!await acquireDailyLock('personal-schedule')) {
     return { trigger: 'personal-schedule', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
   }
 
-  const isWorkDay = workDays.includes(dayOfWeek);
   const dayNames: Record<number, string> = { 0: 'Dimanche', 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi' };
   const p = demo ? '🧪 [DEMO] ' : '';
-
-  const departMin = timeToMinutes(profile.work_start) - profile.commute_minutes_avg;
-  const dH = Math.floor(departMin / 60);
-  const dM = String(departMin % 60).padStart(2, '0');
 
   const lines = [
     `${p}⏰ *Horaire Kouider — ${dayNames[dayOfWeek] ?? ''}*`,
     ``,
-    `🌅 Réveil : ${profile.wake_time.slice(0, 5)}`,
+    `🌅 Réveil : ${wakeStr.slice(0, 5)}`,
   ];
 
-  if (isWorkDay) {
+  if (daySchedule?.travail) {
+    const { start, end } = daySchedule.travail;
+    const departMin = timeToMinutes(start) - profile.commute_minutes_avg;
+    const dH = Math.floor(departMin / 60);
+    const dM = String(departMin % 60).padStart(2, '0');
     lines.push(`🚗 Départ trajet : ${dH}h${dM} (${profile.commute_minutes_avg}min)`);
-    lines.push(`💼 Travail : ${profile.work_start.slice(0, 5)} — ${profile.work_end.slice(0, 5)}`);
+    lines.push(`💼 Travail : ${start} — ${end}`);
   } else {
-    lines.push(`🏖 Jour de repos`);
+    lines.push(`🏖 Congé Belgique`);
   }
+
+  if (daySchedule?.business) {
+    const { start, end } = daySchedule.business;
+    lines.push(`🇩🇿 Business Algérie : ${start} — ${end}`);
+  }
+
+  lines.push(`👨‍👩‍👦 Famille : ${daySchedule?.famille ?? 'soir'}`);
   lines.push(`🌙 Coucher prévu : ${profile.sleep_time.slice(0, 5)}`);
 
   await tg(lines.join('\n'));
@@ -497,7 +523,6 @@ export async function runProactiveEngine(
     return [{ trigger: 'all', status: 'SKIPPED', reason: 'user_profile non disponible' }];
   }
 
-  const workDays  = profile.work_days           ?? [1, 2, 3, 4, 5];
   const workStart = profile.work_start          ?? '09:00';
   const workEnd   = profile.work_end            ?? '17:30';
   const commute   = profile.commute_minutes_avg ?? 25;
@@ -509,9 +534,15 @@ export async function runProactiveEngine(
   const wrap = (name: string, fn: Promise<TriggerResult>) =>
     fn.catch(err => ({ trigger: name, status: 'ERROR' as const, reason: (err as Error).message }));
 
+  const { dayOfWeek } = getLocalTime(tzWork);
+  const todaySchedule  = KOUIDER_SCHEDULE[dayOfWeek];
+  const todayWorkStart = todaySchedule?.travail?.start ?? workStart;
+  const todayWorkEnd   = todaySchedule?.travail?.end   ?? workEnd;
+  const todayIsWorkDay = !!todaySchedule?.travail;
+
   const results = await Promise.all([
-    wrap('pre-work',          triggerPreWorkReminder(workDays, workStart, commute, tzWork, demo)),
-    wrap('after-work',        triggerAfterWorkRest(workDays, workEnd, tzWork, demo)),
+    wrap('pre-work',          triggerPreWorkReminder(todayIsWorkDay ? [dayOfWeek] : [], todayWorkStart, commute, tzWork, demo)),
+    wrap('after-work',        triggerAfterWorkRest(todayIsWorkDay ? [dayOfWeek] : [], todayWorkEnd, tzWork, demo)),
     wrap('heat-alert',        triggerHeatAlert(demo)),
     wrap('tiktok-reminder',   triggerTikTokReminder(demo)),
     wrap('family-time',       triggerFamilyTime({ family_members: profile.family_members, sleep_time: sleepTime, wind_down_minutes: windDown }, tzWork, demo)),
@@ -519,7 +550,7 @@ export async function runProactiveEngine(
     wrap('late-return',       triggerLateReturn(demo)),
     wrap('booking-tomorrow',  triggerBookingTomorrow(demo)),
     wrap('calendar-appt',     triggerCalendarAppointment(commute, tzWork, demo)),
-    wrap('personal-schedule', triggerPersonalSchedule({ wake_time: wakeTime, work_start: workStart, work_end: workEnd, commute_minutes_avg: commute, sleep_time: sleepTime }, workDays, tzWork, demo)),
+    wrap('personal-schedule', triggerPersonalSchedule({ wake_time: wakeTime, commute_minutes_avg: commute, sleep_time: sleepTime }, tzWork, demo)),
   ]);
 
   for (const r of results) {
