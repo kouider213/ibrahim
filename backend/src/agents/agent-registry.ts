@@ -80,9 +80,9 @@ TOUJOURS: donner des chiffres précis avec devise (€/DZD), indiquer la périod
     'get_revenue_report','get_unpaid_bookings','generate_receipt','check_anomalies',
     'list_bookings','get_late_returns',
   ],
-  keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|encaissé|dette)\b/i,
+  keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|revenu|revenus|encaissé|dette|profit|gagné|gain|rapport\s+fi)\b/i,
   priority:  9,
-  llm: { provider: 'openai', model: 'gpt-4o', temperature: 0.3, maxTokens: 1500, fallback: 'claude' },
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.3, maxTokens: 1500, fallback: 'openai' },
 };
 
 // ── Agent 3: Clients ──────────────────────────────────────────────────────────
