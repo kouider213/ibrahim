@@ -12,12 +12,8 @@
  *
  * Cas concret déclenché :
  *   create_marketing_video(
- *     car_name="Clio 5 Alpine",
- *     style="prix",
- *     custom_script="Cet été, profitez de la Clio 5 Alpine à seulement 50€ par jour !
- *                    Une voiture sportive et élégante pour des vacances inoubliables à Oran.
- *                    Réservez dès maintenant chez Fik Conciergerie !",
- *     background_effect="plage"
+ *     car_name="Jumpy 9 Places",
+ *     style="reveal"
  *   )
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -52,10 +48,10 @@ async function notifyTelegram(chatId: string, msg: string): Promise<void> {
 
 /**
  * Déclenche le pipeline complet de création vidéo marketing :
- *  1. Recherche la voiture dans Supabase (Clio 5 Alpine)
- *  2. Utilise le script personnalisé + effet plage
- *  3. Synthèse voix ElevenLabs
- *  4. Montage FFmpeg HD 1080×1920 (voiture + fond plage Pexels + voix + overlays)
+ *  1. Recherche la voiture dans Supabase (ex: Jumpy 9 Places)
+ *  2. Génère un script IA Claude en style "reveal" (ou utilise custom_script)
+ *  3. Synthèse voix ElevenLabs (français)
+ *  4. Montage FFmpeg HD 720×1280 (voiture + fond Pexels optionnel + voix + overlays texte)
  *  5. Upload Supabase Storage bucket "videos"
  *  6. Envoie le MP4 sur Telegram pour validation Oke/Non
  *  7. Retourne les métadonnées de la vidéo
@@ -125,10 +121,8 @@ export async function triggerMarketingVideo(
 //
 if (process.argv[1]?.endsWith('run-video-job.js') || process.argv[1]?.endsWith('run-video-job.ts')) {
   triggerMarketingVideo({
-    car_name:          'Clio 5 Alpine',
-    style:             'prix',
-    custom_script:     'Cet été, profitez de la Clio 5 Alpine à seulement 50€ par jour ! Une voiture sportive et élégante pour des vacances inoubliables à Oran. Réservez dès maintenant chez Fik Conciergerie !',
-    background_effect: 'plage',
+    car_name: 'Jumpy 9 Places',
+    style:    'reveal',
   })
     .then(result => {
       console.log('[run-video-job] ✅ Terminé:', JSON.stringify({ pending_id: result.pending_id, method: result.method, car_name: result.car_name }, null, 2));
