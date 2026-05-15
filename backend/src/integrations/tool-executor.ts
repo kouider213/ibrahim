@@ -1070,15 +1070,28 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     const caption = `📄 ${d.client_name} — ${d.type}`;
 
     try {
-      const authUrl = `${SUPA_URL}/storage/v1/object/client-documents/${d.storage_path}`;
-      const { data: imgData } = await axiosModule.get(authUrl, {
-        responseType: 'arraybuffer',
-        headers: { Authorization: `Bearer ${SUPA_KEY}` },
-        timeout: 20_000,
-      });
-      const buf = Buffer.from(imgData as ArrayBuffer);
+      // Télécharger l'image — storage_path (privé + auth) ou file_url (public)
+      let buf: Buffer | null = null;
 
-      // Lazy OCR backfill — si doc sans données et type reconnu
+      if (d.storage_path) {
+        const authUrl = `${SUPA_URL}/storage/v1/object/client-documents/${d.storage_path}`;
+        const { data } = await axiosModule.get(authUrl, {
+          responseType: 'arraybuffer',
+          headers: { Authorization: `Bearer ${SUPA_KEY}` },
+          timeout: 20_000,
+        });
+        buf = Buffer.from(data as ArrayBuffer);
+      } else if (d.file_url && IMAGE_EXTS.test(d.file_url)) {
+        const { data } = await axiosModule.get(d.file_url, {
+          responseType: 'arraybuffer',
+          timeout: 20_000,
+        });
+        buf = Buffer.from(data as ArrayBuffer);
+      }
+
+      if (!buf) continue;
+
+      // Lazy OCR backfill — si doc sans extracted_data et type reconnu
       if (!d.extracted_data && OCR_DOC_TYPES.test(d.type)) {
         const ocr = await ocrDocumentBuffer(buf, d.type, d.file_url ?? d.storage_path);
         if (ocr) {
@@ -1094,10 +1107,10 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
 
       if (chatId) {
         await sendTelegramPhotoBuffer2(chatId, buf, caption);
-        sentUrls.push(d.storage_path);
+        sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
       }
     } catch (err) {
-      console.error('[get_client_document] photo send failed:', err instanceof Error ? err.message : err);
+      console.error('[get_client_document] download/send failed:', err instanceof Error ? err.message : err);
     }
   }
 
