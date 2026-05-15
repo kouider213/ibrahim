@@ -13,17 +13,22 @@ echo  AGENT PC ^| FIK CONCIERGERIE ^| ORAN
 echo.
 
 REM Trouve Python (PATH ou chemins connus)
-set PYTHON=python
-python --version >nul 2>&1
-if errorlevel 1 (
-    if exist "%LOCALAPPDATA%\Python\bin\python.exe" (
+set PYTHON=
+REM Essai py launcher (Windows)
+py --version >nul 2>&1 && set PYTHON=py
+if "%PYTHON%"=="" (
+    if exist "%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe
+    ) else if exist "%LOCALAPPDATA%\Python\pythoncore-3.13-64\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Python\pythoncore-3.13-64\python.exe
+    ) else if exist "%LOCALAPPDATA%\Python\bin\python.exe" (
         set PYTHON=%LOCALAPPDATA%\Python\bin\python.exe
-    ) else if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
-        set PYTHON=%LOCALAPPDATA%\Programs\Python\Python311\python.exe
-    ) else if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
-        set PYTHON=%LOCALAPPDATA%\Programs\Python\Python312\python.exe
     ) else if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
         set PYTHON=%LOCALAPPDATA%\Programs\Python\Python313\python.exe
+    ) else if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Programs\Python\Python312\python.exe
+    ) else if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+        set PYTHON=%LOCALAPPDATA%\Programs\Python\Python311\python.exe
     ) else if exist "C:\Python311\python.exe" (
         set PYTHON=C:\Python311\python.exe
     ) else (
@@ -58,7 +63,7 @@ for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":7777 \|:7778 "') do 
 taskkill /F /IM python.exe /FI "WINDOWTITLE eq NEXUS*" >nul 2>&1
 timeout /t 1 /nobreak >nul
 
-echo Lancement de NEXUS...
+echo Lancement de NEXUS via Watchdog...
 echo.
-%PYTHON% nexus.py
+%PYTHON% nexus_watchdog.py
 pause
