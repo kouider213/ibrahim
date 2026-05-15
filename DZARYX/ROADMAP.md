@@ -1,6 +1,6 @@
 # DZARYX — Feuille de Route
 
-> Mise à jour : 2026-05-14
+> Mise à jour : 2026-05-15
 > Légende : ✅ Terminé | 🔄 En cours | 🔵 Planifié | ❌ Bloqué
 
 ---
@@ -42,7 +42,7 @@
 
 ---
 
-## Phase 4 — Nexus PC Agent (🔄 En cours)
+## Phase 4 — Nexus PC Agent (✅ Terminé — core fonctionnel)
 
 - ✅ WebSocket client Python connecté
 - ✅ Exécution commandes terminal
@@ -51,11 +51,11 @@
 - ✅ Git manager
 - ✅ Vision (capture écran)
 - ✅ Wake on LAN
+- ✅ Morning briefing proactif (KOUIDER_SCHEDULE embarqué, notifications per-day)
 - 🔵 Voice (wake word "Dzaryx" → commande vocale)
 - 🔵 Auto-unlock (déverrouillage PC automatique)
 - 🔵 TikTok automation (posting automatique)
 - 🔵 Music control (Spotify)
-- 🔵 Morning briefing automatique
 
 ---
 
@@ -68,8 +68,15 @@
 - ✅ `resolveFinancials()` — zéro catalogue fallback
 - ✅ Revenue Intelligence — vraies colonnes financières
 - ✅ Filtres dates overlap (start ≤ période ≤ end)
+- ✅ Revenus prorabilisés (today/week/month = jours réels × tarif journalier)
 - ✅ 9 tests financiers — tous passent
 - ✅ Profit = null si owner_ppd absent (jamais inventé)
+- ✅ create_booking stocke client_price_per_day + owner_price_per_day (B001 fixé)
+- ✅ Recherche documents clients + envoi Telegram (passeport, permis, contrat)
+- ✅ Recherche web réelle (SearXNG + Jina Reader, sans clé API)
+- ✅ GENERAL_AGENT (web_search toujours actif, min 2 tentatives)
+- ✅ Veille concurrents multi-sources réelle
+- ✅ Création vidéo marketing 720×1280 livrée Telegram (B005 fixé)
 - 🔵 Interface de saisie `owner_price_per_day` depuis mobile (pour nouvelles résa)
 - 🔵 Alert automatique si nouvelle résa sans owner_ppd
 
@@ -97,13 +104,16 @@
 
 ## Bugs prioritaires à corriger (voir [[BUGS]])
 
-1. `create_booking` tool ne stocke pas `client_price_per_day` / `owner_price_per_day` → 🔴 OUVERT
-2. Nouvelles réservations créées sans prix propriétaire → profit manquant
-3. Cache Redis TTL trop long pour tests live (30 min) → à configurer
+1. ~~`create_booking` ne stocke pas les prix réels~~ → ✅ FIXÉ (B001 — 2026-05-14)
+2. ~~Revenus sur contrat entier au lieu de jours réels~~ → ✅ FIXÉ (proratedCA — 2026-05-15)
+3. ~~"Donne moi les revenu" bloqué anti-hallucination~~ → ✅ FIXÉ (B006 — 2026-05-15)
+4. **B003** 🔴 `checkAnomalies()` filtre start_date seulement (pas overlap) — PRIORITÉ 1
+5. **B002** 🔴 Cache Redis 30 min trop long — PRIORITÉ 2
 
 ---
 
 ## Notes stratégiques
 
-- **Priorité absolue** : chaque nouvelle réservation doit stocker `client_price_per_day` ET `owner_price_per_day` au moment de la création → Phase 6 mobile + fix tool-executor.ts
+- **Phase 6 mobile** : priorité suivante — formulaire réservation avec saisie prix client + propriétaire
+- **TikTok posting automatique** : Phase 4 restant — nécessite Apify ou API TikTok
 - **Objectif long terme** : Dzaryx gère 100% du business de façon autonome (relances, facturation, contrats, posting TikTok)

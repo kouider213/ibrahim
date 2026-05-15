@@ -1,6 +1,7 @@
 # DZARYX — Handoff Agent AI
 
 > Ce fichier est la première chose à lire pour tout agent AI (Claude Code, Codex, Cursor, etc.) qui reprend le projet.
+> Dernière mise à jour : 2026-05-15
 
 ---
 
@@ -129,3 +130,29 @@ Ouvrir [[CHANGELOG]] → ajouter entrée en haut avec date, fichiers modifiés, 
 4. `npx tsc --noEmit` → lire les erreurs
 5. Chercher dans [[BUGS]] si déjà connu
 6. Ajouter dans [[BUGS]] si nouveau
+
+---
+
+## État système au 2026-05-15 — ce qui est opérationnel
+
+| Fonctionnalité | Statut | Notes |
+|---|---|---|
+| Bot Telegram | ✅ | Répond, réservations, rapports |
+| Calculs financiers | ✅ | Vrais prix Supabase, zéro catalogue |
+| Revenus prorabilisés | ✅ | today/week/month = jours réels |
+| Documents clients | ✅ | Passeport/permis/contrat → Telegram |
+| create_booking | ✅ | Prix réels stockés, car_id résolu depuis nom |
+| Recherche web | ✅ | SearXNG + Jina Reader, sans clé API |
+| Vidéo marketing | ✅ | FFmpeg 720×1280, livraison Telegram buffer |
+| Planning Kouider | ✅ | KOUIDER_SCHEDULE 7 jours embarqué |
+| Anti-hallucination | ✅ | Gates 1/2/3 bloquants |
+| Nexus PC Agent | ✅ | Terminal streaming SSE live |
+| Google Calendar | ✅ | Lecture + création + suppression |
+| Vision | ✅ | Gemini → OpenAI → Claude Haiku cascade |
+
+## Ce qui reste à faire (priorité)
+
+1. **B003** : Fix `checkAnomalies()` filtre dates → `phase5-finance.ts` ~ligne 440
+2. **B002** : Endpoint `POST /api/bi/cache/clear` ou TTL Redis 300s
+3. **Phase 6 Mobile** : formulaire réservation avec saisie prix client + propriétaire
+4. **Phase 4 restant** : TikTok posting automatique, Voice wake word, Music Spotify
