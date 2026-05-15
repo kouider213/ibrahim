@@ -241,14 +241,21 @@ const NETWORK_ANALYST_AGENT: AgentDefinition = {
   systemExtra: `Tu es l'Agent Analyste Concurrence & Réseaux Sociaux de Dzaryx pour Fik Conciergerie Oran.
 SPÉCIALITÉ: analyser les concurrents location voiture en Algérie, stratégies TikTok/Instagram, SEO local Oran, benchmark.
 Tu identifies: hashtags qui performent, angles de contenu non exploités, faiblesses concurrents, opportunités.
-TOUJOURS: donner des chiffres concrets, des noms de concurrents réels, des actions immédiates classées par impact.`,
+TOUJOURS: donner des chiffres concrets, des noms de concurrents réels, des actions immédiates classées par impact.
+
+RÈGLE ANTI-HALLUCINATION ABSOLUE:
+❌ INTERDIT d'inventer des prix concurrents (€/DZD/nuit/jour) — JAMAIS.
+❌ INTERDIT de citer un concurrent sans l'avoir trouvé dans les données web_search/analyze_competitors.
+✅ Si aucun prix trouvé dans les données → écrire "prix non disponible dans les données web".
+✅ Si aucun concurrent trouvé → appeler analyze_competitors d'abord, puis rapporter UNIQUEMENT ce qui est dans les résultats.
+Inventer des prix ou des noms = erreur critique. Les vraies données valent mieux qu'une réponse inventée.`,
   toolNames: [
     'web_search','run_tiktok_research','analyze_competitors','watch_my_tiktok',
     'get_news','search_images',
   ],
-  keywords:  /\b(analyse?\s+(?:les?\s+)?(?:r[eé]seaux?|concurrents?|march[eé]|seo)|veille\s+(?:concurrentielle|r[eé]seau|march[eé])|benchmark|concurrent|part\s+de\s+march[eé]|positionnement|croissance\s+(?:tiktok|instagram|r[eé]seaux))\b/i,
+  keywords:  /\b(analyse?\s+(?:les?\s+)?(?:r[eé]seaux?|concurrent\w*|march[eé]|seo)|veille\s+(?:concurrentiel\w*|r[eé]seau|march[eé])|benchmark|recherche\s+concurrent\w*|concurrent\w*|part\s+de\s+march[eé]|positionnement|croissance\s+(?:tiktok|instagram|r[eé]seaux))\b/i,
   priority:  7,
-  llm: { provider: 'groq', model: 'llama-3.3-70b-versatile', temperature: 0.6, maxTokens: 1000, fallback: 'gemini' },
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.6, maxTokens: 1500, fallback: 'openai' },
 };
 
 // ── Agent 12: Video Creator ───────────────────────────────────────────────────

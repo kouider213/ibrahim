@@ -18,7 +18,7 @@ export interface RouteDecision {
 }
 
 // ── Keywords that signal tools are required ──────────────────────────────────
-const TOOL_KEYWORDS = /réservation|booking|location|voiture|client|facture|paiement|caisse|finance|météo|news|agenda|calendrier|github|deploy|railway|code|script|whatsapp|telegram|mémoire|souvien|rappelle|mémo|tiktok|vidéo|image|photo|pdf|document|contrat|passeport|permis|envoie/i;
+const TOOL_KEYWORDS = /réservation|booking|location|voiture|client|facture|paiement|caisse|finance|météo|news|agenda|calendrier|github|deploy|railway|code|script|whatsapp|telegram|mémoire|souvien|rappelle|mémo|tiktok|vidéo|image|photo|pdf|document|contrat|passeport|permis|envoie|concurrent|concurrentiel|veille|recherche\s+con/i;
 
 // ── Long-context keywords → Gemini (1M token window) ─────────────────────────
 const LONG_CONTEXT_KEYWORDS = /analyse (ce|cet|ce long|tout ce|l'ensemble)|résume (ce|cet|tout)|lis (ce|cet|tout le)|compare (ces|les deux|plusieurs)/i;
