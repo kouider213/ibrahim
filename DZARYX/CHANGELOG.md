@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-05-15 — Session après-midi (Claude Code / Sonnet 4.6)
+
+### Phase 6 Mobile ✅ — 3 nouveaux panels Dashboard
+- **Commit** : `bc06bc4`
+- **Fichiers** :
+  - `mobile/src/components/dashboard/panels/BookingForm.tsx` (nouveau)
+  - `mobile/src/components/dashboard/panels/CalendarView.tsx` (nouveau)
+  - `mobile/src/components/dashboard/panels/ClientsView.tsx` (nouveau)
+  - `mobile/src/components/dashboard/Dashboard.tsx` (3 lazy imports + PANELS Record)
+  - `mobile/src/components/dashboard/DashboardNav.tsx` (BottomNav scrollable)
+  - `mobile/src/dashboard.css` (`.no-scrollbar` utility)
+- **BookingForm** : formulaire création réservation — sélection voiture (avec dispo), client nom+téléphone, dates, prix client/Houari DA/j, calcul profit live, soumis via `api.chat()` → BOOKING_AGENT
+- **CalendarView** : grille mois calendrier (lundi en premier), heatmap intensité réservations (4 niveaux cyan), aujourd'hui surligné, stats mois, état parc voitures
+- **ClientsView** : liste clients avec score VIP/FREQUENT/REGULAR/NEW, recherche nom, filtre par score, total dépensé, lien tel: téléphone
+- **Nav** : `DashSection` type étendu (7→10 items), BottomNav overflow-x scroll sans scrollbar visible
+- **Build** : 0 erreurs TS, 0 erreurs build Vite, 12 chunks propres
+
+---
+
 ## 2026-05-15 — Session matin/midi (Claude Code / Sonnet 4.6)
 
 ### B002 ✅ — Cache Redis revenus 30 min → 5 min + endpoint clear

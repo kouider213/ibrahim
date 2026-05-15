@@ -2,15 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-15 (matin)
+> Dernière mise à jour : 2026-05-15 (après-midi)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phase 5 (Finance) — TERMINÉE ✅. Phase 4 Nexus — TERMINÉE ✅. Prêt pour Phase 6 (Mobile).**
+**Phase active : Phase 6 (Mobile) — TERMINÉE ✅. Phase 5 (Finance) — TERMINÉE ✅. Phase 4 Nexus — TERMINÉE ✅.**
 
-Système financier normalisé. 12 agents spécialisés opérationnels. Recherche web réelle (SearXNG+Jina). Documents clients récupérés + envoyés Telegram. Réservations créées directement. Vidéo marketing 720×1280 active. Planning Kouider embarqué. Revenus prorabilisés corrects.
+Système financier normalisé. 12 agents spécialisés opérationnels. Recherche web réelle (SearXNG+Jina). Documents clients récupérés + envoyés Telegram. Réservations créées directement. Vidéo marketing 720×1280 active. Planning Kouider embarqué. Revenus prorabilisés corrects. **Dashboard mobile : 10 panels complets, création réservation depuis mobile, calendrier heatmap, liste clients scorée.**
 
 ---
 
@@ -71,31 +71,27 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 - ✅ Scan caméra live, OCR passeport, Voucher PDF
 - ✅ TypeScript : 0 erreurs | Railway déployé | Netlify déployé
 
+### Dashboard Mobile (Phase 6)
+- ✅ **BookingForm** : création réservation depuis mobile (voiture, client, dates, prix, profit live)
+- ✅ **CalendarView** : heatmap mois réservations (4 niveaux), stats mois, état parc
+- ✅ **ClientsView** : liste scorée VIP/FREQUENT/REGULAR/NEW, search, filtre, tel: cliquable
+- ✅ **BottomNav** : 10 items, overflow-x scroll masqué, min-width par bouton
+- ✅ Build Netlify : 12 chunks propres, 0 erreurs TS, déployé commit `bc06bc4`
+
 ---
 
 ## Ce qui ne fonctionne pas / incomplet ❌
 
-### B003 🔴 PRIORITÉ 1 — `checkAnomalies()` filtre dates incorrect
-- **Fichier** : `backend/src/integrations/phase5-finance.ts` ~ligne 440
-- **Fix** : `.lte('start_date', monthEnd).gte('end_date', monthStart)`
+### Aucun bug critique connu ✅
 
-### B002 🔴 PRIORITÉ 2 — Cache Redis 30 min trop long
-- **Fichier** : `backend/src/bi/revenue-intelligence.ts` ligne ~37
-- **Fix** : Endpoint `POST /api/bi/cache/clear` ou réduire TTL à 300s
-
-### ~~B005~~ ✅ FIXÉ — FFmpeg livraison Telegram silencieuse
-- Résolution 720×1280, zoompan retiré, sendPhotoBuffer buffer-based, ❌ sur échec
+Tous les bugs B001–B006 sont fixés. Voir `BUGS.md` pour détails.
 
 ---
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-**FIX B003** : `checkAnomalies()` dans `phase5-finance.ts` ~ligne 440 — filtre overlap.
-Fix : `.lte('start_date', monthEnd).gte('end_date', monthStart)`
-
-**FIX B002** : Cache Redis 30 min trop long — endpoint `POST /api/bi/cache/clear` ou TTL 300s.
-
-**Phase 6 Mobile** : formulaire création réservation avec saisie client_price + owner_price.
+- **Backfill `owner_price_per_day`** dans Supabase (SQL Editor) pour les réservations existantes → profits non null. Voir plan SQL dans `HANDOFF.md`.
+- **Phase 7** : à définir selon besoins Kouider.
 
 ---
 
@@ -119,8 +115,11 @@ Fix : `.lte('start_date', monthEnd).gte('end_date', monthStart)`
 - Revenus prorabilisés : today/week/month = jours réels × tarif journalier
 - B006 fixé : "Donne moi les revenu" → FINANCE_AGENT + Claude-Sonnet + vrais outils
 - Fast-mode exclu pour tous mots finance FR
+- B002 fixé : Redis TTL 1800→300s + endpoint POST /api/bi/cache/clear
+- B003 fixé : checkAnomalies() overlap date filter correct
+- **Phase 6 Mobile** : BookingForm + CalendarView + ClientsView + BottomNav 10 items
 
-**Dernier commit** : `ab3e05d` docs(obsidian)
+**Dernier commit** : `bc06bc4` feat(mobile): Phase 6 panels
 
 ---
 
