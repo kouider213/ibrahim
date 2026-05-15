@@ -43,11 +43,11 @@
 - **Fix** : Ajouter un endpoint `POST /api/bi/cache/clear` ou réduire TTL à 300s en dev.
 
 ### B003 — `checkAnomalies()` filtre start_date seulement (pas overlap)
-- **Statut** : 🔴 OUVERT
-- **Priorité** : MOYENNE
-- **Fichier** : `backend/src/integrations/phase5-finance.ts` ligne ~440
-- **Description** : `checkAnomalies()` utilise `.gte('start_date', monthStart).lte('start_date', monthEnd)` — ne catch pas les réservations qui ont commencé le mois dernier et sont encore actives ce mois.
-- **Fix** : Remplacer par `.lte('start_date', monthEnd).gte('end_date', monthStart)` (même correction que le reste).
+- **Statut** : ✅ FIXÉ — 2026-05-15
+- **Fichier** : `backend/src/integrations/phase5-finance.ts` ligne ~488
+- **Description** : `checkAnomalies()` utilisait `.gte('start_date', monthStart).lte('start_date', monthEnd)` — ratait les réservations commencées le mois précédent encore actives.
+- **Fix** : `.lte('start_date', monthEnd).gte('end_date', monthStart)` — overlap correct.
+- **Commit** : `bb692ac`
 
 ---
 

@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-05-15 — Session matin/midi (Claude Code / Sonnet 4.6)
+
+### B003 ✅ — `checkAnomalies()` filtre dates corrigé (overlap)
+- **Fichier** : `backend/src/integrations/phase5-finance.ts` ligne ~488
+- **Fix** : `.lte('start_date', monthEnd).gte('end_date', monthStart)` — réservations actives ce mois visibles même si démarrées le mois précédent.
+- **Commit** : `bb692ac`
+
+---
+
 ## 2026-05-15 — Session matin (Claude Code / Sonnet 4.6)
 
 ### B006 ✅ — "Donne moi les revenu" bloqué anti-hallucination (fast-mode bug)
