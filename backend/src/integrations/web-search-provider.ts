@@ -1,13 +1,16 @@
 /**
  * Multi-provider web search — resilient, no single point of failure.
- * Updated: 2026-05-14 — Jina Reader provider added (YouTube+TikTok, no key required).
+ * Updated: 2026-05-15 — SearXNG + Jina DDG proxy added (free, no key required).
  *
- * Priority order (per user spec):
- *   1. APIFY Google Search Scraper  — requires APIFY_API_KEY, highest quality, ~20-40s
- *   2. DuckDuckGo HTML              — free, no key, ~2s
- *   3. Bing HTML                    — free, no key, ~3s
- *   4. Google Custom Search API     — requires GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_ENGINE_ID, ~1s
- *   5. Jina AI                      — optional JINA_API_KEY, fallback only
+ * Priority order:
+ *   1. APIFY Google Search Scraper  — requires APIFY_API_KEY, highest quality
+ *   2. SearXNG public instances     — free, JSON API, no key, ~2-4s
+ *   3. Jina Reader → DDG/Yahoo      — r.jina.ai fetches search pages, bypasses bot-detection
+ *   4. Google Custom Search API     — requires GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_ENGINE_ID
+ *   5. Jina AI Search               — requires JINA_API_KEY
+ *   6. DuckDuckGo HTML direct       — often blocked, last resort
+ *   7. Bing HTML direct             — often blocked, last resort
+ *   8. Jina Reader YouTube+TikTok   — media-specific fallback
  *
  * Rules:
  *   - Never invents data
@@ -20,7 +23,7 @@ import { env } from '../config/env.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type SearchProvider = 'apify' | 'duckduckgo' | 'bing' | 'google_api' | 'jina';
+export type SearchProvider = 'apify' | 'searxng' | 'jina_proxy' | 'duckduckgo' | 'bing' | 'google_api' | 'jina';
 export type SearchConfidence = 'high' | 'medium' | 'low';
 
 export interface WebSearchResult {
@@ -100,7 +103,120 @@ async function searchWithApify(query: string): Promise<WebSearchResult | null> {
   }
 }
 
-// ── Provider 2: DuckDuckGo HTML scraping ─────────────────────────────────────
+// ── Provider 2: SearXNG public instances (JSON API, no key required) ─────────
+// Tries multiple public instances — returns structured JSON search results.
+
+const SEARXNG_INSTANCES = [
+  'https://searx.be',
+  'https://search.bus-hit.me',
+  'https://searx.prvcy.eu',
+  'https://search.mdosch.de',
+  'https://paulgo.io',
+];
+
+async function searchWithSearxNG(query: string): Promise<WebSearchResult | null> {
+  const t0 = Date.now();
+  for (const base of SEARXNG_INSTANCES) {
+    try {
+      const { data } = await axios.get<{ results?: unknown[] }>(`${base}/search`, {
+        params: { q: query, format: 'json', language: 'fr', safesearch: 0, engines: 'google,bing,duckduckgo' },
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Dzaryx/1.0)',
+          'Accept':     'application/json',
+        },
+        timeout: 8_000,
+      });
+      const results = Array.isArray(data?.results) ? data.results : [];
+      if (results.length === 0) continue;
+
+      const text = results
+        .slice(0, 8)
+        .map((r: unknown) => {
+          const rr = r as Record<string, unknown>;
+          const title   = String(rr['title']   ?? '').trim();
+          const snippet = String(rr['content'] ?? '').trim();
+          const url     = String(rr['url']     ?? '').trim();
+          return `• ${title}\n  ${url}\n  ${snippet}`;
+        })
+        .filter(l => l.length > 10)
+        .join('\n\n');
+
+      if (text.length < 80) continue;
+
+      console.log(`[searxng] ✅ instance=${base} results=${results.length} chars=${text.length}`);
+      return {
+        text:               text.slice(0, 4000),
+        source:             'searxng',
+        confidence:         'high',
+        results_count:      results.length,
+        duration_ms:        Date.now() - t0,
+        attempted_providers: [],
+      };
+    } catch {
+      // try next instance
+    }
+  }
+  return null;
+}
+
+// ── Provider 3: Jina Reader → DuckDuckGo/Yahoo (bypasses bot-detection) ──────
+// r.jina.ai renders pages server-side — it can fetch DDG/Yahoo results
+// where direct scraping gets blocked.
+
+async function searchWithJinaProxy(query: string): Promise<WebSearchResult | null> {
+  const t0 = Date.now();
+  const jinaHeaders: Record<string, string> = { 'Accept': 'text/plain', 'X-Retain-Images': 'none' };
+  if (env.JINA_API_KEY) jinaHeaders['Authorization'] = `Bearer ${env.JINA_API_KEY}`;
+
+  const jinaFetch = async (url: string): Promise<string> => {
+    try {
+      const { data } = await axios.get(`https://r.jina.ai/${encodeURIComponent(url)}`, {
+        headers: jinaHeaders,
+        timeout: 18_000,
+      });
+      return typeof data === 'string' ? data : '';
+    } catch {
+      return '';
+    }
+  };
+
+  // Try DuckDuckGo Lite (lighter page, less bot-detection) and Yahoo
+  const ddgLiteUrl = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}&kl=fr-fr`;
+  const yahooUrl   = `https://search.yahoo.com/search?p=${encodeURIComponent(query)}&vl=lang_fr`;
+
+  const [ddgText, yahooText] = await Promise.all([
+    jinaFetch(ddgLiteUrl),
+    jinaFetch(yahooUrl),
+  ]);
+
+  // Parse DDG Lite — plain text links + snippets
+  const ddgLines = ddgText.split('\n')
+    .filter(l => l.trim().length > 20 && !l.match(/^(DuckDuckGo|Privacy|Settings|Next|Prev)/i))
+    .slice(0, 25);
+
+  // Parse Yahoo — extract titles and snippets
+  const yahooLines = yahooText.split('\n')
+    .filter(l => l.trim().length > 15 && !l.match(/^(Yahoo|Sign in|Mail|News|Sports|Finance)/i))
+    .slice(0, 20);
+
+  const combined = [
+    ddgLines.length > 3  ? `🔍 DuckDuckGo — "${query}":\n${ddgLines.join('\n')}` : '',
+    yahooLines.length > 3 ? `🔍 Yahoo — "${query}":\n${yahooLines.join('\n')}`    : '',
+  ].filter(Boolean).join('\n\n');
+
+  if (combined.length < 80) return null;
+
+  return {
+    text:               combined.slice(0, 4000),
+    source:             'jina_proxy',
+    confidence:         'medium',
+    results_count:      ddgLines.length + yahooLines.length,
+    duration_ms:        Date.now() - t0,
+    attempted_providers: [],
+  };
+}
+
+// ── Provider 4: DuckDuckGo HTML scraping ─────────────────────────────────────
 // POST to html.duckduckgo.com/html/ — more reliable than GET (avoids redirect)
 
 async function searchWithDuckDuckGo(query: string): Promise<WebSearchResult | null> {
@@ -343,12 +459,14 @@ async function searchWithJinaReader(query: string): Promise<WebSearchResult | nu
 // ── Main export ───────────────────────────────────────────────────────────────
 
 const PROVIDERS: Array<{ name: SearchProvider; fn: (q: string) => Promise<WebSearchResult | null> }> = [
-  { name: 'apify',      fn: searchWithApify },
-  { name: 'jina',       fn: searchWithJina },        // Jina Search (key required)
-  { name: 'google_api', fn: searchWithGoogle },
-  { name: 'duckduckgo', fn: searchWithDuckDuckGo },  // may be blocked by bot detection
-  { name: 'bing',       fn: searchWithBing },        // may be blocked by bot detection
-  { name: 'jina',       fn: searchWithJinaReader },  // Jina Reader (YouTube+TikTok) — always available
+  { name: 'apify',      fn: searchWithApify },       // best quality, requires APIFY_API_KEY
+  { name: 'searxng',    fn: searchWithSearxNG },     // free public instances, JSON API
+  { name: 'jina_proxy', fn: searchWithJinaProxy },   // Jina fetches DDG Lite + Yahoo (bypasses bot-detection)
+  { name: 'google_api', fn: searchWithGoogle },      // requires GOOGLE_SEARCH_API_KEY
+  { name: 'jina',       fn: searchWithJina },        // requires JINA_API_KEY
+  { name: 'duckduckgo', fn: searchWithDuckDuckGo },  // often blocked
+  { name: 'bing',       fn: searchWithBing },        // often blocked
+  { name: 'jina',       fn: searchWithJinaReader },  // YouTube+TikTok media fallback
 ];
 
 export async function multiProviderWebSearch(
