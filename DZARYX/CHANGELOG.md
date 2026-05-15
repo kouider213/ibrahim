@@ -27,6 +27,103 @@
 
 ---
 
+## 2026-05-14 — Session après-midi/soir (Claude Code / Sonnet 4.6)
+
+### GENERAL_AGENT — recherche web toujours active, sans demander permission
+- **Commits** : `61b41b9`, `b2b13b1`, `05baced`
+- **Fichiers** : `backend/src/agents/agent-registry.ts`, `backend/src/integrations/tool-executor.ts`
+- **Problème** : Dzaryx demandait "puis-je faire une recherche ?" au lieu de chercher directement.
+- **Fix** :
+  - GENERAL_AGENT créé avec `web_search` comme outil principal
+  - Minimum 2 tentatives `web_search` avant de répondre
+  - Messages courts (< 30 chars) routés vers Claude (pas Groq) pour garder le contexte business
+  - Plus jamais de demande de permission pour chercher sur internet
+
+### `get_car_photo` — photos réelles du parc dans les vidéos/images marketing
+- **Commit** : `85a60bd`
+- **Fichiers** : `backend/src/integrations/tools.ts`, `backend/src/integrations/tool-executor.ts`
+- **Ajouté** : Outil `get_car_photo` — récupère URL photo Cloudinary réelle d'un véhicule depuis Supabase `cars` table. Claude utilise la vraie photo du parc, pas un placeholder.
+
+### Cloudinary images → Telegram (envoi direct URL)
+- **Commit** : `d1d45d3`
+- **Fichiers** : `backend/src/integrations/tool-executor.ts`
+- **Fix** : Les images générées via Cloudinary étaient perdues. Fix : forcer l'URL dans la réponse Claude + envoi direct `sendPhoto(cloudinaryUrl)` dans Telegram.
+
+### CODE_AGENT — retrait du keyword générique 'créer'
+- **Commit** : `4e53a11`
+- **Fichier** : `backend/src/agents/agent-registry.ts`
+- **Problème** : "crée une vidéo" / "crée une image" routait vers CODE_AGENT au lieu de TIKTOK_AGENT.
+- **Fix** : Retiré `créer` des keywords CODE_AGENT. Seuls les vrais contextes code (bug, script, python, deploy...) activent cet agent.
+
+### NETWORK_ANALYST — anti-hallucination agressive
+- **Commit** : `0e48393`
+- **Fichier** : `backend/src/agents/agent-registry.ts`
+- **Fix** : NETWORK_ANALYST reçoit désormais une instruction explicite de bloquer toute affirmation de données concurrentes sans avoir appelé `web_search`.
+
+### Recherche web — SearXNG + Jina Reader (remplace DDG/Bing cassés)
+- **Commits** : `cf50433`, `162052b`
+- **Fichiers** : `backend/src/integrations/web-search.ts`
+- **Fix** : DDG et Bing scrapers retournaient des erreurs. Ajout de :
+  - **SearXNG** (instance publique, pas de clé API)
+  - **Jina Reader** (`r.jina.ai/URL`) — fonctionne aussi sur YouTube, TikTok
+  - **Cascade** : SearXNG → Jina → fallback texte
+
+### Concurrent/veille — route vers Claude agentic loop
+- **Commit** : `e0c4dbc`, `d5dc597`
+- **Fichiers** : `backend/src/integrations/llm-router.ts`, `backend/src/agents/agent-registry.ts`
+- **Fix** : "Analyse les concurrents" ne routait pas vers Claude → aucun outil appelé. Fix : ajout keywords concurrent dans TOOL_KEYWORDS + NETWORK_ANALYST keywords élargis. Résultats multi-sources avec hashtags contextuels.
+
+---
+
+## 2026-05-14 — Session matin (Claude Code / Sonnet 4.6)
+
+### Documents clients — système complet réécrit
+- **Commits** : `759c32d`, `caee9b2`, `c2a0e06`, `793f7b3`, `e765c92`, `0950cbc`, `bc5e555`, `ee4a0fd`, `492bf03`
+- **Fichiers** : `backend/src/integrations/tool-executor.ts`, `backend/src/integrations/tools.ts`, `backend/src/agents/agent-registry.ts`
+- **Problèmes résolus** :
+  - `URLSearchParams` encodait `*` en `%2A` → filtre ilike Supabase cassé
+  - Documents téléchargés depuis URL publique (au lieu de service key Supabase)
+  - Mauvais envoi Telegram (`sendPhoto` marketing au lieu de `sendPhoto` API)
+  - Doublon tool `get_client_document` dans le registry
+  - `passeport` absent de TOOL_KEYWORDS → routait vers Groq sans outils
+- **Fix** : Réécriture avec `axios` REST direct + service key + envoi buffer + `store_document` schema corrigé
+
+### Réservations — série de correctifs critiques
+- **Commits** : `f9d34a4`, `431e3ac`, `7b57580`, `927f2a0`, `617ce9b`, `df700c5`, `93d9282`, `1e14530`, `b912528`, `828faef`, `0801f81`
+- **Fichiers** : `backend/src/integrations/tool-executor.ts`, `backend/src/integrations/tools.ts`, `backend/src/agents/agent-registry.ts`
+- **Correctifs** :
+  - `car_id` maintenant résolu depuis `car_name` (Claude donnait un nom, pas un UUID)
+  - `payment_status` normalisé `UNPAID` (contrainte Supabase)
+  - `client_age` réajouté dans INSERT (colonne NOT NULL existante)
+  - Colonnes inconnues stripées avant INSERT
+  - Plus de confirmation demandée avant `create_booking` — crée directement
+  - Messages numériques courts gardent le contexte de langue (arabe/français)
+  - Grille tarifaire corrigée (colonnes `vehicle_name`, `houari_price`)
+  - Gate 2 anti-hallucination : `create_booking`/`update_booking` exemptés (opérations légitimes)
+
+### Google Calendar — suppression événement + log erreur
+- **Commits** : `89eb578`, `ea43e32`
+- **Fichiers** : `backend/src/integrations/tool-executor.ts`
+- **Fix** : Suppression réservation → suppression automatique événement Google Calendar. Log complet erreur API Google (était silencieux avant).
+
+### Vision — Claude Haiku comme fallback final
+- **Commit** : `1636000`
+- **Fichier** : `backend/src/integrations/llm-router.ts`
+- **Ajouté** : Cascade vision : Gemini Flash → OpenAI GPT-4o Vision → Claude Haiku. Plus de crash si Gemini et OpenAI échouent.
+
+### Routing — historique conversationnel ne hijacke plus les agents
+- **Commits** : `989aa89`, `5af1cf6`
+- **Fichiers** : `backend/src/agents/core-router.ts`, `backend/src/conversation/orchestrator.ts`
+- **Problème** : L'historique conversation forçait BOOKING_AGENT même sur des messages clients/documents sans lien avec une réservation.
+- **Fix** : Priority override retiré. `detectAgentFromHistory` inclut maintenant les messages user (pas seulement assistant) pour une meilleure détection.
+
+### Nexus — messages réservation ne routent plus vers Nexus music
+- **Commit** : `e2c7561`
+- **Fichier** : `nexus/modules/ws_client.py`
+- **Fix** : Le router Nexus interceptait des messages "réservation" pour le module music. Filtrage corrigé.
+
+---
+
 ## 2026-05-14 — Session nuit (Claude Code / Sonnet 4.6)
 
 ### B005 ✅ — Vidéo marketing réellement livrée dans Telegram
