@@ -2,7 +2,7 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-14 (soir)
+> Dernière mise à jour : 2026-05-15 (matin)
 
 ---
 
@@ -19,16 +19,19 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Système 
 - ✅ Bot Telegram : répond, gère réservations, affiche rapports
 - ✅ Calculs financiers : vrais prix (client_price_per_day × nb_days), zéro catalogue
 - ✅ Profit Kouider : calculé depuis Supabase, null si données manquantes
-- ✅ Revenue Intelligence : revenus jour/semaine/mois avec overlap filter
+- ✅ Revenue Intelligence : revenus **prorabilisés** jour/semaine/mois avec overlap filter
 - ✅ Anti-hallucination Gates 1/2/3 : bloquants (pas log-only)
+- ✅ "Donne moi les revenu" : FINANCE_AGENT route Claude-Sonnet + vrais outils (B006 fixé)
+- ✅ Fast-mode : finance keywords exclus → toujours full Claude + tools
+- ✅ Planning Kouider embarqué : `KOUIDER_SCHEDULE` 7 jours, notifications proactives per-day
+- ✅ Dzaryx sait : employé gère remise véhicules (pas Kouider)
 - ✅ document_access_logs : table OK, logs écrits
 - ✅ Nonce anti-replay : Redis NX EX 600
 - ✅ SSE terminal Nexus : streaming live par ligne (asyncio)
 - ✅ create_booking : stocke client_price_per_day + owner_price_per_day (B001 fixé)
-- ✅ Création vidéo marketing : TIKTOK_AGENT → create_marketing_video → FFmpeg 720×1280 (zoompan retiré, photo buffer fallback garanti)
+- ✅ Création vidéo marketing : TIKTOK_AGENT → create_marketing_video → FFmpeg 720×1280
 - ✅ 12 agents spécialisés : routing automatique opérationnel
 - ✅ Scan caméra live, OCR passeport, Voucher PDF, Google Calendar
-- ✅ Tests : 9/9 financiers, 11/11 anti-hallucination, 5/5 doc access logs
 - ✅ TypeScript : 0 erreurs | Railway déployé | Netlify déployé
 
 ---
@@ -50,11 +53,12 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Système 
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-**FIX B003** : `checkAnomalies()` dans `phase5-finance.ts` ~ligne 440 — changer le filtre dates pour overlap.
-**Puis Phase 6 Mobile** : formulaire création réservation avec saisie client_price + owner_price.
+**FIX B003** : `checkAnomalies()` dans `phase5-finance.ts` ~ligne 440 — filtre overlap.
 Fix : `.lte('start_date', monthEnd).gte('end_date', monthStart)`
 
-**FIX B003** : Cache Redis 30 min trop long — ajouter endpoint cache clear ou réduire TTL.
+**FIX B002** : Cache Redis 30 min trop long — endpoint `POST /api/bi/cache/clear` ou TTL 300s.
+
+**Phase 6 Mobile** : formulaire création réservation avec saisie client_price + owner_price.
 
 ---
 

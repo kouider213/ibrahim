@@ -7,6 +7,12 @@
 
 ## Bugs Ouverts 🔴
 
+### B006 — "Donne moi les revenu" bloqué par anti-hallucination Gate 2
+- **Statut** : ✅ FIXÉ — 2026-05-15
+- **Fichiers** : `backend/src/integrations/claude-api.ts`, `backend/src/agents/agent-registry.ts`, `backend/src/integrations/llm-router.ts`
+- **Description** : Message court "Donne moi les revenu" (20 chars) triggait fast-mode Haiku sans outils. Claude répondait de mémoire, Gate 2 bloquait "revenu total sans outil". Aussi : `revenu` absent des keywords FINANCE_AGENT (seulement English `revenue`) et absent de TOOL_KEYWORDS.
+- **Fix** : 1) `needsAction` dans `isFastModeEligible` élargi avec `revenu|bénéfice|profit|gagné|gain|argent|chiffre|recette|encaissé|dette|caisse|trésorerie`. 2) FINANCE_AGENT keywords + TOOL_KEYWORDS complétés avec mots FR. 3) FINANCE_AGENT provider : `openai/gpt-4o` → `claude-sonnet-4-6`.
+
 ### B005 — Vidéo "créée" mais rien dans Telegram (livraison silencieuse)
 - **Statut** : ✅ FIXÉ — 2026-05-14
 - **Fichiers** : `backend/src/marketing/create-marketing-video.ts` + `backend/src/integrations/tool-executor.ts`

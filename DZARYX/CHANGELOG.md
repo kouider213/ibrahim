@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-05-15 — Session matin (Claude Code / Sonnet 4.6)
+
+### B006 ✅ — "Donne moi les revenu" bloqué anti-hallucination (fast-mode bug)
+- **Fichiers** : `backend/src/integrations/claude-api.ts`, `backend/src/agents/agent-registry.ts`, `backend/src/integrations/llm-router.ts`
+- **Cause réelle** : Message 20 chars < 30 → `isFastModeEligible` returnait `true` → Claude Haiku sans outils → Gate 2 bloquait.
+- **Fix** :
+  - `needsAction` regex élargi : ajout `revenu|revenus|bénéfice|profit|gagné|gain|argent|chiffre|recette|encaissé|dette|caisse|trésorerie`
+  - FINANCE_AGENT keywords : ajout `revenu|revenus|bénéfice|profit|gagné|gain|rapport\s+fi`
+  - FINANCE_AGENT provider : `openai/gpt-4o` → `claude-sonnet-4-6` (tool-calling fiable)
+  - TOOL_KEYWORDS llm-router : ajout des mots FR manquants
+- **Commits** : `55db5da`, `62de8d5`
+
+### Revenus prorabilisés — today/week/month = jours réels (pas contrat entier)
+- **Fichier** : `backend/src/bi/revenue-intelligence.ts`
+- **Fix** : `proratedCA()` calcule uniquement les jours qui tombent dans la fenêtre demandée. Today = 1 jour × tarif journalier. Semaine = overlap 7 jours. Mois = overlap mois complet.
+
+### Planning Kouider embarqué dans Dzaryx
+- **Fichiers** : `backend/src/config/constants.ts`, `backend/src/conversation/proactive-engine.ts`
+- **Ajouté** : `KOUIDER_SCHEDULE` (7 jours, wake/travail/business/famille), notifications proactives per-day, compréhension employé remise véhicules.
+
+---
+
 ## 2026-05-14 — Session nuit (Claude Code / Sonnet 4.6)
 
 ### B005 ✅ — Vidéo marketing réellement livrée dans Telegram
