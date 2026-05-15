@@ -206,9 +206,11 @@ async function triggerFamilyTime(
   demo: boolean,
 ): Promise<TriggerResult> {
   const { hour, dayOfWeek } = getLocalTime(tz);
-  // Evenings 19h–22h any day (famille = 7j/7)
-  if (!demo && (hour < 19 || hour > 22)) {
-    return { trigger: 'family-time', status: 'SKIPPED', reason: 'hors fenêtre 19h–22h' };
+  // Use per-day family start from KOUIDER_SCHEDULE (Jeudi=18h, others=20h)
+  const familleStr  = KOUIDER_SCHEDULE[dayOfWeek]?.famille ?? 'après 20h';
+  const familleHour = familleStr.includes('18') ? 18 : familleStr.includes('19') ? 19 : 20;
+  if (!demo && (hour < familleHour || hour > 23)) {
+    return { trigger: 'family-time', status: 'SKIPPED', reason: `hors fenêtre famille ${familleHour}h–23h` };
   }
   if (!await acquireDailyLock('family-time')) {
     return { trigger: 'family-time', status: 'SKIPPED', reason: 'déjà envoyé aujourd\'hui' };
