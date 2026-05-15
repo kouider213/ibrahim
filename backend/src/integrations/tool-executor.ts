@@ -210,6 +210,7 @@ async function _dispatch(
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
       // ─── OBSIDIAN BRAIN ───
+      case 'obsidian_find_vault':      return await obsidianFindVaultTool();
       case 'obsidian_read_client':     return await obsidianReadClientTool(input);
       case 'obsidian_update_client':   return await obsidianUpdateClientTool(input);
       case 'obsidian_list_clients':    return await obsidianListClientsTool();
@@ -3985,6 +3986,27 @@ async function getCarPhotoTool(input: Record<string, unknown>): Promise<string> 
 }
 
 // ─── OBSIDIAN BRAIN ───────────────────────────────────────────────────────────
+
+async function obsidianFindVaultTool(): Promise<string> {
+  const { isNexusOnline } = await import('../actions/handlers/nexus-relay.js');
+  if (!isNexusOnline()) return '❌ Nexus hors ligne — allume le PC et lance start.bat.';
+  const { emitToNexusWithAck } = await import('../actions/handlers/nexus-relay.js');
+  const { resetVaultCache } = await import('./obsidian-bridge.js');
+  resetVaultCache();
+  try {
+    const res = await emitToNexusWithAck<{ ok: boolean; vault?: string; all_vaults?: string[] }>(
+      'nexus:find_obsidian_vault', {}, 20000,
+    );
+    if (res.ok && res.vault) {
+      process.env['OBSIDIAN_VAULT_PATH'] = res.vault;
+      const all = res.all_vaults?.length ? `\nAutres vaults trouvés: ${res.all_vaults.slice(1).join(', ')}` : '';
+      return `✅ Vault Obsidian détecté: ${res.vault}${all}\n\nObsidian Brain opérationnel. Tu peux maintenant utiliser obsidian_read_client, obsidian_update_client, etc.`;
+    }
+    return '⚠️ Aucun vault Obsidian trouvé sur le PC. Ouvre Obsidian d\'abord et relance la détection.';
+  } catch (e) {
+    return `❌ Détection échouée: ${e instanceof Error ? e.message : String(e)}. Redémarre Nexus (nexus.py sur le PC) si le problème persiste.`;
+  }
+}
 
 async function obsidianReadClientTool(input: Record<string, unknown>): Promise<string> {
   const clientName = (input['client_name'] as string | undefined)?.trim();

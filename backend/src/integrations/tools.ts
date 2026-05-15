@@ -1020,7 +1020,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   },
   {
     name: 'send_nexus_command',
-    description: 'Envoyer une commande directe au PC de Kouider via NEXUS. NEXUS peut: ouvrir des apps (Spotify, Chrome, VS Code, CapCut...), prendre un screenshot, lister/organiser fichiers, contrôler souris/clavier, lancer une musique, ouvrir un dossier. IMPORTANT: appeler ping_nexus d\'abord pour vérifier que NEXUS est en ligne. NE PAS envoyer de commandes de suppression de fichiers sans confirmation explicite.',
+    description: 'Envoyer une commande directe au PC de Kouider via NEXUS. NEXUS peut: ouvrir des apps (Spotify, Chrome, VS Code, CapCut...), prendre un screenshot, lister/organiser fichiers, contrôler souris/clavier, lancer une musique, ouvrir un dossier. IMPORTANT: appeler ping_nexus d\'abord pour vérifier que NEXUS est en ligne. NE PAS envoyer de commandes de suppression de fichiers sans confirmation explicite. ⛔ JAMAIS utiliser pour Obsidian — utiliser obsidian_* outils à la place.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1085,6 +1085,11 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   },
 
   // ─── OBSIDIAN BRAIN ──────────────────────────────────────────────
+  {
+    name: 'obsidian_find_vault',
+    description: 'Détecter automatiquement le chemin du vault Obsidian sur le PC de Kouider via Nexus. Appeler quand Kouider dit "trouve le vault Obsidian", "cherche Obsidian", "où est mon vault", "configure Obsidian", "détecte le vault". Nécessite que Nexus soit en ligne. ⛔ NE PAS utiliser send_nexus_command pour ça.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
   {
     name: 'obsidian_read_client',
     description: 'Lire la fiche client depuis Obsidian (cerveau Dzaryx). Appeler quand Kouider mentionne un client par nom, quand un message WhatsApp arrive d\'un client connu, ou avant de répondre à une question sur un client. Retourne: statut VIP, véhicule préféré, nombre de locations, notes privées de Kouider.',
