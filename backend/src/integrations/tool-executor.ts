@@ -255,6 +255,7 @@ async function _dispatch(
       case 'generate_image':             return await generateImageTool(input, sessionId);
       case 'generate_ai_video':          return await generateAiVideoTool(input, sessionId);
       case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
+      case 'get_car_photo':              return await getCarPhotoTool(input);
       // ─── IMAGE-TO-IMAGE avec conservation visage ───
       case 'transform_image':            return await executeImageToImage(input, sessionId);
       default:                           return `Outil inconnu: ${name}`;
@@ -3951,4 +3952,28 @@ async function healthCheckAllTool(): Promise<string> {
 
   const now = new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', hour12: false });
   return `🔍 HEALTH CHECK DZARYX\n📅 ${now} (Oran)\n\n${results.join('\n')}`;
+}
+
+// ─── get_car_photo — vraie photo depuis Supabase ───────────────────────────
+async function getCarPhotoTool(input: Record<string, unknown>): Promise<string> {
+  const carName = (input['car_name'] as string | undefined)?.trim();
+  if (!carName) return '❌ Paramètre car_name manquant.';
+
+  const { data: cars, error } = await supabase
+    .from('cars')
+    .select('id, name, image_url')
+    .ilike('name', `%${carName}%`)
+    .limit(5);
+
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!cars || cars.length === 0) return `❌ Aucune voiture trouvée pour "${carName}" dans la flotte.`;
+
+  const car = (cars as { id: string; name: string; image_url: string | null }[])
+    .find(c => c.image_url) ?? null;
+
+  if (!car || !car.image_url) {
+    return `⚠️ Voiture "${cars[0]?.name}" trouvée mais aucune photo enregistrée. Ajoute une photo dans le tableau de bord.`;
+  }
+
+  return `✅ Photo trouvée pour ${car.name}:\nURL: ${car.image_url}\n\nUtilise cette URL avec enhance_image, create_social_variants, ou add_text_overlay pour créer la pub.`;
 }

@@ -999,6 +999,19 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── PHOTO RÉELLE FLOTTE ─────────────────────────────────────────
+  {
+    name: 'get_car_photo',
+    description: 'Récupérer la vraie photo d\'une voiture du parc Fik Conciergerie depuis Supabase. TOUJOURS appeler en premier quand Kouider veut une image/pub pour une voiture du parc (Clio 5 Alpine, Jumpy, Sandero, Duster, etc.). Retourne l\'URL de la vraie photo. Ensuite passer cette URL à enhance_image, create_social_variants ou add_text_overlay. NE PAS utiliser generate_image pour une voiture déjà dans le parc.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name: { type: 'string', description: 'Nom ou partie du nom de la voiture. Ex: "Clio 5 Alpine", "Jumpy", "Duster", "Sandero". Insensible à la casse.' },
+      },
+      required: ['car_name'],
+    },
+  },
+
   // ─── NEXUS PC AGENT ──────────────────────────────────────────────
   {
     name: 'ping_nexus',
