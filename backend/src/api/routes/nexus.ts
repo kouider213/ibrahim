@@ -168,19 +168,32 @@ router.get('/jobs/:jobId', requireMobileAuth, (req, res) => {
 });
 
 // POST /api/nexus/restart — restart Nexus process remotely (safe rolling restart)
-// Strategy: write a Python launcher script (no PowerShell — avoids EPERM), launch with
-// NEXUS_HTTP_PORT=7779 / NEXUS_WS_PORT=7780 (avoids port conflict with running instance),
-// wait for new socket_id, THEN kill old PID.
+// Strategy: detect Python/nexus dir dynamically from Nexus, write a launcher script,
+// launch new instance with alt ports, wait for new socket_id, THEN kill old PID.
 router.post('/restart', requireMobileAuth, async (_req, res) => {
   if (!isNexusOnline()) { res.status(503).json({ ok: false, error: 'Nexus offline — cannot restart' }); return; }
 
-  const NEXUS_DIR  = String.raw`C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus`;
-  const PYTHON_EXE = String.raw`C:\Users\douba\AppData\Local\Python\pythoncore-3.14-64\python.exe`;
-  const beforeId   = getNexusStatus().socketId;
+  const beforeId = getNexusStatus().socketId;
+
+  // Step 0 — detect Python exe + nexus dir dynamically from Nexus itself
+  let PYTHON_EXE = 'python';
+  let NEXUS_DIR  = '.';
+  try {
+    const infoRes = await nexusRunCommand(
+      `python -c "import sys, os; print('EXE:' + sys.executable); print('CWD:' + os.getcwd())"`,
+      undefined, 8_000,
+    );
+    const exeM = infoRes.stdout?.match(/EXE:(.+)/);
+    const cwdM = infoRes.stdout?.match(/CWD:(.+)/);
+    if (exeM) { PYTHON_EXE = exeM[1].trim(); console.log(`[NEXUS restart] python=${PYTHON_EXE}`); }
+    if (cwdM) { NEXUS_DIR  = cwdM[1].trim(); console.log(`[NEXUS restart] cwd=${NEXUS_DIR}`); }
+  } catch (e) { console.warn('[NEXUS restart] path detection failed, using defaults:', e); }
 
   res.json({
     ok:               true,
-    message:          'Restart initiated — new Nexus process launching with alt GUI ports (7779/7780).',
+    message:          'Restart initiated — new Nexus process launching.',
+    python:           PYTHON_EXE,
+    nexus_dir:        NEXUS_DIR,
     before_socket_id: beforeId,
     poll:             'GET /api/nexus/live-status every 5s — done when socket_id changes',
   });
@@ -189,25 +202,24 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
   let oldPid: string | null = null;
   try {
     const pidRes = await nexusRunCommand(
-      `wmic process where "commandline like '%nexus.py%'" get processid /format:value`,
-      NEXUS_DIR, 10_000,
+      `python -c "import os; print('PID:' + str(os.getpid()))"`,
+      NEXUS_DIR, 8_000,
     );
-    const m = pidRes.stdout.match(/ProcessId=(\d+)/i);
+    const m = pidRes.stdout?.match(/PID:(\d+)/);
     if (m) { oldPid = m[1]; console.log(`[NEXUS restart] old PID=${oldPid}`); }
-    else { console.warn(`[NEXUS restart] PID not found via wmic — stdout="${pidRes.stdout?.slice(0, 200)}"`); }
+    else { console.warn(`[NEXUS restart] PID not found — stdout="${pidRes.stdout?.slice(0, 200)}"`); }
   } catch (e) { console.warn('[NEXUS restart] PID lookup failed:', e); }
 
-  // Step 2 — write a Python launcher (avoids PowerShell EPERM on this machine)
+  // Step 2 — write a Python launcher
   const launcherScript = [
-    'import subprocess, os',
+    'import subprocess, os, sys',
     `env = dict(os.environ, NEXUS_HTTP_PORT='7779', NEXUS_WS_PORT='7780')`,
+    `cwd = r'${NEXUS_DIR.replace(/\\/g, '\\\\')}'`,
     `p = subprocess.Popen(`,
-    `    [r'${PYTHON_EXE}', 'nexus.py'],`,
-    `    cwd=r'${NEXUS_DIR}',`,
-    `    env=env,`,
-    `    creationflags=8,`,
-    `    stdout=open(r'${NEXUS_DIR}\\\\nexus_restart.log', 'w'),`,
-    `    stderr=open(r'${NEXUS_DIR}\\\\nexus_restart_err.log', 'w'),`,
+    `    [sys.executable, 'nexus.py'],`,
+    `    cwd=cwd, env=env, creationflags=8,`,
+    `    stdout=open(os.path.join(cwd, 'nexus_restart.log'), 'w'),`,
+    `    stderr=open(os.path.join(cwd, 'nexus_restart_err.log'), 'w'),`,
     `)`,
     `print('NEWPID:' + str(p.pid))`,
   ].join('\n');
@@ -219,11 +231,11 @@ router.post('/restart', requireMobileAuth, async (_req, res) => {
     console.log(`[NEXUS restart] launcher script written — ${wf.size} bytes`);
   } catch (e) { console.error('[NEXUS restart] write_file error:', e); return; }
 
-  // Step 3 — execute the launcher (Python, not PowerShell)
+  // Step 3 — execute the launcher
   let newPid: string | null = null;
   try {
     const launchRes = await nexusRunCommand(
-      `"${PYTHON_EXE}" nexus_launcher_tmp.py`,
+      `python nexus_launcher_tmp.py`,
       NEXUS_DIR, 20_000,
     );
     console.log(`[NEXUS restart] launcher exit=${launchRes.exit_code} stdout="${launchRes.stdout?.trim()}" stderr="${launchRes.stderr?.slice(0, 300)}"`);
