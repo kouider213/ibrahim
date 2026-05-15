@@ -144,7 +144,7 @@ TOUJOURS: optimiser pour mobile (ratio 9:16 TikTok/Reels), qualité professionne
     'create_marketing_video','edit_marketing_video','regenerate_voice','create_scenario_video',
     'generate_tiktok_video','merge_videos','publish_to_socials',
   ],
-  keywords:  /\b(image|photo|vid[eé]o|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|r[eé]seaux|instagram|reel|story|banner|logo|supprimer\s+fond|optimiser)\b/i,
+  keywords:  /\b(image|photo|vid[eé]o|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|r[eé]seaux|instagram|reel|story|banner|logo|supprimer\s+fond|optimiser|g[eé]n[eè]re?r?\s+(?:image|photo|visuel)|crée?\w*\s+(?:image|photo|pub|visuel|affiche)|image\s+ia|photo\s+ia)\b/i,
   priority:  6,
   llm: { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
 };
@@ -195,7 +195,7 @@ TOUJOURS: lire le fichier avant de modifier, vérifier le déploiement Railway a
     'railway_get_logs','railway_wait_deploy','netlify_deploy','supabase_execute',
     'read_site_file','update_site_file','web_search','execute_code_task','create_new_project',
   ],
-  keywords:  /\b(code|github|deploy|railway|bug|typescript|react|fichier|modifier|créer|fonction|erreur ts|patch|commit|push|netlify|supabase)\b/i,
+  keywords:  /\b(code|github|deploy|railway|bug|typescript|react|modifier|fonction|erreur\s+ts|patch|commit|push|netlify|supabase)\b|\bcréer?\s+(?:une?\s+)?(?:fonction|fichier|classe|module|script|composant|route|endpoint|api)\b/i,
   priority:  8,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.4, maxTokens: 2000 },
 };
