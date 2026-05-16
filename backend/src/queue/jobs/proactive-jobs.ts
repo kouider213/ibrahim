@@ -189,6 +189,11 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
 
 // ── 2. Véhicule sans réservation 7j ──────────────────────────
 export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const dayLock = `job:idle-vehicle:sent:${today}`;
+  const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  if (!acquired) { console.log('[job:idle-vehicle] SKIP — already sent today'); return; }
+
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
   const cutoffStr = cutoff.toISOString().split('T')[0];
@@ -652,6 +657,10 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
 
 // ── 4b. Détection anomalies financières ──────────────────────
 export async function jobCheckAnomalies(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const dayLock = `job:check-anomalies:sent:${today}`;
+  const acq = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  if (!acq) { console.log('[job:anomalies] SKIP — already ran today'); return; }
   try {
     const { checkAnomalies } = await import('../../integrations/phase5-finance.js');
     const result = await checkAnomalies();
