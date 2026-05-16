@@ -15,8 +15,7 @@ import { useStore } from '../lib/store';
 import { sendMessage, type UserLocation } from '../lib/api';
 
 const { width: W } = Dimensions.get('window');
-const BACKEND_URL  = process.env.EXPO_PUBLIC_BACKEND_URL  ?? 'https://ibrahim-backend-production.up.railway.app';
-const MOBILE_TOKEN = process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+const BACKEND_URL  = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
 
 type JarvisState = 'idle' | 'listen' | 'think' | 'speak';
 type Overlay     = 'none' | 'text' | 'camera';
@@ -41,8 +40,9 @@ Notifications.setNotificationHandler({
 
 export default function JarvisScreen() {
   const insets = useSafeAreaInsets();
-  const { displayName, userId, businessName } = useStore();
-  const sessionId = `mobile_${userId ?? 'anonymous'}`;
+  const { displayName, userId, businessName, actorId, mobileToken, sessionId: getSessionId } = useStore();
+  const MOBILE_TOKEN = mobileToken();
+  const sessionId    = getSessionId();
 
   const [js,        setJs]      = useState<JarvisState>('idle');
   const [overlay,   setOverlay] = useState<Overlay>('none');
@@ -389,7 +389,8 @@ export default function JarvisScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>DZARYX</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={styles.actorBadge}>{(actorId ?? 'kouider').toUpperCase()}</Text>
           <View style={[styles.dot, { backgroundColor: color }]} />
           <Text style={[styles.status, { color }]}>EN LIGNE</Text>
         </View>
@@ -522,10 +523,11 @@ const styles = StyleSheet.create({
   cTL:    { top: 44, left: 12, borderTopWidth: 2, borderLeftWidth: 2, borderColor: '#00e5ff' },
   cBR:    { bottom: 106, right: 12, borderBottomWidth: 2, borderRightWidth: 2, borderColor: '#00e5ff' },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 10 },
-  title:  { color: '#00e5ff', fontSize: 15, fontFamily: MONO, letterSpacing: 7, fontWeight: '700' },
-  dot:    { width: 6, height: 6, borderRadius: 3 },
-  status: { fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
+  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 10 },
+  title:       { color: '#00e5ff', fontSize: 15, fontFamily: MONO, letterSpacing: 7, fontWeight: '700' },
+  dot:         { width: 6, height: 6, borderRadius: 3 },
+  status:      { fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
+  actorBadge:  { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
