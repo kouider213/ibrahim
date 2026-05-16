@@ -1,5 +1,6 @@
 ﻿import type { Job } from 'bullmq';
 import { redis } from '../../queue/queue.js';
+import { emitProactive } from '../../notifications/mobile-push.js';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
 import { sendMessage, sendVideoBuffer } from '../../integrations/telegram.js';
@@ -142,7 +143,16 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     lines.push(`💡 *Conseil:* ${conseil}`);
   }
 
-  await tg(lines.join('\n'));
+  const fullMsg = lines.join('\n');
+  await tg(fullMsg);
+
+  // Proactive push to mobile app — short version for TTS
+  const ttsLines: string[] = [`${greeting} Kouider !`];
+  if (actives.length > 0) ttsLines.push(`${actives.length} voiture${actives.length > 1 ? 's' : ''} en location aujourd'hui.`);
+  if (retToday.length > 0) ttsLines.push(`${retToday.length} retour${retToday.length > 1 ? 's' : ''} prévu${retToday.length > 1 ? 's' : ''} aujourd'hui.`);
+  if (weather) ttsLines.push(`Météo Oran : ${weather.temperature} degrés, ${weather.condition}.`);
+  emitProactive(ttsLines.join(' '), 'morning');
+
   console.log('[job:morning-briefing] Sent');
 }
 
@@ -184,6 +194,12 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
     sent++;
   }
 
+  if (sent > 0) {
+    emitProactive(
+      `Rappel : ${sent} voiture${sent > 1 ? 's' : ''} à récupérer demain. Vérifie tes retours.`,
+      'reminder',
+    );
+  }
   console.log(`[job:end-rental] ${sent} reminder(s) sent (skipped duplicates)`);
 }
 
@@ -652,6 +668,10 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
     );
   }
 
+  emitProactive(
+    `Alerte retard ! ${overdue.length} véhicule${overdue.length > 1 ? 's' : ''} pas encore rendu${overdue.length > 1 ? 's' : ''}. Contacte tes clients.`,
+    'alert',
+  );
   console.log(`[job:late-return] ${overdue.length} véhicule(s) en retard détecté(s)`);
 }
 

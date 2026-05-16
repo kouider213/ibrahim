@@ -46,6 +46,7 @@ import { setBISocket } from './bi/bi-socket.js';
 import { initReminderWorker } from './workers/reminder-worker.js';
 import { initOrchestrator } from './conversation/orchestrator.js';
 import { initOrchestratorEngine } from './orchestrator/orchestrator-engine.js';
+import { initMobilePush } from './notifications/mobile-push.js';
 import { initScheduler }   from './queue/scheduler.js';
 import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
@@ -279,6 +280,7 @@ const mobileNs = io.of('/mobile');
 // Initialize services with the mobile namespace so events reach mobile clients
 setBISocket(mobileNs);
 initOrchestrator(mobileNs);
+initMobilePush(mobileNs);
 initOrchestratorEngine({ io: mobileNs });
 initApprover(mobileNs);
 initDispatcher(mobileNs);
