@@ -269,8 +269,25 @@ export default function JarvisScreen() {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== 'granted') return;
       const token = (await Notifications.getExpoPushTokenAsync({ projectId: '3536fdc5-6088-4fd4-9a4f-d443f0a52a1e' })).data;
-      console.log('[PUSH]', token);
+      // Register token with backend so proactive push works when app is closed
+      fetch(`${BACKEND_URL}/api/push-token`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MOBILE_TOKEN}` },
+        body:    JSON.stringify({ token }),
+      }).catch(() => {});
     })();
+
+    // When user taps a proactive notification → speak it
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data as { text?: string } | undefined;
+      const text = data?.text ?? response.notification.request.content.body ?? '';
+      if (text) {
+        setLastTxt(text);
+        setJs('speak');
+        playTTS(text).then(() => setJs('idle')).catch(() => setJs('idle'));
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   return (
