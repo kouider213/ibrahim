@@ -34,11 +34,35 @@ const ORAN_LANDMARKS: Record<string, { lat: number; lng: number; label: string }
   'bruxelles':         { lat: 50.8503, lng: 4.3517,  label: 'Bruxelles' },
 };
 
-function resolveDestination(destination: string): { lat: number; lng: number; label: string } | null {
+async function geocodeAddress(address: string, apiKey: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  const query = address.toLowerCase().includes('oran') || address.toLowerCase().includes('algérie') || address.toLowerCase().includes('algerie')
+    ? address
+    : `${address}, Oran, Algérie`;
+
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json() as {
+      status: string;
+      results: Array<{ geometry: { location: { lat: number; lng: number } }; formatted_address: string }>;
+    };
+    if (data.status !== 'OK' || !data.results[0]) return null;
+    const loc = data.results[0].geometry.location;
+    return { lat: loc.lat, lng: loc.lng, label: data.results[0].formatted_address };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveDestination(destination: string, apiKey?: string): Promise<{ lat: number; lng: number; label: string } | null> {
+  // 1. Fast local lookup first
   const lower = destination.toLowerCase().trim();
   for (const [key, coords] of Object.entries(ORAN_LANDMARKS)) {
     if (lower.includes(key)) return coords;
   }
+  // 2. Geocoding API fallback for any address
+  if (apiKey) return geocodeAddress(destination, apiKey);
   return null;
 }
 
@@ -62,7 +86,8 @@ export async function getTravelTime(
   destination: string,
   arrivalTime?: string, // "HH:MM"
 ): Promise<TravelTimeResult> {
-  const dest = resolveDestination(destination);
+  const key = process.env['GOOGLE_MAPS_API_KEY'];
+  const dest = await resolveDestination(destination, key ?? undefined);
   if (!dest) {
     return {
       travel_time_minutes: 0,
@@ -76,11 +101,9 @@ export async function getTravelTime(
       origin_lng: originLng,
       dest_lat: 0,
       dest_lng: 0,
-      error: `Destination "${destination}" non reconnue — lien générique fourni`,
+      error: `Destination "${destination}" non reconnue — essaie avec "aéroport", "centre-ville", ou une adresse précise`,
     };
   }
-
-  const key = process.env['GOOGLE_MAPS_API_KEY'];
 
   if (!key) {
     // Fallback: straight-line distance → rough estimate (60 km/h avg in Oran)

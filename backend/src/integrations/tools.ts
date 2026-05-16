@@ -1162,7 +1162,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────
   {
     name: 'get_travel_time',
-    description: 'Calculer le temps de trajet réel avec trafic depuis la position GPS de Kouider vers une destination. Utiliser quand Kouider parle d\'un rendez-vous, remise de voiture, retour client, trajet, heure de départ. TOUJOURS utiliser si userLocation est fourni et qu\'il y a une notion de déplacement. Retourne temps réel, trafic, heure de départ recommandée, liens Waze et Google Maps.',
+    description: 'Calculer le temps de trajet réel avec trafic depuis la position GPS de Kouider vers n\'importe quelle destination (adresse complète, quartier, lieu connu). Utiliser quand Kouider parle d\'un rendez-vous, remise de voiture, retour client, trajet, heure de départ. TOUJOURS utiliser si userLocation est fourni et qu\'il y a une notion de déplacement. Accepte toute adresse — géocodage automatique via Google Maps. Retourne temps réel, trafic, heure de départ recommandée, liens Waze et Google Maps.',
     input_schema: {
       type: 'object' as const,
       properties: {
