@@ -106,12 +106,14 @@ export async function processWithOrchestration(
   // Gates 1/2/3 run with real toolsExecuted inside orchestrator.ts — result.text is already safe.
 
   // ── 6. Execution trace ─────────────────────────────────────────────────────
+  // Note: toolsExecuted is tracked inside processMessage (orchestrator.ts) and logged there.
+  // P15 layer does not have access to the inner tool list — check [execution-trace] logs instead.
   logExecutionTrace({
     requestId,
     channel,
     sessionId,
-    toolsExecuted:   [],
-    responseAllowed: true,
+    toolsExecuted:   [],   // see [execution-trace] log from orchestrator.ts for actual tools
+    responseAllowed: result.status !== 'error',
     priorityScore:   priority.score,
     priorityLevel:   priority.level,
     agentUsed:       routing.route.label,

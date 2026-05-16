@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import { maskSensitiveText } from '../security/document-mask.js';
 
 export type DocumentType = 'pdf' | 'docx' | 'xlsx' | 'txt' | 'csv' | 'image' | 'unknown';
 
@@ -133,6 +134,8 @@ export async function readDocument(url: string): Promise<DocumentResult> {
   if (!text.trim()) {
     text = 'Impossible d\'extraire du texte depuis ce document.';
   }
+
+  text = maskSensitiveText(text);
 
   const wordCount = text.trim().split(/\s+/).length;
   const summary = generateSummary(text, type);

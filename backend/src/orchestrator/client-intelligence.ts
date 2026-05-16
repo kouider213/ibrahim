@@ -38,11 +38,20 @@ export async function getClientProfile(
       .select('*')
       .eq('owner_id', ownerId)
       .ilike('client_name', `%${clientName}%`)
-      .maybeSingle();
+      .limit(5);
 
-    if (!data) return { exists: false, profile: null, context: '' };
+    if (!data || data.length === 0) return { exists: false, profile: null, context: '' };
 
-    const p = data as ClientProfile;
+    if (data.length > 1) {
+      const names = data.map((r: ClientProfile) => r.client_name).join(', ');
+      return {
+        exists: true,
+        profile: null,
+        context: `⚠️ AMBIGUÏTÉ CLIENT: Plusieurs clients correspondent à "${clientName}": ${names}. Demande à Kouider de préciser le nom complet avant d'agir.`,
+      };
+    }
+
+    const p = data[0] as ClientProfile;
     const context = buildClientContext(p);
     return { exists: true, profile: p, context };
   } catch {
