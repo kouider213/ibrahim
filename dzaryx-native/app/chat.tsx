@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   Animated, Easing, Dimensions, Platform, AppState, Linking,
@@ -13,6 +13,7 @@ import * as KeepAwake from 'expo-keep-awake';
 import { io, type Socket } from 'socket.io-client';
 import { useStore } from '../lib/store';
 import { sendMessage, type UserLocation } from '../lib/api';
+import { useRouter } from 'expo-router';
 
 const { width: W } = Dimensions.get('window');
 const BACKEND_URL  = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
@@ -46,11 +47,15 @@ const ORB_COLOR: Record<JarvisState, string> = {
 };
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false }),
+  handleNotification: async () => ({
+    shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false,
+    shouldShowBanner: true, shouldShowList: true,
+  }),
 });
 
 export default function JarvisScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { displayName, userId, businessName, actorId, mobileToken, sessionId: getSessionId } = useStore();
   const MOBILE_TOKEN = mobileToken();
   const sessionId    = getSessionId();
@@ -268,6 +273,18 @@ export default function JarvisScreen() {
     };
   });
 
+  // ── Text send ────────────────────────────────────────────────────
+  const handleSend = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+    setLastTxt(''); setNavLinks(null); setOverlay('none'); setInput(''); setJs('think');
+    try {
+      await sendMessage(text.trim(), sessionId, undefined, locationRef.current ?? undefined);
+    } catch {
+      setLastTxt('⚠️ Erreur de connexion');
+      setJs('idle');
+    }
+  }, [sessionId]);
+
   // ── Voice recording (hold mic) ────────────────────────────────────
   const startRecord = useCallback(async () => {
     try {
@@ -331,23 +348,11 @@ export default function JarvisScreen() {
   const takePhoto = useCallback(async () => {
     if (!cameraRef.current) return;
     try {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.6 });
+      const photo = await cameraRef.current.takePicture({ base64: true, quality: 0.6 });
       setOverlay('none');
       setJs('think');
       await sendMessage("Que vois-tu sur cette image ? Décris précisément.", sessionId, photo.base64 ?? undefined);
     } catch { setJs('idle'); }
-  }, [sessionId]);
-
-  // ── Text send ────────────────────────────────────────────────────
-  const handleSend = useCallback(async (text: string) => {
-    if (!text.trim()) return;
-    setLastTxt(''); setNavLinks(null); setOverlay('none'); setInput(''); setJs('think');
-    try {
-      await sendMessage(text.trim(), sessionId, undefined, locationRef.current ?? undefined);
-    } catch {
-      setLastTxt('⚠️ Erreur de connexion');
-      setJs('idle');
-    }
   }, [sessionId]);
 
   // ── Location (background watch) ───────────────────────────────────
@@ -399,7 +404,7 @@ export default function JarvisScreen() {
       {/* Camera full-screen */}
       {overlay === 'camera' && (
         <View style={StyleSheet.absoluteFillObject}>
-          <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" />
+          <CameraView ref={cameraRef as unknown as React.RefObject<CameraView>} style={StyleSheet.absoluteFillObject} facing="back" />
           <View style={styles.camUI}>
             <Text style={styles.camTitle}>VISION IA</Text>
             <TouchableOpacity style={styles.shutterBtn} onPress={takePhoto}>
@@ -613,6 +618,13 @@ export default function JarvisScreen() {
           <Text style={styles.toolIco}>🚗</Text>
           <Text style={[styles.toolLbl, carMode && { color: '#ffaa00' }]}>{carMode ? 'ARRÊTER' : 'VOITURE'}</Text>
         </TouchableOpacity>
+
+        {!carMode && (
+          <TouchableOpacity style={styles.toolBtn} onPress={() => router.push('/settings')}>
+            <Text style={styles.toolIco}>⚙️</Text>
+            <Text style={styles.toolLbl}>RÉGLAGES</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
