@@ -23,11 +23,41 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        { "cameraPermission": "Dzaryx utilise la caméra pour analyser ce que tu vois." }
+      ],
+      [
+        "expo-av",
+        { "microphonePermission": "Dzaryx utilise le micro pour t'écouter." }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0a0a0a",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Dzaryx utilise ta position pour calculer le temps de trajet réel.",
+          "locationWhenInUsePermission": "Dzaryx utilise ta position pour calculer le temps de trajet réel."
+        }
+      ],
     ],
     "scheme": "dzaryx",
+    "owner": "fikdzaryx",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3536fdc5-6088-4fd4-9a4f-d443f0a52a1e"
+      }
     }
   }
 }
