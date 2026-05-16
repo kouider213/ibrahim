@@ -1,4 +1,5 @@
 ﻿import type { Job } from 'bullmq';
+import { redis } from '../../queue/queue.js';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
 import { sendMessage, sendVideoBuffer } from '../../integrations/telegram.js';
@@ -25,6 +26,14 @@ async function tg(text: string): Promise<void> {
 // ── 0. Réveil matinal 7h30 ────────────────────────────────────
 export async function jobMorningBriefing(_job: Job): Promise<void> {
   const today    = new Date().toISOString().slice(0, 10);
+
+  // Idempotency: only one send per day regardless of Railway restarts / dual instances
+  const dayLock = `job:morning-briefing:sent:${today}`;
+  const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  if (!acquired) {
+    console.log('[job:morning-briefing] SKIP — already sent today');
+    return;
+  }
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
@@ -953,6 +962,15 @@ Rapport pour Telegram (markdown, 12 lignes max):
 
 export async function jobBIDaily(_job: Job): Promise<void> {
   console.log('[job:bi-daily] Démarrage rapport BI quotidien...');
+
+  const today   = new Date().toISOString().slice(0, 10);
+  const dayLock = `job:bi-daily:sent:${today}`;
+  const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  if (!acquired) {
+    console.log('[job:bi-daily] SKIP — already sent today');
+    return;
+  }
+
   try {
     const { runBIEngine } = await import('../../bi/bi-engine.js');
     await runBIEngine(true);
