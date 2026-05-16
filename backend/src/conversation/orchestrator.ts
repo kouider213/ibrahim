@@ -344,7 +344,11 @@ export async function processMessage(
   // Guard pass 3: PHANTOM GUARD — bloque toute affirmation d'action sans outil write réel
   const phantomText  = phantomGuard(scopedText, response.toolsExecuted, userMessage, requestId);
   // Guard pass 4: anti-hallucination Gates 2&3 — financial claims + system state claims
-  const halluCheck   = checkAntiHallucination(phantomText, response.toolsExecuted, userMessage, requestId);
+  // When context-builder pre-fetched real financial data, treat it as a successful tool call
+  const toolsForGate = ctx.hasInjectedFinancialData && !response.toolsExecuted.some(t => t.name === 'get_financial_report')
+    ? [...response.toolsExecuted, { name: 'get_financial_report', success: true, result: 'context-injected' }]
+    : response.toolsExecuted;
+  const halluCheck   = checkAntiHallucination(phantomText, toolsForGate, userMessage, requestId);
   const safeText     = halluCheck.blocked ?? phantomText;
   // Log trace complète
   const phantomBlocked = phantomText === PHANTOM_REFUSAL;

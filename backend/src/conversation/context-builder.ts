@@ -44,9 +44,10 @@ async function getCachedBookings() {
 }
 
 export interface ConversationContext {
-  messages:    Message[];
-  systemExtra: string;
-  sessionId:   string;
+  messages:                  Message[];
+  systemExtra:               string;
+  sessionId:                 string;
+  hasInjectedFinancialData:  boolean;
 }
 
 // ── Intent detection: action requests need minimal history (avoids echoing old confirmations) ──
@@ -288,5 +289,5 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     `[ctx:${sessionId.slice(0, 20)}] histLimit=${historyLimit} raw=${history.length} filtered=${filteredHistory.length} action=${isActionIntent(userMessage)} | systemExtra~${systemExtraTokenEst}tok | memory: source=${memResult.source} total=${memResult.totalFacts} selected=${memResult.selectedFacts} ~${memResult.tokenEstimate}tok`,
   );
 
-  return { messages, systemExtra, sessionId };
+  return { messages, systemExtra, sessionId, hasInjectedFinancialData: financeReport != null };
 }
