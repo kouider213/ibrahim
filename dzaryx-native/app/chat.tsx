@@ -18,7 +18,18 @@ const { width: W } = Dimensions.get('window');
 const BACKEND_URL  = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
 
 type JarvisState = 'idle' | 'listen' | 'think' | 'speak';
-type Overlay     = 'none' | 'text' | 'camera';
+type Overlay     = 'none' | 'text' | 'camera' | 'content';
+
+interface ContentStatus {
+  tiktok: {
+    configured: boolean;
+    pendingVideo: {
+      id: string; title: string; caption: string;
+      script: string; hashtags: string[]; createdAt: string;
+    } | null;
+  };
+  whatsapp: { configured: boolean; from: string | null };
+}
 
 const LABEL: Record<JarvisState, string> = {
   idle: 'EN ATTENTE', listen: 'ÉCOUTE ACTIVE', think: 'ANALYSE IA', speak: 'DZARYX PARLE',
@@ -49,8 +60,9 @@ export default function JarvisScreen() {
   const [input,     setInput]   = useState('');
   const [lastTxt,   setLastTxt] = useState('');
   const [navLinks,  setNavLinks] = useState<{ waze?: string; maps?: string } | null>(null);
-  const [carMode,   setCarMode] = useState(false);
-  const [carCountdown, setCarCountdown] = useState<number | null>(null);
+  const [carMode,       setCarMode]       = useState(false);
+  const [carCountdown,  setCarCountdown]  = useState<number | null>(null);
+  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(null);
   const locationRef    = useRef<UserLocation | null>(null);
   const carTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const carIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -198,6 +210,31 @@ export default function JarvisScreen() {
   }, []);
 
   const stopRecordRef = useRef<(() => Promise<void>) | null>(null);
+
+  // ── Content panel (TikTok + WhatsApp) ────────────────────────
+  const openContent = useCallback(async () => {
+    setOverlay('content');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/content/status`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+      });
+      if (res.ok) setContentStatus(await res.json() as ContentStatus);
+    } catch { /* show empty state */ }
+  }, [MOBILE_TOKEN]);
+
+  const approveVideo = useCallback(async (id: string) => {
+    await fetch(`${BACKEND_URL}/api/content/tiktok/${id}/approve`, {
+      method: 'POST', headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+    });
+    setContentStatus(prev => prev ? { ...prev, tiktok: { ...prev.tiktok, pendingVideo: null } } : prev);
+  }, [MOBILE_TOKEN]);
+
+  const rejectVideo = useCallback(async (id: string) => {
+    await fetch(`${BACKEND_URL}/api/content/tiktok/${id}/reject`, {
+      method: 'POST', headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+    });
+    setContentStatus(prev => prev ? { ...prev, tiktok: { ...prev.tiktok, pendingVideo: null } } : prev);
+  }, [MOBILE_TOKEN]);
 
   // ── Car mode auto-listen (wired after startRecord/stopRecord defined) ────
   useEffect(() => {
@@ -434,6 +471,69 @@ export default function JarvisScreen() {
         )}
       </View>
 
+      {/* Content panel — TikTok + WhatsApp */}
+      {overlay === 'content' && (
+        <View style={styles.contentOverlay}>
+          <View style={styles.contentBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={styles.contentTitle}>CONTENU & CANAUX</Text>
+              <TouchableOpacity onPress={() => setOverlay('none')}>
+                <Text style={{ color: '#444', fontFamily: MONO, fontSize: 12 }}>✕ FERMER</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* TikTok */}
+            <View style={styles.contentSection}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Text style={styles.contentIcon}>📱</Text>
+                <Text style={styles.contentSectionTitle}>TIKTOK</Text>
+                <View style={[styles.statusDot, { backgroundColor: contentStatus?.tiktok.configured ? '#00ff88' : '#444' }]} />
+                <Text style={styles.statusLbl}>{contentStatus?.tiktok.configured ? 'ACTIF' : 'NON CONFIGURÉ'}</Text>
+              </View>
+
+              {contentStatus?.tiktok.pendingVideo ? (
+                <View style={styles.pendingCard}>
+                  <Text style={styles.pendingTitle}>🎬 {contentStatus.tiktok.pendingVideo.title}</Text>
+                  <Text style={styles.pendingScript} numberOfLines={3}>{contentStatus.tiktok.pendingVideo.script}</Text>
+                  <Text style={styles.pendingTags}>{contentStatus.tiktok.pendingVideo.hashtags.map(t => `#${t}`).join(' ')}</Text>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { borderColor: '#00ff8866', backgroundColor: '#001a00' }]}
+                      onPress={() => approveVideo(contentStatus.tiktok.pendingVideo!.id)}
+                    >
+                      <Text style={[styles.actionBtnTxt, { color: '#00ff88' }]}>✅ APPROUVER</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { borderColor: '#ff444466', backgroundColor: '#1a0000' }]}
+                      onPress={() => rejectVideo(contentStatus.tiktok.pendingVideo!.id)}
+                    >
+                      <Text style={[styles.actionBtnTxt, { color: '#ff4444' }]}>❌ REJETER</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.noContent}>{contentStatus ? 'Aucune vidéo en attente' : 'Chargement...'}</Text>
+              )}
+            </View>
+
+            {/* WhatsApp */}
+            <View style={[styles.contentSection, { marginTop: 16 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Text style={styles.contentIcon}>💬</Text>
+                <Text style={styles.contentSectionTitle}>WHATSAPP</Text>
+                <View style={[styles.statusDot, { backgroundColor: contentStatus?.whatsapp.configured ? '#00ff88' : '#444' }]} />
+                <Text style={styles.statusLbl}>{contentStatus?.whatsapp.configured ? 'ACTIF' : 'NON CONFIGURÉ'}</Text>
+              </View>
+              {contentStatus?.whatsapp.configured ? (
+                <Text style={styles.noContent}>Confirmations + rappels auto actifs via {contentStatus.whatsapp.from}</Text>
+              ) : (
+                <Text style={styles.noContent}>Configurer TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN dans Railway pour activer</Text>
+              )}
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Text overlay */}
       {overlay === 'text' && (
         <View style={styles.textOverlay}>
@@ -499,6 +599,13 @@ export default function JarvisScreen() {
           </TouchableOpacity>
         )}
 
+        {!carMode && (
+          <TouchableOpacity style={styles.toolBtn} onPress={openContent}>
+            <Text style={styles.toolIco}>📱</Text>
+            <Text style={styles.toolLbl}>CONTENU</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
           style={[styles.toolBtn, carMode && { opacity: 1 }]}
           onPress={toggleCarMode}
@@ -555,6 +662,22 @@ const styles = StyleSheet.create({
   sendBtn:    { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   sendIcon:   { fontSize: 16, fontWeight: '700' },
   cancelTxt:  { color: '#222', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
+
+  contentOverlay:    { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000cc', justifyContent: 'flex-end' },
+  contentBox:        { backgroundColor: '#050505', borderTopWidth: 1, borderTopColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+  contentTitle:      { color: '#00e5ff', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+  contentSection:    { backgroundColor: '#0a0a0a', borderRadius: 12, borderWidth: 1, borderColor: '#1a1a1a', padding: 16 },
+  contentSectionTitle:{ color: '#ffffff', fontSize: 11, fontFamily: MONO, letterSpacing: 3, fontWeight: '700' },
+  contentIcon:       { fontSize: 16 },
+  statusDot:         { width: 7, height: 7, borderRadius: 4 },
+  statusLbl:         { color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
+  pendingCard:       { backgroundColor: '#080808', borderRadius: 8, borderWidth: 1, borderColor: '#7c3aed44', padding: 14, marginTop: 4 },
+  pendingTitle:      { color: '#e0e0e0', fontSize: 12, fontFamily: MONO, fontWeight: '700', marginBottom: 6 },
+  pendingScript:     { color: '#555', fontSize: 11, fontFamily: MONO, lineHeight: 16 },
+  pendingTags:       { color: '#7c3aed', fontSize: 10, fontFamily: MONO, marginTop: 6 },
+  actionBtn:         { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
+  actionBtnTxt:      { fontSize: 10, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
+  noContent:         { color: '#333', fontSize: 10, fontFamily: MONO, lineHeight: 16 },
 
   navRow: { flexDirection: 'row', gap: 10, marginTop: 18, justifyContent: 'center' },
   navBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#1a4a1a', backgroundColor: '#050f05' },
