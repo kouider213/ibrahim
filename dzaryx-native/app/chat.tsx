@@ -114,6 +114,15 @@ export default function JarvisScreen() {
   useEffect(() => {
     const s = io(BACKEND_URL, { transports: ['websocket'] });
     socketRef.current = s;
+    // Proactive push from backend (morning briefing, alerts, reminders)
+    s.on('Dzaryx:proactive', async (d: { text: string; type: string }) => {
+      setNavLinks(null);
+      setLastTxt(d.text);
+      setJs('speak');
+      await playTTS(d.text);
+      setJs('idle');
+    });
+
     s.on('Dzaryx:text_complete', async (d: { sessionId: string; text: string }) => {
       if (d.sessionId !== sessionId) return;
       // Extract navigation links from response
