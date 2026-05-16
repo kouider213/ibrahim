@@ -7,6 +7,8 @@ import type { Message } from '../integrations/claude-api.js';
 import { loadCompactionSummary } from './compaction.js';
 import { detectLanguage } from './language-detector.js';
 import { buildMemoryContext, type MemoryContextResult } from './memory-selector.js';
+import { detectMood, saveMoodSession, type MoodResult } from '../orchestrator/mood-detector.js';
+import { getClientProfile } from '../orchestrator/client-intelligence.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -48,6 +50,7 @@ export interface ConversationContext {
   systemExtra:               string;
   sessionId:                 string;
   hasInjectedFinancialData:  boolean;
+  mood:                      MoodResult | null;
 }
 
 // ── Intent detection: action requests need minimal history (avoids echoing old confirmations) ──
@@ -96,7 +99,11 @@ export async function buildContext(
   const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari|part.*houari|part.*kouider|total|depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan/i.test(userMessage);
   const needsAnnualFinance = /depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan.*ann[eé]e|ann[eé]e.*enti[eè]re|rapport.*ann[eé]e|ann[eé]e.*compl[eè]te/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
-  // memory always fetched via buildMemoryContext (memory-selector.ts)
+
+  // Détection client mentionné dans le message (pour injecter son profil)
+  const clientMentionMatch = userMessage.match(/(?:client|résa|réservation|document|dossier)\s+(?:de\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)/i)
+    ?? userMessage.match(/([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)\s+(?:réserve|loue|veut|demande)/i);
+  const mentionedClient = clientMentionMatch?.[1] ?? null;
 
   const now = new Date();
 
@@ -111,7 +118,7 @@ export async function buildContext(
 
   const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary] = await Promise.all([
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -134,7 +141,19 @@ export async function buildContext(
     buildMemoryContext(userMessage, 300),
     getRecentUserMessages(40).catch(() => [] as string[]),
     loadCompactionSummary(sessionId).catch(() => null),
+    mentionedClient ? getClientProfile(mentionedClient).catch(() => null) : Promise.resolve(null),
   ]);
+
+  // Détection humeur (synchrone, rapide)
+  const hourBruxelles = parseInt(
+    new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', hour12: false }).format(now),
+    10,
+  );
+  const mood = detectMood(userMessage, hourBruxelles);
+  // Sauvegarder en background (non-bloquant)
+  if (mood.mood !== 'normal') {
+    saveMoodSession(sessionId, mood, userMessage).catch(() => {});
+  }
 
   const rulesText = rules.length > 0
     ? `\n\nRÈGLES MÉTIER ACTIVES:\n${rules.map((r: any) => `- [${r.category}] ${r.rule}`).join('\n')}`
@@ -144,8 +163,6 @@ export async function buildContext(
   const fmtBruxelles = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', minute: 'numeric', hour12: false });
   const fmtOran      = new Intl.DateTimeFormat('fr-DZ', { timeZone: 'Africa/Algiers',  hour: 'numeric', minute: 'numeric', hour12: false });
   const fmtDate      = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-  const hourBruxelles = parseInt(new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', hour12: false }).format(now), 10);
 
   const timeContext = hourBruxelles < 12
     ? 'PÉRIODE: Matin — ton énergique, propose résumé du jour si pertinent.'
@@ -242,14 +259,25 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
 
   const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;
 
+  // Humeur — injectée seulement si non-normal
+  const moodText = mood.mood !== 'normal' && mood.advice
+    ? `\n\n${mood.advice}`
+    : '';
+
+  // Intelligence client mentionné
+  const clientIntelText = clientIntel?.context
+    ? `\n\n${clientIntel.context}`
+    : '';
+
   const langDetection = detectLanguage(userMessage);
   const langHint = `\n\n${langDetection.systemHint}`;
-  console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}"`);
+  console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}" mood=${mood.mood}(${mood.intensity})`);
 
   const systemExtra = [
     langHint,
     channelInfo,
     dateInfo,
+    moodText,
     weatherText,
     fleetText,
     bookingsText,
@@ -261,6 +289,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     rulesText,
     pricingText,
     styleText,
+    clientIntelText,
   ].join('');
 
   // Filter old confirmation-only messages from non-recent history to prevent context contamination.
@@ -289,5 +318,5 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     `[ctx:${sessionId.slice(0, 20)}] histLimit=${historyLimit} raw=${history.length} filtered=${filteredHistory.length} action=${isActionIntent(userMessage)} | systemExtra~${systemExtraTokenEst}tok | memory: source=${memResult.source} total=${memResult.totalFacts} selected=${memResult.selectedFacts} ~${memResult.tokenEstimate}tok`,
   );
 
-  return { messages, systemExtra, sessionId, hasInjectedFinancialData: financeReport != null };
+  return { messages, systemExtra, sessionId, hasInjectedFinancialData: financeReport != null, mood };
 }

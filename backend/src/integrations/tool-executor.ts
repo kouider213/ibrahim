@@ -434,6 +434,24 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     const carName = (car as any)?.name ?? 'Véhicule';
     const eventId = await createCalendarEvent(booking.id, input['client_name'] as string, carName, input['start_date'] as string, input['end_date'] as string, input['notes'] as string | undefined);
     calendarNote = eventId ? ' | 📅 Ajouté Google Agenda' : ' | ⚠️ Google Agenda non synchro';
+
+    // Auto-update client intelligence (non-bloquant)
+    import('../orchestrator/client-intelligence.js').then(({ updateClientIntelFromBooking }) => {
+      updateClientIntelFromBooking({
+        client_name:          input['client_name'] as string,
+        client_phone:         input['client_phone'] as string | undefined,
+        car_name:             carName,
+        start_date:           input['start_date'] as string,
+        end_date:             input['end_date'] as string,
+        nb_days,
+        client_price_per_day: client_ppd,
+        final_price:          Number(input['final_price']) || null,
+        discount_applied:     input['discount_applied'] != null ? Number(input['discount_applied']) : 0,
+        status,
+        payment_status:       'UNPAID',
+        paid_amount:          0,
+      }).catch(() => {});
+    }).catch(() => {});
   } catch { calendarNote = ' | ⚠️ Google Agenda non synchro'; }
 
   return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}`;
