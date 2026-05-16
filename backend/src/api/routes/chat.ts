@@ -5,6 +5,7 @@ import { requireMobileAuth } from '../middleware/auth.js';
 import { getConversationHistory } from '../../integrations/supabase.js';
 import { redis } from '../../queue/queue.js';
 import { isValidTimezone } from '../../utils/timezone.js';
+import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
 
 const router = Router();
 
@@ -46,7 +47,16 @@ router.post('/', requireMobileAuth, async (req, res) => {
   // Acknowledge immediately — result delivered via Socket.IO (Dzaryx:text_complete + audio chunks)
   res.status(202).json({ status: 'processing', sessionId });
 
-  processWithOrchestration(message, sessionId, textOnly, imageBase64, imageMime).catch(err => {
+  // Resolve mobile actor from auth middleware
+  const mobileAct = req.mobileActor;
+  const actor: OrgMember = mobileAct ? {
+    orgId:       '',
+    ownerKey:    mobileAct.ownerKey,
+    role:        mobileAct.role,
+    displayName: mobileAct.displayName,
+  } : DEFAULT_MEMBER;
+
+  processWithOrchestration(message, sessionId, textOnly, imageBase64, imageMime, actor).catch(err => {
     console.error('[chat] processWithOrchestration error:', err instanceof Error ? err.message : String(err));
   });
 });

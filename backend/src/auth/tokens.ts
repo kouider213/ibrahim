@@ -10,16 +10,36 @@ const TOKEN_MAP: Record<TokenType, string> = {
   'webhook':   env.WEBHOOK_SECRET,
 };
 
+function safeEqual(a: string, b: string): boolean {
+  try {
+    const ba = Buffer.from(a.padEnd(64));
+    const bb = Buffer.from(b.padEnd(64));
+    return ba.length === bb.length && timingSafeEqual(ba, bb);
+  } catch { return false; }
+}
+
 export function validateToken(token: string, type: TokenType): boolean {
   const expected = TOKEN_MAP[type];
   if (!expected) return false;
-  try {
-    const a = Buffer.from(token.padEnd(64));
-    const b = Buffer.from(expected.padEnd(64));
-    return a.length === b.length && timingSafeEqual(a, b);
-  } catch {
-    return false;
+  return safeEqual(token, expected);
+}
+
+export interface MobileActor {
+  id:          string;  // 'kouider' | 'houari'
+  displayName: string;
+  ownerKey:    string;  // for data filtering
+  role:        'owner' | 'admin';
+}
+
+// Identify which mobile user based on their token
+export function identifyMobileActor(token: string): MobileActor | null {
+  if (safeEqual(token, env.MOBILE_ACCESS_TOKEN)) {
+    return { id: 'kouider', displayName: env.OWNER_NAME, ownerKey: 'kouider', role: 'owner' };
   }
+  if (env.MOBILE_TOKEN_HOUARI && safeEqual(token, env.MOBILE_TOKEN_HOUARI)) {
+    return { id: 'houari', displayName: env.PARTNER_NAME, ownerKey: 'houari', role: 'admin' };
+  }
+  return null;
 }
 
 export function extractBearerToken(req: Request): string | null {

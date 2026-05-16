@@ -6,6 +6,10 @@ const envSchema = z.object({
   SUPABASE_SERVICE_KEY: z.string().min(1),
   REDIS_URL:            z.string().min(1),
   MOBILE_ACCESS_TOKEN:  z.string().min(16),
+  MOBILE_TOKEN_HOUARI:  z.string().min(16).optional(), // Accès Houari — associé Fik Conciergerie
+  OWNER_NAME:           z.string().default('Kouider'),
+  PARTNER_NAME:         z.string().default('Houari'),
+  BUSINESS_NAME:        z.string().default('Fik Conciergerie Oran'),
   PC_AGENT_TOKEN:       z.string().min(16),
   WEBHOOK_SECRET:       z.string().min(16),
   SESSION_SECRET:       z.string().min(16),
