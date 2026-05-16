@@ -25,6 +25,7 @@ import { addVideoToBuffer } from '../../marketing/video-buffer.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { env, isTelegramAdmin } from '../../config/env.js';
 import { processWithOrchestration } from '../../orchestrator/orchestrator-engine.js';
+import { resolveOrgMember, autoRegisterMember, DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
 import { maskPassportOcr, maskLicenseOcr } from '../../security/document-mask.js';
 import { logDocumentAccess } from '../../security/document-access-log.js';
 import { callGroq, callGemini, callOpenAI, callOpenAIVision, isGeminiAvailable, isGroqAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
@@ -264,9 +265,25 @@ router.post('/webhook', async (req, res) => {
     return;
   }
 
+  // Résolution identité — qui est-ce ? (Kouider, Houari, futur client…)
+  let actor: OrgMember = DEFAULT_MEMBER;
+  try {
+    const resolved = await resolveOrgMember(chatId);
+    if (resolved) {
+      actor = resolved;
+    } else {
+      // Premier message de ce chatId autorisé → auto-enregistrement
+      const firstName = msg.from?.first_name ?? 'Kouider';
+      actor = await autoRegisterMember(chatId, firstName, 'kouider', 'owner');
+      console.log(`[org] auto-registered telegram_id=${chatId} name=${firstName}`);
+    }
+  } catch {
+    // Non-bloquant — on continue avec le membre par défaut
+  }
+
   // /start
   if (msg.text?.startsWith('/start')) {
-    await sendMessage(chatId, `Salam Kouider ! Je suis Dzaryx 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTape /help pour voir toutes mes commandes.`);
+    await sendMessage(chatId, `Salam ${actor.displayName} ! Je suis Dzaryx 🚗\n\nEnvoie-moi:\n📸 Photo → je l'analyse et modifie\n🎥 Vidéo → je la découpe, optimise, sous-titre\n💬 Message → je réponds à tout\n\nTape /help pour voir toutes mes commandes.`);
     return;
   }
 
@@ -802,7 +819,7 @@ router.post('/webhook', async (req, res) => {
     await sendMessage(chatId, `🎤 _"${transcript}"_`);
     try {
       await sendTyping(chatId);
-      const response = await processWithOrchestration(transcript, sessionId, true);
+      const response = await processWithOrchestration(transcript, sessionId, true, undefined, 'image/jpeg', actor);
       for (const chunk of splitMessage(response.text, 4000)) {
         await sendMessage(chatId, chunk);
       }
@@ -1077,7 +1094,7 @@ router.post('/webhook', async (req, res) => {
     console.log(`[TELEGRAM_RUNTIME] handler=main_text message="${text.slice(0, 60)}" len=${text.length} session=${sessionId} router=processWithOrchestration`);
     await sendTyping(chatId);
     // Full P15 pipeline: focus-manager + priority-engine + Groq → OpenAI → Gemini fallback
-    const response = await processWithOrchestration(text, sessionId, true);
+    const response = await processWithOrchestration(text, sessionId, true, undefined, 'image/jpeg', actor);
     const safeText = response.text;
 
     for (const chunk of splitMessage(safeText, 4000)) {

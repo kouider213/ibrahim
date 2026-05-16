@@ -1,4 +1,5 @@
 ﻿import { buildContext }                          from './context-builder.js';
+import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
 import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hallucination.js';
 import { chatWithTools }                         from '../integrations/claude-api.js';
@@ -96,6 +97,7 @@ export async function processMessage(
   textOnly    = false,
   imageBase64?: string,
   imageMime   = 'image/jpeg',
+  actor:        OrgMember = DEFAULT_MEMBER,
 ): Promise<OrchestratorResponse> {
 
   const requestId     = nextRequestId();
@@ -109,7 +111,7 @@ export async function processMessage(
 
   // 2. Construire le contexte + sauvegarder le message user en parallèle
   const [ctx] = await Promise.all([
-    buildContext(sessionId, userMessage),
+    buildContext(sessionId, userMessage, actor),
     saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
       console.error('[orchestrator] user save error:', err),
     ),

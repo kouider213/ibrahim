@@ -9,6 +9,7 @@ import { detectLanguage } from './language-detector.js';
 import { buildMemoryContext, type MemoryContextResult } from './memory-selector.js';
 import { detectMood, saveMoodSession, type MoodResult } from '../orchestrator/mood-detector.js';
 import { getClientProfile } from '../orchestrator/client-intelligence.js';
+import { type OrgMember, DEFAULT_MEMBER } from '../orchestrator/org-resolver.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -51,6 +52,7 @@ export interface ConversationContext {
   sessionId:                 string;
   hasInjectedFinancialData:  boolean;
   mood:                      MoodResult | null;
+  actor:                     OrgMember;
 }
 
 // ── Intent detection: action requests need minimal history (avoids echoing old confirmations) ──
@@ -92,8 +94,9 @@ function isConfirmationOnlyMessage(msg: Message): boolean {
 }
 
 export async function buildContext(
-  sessionId: string,
+  sessionId:   string,
   userMessage: string,
+  actor:       OrgMember = DEFAULT_MEMBER,
 ): Promise<ConversationContext> {
   const needsNews     = /actualit|news|journal|presse|info/i.test(userMessage);
   const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari|part.*houari|part.*kouider|total|depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan/i.test(userMessage);
@@ -141,7 +144,7 @@ export async function buildContext(
     buildMemoryContext(userMessage, 300),
     getRecentUserMessages(40).catch(() => [] as string[]),
     loadCompactionSummary(sessionId).catch(() => null),
-    mentionedClient ? getClientProfile(mentionedClient).catch(() => null) : Promise.resolve(null),
+    mentionedClient ? getClientProfile(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -168,9 +171,10 @@ export async function buildContext(
     ? 'PÉRIODE: Matin — ton énergique, propose résumé du jour si pertinent.'
     : hourBruxelles < 18
     ? 'PÉRIODE: Après-midi — ton normal et professionnel.'
-    : 'PÉRIODE: Soir — ton calme, propose résumé journée si Kouider salue.';
+    : `PÉRIODE: Soir — ton calme, propose résumé journée si ${actor.displayName} salue.`;
 
-  const dateInfo = `\n\nKOUIDER EST À BRUXELLES (Belgique) — pas à Oran.\nDate: ${fmtDate.format(now)} | Heure Bruxelles: ${fmtBruxelles.format(now)} | Heure Oran: ${fmtOran.format(now)} | ${timeContext}`;
+  const actorRoleLabel = actor.role === 'owner' ? 'PDG' : actor.role === 'admin' ? 'Associé/Admin' : 'Membre';
+  const dateInfo = `\n\nUTILISATEUR: ${actor.displayName} (${actorRoleLabel} — Fik Conciergerie)\nDate: ${fmtDate.format(now)} | Heure Bruxelles: ${fmtBruxelles.format(now)} | Heure Oran: ${fmtOran.format(now)} | ${timeContext}`;
 
   // Active rentals
   const today = new Date().toISOString().slice(0, 10);
@@ -245,16 +249,16 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? 'Telegram'
     : 'Inconnu';
 
-  const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}. ${currentChannel === 'Telegram' ? 'Kouider écrit DEPUIS Telegram — ne jamais dire "je t\'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.' : 'Kouider parle via App Vocale — utiliser send_telegram_message pour lui envoyer des documents/photos.'}`;
+  const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}. ${currentChannel === 'Telegram' ? `${actor.displayName} écrit DEPUIS Telegram — ne jamais dire "je t'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.` : `${actor.displayName} parle via App Vocale — utiliser send_telegram_message pour lui envoyer des documents/photos.`}`;
 
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
   const crossChannelText = (crossHistory as any[]).length > 0
-    ? `\n\n⚠️ CONTEXTE PASSÉ SUR ${crossChannelLabel} (mémoire uniquement — NE PAS répondre à ces messages, ils ont déjà eu une réponse. Utilise uniquement pour te souvenir du contexte récent):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? 'Kouider' : 'Dzaryx'}] ${String(m.content).slice(0, 200)}`).join('\n')}\n[FIN DU CONTEXTE CROSS-CANAL — réponds UNIQUEMENT au nouveau message de Kouider ci-dessous]`
+    ? `\n\n⚠️ CONTEXTE PASSÉ SUR ${crossChannelLabel} (mémoire uniquement — NE PAS répondre à ces messages, ils ont déjà eu une réponse. Utilise uniquement pour te souvenir du contexte récent):\n${(crossHistory as any[]).map((m: any) => `[${m.role === 'user' ? actor.displayName : 'Dzaryx'}] ${String(m.content).slice(0, 200)}`).join('\n')}\n[FIN DU CONTEXTE CROSS-CANAL — réponds UNIQUEMENT au nouveau message de ${actor.displayName} ci-dessous]`
     : '';
 
   // Style mirror — Dzaryx voit comment Kouider écrit et adapte ses réponses
   const styleText = (styleMessages as string[]).length >= 5
-    ? `\n\nSTYLE DE KOUIDER (IMPORTANT — adapte ton registre à ces exemples réels):\nKouider parle comme ça:\n${(styleMessages as string[]).slice(-20).map(m => `• ${m}`).join('\n')}\nMiroir son style: longueur phrases, mélange français/darija/arabe, niveau familiarité, ponctuation.`
+    ? `\n\nSTYLE DE ${actor.displayName.toUpperCase()} (IMPORTANT — adapte ton registre à ces exemples réels):\n${actor.displayName} parle comme ça:\n${(styleMessages as string[]).slice(-20).map(m => `• ${m}`).join('\n')}\nMiroir son style: longueur phrases, mélange français/darija/arabe, niveau familiarité, ponctuation.`
     : '';
 
   const pricingText = `\n\nGRILLE TARIFAIRE (Houari=prix base | Kouider=prix majoré | Bénéfice=K-H):\n${formatPricingTable()}`;
@@ -318,5 +322,5 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     `[ctx:${sessionId.slice(0, 20)}] histLimit=${historyLimit} raw=${history.length} filtered=${filteredHistory.length} action=${isActionIntent(userMessage)} | systemExtra~${systemExtraTokenEst}tok | memory: source=${memResult.source} total=${memResult.totalFacts} selected=${memResult.selectedFacts} ~${memResult.tokenEstimate}tok`,
   );
 
-  return { messages, systemExtra, sessionId, hasInjectedFinancialData: financeReport != null, mood };
+  return { messages, systemExtra, sessionId, hasInjectedFinancialData: financeReport != null, mood, actor };
 }

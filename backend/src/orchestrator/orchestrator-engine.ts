@@ -13,6 +13,7 @@
 
 import type { Namespace } from 'socket.io';
 import { processMessage, type OrchestratorResponse } from '../conversation/orchestrator.js';
+import { type OrgMember, DEFAULT_MEMBER } from './org-resolver.js';
 import { checkFocus, type FocusDecision } from './focus-manager.js';
 import { scorePriority, type PriorityScore, type SourceChannel } from './priority-engine.js';
 import { buildOrchestratorContext, detectChannel, type OrchestratorContext } from './context-engine.js';
@@ -46,6 +47,7 @@ export async function processWithOrchestration(
   textOnly    = false,
   imageBase64?: string,
   imageMime   = 'image/jpeg',
+  actor:        OrgMember = DEFAULT_MEMBER,
 ): Promise<P15Response> {
   const t0        = Date.now();
   const requestId = nextId();
@@ -96,7 +98,7 @@ export async function processWithOrchestration(
   logOrchestratorStart(requestId, channel, priority, ctx);
 
   // ── 4. Main processing — existing pipeline ────────────────────────────────
-  const result = await processMessage(userMessage, sessionId, textOnly, imageBase64, imageMime);
+  const result = await processMessage(userMessage, sessionId, textOnly, imageBase64, imageMime, actor);
 
   const latencyMs = Date.now() - t0;
 
