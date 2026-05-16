@@ -9,6 +9,7 @@ import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
+import * as KeepAwake from 'expo-keep-awake';
 import { io, type Socket } from 'socket.io-client';
 import { useStore } from '../lib/store';
 import { sendMessage, type UserLocation } from '../lib/api';
@@ -48,7 +49,12 @@ export default function JarvisScreen() {
   const [input,     setInput]   = useState('');
   const [lastTxt,   setLastTxt] = useState('');
   const [navLinks,  setNavLinks] = useState<{ waze?: string; maps?: string } | null>(null);
-  const locationRef = useRef<UserLocation | null>(null);
+  const [carMode,   setCarMode] = useState(false);
+  const [carCountdown, setCarCountdown] = useState<number | null>(null);
+  const locationRef    = useRef<UserLocation | null>(null);
+  const carTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const carIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startCarListenRef = useRef<(() => void) | null>(null);
 
   const socketRef   = useRef<Socket | null>(null);
   const cameraRef   = useRef<CameraViewRef>(null);
@@ -139,6 +145,8 @@ export default function JarvisScreen() {
       setJs('speak');
       await playTTS(cleanText || d.text);
       setJs('idle');
+      // Car mode: auto-listen after response
+      if (carModeRef.current) startCarListenRef.current?.();
     });
     const sub = AppState.addEventListener('change', st => {
       if (st === 'active' && !s.connected) s.connect();
@@ -147,6 +155,7 @@ export default function JarvisScreen() {
   }, [sessionId]);
 
   // ── TTS ElevenLabs ────────────────────────────────────────────────
+  const carModeRef = useRef(false);
   async function playTTS(text: string) {
     try {
       const res = await fetch(`${BACKEND_URL}/api/tts`, {
@@ -171,6 +180,57 @@ export default function JarvisScreen() {
     }
   }
 
+  // ── Car mode toggle ───────────────────────────────────────────
+  const toggleCarMode = useCallback(() => {
+    setCarMode(prev => {
+      const next = !prev;
+      carModeRef.current = next;
+      if (next) {
+        KeepAwake.activateKeepAwakeAsync('car').catch(() => {});
+      } else {
+        KeepAwake.deactivateKeepAwake('car');
+        if (carTimerRef.current)    clearTimeout(carTimerRef.current);
+        if (carIntervalRef.current) clearInterval(carIntervalRef.current);
+        setCarCountdown(null);
+      }
+      return next;
+    });
+  }, []);
+
+  const stopRecordRef = useRef<(() => Promise<void>) | null>(null);
+
+  // ── Car mode auto-listen (wired after startRecord/stopRecord defined) ────
+  useEffect(() => {
+    startCarListenRef.current = async () => {
+      if (!carModeRef.current) return;
+      if (carTimerRef.current)    clearTimeout(carTimerRef.current);
+      if (carIntervalRef.current) clearInterval(carIntervalRef.current);
+      // Small pause before listening so TTS audio fully stops
+      await new Promise(r => setTimeout(r, 800));
+      if (!carModeRef.current) return;
+      let remaining = 8;
+      setCarCountdown(remaining);
+      carIntervalRef.current = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) { clearInterval(carIntervalRef.current!); setCarCountdown(null); }
+        else setCarCountdown(remaining);
+      }, 1000);
+      // Start recording
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) { setCarCountdown(null); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordRef.current = recording;
+      setJs('listen');
+      // Auto-stop after 8s — stopRecord will handle the rest
+      carTimerRef.current = setTimeout(() => {
+        clearInterval(carIntervalRef.current!);
+        setCarCountdown(null);
+        stopRecordRef.current?.();
+      }, 8000);
+    };
+  });
+
   // ── Voice recording (hold mic) ────────────────────────────────────
   const startRecord = useCallback(async () => {
     try {
@@ -184,6 +244,9 @@ export default function JarvisScreen() {
   }, []);
 
   const stopRecord = useCallback(async () => {
+    if (carTimerRef.current) { clearTimeout(carTimerRef.current); carTimerRef.current = null; }
+    if (carIntervalRef.current) { clearInterval(carIntervalRef.current); carIntervalRef.current = null; }
+    setCarCountdown(null);
     try {
       if (!recordRef.current) return;
       await recordRef.current.stopAndUnloadAsync();
@@ -218,6 +281,9 @@ export default function JarvisScreen() {
       }
     } catch { setJs('idle'); }
   }, [handleSend]);
+
+  // Wire ref so car-mode auto-listen can call stopRecord without circular deps
+  useEffect(() => { stopRecordRef.current = stopRecord; }, [stopRecord]);
 
   // ── Camera vision ─────────────────────────────────────────────────
   const handleVision = useCallback(async () => {
@@ -392,24 +458,52 @@ export default function JarvisScreen() {
         </View>
       )}
 
+      {/* Car mode countdown banner */}
+      {carMode && carCountdown !== null && (
+        <View style={styles.carCountdownBar}>
+          <Text style={styles.carCountdownTxt}>🎤 PARLE... {carCountdown}s</Text>
+        </View>
+      )}
+
+      {/* Car mode indicator strip */}
+      {carMode && (
+        <View style={styles.carModeBar}>
+          <Text style={styles.carModeTxt}>🚗 MODE VOITURE ACTIF — MAINS LIBRES</Text>
+        </View>
+      )}
+
       {/* Toolbar */}
       <View style={[styles.toolbar, { paddingBottom: insets.bottom + 14 }]}>
-        <TouchableOpacity style={styles.toolBtn} onPress={handleVision}>
-          <Text style={styles.toolIco}>📷</Text>
-          <Text style={styles.toolLbl}>VISION</Text>
-        </TouchableOpacity>
+        {!carMode && (
+          <TouchableOpacity style={styles.toolBtn} onPress={handleVision}>
+            <Text style={styles.toolIco}>📷</Text>
+            <Text style={styles.toolLbl}>VISION</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
-          style={[styles.micBtn, js === 'listen' && styles.micActive]}
-          onPressIn={startRecord}
-          onPressOut={stopRecord}
+          style={[styles.micBtn, js === 'listen' && styles.micActive, carMode && styles.micBtnCar]}
+          onPressIn={carMode ? undefined : startRecord}
+          onPressOut={carMode ? undefined : stopRecord}
+          onPress={carMode && js === 'listen' ? stopRecord : undefined}
         >
           <Text style={styles.micIco}>🎙</Text>
+          {carMode && js === 'listen' && <Text style={styles.micCarLbl}>STOP</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.toolBtn} onPress={() => setOverlay(o => o === 'text' ? 'none' : 'text')}>
-          <Text style={styles.toolIco}>⌨️</Text>
-          <Text style={styles.toolLbl}>TEXTE</Text>
+        {!carMode && (
+          <TouchableOpacity style={styles.toolBtn} onPress={() => setOverlay(o => o === 'text' ? 'none' : 'text')}>
+            <Text style={styles.toolIco}>⌨️</Text>
+            <Text style={styles.toolLbl}>TEXTE</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={[styles.toolBtn, carMode && { opacity: 1 }]}
+          onPress={toggleCarMode}
+        >
+          <Text style={styles.toolIco}>🚗</Text>
+          <Text style={[styles.toolLbl, carMode && { color: '#ffaa00' }]}>{carMode ? 'ARRÊTER' : 'VOITURE'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -464,6 +558,14 @@ const styles = StyleSheet.create({
   navBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#1a4a1a', backgroundColor: '#050f05' },
   navIco: { fontSize: 16 },
   navLbl: { color: '#00ff88', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', letterSpacing: 2, fontWeight: '700' },
+
+  micBtnCar:       { width: 100, height: 100, borderRadius: 50 },
+  carModeBar:      { backgroundColor: '#1a0d00', borderTopWidth: 1, borderTopColor: '#ff8c0033', paddingVertical: 5, alignItems: 'center' },
+  carModeTxt:      { color: '#ffaa00', fontSize: 9, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', letterSpacing: 2 },
+  carCountdownBar: { backgroundColor: '#001a00', borderTopWidth: 1, borderTopColor: '#00ff0033', paddingVertical: 6, alignItems: 'center' },
+  carCountdownTxt: { color: '#00ff88', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', letterSpacing: 2, fontWeight: '700' },
+  toolBtnActive:   { opacity: 1 },
+  micCarLbl:       { color: '#ff4444', fontSize: 7, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', letterSpacing: 1, marginTop: 2 },
 
   toolbar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 20, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#090f0f' },
   toolBtn:    { alignItems: 'center', gap: 5, width: 70 },
