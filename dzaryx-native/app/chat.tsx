@@ -578,6 +578,22 @@ export default function JarvisScreen() {
         </View>
       )}
 
+      {/* Quick commands */}
+      {!carMode && overlay === 'none' && (
+        <View style={styles.quickRow}>
+          {[
+            { label: 'Résa du jour',   cmd: "Montre-moi les réservations d'aujourd'hui" },
+            { label: 'Parc véhicules', cmd: "État du parc véhicules" },
+            { label: 'Impayés',        cmd: "Quels clients ont des paiements en attente ?" },
+            { label: 'Météo Oran',     cmd: "Météo Oran aujourd'hui" },
+          ].map(({ label, cmd }) => (
+            <TouchableOpacity key={label} style={styles.quickBtn} onPress={() => handleSend(cmd)}>
+              <Text style={styles.quickTxt}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* Toolbar */}
       <View style={[styles.toolbar, { paddingBottom: insets.bottom + 14 }]}>
         {!carMode && (
@@ -703,6 +719,10 @@ const styles = StyleSheet.create({
   carCountdownTxt: { color: '#00ff88', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', letterSpacing: 2, fontWeight: '700' },
   toolBtnActive:   { opacity: 1 },
   micCarLbl:       { color: '#ff4444', fontSize: 7, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', letterSpacing: 1, marginTop: 2 },
+
+  quickRow:   { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 8, gap: 8, flexWrap: 'wrap', borderTopWidth: 1, borderTopColor: '#0a0f0f' },
+  quickBtn:   { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, borderWidth: 1, borderColor: '#1a2a2a', backgroundColor: '#040a0a' },
+  quickTxt:   { color: '#2a6a6a', fontSize: 9, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', letterSpacing: 1.5 },
 
   toolbar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 20, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#090f0f' },
   toolBtn:    { alignItems: 'center', gap: 5, width: 70 },
