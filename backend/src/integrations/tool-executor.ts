@@ -266,6 +266,7 @@ async function _dispatch(
       case 'get_car_photo':              return await getCarPhotoTool(input);
       // ─── IMAGE-TO-IMAGE avec conservation visage ───
       case 'transform_image':            return await executeImageToImage(input, sessionId);
+      case 'get_travel_time':            return await getTravelTimeTool(input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -4205,3 +4206,34 @@ async function obsidianReadNoteTool(input: Record<string, unknown>): Promise<str
   if (!content) return `📭 Note "${noteName}" introuvable dans Obsidian.`;
   return `📓 Note Obsidian "${noteName}":\n\n${content}`;
 }
+
+// ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────────────────
+async function getTravelTimeTool(input: Record<string, unknown>): Promise<string> {
+  const { getTravelTime } = await import('./maps.js');
+  const destination  = input['destination'] as string | undefined;
+  const originLat    = input['origin_lat']  as number | undefined;
+  const originLng    = input['origin_lng']  as number | undefined;
+  const arrivalTime  = input['arrival_time'] as string | undefined;
+
+  if (!destination || originLat === undefined || originLng === undefined) {
+    return '❌ destination, origin_lat et origin_lng requis.';
+  }
+
+  const result = await getTravelTime(originLat, originLng, destination, arrivalTime);
+
+  const trafficEmoji = result.traffic === 'heavy' ? '🔴' : result.traffic === 'light' ? '🟢' : result.traffic === 'unknown' ? '⚪' : '🟡';
+  const lines = [
+    `🗺️ **Trajet → ${result.destination_label}**`,
+    `⏱ Durée: **${result.travel_time_minutes} min** ${trafficEmoji} (trafic ${result.traffic === 'unknown' ? 'non disponible' : result.traffic})`,
+    `📏 Distance: ${result.distance_km} km`,
+    arrivalTime ? `🚀 Partir à: **${result.recommended_departure}**` : '',
+    ``,
+    `📍 Navigation:`,
+    `• Waze: ${result.waze_link}`,
+    `• Google Maps: ${result.maps_link}`,
+    result.error ? `\n⚠️ ${result.error}` : '',
+  ].filter(l => l !== undefined);
+
+  return lines.join('\n');
+}
+

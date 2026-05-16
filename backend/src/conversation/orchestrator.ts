@@ -45,6 +45,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_finance_dashboard:'📈 Tableau de bord financier…',
   check_car_availability:'🚗 Vérification disponibilité…',
   get_weather:          '🌤️ Récupération météo…',
+  get_travel_time:      '🗺️ Calcul temps de trajet…',
   get_news:             '📰 Chargement actualités…',
   remember_info:        '🧠 Mémorisation…',
   recall_memory:        '🧠 Consultation mémoire…',

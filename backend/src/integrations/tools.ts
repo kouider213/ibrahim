@@ -1158,4 +1158,32 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     description: 'Tester tous les services système: Railway, Claude API, ElevenLabs, Supabase, Google Calendar, Telegram, NEXUS, GitHub. Retourne ✅/❌/⚠️ pour chaque. Utiliser quand Kouider dit "teste tout", "health check", "statut des services", "qu\'est-ce qui fonctionne".',
     input_schema: { type: 'object' as const, properties: {} },
   },
+
+  // ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────
+  {
+    name: 'get_travel_time',
+    description: 'Calculer le temps de trajet réel avec trafic depuis la position GPS de Kouider vers une destination. Utiliser quand Kouider parle d\'un rendez-vous, remise de voiture, retour client, trajet, heure de départ. TOUJOURS utiliser si userLocation est fourni et qu\'il y a une notion de déplacement. Retourne temps réel, trafic, heure de départ recommandée, liens Waze et Google Maps.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        destination: {
+          type: 'string',
+          description: 'Destination en texte: "aéroport", "centre-ville", "port", "gare", "Bir El Djir", etc.',
+        },
+        arrival_time: {
+          type: 'string',
+          description: 'Heure d\'arrivée souhaitée format "HH:MM" (ex: "12:00", "09:30"). Optionnel.',
+        },
+        origin_lat: {
+          type: 'number',
+          description: 'Latitude GPS de Kouider (depuis userLocation dans le message)',
+        },
+        origin_lng: {
+          type: 'number',
+          description: 'Longitude GPS de Kouider (depuis userLocation dans le message)',
+        },
+      },
+      required: ['destination', 'origin_lat', 'origin_lng'],
+    },
+  },
 ];
