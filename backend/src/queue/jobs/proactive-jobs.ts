@@ -1,6 +1,7 @@
 ﻿import type { Job } from 'bullmq';
 import { redis } from '../../queue/queue.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
+import { getDailyCostReport } from '../../monitoring/cost-tracker.js';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
 import { sendMessage, sendVideoBuffer } from '../../integrations/telegram.js';
@@ -1081,5 +1082,37 @@ Si rien de nouveau ou utile: dis-le clairement en une phrase.`,
     console.log('[job:anthropic-watch] ✅ Rapport envoyé');
   } catch (err) {
     console.error('[job:anthropic-watch] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── Claude API Cost Monitor (daily check at 20h) ──────────────────────────────
+export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const lockKey = `job:claude-cost:sent:${today}`;
+  const lock = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+  if (!lock) return;
+
+  try {
+    const report = await getDailyCostReport();
+    if (report.totalUSD < 0.10) return; // Less than $0.10 → skip
+
+    const lines: string[] = [`💰 *Coûts Claude API — ${today}*`, `Total: *$${report.totalUSD.toFixed(3)}*`];
+    for (const [model, data] of Object.entries(report.breakdown)) {
+      const short = model.replace('claude-', '').replace(/-4-\d$/, '');
+      const inK  = Math.round(data.inputTokens  / 1000);
+      const outK = Math.round(data.outputTokens / 1000);
+      const crK  = Math.round(data.cacheReadTokens / 1000);
+      lines.push(`• ${short}: ${inK}k in / ${outK}k out / ${crK}k cached = $${data.costUSD.toFixed(3)}`);
+    }
+
+    if (report.alertTriggered) {
+      lines.push(`\n⚠️ *Alerte seuil $5 dépassé* — vérifier l'usage`);
+      emitProactive(`Alerte coût Claude API: $${report.totalUSD.toFixed(2)} aujourd'hui. Seuil $5 dépassé.`, 'alert');
+    }
+
+    await tg(lines.join('\n'));
+    console.log(`[job:claude-cost] ✅ Rapport envoyé — $${report.totalUSD.toFixed(3)}`);
+  } catch (err) {
+    console.error('[job:claude-cost] ❌', err instanceof Error ? err.message : String(err));
   }
 }

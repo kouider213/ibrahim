@@ -19,6 +19,7 @@ import {
   jobCompetitorWatch,
   jobBIDaily,
   jobBIReminders,
+  jobClaudeCostMonitor,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { notifyOwner } from '../notifications/pushover.js';
@@ -127,6 +128,11 @@ const JOBS = [
     cron:  '*/30 * * * *',     // toutes les 30min — alertes smart reminders HIGH priority
     tz:    'Europe/Brussels',
   },
+  {
+    name:  'claude-cost-monitor',
+    cron:  '0 20 * * *',       // 20h chaque soir — rapport coûts API Claude
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -149,6 +155,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'proactive-engine':         async (job: Job) => { await runProactiveEngine(job); },
   'bi-daily':                 jobBIDaily,
   'bi-reminders':             jobBIReminders,
+  'claude-cost-monitor':      jobClaudeCostMonitor,
 };
 
 export async function initScheduler(): Promise<void> {

@@ -5,6 +5,7 @@ import { Dzaryx_TOOLS } from './tools.js';
 import { executeTool } from './tool-executor.js';
 import { randomUUID } from 'crypto';
 import { compactIfNeeded, emergencyCompact, needsCompaction } from '../conversation/compaction.js';
+import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 
 const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -367,6 +368,15 @@ export async function chatWithTools(
     if (usage.cache_read_input_tokens)     cacheReadTokens  += usage.cache_read_input_tokens;
     if (usage.cache_creation_input_tokens) cacheWriteTokens += usage.cache_creation_input_tokens;
 
+    // Track cost per API call (fire-and-forget)
+    trackTokenUsage(
+      'claude-sonnet-4-6',
+      response.usage.input_tokens,
+      response.usage.output_tokens,
+      usage.cache_read_input_tokens ?? 0,
+      usage.cache_creation_input_tokens ?? 0,
+    ).catch(() => {});
+
     if (usage.cache_read_input_tokens || usage.cache_creation_input_tokens) {
       console.log(`[claude-cache] read=${usage.cache_read_input_tokens ?? 0} write=${usage.cache_creation_input_tokens ?? 0} regular=${response.usage.input_tokens}`);
     }
@@ -515,11 +525,7 @@ export async function chat(
     .map(b => (b as { type: 'text'; text: string }).text)
     .join('');
 
-  const today = new Date().toISOString().slice(0, 10);
-  const { redis: r } = await import('../queue/queue.js');
-  r.incrby(`claude:tokens:in:${today}`,  response.usage.input_tokens).catch(() => {});
-  r.incrby(`claude:tokens:out:${today}`, response.usage.output_tokens).catch(() => {});
-  r.incr(`claude:calls:${today}`).catch(() => {});
+  trackTokenUsage('claude-haiku-4-5', response.usage.input_tokens, response.usage.output_tokens).catch(() => {});
 
   return {
     text,
@@ -563,6 +569,7 @@ export async function chatStream(
     }
   }
 
+  trackTokenUsage('claude-haiku-4-5', inputTokens, outputTokens).catch(() => {});
   return { text: fullText, inputTokens, outputTokens, stopReason, toolsExecuted: [] };
 }
 
