@@ -1,4 +1,5 @@
 ﻿import { buildContext }                          from './context-builder.js';
+import { preprocessMessage }                     from './engine-v2.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
 import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hallucination.js';
@@ -110,18 +111,28 @@ export async function processMessage(
   // 1. Notifier "thinking" immédiatement
   _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId });
 
+  // 1b. Conversation Engine V2 — normalize + entity extraction + pending action resolution
+  const v2 = await preprocessMessage(userMessage, sessionId).catch(() => null);
+  const effectiveMessage = v2?.processedMessage ?? userMessage;
+  const v2ContextAddition = v2?.contextAddition ?? '';
+
   // 2. Construire le contexte + sauvegarder le message user en parallèle
   const [ctx] = await Promise.all([
-    buildContext(sessionId, userMessage, actor),
+    buildContext(sessionId, effectiveMessage, actor),
     saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
       console.error('[orchestrator] user save error:', err),
     ),
   ]);
 
+  // Inject V2 pending-action context into system extra if present
+  if (v2ContextAddition) {
+    ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();
+  }
+
   // ── Early tool-availability gate ─────────────────────────────────────────
   // Blocks requests that require unavailable APIs (e.g. TikTok without Apify key)
   // BEFORE invoking Claude — prevents any chance of hallucinated data.
-  const earlyBlock = earlyToolAvailabilityCheck(userMessage, requestId);
+  const earlyBlock = earlyToolAvailabilityCheck(effectiveMessage, requestId);
   if (earlyBlock) {
     console.log(`[orch:${requestId}] EARLY_BLOCK tool_unavailable`);
     _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: earlyBlock });
@@ -131,17 +142,15 @@ export async function processMessage(
   }
 
   // ── Multi-Agent path — cross-domain analysis ─────────────────────────────
-  // Triggered when the request covers multiple business domains simultaneously
-  // (e.g. "analyse Fik Conciergerie et propose des améliorations pour l'été").
-  if (!imageBase64 && needsMultiAgent(userMessage)) {
-    const agentIds = selectAgents(userMessage) as Parameters<typeof runMultiAgent>[2];
+  if (!imageBase64 && needsMultiAgent(effectiveMessage)) {
+    const agentIds = selectAgents(effectiveMessage) as Parameters<typeof runMultiAgent>[2];
     console.log(`[orch:${requestId}] MULTI-AGENT ▶ agents=[${agentIds.join(',')}]`);
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: `🤖 Multi-agents: ${agentIds.length} spécialistes...` });
 
     try {
-      const report = await runMultiAgent(userMessage, ctx.systemExtra, agentIds, requestId);
-      const multiText = guardResponse(report.fusedResponse, userMessage, requestId);
-      const safeMulti = phantomGuard(multiText, [], userMessage, requestId);
+      const report = await runMultiAgent(effectiveMessage, ctx.systemExtra, agentIds, requestId);
+      const multiText = guardResponse(report.fusedResponse, effectiveMessage, requestId);
+      const safeMulti = phantomGuard(multiText, [], effectiveMessage, requestId);
 
       // Execution trace
       console.log(`[multi-agent-trace] request_id=${requestId} agents=${agentIds.length} succeeded=${report.agentsSucceeded} cost=$${report.totalCostUsd.toFixed(6)} ms=${report.totalLatencyMs}`);

@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import { maskSensitiveText } from '../security/document-mask.js';
+import { supabase } from './supabase.js';
 
 export type DocumentType = 'pdf' | 'docx' | 'xlsx' | 'txt' | 'csv' | 'image' | 'unknown';
 
@@ -93,16 +94,27 @@ function generateSummary(text: string, type: DocumentType): string {
 
 // ─── Fonction principale ──────────────────────────────────────────────────────
 
-export async function readDocument(url: string): Promise<DocumentResult> {
+export async function readDocument(
+  url: string,
+  opts: { clientName?: string; actorId?: string; isAdmin?: boolean } = {},
+): Promise<DocumentResult> {
   if (!url) throw new Error('URL du document requise');
 
   // Normaliser l'URL
   url = url.trim();
   if (!url.startsWith('http')) throw new Error('L\'URL doit commencer par http:// ou https://');
 
-  // Détecter le type
+  // Log access to document_access_logs (fire-and-forget)
   const type = detectDocumentType(url);
   const filename = url.split('/').pop()?.split('?')[0] ?? 'document';
+  void supabase.from('document_access_logs').insert({
+    action:      'read',
+    doc_type:    type,
+    client_name: opts.clientName ?? null,
+    is_admin:    opts.isAdmin ?? false,
+    masked:      true,
+    created_at:  new Date().toISOString(),
+  });
 
   let text = '';
 
