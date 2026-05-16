@@ -36,8 +36,8 @@ const HAPPY_SIGNALS = [
 ];
 
 const TIRED_SIGNALS = [
-  { re: /fatigué|crevé|épuisé|j'ai\s+pas\s+dormi|insomnie/i,  signal: 'fatigue_explicite' },
-  { re: /flemme|pas\s+le\s+courage|plus\s+d'énergie/i,         signal: 'manque_energie' },
+  { re: /fatigu[eé]|cr[eé]v[eé]|[eé]puis[eé]|j'?\s*ai\s+pas\s+dormi|insomnie/i,  signal: 'fatigue_explicite' },
+  { re: /flemme|pas\s+le\s+courage|plus\s+d'?[eé]nergie/i,                          signal: 'manque_energie' },
 ];
 
 const RUSHED_SIGNALS = [
@@ -45,8 +45,8 @@ const RUSHED_SIGNALS = [
 ];
 
 const ANXIOUS_SIGNALS = [
-  { re: /je\s+sais\s+pas|incertain|pas\s+sûr|ça\s+m'inquiète|j'ai\s+peur/i, signal: 'incertitude' },
-  { re: /et\s+si|au\s+cas\s+où|risque|danger|problème/i,                      signal: 'anticipation_négative' },
+  { re: /je\s+sais\s+pas|incertain|pas\s+s[uû]r|[cç]a\s+m'?\s*inqiui[eè]te|j'?\s*ai\s+peur/i, signal: 'incertitude' },
+  { re: /et\s+si|au\s+cas\s+o[uù]|risque|danger|probl[eè]me/i,                                   signal: 'anticipation_négative' },
 ];
 
 // ── Signaux contextuels ──────────────────────────────────────────────────────
