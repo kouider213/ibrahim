@@ -29,10 +29,43 @@ import { resolveOrgMember, autoRegisterMember, DEFAULT_MEMBER, type OrgMember } 
 import { maskPassportOcr, maskLicenseOcr } from '../../security/document-mask.js';
 import { logDocumentAccess } from '../../security/document-access-log.js';
 import { callGroq, callGemini, callOpenAI, callOpenAIVision, isGeminiAvailable, isGroqAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
+import { saveBeforeState, saveAfterState } from '../../integrations/vehicle-state.js';
 
 const router   = Router();
 const BUCKET   = 'client-documents';
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+
+// ── Vehicle state sessions (10 min TTL) ───────────────────────────────────────
+interface VehicleSession {
+  mode:   'before' | 'after';
+  client: string;
+  car:    string;
+  ts:     number;
+}
+const _vehicleSessions = new Map<number, VehicleSession>();
+const VEHICLE_TTL = 10 * 60 * 1000;
+
+function setVehicleSession(chatId: number, s: Omit<VehicleSession, 'ts'>): void {
+  _vehicleSessions.set(chatId, { ...s, ts: Date.now() });
+}
+function getVehicleSession(chatId: number): VehicleSession | null {
+  const s = _vehicleSessions.get(chatId);
+  if (!s) return null;
+  if (Date.now() - s.ts > VEHICLE_TTL) { _vehicleSessions.delete(chatId); return null; }
+  return s;
+}
+function clearVehicleSession(chatId: number): void {
+  _vehicleSessions.delete(chatId);
+}
+
+// Extrait "Client Car" depuis "état véhicule pour Ahmed Clio blanche"
+function parseVehicleCommand(text: string): { client: string; car: string } | null {
+  // Pattern: (pour|de) <Prénom> <Voiture> ou juste <Prénom> <Voiture> après le mot-clé
+  const m = text.match(/(?:pour|de)\s+([A-Za-zÀ-ÖØ-öø-ÿ]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]+)?)\s+([A-Za-zÀ-ÖØ-öø-ÿ0-9\s]+)/i)
+    ?? text.match(/(?:véhicule|voiture|état|inspection|retour)\s+([A-Za-zÀ-ÖØ-öø-ÿ]+)\s+([A-Za-zÀ-ÖØ-öø-ÿ0-9\s]+)/i);
+  if (!m) return null;
+  return { client: m[1].trim(), car: m[2].trim().split(/\s+/).slice(0, 3).join(' ') };
+}
 
 // ── AI Router helpers — Gemini first, Claude fallback ──────────────────────────
 
@@ -855,6 +888,45 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
+    // ── Vérifier si session état véhicule active ──────────────────
+    const vehicleSession = getVehicleSession(chatId);
+    if (vehicleSession) {
+      clearVehicleSession(chatId);
+      await sendTyping(chatId);
+
+      // Télécharger la photo
+      const photoFile = msg.photo ? msg.photo[msg.photo.length - 1] : null;
+      const fileId = photoFile?.file_id ?? msg.document?.file_id;
+      if (!fileId) {
+        await sendMessage(chatId, '❌ Photo non reçue. Réessaie.');
+        return;
+      }
+
+      try {
+        const fileBuffer = await downloadFile(fileId);
+        if (!fileBuffer) { await sendMessage(chatId, '❌ Téléchargement photo échoué.'); return; }
+        const base64 = fileBuffer.toString('base64');
+        const modeLabel = vehicleSession.mode === 'before' ? 'AVANT' : 'APRÈS';
+        await sendMessage(chatId, `🔍 Analyse état *${modeLabel}* en cours…`);
+
+        if (vehicleSession.mode === 'before') {
+          const result = await saveBeforeState(
+            vehicleSession.client, vehicleSession.car, base64, 'image/jpeg', actor.ownerKey,
+          );
+          await sendMessage(chatId, result.message);
+        } else {
+          const result = await saveAfterState(
+            vehicleSession.client, vehicleSession.car, base64, 'image/jpeg', actor.ownerKey,
+          );
+          await sendMessage(chatId, result.message);
+        }
+      } catch (e) {
+        console.error('[vehicle-state] photo processing error:', e);
+        await sendMessage(chatId, '❌ Erreur analyse photo. Réessaie.');
+      }
+      return;
+    }
+
     // Sinon → analyser l'image avec Claude Vision ET proposer traitement
     await handleImageMessage(chatId, sessionId, msg);
     return;
@@ -1089,6 +1161,28 @@ router.post('/webhook', async (req, res) => {
     return;
   }
   // ── END NEXUS triggers ───────────────────────────────────────────────────
+
+  // ── ÉTAT VÉHICULE — commande texte ────────────────────────────────────────
+  const isBeforeCmd = /état\s+(véhicule|voiture|avant)|inspection\s+(avant|initiale|départ)|départ\s+véhicule/i.test(text);
+  const isAfterCmd  = /retour\s+véhicule|vérifie\s+retour|état\s+(retour|après|fin)|inspection\s+(retour|après|fin)/i.test(text);
+
+  if (isBeforeCmd || isAfterCmd) {
+    const parsed = parseVehicleCommand(text);
+    if (parsed) {
+      const mode = isAfterCmd ? 'after' : 'before';
+      setVehicleSession(chatId, { mode, client: parsed.client, car: parsed.car });
+      const modeLabel = mode === 'before' ? 'AVANT location' : 'APRÈS retour';
+      await sendMessage(chatId,
+        `📸 *Inspection ${modeLabel}*\n\n` +
+        `Client: *${parsed.client}*\n` +
+        `Véhicule: *${parsed.car}*\n\n` +
+        `Envoie maintenant la photo du véhicule. Je l'analyse et sauvegarde l'état.`
+      );
+      return;
+    }
+  }
+
+  // ── END ÉTAT VÉHICULE ─────────────────────────────────────────────────────
 
   try {
     console.log(`[TELEGRAM_RUNTIME] handler=main_text message="${text.slice(0, 60)}" len=${text.length} session=${sessionId} router=processWithOrchestration`);
