@@ -1,4 +1,3 @@
-import { env } from '../config/env.js';
 
 export interface TravelTimeResult {
   travel_time_minutes: number;
@@ -81,7 +80,7 @@ export async function getTravelTime(
     };
   }
 
-  const key = (env as Record<string, unknown>)['GOOGLE_MAPS_API_KEY'] as string | undefined;
+  const key = process.env['GOOGLE_MAPS_API_KEY'];
 
   if (!key) {
     // Fallback: straight-line distance → rough estimate (60 km/h avg in Oran)
