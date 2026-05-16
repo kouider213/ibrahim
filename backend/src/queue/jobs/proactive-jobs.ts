@@ -168,14 +168,23 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
 
   if (!bookings?.length) return;
 
-  for (const b of bookings as unknown as Array<{ client_name: string; client_phone?: string; end_date: string; cars?: { name: string } }>) {
+  let sent = 0;
+  for (const b of bookings as unknown as Array<{ id: string; client_name: string; client_phone?: string; end_date: string; cars?: { name: string } }>) {
+    // Idempotency: one reminder per booking per day
+    const bookingLock = `job:end-rental:sent:${b.id}:${tomorrowStr}`;
+    const acquired = await redis.set(bookingLock, '1', 'EX', 86400, 'NX');
+    if (!acquired) {
+      console.log(`[job:end-rental] SKIP — already sent for booking ${b.id}`);
+      continue;
+    }
     const carName = b.cars?.name ?? 'Véhicule';
     const msg = `🚗 *Fin de location demain*\n${b.client_name} — ${carName}\nRetour le ${b.end_date}${b.client_phone ? `\n📞 ${b.client_phone}` : ''}`;
     await tg(msg);
     await notifyOwner('🚗 Fin de réservation demain', `${b.client_name} — ${carName}`, false);
+    sent++;
   }
 
-  console.log(`[job:end-rental] ${bookings.length} reminder(s) sent`);
+  console.log(`[job:end-rental] ${sent} reminder(s) sent (skipped duplicates)`);
 }
 
 // ── 2. Véhicule sans réservation 7j ──────────────────────────
@@ -610,6 +619,10 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
   }
 
   for (const b of overdue as any[]) {
+    const bookingLock = `job:late-return:sent:${b.id as string}:${today}`;
+    const acquired = await redis.set(bookingLock, '1', 'EX', 86400, 'NX');
+    if (!acquired) { console.log(`[job:late-return] SKIP dup: ${b.id as string}`); continue; }
+
     const daysLate = Math.floor(
       (new Date(today).getTime() - new Date(b.end_date as string).getTime()) / 86_400_000
     );
