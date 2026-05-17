@@ -362,7 +362,7 @@ export default function BookingsScreen() {
                   styles.payStatus,
                   { color: b.payment_status === 'PAID' ? '#00ff88' : b.payment_status === 'PARTIAL' ? '#ffaa00' : '#ff4444' },
                 ]}>
-                  {b.payment_status ?? 'UNPAID'}
+                  {b.payment_status === 'PAID' ? 'PAYÉ' : b.payment_status === 'PARTIAL' ? 'ACOMPTE' : 'NON PAYÉ'}
                 </Text>
               </View>
 
