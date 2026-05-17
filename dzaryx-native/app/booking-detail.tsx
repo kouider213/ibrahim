@@ -72,6 +72,8 @@ export default function BookingDetailScreen() {
   const [editOwnerPP,   setEditOwnerPP]   = useState('');
   const [editClientPP,  setEditClientPP]  = useState('');
   const [editPaidAmount,setEditPaidAmount]= useState('');
+  const [editCarId,     setEditCarId]     = useState('');
+  const [showCarPicker, setShowCarPicker] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -86,6 +88,7 @@ export default function BookingDetailScreen() {
       setEditOwnerPP(b.owner_price_per_day != null ? String(b.owner_price_per_day) : '');
       setEditClientPP(b.client_price_per_day != null ? String(b.client_price_per_day) : '');
       setEditPaidAmount(b.paid_amount != null ? String(b.paid_amount) : '');
+      setEditCarId(b.car_id);
     }
     setCars(c);
     setPayments(pays);
@@ -110,6 +113,7 @@ export default function BookingDetailScreen() {
       client_price_per_day: clientPP,
       owner_price_per_day:  ownerPP,
       profit_kouider:       profit,
+      ...(editCarId && editCarId !== booking.car_id ? { car_id: editCarId } : {}),
     };
 
     if (editPaidAmount) {
@@ -327,6 +331,29 @@ export default function BookingDetailScreen() {
         {editing ? (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>MODIFIER</Text>
+
+            <Text style={styles.fieldLabel}>VOITURE</Text>
+            <TouchableOpacity style={[styles.input, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => setShowCarPicker(v => !v)}>
+              <Text style={{ color: '#fff', flex: 1, fontSize: 12, fontFamily: MONO }}>
+                {cars.find(c => c.id === editCarId)?.name ?? 'Sélectionner...'}
+              </Text>
+              <Text style={{ color: '#333', fontSize: 10 }}>{showCarPicker ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {showCarPicker && (
+              <View style={{ backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#1a1a1a', borderRadius: 8, marginTop: 4 }}>
+                {cars.map(c => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#111' }}
+                    onPress={() => { setEditCarId(c.id); setShowCarPicker(false); }}
+                  >
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.available ? '#00ff88' : '#ffaa00' }} />
+                    <Text style={{ color: editCarId === c.id ? '#00e5ff' : '#888', fontSize: 11, fontFamily: MONO, flex: 1 }}>{c.name}</Text>
+                    {c.category && <Text style={{ color: '#333', fontSize: 8, fontFamily: MONO }}>{c.category}</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             <Text style={styles.fieldLabel}>STATUT</Text>
             <View style={styles.pillRow}>

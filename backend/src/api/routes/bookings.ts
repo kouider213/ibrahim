@@ -52,6 +52,8 @@ const bookingSchema = z.object({
   rented_by:            z.enum(['Kouider', 'Houari']).optional(),
   client_price_per_day: z.number().min(0).optional(),
   owner_price_per_day:  z.number().min(0).optional(),
+  payment_status:       z.enum(['PENDING', 'PARTIAL', 'PAID']).optional(),
+  paid_amount:          z.number().min(0).optional(),
 });
 
 router.post('/', requireMobileAuth, async (req, res) => {
@@ -61,7 +63,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  const { syncCalendar, client_price_per_day, owner_price_per_day, ...bookingData } = parsed.data;
+  const { syncCalendar, client_price_per_day, owner_price_per_day, payment_status, paid_amount, ...bookingData } = parsed.data;
   const nb_days = Math.max(1, Math.ceil(
     (new Date(bookingData.end_date).getTime() - new Date(bookingData.start_date).getTime()) / 86_400_000,
   ));
@@ -82,6 +84,8 @@ router.post('/', requireMobileAuth, async (req, res) => {
       ...(client_price_per_day != null ? { client_price_per_day } : {}),
       ...(owner_price_per_day  != null ? { owner_price_per_day }  : {}),
       ...(profit_kouider       != null ? { profit_kouider }       : {}),
+      ...(payment_status       != null ? { payment_status }       : {}),
+      ...(paid_amount          != null ? { paid_amount }          : {}),
       nb_days,
     });
 

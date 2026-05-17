@@ -48,8 +48,9 @@ export default function NewBookingScreen() {
   const [finalPrice,  setFinalPrice]  = useState('');
   const [clientPPD,   setClientPPD]   = useState(params.clientPPD ?? '');
   const [ownerPPD,    setOwnerPPD]    = useState(params.ownerPPD ?? '');
-  const [notes,       setNotes]       = useState(params.notes ?? '');
-  const [submitting,   setSubmitting]   = useState(false);
+  const [notes,         setNotes]         = useState(params.notes ?? '');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [submitting,    setSubmitting]    = useState(false);
   const [availability, setAvailability] = useState<boolean | null>(null);
   const [availChecking,setAvailChecking]= useState(false);
 
@@ -105,6 +106,11 @@ export default function NewBookingScreen() {
       if (notes.trim()) body['notes'] = notes.trim();
       if (clientPPD && !isNaN(Number(clientPPD))) body['client_price_per_day'] = Number(clientPPD);
       if (ownerPPD  && !isNaN(Number(ownerPPD)))  body['owner_price_per_day']  = Number(ownerPPD);
+      const dep = Number(depositAmount);
+      if (depositAmount && !isNaN(dep) && dep > 0) {
+        body['paid_amount']    = dep;
+        body['payment_status'] = dep >= Number(finalPrice) ? 'PAID' : 'PARTIAL';
+      }
 
       const res = await fetch(`${BACKEND_URL}/api/bookings`, {
         method: 'POST',
@@ -129,7 +135,7 @@ export default function NewBookingScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedCar, clientName, clientPhone, clientEmail, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, TOKEN, router]);
+  }, [selectedCar, clientName, clientPhone, clientEmail, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, depositAmount, TOKEN, router]);
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -313,6 +319,24 @@ export default function NewBookingScreen() {
               {profit >= 0 ? '+' : ''}{profit}€
             </Text>
           </View>
+        )}
+
+        {/* Deposit */}
+        <Text style={styles.label}>ACOMPTE VERSÉ (€) — optionnel</Text>
+        <TextInput
+          style={styles.input}
+          placeholderTextColor="#333"
+          placeholder="ex: 100 (laisser vide si pas d'acompte)"
+          value={depositAmount}
+          onChangeText={setDepositAmount}
+          keyboardType="numeric"
+        />
+        {depositAmount && !isNaN(Number(depositAmount)) && Number(depositAmount) > 0 && finalPrice && (
+          <Text style={styles.durationHint}>
+            {Number(depositAmount) >= Number(finalPrice)
+              ? '✅ PAYÉ EN TOTALITÉ'
+              : `💳 PARTIEL — reste ${Number(finalPrice) - Number(depositAmount)}€`}
+          </Text>
         )}
 
         {/* Notes */}
