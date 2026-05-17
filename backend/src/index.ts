@@ -361,6 +361,59 @@ async function registerTelegramWebhook(): Promise<void> {
   }
 }
 
+// ── Auto-backfill client intelligence on startup (if table is empty) ─────────
+async function autoBackfillClientIntel(): Promise<void> {
+  try {
+    const { supabase: sb } = await import('./integrations/supabase.js');
+    const { count } = await sb.from('client_intelligence').select('*', { count: 'exact', head: true }).eq('owner_id', 'kouider');
+    if ((count ?? 0) > 0) { console.log('[startup] client_intelligence OK —', count, 'profiles'); return; }
+
+    console.log('[startup] client_intelligence empty — running backfill from historical bookings...');
+    const { updateClientIntelFromBooking } = await import('./orchestrator/client-intelligence.js');
+    const { data: carsData } = await sb.from('cars').select('id, name');
+    const carMap = new Map<string, string>();
+    for (const c of (carsData ?? []) as Array<{ id: string; name: string }>) carMap.set(c.id, c.name);
+
+    const { data: bookings } = await sb
+      .from('bookings')
+      .select('client_name, client_phone, car_id, start_date, end_date, nb_days, client_price_per_day, final_price, discount_applied, status, payment_status, paid_amount')
+      .neq('status', 'REJECTED')
+      .order('start_date', { ascending: true });
+
+    let processed = 0;
+    for (const b of (bookings ?? []) as Array<{
+      client_name: string; client_phone: string | null; car_id: string;
+      start_date: string; end_date: string; nb_days: number | null;
+      client_price_per_day: number | null; final_price: number | null;
+      discount_applied: number | null; status: string;
+      payment_status: string | null; paid_amount: number | null;
+    }>) {
+      const carName = carMap.get(b.car_id) ?? 'Véhicule';
+      const nbDays  = b.nb_days ?? Math.max(1, Math.ceil(
+        (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
+      ));
+      await updateClientIntelFromBooking({
+        client_name:          b.client_name,
+        client_phone:         b.client_phone ?? undefined,
+        car_name:             carName,
+        start_date:           b.start_date,
+        end_date:             b.end_date,
+        nb_days:              nbDays,
+        client_price_per_day: b.client_price_per_day,
+        final_price:          b.final_price,
+        discount_applied:     b.discount_applied ?? 0,
+        status:               b.status,
+        payment_status:       b.payment_status ?? undefined,
+        paid_amount:          b.paid_amount ?? undefined,
+      }, 'kouider').catch(() => {});
+      processed++;
+    }
+    console.log(`[startup] client_intelligence backfill done — ${processed} bookings → check DB for profiles`);
+  } catch (err) {
+    console.error('[startup] client_intelligence backfill failed:', err instanceof Error ? err.message : err);
+  }
+}
+
 // ── Start server ──────────────────────────────────────────────
 const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
@@ -368,4 +421,5 @@ server.listen(PORT, () => {
   initScheduler();
   initReminderWorker();
   void registerTelegramWebhook();
+  void autoBackfillClientIntel();
 });

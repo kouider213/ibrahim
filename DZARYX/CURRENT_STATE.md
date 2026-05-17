@@ -95,6 +95,14 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 - ✅ onboarding → /auth/login (acteur sélectionné avant chat)
 - ✅ Token acteur-scoped (Houari n'utilise plus le token Kouider)
 - ✅ TypeScript : 0 erreurs
+- ✅ **Écran Réservations** : liste, stats, filtres, search par nom/tél/voiture/ID, tap → détail
+- ✅ **Écran Nouvelle Résa** : client+voiture+dates+prix+PPD (envoyé en 1 seul POST, plus de PATCH)
+- ✅ **Écran Détail Résa** : infos + financier + édition statut/paiement/prix/notes + appel + suppression
+- ✅ **Écran Parc** : disponibilité toggle, revenus 30j, stats occupancy, BI Fleet
+- ✅ **Écran Revenus** : CA aujourd'hui/semaine/mois, profit Kouider, top clients
+- ✅ **Écran Rappels** : HIGH/MEDIUM/LOW, arrivées demain, passeports manquants, retards
+- ✅ **Écran Clients** : liste scorée VIP/FRÉQUENT/RÉGULIER/NOUVEAU, search, tel: cliquable
+- ✅ **Settings** : backfill intelligence clients, déclencheurs jobs
 
 ### Conversation Engine V2 — AJOUTÉ 2026-05-16
 - ✅ Normalizer : correction typos (paseport→passeport, beringo→berlingo, etc.)
@@ -127,6 +135,7 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 1. **EAS Login** : `! eas login` dans terminal Claude Code, puis `! cd dzaryx-native && eas build --platform android --profile preview --non-interactive`
 2. **Railway** : Ajouter MOBILE_TOKEN_HOUARI + Twilio vars
 3. **Google Cloud** : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
+4. **Backfill clients** : dans l'app → Settings → 🧠 BACKFILL INTELLIGENCE CLIENTS (ou se fait automatiquement au démarrage si table vide)
 
 ---
 
@@ -155,6 +164,16 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 - **Phase 6 Mobile** : BookingForm + CalendarView + ClientsView + BottomNav 10 items
 
 **Dernier commit** : `b3b33df` fix(native): actor-scoped token, onboarding → auth/login
+
+**Session 2026-05-17 (Feature Parity — Autonomous) :**
+- Native App : 8 écrans complets (bookings, new-booking, booking-detail, fleet, revenue, reminders, clients, settings)
+- Backend : POST /api/clients/backfill + GET /api/clients/intelligence
+- Auto-backfill client_intelligence au démarrage backend (si table vide)
+- update_car tool dans BOOKING_AGENT
+- Recherche bookings par nom/tél/voiture/ID
+- PPD (client/owner price per day) en 1 seul POST (plus de double appel)
+- Smart reminders injectés dans le contexte AI chaque matin
+- Commits : a8fce48 (backfill + search + PPD)
 
 **Session 2026-05-16/17 (Remote Control Mission) :**
 - Conversation Engine V2 complet (normalizer + entity-extractor + pending-action + engine-v2)

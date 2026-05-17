@@ -77,18 +77,22 @@
 - ✅ GENERAL_AGENT (web_search toujours actif, min 2 tentatives)
 - ✅ Veille concurrents multi-sources réelle
 - ✅ Création vidéo marketing 720×1280 livrée Telegram (B005 fixé)
-- 🔵 Interface de saisie `owner_price_per_day` depuis mobile (pour nouvelles résa)
-- 🔵 Alert automatique si nouvelle résa sans owner_ppd
+- ✅ Interface saisie `owner_price_per_day` depuis mobile native (formulaire nouvelle résa)
+- ✅ Alert Telegram automatique si nouvelle résa sans owner_ppd
 
 ---
 
-## Phase 6 — Mobile PWA (🔵 Planifié)
+## Phase 6 — Mobile Native (✅ Terminé — dzaryx-native — 2026-05-17)
 
-- 🔵 Dashboard financier interactif
-- 🔵 Saisie `client_price_per_day` et `owner_price_per_day` à la création réservation
-- 🔵 Vue calendrier disponibilités
-- 🔵 Gestion clients avancée
-- 🔵 Notifications push mobile
+- ✅ App Expo SDK 54 / React Native / EAS Build APK
+- ✅ Orb JARVIS animé (idle/listen/think/speak)
+- ✅ Voice mode (Whisper → Claude → ElevenLabs)
+- ✅ Push notifications acteur-scoped
+- ✅ Écrans : bookings, new-booking, booking-detail, fleet, revenue, reminders, clients, settings
+- ✅ Saisie `client_price_per_day` + `owner_price_per_day` à la création (1 POST)
+- ✅ Gestion clients avancée (scoring VIP, search, profil intelligence)
+- ✅ Client intelligence backfill automatique (historique → profils IA)
+- ✅ Rappels smart (HIGH/MEDIUM/LOW) dans app + contexte AI matinal
 
 ---
 
