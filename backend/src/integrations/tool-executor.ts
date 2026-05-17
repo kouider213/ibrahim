@@ -192,6 +192,7 @@ async function _dispatch(
       case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input);
       case 'check_car_availability':     return await checkCarAvailability(input);
       case 'get_client_profile':         return await getClientProfileTool(input['client_name'] as string);
+      case 'track_habit':                return await trackHabitTool(input);
       // ─── GitHub search ───
       case 'github_search_code':         return await githubSearchCode(input);
       // ─── Documents client ───
@@ -4294,6 +4295,49 @@ async function getTravelTimeTool(input: Record<string, unknown>): Promise<string
   ].filter(l => l !== undefined);
 
   return lines.join('\n');
+}
+
+// ── Habit Tracker Tool ────────────────────────────────────────────────────────
+
+async function trackHabitTool(input: Record<string, unknown>): Promise<string> {
+  const habitName   = String(input['habit_name']   ?? '').trim().toLowerCase().replace(/\s+/g, '_');
+  const description = String(input['description']  ?? '').trim();
+  const scheduleType= String(input['schedule_type'] ?? 'daily') as 'daily' | 'weekly' | 'interval' | 'condition';
+  const actionType  = String(input['action_type']  ?? 'remind') as 'remind' | 'check' | 'notify';
+  const active      = input['active'] !== false;
+
+  if (!habitName || !description) return '❌ habit_name et description requis.';
+
+  const payload: Record<string, unknown> = {
+    user_id:      'kouider',
+    habit_name:   habitName,
+    description,
+    schedule_type: scheduleType,
+    action_type:   actionType,
+    action_data:   { message: description },
+    active,
+    streak_days:  0,
+    missed_count: 0,
+  };
+  if (input['schedule_cron'])  payload['schedule_cron']  = input['schedule_cron'];
+  if (input['interval_hours']) payload['interval_hours'] = Number(input['interval_hours']);
+
+  const { data: existing } = await supabase
+    .from('memory_habits')
+    .select('id')
+    .eq('user_id', 'kouider')
+    .eq('habit_name', habitName)
+    .limit(1)
+    .single();
+
+  if (existing?.id) {
+    await supabase.from('memory_habits').update({ ...payload, streak_days: undefined, missed_count: undefined }).eq('id', existing.id);
+    return `✅ Habitude *${habitName}* mise à jour — ${description}${active ? '' : ' (désactivée)'}`;
+  }
+
+  const { error } = await supabase.from('memory_habits').insert(payload);
+  if (error) return `❌ Erreur sauvegarde habitude: ${error.message}`;
+  return `✅ Habitude *${habitName}* enregistrée — ${description}\n📅 Suivi: ${scheduleType} · Action: ${actionType}`;
 }
 
 // ── Get Client Profile Tool ───────────────────────────────────────────────────

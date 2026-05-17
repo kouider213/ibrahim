@@ -188,9 +188,9 @@ SPÉCIALITÉ: mémoriser, retrouver, apprendre des règles, préférences Kouide
 TOUJOURS: confirmer ce qui a été mémorisé, citer la source si rappel.`,
   toolNames: [
     'remember_info','recall_memory','learn_rule','get_kouider_preferences',
-    'get_monthly_improvement_report','get_learning_evolution','record_feedback',
+    'get_monthly_improvement_report','get_learning_evolution','record_feedback','track_habit',
   ],
-  keywords:  /\b(souviens|rappelle|mémorise|retiens|oublie|préférence|habitude|apprentissage|évolution|amélioration|feedback|règle)\b/i,
+  keywords:  /\b(souviens|rappelle|mémorise|retiens|oublie|préférence|habitude|apprentissage|évolution|amélioration|feedback|règle|routine|tracker|suivi|prends?\s+l.habitude)\b/i,
   priority:  5,
   llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.4, maxTokens: 800 },
 };

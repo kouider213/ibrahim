@@ -1170,6 +1170,25 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     input_schema: { type: 'object' as const, properties: {} },
   },
 
+  // ─── HABIT TRACKER ────────────────────────────────────────────────
+  {
+    name: 'track_habit',
+    description: 'Enregistrer ou mettre à jour une habitude/routine de Kouider dans le système de suivi. Utiliser quand Kouider dit "je fais X chaque Y", "rappelle-moi de faire X", "je veux prendre l\'habitude de X", "note que je fais X". Exemples: vitamines chaque matin, sport chaque lundi, appels clients le mardi.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        habit_name:     { type: 'string',  description: 'Nom court de l\'habitude (ex: "vitamines_matin", "sport_lundi", "check_clients")' },
+        description:    { type: 'string',  description: 'Description complète (ex: "Prendre 1000mg Vitamine D chaque matin au réveil")' },
+        schedule_type:  { type: 'string',  enum: ['daily','weekly','interval','condition'], description: 'Type de récurrence' },
+        schedule_cron:  { type: 'string',  description: 'Cron expression si daily/weekly (ex: "0 8 * * *" = 8h chaque jour, "0 10 * * 1" = lundi 10h)' },
+        interval_hours: { type: 'number',  description: 'Si schedule_type=interval: intervalle en heures (ex: 24)' },
+        action_type:    { type: 'string',  enum: ['remind','check','notify'], description: 'remind=rappel Telegram, check=vérification, notify=notification mobile' },
+        active:         { type: 'boolean', description: 'true=actif (défaut), false=désactiver' },
+      },
+      required: ['habit_name', 'description', 'schedule_type', 'action_type'],
+    },
+  },
+
   // ─── EXPORT COMPTABLE ─────────────────────────────────────────────
   {
     name: 'export_accounting',

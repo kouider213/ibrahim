@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl, Linking, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchBookings, type Booking } from '../lib/api';
+import { fetchBookings, updateBookingField, type Booking } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -54,6 +54,27 @@ export default function BookingsScreen() {
   }, [TOKEN]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const markPaid = useCallback(async (b: Booking) => {
+    Alert.alert(
+      'Marquer comme PAYÉ',
+      `${b.client_name} — ${b.final_price}€`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'PAYÉ ✓', style: 'default', onPress: async () => {
+          const ok = await updateBookingField(b.id, { payment_status: 'PAID', paid_amount: b.final_price }, TOKEN);
+          if (ok) setBookings(prev => prev.map(x => x.id === b.id ? { ...x, payment_status: 'PAID', paid_amount: b.final_price } : x));
+          else Alert.alert('Erreur', 'Mise à jour échouée.');
+        }},
+      ],
+    );
+  }, [TOKEN]);
+
+  const markActive = useCallback(async (b: Booking) => {
+    const ok = await updateBookingField(b.id, { status: 'ACTIVE' }, TOKEN);
+    if (ok) setBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'ACTIVE' } : x));
+    else Alert.alert('Erreur', 'Mise à jour échouée.');
+  }, [TOKEN]);
 
   const filtered = bookings.filter(b => {
     if (filter === 'ALL') return true;
@@ -185,7 +206,17 @@ export default function BookingsScreen() {
               <View style={styles.actionsRow}>
                 {b.client_phone && (
                   <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${b.client_phone}`)}>
-                    <Text style={styles.callTxt}>📞 APPELER</Text>
+                    <Text style={styles.callTxt}>📞</Text>
+                  </TouchableOpacity>
+                )}
+                {b.payment_status !== 'PAID' && ['ACTIVE','CONFIRMED','PENDING'].includes(b.status) && (
+                  <TouchableOpacity style={styles.paidBtn} onPress={() => markPaid(b)}>
+                    <Text style={styles.paidTxt}>💳 PAYÉ</Text>
+                  </TouchableOpacity>
+                )}
+                {b.status === 'PENDING' && (
+                  <TouchableOpacity style={styles.activeBtn} onPress={() => markActive(b)}>
+                    <Text style={styles.activeTxt}>✓ ACTIVER</Text>
                   </TouchableOpacity>
                 )}
                 <Text style={styles.idTxt}>#{b.id.slice(-6).toUpperCase()}</Text>
@@ -253,10 +284,11 @@ const styles = StyleSheet.create({
   payStatus: { fontSize: 9, fontFamily: MONO, letterSpacing: 2, marginLeft: 'auto' },
 
   actionsRow:{ flexDirection: 'row', alignItems: 'center', gap: 10 },
-  callBtn:   {
-    backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff22',
-    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8,
-  },
-  callTxt:   { color: '#00e5ff', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
+  callBtn:   { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  callTxt:   { color: '#00e5ff', fontSize: 12 },
+  paidBtn:   { backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8844', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  paidTxt:   { color: '#00ff88', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
+  activeBtn: { backgroundColor: '#ffaa0011', borderWidth: 1, borderColor: '#ffaa0044', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  activeTxt: { color: '#ffaa00', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
   idTxt:     { color: '#222', fontSize: 8, fontFamily: MONO, letterSpacing: 2, marginLeft: 'auto' },
 });

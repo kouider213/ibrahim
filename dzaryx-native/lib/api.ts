@@ -131,6 +131,25 @@ export interface Car {
   base_price: number | null;
 }
 
+export async function updateBookingField(
+  bookingId:    string,
+  updates:      Record<string, unknown>,
+  mobileToken?: string,
+): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bookings/${encodeURIComponent(bookingId)}`, {
+      method:  'PATCH',
+      headers: authHeaders(token),
+      body:    JSON.stringify(updates),
+      signal:  AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchCars(mobileToken?: string): Promise<Car[]> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   try {
