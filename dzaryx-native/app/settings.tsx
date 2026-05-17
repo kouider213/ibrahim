@@ -4,6 +4,13 @@ import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
 import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache, fetchSchedulerJobs, fetchValidations, decideValidation, BACKEND_URL as API_BACKEND_URL, type SchedulerJob, type Validation } from '../lib/api';
 
+interface AiHealth {
+  providers: Record<string, { available: boolean; calls_today: number; emoji: string }>;
+  active_fallback: string | null;
+  claude_failures_today: number;
+  survival_status: string;
+}
+
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = API_BACKEND_URL;
 const APP_VERSION = '1.2.0 (build 3)';
@@ -32,6 +39,9 @@ export default function SettingsScreen() {
   const [validations,  setValidations]  = useState<Validation[]>([]);
   const [validLoad,    setValidLoad]    = useState(false);
   const [showValids,   setShowValids]   = useState(false);
+  const [aiHealth,     setAiHealth]     = useState<AiHealth | null>(null);
+  const [aiHealthLoad, setAiHealthLoad] = useState(false);
+  const [showAiHealth, setShowAiHealth] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +127,21 @@ export default function SettingsScreen() {
     setValidations(data);
     setValidLoad(false);
   }, [showValids, MOBILE_TOKEN]);
+
+  const handleShowAiHealth = useCallback(async () => {
+    if (showAiHealth) { setShowAiHealth(false); return; }
+    setShowAiHealth(true);
+    if (aiHealth !== null) return;
+    setAiHealthLoad(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/health-ai`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) setAiHealth(await res.json() as AiHealth);
+    } catch { /* ignore */ }
+    setAiHealthLoad(false);
+  }, [showAiHealth, aiHealth, MOBILE_TOKEN]);
 
   const handleDecide = useCallback(async (id: string, decision: 'approved' | 'rejected') => {
     const ok = await decideValidation(id, decision, undefined, MOBILE_TOKEN);
@@ -269,6 +294,41 @@ export default function SettingsScreen() {
           <TouchableOpacity style={styles.triggerBtn} onPress={handleClearCache}>
             <Text style={styles.triggerTxt}>🗑 VIDER CACHE BI</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* AI Health */}
+      {actorId === 'kouider' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>SANTÉ IA</Text>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleShowAiHealth}>
+            <Text style={styles.triggerTxt}>{showAiHealth ? '▲ MASQUER' : '🧠 ÉTAT FOURNISSEURS IA'}</Text>
+          </TouchableOpacity>
+          {showAiHealth && (
+            <View style={{ marginTop: 8 }}>
+              {aiHealthLoad && <Text style={styles.schedStatus}>Chargement...</Text>}
+              {!aiHealthLoad && aiHealth && (
+                <>
+                  <Text style={styles.schedStatus}>{aiHealth.survival_status}</Text>
+                  {aiHealth.active_fallback && (
+                    <Text style={[styles.schedStatus, { color: '#ffaa00' }]}>⚡ Fallback actif: {aiHealth.active_fallback}</Text>
+                  )}
+                  {aiHealth.claude_failures_today > 0 && (
+                    <Text style={[styles.schedStatus, { color: '#ff4444' }]}>⚠️ {aiHealth.claude_failures_today} erreurs Claude aujourd'hui</Text>
+                  )}
+                  {Object.entries(aiHealth.providers).map(([name, p]) => (
+                    <View key={name} style={styles.jobRow}>
+                      <Text style={styles.jobName}>{p.emoji} {name.toUpperCase()}</Text>
+                      <Text style={[styles.jobNext, { color: p.available ? '#00ff88' : '#ff4444' }]}>
+                        {p.calls_today} appels · {p.available ? 'EN LIGNE' : 'HORS LIGNE'}
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              )}
+              {!aiHealthLoad && !aiHealth && <Text style={styles.schedStatus}>❌ Impossible de charger</Text>}
+            </View>
+          )}
         </View>
       )}
 

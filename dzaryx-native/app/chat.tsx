@@ -12,7 +12,7 @@ import * as Location from 'expo-location';
 import * as KeepAwake from 'expo-keep-awake';
 import { io, type Socket } from 'socket.io-client';
 import { useStore } from '../lib/store';
-import { sendMessage, fetchHistory, registerPushToken, type UserLocation, type HistoryMessage } from '../lib/api';
+import { sendMessage, fetchHistory, registerPushToken, fetchNotifications, type UserLocation, type HistoryMessage } from '../lib/api';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 
@@ -68,9 +68,10 @@ export default function JarvisScreen() {
   const [navLinks,  setNavLinks] = useState<{ waze?: string; maps?: string } | null>(null);
   const [histMsgs,  setHistMsgs] = useState<HistoryMessage[]>([]);
   const [histLoad,  setHistLoad] = useState(false);
-  const [carMode,       setCarMode]       = useState(false);
-  const [carCountdown,  setCarCountdown]  = useState<number | null>(null);
-  const [contentStatus, setContentStatus] = useState<ContentStatus | null>(null);
+  const [carMode,        setCarMode]       = useState(false);
+  const [carCountdown,   setCarCountdown]  = useState<number | null>(null);
+  const [contentStatus,  setContentStatus] = useState<ContentStatus | null>(null);
+  const [unreadNotifs,   setUnreadNotifs]  = useState(0);
   const locationRef    = useRef<UserLocation | null>(null);
   const carTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const carIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -254,6 +255,14 @@ export default function JarvisScreen() {
     setHistMsgs(msgs);
     setHistLoad(false);
   }, [sessionId, MOBILE_TOKEN]);
+
+  // ── Unread notification count (badge on bell button) ──────────────
+  useEffect(() => {
+    if (!MOBILE_TOKEN) return;
+    fetchNotifications(MOBILE_TOKEN, 50)
+      .then(notifs => setUnreadNotifs(notifs.filter(n => n.status !== 'sent').length))
+      .catch(() => {});
+  }, [MOBILE_TOKEN]);
 
   // ── Push token registration (once per app launch when user has token) ──
   useEffect(() => {
@@ -701,9 +710,16 @@ export default function JarvisScreen() {
         )}
 
         {!carMode && (
-          <TouchableOpacity style={styles.toolBtn} onPress={() => router.push('/notifications')}>
-            <Text style={styles.toolIco}>🔔</Text>
-            <Text style={styles.toolLbl}>ALERTES</Text>
+          <TouchableOpacity style={styles.toolBtn} onPress={() => { setUnreadNotifs(0); router.push('/notifications'); }}>
+            <View style={{ position: 'relative', alignItems: 'center' }}>
+              <Text style={styles.toolIco}>🔔</Text>
+              {unreadNotifs > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeTxt}>{unreadNotifs > 9 ? '9+' : unreadNotifs}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.toolLbl, unreadNotifs > 0 && { color: '#ff4444' }]}>ALERTES</Text>
           </TouchableOpacity>
         )}
 
@@ -803,6 +819,9 @@ const styles = StyleSheet.create({
   micBtn:     { width: 72, height: 72, borderRadius: 36, backgroundColor: '#040404', borderWidth: 2, borderColor: '#00e5ff', alignItems: 'center', justifyContent: 'center', shadowColor: '#00e5ff', shadowOpacity: 0.55, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
   micActive:  { borderColor: '#ff2d55', backgroundColor: '#180008', shadowColor: '#ff2d55' },
   micIco:     { fontSize: 26 },
+
+  notifBadge:    { position: 'absolute', top: -4, right: -8, backgroundColor: '#ff4444', borderRadius: 7, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  notifBadgeTxt: { color: '#fff', fontSize: 7, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontWeight: '700' },
 
   histMsg:    { borderRadius: 8, borderWidth: 1, marginBottom: 10, padding: 10 },
   histUser:   { borderColor: '#0a2a3a', backgroundColor: '#050d12', alignSelf: 'flex-end' as const, marginLeft: 20 },
