@@ -71,6 +71,7 @@ export default function NewBookingScreen() {
     if (!selectedCar) { Alert.alert('Voiture requise', 'Sélectionne une voiture.'); return; }
     if (!clientName.trim()) { Alert.alert('Client requis', 'Entre le nom du client.'); return; }
     if (!clientPhone.trim() || clientPhone.trim().length < 6) { Alert.alert('Téléphone requis', 'Entre un numéro de téléphone valide (min 6 chiffres).'); return; }
+    if (endDate <= startDate) { Alert.alert('Dates invalides', 'La date de fin doit être après la date de début.'); return; }
     if (!finalPrice || isNaN(Number(finalPrice))) { Alert.alert('Prix requis', 'Entre un prix total valide.'); return; }
 
     setSubmitting(true);
