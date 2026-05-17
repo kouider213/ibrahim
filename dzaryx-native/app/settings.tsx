@@ -164,13 +164,15 @@ export default function SettingsScreen() {
           )}
           {[
             { icon: '☀️', label: 'BRIEFING MATIN',         job: 'morning-briefing' },
-            { icon: '📊', label: 'RAPPORT BI COMPLET',      job: 'bi-report' },
+            { icon: '📊', label: 'RAPPORT BI COMPLET',      job: 'bi-daily' },
             { icon: '💳', label: 'VÉRIF IMPAYÉS',           job: 'unpaid-reminder' },
             { icon: '🚗', label: 'RAPPORT PARC',            job: 'vehicle-utilization' },
-            { icon: '📱', label: 'IDÉES TIKTOK',            job: 'tiktok-ideas' },
-            { icon: '🔔', label: 'RAPPELS ARRIVÉES',        job: 'arrival-reminders' },
-            { icon: '🏁', label: 'RAPPELS RETOURS',         job: 'return-reminders' },
-            { icon: '📈', label: 'ANALYSE REVENUS',         job: 'revenue-analysis' },
+            { icon: '📱', label: 'IDÉES TIKTOK',            job: 'tiktok-suggestion' },
+            { icon: '🔔', label: 'RAPPELS J-1 WA',          job: 'wa-24h-reminders' },
+            { icon: '🏁', label: 'RAPPELS RETOURS WA',      job: 'wa-return-reminders' },
+            { icon: '🔍', label: 'DÉTECTION ANOMALIES',     job: 'check-anomalies' },
+            { icon: '📅', label: 'RAPPORT HEBDO',           job: 'weekly-report' },
+            { icon: '🏆', label: 'RELANCE CLIENTS',         job: 'client-relance' },
           ].map(({ icon, label, job }) => (
             <TouchableOpacity key={job} style={styles.triggerBtn} onPress={() => triggerJob(job)}>
               <Text style={styles.triggerTxt}>{icon} {label}</Text>

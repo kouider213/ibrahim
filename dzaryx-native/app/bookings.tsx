@@ -103,6 +103,27 @@ export default function BookingsScreen() {
     else Alert.alert('Erreur', 'Mise à jour échouée.');
   }, [TOKEN]);
 
+  const markConfirmed = useCallback(async (b: Booking) => {
+    const ok = await updateBookingField(b.id, { status: 'CONFIRMED' }, TOKEN);
+    if (ok) setBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'CONFIRMED' } : x));
+    else Alert.alert('Erreur', 'Mise à jour échouée.');
+  }, [TOKEN]);
+
+  const markCompleted = useCallback(async (b: Booking) => {
+    Alert.alert(
+      'Marquer TERMINÉ',
+      `${b.client_name} — ${(b.cars as { name: string } | null)?.name ?? ''}\nCette action marque la location comme terminée.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: '✓ TERMINÉ', onPress: async () => {
+          const ok = await updateBookingField(b.id, { status: 'COMPLETED' }, TOKEN);
+          if (ok) setBookings(prev => prev.map(x => x.id === b.id ? { ...x, status: 'COMPLETED' } : x));
+          else Alert.alert('Erreur', 'Mise à jour échouée.');
+        }},
+      ],
+    );
+  }, [TOKEN]);
+
   const filtered = bookings.filter(b => {
     if (filter !== 'ALL' && b.status !== filter) return false;
     if (search.trim()) {
@@ -344,9 +365,19 @@ export default function BookingsScreen() {
                     <Text style={styles.paidTxt}>💳 PAYÉ</Text>
                   </TouchableOpacity>
                 )}
+                {b.status === 'PENDING' && (
+                  <TouchableOpacity style={styles.confirmBtn} onPress={() => markConfirmed(b)}>
+                    <Text style={styles.confirmTxt}>✓ CONF</Text>
+                  </TouchableOpacity>
+                )}
                 {(b.status === 'PENDING' || (b.status === 'CONFIRMED' && b.start_date <= new Date().toISOString().slice(0, 10))) && (
                   <TouchableOpacity style={styles.activeBtn} onPress={() => markActive(b)}>
-                    <Text style={styles.activeTxt}>✓ ACTIVER</Text>
+                    <Text style={styles.activeTxt}>▶ ACTIF</Text>
+                  </TouchableOpacity>
+                )}
+                {b.status === 'ACTIVE' && (
+                  <TouchableOpacity style={styles.completeBtn} onPress={() => markCompleted(b)}>
+                    <Text style={styles.completeTxt}>■ FIN</Text>
                   </TouchableOpacity>
                 )}
                 <Text style={styles.idTxt}>#{b.id.slice(-6).toUpperCase()}</Text>
@@ -453,7 +484,11 @@ const styles = StyleSheet.create({
   waTxt:     { color: '#25d366', fontSize: 12 },
   paidBtn:   { backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8844', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   paidTxt:   { color: '#00ff88', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
-  activeBtn: { backgroundColor: '#ffaa0011', borderWidth: 1, borderColor: '#ffaa0044', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  activeTxt: { color: '#ffaa00', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
-  idTxt:     { color: '#222', fontSize: 8, fontFamily: MONO, letterSpacing: 2, marginLeft: 'auto' },
+  confirmBtn:  { backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8844', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  confirmTxt:  { color: '#00ff88', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
+  activeBtn:   { backgroundColor: '#ffaa0011', borderWidth: 1, borderColor: '#ffaa0044', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  activeTxt:   { color: '#ffaa00', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
+  completeBtn: { backgroundColor: '#55555511', borderWidth: 1, borderColor: '#55555544', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  completeTxt: { color: '#777', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
+  idTxt:       { color: '#222', fontSize: 8, fontFamily: MONO, letterSpacing: 2, marginLeft: 'auto' },
 });
