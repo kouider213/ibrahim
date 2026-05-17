@@ -367,6 +367,16 @@ export default function FleetScreen() {
                 </TouchableOpacity>
               )}
 
+              {/* Quick new booking button for available cars */}
+              {car.available && (
+                <TouchableOpacity
+                  style={styles.quickBookBtn}
+                  onPress={() => router.push({ pathname: '/new-booking', params: { carId: car.id } })}
+                >
+                  <Text style={styles.quickBookTxt}>📋 CRÉER UNE RÉSERVATION</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Next booking for available cars */}
               {car.available && nextBookings[car.id] && (() => {
                 const nb = nextBookings[car.id];
@@ -580,4 +590,10 @@ const styles = StyleSheet.create({
   histDates:       { color: '#333', fontSize: 8, fontFamily: MONO, marginTop: 2 },
   histPrice:       { color: '#fff', fontSize: 10, fontFamily: MONO, fontWeight: '700' },
   histStatus:      { fontSize: 7, fontFamily: MONO, letterSpacing: 1, marginTop: 2 },
+
+  quickBookBtn: {
+    marginTop: 8, backgroundColor: '#00ff8808', borderWidth: 1, borderColor: '#00ff8833',
+    borderRadius: 8, paddingVertical: 10, alignItems: 'center',
+  },
+  quickBookTxt: { color: '#00ff8888', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
 });
