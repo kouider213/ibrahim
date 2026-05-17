@@ -18,6 +18,7 @@ export interface WriteMemoryParams {
   domain:      MemoryDomain;
   confidence?: number;
   source?:     string;
+  userId?:     string;
 }
 
 export interface WriteMemoryResult {
@@ -70,9 +71,8 @@ export function computeMemoryKey(content: string, domain: string, userId = 'koui
 }
 
 export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemoryResult> {
-  const { key, value, domain, confidence = 0.9, source = 'orchestrator' } = params;
-  // user_id: use source as user discriminator (rememberInfo passes 'remember_info')
-  const userId = source;
+  const { key, value, domain, confidence = 0.9, source = 'orchestrator', userId: userIdParam } = params;
+  const userId = userIdParam ?? 'kouider';
   const dedupKey = buildDedupKey(value, domain, userId);
 
   try {
@@ -118,6 +118,7 @@ export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemor
     const { data: existing, error: fetchErr } = await supabase
       .from('memory_facts')
       .select('id')
+      .eq('user_id', userId)
       .eq('domain', domain)
       .eq('key', key)
       .eq('is_current', true)
@@ -147,7 +148,7 @@ export async function writeMemory(params: WriteMemoryParams): Promise<WriteMemor
 
     // ── Step 3: Insert new fact with dedup_key if column exists ──────────────
     const insertPayload: Record<string, unknown> = {
-      domain, key, value, confidence, is_current: true, source,
+      user_id: userId, domain, key, value, confidence, is_current: true, source,
     };
     if (!dedupErr) insertPayload['dedup_key'] = dedupKey;
 

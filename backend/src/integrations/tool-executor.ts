@@ -148,8 +148,8 @@ async function _dispatch(
       case 'read_site_file':        return await readSiteFile(input);
       case 'update_site_file':      return await updateSiteFile(input);
       case 'learn_rule':            return await learnRuleTool(input);
-      case 'remember_info':         return await rememberInfo(input);
-      case 'recall_memory':         return await recallMemory(input);
+      case 'remember_info':         return await rememberInfo(input, sessionId);
+      case 'recall_memory':         return await recallMemory(input, sessionId);
       case 'get_weather':           return await getWeather(input);
       case 'get_news':              return await getNews(input);
       case 'github_read_file':      return await githubReadFile(input);
@@ -623,15 +623,22 @@ const CATEGORY_TO_DOMAIN: Record<string, MemoryDomain> = {
   fact:       'note',
 };
 
-async function rememberInfo(input: Record<string, unknown>): Promise<string> {
+function inferUserId(sessionId?: string): string {
+  if (!sessionId) return 'kouider';
+  if (sessionId.toLowerCase().includes('houari')) return 'houari';
+  return 'kouider';
+}
+
+async function rememberInfo(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const category = (input['category'] as string | undefined) ?? 'fact';
   const content  = input['content'] as string;
+  const userId   = inferUserId(sessionId);
   const domain: MemoryDomain = CATEGORY_TO_DOMAIN[category] ?? 'note';
   // Normalized SHA256 hash → same fact with punctuation/case variations = same key = UPDATE not INSERT
   const key = computeMemoryKey(content, domain);
 
-  // Write to modern memory_facts first
-  const modernResult = await writeMemory({ key, value: content, domain, source: 'remember_info' });
+  // Write to modern memory_facts first (actor-scoped)
+  const modernResult = await writeMemory({ key, value: content, domain, source: 'remember_info', userId });
 
   // Always write legacy ibrahim_memory (don't break old recall flow)
   const { error: legacyError } = await supabase
@@ -655,7 +662,25 @@ async function rememberInfo(input: Record<string, unknown>): Promise<string> {
   return `❌ Erreur mémoire [${category}]: moderne="${modernResult.error}" legacy="${legacyError!.message}"`;
 }
 
-async function recallMemory(input: Record<string, unknown>): Promise<string> {
+async function recallMemory(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const userId = inferUserId(sessionId);
+  // Search memory_facts (modern) first
+  try {
+    const { getMemoryFacts } = await import('../integrations/supabase.js');
+    const facts = await getMemoryFacts({ is_current: true, limit: 50, user_id: userId });
+    const searchQuery = (input['query'] as string | undefined)?.toLowerCase() ?? '';
+    const catFilter   = input['category'] as string | undefined;
+    const filtered = facts.filter(f => {
+      const matchesCat = !catFilter || f.domain === catFilter;
+      const matchesQ   = !searchQuery || `${f.key} ${f.value}`.toLowerCase().includes(searchQuery);
+      return matchesCat && matchesQ;
+    });
+    if (filtered.length > 0) {
+      return filtered.slice(0, 15).map(f => `[${f.domain}] ${f.key}: ${f.value}`).join('\n');
+    }
+  } catch { /* fallback below */ }
+
+  // Legacy fallback
   let query = supabase
     .from('ibrahim_memory')
     .select('category, content, created_at')

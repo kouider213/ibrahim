@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
   Animated, Easing, Dimensions, Platform, AppState, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,14 +12,14 @@ import * as Location from 'expo-location';
 import * as KeepAwake from 'expo-keep-awake';
 import { io, type Socket } from 'socket.io-client';
 import { useStore } from '../lib/store';
-import { sendMessage, type UserLocation } from '../lib/api';
+import { sendMessage, fetchHistory, type UserLocation, type HistoryMessage } from '../lib/api';
 import { useRouter } from 'expo-router';
 
 const { width: W } = Dimensions.get('window');
 const BACKEND_URL  = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
 
 type JarvisState = 'idle' | 'listen' | 'think' | 'speak';
-type Overlay     = 'none' | 'text' | 'camera' | 'content';
+type Overlay     = 'none' | 'text' | 'camera' | 'content' | 'history';
 
 interface ContentStatus {
   tiktok: {
@@ -65,6 +65,8 @@ export default function JarvisScreen() {
   const [input,     setInput]   = useState('');
   const [lastTxt,   setLastTxt] = useState('');
   const [navLinks,  setNavLinks] = useState<{ waze?: string; maps?: string } | null>(null);
+  const [histMsgs,  setHistMsgs] = useState<HistoryMessage[]>([]);
+  const [histLoad,  setHistLoad] = useState(false);
   const [carMode,       setCarMode]       = useState(false);
   const [carCountdown,  setCarCountdown]  = useState<number | null>(null);
   const [contentStatus, setContentStatus] = useState<ContentStatus | null>(null);
@@ -243,6 +245,14 @@ export default function JarvisScreen() {
     });
     setContentStatus(prev => prev ? { ...prev, tiktok: { ...prev.tiktok, pendingVideo: null } } : prev);
   }, [MOBILE_TOKEN]);
+
+  const openHistory = useCallback(async () => {
+    setOverlay('history');
+    setHistLoad(true);
+    const msgs = await fetchHistory(sessionId, MOBILE_TOKEN, 40);
+    setHistMsgs(msgs);
+    setHistLoad(false);
+  }, [sessionId, MOBILE_TOKEN]);
 
   // ── Car mode auto-listen (wired after startRecord/stopRecord defined) ────
   useEffect(() => {
@@ -542,6 +552,35 @@ export default function JarvisScreen() {
         </View>
       )}
 
+      {/* History overlay */}
+      {overlay === 'history' && (
+        <View style={styles.contentOverlay}>
+          <View style={styles.contentBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={styles.contentTitle}>HISTORIQUE</Text>
+              <TouchableOpacity onPress={() => setOverlay('none')}>
+                <Text style={{ color: '#444', fontFamily: MONO, fontSize: 12 }}>✕ FERMER</Text>
+              </TouchableOpacity>
+            </View>
+            {histLoad ? (
+              <Text style={styles.noContent}>Chargement...</Text>
+            ) : histMsgs.length === 0 ? (
+              <Text style={styles.noContent}>Aucun historique</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
+                {histMsgs.map((m, i) => (
+                  <View key={i} style={[styles.histMsg, m.role === 'user' ? styles.histUser : styles.histBot]}>
+                    <Text style={styles.histRole}>{m.role === 'user' ? (actorId ?? 'Kouider').toUpperCase() : 'DZARYX'}</Text>
+                    <Text style={styles.histContent} numberOfLines={6}>{m.content}</Text>
+                    <Text style={styles.histTime}>{new Date(m.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Text overlay */}
       {overlay === 'text' && (
         <View style={styles.textOverlay}>
@@ -639,6 +678,13 @@ export default function JarvisScreen() {
         </TouchableOpacity>
 
         {!carMode && (
+          <TouchableOpacity style={styles.toolBtn} onPress={openHistory}>
+            <Text style={styles.toolIco}>📜</Text>
+            <Text style={styles.toolLbl}>HIST</Text>
+          </TouchableOpacity>
+        )}
+
+        {!carMode && (
           <TouchableOpacity style={styles.toolBtn} onPress={() => router.push('/settings')}>
             <Text style={styles.toolIco}>⚙️</Text>
             <Text style={styles.toolLbl}>RÉGLAGES</Text>
@@ -734,4 +780,11 @@ const styles = StyleSheet.create({
   micBtn:     { width: 72, height: 72, borderRadius: 36, backgroundColor: '#040404', borderWidth: 2, borderColor: '#00e5ff', alignItems: 'center', justifyContent: 'center', shadowColor: '#00e5ff', shadowOpacity: 0.55, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
   micActive:  { borderColor: '#ff2d55', backgroundColor: '#180008', shadowColor: '#ff2d55' },
   micIco:     { fontSize: 26 },
+
+  histMsg:    { borderRadius: 8, borderWidth: 1, marginBottom: 10, padding: 10 },
+  histUser:   { borderColor: '#0a2a3a', backgroundColor: '#050d12', alignSelf: 'flex-end' as const, marginLeft: 20 },
+  histBot:    { borderColor: '#001a0a', backgroundColor: '#030a05', alignSelf: 'flex-start' as const, marginRight: 20 },
+  histRole:   { color: '#2a4a5a', fontSize: 8, fontFamily: MONO, letterSpacing: 2, marginBottom: 4 },
+  histContent:{ color: '#888', fontSize: 11, fontFamily: MONO, lineHeight: 16 },
+  histTime:   { color: '#2a2a2a', fontSize: 8, fontFamily: MONO, marginTop: 4, textAlign: 'right' as const },
 });

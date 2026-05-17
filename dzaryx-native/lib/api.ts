@@ -38,6 +38,30 @@ export async function sendMessage(
   return res.json() as Promise<ChatResponse>;
 }
 
+export interface HistoryMessage {
+  role:       'user' | 'assistant';
+  content:    string;
+  created_at: string;
+}
+
+export async function fetchHistory(
+  sessionId:    string,
+  mobileToken?: string,
+  limit = 30,
+): Promise<HistoryMessage[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/chat/${encodeURIComponent(sessionId)}/history?limit=${limit}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { history: HistoryMessage[] };
+    return data.history ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function registerDevice(
   displayName:  string,
   mode:         string,

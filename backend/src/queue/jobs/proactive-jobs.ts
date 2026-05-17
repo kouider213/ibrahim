@@ -1116,3 +1116,64 @@ export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
     console.error('[job:claude-cost] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ── Client relance — clients n'ayant pas loué depuis 30+ jours ─────────────────
+export async function jobClientRelance(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const lockKey = `job:client-relance:sent:${today}`;
+  const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+  if (!acquired) return;
+
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const sixtyDaysAgo  = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+
+    // Clients avec dernière location entre 30 et 60 jours (actifs mais inactifs récemment)
+    const { data: bookings, error } = await supabase
+      .from('bookings')
+      .select('client_name, client_phone, end_date, cars(name)')
+      .in('status', ['CONFIRMED', 'COMPLETED', 'ACTIVE'])
+      .gte('end_date', sixtyDaysAgo)
+      .lte('end_date', thirtyDaysAgo)
+      .order('end_date', { ascending: false });
+
+    if (error || !bookings?.length) {
+      console.log('[job:client-relance] Aucun client à relancer');
+      return;
+    }
+
+    // Dédupliquer par client_phone — garder la dernière location seulement
+    const seen = new Set<string>();
+    const toRelance: Array<{ name: string; phone: string; carName: string; endDate: string }> = [];
+
+    for (const b of bookings) {
+      const phone = (b as any).client_phone ?? 'inconnu';
+      if (seen.has(phone)) continue;
+      seen.add(phone);
+      toRelance.push({
+        name:    (b as any).client_name,
+        phone,
+        carName: (b as any).cars?.name ?? 'un véhicule',
+        endDate: (b as any).end_date,
+      });
+      if (toRelance.length >= 5) break; // max 5 alertes par jour
+    }
+
+    if (toRelance.length === 0) return;
+
+    const lines = [
+      `🔔 *Relance clients — ${toRelance.length} client(s) à recontacter*\n`,
+      ...toRelance.map(c => {
+        const days = Math.floor((Date.now() - new Date(c.endDate).getTime()) / 86400000);
+        return `• *${c.name}* (${c.phone}) — dernière location: ${c.carName}, il y a ${days} jours`;
+      }),
+      `\n💡 _Pense à les contacter pour les fidéliser ou proposer une promo._`,
+    ];
+
+    await tg(lines.join('\n'));
+    emitProactive(`${toRelance.length} client(s) n'ont pas loué depuis 30+ jours. Pense à les relancer !`, 'alert');
+    console.log(`[job:client-relance] ✅ ${toRelance.length} client(s) signalés`);
+  } catch (err) {
+    console.error('[job:client-relance] ❌', err instanceof Error ? err.message : String(err));
+  }
+}

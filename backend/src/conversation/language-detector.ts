@@ -1,7 +1,7 @@
 // Language detection for Dzaryx — score-based, no external dependency.
-// Supports: French, Darija algérienne (Latin + Arabic script), Arabic standard, English, mix fr+darija.
+// Supports: French, Darija algérienne (Latin + Arabic script), Arabic standard, English, Spanish, mix fr+darija.
 
-export type DetectedLanguage = 'fr' | 'ar' | 'darija' | 'en' | 'fr+darija' | 'unknown';
+export type DetectedLanguage = 'fr' | 'ar' | 'darija' | 'en' | 'es' | 'fr+darija' | 'unknown';
 
 export interface LanguageDetection {
   lang:       DetectedLanguage;
@@ -24,6 +24,9 @@ const DARIJA_TOKENS = /\b(?:wach|wesh|bghit|bgha|khoya|kho|khti|wlad|rani|raki|r
 const DARIJA_AR_TOKENS = /(?:راك|راكي|باغي|باغية|خويا|واش|بزاف|مزيان|كيما|كيفاه|دابا|درك|ماشي|هادي|هادا|صاحبي|بصح|والو|خلاص)/g;
 
 const EN_TOKENS = /\b(?:the|this|that|is|are|was|were|have|has|do|does|will|would|can|could|should|my|your|his|her|our|their|hello|hi|hey|thanks|please|yes|no|okay|car|rental|available|booking|price|when|where|how|what|why|want|need|book|check|call|send|tell|get|go|come|see|i(?:'m|'ve|'ll|'d)?|we|you|they|it)\b/gi;
+
+// Español — clientes espagnols de Fik Conciergerie
+const ES_TOKENS = /\b(?:el|la|los|las|de|del|un|una|unos|unas|y|es|son|con|para|en|por|no|s[íi]|hola|gracias|coche|auto|reserva|reservar|disponible|precio|cu[áa]nto|cu[áa]ndo|d[óo]nde|c[óo]mo|qu[eé]|qui[eé]n|necesito|quiero|puedo|puede|tengo|tiene|bueno|buena|bien|muy|tambi[eé]n|pero|como|todo|todos|este|esta|estos|estas|mi|tu|su|nuestro|vuestra|hace|hacer|tener|ser|estar|ir|voy|vengo|venir|d[íi]as|semana|mes|alquiler|alquilar|carro|coche|moto)\b/gi;
 
 // ── Main detector ─────────────────────────────────────────────────────────────
 
@@ -77,6 +80,7 @@ export function detectLanguage(text: string): LanguageDetection {
   const frScore     = (t.match(FR_TOKENS)     ?? []).length;
   const darijaScore = (t.match(DARIJA_TOKENS) ?? []).length + darijaArScore;
   const enScore     = (t.match(EN_TOKENS)     ?? []).length;
+  const esScore     = (t.match(ES_TOKENS)     ?? []).length;
 
   // Mix French + Darija — even one French word + one darija word = mix
   if (frScore >= 1 && darijaScore >= 1) {
@@ -92,6 +96,14 @@ export function detectLanguage(text: string): LanguageDetection {
       lang:       'darija',
       label:      'Darija algérienne',
       systemHint: 'LANGUE DÉTECTÉE: darija algérienne — répondre en darija algérienne naturelle. Un peu de français est autorisé si le contexte le demande.',
+    };
+  }
+
+  if (esScore >= 2 && esScore > frScore && esScore > enScore) {
+    return {
+      lang:       'es',
+      label:      'Español',
+      systemHint: 'LANGUE DÉTECTÉE: español — responder ÚNICAMENTE en español profesional. El cliente es hispanohablante.',
     };
   }
 

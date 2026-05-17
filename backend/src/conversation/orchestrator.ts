@@ -1,5 +1,6 @@
 ﻿import { buildContext }                          from './context-builder.js';
 import { preprocessMessage, setPendingAction }    from './engine-v2.js';
+import { autoExtractMemory }                      from './auto-memory.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
 import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hallucination.js';
@@ -117,11 +118,14 @@ export async function processMessage(
   const v2ContextAddition = v2?.contextAddition ?? '';
 
   // 2. Construire le contexte + sauvegarder le message user en parallèle
+  const actorUserId = actor.ownerKey === 'houari' || sessionId.toLowerCase().includes('houari') ? 'houari' : 'kouider';
   const [ctx] = await Promise.all([
     buildContext(sessionId, effectiveMessage, actor),
     saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
       console.error('[orchestrator] user save error:', err),
     ),
+    // Auto-extract memory facts from user message (non-blocking, background)
+    autoExtractMemory(userMessage, actorUserId).catch(() => {}),
   ]);
 
   // Inject V2 pending-action context into system extra if present
