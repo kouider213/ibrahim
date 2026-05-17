@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
 import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache, fetchSchedulerJobs, fetchValidations, decideValidation, BACKEND_URL as API_BACKEND_URL, type SchedulerJob, type Validation } from '../lib/api';
@@ -9,6 +9,16 @@ interface AiHealth {
   active_fallback: string | null;
   claude_failures_today: number;
   survival_status: string;
+}
+
+interface FinanceSummary {
+  period:          string;
+  totalBookings:   number;
+  grossCA:         number;
+  kouiderProfit:   number;
+  encaisse:        number;
+  aEncaisser:      number;
+  missingOwnerPrice: number;
 }
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
@@ -42,6 +52,10 @@ export default function SettingsScreen() {
   const [aiHealth,     setAiHealth]     = useState<AiHealth | null>(null);
   const [aiHealthLoad, setAiHealthLoad] = useState(false);
   const [showAiHealth, setShowAiHealth] = useState(false);
+  const [finYear,      setFinYear]      = useState(() => String(new Date().getFullYear()));
+  const [finMonth,     setFinMonth]     = useState(() => String(new Date().getMonth() + 1));
+  const [finData,      setFinData]      = useState<FinanceSummary | null>(null);
+  const [finLoading,   setFinLoading]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +141,25 @@ export default function SettingsScreen() {
     setValidations(data);
     setValidLoad(false);
   }, [showValids, MOBILE_TOKEN]);
+
+  const handleFinanceReport = useCallback(async () => {
+    const y = Number(finYear);
+    const m = Number(finMonth);
+    if (isNaN(y) || y < 2020 || y > 2030) { Alert.alert('Année invalide'); return; }
+    if (isNaN(m) || m < 1 || m > 12)      { Alert.alert('Mois invalide (1-12)'); return; }
+    setFinLoading(true);
+    setFinData(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/finance/report?year=${y}&month=${m}`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(20000),
+      });
+      const data = await res.json() as FinanceSummary & { error?: string };
+      if (!res.ok) { Alert.alert('Erreur', data.error ?? 'Rapport échoué'); }
+      else setFinData(data);
+    } catch { Alert.alert('Erreur', 'Timeout rapport finance'); }
+    setFinLoading(false);
+  }, [finYear, finMonth, MOBILE_TOKEN]);
 
   const handleShowAiHealth = useCallback(async () => {
     if (showAiHealth) { setShowAiHealth(false); return; }
@@ -294,6 +327,62 @@ export default function SettingsScreen() {
           <TouchableOpacity style={styles.triggerBtn} onPress={handleClearCache}>
             <Text style={styles.triggerTxt}>🗑 VIDER CACHE BI</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Monthly Finance Report */}
+      {actorId === 'kouider' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>RAPPORT MENSUEL FINANCE</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+            <TextInput
+              style={[styles.row, { flex: 1, paddingVertical: 10, color: '#fff', fontFamily: MONO, fontSize: 11 }]}
+              value={finYear}
+              onChangeText={setFinYear}
+              keyboardType="numeric"
+              placeholder="2026"
+              placeholderTextColor="#333"
+              maxLength={4}
+            />
+            <TextInput
+              style={[styles.row, { flex: 1, paddingVertical: 10, color: '#fff', fontFamily: MONO, fontSize: 11 }]}
+              value={finMonth}
+              onChangeText={setFinMonth}
+              keyboardType="numeric"
+              placeholder="5"
+              placeholderTextColor="#333"
+              maxLength={2}
+            />
+          </View>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleFinanceReport} disabled={finLoading}>
+            <Text style={styles.triggerTxt}>{finLoading ? 'GÉNÉRATION...' : '📊 GÉNÉRER RAPPORT'}</Text>
+          </TouchableOpacity>
+          {finData && (
+            <View style={{ marginTop: 8 }}>
+              <Text style={[styles.schedStatus, { color: '#00e5ff' }]}>PÉRIODE: {finData.period} · {finData.totalBookings} RÉSA</Text>
+              <View style={styles.statsGrid}>
+                <View style={styles.statBox}>
+                  <Text style={[styles.statNum, { fontSize: 14, color: '#00e5ff' }]}>{Math.round(finData.grossCA)}€</Text>
+                  <Text style={styles.statLbl}>CA BRUT</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={[styles.statNum, { fontSize: 14, color: '#00ff88' }]}>{Math.round(finData.kouiderProfit)}€</Text>
+                  <Text style={styles.statLbl}>PROFIT K.</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={[styles.statNum, { fontSize: 14, color: '#ffaa00' }]}>{Math.round(finData.encaisse)}€</Text>
+                  <Text style={styles.statLbl}>ENCAISSÉ</Text>
+                </View>
+                <View style={styles.statBox}>
+                  <Text style={[styles.statNum, { fontSize: 14, color: finData.aEncaisser > 0 ? '#ff4444' : '#555' }]}>{Math.round(finData.aEncaisser)}€</Text>
+                  <Text style={styles.statLbl}>À ENCAISSER</Text>
+                </View>
+              </View>
+              {finData.missingOwnerPrice > 0 && (
+                <Text style={[styles.schedStatus, { color: '#ffaa00' }]}>⚠️ {finData.missingOwnerPrice} résa sans prix propriétaire</Text>
+              )}
+            </View>
+          )}
         </View>
       )}
 
