@@ -19,6 +19,11 @@ export default function RootLayout() {
         <Stack.Screen name="settings" />
         <Stack.Screen name="bookings" />
         <Stack.Screen name="new-booking" />
+        <Stack.Screen name="booking-detail" />
+        <Stack.Screen name="fleet" />
+        <Stack.Screen name="revenue" />
+        <Stack.Screen name="reminders" />
+        <Stack.Screen name="clients" />
       </Stack>
     </>
   );

@@ -124,11 +124,35 @@ export async function triggerSchedulerJob(jobName: string, mobileToken?: string)
 }
 
 export interface Car {
-  id:         string;
-  name:       string;
-  category:   string | null;
-  available:  boolean;
-  base_price: number | null;
+  id:           string;
+  name:         string;
+  category:     string | null;
+  available:    boolean;
+  base_price:   number | null;
+  resale_price: number | null;
+  description:  string | null;
+  seats:        number | null;
+  fuel:         string | null;
+  transmission: string | null;
+  image_url:    string | null;
+}
+
+export interface RevenueSummary {
+  today_revenue:         number;
+  week_revenue:          number;
+  month_revenue:         number;
+  kouider_profit_month:  number;
+  houari_revenue_month:  number;
+  missing_owner_price:   number;
+  avg_booking_value:     number;
+  total_bookings_month:  number;
+  top_clients: Array<{
+    client_name:    string;
+    client_phone?:  string;
+    bookings_count: number;
+    total_spent:    number;
+    score:          string;
+  }>;
 }
 
 export async function updateBookingField(
@@ -167,19 +191,24 @@ export async function fetchCars(mobileToken?: string): Promise<Car[]> {
 
 export interface Booking {
   id:                   string;
+  car_id:               string;
   client_name:          string;
+  client_email:         string | null;
   client_phone:         string | null;
+  client_age:           number | null;
   start_date:           string;
   end_date:             string;
   final_price:          number | null;
   payment_status:       string;
   status:               string;
   rented_by:            string | null;
+  notes:                string | null;
   client_price_per_day: number | null;
   owner_price_per_day:  number | null;
   profit_kouider:       number | null;
   paid_amount:          number | null;
-  cars:                 { name: string; category: string | null } | null;
+  nb_days:              number | null;
+  cars:                 { id: string; name: string; category: string | null } | null;
 }
 
 export async function fetchBookings(
@@ -198,6 +227,138 @@ export async function fetchBookings(
     if (!res.ok) return [];
     const data = await res.json() as { bookings: Booking[] };
     return data.bookings ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchBookingById(
+  bookingId:    string,
+  mobileToken?: string,
+): Promise<Booking | null> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bookings/${encodeURIComponent(bookingId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { booking: Booking };
+    return data.booking ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteBooking(
+  bookingId:    string,
+  mobileToken?: string,
+): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bookings/${encodeURIComponent(bookingId)}`, {
+      method:  'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+      signal:  AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchAllCars(mobileToken?: string): Promise<Car[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/cars`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { cars: Car[] };
+    return data.cars ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function updateCar(
+  carId:        string,
+  updates:      Partial<Pick<Car, 'available' | 'base_price' | 'resale_price' | 'description'>>,
+  mobileToken?: string,
+): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/cars/${encodeURIComponent(carId)}`, {
+      method:  'PATCH',
+      headers: authHeaders(token),
+      body:    JSON.stringify(updates),
+      signal:  AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchRevenue(mobileToken?: string): Promise<RevenueSummary | null> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bi/revenue`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    return res.json() as Promise<RevenueSummary>;
+  } catch {
+    return null;
+  }
+}
+
+export interface SmartReminder {
+  type:        string;
+  priority:    'HIGH' | 'MEDIUM' | 'LOW';
+  client_name: string;
+  car_name:    string;
+  date:        string;
+  message:     string;
+  action:      string;
+}
+
+export async function fetchReminders(mobileToken?: string): Promise<SmartReminder[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bi/reminders`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { reminders: SmartReminder[] };
+    return data.reminders ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export interface ClientSummary {
+  name:         string;
+  phone:        string | null;
+  email:        string | null;
+  bookingCount: number;
+  totalSpent:   number;
+  lastBooking:  string;
+}
+
+export async function fetchClients(mobileToken?: string): Promise<ClientSummary[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/clients`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { clients: ClientSummary[] };
+    return data.clients ?? [];
   } catch {
     return [];
   }

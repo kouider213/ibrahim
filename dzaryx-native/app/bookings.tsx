@@ -164,7 +164,8 @@ export default function BookingsScreen() {
           const hasMissingProfit = b.owner_price_per_day == null && ['ACTIVE', 'CONFIRMED', 'PENDING'].includes(b.status);
 
           return (
-            <View key={b.id} style={[styles.card, late && styles.cardLate]}>
+            <TouchableOpacity key={b.id} activeOpacity={0.8} onPress={() => router.push({ pathname: '/booking-detail', params: { id: b.id } })}>
+            <View style={[styles.card, late && styles.cardLate]}>
               {/* Card header */}
               <View style={styles.cardTop}>
                 <View style={[styles.statusDot, { backgroundColor: color }]} />
@@ -222,6 +223,7 @@ export default function BookingsScreen() {
                 <Text style={styles.idTxt}>#{b.id.slice(-6).toUpperCase()}</Text>
               </View>
             </View>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>

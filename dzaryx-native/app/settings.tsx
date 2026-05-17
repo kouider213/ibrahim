@@ -175,6 +175,18 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.bookingsBtn} onPress={() => router.push('/bookings')}>
           <Text style={styles.bookingsTxt}>📋 RÉSERVATIONS</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.fleetBtn} onPress={() => router.push('/fleet')}>
+          <Text style={styles.fleetTxt}>🚗 PARC VÉHICULES</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.revenueBtn} onPress={() => router.push('/revenue')}>
+          <Text style={styles.revenueTxt}>💰 REVENUS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.remindersBtn} onPress={() => router.push('/reminders')}>
+          <Text style={styles.remindersTxt}>🔔 RAPPELS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.clientsBtn} onPress={() => router.push('/clients')}>
+          <Text style={styles.clientsTxt}>👥 CLIENTS</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.switchBtn} onPress={() => router.replace('/auth/login')}>
           <Text style={styles.switchTxt}>CHANGER DE PROFIL</Text>
         </TouchableOpacity>
@@ -234,6 +246,30 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
   },
   bookingsTxt: { color: '#00ff88', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  fleetBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff44',
+    borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
+  },
+  fleetTxt: { color: '#00e5ff', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  revenueBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#ffaa0044',
+    borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
+  },
+  revenueTxt: { color: '#ffaa00', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  remindersBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#ff444433',
+    borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
+  },
+  remindersTxt: { color: '#ff4444', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  clientsBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#ffd70033',
+    borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
+  },
+  clientsTxt: { color: '#ffd700', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
 
   switchBtn: {
     backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff44',

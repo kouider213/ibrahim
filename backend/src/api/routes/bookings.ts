@@ -184,4 +184,47 @@ router.get('/cars', requireMobileAuth, async (_req, res) => {
   }
 });
 
+// GET /api/bookings/:id — full booking detail
+router.get('/:id', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*, cars(id, name, category, base_price, available)')
+      .eq('id', id)
+      .single();
+    if (error) { res.status(404).json({ error: 'Réservation introuvable' }); return; }
+    res.json({ booking: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// DELETE /api/bookings/:id — delete booking (also removes calendar event if stored)
+router.delete('/:id', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  try {
+    // Fetch to get google_event_id if present
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, google_event_id')
+      .eq('id', id)
+      .single();
+
+    const { error } = await supabase.from('bookings').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+
+    // Non-blocking calendar cleanup
+    if (booking && (booking as { google_event_id?: string }).google_event_id) {
+      const { deleteCalendarEvent } = await import('../../integrations/google-calendar.js');
+      deleteCalendarEvent((booking as { google_event_id: string }).google_event_id)
+        .catch(e => console.error('[bookings] Calendar delete failed:', e));
+    }
+
+    res.json({ message: 'Réservation supprimée', id });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

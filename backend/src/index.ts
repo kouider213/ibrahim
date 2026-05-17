@@ -42,6 +42,7 @@ import workflowRoutes      from './api/routes/workflow.js';
 import biRoutes            from './api/routes/bi.js';
 import orchestratorRoutes  from './api/routes/orchestrator.js';
 import healthAiRoutes      from './api/routes/health-ai.js';
+import carsRoutes           from './api/routes/cars.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -246,6 +247,7 @@ app.use('/api/bootstrap',     bootstrapRoutes);
 app.use('/api/calendar',      apiLimiter, calendarRoutes);
 app.use('/api/clients',       apiLimiter, clientsRoutes);
 app.use('/api/bookings',      apiLimiter, bookingsRoutes);
+app.use('/api/cars',          apiLimiter, carsRoutes);
 app.use('/api/weather',       apiLimiter, weatherRoutes);
 app.use('/api/siri',          apiLimiter, siriRoutes);
 app.use('/api/github',        apiLimiter, githubRoutes);
