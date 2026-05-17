@@ -21,6 +21,8 @@ import {
   jobBIReminders,
   jobClaudeCostMonitor,
   jobClientRelance,
+  jobVehicleUtilization,
+  jobHabitCheck,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { notifyOwner } from '../notifications/pushover.js';
@@ -139,6 +141,16 @@ const JOBS = [
     cron:  '0 11 * * 2,4',     // 11h mardi + jeudi — clients inactifs 30+ jours
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'vehicle-utilization',
+    cron:  '0 9 * * 6',         // 9h samedi — rapport utilisation parc 30 jours
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'habit-check',
+    cron:  '15 8 * * *',        // 8h15 chaque matin — rappel habitudes Kouider
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -163,6 +175,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'bi-reminders':             jobBIReminders,
   'claude-cost-monitor':      jobClaudeCostMonitor,
   'client-relance':           jobClientRelance,
+  'vehicle-utilization':      jobVehicleUtilization,
+  'habit-check':              jobHabitCheck,
 };
 
 export async function initScheduler(): Promise<void> {

@@ -1,6 +1,7 @@
 ﻿import { buildContext }                          from './context-builder.js';
 import { preprocessMessage, setPendingAction }    from './engine-v2.js';
 import { autoExtractMemory }                      from './auto-memory.js';
+import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
 import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hallucination.js';
@@ -403,10 +404,18 @@ export async function processMessage(
   // 4. Émettre le texte IMMÉDIATEMENT dès que Claude a répondu
   _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
 
-  // 5. Sauvegarder en base (non-bloquant)
+  // 5. Sauvegarder en base + épisode mémoire (non-bloquant)
   saveConversationTurn(sessionId, 'assistant', safeText).catch((err: unknown) =>
     console.error('[orchestrator] save error:', err),
   );
+  trackEpisode({
+    sessionId,
+    userMessage,
+    aiResponse:    safeText,
+    toolsExecuted: response.toolsExecuted,
+    source:        source_channel === 'telegram' ? 'telegram' : 'app',
+    actorUserId,
+  }).catch(() => {});
 
   // 6. Audio ElevenLabs (seulement si app mobile, pas Telegram)
   if (!textOnly && safeText.length > 0) {

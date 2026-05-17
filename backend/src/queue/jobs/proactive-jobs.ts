@@ -1177,3 +1177,134 @@ export async function jobClientRelance(_job: Job): Promise<void> {
     console.error('[job:client-relance] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ── 21. Taux d'utilisation véhicules — rapport hebdo samedi 9h ────────────────
+export async function jobVehicleUtilization(_job: Job): Promise<void> {
+  try {
+    const today   = new Date().toISOString().slice(0, 10);
+    const lockKey = `job:vehicle-utilization:sent:${today}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    if (!acquired) return;
+
+    const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+
+    // Fetch all bookings from last 30 days
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('car_id, start_date, end_date, cars(name)')
+      .gte('end_date', since30)
+      .neq('status', 'cancelled');
+
+    // Fetch all active cars
+    const { data: cars } = await supabase
+      .from('cars')
+      .select('id, name, status')
+      .eq('available', true);
+
+    if (!cars || cars.length === 0) return;
+
+    // Count booked days per car
+    const bookedDays: Record<string, number> = {};
+    const carNames: Record<string, string>   = {};
+
+    for (const car of cars as Array<{ id: string; name: string }>) {
+      bookedDays[car.id] = 0;
+      carNames[car.id]   = car.name;
+    }
+
+    for (const b of (bookings ?? []) as Array<{ car_id: string; start_date: string; end_date: string }>) {
+      if (!(b.car_id in bookedDays)) continue;
+      const start = new Date(b.start_date).getTime();
+      const end   = new Date(b.end_date).getTime();
+      const days  = Math.max(1, Math.round((end - start) / 86_400_000));
+      bookedDays[b.car_id] = (bookedDays[b.car_id] ?? 0) + days;
+    }
+
+    // Sort by utilization rate descending
+    const sorted = Object.entries(bookedDays).sort((a, b) => b[1] - a[1]);
+    const total  = 30;
+
+    const lines: string[] = [
+      `🚗 *Taux d'utilisation du parc — 30 derniers jours*\n`,
+      ...sorted.map(([id, days]) => {
+        const rate = Math.round((days / total) * 100);
+        const bar  = '█'.repeat(Math.floor(rate / 10)) + '░'.repeat(10 - Math.floor(rate / 10));
+        const hint = rate < 30 ? ' ⚠️ sous-utilisé' : rate >= 80 ? ' ✅ excellent' : '';
+        return `• *${carNames[id] ?? id}* — ${bar} ${rate}%${hint}`;
+      }),
+    ];
+
+    // Identify idle cars (< 20% utilization)
+    const idle = sorted.filter(([, d]) => d < 6);
+    if (idle.length > 0) {
+      lines.push(`\n💡 *Suggestions* :`);
+      for (const [id, days] of idle) {
+        const rate = Math.round((days / total) * 100);
+        lines.push(`  — ${carNames[id] ?? id} (${rate}%) : envisage de baisser le tarif ou une promo flash.`);
+      }
+    }
+
+    await tg(lines.join('\n'));
+    emitProactive(`Rapport utilisation parc : ${sorted.length} véhicules analysés sur 30 jours.`, 'info');
+    console.log('[job:vehicle-utilization] ✅ rapport envoyé');
+  } catch (err) {
+    console.error('[job:vehicle-utilization] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── 22. Vérification habitudes Kouider — quotidien 8h15 ───────────────────────
+export async function jobHabitCheck(_job: Job): Promise<void> {
+  try {
+    const now   = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const lockKey = `job:habit-check:sent:${today}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    if (!acquired) return;
+
+    const { data: habits } = await supabase
+      .from('memory_habits')
+      .select('*')
+      .eq('active', true)
+      .eq('user_id', 'kouider');
+
+    if (!habits || habits.length === 0) return;
+
+    const due: Array<{ name: string; description: string }> = [];
+    const hourNow = now.getHours();
+
+    for (const h of habits as Array<{
+      habit_name: string;
+      description: string;
+      schedule_type: string;
+      interval_hours?: number;
+      last_done_at?: string;
+    }>) {
+      if (h.schedule_type === 'daily') {
+        // Morning check (7h-10h) — always remind
+        if (hourNow >= 7 && hourNow <= 10) {
+          due.push({ name: h.habit_name, description: h.description });
+        }
+      } else if (h.schedule_type === 'interval' && h.interval_hours) {
+        const lastDone = h.last_done_at ? new Date(h.last_done_at).getTime() : 0;
+        const hoursSince = (Date.now() - lastDone) / 3_600_000;
+        if (hoursSince >= h.interval_hours) {
+          due.push({ name: h.habit_name, description: h.description });
+        }
+      }
+    }
+
+    if (due.length === 0) return;
+
+    const lines = [
+      `⭐ *Tes habitudes du jour, Kouider :*\n`,
+      ...due.map(h => `• ${h.name} — ${h.description}`),
+      `\nBonne journée ! 💪`,
+    ];
+
+    await tg(lines.join('\n'));
+    emitProactive(`${due.length} habitude(s) à faire aujourd'hui : ${due.map(h => h.name).join(', ')}`, 'reminder');
+    console.log(`[job:habit-check] ✅ ${due.length} habitude(s) rappelées`);
+  } catch (err) {
+    console.error('[job:habit-check] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
