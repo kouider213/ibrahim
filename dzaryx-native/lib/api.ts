@@ -174,6 +174,27 @@ export async function updateBookingField(
   }
 }
 
+export async function checkCarAvailability(
+  carId:     string,
+  startDate: string,
+  endDate:   string,
+  mobileToken?: string,
+): Promise<boolean | null> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const params = new URLSearchParams({ carId, startDate, endDate });
+    const res = await fetch(`${BACKEND_URL}/api/bookings/availability?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { available: boolean };
+    return data.available;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchCars(mobileToken?: string): Promise<Car[]> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   try {

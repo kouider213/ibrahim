@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchCars, type Car, BACKEND_URL } from '../lib/api';
+import { fetchCars, checkCarAvailability, type Car, BACKEND_URL } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -42,11 +42,23 @@ export default function NewBookingScreen() {
   const [clientPPD,   setClientPPD]   = useState('');
   const [ownerPPD,    setOwnerPPD]    = useState('');
   const [notes,       setNotes]       = useState('');
-  const [submitting,  setSubmitting]  = useState(false);
+  const [submitting,   setSubmitting]   = useState(false);
+  const [availability, setAvailability] = useState<boolean | null>(null);
+  const [availChecking,setAvailChecking]= useState(false);
 
   useEffect(() => {
     fetchCars(TOKEN).then(data => { setCars(data); setCarsLoading(false); });
   }, [TOKEN]);
+
+  useEffect(() => {
+    if (!selectedCar || !startDate || !endDate) { setAvailability(null); return; }
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRe.test(startDate) || !dateRe.test(endDate)) return;
+    setAvailChecking(true);
+    checkCarAvailability(selectedCar.id, startDate, endDate, TOKEN)
+      .then(a => setAvailability(a))
+      .finally(() => setAvailChecking(false));
+  }, [selectedCar, startDate, endDate, TOKEN]);
 
   const days = Math.max(1, Math.ceil(
     (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000,
@@ -58,6 +70,7 @@ export default function NewBookingScreen() {
   const handleSubmit = useCallback(async () => {
     if (!selectedCar) { Alert.alert('Voiture requise', 'Sélectionne une voiture.'); return; }
     if (!clientName.trim()) { Alert.alert('Client requis', 'Entre le nom du client.'); return; }
+    if (!clientPhone.trim() || clientPhone.trim().length < 6) { Alert.alert('Téléphone requis', 'Entre un numéro de téléphone valide (min 6 chiffres).'); return; }
     if (!finalPrice || isNaN(Number(finalPrice))) { Alert.alert('Prix requis', 'Entre un prix total valide.'); return; }
 
     setSubmitting(true);
@@ -226,6 +239,15 @@ export default function NewBookingScreen() {
         </View>
 
         <Text style={styles.durationHint}>{days} jour{days > 1 ? 's' : ''}</Text>
+        {selectedCar && (
+          availChecking ? (
+            <Text style={styles.availChecking}>Vérification disponibilité...</Text>
+          ) : availability === true ? (
+            <Text style={styles.availOk}>✅ {selectedCar.name} disponible pour ces dates</Text>
+          ) : availability === false ? (
+            <Text style={styles.availErr}>⛔ {selectedCar.name} déjà réservé sur ces dates</Text>
+          ) : null
+        )}
 
         {/* Financial */}
         <Text style={styles.label}>PRIX TOTAL CLIENT (€) *</Text>
@@ -342,8 +364,11 @@ const styles = StyleSheet.create({
   row2:    { flexDirection: 'row', gap: 10 },
   halfCol: { flex: 1 },
 
-  durationHint: { color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 2, marginTop: 6 },
-  ageWarn:      { color: '#ffaa00', fontSize: 9, fontFamily: MONO, letterSpacing: 1, marginTop: 6, lineHeight: 14 },
+  durationHint:  { color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 2, marginTop: 6 },
+  ageWarn:       { color: '#ffaa00', fontSize: 9, fontFamily: MONO, letterSpacing: 1, marginTop: 6, lineHeight: 14 },
+  availChecking: { color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 1, marginTop: 6 },
+  availOk:       { color: '#00ff88', fontSize: 9, fontFamily: MONO, letterSpacing: 1, marginTop: 6 },
+  availErr:      { color: '#ff4444', fontSize: 10, fontFamily: MONO, letterSpacing: 1, marginTop: 6, fontWeight: '700' },
 
   profitRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
