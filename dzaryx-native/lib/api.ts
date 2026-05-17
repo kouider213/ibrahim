@@ -363,3 +363,49 @@ export async function fetchClients(mobileToken?: string): Promise<ClientSummary[
     return [];
   }
 }
+
+export interface ClientIntelligence {
+  client_name:           string;
+  client_phone:          string | null;
+  preferred_cars:        string[];
+  typical_duration_days: number | null;
+  negotiation_style:     string;
+  avg_discount_asked:    number;
+  payment_reliability:   string;
+  total_bookings:        number;
+  total_spent:           number;
+  last_booking_date:     string | null;
+  score:                 string;
+  notes:                 string | null;
+}
+
+export async function fetchClientIntelligence(mobileToken?: string): Promise<ClientIntelligence[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/clients/intelligence`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { clients: ClientIntelligence[] };
+    return data.clients ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function backfillClientIntelligence(mobileToken?: string): Promise<{ ok: boolean; message: string }> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/clients/backfill`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      signal:  AbortSignal.timeout(30000),
+    });
+    const data = await res.json() as { ok?: boolean; message?: string; error?: string };
+    if (!res.ok) return { ok: false, message: data.error ?? 'Backfill échoué' };
+    return { ok: true, message: data.message ?? 'Backfill terminé' };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}

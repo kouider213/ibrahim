@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl, Linking, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
 import { fetchBookings, updateBookingField, type Booking } from '../lib/api';
@@ -45,6 +45,7 @@ export default function BookingsScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter,     setFilter]     = useState<Filter>('ALL');
+  const [search,     setSearch]     = useState('');
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -77,8 +78,17 @@ export default function BookingsScreen() {
   }, [TOKEN]);
 
   const filtered = bookings.filter(b => {
-    if (filter === 'ALL') return true;
-    return b.status === filter;
+    if (filter !== 'ALL' && b.status !== filter) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return (
+        b.client_name.toLowerCase().includes(q) ||
+        (b.client_phone ?? '').includes(q) ||
+        (b.cars as { name: string } | null)?.name.toLowerCase().includes(q) ||
+        b.id.toLowerCase().includes(q.replace('#', ''))
+      );
+    }
+    return true;
   });
 
   const stats = {
@@ -142,6 +152,22 @@ export default function BookingsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Search */}
+      <View style={styles.searchBox}>
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="RECHERCHE CLIENT / TÉL / VOITURE..."
+          placeholderTextColor="#1a1a1a"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Text style={styles.clearTxt}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* List */}
       <ScrollView
@@ -254,6 +280,17 @@ const styles = StyleSheet.create({
   filterTabActive: { borderColor: '#00e5ff', backgroundColor: '#00e5ff11' },
   filterTxt:    { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
   filterTxtActive: { color: '#00e5ff' },
+
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 16, marginBottom: 8,
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#111',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 2,
+  },
+  searchInput: {
+    flex: 1, color: '#fff', fontSize: 9, fontFamily: MONO, letterSpacing: 2, paddingVertical: 10,
+  },
+  clearTxt: { color: '#333', fontSize: 14, paddingHorizontal: 4 },
 
   list:        { flex: 1 },
   listContent: { padding: 16, paddingBottom: 40 },

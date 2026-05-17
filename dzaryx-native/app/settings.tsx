@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchFleetStats, triggerSchedulerJob } from '../lib/api';
+import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence } from '../lib/api';
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
@@ -58,6 +58,14 @@ export default function SettingsScreen() {
     const ok = await triggerSchedulerJob(jobName, MOBILE_TOKEN);
     setSchedStatus(ok ? '✅ Déclenché !' : '❌ Erreur');
     setTimeout(() => setSchedStatus(null), 3000);
+  }, [MOBILE_TOKEN]);
+
+  const handleBackfill = useCallback(async () => {
+    if (!MOBILE_TOKEN) return;
+    setSchedStatus('Backfill en cours...');
+    const result = await backfillClientIntelligence(MOBILE_TOKEN);
+    setSchedStatus(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`);
+    setTimeout(() => setSchedStatus(null), 5000);
   }, [MOBILE_TOKEN]);
 
   function handleLogout() {
@@ -154,6 +162,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.triggerBtn} onPress={() => triggerJob('vehicle-utilization')}>
             <Text style={styles.triggerTxt}>🚗 RAPPORT PARC</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleBackfill}>
+            <Text style={styles.triggerTxt}>🧠 BACKFILL INTELLIGENCE CLIENTS</Text>
           </TouchableOpacity>
         </View>
       )}

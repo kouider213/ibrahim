@@ -73,6 +73,8 @@ export default function NewBookingScreen() {
       };
       if (clientAge.trim() && !isNaN(Number(clientAge))) body['client_age'] = Number(clientAge);
       if (notes.trim()) body['notes'] = notes.trim();
+      if (clientPPD && !isNaN(Number(clientPPD))) body['client_price_per_day'] = Number(clientPPD);
+      if (ownerPPD  && !isNaN(Number(ownerPPD)))  body['owner_price_per_day']  = Number(ownerPPD);
 
       const res = await fetch(`${BACKEND_URL}/api/bookings`, {
         method: 'POST',
@@ -87,19 +89,6 @@ export default function NewBookingScreen() {
         return;
       }
 
-      // If owner/client PPD provided, update the booking with financial data
-      if ((clientPPD || ownerPPD) && json.booking?.id) {
-        const ppd: Record<string, unknown> = {};
-        if (clientPPD) ppd['client_price_per_day'] = Number(clientPPD);
-        if (ownerPPD)  ppd['owner_price_per_day']  = Number(ownerPPD);
-        if (clientPPD && ownerPPD) ppd['profit_kouider'] = profit;
-        await fetch(`${BACKEND_URL}/api/bookings/${json.booking.id}`, {
-          method: 'PATCH',
-          headers: authHeaders(TOKEN),
-          body: JSON.stringify(ppd),
-        }).catch(() => {});
-      }
-
       Alert.alert(
         '✅ Réservation créée',
         `${clientName} — ${selectedCar.name}\n${startDate} → ${endDate}\n${finalPrice}€`,
@@ -110,7 +99,7 @@ export default function NewBookingScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedCar, clientName, clientPhone, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, TOKEN, profit, router]);
+  }, [selectedCar, clientName, clientPhone, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, TOKEN, router]);
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
