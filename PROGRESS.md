@@ -103,6 +103,11 @@
   - Added RÉGLAGES button to toolbar
   - Added quick commands row (4 tap buttons)
 
+**Critical bug found and fixed (B017):**
+- Socket.IO native app was connecting to `/` (root) instead of `/mobile` namespace
+- All real-time events (text_complete, status, proactive) were never received
+- Fixed: `io(BACKEND_URL + '/mobile', { auth: { token: MOBILE_TOKEN } })`
+
 **Files modified this session:**
 - backend/src/conversation/normalizer.ts (NEW)
 - backend/src/conversation/entity-extractor.ts (NEW)
@@ -127,6 +132,7 @@
 1. **EXPO_TOKEN** — user must run `! eas login` in Claude Code terminal
    OR generate token at expo.dev → Account Settings → Access Tokens
    Then run: `! cd dzaryx-native && eas build --platform android --profile preview --non-interactive`
+   See also: `dzaryx-native/BUILD_APK.md` for full instructions
 
 ### HIGH (functionality gaps)
 2. Admin confirmation gate — isAdminAction flag exists but not hard-enforced in orchestrator
