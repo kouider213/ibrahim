@@ -320,7 +320,11 @@ export default function BookingDetailScreen() {
             {booking.client_phone && (
               <TouchableOpacity style={styles.waBtn} onPress={() => {
                 const phone = booking.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
-                Linking.openURL(`https://wa.me/${phone}`);
+                const car   = booking.cars?.name ?? 'votre véhicule';
+                const msg   = encodeURIComponent(
+                  `Bonjour ${booking.client_name}, votre réservation ${car} est confirmée du ${fmtDate(booking.start_date)} au ${fmtDate(booking.end_date)}. Fik Conciergerie Oran.`
+                );
+                Linking.openURL(`https://wa.me/${phone}?text=${msg}`);
               }}>
                 <Text style={styles.waTxt}>💬 WA</Text>
               </TouchableOpacity>

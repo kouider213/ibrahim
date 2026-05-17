@@ -145,7 +145,13 @@ export default function NewBookingScreen() {
               <TouchableOpacity
                 key={car.id}
                 style={[styles.carItem, selectedCar?.id === car.id && styles.carItemActive]}
-                onPress={() => { setSelectedCar(car); setShowCarPicker(false); }}
+                onPress={() => {
+                  setSelectedCar(car);
+                  setShowCarPicker(false);
+                  // Auto-fill price fields from car's base/resale prices
+                  if (car.base_price != null && !clientPPD) setClientPPD(String(car.base_price));
+                  if (car.resale_price != null && !ownerPPD)  setOwnerPPD(String(car.resale_price));
+                }}
               >
                 <View style={[styles.availDot, { backgroundColor: car.available ? '#00ff88' : '#ff4444' }]} />
                 <Text style={styles.carItemTxt}>{car.name}</Text>
