@@ -5,7 +5,22 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchClientIntelligence, fetchBookings, updateClientNotes, type ClientIntelligence, type Booking } from '../lib/api';
+import { fetchClientIntelligence, fetchBookings, updateClientNotes, BACKEND_URL, type ClientIntelligence, type Booking } from '../lib/api';
+
+interface ClientDocument {
+  id:           string;
+  type:         'passport' | 'license' | 'contract' | 'other';
+  file_url:     string;
+  notes?:       string | null;
+  created_at:   string;
+}
+
+const DOC_ICON: Record<string, string> = {
+  passport: '🪪',
+  license:  '🚗',
+  contract: '📄',
+  other:    '📎',
+};
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -48,6 +63,9 @@ export default function ClientDetailScreen() {
   const [editingNotes,  setEditingNotes]  = useState(false);
   const [notesText,     setNotesText]     = useState('');
   const [notesSaving,   setNotesSaving]   = useState(false);
+  const [docs,          setDocs]          = useState<ClientDocument[]>([]);
+  const [docsLoaded,    setDocsLoaded]    = useState(false);
+  const [showDocs,      setShowDocs]      = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +81,21 @@ export default function ClientDetailScreen() {
     setBookings(bks.sort((a, b) => b.start_date.localeCompare(a.start_date)));
     setLoading(false);
   }, [TOKEN, name, phone]);
+
+  const loadDocs = useCallback(async (clientPhone: string) => {
+    if (docsLoaded) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/documents/${encodeURIComponent(clientPhone)}`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        const data = await res.json() as { documents: ClientDocument[] };
+        setDocs(data.documents ?? []);
+      }
+    } catch { /* ignore */ }
+    setDocsLoaded(true);
+  }, [TOKEN, docsLoaded]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -237,6 +270,48 @@ export default function ClientDetailScreen() {
           </>
         )}
 
+        {/* Documents */}
+        {clientPhone && (
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.docsHeader}
+              onPress={() => {
+                if (!showDocs) loadDocs(clientPhone);
+                setShowDocs(v => !v);
+              }}
+            >
+              <Text style={styles.sectionTitle}>DOCUMENTS</Text>
+              <Text style={styles.docsToggle}>{showDocs ? '▲ MASQUER' : '▼ VOIR'}</Text>
+            </TouchableOpacity>
+            {showDocs && (
+              docsLoaded ? (
+                docs.length === 0 ? (
+                  <Text style={styles.noDocsTxt}>Aucun document stocké pour ce client.</Text>
+                ) : (
+                  docs.map((d, i) => (
+                    <TouchableOpacity
+                      key={d.id ?? i}
+                      style={styles.docRow}
+                      onPress={() => Linking.openURL(d.file_url)}
+                    >
+                      <Text style={styles.docIcon}>{DOC_ICON[d.type] ?? '📎'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.docType}>{d.type.toUpperCase()}</Text>
+                        {d.notes ? <Text style={styles.docNote}>{d.notes}</Text> : null}
+                      </View>
+                      <Text style={styles.docDate}>
+                        {new Date(d.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )
+              ) : (
+                <ActivityIndicator color="#00e5ff" style={{ marginTop: 8 }} />
+              )
+            )}
+          </View>
+        )}
+
         {/* Booking history */}
         {bookings.length > 0 && (
           <View style={styles.card}>
@@ -338,4 +413,13 @@ const styles = StyleSheet.create({
   bkDates:  { color: '#333', fontSize: 8, fontFamily: MONO, marginTop: 2 },
   bkPrice:  { color: '#fff', fontSize: 11, fontFamily: MONO, fontWeight: '700' },
   bkStatus: { fontSize: 7, fontFamily: MONO, letterSpacing: 2, marginTop: 2 },
+
+  docsHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  docsToggle:  { color: '#00e5ff44', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
+  noDocsTxt:   { color: '#2a2a2a', fontSize: 9, fontFamily: MONO, letterSpacing: 1, marginTop: 8, textAlign: 'center' },
+  docRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
+  docIcon:     { fontSize: 18 },
+  docType:     { color: '#888', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 2 },
+  docNote:     { color: '#444', fontSize: 8, fontFamily: MONO, marginTop: 2 },
+  docDate:     { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 1 },
 });

@@ -573,6 +573,41 @@ export async function updateClientNotes(
   }
 }
 
+export interface AppNotification {
+  id:         string;
+  title?:     string;
+  body?:      string;
+  type?:      string;
+  status:     string;
+  data?:      Record<string, unknown>;
+  created_at: string;
+}
+
+export async function fetchNotifications(mobileToken?: string, limit = 50): Promise<AppNotification[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/notifications?limit=${limit}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { notifications: AppNotification[] };
+    return data.notifications ?? [];
+  } catch { return []; }
+}
+
+export async function markNotificationRead(id: string, mobileToken?: string): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/notifications/${id}/read`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function backfillClientIntelligence(mobileToken?: string): Promise<{ ok: boolean; message: string }> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   try {

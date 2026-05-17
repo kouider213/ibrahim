@@ -405,21 +405,8 @@ export default function JarvisScreen() {
     return () => { sub?.remove(); };
   }, []);
 
-  // ── Push notifications ────────────────────────────────────────────
+  // ── Push notification response listener (tap notification → speak) ──
   useEffect(() => {
-    (async () => {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') return;
-      const token = (await Notifications.getExpoPushTokenAsync({ projectId: '3536fdc5-6088-4fd4-9a4f-d443f0a52a1e' })).data;
-      // Register token with backend so proactive push works when app is closed
-      fetch(`${BACKEND_URL}/api/push-token`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MOBILE_TOKEN}` },
-        body:    JSON.stringify({ token }),
-      }).catch(() => {});
-    })();
-
-    // When user taps a proactive notification → speak it
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data as { text?: string } | undefined;
       const text = data?.text ?? response.notification.request.content.body ?? '';
@@ -710,6 +697,13 @@ export default function JarvisScreen() {
           <TouchableOpacity style={styles.toolBtn} onPress={openHistory}>
             <Text style={styles.toolIco}>📜</Text>
             <Text style={styles.toolLbl}>HIST</Text>
+          </TouchableOpacity>
+        )}
+
+        {!carMode && (
+          <TouchableOpacity style={styles.toolBtn} onPress={() => router.push('/notifications')}>
+            <Text style={styles.toolIco}>🔔</Text>
+            <Text style={styles.toolLbl}>ALERTES</Text>
           </TouchableOpacity>
         )}
 
