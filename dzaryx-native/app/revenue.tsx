@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchRevenue, type RevenueSummary } from '../lib/api';
+import { fetchRevenue, fetchFleetStats, type RevenueSummary, type FleetIntelligence } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -27,13 +27,15 @@ export default function RevenueScreen() {
   const TOKEN = mobileToken();
 
   const [data,       setData]       = useState<RevenueSummary | null>(null);
+  const [fleet,      setFleet]      = useState<FleetIntelligence | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
-    const rev = await fetchRevenue(TOKEN);
+    const [rev, fl] = await Promise.all([fetchRevenue(TOKEN), fetchFleetStats(TOKEN)]);
     setData(rev);
+    setFleet(fl);
     if (isRefresh) setRefreshing(false); else setLoading(false);
   }, [TOKEN]);
 
@@ -123,6 +125,30 @@ export default function RevenueScreen() {
                   </View>
                 )}
               </View>
+
+              {/* Per-car breakdown */}
+              {fleet?.stats && fleet.stats.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>PAR VÉHICULE (30 JOURS)</Text>
+                  {[...fleet.stats]
+                    .sort((a, b) => (b.revenue_30d ?? 0) - (a.revenue_30d ?? 0))
+                    .map((s, i) => {
+                      const bar = Math.min(100, Math.round(s.occupancy_pct ?? 0));
+                      return (
+                        <View key={i} style={styles.carRevRow}>
+                          <View style={styles.carRevLeft}>
+                            <Text style={styles.carRevName}>{s.car_name.toUpperCase()}</Text>
+                            <View style={styles.occBarBg}>
+                              <View style={[styles.occBarFill, { width: `${bar}%` as unknown as number }]} />
+                            </View>
+                            <Text style={styles.carRevOcc}>{bar}% occupé</Text>
+                          </View>
+                          <Text style={styles.carRevAmt}>{fmt(s.revenue_30d ?? 0)}</Text>
+                        </View>
+                      );
+                    })}
+                </>
+              )}
 
               {/* Top clients */}
               {data.top_clients?.length > 0 && (
@@ -228,6 +254,14 @@ const styles = StyleSheet.create({
   clientPhone:  { color: '#333', fontSize: 9, fontFamily: MONO, marginTop: 2 },
   clientTotal:  { color: '#00ff88', fontSize: 12, fontFamily: MONO, fontWeight: '700' },
   clientCount:  { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 1, marginTop: 2 },
+
+  carRevRow:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8 },
+  carRevLeft:   { flex: 1 },
+  carRevName:   { color: '#fff', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 2, marginBottom: 6 },
+  occBarBg:     { height: 3, backgroundColor: '#111', borderRadius: 2, marginBottom: 4 },
+  occBarFill:   { height: 3, backgroundColor: '#00e5ff', borderRadius: 2 },
+  carRevOcc:    { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 1 },
+  carRevAmt:    { color: '#00ff88', fontSize: 16, fontFamily: MONO, fontWeight: '700', marginLeft: 12 },
 
   clientActions: { flexDirection: 'row', gap: 6, marginLeft: 6 },
   miniCallBtn:   { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6 },
