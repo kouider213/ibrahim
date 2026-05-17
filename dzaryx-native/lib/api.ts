@@ -437,6 +437,26 @@ export async function clearBiCache(mobileToken?: string): Promise<{ ok: boolean;
   }
 }
 
+export async function createCar(
+  car: { name: string; category?: string; base_price: number; resale_price?: number; seats?: number; fuel?: string; transmission?: string },
+  mobileToken?: string,
+): Promise<{ ok: boolean; car?: Car; error?: string }> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/cars`, {
+      method:  'POST',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ ...car, available: true }),
+      signal:  AbortSignal.timeout(10000),
+    });
+    const data = await res.json() as { car?: Car; error?: string };
+    if (!res.ok) return { ok: false, error: data.error };
+    return { ok: true, car: data.car };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function backfillClientIntelligence(mobileToken?: string): Promise<{ ok: boolean; message: string }> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   try {

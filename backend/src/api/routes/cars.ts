@@ -31,6 +31,39 @@ router.get('/:id', requireMobileAuth, async (req, res) => {
   }
 });
 
+const carCreateSchema = z.object({
+  name:         z.string().min(1),
+  category:     z.string().optional(),
+  available:    z.boolean().optional().default(true),
+  base_price:   z.number().min(0),
+  resale_price: z.number().min(0).optional().default(0),
+  description:  z.string().optional(),
+  seats:        z.number().int().min(1).optional(),
+  fuel:         z.string().optional(),
+  transmission: z.string().optional(),
+  image_url:    z.string().url().optional(),
+});
+
+// POST /api/cars — create a new car
+router.post('/', requireMobileAuth, async (req, res) => {
+  const parsed = carCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    return;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('cars')
+      .insert({ ...parsed.data, created_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    res.json({ car: data, message: 'Véhicule ajouté' });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 const carUpdateSchema = z.object({
   name:         z.string().min(1).optional(),
   category:     z.string().optional(),

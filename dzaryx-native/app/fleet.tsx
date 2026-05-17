@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchAllCars, fetchBookings, updateCar, fetchFleetStats, type Car, type Booking, type FleetIntelligence } from '../lib/api';
+import { fetchAllCars, fetchBookings, updateCar, createCar, fetchFleetStats, type Car, type Booking, type FleetIntelligence } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -33,6 +33,15 @@ export default function FleetScreen() {
   const [editClient, setEditClient] = useState('');
   const [editOwner,  setEditOwner]  = useState('');
   const [savingId,   setSavingId]   = useState<string | null>(null);
+  const [showAddCar, setShowAddCar] = useState(false);
+  const [newName,    setNewName]    = useState('');
+  const [newCat,     setNewCat]     = useState('');
+  const [newPPD,     setNewPPD]     = useState('');
+  const [newOwnerPPD,setNewOwnerPPD]= useState('');
+  const [newSeats,   setNewSeats]   = useState('');
+  const [newFuel,    setNewFuel]    = useState('');
+  const [newTrans,   setNewTrans]   = useState('');
+  const [addingCar,  setAddingCar]  = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -92,6 +101,31 @@ export default function FleetScreen() {
     }
   }, [editClient, editOwner, TOKEN]);
 
+  const handleAddCar = useCallback(async () => {
+    if (!newName.trim()) { Alert.alert('Nom requis'); return; }
+    const ppd = Number(newPPD);
+    if (!newPPD || isNaN(ppd) || ppd < 0) { Alert.alert('Prix client/jour requis'); return; }
+    setAddingCar(true);
+    const result = await createCar({
+      name:         newName.trim(),
+      category:     newCat.trim() || undefined,
+      base_price:   ppd,
+      resale_price: newOwnerPPD ? Number(newOwnerPPD) : 0,
+      seats:        newSeats ? Number(newSeats) : undefined,
+      fuel:         newFuel.trim() || undefined,
+      transmission: newTrans.trim() || undefined,
+    }, TOKEN);
+    setAddingCar(false);
+    if (result.ok) {
+      setShowAddCar(false);
+      setNewName(''); setNewCat(''); setNewPPD(''); setNewOwnerPPD(''); setNewSeats(''); setNewFuel(''); setNewTrans('');
+      await load();
+      Alert.alert('✅ Ajouté', `${result.car?.name ?? ''} ajouté au parc.`);
+    } else {
+      Alert.alert('Erreur', result.error ?? 'Ajout échoué');
+    }
+  }, [newName, newCat, newPPD, newOwnerPPD, newSeats, newFuel, newTrans, TOKEN, load]);
+
   const available = cars.filter(c => c.available).length;
   const rented    = cars.filter(c => !c.available).length;
 
@@ -103,6 +137,9 @@ export default function FleetScreen() {
           <Text style={styles.backTxt}>← RETOUR</Text>
         </TouchableOpacity>
         <Text style={styles.title}>PARC VÉHICULES</Text>
+        <TouchableOpacity style={styles.addCarBtn} onPress={() => setShowAddCar(v => !v)}>
+          <Text style={styles.addCarTxt}>{showAddCar ? '✕' : '+ VOITURE'}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Stats */}
@@ -258,6 +295,49 @@ export default function FleetScreen() {
             </View>
           );
         })}
+
+        {/* Add car form */}
+        {showAddCar && (
+          <View style={styles.addCarCard}>
+            <Text style={styles.addCarTitle}>NOUVEAU VÉHICULE</Text>
+
+            <Text style={styles.addCarLbl}>NOM *</Text>
+            <TextInput style={styles.addCarInput} value={newName} onChangeText={setNewName} placeholderTextColor="#333" placeholder="ex: Renault Clio 4" autoCapitalize="words" />
+
+            <Text style={styles.addCarLbl}>CATÉGORIE</Text>
+            <TextInput style={styles.addCarInput} value={newCat} onChangeText={setNewCat} placeholderTextColor="#333" placeholder="ex: Citadine" autoCapitalize="sentences" />
+
+            <View style={styles.addCarRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addCarLbl}>PRIX CLIENT/J (€) *</Text>
+                <TextInput style={styles.addCarInput} value={newPPD} onChangeText={setNewPPD} keyboardType="numeric" placeholderTextColor="#333" placeholder="ex: 80" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addCarLbl}>PRIX PROPRIO/J (€)</Text>
+                <TextInput style={styles.addCarInput} value={newOwnerPPD} onChangeText={setNewOwnerPPD} keyboardType="numeric" placeholderTextColor="#333" placeholder="ex: 50" />
+              </View>
+            </View>
+
+            <View style={styles.addCarRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addCarLbl}>PLACES</Text>
+                <TextInput style={styles.addCarInput} value={newSeats} onChangeText={setNewSeats} keyboardType="numeric" placeholderTextColor="#333" placeholder="5" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addCarLbl}>CARBURANT</Text>
+                <TextInput style={styles.addCarInput} value={newFuel} onChangeText={setNewFuel} placeholderTextColor="#333" placeholder="essence" autoCapitalize="none" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addCarLbl}>BOÎTE</Text>
+                <TextInput style={styles.addCarInput} value={newTrans} onChangeText={setNewTrans} placeholderTextColor="#333" placeholder="manuelle" autoCapitalize="none" />
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.addCarSubmit} onPress={handleAddCar} disabled={addingCar}>
+              <Text style={styles.addCarSubmitTxt}>{addingCar ? '...' : '+ AJOUTER AU PARC'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -317,6 +397,21 @@ const styles = StyleSheet.create({
   renterName:  { flex: 1, color: '#ffaa00', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
   renterDates: { color: '#555', fontSize: 9, fontFamily: MONO },
   renterPhone: { fontSize: 14 },
+
+  addCarBtn:  { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  addCarTxt:  { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
+
+  addCarCard:  { backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 12, padding: 16, marginBottom: 10 },
+  addCarTitle: { color: '#00e5ff', fontSize: 9, fontFamily: MONO, letterSpacing: 4, marginBottom: 12 },
+  addCarLbl:   { color: '#333', fontSize: 7, fontFamily: MONO, letterSpacing: 2, marginBottom: 4, marginTop: 8 },
+  addCarInput: {
+    backgroundColor: '#0a0a0a', borderWidth: 1, borderColor: '#1a1a1a',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    color: '#fff', fontSize: 12, fontFamily: MONO,
+  },
+  addCarRow:   { flexDirection: 'row', gap: 8 },
+  addCarSubmit:{ backgroundColor: '#00e5ff22', borderWidth: 1, borderColor: '#00e5ff44', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  addCarSubmitTxt: { color: '#00e5ff', fontSize: 10, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
 
   editPriceBtn:  { marginTop: 8, borderWidth: 1, borderColor: '#ffffff11', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   editPriceTxt:  { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
