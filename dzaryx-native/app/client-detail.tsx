@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchClientIntelligence, type ClientIntelligence } from '../lib/api';
+import { fetchClientIntelligence, fetchBookings, type ClientIntelligence, type Booking } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -42,17 +42,22 @@ export default function ClientDetailScreen() {
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
 
-  const [intel,   setIntel]   = useState<ClientIntelligence | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [intel,    setIntel]    = useState<ClientIntelligence | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading,  setLoading]  = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const all = await fetchClientIntelligence(TOKEN);
+    const [all, bks] = await Promise.all([
+      fetchClientIntelligence(TOKEN),
+      name ? fetchBookings(TOKEN, undefined, 50, name) : Promise.resolve([]),
+    ]);
     const match = all.find(c =>
       c.client_name.toLowerCase() === (name ?? '').toLowerCase() ||
       (phone && c.client_phone === phone),
     );
     setIntel(match ?? null);
+    setBookings(bks.sort((a, b) => b.start_date.localeCompare(a.start_date)));
     setLoading(false);
   }, [TOKEN, name, phone]);
 
@@ -179,6 +184,33 @@ export default function ClientDetailScreen() {
             )}
           </>
         )}
+
+        {/* Booking history */}
+        {bookings.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>RÉSERVATIONS ({bookings.length})</Text>
+            {bookings.map((b, i) => {
+              const car = (b.cars as { name: string } | null)?.name ?? '—';
+              const sc  = b.status === 'COMPLETED' ? '#555' : b.status === 'REJECTED' ? '#ff4444' : b.status === 'ACTIVE' ? '#00e5ff' : '#00ff88';
+              return (
+                <TouchableOpacity
+                  key={b.id ?? i}
+                  style={styles.bkRow}
+                  onPress={() => router.push({ pathname: '/booking-detail', params: { id: b.id } })}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.bkCar}>{car}</Text>
+                    <Text style={styles.bkDates}>{fmtDate(b.start_date)} → {fmtDate(b.end_date)}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.bkPrice}>{b.final_price != null ? `${b.final_price}€` : '—'}</Text>
+                    <Text style={[styles.bkStatus, { color: sc }]}>{b.status}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -234,4 +266,10 @@ const styles = StyleSheet.create({
   },
   noIntelTitle: { color: '#444', fontSize: 12, fontFamily: MONO, letterSpacing: 4, marginBottom: 12 },
   noIntelSub:   { color: '#2a2a2a', fontSize: 10, fontFamily: MONO, letterSpacing: 1, lineHeight: 18, textAlign: 'center' },
+
+  bkRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
+  bkCar:    { color: '#888', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
+  bkDates:  { color: '#333', fontSize: 8, fontFamily: MONO, marginTop: 2 },
+  bkPrice:  { color: '#fff', fontSize: 11, fontFamily: MONO, fontWeight: '700' },
+  bkStatus: { fontSize: 7, fontFamily: MONO, letterSpacing: 2, marginTop: 2 },
 });

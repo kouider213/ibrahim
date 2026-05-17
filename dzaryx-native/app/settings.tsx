@@ -162,15 +162,20 @@ export default function SettingsScreen() {
           {schedStatus && (
             <Text style={styles.schedStatus}>{schedStatus}</Text>
           )}
-          <TouchableOpacity style={styles.triggerBtn} onPress={() => triggerJob('morning-briefing')}>
-            <Text style={styles.triggerTxt}>☀️ BRIEFING MATIN</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.triggerBtn} onPress={() => triggerJob('unpaid-reminder')}>
-            <Text style={styles.triggerTxt}>💳 VÉRIF IMPAYÉS</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.triggerBtn} onPress={() => triggerJob('vehicle-utilization')}>
-            <Text style={styles.triggerTxt}>🚗 RAPPORT PARC</Text>
-          </TouchableOpacity>
+          {[
+            { icon: '☀️', label: 'BRIEFING MATIN',         job: 'morning-briefing' },
+            { icon: '📊', label: 'RAPPORT BI COMPLET',      job: 'bi-report' },
+            { icon: '💳', label: 'VÉRIF IMPAYÉS',           job: 'unpaid-reminder' },
+            { icon: '🚗', label: 'RAPPORT PARC',            job: 'vehicle-utilization' },
+            { icon: '📱', label: 'IDÉES TIKTOK',            job: 'tiktok-ideas' },
+            { icon: '🔔', label: 'RAPPELS ARRIVÉES',        job: 'arrival-reminders' },
+            { icon: '🏁', label: 'RAPPELS RETOURS',         job: 'return-reminders' },
+            { icon: '📈', label: 'ANALYSE REVENUS',         job: 'revenue-analysis' },
+          ].map(({ icon, label, job }) => (
+            <TouchableOpacity key={job} style={styles.triggerBtn} onPress={() => triggerJob(job)}>
+              <Text style={styles.triggerTxt}>{icon} {label}</Text>
+            </TouchableOpacity>
+          ))}
           <TouchableOpacity style={styles.triggerBtn} onPress={handleBackfill}>
             <Text style={styles.triggerTxt}>🧠 BACKFILL INTELLIGENCE CLIENTS</Text>
           </TouchableOpacity>
