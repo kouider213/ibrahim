@@ -474,6 +474,66 @@ export async function createCar(
   }
 }
 
+export interface SchedulerJob {
+  name: string;
+  cron: string;
+  next: number | null;
+}
+
+export async function fetchSchedulerJobs(mobileToken?: string): Promise<SchedulerJob[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/scheduler/jobs`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { jobs: SchedulerJob[] };
+    return data.jobs ?? [];
+  } catch { return []; }
+}
+
+export interface Validation {
+  id:         string;
+  type:       string;
+  context:    Record<string, unknown>;
+  status:     'pending' | 'approved' | 'rejected';
+  created_at: string;
+  decided_at: string | null;
+  note:       string | null;
+}
+
+export async function fetchValidations(mobileToken?: string): Promise<Validation[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/validations`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { validations: Validation[] };
+    return data.validations ?? [];
+  } catch { return []; }
+}
+
+export async function decideValidation(
+  id:           string,
+  decision:     'approved' | 'rejected',
+  note?:        string,
+  mobileToken?: string,
+): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/validations/${id}/decide`, {
+      method:  'POST',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ decision, note }),
+      signal:  AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function registerPushToken(
   pushToken:    string,
   mobileToken?: string,

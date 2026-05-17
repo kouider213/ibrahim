@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache, BACKEND_URL as API_BACKEND_URL } from '../lib/api';
+import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache, fetchSchedulerJobs, fetchValidations, decideValidation, BACKEND_URL as API_BACKEND_URL, type SchedulerJob, type Validation } from '../lib/api';
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = API_BACKEND_URL;
@@ -25,7 +25,13 @@ export default function SettingsScreen() {
   const [status,     setStatus]     = useState<ConnStatus>('checking');
   const [fleet,      setFleet]      = useState<FleetStats | null>(null);
   const [fleetLoad,  setFleetLoad]  = useState(false);
-  const [schedStatus, setSchedStatus] = useState<string | null>(null);
+  const [schedStatus,  setSchedStatus]  = useState<string | null>(null);
+  const [jobs,         setJobs]         = useState<SchedulerJob[] | null>(null);
+  const [jobsLoading,  setJobsLoading]  = useState(false);
+  const [showJobs,     setShowJobs]     = useState(false);
+  const [validations,  setValidations]  = useState<Validation[]>([]);
+  const [validLoad,    setValidLoad]    = useState(false);
+  const [showValids,   setShowValids]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +97,31 @@ export default function SettingsScreen() {
       setSchedStatus(`✅ CA mois: ${Math.round(rev)}€ · Profit: ${Math.round(prof)}€`);
     } catch { setSchedStatus('❌ Timeout rapport BI'); }
     setTimeout(() => setSchedStatus(null), 6000);
+  }, [MOBILE_TOKEN]);
+
+  const handleShowJobs = useCallback(async () => {
+    if (showJobs) { setShowJobs(false); return; }
+    setShowJobs(true);
+    if (jobs !== null) return;
+    setJobsLoading(true);
+    const data = await fetchSchedulerJobs(MOBILE_TOKEN);
+    setJobs(data.sort((a, b) => (a.next ?? Infinity) - (b.next ?? Infinity)));
+    setJobsLoading(false);
+  }, [showJobs, jobs, MOBILE_TOKEN]);
+
+  const handleShowValidations = useCallback(async () => {
+    if (showValids) { setShowValids(false); return; }
+    setShowValids(true);
+    setValidLoad(true);
+    const data = await fetchValidations(MOBILE_TOKEN);
+    setValidations(data);
+    setValidLoad(false);
+  }, [showValids, MOBILE_TOKEN]);
+
+  const handleDecide = useCallback(async (id: string, decision: 'approved' | 'rejected') => {
+    const ok = await decideValidation(id, decision, undefined, MOBILE_TOKEN);
+    if (ok) setValidations(prev => prev.filter(v => v.id !== id));
+    else Alert.alert('Erreur', 'Décision échouée.');
   }, [MOBILE_TOKEN]);
 
   const handleUnpaid = useCallback(async () => {
@@ -225,6 +256,63 @@ export default function SettingsScreen() {
         </View>
       )}
 
+      {/* Scheduler jobs */}
+      {actorId === 'kouider' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>PROCHAINS JOBS SCHEDULER</Text>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleShowJobs}>
+            <Text style={styles.triggerTxt}>{showJobs ? '▲ MASQUER' : '📅 VOIR PROCHAINS JOBS'}</Text>
+          </TouchableOpacity>
+          {showJobs && (
+            <View style={{ marginTop: 8 }}>
+              {jobsLoading && <Text style={styles.schedStatus}>Chargement...</Text>}
+              {!jobsLoading && jobs?.map((j, i) => {
+                const nextDate = j.next ? new Date(j.next).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+                return (
+                  <View key={i} style={styles.jobRow}>
+                    <Text style={styles.jobName}>{j.name}</Text>
+                    <Text style={styles.jobNext}>{nextDate}</Text>
+                  </View>
+                );
+              })}
+              {!jobsLoading && jobs?.length === 0 && <Text style={styles.schedStatus}>Aucun job trouvé</Text>}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Validations */}
+      {actorId === 'kouider' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>VALIDATIONS EN ATTENTE</Text>
+          <TouchableOpacity style={[styles.triggerBtn, validations.length > 0 && { borderColor: '#ff444444' }]} onPress={handleShowValidations}>
+            <Text style={[styles.triggerTxt, validations.length > 0 && { color: '#ff4444' }]}>
+              {showValids ? '▲ MASQUER' : `⚡ VALIDATIONS${validations.length > 0 ? ` (${validations.length})` : ''}`}
+            </Text>
+          </TouchableOpacity>
+          {showValids && (
+            <View style={{ marginTop: 8 }}>
+              {validLoad && <Text style={styles.schedStatus}>Chargement...</Text>}
+              {!validLoad && validations.length === 0 && <Text style={styles.schedStatus}>✅ Aucune validation en attente</Text>}
+              {!validLoad && validations.map(v => (
+                <View key={v.id} style={styles.validCard}>
+                  <Text style={styles.validType}>{v.type.toUpperCase()}</Text>
+                  <Text style={styles.validCtx}>{JSON.stringify(v.context).slice(0, 120)}...</Text>
+                  <View style={styles.validActions}>
+                    <TouchableOpacity style={styles.approveBtn} onPress={() => handleDecide(v.id, 'approved')}>
+                      <Text style={styles.approveTxt}>✓ APPROUVER</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.rejectValidBtn} onPress={() => handleDecide(v.id, 'rejected')}>
+                      <Text style={styles.rejectValidTxt}>✕ REFUSER</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Version */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>VERSION</Text>
@@ -349,4 +437,17 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 16, alignItems: 'center',
   },
   logoutTxt: { color: '#ff4444', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  jobRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
+  jobName: { flex: 1, color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
+  jobNext: { color: '#00e5ff66', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
+
+  validCard: { backgroundColor: '#050505', borderWidth: 1, borderColor: '#ff444422', borderRadius: 10, padding: 12, marginBottom: 8 },
+  validType: { color: '#ff4444', fontSize: 9, fontFamily: MONO, letterSpacing: 3, marginBottom: 4 },
+  validCtx:  { color: '#444', fontSize: 8, fontFamily: MONO, lineHeight: 13, marginBottom: 10 },
+  validActions: { flexDirection: 'row', gap: 8 },
+  approveBtn:     { flex: 1, backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8844', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  approveTxt:     { color: '#00ff88', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
+  rejectValidBtn: { flex: 1, backgroundColor: '#ff444411', borderWidth: 1, borderColor: '#ff444433', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  rejectValidTxt: { color: '#ff4444', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
 });
