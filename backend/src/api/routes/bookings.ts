@@ -123,6 +123,21 @@ router.patch('/:id', requireMobileAuth, async (req, res) => {
       .single();
 
     if (error) throw new Error(error.message);
+
+    // If marking as PAID, auto-insert payment record (non-blocking)
+    if (safeUpdates['payment_status'] === 'PAID') {
+      const paidAmt = Number(safeUpdates['paid_amount'] ?? (data as { final_price?: number })?.final_price ?? 0);
+      if (paidAmt > 0) {
+        supabase.from('payments').insert({
+          booking_id: id,
+          amount:     paidAmt,
+          type:       'solde',
+          note:       'Paiement complet — marqué via app mobile',
+          created_at: new Date().toISOString(),
+        }).then(() => {}, () => {});
+      }
+    }
+
     res.json({ booking: data, message: 'Réservation mise à jour' });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

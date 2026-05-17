@@ -5,6 +5,57 @@
 
 ---
 
+## 2026-05-17 — Feature Parity Session (Claude Sonnet 4.6) — Autonomous
+
+### Native App — Écrans Réservations ✅
+- **Commits** : `222e64c`, `2e1cbb3`, `7596ebc`
+- **Fichiers** : `dzaryx-native/app/bookings.tsx` (NEW), `app/new-booking.tsx` (NEW), `app/settings.tsx`, `app/_layout.tsx`, `lib/api.ts`
+- **Features** :
+  - Écran Réservations : liste temps réel, stats (total/actif/retard), filtres par statut, retards mis en évidence
+  - Boutons rapides par carte : 📞 APPELER (tel:), 💳 PAYÉ, ✓ ACTIVER (sans passer par le chat AI)
+  - Écran Création Réservation : picker voiture, champs client+dates+prix, calcul profit live, submit via REST API
+  - Bouton RÉSERVATIONS dans Settings → navigation vers écran réservations
+- **Nouveaux helpers API** : `fetchBookings()`, `fetchCars()`, `updateBookingField()`, `Booking` interface, `Car` interface
+
+### Backend — Nouveaux Outils AI ✅
+- **Commit** : `222e64c`
+- **Outils** : `export_accounting`, `get_client_profile`, `track_habit`
+  - `export_accounting` : PDF comptable mensuel (tableau réservations + KPIs) → upload Supabase + envoi Telegram
+  - `get_client_profile` : profil comportemental client depuis `client_intelligence` (voitures préférées, fiabilité, score)
+  - `track_habit` : ajouter/mettre à jour habitudes dans `memory_habits` via conversation (vitamines, sport, check clients...)
+- **Agent routing** : FINANCE_AGENT, CLIENTS_AGENT, MEMORY_AGENT toolNames + keywords étendus
+
+### Backend — Améliorations API ✅
+- **Commits** : `e0e501d`, `2e1cbb3`
+- `GET /api/bookings/cars` : liste flotte (id, name, category, available) pour formulaire réservation mobile
+- `PATCH /api/bookings/:id` : insertion automatique paiement dans `payments` table quand `payment_status='PAID'`
+- `jobBIReminders` : envoi push mobile en plus de Telegram
+
+### Backend — Alert Missing Owner PPD ✅
+- **Commit** : `222e64c`
+- `create_booking` : si `owner_price_per_day` null → alerte Telegram immédiate (profit non calculable)
+
+### Memory Engine ✅
+- **Commits** : `1a7f482`, `20f10f8`
+- B018 : `writeMemory()` utilisait `source` comme `user_id` → corrigé
+- B019 : Houari écrivait sous `user_id='kouider'` → `inferUserId(sessionId)` acteur-scoped
+- Nouveaux domaines mémoire : `vehicle`, `client`, `finance`, `learning`, `note`
+- Scoring mémoire étendu pour les nouveaux domaines
+
+### Episode Auto-Tracking ✅
+- **Commit** : `84420bc`
+- `episode-tracker.ts` (NEW) : sauvegarde automatique d'épisodes importants (bookings, paiements, documents)
+- Context builder injecte les épisodes récents si question historique
+
+### Scheduler — Nouveaux Jobs ✅
+- **Commits** : `69dcf0d`, `84420bc`
+- `vehicle-utilization` (sam 9h) : rapport 30j utilisation parc avec suggestions
+- `habit-check` (8h15 quotidien) : vérification habitudes actives
+- `monthly-report` (1er du mois 9h) : bilan mensuel auto avec push mobile
+- `long-idle-alert` (lun 10h) : alerte véhicules immobilisés 14+ jours
+
+---
+
 ## 2026-05-17 — Remote Control Mission (Claude Sonnet 4.6)
 
 ### Conversation Engine V2 ✅
