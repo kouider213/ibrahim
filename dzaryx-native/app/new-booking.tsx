@@ -48,9 +48,10 @@ export default function NewBookingScreen() {
   const [finalPrice,  setFinalPrice]  = useState('');
   const [clientPPD,   setClientPPD]   = useState(params.clientPPD ?? '');
   const [ownerPPD,    setOwnerPPD]    = useState(params.ownerPPD ?? '');
-  const [notes,         setNotes]         = useState(params.notes ?? '');
-  const [depositAmount, setDepositAmount] = useState('');
-  const [submitting,    setSubmitting]    = useState(false);
+  const [notes,           setNotes]           = useState(params.notes ?? '');
+  const [depositAmount,   setDepositAmount]   = useState('');
+  const [initialStatus,   setInitialStatus]   = useState<'PENDING' | 'CONFIRMED'>('PENDING');
+  const [submitting,      setSubmitting]      = useState(false);
   const [availability, setAvailability] = useState<boolean | null>(null);
   const [availChecking,setAvailChecking]= useState(false);
 
@@ -111,6 +112,7 @@ export default function NewBookingScreen() {
         body['paid_amount']    = dep;
         body['payment_status'] = dep >= Number(finalPrice) ? 'PAID' : 'PARTIAL';
       }
+      if (initialStatus === 'CONFIRMED') body['initial_status'] = 'CONFIRMED';
 
       const res = await fetch(`${BACKEND_URL}/api/bookings`, {
         method: 'POST',
@@ -135,7 +137,7 @@ export default function NewBookingScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedCar, clientName, clientPhone, clientEmail, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, depositAmount, TOKEN, router]);
+  }, [selectedCar, clientName, clientPhone, clientEmail, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, depositAmount, initialStatus, TOKEN, router]);
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -227,6 +229,21 @@ export default function NewBookingScreen() {
         {clientAge.trim() && Number(clientAge) < 35 && Number(clientAge) > 0 && (
           <Text style={styles.ageWarn}>⚠️ Politique Fik : refus si âge {'<'} 35 ans — confirmer avec Houari</Text>
         )}
+
+        <Text style={styles.label}>STATUT INITIAL</Text>
+        <View style={styles.toggleRow}>
+          {(['PENDING', 'CONFIRMED'] as const).map(s => (
+            <TouchableOpacity
+              key={s}
+              style={[styles.toggleBtn, initialStatus === s && styles.toggleBtnActive]}
+              onPress={() => setInitialStatus(s)}
+            >
+              <Text style={[styles.toggleTxt, initialStatus === s && styles.toggleTxtActive]}>
+                {s === 'PENDING' ? '⏳ EN ATTENTE' : '✅ CONFIRMÉ'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <Text style={styles.label}>GÉRÉ PAR</Text>
         <View style={styles.toggleRow}>

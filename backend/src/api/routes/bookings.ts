@@ -54,6 +54,7 @@ const bookingSchema = z.object({
   owner_price_per_day:  z.number().min(0).optional(),
   payment_status:       z.enum(['PENDING', 'PARTIAL', 'PAID']).optional(),
   paid_amount:          z.number().min(0).optional(),
+  initial_status:       z.enum(['PENDING', 'CONFIRMED']).optional(),
 });
 
 router.post('/', requireMobileAuth, async (req, res) => {
@@ -63,7 +64,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  const { syncCalendar, client_price_per_day, owner_price_per_day, payment_status, paid_amount, ...bookingData } = parsed.data;
+  const { syncCalendar, client_price_per_day, owner_price_per_day, payment_status, paid_amount, initial_status, ...bookingData } = parsed.data;
   const nb_days = Math.max(1, Math.ceil(
     (new Date(bookingData.end_date).getTime() - new Date(bookingData.start_date).getTime()) / 86_400_000,
   ));
@@ -78,7 +79,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
       base_price_snapshot:   bookingData.final_price,
       resale_price_snapshot: bookingData.final_price,
       profit:                0,
-      status:                'PENDING',
+      status:                initial_status ?? 'PENDING',
       whatsapp_sent:         false,
       sms_sent:              false,
       ...(client_price_per_day != null ? { client_price_per_day } : {}),

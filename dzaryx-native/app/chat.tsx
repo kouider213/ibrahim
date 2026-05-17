@@ -628,11 +628,19 @@ export default function JarvisScreen() {
             { label: 'Parc véhicules', cmd: "État du parc véhicules" },
             { label: 'Impayés',        cmd: "Quels clients ont des paiements en attente ?" },
             { label: 'Météo Oran',     cmd: "Météo Oran aujourd'hui" },
+            { label: 'Revenus mois',   cmd: "Revenus du mois en cours" },
+            { label: 'Alertes',        cmd: "Quelles sont les alertes urgentes ?" },
           ].map(({ label, cmd }) => (
             <TouchableOpacity key={label} style={styles.quickBtn} onPress={() => handleSend(cmd)}>
               <Text style={styles.quickTxt}>{label}</Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity style={[styles.quickBtn, { borderColor: '#00ff8844', backgroundColor: '#00ff8808' }]} onPress={() => router.push('/new-booking')}>
+            <Text style={[styles.quickTxt, { color: '#00ff8866' }]}>+ Résa</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.quickBtn, { borderColor: '#00e5ff33', backgroundColor: '#00e5ff08' }]} onPress={() => router.push('/bookings')}>
+            <Text style={[styles.quickTxt, { color: '#00e5ff55' }]}>📋 Liste</Text>
+          </TouchableOpacity>
         </View>
       )}
 
