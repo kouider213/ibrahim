@@ -57,7 +57,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     supabase.from('bookings').select('*, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE'])
       .eq('end_date', tomorrowStr),
-    supabase.from('bookings').select('*, cars(name)')
+    supabase.from('bookings').select('client_name, start_date, end_date, client_price_per_day, final_price, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE'])
       .gt('start_date', today)
       .lte('start_date', new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)),
@@ -112,11 +112,26 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     lines.push(``);
   }
 
-  // À venir cette semaine
-  const upcoming = (upcomingBookings.data ?? []) as Array<{ client_name: string; start_date: string; cars?: { name: string } }>;
+  // À venir cette semaine + prévisionnel revenus
+  const upcoming = (upcomingBookings.data ?? []) as unknown as Array<{
+    client_name: string; start_date: string; end_date: string;
+    client_price_per_day?: number; final_price?: number;
+    cars?: { name: string };
+  }>;
   if (upcoming.length > 0) {
+    let forecastCA = 0;
     lines.push(`📋 *À venir (7 jours):*`);
-    for (const b of upcoming) lines.push(`  • ${b.client_name} — ${b.cars?.name ?? '?'} le ${b.start_date}`);
+    for (const b of upcoming) {
+      const car     = b.cars?.name ?? '?';
+      const nbDays  = Math.max(1, Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000));
+      const ppd     = b.client_price_per_day ?? (b.final_price ? b.final_price / nbDays : 0);
+      const total   = ppd * nbDays;
+      forecastCA   += total;
+      lines.push(`  • ${b.client_name} — ${car} le ${b.start_date} (${nbDays}j — ${Math.round(total)}€)`);
+    }
+    if (forecastCA > 0) {
+      lines.push(`  💵 *Prévisionnel 7j:* ${Math.round(forecastCA)}€`);
+    }
     lines.push(``);
   }
 

@@ -1,4 +1,4 @@
-﻿import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, supabase } from '../integrations/supabase.js';
+﻿import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, getRecentEpisodes, supabase } from '../integrations/supabase.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
@@ -121,7 +121,9 @@ export async function buildContext(
 
   const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel] = await Promise.all([
+  const needsEpisodes = /histoire|passé|récemment|dernière fois|avant|souvenir|rappelle|episode/i.test(userMessage);
+
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -145,6 +147,9 @@ export async function buildContext(
     getRecentUserMessages(40).catch(() => [] as string[]),
     loadCompactionSummary(sessionId).catch(() => null),
     mentionedClient ? getClientProfile(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
+    needsEpisodes
+      ? getRecentEpisodes({ min_importance: 3, limit: 5 }).catch(() => [])
+      : Promise.resolve([]),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -273,6 +278,15 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? `\n\n${clientIntel.context}`
     : '';
 
+  // Épisodes mémoire récents (seulement si demandés)
+  const episodesText = (recentEpisodes as Array<{ episode_type: string; summary: string; occurred_at: string; importance: number }>).length > 0
+    ? `\n\nÉVÉNEMENTS RÉCENTS IMPORTANTS:\n${(recentEpisodes as Array<{ episode_type: string; summary: string; occurred_at: string; importance: number }>).map(e => {
+        const age = Math.round((Date.now() - new Date(e.occurred_at).getTime()) / 3_600_000);
+        const ageStr = age < 24 ? `il y a ${age}h` : `il y a ${Math.round(age / 24)}j`;
+        return `[${e.episode_type}] ${ageStr} — ${e.summary.slice(0, 120)}`;
+      }).join('\n')}`
+    : '';
+
   let langDetection = detectLanguage(userMessage);
   // Actor preferred language override: if detection is ambiguous and actor has a preference
   if ((langDetection.lang === 'unknown' || userMessage.trim().length < 6) && actor.ownerKey === 'houari') {
@@ -302,6 +316,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     pricingText,
     styleText,
     clientIntelText,
+    episodesText,
   ].join('');
 
   // Filter old confirmation-only messages from non-recent history to prevent context contamination.
