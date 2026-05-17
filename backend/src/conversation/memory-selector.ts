@@ -14,7 +14,8 @@ function scoreMemoryFact(fact: MemoryFact, query: string): number {
   score += overlap * 15;
 
   // 2. Domain relevance based on query intent
-  if (/réservation|booking|location|voiture|client|tarif|prix|Houari|Fik/.test(q)   && fact.domain === 'business')    score += 20;
+  if (/réservation|booking|location|voiture|tarif|prix|Houari|Fik/.test(q)           && fact.domain === 'business')    score += 20;
+  if (/client|habitude.*client|pref.*client|fidél/.test(q)                           && fact.domain === 'client')     score += 25;
   if (/santé|vitamine|médecin|sport|médication|supplément/.test(q)                   && fact.domain === 'health')      score += 30;
   if (/famille|enfant|conjoint|parent|proche|anniversaire/.test(q)                   && fact.domain === 'family')      score += 30;
   if (/objectif|but|plan|stratégie|tiktok|vidéo|contenu/.test(q)                     && fact.domain === 'goal')        score += 25;
@@ -22,6 +23,8 @@ function scoreMemoryFact(fact: MemoryFact, query: string): number {
   if (/qui|nom|où|profil|identité|Bruxelles|Oran|langue|parle/.test(q)               && fact.domain === 'identity')   score += 15;
   if (/dzaryx|nexus|assistant|Ibrahim/.test(q)                                        && fact.domain === 'business')   score += 10;
   if (/preference|style|réponse|format|rappel/.test(q)                               && fact.domain === 'preference') score += 20;
+  if (/voiture|véhicule|clio|berlingo|peugeot|dacia/.test(q)                         && fact.domain === 'vehicle')    score += 20;
+  if (/finance|argent|revenu|bénéfice|profit|compta/.test(q)                         && fact.domain === 'finance')    score += 25;
 
   // 3. Confidence bonus
   score += fact.confidence * 10;
@@ -32,6 +35,7 @@ function scoreMemoryFact(fact: MemoryFact, query: string): number {
 
   // 5. Base priority for identity and business facts — always useful
   if (fact.domain === 'identity' || fact.domain === 'business') score += 8;
+  if (fact.domain === 'client'   || fact.domain === 'finance')  score += 5;
 
   return score;
 }
