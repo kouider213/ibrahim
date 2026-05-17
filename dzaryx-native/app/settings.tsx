@@ -28,6 +28,24 @@ interface SystemHealth {
   claude:   { calls_today: number; tokens_in_today: number; tokens_out_today: number };
 }
 
+interface NexusStatus {
+  connected: boolean;
+  state:     string;
+  last_seen: string | null;
+  uptime_s:  number | null;
+  mac:       string | null;
+  ip:        string | null;
+}
+
+interface NexusSysinfo {
+  cpu_percent?: number;
+  ram_percent?: number;
+  ram_total_mb?: number;
+  ram_used_mb?: number;
+  uptime_s?: number;
+  hostname?: string;
+}
+
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = API_BACKEND_URL;
 const APP_VERSION = '1.2.0 (build 3)';
@@ -62,6 +80,11 @@ export default function SettingsScreen() {
   const [sysHealth,    setSysHealth]    = useState<SystemHealth | null>(null);
   const [sysHealthLoad,setSysHealthLoad]= useState(false);
   const [showSysHealth,setShowSysHealth]= useState(false);
+  const [nexusStatus,   setNexusStatus]   = useState<NexusStatus | null>(null);
+  const [nexusSysinfo,  setNexusSysinfo]  = useState<NexusSysinfo | null>(null);
+  const [nexusLoad,     setNexusLoad]     = useState(false);
+  const [showNexus,     setShowNexus]     = useState(false);
+  const [nexusMsg,      setNexusMsg]      = useState<string | null>(null);
   const [finYear,      setFinYear]      = useState(() => String(new Date().getFullYear()));
   const [finMonth,     setFinMonth]     = useState(() => String(new Date().getMonth() + 1));
   const [finData,      setFinData]      = useState<FinanceSummary | null>(null);
@@ -200,6 +223,68 @@ export default function SettingsScreen() {
     } catch { /* ignore */ }
     setAiHealthLoad(false);
   }, [showAiHealth, aiHealth, MOBILE_TOKEN]);
+
+  const handleShowNexus = useCallback(async () => {
+    if (showNexus) { setShowNexus(false); return; }
+    setShowNexus(true);
+    setNexusLoad(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/nexus/status`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (r.ok) setNexusStatus(await r.json() as NexusStatus);
+    } catch { /* ignore */ }
+    setNexusLoad(false);
+  }, [showNexus, MOBILE_TOKEN]);
+
+  const handleNexusSysinfo = useCallback(async () => {
+    setNexusMsg('Récupération infos système...');
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/nexus/sysinfo`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (r.ok) {
+        const d = await r.json() as NexusSysinfo & { ok?: boolean };
+        setNexusSysinfo(d);
+        setNexusMsg(null);
+      } else {
+        setNexusMsg('❌ Nexus hors ligne');
+        setTimeout(() => setNexusMsg(null), 3000);
+      }
+    } catch { setNexusMsg('❌ Timeout'); setTimeout(() => setNexusMsg(null), 3000); }
+  }, [MOBILE_TOKEN]);
+
+  const handleNexusScreenshot = useCallback(async () => {
+    setNexusMsg('Capture d\'écran en cours...');
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/nexus/screenshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MOBILE_TOKEN}` },
+        body: JSON.stringify({ caption: 'Screenshot depuis app mobile' }),
+        signal: AbortSignal.timeout(40000),
+      });
+      const d = await r.json() as { ok?: boolean; error?: string; size_kb?: number };
+      setNexusMsg(d.ok ? `✅ Envoyé sur Telegram (${d.size_kb ?? '?'}KB)` : `❌ ${d.error ?? 'Erreur'}`);
+    } catch { setNexusMsg('❌ Timeout screenshot'); }
+    setTimeout(() => setNexusMsg(null), 5000);
+  }, [MOBILE_TOKEN]);
+
+  const handleNexusWake = useCallback(async () => {
+    setNexusMsg('Démarrage Nexus...');
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/nexus/wake`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      const d = await r.json() as { ok?: boolean; message?: string; error?: string };
+      setNexusMsg(d.ok ? `✅ ${d.message ?? 'Nexus démarré'}` : `❌ ${d.error ?? 'Erreur'}`);
+    } catch { setNexusMsg('❌ Launcher hors ligne'); }
+    setTimeout(() => setNexusMsg(null), 5000);
+  }, [MOBILE_TOKEN]);
 
   const handleDecide = useCallback(async (id: string, decision: 'approved' | 'rejected') => {
     const ok = await decideValidation(id, decision, undefined, MOBILE_TOKEN);
@@ -501,6 +586,76 @@ export default function SettingsScreen() {
                 </>
               )}
               {!sysHealthLoad && !sysHealth && <Text style={styles.schedStatus}>❌ Impossible de charger</Text>}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Nexus PC Control */}
+      {actorId === 'kouider' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>NEXUS — PC KOUIDER</Text>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleShowNexus}>
+            <Text style={styles.triggerTxt}>{showNexus ? '▲ MASQUER' : '🖥 ÉTAT NEXUS'}</Text>
+          </TouchableOpacity>
+          {showNexus && (
+            <View style={{ marginTop: 8 }}>
+              {nexusLoad && <Text style={styles.schedStatus}>Chargement...</Text>}
+              {nexusMsg && <Text style={styles.schedStatus}>{nexusMsg}</Text>}
+              {nexusStatus && (
+                <>
+                  <View style={styles.jobRow}>
+                    <Text style={styles.jobName}>ÉTAT</Text>
+                    <Text style={[styles.jobNext, { color: nexusStatus.connected ? '#00ff88' : '#ff4444' }]}>
+                      {nexusStatus.connected ? '🟢 EN LIGNE' : '🔴 HORS LIGNE'} · {nexusStatus.state}
+                    </Text>
+                  </View>
+                  {nexusStatus.ip && (
+                    <View style={styles.jobRow}>
+                      <Text style={styles.jobName}>IP PUBLIC</Text>
+                      <Text style={styles.jobNext}>{nexusStatus.ip}</Text>
+                    </View>
+                  )}
+                  {nexusSysinfo && (
+                    <>
+                      <View style={styles.jobRow}>
+                        <Text style={styles.jobName}>CPU</Text>
+                        <Text style={[styles.jobNext, { color: (nexusSysinfo.cpu_percent ?? 0) > 80 ? '#ff4444' : '#00e5ff66' }]}>
+                          {nexusSysinfo.cpu_percent ?? '?'}%
+                        </Text>
+                      </View>
+                      <View style={styles.jobRow}>
+                        <Text style={styles.jobName}>RAM</Text>
+                        <Text style={styles.jobNext}>{nexusSysinfo.ram_used_mb ?? '?'} / {nexusSysinfo.ram_total_mb ?? '?'} MB</Text>
+                      </View>
+                      {nexusSysinfo.hostname && (
+                        <View style={styles.jobRow}>
+                          <Text style={styles.jobName}>MACHINE</Text>
+                          <Text style={styles.jobNext}>{nexusSysinfo.hostname}</Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    {nexusStatus.connected && (
+                      <>
+                        <TouchableOpacity style={[styles.triggerBtn, { flex: 1, marginBottom: 0 }]} onPress={handleNexusSysinfo}>
+                          <Text style={styles.triggerTxt}>💻 SYSINFO</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.triggerBtn, { flex: 1, marginBottom: 0 }]} onPress={handleNexusScreenshot}>
+                          <Text style={styles.triggerTxt}>📸 SCREENSHOT</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    {!nexusStatus.connected && (
+                      <TouchableOpacity style={[styles.triggerBtn, { flex: 1, marginBottom: 0, borderColor: '#ffaa0022' }]} onPress={handleNexusWake}>
+                        <Text style={[styles.triggerTxt, { color: '#ffaa0099' }]}>⚡ DÉMARRER NEXUS</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )}
+              {!nexusLoad && !nexusStatus && <Text style={styles.schedStatus}>❌ Impossible de charger</Text>}
             </View>
           )}
         </View>
