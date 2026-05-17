@@ -21,6 +21,13 @@ interface FinanceSummary {
   missingOwnerPrice: number;
 }
 
+interface SystemHealth {
+  redis:    { ok: boolean; ping_ms: number };
+  supabase: { ok: boolean; ping_ms: number };
+  process:  { uptime_s: number; memory_mb: number };
+  claude:   { calls_today: number; tokens_in_today: number; tokens_out_today: number };
+}
+
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = API_BACKEND_URL;
 const APP_VERSION = '1.2.0 (build 3)';
@@ -52,6 +59,9 @@ export default function SettingsScreen() {
   const [aiHealth,     setAiHealth]     = useState<AiHealth | null>(null);
   const [aiHealthLoad, setAiHealthLoad] = useState(false);
   const [showAiHealth, setShowAiHealth] = useState(false);
+  const [sysHealth,    setSysHealth]    = useState<SystemHealth | null>(null);
+  const [sysHealthLoad,setSysHealthLoad]= useState(false);
+  const [showSysHealth,setShowSysHealth]= useState(false);
   const [finYear,      setFinYear]      = useState(() => String(new Date().getFullYear()));
   const [finMonth,     setFinMonth]     = useState(() => String(new Date().getMonth() + 1));
   const [finData,      setFinData]      = useState<FinanceSummary | null>(null);
@@ -160,6 +170,21 @@ export default function SettingsScreen() {
     } catch { Alert.alert('Erreur', 'Timeout rapport finance'); }
     setFinLoading(false);
   }, [finYear, finMonth, MOBILE_TOKEN]);
+
+  const handleShowSysHealth = useCallback(async () => {
+    if (showSysHealth) { setShowSysHealth(false); return; }
+    setShowSysHealth(true);
+    if (sysHealth !== null) return;
+    setSysHealthLoad(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/bi/health`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) setSysHealth(await res.json() as SystemHealth);
+    } catch { /* ignore */ }
+    setSysHealthLoad(false);
+  }, [showSysHealth, sysHealth, MOBILE_TOKEN]);
 
   const handleShowAiHealth = useCallback(async () => {
     if (showAiHealth) { setShowAiHealth(false); return; }
@@ -416,6 +441,66 @@ export default function SettingsScreen() {
                 </>
               )}
               {!aiHealthLoad && !aiHealth && <Text style={styles.schedStatus}>❌ Impossible de charger</Text>}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* BI System Health */}
+      {actorId === 'kouider' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>SYSTÈME BACKEND</Text>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleShowSysHealth}>
+            <Text style={styles.triggerTxt}>{showSysHealth ? '▲ MASQUER' : '🖥 ÉTAT SYSTÈME'}</Text>
+          </TouchableOpacity>
+          {showSysHealth && (
+            <View style={{ marginTop: 8 }}>
+              {sysHealthLoad && <Text style={styles.schedStatus}>Chargement...</Text>}
+              {!sysHealthLoad && sysHealth && (
+                <>
+                  <View style={styles.statsGrid}>
+                    <View style={styles.statBox}>
+                      <Text style={[styles.statNum, { fontSize: 14, color: sysHealth.redis.ok ? '#00ff88' : '#ff4444' }]}>
+                        {sysHealth.redis.ok ? 'OK' : 'KO'}
+                      </Text>
+                      <Text style={styles.statLbl}>REDIS</Text>
+                      <Text style={[styles.statLbl, { color: '#555', marginTop: 2 }]}>{sysHealth.redis.ping_ms}ms</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={[styles.statNum, { fontSize: 14, color: sysHealth.supabase.ok ? '#00ff88' : '#ff4444' }]}>
+                        {sysHealth.supabase.ok ? 'OK' : 'KO'}
+                      </Text>
+                      <Text style={styles.statLbl}>SUPABASE</Text>
+                      <Text style={[styles.statLbl, { color: '#555', marginTop: 2 }]}>{sysHealth.supabase.ping_ms}ms</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={[styles.statNum, { fontSize: 14, color: '#00e5ff' }]}>
+                        {Math.floor(sysHealth.process.uptime_s / 3600)}h
+                      </Text>
+                      <Text style={styles.statLbl}>UPTIME</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                      <Text style={[styles.statNum, { fontSize: 14, color: '#ffaa00' }]}>
+                        {Math.round(sysHealth.process.memory_mb)}
+                      </Text>
+                      <Text style={styles.statLbl}>RAM MB</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.jobRow, { marginTop: 8 }]}>
+                    <Text style={styles.jobName}>🧠 CLAUDE APPELS</Text>
+                    <Text style={styles.jobNext}>{sysHealth.claude.calls_today} aujourd'hui</Text>
+                  </View>
+                  <View style={styles.jobRow}>
+                    <Text style={styles.jobName}>📥 TOKENS IN</Text>
+                    <Text style={styles.jobNext}>{sysHealth.claude.tokens_in_today.toLocaleString('fr-FR')}</Text>
+                  </View>
+                  <View style={styles.jobRow}>
+                    <Text style={styles.jobName}>📤 TOKENS OUT</Text>
+                    <Text style={styles.jobNext}>{sysHealth.claude.tokens_out_today.toLocaleString('fr-FR')}</Text>
+                  </View>
+                </>
+              )}
+              {!sysHealthLoad && !sysHealth && <Text style={styles.schedStatus}>❌ Impossible de charger</Text>}
             </View>
           )}
         </View>
