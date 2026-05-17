@@ -155,4 +155,18 @@ router.patch('/:id/status', requireMobileAuth, async (req, res) => {
   }
 });
 
+// GET /api/bookings/cars — list all cars for booking form
+router.get('/cars', requireMobileAuth, async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('cars')
+      .select('id, name, category, available, base_price')
+      .order('name', { ascending: true });
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    res.json({ cars: data ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

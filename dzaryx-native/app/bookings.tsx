@@ -80,6 +80,9 @@ export default function BookingsScreen() {
             <Text style={styles.lateTxt}>{stats.late} EN RETARD</Text>
           </View>
         )}
+        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/new-booking')}>
+          <Text style={styles.addTxt}>+ CRÉER</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Quick stats bar */}
@@ -203,7 +206,9 @@ const styles = StyleSheet.create({
   backTxt: { color: '#00e5ff', fontSize: 10, fontFamily: MONO, letterSpacing: 3 },
   title:   { flex: 1, color: '#fff', fontSize: 13, fontFamily: MONO, letterSpacing: 6, fontWeight: '700' },
   lateBadge: { backgroundColor: '#ff444422', borderWidth: 1, borderColor: '#ff4444', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  lateTxt: { color: '#ff4444', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
+  lateTxt:   { color: '#ff4444', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
+  addBtn:    { backgroundColor: '#00ff8822', borderWidth: 1, borderColor: '#00ff88', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  addTxt:    { color: '#00ff88', fontSize: 8, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
 
   statsRow:  { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 },
   statPill:  { flex: 1, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },

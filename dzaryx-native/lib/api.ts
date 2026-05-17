@@ -123,6 +123,29 @@ export async function triggerSchedulerJob(jobName: string, mobileToken?: string)
   }
 }
 
+export interface Car {
+  id:         string;
+  name:       string;
+  category:   string | null;
+  available:  boolean;
+  base_price: number | null;
+}
+
+export async function fetchCars(mobileToken?: string): Promise<Car[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bookings/cars`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { cars: Car[] };
+    return data.cars ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export interface Booking {
   id:                   string;
   client_name:          string;
