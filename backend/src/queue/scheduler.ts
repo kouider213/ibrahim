@@ -23,6 +23,8 @@ import {
   jobClientRelance,
   jobVehicleUtilization,
   jobHabitCheck,
+  jobMonthlyReport,
+  jobLongIdleAlert,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { notifyOwner } from '../notifications/pushover.js';
@@ -151,6 +153,16 @@ const JOBS = [
     cron:  '15 8 * * *',        // 8h15 chaque matin — rappel habitudes Kouider
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'monthly-report',
+    cron:  '0 9 1 * *',         // 9h le 1er de chaque mois — bilan mensuel automatique
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'long-idle-alert',
+    cron:  '0 10 * * 1',        // 10h chaque lundi — véhicules immobilisés 14+ jours
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -177,6 +189,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'client-relance':           jobClientRelance,
   'vehicle-utilization':      jobVehicleUtilization,
   'habit-check':              jobHabitCheck,
+  'monthly-report':           jobMonthlyReport,
+  'long-idle-alert':          jobLongIdleAlert,
 };
 
 export async function initScheduler(): Promise<void> {

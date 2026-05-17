@@ -1323,3 +1323,108 @@ export async function jobHabitCheck(_job: Job): Promise<void> {
     console.error('[job:habit-check] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ── 23. Bilan mensuel automatique — 1er du mois 9h ───────────────────────────
+export async function jobMonthlyReport(_job: Job): Promise<void> {
+  try {
+    const now   = new Date();
+    const month = now.getMonth() + 1;       // 1–12
+    const year  = now.getFullYear();
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear  = month === 1 ? year - 1 : year;
+
+    const lockKey = `job:monthly-report:sent:${prevYear}-${prevMonth}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
+    if (!acquired) return;
+
+    const [finance, { data: bookings }] = await Promise.all([
+      getFinancialReport(prevYear, prevMonth).catch(() => null),
+      supabase
+        .from('bookings')
+        .select('id, client_name, payment_status, final_price')
+        .gte('start_date', `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`)
+        .lt('start_date',  `${year}-${String(month).padStart(2, '0')}-01`),
+    ]);
+
+    const allBookings = (bookings ?? []) as Array<{ payment_status: string; final_price: number }>;
+    const paid    = allBookings.filter(b => b.payment_status === 'PAID').length;
+    const unpaid  = allBookings.filter(b => b.payment_status === 'UNPAID').length;
+    const monthName = new Date(prevYear, prevMonth - 1).toLocaleDateString('fr-FR', { month: 'long' });
+
+    const lines = [
+      `📊 *Bilan ${monthName} ${prevYear}*\n`,
+      `📦 Réservations: ${allBookings.length} (${paid} payées / ${unpaid} impayées)`,
+    ];
+
+    if (finance) {
+      lines.push(`💵 CA Brut: *${finance.grossCA}€*`);
+      lines.push(`💰 Bénéfice Kouider: *${finance.kouiderProfit}€*`);
+      lines.push(`📤 Coût Houari: ${finance.ownerTotal}€`);
+      if (finance.missingOwnerPrice > 0) {
+        lines.push(`⚠️ ${finance.missingOwnerPrice} résa sans prix Houari — bénéfice partiel`);
+      }
+    }
+
+    lines.push(`\n💡 _Dzaryx génère automatiquement ce bilan chaque 1er du mois._`);
+
+    await tg(lines.join('\n'));
+    emitProactive(`Bilan ${monthName} : ${finance?.kouiderProfit ?? '?'}€ de bénéfice, ${allBookings.length} réservations.`, 'info');
+    console.log('[job:monthly-report] ✅ envoyé');
+  } catch (err) {
+    console.error('[job:monthly-report] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── 24. Alerte véhicule immobilisé 14+ jours ─────────────────────────────────
+export async function jobLongIdleAlert(_job: Job): Promise<void> {
+  try {
+    const today  = new Date().toISOString().slice(0, 10);
+    const lockKey = `job:long-idle:sent:${today}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    if (!acquired) return;
+
+    const ago14 = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
+
+    // Cars available now — find last booking end_date
+    const { data: cars } = await supabase
+      .from('cars')
+      .select('id, name')
+      .eq('available', true);
+
+    if (!cars || cars.length === 0) return;
+
+    const idle: Array<{ name: string; daysSince: number }> = [];
+
+    for (const car of cars as Array<{ id: string; name: string }>) {
+      const { data: lastBooking } = await supabase
+        .from('bookings')
+        .select('end_date')
+        .eq('car_id', car.id)
+        .order('end_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const lastDate = (lastBooking as { end_date?: string } | null)?.end_date;
+      if (!lastDate || lastDate < ago14) {
+        const days = lastDate
+          ? Math.round((Date.now() - new Date(lastDate).getTime()) / 86_400_000)
+          : 30;
+        idle.push({ name: car.name, daysSince: days });
+      }
+    }
+
+    if (idle.length === 0) return;
+
+    const lines = [
+      `🔧 *Véhicules immobilisés ${idle.length > 1 ? `(${idle.length})` : ''} — plus de 14 jours sans location:*\n`,
+      ...idle.map(c => `• *${c.name}* — immobilisé depuis ${c.daysSince} jours`),
+      `\n💡 _Vérifie l'état mécanique et envisage une promo ou une révision._`,
+    ];
+
+    await tg(lines.join('\n'));
+    emitProactive(`${idle.length} véhicule(s) immobilisé(s) 14+ jours : ${idle.map(c => c.name).join(', ')}`, 'alert');
+    console.log(`[job:long-idle] ✅ ${idle.length} véhicule(s) signalé(s)`);
+  } catch (err) {
+    console.error('[job:long-idle] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
