@@ -10,6 +10,7 @@ import * as Speech from 'expo-speech';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import * as KeepAwake from 'expo-keep-awake';
+import * as ImagePicker from 'expo-image-picker';
 import { io, type Socket } from 'socket.io-client';
 import { useStore } from '../lib/store';
 import { sendMessage, fetchHistory, registerPushToken, fetchNotifications, type UserLocation, type HistoryMessage } from '../lib/api';
@@ -47,6 +48,16 @@ interface WaAnalysis {
   urgency?:           string;
   suggested_action?:  string;
   summary?:           string;
+}
+
+interface ScanResult {
+  description:    string;
+  type:           string;
+  extractedData?: {
+    type?: string; name?: string; document_number?: string;
+    birth_date?: string; expiry_date?: string; nationality?: string;
+    readable?: boolean;
+  };
 }
 
 const LABEL: Record<JarvisState, string> = {
@@ -92,6 +103,8 @@ export default function JarvisScreen() {
   const [waText,         setWaText]        = useState('');
   const [waAnalysis,     setWaAnalysis]    = useState<WaAnalysis | null>(null);
   const [waAnalyzing,    setWaAnalyzing]   = useState(false);
+  const [scanResult,     setScanResult]    = useState<ScanResult | null>(null);
+  const [scanLoading,    setScanLoading]   = useState(false);
   const locationRef    = useRef<UserLocation | null>(null);
   const carTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const carIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -286,6 +299,34 @@ export default function JarvisScreen() {
     setWaAnalyzing(false);
   }, [waText, MOBILE_TOKEN]);
 
+  const handlePickAndScan = useCallback(async (source: 'camera' | 'gallery') => {
+    setScanResult(null);
+    let result: ImagePicker.ImagePickerResult;
+    if (source === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) return;
+      result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7, mediaTypes: ['images'] });
+    } else {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      result = await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7, mediaTypes: ['images'] });
+    }
+    if (result.canceled || !result.assets[0]?.base64) return;
+    setOverlay('none');
+    setScanLoading(true);
+    setScanResult(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/vision/scan`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MOBILE_TOKEN}` },
+        body:    JSON.stringify({ imageBase64: result.assets[0].base64, mimeType: result.assets[0].mimeType ?? 'image/jpeg' }),
+        signal:  AbortSignal.timeout(20000),
+      });
+      if (res.ok) setScanResult(await res.json() as ScanResult);
+    } catch { /* ignore */ }
+    setScanLoading(false);
+  }, [MOBILE_TOKEN]);
+
   const openHistory = useCallback(async () => {
     setOverlay('history');
     setHistLoad(true);
@@ -478,9 +519,60 @@ export default function JarvisScreen() {
             <TouchableOpacity style={styles.shutterBtn} onPress={takePhoto}>
               <View style={styles.shutterCore} />
             </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity style={styles.camScanBtn} onPress={() => handlePickAndScan('camera')}>
+                <Text style={styles.camScanTxt}>📄 SCANNER DOC</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.camScanBtn} onPress={() => handlePickAndScan('gallery')}>
+                <Text style={styles.camScanTxt}>🖼 GALERIE</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity onPress={() => setOverlay('none')}>
               <Text style={styles.camCancel}>✕ ANNULER</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Scan loading/result overlay */}
+      {(scanLoading || scanResult) && (
+        <View style={styles.scanOverlay}>
+          <View style={styles.scanBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <Text style={styles.scanTitle}>
+                {scanLoading ? '⟳ ANALYSE EN COURS...' : `🔍 ${(scanResult?.type ?? 'DOC').toUpperCase()}`}
+              </Text>
+              {!scanLoading && (
+                <TouchableOpacity onPress={() => setScanResult(null)}>
+                  <Text style={{ color: '#333', fontFamily: MONO, fontSize: 12 }}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {scanLoading && <Text style={styles.scanDesc}>Dzaryx analyse l'image...</Text>}
+            {scanResult && (
+              <>
+                <Text style={styles.scanDesc}>{scanResult.description}</Text>
+                {scanResult.extractedData && (
+                  <View style={styles.scanDataBox}>
+                    {Object.entries(scanResult.extractedData)
+                      .filter(([k, v]) => k !== 'type' && k !== 'readable' && v)
+                      .map(([k, v]) => (
+                        <View key={k} style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                          <Text style={styles.scanKey}>{k.replace(/_/g, ' ').toUpperCase()}</Text>
+                          <Text style={styles.scanVal}>{String(v)}</Text>
+                        </View>
+                      ))
+                    }
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={styles.scanSendBtn}
+                  onPress={() => { setScanResult(null); handleSend(`Résultat scan: ${scanResult.description}`); }}
+                >
+                  <Text style={styles.scanSendTxt}>💬 ENVOYER À DZARYX</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       )}
@@ -881,6 +973,18 @@ const styles = StyleSheet.create({
   shutterBtn: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#00e5ff', alignItems: 'center', justifyContent: 'center' },
   shutterCore:{ width: 54, height: 54, borderRadius: 27, backgroundColor: '#00e5ff' },
   camCancel:  { color: '#444', fontSize: 11, fontFamily: MONO, letterSpacing: 2 },
+  camScanBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#00000099', borderRadius: 8, borderWidth: 1, borderColor: '#00e5ff44' },
+  camScanTxt: { color: '#00e5ff', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
+
+  scanOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000dd', justifyContent: 'flex-end' },
+  scanBox:     { backgroundColor: '#050505', borderTopWidth: 1, borderTopColor: '#1a1a1a', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+  scanTitle:   { color: '#00e5ff', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+  scanDesc:    { color: '#888', fontSize: 11, fontFamily: MONO, lineHeight: 18, marginBottom: 12 },
+  scanDataBox: { backgroundColor: '#0a0a0a', borderRadius: 8, borderWidth: 1, borderColor: '#1a1a1a', padding: 12, marginBottom: 12 },
+  scanKey:     { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 2, width: 120 },
+  scanVal:     { color: '#00e5ff88', fontSize: 9, fontFamily: MONO, flex: 1 },
+  scanSendBtn: { borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 8, paddingVertical: 10, alignItems: 'center', backgroundColor: '#00e5ff08' },
+  scanSendTxt: { color: '#00e5ff', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
 
   textOverlay:{ position: 'absolute', bottom: 108, left: 14, right: 14 },
   textBox:    { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: '#070707', borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },
