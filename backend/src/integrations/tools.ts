@@ -95,6 +95,17 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'get_client_profile',
+    description: 'Récupérer le profil comportemental complet d\'un client: voitures préférées, durées typiques, fiabilité paiement, historique, score VIP/FREQUENT/REGULAR/NEW. Utiliser quand Kouider demande "profil de X", "infos sur X", "c\'est qui X".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom ou prénom du client (recherche partielle)' },
+      },
+      required: ['client_name'],
+    },
+  },
+  {
     name: 'store_document',
     description: 'Stocker passeport/permis/contrat client + données OCR extraites. Appeler après analyse vision d\'une photo document. extracted_data contient les champs parsés (passport_number, full_name, dob, nationality, expiry_date, etc.).',
     input_schema: {
@@ -1157,6 +1168,19 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     name: 'health_check_all',
     description: 'Tester tous les services système: Railway, Claude API, ElevenLabs, Supabase, Google Calendar, Telegram, NEXUS, GitHub. Retourne ✅/❌/⚠️ pour chaque. Utiliser quand Kouider dit "teste tout", "health check", "statut des services", "qu\'est-ce qui fonctionne".',
     input_schema: { type: 'object' as const, properties: {} },
+  },
+
+  // ─── EXPORT COMPTABLE ─────────────────────────────────────────────
+  {
+    name: 'export_accounting',
+    description: 'Générer un rapport comptable PDF mensuel complet (toutes réservations + paiements + profits Kouider) et l\'envoyer sur Telegram. Utiliser quand Kouider demande "exporte la compta", "bilan du mois", "rapport mensuel PDF", "envoie les chiffres sur Telegram".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        year:  { type: 'number', description: 'Année (défaut: mois précédent)' },
+        month: { type: 'number', description: 'Mois 1-12 (défaut: mois précédent)' },
+      },
+    },
   },
 
   // ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────

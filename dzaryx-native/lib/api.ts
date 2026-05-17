@@ -122,3 +122,41 @@ export async function triggerSchedulerJob(jobName: string, mobileToken?: string)
     return false;
   }
 }
+
+export interface Booking {
+  id:                   string;
+  client_name:          string;
+  client_phone:         string | null;
+  start_date:           string;
+  end_date:             string;
+  final_price:          number | null;
+  payment_status:       string;
+  status:               string;
+  rented_by:            string | null;
+  client_price_per_day: number | null;
+  owner_price_per_day:  number | null;
+  profit_kouider:       number | null;
+  paid_amount:          number | null;
+  cars:                 { name: string; category: string | null } | null;
+}
+
+export async function fetchBookings(
+  mobileToken?: string,
+  status?: string,
+  limit = 30,
+): Promise<Booking[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (status) params.set('status', status);
+    const res = await fetch(`${BACKEND_URL}/api/bookings?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { bookings: Booking[] };
+    return data.bookings ?? [];
+  } catch {
+    return [];
+  }
+}

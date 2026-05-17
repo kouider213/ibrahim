@@ -172,6 +172,9 @@ export default function SettingsScreen() {
       {/* Actions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>ACTIONS</Text>
+        <TouchableOpacity style={styles.bookingsBtn} onPress={() => router.push('/bookings')}>
+          <Text style={styles.bookingsTxt}>📋 RÉSERVATIONS</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.switchBtn} onPress={() => router.replace('/auth/login')}>
           <Text style={styles.switchTxt}>CHANGER DE PROFIL</Text>
         </TouchableOpacity>
@@ -225,6 +228,12 @@ const styles = StyleSheet.create({
     color: '#00ff88', fontSize: 11, fontFamily: MONO, letterSpacing: 2,
     textAlign: 'center', marginBottom: 12,
   },
+
+  bookingsBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#00ff8844',
+    borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
+  },
+  bookingsTxt: { color: '#00ff88', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
 
   switchBtn: {
     backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff44',

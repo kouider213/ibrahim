@@ -70,6 +70,7 @@ import { generateReservationVoucher } from './generate-voucher.js';
 import { redis } from '../queue/queue.js';
 import { recordToolExecution } from '../orchestrator/action-engine.js';
 import { writeMemory, computeMemoryKey, type MemoryDomain } from '../orchestrator/memory-engine.js';
+import { getClientProfile } from '../orchestrator/client-intelligence.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
@@ -190,6 +191,7 @@ async function _dispatch(
       // ─── PHASE 6 — WhatsApp ───
       case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input);
       case 'check_car_availability':     return await checkCarAvailability(input);
+      case 'get_client_profile':         return await getClientProfileTool(input['client_name'] as string);
       // ─── GitHub search ───
       case 'github_search_code':         return await githubSearchCode(input);
       // ─── Documents client ───
@@ -267,6 +269,7 @@ async function _dispatch(
       // ─── IMAGE-TO-IMAGE avec conservation visage ───
       case 'transform_image':            return await executeImageToImage(input, sessionId);
       case 'get_travel_time':            return await getTravelTimeTool(input);
+      case 'export_accounting':          return await exportAccountingPDF(input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -479,7 +482,14 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     }, 2000);
   } catch { calendarNote = ' | ⚠️ Google Agenda non synchro'; }
 
-  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}`;
+  // Alert if owner_ppd missing → profit will be null, Kouider needs to fill it
+  if (owner_ppd === null && env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+    const chatId = Number(env.TELEGRAM_CHAT_ID);
+    const alertMsg = `⚠️ *BOOKING SANS PRIX PROPRIÉTAIRE*\n👤 ${input['client_name'] as string}\n🚗 Voiture: ${carId}\n📅 ${input['start_date'] as string} → ${input['end_date'] as string}\n💶 Total client: ${input['final_price'] as string}€\n\n_Dis à Ibrahim le prix propriétaire pour calculer le profit._`;
+    if (!isNaN(chatId)) sendTelegramText(chatId, alertMsg).catch(() => {});
+  }
+
+  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}`;
 }
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {
@@ -4284,5 +4294,176 @@ async function getTravelTimeTool(input: Record<string, unknown>): Promise<string
   ].filter(l => l !== undefined);
 
   return lines.join('\n');
+}
+
+// ── Get Client Profile Tool ───────────────────────────────────────────────────
+
+async function getClientProfileTool(clientName: string): Promise<string> {
+  if (!clientName) return '❌ Nom client requis.';
+  const result = await getClientProfile(clientName);
+  if (!result.exists || !result.profile) {
+    return `❌ Aucun profil client trouvé pour "${clientName}". Ce client n'a peut-être pas encore de réservation enregistrée.`;
+  }
+  const p = result.profile;
+  const lines = [
+    `👤 *PROFIL CLIENT: ${p.client_name}*`,
+    `📞 ${p.client_phone ?? 'Téléphone non renseigné'}`,
+    ``,
+    `📊 *Score: ${p.score}* | Réservations: ${p.total_bookings} | Total dépensé: ${Math.round(p.total_spent)}€`,
+    p.last_booking_date ? `📅 Dernière résa: ${p.last_booking_date}` : '',
+    ``,
+    `🚗 Voitures préférées: ${p.preferred_cars.length ? p.preferred_cars.join(', ') : 'Non déterminé'}`,
+    p.avoided_cars.length ? `🚫 Voitures évitées: ${p.avoided_cars.join(', ')}` : '',
+    `⏱ Durée typique: ${p.typical_duration_days ? `${p.typical_duration_days} jours` : 'Variable'}`,
+    p.typical_months.length ? `📆 Mois favoris: ${p.typical_months.map(m => new Date(2024, m - 1).toLocaleString('fr-FR', { month: 'long' })).join(', ')}` : '',
+    ``,
+    `💳 Fiabilité paiement: ${p.payment_reliability}`,
+    `🤝 Style négociation: ${p.negotiation_style}`,
+    p.avg_discount_asked > 0 ? `💸 Remise moyenne demandée: ${Math.round(p.avg_discount_asked)}%` : '',
+    p.cancellation_count > 0 ? `⚠️ Annulations: ${p.cancellation_count}` : '',
+    p.notes ? `\n📝 Notes: ${p.notes}` : '',
+  ].filter(Boolean);
+  return lines.join('\n');
+}
+
+// ── Export Comptable PDF ──────────────────────────────────────────────────────
+
+async function exportAccountingPDF(input: Record<string, unknown>): Promise<string> {
+  const now    = new Date();
+  const prev   = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const year   = typeof input['year']  === 'number' ? input['year']  : prev.getFullYear();
+  const month  = typeof input['month'] === 'number' ? input['month'] : prev.getMonth() + 1;
+
+  const start  = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDay = new Date(year, month, 0).getDate();
+  const end    = `${year}-${String(month).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+  const { data: rows, error } = await supabase
+    .from('bookings')
+    .select('client_name, client_phone, start_date, end_date, final_price, client_price_per_day, owner_price_per_day, profit_kouider, payment_status, paid_amount, rented_by, cars(name)')
+    .lte('start_date', end)
+    .gte('end_date', start)
+    .order('start_date', { ascending: true });
+
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  const bookings = (rows ?? []) as Array<Record<string, unknown>>;
+
+  const totalCA     = bookings.reduce((s, b) => s + (Number(b['final_price'])    || 0), 0);
+  const totalOwner  = bookings.reduce((s, b) => s + (Number(b['owner_price_per_day']) || 0) * Math.max(1, Math.ceil((new Date(b['end_date'] as string).getTime() - new Date(b['start_date'] as string).getTime()) / 86_400_000)), 0);
+  const totalProfit = bookings.reduce((s, b) => s + (Number(b['profit_kouider']) || 0), 0);
+  const totalPaid   = bookings.reduce((s, b) => s + (Number(b['paid_amount'])    || 0), 0);
+  const unpaid      = bookings.filter(b => b['payment_status'] !== 'PAID');
+  const monthLabel  = new Date(year, month - 1, 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
+
+  const PDFDocument = (await import('pdfkit')).default;
+  const pdfBuffer: Buffer = await new Promise<Buffer>((resolve, reject) => {
+    const doc    = new PDFDocument({ size: 'A4', margins: { top: 40, bottom: 40, left: 40, right: 40 } });
+    const chunks: Buffer[] = [];
+    doc.on('data',  (c: Buffer) => chunks.push(c));
+    doc.on('end',   ()          => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    doc.font('Helvetica-Bold').fontSize(20).fillColor('#111').text('FIK CONCIERGERIE', { align: 'center' });
+    doc.font('Helvetica').fontSize(9).fillColor('#888').text('Rapport comptable mensuel', { align: 'center' });
+    doc.moveDown(0.3);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).lineWidth(2).strokeColor('#111').stroke();
+    doc.moveDown(0.3);
+    doc.font('Helvetica-Bold').fontSize(14).fillColor('#111').text(`${monthLabel.toUpperCase()}`, { align: 'center' });
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).lineWidth(2).strokeColor('#111').stroke();
+    doc.moveDown(0.8);
+
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#111').text('RÉSUMÉ');
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).lineWidth(0.5).strokeColor('#ccc').stroke();
+    doc.moveDown(0.3);
+    const kpiY = doc.y;
+    const kpiW = 120;
+    const kpis = [
+      { label: 'Réservations', value: String(bookings.length) },
+      { label: 'CA Total',     value: `${Math.round(totalCA)}€` },
+      { label: 'Propriétaire', value: `${Math.round(totalOwner)}€` },
+      { label: 'Bénéfice net', value: `${Math.round(totalProfit)}€` },
+      { label: 'Encaissé',     value: `${Math.round(totalPaid)}€` },
+      { label: 'Impayés',      value: String(unpaid.length) },
+    ];
+    kpis.forEach((k, i) => {
+      const x = 40 + (i % 3) * (kpiW + 15);
+      const y = kpiY + Math.floor(i / 3) * 50;
+      doc.rect(x, y, kpiW, 40).fillAndStroke('#f8f8f8', '#e0e0e0');
+      doc.font('Helvetica-Bold').fontSize(16).fillColor(k.label === 'Bénéfice net' ? '#007700' : '#111').text(k.value, x, y + 6, { width: kpiW, align: 'center' });
+      doc.font('Helvetica').fontSize(7).fillColor('#888').text(k.label.toUpperCase(), x, y + 26, { width: kpiW, align: 'center' });
+    });
+    doc.moveDown(4);
+
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#111').text('DÉTAIL DES RÉSERVATIONS');
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).lineWidth(0.5).strokeColor('#ccc').stroke();
+    doc.moveDown(0.3);
+
+    const cols   = [105, 70, 60, 55, 55, 55, 60, 35];
+    const labels = ['Client', 'Voiture', 'Début', 'Fin', 'CA', 'Proprio', 'Profit', 'Payé'];
+    let hx = 40;
+    const headerY = doc.y;
+    labels.forEach((l, i) => {
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#555').text(l, hx, headerY, { width: cols[i] });
+      hx += cols[i];
+    });
+    doc.moveDown(0.4);
+    doc.moveTo(40, doc.y).lineTo(555, doc.y).lineWidth(0.5).strokeColor('#ddd').stroke();
+    doc.moveDown(0.2);
+
+    for (const b of bookings) {
+      if (doc.y > 730) { doc.addPage(); }
+      const car = (b['cars'] as { name: string } | null)?.name ?? '—';
+      const days = Math.max(1, Math.ceil((new Date(b['end_date'] as string).getTime() - new Date(b['start_date'] as string).getTime()) / 86_400_000));
+      const ownerTot = (Number(b['owner_price_per_day']) || 0) * days;
+      const profit   = Number(b['profit_kouider']) || null;
+      const isPaid   = b['payment_status'] === 'PAID';
+      const rowY2    = doc.y;
+      let rx = 40;
+      const rowData = [
+        String(b['client_name'] ?? '—').slice(0, 16),
+        car.slice(0, 12),
+        String(b['start_date'] ?? '').slice(5),
+        String(b['end_date']   ?? '').slice(5),
+        `${Math.round(Number(b['final_price']) || 0)}€`,
+        ownerTot > 0 ? `${Math.round(ownerTot)}€` : '—',
+        profit != null ? `${Math.round(profit)}€` : '—',
+        isPaid ? '✓' : '✗',
+      ];
+      const rColors = ['#111','#555','#555','#555','#111','#777', profit != null && profit >= 0 ? '#007700' : '#cc0000', isPaid ? '#007700' : '#cc0000'];
+      rowData.forEach((v, i) => {
+        doc.font('Helvetica').fontSize(7).fillColor(rColors[i] ?? '#111').text(v, rx, rowY2, { width: cols[i], lineBreak: false });
+        rx += cols[i];
+      });
+      doc.moveDown(0.9);
+    }
+
+    doc.moveTo(40, 800).lineTo(555, 800).lineWidth(0.5).strokeColor('#ccc').stroke();
+    doc.font('Helvetica').fontSize(7).fillColor('#aaa').text(
+      `Fik Conciergerie · Généré par Dzaryx IA · ${new Date().toLocaleDateString('fr-FR')}`,
+      40, 807, { width: 515, align: 'center' },
+    );
+    doc.end();
+  });
+
+  const safePeriod  = `${year}-${String(month).padStart(2, '0')}`;
+  const storagePath = `accounting/COMPTA_${safePeriod}.pdf`;
+  await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
+  await supabase.storage.from('client-documents').upload(storagePath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
+
+  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
+    const chatId  = Number(env.TELEGRAM_CHAT_ID);
+    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}`;
+    const filename = `COMPTA_${safePeriod}.pdf`;
+    const FormData2 = (await import('form-data')).default;
+    const form2 = new FormData2();
+    form2.append('chat_id', String(chatId));
+    form2.append('document', pdfBuffer, { filename, contentType: 'application/pdf', knownLength: pdfBuffer.length });
+    form2.append('caption', `📊 *Rapport comptable ${monthLabel}*\n📋 ${bookings.length} réservations · 💶 CA: ${Math.round(totalCA)}€ · Bénéfice: ${Math.round(totalProfit)}€`);
+    await axios.post(`${botBase}/sendDocument`, form2, { headers: form2.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity }).catch(e => {
+      console.error('[export_accounting] Telegram send failed:', e instanceof Error ? e.message : e);
+    });
+  }
+
+  return `✅ Rapport comptable *${monthLabel}* généré et envoyé sur Telegram\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Proprio: ${Math.round(totalOwner)}€ | Bénéfice net: ${Math.round(totalProfit)}€ | Encaissé: ${Math.round(totalPaid)}€ | Impayés: ${unpaid.length}`;
 }
 

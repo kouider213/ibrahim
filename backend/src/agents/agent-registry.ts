@@ -78,9 +78,9 @@ TOUJOURS: donner des chiffres précis avec devise (€/DZD), indiquer la périod
   toolNames: [
     'get_financial_report','get_finance_dashboard','get_payment_status','record_payment',
     'get_revenue_report','get_unpaid_bookings','generate_receipt','check_anomalies',
-    'list_bookings','get_late_returns',
+    'list_bookings','get_late_returns','export_accounting',
   ],
-  keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|revenu|revenus|encaissé|dette|profit|gagné|gain|rapport\s+fi)\b/i,
+  keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|revenu|revenus|encaissé|dette|profit|gagné|gain|rapport\s+fi|compta|comptable|export)\b/i,
   priority:  9,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.3, maxTokens: 1500, fallback: 'openai' },
 };
@@ -106,9 +106,9 @@ ENREGISTREMENT DOCUMENT:
 - Format extracted_data: {"passport_number":"...","full_name":"...","dob":"...","expiry_date":"..."}`,
   toolNames: [
     'store_document','get_client_document','send_whatsapp_to_client','send_telegram_message',
-    'rate_client','record_feedback',
+    'rate_client','record_feedback','get_client_profile','list_bookings',
   ],
-  keywords:  /\b(client|document|contrat|passep|passeport|paseport|pasport|passport|permis|permi|identit|whatsapp|sms|message|envoyer|envoi|notif|noter|évaluation|historique\s+client)\b/i,
+  keywords:  /\b(client|document|contrat|passep|passeport|paseport|pasport|passport|permis|permi|identit|whatsapp|sms|message|envoyer|envoi|notif|noter|évaluation|historique\s+client|profil\s+client|qui\s+est\s+[A-Z])\b/i,
   priority:  8,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1200 },
 };
