@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform,
-  Alert, TextInput, KeyboardAvoidingView, ActivityIndicator, Linking,
+  Alert, TextInput, KeyboardAvoidingView, ActivityIndicator, Linking, Share,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
@@ -120,6 +120,25 @@ export default function BookingDetailScreen() {
       Alert.alert('Erreur', 'Mise à jour échouée.');
     }
   }, [booking, editStatus, editPay, editNotes, editPrice, editOwnerPP, editClientPP, editPaidAmount, TOKEN, load]);
+
+  const handleShare = useCallback(async () => {
+    if (!booking) return;
+    const car   = booking.cars?.name ?? '?';
+    const days  = nbDays(booking.start_date, booking.end_date);
+    const text  = [
+      `📋 Réservation Fik Conciergerie Oran`,
+      `Client : ${booking.client_name}`,
+      booking.client_phone ? `Tél    : ${booking.client_phone}` : null,
+      `Voiture: ${car}`,
+      `Du     : ${fmtDate(booking.start_date)}`,
+      `Au     : ${fmtDate(booking.end_date)} (${days}j)`,
+      `Prix   : ${booking.final_price != null ? `${booking.final_price}€` : 'Non défini'}`,
+      `Statut : ${booking.status}`,
+      `Paiement: ${booking.payment_status ?? 'UNPAID'}`,
+      booking.notes ? `Notes  : ${booking.notes}` : null,
+    ].filter(Boolean).join('\n');
+    await Share.share({ message: text, title: `Résa ${booking.client_name}` });
+  }, [booking]);
 
   const handleDelete = useCallback(() => {
     if (!booking) return;
@@ -306,6 +325,9 @@ export default function BookingDetailScreen() {
                 <Text style={styles.waTxt}>💬 WA</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+              <Text style={styles.shareTxt}>📤</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
               <Text style={styles.deleteTxt}>🗑</Text>
             </TouchableOpacity>
@@ -379,6 +401,8 @@ const styles = StyleSheet.create({
   callTxt:  { color: '#00ff88', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
   waBtn:    { flex: 1, backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36633', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   waTxt:    { color: '#25d366', fontSize: 10, fontFamily: MONO, letterSpacing: 1 },
+  shareBtn: { flex: 1, backgroundColor: '#ffffff11', borderWidth: 1, borderColor: '#ffffff22', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  shareTxt: { color: '#ffffff99', fontSize: 10, fontFamily: MONO },
   deleteBtn:{ flex: 1, backgroundColor: '#ff444411', borderWidth: 1, borderColor: '#ff444433', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   deleteTxt:{ color: '#ff4444', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
 });
