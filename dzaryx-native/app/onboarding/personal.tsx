@@ -16,7 +16,7 @@ export default function PersonalSetupScreen() {
     setUser(Date.now().toString(), name.trim());
     setPersonal(city.trim());
     completeOnboarding();
-    router.replace('/chat');
+    router.replace('/auth/login');
   }
 
   return (

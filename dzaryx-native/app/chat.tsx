@@ -278,7 +278,7 @@ export default function JarvisScreen() {
     if (!text.trim()) return;
     setLastTxt(''); setNavLinks(null); setOverlay('none'); setInput(''); setJs('think');
     try {
-      await sendMessage(text.trim(), sessionId, undefined, locationRef.current ?? undefined);
+      await sendMessage(text.trim(), sessionId, undefined, locationRef.current ?? undefined, MOBILE_TOKEN);
     } catch {
       setLastTxt('⚠️ Erreur de connexion');
       setJs('idle');
@@ -351,7 +351,7 @@ export default function JarvisScreen() {
       const photo = await cameraRef.current.takePicture({ base64: true, quality: 0.6 });
       setOverlay('none');
       setJs('think');
-      await sendMessage("Que vois-tu sur cette image ? Décris précisément.", sessionId, photo.base64 ?? undefined);
+      await sendMessage("Que vois-tu sur cette image ? Décris précisément.", sessionId, photo.base64 ?? undefined, undefined, MOBILE_TOKEN);
     } catch { setJs('idle'); }
   }, [sessionId]);
 

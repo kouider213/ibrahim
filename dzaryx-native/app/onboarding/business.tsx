@@ -29,7 +29,7 @@ export default function BusinessSetupScreen() {
     setUser(Date.now().toString(), ownerName.trim());
     setBusiness(selected, name.trim(), city.trim());
     completeOnboarding();
-    router.replace('/chat');
+    router.replace('/auth/login');
   }
 
   return (
