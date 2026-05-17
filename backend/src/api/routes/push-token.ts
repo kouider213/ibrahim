@@ -11,8 +11,9 @@ router.post('/', requireMobileAuth, async (req, res) => {
     res.status(400).json({ error: 'Invalid Expo push token' });
     return;
   }
-  await storePushToken(token);
-  res.json({ ok: true });
+  const actorId = req.mobileActor?.ownerKey ?? 'kouider';
+  await storePushToken(token, actorId);
+  res.json({ ok: true, actorId });
 });
 
 // GET /api/push-token — debug: verify stored token

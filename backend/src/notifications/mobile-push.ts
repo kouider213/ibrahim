@@ -9,41 +9,61 @@ export function initMobilePush(io: Namespace): void {
 
 export type ProactiveType = 'morning' | 'alert' | 'reminder' | 'info';
 
-const PUSH_TOKEN_KEY = 'mobile:expo_push_token';
+const PUSH_TOKEN_KEY    = 'mobile:expo_push_token';           // legacy single token (Kouider)
+const PUSH_TOKEN_PREFIX = 'mobile:expo_push_token:';          // per-actor key prefix
 
-export async function storePushToken(token: string): Promise<void> {
-  await redis.set(PUSH_TOKEN_KEY, token);
-  console.log(`[mobile-push] Push token stored: ${token.slice(0, 30)}…`);
+export async function storePushToken(token: string, actorId = 'kouider'): Promise<void> {
+  // Store actor-scoped + legacy key for Kouider (backward compat)
+  await Promise.all([
+    redis.set(`${PUSH_TOKEN_PREFIX}${actorId}`, token),
+    actorId === 'kouider' ? redis.set(PUSH_TOKEN_KEY, token) : Promise.resolve(),
+  ]);
+  console.log(`[mobile-push] Push token stored for ${actorId}: ${token.slice(0, 30)}…`);
 }
 
-export async function getPushToken(): Promise<string | null> {
-  return redis.get(PUSH_TOKEN_KEY);
+export async function getPushToken(actorId = 'kouider'): Promise<string | null> {
+  const token = await redis.get(`${PUSH_TOKEN_PREFIX}${actorId}`);
+  if (token) return token;
+  // Fallback to legacy key for Kouider
+  if (actorId === 'kouider') return redis.get(PUSH_TOKEN_KEY);
+  return null;
+}
+
+/** Get all stored push tokens (for broadcast) */
+async function getAllPushTokens(): Promise<string[]> {
+  const [kouider, houari, legacy] = await Promise.all([
+    redis.get(`${PUSH_TOKEN_PREFIX}kouider`),
+    redis.get(`${PUSH_TOKEN_PREFIX}houari`),
+    redis.get(PUSH_TOKEN_KEY),
+  ]);
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const t of [kouider, houari, legacy]) {
+    if (t && !seen.has(t)) { seen.add(t); tokens.push(t); }
+  }
+  return tokens;
 }
 
 async function sendExpoPush(title: string, body: string, data?: Record<string, string>): Promise<void> {
-  const token = await getPushToken();
-  if (!token) { console.log('[mobile-push] No push token — skipping FCM'); return; }
+  const tokens = await getAllPushTokens();
+  if (tokens.length === 0) { console.log('[mobile-push] No push tokens — skipping FCM'); return; }
 
-  const payload = {
-    to:    token,
-    title,
-    body,
-    data:  data ?? {},
-    sound: 'default',
-    priority: 'high',
-  };
+  // Expo supports array payload for batch send
+  const payloads = tokens.map(to => ({
+    to, title, body, data: data ?? {}, sound: 'default', priority: 'high',
+  }));
 
   const res = await fetch('https://exp.host/--/api/v2/push/send', {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body:    JSON.stringify(payload),
+    body:    JSON.stringify(payloads.length === 1 ? payloads[0] : payloads),
   });
 
   if (!res.ok) {
     console.error('[mobile-push] Expo push failed:', await res.text());
   } else {
-    const json = await res.json() as { data?: { status: string } };
-    console.log(`[mobile-push] Expo push sent — status: ${json.data?.status ?? 'ok'}`);
+    await res.json();
+    console.log(`[mobile-push] Expo push sent to ${tokens.length} device(s)`);
   }
 }
 
