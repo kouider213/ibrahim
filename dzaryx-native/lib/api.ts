@@ -138,6 +138,9 @@ export interface Car {
 }
 
 export interface RevenueSummary {
+  last_month_revenue?:    number;
+  last_month_profit?:     number;
+  month_vs_last_pct?:     number;
   today_revenue:            number;
   week_revenue:             number;
   month_revenue:            number;

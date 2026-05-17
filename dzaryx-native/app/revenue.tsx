@@ -82,6 +82,24 @@ export default function RevenueScreen() {
                 </View>
               </View>
 
+              {/* Last month comparison */}
+              {data.last_month_revenue != null && data.last_month_revenue > 0 && (
+                <View style={styles.compareRow}>
+                  <View style={styles.compareCard}>
+                    <Text style={styles.compareVal}>{fmt(data.last_month_revenue)}</Text>
+                    <Text style={styles.compareLbl}>MOIS PRÉCÉDENT</Text>
+                  </View>
+                  {data.month_vs_last_pct != null && (
+                    <View style={[styles.compareCard, { borderColor: (data.month_vs_last_pct ?? 0) >= 0 ? '#00ff8844' : '#ff444444' }]}>
+                      <Text style={[styles.compareVal, { color: (data.month_vs_last_pct ?? 0) >= 0 ? '#00ff88' : '#ff4444' }]}>
+                        {(data.month_vs_last_pct ?? 0) >= 0 ? '+' : ''}{data.month_vs_last_pct}%
+                      </Text>
+                      <Text style={styles.compareLbl}>VS MOIS PRÉCÉDENT</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* Profit + Owner */}
               <Text style={styles.sectionTitle}>RÉPARTITION CE MOIS</Text>
               <View style={styles.splitRow}>
@@ -221,6 +239,11 @@ const styles = StyleSheet.create({
   revAmount:    { color: '#fff', fontSize: 24, fontFamily: MONO, fontWeight: '700' },
   revAmountBig: { fontSize: 32, color: '#00e5ff' },
   revLabel:     { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 3, marginTop: 4 },
+
+  compareRow:  { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  compareCard: { flex: 1, backgroundColor: '#050505', borderWidth: 1, borderColor: '#1a1a1a', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  compareVal:  { color: '#fff', fontSize: 18, fontFamily: MONO, fontWeight: '700' },
+  compareLbl:  { color: '#333', fontSize: 7, fontFamily: MONO, letterSpacing: 2, marginTop: 4 },
 
   splitRow: { flexDirection: 'row', gap: 8, marginBottom: 24 },
   splitCard: {

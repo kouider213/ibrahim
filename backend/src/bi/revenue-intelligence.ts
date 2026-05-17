@@ -15,6 +15,9 @@ export interface RevenueSummary {
   today_revenue:            number;
   week_revenue:             number;
   month_revenue:            number;
+  last_month_revenue:       number;   // revenue du mois précédent (comparaison)
+  last_month_profit:        number;   // profit Kouider mois précédent
+  month_vs_last_pct:        number;   // % variation mois courant vs précédent
   kouider_profit_month:     number;
   houari_revenue_month:     number;
   missing_owner_price:      number;    // bookings sans owner_ppd ce mois
@@ -91,10 +94,16 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
   const monthStart = `${now.getFullYear()}-${monthStr}-01`;
   const monthEnd   = `${now.getFullYear()}-${monthStr}-${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}`;
 
+  // Last month
+  const lastMonthDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthStr   = String(lastMonthDate.getMonth() + 1).padStart(2, '0');
+  const lastMonthStart = `${lastMonthDate.getFullYear()}-${lastMonthStr}-01`;
+  const lastMonthEnd   = `${lastMonthDate.getFullYear()}-${lastMonthStr}-${new Date(lastMonthDate.getFullYear(), lastMonthDate.getMonth() + 1, 0).getDate()}`;
+
   // All queries include real price columns + use OVERLAP date filters
   const priceSelect = 'client_price_per_day, owner_price_per_day, final_price, nb_days, start_date, end_date';
 
-  const [todayRes, weekRes, monthRes, rejectedRes, finReport, unpaidRes] = await Promise.all([
+  const [todayRes, weekRes, monthRes, rejectedRes, finReport, unpaidRes, lastMonthRes] = await Promise.all([
     // Bookings ACTIVE today (overlap: start_date <= today AND end_date >= today)
     supabase.from('bookings')
       .select(priceSelect)
@@ -129,6 +138,13 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
       .select('final_price, paid_amount')
       .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
       .neq('payment_status', 'PAID'),
+
+    // Last month bookings (overlap)
+    supabase.from('bookings')
+      .select(`${priceSelect}, owner_price_per_day`)
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .lte('start_date', lastMonthEnd)
+      .gte('end_date',   lastMonthStart),
   ]);
 
   type PriceRow = { client_price_per_day?: number | null; final_price?: number | null; nb_days?: number | null; start_date: string; end_date: string };
@@ -185,10 +201,27 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
     return s + Math.max(0, owed);
   }, 0);
 
+  type LastMonthRow = PriceRow & { owner_price_per_day?: number | null };
+  const lastMonthRows   = (lastMonthRes.data ?? []) as LastMonthRow[];
+  const lastMonthRevenue = sumProrated(lastMonthRows, lastMonthStart, lastMonthEnd);
+  const lastMonthProfit  = lastMonthRows.reduce((s, b) => {
+    const ppd  = b.client_price_per_day;
+    const oppd = b.owner_price_per_day;
+    if (ppd == null || oppd == null) return s;
+    const days = b.nb_days ?? Math.max(1, Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000));
+    return s + (ppd - oppd) * days;
+  }, 0);
+  const monthVsLastPct = lastMonthRevenue > 0
+    ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+    : 0;
+
   const result: RevenueSummary = {
     today_revenue:         todayRevenue,
     week_revenue:          weekRevenue,
     month_revenue:         monthRevenue,
+    last_month_revenue:    Math.round(lastMonthRevenue),
+    last_month_profit:     Math.round(lastMonthProfit),
+    month_vs_last_pct:     monthVsLastPct,
     kouider_profit_month:  finReport?.kouiderProfit     ?? 0,
     houari_revenue_month:  finReport?.ownerTotal        ?? 0,
     missing_owner_price:   finReport?.missingOwnerPrice ?? 0,
