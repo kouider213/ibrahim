@@ -111,7 +111,12 @@ export default function ClientsScreen() {
         {!loading && filtered.map((c, i) => {
           const score = scoreClient(c.bookingCount, c.totalSpent);
           return (
-            <View key={`${c.phone ?? c.name}-${i}`} style={styles.card}>
+            <TouchableOpacity
+              key={`${c.phone ?? c.name}-${i}`}
+              activeOpacity={0.8}
+              onPress={() => router.push({ pathname: '/client-detail', params: { name: c.name, phone: c.phone ?? '' } })}
+            >
+            <View style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={[styles.scoreBadge, { borderColor: score.color }]}>
                   <Text style={[styles.scoreTxt, { color: score.color }]}>{score.label}</Text>
@@ -128,11 +133,13 @@ export default function ClientsScreen() {
               </View>
 
               {c.phone && (
-                <TouchableOpacity style={styles.phoneRow} onPress={() => Linking.openURL(`tel:${c.phone}`)}>
+                <TouchableOpacity style={styles.phoneRow} onPress={(e) => { e.stopPropagation(); Linking.openURL(`tel:${c.phone}`); }}>
                   <Text style={styles.phoneTxt}>📞 {c.phone}</Text>
                 </TouchableOpacity>
               )}
+              <Text style={styles.tapHint}>Appuyer pour voir le profil IA →</Text>
             </View>
+            </TouchableOpacity>
           );
         })}
       </ScrollView>
@@ -186,4 +193,5 @@ const styles = StyleSheet.create({
 
   phoneRow: { flexDirection: 'row', alignItems: 'center' },
   phoneTxt: { color: '#00e5ff', fontSize: 10, fontFamily: MONO, letterSpacing: 1 },
+  tapHint:  { color: '#1a1a1a', fontSize: 8, fontFamily: MONO, letterSpacing: 1, marginTop: 6, textAlign: 'right' },
 });

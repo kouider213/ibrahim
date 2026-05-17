@@ -236,6 +236,14 @@ export default function BookingsScreen() {
                     <Text style={styles.callTxt}>📞</Text>
                   </TouchableOpacity>
                 )}
+                {b.client_phone && (
+                  <TouchableOpacity style={styles.waBtn} onPress={() => {
+                    const phone = b.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
+                    Linking.openURL(`https://wa.me/${phone}`);
+                  }}>
+                    <Text style={styles.waTxt}>💬</Text>
+                  </TouchableOpacity>
+                )}
                 {b.payment_status !== 'PAID' && ['ACTIVE','CONFIRMED','PENDING'].includes(b.status) && (
                   <TouchableOpacity style={styles.paidBtn} onPress={() => markPaid(b)}>
                     <Text style={styles.paidTxt}>💳 PAYÉ</Text>
@@ -325,6 +333,8 @@ const styles = StyleSheet.create({
   actionsRow:{ flexDirection: 'row', alignItems: 'center', gap: 10 },
   callBtn:   { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   callTxt:   { color: '#00e5ff', fontSize: 12 },
+  waBtn:     { backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36622', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  waTxt:     { color: '#25d366', fontSize: 12 },
   paidBtn:   { backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8844', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   paidTxt:   { color: '#00ff88', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
   activeBtn: { backgroundColor: '#ffaa0011', borderWidth: 1, borderColor: '#ffaa0044', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },

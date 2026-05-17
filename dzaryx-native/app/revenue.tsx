@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
@@ -131,6 +131,19 @@ export default function RevenueScreen() {
                         <Text style={styles.clientTotal}>{fmt(c.total_spent)}</Text>
                         <Text style={styles.clientCount}>{c.bookings_count} résa</Text>
                       </View>
+                      {c.client_phone && (
+                        <View style={styles.clientActions}>
+                          <TouchableOpacity style={styles.miniCallBtn} onPress={() => Linking.openURL(`tel:${c.client_phone}`)}>
+                            <Text style={styles.miniCallTxt}>📞</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.miniWaBtn} onPress={() => {
+                            const phone = c.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
+                            Linking.openURL(`https://wa.me/${phone}`);
+                          }}>
+                            <Text style={styles.miniWaTxt}>💬</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                   ))}
                 </>
@@ -202,4 +215,10 @@ const styles = StyleSheet.create({
   clientPhone:  { color: '#333', fontSize: 9, fontFamily: MONO, marginTop: 2 },
   clientTotal:  { color: '#00ff88', fontSize: 12, fontFamily: MONO, fontWeight: '700' },
   clientCount:  { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 1, marginTop: 2 },
+
+  clientActions: { flexDirection: 'row', gap: 6, marginLeft: 6 },
+  miniCallBtn:   { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6 },
+  miniCallTxt:   { fontSize: 12 },
+  miniWaBtn:     { backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36622', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6 },
+  miniWaTxt:     { fontSize: 12 },
 });

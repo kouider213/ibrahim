@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform,
-  RefreshControl, ActivityIndicator,
+  RefreshControl, ActivityIndicator, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
@@ -105,6 +105,19 @@ export default function RemindersScreen() {
                     <Text style={styles.actionLabel}>ACTION :</Text>
                     <Text style={styles.actionTxt}>{r.action}</Text>
                   </View>
+                  {r.client_phone && (
+                    <View style={styles.contactRow}>
+                      <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(`tel:${r.client_phone}`)}>
+                        <Text style={styles.contactBtnTxt}>📞 APPELER</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.contactBtn, styles.waContactBtn]} onPress={() => {
+                        const phone = r.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
+                        Linking.openURL(`https://wa.me/${phone}`);
+                      }}>
+                        <Text style={[styles.contactBtnTxt, { color: '#25d366' }]}>💬 WA</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))}
             </View>
@@ -148,7 +161,12 @@ const styles = StyleSheet.create({
 
   message:     { color: '#888', fontSize: 11, fontFamily: MONO, lineHeight: 17, marginBottom: 10 },
 
-  actionBox:   { backgroundColor: '#0a0a0a', borderRadius: 6, padding: 10, flexDirection: 'row', gap: 6 },
+  actionBox:   { backgroundColor: '#0a0a0a', borderRadius: 6, padding: 10, flexDirection: 'row', gap: 6, marginBottom: 8 },
   actionLabel: { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 2, paddingTop: 1 },
   actionTxt:   { color: '#00e5ff88', fontSize: 9, fontFamily: MONO, lineHeight: 14, flex: 1 },
+
+  contactRow:      { flexDirection: 'row', gap: 8 },
+  contactBtn:      { flex: 1, backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  waContactBtn:    { backgroundColor: '#25d36611', borderColor: '#25d36622' },
+  contactBtnTxt:   { color: '#00e5ff', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },
 });

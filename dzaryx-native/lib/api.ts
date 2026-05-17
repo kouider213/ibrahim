@@ -316,13 +316,14 @@ export async function fetchRevenue(mobileToken?: string): Promise<RevenueSummary
 }
 
 export interface SmartReminder {
-  type:        string;
-  priority:    'HIGH' | 'MEDIUM' | 'LOW';
-  client_name: string;
-  car_name:    string;
-  date:        string;
-  message:     string;
-  action:      string;
+  type:         string;
+  priority:     'HIGH' | 'MEDIUM' | 'LOW';
+  client_name:  string;
+  client_phone: string | null;
+  car_name:     string;
+  date:         string;
+  message:      string;
+  action:       string;
 }
 
 export async function fetchReminders(mobileToken?: string): Promise<SmartReminder[]> {
