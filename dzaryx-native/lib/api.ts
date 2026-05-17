@@ -474,6 +474,24 @@ export async function createCar(
   }
 }
 
+export async function registerPushToken(
+  pushToken:    string,
+  mobileToken?: string,
+): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/push-token`, {
+      method:  'POST',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ token: pushToken }),
+      signal:  AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function updateClientNotes(
   phone:        string,
   notes:        string,

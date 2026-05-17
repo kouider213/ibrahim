@@ -12,7 +12,8 @@ import * as Location from 'expo-location';
 import * as KeepAwake from 'expo-keep-awake';
 import { io, type Socket } from 'socket.io-client';
 import { useStore } from '../lib/store';
-import { sendMessage, fetchHistory, type UserLocation, type HistoryMessage } from '../lib/api';
+import { sendMessage, fetchHistory, registerPushToken, type UserLocation, type HistoryMessage } from '../lib/api';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 
 const { width: W } = Dimensions.get('window');
@@ -253,6 +254,26 @@ export default function JarvisScreen() {
     setHistMsgs(msgs);
     setHistLoad(false);
   }, [sessionId, MOBILE_TOKEN]);
+
+  // ── Push token registration (once per app launch when user has token) ──
+  useEffect(() => {
+    if (!MOBILE_TOKEN) return;
+    void (async () => {
+      try {
+        const { status } = await Notifications.getPermissionsAsync();
+        let finalStatus = status;
+        if (status !== 'granted') {
+          const { status: newStatus } = await Notifications.requestPermissionsAsync();
+          finalStatus = newStatus;
+        }
+        if (finalStatus !== 'granted') return;
+        const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined;
+        const projectId = extra?.eas?.projectId ?? '3536fdc5-6088-4fd4-9a4f-d443f0a52a1e';
+        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+        await registerPushToken(tokenData.data, MOBILE_TOKEN);
+      } catch { /* simulator or permission denied — silent fail */ }
+    })();
+  }, [MOBILE_TOKEN]);
 
   // ── Car mode auto-listen (wired after startRecord/stopRecord defined) ────
   useEffect(() => {

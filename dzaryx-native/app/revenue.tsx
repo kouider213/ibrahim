@@ -173,7 +173,12 @@ export default function RevenueScreen() {
                 <>
                   <Text style={styles.sectionTitle}>TOP CLIENTS</Text>
                   {data.top_clients.map((c, i) => (
-                    <View key={i} style={styles.clientRow}>
+                    <TouchableOpacity
+                      key={i}
+                      style={styles.clientRow}
+                      activeOpacity={0.8}
+                      onPress={() => router.push({ pathname: '/client-detail', params: { name: c.client_name, phone: c.client_phone ?? '' } })}
+                    >
                       <View style={[styles.scoreBadge, { borderColor: SCORE_COLOR[c.score] ?? '#555' }]}>
                         <Text style={[styles.scoreTxt, { color: SCORE_COLOR[c.score] ?? '#555' }]}>{c.score}</Text>
                       </View>
@@ -189,10 +194,11 @@ export default function RevenueScreen() {
                       </View>
                       {c.client_phone && (
                         <View style={styles.clientActions}>
-                          <TouchableOpacity style={styles.miniCallBtn} onPress={() => Linking.openURL(`tel:${c.client_phone}`)}>
+                          <TouchableOpacity style={styles.miniCallBtn} onPress={(e) => { e.stopPropagation(); Linking.openURL(`tel:${c.client_phone}`); }}>
                             <Text style={styles.miniCallTxt}>📞</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.miniWaBtn} onPress={() => {
+                          <TouchableOpacity style={styles.miniWaBtn} onPress={(e) => {
+                            e.stopPropagation();
                             const phone = c.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
                             Linking.openURL(`https://wa.me/${phone}`);
                           }}>
@@ -200,7 +206,7 @@ export default function RevenueScreen() {
                           </TouchableOpacity>
                         </View>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </>
               )}
