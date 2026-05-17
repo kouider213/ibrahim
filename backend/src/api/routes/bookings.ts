@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getBookings, checkCarAvailability, createBooking, supabase } from '../../integrations/supabase.js';
 import { createCalendarEvent } from '../../integrations/google-calendar.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { updateClientIntelFromBooking } from '../../orchestrator/client-intelligence.js';
 
 const router = Router();
 
@@ -84,12 +85,29 @@ router.post('/', requireMobileAuth, async (req, res) => {
     });
 
     // Auto-sync to Google Calendar if requested
+    const { data: car } = await supabase.from('cars').select('name').eq('id', bookingData.car_id).single();
+    const carName = (car as { name: string } | null)?.name ?? 'Véhicule';
+
     if (syncCalendar) {
-      const { data: car } = await supabase.from('cars').select('name').eq('id', bookingData.car_id).single();
-      const carName = (car as { name: string } | null)?.name ?? 'Véhicule';
       await createCalendarEvent(booking.id, booking.client_name, carName, booking.start_date, booking.end_date, booking.notes)
         .catch(err => console.error('[bookings] Calendar sync failed:', err));
     }
+
+    // Update client intelligence profile (fire-and-forget, non-blocking)
+    const actorId = req.mobileActor?.ownerKey ?? 'kouider';
+    updateClientIntelFromBooking({
+      client_name:          booking.client_name,
+      client_phone:         booking.client_phone ?? undefined,
+      car_name:             carName,
+      start_date:           booking.start_date,
+      end_date:             booking.end_date,
+      nb_days:              nb_days,
+      client_price_per_day: client_price_per_day ?? null,
+      final_price:          booking.final_price ?? null,
+      discount_applied:     0,
+      status:               booking.status ?? 'PENDING',
+      payment_status:       booking.payment_status ?? undefined,
+    }, actorId).catch(err => console.error('[bookings] Client intel update failed:', err));
 
     res.json({ booking, message: 'Réservation créée avec succès' });
   } catch (err) {
