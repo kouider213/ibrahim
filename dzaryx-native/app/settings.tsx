@@ -241,6 +241,22 @@ export default function SettingsScreen() {
               <Text style={styles.triggerTxt}>{icon} {label}</Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity style={styles.triggerBtn} onPress={async () => {
+            if (!MOBILE_TOKEN) return;
+            setSchedStatus('Sync calendrier...');
+            try {
+              const res = await fetch(`${BACKEND_URL}/api/calendar/sync`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+                signal: AbortSignal.timeout(15000),
+              });
+              const data = await res.json() as { synced?: number; message?: string; error?: string };
+              setSchedStatus(res.ok ? `✅ ${data.message ?? `${data.synced} synchros`}` : `❌ ${data.error}`);
+            } catch { setSchedStatus('❌ Timeout calendrier'); }
+            setTimeout(() => setSchedStatus(null), 4000);
+          }}>
+            <Text style={styles.triggerTxt}>📅 SYNC GOOGLE CALENDRIER</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.triggerBtn} onPress={handleBiReport}>
             <Text style={styles.triggerTxt}>📈 RAPPORT BI IMMÉDIAT</Text>
           </TouchableOpacity>
