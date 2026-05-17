@@ -103,6 +103,10 @@ export default function JarvisScreen() {
   const [waText,         setWaText]        = useState('');
   const [waAnalysis,     setWaAnalysis]    = useState<WaAnalysis | null>(null);
   const [waAnalyzing,    setWaAnalyzing]   = useState(false);
+  const [hookCar,        setHookCar]       = useState('');
+  const [hookStyle,      setHookStyle]     = useState<'lifestyle' | 'prix' | 'temoignage'>('prix');
+  const [hookResult,     setHookResult]    = useState<string | null>(null);
+  const [hookLoading,    setHookLoading]   = useState(false);
   const [scanResult,     setScanResult]    = useState<ScanResult | null>(null);
   const [scanLoading,    setScanLoading]   = useState(false);
   const locationRef    = useRef<UserLocation | null>(null);
@@ -298,6 +302,24 @@ export default function JarvisScreen() {
     } catch { /* ignore */ }
     setWaAnalyzing(false);
   }, [waText, MOBILE_TOKEN]);
+
+  const generateHook = useCallback(async () => {
+    if (!hookCar.trim()) return;
+    setHookLoading(true); setHookResult(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/bi/tiktok/hook`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MOBILE_TOKEN}` },
+        body:    JSON.stringify({ car_name: hookCar.trim(), style: hookStyle }),
+        signal:  AbortSignal.timeout(15000),
+      });
+      if (res.ok) {
+        const d = await res.json() as { hook?: string };
+        setHookResult(d.hook ?? null);
+      }
+    } catch { /* ignore */ }
+    setHookLoading(false);
+  }, [hookCar, hookStyle, MOBILE_TOKEN]);
 
   const handlePickAndScan = useCallback(async (source: 'camera' | 'gallery') => {
     setScanResult(null);
@@ -704,6 +726,44 @@ export default function JarvisScreen() {
                 ))}
               </View>
             )}
+
+            {/* TikTok viral hook generator */}
+            <View style={[styles.contentSection, { marginTop: 16 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Text style={styles.contentIcon}>✍️</Text>
+                <Text style={styles.contentSectionTitle}>HOOK VIRAL IA</Text>
+              </View>
+              <TextInput
+                style={styles.waAnalyzeInput}
+                value={hookCar}
+                onChangeText={setHookCar}
+                placeholder="Nom du véhicule (ex: BMW 520d)"
+                placeholderTextColor="#2a2a2a"
+              />
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                {(['prix', 'lifestyle', 'temoignage'] as const).map(s => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.actionBtn, { borderColor: hookStyle === s ? '#7c3aed66' : '#1a1a1a', backgroundColor: hookStyle === s ? '#7c3aed11' : 'transparent' }]}
+                    onPress={() => setHookStyle(s)}
+                  >
+                    <Text style={[styles.actionBtnTxt, { color: hookStyle === s ? '#7c3aed' : '#333' }]}>{s.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: '#7c3aed44', backgroundColor: '#0d0018', marginTop: 8 }]}
+                onPress={generateHook}
+                disabled={hookLoading || !hookCar.trim()}
+              >
+                <Text style={[styles.actionBtnTxt, { color: '#7c3aed' }]}>{hookLoading ? 'GÉNÉRATION...' : '🎬 GÉNÉRER HOOK'}</Text>
+              </TouchableOpacity>
+              {hookResult && (
+                <View style={{ marginTop: 10, backgroundColor: '#070707', borderRadius: 8, borderWidth: 1, borderColor: '#7c3aed22', padding: 12 }}>
+                  <Text style={[styles.noContent, { color: '#c4a0ff', lineHeight: 18 }]}>{hookResult}</Text>
+                </View>
+              )}
+            </View>
 
             {/* WhatsApp status */}
             <View style={[styles.contentSection, { marginTop: 16 }]}>
