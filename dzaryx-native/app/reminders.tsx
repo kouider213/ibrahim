@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchReminders, dismissReminder, type SmartReminder } from '../lib/api';
+import { fetchReminders, dismissReminder, fetchBookings, type SmartReminder } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -52,6 +52,17 @@ export default function RemindersScreen() {
     const ok = await dismissReminder(r.id, TOKEN);
     if (ok) setReminders(prev => prev.filter(x => x.id !== r.id));
   }, [TOKEN]);
+
+  const handleViewBooking = useCallback(async (r: SmartReminder) => {
+    const bks = await fetchBookings(TOKEN, undefined, 20, r.client_name);
+    const match = bks.find(b =>
+      b.start_date === r.date || b.end_date === r.date ||
+      (b.start_date <= r.date && b.end_date >= r.date),
+    ) ?? bks[0];
+    if (match) {
+      router.push({ pathname: '/booking-detail', params: { id: match.id } });
+    }
+  }, [TOKEN, router]);
 
   const high   = reminders.filter(r => r.priority === 'HIGH');
   const medium = reminders.filter(r => r.priority === 'MEDIUM');
@@ -111,19 +122,24 @@ export default function RemindersScreen() {
                     <Text style={styles.actionLabel}>ACTION :</Text>
                     <Text style={styles.actionTxt}>{r.action}</Text>
                   </View>
-                  {r.client_phone && (
-                    <View style={styles.contactRow}>
+                  <View style={styles.contactRow}>
+                    {r.client_phone && (
                       <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(`tel:${r.client_phone}`)}>
                         <Text style={styles.contactBtnTxt}>📞 APPELER</Text>
                       </TouchableOpacity>
+                    )}
+                    {r.client_phone && (
                       <TouchableOpacity style={[styles.contactBtn, styles.waContactBtn]} onPress={() => {
                         const phone = r.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
                         Linking.openURL(`https://wa.me/${phone}`);
                       }}>
                         <Text style={[styles.contactBtnTxt, { color: '#25d366' }]}>💬 WA</Text>
                       </TouchableOpacity>
-                    </View>
-                  )}
+                    )}
+                    <TouchableOpacity style={[styles.contactBtn, { borderColor: '#00e5ff22', backgroundColor: '#00e5ff08' }]} onPress={() => handleViewBooking(r)}>
+                      <Text style={[styles.contactBtnTxt, { color: '#00e5ff' }]}>📋 RÉSA</Text>
+                    </TouchableOpacity>
+                  </View>
                   <TouchableOpacity style={styles.dismissBtn} onPress={() => handleDismiss(r)}>
                     <Text style={styles.dismissTxt}>✓ TRAITÉ — MASQUER 48H</Text>
                   </TouchableOpacity>
