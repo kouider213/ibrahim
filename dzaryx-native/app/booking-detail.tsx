@@ -24,6 +24,7 @@ const STATUS_COLOR: Record<string, string> = {
 const PAY_COLOR: Record<string, string> = {
   PAID:    '#00ff88',
   PARTIAL: '#ffaa00',
+  PENDING: '#ff4444',
   UNPAID:  '#ff4444',
 };
 
@@ -83,7 +84,7 @@ export default function BookingDetailScreen() {
     if (b) {
       setBooking(b);
       setEditStatus(b.status);
-      setEditPay(b.payment_status ?? 'UNPAID');
+      setEditPay(b.payment_status === 'UNPAID' ? 'PENDING' : (b.payment_status ?? 'PENDING'));
       setEditNotes(b.notes ?? '');
       setEditPrice(b.final_price != null ? String(b.final_price) : '');
       setEditOwnerPP(b.owner_price_per_day != null ? String(b.owner_price_per_day) : '');
@@ -212,7 +213,7 @@ export default function BookingDetailScreen() {
       `Au     : ${fmtDate(booking.end_date)} (${days}j)`,
       `Prix   : ${booking.final_price != null ? `${booking.final_price}€` : 'Non défini'}`,
       `Statut : ${booking.status}`,
-      `Paiement: ${booking.payment_status ?? 'UNPAID'}`,
+      `Paiement: ${booking.payment_status === 'PENDING' ? 'NON PAYÉ' : (booking.payment_status ?? 'NON PAYÉ')}`,
       booking.notes ? `Notes  : ${booking.notes}` : null,
     ].filter(Boolean).join('\n');
     await Share.share({ message: text, title: `Résa ${booking.client_name}` });
@@ -274,7 +275,7 @@ export default function BookingDetailScreen() {
   }
 
   const statusColor = STATUS_COLOR[booking.status] ?? '#555';
-  const payColor    = PAY_COLOR[booking.payment_status ?? 'UNPAID'] ?? '#ff4444';
+  const payColor    = PAY_COLOR[booking.payment_status ?? 'PENDING'] ?? '#ff4444';
   const days        = nbDays(booking.start_date, booking.end_date);
   const car         = booking.cars;
 
@@ -317,7 +318,7 @@ export default function BookingDetailScreen() {
           <Row label="PRIX/JOUR CLIENT" value={booking.client_price_per_day != null ? `${booking.client_price_per_day}€/j` : '—'} />
           <Row label="PRIX/JOUR PROPRIO" value={booking.owner_price_per_day != null ? `${booking.owner_price_per_day}€/j` : '⚠️ MANQUANT'} color={booking.owner_price_per_day == null ? '#ffaa00' : undefined} />
           <Row label="PROFIT KOUIDER" value={booking.profit_kouider != null ? `${booking.profit_kouider}€` : '—'} color={booking.profit_kouider != null ? (booking.profit_kouider >= 0 ? '#00ff88' : '#ff4444') : undefined} />
-          <Row label="PAIEMENT"     value={booking.payment_status ?? 'UNPAID'} color={payColor} />
+          <Row label="PAIEMENT"     value={booking.payment_status === 'PENDING' ? 'NON PAYÉ' : (booking.payment_status ?? 'NON PAYÉ')} color={payColor} />
           {booking.paid_amount != null && <Row label="PAYÉ"       value={`${booking.paid_amount}€`} color="#00ff88" />}
         </View>
 
@@ -436,13 +437,13 @@ export default function BookingDetailScreen() {
 
             <Text style={styles.fieldLabel}>PAIEMENT</Text>
             <View style={styles.pillRow}>
-              {(['UNPAID','PARTIAL','PAID'] as const).map(p => (
+              {(['PENDING','PARTIAL','PAID'] as const).map(p => (
                 <TouchableOpacity
                   key={p}
                   style={[styles.pill, editPay === p && { borderColor: PAY_COLOR[p], backgroundColor: `${PAY_COLOR[p]}22` }]}
                   onPress={() => setEditPay(p)}
                 >
-                  <Text style={[styles.pillTxt, editPay === p && { color: PAY_COLOR[p] }]}>{p}</Text>
+                  <Text style={[styles.pillTxt, editPay === p && { color: PAY_COLOR[p] }]}>{p === 'PENDING' ? 'NON PAYÉ' : p}</Text>
                 </TouchableOpacity>
               ))}
             </View>
