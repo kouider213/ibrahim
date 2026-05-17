@@ -7,7 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
 import {
   fetchBookingById, updateBookingField, deleteBooking, fetchCars,
-  fetchBookingPayments, recordPayment,
+  fetchBookingPayments, recordPayment, BACKEND_URL,
   type Booking, type Car, type Payment,
 } from '../lib/api';
 
@@ -132,6 +132,32 @@ export default function BookingDetailScreen() {
       Alert.alert('Erreur', 'Mise à jour échouée.');
     }
   }, [booking, editStatus, editPay, editNotes, editPrice, editOwnerPP, editClientPP, editPaidAmount, TOKEN, load]);
+
+  const handleReceipt = useCallback(async () => {
+    if (!booking) return;
+    Alert.alert('Générer facture', `Générer le reçu PDF pour ${booking.client_name} ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'GÉNÉRER', onPress: async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/finance/receipts/${booking.id}`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${TOKEN}` },
+            signal: AbortSignal.timeout(15000),
+          });
+          const data = await res.json() as { url?: string; message?: string; error?: string };
+          if (!res.ok) { Alert.alert('Erreur', data.error ?? 'Génération échouée'); return; }
+          if (data.url) {
+            Alert.alert('✅ Facture générée', data.message ?? 'Reçu disponible', [
+              { text: 'Ouvrir', onPress: () => Linking.openURL(data.url!) },
+              { text: 'OK' },
+            ]);
+          }
+        } catch (err) {
+          Alert.alert('Erreur', err instanceof Error ? err.message : String(err));
+        }
+      }},
+    ]);
+  }, [booking, TOKEN]);
 
   const handleShare = useCallback(async () => {
     if (!booking) return;
@@ -463,6 +489,9 @@ export default function BookingDetailScreen() {
             }}>
               <Text style={styles.dupTxt}>📋</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.receiptBtn} onPress={handleReceipt}>
+              <Text style={styles.receiptTxt}>🧾</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
               <Text style={styles.shareTxt}>📤</Text>
             </TouchableOpacity>
@@ -554,6 +583,8 @@ const styles = StyleSheet.create({
   waTxt:    { color: '#25d366', fontSize: 10, fontFamily: MONO, letterSpacing: 1 },
   dupBtn:   { flex: 1, backgroundColor: '#ffaa0011', borderWidth: 1, borderColor: '#ffaa0033', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   dupTxt:   { color: '#ffaa00', fontSize: 10, fontFamily: MONO },
+  receiptBtn:{ flex: 1, backgroundColor: '#7c3aed11', borderWidth: 1, borderColor: '#7c3aed33', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  receiptTxt:{ color: '#7c3aed', fontSize: 10, fontFamily: MONO },
   shareBtn: { flex: 1, backgroundColor: '#ffffff11', borderWidth: 1, borderColor: '#ffffff22', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   shareTxt: { color: '#ffffff99', fontSize: 10, fontFamily: MONO },
   deleteBtn:{ flex: 1, backgroundColor: '#ff444411', borderWidth: 1, borderColor: '#ff444433', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
