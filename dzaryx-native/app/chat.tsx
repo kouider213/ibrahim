@@ -40,6 +40,15 @@ interface TikTokIntelligence {
   best_posting_time?: string;
 }
 
+interface WaAnalysis {
+  is_booking_request: boolean;
+  intent:             string;
+  client_age?:        number | null;
+  urgency?:           string;
+  suggested_action?:  string;
+  summary?:           string;
+}
+
 const LABEL: Record<JarvisState, string> = {
   idle: 'EN ATTENTE', listen: 'ÉCOUTE ACTIVE', think: 'ANALYSE IA', speak: 'DZARYX PARLE',
 };
@@ -80,6 +89,9 @@ export default function JarvisScreen() {
   const [contentStatus,  setContentStatus] = useState<ContentStatus | null>(null);
   const [tiktokIntel,    setTiktokIntel]   = useState<TikTokIntelligence | null>(null);
   const [unreadNotifs,   setUnreadNotifs]  = useState(0);
+  const [waText,         setWaText]        = useState('');
+  const [waAnalysis,     setWaAnalysis]    = useState<WaAnalysis | null>(null);
+  const [waAnalyzing,    setWaAnalyzing]   = useState(false);
   const locationRef    = useRef<UserLocation | null>(null);
   const carTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const carIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -257,6 +269,22 @@ export default function JarvisScreen() {
     });
     setContentStatus(prev => prev ? { ...prev, tiktok: { ...prev.tiktok, pendingVideo: null } } : prev);
   }, [MOBILE_TOKEN]);
+
+  const analyzeWaMessage = useCallback(async () => {
+    if (!waText.trim()) return;
+    setWaAnalyzing(true);
+    setWaAnalysis(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/bi/whatsapp/analyze`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MOBILE_TOKEN}` },
+        body:    JSON.stringify({ text: waText.trim() }),
+        signal:  AbortSignal.timeout(12000),
+      });
+      if (res.ok) setWaAnalysis(await res.json() as WaAnalysis);
+    } catch { /* ignore */ }
+    setWaAnalyzing(false);
+  }, [waText, MOBILE_TOKEN]);
 
   const openHistory = useCallback(async () => {
     setOverlay('history');
@@ -585,7 +613,7 @@ export default function JarvisScreen() {
               </View>
             )}
 
-            {/* WhatsApp */}
+            {/* WhatsApp status */}
             <View style={[styles.contentSection, { marginTop: 16 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <Text style={styles.contentIcon}>💬</Text>
@@ -597,6 +625,54 @@ export default function JarvisScreen() {
                 <Text style={styles.noContent}>Confirmations + rappels auto actifs via {contentStatus.whatsapp.from}</Text>
               ) : (
                 <Text style={styles.noContent}>Configurer TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN dans Railway pour activer</Text>
+              )}
+            </View>
+
+            {/* WhatsApp message analyzer */}
+            <View style={[styles.contentSection, { marginTop: 16 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Text style={styles.contentIcon}>🔍</Text>
+                <Text style={styles.contentSectionTitle}>ANALYSER MESSAGE WA</Text>
+              </View>
+              <TextInput
+                style={styles.waAnalyzeInput}
+                value={waText}
+                onChangeText={setWaText}
+                multiline
+                placeholder="Colle ici un message WhatsApp reçu d'un client..."
+                placeholderTextColor="#2a2a2a"
+                numberOfLines={3}
+              />
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: '#25d36666', backgroundColor: '#001a00', marginTop: 8 }]}
+                onPress={analyzeWaMessage}
+                disabled={waAnalyzing || !waText.trim()}
+              >
+                <Text style={[styles.actionBtnTxt, { color: '#25d366' }]}>{waAnalyzing ? 'ANALYSE...' : '💬 ANALYSER IA'}</Text>
+              </TouchableOpacity>
+              {waAnalysis && (
+                <View style={{ marginTop: 10, backgroundColor: '#070707', borderRadius: 8, borderWidth: 1, borderColor: '#25d36622', padding: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <View style={[styles.statusDot, { backgroundColor: waAnalysis.is_booking_request ? '#00ff88' : '#ffaa00' }]} />
+                    <Text style={[styles.contentSectionTitle, { fontSize: 9 }]}>
+                      {waAnalysis.is_booking_request ? 'DEMANDE DE RÉSA' : 'AUTRE MESSAGE'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.noContent, { marginBottom: 4 }]}>Intent: {waAnalysis.intent}</Text>
+                  {waAnalysis.urgency && <Text style={[styles.noContent, { color: '#ffaa0088' }]}>Urgence: {waAnalysis.urgency}</Text>}
+                  {waAnalysis.summary && <Text style={[styles.noContent, { marginTop: 6, color: '#888' }]}>{waAnalysis.summary}</Text>}
+                  {waAnalysis.suggested_action && (
+                    <Text style={[styles.noContent, { marginTop: 6, color: '#00e5ff88' }]}>→ {waAnalysis.suggested_action}</Text>
+                  )}
+                  {waAnalysis.is_booking_request && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { borderColor: '#00ff8866', backgroundColor: '#001a00', marginTop: 10 }]}
+                      onPress={() => { setOverlay('none'); router.push('/new-booking'); }}
+                    >
+                      <Text style={[styles.actionBtnTxt, { color: '#00ff88' }]}>📋 CRÉER RÉSERVATION</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             </View>
           </View>
@@ -828,6 +904,12 @@ const styles = StyleSheet.create({
   actionBtn:         { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
   actionBtnTxt:      { fontSize: 10, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
   noContent:         { color: '#333', fontSize: 10, fontFamily: MONO, lineHeight: 16 },
+  waAnalyzeInput:    {
+    color: '#ccc', fontSize: 10, fontFamily: MONO, lineHeight: 15,
+    borderWidth: 1, borderColor: '#1a1a1a', borderRadius: 8,
+    padding: 10, minHeight: 60, textAlignVertical: 'top',
+    backgroundColor: '#050505',
+  },
 
   navRow: { flexDirection: 'row', gap: 10, marginTop: 18, justifyContent: 'center' },
   navBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: '#1a4a1a', backgroundColor: '#050f05' },
