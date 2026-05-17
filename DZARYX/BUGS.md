@@ -11,6 +11,22 @@ _(aucun bug critique ouvert — tous fixés)_
 
 ---
 
+## Bugs Fixés cette session (2026-05-17 — Feature Parity) ✅
+
+### B018 — memory_facts user_id toujours 'remember_info' (mémoire inutilisable) [CRITIQUE]
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `backend/src/orchestrator/memory-engine.ts`
+- **Description** : `writeMemory()` utilisait `source` comme `user_id`. Chaque fait sauvegardé via `remember_info` avait `user_id='remember_info'` au lieu de `'kouider'`. `getMemoryFacts({ user_id: 'kouider' })` retournait donc 0 résultats. Tout le système mémoire ne fonctionnait pas.
+- **Fix** : `WriteMemoryParams` + optional `userId` field. `userId = userIdParam ?? 'kouider'`. `insertPayload` inclut `user_id: userId`. Step 2 dedup filtre par `user_id`.
+
+### B019 — rememberInfo sans user_id acteur (Houari écrivait sous 'kouider') [MOYEN]
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `backend/src/integrations/tool-executor.ts`
+- **Description** : `rememberInfo()` ne prenait pas en compte l'acteur. Houari sauvegardait ses mémoires sous `user_id='kouider'`. `recallMemory()` ne cherchait que dans `ibrahim_memory` (legacy), pas dans `memory_facts`.
+- **Fix** : `inferUserId(sessionId)` extrait 'houari' ou 'kouider' depuis le sessionId. Passé à `writeMemory()` et `getMemoryFacts()`. `recallMemory` cherche d'abord dans `memory_facts` (moderne), fallback `ibrahim_memory`.
+
+---
+
 ## Bugs Fixés cette session (2026-05-17) ✅
 
 ### B017 — Socket.IO mauvais namespace → aucun event temps réel reçu [CRITIQUE]

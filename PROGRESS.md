@@ -1,5 +1,5 @@
 # DZARYX — PROGRESS LOG
-> Auto-maintained. Last update: 2026-05-17. Session: Remote Control Mission.
+> Auto-maintained. Last update: 2026-05-17. Session: Feature Parity Complete.
 
 ---
 
@@ -12,7 +12,7 @@
 - [x] Camera vision (photo → Claude vision analysis → voice response)
 - [x] Anti-hallucination (4 gates blocking phantom writes, financial claims, system state)
 - [x] Pending action memory (Redis TTL 5min — confirm/cancel flow for risky ops)
-- [ ] Spanish language support (mentioned in vision, not yet implemented)
+- [x] Spanish language support (language-detector.ts — es tokens, systemHint en español)
 
 ### Car Rental Management (Fik Conciergerie Oran)
 - [x] Réservations (create/read/update/delete via Claude tools → Supabase)
@@ -25,7 +25,7 @@
 - [x] Fleet status (cars available/rented/maintenance)
 - [x] Financial dashboard (revenue week/month)
 - [x] Google Calendar sync (bookings → calendar events)
-- [ ] Admin confirmation gate ENFORCED in orchestrator (isAdminAction flag extracted but not hard-gated)
+- [x] Admin confirmation gate ENFORCED in orchestrator (isAdminAction flag → hard gate → Redis pending → confirm/cancel)
 
 ### Mobile App (Android APK — OnePlus 5T)
 - [x] Expo SDK 54 / React Native 0.81.5
@@ -43,7 +43,8 @@
 - [x] Socket.IO real-time (text_complete, audio_chunk, status, proactive)
 - [x] app.json: version 1.1.0, versionCode 2, no trailing comma
 - [x] TypeScript: 0 errors
-- [ ] **APK BUILD BLOCKED — needs EXPO_TOKEN** → user must run: `! eas login`
+- [x] **APK BUILT** → https://expo.dev/artifacts/eas/cNphkLGsHmQ88Jh1XeyjGM.apk
+- [x] Conversation history panel (HIST button → overlay with past messages from /api/chat/:sessionId/history)
 
 ### PC Control (Nexus)
 - [x] Terminal commands (run_command with blocklist)
@@ -77,7 +78,42 @@
 - Read full project state from compacted summary
 - Identified critical bug: app/onboarding/mode.tsx missing → crash
 
-### 2026-05-16 to 2026-05-17 (Current session)
+### 2026-05-17 (Feature Parity Session)
+
+**Feature: Spanish Language** (`backend/src/conversation/language-detector.ts`)
+- Added `'es'` to `DetectedLanguage` type
+- Added `ES_TOKENS` regex with Spanish vocabulary
+- Detection: `esScore >= 2 && > frScore && > enScore` → responds in Spanish
+- systemHint: responds in Spanish for Hispanic clients
+
+**Feature: Chat History Panel** (`dzaryx-native/app/chat.tsx`, `dzaryx-native/lib/api.ts`)
+- Added `ScrollView` import, `HistoryMessage` type, `fetchHistory()` function
+- Added `histMsgs`/`histLoad` state
+- Added `openHistory()` callback → loads from `/api/chat/:sessionId/history`
+- Added `HIST` button in toolbar (📜)
+- Added history overlay with scrollable message thread (user/assistant color-coded)
+
+**Fix: Actor-aware Memory** (`backend/src/integrations/tool-executor.ts`, `backend/src/orchestrator/memory-engine.ts`)
+- `writeMemory()` bug: was using `source` string as `userId` → all facts saved under 'remember_info'
+- Fixed: `WriteMemoryParams` now has optional `userId` field
+- Fixed: `insertPayload` now includes `user_id: userId`
+- Fixed: Step 2 dedup check now filters by `user_id`
+- `rememberInfo(input, sessionId)`: infers userId from sessionId (houari → 'houari', else 'kouider')
+- `recallMemory(input, sessionId)`: queries `memory_facts` with correct `user_id`
+
+**Feature: Auto-Memory Extraction** (`backend/src/conversation/auto-memory.ts`)
+- NEW FILE: regex-based passive memory extraction (no LLM cost)
+- Patterns: client vehicle preferences, rental periods, payment habits, business demand, Kouider preferences
+- Called in background after each user message in orchestrator.ts
+
+**Feature: Client Relance Proactive Job** (`backend/src/queue/jobs/proactive-jobs.ts`, `scheduler.ts`)
+- `jobClientRelance()`: finds clients with last rental 30-60 days ago
+- Deduplicates by phone, sends Telegram alert + mobile push
+- Registered in scheduler: 11h mardi + jeudi (Africa/Algiers)
+
+**Commit**: `0809145` — pushed → Railway auto-deploy
+
+### 2026-05-16 to 2026-05-17 (Previous session)
 
 **Backend — Conversation Engine V2** (commits aed62e3, c98bd8d)
 - Created backend/src/conversation/normalizer.ts — typo correction, synonym expansion, isShort
@@ -128,26 +164,29 @@
 
 ## REMAINING TASKS
 
-### CRITICAL (blocking APK)
-1. **EXPO_TOKEN** — user must run `! eas login` in Claude Code terminal
-   OR generate token at expo.dev → Account Settings → Access Tokens
-   Then run: `! cd dzaryx-native && eas build --platform android --profile preview --non-interactive`
-   See also: `dzaryx-native/BUILD_APK.md` for full instructions
-
-### HIGH (functionality gaps)
-2. Admin confirmation gate — isAdminAction flag exists but not hard-enforced in orchestrator
-3. Backend health endpoint — verify /health route exists and responds
-4. MOBILE_TOKEN_HOUARI in Railway env vars (Houari can't use app without this)
+### HIGH (requires user credentials)
+1. **MOBILE_TOKEN_HOUARI** in Railway env vars (Houari can't use app without this)
+   Value: `99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2`
+2. **Twilio WhatsApp** — TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_WHATSAPP_FROM
+3. **Google Service Account** — GOOGLE_SERVICE_ACCOUNT_JSON for Calendar sync
+4. **Install APK** on OnePlus 5T:
+   Download: https://expo.dev/artifacts/eas/cNphkLGsHmQ88Jh1XeyjGM.apk
+   Settings → Sécurité → Sources inconnues → Activer → Install
 
 ### MEDIUM (nice to have)
-5. Spanish language normalizer entries
-6. `/api/transcribe` endpoint — verify Groq Whisper works end-to-end
-7. Socket.IO proactive notifications test
+5. Backend health endpoint — verify /health route exists
+6. `/api/transcribe` endpoint end-to-end test with Arabic audio
+7. Rebuild APK after conversation history panel added (new build needed)
+
+### LOW
+8. Google Cloud Console: restrict Maps API key to Distance Matrix API only
+9. Auto-memory: expand regex patterns for more fact types
+10. Proactive: test client-relance job with manual trigger
 
 ### USER MUST DO (requires their credentials)
 - Railway: add MOBILE_TOKEN_HOUARI, TWILIO vars, GOOGLE_SERVICE_ACCOUNT_JSON
-- Expo: eas login or EXPO_TOKEN
-- Google Cloud Console: restrict Maps API key to Distance Matrix only
+- Expo: rebuild APK (`eas build --platform android --profile preview`)
+- Google Cloud Console: restrict Maps API key
 
 ---
 
