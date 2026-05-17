@@ -592,6 +592,9 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.clientsBtn} onPress={() => router.push('/clients')}>
           <Text style={styles.clientsTxt}>👥 CLIENTS</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.tasksBtn} onPress={() => router.push('/tasks')}>
+          <Text style={styles.tasksTxt}>⚙️ TÂCHES IA</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.switchBtn} onPress={() => router.replace('/auth/login')}>
           <Text style={styles.switchTxt}>CHANGER DE PROFIL</Text>
         </TouchableOpacity>
@@ -675,6 +678,12 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
   },
   clientsTxt: { color: '#ffd700', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  tasksBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#7c3aed33',
+    borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
+  },
+  tasksTxt: { color: '#7c3aed', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
 
   switchBtn: {
     backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff44',

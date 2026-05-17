@@ -26,6 +26,7 @@ export default function RootLayout() {
         <Stack.Screen name="clients" />
         <Stack.Screen name="client-detail" />
         <Stack.Screen name="notifications" />
+        <Stack.Screen name="tasks" />
       </Stack>
     </>
   );
