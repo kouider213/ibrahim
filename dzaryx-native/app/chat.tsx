@@ -33,6 +33,13 @@ interface ContentStatus {
   whatsapp: { configured: boolean; from: string | null };
 }
 
+interface TikTokIntelligence {
+  optimal_posting_windows?: Array<{ day: string; hour: number; label: string }>;
+  viral_ideas?: Array<{ hook: string; style: string }>;
+  virality_score?: number;
+  best_posting_time?: string;
+}
+
 const LABEL: Record<JarvisState, string> = {
   idle: 'EN ATTENTE', listen: 'ÉCOUTE ACTIVE', think: 'ANALYSE IA', speak: 'DZARYX PARLE',
 };
@@ -71,6 +78,7 @@ export default function JarvisScreen() {
   const [carMode,        setCarMode]       = useState(false);
   const [carCountdown,   setCarCountdown]  = useState<number | null>(null);
   const [contentStatus,  setContentStatus] = useState<ContentStatus | null>(null);
+  const [tiktokIntel,    setTiktokIntel]   = useState<TikTokIntelligence | null>(null);
   const [unreadNotifs,   setUnreadNotifs]  = useState(0);
   const locationRef    = useRef<UserLocation | null>(null);
   const carTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -227,10 +235,12 @@ export default function JarvisScreen() {
   const openContent = useCallback(async () => {
     setOverlay('content');
     try {
-      const res = await fetch(`${BACKEND_URL}/api/content/status`, {
-        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
-      });
-      if (res.ok) setContentStatus(await res.json() as ContentStatus);
+      const [statusRes, tiktokRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/content/status`, { headers: { Authorization: `Bearer ${MOBILE_TOKEN}` } }),
+        fetch(`${BACKEND_URL}/api/bi/tiktok`,       { headers: { Authorization: `Bearer ${MOBILE_TOKEN}` }, signal: AbortSignal.timeout(8000) }),
+      ]);
+      if (statusRes.ok) setContentStatus(await statusRes.json() as ContentStatus);
+      if (tiktokRes.ok) setTiktokIntel(await tiktokRes.json() as TikTokIntelligence);
     } catch { /* show empty state */ }
   }, [MOBILE_TOKEN]);
 
@@ -550,6 +560,30 @@ export default function JarvisScreen() {
                 <Text style={styles.noContent}>{contentStatus ? 'Aucune vidéo en attente' : 'Chargement...'}</Text>
               )}
             </View>
+
+            {/* TikTok Intelligence */}
+            {tiktokIntel && (tiktokIntel.viral_ideas?.length ?? 0) > 0 && (
+              <View style={[styles.contentSection, { marginTop: 16 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Text style={styles.contentIcon}>🧠</Text>
+                  <Text style={styles.contentSectionTitle}>IDÉES VIRALES IA</Text>
+                  {tiktokIntel.virality_score != null && (
+                    <Text style={[styles.statusLbl, { color: '#7c3aed' }]}>Score {tiktokIntel.virality_score}/10</Text>
+                  )}
+                </View>
+                {tiktokIntel.best_posting_time && (
+                  <Text style={[styles.noContent, { color: '#ffaa0088', marginBottom: 8 }]}>
+                    ⏰ Meilleur horaire: {tiktokIntel.best_posting_time}
+                  </Text>
+                )}
+                {tiktokIntel.viral_ideas?.slice(0, 3).map((idea, i) => (
+                  <View key={i} style={{ backgroundColor: '#070707', borderRadius: 8, borderWidth: 1, borderColor: '#7c3aed22', padding: 10, marginBottom: 6 }}>
+                    <Text style={[styles.statusLbl, { color: '#7c3aed', marginBottom: 4 }]}>{idea.style?.toUpperCase()}</Text>
+                    <Text style={styles.noContent}>{idea.hook}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* WhatsApp */}
             <View style={[styles.contentSection, { marginTop: 16 }]}>
