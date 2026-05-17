@@ -141,7 +141,7 @@ export async function buildContext(
     needsNews     ? getAlgeriaNews(4).catch(() => [])                                            : Promise.resolve([]),
     needsCalendar ? listUpcomingEvents(10).catch(() => [])                                       : Promise.resolve([]),
     needsFinance  ? getFinancialReport(now.getFullYear(), needsAnnualFinance ? undefined : now.getMonth() + 1).catch(() => null)  : Promise.resolve(null),
-    buildMemoryContext(userMessage, 300),
+    buildMemoryContext(userMessage, 300, actor.ownerKey === 'houari' ? 'houari' : 'kouider'),
     getRecentUserMessages(40).catch(() => [] as string[]),
     loadCompactionSummary(sessionId).catch(() => null),
     mentionedClient ? getClientProfile(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
@@ -273,9 +273,17 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? `\n\n${clientIntel.context}`
     : '';
 
-  const langDetection = detectLanguage(userMessage);
+  let langDetection = detectLanguage(userMessage);
+  // Actor preferred language override: if detection is ambiguous and actor has a preference
+  if ((langDetection.lang === 'unknown' || userMessage.trim().length < 6) && actor.ownerKey === 'houari') {
+    langDetection = {
+      lang:       'darija',
+      label:      'Darija (préférence acteur)',
+      systemHint: 'LANGUE DÉTECTÉE: darija algérienne (préférence Houari) — répondre en darija algérienne ou arabe naturel.',
+    };
+  }
   const langHint = `\n\n${langDetection.systemHint}`;
-  console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}" mood=${mood.mood}(${mood.intensity})`);
+  console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}" mood=${mood.mood}(${mood.intensity}) actor=${actor.ownerKey}`);
 
   const systemExtra = [
     langHint,

@@ -47,12 +47,13 @@ export interface MemoryContextResult {
 export async function buildMemoryContext(
   userMessage: string,
   maxTokens = 300,
+  userId    = 'kouider',
 ): Promise<MemoryContextResult> {
   const maxChars = maxTokens * CHARS_PER_TOKEN;
 
   // ── Primary: memory_facts (L2 Semantic, scored) ───────────────
   try {
-    const facts = await getMemoryFacts({ is_current: true, limit: 200 });
+    const facts = await getMemoryFacts({ is_current: true, limit: 200, user_id: userId });
 
     if (facts.length > 0) {
       const scored = facts
