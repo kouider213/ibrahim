@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl, Linking, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl, Linking, Alert, TextInput, Share } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
 import { fetchBookings, updateBookingField, type Booking } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
-type Filter = 'ALL' | 'ACTIVE' | 'CONFIRMED' | 'PENDING' | 'COMPLETED';
+type Filter = 'ALL' | 'ACTIVE' | 'CONFIRMED' | 'PENDING' | 'COMPLETED' | 'REJECTED';
 
 const STATUS_COLOR: Record<string, string> = {
   ACTIVE:    '#00e5ff',
@@ -117,6 +117,17 @@ export default function BookingsScreen() {
     return true;
   });
 
+  const handleExport = useCallback(async () => {
+    if (filtered.length === 0) { Alert.alert('Rien à exporter'); return; }
+    const lines = filtered.map(b => {
+      const car = (b.cars as { name: string } | null)?.name ?? '?';
+      const days = nbDays(b.start_date, b.end_date);
+      return `${b.client_name} | ${car} | ${fmtDate(b.start_date)}→${fmtDate(b.end_date)} (${days}j) | ${b.final_price != null ? `${b.final_price}€` : '?'} | ${b.status} | ${b.payment_status ?? 'UNPAID'}`;
+    });
+    const text = `RÉSERVATIONS FIK CONCIERGERIE ORAN\n${new Date().toLocaleDateString('fr-FR')}\n${'─'.repeat(40)}\n${lines.join('\n')}`;
+    await Share.share({ message: text, title: `Réservations Fik ${filter}` });
+  }, [filtered, filter]);
+
   const stats = {
     total:   bookings.length,
     active:  bookings.filter(b => b.status === 'ACTIVE').length,
@@ -139,6 +150,9 @@ export default function BookingsScreen() {
         )}
         <TouchableOpacity style={styles.calBtn} onPress={() => setShowCalendar(v => !v)}>
           <Text style={styles.calTxt}>{showCalendar ? '☰ LISTE' : '📅 CAL'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
+          <Text style={styles.exportTxt}>📤</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/new-booking')}>
           <Text style={styles.addTxt}>+ CRÉER</Text>
@@ -217,7 +231,7 @@ export default function BookingsScreen() {
 
       {/* Filter tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
-        {(['ALL', 'ACTIVE', 'CONFIRMED', 'PENDING', 'COMPLETED'] as Filter[]).map(f => (
+        {(['ALL', 'ACTIVE', 'CONFIRMED', 'PENDING', 'COMPLETED', 'REJECTED'] as Filter[]).map(f => (
           <TouchableOpacity
             key={f}
             style={[styles.filterTab, filter === f && styles.filterTabActive]}
@@ -370,8 +384,10 @@ const styles = StyleSheet.create({
   filterTxt:    { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
   filterTxtActive: { color: '#00e5ff' },
 
-  calBtn:  { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  calTxt:  { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 1 },
+  calBtn:    { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  calTxt:    { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 1 },
+  exportBtn: { backgroundColor: '#ffffff08', borderWidth: 1, borderColor: '#ffffff11', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  exportTxt: { color: '#ffffff66', fontSize: 12 },
 
   calCard:      { marginHorizontal: 16, marginBottom: 8, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 12, padding: 12 },
   calNavRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
