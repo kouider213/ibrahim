@@ -58,12 +58,13 @@ export default function BookingDetailScreen() {
   const [saving,   setSaving]   = useState(false);
 
   // Edit state
-  const [editStatus,  setEditStatus]  = useState('');
-  const [editPay,     setEditPay]     = useState('');
-  const [editNotes,   setEditNotes]   = useState('');
-  const [editPrice,   setEditPrice]   = useState('');
-  const [editOwnerPP, setEditOwnerPP] = useState('');
-  const [editClientPP,setEditClientPP]= useState('');
+  const [editStatus,    setEditStatus]    = useState('');
+  const [editPay,       setEditPay]       = useState('');
+  const [editNotes,     setEditNotes]     = useState('');
+  const [editPrice,     setEditPrice]     = useState('');
+  const [editOwnerPP,   setEditOwnerPP]   = useState('');
+  const [editClientPP,  setEditClientPP]  = useState('');
+  const [editPaidAmount,setEditPaidAmount]= useState('');
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -77,6 +78,7 @@ export default function BookingDetailScreen() {
       setEditPrice(b.final_price != null ? String(b.final_price) : '');
       setEditOwnerPP(b.owner_price_per_day != null ? String(b.owner_price_per_day) : '');
       setEditClientPP(b.client_price_per_day != null ? String(b.client_price_per_day) : '');
+      setEditPaidAmount(b.paid_amount != null ? String(b.paid_amount) : '');
     }
     setCars(c);
     setLoading(false);
@@ -102,7 +104,9 @@ export default function BookingDetailScreen() {
       profit_kouider:       profit,
     };
 
-    if (editPay === 'PAID' && !booking.paid_amount) {
+    if (editPaidAmount) {
+      updates['paid_amount'] = Number(editPaidAmount);
+    } else if (editPay === 'PAID' && !booking.paid_amount) {
       updates['paid_amount'] = updates['final_price'];
     }
 
@@ -115,7 +119,7 @@ export default function BookingDetailScreen() {
     } else {
       Alert.alert('Erreur', 'Mise à jour échouée.');
     }
-  }, [booking, editStatus, editPay, editNotes, editPrice, editOwnerPP, editClientPP, TOKEN, load]);
+  }, [booking, editStatus, editPay, editNotes, editPrice, editOwnerPP, editClientPP, editPaidAmount, TOKEN, load]);
 
   const handleDelete = useCallback(() => {
     if (!booking) return;
@@ -241,6 +245,13 @@ export default function BookingDetailScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {(editPay === 'PARTIAL' || editPay === 'PAID') && (
+              <>
+                <Text style={styles.fieldLabel}>MONTANT PAYÉ (€)</Text>
+                <TextInput style={styles.input} value={editPaidAmount} onChangeText={setEditPaidAmount} keyboardType="numeric" placeholderTextColor="#333" placeholder="ex: 200" />
+              </>
+            )}
 
             <Text style={styles.fieldLabel}>TOTAL CLIENT (€)</Text>
             <TextInput style={styles.input} value={editPrice} onChangeText={setEditPrice} keyboardType="numeric" placeholderTextColor="#333" placeholder="ex: 450" />

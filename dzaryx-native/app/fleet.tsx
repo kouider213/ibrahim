@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform,
-  RefreshControl, Alert, ActivityIndicator,
+  RefreshControl, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
@@ -28,6 +28,10 @@ export default function FleetScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling,   setToggling]   = useState<string | null>(null);
+  const [editingId,  setEditingId]  = useState<string | null>(null);
+  const [editClient, setEditClient] = useState('');
+  const [editOwner,  setEditOwner]  = useState('');
+  const [savingId,   setSavingId]   = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -60,6 +64,21 @@ export default function FleetScreen() {
       ],
     );
   }, [TOKEN]);
+
+  const savePrices = useCallback(async (car: Car) => {
+    setSavingId(car.id);
+    const updates: Partial<Pick<Car, 'base_price' | 'resale_price'>> = {};
+    if (editClient.trim() && !isNaN(Number(editClient))) updates.base_price   = Number(editClient);
+    if (editOwner.trim()  && !isNaN(Number(editOwner)))  updates.resale_price = Number(editOwner);
+    const ok = await updateCar(car.id, updates, TOKEN);
+    setSavingId(null);
+    if (ok) {
+      setCars(prev => prev.map(c => c.id === car.id ? { ...c, ...updates } : c));
+      setEditingId(null);
+    } else {
+      Alert.alert('Erreur', 'Mise à jour prix échouée.');
+    }
+  }, [editClient, editOwner, TOKEN]);
 
   const available = cars.filter(c => c.available).length;
   const rented    = cars.filter(c => !c.available).length;
@@ -162,6 +181,55 @@ export default function FleetScreen() {
                     </Text>
                 }
               </TouchableOpacity>
+
+              {editingId === car.id ? (
+                <View style={styles.priceEditBox}>
+                  <View style={styles.priceEditRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.priceEditLbl}>PRIX CLIENT/JOUR (€)</Text>
+                      <TextInput
+                        style={styles.priceEditInput}
+                        value={editClient}
+                        onChangeText={setEditClient}
+                        keyboardType="numeric"
+                        placeholder={car.base_price != null ? String(car.base_price) : 'ex: 80'}
+                        placeholderTextColor="#333"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.priceEditLbl}>PRIX PROPRIO/JOUR (€)</Text>
+                      <TextInput
+                        style={styles.priceEditInput}
+                        value={editOwner}
+                        onChangeText={setEditOwner}
+                        keyboardType="numeric"
+                        placeholder={car.resale_price != null ? String(car.resale_price) : 'ex: 50'}
+                        placeholderTextColor="#333"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.priceEditActions}>
+                    <TouchableOpacity style={styles.cancelPriceBtn} onPress={() => setEditingId(null)}>
+                      <Text style={styles.cancelPriceTxt}>ANNULER</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.savePriceBtn}
+                      onPress={() => savePrices(car)}
+                      disabled={savingId === car.id}
+                    >
+                      <Text style={styles.savePriceTxt}>{savingId === car.id ? '...' : 'SAUVEGARDER'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.editPriceBtn} onPress={() => {
+                  setEditingId(car.id);
+                  setEditClient(car.base_price != null ? String(car.base_price) : '');
+                  setEditOwner(car.resale_price != null ? String(car.resale_price) : '');
+                }}>
+                  <Text style={styles.editPriceTxt}>✏️ MODIFIER LES PRIX</Text>
+                </TouchableOpacity>
+              )}
             </View>
           );
         })}
@@ -218,4 +286,21 @@ const styles = StyleSheet.create({
   toggleBtnDispo: { borderColor: '#00ff8833', backgroundColor: '#00ff8811' },
   toggleBtnBusy:  { borderColor: '#ffaa0033', backgroundColor: '#ffaa0011' },
   toggleTxt: { fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
+
+  editPriceBtn:  { marginTop: 8, borderWidth: 1, borderColor: '#ffffff11', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  editPriceTxt:  { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
+
+  priceEditBox:    { marginTop: 10, backgroundColor: '#0a0a0a', borderRadius: 10, padding: 12 },
+  priceEditRow:    { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  priceEditLbl:    { color: '#333', fontSize: 7, fontFamily: MONO, letterSpacing: 2, marginBottom: 4 },
+  priceEditInput:  {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#1a1a1a',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    color: '#fff', fontSize: 12, fontFamily: MONO,
+  },
+  priceEditActions:{ flexDirection: 'row', gap: 8 },
+  cancelPriceBtn:  { flex: 1, borderWidth: 1, borderColor: '#333', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  cancelPriceTxt:  { color: '#555', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
+  savePriceBtn:    { flex: 2, backgroundColor: '#00e5ff22', borderWidth: 1, borderColor: '#00e5ff44', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  savePriceTxt:    { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
 });

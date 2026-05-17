@@ -33,6 +33,7 @@ export default function NewBookingScreen() {
 
   const [clientName,  setClientName]  = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [clientAge,   setClientAge]   = useState('');
   const [rentedBy,    setRentedBy]    = useState<'Kouider' | 'Houari'>('Kouider');
   const [startDate,   setStartDate]   = useState(todayStr());
@@ -65,6 +66,7 @@ export default function NewBookingScreen() {
         car_id:               selectedCar.id,
         client_name:          clientName.trim(),
         client_phone:         clientPhone.trim() || undefined,
+        client_email:         clientEmail.trim() || undefined,
         start_date:           startDate,
         end_date:             endDate,
         final_price:          Number(finalPrice),
@@ -99,7 +101,7 @@ export default function NewBookingScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedCar, clientName, clientPhone, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, TOKEN, router]);
+  }, [selectedCar, clientName, clientPhone, clientEmail, startDate, endDate, finalPrice, clientPPD, ownerPPD, notes, TOKEN, router]);
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -161,6 +163,17 @@ export default function NewBookingScreen() {
           keyboardType="phone-pad"
         />
 
+        <Text style={styles.label}>EMAIL</Text>
+        <TextInput
+          style={styles.input}
+          placeholderTextColor="#333"
+          placeholder="client@email.com"
+          value={clientEmail}
+          onChangeText={setClientEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
         <Text style={styles.label}>ÂGE CLIENT</Text>
         <TextInput
           style={styles.input}
@@ -171,6 +184,9 @@ export default function NewBookingScreen() {
           keyboardType="numeric"
           maxLength={2}
         />
+        {clientAge.trim() && Number(clientAge) < 35 && Number(clientAge) > 0 && (
+          <Text style={styles.ageWarn}>⚠️ Politique Fik : refus si âge {'<'} 35 ans — confirmer avec Houari</Text>
+        )}
 
         <Text style={styles.label}>GÉRÉ PAR</Text>
         <View style={styles.toggleRow}>
@@ -327,6 +343,7 @@ const styles = StyleSheet.create({
   halfCol: { flex: 1 },
 
   durationHint: { color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 2, marginTop: 6 },
+  ageWarn:      { color: '#ffaa00', fontSize: 9, fontFamily: MONO, letterSpacing: 1, marginTop: 6, lineHeight: 14 },
 
   profitRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
