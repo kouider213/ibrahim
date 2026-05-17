@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ScrollView, Platform, Alert, KeyboardAvoidingView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
 import { fetchCars, checkCarAvailability, type Car, BACKEND_URL } from '../lib/api';
 
@@ -25,14 +25,15 @@ export default function NewBookingScreen() {
   const router = useRouter();
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
+  const params = useLocalSearchParams<{ clientName?: string; clientPhone?: string }>();
 
   const [cars,        setCars]       = useState<Car[]>([]);
   const [carsLoading, setCarsLoading]= useState(true);
   const [selectedCar, setSelectedCar]= useState<Car | null>(null);
   const [showCarPicker, setShowCarPicker] = useState(false);
 
-  const [clientName,  setClientName]  = useState('');
-  const [clientPhone, setClientPhone] = useState('');
+  const [clientName,  setClientName]  = useState(params.clientName ?? '');
+  const [clientPhone, setClientPhone] = useState(params.clientPhone ?? '');
   const [clientEmail, setClientEmail] = useState('');
   const [clientAge,   setClientAge]   = useState('');
   const [rentedBy,    setRentedBy]    = useState<'Kouider' | 'Houari'>('Kouider');

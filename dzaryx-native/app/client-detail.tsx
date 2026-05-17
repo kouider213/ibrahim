@@ -86,19 +86,29 @@ export default function ClientDetailScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {/* Contact actions */}
-        {clientPhone && (
-          <View style={styles.actionsCard}>
+        <View style={styles.actionsCard}>
+          {clientPhone && (
             <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${clientPhone}`)}>
-              <Text style={styles.callTxt}>📞 APPELER</Text>
+              <Text style={styles.callTxt}>📞</Text>
             </TouchableOpacity>
+          )}
+          {clientPhone && (
             <TouchableOpacity style={styles.waBtn} onPress={() => {
               const p = clientPhone.replace(/\s/g, '').replace(/^0+/, '213');
               Linking.openURL(`https://wa.me/${p}`);
             }}>
-              <Text style={styles.waTxt}>💬 WHATSAPP</Text>
+              <Text style={styles.waTxt}>💬</Text>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+          <TouchableOpacity style={styles.newBookingBtn} onPress={() => {
+            const params: Record<string, string> = {};
+            if (name)        params.clientName  = name;
+            if (clientPhone) params.clientPhone = clientPhone;
+            router.push({ pathname: '/new-booking', params });
+          }}>
+            <Text style={styles.newBookingTxt}>📋 NOUVELLE RÉSA</Text>
+          </TouchableOpacity>
+        </View>
 
         {!intel ? (
           <View style={styles.noIntelCard}>
@@ -189,10 +199,12 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 60 },
 
   actionsCard: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  callBtn: { flex: 1, backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  callTxt: { color: '#00e5ff', fontSize: 10, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
-  waBtn:   { flex: 1, backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36633', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  waTxt:   { color: '#25d366', fontSize: 10, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
+  callBtn: { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
+  callTxt: { color: '#00e5ff', fontSize: 14 },
+  waBtn:   { backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36633', borderRadius: 10, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
+  waTxt:   { color: '#25d366', fontSize: 14 },
+  newBookingBtn: { flex: 1, backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8833', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  newBookingTxt: { color: '#00ff88', fontSize: 9, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
 
   card: {
     backgroundColor: '#050505', borderWidth: 1, borderColor: '#111',
