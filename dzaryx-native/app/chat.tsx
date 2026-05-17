@@ -135,7 +135,10 @@ export default function JarvisScreen() {
 
   // ── Socket.IO ─────────────────────────────────────────────────────
   useEffect(() => {
-    const s = io(BACKEND_URL, { transports: ['websocket'] });
+    const s = io(`${BACKEND_URL}/mobile`, {
+      transports: ['websocket'],
+      auth: { token: MOBILE_TOKEN },
+    });
     socketRef.current = s;
     // Proactive push from backend (morning briefing, alerts, reminders)
     s.on('Dzaryx:proactive', async (d: { text: string; type: string }) => {
