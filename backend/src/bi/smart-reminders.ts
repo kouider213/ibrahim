@@ -4,6 +4,7 @@ export interface SmartReminder {
   type:     'arrival_tomorrow' | 'missing_passport' | 'missing_deposit' | 'return_soon' | 'vehicle_prep' | 'age_alert';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   client_name:  string;
+  client_phone: string | null;
   car_name:     string;
   date:         string;
   message:      string;
@@ -45,49 +46,53 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
 
     // Arrival reminder
     reminders.push({
-      type:        'arrival_tomorrow',
-      priority:    'HIGH',
-      client_name: b.client_name,
-      car_name:    car,
-      date:        b.start_date,
-      message:     `${b.client_name} prend ${car} demain${b.client_phone ? ` — ${b.client_phone}` : ''}`,
-      action:      'Préparer le véhicule et vérifier les documents',
+      type:         'arrival_tomorrow',
+      priority:     'HIGH',
+      client_name:  b.client_name,
+      client_phone: b.client_phone ?? null,
+      car_name:     car,
+      date:         b.start_date,
+      message:      `${b.client_name} prend ${car} demain`,
+      action:       'Préparer le véhicule et vérifier les documents',
     });
 
     // Vehicle prep reminder
     reminders.push({
-      type:        'vehicle_prep',
-      priority:    'HIGH',
-      client_name: b.client_name,
-      car_name:    car,
-      date:        b.start_date,
-      message:     `${car} doit être prêt pour ${b.client_name} demain`,
-      action:      'Laver, vérifier niveaux, plein carburant, état extérieur',
+      type:         'vehicle_prep',
+      priority:     'HIGH',
+      client_name:  b.client_name,
+      client_phone: b.client_phone ?? null,
+      car_name:     car,
+      date:         b.start_date,
+      message:      `${car} doit être prêt pour ${b.client_name} demain`,
+      action:       'Laver, vérifier niveaux, plein carburant, état extérieur',
     });
 
     // Missing passport
     if (!b.client_passport) {
       reminders.push({
-        type:        'missing_passport',
-        priority:    'HIGH',
-        client_name: b.client_name,
-        car_name:    car,
-        date:        b.start_date,
-        message:     `Passeport manquant pour ${b.client_name} (arrivée demain)`,
-        action:      'Demander scan passeport avant remise des clés',
+        type:         'missing_passport',
+        priority:     'HIGH',
+        client_name:  b.client_name,
+        client_phone: b.client_phone ?? null,
+        car_name:     car,
+        date:         b.start_date,
+        message:      `Passeport manquant pour ${b.client_name} (arrivée demain)`,
+        action:       'Demander scan passeport avant remise des clés',
       });
     }
 
     // Age alert
     if (b.client_age && b.client_age < 35) {
       reminders.push({
-        type:        'age_alert',
-        priority:    'HIGH',
-        client_name: b.client_name,
-        car_name:    car,
-        date:        b.start_date,
-        message:     `⚠️ ${b.client_name} a ${b.client_age} ans — politique Fik: refus <35 ans`,
-        action:      'Vérifier avec Houari avant confirmation',
+        type:         'age_alert',
+        priority:     'HIGH',
+        client_name:  b.client_name,
+        client_phone: b.client_phone ?? null,
+        car_name:     car,
+        date:         b.start_date,
+        message:      `⚠️ ${b.client_name} a ${b.client_age} ans — politique Fik: refus <35 ans`,
+        action:       'Vérifier avec Houari avant confirmation',
       });
     }
   }
@@ -105,13 +110,14 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
     const car      = b.cars?.name ?? '?';
     const daysLeft = Math.ceil((new Date(b.start_date).getTime() - Date.now()) / 86_400_000);
     reminders.push({
-      type:        'missing_deposit',
-      priority:    daysLeft <= 1 ? 'HIGH' : 'MEDIUM',
-      client_name: b.client_name,
-      car_name:    car,
-      date:        b.start_date,
-      message:     `Acompte 0€ — ${b.client_name} arrive dans ${daysLeft}j pour ${car} (total ${b.final_price}€)`,
-      action:      'Contacter le client pour acompte 30% minimum',
+      type:         'missing_deposit',
+      priority:     daysLeft <= 1 ? 'HIGH' : 'MEDIUM',
+      client_name:  b.client_name,
+      client_phone: b.client_phone ?? null,
+      car_name:     car,
+      date:         b.start_date,
+      message:      `Acompte 0€ — ${b.client_name} arrive dans ${daysLeft}j pour ${car} (total ${b.final_price}€)`,
+      action:       'Contacter le client pour acompte 30% minimum',
     });
   }
 
@@ -127,13 +133,14 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
     if (b.end_date === today) continue; // already handled elsewhere
     const car = b.cars?.name ?? '?';
     reminders.push({
-      type:        'return_soon',
-      priority:    'MEDIUM',
-      client_name: b.client_name,
-      car_name:    car,
-      date:        b.end_date,
-      message:     `${b.client_name} rend ${car} le ${b.end_date}${b.client_phone ? ` — ${b.client_phone}` : ''}`,
-      action:      'Confirmer heure de retour et état du véhicule',
+      type:         'return_soon',
+      priority:     'MEDIUM',
+      client_name:  b.client_name,
+      client_phone: b.client_phone ?? null,
+      car_name:     car,
+      date:         b.end_date,
+      message:      `${b.client_name} rend ${car} le ${b.end_date}`,
+      action:       'Confirmer heure de retour et état du véhicule',
     });
   }
 

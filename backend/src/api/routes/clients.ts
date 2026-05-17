@@ -6,18 +6,6 @@ import { updateClientIntelFromBooking } from '../../orchestrator/client-intellig
 
 const router = Router();
 
-// GET /api/clients/:phone — full client profile + history
-router.get('/:phone', requireMobileAuth, async (req, res) => {
-  const phone = decodeURIComponent(req.params['phone'] as string);
-  try {
-    const history = await getClientHistory(phone);
-    const documents = await getClientDocuments(phone);
-    res.json({ phone, ...history, documents });
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
 // GET /api/clients — list all clients with booking counts
 router.get('/', requireMobileAuth, async (_req, res) => {
   try {
@@ -151,6 +139,18 @@ router.post('/backfill', requireMobileAuth, async (_req, res) => {
       clients_created:    count ?? 0,
       message: `Backfill terminé : ${processed} réservations → ${count ?? 0} profils clients créés`,
     });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/clients/:phone — full client profile + history (must be LAST — catches all)
+router.get('/:phone', requireMobileAuth, async (req, res) => {
+  const phone = decodeURIComponent(req.params['phone'] as string);
+  try {
+    const history = await getClientHistory(phone);
+    const documents = await getClientDocuments(phone);
+    res.json({ phone, ...history, documents });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
