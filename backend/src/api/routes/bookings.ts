@@ -37,16 +37,19 @@ router.get('/availability', requireMobileAuth, async (req, res) => {
 
 // POST /api/bookings — create a new booking (with anti-doublon)
 const bookingSchema = z.object({
-  car_id:       z.string().uuid(),
-  client_name:  z.string().min(1),
-  client_email: z.string().email().optional().or(z.literal('')),
-  client_phone: z.string().min(6),
-  client_age:   z.number().int().min(18).max(99).optional(),
-  start_date:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  end_date:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  final_price:  z.number().min(0),
-  notes:        z.string().optional(),
-  syncCalendar: z.boolean().optional().default(true),
+  car_id:               z.string().uuid(),
+  client_name:          z.string().min(1),
+  client_email:         z.string().email().optional().or(z.literal('')),
+  client_phone:         z.string().min(6),
+  client_age:           z.number().int().min(18).max(99).optional(),
+  start_date:           z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  end_date:             z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  final_price:          z.number().min(0),
+  notes:                z.string().optional(),
+  syncCalendar:         z.boolean().optional().default(true),
+  rented_by:            z.enum(['Kouider', 'Houari']).optional(),
+  client_price_per_day: z.number().min(0).optional(),
+  owner_price_per_day:  z.number().min(0).optional(),
 });
 
 router.post('/', requireMobileAuth, async (req, res) => {
@@ -56,7 +59,13 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  const { syncCalendar, ...bookingData } = parsed.data;
+  const { syncCalendar, client_price_per_day, owner_price_per_day, ...bookingData } = parsed.data;
+  const nb_days = Math.max(1, Math.ceil(
+    (new Date(bookingData.end_date).getTime() - new Date(bookingData.start_date).getTime()) / 86_400_000,
+  ));
+  const profit_kouider = client_price_per_day != null && owner_price_per_day != null
+    ? Math.round((client_price_per_day - owner_price_per_day) * nb_days * 100) / 100
+    : null;
 
   try {
     // createBooking includes anti-doublon check
@@ -68,6 +77,10 @@ router.post('/', requireMobileAuth, async (req, res) => {
       status:                'PENDING',
       whatsapp_sent:         false,
       sms_sent:              false,
+      ...(client_price_per_day != null ? { client_price_per_day } : {}),
+      ...(owner_price_per_day  != null ? { owner_price_per_day }  : {}),
+      ...(profit_kouider       != null ? { profit_kouider }       : {}),
+      nb_days,
     });
 
     // Auto-sync to Google Calendar if requested

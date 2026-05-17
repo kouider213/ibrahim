@@ -33,6 +33,8 @@ export default function NewBookingScreen() {
 
   const [clientName,  setClientName]  = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientAge,   setClientAge]   = useState('');
+  const [rentedBy,    setRentedBy]    = useState<'Kouider' | 'Houari'>('Kouider');
   const [startDate,   setStartDate]   = useState(todayStr());
   const [endDate,     setEndDate]     = useState(tomorrowStr());
   const [finalPrice,  setFinalPrice]  = useState('');
@@ -67,7 +69,9 @@ export default function NewBookingScreen() {
         end_date:             endDate,
         final_price:          Number(finalPrice),
         syncCalendar:         true,
+        rented_by:            rentedBy,
       };
+      if (clientAge.trim() && !isNaN(Number(clientAge))) body['client_age'] = Number(clientAge);
       if (notes.trim()) body['notes'] = notes.trim();
 
       const res = await fetch(`${BACKEND_URL}/api/bookings`, {
@@ -167,6 +171,30 @@ export default function NewBookingScreen() {
           onChangeText={setClientPhone}
           keyboardType="phone-pad"
         />
+
+        <Text style={styles.label}>ÂGE CLIENT</Text>
+        <TextInput
+          style={styles.input}
+          placeholderTextColor="#333"
+          placeholder="ex: 28"
+          value={clientAge}
+          onChangeText={setClientAge}
+          keyboardType="numeric"
+          maxLength={2}
+        />
+
+        <Text style={styles.label}>GÉRÉ PAR</Text>
+        <View style={styles.toggleRow}>
+          {(['Kouider', 'Houari'] as const).map(actor => (
+            <TouchableOpacity
+              key={actor}
+              style={[styles.toggleBtn, rentedBy === actor && styles.toggleBtnActive]}
+              onPress={() => setRentedBy(actor)}
+            >
+              <Text style={[styles.toggleTxt, rentedBy === actor && styles.toggleTxtActive]}>{actor.toUpperCase()}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* Dates */}
         <View style={styles.row2}>
@@ -325,4 +353,10 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.5 },
   submitTxt: { color: '#00ff88', fontSize: 12, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  toggleRow:      { flexDirection: 'row', gap: 10 },
+  toggleBtn:      { flex: 1, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  toggleBtnActive:{ borderColor: '#00e5ff44', backgroundColor: '#00e5ff11' },
+  toggleTxt:      { color: '#333', fontSize: 10, fontFamily: MONO, letterSpacing: 3 },
+  toggleTxtActive:{ color: '#00e5ff' },
 });
