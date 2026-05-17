@@ -453,6 +453,30 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
         paid_amount:          0,
       }).catch(() => {});
     }).catch(() => {});
+
+    // Auto-generate and send PDF voucher to Telegram (non-bloquant)
+    // Delay 2s to let Supabase propagate the new row before PDF generation query
+    setTimeout(() => {
+      generateReservationVoucher(booking.id).then(({ clientName, buffer }) => {
+        const filename = `BON_${(clientName ?? 'client').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+        const chatIdStr = env.TELEGRAM_CHAT_ID;
+        if (!chatIdStr || !buffer) return;
+        const chatId = Number(chatIdStr);
+        if (isNaN(chatId)) return;
+        const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
+        const form = new FormData();
+        form.append('chat_id', String(chatId));
+        form.append('document', buffer, {
+          filename,
+          contentType: 'application/pdf',
+          knownLength: buffer.length,
+        });
+        form.append('caption', `📄 Bon de réservation — ${clientName} (auto-généré)`);
+        axios.post(`${botBase}/sendDocument`, form, {
+          headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity,
+        }).then(() => console.log('[create_booking] Auto-voucher PDF sent')).catch(() => {});
+      }).catch(() => {});
+    }, 2000);
   } catch { calendarNote = ' | ⚠️ Google Agenda non synchro'; }
 
   return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}`;
