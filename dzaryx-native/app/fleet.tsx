@@ -9,6 +9,11 @@ import { fetchAllCars, fetchBookings, updateCar, createCar, fetchFleetStats, typ
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
+function fmtDate(d: string): string {
+  try { return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }); }
+  catch { return d; }
+}
+
 function fuelIcon(fuel: string | null): string {
   if (!fuel) return '⛽';
   const f = fuel.toLowerCase();
@@ -28,6 +33,7 @@ export default function FleetScreen() {
   const [activeBookings,  setActiveBookings]  = useState<Booking[]>([]);
   const [arrivalsToday,   setArrivalsToday]   = useState<Booking[]>([]);
   const [returnsToday,    setReturnsToday]    = useState<Booking[]>([]);
+  const [nextBookings,    setNextBookings]    = useState<Record<string, Booking>>({});
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling,   setToggling]   = useState<string | null>(null);
@@ -44,24 +50,35 @@ export default function FleetScreen() {
   const [newFuel,    setNewFuel]    = useState('');
   const [newTrans,   setNewTrans]   = useState('');
   const [addingCar,  setAddingCar]  = useState(false);
+  const [historyCarId,    setHistoryCarId]    = useState<string | null>(null);
+  const [allBooksCache,   setAllBooksCache]   = useState<Booking[] | null>(null);
+  const [historyLoading,  setHistoryLoading]  = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     const today = new Date().toISOString().slice(0, 10);
-    const [c, f, booksActive, booksConfirmed] = await Promise.all([
+    const [c, f, booksActive, booksConfirmed, booksPending] = await Promise.all([
       fetchAllCars(TOKEN),
       fetchFleetStats(TOKEN),
       fetchBookings(TOKEN, 'ACTIVE', 100),
       fetchBookings(TOKEN, 'CONFIRMED', 100),
+      fetchBookings(TOKEN, 'PENDING', 100),
     ]);
     setCars(c);
     setFleet(f);
     const all = [...booksActive, ...booksConfirmed];
-    // Keep only bookings where today is between start_date and end_date
     setActiveBookings(all.filter(b => b.start_date <= today && b.end_date >= today));
     setArrivalsToday(all.filter(b => b.start_date === today));
     setReturnsToday(all.filter(b => b.end_date === today));
-    if (isRefresh) setRefreshing(false); else setLoading(false);
+    // Next booking per car (earliest future confirmed or pending)
+    const future = [...booksConfirmed, ...booksPending].filter(b => b.start_date > today);
+    const nextMap: Record<string, Booking> = {};
+    for (const b of future) {
+      if (!b.car_id) continue;
+      if (!nextMap[b.car_id] || b.start_date < nextMap[b.car_id].start_date) nextMap[b.car_id] = b;
+    }
+    setNextBookings(nextMap);
+    if (isRefresh) { setRefreshing(false); setAllBooksCache(null); } else setLoading(false);
   }, [TOKEN]);
 
   useEffect(() => { void load(); }, [load]);
@@ -127,6 +144,16 @@ export default function FleetScreen() {
       Alert.alert('Erreur', result.error ?? 'Ajout échoué');
     }
   }, [newName, newCat, newPPD, newOwnerPPD, newSeats, newFuel, newTrans, TOKEN, load]);
+
+  const handleToggleHistory = useCallback(async (carId: string) => {
+    if (historyCarId === carId) { setHistoryCarId(null); return; }
+    setHistoryCarId(carId);
+    if (allBooksCache) return;
+    setHistoryLoading(true);
+    const all = await fetchBookings(TOKEN, undefined, 500);
+    setAllBooksCache(all);
+    setHistoryLoading(false);
+  }, [historyCarId, allBooksCache, TOKEN]);
 
   const available = cars.filter(c => c.available).length;
   const rented    = cars.filter(c => !c.available).length;
@@ -339,6 +366,57 @@ export default function FleetScreen() {
                   <Text style={styles.editPriceTxt}>✏️ MODIFIER LES PRIX</Text>
                 </TouchableOpacity>
               )}
+
+              {/* Next booking for available cars */}
+              {car.available && nextBookings[car.id] && (() => {
+                const nb = nextBookings[car.id];
+                return (
+                  <View style={styles.nextBkRow}>
+                    <Text style={styles.nextBkLabel}>📅 PROCHAINE RÉSA</Text>
+                    <Text style={styles.nextBkClient}>{nb.client_name}</Text>
+                    <Text style={styles.nextBkDates}>{fmtDate(nb.start_date)} → {fmtDate(nb.end_date)}</Text>
+                    <View style={[styles.nextBkStatus, { borderColor: nb.status === 'CONFIRMED' ? '#00ff8844' : '#ffaa0044' }]}>
+                      <Text style={[styles.nextBkStatusTxt, { color: nb.status === 'CONFIRMED' ? '#00ff88' : '#ffaa00' }]}>{nb.status}</Text>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              {/* History toggle */}
+              <TouchableOpacity style={styles.histBtn} onPress={() => handleToggleHistory(car.id)}>
+                <Text style={styles.histBtnTxt}>
+                  {historyCarId === car.id ? '▲ MASQUER HISTORIQUE' : '▼ VOIR HISTORIQUE'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* History panel */}
+              {historyCarId === car.id && (
+                <View style={styles.histPanel}>
+                  {historyLoading ? (
+                    <ActivityIndicator color="#00e5ff" style={{ marginVertical: 10 }} />
+                  ) : (() => {
+                    const carBks = (allBooksCache ?? [])
+                      .filter(b => b.car_id === car.id)
+                      .sort((a, b) => b.start_date.localeCompare(a.start_date))
+                      .slice(0, 15);
+                    if (carBks.length === 0) return <Text style={styles.histEmpty}>AUCUN HISTORIQUE</Text>;
+                    return carBks.map((b, i) => (
+                      <View key={i} style={styles.histRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.histClient}>{b.client_name}</Text>
+                          <Text style={styles.histDates}>{fmtDate(b.start_date)} → {fmtDate(b.end_date)}</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.histPrice}>{b.final_price != null ? `${b.final_price}€` : '—'}</Text>
+                          <Text style={[styles.histStatus, { color: b.status === 'COMPLETED' ? '#555' : b.status === 'REJECTED' ? '#ff4444' : '#00e5ff' }]}>
+                            {b.status}
+                          </Text>
+                        </View>
+                      </View>
+                    ));
+                  })()}
+                </View>
+              )}
             </View>
           );
         })}
@@ -484,4 +562,22 @@ const styles = StyleSheet.create({
   cancelPriceTxt:  { color: '#555', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
   savePriceBtn:    { flex: 2, backgroundColor: '#00e5ff22', borderWidth: 1, borderColor: '#00e5ff44', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   savePriceTxt:    { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
+
+  nextBkRow:       { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 8, backgroundColor: '#00ff8808', borderWidth: 1, borderColor: '#00ff8822', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  nextBkLabel:     { color: '#00ff8888', fontSize: 7, fontFamily: MONO, letterSpacing: 1 },
+  nextBkClient:    { color: '#00ff88', fontSize: 9, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
+  nextBkDates:     { color: '#555', fontSize: 8, fontFamily: MONO },
+  nextBkStatus:    { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  nextBkStatusTxt: { fontSize: 7, fontFamily: MONO, letterSpacing: 1 },
+
+  histBtn:         { marginTop: 6, paddingVertical: 8, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#111' },
+  histBtnTxt:      { color: '#2a2a2a', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
+
+  histPanel:       { marginTop: 4, backgroundColor: '#030303', borderRadius: 8, padding: 10 },
+  histEmpty:       { color: '#222', fontSize: 9, fontFamily: MONO, letterSpacing: 2, textAlign: 'center', paddingVertical: 10 },
+  histRow:         { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
+  histClient:      { color: '#888', fontSize: 9, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
+  histDates:       { color: '#333', fontSize: 8, fontFamily: MONO, marginTop: 2 },
+  histPrice:       { color: '#fff', fontSize: 10, fontFamily: MONO, fontWeight: '700' },
+  histStatus:      { fontSize: 7, fontFamily: MONO, letterSpacing: 1, marginTop: 2 },
 });

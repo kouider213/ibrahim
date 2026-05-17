@@ -344,7 +344,7 @@ export default function BookingsScreen() {
                     <Text style={styles.paidTxt}>💳 PAYÉ</Text>
                   </TouchableOpacity>
                 )}
-                {b.status === 'PENDING' && (
+                {(b.status === 'PENDING' || (b.status === 'CONFIRMED' && b.start_date <= new Date().toISOString().slice(0, 10))) && (
                   <TouchableOpacity style={styles.activeBtn} onPress={() => markActive(b)}>
                     <Text style={styles.activeTxt}>✓ ACTIVER</Text>
                   </TouchableOpacity>
