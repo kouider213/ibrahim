@@ -16,17 +16,17 @@ const CLIENT_PATTERNS: Array<{ re: RegExp; toFact: (m: RegExpMatchArray) => Extr
   // "Ahmed préfère la Clio" / "Ahmed aime la Clio 5"
   {
     re: /([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)\s+(?:préfère|aime|veut toujours|demande toujours|prend toujours)\s+(la |le |les |l')?(\w[\w\s-]+)/i,
-    toFact: m => ({ domain: 'business' as MemoryDomain, key: `pref_vehicule_${m[1].toLowerCase().replace(/\s/g, '_')}`, value: `${m[1]} préfère ${m[3]}` }),
+    toFact: m => ({ domain: 'client' as MemoryDomain, key: `pref_vehicule_${m[1].toLowerCase().replace(/\s/g, '_')}`, value: `${m[1]} préfère ${m[3]}` }),
   },
   // "Ahmed loue toujours en juillet"
   {
     re: /([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)\s+(?:loue|réserve|vient)\s+(?:toujours|souvent|en général)\s+en\s+(\w+)/i,
-    toFact: m => ({ domain: 'business' as MemoryDomain, key: `period_${m[1].toLowerCase().replace(/\s/g, '_')}`, value: `${m[1]} loue généralement en ${m[2]}` }),
+    toFact: m => ({ domain: 'client' as MemoryDomain, key: `period_${m[1].toLowerCase().replace(/\s/g, '_')}`, value: `${m[1]} loue généralement en ${m[2]}` }),
   },
   // "Ahmed paie toujours en espèces" / "Ahmed paie rarement"
   {
     re: /([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)\s+(?:paie|paye)\s+(toujours|souvent|rarement|jamais|en espèces|par virement|cash)/i,
-    toFact: m => ({ domain: 'business' as MemoryDomain, key: `payment_${m[1].toLowerCase().replace(/\s/g, '_')}`, value: `${m[1]} ${m[2]}` }),
+    toFact: m => ({ domain: 'client' as MemoryDomain, key: `payment_${m[1].toLowerCase().replace(/\s/g, '_')}`, value: `${m[1]} ${m[2]}` }),
   },
 ];
 
@@ -63,17 +63,17 @@ const DARIJA_PATTERNS: Array<{ re: RegExp; toFact: (m: RegExpMatchArray) => Extr
   // "X yeheb el Clio" (X aime la Clio) / "X ma yehebsh"
   {
     re: /([A-ZÀ-Üa-zà-ü]{3,})\s+(?:yeheb|y7eb|kayen|dima)\s+(el\s+|la\s+)?([\w\s-]{3,20})/i,
-    toFact: m => ({ domain: 'business' as MemoryDomain, key: `pref_${m[1].toLowerCase()}`, value: `${m[1]} préfère ${m[3]}` }),
+    toFact: m => ({ domain: 'client' as MemoryDomain, key: `pref_${m[1].toLowerCase()}`, value: `${m[1]} préfère ${m[3]}` }),
   },
   // "X 3ando mochkil fi X" / "3ando wahed X"
   {
     re: /3ando\s+(?:wahed\s+|l\s+)?([\w\s]{3,30})/i,
-    toFact: m => ({ domain: 'business' as MemoryDomain, key: `note_darija_${Date.now()}`, value: m[0].slice(0, 80) }),
+    toFact: m => ({ domain: 'general' as MemoryDomain, key: `note_darija_${Date.now()}`, value: m[0].slice(0, 80) }),
   },
   // "safi nrenda X" (on loue X) — capture car name
   {
     re: /(?:safi|wakha)\s+n?r(?:enda|end)\s+(el\s+|la\s+)?([\w\s-]{3,20})/i,
-    toFact: m => ({ domain: 'business' as MemoryDomain, key: `location_darija_${m[2].trim().toLowerCase().replace(/\s/g, '_')}`, value: `Location ${m[2].trim()} confirmée (darija)` }),
+    toFact: m => ({ domain: 'business' as MemoryDomain, key: `loc_darija_${m[2].trim().toLowerCase().replace(/\s/g, '_')}`, value: `Location ${m[2].trim()} confirmée (darija)` }),
   },
 ];
 

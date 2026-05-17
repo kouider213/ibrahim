@@ -2,15 +2,12 @@ import { supabase } from '../integrations/supabase.js';
 import { buildMemoryContext, type MemoryContextResult } from '../conversation/memory-selector.js';
 import crypto from 'crypto';
 
+// Must match the CHECK constraint in Supabase memory_facts.domain
 export type MemoryDomain =
-  | 'identity'
-  | 'business'
-  | 'health'
-  | 'family'
-  | 'goal'
-  | 'habit'
-  | 'preference'
-  | 'note';
+  | 'identity'  | 'habit'    | 'routine'  | 'preference'
+  | 'goal'      | 'health'   | 'family'   | 'business'
+  | 'vehicle'   | 'client'   | 'finance'  | 'learning'
+  | 'general'   | 'note';
 
 export interface WriteMemoryParams {
   key:         string;
