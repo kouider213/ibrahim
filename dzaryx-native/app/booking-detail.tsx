@@ -63,6 +63,7 @@ export default function BookingDetailScreen() {
   const [payType,       setPayType]       = useState<Payment['type']>('especes');
   const [payNote,       setPayNote]       = useState('');
   const [paySubmitting, setPaySubmitting] = useState(false);
+  const [waLoading,     setWaLoading]     = useState(false);
 
   // Edit state
   const [editStatus,    setEditStatus]    = useState('');
@@ -157,6 +158,45 @@ export default function BookingDetailScreen() {
         }
       }},
     ]);
+  }, [booking, TOKEN]);
+
+  const handleWaMessage = useCallback(async () => {
+    if (!booking?.client_phone) return;
+    const phone   = booking.client_phone.replace(/\s/g, '').replace(/^0+/, '213');
+    const carName = booking.cars?.name ?? 'votre véhicule';
+
+    setWaLoading(true);
+    let aiMsg: string | null = null;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/bi/whatsapp/response`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+        body:    JSON.stringify({
+          client_name: booking.client_name,
+          car_name:    carName,
+          start_date:  booking.start_date,
+          end_date:    booking.end_date,
+          final_price: booking.final_price ?? 0,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        const data = await res.json() as { message?: string };
+        aiMsg = data.message ?? null;
+      }
+    } catch { /* fall through to basic */ }
+    setWaLoading(false);
+
+    const msg = aiMsg ?? `Bonjour ${booking.client_name}, votre réservation ${carName} est confirmée du ${fmtDate(booking.start_date)} au ${fmtDate(booking.end_date)}. Fik Conciergerie Oran.`;
+
+    Alert.alert(
+      aiMsg ? '💬 Message IA Généré' : '💬 Message WhatsApp',
+      msg.length > 300 ? msg.slice(0, 300) + '…' : msg,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'ENVOYER', onPress: () => Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`) },
+      ],
+    );
   }, [booking, TOKEN]);
 
   const handleShare = useCallback(async () => {
@@ -460,15 +500,8 @@ export default function BookingDetailScreen() {
               </TouchableOpacity>
             )}
             {booking.client_phone && (
-              <TouchableOpacity style={styles.waBtn} onPress={() => {
-                const phone = booking.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
-                const car   = booking.cars?.name ?? 'votre véhicule';
-                const msg   = encodeURIComponent(
-                  `Bonjour ${booking.client_name}, votre réservation ${car} est confirmée du ${fmtDate(booking.start_date)} au ${fmtDate(booking.end_date)}. Fik Conciergerie Oran.`
-                );
-                Linking.openURL(`https://wa.me/${phone}?text=${msg}`);
-              }}>
-                <Text style={styles.waTxt}>💬 WA</Text>
+              <TouchableOpacity style={styles.waBtn} onPress={handleWaMessage} disabled={waLoading}>
+                <Text style={styles.waTxt}>{waLoading ? '...' : '💬 WA'}</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.dupBtn} onPress={() => {

@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache } from '../lib/api';
+import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache, BACKEND_URL as API_BACKEND_URL } from '../lib/api';
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
+const BACKEND_URL = API_BACKEND_URL;
 const APP_VERSION = '1.2.0 (build 3)';
 
 type ConnStatus = 'checking' | 'online' | 'offline';
@@ -74,6 +74,38 @@ export default function SettingsScreen() {
     const result = await clearBiCache(MOBILE_TOKEN);
     setSchedStatus(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`);
     setTimeout(() => setSchedStatus(null), 3000);
+  }, [MOBILE_TOKEN]);
+
+  const handleBiReport = useCallback(async () => {
+    if (!MOBILE_TOKEN) return;
+    setSchedStatus('Génération rapport BI...');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/bi/full`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!res.ok) { setSchedStatus('❌ Erreur rapport BI'); return; }
+      const data = await res.json() as { summary?: string; revenue_summary?: { month_revenue?: number; kouider_profit_month?: number } };
+      const rev  = data.revenue_summary?.month_revenue ?? 0;
+      const prof = data.revenue_summary?.kouider_profit_month ?? 0;
+      setSchedStatus(`✅ CA mois: ${Math.round(rev)}€ · Profit: ${Math.round(prof)}€`);
+    } catch { setSchedStatus('❌ Timeout rapport BI'); }
+    setTimeout(() => setSchedStatus(null), 6000);
+  }, [MOBILE_TOKEN]);
+
+  const handleUnpaid = useCallback(async () => {
+    if (!MOBILE_TOKEN) return;
+    setSchedStatus('Chargement impayés...');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/finance/unpaid`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) { setSchedStatus('❌ Erreur'); return; }
+      const data = await res.json() as { text?: string };
+      setSchedStatus(null);
+      Alert.alert('IMPAYÉS', data.text ?? 'Aucune donnée', [{ text: 'OK' }]);
+    } catch { setSchedStatus('❌ Erreur impayés'); setTimeout(() => setSchedStatus(null), 3000); }
   }, [MOBILE_TOKEN]);
 
   function handleLogout() {
@@ -178,6 +210,12 @@ export default function SettingsScreen() {
               <Text style={styles.triggerTxt}>{icon} {label}</Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleBiReport}>
+            <Text style={styles.triggerTxt}>📈 RAPPORT BI IMMÉDIAT</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleUnpaid}>
+            <Text style={styles.triggerTxt}>💳 LISTE IMPAYÉS</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.triggerBtn} onPress={handleBackfill}>
             <Text style={styles.triggerTxt}>🧠 BACKFILL INTELLIGENCE CLIENTS</Text>
           </TouchableOpacity>
