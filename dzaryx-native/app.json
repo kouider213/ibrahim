@@ -20,7 +20,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.dzaryx.app",
-      "versionCode": 3
+      "versionCode": 4
     },
     "plugins": [
       "expo-router",
@@ -46,6 +46,13 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Dzaryx utilise ta position pour calculer le temps de trajet réel.",
           "locationWhenInUsePermission": "Dzaryx utilise ta position pour calculer le temps de trajet réel."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Dzaryx accède à ta galerie pour scanner des documents.",
+          "cameraPermission": "Dzaryx utilise la caméra pour scanner des documents."
         }
       ]
     ],

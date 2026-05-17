@@ -48,7 +48,7 @@ interface NexusSysinfo {
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = API_BACKEND_URL;
-const APP_VERSION = '1.2.0 (build 3)';
+const APP_VERSION = '1.2.0 (build 4)';
 
 type ConnStatus = 'checking' | 'online' | 'offline';
 
