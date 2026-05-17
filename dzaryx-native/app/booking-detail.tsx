@@ -7,7 +7,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
 import {
   fetchBookingById, updateBookingField, deleteBooking, fetchCars,
-  type Booking, type Car,
+  fetchBookingPayments, recordPayment,
+  type Booking, type Car, type Payment,
 } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
@@ -51,11 +52,17 @@ export default function BookingDetailScreen() {
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
 
-  const [booking,  setBooking]  = useState<Booking | null>(null);
-  const [cars,     setCars]     = useState<Car[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [editing,  setEditing]  = useState(false);
-  const [saving,   setSaving]   = useState(false);
+  const [booking,       setBooking]       = useState<Booking | null>(null);
+  const [cars,          setCars]          = useState<Car[]>([]);
+  const [payments,      setPayments]      = useState<Payment[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [editing,       setEditing]       = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [addingPayment, setAddingPayment] = useState(false);
+  const [payAmount,     setPayAmount]     = useState('');
+  const [payType,       setPayType]       = useState<Payment['type']>('especes');
+  const [payNote,       setPayNote]       = useState('');
+  const [paySubmitting, setPaySubmitting] = useState(false);
 
   // Edit state
   const [editStatus,    setEditStatus]    = useState('');
@@ -69,7 +76,7 @@ export default function BookingDetailScreen() {
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [b, c] = await Promise.all([fetchBookingById(id, TOKEN), fetchCars(TOKEN)]);
+    const [b, c, pays] = await Promise.all([fetchBookingById(id, TOKEN), fetchCars(TOKEN), fetchBookingPayments(id, TOKEN)]);
     if (b) {
       setBooking(b);
       setEditStatus(b.status);
@@ -81,6 +88,7 @@ export default function BookingDetailScreen() {
       setEditPaidAmount(b.paid_amount != null ? String(b.paid_amount) : '');
     }
     setCars(c);
+    setPayments(pays);
     setLoading(false);
   }, [id, TOKEN]);
 
@@ -159,6 +167,23 @@ export default function BookingDetailScreen() {
     );
   }, [booking, TOKEN, router]);
 
+  const handleAddPayment = useCallback(async () => {
+    const amt = Number(payAmount);
+    if (!payAmount || isNaN(amt) || amt <= 0) { Alert.alert('Montant invalide'); return; }
+    if (!booking) return;
+    setPaySubmitting(true);
+    const result = await recordPayment(booking.id, amt, payType, payNote.trim() || undefined, TOKEN);
+    setPaySubmitting(false);
+    if (result.ok) {
+      setAddingPayment(false);
+      setPayAmount('');
+      setPayNote('');
+      await load();
+    } else {
+      Alert.alert('Erreur', result.error ?? 'Enregistrement échoué');
+    }
+  }, [booking, payAmount, payType, payNote, TOKEN, load]);
+
   if (loading) {
     return (
       <View style={[styles.root, styles.center]}>
@@ -233,6 +258,70 @@ export default function BookingDetailScreen() {
             <Text style={styles.notesTxt}>{booking.notes}</Text>
           </View>
         ) : null}
+
+        {/* Payments history */}
+        <View style={styles.card}>
+          <View style={styles.payHistHeader}>
+            <Text style={styles.sectionTitle}>HISTORIQUE PAIEMENTS</Text>
+            <TouchableOpacity style={styles.addPayBtn} onPress={() => setAddingPayment(v => !v)}>
+              <Text style={styles.addPayTxt}>{addingPayment ? '✕ ANNULER' : '+ AJOUTER'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {payments.length === 0 && !addingPayment && (
+            <Text style={styles.noPayTxt}>Aucun paiement enregistré</Text>
+          )}
+          {payments.map((p, i) => (
+            <View key={p.id ?? i} style={styles.payRow}>
+              <Text style={styles.payTypeTxt}>{p.type.toUpperCase()}</Text>
+              <Text style={styles.payAmtTxt}>+{p.amount}€</Text>
+              <Text style={styles.payDateTxt}>{new Date(p.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</Text>
+            </View>
+          ))}
+          {payments.length > 0 && (
+            <View style={styles.payTotalRow}>
+              <Text style={styles.payTotalLbl}>TOTAL ENCAISSÉ</Text>
+              <Text style={styles.payTotalAmt}>{payments.reduce((s, p) => s + p.amount, 0)}€</Text>
+            </View>
+          )}
+
+          {addingPayment && (
+            <View style={styles.addPayForm}>
+              <Text style={styles.fieldLabel}>MONTANT (€)</Text>
+              <TextInput
+                style={styles.input}
+                value={payAmount}
+                onChangeText={setPayAmount}
+                keyboardType="numeric"
+                placeholderTextColor="#333"
+                placeholder="ex: 150"
+              />
+              <Text style={styles.fieldLabel}>TYPE</Text>
+              <View style={styles.pillRow}>
+                {(['especes', 'virement', 'avance', 'solde', 'autre'] as const).map(t => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.pill, payType === t && { borderColor: '#00ff88', backgroundColor: '#00ff8822' }]}
+                    onPress={() => setPayType(t)}
+                  >
+                    <Text style={[styles.pillTxt, payType === t && { color: '#00ff88' }]}>{t.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.fieldLabel}>NOTE (optionnelle)</Text>
+              <TextInput
+                style={styles.input}
+                value={payNote}
+                onChangeText={setPayNote}
+                placeholderTextColor="#333"
+                placeholder="ex: Acompte WhatsApp"
+              />
+              <TouchableOpacity style={[styles.saveBtn, { marginTop: 12 }]} onPress={handleAddPayment} disabled={paySubmitting}>
+                <Text style={styles.saveTxt}>{paySubmitting ? '...' : '💰 ENREGISTRER PAIEMENT'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* Edit panel */}
         {editing ? (
@@ -397,6 +486,19 @@ const styles = StyleSheet.create({
   cancelTxt: { color: '#555', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
   saveBtn:   { flex: 2, backgroundColor: '#00e5ff22', borderWidth: 1, borderColor: '#00e5ff44', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   saveTxt:   { color: '#00e5ff', fontSize: 10, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
+
+  payHistHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  addPayBtn: { backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8833', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
+  addPayTxt: { color: '#00ff88', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
+  noPayTxt:  { color: '#222', fontSize: 9, fontFamily: MONO, letterSpacing: 2, textAlign: 'center', paddingVertical: 8 },
+  payRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
+  payTypeTxt:{ color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 2, flex: 1 },
+  payAmtTxt: { color: '#00ff88', fontSize: 12, fontFamily: MONO, fontWeight: '700', marginRight: 12 },
+  payDateTxt:{ color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 1 },
+  payTotalRow:{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, marginTop: 4 },
+  payTotalLbl:{ color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 3 },
+  payTotalAmt:{ color: '#00ff88', fontSize: 14, fontFamily: MONO, fontWeight: '700' },
+  addPayForm: { marginTop: 12 },
 
   actionsCard:  { flexDirection: 'row', gap: 8, marginBottom: 24 },
   editBtn:  { flex: 2, backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },

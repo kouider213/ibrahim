@@ -12,9 +12,10 @@ router.get('/', requireMobileAuth, async (req, res) => {
   const status = req.query['status'] as string | undefined;
   const phone  = req.query['phone']  as string | undefined;
   const limit  = Number(req.query['limit'] ?? 50);
+  const q      = req.query['q']      as string | undefined;
 
   try {
-    const bookings = await getBookings({ status, clientPhone: phone, limit });
+    const bookings = await getBookings({ status, clientPhone: phone, limit, q });
     res.json({ bookings, count: bookings.length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -210,6 +211,64 @@ router.get('/cars', requireMobileAuth, async (_req, res) => {
       .order('name', { ascending: true });
     if (error) { res.status(500).json({ error: error.message }); return; }
     res.json({ cars: data ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/bookings/:id/payments — list payment records for a booking
+router.get('/:id/payments', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  try {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('booking_id', id)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    res.json({ payments: data ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/bookings/:id/payments — record a payment
+const paymentSchema = z.object({
+  amount: z.number().positive(),
+  type:   z.enum(['avance', 'solde', 'virement', 'especes', 'autre']),
+  note:   z.string().optional(),
+});
+
+router.post('/:id/payments', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const parsed = paymentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    return;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('payments')
+      .insert({ booking_id: id, ...parsed.data, created_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+
+    // Recompute paid_amount on the booking
+    const { data: allPays } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('booking_id', id);
+    const totalPaid = (allPays ?? []).reduce((s: number, p: { amount: number }) => s + p.amount, 0);
+    const { data: bk } = await supabase.from('bookings').select('final_price').eq('id', id).single();
+    const finalPrice = (bk as { final_price?: number } | null)?.final_price ?? 0;
+    const newPayStatus = totalPaid >= finalPrice ? 'PAID' : 'PARTIAL';
+    await supabase
+      .from('bookings')
+      .update({ paid_amount: totalPaid, payment_status: newPayStatus, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    res.json({ payment: data, totalPaid, paymentStatus: newPayStatus });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

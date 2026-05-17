@@ -239,11 +239,13 @@ export async function fetchBookings(
   mobileToken?: string,
   status?: string,
   limit = 30,
+  q?: string,
 ): Promise<Booking[]> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   try {
     const params = new URLSearchParams({ limit: String(limit) });
     if (status) params.set('status', status);
+    if (q) params.set('q', q);
     const res = await fetch(`${BACKEND_URL}/api/bookings?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(8000),
@@ -448,5 +450,50 @@ export async function backfillClientIntelligence(mobileToken?: string): Promise<
     return { ok: true, message: data.message ?? 'Backfill terminé' };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export interface Payment {
+  id:         string;
+  booking_id: string;
+  amount:     number;
+  type:       'avance' | 'solde' | 'virement' | 'especes' | 'autre';
+  note?:      string;
+  created_at: string;
+}
+
+export async function fetchBookingPayments(bookingId: string, mobileToken?: string): Promise<Payment[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bookings/${bookingId}/payments`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal:  AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { payments: Payment[] };
+    return data.payments ?? [];
+  } catch { return []; }
+}
+
+export async function recordPayment(
+  bookingId: string,
+  amount: number,
+  type: Payment['type'],
+  note?: string,
+  mobileToken?: string,
+): Promise<{ ok: boolean; totalPaid?: number; paymentStatus?: string; error?: string }> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bookings/${bookingId}/payments`, {
+      method:  'POST',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ amount, type, note }),
+      signal:  AbortSignal.timeout(10000),
+    });
+    const data = await res.json() as { totalPaid?: number; paymentStatus?: string; error?: string };
+    if (!res.ok) return { ok: false, error: data.error };
+    return { ok: true, totalPaid: data.totalPaid, paymentStatus: data.paymentStatus };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
