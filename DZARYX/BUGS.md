@@ -7,6 +7,62 @@
 
 ## Bugs Ouverts 🔴
 
+_(aucun bug critique ouvert — tous fixés)_
+
+---
+
+## Bugs Fixés cette session (2026-05-17) ✅
+
+### B010 — app/onboarding/mode.tsx manquant → crash navigation
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `dzaryx-native/app/onboarding/mode.tsx` (créé)
+- **Description** : `_layout.tsx` déclarait `Stack.Screen name="onboarding/mode"` mais le fichier n'existait pas → crash potentiel si navigué.
+- **Fix** : Créé `mode.tsx` qui redirige immédiatement vers `/onboarding/welcome`.
+
+### B011 — app.json trailing comma → JSON invalide
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `dzaryx-native/app.json` ligne 50
+- **Description** : Virgule après le dernier élément du tableau `plugins` → JSON invalide → EAS build échouerait.
+- **Fix** : Virgule supprimée. Version bumped 1.0.0 → 1.1.0. versionCode 2 ajouté.
+
+### B012 — chat.tsx : 4 erreurs TypeScript préexistantes
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `dzaryx-native/app/chat.tsx`
+- **Description** :
+  1. `NotificationBehavior` manquait `shouldShowBanner` + `shouldShowList`
+  2. `handleSend` déclaré APRÈS `stopRecord` qui l'utilise → ordering error TS
+  3. `takePictureAsync` → `takePicture` (Expo Camera SDK 54)
+  4. `CameraViewRef` cast requis pour prop ref de `CameraView` composant
+- **Fix** : Ajouté les 2 props, déplacé `handleSend` avant `stopRecord`, `takePicture`, cast `ref as unknown as React.RefObject<CameraView>`.
+
+### B013 — lib/api.ts token Kouider hardcodé (Houari envoie avec mauvais acteur)
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `dzaryx-native/lib/api.ts`
+- **Description** : `sendMessage()` et `registerDevice()` utilisaient `process.env.EXPO_PUBLIC_MOBILE_TOKEN` au niveau module → Houari envoyait toujours avec le token Kouider.
+- **Fix** : `mobileToken` param ajouté aux deux fonctions. `chat.tsx` passe `MOBILE_TOKEN` (depuis store, acteur-scoped).
+
+### B014 — onboarding → /chat directement (acteur non sélectionné)
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichiers** : `dzaryx-native/app/onboarding/business.tsx`, `personal.tsx`
+- **Description** : Après onboarding, `router.replace('/chat')` → `actorId` null → token par défaut Kouider pour tout le monde.
+- **Fix** : `router.replace('/auth/login')` pour sélectionner l'acteur avant d'accéder au chat.
+
+### B015 — Whisper hardcode `language: 'fr'` (arabe/darija non reconnu)
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `backend/src/api/routes/transcribe.ts` ligne 33
+- **Description** : Groq Whisper avec `language: 'fr'` refuse/mal-transcrit l'arabe et le darija.
+- **Fix** : Ligne supprimée — Whisper auto-détecte fr/ar/darija.
+
+### B016 — Actions delete s'exécutent sans confirmation
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `backend/src/conversation/orchestrator.ts`
+- **Description** : "Supprime la réservation de Ahmed" → Claude exécutait directement → risque suppression accidentelle.
+- **Fix** : Gate ajouté : si `v2.entities.isAdminAction && action === 'delete' && !pendingResolved` → stoppe avant Claude, stocke `delete_confirm` en Redis, demande confirmation. Retry avec "oui" → pendingResolved=true → exécution.
+
+---
+
+## Bugs Fixés ✅ (sessions précédentes)
+
 ### B006 — "Donne moi les revenu" bloqué par anti-hallucination Gate 2
 - **Statut** : ✅ FIXÉ — 2026-05-15
 - **Fichiers** : `backend/src/integrations/claude-api.ts`, `backend/src/agents/agent-registry.ts`, `backend/src/integrations/llm-router.ts`

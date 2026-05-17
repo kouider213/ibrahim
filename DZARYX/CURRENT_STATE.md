@@ -2,7 +2,7 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-15 (soir)
+> Dernière mise à jour : 2026-05-17 (Remote Control Mission)
 
 ---
 
@@ -82,19 +82,51 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ---
 
+### Native App (dzaryx-native) — AJOUTÉ 2026-05-17
+- ✅ Expo SDK 54 / React Native 0.81.5 / newArchEnabled
+- ✅ Multi-acteur : Kouider (cyan #00e5ff) + Houari (violet #7c3aed)
+- ✅ Orb JARVIS — 4 états animés (idle/listen/think/speak)
+- ✅ Voice mode (hold mic → Groq Whisper → Claude → ElevenLabs)
+- ✅ Car mode (mains libres, auto-listen 8s, keep-awake)
+- ✅ Camera vision (CameraView SDK54, takePicture corrigé)
+- ✅ Settings screen (backend ping live, version 1.1.0, logout)
+- ✅ Quick commands (4 boutons : résa/parc/impayés/météo)
+- ✅ Push notifications (token Expo stocké Redis, reçu même app fermée)
+- ✅ onboarding → /auth/login (acteur sélectionné avant chat)
+- ✅ Token acteur-scoped (Houari n'utilise plus le token Kouider)
+- ✅ TypeScript : 0 erreurs
+
+### Conversation Engine V2 — AJOUTÉ 2026-05-16
+- ✅ Normalizer : correction typos (paseport→passeport, beringo→berlingo, etc.)
+- ✅ Entity extractor : docType, carName, action, dates, amounts, isOriginalRequest, isAdminAction
+- ✅ Pending action : Redis TTL 5min, confirm/cancel/ambiguous
+- ✅ 41 tests passent (engine-v2.test.ts)
+
+### Backend Améliorations — 2026-05-17
+- ✅ Admin delete gate : actions suppression bloquées → demande confirmation avant Claude
+- ✅ Whisper auto-detect : language hardcode 'fr' retiré → supporte darija + arabe
+- ✅ Document masking : maskSensitiveText dans readDocument()
+- ✅ Client disambiguation : plus de .maybeSingle() → message si plusieurs clients
+
 ## Ce qui ne fonctionne pas / incomplet ❌
 
-### Aucun bug critique connu ✅
+### APK — BLOQUÉ (nécessite action Kouider)
+- ❌ **APK non buildé** — EAS CLI installé (v18.13), mais EXPO_TOKEN non set
+  → Kouider doit : `eas login` (dans terminal) PUIS : `cd dzaryx-native && eas build --platform android --profile preview --non-interactive`
+  → Ou générer token sur expo.dev → Account Settings → Access Tokens, puis le mettre en var d'env
 
-Tous les bugs B001–B006 sont fixés. Anti-hallucination complet (Gates 1-4c + fastPathGuard). Voir `BUGS.md` pour détails.
+### Config Railway manquante (nécessite action Kouider)
+- ❌ `MOBILE_TOKEN_HOUARI` non ajouté → Houari ne peut pas se connecter depuis Railway
+  → Valeur : `99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2`
+- ❌ `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_WHATSAPP_FROM` → WhatsApp pas actif
 
 ---
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-- **Backfill `owner_price_per_day`** dans Supabase (SQL Editor) pour les réservations existantes → profits non null. Voir plan SQL dans `HANDOFF.md`.
-- **Phase 7** : à définir selon besoins Kouider.
-- Tester Dzaryx en prod : demander "tes revenus ce mois" sans tool → doit refuser proprement.
+1. **EAS Login** : `! eas login` dans terminal Claude Code, puis `! cd dzaryx-native && eas build --platform android --profile preview --non-interactive`
+2. **Railway** : Ajouter MOBILE_TOKEN_HOUARI + Twilio vars
+3. **Google Cloud** : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
 
 ---
 
@@ -122,6 +154,20 @@ Tous les bugs B001–B006 sont fixés. Anti-hallucination complet (Gates 1-4c + 
 - B003 fixé : checkAnomalies() overlap date filter correct
 - **Phase 6 Mobile** : BookingForm + CalendarView + ClientsView + BottomNav 10 items
 
+**Dernier commit** : `b3b33df` fix(native): actor-scoped token, onboarding → auth/login
+
+**Session 2026-05-16/17 (Remote Control Mission) :**
+- Conversation Engine V2 complet (normalizer + entity-extractor + pending-action + engine-v2)
+- 41 tests passent
+- Admin delete gate (confirmation avant Claude)
+- Whisper auto-detect language (fr/ar/darija)
+- Native app : mode.tsx créé, settings.tsx créé, app.json fixed, chat.tsx 4 TS errors fixed
+- RÉGLAGES button + quick commands palette dans toolbar
+- Token acteur-scoped (Houari → son propre token)
+- onboarding → auth/login flow (acteur choisi avant chat)
+- PROGRESS.md créé (source de vérité complète)
+- 6 commits : aed62e3, c98bd8d, 3c144cc, 42be09b, 35fdaed, b3b33df
+
 **Dernier commit** : `71d2b1c` fix(anti-hallucination): Gates 4/4b/4c + fastPathGuard
 
 ---
@@ -147,6 +193,7 @@ Flight Bot: Python séparé (flight-bot/) — vols personnels Kouider
 | backend/ | ✅ Déployé Railway | TypeScript 0 erreurs |
 | nexus/ (Python) | ✅ Tourne sur PC | Streaming SSE OK |
 | mobile/ (React) | ✅ Déployé Netlify | Dashboard + Chat |
+| dzaryx-native/ | 🟡 Code prêt, APK non buildé | Expo SDK 54, EAS login requis |
 | pc-agent/ (TS) | ❓ Non vérifié | Alternative à Nexus |
 | flight-bot/ | ❓ Non vérifié | Indépendant |
 

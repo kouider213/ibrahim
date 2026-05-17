@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-05-17 — Remote Control Mission (Claude Sonnet 4.6)
+
+### Conversation Engine V2 ✅
+- **Commits** : `aed62e3`, `c98bd8d`
+- **Fichiers** : `backend/src/conversation/normalizer.ts` (NEW), `entity-extractor.ts` (NEW), `pending-action.ts` (NEW), `engine-v2.ts` (NEW), `tests/engine-v2.test.ts` (NEW)
+- **Résultat** : 41/41 tests pass. Typos corrigés, entités extraites, pending actions Redis 5min.
+
+### Native App — Dzaryx Android ✅
+- **Commits** : `3c144cc`, `42be09b`, `b3b33df`
+- **Fichiers** : `dzaryx-native/app/onboarding/mode.tsx` (NEW), `app/settings.tsx` (NEW), `app.json`, `app/_layout.tsx`, `app/chat.tsx`, `app/onboarding/business.tsx`, `app/onboarding/personal.tsx`, `lib/api.ts`
+- **Features** : Settings screen, quick commands, RÉGLAGES button, actor-scoped token, auth/login après onboarding
+- **Bugs fixés** : B010 (mode.tsx manquant), B011 (app.json trailing comma), B012 (4 TS errors), B013 (Houari token), B014 (onboarding flow), TypeScript : 0 erreurs
+
+### Backend Améliorations ✅
+- **Commit** : `35fdaed`
+- **Fichiers** : `backend/src/conversation/orchestrator.ts`, `backend/src/api/routes/transcribe.ts`
+- **B015** : Whisper auto-detect language (fr/ar/darija)
+- **B016** : Delete gate — confirmation obligatoire avant suppression
+
+---
+
 ## 2026-05-15 — Session soir (Claude Code / Sonnet 4.6)
 
 ### Anti-hallucination — Fix complet ✅
