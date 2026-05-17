@@ -209,15 +209,15 @@ export default function FleetScreen() {
                 {arrivalsToday.map((b, i) => {
                   const car = (b.cars as { name: string } | null)?.name ?? '?';
                   return (
-                    <View key={i} style={styles.todayRow}>
+                    <TouchableOpacity key={i} style={styles.todayRow} onPress={() => router.push({ pathname: '/booking-detail', params: { id: b.id } })}>
                       <Text style={styles.todayClient}>{b.client_name}</Text>
                       <Text style={styles.todayCar}>{car}</Text>
                       {b.client_phone && (
-                        <TouchableOpacity onPress={() => Linking.openURL(`tel:${b.client_phone}`)}>
+                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); Linking.openURL(`tel:${b.client_phone}`); }}>
                           <Text style={styles.todayPhone}>📞</Text>
                         </TouchableOpacity>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </>
@@ -229,15 +229,15 @@ export default function FleetScreen() {
                 {returnsToday.map((b, i) => {
                   const car = (b.cars as { name: string } | null)?.name ?? '?';
                   return (
-                    <View key={i} style={styles.todayRow}>
+                    <TouchableOpacity key={i} style={styles.todayRow} onPress={() => router.push({ pathname: '/booking-detail', params: { id: b.id } })}>
                       <Text style={styles.todayClient}>{b.client_name}</Text>
                       <Text style={styles.todayCar}>{car}</Text>
                       {b.client_phone && (
-                        <TouchableOpacity onPress={() => Linking.openURL(`tel:${b.client_phone}`)}>
+                        <TouchableOpacity onPress={(e) => { e.stopPropagation(); Linking.openURL(`tel:${b.client_phone}`); }}>
                           <Text style={styles.todayPhone}>📞</Text>
                         </TouchableOpacity>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </>
@@ -267,16 +267,16 @@ export default function FleetScreen() {
               </View>
 
               {currentRenter && (
-                <View style={styles.renterRow}>
+                <TouchableOpacity style={styles.renterRow} onPress={() => router.push({ pathname: '/booking-detail', params: { id: currentRenter.id } })}>
                   <Text style={styles.renterIcon}>👤</Text>
                   <Text style={styles.renterName}>{currentRenter.client_name}</Text>
                   <Text style={styles.renterDates}>→ {currentRenter.end_date.slice(5)}</Text>
                   {currentRenter.client_phone && (
-                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${currentRenter.client_phone}`)}>
+                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); Linking.openURL(`tel:${currentRenter.client_phone}`); }}>
                       <Text style={styles.renterPhone}>📞</Text>
                     </TouchableOpacity>
                   )}
-                </View>
+                </TouchableOpacity>
               )}
               <View style={styles.metaRow}>
                 {car.category && <Text style={styles.metaChip}>{car.category}</Text>}
@@ -371,14 +371,14 @@ export default function FleetScreen() {
               {car.available && nextBookings[car.id] && (() => {
                 const nb = nextBookings[car.id];
                 return (
-                  <View style={styles.nextBkRow}>
+                  <TouchableOpacity style={styles.nextBkRow} onPress={() => router.push({ pathname: '/booking-detail', params: { id: nb.id } })}>
                     <Text style={styles.nextBkLabel}>📅 PROCHAINE RÉSA</Text>
                     <Text style={styles.nextBkClient}>{nb.client_name}</Text>
                     <Text style={styles.nextBkDates}>{fmtDate(nb.start_date)} → {fmtDate(nb.end_date)}</Text>
                     <View style={[styles.nextBkStatus, { borderColor: nb.status === 'CONFIRMED' ? '#00ff8844' : '#ffaa0044' }]}>
                       <Text style={[styles.nextBkStatusTxt, { color: nb.status === 'CONFIRMED' ? '#00ff88' : '#ffaa00' }]}>{nb.status}</Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })()}
 
@@ -401,7 +401,7 @@ export default function FleetScreen() {
                       .slice(0, 15);
                     if (carBks.length === 0) return <Text style={styles.histEmpty}>AUCUN HISTORIQUE</Text>;
                     return carBks.map((b, i) => (
-                      <View key={i} style={styles.histRow}>
+                      <TouchableOpacity key={i} style={styles.histRow} onPress={() => router.push({ pathname: '/booking-detail', params: { id: b.id } })}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.histClient}>{b.client_name}</Text>
                           <Text style={styles.histDates}>{fmtDate(b.start_date)} → {fmtDate(b.end_date)}</Text>
@@ -412,7 +412,7 @@ export default function FleetScreen() {
                             {b.status}
                           </Text>
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     ));
                   })()}
                 </View>
