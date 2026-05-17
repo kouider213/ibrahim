@@ -395,6 +395,22 @@ export async function fetchClientIntelligence(mobileToken?: string): Promise<Cli
   }
 }
 
+export async function clearBiCache(mobileToken?: string): Promise<{ ok: boolean; message: string }> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bi/cache/clear`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      signal:  AbortSignal.timeout(10000),
+    });
+    const data = await res.json() as { deleted?: number; error?: string };
+    if (!res.ok) return { ok: false, message: data.error ?? 'Cache clear échoué' };
+    return { ok: true, message: `Cache vidé (${data.deleted ?? 0} clés)` };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function backfillClientIntelligence(mobileToken?: string): Promise<{ ok: boolean; message: string }> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   try {

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence } from '../lib/api';
+import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache } from '../lib/api';
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
@@ -66,6 +66,14 @@ export default function SettingsScreen() {
     const result = await backfillClientIntelligence(MOBILE_TOKEN);
     setSchedStatus(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`);
     setTimeout(() => setSchedStatus(null), 5000);
+  }, [MOBILE_TOKEN]);
+
+  const handleClearCache = useCallback(async () => {
+    if (!MOBILE_TOKEN) return;
+    setSchedStatus('Vidage cache...');
+    const result = await clearBiCache(MOBILE_TOKEN);
+    setSchedStatus(result.ok ? `✅ ${result.message}` : `❌ ${result.message}`);
+    setTimeout(() => setSchedStatus(null), 3000);
   }, [MOBILE_TOKEN]);
 
   function handleLogout() {
@@ -165,6 +173,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.triggerBtn} onPress={handleBackfill}>
             <Text style={styles.triggerTxt}>🧠 BACKFILL INTELLIGENCE CLIENTS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.triggerBtn} onPress={handleClearCache}>
+            <Text style={styles.triggerTxt}>🗑 VIDER CACHE BI</Text>
           </TouchableOpacity>
         </View>
       )}
