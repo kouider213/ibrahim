@@ -5,7 +5,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchRevenue, fetchFleetStats, type RevenueSummary, type FleetIntelligence } from '../lib/api';
+import { fetchRevenue, fetchFleetStats, BACKEND_URL, type RevenueSummary, type FleetIntelligence } from '../lib/api';
+
+interface HeatDay { date: string; count: number }
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -28,16 +30,28 @@ export default function RevenueScreen() {
 
   const [data,       setData]       = useState<RevenueSummary | null>(null);
   const [fleet,      setFleet]      = useState<FleetIntelligence | null>(null);
+  const [heatmap,    setHeatmap]    = useState<HeatDay[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const fetchHeatmap = useCallback(async (): Promise<HeatDay[]> => {
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/bi/heatmap`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      return r.ok ? (await r.json() as HeatDay[]) : [];
+    } catch { return []; }
+  }, [TOKEN]);
+
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
-    const [rev, fl] = await Promise.all([fetchRevenue(TOKEN), fetchFleetStats(TOKEN)]);
+    const [rev, fl, heat] = await Promise.all([fetchRevenue(TOKEN), fetchFleetStats(TOKEN), fetchHeatmap()]);
     setData(rev);
     setFleet(fl);
+    setHeatmap(heat);
     if (isRefresh) setRefreshing(false); else setLoading(false);
-  }, [TOKEN]);
+  }, [TOKEN, fetchHeatmap]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -168,6 +182,41 @@ export default function RevenueScreen() {
                 </>
               )}
 
+              {/* Booking heatmap (60 days) */}
+              {heatmap.length > 0 && (() => {
+                const countMap: Record<string, number> = {};
+                for (const d of heatmap) countMap[d.date] = d.count;
+                const days: Array<{ date: string; count: number }> = [];
+                for (let i = 59; i >= 0; i--) {
+                  const d = new Date(Date.now() - i * 86_400_000);
+                  const k = d.toISOString().slice(0, 10);
+                  days.push({ date: k, count: countMap[k] ?? 0 });
+                }
+                const maxCount = Math.max(...days.map(d => d.count), 1);
+                const rows: Array<typeof days> = [];
+                for (let i = 0; i < days.length; i += 10) rows.push(days.slice(i, i + 10));
+                return (
+                  <>
+                    <Text style={styles.sectionTitle}>ACTIVITÉ 60 JOURS</Text>
+                    <View style={styles.heatWrap}>
+                      {rows.map((row, ri) => (
+                        <View key={ri} style={styles.heatRow}>
+                          {row.map((d, ci) => {
+                            const intensity = d.count === 0 ? 0 : Math.max(0.15, d.count / maxCount);
+                            const bg = d.count === 0 ? '#0a0a0a' : `rgba(0,229,255,${intensity})`;
+                            return <View key={ci} style={[styles.heatCell, { backgroundColor: bg }]} />;
+                          })}
+                        </View>
+                      ))}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                        <Text style={styles.heatLbl}>IL Y A 60J</Text>
+                        <Text style={styles.heatLbl}>AUJOURD'HUI</Text>
+                      </View>
+                    </View>
+                  </>
+                );
+              })()}
+
               {/* Top clients */}
               {data.top_clients?.length > 0 && (
                 <>
@@ -297,4 +346,9 @@ const styles = StyleSheet.create({
   miniCallTxt:   { fontSize: 12 },
   miniWaBtn:     { backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36622', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6 },
   miniWaTxt:     { fontSize: 12 },
+
+  heatWrap: { backgroundColor: '#050505', borderRadius: 10, borderWidth: 1, borderColor: '#111', padding: 12, marginBottom: 24 },
+  heatRow:  { flexDirection: 'row', gap: 3, marginBottom: 3 },
+  heatCell: { width: 24, height: 16, borderRadius: 3 },
+  heatLbl:  { color: '#1a1a1a', fontSize: 8, fontFamily: MONO, letterSpacing: 1 },
 });
