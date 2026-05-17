@@ -49,7 +49,7 @@ export default function BookingsScreen() {
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
-    const data = await fetchBookings(TOKEN, undefined, 60);
+    const data = await fetchBookings(TOKEN, undefined, 200);
     setBookings(data);
     if (isRefresh) setRefreshing(false); else setLoading(false);
   }, [TOKEN]);

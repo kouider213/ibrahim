@@ -1,7 +1,7 @@
 import { supabase } from '../integrations/supabase.js';
 
 export interface SmartReminder {
-  type:     'arrival_tomorrow' | 'missing_passport' | 'missing_deposit' | 'return_soon' | 'vehicle_prep' | 'age_alert';
+  type:     'arrival_tomorrow' | 'missing_passport' | 'missing_deposit' | 'return_soon' | 'vehicle_prep' | 'age_alert' | 'overdue_payment';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   client_name:  string;
   client_phone: string | null;
@@ -141,6 +141,30 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
       date:         b.end_date,
       message:      `${b.client_name} rend ${car} le ${b.end_date}`,
       action:       'Confirmer heure de retour et état du véhicule',
+    });
+  }
+
+  // 4. Overdue unpaid — completed/active bookings with end_date past and payment not PAID
+  const { data: overdueUnpaid } = await supabase
+    .from('bookings')
+    .select('id, client_name, client_phone, end_date, final_price, paid_amount, cars(name)')
+    .in('status', ['COMPLETED', 'ACTIVE'])
+    .neq('payment_status', 'PAID')
+    .lt('end_date', today);
+
+  for (const b of (overdueUnpaid ?? []) as unknown as BookingRow[]) {
+    const car     = b.cars?.name ?? '?';
+    const owed    = (b.final_price ?? 0) - (b.paid_amount ?? 0);
+    if (owed <= 0) continue;
+    reminders.push({
+      type:         'overdue_payment',
+      priority:     'HIGH',
+      client_name:  b.client_name,
+      client_phone: b.client_phone ?? null,
+      car_name:     car,
+      date:         b.end_date,
+      message:      `Paiement en retard : ${b.client_name} doit ${owed}€ pour ${car} (terminé le ${b.end_date})`,
+      action:       'Contacter le client immédiatement pour récupérer le solde',
     });
   }
 

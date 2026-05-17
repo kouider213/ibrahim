@@ -16,6 +16,7 @@ const TYPE_ICON: Record<string, string> = {
   return_soon:       '🔙',
   vehicle_prep:      '🚗',
   age_alert:         '⚠️',
+  overdue_payment:   '🔴',
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
