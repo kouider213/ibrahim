@@ -1052,7 +1052,14 @@ export async function jobBIReminders(_job: Job): Promise<void> {
       const emoji = r.type === 'age_alert' ? '🔞' : r.type === 'missing_passport' ? '🪪' : '⚡';
       await sendMessage(chatId, `${emoji} *${r.message}*\n💡 ${r.action}`);
     }
-    console.log(`[job:bi-reminders] ✅ ${highPri.length} alerte(s) HIGH envoyées`);
+
+    // Also push to mobile app
+    const mostUrgent = highPri[0];
+    if (mostUrgent) {
+      emitProactive(`${mostUrgent.message} — ${mostUrgent.action}`, 'alert');
+    }
+
+    console.log(`[job:bi-reminders] ✅ ${highPri.length} alerte(s) HIGH envoyées + push mobile`);
   } catch (err) {
     console.error('[job:bi-reminders] ❌', err instanceof Error ? err.message : String(err));
   }

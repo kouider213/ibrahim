@@ -79,3 +79,46 @@ export async function registerDevice(
   if (!res.ok) throw new Error(`Register error ${res.status}`);
   return res.json() as Promise<{ userId: string }>;
 }
+
+export interface FleetIntelligence {
+  total_cars:          number;
+  available_now_count: number;
+  occupancy_avg_pct:   number;
+  most_profitable:     string | null;
+  idle_vehicles:       string[];
+  low_fleet_alert:     boolean;
+  stats:               Array<{
+    car_name:          string;
+    available_now:     boolean;
+    occupancy_pct:     number;
+    revenue_30d:       number;
+  }>;
+}
+
+export async function fetchFleetStats(mobileToken?: string): Promise<FleetIntelligence | null> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bi/fleet`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    return res.json() as Promise<FleetIntelligence>;
+  } catch {
+    return null;
+  }
+}
+
+export async function triggerSchedulerJob(jobName: string, mobileToken?: string): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(jobName)}`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

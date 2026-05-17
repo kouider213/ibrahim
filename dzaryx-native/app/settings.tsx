@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
+import { fetchFleetStats, triggerSchedulerJob } from '../lib/api';
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
@@ -38,25 +39,14 @@ export default function SettingsScreen() {
     if (!MOBILE_TOKEN || fleetLoad) return;
     setFleetLoad(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/bi/fleet`, {
-        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return;
-      const data = await res.json() as {
-        total_cars?:          number;
-        available_now_count?: number;
-        occupancy_avg_pct?:   number;
-        stats?:               Array<{ revenue_30d?: number }>;
-      };
-      const total     = data.total_cars ?? 0;
-      const available = data.available_now_count ?? 0;
+      const data = await fetchFleetStats(MOBILE_TOKEN);
+      if (!data) return;
       const revenue30 = (data.stats ?? []).reduce((s, c) => s + (c.revenue_30d ?? 0), 0);
       setFleet({
-        total,
-        available,
-        active:  total - available,
-        revenue: revenue30 > 0 ? Math.round(revenue30).toString() : null,
+        total:     data.total_cars ?? 0,
+        available: data.available_now_count ?? 0,
+        active:    (data.total_cars ?? 0) - (data.available_now_count ?? 0),
+        revenue:   revenue30 > 0 ? Math.round(revenue30).toString() : null,
       });
     } catch { /* ignore */ }
     finally { setFleetLoad(false); }
@@ -65,13 +55,8 @@ export default function SettingsScreen() {
   const triggerJob = useCallback(async (jobName: string) => {
     if (!MOBILE_TOKEN) return;
     setSchedStatus('Envoi...');
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(jobName)}`, {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
-      });
-      setSchedStatus(res.ok ? '✅ Déclenché !' : '❌ Erreur');
-    } catch { setSchedStatus('❌ Réseau'); }
+    const ok = await triggerSchedulerJob(jobName, MOBILE_TOKEN);
+    setSchedStatus(ok ? '✅ Déclenché !' : '❌ Erreur');
     setTimeout(() => setSchedStatus(null), 3000);
   }, [MOBILE_TOKEN]);
 
