@@ -1,6 +1,7 @@
 import { supabase } from '../integrations/supabase.js';
 
 export interface SmartReminder {
+  id:       string;  // unique key for dismissal: `${type}_${client_name}_${date}`
   type:     'arrival_tomorrow' | 'missing_passport' | 'missing_deposit' | 'return_soon' | 'vehicle_prep' | 'age_alert' | 'overdue_payment';
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
   client_name:  string;
@@ -32,7 +33,7 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
   const in3days  = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
   const in48h    = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
 
-  const reminders: SmartReminder[] = [];
+  const reminders: Omit<SmartReminder, 'id'>[] = [];
 
   // 1. Arrivals tomorrow
   const { data: arrivingTomorrow } = await supabase
@@ -168,12 +169,13 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
     });
   }
 
-  // Deduplicate by type + client + date
+  // Deduplicate by type + client + date, assign id
   const seen = new Set<string>();
-  return reminders.filter(r => {
+  return reminders.reduce<SmartReminder[]>((acc, r) => {
     const key = `${r.type}:${r.client_name}:${r.date}`;
-    if (seen.has(key)) return false;
+    if (seen.has(key)) return acc;
     seen.add(key);
-    return true;
-  });
+    acc.push({ ...r, id: key });
+    return acc;
+  }, []);
 }

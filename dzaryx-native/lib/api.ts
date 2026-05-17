@@ -342,6 +342,7 @@ export async function fetchRevenue(mobileToken?: string): Promise<RevenueSummary
 }
 
 export interface SmartReminder {
+  id:       string;
   type:         string;
   priority:     'HIGH' | 'MEDIUM' | 'LOW';
   client_name:  string;
@@ -365,6 +366,19 @@ export async function fetchReminders(mobileToken?: string): Promise<SmartReminde
   } catch {
     return [];
   }
+}
+
+export async function dismissReminder(id: string, mobileToken?: string): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/bi/reminders/dismiss`, {
+      method:  'POST',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ id }),
+      signal:  AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch { return false; }
 }
 
 export interface ClientSummary {

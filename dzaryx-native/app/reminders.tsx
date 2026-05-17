@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchReminders, type SmartReminder } from '../lib/api';
+import { fetchReminders, dismissReminder, type SmartReminder } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -47,6 +47,11 @@ export default function RemindersScreen() {
   }, [TOKEN]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const handleDismiss = useCallback(async (r: SmartReminder) => {
+    const ok = await dismissReminder(r.id, TOKEN);
+    if (ok) setReminders(prev => prev.filter(x => x.id !== r.id));
+  }, [TOKEN]);
 
   const high   = reminders.filter(r => r.priority === 'HIGH');
   const medium = reminders.filter(r => r.priority === 'MEDIUM');
@@ -119,6 +124,9 @@ export default function RemindersScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
+                  <TouchableOpacity style={styles.dismissBtn} onPress={() => handleDismiss(r)}>
+                    <Text style={styles.dismissTxt}>✓ TRAITÉ — MASQUER 48H</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
@@ -165,6 +173,9 @@ const styles = StyleSheet.create({
   actionBox:   { backgroundColor: '#0a0a0a', borderRadius: 6, padding: 10, flexDirection: 'row', gap: 6, marginBottom: 8 },
   actionLabel: { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 2, paddingTop: 1 },
   actionTxt:   { color: '#00e5ff88', fontSize: 9, fontFamily: MONO, lineHeight: 14, flex: 1 },
+
+  dismissBtn:  { marginTop: 8, borderWidth: 1, borderColor: '#00ff8822', borderRadius: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: '#00ff8808' },
+  dismissTxt:  { color: '#00ff8888', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
 
   contactRow:      { flexDirection: 'row', gap: 8 },
   contactBtn:      { flex: 1, backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },

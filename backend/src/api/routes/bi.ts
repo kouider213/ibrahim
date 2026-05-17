@@ -30,11 +30,32 @@ router.get('/revenue', requireMobileAuth, async (_req, res) => {
   }
 });
 
-// GET /api/bi/reminders — smart reminders (arrivée demain, passeport, acompte, retour)
-router.get('/reminders', requireMobileAuth, async (_req, res) => {
+// GET /api/bi/reminders — smart reminders, filtered by dismissed
+router.get('/reminders', requireMobileAuth, async (req, res) => {
   try {
-    const reminders = await getSmartReminders();
+    const actor = (req as unknown as { mobileActor?: { ownerKey: string } }).mobileActor?.ownerKey ?? 'kouider';
+    const dismissedKey = `reminders:dismissed:${actor}`;
+    const dismissed = await redis.smembers(dismissedKey).catch(() => []);
+    const dismissedSet = new Set(dismissed);
+
+    const all = await getSmartReminders();
+    const reminders = all.filter(r => !dismissedSet.has(r.id));
     res.json({ count: reminders.length, reminders });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/bi/reminders/dismiss — dismiss a reminder for 48h
+router.post('/reminders/dismiss', requireMobileAuth, async (req, res) => {
+  try {
+    const { id } = req.body as { id?: string };
+    if (!id) { res.status(400).json({ error: 'id required' }); return; }
+    const actor = (req as unknown as { mobileActor?: { ownerKey: string } }).mobileActor?.ownerKey ?? 'kouider';
+    const dismissedKey = `reminders:dismissed:${actor}`;
+    await redis.sadd(dismissedKey, id);
+    await redis.expire(dismissedKey, 172800); // 48h TTL
+    res.json({ ok: true, id });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
