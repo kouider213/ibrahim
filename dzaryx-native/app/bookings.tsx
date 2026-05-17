@@ -72,6 +72,7 @@ export default function BookingsScreen() {
   const [search,      setSearch]      = useState('');
   const [showCalendar,setShowCalendar]= useState(false);
   const [calMonth,    setCalMonth]    = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -126,6 +127,9 @@ export default function BookingsScreen() {
 
   const filtered = bookings.filter(b => {
     if (filter !== 'ALL' && b.status !== filter) return false;
+    if (selectedDay) {
+      if (b.start_date > selectedDay || b.end_date < selectedDay) return false;
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       return (
@@ -228,13 +232,24 @@ export default function BookingsScreen() {
               ))}
               {blanks.map((_, i) => <View key={`b${i}`} style={styles.calCell} />)}
               {days.map(day => {
-                const cnt   = countBookingsOnDay(day, bookings);
-                const isToday = day === today;
+                const cnt      = countBookingsOnDay(day, bookings);
+                const isToday  = day === today;
+                const isSel    = day === selectedDay;
                 return (
-                  <View key={day} style={[styles.calCell, { backgroundColor: dayColor(cnt) }, isToday && styles.calCellToday]}>
-                    <Text style={[styles.calDayTxt, isToday && { color: '#fff', fontWeight: '700' }]}>{day.slice(8)}</Text>
+                  <TouchableOpacity
+                    key={day}
+                    style={[
+                      styles.calCell,
+                      { backgroundColor: dayColor(cnt) },
+                      isToday && styles.calCellToday,
+                      isSel && styles.calCellSel,
+                    ]}
+                    onPress={() => setSelectedDay(prev => prev === day ? null : day)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.calDayTxt, isToday && { color: '#fff', fontWeight: '700' }, isSel && { color: '#00e5ff' }]}>{day.slice(8)}</Text>
                     {cnt > 0 && <Text style={styles.calCntTxt}>{cnt}</Text>}
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -264,6 +279,16 @@ export default function BookingsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Day filter indicator */}
+      {selectedDay && (
+        <View style={styles.dayFilterBar}>
+          <Text style={styles.dayFilterTxt}>📅 {selectedDay} — {filtered.length} résa</Text>
+          <TouchableOpacity onPress={() => setSelectedDay(null)}>
+            <Text style={styles.dayFilterClear}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Search */}
       <View style={styles.searchBox}>
@@ -429,6 +454,7 @@ const styles = StyleSheet.create({
   calDowTxt:    { width: '12.5%', textAlign: 'center', color: '#333', fontSize: 7, fontFamily: MONO, marginBottom: 4 },
   calCell:      { width: '12.5%', aspectRatio: 1, borderRadius: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#111' },
   calCellToday: { borderColor: '#00e5ff66' },
+  calCellSel:   { borderColor: '#00e5ff', borderWidth: 2, backgroundColor: '#00e5ff15' },
   calDayTxt:    { color: '#555', fontSize: 8, fontFamily: MONO },
   calCntTxt:    { color: '#00ff88', fontSize: 6, fontFamily: MONO },
   calLegend:    { flexDirection: 'row', gap: 12, marginTop: 10, justifyContent: 'center' },
@@ -445,7 +471,10 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1, color: '#fff', fontSize: 9, fontFamily: MONO, letterSpacing: 2, paddingVertical: 10,
   },
-  clearTxt: { color: '#333', fontSize: 14, paddingHorizontal: 4 },
+  clearTxt:       { color: '#333', fontSize: 14, paddingHorizontal: 4 },
+  dayFilterBar:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 6, backgroundColor: '#00e5ff0f', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  dayFilterTxt:   { color: '#00e5ff', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
+  dayFilterClear: { color: '#00e5ff66', fontSize: 14, paddingHorizontal: 4 },
 
   list:        { flex: 1 },
   listContent: { padding: 16, paddingBottom: 40 },
