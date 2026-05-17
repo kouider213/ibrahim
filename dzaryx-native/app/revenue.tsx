@@ -110,6 +110,18 @@ export default function RevenueScreen() {
                     <Text style={styles.kpiLbl}>SANS PROPRIO ⚠️</Text>
                   </View>
                 )}
+                {(data.total_unpaid_receivables ?? 0) > 0 && (
+                  <View style={[styles.kpiCard, styles.kpiDanger]}>
+                    <Text style={[styles.kpiVal, { color: '#ff4444', fontSize: 14 }]}>{fmt(data.total_unpaid_receivables!)}</Text>
+                    <Text style={styles.kpiLbl}>CRÉANCES 🔴</Text>
+                  </View>
+                )}
+                {(data.rejected_count ?? 0) > 0 && (
+                  <View style={[styles.kpiCard, { borderColor: '#33333322' }]}>
+                    <Text style={[styles.kpiVal, { color: '#555' }]}>{data.rejected_count}</Text>
+                    <Text style={styles.kpiLbl}>REFUSÉES</Text>
+                  </View>
+                )}
               </View>
 
               {/* Top clients */}
@@ -198,7 +210,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#111', borderRadius: 10,
     paddingVertical: 12, alignItems: 'center',
   },
-  kpiWarn: { borderColor: '#ffaa0022' },
+  kpiWarn:   { borderColor: '#ffaa0022' },
+  kpiDanger: { borderColor: '#ff444422' },
   kpiVal:  { color: '#fff', fontSize: 18, fontFamily: MONO, fontWeight: '700' },
   kpiLbl:  { color: '#333', fontSize: 7, fontFamily: MONO, letterSpacing: 2, marginTop: 4 },
 

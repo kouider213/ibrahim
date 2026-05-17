@@ -72,7 +72,7 @@ export async function runBIEngine(forceTelegram = false): Promise<BIReport> {
     }),
     getRevenueSummary().catch(err => {
       console.error('[bi:revenue] error:', err.message);
-      return { today_revenue: 0, week_revenue: 0, month_revenue: 0, kouider_profit_month: 0, houari_revenue_month: 0, missing_owner_price: 0, avg_booking_value: 0, total_bookings_month: 0, rejected_count: 0, rejected_revenue_lost: 0, top_clients: [], generated_at: new Date().toISOString() } as RevenueSummary;
+      return { today_revenue: 0, week_revenue: 0, month_revenue: 0, kouider_profit_month: 0, houari_revenue_month: 0, missing_owner_price: 0, avg_booking_value: 0, total_bookings_month: 0, rejected_count: 0, rejected_revenue_lost: 0, total_unpaid_receivables: 0, top_clients: [], generated_at: new Date().toISOString() } as RevenueSummary;
     }),
     getSmartReminders().catch(err => {
       console.error('[bi:reminders] error:', err.message);

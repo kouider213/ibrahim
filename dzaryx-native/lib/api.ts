@@ -138,14 +138,17 @@ export interface Car {
 }
 
 export interface RevenueSummary {
-  today_revenue:         number;
-  week_revenue:          number;
-  month_revenue:         number;
-  kouider_profit_month:  number;
-  houari_revenue_month:  number;
-  missing_owner_price:   number;
-  avg_booking_value:     number;
-  total_bookings_month:  number;
+  today_revenue:            number;
+  week_revenue:             number;
+  month_revenue:            number;
+  kouider_profit_month:     number;
+  houari_revenue_month:     number;
+  missing_owner_price:      number;
+  avg_booking_value:        number;
+  total_bookings_month:     number;
+  rejected_count?:          number;
+  rejected_revenue_lost?:   number;
+  total_unpaid_receivables?: number;
   top_clients: Array<{
     client_name:    string;
     client_phone?:  string;

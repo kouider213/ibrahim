@@ -22,6 +22,7 @@ export interface RevenueSummary {
   total_bookings_month:     number;
   rejected_count:           number;
   rejected_revenue_lost:    number;
+  total_unpaid_receivables: number;    // créances totales (argent dû non encaissé)
   top_clients:              ClientScore[];
   generated_at:             string;
 }
@@ -93,7 +94,7 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
   // All queries include real price columns + use OVERLAP date filters
   const priceSelect = 'client_price_per_day, owner_price_per_day, final_price, nb_days, start_date, end_date';
 
-  const [todayRes, weekRes, monthRes, rejectedRes, finReport] = await Promise.all([
+  const [todayRes, weekRes, monthRes, rejectedRes, finReport, unpaidRes] = await Promise.all([
     // Bookings ACTIVE today (overlap: start_date <= today AND end_date >= today)
     supabase.from('bookings')
       .select(priceSelect)
@@ -122,6 +123,12 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
       .gte('created_at', monthStart),
 
     getFinancialReport(now.getFullYear(), now.getMonth() + 1).catch(() => null),
+
+    // Unpaid receivables: active/completed bookings not fully paid
+    supabase.from('bookings')
+      .select('final_price, paid_amount')
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .neq('payment_status', 'PAID'),
   ]);
 
   type PriceRow = { client_price_per_day?: number | null; final_price?: number | null; nb_days?: number | null; start_date: string; end_date: string };
@@ -172,6 +179,12 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
     .sort((a, b) => b.total_spent - a.total_spent)
     .slice(0, 10);
 
+  type UnpaidRow = { final_price?: number | null; paid_amount?: number | null };
+  const totalUnpaid = ((unpaidRes.data ?? []) as UnpaidRow[]).reduce((s, b) => {
+    const owed = (b.final_price ?? 0) - (b.paid_amount ?? 0);
+    return s + Math.max(0, owed);
+  }, 0);
+
   const result: RevenueSummary = {
     today_revenue:         todayRevenue,
     week_revenue:          weekRevenue,
@@ -181,8 +194,9 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
     missing_owner_price:   finReport?.missingOwnerPrice ?? 0,
     avg_booking_value:     monthRows.length ? Math.round(monthRevenue / monthRows.length) : 0,
     total_bookings_month:  monthRows.length,
-    rejected_count:        rejected.length,
-    rejected_revenue_lost: sumCA(rejected),
+    rejected_count:           rejected.length,
+    rejected_revenue_lost:    sumCA(rejected),
+    total_unpaid_receivables: Math.round(totalUnpaid),
     top_clients,
     generated_at:          new Date().toISOString(),
   };
