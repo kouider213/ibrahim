@@ -24,6 +24,7 @@ export default function RootLayout() {
         <Stack.Screen name="revenue" />
         <Stack.Screen name="reminders" />
         <Stack.Screen name="clients" />
+        <Stack.Screen name="client-detail" />
       </Stack>
     </>
   );
