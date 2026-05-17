@@ -13,6 +13,12 @@ _(aucun bug critique ouvert — tous fixés)_
 
 ## Bugs Fixés cette session (2026-05-17) ✅
 
+### B017 — Socket.IO mauvais namespace → aucun event temps réel reçu [CRITIQUE]
+- **Statut** : ✅ FIXÉ — 2026-05-17
+- **Fichier** : `dzaryx-native/app/chat.tsx` ligne 138
+- **Description** : `io(BACKEND_URL)` connectait au namespace racine `/`. Le backend émet tous les events (`Dzaryx:text_complete`, `Dzaryx:audio_chunk`, `Dzaryx:status`, `Dzaryx:proactive`) sur le namespace `/mobile` avec middleware auth. L'app native ne recevait AUCUN event temps réel — la réponse n'apparaissait qu'au retour HTTP de `/api/chat`.
+- **Fix** : `io(BACKEND_URL + '/mobile', { auth: { token: MOBILE_TOKEN } })` — bonne namespace + token auth.
+
 ### B010 — app/onboarding/mode.tsx manquant → crash navigation
 - **Statut** : ✅ FIXÉ — 2026-05-17
 - **Fichier** : `dzaryx-native/app/onboarding/mode.tsx` (créé)
