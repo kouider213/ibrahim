@@ -1,18 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
 
-const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
+const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
-const APP_VERSION = '1.1.0 (build 2)';
+const APP_VERSION = '1.2.0 (build 3)';
 
 type ConnStatus = 'checking' | 'online' | 'offline';
 
+interface FleetStats {
+  total:     number;
+  available: number;
+  active:    number;
+  revenue:   string | null;
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
-  const { displayName, actorId, businessName, reset } = useStore();
-  const [status, setStatus] = useState<ConnStatus>('checking');
+  const { displayName, actorId, businessName, mobileToken, reset } = useStore();
+  const MOBILE_TOKEN = mobileToken();
+
+  const [status,     setStatus]     = useState<ConnStatus>('checking');
+  const [fleet,      setFleet]      = useState<FleetStats | null>(null);
+  const [fleetLoad,  setFleetLoad]  = useState(false);
+  const [schedStatus, setSchedStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -21,6 +33,47 @@ export default function SettingsScreen() {
       .catch(() => { if (!cancelled) setStatus('offline'); });
     return () => { cancelled = true; };
   }, []);
+
+  const loadFleetStats = useCallback(async () => {
+    if (!MOBILE_TOKEN || fleetLoad) return;
+    setFleetLoad(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/bi/fleet`, {
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return;
+      const data = await res.json() as {
+        total_cars?:          number;
+        available_now_count?: number;
+        occupancy_avg_pct?:   number;
+        stats?:               Array<{ revenue_30d?: number }>;
+      };
+      const total     = data.total_cars ?? 0;
+      const available = data.available_now_count ?? 0;
+      const revenue30 = (data.stats ?? []).reduce((s, c) => s + (c.revenue_30d ?? 0), 0);
+      setFleet({
+        total,
+        available,
+        active:  total - available,
+        revenue: revenue30 > 0 ? Math.round(revenue30).toString() : null,
+      });
+    } catch { /* ignore */ }
+    finally { setFleetLoad(false); }
+  }, [MOBILE_TOKEN, fleetLoad]);
+
+  const triggerJob = useCallback(async (jobName: string) => {
+    if (!MOBILE_TOKEN) return;
+    setSchedStatus('Envoi...');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(jobName)}`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${MOBILE_TOKEN}` },
+      });
+      setSchedStatus(res.ok ? '✅ Déclenché !' : '❌ Erreur');
+    } catch { setSchedStatus('❌ Réseau'); }
+    setTimeout(() => setSchedStatus(null), 3000);
+  }, [MOBILE_TOKEN]);
 
   function handleLogout() {
     Alert.alert(
@@ -53,7 +106,7 @@ export default function SettingsScreen() {
           <View style={[styles.dot, { backgroundColor: actorId === 'kouider' ? '#00e5ff' : '#7c3aed' }]} />
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{(actorId ?? 'INCONNU').toUpperCase()}</Text>
-            <Text style={styles.rowSub}>{businessName ?? 'Fik Conciergerie Oran'}</Text>
+            <Text style={styles.rowSub}>{displayName ?? businessName ?? 'Fik Conciergerie Oran'}</Text>
           </View>
         </View>
       </View>
@@ -69,6 +122,56 @@ export default function SettingsScreen() {
           </View>
         </View>
       </View>
+
+      {/* Fleet stats */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>PARC VÉHICULES</Text>
+        {fleet ? (
+          <View style={styles.statsGrid}>
+            <View style={styles.statBox}>
+              <Text style={styles.statNum}>{fleet.total}</Text>
+              <Text style={styles.statLbl}>TOTAL</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={[styles.statNum, { color: '#00ff88' }]}>{fleet.available}</Text>
+              <Text style={styles.statLbl}>DISPO</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={[styles.statNum, { color: '#ffaa00' }]}>{fleet.active}</Text>
+              <Text style={styles.statLbl}>EN LOC</Text>
+            </View>
+            {fleet.revenue != null && (
+              <View style={styles.statBox}>
+                <Text style={[styles.statNum, { color: '#00e5ff', fontSize: 14 }]}>{fleet.revenue}€</Text>
+                <Text style={styles.statLbl}>CE MOIS</Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.row} onPress={loadFleetStats}>
+            <Text style={styles.rowTitle}>{fleetLoad ? 'CHARGEMENT...' : 'APPUIE POUR CHARGER'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Quick triggers (admin only) */}
+      {actorId === 'kouider' && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>DÉCLENCHEURS RAPIDES</Text>
+          {schedStatus && (
+            <Text style={styles.schedStatus}>{schedStatus}</Text>
+          )}
+          <TouchableOpacity style={styles.triggerBtn} onPress={() => triggerJob('morning-briefing')}>
+            <Text style={styles.triggerTxt}>☀️ BRIEFING MATIN</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.triggerBtn} onPress={() => triggerJob('unpaid-reminder')}>
+            <Text style={styles.triggerTxt}>💳 VÉRIF IMPAYÉS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.triggerBtn} onPress={() => triggerJob('vehicle-utilization')}>
+            <Text style={styles.triggerTxt}>🚗 RAPPORT PARC</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Version */}
       <View style={styles.section}>
@@ -115,6 +218,28 @@ const styles = StyleSheet.create({
   dot:     { width: 8, height: 8, borderRadius: 4 },
   rowTitle:{ color: '#ffffff', fontSize: 12, fontFamily: MONO, letterSpacing: 3, fontWeight: '700' },
   rowSub:  { color: '#333', fontSize: 10, fontFamily: MONO, letterSpacing: 1, marginTop: 2 },
+
+  statsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+  },
+  statBox: {
+    flex: 1, minWidth: '22%',
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#111',
+    borderRadius: 10, paddingVertical: 14, alignItems: 'center',
+  },
+  statNum: { color: '#ffffff', fontSize: 20, fontFamily: MONO, fontWeight: '700' },
+  statLbl: { color: '#333', fontSize: 8, fontFamily: MONO, letterSpacing: 3, marginTop: 4 },
+
+  triggerBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff22',
+    borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 8,
+  },
+  triggerTxt: { color: '#00e5ff99', fontSize: 10, fontFamily: MONO, letterSpacing: 3 },
+
+  schedStatus: {
+    color: '#00ff88', fontSize: 11, fontFamily: MONO, letterSpacing: 2,
+    textAlign: 'center', marginBottom: 12,
+  },
 
   switchBtn: {
     backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff44',
