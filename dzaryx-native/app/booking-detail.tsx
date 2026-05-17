@@ -418,6 +418,24 @@ export default function BookingDetailScreen() {
                 <Text style={styles.waTxt}>💬 WA</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity style={styles.dupBtn} onPress={() => {
+              if (!booking) return;
+              router.push({
+                pathname: '/new-booking',
+                params: {
+                  clientName:  booking.client_name,
+                  clientPhone: booking.client_phone ?? '',
+                  clientEmail: booking.client_email ?? '',
+                  rentedBy:    booking.rented_by ?? 'Kouider',
+                  notes:       booking.notes ?? '',
+                  clientPPD:   booking.client_price_per_day != null ? String(booking.client_price_per_day) : '',
+                  ownerPPD:    booking.owner_price_per_day  != null ? String(booking.owner_price_per_day)  : '',
+                  carId:       booking.car_id,
+                },
+              });
+            }}>
+              <Text style={styles.dupTxt}>📋</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
               <Text style={styles.shareTxt}>📤</Text>
             </TouchableOpacity>
@@ -507,6 +525,8 @@ const styles = StyleSheet.create({
   callTxt:  { color: '#00ff88', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
   waBtn:    { flex: 1, backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36633', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   waTxt:    { color: '#25d366', fontSize: 10, fontFamily: MONO, letterSpacing: 1 },
+  dupBtn:   { flex: 1, backgroundColor: '#ffaa0011', borderWidth: 1, borderColor: '#ffaa0033', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  dupTxt:   { color: '#ffaa00', fontSize: 10, fontFamily: MONO },
   shareBtn: { flex: 1, backgroundColor: '#ffffff11', borderWidth: 1, borderColor: '#ffffff22', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   shareTxt: { color: '#ffffff99', fontSize: 10, fontFamily: MONO },
   deleteBtn:{ flex: 1, backgroundColor: '#ff444411', borderWidth: 1, borderColor: '#ff444433', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },

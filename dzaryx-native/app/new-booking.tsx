@@ -25,7 +25,11 @@ export default function NewBookingScreen() {
   const router = useRouter();
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
-  const params = useLocalSearchParams<{ clientName?: string; clientPhone?: string }>();
+  const params = useLocalSearchParams<{
+    clientName?: string; clientPhone?: string; clientEmail?: string;
+    rentedBy?: string; notes?: string;
+    clientPPD?: string; ownerPPD?: string; carId?: string;
+  }>();
 
   const [cars,        setCars]       = useState<Car[]>([]);
   const [carsLoading, setCarsLoading]= useState(true);
@@ -34,21 +38,30 @@ export default function NewBookingScreen() {
 
   const [clientName,  setClientName]  = useState(params.clientName ?? '');
   const [clientPhone, setClientPhone] = useState(params.clientPhone ?? '');
-  const [clientEmail, setClientEmail] = useState('');
+  const [clientEmail, setClientEmail] = useState(params.clientEmail ?? '');
   const [clientAge,   setClientAge]   = useState('');
-  const [rentedBy,    setRentedBy]    = useState<'Kouider' | 'Houari'>('Kouider');
+  const [rentedBy,    setRentedBy]    = useState<'Kouider' | 'Houari'>(
+    params.rentedBy === 'Houari' ? 'Houari' : 'Kouider',
+  );
   const [startDate,   setStartDate]   = useState(todayStr());
   const [endDate,     setEndDate]     = useState(tomorrowStr());
   const [finalPrice,  setFinalPrice]  = useState('');
-  const [clientPPD,   setClientPPD]   = useState('');
-  const [ownerPPD,    setOwnerPPD]    = useState('');
-  const [notes,       setNotes]       = useState('');
+  const [clientPPD,   setClientPPD]   = useState(params.clientPPD ?? '');
+  const [ownerPPD,    setOwnerPPD]    = useState(params.ownerPPD ?? '');
+  const [notes,       setNotes]       = useState(params.notes ?? '');
   const [submitting,   setSubmitting]   = useState(false);
   const [availability, setAvailability] = useState<boolean | null>(null);
   const [availChecking,setAvailChecking]= useState(false);
 
   useEffect(() => {
-    fetchCars(TOKEN).then(data => { setCars(data); setCarsLoading(false); });
+    fetchCars(TOKEN).then(data => {
+      setCars(data);
+      setCarsLoading(false);
+      if (params.carId) {
+        const match = data.find(c => c.id === params.carId);
+        if (match) setSelectedCar(match);
+      }
+    });
   }, [TOKEN]);
 
   useEffect(() => {
