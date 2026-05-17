@@ -1,5 +1,5 @@
 ﻿import { buildContext }                          from './context-builder.js';
-import { preprocessMessage }                     from './engine-v2.js';
+import { preprocessMessage, setPendingAction }    from './engine-v2.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
 import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hallucination.js';
@@ -127,6 +127,24 @@ export async function processMessage(
   // Inject V2 pending-action context into system extra if present
   if (v2ContextAddition) {
     ctx.systemExtra = `${v2ContextAddition}\n\n${ctx.systemExtra ?? ''}`.trim();
+  }
+
+  // ── Admin confirmation gate (V2) ─────────────────────────────────────────
+  // Hard gate: delete/destructive actions require explicit confirm before Claude runs
+  if (v2?.entities.isAdminAction && v2.entities.action === 'delete' && !v2.pendingResolved) {
+    const clientHint = v2.entities.clientName ? ` pour **${v2.entities.clientName}**` : '';
+    const carHint    = v2.entities.carName    ? ` (${v2.entities.carName})`           : '';
+    await setPendingAction(sessionId, {
+      type:       'delete_confirm',
+      clientName: v2.entities.clientName ?? undefined,
+      carName:    v2.entities.carName    ?? undefined,
+      metadata:   { originalMessage: userMessage },
+    });
+    const confirmMsg = `⚠️ Action de suppression détectée${clientHint}${carHint}.\n\nConfirme avec **oui** pour procéder, ou **non** pour annuler.`;
+    _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: confirmMsg });
+    saveConversationTurn(sessionId, 'assistant', confirmMsg).catch(() => {});
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+    return { text: confirmMsg, status: 'done' };
   }
 
   // ── Early tool-availability gate ─────────────────────────────────────────

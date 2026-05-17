@@ -29,7 +29,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
     const form = new FormData();
     form.append('file', new Blob([buf], { type: mimeType }), `audio.${ext}`);
     form.append('model', 'whisper-large-v3');
-    form.append('language', 'fr');
+    // No language hint — auto-detect handles French/Arabic/Darija
     form.append('response_format', 'json');
 
     const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
