@@ -36,16 +36,42 @@ function isLate(b: Booking): boolean {
   return ['ACTIVE', 'CONFIRMED'].includes(b.status) && new Date(b.end_date) < new Date();
 }
 
+function buildCalendar(month: string): string[] {
+  const [y, m] = month.split('-').map(Number);
+  const days: string[] = [];
+  const daysInMonth = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  }
+  return days;
+}
+
+function countBookingsOnDay(day: string, bookings: Booking[]): number {
+  return bookings.filter(b =>
+    ['ACTIVE', 'CONFIRMED', 'PENDING', 'COMPLETED'].includes(b.status) &&
+    b.start_date <= day && b.end_date >= day,
+  ).length;
+}
+
+function dayColor(count: number): string {
+  if (count === 0) return '#0a0a0a';
+  if (count === 1) return '#00ff8840';
+  if (count === 2) return '#00ff8880';
+  return '#00ff88cc';
+}
+
 export default function BookingsScreen() {
   const router = useRouter();
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
 
-  const [bookings,   setBookings]   = useState<Booking[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter,     setFilter]     = useState<Filter>('ALL');
-  const [search,     setSearch]     = useState('');
+  const [bookings,    setBookings]    = useState<Booking[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [filter,      setFilter]      = useState<Filter>('ALL');
+  const [search,      setSearch]      = useState('');
+  const [showCalendar,setShowCalendar]= useState(false);
+  const [calMonth,    setCalMonth]    = useState(() => new Date().toISOString().slice(0, 7));
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -111,6 +137,9 @@ export default function BookingsScreen() {
             <Text style={styles.lateTxt}>{stats.late} EN RETARD</Text>
           </View>
         )}
+        <TouchableOpacity style={styles.calBtn} onPress={() => setShowCalendar(v => !v)}>
+          <Text style={styles.calTxt}>{showCalendar ? '☰ LISTE' : '📅 CAL'}</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/new-booking')}>
           <Text style={styles.addTxt}>+ CRÉER</Text>
         </TouchableOpacity>
@@ -137,6 +166,54 @@ export default function BookingsScreen() {
           </View>
         )}
       </View>
+
+      {/* Calendar heatmap */}
+      {showCalendar && (() => {
+        const days = buildCalendar(calMonth);
+        const firstDow = new Date(calMonth + '-01').getDay(); // 0=Sun
+        const blanks = Array(firstDow).fill(null);
+        const today = new Date().toISOString().slice(0, 10);
+        const [cy, cm] = calMonth.split('-').map(Number);
+        const prevMonth = new Date(cy, cm - 2, 1).toISOString().slice(0, 7);
+        const nextMonth = new Date(cy, cm, 1).toISOString().slice(0, 7);
+        return (
+          <View style={styles.calCard}>
+            <View style={styles.calNavRow}>
+              <TouchableOpacity onPress={() => setCalMonth(prevMonth)} style={styles.calNavBtn}>
+                <Text style={styles.calNavTxt}>◀</Text>
+              </TouchableOpacity>
+              <Text style={styles.calMonthTxt}>{new Date(calMonth + '-01').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase()}</Text>
+              <TouchableOpacity onPress={() => setCalMonth(nextMonth)} style={styles.calNavBtn}>
+                <Text style={styles.calNavTxt}>▶</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.calGrid}>
+              {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((d, i) => (
+                <Text key={i} style={styles.calDowTxt}>{d}</Text>
+              ))}
+              {blanks.map((_, i) => <View key={`b${i}`} style={styles.calCell} />)}
+              {days.map(day => {
+                const cnt   = countBookingsOnDay(day, bookings);
+                const isToday = day === today;
+                return (
+                  <View key={day} style={[styles.calCell, { backgroundColor: dayColor(cnt) }, isToday && styles.calCellToday]}>
+                    <Text style={[styles.calDayTxt, isToday && { color: '#fff', fontWeight: '700' }]}>{day.slice(8)}</Text>
+                    {cnt > 0 && <Text style={styles.calCntTxt}>{cnt}</Text>}
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.calLegend}>
+              {[{ col: '#0a0a0a', lbl: 'libre' }, { col: '#00ff8840', lbl: '1 résa' }, { col: '#00ff8880', lbl: '2 résa' }, { col: '#00ff88cc', lbl: '3+' }].map(l => (
+                <View key={l.lbl} style={styles.calLegendItem}>
+                  <View style={[styles.calLegendDot, { backgroundColor: l.col }]} />
+                  <Text style={styles.calLegendLbl}>{l.lbl}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        );
+      })()}
 
       {/* Filter tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
@@ -292,6 +369,25 @@ const styles = StyleSheet.create({
   filterTabActive: { borderColor: '#00e5ff', backgroundColor: '#00e5ff11' },
   filterTxt:    { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
   filterTxtActive: { color: '#00e5ff' },
+
+  calBtn:  { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  calTxt:  { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 1 },
+
+  calCard:      { marginHorizontal: 16, marginBottom: 8, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 12, padding: 12 },
+  calNavRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  calNavBtn:    { padding: 6 },
+  calNavTxt:    { color: '#00e5ff', fontSize: 14, fontFamily: MONO },
+  calMonthTxt:  { color: '#fff', fontSize: 9, fontFamily: MONO, letterSpacing: 3 },
+  calGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+  calDowTxt:    { width: '12.5%', textAlign: 'center', color: '#333', fontSize: 7, fontFamily: MONO, marginBottom: 4 },
+  calCell:      { width: '12.5%', aspectRatio: 1, borderRadius: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#111' },
+  calCellToday: { borderColor: '#00e5ff66' },
+  calDayTxt:    { color: '#555', fontSize: 8, fontFamily: MONO },
+  calCntTxt:    { color: '#00ff88', fontSize: 6, fontFamily: MONO },
+  calLegend:    { flexDirection: 'row', gap: 12, marginTop: 10, justifyContent: 'center' },
+  calLegendItem:{ flexDirection: 'row', alignItems: 'center', gap: 4 },
+  calLegendDot: { width: 8, height: 8, borderRadius: 2, borderWidth: 1, borderColor: '#222' },
+  calLegendLbl: { color: '#333', fontSize: 7, fontFamily: MONO },
 
   searchBox: {
     flexDirection: 'row', alignItems: 'center',
