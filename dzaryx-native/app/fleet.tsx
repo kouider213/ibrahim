@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform,
-  RefreshControl, Alert, ActivityIndicator, TextInput,
+  RefreshControl, Alert, ActivityIndicator, TextInput, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchAllCars, updateCar, fetchFleetStats, type Car, type FleetIntelligence } from '../lib/api';
+import { fetchAllCars, fetchBookings, updateCar, fetchFleetStats, type Car, type Booking, type FleetIntelligence } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -23,8 +23,9 @@ export default function FleetScreen() {
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
 
-  const [cars,       setCars]       = useState<Car[]>([]);
-  const [fleet,      setFleet]      = useState<FleetIntelligence | null>(null);
+  const [cars,        setCars]       = useState<Car[]>([]);
+  const [fleet,       setFleet]      = useState<FleetIntelligence | null>(null);
+  const [activeBookings, setActiveBookings] = useState<Booking[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling,   setToggling]   = useState<string | null>(null);
@@ -35,9 +36,20 @@ export default function FleetScreen() {
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
-    const [c, f] = await Promise.all([fetchAllCars(TOKEN), fetchFleetStats(TOKEN)]);
+    const today = new Date().toISOString().slice(0, 10);
+    const [c, f, booksActive, booksConfirmed] = await Promise.all([
+      fetchAllCars(TOKEN),
+      fetchFleetStats(TOKEN),
+      fetchBookings(TOKEN, 'ACTIVE', 100),
+      fetchBookings(TOKEN, 'CONFIRMED', 100),
+    ]);
     setCars(c);
     setFleet(f);
+    // Keep only bookings where today is between start_date and end_date
+    const allActive = [...booksActive, ...booksConfirmed].filter(
+      b => b.start_date <= today && b.end_date >= today,
+    );
+    setActiveBookings(allActive);
     if (isRefresh) setRefreshing(false); else setLoading(false);
   }, [TOKEN]);
 
@@ -129,8 +141,9 @@ export default function FleetScreen() {
         )}
 
         {!loading && cars.map(car => {
-          const fleetStat = fleet?.stats?.find(s => s.car_name === car.name);
-          const isToggling = toggling === car.id;
+          const fleetStat     = fleet?.stats?.find(s => s.car_name === car.name);
+          const isToggling    = toggling === car.id;
+          const currentRenter = activeBookings.find(b => b.car_id === car.id);
 
           return (
             <View key={car.id} style={[styles.card, !car.available && styles.cardBusy]}>
@@ -142,6 +155,18 @@ export default function FleetScreen() {
                 </Text>
               </View>
 
+              {currentRenter && (
+                <View style={styles.renterRow}>
+                  <Text style={styles.renterIcon}>👤</Text>
+                  <Text style={styles.renterName}>{currentRenter.client_name}</Text>
+                  <Text style={styles.renterDates}>→ {currentRenter.end_date.slice(5)}</Text>
+                  {currentRenter.client_phone && (
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${currentRenter.client_phone}`)}>
+                      <Text style={styles.renterPhone}>📞</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
               <View style={styles.metaRow}>
                 {car.category && <Text style={styles.metaChip}>{car.category}</Text>}
                 {car.fuel && <Text style={styles.metaChip}>{fuelIcon(car.fuel)} {car.fuel}</Text>}
@@ -286,6 +311,12 @@ const styles = StyleSheet.create({
   toggleBtnDispo: { borderColor: '#00ff8833', backgroundColor: '#00ff8811' },
   toggleBtnBusy:  { borderColor: '#ffaa0033', backgroundColor: '#ffaa0011' },
   toggleTxt: { fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
+
+  renterRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, backgroundColor: '#ffaa0011', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  renterIcon:  { fontSize: 12 },
+  renterName:  { flex: 1, color: '#ffaa00', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
+  renterDates: { color: '#555', fontSize: 9, fontFamily: MONO },
+  renterPhone: { fontSize: 14 },
 
   editPriceBtn:  { marginTop: 8, borderWidth: 1, borderColor: '#ffffff11', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   editPriceTxt:  { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
