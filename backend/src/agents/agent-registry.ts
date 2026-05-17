@@ -62,8 +62,9 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'list_bookings','create_booking','update_booking','cancel_booking','delete_booking',
     'check_car_availability','generate_reservation_voucher','get_late_returns',
     'get_fleet_status','send_whatsapp_to_client','schedule_reminder','create_calendar_event','rate_client',
+    'update_car',
   ],
-  keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule|agenda|synchro)\b/i,
+  keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible)\b/i,
   priority:  10,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500 },
 };

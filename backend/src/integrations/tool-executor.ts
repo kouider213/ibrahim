@@ -271,6 +271,7 @@ async function _dispatch(
       case 'transform_image':            return await executeImageToImage(input, sessionId);
       case 'get_travel_time':            return await getTravelTimeTool(input);
       case 'export_accounting':          return await exportAccountingPDF(input);
+      case 'update_car':                 return await updateCarTool(input);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -4511,3 +4512,48 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
   return `✅ Rapport comptable *${monthLabel}* généré et envoyé sur Telegram\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Proprio: ${Math.round(totalOwner)}€ | Bénéfice net: ${Math.round(totalProfit)}€ | Encaissé: ${Math.round(totalPaid)}€ | Impayés: ${unpaid.length}`;
 }
 
+
+// ── Mise à jour véhicule ──────────────────────────────────────────────────────
+
+async function updateCarTool(input: Record<string, unknown>): Promise<string> {
+  let carId = input['car_id'] as string | undefined;
+
+  // Resolve by name if no ID
+  if (!carId && input['car_name']) {
+    const { data } = await supabase
+      .from('cars')
+      .select('id, name')
+      .ilike('name', `%${input['car_name']}%`)
+      .limit(1)
+      .single();
+    if (!data) return `❌ Véhicule "${input['car_name']}" introuvable dans la flotte`;
+    carId = (data as { id: string }).id;
+  }
+  if (!carId) return '❌ car_name ou car_id requis';
+
+  const updates: Record<string, unknown> = {};
+  if (input['available']    !== undefined) updates['available']    = input['available'];
+  if (input['base_price']   !== undefined) updates['base_price']   = input['base_price'];
+  if (input['resale_price'] !== undefined) updates['resale_price'] = input['resale_price'];
+  if (input['description']  !== undefined) updates['description']  = input['description'];
+
+  if (Object.keys(updates).length === 0) return '❌ Aucun champ à mettre à jour fourni';
+
+  const { data, error } = await supabase
+    .from('cars')
+    .update(updates)
+    .eq('id', carId)
+    .select('name, available, base_price, resale_price')
+    .single();
+
+  if (error) return `❌ Erreur mise à jour: ${error.message}`;
+
+  const car = data as { name: string; available: boolean; base_price: number; resale_price: number };
+  const lines = [
+    `✅ ${car.name} mis à jour`,
+    `📍 Statut: ${car.available ? '✅ DISPONIBLE' : '🔒 EN LOCATION / INDISPONIBLE'}`,
+    car.base_price   != null ? `💶 Prix client: ${car.base_price}€/j` : '',
+    car.resale_price != null ? `🏠 Prix proprio: ${car.resale_price}€/j` : '',
+  ].filter(Boolean);
+  return lines.join('\n');
+}

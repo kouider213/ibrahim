@@ -10,6 +10,7 @@ import { buildMemoryContext, type MemoryContextResult } from './memory-selector.
 import { detectMood, saveMoodSession, type MoodResult } from '../orchestrator/mood-detector.js';
 import { getClientProfile } from '../orchestrator/client-intelligence.js';
 import { type OrgMember, DEFAULT_MEMBER } from '../orchestrator/org-resolver.js';
+import { getSmartReminders } from '../bi/smart-reminders.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -102,6 +103,7 @@ export async function buildContext(
   const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari|part.*houari|part.*kouider|total|depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan/i.test(userMessage);
   const needsAnnualFinance = /depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan.*ann[eé]e|ann[eé]e.*enti[eè]re|rapport.*ann[eé]e|ann[eé]e.*compl[eè]te/i.test(userMessage);
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
+  const needsReminders = /rappel|alerte|urgent|priorit|demain|arrivée|retour|passeport|acompte|prépare/i.test(userMessage);
 
   // Détection client mentionné dans le message (pour injecter son profil)
   const clientMentionMatch = userMessage.match(/(?:client|résa|réservation|document|dossier)\s+(?:de\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)/i)
@@ -123,7 +125,14 @@ export async function buildContext(
 
   const needsEpisodes = /histoire|passé|récemment|dernière fois|avant|souvenir|rappelle|episode/i.test(userMessage);
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes] = await Promise.all([
+  // Inject reminders: always in morning (before noon Oran time), or when explicitly requested
+  const oranHour = parseInt(
+    new Intl.DateTimeFormat('fr-DZ', { timeZone: 'Africa/Algiers', hour: 'numeric', hour12: false }).format(new Date()),
+    10,
+  );
+  const needsReminderInject = needsReminders || oranHour < 12;
+
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -149,6 +158,9 @@ export async function buildContext(
     mentionedClient ? getClientProfile(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
     needsEpisodes
       ? getRecentEpisodes({ min_importance: 3, limit: 5 }).catch(() => [])
+      : Promise.resolve([]),
+    needsReminderInject
+      ? getSmartReminders().catch(() => [])
       : Promise.resolve([]),
   ]);
 
@@ -278,6 +290,13 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? `\n\n${clientIntel.context}`
     : '';
 
+  // Smart reminders (matin ou si demandé explicitement)
+  const remindersArr = smartReminders as Array<{ type: string; priority: string; client_name: string; car_name: string; date: string; message: string; action: string }>;
+  const highReminders = remindersArr.filter(r => r.priority === 'HIGH');
+  const remindersText = highReminders.length > 0
+    ? `\n\n🔔 RAPPELS URGENTS (${highReminders.length} actions HIGH priority):\n${highReminders.map(r => `⚠️ ${r.message}\n   → Action: ${r.action}`).join('\n')}`
+    : '';
+
   // Épisodes mémoire récents (seulement si demandés)
   const episodesText = (recentEpisodes as Array<{ episode_type: string; summary: string; occurred_at: string; importance: number }>).length > 0
     ? `\n\nÉVÉNEMENTS RÉCENTS IMPORTANTS:\n${(recentEpisodes as Array<{ episode_type: string; summary: string; occurred_at: string; importance: number }>).map(e => {
@@ -317,6 +336,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     styleText,
     clientIntelText,
     episodesText,
+    remindersText,
   ].join('');
 
   // Filter old confirmation-only messages from non-recent history to prevent context contamination.

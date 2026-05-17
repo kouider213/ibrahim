@@ -1202,6 +1202,23 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── GESTION PARC VÉHICULES ──────────────────────────────────────
+  {
+    name: 'update_car',
+    description: 'Mettre à jour un véhicule du parc : disponibilité, prix. Utiliser quand Kouider dit "la Clio est disponible", "marque la Sandero comme louée", "change le prix du Duster à 80€/j". Recherche automatique par nom.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:     { type: 'string', description: 'Nom ou modèle du véhicule (recherche partielle automatique)' },
+        car_id:       { type: 'string', description: 'UUID exact du véhicule (optionnel si car_name fourni)' },
+        available:    { type: 'boolean', description: 'true = disponible, false = en location ou indisponible' },
+        base_price:   { type: 'number',  description: 'Nouveau prix client par jour en €' },
+        resale_price: { type: 'number',  description: 'Nouveau prix propriétaire (Houari) par jour en €' },
+        description:  { type: 'string',  description: 'Nouvelle description du véhicule' },
+      },
+    },
+  },
+
   // ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────
   {
     name: 'get_travel_time',
