@@ -85,6 +85,9 @@ export default function SettingsScreen() {
   const [nexusLoad,     setNexusLoad]     = useState(false);
   const [showNexus,     setShowNexus]     = useState(false);
   const [nexusMsg,      setNexusMsg]      = useState<string | null>(null);
+  const [nexusCmd,      setNexusCmd]      = useState('');
+  const [nexusCmdOut,   setNexusCmdOut]   = useState<string | null>(null);
+  const [nexusCmdRun,   setNexusCmdRun]   = useState(false);
   const [finYear,      setFinYear]      = useState(() => String(new Date().getFullYear()));
   const [finMonth,     setFinMonth]     = useState(() => String(new Date().getMonth() + 1));
   const [finData,      setFinData]      = useState<FinanceSummary | null>(null);
@@ -285,6 +288,24 @@ export default function SettingsScreen() {
     } catch { setNexusMsg('❌ Launcher hors ligne'); }
     setTimeout(() => setNexusMsg(null), 5000);
   }, [MOBILE_TOKEN]);
+
+  const handleNexusExec = useCallback(async () => {
+    if (!nexusCmd.trim()) return;
+    setNexusCmdRun(true); setNexusCmdOut(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/nexus/exec`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${MOBILE_TOKEN}` },
+        body:    JSON.stringify({ command: nexusCmd.trim(), timeout_ms: 20000 }),
+        signal:  AbortSignal.timeout(25000),
+      });
+      const d = await r.json() as { ok?: boolean; stdout?: string; stderr?: string; error?: string; blocked?: boolean };
+      if (d.blocked) setNexusCmdOut('🚫 COMMANDE BLOQUÉE (liste noire de sécurité)');
+      else if (d.error) setNexusCmdOut(`❌ ${d.error}`);
+      else setNexusCmdOut((d.stdout ?? '') + (d.stderr ? `\n[stderr] ${d.stderr}` : '') || '(aucune sortie)');
+    } catch (e) { setNexusCmdOut(`❌ ${e instanceof Error ? e.message : 'Erreur'}`); }
+    setNexusCmdRun(false);
+  }, [nexusCmd, MOBILE_TOKEN]);
 
   const handleDecide = useCallback(async (id: string, decision: 'approved' | 'rejected') => {
     const ok = await decideValidation(id, decision, undefined, MOBILE_TOKEN);
@@ -653,6 +674,36 @@ export default function SettingsScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
+                  {nexusStatus.connected && (
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={[styles.sectionTitle, { marginBottom: 6, marginTop: 0 }]}>COMMANDE SHELL</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                          style={[styles.row, { flex: 1, paddingVertical: 8, color: '#00ff88', fontFamily: MONO, fontSize: 10 }]}
+                          value={nexusCmd}
+                          onChangeText={setNexusCmd}
+                          placeholder="dir / tasklist / python nexus.py status"
+                          placeholderTextColor="#1a1a1a"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                        <TouchableOpacity
+                          style={[styles.triggerBtn, { paddingHorizontal: 16, marginBottom: 0 }]}
+                          onPress={handleNexusExec}
+                          disabled={nexusCmdRun || !nexusCmd.trim()}
+                        >
+                          <Text style={styles.triggerTxt}>{nexusCmdRun ? '...' : '▶'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {nexusCmdOut && (
+                        <View style={{ backgroundColor: '#000', borderWidth: 1, borderColor: '#00ff8822', borderRadius: 8, padding: 10, marginTop: 8 }}>
+                          <Text style={{ color: '#00ff8888', fontSize: 9, fontFamily: MONO, lineHeight: 14 }} numberOfLines={20}>
+                            {nexusCmdOut}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </>
               )}
               {!nexusLoad && !nexusStatus && <Text style={styles.schedStatus}>❌ Impossible de charger</Text>}
