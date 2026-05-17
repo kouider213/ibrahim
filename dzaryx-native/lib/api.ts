@@ -474,6 +474,27 @@ export async function createCar(
   }
 }
 
+export async function updateClientNotes(
+  phone:        string,
+  notes:        string,
+  mobileToken?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/clients/${encodeURIComponent(phone)}/notes`, {
+      method:  'PATCH',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ notes }),
+      signal:  AbortSignal.timeout(8000),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string };
+    if (!res.ok) return { ok: false, error: data.error };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function backfillClientIntelligence(mobileToken?: string): Promise<{ ok: boolean; message: string }> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   try {

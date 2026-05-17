@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform,
-  ActivityIndicator, Linking,
+  ActivityIndicator, Linking, TextInput, Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchClientIntelligence, fetchBookings, type ClientIntelligence, type Booking } from '../lib/api';
+import { fetchClientIntelligence, fetchBookings, updateClientNotes, type ClientIntelligence, type Booking } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
@@ -42,9 +42,12 @@ export default function ClientDetailScreen() {
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
 
-  const [intel,    setIntel]    = useState<ClientIntelligence | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading,  setLoading]  = useState(true);
+  const [intel,         setIntel]         = useState<ClientIntelligence | null>(null);
+  const [bookings,      setBookings]      = useState<Booking[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [editingNotes,  setEditingNotes]  = useState(false);
+  const [notesText,     setNotesText]     = useState('');
+  const [notesSaving,   setNotesSaving]   = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,12 +168,61 @@ export default function ClientDetailScreen() {
                 intel.payment_reliability === 'bon'       ? '#00e5ff' :
                 intel.payment_reliability === 'moyen'     ? '#ffaa00' : '#ff4444'
               } />
-              {intel.notes && (
-                <View style={styles.notesBox}>
-                  <Text style={styles.notesLabel}>NOTES AI</Text>
-                  <Text style={styles.notesTxt}>{intel.notes}</Text>
+              <View style={styles.notesBox}>
+                <View style={styles.notesHeader}>
+                  <Text style={styles.notesLabel}>NOTES</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (editingNotes) {
+                        setNotesText(intel.notes ?? '');
+                        setEditingNotes(false);
+                      } else {
+                        setNotesText(intel.notes ?? '');
+                        setEditingNotes(true);
+                      }
+                    }}
+                    style={styles.notesEditBtn}
+                  >
+                    <Text style={styles.notesEditTxt}>{editingNotes ? 'ANNULER' : '✏️ MODIFIER'}</Text>
+                  </TouchableOpacity>
                 </View>
-              )}
+                {editingNotes ? (
+                  <>
+                    <TextInput
+                      style={styles.notesInput}
+                      value={notesText}
+                      onChangeText={setNotesText}
+                      multiline
+                      placeholder="Notes personnelles sur ce client..."
+                      placeholderTextColor="#2a2a2a"
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      style={[styles.notesSaveBtn, notesSaving && { opacity: 0.5 }]}
+                      disabled={notesSaving}
+                      onPress={async () => {
+                        if (!clientPhone) {
+                          Alert.alert('Erreur', 'Numéro de téléphone requis pour sauvegarder');
+                          return;
+                        }
+                        setNotesSaving(true);
+                        const result = await updateClientNotes(clientPhone, notesText, TOKEN);
+                        setNotesSaving(false);
+                        if (result.ok) {
+                          setIntel({ ...intel, notes: notesText.trim() || null });
+                          setEditingNotes(false);
+                        } else {
+                          Alert.alert('Erreur', result.error ?? 'Échec de la mise à jour');
+                        }
+                      }}
+                    >
+                      <Text style={styles.notesSaveTxt}>{notesSaving ? 'SAUVEGARDE...' : 'SAUVEGARDER'}</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <Text style={styles.notesTxt}>{intel.notes || '—'}</Text>
+                )}
+              </View>
             </View>
 
             {/* Phone */}
@@ -256,9 +308,23 @@ const styles = StyleSheet.create({
   infoLabel: { color: '#333', fontSize: 9, fontFamily: MONO, letterSpacing: 2 },
   infoValue: { color: '#fff', fontSize: 10, fontFamily: MONO, letterSpacing: 1, textAlign: 'right', flex: 1, marginLeft: 12 },
 
-  notesBox:   { marginTop: 12, backgroundColor: '#0a0a0a', borderRadius: 8, padding: 10 },
-  notesLabel: { color: '#2a2a2a', fontSize: 8, fontFamily: MONO, letterSpacing: 3, marginBottom: 6 },
-  notesTxt:   { color: '#666', fontSize: 10, fontFamily: MONO, lineHeight: 16 },
+  notesBox:     { marginTop: 12, backgroundColor: '#0a0a0a', borderRadius: 8, padding: 10 },
+  notesHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  notesLabel:   { color: '#2a2a2a', fontSize: 8, fontFamily: MONO, letterSpacing: 3 },
+  notesEditBtn: { paddingVertical: 2, paddingHorizontal: 6 },
+  notesEditTxt: { color: '#00e5ff66', fontSize: 7, fontFamily: MONO, letterSpacing: 2 },
+  notesTxt:     { color: '#666', fontSize: 10, fontFamily: MONO, lineHeight: 16 },
+  notesInput:   {
+    color: '#ccc', fontSize: 10, fontFamily: MONO, lineHeight: 16,
+    borderWidth: 1, borderColor: '#1a1a1a', borderRadius: 6,
+    padding: 8, minHeight: 80, textAlignVertical: 'top',
+    backgroundColor: '#050505',
+  },
+  notesSaveBtn: {
+    marginTop: 8, backgroundColor: '#00e5ff15', borderWidth: 1, borderColor: '#00e5ff33',
+    borderRadius: 6, paddingVertical: 8, alignItems: 'center',
+  },
+  notesSaveTxt: { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 3, fontWeight: '700' },
 
   noIntelCard: {
     backgroundColor: '#050505', borderWidth: 1, borderColor: '#1a1a1a',

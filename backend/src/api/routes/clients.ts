@@ -144,6 +144,26 @@ router.post('/backfill', requireMobileAuth, async (_req, res) => {
   }
 });
 
+// PATCH /api/clients/:phone/notes — update personal notes on client_intelligence
+router.patch('/:phone/notes', requireMobileAuth, async (req, res) => {
+  const phone   = decodeURIComponent(req.params['phone'] as string);
+  const { notes } = req.body as { notes?: string };
+  const ownerId = (req.query['owner'] as string | undefined) ?? 'kouider';
+  try {
+    const { data, error } = await supabase
+      .from('client_intelligence')
+      .update({ notes: notes?.trim() || null })
+      .eq('client_phone', phone)
+      .eq('owner_id', ownerId)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, client: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/clients/:phone — full client profile + history (must be LAST — catches all)
 router.get('/:phone', requireMobileAuth, async (req, res) => {
   const phone = decodeURIComponent(req.params['phone'] as string);
