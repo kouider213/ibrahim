@@ -25,7 +25,9 @@ export default function FleetScreen() {
 
   const [cars,        setCars]       = useState<Car[]>([]);
   const [fleet,       setFleet]      = useState<FleetIntelligence | null>(null);
-  const [activeBookings, setActiveBookings] = useState<Booking[]>([]);
+  const [activeBookings,  setActiveBookings]  = useState<Booking[]>([]);
+  const [arrivalsToday,   setArrivalsToday]   = useState<Booking[]>([]);
+  const [returnsToday,    setReturnsToday]    = useState<Booking[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling,   setToggling]   = useState<string | null>(null);
@@ -54,11 +56,11 @@ export default function FleetScreen() {
     ]);
     setCars(c);
     setFleet(f);
+    const all = [...booksActive, ...booksConfirmed];
     // Keep only bookings where today is between start_date and end_date
-    const allActive = [...booksActive, ...booksConfirmed].filter(
-      b => b.start_date <= today && b.end_date >= today,
-    );
-    setActiveBookings(allActive);
+    setActiveBookings(all.filter(b => b.start_date <= today && b.end_date >= today));
+    setArrivalsToday(all.filter(b => b.start_date === today));
+    setReturnsToday(all.filter(b => b.end_date === today));
     if (isRefresh) setRefreshing(false); else setLoading(false);
   }, [TOKEN]);
 
@@ -171,6 +173,51 @@ export default function FleetScreen() {
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#00e5ff" />}
       >
+        {/* Today's arrivals & returns */}
+        {(arrivalsToday.length > 0 || returnsToday.length > 0) && (
+          <View style={styles.todayCard}>
+            {arrivalsToday.length > 0 && (
+              <>
+                <Text style={styles.todayTitle}>✈️ ARRIVÉES AUJOURD'HUI ({arrivalsToday.length})</Text>
+                {arrivalsToday.map((b, i) => {
+                  const car = (b.cars as { name: string } | null)?.name ?? '?';
+                  return (
+                    <View key={i} style={styles.todayRow}>
+                      <Text style={styles.todayClient}>{b.client_name}</Text>
+                      <Text style={styles.todayCar}>{car}</Text>
+                      {b.client_phone && (
+                        <TouchableOpacity onPress={() => Linking.openURL(`tel:${b.client_phone}`)}>
+                          <Text style={styles.todayPhone}>📞</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+            {arrivalsToday.length > 0 && returnsToday.length > 0 && <View style={styles.todayDivider} />}
+            {returnsToday.length > 0 && (
+              <>
+                <Text style={[styles.todayTitle, { color: '#ffaa00' }]}>🔙 RETOURS AUJOURD'HUI ({returnsToday.length})</Text>
+                {returnsToday.map((b, i) => {
+                  const car = (b.cars as { name: string } | null)?.name ?? '?';
+                  return (
+                    <View key={i} style={styles.todayRow}>
+                      <Text style={styles.todayClient}>{b.client_name}</Text>
+                      <Text style={styles.todayCar}>{car}</Text>
+                      {b.client_phone && (
+                        <TouchableOpacity onPress={() => Linking.openURL(`tel:${b.client_phone}`)}>
+                          <Text style={styles.todayPhone}>📞</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+          </View>
+        )}
+
         {loading && <ActivityIndicator color="#00e5ff" style={{ marginTop: 40 }} />}
 
         {!loading && cars.length === 0 && (
@@ -397,6 +444,14 @@ const styles = StyleSheet.create({
   renterName:  { flex: 1, color: '#ffaa00', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
   renterDates: { color: '#555', fontSize: 9, fontFamily: MONO },
   renterPhone: { fontSize: 14 },
+
+  todayCard:    { backgroundColor: '#050505', borderWidth: 1, borderColor: '#00e5ff22', borderRadius: 12, padding: 14, marginBottom: 10 },
+  todayTitle:   { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 3, marginBottom: 8 },
+  todayRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
+  todayClient:  { flex: 1, color: '#fff', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
+  todayCar:     { color: '#555', fontSize: 9, fontFamily: MONO, letterSpacing: 1, marginRight: 8 },
+  todayPhone:   { fontSize: 14 },
+  todayDivider: { height: 1, backgroundColor: '#111', marginVertical: 10 },
 
   addCarBtn:  { backgroundColor: '#00e5ff11', borderWidth: 1, borderColor: '#00e5ff33', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   addCarTxt:  { color: '#00e5ff', fontSize: 8, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
