@@ -284,11 +284,19 @@ export default function BookingDetailScreen() {
             </TouchableOpacity>
             {booking.client_phone && (
               <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${booking.client_phone}`)}>
-                <Text style={styles.callTxt}>📞 APPELER</Text>
+                <Text style={styles.callTxt}>📞</Text>
+              </TouchableOpacity>
+            )}
+            {booking.client_phone && (
+              <TouchableOpacity style={styles.waBtn} onPress={() => {
+                const phone = booking.client_phone!.replace(/\s/g, '').replace(/^0+/, '213');
+                Linking.openURL(`https://wa.me/${phone}`);
+              }}>
+                <Text style={styles.waTxt}>💬 WA</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-              <Text style={styles.deleteTxt}>🗑 SUPPRIMER</Text>
+              <Text style={styles.deleteTxt}>🗑</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -358,6 +366,8 @@ const styles = StyleSheet.create({
   editTxt:  { color: '#00e5ff', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
   callBtn:  { flex: 1, backgroundColor: '#00ff8811', borderWidth: 1, borderColor: '#00ff8833', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   callTxt:  { color: '#00ff88', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
+  waBtn:    { flex: 1, backgroundColor: '#25d36611', borderWidth: 1, borderColor: '#25d36633', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  waTxt:    { color: '#25d366', fontSize: 10, fontFamily: MONO, letterSpacing: 1 },
   deleteBtn:{ flex: 1, backgroundColor: '#ff444411', borderWidth: 1, borderColor: '#ff444433', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
   deleteTxt:{ color: '#ff4444', fontSize: 10, fontFamily: MONO, letterSpacing: 2 },
 });
