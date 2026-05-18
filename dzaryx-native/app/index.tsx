@@ -19,7 +19,7 @@ export default function SplashScreen() {
 
       if (savedActor === 'kouider' || savedActor === 'houari') {
         setActor(savedActor);
-        router.replace('/chat');
+        router.replace('/voice');
       } else if (done === 'true') {
         router.replace('/auth/login');
       } else {

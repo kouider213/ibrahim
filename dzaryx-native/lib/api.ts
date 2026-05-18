@@ -1,4 +1,6 @@
-export const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
+export const BACKEND_URL    = process.env.EXPO_PUBLIC_BACKEND_URL    ?? 'https://ibrahim-backend-production.up.railway.app';
+export const MOBILE_TOKEN   = process.env.EXPO_PUBLIC_MOBILE_TOKEN   ?? '';
+export const MOBILE_TOKEN_H = process.env.EXPO_PUBLIC_MOBILE_TOKEN_HOUARI ?? '';
 
 export interface ChatResponse {
   text:   string;
