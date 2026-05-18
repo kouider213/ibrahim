@@ -798,6 +798,9 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.clientsBtn} onPress={() => router.push('/clients')}>
           <Text style={styles.clientsTxt}>👥 CLIENTS</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.docsBtn} onPress={() => router.push('/documents')}>
+          <Text style={styles.docsTxt}>📄 DOCUMENTS</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.tasksBtn} onPress={() => router.push('/tasks')}>
           <Text style={styles.tasksTxt}>⚙️ TÂCHES IA</Text>
         </TouchableOpacity>
@@ -884,6 +887,12 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
   },
   clientsTxt: { color: '#ffd700', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
+
+  docsBtn: {
+    backgroundColor: '#050505', borderWidth: 1, borderColor: '#ffb34733',
+    borderRadius: 10, paddingVertical: 16, alignItems: 'center', marginBottom: 10,
+  },
+  docsTxt: { color: '#ffb347', fontSize: 11, fontFamily: MONO, letterSpacing: 4, fontWeight: '700' },
 
   tasksBtn: {
     backgroundColor: '#050505', borderWidth: 1, borderColor: '#7c3aed33',

@@ -5,6 +5,12 @@ const _env = (import.meta as any).env as Record<string, string> ?? {};
 export const BACKEND_URL  = (_env['VITE_BACKEND_URL']  as string) ?? 'https://ibrahim-backend-production.up.railway.app';
 export const WS_URL       = (_env['VITE_WS_URL']       as string) ?? 'wss://ibrahim-backend-production.up.railway.app';
 export const ACCESS_TOKEN = (_env['VITE_ACCESS_TOKEN'] as string) ?? '';
+const HOUARI_TOKEN        = (_env['VITE_ACCESS_TOKEN_HOUARI'] as string) ?? '';
+
+let _actor: 'kouider' | 'houari' = 'kouider';
+export const setSimActor = (a: 'kouider' | 'houari') => { _actor = a; };
+export const getSimActor = () => _actor;
+function getToken() { return (_actor === 'houari' && HOUARI_TOKEN) ? HOUARI_TOKEN : ACCESS_TOKEN; }
 
 function getTimezone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'Europe/Paris'; }
@@ -15,7 +21,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ACCESS_TOKEN}`,
+      'Authorization': `Bearer ${getToken()}`,
       'X-Timezone': getTimezone(),
       ...(options.headers ?? {}),
     },
@@ -138,7 +144,7 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
   _socket?.disconnect();
 
   _socket = io(`${WS_URL}/mobile`, {
-    auth:         { token: ACCESS_TOKEN },
+    auth:         { token: getToken() },
     transports:   ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,
@@ -263,6 +269,106 @@ export function stopAudio(): void {
 export function isAudioPlaying(): boolean { return _audioPlaying; }
 
 export function getOrCreateSessionId(): string {
-  try { localStorage.setItem('dzaryx_session', 'voice_kouider'); } catch { /* ignore */ }
-  return 'voice_kouider';
+  return `voice_${_actor}`;
 }
+
+// ── Business types ────────────────────────────────────────────────────────────
+
+export interface Booking {
+  id: string; client_name: string; client_phone: string | null;
+  start_date: string; end_date: string; final_price: number | null;
+  payment_status: string; status: string;
+  client_price_per_day: number | null; owner_price_per_day: number | null;
+  profit_kouider: number | null; nb_days: number | null;
+  cars?: { name: string } | null;
+}
+
+export interface Car {
+  id: string; name: string; available: boolean;
+  base_price: number | null; category: string | null;
+}
+
+export interface FleetStat { car_name: string; available_now: boolean; occupancy_pct: number; revenue_30d: number; }
+export interface FleetIntel { total_cars: number; available_now_count: number; occupancy_avg_pct: number; stats: FleetStat[]; }
+
+export interface RevenueSummary {
+  today_revenue: number; week_revenue: number; month_revenue: number;
+  kouider_profit_month: number; total_bookings_month: number;
+  top_clients: Array<{ client_name: string; total_spent: number; score: string }>;
+}
+
+export interface SmartReminder {
+  id: string; type: string; priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  client_name: string; client_phone: string | null; car_name: string;
+  date: string; message: string; action: string;
+}
+
+export interface ClientSummary {
+  name: string; phone: string | null; bookingCount: number; totalSpent: number; lastBooking: string;
+}
+
+export interface ClientIntelligence {
+  client_name: string; preferred_cars: string[];
+  typical_duration_days: number | null; negotiation_style: string;
+  payment_reliability: string; total_bookings: number;
+  total_spent: number; score: string; notes: string | null;
+}
+
+// ── Business API ──────────────────────────────────────────────────────────────
+
+export const business = {
+  fetchBookings: (q?: string) =>
+    apiFetch<{ bookings: Booking[] }>(`/api/bookings?limit=40${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+
+  fetchCars: () =>
+    apiFetch<{ cars: Car[] }>('/api/cars'),
+
+  fetchFleet: () =>
+    apiFetch<FleetIntel>('/api/bi/fleet'),
+
+  fetchRevenue: () =>
+    apiFetch<RevenueSummary>('/api/bi/revenue'),
+
+  fetchReminders: () =>
+    apiFetch<{ reminders: SmartReminder[] }>('/api/bi/reminders'),
+
+  dismissReminder: (id: string) =>
+    apiFetch<{ ok: boolean }>('/api/bi/reminders/dismiss', { method: 'POST', body: JSON.stringify({ id }) }),
+
+  fetchClients: () =>
+    apiFetch<{ clients: ClientSummary[] }>('/api/clients'),
+
+  fetchClientIntel: () =>
+    apiFetch<{ clients: ClientIntelligence[] }>('/api/clients/intelligence'),
+
+  toggleCar: (id: string, available: boolean) =>
+    apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),
+
+  deleteBooking: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  createBooking: (data: Record<string, unknown>) =>
+    apiFetch<{ booking: Booking }>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
+
+  clearCache: () =>
+    apiFetch<{ deleted: number }>('/api/bi/cache/clear', { method: 'POST' }),
+
+  fetchJobs: () =>
+    apiFetch<{ jobs: Array<{ name: string; cron: string; next: number | null }> }>('/api/scheduler/jobs'),
+
+  triggerJob: (name: string) =>
+    fetch(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    }).then(r => r.ok),
+
+  health: () =>
+    fetch(`${BACKEND_URL}/health`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json() as Promise<{ status: string; uptime?: number }>)
+      .catch(() => ({ status: 'error' })),
+
+  nexus: () =>
+    fetch(`${BACKEND_URL}/api/nexus/status`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json() as Promise<{ connected: boolean }>)
+      .catch(() => ({ connected: false })),
+};

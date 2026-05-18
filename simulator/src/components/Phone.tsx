@@ -1,18 +1,39 @@
 import { useState, useEffect } from 'react';
 import VoiceScreen from './screens/VoiceScreen.tsx';
 import TextScreen from './screens/TextScreen.tsx';
+import BookingsScreen from './screens/BookingsScreen.tsx';
+import FleetScreen from './screens/FleetScreen.tsx';
+import RevenueScreen from './screens/RevenueScreen.tsx';
+import ClientsScreen from './screens/ClientsScreen.tsx';
+import RemindersScreen from './screens/RemindersScreen.tsx';
+import DocumentsScreen from './screens/DocumentsScreen.tsx';
+import SettingsScreen from './screens/SettingsScreen.tsx';
 
-export type Page = 'voice' | 'text';
+export type Page =
+  | 'voice' | 'text' | 'bookings' | 'fleet'
+  | 'revenue' | 'clients' | 'reminders' | 'documents' | 'settings';
+
+const TABS: Array<{ id: Page; icon: string; label: string }> = [
+  { id: 'voice',     icon: '🎙️', label: 'VOIX' },
+  { id: 'text',      icon: '💬', label: 'CHAT' },
+  { id: 'bookings',  icon: '📋', label: 'RESAS' },
+  { id: 'fleet',     icon: '🚗', label: 'PARC' },
+  { id: 'revenue',   icon: '💰', label: 'CA' },
+  { id: 'clients',   icon: '👥', label: 'CLIENTS' },
+  { id: 'reminders', icon: '🔔', label: 'RAPPELS' },
+  { id: 'documents', icon: '📄', label: 'DOCS' },
+  { id: 'settings',  icon: '⚙️', label: 'CONFIG' },
+];
 
 const PHONE_W   = 375;
 const PHONE_H   = 812;
-const FRAME     = 14;   // frame border thickness
-const RADIUS    = 50;   // outer corner radius
-const SCREEN_R  = 36;   // screen corner radius
+const FRAME     = 14;
+const RADIUS    = 50;
+const SCREEN_R  = 36;
 const SCREEN_W  = PHONE_W - FRAME * 2;
 const SCREEN_H  = PHONE_H - FRAME * 2;
 const STATUSBAR = 44;
-const NAVBAR    = 36;
+const NAVBAR    = 42;
 const CONTENT_H = SCREEN_H - STATUSBAR - NAVBAR;
 
 export default function Phone() {
@@ -26,11 +47,24 @@ export default function Phone() {
     return () => clearInterval(t);
   }, []);
 
-  // Simulate battery drain slowly
   useEffect(() => {
     const t = setInterval(() => setBattery(b => Math.max(10, b - 1)), 120000);
     return () => clearInterval(t);
   }, []);
+
+  const renderScreen = () => {
+    switch (page) {
+      case 'voice':     return <VoiceScreen onNavigateText={() => setPage('text')} onWsStatus={setWsOk} />;
+      case 'text':      return <TextScreen onNavigateVoice={() => setPage('voice')} />;
+      case 'bookings':  return <BookingsScreen />;
+      case 'fleet':     return <FleetScreen />;
+      case 'revenue':   return <RevenueScreen />;
+      case 'clients':   return <ClientsScreen />;
+      case 'reminders': return <RemindersScreen />;
+      case 'documents': return <DocumentsScreen />;
+      case 'settings':  return <SettingsScreen />;
+    }
+  };
 
   return (
     <div style={{ position: 'relative', width: PHONE_W, height: PHONE_H }}>
@@ -40,8 +74,7 @@ export default function Phone() {
         style={{
           position: 'absolute', inset: 0,
           background: 'linear-gradient(160deg, #1a2233 0%, #0d1120 60%, #080d18 100%)',
-          borderRadius: RADIUS,
-          zIndex: 0,
+          borderRadius: RADIUS, zIndex: 0,
         }}
       />
 
@@ -55,26 +88,15 @@ export default function Phone() {
         position: 'absolute',
         top: FRAME, left: FRAME,
         width: SCREEN_W, height: SCREEN_H,
-        borderRadius: SCREEN_R,
-        overflow: 'hidden',
-        background: '#000',
-        zIndex: 1,
+        borderRadius: SCREEN_R, overflow: 'hidden',
+        background: '#000', zIndex: 1,
       }}>
         {/* Status bar */}
-        <StatusBar time={time} battery={battery} wsOk={wsOk} />
+        <StatusBar time={time} battery={battery} wsOk={wsOk} page={page} />
 
         {/* Screen content */}
         <div style={{ width: '100%', height: CONTENT_H, position: 'relative', overflow: 'hidden' }}>
-          {page === 'voice' ? (
-            <VoiceScreen
-              onNavigateText={() => setPage('text')}
-              onWsStatus={setWsOk}
-            />
-          ) : (
-            <TextScreen
-              onNavigateVoice={() => setPage('voice')}
-            />
-          )}
+          {renderScreen()}
         </div>
 
         {/* Nav bar */}
@@ -86,8 +108,7 @@ export default function Phone() {
         position: 'absolute',
         top: FRAME + 12, left: '50%', transform: 'translateX(-50%)',
         width: 12, height: 12, borderRadius: '50%',
-        background: '#000',
-        zIndex: 3,
+        background: '#000', zIndex: 3,
         boxShadow: 'inset 0 0 3px #000',
       }} />
     </div>
@@ -98,24 +119,21 @@ function getTime() {
   return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function StatusBar({ time, battery, wsOk }: { time: string; battery: number; wsOk: boolean }) {
+function StatusBar({ time, battery, wsOk, page }: { time: string; battery: number; wsOk: boolean; page: Page }) {
+  const tab = TABS.find(t => t.id === page);
   return (
     <div style={{
       height: STATUSBAR, width: '100%',
-      background: 'rgba(0,0,0,0.92)',
+      background: 'rgba(0,0,0,0.95)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 20px 0 20px',
-      paddingTop: 8,
+      padding: '0 16px', paddingTop: 8,
     }}>
-      {/* Time */}
       <span style={{ fontFamily: 'Share Tech Mono', fontSize: 13, color: '#fff', letterSpacing: '0.05em' }}>
         {time}
       </span>
-      {/* Center — network indicator */}
-      <span style={{ fontFamily: 'Orbitron', fontSize: 7, color: wsOk ? '#00d4ff' : '#ff3366', letterSpacing: '0.2em' }}>
-        {wsOk ? '●LIVE' : '○OFF'}
+      <span style={{ fontFamily: 'Orbitron', fontSize: 7, color: wsOk ? '#00d4ff' : '#ff3366', letterSpacing: '0.15em' }}>
+        {tab?.icon} {tab?.label}
       </span>
-      {/* Right icons */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <WifiIcon />
         <SignalIcon />
@@ -129,56 +147,54 @@ function NavBar({ page, onPage }: { page: Page; onPage: (p: Page) => void }) {
   return (
     <div style={{
       height: NAVBAR, width: '100%',
-      background: 'rgba(0,0,0,0.92)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 40,
+      background: 'rgba(0,0,0,0.97)',
+      borderTop: '1px solid #00d4ff12',
+      display: 'flex', alignItems: 'stretch',
+      overflowX: 'auto',
+      scrollbarWidth: 'none',
     }}>
-      {/* Back chevron */}
-      <button onClick={() => onPage('voice')} style={navBtnStyle}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={page === 'voice' ? '#00d4ff' : '#ffffff44'} strokeWidth="2">
-          <polyline points="15,18 9,12 15,6" />
-        </svg>
-      </button>
-      {/* Home — circle */}
-      <button onClick={() => onPage('voice')} style={navBtnStyle}>
-        <div style={{
-          width: 18, height: 18, borderRadius: '50%',
-          border: `2px solid ${page === 'voice' ? '#00d4ff' : '#ffffff44'}`,
-          background: page === 'voice' ? '#00d4ff22' : 'transparent',
-        }} />
-      </button>
-      {/* Text — square for recents */}
-      <button onClick={() => onPage('text')} style={navBtnStyle}>
-        <div style={{
-          width: 16, height: 13, borderRadius: 3,
-          border: `2px solid ${page === 'text' ? '#ff6b00' : '#ffffff44'}`,
-          background: page === 'text' ? '#ff6b0022' : 'transparent',
-        }} />
-      </button>
+      {TABS.map(tab => {
+        const active = page === tab.id;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onPage(tab.id)}
+            style={{
+              minWidth: 46, flex: '0 0 auto',
+              background: active ? '#00d4ff0d' : 'transparent',
+              border: 'none',
+              borderBottom: active ? '2px solid #00d4ff' : '2px solid transparent',
+              cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+              transition: 'background 0.15s',
+            }}
+          >
+            <span style={{ fontSize: 12, lineHeight: 1 }}>{tab.icon}</span>
+            <span style={{
+              fontFamily: 'Orbitron', fontSize: 5,
+              color: active ? '#00d4ff' : '#ffffff33',
+              letterSpacing: '0.1em',
+            }}>
+              {tab.label}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-const navBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: 36, height: 36,
-};
-
 function SideButton({ side, top, h, label }: { side: 'left' | 'right'; top: number; h: number; label: string }) {
   const isLeft = side === 'left';
   return (
-    <div
-      title={label}
-      style={{
-        position: 'absolute',
-        top, [isLeft ? 'left' : 'right']: -5,
-        width: 5, height: h,
-        background: 'linear-gradient(180deg, #2a3a50, #1a2535)',
-        borderRadius: isLeft ? '3px 0 0 3px' : '0 3px 3px 0',
-        zIndex: 2,
-        boxShadow: isLeft ? '-1px 0 3px rgba(0,0,0,0.5)' : '1px 0 3px rgba(0,0,0,0.5)',
-      }}
-    />
+    <div title={label} style={{
+      position: 'absolute', top, [isLeft ? 'left' : 'right']: -5,
+      width: 5, height: h,
+      background: 'linear-gradient(180deg, #2a3a50, #1a2535)',
+      borderRadius: isLeft ? '3px 0 0 3px' : '0 3px 3px 0',
+      zIndex: 2,
+      boxShadow: isLeft ? '-1px 0 3px rgba(0,0,0,0.5)' : '1px 0 3px rgba(0,0,0,0.5)',
+    }} />
   );
 }
 

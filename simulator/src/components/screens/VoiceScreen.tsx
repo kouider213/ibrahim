@@ -48,6 +48,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [toolLabel, setLabel] = useState<string | null>(null);
   const [response, setResp]   = useState('');
   const [respStream, setStream] = useState('');
+  const [scanActive, setScanActive] = useState(false);
   const [micErr, setMicErr]   = useState(false);
   const [wsConn, setWsConn]   = useState(false);
   const [visionActive, setVision] = useState(false);
@@ -574,6 +575,43 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             {micErr ? 'MIC ERR' : 'VAD ON'}
           </span>
         </div>
+
+        {/* Scan OCR button */}
+        <button
+          onClick={() => {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'image/*';
+            input.onchange = async () => {
+              const file = input.files?.[0]; if (!file) return;
+              setScanActive(true);
+              try {
+                const b64 = await new Promise<string>((res, rej) => {
+                  const reader = new FileReader();
+                  reader.onload = () => res((reader.result as string).split(',')[1] ?? '');
+                  reader.onerror = rej; reader.readAsDataURL(file);
+                });
+                const scan = await api.scan(b64, file.type);
+                const chat = await api.chat(`[SCAN OCR] ${scan.description}`, sessionId.current);
+                if (chat.text) setResp(chat.text);
+                if (chat.audio) await playBase64Audio(chat.audio);
+              } catch { /* ignore */ }
+              finally { setScanActive(false); }
+            };
+            input.click();
+          }}
+          disabled={scanActive}
+          style={{
+            width: 42, height: 42, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.7)',
+            border: `1.5px solid ${scanActive ? '#9b59b6' : '#ff6b0055'}`,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: scanActive ? '0 0 12px #9b59b688' : '0 0 6px #ff6b0022',
+            fontSize: 18,
+          }}
+          title="Scan OCR passeport / permis"
+        >
+          {scanActive ? '⏳' : '📄'}
+        </button>
 
         {/* Text button */}
         <button

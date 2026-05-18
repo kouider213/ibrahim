@@ -9,7 +9,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as KeepAwake from 'expo-keep-awake';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
-import { BACKEND_URL, MOBILE_TOKEN } from '../lib/api';
+import { BACKEND_URL } from '../lib/api';
+import { useStore } from '../lib/store';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -39,11 +40,15 @@ const VAD_POLL    = 150;  // ms poll interval
 export default function VoiceScreen() {
   const router = useRouter();
 
+  const mobileToken = useStore(s => s.mobileToken);
+  const getSessionId = useStore(s => s.sessionId);
+
   const [appState, setAppState]     = useState<State>('idle');
   const [response, setResponse]     = useState('');
   const [hudText, setHud]           = useState('DZARYX — SYSTÈME ACTIF');
   const [wsConnected, setWsConn]    = useState(false);
   const [visionLoading, setVision]  = useState(false);
+  const [scanLoading, setScan]      = useState(false);
 
   const socketRef      = useRef<Socket | null>(null);
   const recordingRef   = useRef<Audio.Recording | null>(null);
@@ -52,7 +57,7 @@ export default function VoiceScreen() {
   const speechStartRef = useRef<number>(0);
   const isSpeakingRef  = useRef(false);
   const stateRef       = useRef<State>('idle');
-  const sessionIdRef   = useRef('voice_kouider');
+  const sessionIdRef   = useRef(getSessionId());
 
   stateRef.current = appState;
 
@@ -100,8 +105,9 @@ export default function VoiceScreen() {
   // Socket.IO
   useEffect(() => {
     const sid = sessionIdRef.current;
+    sessionIdRef.current = getSessionId();
     const sock = io(`${BACKEND_URL}/mobile`, {
-      auth:         { token: MOBILE_TOKEN },
+      auth:         { token: mobileToken() },
       transports:   ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
@@ -279,7 +285,7 @@ export default function VoiceScreen() {
       // Transcribe
       const transcribeRes = await fetch(`${BACKEND_URL}/api/transcribe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MOBILE_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${mobileToken()}` },
         body: JSON.stringify({ audio: b64, mimeType: 'audio/m4a' }),
       });
 
@@ -292,7 +298,7 @@ export default function VoiceScreen() {
       // Chat
       const chatRes = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MOBILE_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${mobileToken()}` },
         body: JSON.stringify({ message: text, sessionId: sessionIdRef.current }),
       });
 
@@ -315,6 +321,47 @@ export default function VoiceScreen() {
     }
   }
 
+  // Scan OCR
+  const handleScan = useCallback(async () => {
+    setScan(true);
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'], base64: true, quality: 0.8,
+      });
+      if (result.canceled || !result.assets[0]?.base64) { setScan(false); return; }
+      const b64  = result.assets[0].base64;
+      const mime = result.assets[0].mimeType ?? 'image/jpeg';
+
+      setAppState('think');
+      setHud('OCR — LECTURE DOCUMENT…');
+
+      const scanRes = await fetch(`${BACKEND_URL}/api/vision/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${mobileToken()}` },
+        body: JSON.stringify({ imageBase64: b64, mimeType: mime }),
+      });
+      const scanData = await scanRes.json() as { description: string; type: string; extractedData?: Record<string, unknown> };
+      const scanText = `[SCAN DOC - ${scanData.type}] ${scanData.description}`;
+
+      const chatRes = await fetch(`${BACKEND_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${mobileToken()}` },
+        body: JSON.stringify({ message: scanText, sessionId: sessionIdRef.current }),
+      });
+      if (chatRes.ok) {
+        const data = await chatRes.json() as { text?: string; audio?: string };
+        if (data.text) { setResponse(data.text); setHud(data.text.slice(0, 80)); }
+        if (data.audio) { setAppState('speak'); await playAudioBase64(data.audio); }
+      }
+    } catch (err) {
+      console.error('[scan] error:', err);
+      setHud('ERREUR SCAN');
+    } finally {
+      setAppState('idle');
+      setScan(false);
+    }
+  }, [mobileToken]);
+
   // Vision
   const handleVision = useCallback(async () => {
     setVision(true);
@@ -334,7 +381,7 @@ export default function VoiceScreen() {
 
       const visionRes = await fetch(`${BACKEND_URL}/api/vision/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MOBILE_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${mobileToken()}` },
         body: JSON.stringify({ imageBase64: b64, mimeType: mime }),
       });
       const visionData = await visionRes.json() as { description: string };
@@ -342,7 +389,7 @@ export default function VoiceScreen() {
 
       const chatRes = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${MOBILE_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${mobileToken()}` },
         body: JSON.stringify({ message: `[VISION] ${desc}`, sessionId: sessionIdRef.current }),
       });
       if (chatRes.ok) {
@@ -442,6 +489,15 @@ export default function VoiceScreen() {
           <View style={[styles.micDot, { backgroundColor: col, shadowColor: col }]} />
           <Text style={styles.micTxt}>VAD</Text>
         </View>
+
+        <TouchableOpacity
+          style={[styles.btn, { borderColor: scanLoading ? '#9b59b666' : '#ffb34766' }]}
+          onPress={handleScan}
+          disabled={scanLoading}
+        >
+          <Text style={styles.btnIcon}>{scanLoading ? '⏳' : '📄'}</Text>
+          <Text style={[styles.btnLabel, { color: '#ffb347aa' }]}>SCAN</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.btn, { borderColor: '#ff6b0066' }]}
