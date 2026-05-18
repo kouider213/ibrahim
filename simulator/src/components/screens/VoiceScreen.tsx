@@ -25,9 +25,10 @@ const STATE_LABEL: Record<DzaryxStatus, string> = {
 };
 
 const SPEECH_RMS    = 0.004; // RMS above this = speech (0-1 scale)
-const SILENCE_RMS   = 0.002; // RMS below this = silence
-const SILENCE_DELAY = 1600;  // ms of silence to stop recording
+const SILENCE_RMS   = 0.008; // RMS below this = silence (higher = easier to stop)
+const SILENCE_DELAY = 1000;  // ms of silence to stop recording
 const MIN_SPEECH_MS = 200;   // minimum speech duration
+const MAX_REC_MS    = 8000;  // force-stop after 8s regardless of VAD
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null);
@@ -142,9 +143,12 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       }
       const rms = Math.sqrt(sq / timeBuf.length);
 
-      // Update visible RMS bar every ~100ms
+      // Update visible RMS bar + debug HUD when idle
       rmsRef.current = rms;
-      setRmsLevel(Math.min(rms * 80, 1)); // scale for display
+      setRmsLevel(Math.min(rms * 80, 1));
+      if (statusRef.current === 'idle' && !isRecordingRef.current) {
+        setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | PARLE-MOI`);
+      }
 
       if (rms > SPEECH_RMS) {
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
@@ -183,6 +187,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     rec.start(100);
     recorderRef.current = rec;
     setStatus('listening');
+    setHud('ENREGISTREMENT EN COURS...');
+    // Force-stop after MAX_REC_MS regardless of VAD
+    setTimeout(() => {
+      if (isRecordingRef.current) stopRecordingAndProcess();
+    }, MAX_REC_MS);
   }
 
   async function stopRecordingAndProcess() {
