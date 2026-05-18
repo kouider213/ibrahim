@@ -24,10 +24,10 @@ const STATE_LABEL: Record<DzaryxStatus, string> = {
   speaking:  'PARLE',
 };
 
-const SPEECH_RMS    = 0.008; // RMS above this = speech (0-1 scale)
-const SILENCE_RMS   = 0.004; // RMS below this = silence
-const SILENCE_DELAY = 1500;  // ms of silence to stop recording
-const MIN_SPEECH_MS = 250;   // minimum speech duration
+const SPEECH_RMS    = 0.004; // RMS above this = speech (0-1 scale)
+const SILENCE_RMS   = 0.002; // RMS below this = silence
+const SILENCE_DELAY = 1600;  // ms of silence to stop recording
+const MIN_SPEECH_MS = 200;   // minimum speech duration
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null);
@@ -53,6 +53,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [particles]            = useState(() => makeParticles(25));
   const [hudMsg, setHud]       = useState('SYSTÈME DZARYX INITIALISÉ');
   const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const [rmsLevel, setRmsLevel] = useState(0);
+  const rmsRef = useRef(0);
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -74,42 +76,43 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     return () => disconnectSocket();
   }, [onWsStatus]);
 
-  // ── Microphone + VAD ────────────────────────────────────────────────────────
-  useEffect(() => {
-    let alive = true;
+  // ── Microphone + VAD — triggered by overlay click ─────────────────────────
+  const micInitRef = useRef(false);
 
-    async function initMic() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        if (!alive) { stream.getTracks().forEach(t => t.stop()); return; }
-        streamRef.current = stream;
+  async function initMic() {
+    if (micInitRef.current) return;
+    micInitRef.current = true;
+    // Start canvas even before mic ready
+    drawCanvas();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false,
+      });
+      streamRef.current = stream;
 
-        const audioCtx = new AudioContext();
-        audioCtxRef.current = audioCtx;
-        const source   = audioCtx.createMediaStreamSource(stream);
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 1024;
-        analyser.smoothingTimeConstant = 0.5;
-        source.connect(analyser);
-        analyserRef.current = analyser;
+      const audioCtx = new AudioContext({ sampleRate: 44100 });
+      audioCtxRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-        // Unlock playback AudioContext while we have user gesture context
-        unlockAudio();
+      const source   = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.3;
+      source.connect(analyser);
+      analyserRef.current = analyser;
 
-        startVAD();
-        drawCanvas();
-        setHud('MICROPHONE ACTIF — PARLE-MOI');
-      } catch {
-        setMicErr(true);
-        setHud('MICRO INACCESSIBLE — MODE DÉGRADÉ');
-        drawCanvas(); // still draw idle animation
-      }
+      startVAD();
+      setHud('MICROPHONE ACTIF — PARLE-MOI');
+    } catch (e) {
+      console.error('[mic] error:', e);
+      setMicErr(true);
+      setHud('MICRO INACCESSIBLE — VÉRIFIE LES PERMISSIONS');
     }
+  }
 
-    initMic();
-
+  useEffect(() => {
     return () => {
-      alive = false;
       cancelAnimationFrame(animRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
       audioCtxRef.current?.close().catch(() => {});
@@ -138,6 +141,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         sq += v * v;
       }
       const rms = Math.sqrt(sq / timeBuf.length);
+
+      // Update visible RMS bar every ~100ms
+      rmsRef.current = rms;
+      setRmsLevel(Math.min(rms * 80, 1)); // scale for display
 
       if (rms > SPEECH_RMS) {
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
@@ -242,11 +249,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       let rms = 0;
       const analyser = analyserRef.current;
       if (analyser) {
-        const buf = new Uint8Array(analyser.fftSize);
-        analyser.getByteTimeDomainData(buf);
-        let sq = 0;
-        for (let i = 0; i < buf.length; i++) { const v = (buf[i]! - 128) / 128; sq += v * v; }
-        rms = Math.sqrt(sq / buf.length);
+        rms = rmsRef.current; // reuse VAD-computed RMS
       }
 
       const pulse = Math.sin(t * 0.002) * 0.5 + 0.5; // 0→1 idle animation
@@ -404,7 +407,6 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   return (
     <div
       className="scanlines"
-      onClick={() => { unlockAudio(); if (!audioUnlocked) setAudioUnlocked(true); }}
       style={{
         width: '100%', height: '100%',
         background: 'linear-gradient(180deg, #03050f 0%, #000 100%)',
@@ -419,28 +421,52 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       />
 
-      {/* Audio unlock overlay — Chrome autoplay policy */}
+      {/* Audio + Mic unlock overlay — must be first user gesture */}
       {!audioUnlocked && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 20,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
-          cursor: 'pointer',
-        }}>
+        <div
+          onClick={e => {
+            e.stopPropagation();
+            unlockAudio();
+            setAudioUnlocked(true);
+            initMic();
+          }}
+          style={{
+            position: 'absolute', inset: 0, zIndex: 20,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(4px)',
+            cursor: 'pointer',
+          }}
+        >
           <div style={{
             border: '1.5px solid #00d4ff66', borderRadius: 16,
-            padding: '20px 28px', textAlign: 'center',
-            background: 'rgba(0,10,20,0.9)',
-            boxShadow: '0 0 30px #00d4ff22',
+            padding: '24px 32px', textAlign: 'center',
+            background: 'rgba(0,10,20,0.95)',
+            boxShadow: '0 0 40px #00d4ff22',
           }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>🔊</div>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff', letterSpacing: '0.25em', marginBottom: 6 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🎙️</div>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ff', letterSpacing: '0.25em', marginBottom: 8 }}>
               APPUYER POUR ACTIVER
             </div>
-            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#ffffff44', letterSpacing: '0.1em' }}>
-              AUDIO + MICRO
+            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00d4ff77', letterSpacing: '0.15em' }}>
+              MICRO + AUDIO
             </div>
           </div>
+        </div>
+      )}
+
+      {/* RMS level bar — debug indicator */}
+      {audioUnlocked && (
+        <div style={{
+          position: 'absolute', top: 38, left: 12, right: 12, zIndex: 6,
+          height: 3, background: '#ffffff11', borderRadius: 2,
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${rmsLevel * 100}%`,
+            background: rmsLevel > 0.05 ? '#ff3366' : rmsLevel > 0.01 ? '#00d4ff' : '#ffffff22',
+            borderRadius: 2,
+            transition: 'width 0.05s linear',
+          }} />
         </div>
       )}
 
