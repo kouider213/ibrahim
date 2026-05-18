@@ -1,0 +1,15 @@
+[build]
+  base      = "simulator"
+  publish   = "dist"
+  command   = "npm install && npm run build"
+
+[build.environment]
+  NODE_VERSION     = "22"
+  VITE_BACKEND_URL = "https://ibrahim-backend-production.up.railway.app"
+  VITE_WS_URL      = "wss://ibrahim-backend-production.up.railway.app"
+  VITE_ACCESS_TOKEN = ""
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
