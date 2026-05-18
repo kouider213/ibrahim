@@ -43,40 +43,81 @@ npm run dev
 
 ---
 
-## Déployer sur Netlify
+## Déployer sur Netlify — MÉTHODE OBLIGATOIRE (API ZIP)
 
-1. Créer nouveau site Netlify (≠ ibrahim-fik-conciergerie.netlify.app)
-2. Connecter le repo GitHub `kouider213/ibrahim`
-3. Configurer :
-   - **Base directory** : `simulator`
-   - **Build command** : `npm install && npm run build`
-   - **Publish directory** : `dist`
-4. Variables d'environnement Netlify :
-   - `VITE_BACKEND_URL` = `https://ibrahim-backend-production.up.railway.app`
-   - `VITE_WS_URL` = `wss://ibrahim-backend-production.up.railway.app`
-   - `VITE_ACCESS_TOKEN` = token Kouider (ou laisser vide si backend accepte sans auth)
+**Site existant** : https://dzaryx-simulator.netlify.app
+**Site ID** : `4734de84-0223-4bec-ba6c-d3e1eb87217e`
+**Token Netlify** : `nfp_TEgxUYzHhsYxN2cX9L1q2PXqWZGQNjqJ553e`
+
+```bash
+cd simulator
+npm run build             # compile vers dist/
+node make-zip.mjs         # crée dist.zip avec POSIX paths (OBLIGATOIRE)
+curl -s -X POST "https://api.netlify.com/api/v1/sites/4734de84-0223-4bec-ba6c-d3e1eb87217e/deploys" \
+  -H "Authorization: Bearer nfp_TEgxUYzHhsYxN2cX9L1q2PXqWZGQNjqJ553e" \
+  -H "Content-Type: application/zip" \
+  --data-binary @dist.zip
+```
+
+**POURQUOI make-zip.mjs et PAS PowerShell Compress-Archive** :
+PowerShell crée des chemins avec backslashes Windows : `assets\index-abc123.js`
+Netlify interprète ça comme chemin littéral → navigateur cherche `/assets%5Cindex.js` → 404
+`make-zip.mjs` normalise avec `.replace(/\\/g, '/')` → POSIX paths → Netlify 200 ✅
+
+**Fichier .env.local (local uniquement — NE PAS COMMITTER)** :
+```
+VITE_BACKEND_URL=https://ibrahim-backend-production.up.railway.app
+VITE_WS_URL=wss://ibrahim-backend-production.up.railway.app
+VITE_ACCESS_TOKEN=f6214183be37ad5e3c593590870077db247a4047c7de3cd72ae008e0f8d447d2
+```
 
 ---
 
-## VoiceScreen — Visualiseur Canvas
+## VoiceScreen — VAD et Visualiseur Canvas
 
-Le visualiseur utilise Web Audio API + requestAnimationFrame :
-
+### Constantes VAD (après tests AirPods Pro)
 ```typescript
-// Connexion micro
-const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-const audioCtx = new AudioContext();
-const analyser = audioCtx.createAnalyser();
-audioCtx.createMediaStreamSource(stream).connect(analyser);
+const SPEECH_RMS    = 0.004;  // RMS > ce seuil = parole (très sensible)
+const SILENCE_RMS   = 0.008;  // RMS < ce seuil = silence (élevé pour bruit AirPods BT)
+const SILENCE_DELAY = 1000;   // 1s de silence → stop enregistrement
+const MIN_SPEECH_MS = 200;    // min 200ms pour être une vraie utterance
+const MAX_REC_MS    = 8000;   // force-stop au bout de 8s (sécurité)
+```
 
-// Frame de dessin (60fps)
+### Implémentation RMS (TIME DOMAIN — pas fréquences)
+```typescript
+// IMPORTANT : fftSize=2048, smoothingTimeConstant=0.3
+// NE PAS utiliser getByteFrequencyData — trop dilué pour la parole
+analyser.getByteTimeDomainData(timeData);  // valeurs 0-255, 128=silence
+let sum = 0;
+for (let i = 0; i < timeData.length; i++) {
+  const v = (timeData[i] - 128) / 128;
+  sum += v * v;
+}
+const rms = Math.sqrt(sum / timeData.length);  // RMS réel
+```
+
+### Chrome AudioContext Autoplay Policy
+```typescript
+// NE PAS appeler initMic() au mount du composant
+// L'overlay est OBLIGATOIRE pour que AudioContext soit créé dans un user gesture
+// Overlay click handler :
+unlockAudio();           // déverrouille AudioContext global
+setAudioUnlocked(true);  // cache l'overlay
+initMic();               // maintenant on peut créer AudioContext
+```
+
+### Visualiseur Canvas
+```typescript
+// Frame de dessin (60fps via requestAnimationFrame)
 function frame(t: number) {
-  analyser.getByteTimeDomainData(dataArray);
-  // RMS → amplitude → rayon des anneaux
-  // 3 anneaux concentriques + hex ring rotatif
-  // Glow orb central + particules flottantes
-  // Barres fréquence (mode listen)
-  // Scanlines overlayées
+  // Utilise rmsRef.current (même RMS calculé par VAD, pas recalculé)
+  // 3 anneaux concentriques (rayon proportionnel au RMS)
+  // Hex ring rotatif
+  // Glow orb central
+  // Particules flottantes
+  // Scanlines overlay
+  // Canvas height = 704 (PHONE_H=812 - FRAME*2=28 - STATUSBAR=44 - NAVBAR=36)
 }
 ```
 

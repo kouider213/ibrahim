@@ -82,16 +82,23 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ---
 
-### Simulateur Android Web — AJOUTÉ 2026-05-18
+### Simulateur Android Web — TESTÉ ET DÉPLOYÉ 2026-05-18
 - ✅ `simulator/` — React+TS+Vite+Tailwind+Framer Motion
 - ✅ Coque Android réaliste (375×812px, punch-hole, barre statut, nav)
-- ✅ VoiceScreen : visualiseur canvas (anneaux concentriques + particules + VAD)
+- ✅ VoiceScreen : visualiseur canvas (anneaux concentriques + particules + VAD RMS)
 - ✅ TextScreen : chat Jarvis avec streaming messages + audio TTS
 - ✅ FeedbackPanel : feedback rapide / checklist 77 items / historique
-- ✅ Connexions réelles Railway Socket.IO + REST API
+- ✅ Connexions réelles Railway Socket.IO `/mobile` + REST API
 - ✅ Build propre : 228KB JS, 0 erreurs TS
-- ✅ netlify.toml prêt pour déploiement Netlify séparé
-- Commits : `9bc0dad`
+- ✅ **Déployé** : https://dzaryx-simulator.netlify.app (POSIX zip via make-zip.mjs)
+- ✅ **VAD fixé** : RMS time-domain (SPEECH_RMS=0.004, SILENCE_RMS=0.008)
+- ✅ **TTS fixé** : textOnly=false → Dzaryx parle
+- ✅ **AudioContext fixé** : overlay unlock obligatoire (Chrome autoplay policy)
+- ✅ **AirPods Pro** : SILENCE_RMS=0.008 + MAX_REC_MS=8000ms force-stop
+- ✅ **Canvas** : height=704 (PHONE_H-FRAME-STATUSBAR-NAVBAR)
+- ✅ **Responsive** : auto-scale min 45% pour petits écrans
+- ✅ **Feedback loop** : feedback-server.mjs localhost:4567 + feedback-inbox.json
+- Commits : `9bc0dad` + fixes session 2026-05-18
 
 ### Native App (dzaryx-native) — AJOUTÉ 2026-05-17
 - ✅ Expo SDK 54 / React Native 0.81.5 / newArchEnabled
@@ -145,11 +152,12 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-1. **EAS Build** (attend June 1) : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
-2. **Déployer simulateur sur Netlify** : créer nouveau site Netlify, base=`simulator`, build=`npm run build`, publish=`dist`
-3. **Railway** : Ajouter MOBILE_TOKEN_HOUARI (`99c3dba3...`) + Twilio vars
-4. **Google Cloud** : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
-5. **Tester simulateur** : lancer `cd simulator && npm run dev` et ouvrir http://localhost:5174
+1. **Interface + Logo** (demandé par Kouider le 2026-05-18) : modifier l'interface du simulateur et le logo de l'app
+2. **Confirmer TTS** : tester audio Dzaryx sur https://dzaryx-simulator.netlify.app (overlay → parler → Dzaryx doit répondre vocalement)
+3. **EAS Build** (attend June 1) : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
+4. **Railway** (action MANUELLE Kouider) : Ajouter MOBILE_TOKEN_HOUARI (`99c3dba3...`) + Twilio vars
+5. **Google Cloud** (action manuelle) : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
+6. **Phase 7** : WhatsApp bot, PDF contrats, paiement Chargily, export Excel
 
 ---
 
