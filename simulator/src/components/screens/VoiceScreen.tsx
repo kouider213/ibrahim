@@ -405,7 +405,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       <canvas
         ref={canvasRef}
         width={347}
-        height={660}
+        height={704}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       />
 

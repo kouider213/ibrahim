@@ -1,11 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Phone from './components/Phone.tsx';
 import FeedbackPanel from './components/feedback/FeedbackPanel.tsx';
 
 export type Page = 'voice' | 'text';
 
+const PHONE_W = 375;
+const PHONE_H = 812;
+
 export default function App() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    function updateScale() {
+      const s = Math.min(
+        (window.innerWidth - 40) / PHONE_W,
+        (window.innerHeight - 120) / PHONE_H,
+        1,
+      );
+      setScale(Math.max(s, 0.45));
+    }
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
 
   return (
     <div style={{
@@ -47,7 +65,11 @@ export default function App() {
       </div>
 
       {/* Phone */}
-      <div style={{ position: 'relative', zIndex: 2 }}>
+      <div style={{
+        position: 'relative', zIndex: 2,
+        transform: `scale(${scale})`,
+        transformOrigin: 'center center',
+      }}>
         <Phone />
       </div>
 
