@@ -2,7 +2,7 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-17 (Remote Control Mission)
+> Dernière mise à jour : 2026-05-18 (Jarvis Redesign + Simulateur Web)
 
 ---
 
@@ -82,6 +82,17 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ---
 
+### Simulateur Android Web — AJOUTÉ 2026-05-18
+- ✅ `simulator/` — React+TS+Vite+Tailwind+Framer Motion
+- ✅ Coque Android réaliste (375×812px, punch-hole, barre statut, nav)
+- ✅ VoiceScreen : visualiseur canvas (anneaux concentriques + particules + VAD)
+- ✅ TextScreen : chat Jarvis avec streaming messages + audio TTS
+- ✅ FeedbackPanel : feedback rapide / checklist 77 items / historique
+- ✅ Connexions réelles Railway Socket.IO + REST API
+- ✅ Build propre : 228KB JS, 0 erreurs TS
+- ✅ netlify.toml prêt pour déploiement Netlify séparé
+- Commits : `9bc0dad`
+
 ### Native App (dzaryx-native) — AJOUTÉ 2026-05-17
 - ✅ Expo SDK 54 / React Native 0.81.5 / newArchEnabled
 - ✅ Multi-acteur : Kouider (cyan #00e5ff) + Houari (violet #7c3aed)
@@ -118,10 +129,12 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ## Ce qui ne fonctionne pas / incomplet ❌
 
-### APK — BLOQUÉ (nécessite action Kouider)
-- ❌ **APK non buildé** — EAS CLI installé (v18.13), mais EXPO_TOKEN non set
-  → Kouider doit : `eas login` (dans terminal) PUIS : `cd dzaryx-native && eas build --platform android --profile preview --non-interactive`
-  → Ou générer token sur expo.dev → Account Settings → Access Tokens, puis le mettre en var d'env
+### APK — BLOQUÉ (EAS plan mensuel épuisé)
+- ❌ **APK non buildé** — EAS Free plan épuisé ce mois
+- 🕐 **Reset June 1, 2026** (dans 13 jours)
+- Le build sera déclenché automatiquement à la prochaine session ou le 1er juin
+- Token EAS encore valide : `G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6`
+- Commande prête : `EXPO_TOKEN=G7nmf_... npx eas build --platform android --profile preview --non-interactive`
 
 ### Config Railway manquante (nécessite action Kouider)
 - ❌ `MOBILE_TOKEN_HOUARI` non ajouté → Houari ne peut pas se connecter depuis Railway
@@ -132,10 +145,11 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-1. **EAS Login** : `! eas login` dans terminal Claude Code, puis `! cd dzaryx-native && eas build --platform android --profile preview --non-interactive`
-2. **Railway** : Ajouter MOBILE_TOKEN_HOUARI + Twilio vars
-3. **Google Cloud** : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
-4. **Backfill clients** : dans l'app → Settings → 🧠 BACKFILL INTELLIGENCE CLIENTS (ou se fait automatiquement au démarrage si table vide)
+1. **EAS Build** (attend June 1) : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
+2. **Déployer simulateur sur Netlify** : créer nouveau site Netlify, base=`simulator`, build=`npm run build`, publish=`dist`
+3. **Railway** : Ajouter MOBILE_TOKEN_HOUARI (`99c3dba3...`) + Twilio vars
+4. **Google Cloud** : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
+5. **Tester simulateur** : lancer `cd simulator && npm run dev` et ouvrir http://localhost:5174
 
 ---
 
@@ -212,7 +226,8 @@ Flight Bot: Python séparé (flight-bot/) — vols personnels Kouider
 | backend/ | ✅ Déployé Railway | TypeScript 0 erreurs |
 | nexus/ (Python) | ✅ Tourne sur PC | Streaming SSE OK |
 | mobile/ (React) | ✅ Déployé Netlify | Dashboard + Chat |
-| dzaryx-native/ | 🟡 Code prêt, APK non buildé | Expo SDK 54, EAS login requis |
+| dzaryx-native/ | 🟡 Code prêt, APK non buildé | Jarvis redesign voice.tsx+text.tsx — EAS June 1 |
+| simulator/ | ✅ Build propre 228KB | Simulateur Android web, déploiement Netlify pending |
 | pc-agent/ (TS) | ❓ Non vérifié | Alternative à Nexus |
 | flight-bot/ | ❓ Non vérifié | Indépendant |
 
