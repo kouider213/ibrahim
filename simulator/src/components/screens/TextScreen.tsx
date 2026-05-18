@@ -103,12 +103,16 @@ export default function TextScreen({ onNavigateVoice }: Props) {
   const col = STATUS_COLOR[status];
 
   return (
-    <div className="scanlines" style={{
-      width: '100%', height: '100%',
-      background: 'linear-gradient(180deg, #03050f 0%, #010208 100%)',
-      display: 'flex', flexDirection: 'column',
-      position: 'relative', overflow: 'hidden',
-    }}>
+    <div
+      className="scanlines"
+      onClick={() => unlockAudio()}
+      style={{
+        width: '100%', height: '100%',
+        background: 'linear-gradient(180deg, #03050f 0%, #010208 100%)',
+        display: 'flex', flexDirection: 'column',
+        position: 'relative', overflow: 'hidden',
+      }}
+    >
       {/* Header */}
       <div style={{
         padding: '8px 16px',

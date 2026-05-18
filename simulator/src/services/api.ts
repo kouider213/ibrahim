@@ -37,10 +37,10 @@ export interface ChatResponse {
 export interface TranscribeResponse { text: string; language?: string; }
 
 export const api = {
-  chat: (message: string, sessionId: string, imageBase64?: string, imageMime?: string) =>
+  chat: (message: string, sessionId: string, imageBase64?: string, imageMime?: string, textOnly = false) =>
     apiFetch<ChatResponse>('/api/chat', {
       method: 'POST',
-      body:   JSON.stringify({ message, sessionId, textOnly: !imageBase64, imageBase64, imageMime }),
+      body:   JSON.stringify({ message, sessionId, textOnly: textOnly && !imageBase64, imageBase64, imageMime }),
     }),
 
   transcribe: (audioBase64: string, mimeType = 'audio/webm') =>
@@ -83,11 +83,19 @@ export const api = {
   getFinanceDashboard: () =>
     apiFetch<FinanceDash>('/api/finance/dashboard'),
 
-  sendFeedback: (feedback: FeedbackPayload) =>
-    apiFetch<{ ok: boolean }>('/api/feedback', {
+  sendFeedback: async (feedback: FeedbackPayload) => {
+    // Send to local dev watcher (for real-time Claude fix loop)
+    fetch('http://localhost:4567/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(feedback),
+    }).catch(() => {/* local server may not be running */});
+    // Also send to Railway backend
+    return apiFetch<{ ok: boolean }>('/api/feedback', {
       method: 'POST',
       body:   JSON.stringify(feedback),
-    }).catch(() => ({ ok: false })),
+    }).catch(() => ({ ok: false }));
+  },
 };
 
 export interface TaskItem {

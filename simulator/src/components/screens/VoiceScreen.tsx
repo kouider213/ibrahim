@@ -24,10 +24,10 @@ const STATE_LABEL: Record<DzaryxStatus, string> = {
   speaking:  'PARLE',
 };
 
-const SILENCE_THRESH = 12;   // avg frequency below this = silence
-const SPEECH_THRESH  = 22;   // avg frequency above this = speaking
-const SILENCE_DELAY  = 1200; // ms of silence to stop recording
-const MIN_SPEECH_MS  = 400;  // minimum speech duration
+const SPEECH_RMS    = 0.008; // RMS above this = speech (0-1 scale)
+const SILENCE_RMS   = 0.004; // RMS below this = silence
+const SILENCE_DELAY = 1500;  // ms of silence to stop recording
+const MIN_SPEECH_MS = 250;   // minimum speech duration
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null);
@@ -52,6 +52,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [visionActive, setVision] = useState(false);
   const [particles]            = useState(() => makeParticles(25));
   const [hudMsg, setHud]       = useState('SYSTÈME DZARYX INITIALISÉ');
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -87,10 +88,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         audioCtxRef.current = audioCtx;
         const source   = audioCtx.createMediaStreamSource(stream);
         const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.7;
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.5;
         source.connect(analyser);
         analyserRef.current = analyser;
+
+        // Unlock playback AudioContext while we have user gesture context
+        unlockAudio();
 
         startVAD();
         drawCanvas();
@@ -113,11 +117,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     };
   }, []);
 
-  // ── VAD loop ────────────────────────────────────────────────────────────────
+  // ── VAD loop (RMS-based, much more reliable than freq average) ─────────────
   function startVAD() {
     const analyser = analyserRef.current;
     if (!analyser) return;
-    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const timeBuf = new Uint8Array(analyser.fftSize);
     const a = analyser;
 
     function tick() {
@@ -126,21 +130,23 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         return;
       }
 
-      a.getByteFrequencyData(buf);
-      const avg = buf.reduce((s, v) => s + v, 0) / buf.length;
+      // RMS from time domain — much more sensitive than freq average
+      a.getByteTimeDomainData(timeBuf);
+      let sq = 0;
+      for (let i = 0; i < timeBuf.length; i++) {
+        const v = (timeBuf[i]! - 128) / 128;
+        sq += v * v;
+      }
+      const rms = Math.sqrt(sq / timeBuf.length);
 
-      if (avg > SPEECH_THRESH) {
-        // Speech detected
+      if (rms > SPEECH_RMS) {
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
         if (!isSpeechRef.current) {
           isSpeechRef.current = true;
           speechStartRef.current = Date.now();
         }
-        if (!isRecordingRef.current) {
-          startRecording();
-        }
-      } else if (isSpeechRef.current && !silenceTimerRef.current) {
-        // Possible silence — start timer
+        if (!isRecordingRef.current) startRecording();
+      } else if (rms < SILENCE_RMS && isSpeechRef.current && !silenceTimerRef.current) {
         silenceTimerRef.current = setTimeout(() => {
           silenceTimerRef.current = null;
           const dur = Date.now() - speechStartRef.current;
@@ -236,7 +242,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       let rms = 0;
       const analyser = analyserRef.current;
       if (analyser) {
-        const buf = new Uint8Array(analyser.frequencyBinCount);
+        const buf = new Uint8Array(analyser.fftSize);
         analyser.getByteTimeDomainData(buf);
         let sq = 0;
         for (let i = 0; i < buf.length; i++) { const v = (buf[i]! - 128) / 128; sq += v * v; }
@@ -319,7 +325,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       ctx.fill();
 
       // Data bars (bottom)
-      if (rms > 0.02 && statusRef.current === 'listening') {
+      if (rms > 0.006 && statusRef.current === 'listening') {
         const analyser = analyserRef.current!;
         const freqBuf = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(freqBuf);
@@ -396,11 +402,15 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const displayText = respStream || response;
 
   return (
-    <div className="scanlines" style={{
-      width: '100%', height: '100%',
-      background: 'linear-gradient(180deg, #03050f 0%, #000 100%)',
-      position: 'relative', overflow: 'hidden',
-    }}>
+    <div
+      className="scanlines"
+      onClick={() => { unlockAudio(); if (!audioUnlocked) setAudioUnlocked(true); }}
+      style={{
+        width: '100%', height: '100%',
+        background: 'linear-gradient(180deg, #03050f 0%, #000 100%)',
+        position: 'relative', overflow: 'hidden',
+      }}
+    >
       {/* Canvas visualizer — full screen */}
       <canvas
         ref={canvasRef}
@@ -408,6 +418,31 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         height={704}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       />
+
+      {/* Audio unlock overlay — Chrome autoplay policy */}
+      {!audioUnlocked && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 20,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+          cursor: 'pointer',
+        }}>
+          <div style={{
+            border: '1.5px solid #00d4ff66', borderRadius: 16,
+            padding: '20px 28px', textAlign: 'center',
+            background: 'rgba(0,10,20,0.9)',
+            boxShadow: '0 0 30px #00d4ff22',
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>🔊</div>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff', letterSpacing: '0.25em', marginBottom: 6 }}>
+              APPUYER POUR ACTIVER
+            </div>
+            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#ffffff44', letterSpacing: '0.1em' }}>
+              AUDIO + MICRO
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* State indicator — top */}
       <div style={{
