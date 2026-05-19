@@ -184,14 +184,20 @@ const refreshBtn: React.CSSProperties = {
 
 function CarPhoto({ url, name, col }: { url: string | null; name: string; col: string }) {
   const [failed, setFailed] = useState(false);
-  if (!url || failed) return <CarPlaceholder col={col} />;
+  const [loaded, setLoaded] = useState(false);
+  if (!url) return <div style={{ position: 'relative' }}><CarPlaceholder col={col} /><span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: 6, background: '#ff000088', color: '#fff', padding: '1px 3px', borderRadius: 2 }}>NULL</span></div>;
+  if (failed) return <div style={{ position: 'relative' }}><CarPlaceholder col={col} /><span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: 6, background: '#ffaa0088', color: '#fff', padding: '1px 3px', borderRadius: 2 }}>ERR</span></div>;
   return (
-    <img
-      src={url}
-      alt={name}
-      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      onError={() => setFailed(true)}
-    />
+    <>
+      {!loaded && <CarPlaceholder col={col} />}
+      <img
+        src={url}
+        alt={name}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: loaded ? 'block' : 'none' }}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+      />
+    </>
   );
 }
 
