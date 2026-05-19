@@ -90,19 +90,7 @@ export default function FleetScreen() {
                   overflow: 'hidden',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  {car.image_url ? (
-                    <img
-                      src={car.image_url}
-                      alt={car.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={e => {
-                        const img = e.target as HTMLImageElement;
-                        img.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <CarPlaceholder col={col} />
-                  )}
+                  <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
                 </div>
 
                 {/* Info */}
@@ -142,14 +130,14 @@ export default function FleetScreen() {
                   onClick={() => void toggle(car)}
                   disabled={isTog}
                   style={{
-                    minWidth: 60, padding: '6px 10px', borderRadius: 8,
+                    minWidth: 64, padding: '7px 10px', borderRadius: 8,
                     border: `1.5px solid ${col}`,
-                    background: `${col}1a`,
-                    color: col,
-                    fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer',
-                    letterSpacing: '0.12em', opacity: isTog ? 0.5 : 1,
-                    boxShadow: `0 0 8px ${col}22`,
-                    flexShrink: 0,
+                    background: avail ? '#00e67622' : '#ff336622',
+                    color: '#fff',
+                    fontFamily: 'Orbitron', fontSize: 8, cursor: 'pointer',
+                    letterSpacing: '0.1em', opacity: isTog ? 0.5 : 1,
+                    boxShadow: `0 0 10px ${col}44`,
+                    flexShrink: 0, fontWeight: 700,
                   }}
                 >
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
@@ -193,6 +181,19 @@ const refreshBtn: React.CSSProperties = {
   padding: '5px 12px', fontFamily: 'Orbitron', fontSize: 7,
   color: '#00d4ff55', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
 };
+
+function CarPhoto({ url, name, col }: { url: string | null; name: string; col: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) return <CarPlaceholder col={col} />;
+  return (
+    <img
+      src={url}
+      alt={name}
+      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 function CarPlaceholder({ col }: { col: string }) {
   return (
