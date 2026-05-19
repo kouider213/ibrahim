@@ -2,7 +2,7 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-18 (Jarvis Redesign + Simulateur Web)
+> Dernière mise à jour : 2026-05-19 (Simulator UI Redesign Cyberpunk Robot)
 
 ---
 
@@ -82,45 +82,55 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ---
 
-### Simulateur Android Web — TESTÉ ET DÉPLOYÉ 2026-05-18
+### Simulateur Android Web — REDESIGN CYBERPUNK ROBOT — 2026-05-19
 - ✅ `simulator/` — React+TS+Vite+Tailwind+Framer Motion
 - ✅ Coque Android réaliste (375×812px, punch-hole, barre statut, nav)
-- ✅ VoiceScreen : visualiseur canvas (anneaux concentriques + particules + VAD RMS)
+- ✅ **9 onglets** (scrollable bottom bar) : VOIX / CHAT / RESAS / PARC / CA / CLIENTS / RAPPELS / DOCS / CONFIG
+- ✅ **VoiceScreen redesign** : robot SVG `DzaryxRobot` (tête chrome/visor, yeux LED eyeGlow, barres audio oreilles, bouche LED, antenne blink, anneau thinking jaune, anneaux rotatifs), header DZARYX + subtitle, status badge animé, 3 boutons SCAN/MIC/VISION avec labels, canvas background particles
+- ✅ **TextScreen redesign** : header HUD cyberpunk (connexion + DZARYX + subtitle), avatar `RobotAvatar` SVG mini dans bulles IA, typo Share Tech Mono, input HUD-style
+- ✅ Couleur thinking : `#ffaa00` (jaune) dans les 2 écrans
 - ✅ TextScreen : chat Jarvis avec streaming messages + audio TTS
-- ✅ FeedbackPanel : feedback rapide / checklist 77 items / historique
+- ✅ **BookingsScreen** : liste + CRUD + création formulaire + profit live
+- ✅ **FleetScreen** : stats parc (total/dispo/occupancy%) + toggle disponibilité + revenus 30j
+- ✅ **RevenueScreen** : CA today/week/month + profit Kouider + top clients scorés
+- ✅ **ClientsScreen** : search + badges VIP/FRÉQUENT/RÉGULIER + intel expand
+- ✅ **RemindersScreen** : HIGH/MEDIUM/LOW groupés + dismiss + tel: cliquable
+- ✅ **DocumentsScreen** : fetch passeport/permis/contrat + OCR file input
+- ✅ **SettingsScreen** : acteur switcher Kouider/Houari + health backend + cache + jobs scheduler
+- ✅ `api.ts` : actor management (setSimActor/getSimActor) + `business` API layer complet
 - ✅ Connexions réelles Railway Socket.IO `/mobile` + REST API
-- ✅ Build propre : 228KB JS, 0 erreurs TS
+- ✅ Build propre : 264KB JS, 0 erreurs TS
 - ✅ **Déployé** : https://dzaryx-simulator.netlify.app (POSIX zip via make-zip.mjs)
 - ✅ **VAD fixé** : RMS time-domain (SPEECH_RMS=0.004, SILENCE_RMS=0.008)
 - ✅ **TTS fixé** : textOnly=false → Dzaryx parle
 - ✅ **AudioContext fixé** : overlay unlock obligatoire (Chrome autoplay policy)
-- ✅ **AirPods Pro** : SILENCE_RMS=0.008 + MAX_REC_MS=8000ms force-stop
-- ✅ **Canvas** : height=704 (PHONE_H-FRAME-STATUSBAR-NAVBAR)
-- ✅ **Responsive** : auto-scale min 45% pour petits écrans
 - ✅ **Feedback loop** : feedback-server.mjs localhost:4567 + feedback-inbox.json
-- Commits : `9bc0dad` + fixes session 2026-05-18
+- Commits : `9bc0dad` + `56b3fa1` + `fdbbe4e`
 
-### Native App (dzaryx-native) — AJOUTÉ 2026-05-17
+### Native App (dzaryx-native) — MISE À JOUR 2026-05-18
 - ✅ Expo SDK 54 / React Native 0.81.5 / newArchEnabled
 - ✅ Multi-acteur : Kouider (cyan #00e5ff) + Houari (violet #7c3aed)
 - ✅ Orb JARVIS — 4 états animés (idle/listen/think/speak)
 - ✅ Voice mode (hold mic → Groq Whisper → Claude → ElevenLabs)
 - ✅ Car mode (mains libres, auto-listen 8s, keep-awake)
 - ✅ Camera vision (CameraView SDK54, takePicture corrigé)
-- ✅ Settings screen (backend ping live, version 1.1.0, logout)
+- ✅ Settings screen (backend ping live, version 1.2.0, logout, bouton Documents)
 - ✅ Quick commands (4 boutons : résa/parc/impayés/météo)
 - ✅ Push notifications (token Expo stocké Redis, reçu même app fermée)
 - ✅ onboarding → /auth/login (acteur sélectionné avant chat)
 - ✅ Token acteur-scoped (Houari n'utilise plus le token Kouider)
 - ✅ TypeScript : 0 erreurs
 - ✅ **Écran Réservations** : liste, stats, filtres, search par nom/tél/voiture/ID, tap → détail
-- ✅ **Écran Nouvelle Résa** : client+voiture+dates+prix+PPD (envoyé en 1 seul POST, plus de PATCH)
+- ✅ **Écran Nouvelle Résa** : client+voiture+dates+prix+PPD (envoyé en 1 seul POST)
 - ✅ **Écran Détail Résa** : infos + financier + édition statut/paiement/prix/notes + appel + suppression
 - ✅ **Écran Parc** : disponibilité toggle, revenus 30j, stats occupancy, BI Fleet
 - ✅ **Écran Revenus** : CA aujourd'hui/semaine/mois, profit Kouider, top clients
 - ✅ **Écran Rappels** : HIGH/MEDIUM/LOW, arrivées demain, passeports manquants, retards
 - ✅ **Écran Clients** : liste scorée VIP/FRÉQUENT/RÉGULIER/NOUVEAU, search, tel: cliquable
-- ✅ **Settings** : backfill intelligence clients, déclencheurs jobs
+- ✅ **Settings** : backfill intelligence clients, déclencheurs jobs, nav → Documents
+- ✅ **[NOUVEAU] Écran Documents** : fetch passeport/permis/contrat par nom client + OCR scan caméra
+- ✅ **[NOUVEAU] voice.tsx** : bouton SCAN OCR (📄) + Houari token fixé (useStore au lieu de MOBILE_TOKEN hardcodé)
+- ✅ **_layout.tsx** : route `documents` enregistrée
 
 ### Conversation Engine V2 — AJOUTÉ 2026-05-16
 - ✅ Normalizer : correction typos (paseport→passeport, beringo→berlingo, etc.)
@@ -152,10 +162,10 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-1. **Interface + Logo** (demandé par Kouider le 2026-05-18) : modifier l'interface du simulateur et le logo de l'app
-2. **Confirmer TTS** : tester audio Dzaryx sur https://dzaryx-simulator.netlify.app (overlay → parler → Dzaryx doit répondre vocalement)
-3. **EAS Build** (attend June 1) : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
-4. **Railway** (action MANUELLE Kouider) : Ajouter MOBILE_TOKEN_HOUARI (`99c3dba3...`) + Twilio vars
+1. **Tester le simulateur** : https://dzaryx-simulator.netlify.app → tester chaque onglet (voix + chat + réservations + parc + CA + clients + rappels + docs + réglages)
+2. **Interface + Logo** (demandé par Kouider le 2026-05-18) : modifier l'interface et le logo si souhaité après test simulateur
+3. **Railway** (action MANUELLE Kouider) : Ajouter `MOBILE_TOKEN_HOUARI=99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2`
+4. **EAS Build** (attend June 1, 2026) : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
 5. **Google Cloud** (action manuelle) : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
 6. **Phase 7** : WhatsApp bot, PDF contrats, paiement Chargily, export Excel
 
@@ -209,6 +219,19 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 - PROGRESS.md créé (source de vérité complète)
 - 6 commits : aed62e3, c98bd8d, 3c144cc, 42be09b, 35fdaed, b3b33df
 
+**Session 2026-05-18 (Simulator Full Parity + APK Bugs) :**
+- Simulator : 9-tab navigation complète (Phone.tsx rewrite)
+- api.ts simulator : actor management + business API layer (15 méthodes)
+- 7 nouveaux écrans simulator : BookingsScreen, FleetScreen, RevenueScreen, ClientsScreen, RemindersScreen, DocumentsScreen, SettingsScreen
+- VoiceScreen simulator : bouton SCAN OCR ajouté
+- APK voice.tsx : Houari token fixé (B020) + bouton SCAN OCR ajouté
+- APK documents.tsx : nouvel écran (fetch docs + OCR caméra)
+- APK _layout.tsx : route documents enregistrée
+- APK settings.tsx : bouton 📄 DOCUMENTS ajouté dans Actions
+- TypeScript 0 erreurs sur les deux projets
+- Commit : `56b3fa1` — push main — Railway auto-deploy
+- Simulateur déployé Netlify : https://dzaryx-simulator.netlify.app
+
 **Dernier commit** : `71d2b1c` fix(anti-hallucination): Gates 4/4b/4c + fastPathGuard
 
 ---
@@ -234,8 +257,8 @@ Flight Bot: Python séparé (flight-bot/) — vols personnels Kouider
 | backend/ | ✅ Déployé Railway | TypeScript 0 erreurs |
 | nexus/ (Python) | ✅ Tourne sur PC | Streaming SSE OK |
 | mobile/ (React) | ✅ Déployé Netlify | Dashboard + Chat |
-| dzaryx-native/ | 🟡 Code prêt, APK non buildé | Jarvis redesign voice.tsx+text.tsx — EAS June 1 |
-| simulator/ | ✅ Build propre 228KB | Simulateur Android web, déploiement Netlify pending |
+| dzaryx-native/ | 🟡 Code prêt, APK non buildé | 9 écrans + documents.tsx + scan + Houari fix — EAS June 1 |
+| simulator/ | ✅ Déployé Netlify 264KB | 9 onglets parité APK complète — https://dzaryx-simulator.netlify.app |
 | pc-agent/ (TS) | ❓ Non vérifié | Alternative à Nexus |
 | flight-bot/ | ❓ Non vérifié | Indépendant |
 

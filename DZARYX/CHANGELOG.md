@@ -5,6 +5,66 @@
 
 ---
 
+## 2026-05-19 — Simulator UI Redesign Cyberpunk Robot (Claude Sonnet 4.6)
+
+### VoiceScreen + TextScreen redesign ✅
+- **Commit** : `fdbbe4e`
+- **Fichiers** :
+  - `simulator/src/components/screens/VoiceScreen.tsx` (REWRITE — robot SVG)
+  - `simulator/src/components/screens/TextScreen.tsx` (REWRITE — HUD header)
+  - `simulator/src/index.css` (robot keyframe animations)
+- **Features** :
+  - `DzaryxRobot` SVG : tête chrome + visor + yeux LED cyan + oreilles avec 5 barres audio + bouche LED (parle/plat) + antenne clignotante + anneau thinking jaune + anneaux rotatifs externes
+  - VoiceScreen : header DZARYX + subtitle "IA DE FIK CONCIERGERIE · ORAN", badge status animé, robot centré animé (float / floatListen), 3 boutons SCAN/MIC/VISION avec labels
+  - Couleur thinking : `#9b59b6` → `#ffaa00` (jaune comme référence images)
+  - TextScreen : header HUD avec connexion + titre DZARYX + subtitle, avatar `RobotAvatar` mini SVG dans les bulles (remplace "D"), typo Share Tech Mono, input HUD-style
+  - Canvas réduit à background (particles + anneaux ambiants, sans orb central)
+  - Netlify deploy : `6a0c0af3` → https://dzaryx-simulator.netlify.app ✅
+
+---
+
+## 2026-05-18 — Simulator Full Parity + APK Bugs (Claude Sonnet 4.6)
+
+### Simulator — 9 onglets, parité APK complète ✅
+- **Commit** : `56b3fa1`
+- **Fichiers** :
+  - `simulator/src/components/Phone.tsx` (REWRITE — 9-tab navigation)
+  - `simulator/src/services/api.ts` (actor management + business API layer)
+  - `simulator/src/components/screens/BookingsScreen.tsx` (NEW)
+  - `simulator/src/components/screens/FleetScreen.tsx` (NEW)
+  - `simulator/src/components/screens/RevenueScreen.tsx` (NEW)
+  - `simulator/src/components/screens/ClientsScreen.tsx` (NEW)
+  - `simulator/src/components/screens/RemindersScreen.tsx` (NEW)
+  - `simulator/src/components/screens/DocumentsScreen.tsx` (NEW)
+  - `simulator/src/components/screens/SettingsScreen.tsx` (NEW)
+  - `simulator/src/components/screens/VoiceScreen.tsx` (SCAN button added)
+- **Features** :
+  - Phone.tsx : `Page` type 9 valeurs, `TABS` array, `NavBar` scrollable horizontal (overflowX auto), `renderScreen()` routing
+  - api.ts : `HOUARI_TOKEN`, `setSimActor/getSimActor`, `getToken()` actor-scoped, `getOrCreateSessionId()` → `voice_${actor}`, `business` export (15 méthodes : fetchBookings, fetchCars, fetchFleet, fetchRevenue, fetchReminders, dismissReminder, fetchClients, fetchClientIntel, toggleCar, deleteBooking, createBooking, clearCache, fetchJobs, triggerJob, health, nexus)
+  - BookingsScreen : liste + search + expand détail + delete + create form inline (profit live)
+  - FleetScreen : stats (total/dispo/occupancy%) + toggle disponibilité + revenus 30j + intel
+  - RevenueScreen : CA today/week/month + profit Kouider + top clients scorés (VIP=#ffd700)
+  - ClientsScreen : search + score badges + intelligence expand + phone link
+  - RemindersScreen : HIGH/MEDIUM/LOW groupés + dismiss + phone link
+  - DocumentsScreen : fetch PASSEPORT/PERMIS/CONTRAT par nom + OCR file input → /api/vision/scan
+  - SettingsScreen : acteur switcher (Kouider/Houari) + backend health + nexus status + cache clear + scheduler jobs trigger
+- **TypeScript** : 0 erreurs
+- **Déployé** : https://dzaryx-simulator.netlify.app (make-zip.mjs POSIX zip)
+
+### APK — Bugs fixés + Écran Documents ✅
+- **Commit** : `56b3fa1`
+- **Fichiers** :
+  - `dzaryx-native/app/voice.tsx` (Houari token fix + SCAN button)
+  - `dzaryx-native/app/documents.tsx` (NEW)
+  - `dzaryx-native/app/_layout.tsx` (route documents)
+  - `dzaryx-native/app/settings.tsx` (bouton Documents + styles)
+- **B020 fixé** : `voice.tsx` utilisait `MOBILE_TOKEN` hardcodé (Kouider) → `useStore(s => s.mobileToken)` + `useStore(s => s.sessionId)` dynamique
+- **B021 fixé** : Bouton SCAN OCR absent dans voice.tsx APK → ajouté (ImagePicker.launchCameraAsync → /api/vision/scan → /api/chat → TTS)
+- **documents.tsx** : écran complet — section fetch (TextInput nom + 3 boutons PASSEPORT/PERMIS/CONTRAT → POST /api/chat) + section OCR (launchCameraAsync → POST /api/vision/scan)
+- **TypeScript** : 0 erreurs
+
+---
+
 ## 2026-05-17 — Feature Parity Session (Claude Sonnet 4.6) — Autonomous
 
 ### Native App — Écrans Réservations ✅
