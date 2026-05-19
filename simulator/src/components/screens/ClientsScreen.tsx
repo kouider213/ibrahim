@@ -3,11 +3,11 @@ import { business, type ClientSummary, type ClientIntelligence } from '../../ser
 
 const SCORE_COL: Record<string, string> = {
   VIP: '#ffd700', FREQUENT: '#00d4ff', FRÉQUENT: '#00d4ff',
-  REGULAR: '#00e676', RÉGULIER: '#00e676', NEW: '#ffffff88', NOUVEAU: '#ffffff88',
+  REGULAR: '#00e676', RÉGULIER: '#00e676', NEW: '#ffffff66', NOUVEAU: '#ffffff66',
 };
 const SCORE_BG: Record<string, string> = {
-  VIP: '#ffd70022', FREQUENT: '#00d4ff22', FRÉQUENT: '#00d4ff22',
-  REGULAR: '#00e67622', RÉGULIER: '#00e67622', NEW: '#ffffff11', NOUVEAU: '#ffffff11',
+  VIP: '#ffd70018', FREQUENT: '#00d4ff18', FRÉQUENT: '#00d4ff18',
+  REGULAR: '#00e67618', RÉGULIER: '#00e67618', NEW: '#ffffff0a', NOUVEAU: '#ffffff0a',
 };
 
 export default function ClientsScreen() {
@@ -38,87 +38,114 @@ export default function ClientsScreen() {
     (c.phone?.includes(search) ?? false)
   );
 
-  const getScore = (name: string, def = 'NOUVEAU') => {
+  const getScore = (name: string) => {
     const ci = intel.get(name);
-    return ci?.score?.toUpperCase() ?? def;
+    return ci?.score?.toUpperCase() ?? 'NOUVEAU';
   };
 
   const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k€` : `${Math.round(n)}€`;
 
+  const vipCount = clients.filter(c => getScore(c.name) === 'VIP').length;
+  const totalSpent = clients.reduce((s, c) => s + (intel.get(c.name)?.total_spent ?? 0), 0);
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+      <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
+
       {/* Header */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #00d4ff15', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff', letterSpacing: '0.3em' }}>CLIENTS</span>
-          <span style={{ marginLeft: 'auto', fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff66' }}>{clients.length}</span>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #00d4ff12', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #00d4ff55' }}>
+            CLIENTS
+          </div>
+          <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff55', letterSpacing: '0.15em' }}>
+            {clients.length} PROFILS
+          </span>
         </div>
+
+        {/* KPI row */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+          <KpiCard label="TOTAL" val={String(clients.length)} col="#00d4ff" />
+          <KpiCard label="VIP" val={String(vipCount)} col="#ffd700" />
+          <KpiCard label="CA TOTAL" val={fmt(totalSpent)} col="#00e676" />
+        </div>
+
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Chercher nom / téléphone…"
           style={inputStyle}
         />
+        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #00d4ff44, transparent)' }} />
       </div>
 
-      {/* List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-        {loading ? (
-          <Loader />
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 20, fontSize: 9, color: '#ffffff22' }}>Aucun client</div>
-        ) : filtered.map(c => {
-          const score = getScore(c.name);
-          const scCol = SCORE_COL[score] ?? '#ffffff66';
-          const scBg  = SCORE_BG[score] ?? '#ffffff0a';
-          const ci    = intel.get(c.name);
-          const isExp = expanded === c.name;
+      {/* Client list */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {loading ? <HudLoader /> : filtered.length === 0 ? <HudEmpty text="Aucun client" /> : filtered.map(c => {
+          const score  = getScore(c.name);
+          const scCol  = SCORE_COL[score] ?? '#ffffff55';
+          const scBg   = SCORE_BG[score] ?? '#ffffff08';
+          const ci     = intel.get(c.name);
+          const isExp  = expanded === c.name;
+          const initials = c.name.split(' ').map(w => w[0] ?? '').slice(0, 2).join('').toUpperCase();
 
           return (
-            <div key={c.name} style={{ borderBottom: '1px solid #ffffff08' }}>
-              <div
-                onClick={() => setExpanded(e => e === c.name ? null : c.name)}
-                style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
-              >
-                {/* Score badge */}
+            <div key={c.name} style={{
+              borderRadius: 10, overflow: 'hidden',
+              border: `1px solid ${scCol}22`,
+              background: `linear-gradient(135deg, ${scCol}06, rgba(2,8,16,0.5))`,
+              boxShadow: isExp ? `0 0 12px ${scCol}15` : 'none',
+            }}>
+              <div onClick={() => setExpanded(e => e === c.name ? null : c.name)}
+                style={{ padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* Avatar */}
                 <div style={{
-                  padding: '2px 6px', borderRadius: 4, fontSize: 7,
-                  background: scBg, color: scCol, flexShrink: 0,
-                  fontFamily: 'Orbitron', letterSpacing: '0.1em',
+                  width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                  background: scBg, border: `1.5px solid ${scCol}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'Orbitron', fontSize: 10, color: scCol,
+                  boxShadow: `0 0 8px ${scCol}22`,
                 }}>
-                  {score.slice(0, 4)}
+                  {initials || '?'}
                 </div>
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {c.name}
                   </div>
-                  <div style={{ fontSize: 8, color: '#ffffff55' }}>
+                  <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>
                     {c.bookingCount} résa · {fmt(c.totalSpent)}
                   </div>
                 </div>
 
-                {/* Phone link */}
-                {c.phone && (
-                  <a
-                    href={`tel:${c.phone}`}
-                    onClick={e => e.stopPropagation()}
-                    style={{ fontSize: 14, textDecoration: 'none', flexShrink: 0 }}
-                    title={c.phone}
-                  >📞</a>
-                )}
+                {/* Score + phone */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <div style={{
+                    padding: '3px 7px', borderRadius: 6, fontSize: 7,
+                    background: scBg, color: scCol,
+                    fontFamily: 'Orbitron', letterSpacing: '0.1em',
+                    border: `1px solid ${scCol}44`,
+                    boxShadow: score === 'VIP' ? `0 0 8px ${scCol}44` : 'none',
+                  }}>
+                    {score.slice(0, 4)}
+                  </div>
+                  {c.phone && (
+                    <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()}
+                      style={{ fontSize: 15, textDecoration: 'none' }}>📞</a>
+                  )}
+                </div>
               </div>
 
               {/* Intelligence detail */}
               {isExp && ci && (
-                <div style={{ padding: '4px 12px 8px 20px', background: '#030f1a' }}>
+                <div style={{ padding: '6px 12px 10px 20px', background: 'rgba(0,5,15,0.96)', borderTop: `1px solid ${scCol}18` }}>
                   <Row label="Voitures préférées" val={(ci.preferred_cars ?? []).join(', ') || '—'} />
                   <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days}j` : '—'} />
                   <Row label="Style négociation" val={ci.negotiation_style ?? '—'} />
                   <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
                   <Row label="Dépenses total" val={fmt(ci.total_spent)} col="#ffd700" />
                   {ci.notes && (
-                    <div style={{ marginTop: 4, padding: '4px 6px', background: '#0a1520', borderRadius: 4, fontSize: 8, color: '#ffffff88', lineHeight: 1.5 }}>
+                    <div style={{ marginTop: 6, padding: '6px 8px', background: '#00d4ff05', borderRadius: 6, border: '1px solid #00d4ff0f', fontSize: 8, color: '#ffffff77', lineHeight: 1.6 }}>
                       {ci.notes}
                     </div>
                   )}
@@ -132,19 +159,45 @@ export default function ClientsScreen() {
   );
 }
 
-function Row({ label, val, col }: { label: string; val: string; col?: string }) {
+function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-      <span style={{ fontSize: 8, color: '#ffffff44' }}>{label}</span>
-      <span style={{ fontSize: 8, color: col ?? '#ffffff88', maxWidth: '55%', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+    <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
+      <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.15em', marginTop: 2 }}>{label}</div>
     </div>
   );
 }
-function Loader() {
-  return <div style={{ textAlign: 'center', padding: 20, fontSize: 9, color: '#00d4ff44', fontFamily: 'Orbitron', letterSpacing: '0.2em' }}>CHARGEMENT…</div>;
+
+function Row({ label, val, col }: { label: string; val: string; col?: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+      <span style={{ fontSize: 8, color: '#ffffff2a' }}>{label}</span>
+      <span style={{ fontSize: 8, color: col ?? '#ffffff77', maxWidth: '55%', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+    </div>
+  );
 }
+
+function HudLoader() {
+  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#00d4ff33', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>CHARGEMENT…</div>;
+}
+function HudEmpty({ text }: { text: string }) {
+  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#ffffff1a', letterSpacing: '0.1em' }}>{text}</div>;
+}
+
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  background: '#0a1520', border: '1px solid #00d4ff22', borderRadius: 6,
-  padding: '5px 8px', fontFamily: 'Share Tech Mono', fontSize: 10, color: '#fff', outline: 'none',
+  background: 'rgba(0,212,255,0.04)', border: '1px solid #00d4ff1a',
+  borderRadius: 8, padding: '6px 10px',
+  fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
+
+function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
+  const s = 12, t = 1.5, col = '#00d4ff';
+  const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
+  const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
+  const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
+  const bR = pos.endsWith('r')   ? `${t}px solid ${col}33` : 'none';
+  const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
+  const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
+  return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
+}

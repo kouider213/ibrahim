@@ -4,19 +4,19 @@ import { business, setSimActor, getSimActor } from '../../services/api.ts';
 interface Job { name: string; cron: string; next: number | null; }
 
 const ACTORS = [
-  { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#00e5ff' },
-  { id: 'houari'  as const, label: 'HOUARI',  role: 'Associé',          col: '#7c3aed' },
+  { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#00e5ff', icon: 'K' },
+  { id: 'houari'  as const, label: 'HOUARI',  role: 'Associé',          col: '#7c3aed', icon: 'H' },
 ];
 
 export default function SettingsScreen() {
-  const [actor, setActorLocal]  = useState<'kouider' | 'houari'>(getSimActor());
-  const [health, setHealth]     = useState<{ status: string; uptime?: number } | null>(null);
-  const [nexus, setNexus]       = useState<{ connected: boolean } | null>(null);
-  const [jobs, setJobs]         = useState<Job[]>([]);
-  const [loadingH, setLH]       = useState(false);
-  const [triggering, setTrig]   = useState<string | null>(null);
-  const [clearing, setClear]    = useState(false);
-  const [msg, setMsg]           = useState('');
+  const [actor, setActorLocal] = useState<'kouider' | 'houari'>(getSimActor());
+  const [health, setHealth]    = useState<{ status: string; uptime?: number } | null>(null);
+  const [nexus, setNexus]      = useState<{ connected: boolean } | null>(null);
+  const [jobs, setJobs]        = useState<Job[]>([]);
+  const [loadingH, setLH]      = useState(false);
+  const [triggering, setTrig]  = useState<string | null>(null);
+  const [clearing, setClear]   = useState(false);
+  const [msg, setMsg]          = useState('');
 
   const checkHealth = async () => {
     setLH(true);
@@ -28,22 +28,21 @@ export default function SettingsScreen() {
   };
 
   const loadJobs = async () => {
-    try { const r = await business.fetchJobs(); setJobs(r.jobs ?? []); } catch { setJobs([]); }
+    try { setJobs((await business.fetchJobs()).jobs ?? []); } catch { setJobs([]); }
   };
 
   useEffect(() => { void checkHealth(); void loadJobs(); }, []);
 
   const selectActor = (id: 'kouider' | 'houari') => {
-    setActorLocal(id);
-    setSimActor(id);
-    setMsg(`Acteur → ${id.toUpperCase()}`);
+    setActorLocal(id); setSimActor(id);
+    setMsg(`ACTEUR → ${id.toUpperCase()}`);
     setTimeout(() => setMsg(''), 2000);
   };
 
   const triggerJob = async (name: string) => {
     setTrig(name);
     const ok = await business.triggerJob(name).catch(() => false);
-    setMsg(ok ? `✅ Job "${name}" déclenché` : `❌ Erreur job "${name}"`);
+    setMsg(ok ? `✅ "${name}" déclenché` : `❌ Erreur: "${name}"`);
     setTimeout(() => setMsg(''), 3000);
     setTrig(null);
   };
@@ -68,79 +67,118 @@ export default function SettingsScreen() {
     catch { return '—'; }
   };
 
+  const apiOk   = health?.status === 'ok';
+  const nexusOk = nexus?.connected ?? false;
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', overflowY: 'auto' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+      <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
+
       {/* Header */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #00d4ff15', flexShrink: 0 }}>
-        <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff', letterSpacing: '0.3em' }}>RÉGLAGES</span>
-        {msg && <span style={{ marginLeft: 8, fontSize: 8, color: '#00e676' }}>{msg}</span>}
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #00d4ff12', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #00d4ff55' }}>
+            RÉGLAGES
+          </div>
+          {msg && (
+            <span style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>
+          )}
+        </div>
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #00d4ff44, transparent)' }} />
       </div>
 
-      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
         {/* Actor selector */}
-        <Section title="ACTEUR">
+        <Panel title="ACTEUR SIMULÉ">
           <div style={{ display: 'flex', gap: 8 }}>
-            {ACTORS.map(a => (
-              <button
-                key={a.id}
-                onClick={() => selectActor(a.id)}
-                style={{
-                  flex: 1, padding: '10px 8px', borderRadius: 10,
-                  background: actor === a.id ? `${a.col}22` : '#0a1520',
-                  border: `1px solid ${actor === a.id ? a.col : '#ffffff15'}`,
+            {ACTORS.map(a => {
+              const active = actor === a.id;
+              return (
+                <button key={a.id} onClick={() => selectActor(a.id)} style={{
+                  flex: 1, padding: '14px 8px', borderRadius: 12,
+                  background: active ? `${a.col}18` : 'rgba(255,255,255,0.03)',
+                  border: `1.5px solid ${active ? a.col : '#ffffff10'}`,
                   cursor: 'pointer', textAlign: 'center',
-                }}
-              >
-                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: a.col, letterSpacing: '0.2em' }}>{a.label}</div>
-                <div style={{ fontSize: 7, color: '#ffffff55', marginTop: 3 }}>{a.role}</div>
-              </button>
-            ))}
+                  boxShadow: active ? `0 0 14px ${a.col}22` : 'none',
+                  transition: 'all 0.2s',
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    background: active ? `${a.col}22` : '#ffffff08',
+                    border: `1.5px solid ${active ? a.col : '#ffffff15'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    margin: '0 auto 8px',
+                    fontFamily: 'Orbitron', fontSize: 14, color: active ? a.col : '#ffffff44',
+                    boxShadow: active ? `0 0 12px ${a.col}44` : 'none',
+                  }}>{a.icon}</div>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: active ? a.col : '#ffffff55', letterSpacing: '0.2em', textShadow: active ? `0 0 8px ${a.col}` : 'none' }}>
+                    {a.label}
+                  </div>
+                  <div style={{ fontSize: 7, color: active ? `${a.col}77` : '#ffffff33', marginTop: 3 }}>{a.role}</div>
+                </button>
+              );
+            })}
           </div>
-        </Section>
+        </Panel>
 
         {/* System health */}
-        <Section title="SYSTÈME BACKEND">
-          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-            <StatPill label="API" val={health?.status ?? '…'} col={health?.status === 'ok' ? '#00e676' : '#ff3366'} />
-            <StatPill label="NEXUS" val={nexus?.connected ? 'CONNECTÉ' : 'HORS LIGNE'} col={nexus?.connected ? '#00e676' : '#ff3366'} />
-            <StatPill label="UPTIME" val={fmtUptime(health?.uptime)} col="#00d4ff" />
+        <Panel title="SYSTÈME BACKEND">
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <StatusPill label="API" val={health?.status?.toUpperCase() ?? '…'} ok={apiOk} />
+            <StatusPill label="NEXUS" val={nexusOk ? 'CONNECTÉ' : 'HORS LIGNE'} ok={nexusOk} />
+            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#00d4ff" />
           </div>
           <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#00d4ff')}>
-            {loadingH ? 'TEST…' : '↻ TESTER'}
+            {loadingH ? 'TEST EN COURS…' : '↻ TESTER LA CONNEXION'}
           </button>
-        </Section>
+        </Panel>
 
         {/* Cache */}
-        <Section title="CACHE">
+        <Panel title="CACHE BI">
+          <div style={{ fontSize: 8, color: '#ffffff44', marginBottom: 8, lineHeight: 1.6 }}>
+            Vide le cache des calculs de revenus. TTL normal: 5 minutes.
+          </div>
           <button onClick={() => void clearCache()} disabled={clearing} style={actionBtn('#ffb347')}>
-            {clearing ? 'VIDAGE…' : '⚡ VIDER CACHE BI (5 min → 0)'}
+            {clearing ? 'VIDAGE EN COURS…' : '⚡ VIDER CACHE (0 → 5 min)'}
           </button>
-        </Section>
+        </Panel>
 
-        {/* Scheduler jobs */}
+        {/* Scheduled jobs */}
         {jobs.length > 0 && (
-          <Section title="JOBS SCHEDULÉS">
+          <Panel title="JOBS SCHEDULÉS">
             {jobs.map(j => (
-              <div key={j.name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+              <div key={j.name} style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7,
+                padding: '6px 8px', borderRadius: 7,
+                background: 'rgba(255,255,255,0.02)', border: '1px solid #ffffff08',
+              }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 9, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
-                  <div style={{ fontSize: 7, color: '#ffffff44' }}>{j.cron} · prochain: {fmtNext(j.next)}</div>
+                  <div style={{ fontSize: 9, color: '#e0f0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
+                  <div style={{ fontSize: 7, color: '#ffffff33', marginTop: 1 }}>
+                    {j.cron} · prochain: {fmtNext(j.next)}
+                  </div>
                 </div>
                 <button
                   onClick={() => void triggerJob(j.name)}
                   disabled={triggering === j.name}
-                  style={miniBtn}
+                  style={{
+                    background: '#00d4ff18', border: '1px solid #00d4ff44', borderRadius: 6,
+                    width: 28, height: 28, cursor: 'pointer', color: '#00d4ff',
+                    fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, opacity: triggering === j.name ? 0.5 : 1,
+                  }}
                 >
                   {triggering === j.name ? '…' : '▶'}
                 </button>
               </div>
             ))}
-          </Section>
+          </Panel>
         )}
 
         {/* Version */}
-        <div style={{ textAlign: 'center', padding: '8px 0' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff22', letterSpacing: '0.3em' }}>
+        <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff15', letterSpacing: '0.3em' }}>
             DZARYX SIMULATOR v1.1 · FIK CONCIERGERIE ORAN
           </div>
         </div>
@@ -149,34 +187,53 @@ export default function SettingsScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#0a1520', borderRadius: 10, padding: '10px 12px', border: '1px solid #ffffff08' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff44', letterSpacing: '0.25em', marginBottom: 8 }}>{title}</div>
+    <div style={{ background: 'rgba(0,212,255,0.03)', borderRadius: 12, padding: '12px', border: '1px solid #00d4ff12' }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff55', letterSpacing: '0.3em', marginBottom: 10 }}>{title}</div>
       {children}
     </div>
   );
 }
 
-function StatPill({ label, val, col }: { label: string; val: string; col: string }) {
+function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: boolean; col?: string }) {
+  const c = col ?? (ok ? '#00e676' : '#ff3366');
   return (
-    <div style={{ flex: 1, textAlign: 'center', background: `${col}11`, borderRadius: 6, padding: '4px 6px', border: `1px solid ${col}33` }}>
-      <div style={{ fontSize: 7, color: `${col}88`, letterSpacing: '0.15em' }}>{label}</div>
-      <div style={{ fontSize: 8, color: col, fontFamily: 'Orbitron', marginTop: 1 }}>{val}</div>
+    <div style={{ flex: 1, textAlign: 'center', background: `${c}0a`, borderRadius: 8, padding: '6px 6px', border: `1px solid ${c}2a` }}>
+      <div style={{ fontSize: 6, color: `${c}77`, letterSpacing: '0.15em', marginBottom: 2 }}>{label}</div>
+      <div style={{
+        fontSize: 8, color: c, fontFamily: 'Orbitron',
+        textShadow: `0 0 6px ${c}66`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+      }}>
+        <div style={{
+          width: 5, height: 5, borderRadius: '50%', background: c,
+          boxShadow: `0 0 5px ${c}`,
+          animation: ok ? 'statusPulse 2s ease infinite' : 'none',
+          flexShrink: 0,
+        }} />
+        {val}
+      </div>
     </div>
   );
 }
 
 function actionBtn(col: string): React.CSSProperties {
   return {
-    background: 'transparent', border: `1px solid ${col}66`, borderRadius: 6,
-    padding: '6px 10px', fontFamily: 'Orbitron', fontSize: 7,
-    color: `${col}cc`, cursor: 'pointer', letterSpacing: '0.15em', width: '100%',
+    background: `${col}0d`, border: `1px solid ${col}44`, borderRadius: 8,
+    padding: '8px 12px', fontFamily: 'Orbitron', fontSize: 7,
+    color: `${col}cc`, cursor: 'pointer', letterSpacing: '0.15em',
+    width: '100%', textAlign: 'center',
   };
 }
 
-const miniBtn: React.CSSProperties = {
-  background: '#00d4ff22', border: '1px solid #00d4ff44', borderRadius: 4,
-  width: 24, height: 24, cursor: 'pointer', color: '#00d4ff', fontSize: 10,
-  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-};
+function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
+  const s = 12, t = 1.5, col = '#00d4ff';
+  const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
+  const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
+  const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
+  const bR = pos.endsWith('r')   ? `${t}px solid ${col}33` : 'none';
+  const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
+  const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
+  return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
+}
