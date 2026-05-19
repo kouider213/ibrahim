@@ -82,45 +82,39 @@ export default function FleetScreen() {
               border: `1px solid ${col}2a`,
               background: `linear-gradient(135deg, ${col}07, rgba(2,8,16,0.5))`,
             }}>
-              <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                {/* Car photo */}
+              {/* Photo banner — full width top */}
+              <div style={{ width: '100%', height: 90, overflow: 'hidden', position: 'relative' }}>
+                <CarPhoto url={car.image_url ?? null} name={car.name} col={col} banner />
+                {/* Status badge over photo */}
                 <div style={{
-                  width: 56, height: 44, borderRadius: 10, flexShrink: 0,
-                  background: `${col}0e`, border: `1.5px solid ${col}33`,
-                  overflow: 'hidden',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'absolute', top: 8, right: 8,
+                  padding: '4px 10px', borderRadius: 20,
+                  background: avail ? '#00e676dd' : '#ff3366dd',
+                  color: '#fff', fontFamily: 'Orbitron', fontSize: 8,
+                  fontWeight: 700, letterSpacing: '0.1em',
+                  boxShadow: `0 2px 8px ${col}66`,
                 }}>
-                  <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
+                  {avail ? '● DISPO' : '○ INDISPO'}
                 </div>
+              </div>
 
+              <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
                     {car.name}
                   </div>
-                  <div style={{ fontSize: 8, color: '#ffffff44', marginBottom: 4 }}>
+                  <div style={{ fontSize: 8, color: '#ffffff55', marginBottom: occ30d !== null ? 4 : 0 }}>
                     {car.category ?? 'Standard'}
-                    {car.base_price && ` · ${car.base_price}€/j`}
+                    {car.base_price ? ` · ${car.base_price}€/j` : ''}
+                    {rev30d !== null ? ` · Rev: ${rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}` : ''}
                   </div>
-                  {/* Occupancy bar */}
                   {occ30d !== null && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <div style={{ flex: 1, height: 3, background: '#ffffff0a', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{
-                          height: '100%', width: `${occ30d}%`,
-                          background: `linear-gradient(90deg, ${col}88, ${col})`,
-                          borderRadius: 2,
-                          transition: 'width 0.4s ease',
-                        }} />
+                        <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}88, ${col})`, borderRadius: 2 }} />
                       </div>
-                      <span style={{ fontSize: 7, color: `${col}99`, minWidth: 28, textAlign: 'right' }}>
-                        {occ30d}%
-                      </span>
-                    </div>
-                  )}
-                  {rev30d !== null && (
-                    <div style={{ fontSize: 7, color: '#00d4ff55', marginTop: 2 }}>
-                      Rev 30j: {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
+                      <span style={{ fontSize: 7, color: `${col}99`, minWidth: 28, textAlign: 'right' }}>{occ30d}%</span>
                     </div>
                   )}
                 </div>
@@ -130,14 +124,15 @@ export default function FleetScreen() {
                   onClick={() => void toggle(car)}
                   disabled={isTog}
                   style={{
-                    minWidth: 64, padding: '7px 10px', borderRadius: 8,
+                    padding: '8px 14px', borderRadius: 8, flexShrink: 0,
                     border: `1.5px solid ${col}`,
-                    background: avail ? '#00e67622' : '#ff336622',
-                    color: '#fff',
-                    fontFamily: 'Orbitron', fontSize: 8, cursor: 'pointer',
-                    letterSpacing: '0.1em', opacity: isTog ? 0.5 : 1,
-                    boxShadow: `0 0 10px ${col}44`,
-                    flexShrink: 0, fontWeight: 700,
+                    background: avail ? '#00e67633' : '#ff336633',
+                    color: col, fontFamily: 'Orbitron', fontSize: 8,
+                    cursor: isTog ? 'default' : 'pointer',
+                    letterSpacing: '0.1em', fontWeight: 700,
+                    opacity: isTog ? 0.5 : 1,
+                    boxShadow: `0 0 12px ${col}44`,
+                    textShadow: `0 0 8px ${col}`,
                   }}
                 >
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
@@ -182,13 +177,29 @@ const refreshBtn: React.CSSProperties = {
   color: '#00d4ff55', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
 };
 
-function CarPhoto({ url, name, col }: { url: string | null; name: string; col: string }) {
+function CarPhoto({ url, name, col, banner }: { url: string | null; name: string; col: string; banner?: boolean }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  if (!url || failed) return <CarPlaceholder col={col} />;
+  if (!url || failed) {
+    return (
+      <div style={{
+        width: '100%', height: '100%',
+        background: `linear-gradient(135deg, ${col}12, #020810)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {banner
+          ? <span style={{ fontSize: 32, opacity: 0.3 }}>🚗</span>
+          : <CarPlaceholder col={col} />}
+      </div>
+    );
+  }
   return (
     <>
-      {!loaded && <CarPlaceholder col={col} />}
+      {!loaded && (
+        <div style={{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${col}12, #020810)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {banner ? <span style={{ fontSize: 32, opacity: 0.3 }}>🚗</span> : <CarPlaceholder col={col} />}
+        </div>
+      )}
       <img
         src={url}
         alt={name}
