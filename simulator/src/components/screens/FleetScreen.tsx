@@ -83,13 +83,24 @@ export default function FleetScreen() {
               background: `linear-gradient(135deg, ${col}07, rgba(2,8,16,0.5))`,
             }}>
               <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                {/* Car icon */}
+                {/* Car photo */}
                 <div style={{
-                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  width: 48, height: 40, borderRadius: 10, flexShrink: 0,
                   background: `${col}12`, border: `1.5px solid ${col}44`,
+                  overflow: 'hidden',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20,
-                }}>🚗</div>
+                }}>
+                  {car.image_url ? (
+                    <img
+                      src={car.image_url}
+                      alt={car.name}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLDivElement).innerHTML = '<span style="font-size:20px">🚗</span>'; }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 20 }}>🚗</span>
+                  )}
+                </div>
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>

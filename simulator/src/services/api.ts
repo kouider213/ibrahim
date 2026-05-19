@@ -286,6 +286,7 @@ export interface Booking {
 export interface Car {
   id: string; name: string; available: boolean;
   base_price: number | null; category: string | null;
+  image_url?: string | null;
 }
 
 export interface FleetStat { car_name: string; available_now: boolean; occupancy_pct: number; revenue_30d: number; }
