@@ -280,6 +280,7 @@ export interface Booking {
   payment_status: string; status: string;
   client_price_per_day: number | null; owner_price_per_day: number | null;
   profit_kouider: number | null; nb_days: number | null;
+  rented_by?: string | null;
   cars?: { name: string } | null;
 }
 
@@ -293,9 +294,22 @@ export interface FleetStat { car_name: string; available_now: boolean; occupancy
 export interface FleetIntel { total_cars: number; available_now_count: number; occupancy_avg_pct: number; stats: FleetStat[]; }
 
 export interface RevenueSummary {
-  today_revenue: number; week_revenue: number; month_revenue: number;
-  kouider_profit_month: number; total_bookings_month: number;
-  top_clients: Array<{ client_name: string; total_spent: number; score: string }>;
+  today_revenue:            number;
+  week_revenue:             number;
+  month_revenue:            number;
+  last_month_revenue:       number;
+  last_month_profit:        number;
+  month_vs_last_pct:        number;
+  kouider_profit_month:     number;
+  houari_revenue_month:     number;
+  missing_owner_price:      number;
+  avg_booking_value:        number;
+  total_bookings_month:     number;
+  rejected_count:           number;
+  rejected_revenue_lost:    number;
+  total_unpaid_receivables: number;
+  top_clients:              Array<{ client_name: string; total_spent: number; score: string }>;
+  generated_at?:            string;
 }
 
 export interface ClientDocument {
