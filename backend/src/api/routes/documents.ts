@@ -63,6 +63,27 @@ router.post('/upload', requireMobileAuth, async (req, res) => {
   }
 });
 
+// GET /api/documents/search?name=Mohamed&type=passport — search by client name
+router.get('/search', requireMobileAuth, async (req, res) => {
+  const name = ((req.query['name'] as string) ?? '').trim();
+  const type = (req.query['type'] as string | undefined)?.trim();
+  if (!name) { res.status(400).json({ error: 'name query param required' }); return; }
+
+  try {
+    let q = supabase
+      .from('client_documents')
+      .select('*')
+      .ilike('client_name', `%${name}%`)
+      .order('created_at', { ascending: false });
+    if (type) q = q.eq('type', type);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    res.json({ documents: data ?? [], count: (data ?? []).length });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/documents/:phone — list documents for a client
 router.get('/:phone', requireMobileAuth, async (req, res) => {
   const phone = decodeURIComponent(req.params['phone'] as string);

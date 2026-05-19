@@ -298,6 +298,12 @@ export interface RevenueSummary {
   top_clients: Array<{ client_name: string; total_spent: number; score: string }>;
 }
 
+export interface ClientDocument {
+  id: string; client_name: string; client_phone: string;
+  type: 'passport' | 'license' | 'contract' | 'other';
+  file_url: string; notes?: string | null; created_at: string;
+}
+
 export interface SmartReminder {
   id: string; type: string; priority: 'HIGH' | 'MEDIUM' | 'LOW';
   client_name: string; client_phone: string | null; car_name: string;
@@ -335,6 +341,11 @@ export const business = {
 
   dismissReminder: (id: string) =>
     apiFetch<{ ok: boolean }>('/api/bi/reminders/dismiss', { method: 'POST', body: JSON.stringify({ id }) }),
+
+  fetchDocuments: (name: string, type?: string) =>
+    apiFetch<{ documents: ClientDocument[]; count: number }>(
+      `/api/documents/search?name=${encodeURIComponent(name)}${type ? `&type=${encodeURIComponent(type)}` : ''}`
+    ),
 
   fetchClients: () =>
     apiFetch<{ clients: ClientSummary[] }>('/api/clients'),
