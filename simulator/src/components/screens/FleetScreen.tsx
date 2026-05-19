@@ -85,8 +85,8 @@ export default function FleetScreen() {
               <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
                 {/* Car photo */}
                 <div style={{
-                  width: 48, height: 40, borderRadius: 10, flexShrink: 0,
-                  background: `${col}12`, border: `1.5px solid ${col}44`,
+                  width: 56, height: 44, borderRadius: 10, flexShrink: 0,
+                  background: `${col}0e`, border: `1.5px solid ${col}33`,
                   overflow: 'hidden',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
@@ -95,10 +95,13 @@ export default function FleetScreen() {
                       src={car.image_url}
                       alt={car.name}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLDivElement).innerHTML = '<span style="font-size:20px">🚗</span>'; }}
+                      onError={e => {
+                        const img = e.target as HTMLImageElement;
+                        img.style.display = 'none';
+                      }}
                     />
                   ) : (
-                    <span style={{ fontSize: 20 }}>🚗</span>
+                    <CarPlaceholder col={col} />
                   )}
                 </div>
 
@@ -190,6 +193,27 @@ const refreshBtn: React.CSSProperties = {
   padding: '5px 12px', fontFamily: 'Orbitron', fontSize: 7,
   color: '#00d4ff55', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
 };
+
+function CarPlaceholder({ col }: { col: string }) {
+  return (
+    <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Body */}
+      <rect x="2" y="12" width="36" height="10" rx="3" fill={col} fillOpacity="0.12" stroke={col} strokeWidth="0.8" strokeOpacity="0.5"/>
+      {/* Roof */}
+      <path d="M 10 12 L 14 5 L 26 5 L 30 12" fill={col} fillOpacity="0.1" stroke={col} strokeWidth="0.8" strokeOpacity="0.4"/>
+      {/* Windows */}
+      <rect x="14.5" y="6.5" width="4.5" height="5" rx="1" fill={col} fillOpacity="0.25"/>
+      <rect x="21" y="6.5" width="4.5" height="5" rx="1" fill={col} fillOpacity="0.25"/>
+      {/* Wheels */}
+      <circle cx="10" cy="22" r="3.5" fill="none" stroke={col} strokeWidth="1" strokeOpacity="0.6"/>
+      <circle cx="10" cy="22" r="1.5" fill={col} fillOpacity="0.3"/>
+      <circle cx="30" cy="22" r="3.5" fill="none" stroke={col} strokeWidth="1" strokeOpacity="0.6"/>
+      <circle cx="30" cy="22" r="1.5" fill={col} fillOpacity="0.3"/>
+      {/* Headlight */}
+      <rect x="36" y="14" width="2" height="3" rx="1" fill={col} fillOpacity="0.7"/>
+    </svg>
+  );
+}
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
   const s = 12, t = 1.5, col = '#00d4ff';
