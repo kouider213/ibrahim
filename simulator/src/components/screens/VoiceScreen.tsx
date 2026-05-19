@@ -24,6 +24,13 @@ const STATE_LABEL: Record<DzaryxStatus, [string, string]> = {
   speaking:  ['PARLE', 'SPEAKING'],
 };
 
+const STATE_MSG: Record<DzaryxStatus, string> = {
+  idle:      'Je suis prêt à vous écouter',
+  listening: 'Parlez naturellement...',
+  thinking:  'Réflexion en cours...',
+  speaking:  'Dzaryx vous répond...',
+};
+
 const SPEECH_RMS    = 0.004;
 const SILENCE_RMS   = 0.008;
 const SILENCE_DELAY = 1000;
@@ -52,7 +59,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [micErr, setMicErr]     = useState(false);
   const [wsConn, setWsConn]     = useState(false);
   const [visionActive, setVision] = useState(false);
-  const [particles]             = useState(() => makeParticles(25));
+  const [particles]             = useState(() => makeParticles(30));
   const [hudMsg, setHud]        = useState('SYSTÈME DZARYX INITIALISÉ');
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [rmsLevel, setRmsLevel] = useState(0);
@@ -124,11 +131,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     if (!analyser) return;
     const timeBuf = new Uint8Array(analyser.fftSize);
     const a = analyser;
-
     function tick() {
       if (statusRef.current === 'speaking' || statusRef.current === 'thinking') {
-        requestAnimationFrame(tick);
-        return;
+        requestAnimationFrame(tick); return;
       }
       a.getByteTimeDomainData(timeBuf);
       let sq = 0;
@@ -209,7 +214,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     if (statusRef.current !== 'speaking' && statusRef.current !== 'thinking') setStatus('idle');
   }
 
-  // ── Canvas — background particles + ambient rings ──────────────────────────
+  // ── Canvas background ───────────────────────────────────────────────────────
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -220,55 +225,51 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     function frame(t: number) {
       animRef.current = requestAnimationFrame(frame);
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#020510';
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, W, H);
 
       const rms   = rmsRef.current;
       const pulse = Math.sin(t * 0.002) * 0.5 + 0.5;
-      const amp   = Math.max(rms * 3, pulse * 0.08);
+      const amp   = Math.max(rms * 3, pulse * 0.06);
       const col   = STATE_COLOR[statusRef.current];
 
       for (let y = 0; y < H; y += 4) {
-        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillStyle = 'rgba(0,0,0,0.04)';
         ctx.fillRect(0, y, W, 2);
       }
 
-      [0.92, 0.72, 0.52].forEach((f, i) => {
-        const r = Math.min(cx, cy) * f + amp * 10;
+      // Subtle ambient rings
+      [0.95, 0.75].forEach((f, i) => {
+        const r = Math.min(cx, cy) * f;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = hexToRgba(col, (0.07 - i * 0.02) * (0.5 + amp));
-        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = hexToRgba(col, (0.04 - i * 0.015) * (1 + amp * 2));
+        ctx.lineWidth = 0.5;
         ctx.stroke();
       });
 
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(t * 0.0006);
-      ctx.beginPath();
-      ctx.arc(0, 0, Math.min(cx, cy) * 0.9, 0, Math.PI * 2);
-      ctx.strokeStyle = hexToRgba(col, 0.06 + amp * 0.04);
-      ctx.lineWidth = 0.6;
-      ctx.setLineDash([4, 16]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-
+      // Floating particles
       particles.forEach((p, idx) => {
-        p.y -= p.vy * (1 + amp * 1.5);
-        p.x += Math.sin(t * 0.001 + idx) * 0.3;
-        p.life -= 0.003;
+        p.y -= p.vy * (1 + amp);
+        p.x += Math.sin(t * 0.001 + idx) * 0.2;
+        p.life -= 0.002;
         if (p.life <= 0) {
           p.x = Math.random() * W;
           p.y = H + 10;
-          p.life = 0.5 + Math.random() * 0.5;
-          p.vy = 0.3 + Math.random() * 0.5;
+          p.life = 0.4 + Math.random() * 0.6;
+          p.vy = 0.2 + Math.random() * 0.4;
         }
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = hexToRgba(col, p.life * 0.3);
+        ctx.fillStyle = hexToRgba(col, p.life * 0.25);
         ctx.fill();
       });
+
+      // Star field
+      if (t % 3 < 1) {
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillRect(Math.random() * W, Math.random() * H * 0.6, 1, 1);
+      }
     }
     frame(0);
   }, [particles]);
@@ -309,81 +310,76 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   return (
     <div
       className="scanlines"
-      style={{ width: '100%', height: '100%', background: '#020510', position: 'relative', overflow: 'hidden' }}
+      style={{ width: '100%', height: '100%', background: '#000000', position: 'relative', overflow: 'hidden' }}
     >
       {/* Canvas background */}
-      <canvas
-        ref={canvasRef}
-        width={347} height={704}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-      />
+      <canvas ref={canvasRef} width={347} height={704}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
 
       {/* ── HEADER ── */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6,
-        padding: '12px 16px 8px',
-        background: 'linear-gradient(180deg, rgba(2,5,16,0.96) 0%, transparent 100%)',
+        padding: '10px 16px 6px',
+        background: 'linear-gradient(180deg, rgba(0,0,0,0.92) 60%, transparent)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          {/* Connection badge */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+          {/* Connection */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{
               width: 6, height: 6, borderRadius: '50%',
               background: wsConn ? '#00e676' : '#ff3366',
-              boxShadow: `0 0 6px ${wsConn ? '#00e676' : '#ff3366'}`,
+              boxShadow: `0 0 8px ${wsConn ? '#00e676' : '#ff3366'}`,
               animation: 'statusPulse 2s ease infinite',
             }} />
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: wsConn ? '#00e67699' : '#ff336699', letterSpacing: '0.12em' }}>
+            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: wsConn ? '#00e67688' : '#ff336688', letterSpacing: '0.12em' }}>
               {wsConn ? 'CONNECTÉ' : 'HORS LIGNE'}
             </span>
+            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff22', letterSpacing: '0.08em' }}>
+              · SYSTÈME EN LIGNE
+            </span>
           </div>
 
-          {/* DZARYX title */}
+          {/* DZARYX */}
           <div style={{
-            fontFamily: 'Orbitron', fontSize: 16, fontWeight: 900,
+            fontFamily: 'Orbitron', fontSize: 18, fontWeight: 900,
             color: '#00d4ff', letterSpacing: '0.4em',
-            textShadow: '0 0 12px #00d4ff, 0 0 24px #00d4ff44',
+            textShadow: '0 0 14px #00d4ff, 0 0 28px #00d4ff44',
           }}>DZARYX</div>
 
-          {/* Mic indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: micErr ? '#ff336677' : '#00d4ff44', letterSpacing: '0.1em' }}>
-              {micErr ? 'MIC ERR' : 'VAD'}
-            </span>
-            <div style={{
-              width: 5, height: 5, borderRadius: '50%',
-              background: micErr ? '#ff3366' : (audioUnlocked ? '#00d4ff' : '#ffffff22'),
-              boxShadow: micErr ? '0 0 4px #ff3366' : (audioUnlocked ? '0 0 4px #00d4ff' : 'none'),
-            }} />
+          {/* Menu icon */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, cursor: 'pointer', padding: 4 }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{ width: 16, height: 1.5, background: '#00d4ff55', borderRadius: 1 }} />
+            ))}
           </div>
         </div>
-
-        <div style={{ textAlign: 'center', marginBottom: 6 }}>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00d4ff55', letterSpacing: '0.2em' }}>
+        <div style={{ textAlign: 'center', marginBottom: 4 }}>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00d4ff44', letterSpacing: '0.2em' }}>
             IA DE FIK CONCIERGERIE · ORAN
           </span>
         </div>
-        <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${col}66, transparent)` }} />
+        <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${col}55, transparent)` }} />
       </div>
 
       {/* ── STATUS BADGE ── */}
       <div style={{
-        position: 'absolute', top: 80, left: 0, right: 0, zIndex: 6,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+        position: 'absolute', top: 74, left: 0, right: 0, zIndex: 6,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
       }}>
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '4px 14px', borderRadius: 20,
-          border: `1px solid ${col}44`, background: `${col}0d`,
+          display: 'flex', alignItems: 'center', gap: 7,
+          padding: '5px 16px', borderRadius: 20,
+          border: `1.5px solid ${col}55`, background: `${col}0d`,
+          boxShadow: `0 0 12px ${col}22`,
         }}>
           <div style={{
-            width: 5, height: 5, borderRadius: '50%',
-            background: col, boxShadow: `0 0 6px ${col}`,
+            width: 6, height: 6, borderRadius: '50%',
+            background: col, boxShadow: `0 0 8px ${col}`,
             animation: 'statusPulse 1.5s ease infinite',
           }} />
           <span style={{
-            fontFamily: 'Orbitron', fontSize: 9, fontWeight: 700,
-            color: col, letterSpacing: '0.25em', textShadow: `0 0 8px ${col}`,
+            fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700,
+            color: col, letterSpacing: '0.2em', textShadow: `0 0 8px ${col}`,
           }}>{labelFr}{toolLabel ? ` — ${toolLabel}` : ''}</span>
         </div>
         <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: `${col}55`, letterSpacing: '0.3em' }}>
@@ -391,58 +387,68 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         </span>
       </div>
 
-      {/* RMS bar */}
+      {/* ── ROBOT ── */}
+      <div style={{
+        position: 'absolute', left: '50%', top: '46%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 5,
+      }}>
+        <DzaryxRobot status={status} visionActive={visionActive} />
+      </div>
+
+      {/* ── STATE TEXT ── */}
+      <div style={{
+        position: 'absolute', bottom: 148, left: 0, right: 0, zIndex: 6, textAlign: 'center',
+      }}>
+        <div style={{
+          fontFamily: 'Exo 2', fontSize: 13, color: '#c8e8ff',
+          letterSpacing: '0.05em', marginBottom: 4,
+          textShadow: `0 0 10px ${col}44`,
+        }}>
+          {STATE_MSG[status]}
+        </div>
+        {displayText && (
+          <div style={{
+            margin: '0 20px',
+            padding: '6px 12px',
+            background: `${col}08`,
+            border: `1px solid ${col}22`,
+            borderRadius: 8,
+            fontFamily: 'Share Tech Mono', fontSize: 9,
+            color: `${col}cc`, letterSpacing: '0.06em',
+            lineHeight: 1.5,
+            maxHeight: 50, overflow: 'hidden',
+          }}>
+            {displayText.slice(0, 100)}{displayText.length > 100 ? '…' : ''}
+          </div>
+        )}
+        {/* HUD msg */}
+        <div style={{ marginTop: 4 }}>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#00d4ff33', letterSpacing: '0.12em' }}>
+            {hudMsg.slice(0, 60)}
+          </span>
+        </div>
+      </div>
+
+      {/* ── RMS BAR ── */}
       {audioUnlocked && (
-        <div style={{ position: 'absolute', top: 118, left: 20, right: 20, zIndex: 6, height: 2, background: '#ffffff08', borderRadius: 1 }}>
+        <div style={{ position: 'absolute', bottom: 144, left: 20, right: 20, zIndex: 6, height: 2, background: '#ffffff08', borderRadius: 1 }}>
           <div style={{
             height: '100%', width: `${rmsLevel * 100}%`,
-            background: rmsLevel > 0.05 ? '#ff3366' : rmsLevel > 0.01 ? col : '#ffffff0f',
+            background: rmsLevel > 0.05 ? '#ff3366' : col,
             borderRadius: 1, transition: 'width 0.04s linear',
           }} />
         </div>
       )}
 
-      {/* ── ROBOT ── */}
-      <div style={{
-        position: 'absolute', left: '50%', top: '50%',
-        transform: 'translate(-50%, -57%)',
-        zIndex: 5,
-      }}>
-        <DzaryxRobot status={status} />
-      </div>
-
-      {/* HUD message */}
-      <div style={{
-        position: 'absolute', bottom: 162, left: 14, right: 14, zIndex: 6, textAlign: 'center',
-      }}>
-        <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${col}66`, letterSpacing: '0.15em' }}>
-          {hudMsg}
-        </span>
-      </div>
-
-      {/* Response text */}
-      {displayText && (
-        <div className="fade-in" style={{
-          position: 'absolute', bottom: 98, left: 14, right: 14, zIndex: 6,
-          background: 'rgba(0,3,12,0.88)', border: `1px solid ${col}33`,
-          borderRadius: 8, padding: '8px 12px', maxHeight: 88, overflow: 'hidden',
-        }}>
-          {(['tl','tr','bl','br'] as const).map(p => <MiniCorner key={p} pos={p} col={col} />)}
-          <p style={{
-            fontFamily: 'Share Tech Mono', fontSize: 10,
-            color: col, lineHeight: 1.55, margin: 0, textShadow: `0 0 6px ${col}44`,
-          }}>{displayText}</p>
-        </div>
-      )}
-
       {/* ── BOTTOM BUTTONS ── */}
       <div style={{
-        position: 'absolute', bottom: 14, left: 0, right: 0, zIndex: 6,
+        position: 'absolute', bottom: 12, left: 0, right: 0, zIndex: 6,
         display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end',
-        padding: '0 12px',
+        padding: '0 14px',
       }}>
-        {/* SCAN */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+        {/* SCAN DOCUMENT */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <button
             onClick={() => {
               const input = document.createElement('input');
@@ -466,49 +472,57 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             }}
             disabled={scanActive}
             style={{
-              width: 48, height: 48, borderRadius: 12,
-              background: scanActive ? '#0a0515' : 'rgba(0,0,0,0.75)',
-              border: `1.5px solid ${scanActive ? '#ffaa00' : '#00d4ff33'}`,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: scanActive ? '0 0 12px #ffaa0066' : '0 0 6px #00d4ff11',
-              fontSize: 20, transition: 'all 0.2s ease',
+              width: 54, height: 54, borderRadius: 14,
+              background: scanActive ? '#100a02' : '#080808',
+              border: `1.5px solid ${scanActive ? '#ffaa00' : '#ff6b0044'}`,
+              cursor: 'pointer', display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 2,
+              boxShadow: scanActive ? '0 0 14px #ffaa0055' : '0 0 8px #ff6b0018',
+              transition: 'all 0.2s',
             }}
-          >{scanActive ? '⏳' : '📄'}</button>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#00d4ff66', letterSpacing: '0.15em' }}>SCAN</span>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#00d4ff33', letterSpacing: '0.1em' }}>DOCUMENT</span>
+          >
+            <span style={{ fontSize: 22 }}>{scanActive ? '⏳' : '📄'}</span>
+          </button>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ff6b0077', letterSpacing: '0.12em', textAlign: 'center' }}>SCAN</span>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#ff6b0044', letterSpacing: '0.1em', textAlign: 'center' }}>DOCUMENT</span>
         </div>
 
-        {/* MIC (center, bigger) */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+        {/* MIC MAINTENIR (centre, large) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <div style={{
-            width: 62, height: 62, borderRadius: '50%',
-            border: `2px solid ${col}99`,
-            background: `${col}0f`,
+            width: 68, height: 68, borderRadius: '50%',
+            border: `2.5px solid ${col}`,
+            background: `${col}12`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 16px ${col}44, 0 0 32px ${col}1a`,
-            fontSize: 26,
-            animation: status === 'listening' ? 'neonPulse 1s ease infinite' : 'none',
+            boxShadow: `0 0 20px ${col}55, 0 0 40px ${col}22, inset 0 0 12px ${col}0d`,
+            fontSize: 28,
+            animation: status === 'listening' ? 'neonPulse 0.8s ease infinite' : `statusPulse 3s ease infinite`,
+            cursor: 'default',
           }}>🎙️</div>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: `${col}99`, letterSpacing: '0.15em' }}>MIC</span>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: `${col}99`, letterSpacing: '0.12em' }}>MIC</span>
           <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: `${col}55`, letterSpacing: '0.1em' }}>MAINTENIR</span>
         </div>
 
-        {/* VISION */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+        {/* VISION IA */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <button
             onClick={handleVision}
             disabled={visionActive}
             style={{
-              width: 48, height: 48, borderRadius: 12,
-              background: visionActive ? '#050a1a' : 'rgba(0,0,0,0.75)',
-              border: `1.5px solid ${visionActive ? col : '#00d4ff33'}`,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: visionActive ? `0 0 12px ${col}66` : '0 0 6px #00d4ff11',
-              fontSize: 20, transition: 'all 0.2s ease',
+              width: 54, height: 54, borderRadius: 14,
+              background: visionActive ? '#0a0515' : '#080808',
+              border: `1.5px solid ${visionActive ? '#9b59b6' : '#9b59b633'}`,
+              cursor: 'pointer', display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 2,
+              boxShadow: visionActive ? '0 0 16px #9b59b666' : '0 0 6px #9b59b618',
+              transition: 'all 0.2s',
+              fontSize: 22,
             }}
-          ><EyeIcon active={visionActive} col={col} /></button>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#00d4ff66', letterSpacing: '0.15em' }}>VISION IA</span>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#00d4ff33', letterSpacing: '0.1em' }}>CAMÉRA</span>
+          >
+            <VisionIcon active={visionActive} />
+          </button>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#9b59b677', letterSpacing: '0.12em', textAlign: 'center' }}>VISION IA</span>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#9b59b644', letterSpacing: '0.1em', textAlign: 'center' }}>CAMÉRA</span>
         </div>
       </div>
 
@@ -519,20 +533,23 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
           style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(6px)', cursor: 'pointer',
+            background: 'rgba(0,0,0,0.93)', backdropFilter: 'blur(8px)', cursor: 'pointer',
           }}
         >
+          {/* Mini robot preview */}
+          <div style={{ marginBottom: 24, opacity: 0.7 }}>
+            <DzaryxRobot status="idle" visionActive={false} scale={0.55} />
+          </div>
           <div style={{
-            border: '1.5px solid #00d4ff55', borderRadius: 20,
-            padding: '28px 36px', textAlign: 'center',
+            border: '1.5px solid #00d4ff44', borderRadius: 20,
+            padding: '20px 32px', textAlign: 'center',
             background: 'rgba(0,5,18,0.98)',
-            boxShadow: '0 0 40px #00d4ff1a, 0 0 80px #00d4ff08',
+            boxShadow: '0 0 40px #00d4ff18',
           }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>🤖</div>
             <div style={{
-              fontFamily: 'Orbitron', fontSize: 13, color: '#00d4ff',
+              fontFamily: 'Orbitron', fontSize: 14, color: '#00d4ff',
               letterSpacing: '0.3em', fontWeight: 700, marginBottom: 8,
-              textShadow: '0 0 12px #00d4ff',
+              textShadow: '0 0 14px #00d4ff',
             }}>ACTIVER DZARYX</div>
             <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00d4ff55', letterSpacing: '0.2em' }}>
               MICRO + AUDIO
@@ -547,217 +564,276 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   );
 }
 
-// ── Robot SVG ─────────────────────────────────────────────────────────────────
+// ── DZARYX ROBOT SVG ──────────────────────────────────────────────────────────
 
-function DzaryxRobot({ status }: { status: DzaryxStatus }) {
+function DzaryxRobot({
+  status, visionActive, scale = 1,
+}: {
+  status: DzaryxStatus;
+  visionActive: boolean;
+  scale?: number;
+}) {
   const col         = STATE_COLOR[status];
   const isListening = status === 'listening';
   const isSpeaking  = status === 'speaking';
   const isThinking  = status === 'thinking';
   const floatAnim   = isListening ? 'robotFloatListen' : 'robotFloat';
 
+  // Eye color: purple/camera when vision active
+  const eyeCol = visionActive ? '#9b59b6' : col;
+
+  const w = Math.round(290 * scale);
+  const h = Math.round(355 * scale);
+
   return (
     <svg
-      width="220" height="275"
-      viewBox="0 0 240 300"
+      width={w} height={h}
+      viewBox="0 0 290 355"
       fill="none"
       style={{
-        animation: `${floatAnim} 3s ease-in-out infinite`,
-        filter: `drop-shadow(0 0 10px ${col}44) drop-shadow(0 0 24px ${col}22)`,
+        animation: `${floatAnim} 3.2s ease-in-out infinite`,
+        filter: `drop-shadow(0 0 18px ${col}55) drop-shadow(0 0 36px ${col}22)`,
         overflow: 'visible',
       }}
     >
       <defs>
-        <radialGradient id="rg-head" cx="38%" cy="32%" r="65%">
-          <stop offset="0%" stopColor="#1e3045" />
-          <stop offset="55%" stopColor="#0d1e2e" />
+        {/* Chrome sphere head gradient */}
+        <radialGradient id={`rg-hd-${status}`} cx="33%" cy="26%" r="72%">
+          <stop offset="0%"   stopColor="#4a6880" />
+          <stop offset="20%"  stopColor="#2a4060" />
+          <stop offset="50%"  stopColor="#14263a" />
           <stop offset="100%" stopColor="#04090f" />
         </radialGradient>
-        <linearGradient id="rg-torso" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#0e1e30" />
-          <stop offset="100%" stopColor="#040c18" />
-        </linearGradient>
-        <radialGradient id="rg-ear" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#152234" />
-          <stop offset="100%" stopColor="#040c18" />
+        {/* Ear disc gradient */}
+        <radialGradient id="rg-ear2" cx="40%" cy="35%" r="65%">
+          <stop offset="0%"   stopColor="#1a3048" />
+          <stop offset="100%" stopColor="#04080f" />
         </radialGradient>
-        <linearGradient id="rg-neck" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#0d1e2e" />
-          <stop offset="100%" stopColor="#060f1c" />
-        </linearGradient>
-        <linearGradient id="rg-shoulder" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#0e1e30" />
-          <stop offset="100%" stopColor="#040c18" />
-        </linearGradient>
+        {/* Body gradient */}
+        <radialGradient id="rg-bd" cx="38%" cy="28%" r="70%">
+          <stop offset="0%"   stopColor="#1c3050" />
+          <stop offset="50%"  stopColor="#0c1e30" />
+          <stop offset="100%" stopColor="#03080f" />
+        </radialGradient>
+        {/* Eye glow overlay */}
+        <radialGradient id="rg-eye" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="white"   stopOpacity="0.9" />
+          <stop offset="40%"  stopColor="white"   stopOpacity="0.3" />
+          <stop offset="100%" stopColor="white"   stopOpacity="0" />
+        </radialGradient>
+        {/* Glow filters */}
+        <filter id="glow3" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="3.5" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <filter id="glow6" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="6" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
       </defs>
 
-      {/* Outer rotating dashed rings */}
-      <circle
-        cx="120" cy="152" r="108"
-        stroke={col} strokeWidth="0.6" strokeDasharray="5 20" strokeOpacity="0.18"
-        style={{ transformOrigin: '120px 152px', animation: 'spinSlow 22s linear infinite' }}
-      />
-      <circle
-        cx="120" cy="152" r="90"
-        stroke={col} strokeWidth="0.5" strokeDasharray="3 15" strokeOpacity="0.12"
-        style={{ transformOrigin: '120px 152px', animation: 'spinMed 16s linear infinite' }}
-      />
+      {/* ── OUTER SPINNING RINGS ── */}
+      <circle cx="145" cy="148" r="130"
+        stroke={col} strokeWidth="0.5" strokeDasharray="5 22" strokeOpacity="0.18"
+        style={{ transformOrigin: '145px 148px', animation: 'spinSlow 28s linear infinite' }} />
+      <circle cx="145" cy="148" r="116"
+        stroke={col} strokeWidth="0.4" strokeDasharray="3 18" strokeOpacity="0.12"
+        style={{ transformOrigin: '145px 148px', animation: 'spinMed 20s linear infinite' }} />
 
-      {/* Thinking halo */}
+      {/* ── THINKING HALO ── */}
       {isThinking && (
-        <circle
-          cx="120" cy="148" r="84"
-          stroke="#ffaa00" strokeWidth="1.5" strokeDasharray="4 8" strokeOpacity="0.7"
-          style={{ transformOrigin: '120px 148px', animation: 'thinkHalo 2s linear infinite' }}
+        <circle cx="145" cy="148" r="118"
+          stroke="#ffaa00" strokeWidth="2" strokeDasharray="6 10" strokeOpacity="0.85"
+          filter="url(#glow6)"
+          style={{ transformOrigin: '145px 148px', animation: 'thinkHalo 2s linear infinite' }} />
+      )}
+
+      {/* ── LEFT EAR DISC ── */}
+      {/* Outer glow */}
+      <circle cx="30" cy="152" r="50" fill={col} opacity={isListening ? 0.06 : 0.02} />
+      {/* Main disc */}
+      <circle cx="30" cy="152" r="43" fill="url(#rg-ear2)" />
+      <circle cx="30" cy="152" r="43" fill="none" stroke={col} strokeWidth={isListening ? 1.5 : 0.8}
+        strokeOpacity={isListening ? 0.7 : 0.25} />
+      {/* Inner rings */}
+      <circle cx="30" cy="152" r="30" fill="#020a14" />
+      <circle cx="30" cy="152" r="30" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.2" />
+      <circle cx="30" cy="152" r="20" fill="none" stroke={col} strokeWidth="0.6" strokeOpacity="0.15" />
+      <circle cx="30" cy="152" r="11" fill="none" stroke={col} strokeWidth="0.5"
+        strokeOpacity={isListening ? 0.4 : 0.1} />
+      {/* Center glow */}
+      <circle cx="30" cy="152" r="5" fill={col} opacity={isListening ? 0.9 : 0.3}
+        filter="url(#glow3)" />
+      {/* Audio bars */}
+      {[14, 19, 24, 29, 34, 39, 44].map((bx, i) => {
+        const hArr = [5, 9, 13, 15, 12, 8, 5];
+        const h = hArr[i] ?? 6;
+        return (
+          <rect key={i} x={bx} y={152 - h / 2} width="2.5" height={h} rx="1.2"
+            fill={col} opacity={isListening ? 0.8 : 0.22}
+            style={isListening
+              ? { animation: `earBar${Math.min(i + 1, 5)} ${0.28 + (i % 5) * 0.06}s ease ${i * 0.04}s infinite` }
+              : {}} />
+        );
+      })}
+      {/* Shine */}
+      <ellipse cx="18" cy="138" rx="9" ry="5" fill="white" opacity="0.045" />
+
+      {/* ── RIGHT EAR DISC ── */}
+      <circle cx="260" cy="152" r="50" fill={col} opacity={isListening ? 0.06 : 0.02} />
+      <circle cx="260" cy="152" r="43" fill="url(#rg-ear2)" />
+      <circle cx="260" cy="152" r="43" fill="none" stroke={col} strokeWidth={isListening ? 1.5 : 0.8}
+        strokeOpacity={isListening ? 0.7 : 0.25} />
+      <circle cx="260" cy="152" r="30" fill="#020a14" />
+      <circle cx="260" cy="152" r="30" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.2" />
+      <circle cx="260" cy="152" r="20" fill="none" stroke={col} strokeWidth="0.6" strokeOpacity="0.15" />
+      <circle cx="260" cy="152" r="11" fill="none" stroke={col} strokeWidth="0.5"
+        strokeOpacity={isListening ? 0.4 : 0.1} />
+      <circle cx="260" cy="152" r="5" fill={col} opacity={isListening ? 0.9 : 0.3}
+        filter="url(#glow3)" />
+      {[244, 249, 254, 259, 264, 269, 274].map((bx, i) => {
+        const hArr = [5, 8, 12, 15, 13, 9, 5];
+        const h = hArr[i] ?? 6;
+        return (
+          <rect key={i} x={bx} y={152 - h / 2} width="2.5" height={h} rx="1.2"
+            fill={col} opacity={isListening ? 0.8 : 0.22}
+            style={isListening
+              ? { animation: `earBar${5 - (i % 5)} ${0.28 + (i % 5) * 0.06}s ease ${i * 0.04}s infinite` }
+              : {}} />
+        );
+      })}
+      <ellipse cx="248" cy="138" rx="9" ry="5" fill="white" opacity="0.045" />
+
+      {/* ── HEAD SPHERE ── */}
+      {/* Ambient glow around head */}
+      <circle cx="145" cy="148" r="108" fill={col} opacity="0.035" />
+      {/* Main sphere */}
+      <circle cx="145" cy="148" r="100" fill={`url(#rg-hd-${status})`} />
+      {/* Outer chrome rim */}
+      <circle cx="145" cy="148" r="100" fill="none" stroke={col} strokeWidth="1.5" strokeOpacity="0.25" />
+      {/* Inner rim detail */}
+      <circle cx="145" cy="148" r="97" fill="none" stroke="white" strokeWidth="0.5" strokeOpacity="0.07" />
+      {/* Specular highlight 1 (top-left) */}
+      <ellipse cx="108" cy="102" rx="34" ry="20" fill="white" opacity="0.07" />
+      {/* Specular highlight 2 (smaller, brighter) */}
+      <ellipse cx="100" cy="95" rx="16" ry="9" fill="white" opacity="0.08" />
+      {/* Bottom rim shadow */}
+      <ellipse cx="145" cy="240" rx="70" ry="15" fill="black" opacity="0.3" />
+
+      {/* ── FACE VISOR (OLED panel) ── */}
+      <ellipse cx="145" cy="155" rx="68" ry="72" fill="#000000" opacity="0.96" />
+      <ellipse cx="145" cy="155" rx="68" ry="72" fill="none" stroke={col} strokeWidth="0.6" strokeOpacity="0.14" />
+      {/* Top visor shine */}
+      <ellipse cx="145" cy="106" rx="42" ry="11" fill={col} opacity="0.04" />
+
+      {/* ── EYES ── */}
+      {visionActive ? (
+        /* VISION IA eyes — purple camera lens */
+        <>
+          <circle cx="114" cy="144" r="26" fill="#08001a" />
+          <circle cx="114" cy="144" r="23" fill="none" stroke="#9b59b6" strokeWidth="2" strokeOpacity="0.8" filter="url(#glow3)" />
+          <circle cx="114" cy="144" r="17" fill="none" stroke="#9b59b6" strokeWidth="1" strokeOpacity="0.5" />
+          <circle cx="114" cy="144" r="10" fill="none" stroke="#9b59b6" strokeWidth="0.8" strokeOpacity="0.35" />
+          <circle cx="114" cy="144" r="6"  fill="#9b59b6" opacity="0.9" filter="url(#glow6)" style={{ animation: 'eyeGlow 2s ease infinite' }} />
+          <circle cx="114" cy="144" r="2.5" fill="white" opacity="0.8" />
+          <ellipse cx="107" cy="137" rx="5" ry="3" fill="white" opacity="0.18" />
+
+          <circle cx="176" cy="144" r="26" fill="#08001a" />
+          <circle cx="176" cy="144" r="23" fill="none" stroke="#9b59b6" strokeWidth="2" strokeOpacity="0.8" filter="url(#glow3)" />
+          <circle cx="176" cy="144" r="17" fill="none" stroke="#9b59b6" strokeWidth="1" strokeOpacity="0.5" />
+          <circle cx="176" cy="144" r="10" fill="none" stroke="#9b59b6" strokeWidth="0.8" strokeOpacity="0.35" />
+          <circle cx="176" cy="144" r="6"  fill="#9b59b6" opacity="0.9" filter="url(#glow6)" style={{ animation: 'eyeGlow 2s ease infinite 0.3s' }} />
+          <circle cx="176" cy="144" r="2.5" fill="white" opacity="0.8" />
+          <ellipse cx="169" cy="137" rx="5" ry="3" fill="white" opacity="0.18" />
+        </>
+      ) : (
+        /* Normal cyan LED eyes */
+        <>
+          {/* Left eye */}
+          <circle cx="114" cy="144" r="26" fill="#000810" />
+          <circle cx="114" cy="144" r="22" fill="none" stroke={eyeCol} strokeWidth="2" strokeOpacity="0.5" filter="url(#glow3)" />
+          {/* LED fill */}
+          <circle cx="114" cy="144" r="17" fill={eyeCol} opacity="0.9"
+            filter="url(#glow6)"
+            style={{ animation: 'eyeGlow 2s ease-in-out infinite' }} />
+          {/* White center shine */}
+          <circle cx="114" cy="144" r="9" fill="white" opacity="0.35" />
+          {/* Specular */}
+          <ellipse cx="106" cy="135" rx="6" ry="3.5" fill="white" opacity="0.3" />
+
+          {/* Right eye */}
+          <circle cx="176" cy="144" r="26" fill="#000810" />
+          <circle cx="176" cy="144" r="22" fill="none" stroke={eyeCol} strokeWidth="2" strokeOpacity="0.5" filter="url(#glow3)" />
+          <circle cx="176" cy="144" r="17" fill={eyeCol} opacity="0.9"
+            filter="url(#glow6)"
+            style={{ animation: 'eyeGlow 2s ease-in-out infinite 0.3s' }} />
+          <circle cx="176" cy="144" r="9" fill="white" opacity="0.35" />
+          <ellipse cx="168" cy="135" rx="6" ry="3.5" fill="white" opacity="0.3" />
+        </>
+      )}
+
+      {/* ── MOUTH ── */}
+      {isSpeaking ? (
+        /* Glowing bar when speaking */
+        <rect x="110" y="190" width="70" height="5" rx="2.5"
+          fill={col} opacity="0.92" filter="url(#glow6)"
+          style={{ animation: 'mouthSeg1 0.38s ease infinite' }} />
+      ) : (
+        /* Curved smile */
+        <path
+          d="M 112 192 Q 145 210 178 192"
+          stroke={col} strokeWidth="3" strokeLinecap="round" fill="none"
+          opacity={status === 'idle' ? 0.6 : 0.8}
+          filter="url(#glow3)"
         />
       )}
 
-      {/* ── SHOULDERS ── */}
-      <path d="M 44 252 L 89 240 L 106 260 L 56 274 Z"
-        fill="url(#rg-shoulder)" stroke={col} strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1="62" y1="254" x2="87" y2="248" stroke={col} strokeWidth="0.5" strokeOpacity="0.2" />
-      <line x1="58" y1="263" x2="82" y2="257" stroke={col} strokeWidth="0.4" strokeOpacity="0.15" />
-
-      <path d="M 196 252 L 151 240 L 134 260 L 184 274 Z"
-        fill="url(#rg-shoulder)" stroke={col} strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1="178" y1="254" x2="153" y2="248" stroke={col} strokeWidth="0.5" strokeOpacity="0.2" />
-      <line x1="182" y1="263" x2="158" y2="257" stroke={col} strokeWidth="0.4" strokeOpacity="0.15" />
-
-      {/* ── TORSO ── */}
-      <rect x="91" y="258" width="58" height="42" rx="5"
-        fill="url(#rg-torso)" stroke={col} strokeWidth="0.8" strokeOpacity="0.4" />
-      <line x1="97" y1="270" x2="143" y2="270" stroke={col} strokeWidth="0.4" strokeOpacity="0.2" />
-      <line x1="97" y1="276" x2="143" y2="276" stroke={col} strokeWidth="0.3" strokeOpacity="0.12" />
-      {/* Diamond */}
-      <polygon points="120,262 124,267 120,272 116,267" fill={col} opacity="0.55" />
-      {/* DZARYX label */}
-      <text x="120" y="286" fill={col}
-        fontFamily="Orbitron, monospace" fontSize="6" fontWeight="700"
-        textAnchor="middle" letterSpacing="3" opacity="0.8">DZARYX</text>
-      <line x1="99" y1="293" x2="141" y2="293" stroke={col} strokeWidth="0.4" strokeOpacity="0.18" />
-
       {/* ── NECK ── */}
-      <rect x="106" y="222" width="28" height="22" rx="3"
-        fill="url(#rg-neck)" stroke={col} strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1="106" y1="228" x2="134" y2="228" stroke={col} strokeWidth="0.4" strokeOpacity="0.28" />
-      <line x1="106" y1="234" x2="134" y2="234" stroke={col} strokeWidth="0.4" strokeOpacity="0.22" />
-      <line x1="106" y1="240" x2="134" y2="240" stroke={col} strokeWidth="0.4" strokeOpacity="0.16" />
-      <rect x="110" y="224" width="4" height="3" rx="1" fill={col} opacity="0.15" />
-      <rect x="116" y="224" width="4" height="3" rx="1" fill={col} opacity="0.1" />
-      <rect x="126" y="224" width="4" height="3" rx="1" fill={col} opacity="0.15" />
+      <rect x="128" y="246" width="34" height="14" rx="5"
+        fill="#0a1828" stroke={col} strokeWidth="0.6" strokeOpacity="0.22" />
+      <line x1="128" y1="251" x2="162" y2="251" stroke={col} strokeWidth="0.4" strokeOpacity="0.2" />
+      <line x1="128" y1="256" x2="162" y2="256" stroke={col} strokeWidth="0.3" strokeOpacity="0.15" />
 
-      {/* ── HEAD (main) ── */}
-      <ellipse cx="120" cy="148" rx="72" ry="76" fill="url(#rg-head)" />
-      <ellipse cx="120" cy="148" rx="72" ry="76" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.35" />
-      {/* Chrome highlight */}
-      <ellipse cx="94" cy="98" rx="26" ry="15" fill="white" opacity="0.025" />
-      {/* Panel lines */}
-      <line x1="85" y1="82" x2="77" y2="100" stroke={col} strokeWidth="0.5" strokeOpacity="0.13" />
-      <line x1="155" y1="82" x2="163" y2="100" stroke={col} strokeWidth="0.5" strokeOpacity="0.13" />
-      <line x1="77" y1="178" x2="67" y2="202" stroke={col} strokeWidth="0.5" strokeOpacity="0.1" />
-      <line x1="163" y1="178" x2="173" y2="202" stroke={col} strokeWidth="0.5" strokeOpacity="0.1" />
-      {/* Top head plate */}
-      <rect x="104" y="73" width="32" height="5" rx="2"
-        fill="#0a1830" stroke={col} strokeWidth="0.6" strokeOpacity="0.28" />
+      {/* ── BODY ── */}
+      {/* Glow platform */}
+      <ellipse cx="145" cy="338" rx="64" ry="11" fill={col} opacity="0.12" filter="url(#glow6)" />
+      <ellipse cx="145" cy="342" rx="40" ry="6"  fill={col} opacity="0.08" />
 
-      {/* ── ANTENNA ── */}
-      <line x1="136" y1="77" x2="158" y2="46" stroke={col} strokeWidth="1.4" strokeOpacity="0.7" />
-      <circle cx="146" cy="60" r="2" fill={col} opacity="0.35" />
-      <circle cx="158" cy="43" r="8" fill={col} opacity="0.1"
-        style={{ animation: 'antennaBlink 1.2s ease infinite' }} />
-      <circle cx="158" cy="43" r="4" fill={col} opacity="0.9"
-        style={{ animation: 'antennaBlink 1.2s ease infinite' }} />
+      {/* Body shape */}
+      <rect x="94" y="258" width="102" height="78" rx="22" fill="url(#rg-bd)" />
+      <rect x="94" y="258" width="102" height="78" rx="22" fill="none" stroke={col} strokeWidth="1.2" strokeOpacity="0.3" />
 
-      {/* ── VISOR (face dark area) ── */}
-      <ellipse cx="120" cy="148" rx="54" ry="58" fill="#01080e" opacity="0.93" />
-      <ellipse cx="120" cy="148" rx="54" ry="58" fill="none" stroke={col} strokeWidth="0.6" strokeOpacity="0.14" />
+      {/* Chest glow center */}
+      <ellipse cx="145" cy="295" rx="28" ry="11" fill={col} opacity="0.06" />
 
-      {/* ── LEFT EAR ── */}
-      <circle cx="48" cy="152" r="23" fill="url(#rg-ear)" />
-      <circle cx="48" cy="152" r="23" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.3" />
-      <circle cx="48" cy="152" r="15" fill="#010810" />
-      <circle cx="48" cy="152" r="15" fill="none" stroke={col} strokeWidth="0.5" strokeOpacity="0.18" />
-      <circle cx="48" cy="152" r="9"  fill="none" stroke={col} strokeWidth="0.4" strokeOpacity="0.12" />
-      {/* Left audio bars */}
-      {[40, 44, 48, 52, 56].map((bx, i) => {
-        const hArr = [4, 7, 5, 8, 3];
-        const h = hArr[i] ?? 4;
-        return (
-          <rect key={i}
-            x={bx} y={152 - h} width="2.5" height={h} rx="0.8"
-            fill={col}
-            opacity={isListening ? 0.85 : 0.28}
-            style={isListening ? { animation: `earBar${i + 1} ${0.3 + i * 0.06}s ease ${i * 0.04}s infinite` } : {}}
-          />
-        );
-      })}
+      {/* Chest detail */}
+      <line x1="107" y1="275" x2="183" y2="275" stroke={col} strokeWidth="0.5" strokeOpacity="0.18" />
+      <line x1="107" y1="314" x2="183" y2="314" stroke={col} strokeWidth="0.4" strokeOpacity="0.13" />
 
-      {/* ── RIGHT EAR ── */}
-      <circle cx="192" cy="152" r="23" fill="url(#rg-ear)" />
-      <circle cx="192" cy="152" r="23" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.3" />
-      <circle cx="192" cy="152" r="15" fill="#010810" />
-      <circle cx="192" cy="152" r="15" fill="none" stroke={col} strokeWidth="0.5" strokeOpacity="0.18" />
-      <circle cx="192" cy="152" r="9"  fill="none" stroke={col} strokeWidth="0.4" strokeOpacity="0.12" />
-      {/* Right audio bars */}
-      {[184, 188, 192, 196, 200].map((bx, i) => {
-        const hArr = [3, 8, 5, 7, 4];
-        const h = hArr[i] ?? 4;
-        return (
-          <rect key={i}
-            x={bx} y={152 - h} width="2.5" height={h} rx="0.8"
-            fill={col}
-            opacity={isListening ? 0.85 : 0.28}
-            style={isListening ? { animation: `earBar${5 - i} ${0.3 + i * 0.06}s ease ${i * 0.04}s infinite` } : {}}
-          />
-        );
-      })}
+      {/* DZARYX chest text */}
+      <text x="145" y="301" fill={col}
+        fontFamily="Orbitron, monospace" fontSize="10" fontWeight="700"
+        textAnchor="middle" letterSpacing="4" opacity="0.9"
+        filter="url(#glow3)">DZARYX</text>
 
-      {/* HUD scanline */}
-      <rect x="68" y="147" width="104" height="1" fill={col} opacity="0.07" />
+      {/* Body specular */}
+      <ellipse cx="115" cy="268" rx="22" ry="9" fill="white" opacity="0.03" />
 
-      {/* Cheekbone lines */}
-      <line x1="72" y1="157" x2="83" y2="169" stroke={col} strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1="76" y1="154" x2="85" y2="164" stroke={col} strokeWidth="0.5" strokeOpacity="0.18" />
-      <line x1="168" y1="157" x2="157" y2="169" stroke={col} strokeWidth="0.8" strokeOpacity="0.3" />
-      <line x1="164" y1="154" x2="155" y2="164" stroke={col} strokeWidth="0.5" strokeOpacity="0.18" />
-
-      {/* ── EYES ── */}
-      {/* Left */}
-      <circle cx="96" cy="136" r="14" fill="#000810" />
-      <circle cx="96" cy="136" r="11" fill="none" stroke={col} strokeWidth="1.5" strokeOpacity="0.5" />
-      <circle cx="96" cy="136" r="6" fill={col}
-        style={{ animation: 'eyeGlow 2s ease-in-out infinite' }} />
-      <ellipse cx="93" cy="132" rx="2.5" ry="1.5" fill="white" opacity="0.28" />
-
-      {/* Right */}
-      <circle cx="144" cy="136" r="14" fill="#000810" />
-      <circle cx="144" cy="136" r="11" fill="none" stroke={col} strokeWidth="1.5" strokeOpacity="0.5" />
-      <circle cx="144" cy="136" r="6" fill={col}
-        style={{ animation: 'eyeGlow 2s ease-in-out infinite 0.3s' }} />
-      <ellipse cx="141" cy="132" rx="2.5" ry="1.5" fill="white" opacity="0.28" />
-
-      {/* ── NOSE ── */}
-      <circle cx="120" cy="157" r="2.5" fill={col} opacity="0.55" />
-
-      {/* ── MOUTH ── */}
-      <rect x="94" y="167" width="52" height="14" rx="3"
-        fill="#010810" stroke={col} strokeWidth="0.8" strokeOpacity="0.4" />
-      {isSpeaking ? (
-        <>
-          <rect x="97"  y="170" width="9"  height="8" rx="1" fill={col} opacity="0.9"
-            style={{ animation: 'mouthSeg1 0.4s ease infinite' }} />
-          <rect x="109" y="170" width="6"  height="8" rx="1" fill={col} opacity="0.7"
-            style={{ animation: 'mouthSeg2 0.4s ease infinite' }} />
-          <rect x="118" y="170" width="9"  height="8" rx="1" fill={col} opacity="0.85"
-            style={{ animation: 'mouthSeg3 0.4s ease infinite' }} />
-          <rect x="130" y="170" width="6"  height="8" rx="1" fill={col} opacity="0.7"
-            style={{ animation: 'mouthSeg2 0.4s ease infinite 0.1s' }} />
-          <rect x="139" y="170" width="5"  height="8" rx="1" fill={col} opacity="0.6"
-            style={{ animation: 'mouthSeg1 0.4s ease infinite 0.2s' }} />
-        </>
-      ) : (
-        <rect x="97" y="173" width="46" height="2" rx="1"
-          fill={col} opacity={status === 'idle' ? 0.4 : 0.65} />
+      {/* Audio waveform bars below body (listening/speaking) */}
+      {(isListening || isSpeaking) && (
+        <g opacity="0.7">
+          {Array.from({ length: 22 }, (_, i) => {
+            const bx = 34 + i * 10;
+            const baseH = 4 + Math.sin(i * 0.8) * 3;
+            return (
+              <rect key={i}
+                x={bx} y={342 - baseH / 2} width="5" height={baseH} rx="2.5"
+                fill={col}
+                style={{ animation: `earBar${(i % 5) + 1} ${0.25 + (i % 4) * 0.08}s ease ${i * 0.03}s infinite` }}
+              />
+            );
+          })}
+        </g>
       )}
     </svg>
   );
@@ -774,10 +850,9 @@ function hexToRgba(hex: string, alpha: number): string {
 
 function makeParticles(n: number) {
   return Array.from({ length: n }, () => ({
-    x: Math.random() * 400,
-    y: Math.random() * 700,
+    x: Math.random() * 400, y: Math.random() * 700,
     r: 0.5 + Math.random() * 1.5,
-    vy: 0.3 + Math.random() * 0.5,
+    vy: 0.2 + Math.random() * 0.4,
     life: Math.random(),
   }));
 }
@@ -786,8 +861,7 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((res, rej) => {
     const reader = new FileReader();
     reader.onloadend = () => res((reader.result as string).split(',')[1]!);
-    reader.onerror = rej;
-    reader.readAsDataURL(blob);
+    reader.onerror = rej; reader.readAsDataURL(blob);
   });
 }
 
@@ -795,51 +869,29 @@ async function fileToBase64(file: File): Promise<string> {
   return new Promise((res, rej) => {
     const reader = new FileReader();
     reader.onloadend = () => res((reader.result as string).split(',')[1]!);
-    reader.onerror = rej;
-    reader.readAsDataURL(file);
+    reader.onerror = rej; reader.readAsDataURL(file);
   });
 }
 
 function Corner({ pos, col }: { pos: 'tl' | 'tr' | 'bl' | 'br'; col: string }) {
   const s = 14, t = 1.5;
-  const bT = pos.startsWith('t') ? `${t}px solid ${col}88` : 'none';
-  const bB = pos.startsWith('b') ? `${t}px solid ${col}88` : 'none';
-  const bL = pos.endsWith('l')   ? `${t}px solid ${col}88` : 'none';
-  const bR = pos.endsWith('r')   ? `${t}px solid ${col}88` : 'none';
+  const bT = pos.startsWith('t') ? `${t}px solid ${col}77` : 'none';
+  const bB = pos.startsWith('b') ? `${t}px solid ${col}77` : 'none';
+  const bL = pos.endsWith('l')   ? `${t}px solid ${col}77` : 'none';
+  const bR = pos.endsWith('r')   ? `${t}px solid ${col}77` : 'none';
   const h  = pos.endsWith('l')   ? { left: 6 }  : { right: 6 };
   const v  = pos.startsWith('t') ? { top: 6 }   : { bottom: 6 };
   return (
-    <div style={{
-      position: 'absolute', zIndex: 4, width: s, height: s,
-      borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR,
-      ...h, ...v,
-    }} />
+    <div style={{ position: 'absolute', zIndex: 4, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />
   );
 }
 
-function MiniCorner({ pos, col }: { pos: 'tl' | 'tr' | 'bl' | 'br'; col: string }) {
-  const s = 8, t = 1;
-  const bT = pos.startsWith('t') ? `${t}px solid ${col}66` : 'none';
-  const bB = pos.startsWith('b') ? `${t}px solid ${col}66` : 'none';
-  const bL = pos.endsWith('l')   ? `${t}px solid ${col}66` : 'none';
-  const bR = pos.endsWith('r')   ? `${t}px solid ${col}66` : 'none';
-  const h  = pos.endsWith('l')   ? { left: 0 }  : { right: 0 };
-  const v  = pos.startsWith('t') ? { top: 0 }   : { bottom: 0 };
+function VisionIcon({ active }: { active: boolean }) {
+  const c = active ? '#9b59b6' : '#9b59b677';
   return (
-    <div style={{
-      position: 'absolute', width: s, height: s,
-      borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR,
-      ...h, ...v,
-    }} />
-  );
-}
-
-function EyeIcon({ active, col }: { active: boolean; col: string }) {
-  const c = active ? col : '#00d4ffaa';
-  return (
-    <svg width="18" height="14" viewBox="0 0 24 18" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round">
+    <svg width="22" height="18" viewBox="0 0 24 18" fill="none" stroke={c} strokeWidth="1.5" strokeLinecap="round">
       <path d="M1 9C4 3.5 8 1 12 1s8 2.5 11 8c-3 5.5-7 8-11 8S4 14.5 1 9z" />
-      <circle cx="12" cy="9" r="3.5" fill={active ? `${col}22` : 'none'} />
+      <circle cx="12" cy="9" r="3.5" fill={active ? '#9b59b622' : 'none'} />
       {active && <circle cx="12" cy="9" r="1.5" fill={c} />}
     </svg>
   );
