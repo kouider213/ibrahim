@@ -13,7 +13,7 @@ interface Message {
 }
 
 const STATUS_COLOR: Record<DzaryxStatus, string> = {
-  idle: '#00d4ff', listening: '#ff3366', thinking: '#9b59b6', speaking: '#00e676',
+  idle: '#00d4ff', listening: '#ff3366', thinking: '#ffaa00', speaking: '#00e676',
 };
 
 export default function TextScreen({ onNavigateVoice }: Props) {
@@ -108,55 +108,68 @@ export default function TextScreen({ onNavigateVoice }: Props) {
       onClick={() => unlockAudio()}
       style={{
         width: '100%', height: '100%',
-        background: 'linear-gradient(180deg, #03050f 0%, #010208 100%)',
+        background: '#020510',
         display: 'flex', flexDirection: 'column',
         position: 'relative', overflow: 'hidden',
       }}
     >
       {/* Header */}
       <div style={{
-        padding: '8px 16px',
-        borderBottom: '1px solid #00d4ff1a',
-        display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        padding: '12px 16px 8px',
+        borderBottom: `1px solid ${col}1a`,
+        flexShrink: 0,
+        background: 'rgba(2,5,16,0.96)',
       }}>
-        <button
-          onClick={onNavigateVoice}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: 4, display: 'flex', alignItems: 'center',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4ff88" strokeWidth="2">
-            <polyline points="15,18 9,12 15,6" />
-          </svg>
-        </button>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'rgba(0,212,255,0.1)',
-            border: `1.5px solid ${col}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 8px ${col}44`,
-          }}>
-            <span style={{ fontSize: 12 }}>D</span>
-          </div>
-          <div>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: col, letterSpacing: '0.2em' }}>DZARYX</div>
-            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff33', letterSpacing: '0.1em' }}>
-              {wsConn ? `${status.toUpperCase()} ●` : 'HORS LIGNE ○'}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          {/* Back + connection */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={onNavigateVoice} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00d4ff66" strokeWidth="2">
+                <polyline points="15,18 9,12 15,6" />
+              </svg>
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: wsConn ? '#00e676' : '#ff3366',
+                boxShadow: `0 0 5px ${wsConn ? '#00e676' : '#ff3366'}`,
+                animation: 'statusPulse 2s ease infinite',
+              }} />
+              <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: wsConn ? '#00e67677' : '#ff336677', letterSpacing: '0.1em' }}>
+                {wsConn ? 'CONNECTÉ' : 'HORS LIGNE'}
+              </span>
             </div>
           </div>
-        </div>
-        {/* Voice mode button */}
-        <button
-          onClick={onNavigateVoice}
-          style={{
-            background: 'rgba(0,212,255,0.05)', border: '1px solid #00d4ff33',
+
+          {/* DZARYX title */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              fontFamily: 'Orbitron', fontSize: 14, fontWeight: 900,
+              color: '#00d4ff', letterSpacing: '0.4em',
+              textShadow: '0 0 10px #00d4ff, 0 0 20px #00d4ff33',
+            }}>DZARYX</div>
+          </div>
+
+          {/* Voice mode button */}
+          <button onClick={onNavigateVoice} style={{
+            background: `${col}0d`, border: `1px solid ${col}33`,
             borderRadius: 8, padding: '4px 8px', cursor: 'pointer',
-          }}
-        >
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00d4ff88' }}>VOCAL</span>
-        </button>
+          }}>
+            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${col}99`, letterSpacing: '0.12em' }}>🎙️ VOCAL</span>
+          </button>
+        </div>
+
+        {/* Subtitle + status */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#00d4ff44', letterSpacing: '0.18em' }}>
+            IA DE FIK CONCIERGERIE · ORAN
+          </span>
+          <span style={{
+            fontFamily: 'Orbitron', fontSize: 7, color: col,
+            letterSpacing: '0.2em', textShadow: `0 0 6px ${col}`,
+          }}>{status.toUpperCase()}</span>
+        </div>
+        <div style={{ marginTop: 6, height: 1, background: `linear-gradient(90deg, transparent, ${col}55, transparent)` }} />
       </div>
 
       {/* Messages */}
@@ -177,9 +190,10 @@ export default function TextScreen({ onNavigateVoice }: Props) {
 
       {/* Input area */}
       <div style={{
-        padding: '10px 12px',
-        borderTop: '1px solid #00d4ff1a',
+        padding: '8px 12px 10px',
+        borderTop: `1px solid ${col}1a`,
         display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0,
+        background: 'rgba(2,5,16,0.95)',
       }}>
         <textarea
           value={input}
@@ -188,10 +202,10 @@ export default function TextScreen({ onNavigateVoice }: Props) {
           placeholder="Écris un message..."
           rows={1}
           style={{
-            flex: 1, background: 'rgba(0,212,255,0.05)',
-            border: `1px solid ${input ? col + '66' : '#00d4ff22'}`,
+            flex: 1, background: `${col}08`,
+            border: `1px solid ${input ? col + '55' : col + '1a'}`,
             borderRadius: 12, padding: '8px 12px',
-            color: '#fff', fontFamily: 'Exo 2', fontSize: 11,
+            color: '#c8e8ff', fontFamily: 'Share Tech Mono', fontSize: 11,
             resize: 'none', outline: 'none',
             lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
             transition: 'border-color 0.2s ease',
@@ -202,18 +216,16 @@ export default function TextScreen({ onNavigateVoice }: Props) {
           disabled={!input.trim() || status === 'thinking'}
           style={{
             width: 36, height: 36, borderRadius: '50%',
-            background: input.trim() && status !== 'thinking'
-              ? `linear-gradient(135deg, ${col}, ${col}88)`
-              : 'rgba(255,255,255,0.05)',
-            border: `1px solid ${input.trim() ? col + '88' : '#ffffff22'}`,
+            background: input.trim() && status !== 'thinking' ? `${col}22` : 'rgba(255,255,255,0.03)',
+            border: `1.5px solid ${input.trim() ? col + '88' : '#ffffff18'}`,
             cursor: input.trim() ? 'pointer' : 'default',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.2s ease',
-            flexShrink: 0,
+            boxShadow: input.trim() ? `0 0 10px ${col}33` : 'none',
+            transition: 'all 0.2s ease', flexShrink: 0,
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke={input.trim() ? '#000' : '#ffffff33'} strokeWidth="2">
+            stroke={input.trim() ? col : '#ffffff22'} strokeWidth="2">
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22,2 15,22 11,13 2,9" />
           </svg>
@@ -228,43 +240,30 @@ function MessageBubble({ msg }: { msg: Message }) {
   return (
     <div
       className="bubble-in"
-      style={{
-        display: 'flex',
-        justifyContent: isUser ? 'flex-end' : 'flex-start',
-        gap: 6, alignItems: 'flex-end',
-      }}
+      style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 6, alignItems: 'flex-end' }}
     >
-      {!isUser && (
-        <div style={{
-          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-          background: 'rgba(0,212,255,0.1)',
-          border: '1px solid #00d4ff44',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 9,
-        }}>D</div>
-      )}
+      {!isUser && <RobotAvatar />}
       <div style={{
         maxWidth: '78%',
         background: isUser
-          ? 'linear-gradient(135deg, rgba(255,107,0,0.15), rgba(255,107,0,0.08))'
-          : 'linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.05))',
-        border: `1px solid ${isUser ? '#ff6b0033' : '#00d4ff22'}`,
+          ? 'linear-gradient(135deg, rgba(255,107,0,0.12), rgba(255,107,0,0.06))'
+          : 'linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.04))',
+        border: `1px solid ${isUser ? '#ff6b0030' : '#00d4ff22'}`,
         borderRadius: isUser ? '14px 14px 2px 14px' : '2px 14px 14px 14px',
         padding: '7px 11px',
       }}>
         {msg.status === 'sending' && !msg.text ? (
-          <span style={{ color: '#ffffff33', fontFamily: 'Share Tech Mono', fontSize: 10 }}>●●●</span>
+          <span style={{ color: '#00d4ff44', fontFamily: 'Share Tech Mono', fontSize: 10 }}>· · ·</span>
         ) : (
           <p style={{
-            fontFamily: 'Exo 2', fontSize: 11, lineHeight: 1.6, margin: 0,
-            color: isUser ? '#ffb347' : '#a8e8ff',
+            fontFamily: 'Share Tech Mono', fontSize: 10, lineHeight: 1.65, margin: 0,
+            color: isUser ? '#ffb347cc' : '#a0e8ffcc',
             whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           }}>{msg.text}</p>
         )}
         <span style={{
-          display: 'block', textAlign: 'right', marginTop: 2,
-          fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff22',
-          letterSpacing: '0.05em',
+          display: 'block', textAlign: 'right', marginTop: 3,
+          fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff1a', letterSpacing: '0.05em',
         }}>{msg.ts}</span>
       </div>
     </div>
@@ -274,25 +273,51 @@ function MessageBubble({ msg }: { msg: Message }) {
 function TypingIndicator() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <RobotAvatar />
       <div style={{
-        width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-        background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9,
-      }}>D</div>
-      <div style={{
-        background: 'rgba(0,212,255,0.05)',
-        border: '1px solid #00d4ff22',
-        borderRadius: '2px 14px 14px 14px',
-        padding: '8px 14px', display: 'flex', gap: 4, alignItems: 'center',
+        background: 'rgba(0,212,255,0.05)', border: '1px solid #00d4ff1a',
+        borderRadius: '2px 14px 14px 14px', padding: '8px 14px',
+        display: 'flex', gap: 4, alignItems: 'center',
       }}>
         {[0, 1, 2].map(i => (
           <div key={i} style={{
-            width: 4, height: 4, borderRadius: '50%', background: '#00d4ff66',
+            width: 4, height: 4, borderRadius: '50%', background: '#00d4ff55',
             animation: `floatUp 1.2s ${i * 0.2}s ease-in-out infinite`,
           }} />
         ))}
       </div>
     </div>
+  );
+}
+
+function RobotAvatar() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 40 40" fill="none"
+      style={{ flexShrink: 0, filter: 'drop-shadow(0 0 4px #00d4ff44)' }}>
+      <defs>
+        <radialGradient id="av-head" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stopColor="#1e3045" />
+          <stop offset="100%" stopColor="#050c18" />
+        </radialGradient>
+      </defs>
+      {/* Head */}
+      <ellipse cx="20" cy="20" rx="16" ry="16" fill="url(#av-head)" />
+      <ellipse cx="20" cy="20" rx="16" ry="16" fill="none" stroke="#00d4ff" strokeWidth="0.8" strokeOpacity="0.4" />
+      {/* Visor */}
+      <ellipse cx="20" cy="21" rx="11" ry="11" fill="#01080e" opacity="0.9" />
+      {/* Eyes */}
+      <circle cx="15" cy="18" r="4" fill="#000810" />
+      <circle cx="15" cy="18" r="3" fill="none" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.6" />
+      <circle cx="15" cy="18" r="1.8" fill="#00d4ff" style={{ animation: 'eyeGlow 2s ease-in-out infinite' }} />
+      <circle cx="25" cy="18" r="4" fill="#000810" />
+      <circle cx="25" cy="18" r="3" fill="none" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.6" />
+      <circle cx="25" cy="18" r="1.8" fill="#00d4ff" style={{ animation: 'eyeGlow 2s ease-in-out infinite 0.3s' }} />
+      {/* Mouth */}
+      <rect x="14" y="25" width="12" height="2.5" rx="1" fill="#00d4ff" opacity="0.5" />
+      {/* Antenna */}
+      <line x1="23" y1="5" x2="27" y2="1" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.6" />
+      <circle cx="27" cy="1" r="1.5" fill="#00d4ff" style={{ animation: 'antennaBlink 1.5s ease infinite' }} />
+    </svg>
   );
 }
 

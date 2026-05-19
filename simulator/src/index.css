@@ -78,3 +78,56 @@ html, body, #root {
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 .bubble-in { animation: bubbleIn 0.2s ease forwards; }
+
+/* Robot animations */
+@keyframes robotFloat {
+  0%, 100% { transform: translate(-50%, -57%) translateY(0px); }
+  50%       { transform: translate(-50%, -57%) translateY(-6px); }
+}
+@keyframes robotFloatListen {
+  0%, 100% { transform: translate(-50%, -57%) translateY(0px) scale(1.01); }
+  50%       { transform: translate(-50%, -57%) translateY(-4px) scale(1.02); }
+}
+@keyframes eyeGlow {
+  0%, 100% { opacity: 0.85; r: 6; }
+  50%       { opacity: 1;    r: 7; }
+}
+@keyframes mouthSeg1 {
+  0%, 100% { width: 9px;  opacity: 0.9; }
+  33%       { width: 14px; opacity: 1;   }
+  66%       { width: 7px;  opacity: 0.7; }
+}
+@keyframes mouthSeg2 {
+  0%, 100% { width: 6px; opacity: 0.6; }
+  33%       { width: 3px; opacity: 0.4; }
+  66%       { width: 10px; opacity: 0.9; }
+}
+@keyframes mouthSeg3 {
+  0%, 100% { width: 11px; opacity: 0.9; }
+  33%       { width: 7px;  opacity: 0.6; }
+  66%       { width: 14px; opacity: 1; }
+}
+@keyframes antennaBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+@keyframes thinkHalo {
+  0%   { transform: rotate(0deg); opacity: 0.6; }
+  100% { transform: rotate(360deg); opacity: 0.6; }
+}
+@keyframes earBar1 { 0%,100%{height:2px} 50%{height:7px} }
+@keyframes earBar2 { 0%,100%{height:4px} 50%{height:10px} }
+@keyframes earBar3 { 0%,100%{height:6px} 50%{height:3px} }
+@keyframes earBar4 { 0%,100%{height:3px} 50%{height:8px} }
+@keyframes earBar5 { 0%,100%{height:5px} 50%{height:2px} }
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.9); }
+}
+
+/* HUD data stream */
+@keyframes dataStream {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 0% 100%; }
+}
