@@ -258,7 +258,11 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   const list = idleCars.map(c => `  • ${c.name}`).join('\n');
   await tg(`⚠️ *${idleCars.length} véhicule(s) sans réservation depuis 7 jours:*\n${list}\n\n💡 Fais un TikTok ou propose une promo.`);
   await notifyOwner(`⚠️ ${idleCars.length} véhicule(s) idle`, list, false);
-
+  emitProactive(
+    `${idleCars.length} véhicule(s) sans réservation depuis 7 jours.`,
+    'alert',
+    `⚠️ ${idleCars.length} véhicule(s) inactifs (7j):\n\n${list}\n\n💡 Fais un TikTok ou propose une promo.`,
+  );
   console.log(`[job:idle-vehicle] ${idleCars.length} idle`);
 }
 
@@ -601,7 +605,15 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
 
   const total_actions = soldeCount + acompteCount + urgentCount;
   console.log(`[job:unpaid-reminder] ✅ Terminé: ${soldeCount} solde(s) | ${acompteCount} acompte(s) manquant(s) | ${urgentCount} urgent(s)`);
-  if (total_actions === 0) console.log('[job:unpaid-reminder] ℹ️ Aucune action nécessaire.');
+  if (total_actions > 0) {
+    emitProactive(
+      `${total_actions} rappel(s) paiement envoyé(s).`,
+      'reminder',
+      `🔔 Rappels paiement:\n  • ${soldeCount} solde(s) à encaisser\n  • ${acompteCount} acompte(s) manquant(s)\n  • ${urgentCount} urgent(s)`,
+    );
+  } else {
+    console.log('[job:unpaid-reminder] ℹ️ Aucune action nécessaire.');
+  }
 }
 
 function generateSoldeMessage(
@@ -718,6 +730,11 @@ export async function jobCheckAnomalies(_job: Job): Promise<void> {
     if (result && !result.includes('Aucune anomalie')) {
       await tg(`⚠️ *Anomalies financières détectées:*\n${result}`);
       await notifyOwner('⚠️ Anomalie financière', result.slice(0, 200), true);
+      emitProactive(
+        `Anomalies financières détectées.`,
+        'alert',
+        `⚠️ Anomalies financières:\n\n${stripTgMd(result)}`,
+      );
     }
     console.log('[job:anomalies] check done');
   } catch (err) {
@@ -763,6 +780,7 @@ export async function jobWeeklyReport(_job: Job): Promise<void> {
 
   await tg(report);
   await notifyOwner('📊 Rapport hebdomadaire', report, false);
+  emitProactive(`Rapport hebdo — ${confirmed.length} rés. / ${revenue}€`, 'info', stripTgMd(report));
   console.log('[job:weekly-report] sent');
 }
 
@@ -832,6 +850,7 @@ export async function jobPatternDetection(_job: Job): Promise<void> {
   }
 
   await tg(lines.join('\n'));
+  emitProactive('Patterns détectés sur les 3 derniers mois.', 'info', stripTgMd(lines.join('\n')));
   console.log('[job:pattern-detection] sent');
 }
 
