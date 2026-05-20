@@ -85,7 +85,7 @@ router.patch('/:id', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  const updates = { ...parsed.data, updated_at: new Date().toISOString() };
+  const updates = { ...parsed.data };
 
   try {
     const { data, error } = await supabase
