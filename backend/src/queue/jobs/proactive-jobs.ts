@@ -406,8 +406,9 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   });
 
   await notifyOwner('📱 Vidéo TikTok prête', `${bestIdea.title} — réponds Oke pour publier`, false);
+  const tiktokMediaLine = targetCar.image_url ? `\n📹 ${targetCar.image_url}` : '';
   emitProactive(`Vidéo TikTok — ${bestIdea.title} — ${targetCar.name}. Réponds Oke pour publier.`, 'info',
-    `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok`);
+    `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok${tiktokMediaLine}`);
   console.log('[job:tiktok] Weekly marketing job complete');
 }
 
@@ -449,8 +450,9 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
     ``,
     `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
   ].join('\n'));
+  const mediaLine = result.public_url ? `\n📹 ${result.public_url}` : '';
   emitProactive(`${label} — ${result.car_name}. Réponds Oke pour publier.`, 'info',
-    `🎬 ${label} — ${result.car_name}\n📝 ${result.script.slice(0, 200)}\n🏷️ ${result.hashtags.slice(0, 4).join(' ')}\n\n✅ Réponds Oke pour publier`);
+    `🎬 ${label} — ${result.car_name}\n📝 ${result.script.slice(0, 200)}\n🏷️ ${result.hashtags.slice(0, 4).join(' ')}\n\n✅ Réponds Oke pour publier${mediaLine}`);
 }
 
 export async function jobWednesdayContent(_job: Job): Promise<void> {
