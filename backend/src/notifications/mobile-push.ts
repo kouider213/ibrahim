@@ -68,10 +68,11 @@ async function sendExpoPush(title: string, body: string, data?: Record<string, s
 }
 
 // Broadcast via Socket.IO (app open) + Expo Push (app closed)
-export function emitProactive(text: string, type: ProactiveType = 'info'): void {
-  // Socket.IO — instant if app open
+// chatText: full message for the chat UI (if omitted, falls back to text)
+export function emitProactive(text: string, type: ProactiveType = 'info', chatText?: string): void {
+  // Socket.IO — instant if app open; send full chatText for rich display
   if (_io) {
-    _io.emit('Dzaryx:proactive', { text, type, timestamp: new Date().toISOString() });
+    _io.emit('Dzaryx:proactive', { text: chatText ?? text, type, timestamp: new Date().toISOString() });
   }
 
   // Expo Push — works even when app is closed

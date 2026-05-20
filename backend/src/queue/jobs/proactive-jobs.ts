@@ -1,6 +1,11 @@
 ﻿import type { Job } from 'bullmq';
 import { redis } from '../../queue/queue.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
+
+// Strip Telegram markdown for chat display (*bold*, _italic_)
+function stripTgMd(s: string): string {
+  return s.replace(/\*/g, '').replace(/_/g, '').trim();
+}
 import { getDailyCostReport } from '../../monitoring/cost-tracker.js';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
@@ -162,12 +167,12 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   const fullMsg = lines.join('\n');
   await tg(fullMsg);
 
-  // Proactive push to mobile app — short version for TTS
+  // Proactive push — short text for push notif, full message for chat
   const ttsLines: string[] = [`${greeting} Kouider !`];
   if (actives.length > 0) ttsLines.push(`${actives.length} voiture${actives.length > 1 ? 's' : ''} en location aujourd'hui.`);
   if (retToday.length > 0) ttsLines.push(`${retToday.length} retour${retToday.length > 1 ? 's' : ''} prévu${retToday.length > 1 ? 's' : ''} aujourd'hui.`);
   if (weather) ttsLines.push(`Météo Oran : ${weather.temperature} degrés, ${weather.condition}.`);
-  emitProactive(ttsLines.join(' '), 'morning');
+  emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg));
 
   console.log('[job:morning-briefing] Sent');
 }
@@ -211,9 +216,14 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
   }
 
   if (sent > 0) {
+    const retList = (bookings as any[])
+      .map((b: any) => `  • ${b.client_name} — ${b.cars?.name ?? 'Véhicule'} (retour le ${b.end_date})`)
+      .join('\n');
+    const chatMsg = `🚗 Retours prévus demain (${sent})\n\n${retList}\n\nVérifie que tout est prêt pour la récupération.`;
     emitProactive(
       `Rappel : ${sent} voiture${sent > 1 ? 's' : ''} à récupérer demain. Vérifie tes retours.`,
       'reminder',
+      chatMsg,
     );
   }
   console.log(`[job:end-rental] ${sent} reminder(s) sent (skipped duplicates)`);
@@ -684,9 +694,14 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
     );
   }
 
+  const overdueList = (overdue as any[]).map((b: any) => {
+    const daysLate = Math.floor((new Date().getTime() - new Date(b.end_date as string).getTime()) / 86_400_000);
+    return `  • ${b.client_name} — ${(b.cars as any)?.name ?? '?'} (+${daysLate}j de retard, devait rendre le ${b.end_date})`;
+  }).join('\n');
   emitProactive(
     `Alerte retard ! ${overdue.length} véhicule${overdue.length > 1 ? 's' : ''} pas encore rendu${overdue.length > 1 ? 's' : ''}. Contacte tes clients.`,
     'alert',
+    `🚨 RETARD DE RETOUR — ${overdue.length} véhicule(s)\n\n${overdueList}\n\nContacte ces clients immédiatement.`,
   );
   console.log(`[job:late-return] ${overdue.length} véhicule(s) en retard détecté(s)`);
 }
@@ -1053,10 +1068,15 @@ export async function jobBIReminders(_job: Job): Promise<void> {
       await sendMessage(chatId, `${emoji} *${r.message}*\n💡 ${r.action}`);
     }
 
-    // Also push to mobile app
+    // Push to mobile app — full list for chat, short summary for push notif
     const mostUrgent = highPri[0];
     if (mostUrgent) {
-      emitProactive(`${mostUrgent.message} — ${mostUrgent.action}`, 'alert');
+      const allAlerts = highPri.map(r => `  • ${r.message} — ${r.action}`).join('\n');
+      emitProactive(
+        `${mostUrgent.message} — ${mostUrgent.action}`,
+        'alert',
+        `⚡ ${highPri.length} alerte(s) haute priorité\n\n${allAlerts}`,
+      );
     }
 
     console.log(`[job:bi-reminders] ✅ ${highPri.length} alerte(s) HIGH envoyées + push mobile`);
@@ -1129,7 +1149,7 @@ export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
 
     if (report.alertTriggered) {
       lines.push(`\n⚠️ *Alerte seuil $5 dépassé* — vérifier l'usage`);
-      emitProactive(`Alerte coût Claude API: $${report.totalUSD.toFixed(2)} aujourd'hui. Seuil $5 dépassé.`, 'alert');
+      emitProactive(`Alerte coût Claude API: $${report.totalUSD.toFixed(2)} aujourd'hui. Seuil $5 dépassé.`, 'alert', stripTgMd(lines.join('\n')));
     }
 
     await tg(lines.join('\n'));
@@ -1193,7 +1213,7 @@ export async function jobClientRelance(_job: Job): Promise<void> {
     ];
 
     await tg(lines.join('\n'));
-    emitProactive(`${toRelance.length} client(s) n'ont pas loué depuis 30+ jours. Pense à les relancer !`, 'alert');
+    emitProactive(`${toRelance.length} client(s) n'ont pas loué depuis 30+ jours. Pense à les relancer !`, 'alert', stripTgMd(lines.join('\n')));
     console.log(`[job:client-relance] ✅ ${toRelance.length} client(s) signalés`);
   } catch (err) {
     console.error('[job:client-relance] ❌', err instanceof Error ? err.message : String(err));
@@ -1267,7 +1287,7 @@ export async function jobVehicleUtilization(_job: Job): Promise<void> {
     }
 
     await tg(lines.join('\n'));
-    emitProactive(`Rapport utilisation parc : ${sorted.length} véhicules analysés sur 30 jours.`, 'info');
+    emitProactive(`Rapport utilisation parc : ${sorted.length} véhicules analysés sur 30 jours.`, 'info', stripTgMd(lines.join('\n')));
     console.log('[job:vehicle-utilization] ✅ rapport envoyé');
   } catch (err) {
     console.error('[job:vehicle-utilization] ❌', err instanceof Error ? err.message : String(err));
@@ -1324,7 +1344,7 @@ export async function jobHabitCheck(_job: Job): Promise<void> {
     ];
 
     await tg(lines.join('\n'));
-    emitProactive(`${due.length} habitude(s) à faire aujourd'hui : ${due.map(h => h.name).join(', ')}`, 'reminder');
+    emitProactive(`${due.length} habitude(s) à faire aujourd'hui : ${due.map(h => h.name).join(', ')}`, 'reminder', stripTgMd(lines.join('\n')));
     console.log(`[job:habit-check] ✅ ${due.length} habitude(s) rappelées`);
   } catch (err) {
     console.error('[job:habit-check] ❌', err instanceof Error ? err.message : String(err));
@@ -1375,7 +1395,7 @@ export async function jobMonthlyReport(_job: Job): Promise<void> {
     lines.push(`\n💡 _Dzaryx génère automatiquement ce bilan chaque 1er du mois._`);
 
     await tg(lines.join('\n'));
-    emitProactive(`Bilan ${monthName} : ${finance?.kouiderProfit ?? '?'}€ de bénéfice, ${allBookings.length} réservations.`, 'info');
+    emitProactive(`Bilan ${monthName} : ${finance?.kouiderProfit ?? '?'}€ de bénéfice, ${allBookings.length} réservations.`, 'info', stripTgMd(lines.join('\n')));
     console.log('[job:monthly-report] ✅ envoyé');
   } catch (err) {
     console.error('[job:monthly-report] ❌', err instanceof Error ? err.message : String(err));
@@ -1429,7 +1449,7 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
     ];
 
     await tg(lines.join('\n'));
-    emitProactive(`${idle.length} véhicule(s) immobilisé(s) 14+ jours : ${idle.map(c => c.name).join(', ')}`, 'alert');
+    emitProactive(`${idle.length} véhicule(s) immobilisé(s) 14+ jours : ${idle.map(c => c.name).join(', ')}`, 'alert', stripTgMd(lines.join('\n')));
     console.log(`[job:long-idle] ✅ ${idle.length} véhicule(s) signalé(s)`);
   } catch (err) {
     console.error('[job:long-idle] ❌', err instanceof Error ? err.message : String(err));
