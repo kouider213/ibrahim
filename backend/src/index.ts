@@ -82,7 +82,7 @@ const server = http.createServer(app);
 
 app.use(helmet({ crossOriginEmbedderPolicy: false }));
 app.use(cors({ origin: '*', credentials: true }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '20mb' }));
 app.use(cookieParser());
 app.use(requestLogger);
 
