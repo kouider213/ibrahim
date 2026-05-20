@@ -440,8 +440,8 @@ export const business = {
   fetchJobs: () =>
     apiFetch<{ jobs: Array<{ name: string; cron: string; next: number | null }> }>('/api/scheduler/jobs'),
 
-  triggerJob: (name: string) =>
-    fetch(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(name)}`, {
+  triggerJob: (name: string, force = true) =>
+    fetch(`${BACKEND_URL}/api/scheduler/trigger/${encodeURIComponent(name)}?force=${force}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}` },
     }).then(r => r.ok),

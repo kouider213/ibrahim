@@ -39,14 +39,31 @@ router.get('/status', requireMobileAuth, async (_req, res) => {
 });
 
 // POST /api/scheduler/trigger/:name — manual trigger any known cron job
+// ?force=true clears the day lock so the job runs fully (not "already sent today")
 router.post('/trigger/:name', requireMobileAuth, async (req, res) => {
   const { name } = req.params as { name: string };
+  const force = req.query['force'] === 'true';
+
+  if (force) {
+    const today = new Date().toISOString().slice(0, 10);
+    // Clear today's day lock (pattern: job:<name>:sent:<date>)
+    await redis.del(`job:${name}:sent:${today}`).catch(() => {});
+    // monthly-report uses prev-month key
+    if (name === 'monthly-report') {
+      const now = new Date();
+      const m = now.getMonth(); // 0-based current month
+      const prevMonth = m === 0 ? 12 : m;
+      const prevYear  = m === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      await redis.del(`job:monthly-report:sent:${prevYear}-${prevMonth}`).catch(() => {});
+    }
+  }
+
   const ok = await triggerJob(name);
   if (!ok) {
     res.status(404).json({ error: `Unknown job: ${name}` });
     return;
   }
-  res.json({ triggered: true, job: name, queued_at: new Date().toISOString() });
+  res.json({ triggered: true, job: name, force, queued_at: new Date().toISOString() });
 });
 
 // POST /api/scheduler/test-telegram — fire a custom-reminder → real Telegram message (P11 runtime proof)
