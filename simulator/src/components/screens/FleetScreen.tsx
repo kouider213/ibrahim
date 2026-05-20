@@ -82,10 +82,10 @@ export default function FleetScreen() {
               borderRadius: 12, overflow: 'hidden',
               border: `1px solid ${col}22`,
               background: `linear-gradient(135deg, ${col}06, rgba(2,8,16,0.6))`,
-              display: 'flex', height: 84,
+              display: 'flex', height: 92,
             }}>
               {/* Photo — LEFT column */}
-              <div style={{ width: 90, flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+              <div style={{ width: 110, flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
                 <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
                 {/* Status dot on photo */}
                 <div style={{
