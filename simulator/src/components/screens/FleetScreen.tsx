@@ -1,6 +1,31 @@
 import { useState, useEffect } from 'react';
 import { business, type Car, type FleetIntel } from '../../services/api.ts';
 
+// Catalog prices (ref only for display — never used in financial calculations)
+const PRICE_CATALOG: Array<{ match: string; h: number; k: number }> = [
+  { match: 'jumpy',       h: 44, k: 55 },
+  { match: 'berlingo',    h: 44, k: 55 },
+  { match: 'jogger',      h: 37, k: 50 },
+  { match: 'sandero',     h: 22, k: 35 },
+  { match: 'clio 5 alp',  h: 44, k: 50 },
+  { match: 'clio 5',      h: 37, k: 45 },
+  { match: 'clio 4 v1',   h: 16, k: 25 },
+  { match: 'clio 4 v2',   h: 24, k: 35 },
+  { match: 'clio 4',      h: 20, k: 30 },
+  { match: 'i10',         h: 16, k: 25 },
+  { match: 'fiat 500 xl', h: 37, k: 45 },
+  { match: 'fiat 500',    h: 24, k: 35 },
+  { match: 'r.duster',    h: 31, k: 45 },
+  { match: 'd.duster',    h: 44, k: 50 },
+  { match: 'duster',      h: 37, k: 48 },
+  { match: 'creta',       h: 24, k: 45 },
+];
+
+function getCatalog(name: string): { h: number; k: number } | null {
+  const n = name.toLowerCase();
+  return PRICE_CATALOG.find(p => n.includes(p.match)) ?? null;
+}
+
 export default function FleetScreen() {
   const [intel, setIntel]  = useState<FleetIntel | null>(null);
   const [cars, setCars]    = useState<Car[]>([]);
@@ -67,12 +92,18 @@ export default function FleetScreen() {
         ) : cars.length === 0 ? (
           <HudEmpty text="Aucun véhicule" />
         ) : cars.map(car => {
-          const avail  = car.available;
-          const col    = avail ? '#00e676' : '#ff3366';
-          const stat   = intel?.stats.find(s => s.car_name === car.name);
-          const isTog  = toggling === car.id;
-          const rev30d = stat ? Math.round(stat.revenue_30d) : null;
-          const occ30d = stat ? Math.round(stat.occupancy_pct) : null;
+          const avail   = car.available;
+          const col     = avail ? '#00e676' : '#ff3366';
+          const stat    = intel?.stats.find(s => s.car_name === car.name);
+          const isTog   = toggling === car.id;
+          const rev30d  = stat ? Math.round(stat.revenue_30d) : null;
+          const occ30d  = stat ? Math.round(stat.occupancy_pct) : null;
+          const catalog = getCatalog(car.name);
+          // houari price: base_price from DB, fallback catalog
+          const hPrice  = car.base_price ?? catalog?.h ?? null;
+          // kouider price: catalog (reference only — real price is per booking)
+          const kPrice  = catalog?.k ?? null;
+          const profit  = (hPrice && kPrice) ? kPrice - hPrice : null;
 
           return (
             <div key={car.id} style={{
@@ -96,44 +127,64 @@ export default function FleetScreen() {
                 <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
               </div>
 
-              {/* Middle — name + stats */}
-              <div style={{ flex: 1, minWidth: 0, padding: '10px 6px 10px 8px' }}>
+              {/* Middle — name + prices + stats */}
+              <div style={{ flex: 1, minWidth: 0, padding: '9px 6px 9px 8px' }}>
+                {/* Name */}
                 <div style={{
                   fontSize: 13, color: '#ffffff', fontWeight: 700,
-                  letterSpacing: '0.02em', marginBottom: 3,
+                  letterSpacing: '0.02em', marginBottom: 4,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {car.name}
                 </div>
-                <div style={{ fontSize: 7.5, color: col, fontFamily: 'Orbitron', letterSpacing: '0.1em', marginBottom: 5, opacity: 0.9 }}>
+                {/* Category */}
+                <div style={{ fontSize: 7, color: '#ffffff44', letterSpacing: '0.08em', marginBottom: 5 }}>
                   {car.category ?? 'Standard'}
-                  {car.base_price ? ` · ${car.base_price}€/j` : ''}
                 </div>
+                {/* Prices — Houari / Kouider / profit */}
+                <div style={{ display: 'flex', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
+                  {hPrice !== null && (
+                    <span style={{ fontSize: 7.5, background: '#ffffff0a', border: '1px solid #ffffff18', borderRadius: 5, padding: '2px 6px', color: '#ff3366cc' }}>
+                      H: {hPrice}€/j
+                    </span>
+                  )}
+                  {kPrice !== null && (
+                    <span style={{ fontSize: 7.5, background: '#00e6760a', border: '1px solid #00e67622', borderRadius: 5, padding: '2px 6px', color: '#00e676cc' }}>
+                      K: {kPrice}€/j
+                    </span>
+                  )}
+                  {profit !== null && (
+                    <span style={{ fontSize: 7.5, background: '#ffb3470a', border: '1px solid #ffb34722', borderRadius: 5, padding: '2px 6px', color: '#ffb347cc' }}>
+                      +{profit}€/j
+                    </span>
+                  )}
+                </div>
+                {/* Rev 30j + occupation */}
                 {rev30d !== null && (
-                  <div style={{ fontSize: 7.5, color: '#ffffff44', marginBottom: 5 }}>
-                    REV. 30J{' '}
-                    <span style={{ color: '#ffffffbb', fontWeight: 600 }}>
+                  <div style={{ fontSize: 7, color: '#ffffff33', marginBottom: 4 }}>
+                    REV. 30J <span style={{ color: '#ffffffaa', fontWeight: 600 }}>
                       {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
                     </span>
                   </div>
                 )}
                 {occ30d !== null && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <div style={{ flex: 1, height: 3, background: '#ffffff09', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}66, ${col})`, borderRadius: 2, transition: 'width 0.6s ease' }} />
+                      <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}55, ${col})`, borderRadius: 2, transition: 'width 0.6s ease' }} />
                     </div>
-                    <span style={{ fontSize: 7.5, color: col, fontFamily: 'Orbitron', minWidth: 26, textAlign: 'right', letterSpacing: '0.05em' }}>
+                    <span style={{ fontSize: 7, color: col, fontFamily: 'Orbitron', minWidth: 24, textAlign: 'right' }}>
                       {occ30d}%
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Right — iOS toggle */}
-              <div style={{ flexShrink: 0, padding: '0 14px 0 4px' }}>
+              {/* Right — toggle + label */}
+              <div style={{ flexShrink: 0, padding: '0 12px 0 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                 <button
                   onClick={() => void toggle(car)}
                   disabled={isTog}
+                  title={avail ? 'Mettre indisponible' : 'Mettre disponible'}
                   style={{
                     width: 50, height: 28, borderRadius: 14, border: 'none',
                     background: avail
@@ -155,6 +206,9 @@ export default function FleetScreen() {
                     left: avail ? 26 : 4,
                   }} />
                 </button>
+                <span style={{ fontSize: 6, fontFamily: 'Orbitron', color: col, letterSpacing: '0.1em' }}>
+                  {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
+                </span>
               </div>
             </div>
           );
