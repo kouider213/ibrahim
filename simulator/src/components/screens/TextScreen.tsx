@@ -11,6 +11,7 @@ interface Props { onNavigateVoice: () => void; }
 interface Message {
   id: string; role: 'user' | 'ai'; text: string;
   ts: string; status?: 'sending' | 'done' | 'error';
+  imagePreview?: string;
 }
 
 const STATUS_COLOR: Record<DzaryxStatus, string> = {
@@ -26,7 +27,9 @@ export default function TextScreen({ onNavigateVoice }: Props) {
   const [streaming, setStream] = useState('');
   const [wsConn, setWsConn]   = useState(isSocketConnected);
   const [syncInfo, setSyncInfo] = useState<{ ok: boolean; time: string; count: number } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ base64: string; preview: string } | null>(null);
   const scrollRef              = useRef<HTMLDivElement>(null);
+  const fileInputRef           = useRef<HTMLInputElement>(null);
   const sessionId              = useRef(getOrCreateSessionId());
   const streamingMsgId         = useRef<string | null>(null);
 
@@ -113,19 +116,36 @@ export default function TextScreen({ onNavigateVoice }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [msgs, streaming]);
 
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      const b64 = await compressImage(file, 1200, 0.75);
+      setSelectedImage({ base64: b64, preview: `data:image/jpeg;base64,${b64}` });
+    } catch { /* ignore */ }
+  }, []);
+
   const send = useCallback(async () => {
     const text = input.trim();
-    if (!text || status === 'thinking') return;
+    if ((!text && !selectedImage) || status === 'thinking') return;
 
-    const userMsg: Message = { id: uid(), role: 'user', text, ts: now(), status: 'done' };
-    const aiMsg: Message   = { id: uid(), role: 'ai',  text: '',  ts: now(), status: 'sending' };
+    const img = selectedImage;
+    const userMsg: Message = {
+      id: uid(), role: 'user',
+      text: text || '📷 Photo',
+      ts: now(), status: 'done',
+      imagePreview: img?.preview,
+    };
+    const aiMsg: Message = { id: uid(), role: 'ai', text: '', ts: now(), status: 'sending' };
     setMsgs(ms => [...ms, userMsg, aiMsg]);
     streamingMsgId.current = aiMsg.id;
     setInput('');
+    setSelectedImage(null);
     setStatus('thinking');
 
     try {
-      const res = await api.chat(text, sessionId.current);
+      const res = await api.chat(text || '📷 Photo', sessionId.current, img?.base64, img ? 'image/jpeg' : undefined);
       if (res.text && streamingMsgId.current) {
         setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
           ? { ...m, text: res.text!, status: 'done' } : m));
@@ -137,7 +157,7 @@ export default function TextScreen({ onNavigateVoice }: Props) {
         ? { ...m, text: '⚠️ Erreur réseau', status: 'error' } : m));
       streamingMsgId.current = null;
     }
-  }, [input, status]);
+  }, [input, status, selectedImage]);
 
   const col = STATUS_COLOR[status];
 
@@ -235,53 +255,117 @@ export default function TextScreen({ onNavigateVoice }: Props) {
 
       {/* Input area */}
       <div style={{
-        padding: '8px 12px 10px',
         borderTop: `1px solid ${col}1a`,
-        display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0,
+        flexShrink: 0,
         background: 'rgba(2,5,16,0.95)',
       }}>
-        <textarea
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Écris un message..."
-          rows={1}
-          style={{
-            flex: 1, background: `${col}08`,
-            border: `1px solid ${input ? col + '55' : col + '1a'}`,
-            borderRadius: 12, padding: '8px 12px',
-            color: '#c8e8ff', fontFamily: 'Share Tech Mono', fontSize: 11,
-            resize: 'none', outline: 'none',
-            lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
-            transition: 'border-color 0.2s ease',
-          }}
-        />
-        <button
-          onClick={() => { unlockAudio(); send(); }}
-          disabled={!input.trim() || status === 'thinking'}
-          style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: input.trim() && status !== 'thinking' ? `${col}22` : 'rgba(255,255,255,0.03)',
-            border: `1.5px solid ${input.trim() ? col + '88' : '#ffffff18'}`,
-            cursor: input.trim() ? 'pointer' : 'default',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: input.trim() ? `0 0 10px ${col}33` : 'none',
-            transition: 'all 0.2s ease', flexShrink: 0,
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke={input.trim() ? col : '#ffffff22'} strokeWidth="2">
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22,2 15,22 11,13 2,9" />
-          </svg>
-        </button>
+        {/* Image preview strip */}
+        {selectedImage && (
+          <div style={{ padding: '6px 12px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+              <img src={selectedImage.preview} alt="preview"
+                style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 8, border: `1px solid ${col}44` }} />
+              <button onClick={() => setSelectedImage(null)} style={{
+                position: 'absolute', top: -4, right: -4,
+                width: 16, height: 16, borderRadius: '50%',
+                background: '#ff336688', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+              }}>
+                <span style={{ fontSize: 9, color: '#fff', lineHeight: 1 }}>✕</span>
+              </button>
+            </div>
+            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${col}66` }}>Photo prête</span>
+          </div>
+        )}
+
+        <div style={{ padding: '8px 12px 10px', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleImageSelect}
+          />
+          {/* Camera button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Envoyer une photo"
+            style={{
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+              background: selectedImage ? `${col}22` : 'rgba(255,255,255,0.03)',
+              border: `1.5px solid ${selectedImage ? col + '88' : '#ffffff18'}`,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: selectedImage ? `0 0 10px ${col}33` : 'none',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={selectedImage ? col : '#ffffff44'} strokeWidth="1.8">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          </button>
+
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder={selectedImage ? 'Ajoute un message (optionnel)…' : 'Écris un message…'}
+            rows={1}
+            style={{
+              flex: 1, background: `${col}08`,
+              border: `1px solid ${(input || selectedImage) ? col + '55' : col + '1a'}`,
+              borderRadius: 12, padding: '8px 12px',
+              color: '#c8e8ff', fontFamily: 'Share Tech Mono', fontSize: 11,
+              resize: 'none', outline: 'none',
+              lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
+              transition: 'border-color 0.2s ease',
+            }}
+          />
+          <button
+            onClick={() => { unlockAudio(); send(); }}
+            disabled={(!input.trim() && !selectedImage) || status === 'thinking'}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: (input.trim() || selectedImage) && status !== 'thinking' ? `${col}22` : 'rgba(255,255,255,0.03)',
+              border: `1.5px solid ${(input.trim() || selectedImage) ? col + '88' : '#ffffff18'}`,
+              cursor: (input.trim() || selectedImage) ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: (input.trim() || selectedImage) ? `0 0 10px ${col}33` : 'none',
+              transition: 'all 0.2s ease', flexShrink: 0,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={(input.trim() || selectedImage) ? col : '#ffffff22'} strokeWidth="2">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22,2 15,22 11,13 2,9" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
+const MEDIA_RE = /^📹\s+(https?:\/\/\S+)$/;
+const VIDEO_EXT = /\.(mp4|mov|webm|ogg)(\?.*)?$/i;
+const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
+
 function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === 'user';
+
+  // Split text into normal lines and media lines
+  const lines = msg.text.split('\n');
+  const mediaUrls: string[] = [];
+  const textLines: string[] = [];
+  for (const line of lines) {
+    const m = MEDIA_RE.exec(line);
+    if (m) { mediaUrls.push(m[1]); }
+    else { textLines.push(line); }
+  }
+  const displayText = textLines.join('\n').trim();
+
   return (
     <div
       className="bubble-in"
@@ -300,11 +384,33 @@ function MessageBubble({ msg }: { msg: Message }) {
         {msg.status === 'sending' && !msg.text ? (
           <span style={{ color: '#00d4ff44', fontFamily: 'Share Tech Mono', fontSize: 10 }}>· · ·</span>
         ) : (
-          <p style={{
-            fontFamily: 'Share Tech Mono', fontSize: 10, lineHeight: 1.65, margin: 0,
-            color: isUser ? '#ffb347cc' : '#a0e8ffcc',
-            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          }}>{msg.text}</p>
+          <>
+            {isUser && msg.imagePreview && (
+              <img src={msg.imagePreview} alt="photo"
+                style={{ display: 'block', marginBottom: displayText ? 6 : 0, width: '100%', maxHeight: 220, borderRadius: 8, objectFit: 'cover' }} />
+            )}
+            {displayText && (
+              <p style={{
+                fontFamily: 'Share Tech Mono', fontSize: 10, lineHeight: 1.65, margin: 0,
+                color: isUser ? '#ffb347cc' : '#a0e8ffcc',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              }}>{displayText}</p>
+            )}
+            {mediaUrls.map((url, i) =>
+              VIDEO_EXT.test(url) ? (
+                <video key={i} src={url} controls playsInline
+                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 8, background: '#000' }} />
+              ) : IMAGE_EXT.test(url) ? (
+                <img key={i} src={url} alt="media"
+                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 8, objectFit: 'cover' }} />
+              ) : (
+                <a key={i} href={url} target="_blank" rel="noreferrer"
+                  style={{ display: 'block', marginTop: 4, fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00d4ffaa', wordBreak: 'break-all' }}>
+                  🔗 {url.slice(0, 60)}…
+                </a>
+              )
+            )}
+          </>
         )}
         <span style={{
           display: 'block', textAlign: 'right', marginTop: 3,
@@ -369,4 +475,33 @@ function RobotAvatar() {
 function uid() { return Math.random().toString(36).slice(2); }
 function now() {
   return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function compressImage(file: File, maxPx = 1200, quality = 0.75): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(
+        blob => {
+          if (!blob) { reject(new Error('compression failed')); return; }
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1] ?? '');
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        },
+        'image/jpeg',
+        quality,
+      );
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
 }
