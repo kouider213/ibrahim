@@ -135,7 +135,7 @@ export default function Phone() {
   const renderScreen = () => {
     switch (page) {
       case 'voice':         return <VoiceScreen onNavigateText={() => setPage('text')} onWsStatus={setWsOk} />;
-      case 'text':          return <TextScreen onNavigateVoice={() => setPage('voice')} />;
+      case 'text':          return <TextScreen onNavigateVoice={() => setPage('voice')} actor={loggedActor ?? 'kouider'} />;
       case 'bookings':      return <BookingsScreen />;
       case 'fleet':         return <FleetScreen />;
       case 'revenue':       return <RevenueScreen />;

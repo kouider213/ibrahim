@@ -6,7 +6,7 @@ import {
   type DzaryxStatus,
 } from '../../services/api.ts';
 
-interface Props { onNavigateVoice: () => void; }
+interface Props { onNavigateVoice: () => void; actor?: 'kouider' | 'houari'; }
 
 interface Message {
   id: string; role: 'user' | 'ai'; text: string;
@@ -14,13 +14,29 @@ interface Message {
   imagePreview?: string;
 }
 
+const ACTOR_GREETING: Record<'kouider' | 'houari', string> = {
+  kouider: 'Bonjour Kouider. Je suis Dzaryx, ton assistant personnel Fik Conciergerie. Comment puis-je t\'aider ?',
+  houari:  'Labès Houari. Ana Dzaryx, mساعدك الشخصي Fik Conciergerie. Waش nقدر nعاونك ?',
+};
+
+const ACTOR_LABEL: Record<'kouider' | 'houari', string> = {
+  kouider: 'KOUIDER · PDG',
+  houari:  'HOUARI · ASSOCIÉ',
+};
+
+const ACTOR_COLOR: Record<'kouider' | 'houari', string> = {
+  kouider: '#00d4ff',
+  houari:  '#7c3aed',
+};
+
 const STATUS_COLOR: Record<DzaryxStatus, string> = {
   idle: '#00d4ff', listening: '#ff3366', thinking: '#ffaa00', speaking: '#00e676',
 };
 
-export default function TextScreen({ onNavigateVoice }: Props) {
+export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props) {
+  const actorCol = ACTOR_COLOR[actor];
   const [msgs, setMsgs]       = useState<Message[]>([{
-    id: '0', role: 'ai', text: 'Salut, je suis Dzaryx. Comment puis-je t\'aider ?', ts: now(),
+    id: '0', role: 'ai', text: ACTOR_GREETING[actor], ts: now(),
   }]);
   const [input, setInput]     = useState('');
   const [status, setStatus]   = useState<DzaryxStatus>('idle');
@@ -200,13 +216,17 @@ export default function TextScreen({ onNavigateVoice }: Props) {
             </div>
           </div>
 
-          {/* DZARYX title */}
+          {/* DZARYX title + actor */}
           <div style={{ textAlign: 'center' }}>
             <div style={{
               fontFamily: 'Orbitron', fontSize: 14, fontWeight: 900,
-              color: '#00d4ff', letterSpacing: '0.4em',
-              textShadow: '0 0 10px #00d4ff, 0 0 20px #00d4ff33',
+              color: actorCol, letterSpacing: '0.4em',
+              textShadow: `0 0 10px ${actorCol}, 0 0 20px ${actorCol}33`,
             }}>DZARYX</div>
+            <div style={{
+              fontFamily: 'Share Tech Mono', fontSize: 7,
+              color: `${actorCol}99`, letterSpacing: '0.2em', marginTop: 1,
+            }}>{ACTOR_LABEL[actor]}</div>
           </div>
 
           {/* Voice mode button */}

@@ -140,7 +140,7 @@ export async function buildContext(
   );
   const needsReminderInject = needsReminders || oranHour < 12;
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders] = await Promise.all([
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -170,6 +170,14 @@ export async function buildContext(
     needsReminderInject
       ? getSmartReminders().catch(() => [])
       : Promise.resolve([]),
+    supabase
+      .from('client_intelligence')
+      .select('client_name, score, total_bookings, total_spent')
+      .eq('owner_id', actor.ownerKey)
+      .eq('score', 'VIP')
+      .order('total_spent', { ascending: false })
+      .limit(10)
+      .then((r: any) => r.data ?? [], () => []),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -314,14 +322,37 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
       }).join('\n')}`
     : '';
 
+  // Build VIP client list per actor
+  const vipList = (vipClients as any[]).length > 0
+    ? `\nCLIENTS VIP:\n${(vipClients as any[]).map((c: any) => `• ${c.client_name} (${c.total_bookings} locations, ${c.total_spent}€)`).join('\n')}`
+    : '\n(Aucun client VIP enregistré pour le moment)';
+
+  // Actor persona block — injected first in systemExtra
+  const isHouari = actor.ownerKey === 'houari';
+  const actorPersonaText = isHouari
+    ? `\n\nIDENTITÉ DZARYX — HOUARI:\nTu es le Dzaryx personnel de Houari (associé Fik Conciergerie Oran).\nLANGUE PAR DÉFAUT: Darija algérienne. Réponds TOUJOURS en darija sauf si Houari écrit clairement en français ou anglais.\nFOCUS: priorité aux infos de Houari, mais tu connais aussi les infos de Kouider.\n${vipList}`
+    : `\n\nIDENTITÉ DZARYX — KOUIDER:\nTu es le Dzaryx personnel de Kouider (PDG Fik Conciergerie Oran).\nLANGUE PAR DÉFAUT: Français. Réponds TOUJOURS en français sauf si Kouider écrit dans une autre langue.\nFOCUS: priorité aux infos de Kouider, mais tu connais aussi les infos de Houari.\n${vipList}`;
+
   let langDetection = detectLanguage(userMessage);
-  // Actor preferred language override: if detection is ambiguous and actor has a preference
-  if ((langDetection.lang === 'unknown' || userMessage.trim().length < 6) && actor.ownerKey === 'houari') {
-    langDetection = {
-      lang:       'darija',
-      label:      'Darija (préférence acteur)',
-      systemHint: 'LANGUE DÉTECTÉE: darija algérienne (préférence Houari) — répondre en darija algérienne ou arabe naturel.',
-    };
+  // Actor preferred language override
+  if (actor.ownerKey === 'houari') {
+    // Houari = darija by default unless clearly French or English
+    if (langDetection.lang !== 'fr' && langDetection.lang !== 'en') {
+      langDetection = {
+        lang:       'darija',
+        label:      'Darija (défaut Houari)',
+        systemHint: 'LANGUE: darija algérienne — réponds en darija/arabe algérien naturel.',
+      };
+    }
+  } else if (actor.ownerKey === 'kouider') {
+    // Kouider = French by default unless clearly another language
+    if (langDetection.lang === 'unknown' || userMessage.trim().length < 6) {
+      langDetection = {
+        lang:       'fr',
+        label:      'Français (défaut Kouider)',
+        systemHint: 'LANGUE: français — réponds en français.',
+      };
+    }
   }
   const langHint = `\n\n${langDetection.systemHint}`;
   console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}" mood=${mood.mood}(${mood.intensity}) actor=${actor.ownerKey}`);
@@ -331,6 +362,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     : '';
 
   const systemExtra = [
+    actorPersonaText,
     urgencyText,
     langHint,
     channelInfo,
