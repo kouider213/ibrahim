@@ -89,6 +89,9 @@ export const api = {
   getFinanceDashboard: () =>
     apiFetch<FinanceDash>('/api/finance/dashboard'),
 
+  getRecentProactives: () =>
+    apiFetch<{ messages: Array<{ text: string; type: string; timestamp: string }> }>('/api/notifications/proactive/recent'),
+
   sendFeedback: async (feedback: FeedbackPayload) => {
     // Send to local dev watcher (for real-time Claude fix loop)
     fetch('http://localhost:4567/feedback', {

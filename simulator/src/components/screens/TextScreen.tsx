@@ -70,6 +70,20 @@ export default function TextScreen({ onNavigateVoice }: Props) {
   }, []);
 
   useEffect(() => {
+    // Load proactives missed before app was open (stored server-side 24h)
+    api.getRecentProactives().then(({ messages }) => {
+      if (messages.length === 0) return;
+      const historical = messages.map(m => ({
+        id: uid(), role: 'ai' as const,
+        text: `📡 ${m.text}`,
+        ts: new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        status: 'done' as const,
+      }));
+      setMsgs(ms => [ms[0], ...historical]);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     subscribeProactive((text) => {
       setMsgs(ms => [...ms, { id: uid(), role: 'ai', text: `📡 ${text}`, ts: now(), status: 'done' }]);
     });

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { getRecentProactives } from '../../notifications/mobile-push.js';
 
 const router = Router();
 
@@ -33,6 +34,12 @@ router.post('/:id/read', requireMobileAuth, async (req, res) => {
     return;
   }
   res.json({ success: true });
+});
+
+// GET /api/notifications/proactive/recent — last 30 proactives (24h TTL)
+router.get('/proactive/recent', requireMobileAuth, async (_req, res) => {
+  const messages = await getRecentProactives();
+  res.json({ messages });
 });
 
 export default router;

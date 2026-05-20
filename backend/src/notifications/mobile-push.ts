@@ -67,15 +67,35 @@ async function sendExpoPush(title: string, body: string, data?: Record<string, s
   }
 }
 
+const PROACTIVE_HISTORY_KEY = 'proactive:history';
+const PROACTIVE_HISTORY_TTL = 86400; // 24h
+
+export async function getRecentProactives(): Promise<Array<{ text: string; type: ProactiveType; timestamp: string }>> {
+  try {
+    const items = await redis.lrange(PROACTIVE_HISTORY_KEY, 0, 29);
+    return items.map(i => JSON.parse(i) as { text: string; type: ProactiveType; timestamp: string }).reverse();
+  } catch { return []; }
+}
+
 // Broadcast via Socket.IO (app open) + Expo Push (app closed)
 // chatText: full message for the chat UI (if omitted, falls back to text)
 export function emitProactive(text: string, type: ProactiveType = 'info', chatText?: string): void {
+  const timestamp = new Date().toISOString();
+  const chatPayload = chatText ?? text;
+
+  // Store in Redis history so late-joining clients can catch up
+  const entry = JSON.stringify({ text: chatPayload, type, timestamp });
+  redis.lpush(PROACTIVE_HISTORY_KEY, entry)
+    .then(() => redis.expire(PROACTIVE_HISTORY_KEY, PROACTIVE_HISTORY_TTL))
+    .then(() => redis.ltrim(PROACTIVE_HISTORY_KEY, 0, 29))
+    .catch(() => {});
+
   // Socket.IO — instant if app open; send full chatText for rich display
   if (_io) {
-    _io.emit('Dzaryx:proactive', { text: chatText ?? text, type, timestamp: new Date().toISOString() });
+    _io.emit('Dzaryx:proactive', { text: chatPayload, type, timestamp });
   }
 
-  // Expo Push — works even when app is closed
+  // Expo Push — works even when app is closed (short text only)
   const title = type === 'morning'  ? '☀️ Dzaryx — Bonjour'
               : type === 'alert'    ? '🚨 Dzaryx — Alerte'
               : type === 'reminder' ? '🔔 Dzaryx — Rappel'
