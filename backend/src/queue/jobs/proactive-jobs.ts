@@ -39,6 +39,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:morning-briefing] SKIP — already sent today');
+    emitProactive('Briefing matinal déjà envoyé aujourd\'hui.', 'info', '✅ Briefing matinal déjà envoyé aujourd\'hui.');
     return;
   }
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -234,7 +235,11 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const dayLock = `job:idle-vehicle:sent:${today}`;
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
-  if (!acquired) { console.log('[job:idle-vehicle] SKIP — already sent today'); return; }
+  if (!acquired) {
+    console.log('[job:idle-vehicle] SKIP — already sent today');
+    emitProactive('Alerte véhicules inactifs déjà vérifiée aujourd\'hui.', 'info', '✅ Vérification véhicules inactifs déjà effectuée aujourd\'hui.');
+    return;
+  }
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
@@ -253,7 +258,10 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
     if ((count ?? 0) === 0) idleCars.push(car);
   }
 
-  if (!idleCars.length) return;
+  if (!idleCars.length) {
+    emitProactive('Flotte OK — tous les véhicules ont des réservations actives.', 'info', '✅ Aucun véhicule inactif depuis 7 jours — flotte en bonne santé.');
+    return;
+  }
 
   const list = idleCars.map(c => `  • ${c.name}`).join('\n');
   await tg(`⚠️ *${idleCars.length} véhicule(s) sans réservation depuis 7 jours:*\n${list}\n\n💡 Fais un TikTok ou propose une promo.`);
@@ -276,6 +284,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 
   if (cars.length === 0) {
     await tg('📱 *Marketing TikTok*: aucune voiture disponible cette semaine.');
+    emitProactive('Aucune voiture disponible pour TikTok cette semaine.', 'info', '📱 Marketing TikTok : aucune voiture disponible cette semaine.');
     return;
   }
 
@@ -288,6 +297,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 
   if (!report || report.top_ideas.length === 0) {
     await tg('⚠️ Recherche TikTok échouée — réessaie plus tard.');
+    emitProactive('Recherche TikTok IA échouée — réessaie plus tard.', 'alert', '⚠️ Recherche marketing TikTok échouée. Réessaie plus tard.');
     return;
   }
 
@@ -338,6 +348,8 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 
   if (!targetCar.image_url) {
     await tg(`✅ Rapport envoyé ! Pas d'image pour créer la vidéo automatiquement.\n\n*Script voix-off:*\n_${bestIdea.voiceover_script}_`);
+    emitProactive(`Idée TikTok — ${bestIdea.title} — ${targetCar.name}. Pas d'image disponible.`, 'info',
+      `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}`);
     return;
   }
 
@@ -358,6 +370,8 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
       `📱 *Légende:* ${bestIdea.caption}`,
       `#️⃣ ${bestIdea.hashtags.slice(0, 5).join(' ')}`,
     ].join('\n'));
+    emitProactive(`Idée TikTok — ${bestIdea.title} — ${targetCar.name}. Script prêt.`, 'info',
+      `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}\n\n📱 Légende: ${bestIdea.caption}`);
     return;
   }
 
@@ -392,6 +406,8 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   });
 
   await notifyOwner('📱 Vidéo TikTok prête', `${bestIdea.title} — réponds Oke pour publier`, false);
+  emitProactive(`Vidéo TikTok — ${bestIdea.title} — ${targetCar.name}. Réponds Oke pour publier.`, 'info',
+    `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok`);
   console.log('[job:tiktok] Weekly marketing job complete');
 }
 
@@ -403,6 +419,7 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
 
   if (cars.length === 0) {
     await tg(`📱 *${label}*: aucune voiture avec photo disponible.`);
+    emitProactive(`${label} : aucune voiture avec photo disponible.`, 'info', `📱 ${label} : aucune voiture avec photo disponible.`);
     return;
   }
 
@@ -420,6 +437,7 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
   } catch (err) {
     console.error(`[job:${style}] video failed:`, err);
     await tg(`⚠️ *${label}*: création vidéo échouée. Réessaie manuellement.`);
+    emitProactive(`${label} : création vidéo échouée pour ${car.name}.`, 'alert', `⚠️ ${label} : création vidéo échouée pour ${car.name}. Réessaie manuellement.`);
     return;
   }
 
@@ -431,6 +449,8 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
     ``,
     `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
   ].join('\n'));
+  emitProactive(`${label} — ${result.car_name}. Réponds Oke pour publier.`, 'info',
+    `🎬 ${label} — ${result.car_name}\n📝 ${result.script.slice(0, 200)}\n🏷️ ${result.hashtags.slice(0, 4).join(' ')}\n\n✅ Réponds Oke pour publier`);
 }
 
 export async function jobWednesdayContent(_job: Job): Promise<void> {
@@ -613,6 +633,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
     );
   } else {
     console.log('[job:unpaid-reminder] ℹ️ Aucune action nécessaire.');
+    emitProactive('Paiements OK — aucun impayé à relancer.', 'info', '✅ Aucun impayé à relancer — tous les clients sont à jour.');
   }
 }
 
@@ -674,6 +695,7 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
 
   if (!overdue?.length) {
     console.log('[job:late-return] ✅ Aucun retard');
+    emitProactive('Aucun retard de retour — tous les clients sont à jour.', 'info', '✅ Aucun retard de retour — tous les clients ont rendu leur véhicule à temps.');
     return;
   }
 
@@ -723,7 +745,11 @@ export async function jobCheckAnomalies(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const dayLock = `job:check-anomalies:sent:${today}`;
   const acq = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
-  if (!acq) { console.log('[job:anomalies] SKIP — already ran today'); return; }
+  if (!acq) {
+    console.log('[job:anomalies] SKIP — already ran today');
+    emitProactive('Vérification anomalies déjà effectuée aujourd\'hui.', 'info', '✅ Vérification anomalies financières déjà effectuée aujourd\'hui.');
+    return;
+  }
   try {
     const { checkAnomalies } = await import('../../integrations/phase5-finance.js');
     const result = await checkAnomalies();
@@ -735,6 +761,8 @@ export async function jobCheckAnomalies(_job: Job): Promise<void> {
         'alert',
         `⚠️ Anomalies financières:\n\n${stripTgMd(result)}`,
       );
+    } else {
+      emitProactive('Finances OK — aucune anomalie détectée.', 'info', '✅ Aucune anomalie financière détectée.');
     }
     console.log('[job:anomalies] check done');
   } catch (err) {
@@ -1044,6 +1072,7 @@ Rapport pour Telegram (markdown, 12 lignes max):
     ].join('\n');
 
     await tg(msg);
+    emitProactive(`Veille concurrence — ${new Date().toLocaleDateString('fr-FR')}.`, 'info', stripTgMd(msg));
     console.log('[job:competitor-watch] ✅ Rapport envoyé');
   } catch (err) {
     console.error('[job:competitor-watch] ❌', err instanceof Error ? err.message : String(err));
@@ -1060,6 +1089,7 @@ export async function jobBIDaily(_job: Job): Promise<void> {
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:bi-daily] SKIP — already sent today');
+    emitProactive('Rapport BI quotidien déjà envoyé aujourd\'hui.', 'info', '✅ Rapport BI quotidien déjà envoyé aujourd\'hui.');
     return;
   }
 
@@ -1077,7 +1107,11 @@ export async function jobBIReminders(_job: Job): Promise<void> {
     const { getSmartReminders } = await import('../../bi/smart-reminders.js');
     const reminders = await getSmartReminders();
     const highPri   = reminders.filter(r => r.priority === 'HIGH');
-    if (!highPri.length) { console.log('[job:bi-reminders] ℹ️ Aucune alerte haute priorité'); return; }
+    if (!highPri.length) {
+      console.log('[job:bi-reminders] ℹ️ Aucune alerte haute priorité');
+      emitProactive('Aucune alerte haute priorité.', 'info', '✅ Aucune alerte haute priorité — tout est en ordre.');
+      return;
+    }
 
     const chatId = env.TELEGRAM_CHAT_ID;
     if (!chatId) return;
@@ -1140,6 +1174,7 @@ Si rien de nouveau ou utile: dis-le clairement en une phrase.`,
 
     const msg = `🤖 *Veille Anthropic hebdomadaire*\n\n${analysis.text}\n\n_Réponds "go" + numéro pour que j'implémente._`;
     await tg(msg);
+    emitProactive('Veille Anthropic hebdo — nouvelles fonctionnalités Claude.', 'info', stripTgMd(msg));
     console.log('[job:anthropic-watch] ✅ Rapport envoyé');
   } catch (err) {
     console.error('[job:anthropic-watch] ❌', err instanceof Error ? err.message : String(err));
@@ -1151,11 +1186,17 @@ export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const lockKey = `job:claude-cost:sent:${today}`;
   const lock = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
-  if (!lock) return;
+  if (!lock) {
+    emitProactive('Rapport coûts Claude API déjà envoyé aujourd\'hui.', 'info', '✅ Rapport coûts Claude API déjà envoyé aujourd\'hui.');
+    return;
+  }
 
   try {
     const report = await getDailyCostReport();
-    if (report.totalUSD < 0.10) return; // Less than $0.10 → skip
+    if (report.totalUSD < 0.10) {
+      emitProactive(`Coûts Claude API faibles aujourd'hui — $${report.totalUSD.toFixed(3)}.`, 'info', `✅ Coûts Claude API aujourd'hui : $${report.totalUSD.toFixed(3)} (en dessous du seuil de $0.10).`);
+      return;
+    }
 
     const lines: string[] = [`💰 *Coûts Claude API — ${today}*`, `Total: *$${report.totalUSD.toFixed(3)}*`];
     for (const [model, data] of Object.entries(report.breakdown)) {
@@ -1183,7 +1224,10 @@ export async function jobClientRelance(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const lockKey = `job:client-relance:sent:${today}`;
   const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
-  if (!acquired) return;
+  if (!acquired) {
+    emitProactive('Relance clients déjà vérifiée aujourd\'hui.', 'info', '✅ Relance clients déjà vérifiée aujourd\'hui.');
+    return;
+  }
 
   try {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
@@ -1200,6 +1244,7 @@ export async function jobClientRelance(_job: Job): Promise<void> {
 
     if (error || !bookings?.length) {
       console.log('[job:client-relance] Aucun client à relancer');
+      emitProactive('Aucun client à relancer pour le moment.', 'info', '✅ Aucun client inactif depuis 30-60 jours.');
       return;
     }
 
@@ -1245,7 +1290,10 @@ export async function jobVehicleUtilization(_job: Job): Promise<void> {
     const today   = new Date().toISOString().slice(0, 10);
     const lockKey = `job:vehicle-utilization:sent:${today}`;
     const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
-    if (!acquired) return;
+    if (!acquired) {
+      emitProactive('Rapport utilisation parc déjà envoyé aujourd\'hui.', 'info', '✅ Rapport utilisation parc déjà envoyé aujourd\'hui.');
+      return;
+    }
 
     const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
 
@@ -1320,7 +1368,10 @@ export async function jobHabitCheck(_job: Job): Promise<void> {
     const today = now.toISOString().slice(0, 10);
     const lockKey = `job:habit-check:sent:${today}`;
     const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
-    if (!acquired) return;
+    if (!acquired) {
+      emitProactive('Rappel habitudes déjà envoyé aujourd\'hui.', 'info', '✅ Rappel habitudes déjà envoyé aujourd\'hui.');
+      return;
+    }
 
     const { data: habits } = await supabase
       .from('memory_habits')
@@ -1381,7 +1432,10 @@ export async function jobMonthlyReport(_job: Job): Promise<void> {
 
     const lockKey = `job:monthly-report:sent:${prevYear}-${prevMonth}`;
     const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
-    if (!acquired) return;
+    if (!acquired) {
+      emitProactive('Bilan mensuel déjà envoyé pour ce mois.', 'info', '✅ Bilan mensuel déjà envoyé pour ce mois.');
+      return;
+    }
 
     const [finance, { data: bookings }] = await Promise.all([
       getFinancialReport(prevYear, prevMonth).catch(() => null),
@@ -1427,7 +1481,10 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
     const today  = new Date().toISOString().slice(0, 10);
     const lockKey = `job:long-idle:sent:${today}`;
     const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
-    if (!acquired) return;
+    if (!acquired) {
+      emitProactive('Alerte immobilisation déjà vérifiée aujourd\'hui.', 'info', '✅ Alerte véhicules immobilisés déjà vérifiée aujourd\'hui.');
+      return;
+    }
 
     const ago14 = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
 
@@ -1459,7 +1516,10 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
       }
     }
 
-    if (idle.length === 0) return;
+    if (idle.length === 0) {
+      emitProactive('Tous les véhicules ont été loués récemment (< 14 jours).', 'info', '✅ Aucun véhicule immobilisé — tous ont été loués dans les 14 derniers jours.');
+      return;
+    }
 
     const lines = [
       `🔧 *Véhicules immobilisés ${idle.length > 1 ? `(${idle.length})` : ''} — plus de 14 jours sans location:*\n`,
