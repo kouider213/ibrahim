@@ -1,6 +1,6 @@
 # DZARYX — Feuille de Route
 
-> Mise à jour : 2026-05-15
+> Mise à jour : 2026-05-20
 > Légende : ✅ Terminé | 🔄 En cours | 🔵 Planifié | ❌ Bloqué
 
 ---
@@ -82,27 +82,98 @@
 
 ---
 
-## Phase 6 — Mobile Native (✅ Terminé — dzaryx-native — 2026-05-17)
+## Phase 6.5 — Simulateur Web Complet (✅ Terminé — 2026-05-20)
+
+- ✅ Simulateur Android web (Netlify) : https://dzaryx-simulator.netlify.app
+- ✅ 13 onglets : VOIX/CHAT/TELEGRAM/DZARYX/RESAS/PARC/CA/CLIENTS/AGENDA/ALERTES/RAPPELS/DOCS/CONFIG
+- ✅ Boot simulation : locked → home → login (kouider/houari) → app
+- ✅ Power button animation : power-off → DZARYX logo → arrêt
+- ✅ Session persistée localStorage (auto-login)
+- ✅ TelegramScreen : 6 canaux, tous types messages, démos réalistes
+- ✅ CapacitesScreen : 14 agents, proactif timeline, 40+ capacités
+- ✅ Design cyberpunk HUD uniforme (Orbitron + Share Tech Mono + corner brackets)
+- ✅ Connexions réelles Railway API + Socket.IO
+- ✅ Multi-acteur Kouider (cyan) / Houari (violet)
+
+---
+
+## Phase 6 — Mobile Native (✅ Terminé — dzaryx-native — 2026-05-18)
 
 - ✅ App Expo SDK 54 / React Native / EAS Build APK
 - ✅ Orb JARVIS animé (idle/listen/think/speak)
 - ✅ Voice mode (Whisper → Claude → ElevenLabs)
 - ✅ Push notifications acteur-scoped
-- ✅ Écrans : bookings, new-booking, booking-detail, fleet, revenue, reminders, clients, settings
+- ✅ Écrans : bookings, new-booking, booking-detail, fleet, revenue, reminders, clients, settings, **documents**
 - ✅ Saisie `client_price_per_day` + `owner_price_per_day` à la création (1 POST)
 - ✅ Gestion clients avancée (scoring VIP, search, profil intelligence)
 - ✅ Client intelligence backfill automatique (historique → profils IA)
 - ✅ Rappels smart (HIGH/MEDIUM/LOW) dans app + contexte AI matinal
+- ✅ **Bouton SCAN OCR** dans voice.tsx (caméra → OCR → AI → TTS)
+- ✅ **Token acteur-scoped corrigé** dans voice.tsx (B020 fixé)
+- ✅ **Écran Documents** : fetch passeport/permis/contrat + scan caméra OCR (B022 fixé)
+- ✅ **Simulateur web parité complète** : 9 onglets identiques à l'APK — https://dzaryx-simulator.netlify.app
 
 ---
 
-## Phase 7 — Automatisation avancée (🔵 Planifié)
+## Phase 7 — APK Android & iOS (❌ Bloqué EAS — Reset 1er juin 2026)
 
-- 🔵 WhatsApp bot client (réservations automatiques)
-- 🔵 Génération automatique contrats PDF
-- 🔵 Signature électronique
-- 🔵 Intégration paiement (Chargily ou autre)
-- 🔵 Reporting comptable automatique (export Excel)
+> Objectif : quitter Telegram + simulateur web → APK natif iOS + Android
+
+- ❌ **APK Android** — EAS Free plan épuisé ce mois → reset 1er juin 2026
+  - Commande : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
+  - Résultat : fichier `.apk` à installer sur les téléphones Kouider + Houari
+- 🔵 **App Store iOS** — EAS Submit après APK android validé
+  - Nécessite compte Apple Developer (99$/an) + provisioning profile
+  - Alternative : distribution via TestFlight pour test interne
+- ✅ Code `dzaryx-native/` prêt — 9 écrans, voix, push notifs, OCR, multi-acteur
+
+### Checklist avant lancement APK
+- [ ] Railway : ajouter `MOBILE_TOKEN_HOUARI`
+- [ ] Tester APK android sur téléphone Kouider + Houari
+- [ ] Valider voix → Whisper → Claude → TTS end-to-end
+- [ ] Valider push notifications (app fermée)
+- [ ] Valider scan OCR passeport
+- [ ] Google Maps API restreindre à Distance Matrix only
+- [ ] Révoquer EAS token `G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6` après build
+
+---
+
+## Phase 8 — Automatisation Avancée (🔵 Planifié)
+
+> Objectif : Dzaryx gère 100% du business de façon autonome
+
+### 8.1 — WhatsApp Bot Client
+- 🔵 Clients réservent via WhatsApp (pas par téléphone)
+- 🔵 Twilio WhatsApp Cloud API ou Meta Cloud API
+- 🔵 Flux : client envoie "je veux louer" → Dzaryx collecte infos → crée résa → envoie confirmation
+- 🔵 Variables Railway manquantes : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
+- Fichiers : `backend/src/api/routes/whatsapp.ts` (à créer)
+
+### 8.2 — Contrats PDF Automatiques
+- 🔵 Génération contrat de location à chaque réservation confirmée
+- 🔵 PDFKit déjà installé (recettes PDF existent)
+- 🔵 Template : nom client, voiture, dates, prix, conditions, signature zone
+- 🔵 Upload Supabase bucket `client-documents`, URL stockée dans `bookings.contract_url`
+- 🔵 Envoi automatique Telegram + WhatsApp
+
+### 8.3 — Signature Électronique
+- 🔵 Client signe via lien WhatsApp (canvas HTML → image PNG → stocké Supabase)
+- 🔵 Alternative : PDF signable via HelloSign/DocuSign API
+
+### 8.4 — Paiement Chargily (Algérie)
+- 🔵 Chargily Pay API (paiement CB/CIB algérien)
+- 🔵 Génération lien paiement → envoyé WhatsApp client
+- 🔵 Webhook → Dzaryx reçoit confirmation → `record_payment()` → mise à jour Supabase
+
+### 8.5 — Export Comptable Excel
+- 🔵 Export mensuel/annuel : toutes réservations, paiements, profits K/H
+- 🔵 Bibliothèque : `xlsx` ou `exceljs`
+- 🔵 Envoi Telegram automatique le 1er de chaque mois
+
+### 8.6 — TikTok Auto-post
+- 🔵 Publication automatique vidéos TikTok (via Apify ou TikTok Business API)
+- 🔵 Nexus PC peut lancer un script Python de post automatique
+- 🔵 Calendrier publication : 1 vidéo/semaine, timing optimal (17h-19h vendredi)
 
 ---
 

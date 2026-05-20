@@ -5,6 +5,63 @@
 
 ---
 
+## 2026-05-20 — Simulator Capacités + Telegram Demo + Power-off (Claude Sonnet 4.6)
+
+### 2 nouveaux écrans + power-off + Obsidian mis à jour ✅
+- **Commit** : `d88dbaa`
+- **Fichiers** :
+  - `simulator/src/components/screens/TelegramScreen.tsx` (NEW — 280 lignes)
+  - `simulator/src/components/screens/CapacitesScreen.tsx` (NEW — 380 lignes)
+  - `simulator/src/components/Phone.tsx` (power-off + 2 nouveaux tabs)
+  - `DZARYX/CURRENT_STATE.md`, `DZARYX/ROADMAP.md`, `DZARYX/HANDOFF.md` (mis à jour)
+- **Changements** :
+  - **TelegramScreen** : simulation Telegram 6 canaux (ALL/FINANCE/RESAS/DOCS/NEXUS/MARKETING)
+    - Bulles messages Kouider (droite bleue) vs Dzaryx (gauche sombre)
+    - Tous types : text, alert (tag coloré + actions), photo, video, file
+    - Badges unread par canal, sélecteur onglets scrollable
+    - Messages pré-chargés : briefing matinal, alertes impayés, résa créée, doc passeport, rapport CA, vidéo marketing, PC nexus terminal
+  - **CapacitesScreen** : 3 onglets
+    - "14 AGENTS" : tous les agents expandables avec description + 4 exemples de commandes chacun
+    - "PROACTIF" : timeline journée type + 8 fonctionnalités proactives avec couleur et desc
+    - "CAPACITÉS" : 8 sections complètes (IA, communication, réservations, finance, docs, PC, web, marketing)
+  - **Phone.tsx** : power button → animation fade out → DZARYX logo → "ARRÊT EN COURS" → retour lock screen
+  - Tabs : 13 tabs total (VOIX/CHAT/TELEGRAM/DZARYX/RESAS/PARC/CA/CLIENTS/AGENDA/ALERTES/RAPPELS/DOCS/CONFIG)
+- **Netlify** : `6a0d57e1` → https://dzaryx-simulator.netlify.app ✅
+- **Build** : 364KB JS, 0 erreurs TS
+
+---
+
+## 2026-05-20 — FleetScreen compact banner restore (Claude Sonnet 4.6)
+
+### Restauration design original FleetScreen ✅
+- **Commit** : `86eec58`
+- **Fichier** : `simulator/src/components/screens/FleetScreen.tsx`
+- **Changement** : banner 90px full-width, objectFit cover (après itérations utilisateur)
+- **Netlify** : `6a0d5409` ✅
+
+---
+
+## 2026-05-19 — Simulator All Screens HUD Redesign (Claude Sonnet 4.6)
+
+### 7 screens redesigned with cyberpunk HUD aesthetic ✅
+- **Commit** : `9232dc3`
+- **Fichiers** : `BookingsScreen`, `FleetScreen`, `RevenueScreen`, `ClientsScreen`, `RemindersScreen`, `DocumentsScreen`, `SettingsScreen`
+- **Changements** :
+  - Header HUD uniforme sur tous les écrans (Orbitron + gradient separator)
+  - KPI stat cards avec glow neon (Bookings: actives/CA/profit, Fleet: total/dispo/occup/indispo, Revenue: jour/sem/mois, Clients: total/VIP/CA)
+  - Bookings: cartes avec dot status glow, gradient bg par statut, expanded detail panel
+  - Fleet: barre occupancy par voiture animée, toggle buttons colorés
+  - Revenue: bar chart visuel, carte profit gold, top-clients avec classement
+  - Clients: avatar avec initiales, badge VIP glow, intel panel expandable
+  - Reminders: barre accent colorée à gauche, badge URGENT pulsant, compteurs par priorité
+  - Documents: progress bar animation OCR, panel orange thème scan
+  - Settings: actor cards avec icône glow, status pills avec dot pulse
+  - Corner brackets HUD sur tous les écrans
+  - 0 erreurs TypeScript, build propre
+- **Netlify** : `6a0c1bb5` → https://dzaryx-simulator.netlify.app ✅
+
+---
+
 ## 2026-05-19 — Simulator UI Redesign Cyberpunk Robot (Claude Sonnet 4.6)
 
 ### VoiceScreen + TextScreen redesign ✅

@@ -2,13 +2,13 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-19 (Simulator UI Redesign Cyberpunk Robot)
+> Dernière mise à jour : 2026-05-20 (Simulator — +TelegramScreen +CapacitesScreen +PowerOff +Obsidian complet)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Anti-hallucination — TERMINÉE ✅. Phase 6 (Mobile) — TERMINÉE ✅. Phase 5 (Finance) — TERMINÉE ✅.**
+**Phase active : Phases 1-6 TERMINÉES ✅. Simulator complet déployé. Phase 7 (WhatsApp, contrats PDF, paiement) — PLANIFIÉE. APK bloqué EAS (reset 1er juin 2026).**
 
 Système financier normalisé. 12 agents spécialisés opérationnels. Recherche web réelle (SearXNG+Jina). Documents clients récupérés + envoyés Telegram. Réservations créées directement. Vidéo marketing 720×1280 active. Planning Kouider embarqué. Revenus prorabilisés corrects. Dashboard mobile : 10 panels complets. **Anti-hallucination : 7 gates bloquants + fastPathGuard — Dzaryx ne ment plus, ne fabrique plus de données.**
 
@@ -82,30 +82,38 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ---
 
-### Simulateur Android Web — REDESIGN CYBERPUNK ROBOT — 2026-05-19
-- ✅ `simulator/` — React+TS+Vite+Tailwind+Framer Motion
+### Simulateur Android Web — COMPLET 13 ONGLETS — 2026-05-20
+- ✅ `simulator/` — React+TS+Vite+Tailwind
 - ✅ Coque Android réaliste (375×812px, punch-hole, barre statut, nav)
-- ✅ **9 onglets** (scrollable bottom bar) : VOIX / CHAT / RESAS / PARC / CA / CLIENTS / RAPPELS / DOCS / CONFIG
-- ✅ **VoiceScreen redesign** : robot SVG `DzaryxRobot` (tête chrome/visor, yeux LED eyeGlow, barres audio oreilles, bouche LED, antenne blink, anneau thinking jaune, anneaux rotatifs), header DZARYX + subtitle, status badge animé, 3 boutons SCAN/MIC/VISION avec labels, canvas background particles
-- ✅ **TextScreen redesign** : header HUD cyberpunk (connexion + DZARYX + subtitle), avatar `RobotAvatar` SVG mini dans bulles IA, typo Share Tech Mono, input HUD-style
-- ✅ Couleur thinking : `#ffaa00` (jaune) dans les 2 écrans
-- ✅ TextScreen : chat Jarvis avec streaming messages + audio TTS
-- ✅ **BookingsScreen** : liste + CRUD + création formulaire + profit live
-- ✅ **FleetScreen** : stats parc (total/dispo/occupancy%) + toggle disponibilité + revenus 30j
-- ✅ **RevenueScreen** : CA today/week/month + profit Kouider + top clients scorés
-- ✅ **ClientsScreen** : search + badges VIP/FRÉQUENT/RÉGULIER + intel expand
-- ✅ **RemindersScreen** : HIGH/MEDIUM/LOW groupés + dismiss + tel: cliquable
-- ✅ **DocumentsScreen** : fetch passeport/permis/contrat + OCR file input
-- ✅ **SettingsScreen** : acteur switcher Kouider/Houari + health backend + cache + jobs scheduler
-- ✅ `api.ts` : actor management (setSimActor/getSimActor) + `business` API layer complet
-- ✅ Connexions réelles Railway Socket.IO `/mobile` + REST API
-- ✅ Build propre : 264KB JS, 0 erreurs TS
-- ✅ **Déployé** : https://dzaryx-simulator.netlify.app (POSIX zip via make-zip.mjs)
-- ✅ **VAD fixé** : RMS time-domain (SPEECH_RMS=0.004, SILENCE_RMS=0.008)
-- ✅ **TTS fixé** : textOnly=false → Dzaryx parle
-- ✅ **AudioContext fixé** : overlay unlock obligatoire (Chrome autoplay policy)
-- ✅ **Feedback loop** : feedback-server.mjs localhost:4567 + feedback-inbox.json
-- Commits : `9bc0dad` + `56b3fa1` + `fdbbe4e`
+- ✅ **Simulation Boot complète** : locked → home → login → app (localStorage session)
+- ✅ **Power button** : pressed when unlocked → fade noir → logo Dzaryx → "ARRÊT EN COURS" → lock screen
+- ✅ **Multi-acteur** : kouider (cyan) / houari (violet) — login/logout avec badge initiale K/H
+- ✅ **13 onglets** (scrollable bottom bar) : VOIX / CHAT / TELEGRAM / DZARYX / RESAS / PARC / CA / CLIENTS / AGENDA / ALERTES / RAPPELS / DOCS / CONFIG
+- ✅ **Design system commun** : background `#020810`, Orbitron headers, Share Tech Mono data, corner brackets HUD
+- ✅ **[NOUVEAU] TelegramScreen** (`TelegramScreen.tsx`) :
+  - 6 canaux : ALL/FINANCE/RESAS/DOCS/NEXUS/MARKETING avec badges unread
+  - Bulles Telegram réalistes (Kouider droite bleue, Dzaryx gauche sombre)
+  - Types : text, alert (tag coloré + border left + actions), photo, video, file
+  - Démos : briefing matinal, alerte impayé, résa créée, doc passeport, rapport CA, vidéo marketing, PC terminal
+- ✅ **[NOUVEAU] CapacitesScreen** (`CapacitesScreen.tsx`) :
+  - Onglet "14 AGENTS" : tous les agents expandables (icon, description, 4 exemples de commandes, tags)
+  - Onglet "PROACTIF" : timeline journée type (07:00→veille) + 8 fonctionnalités proactives
+  - Onglet "CAPACITÉS" : 8 sections (IA, comm, réservations, finance, docs, PC, web, marketing) 40+ items
+- ✅ **VoiceScreen** : robot SVG v2, bouton SCAN OCR
+- ✅ **TextScreen** : chat streaming, TTS, RobotAvatar mini dans bulles
+- ✅ **BookingsScreen** : KPI glow, cards par statut, detail panel
+- ✅ **FleetScreen** : KPI 4 stats, photo banner 90px, iOS toggle, occupancy bar
+- ✅ **RevenueScreen** : 3 onglets (overview/detail/annual), nav mois/année, K/H split
+- ✅ **ClientsScreen** : avatar initiales, VIP glow ring, intel expandable
+- ✅ **CalendarScreen** : grille mensuelle, dots réservations, detail jour
+- ✅ **NotificationsScreen** : alertes HIGH/MEDIUM/LOW, dismiss, auto-refresh 60s
+- ✅ **RemindersScreen** : rappels par priorité, badge URGENT
+- ✅ **DocumentsScreen** : fetch docs, scan caméra OCR
+- ✅ **SettingsScreen** : actor cards glow, status pills pulsants
+- ✅ Build propre : 364KB JS, 0 erreurs TS
+- ✅ **Déployé** : https://dzaryx-simulator.netlify.app
+- ✅ VAD / TTS / AudioContext / Feedback loop
+- Commits : `9bc0dad` + `56b3fa1` + `fdbbe4e` + `e5c4eed` + `9232dc3` + `86eec58` + `d88dbaa`
 
 ### Native App (dzaryx-native) — MISE À JOUR 2026-05-18
 - ✅ Expo SDK 54 / React Native 0.81.5 / newArchEnabled
@@ -162,12 +170,27 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 
 ## Prochaine priorité (à faire maintenant si tu reprends)
 
-1. **Tester le simulateur** : https://dzaryx-simulator.netlify.app → tester chaque onglet (voix + chat + réservations + parc + CA + clients + rappels + docs + réglages)
-2. **Interface + Logo** (demandé par Kouider le 2026-05-18) : modifier l'interface et le logo si souhaité après test simulateur
-3. **Railway** (action MANUELLE Kouider) : Ajouter `MOBILE_TOKEN_HOUARI=99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2`
-4. **EAS Build** (attend June 1, 2026) : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
-5. **Google Cloud** (action manuelle) : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` à Distance Matrix API only
-6. **Phase 7** : WhatsApp bot, PDF contrats, paiement Chargily, export Excel
+### URGENT — Actions manuelles Kouider
+1. **Railway** → Ajouter env var `MOBILE_TOKEN_HOUARI=99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2`
+2. **EAS Build APK** (attend reset 1er juin 2026) :
+   ```
+   EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive
+   ```
+3. **Google Cloud** → Restreindre Maps API `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` → Distance Matrix API only
+
+### PHASE 7 — Automatisation avancée (prochaine phase code)
+1. **WhatsApp bot client** : réservations depuis WhatsApp → `twilio/whatsapp-cloud-api`
+2. **Contrats PDF** : génération automatique depuis booking → signature électronique
+3. **Paiement Chargily** : intégration paiement algérien (CB/CIB)
+4. **Export Excel comptable** : rapport mensuel auto-généré
+5. **iOS App** : Expo EAS build --platform ios (après android validé)
+
+### SIMULATEUR — Tests à faire
+- Ouvre https://dzaryx-simulator.netlify.app
+- Teste tous les 13 onglets
+- TELEGRAM → tous les 6 canaux → vérifie les messages démo
+- DZARYX → 3 tabs (agents/proactif/capacités) → expand chaque agent
+- Power button → vérifie animation power-off → retour lock screen
 
 ---
 
@@ -232,7 +255,16 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 - Commit : `56b3fa1` — push main — Railway auto-deploy
 - Simulateur déployé Netlify : https://dzaryx-simulator.netlify.app
 
-**Dernier commit** : `71d2b1c` fix(anti-hallucination): Gates 4/4b/4c + fastPathGuard
+**Session 2026-05-19 (Simulator Redesign Complet) :**
+- VoiceScreen robot v2 : tête chrome sphérique, oreilles disques, yeux LED r=17, anneau thinking jaune
+- TextScreen : header HUD + RobotAvatar mini SVG dans bulles
+- 7 écrans redesignés cyberpunk HUD : BookingsScreen, FleetScreen, RevenueScreen, ClientsScreen, RemindersScreen, DocumentsScreen, SettingsScreen
+- Design system unifié : KPI cards glow, corner brackets, gradient separators, Orbitron+ShareTechMono
+- 0 erreurs TypeScript, build propre 293KB
+- Commits : `fdbbe4e` + `e5c4eed` + `9232dc3`
+- Netlify deploy : `9232dc3` → https://dzaryx-simulator.netlify.app
+
+**Dernier commit** : `9232dc3` feat(simulator): redesign all 7 screens with cyberpunk HUD aesthetic
 
 ---
 
@@ -258,7 +290,7 @@ Flight Bot: Python séparé (flight-bot/) — vols personnels Kouider
 | nexus/ (Python) | ✅ Tourne sur PC | Streaming SSE OK |
 | mobile/ (React) | ✅ Déployé Netlify | Dashboard + Chat |
 | dzaryx-native/ | 🟡 Code prêt, APK non buildé | 9 écrans + documents.tsx + scan + Houari fix — EAS June 1 |
-| simulator/ | ✅ Déployé Netlify 264KB | 9 onglets parité APK complète — https://dzaryx-simulator.netlify.app |
+| simulator/ | ✅ Déployé Netlify 293KB | 9 onglets redesign cyberpunk HUD complet — https://dzaryx-simulator.netlify.app |
 | pc-agent/ (TS) | ❓ Non vérifié | Alternative à Nexus |
 | flight-bot/ | ❓ Non vérifié | Indépendant |
 
