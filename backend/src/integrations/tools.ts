@@ -1042,6 +1042,18 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   },
 
   {
+    name: 'nexus_screenshot',
+    description: 'Prend un screenshot du bureau du PC de Kouider via NEXUS et l\'affiche directement dans le chat. Utiliser quand Kouider dit "screenshot", "capture écran", "montre l\'écran du PC", "Nexus screenshot", "prends un screenshot pc". Affiche l\'image inline dans l\'app. Nécessite que NEXUS soit en ligne.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        caption: { type: 'string', description: 'Légende optionnelle (ex: "bureau PC 17h45")' },
+      },
+      required: [],
+    },
+  },
+
+  {
     name: 'wake_nexus',
     description: 'Réveiller / démarrer NEXUS (agent PC Kouider) à distance via le Launcher permanent. Le Launcher est un service léger installé sur le PC via install-nexus-launcher.bat — il tourne même quand Nexus est éteint. Utiliser quand Kouider dit "réveille Nexus", "lance Nexus", "démarre Nexus", "allume Nexus", "start Nexus". NE PAS utiliser si Nexus est déjà actif (ping_nexus d\'abord si incertain).',
     input_schema: { type: 'object' as const, properties: {} },

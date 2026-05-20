@@ -222,6 +222,7 @@ async function _dispatch(
       // ─── NEXUS PC AGENT ───
       case 'ping_nexus':               return await pingNexusTool();
       case 'send_nexus_command':       return await sendNexusCommandTool(input);
+      case 'nexus_screenshot':         return await nexusScreenshotTool(input);
       case 'wake_nexus':               return await wakeNexusTool();
       case 'restart_nexus':            return await restartNexusTool();
       case 'nexus_full_status':        return await nexusFullStatusTool();
@@ -4031,6 +4032,33 @@ async function sendNexusCommandTool(input: Record<string, unknown>): Promise<str
   }
   sendToNexus('nexus:command', { text: command, source: 'dzaryx-app' });
   return `✅ Commande envoyée à NEXUS: "${command}"\n📡 NEXUS va l\'exécuter et envoyer le résultat via Telegram ou journal.`;
+}
+
+async function nexusScreenshotTool(input: Record<string, unknown>): Promise<string> {
+  const { isNexusOnline, nexusScreenshotBase64 } = await import('../actions/handlers/nexus-relay.js');
+  if (!isNexusOnline()) {
+    return '❌ NEXUS hors ligne — lance start.bat sur le PC pour démarrer l\'agent.';
+  }
+  try {
+    const r = await nexusScreenshotBase64(35_000);
+    if (!r.ok || !r.image_base64) {
+      return `❌ Screenshot échoué: ${r.error ?? 'aucune image reçue de Nexus'}`;
+    }
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const storagePath = `screenshots/pc_${ts}.png`;
+    const buf = Buffer.from(r.image_base64, 'base64');
+    const { error: upErr } = await supabase.storage
+      .from('client-documents')
+      .upload(storagePath, buf, { contentType: 'image/png', upsert: true });
+    if (upErr) {
+      return `⚠️ Screenshot capturé (${r.size_kb ?? '?'}KB) mais upload échoué: ${upErr.message}`;
+    }
+    const { data: urlData } = supabase.storage.from('client-documents').getPublicUrl(storagePath);
+    const caption = (input['caption'] as string | undefined) ?? '';
+    return `📸 Screenshot PC${caption ? ` — ${caption}` : ''} (${r.size_kb ?? '?'}KB)\n📹 ${urlData.publicUrl}`;
+  } catch (err) {
+    return `❌ Erreur screenshot: ${err instanceof Error ? err.message : String(err)}`;
+  }
 }
 
 async function wakeNexusTool(): Promise<string> {
