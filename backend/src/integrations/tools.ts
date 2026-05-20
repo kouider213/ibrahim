@@ -1258,4 +1258,42 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
       required: ['destination', 'origin_lat', 'origin_lng'],
     },
   },
+
+  // ─── INSPECTION VÉHICULE ──────────────────────────────────────────
+  {
+    name: 'save_vehicle_state_before',
+    description: 'Enregistre l\'état du véhicule AVANT la location (inspection départ). Utiliser quand Kouider envoie une photo de voiture avec "état avant", "inspection avant", "départ véhicule", "avant location". Nécessite une image jointe (imageBase64 présente dans le contexte). Sauvegarde la photo + analyse AI des dommages existants dans vehicle_states.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom du client (locataire)' },
+        car_name:    { type: 'string', description: 'Nom du véhicule (ex: "Clio 5", "Logan")' },
+      },
+      required: ['client_name', 'car_name'],
+    },
+  },
+  {
+    name: 'save_vehicle_state_after',
+    description: 'Enregistre l\'état du véhicule APRÈS la location (inspection retour) et compare avec l\'état initial. Utiliser quand Kouider envoie une photo avec "état après", "retour véhicule", "vérif retour", "inspection retour". Compare automatiquement avec l\'état AVANT pour détecter nouveaux dommages.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Nom du client (locataire)' },
+        car_name:    { type: 'string', description: 'Nom du véhicule' },
+      },
+      required: ['client_name', 'car_name'],
+    },
+  },
+  {
+    name: 'get_vehicle_states',
+    description: 'Voir l\'historique des inspections véhicule (avant/après) pour un client ou une voiture. Utiliser quand Kouider demande "état du véhicule", "historique inspection", "les photos d\'inspection de Mohamed".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name: { type: 'string', description: 'Filtrer par nom client (optionnel)' },
+        car_name:    { type: 'string', description: 'Filtrer par nom véhicule (optionnel)' },
+      },
+      required: [],
+    },
+  },
 ];

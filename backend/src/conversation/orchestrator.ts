@@ -14,6 +14,7 @@ import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agent
 import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 import { redis }                                 from '../queue/queue.js';
+import { saveBeforeState, saveAfterState }        from '../integrations/vehicle-state.js';
 
 let _io: Namespace | null = null;
 let _reqCounter = 0;
@@ -162,6 +163,40 @@ export async function processMessage(
     saveConversationTurn(sessionId, 'assistant', earlyBlock).catch(() => {});
     _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
     return { text: earlyBlock, status: 'done' };
+  }
+
+  // ── Cache image in Redis so tool-executor can access it ────────────────────
+  if (imageBase64) {
+    redis.set(`session:image:${sessionId}`, JSON.stringify({ base64: imageBase64, mime: imageMime }), 'EX', 300).catch(() => {});
+  }
+
+  // ── Vehicle inspection pre-check (photo + état avant/après keywords) ────────
+  const INSPECTION_BEFORE_RE = /[eé]tat\s+(v[eé]hicule|voiture|avant)|inspection\s+(avant|initiale|d[eé]part)|d[eé]part\s+v[eé]hicule/i;
+  const INSPECTION_AFTER_RE  = /retour\s+v[eé]hicule|v[eé]rifie?\s+retour|[eé]tat\s+(retour|apr[eè]s|fin)|inspection\s+(retour|apr[eè]s|fin)/i;
+  if (imageBase64 && (INSPECTION_BEFORE_RE.test(userMessage) || INSPECTION_AFTER_RE.test(userMessage))) {
+    const isBefore = INSPECTION_BEFORE_RE.test(userMessage);
+    const clientM  = userMessage.match(/(?:de|pour|client)\s+([A-ZÀ-Öa-zà-öéèêëàâùûüîïœ]+(?:\s+[A-ZÀ-Öa-zà-öéèêëàâùûüîïœ]+)?)/i);
+    const carM     = userMessage.match(/(?:Clio|Logan|Duster|Sandero|Polo|Peugeot|Symbol|Mégane|Megane|Kangoo|Picasso|Golf|Renault|Volkswagen|Dacia|Hyundai|Kia|Toyota|Citroën|Ford|Fiat|Seat|Skoda|Berlingo)[^\s,]*/i);
+    const clientName = clientM?.[1] ?? 'Inconnu';
+    const carName    = carM?.[0] ?? 'Véhicule';
+    const ownerKey   = actor.ownerKey ?? 'kouider';
+    console.log(`[vehicle-inspection] type=${isBefore ? 'before' : 'after'} client=${clientName} car=${carName}`);
+    try {
+      const result = isBefore
+        ? await saveBeforeState(clientName, carName, imageBase64, imageMime, ownerKey)
+        : await saveAfterState(clientName, carName, imageBase64, imageMime, ownerKey);
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: result.message });
+      saveConversationTurn(sessionId, 'assistant', result.message).catch(() => {});
+      if (!textOnly) {
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+        await streamAudioSentences(result.message, sessionId);
+        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      }
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: result.message, status: 'done' };
+    } catch (e) {
+      console.error('[vehicle-inspection] error:', e);
+    }
   }
 
   // ── Multi-Agent path — cross-domain analysis ─────────────────────────────

@@ -76,6 +76,7 @@ import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
 import { executeImageToImage } from './image-to-image.js';
 import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.js';
+import { saveBeforeState, saveAfterState } from './vehicle-state.js';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
@@ -226,6 +227,10 @@ async function _dispatch(
       case 'wake_nexus':               return await wakeNexusTool();
       case 'restart_nexus':            return await restartNexusTool();
       case 'nexus_full_status':        return await nexusFullStatusTool();
+      // ─── INSPECTION VÉHICULE ───
+      case 'save_vehicle_state_before': return await saveVehicleStateBefore(input, undefined, 'image/jpeg', sessionId);
+      case 'save_vehicle_state_after':  return await saveVehicleStateAfter(input, undefined, 'image/jpeg', sessionId);
+      case 'get_vehicle_states':        return await getVehicleStatesTool(input, sessionId);
       // ─── HEALTH CHECK ───
       case 'health_check_all':         return await healthCheckAllTool();
       case 'get_late_returns':                   return await getLateReturns();
@@ -4628,4 +4633,75 @@ async function updateCarTool(input: Record<string, unknown>): Promise<string> {
     car.resale_price != null ? `🏠 Prix proprio: ${car.resale_price}€/j` : '',
   ].filter(Boolean);
   return lines.join('\n');
+}
+
+// ─── INSPECTION VÉHICULE ────────────────────────────────────────────────────
+
+async function saveVehicleStateBefore(
+  input:      Record<string, unknown>,
+  imageBase64: string | undefined,
+  imageMime:   string,
+  sessionId?: string,
+): Promise<string> {
+  const clientName = (input['client_name'] as string | undefined)?.trim();
+  const carName    = (input['car_name']    as string | undefined)?.trim();
+  if (!clientName || !carName) return '❌ client_name et car_name requis';
+
+  // Try to get image from parameter, or fall back to Redis cache for this session
+  let b64  = imageBase64;
+  let mime = imageMime;
+  if (!b64 && sessionId) {
+    try {
+      const cached = await redis.get(`session:image:${sessionId}`);
+      if (cached) { const p = JSON.parse(cached) as { base64: string; mime: string }; b64 = p.base64; mime = p.mime; }
+    } catch { /* ignore */ }
+  }
+  if (!b64) return '❌ Aucune image trouvée. Envoie une photo du véhicule avec ce message.';
+
+  const result = await saveBeforeState(clientName, carName, b64, mime, 'kouider');
+  return result.message;
+}
+
+async function saveVehicleStateAfter(
+  input:      Record<string, unknown>,
+  imageBase64: string | undefined,
+  imageMime:   string,
+  sessionId?: string,
+): Promise<string> {
+  const clientName = (input['client_name'] as string | undefined)?.trim();
+  const carName    = (input['car_name']    as string | undefined)?.trim();
+  if (!clientName || !carName) return '❌ client_name et car_name requis';
+
+  let b64  = imageBase64;
+  let mime = imageMime;
+  if (!b64 && sessionId) {
+    try {
+      const cached = await redis.get(`session:image:${sessionId}`);
+      if (cached) { const p = JSON.parse(cached) as { base64: string; mime: string }; b64 = p.base64; mime = p.mime; }
+    } catch { /* ignore */ }
+  }
+  if (!b64) return '❌ Aucune image trouvée. Envoie une photo du véhicule avec ce message.';
+
+  const result = await saveAfterState(clientName, carName, b64, mime, 'kouider');
+  return result.message;
+}
+
+async function getVehicleStatesTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const clientName = (input['client_name'] as string | undefined)?.trim() ?? '';
+  const carName    = (input['car_name']    as string | undefined)?.trim() ?? '';
+
+  const ownerKey = sessionId?.includes('houari') ? 'houari' : 'kouider';
+  const { getVehicleHistory } = await import('./vehicle-state.js');
+  const states = await getVehicleHistory(clientName || '%', carName || '%', ownerKey);
+
+  if (!states.length) return `ℹ️ Aucune inspection trouvée${clientName ? ` pour ${clientName}` : ''}.`;
+
+  const lines = states.map(s => {
+    const date = new Date(s.created_at).toLocaleDateString('fr-FR');
+    const type = s.state_type === 'before' ? '📋 AVANT' : '🔍 APRÈS';
+    const dmg  = s.damage_detected ? '⚠️ dommages' : '✅ OK';
+    return `• ${type} — ${s.car_name} / ${s.client_name} — ${date} — ${dmg}`;
+  });
+
+  return `🚗 **Historique inspections:**\n\n${lines.join('\n')}`;
 }
