@@ -76,73 +76,82 @@ export default function FleetScreen() {
 
           return (
             <div key={car.id} style={{
-              borderRadius: 12, overflow: 'hidden',
-              border: `1px solid ${col}2a`,
-              background: `linear-gradient(135deg, ${col}07, rgba(2,8,16,0.5))`,
+              borderRadius: 14,
+              border: `1px solid ${col}38`,
+              background: 'linear-gradient(135deg, #0a1628 0%, #060e1c 100%)',
+              boxShadow: `0 2px 14px ${col}0d`,
+              display: 'flex', alignItems: 'center',
+              overflow: 'hidden', minHeight: 88,
             }}>
-              {/* Photo banner — full width, 90px */}
-              <div style={{ width: '100%', height: 90, overflow: 'hidden', position: 'relative',
-                background: `linear-gradient(135deg, ${col}0d, #020810)` }}>
+              {/* Left accent bar */}
+              <div style={{ width: 3, alignSelf: 'stretch', background: `linear-gradient(180deg, ${col}, ${col}22)`, flexShrink: 0 }} />
+
+              {/* Photo — left square */}
+              <div style={{
+                width: 86, height: 72, flexShrink: 0,
+                background: `radial-gradient(ellipse at 50% 60%, ${col}0d, #030912)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', margin: '0 2px',
+              }}>
                 <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
-                {/* Status badge */}
-                <div style={{
-                  position: 'absolute', top: 8, right: 8,
-                  padding: '4px 10px', borderRadius: 20,
-                  background: avail ? '#00e676dd' : '#ff3366dd',
-                  color: '#fff', fontFamily: 'Orbitron', fontSize: 8,
-                  fontWeight: 700, letterSpacing: '0.1em',
-                  boxShadow: `0 2px 8px ${col}66`,
-                }}>
-                  {avail ? '● DISPO' : '○ INDISPO'}
-                </div>
               </div>
 
-              {/* Info + toggle row */}
-              <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: '#e8f4ff', fontWeight: 600,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
-                    {car.name}
-                  </div>
-                  <div style={{ fontSize: 8, color: '#ffffff44', marginBottom: occ30d !== null ? 4 : 0 }}>
-                    {car.category ?? 'Standard'}
-                    {car.base_price ? ` · ${car.base_price}€/j` : ''}
-                    {rev30d !== null ? ` · Rev: ${rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}` : ''}
-                  </div>
-                  {occ30d !== null && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ flex: 1, height: 3, background: '#ffffff0a', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${occ30d}%`,
-                          background: `linear-gradient(90deg, ${col}88, ${col})`, borderRadius: 2 }} />
-                      </div>
-                      <span style={{ fontSize: 7, color: `${col}99`, minWidth: 28, textAlign: 'right' }}>{occ30d}%</span>
-                    </div>
-                  )}
+              {/* Middle — name + stats */}
+              <div style={{ flex: 1, minWidth: 0, padding: '10px 6px 10px 8px' }}>
+                <div style={{
+                  fontSize: 13, color: '#ffffff', fontWeight: 700,
+                  letterSpacing: '0.02em', marginBottom: 3,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {car.name}
                 </div>
+                <div style={{ fontSize: 7.5, color: col, fontFamily: 'Orbitron', letterSpacing: '0.1em', marginBottom: 5, opacity: 0.9 }}>
+                  {car.category ?? 'Standard'}
+                  {car.base_price ? ` · ${car.base_price}€/j` : ''}
+                </div>
+                {rev30d !== null && (
+                  <div style={{ fontSize: 7.5, color: '#ffffff44', marginBottom: 5 }}>
+                    REV. 30J{' '}
+                    <span style={{ color: '#ffffffbb', fontWeight: 600 }}>
+                      {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
+                    </span>
+                  </div>
+                )}
+                {occ30d !== null && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ flex: 1, height: 3, background: '#ffffff09', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}66, ${col})`, borderRadius: 2, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <span style={{ fontSize: 7.5, color: col, fontFamily: 'Orbitron', minWidth: 26, textAlign: 'right', letterSpacing: '0.05em' }}>
+                      {occ30d}%
+                    </span>
+                  </div>
+                )}
+              </div>
 
-                {/* iOS-style toggle */}
+              {/* Right — iOS toggle */}
+              <div style={{ flexShrink: 0, padding: '0 14px 0 4px' }}>
                 <button
                   onClick={() => void toggle(car)}
                   disabled={isTog}
                   style={{
-                    width: 52, height: 28, borderRadius: 14, flexShrink: 0,
+                    width: 50, height: 28, borderRadius: 14, border: 'none',
                     background: avail
-                      ? 'linear-gradient(90deg, #00e67644, #00e676aa)'
-                      : 'linear-gradient(90deg, #ff336644, #ff3366aa)',
-                    border: `1.5px solid ${col}66`,
+                      ? 'linear-gradient(90deg, #00b85a, #00e676)'
+                      : 'linear-gradient(90deg, #cc1133, #ff3366)',
                     cursor: isTog ? 'default' : 'pointer',
-                    opacity: isTog ? 0.5 : 1,
+                    opacity: isTog ? 0.55 : 1,
                     position: 'relative',
-                    transition: 'all 0.2s',
-                    boxShadow: `0 0 10px ${col}33`,
+                    transition: 'all 0.25s',
+                    boxShadow: `0 0 10px ${col}40`,
                   }}
                 >
                   <div style={{
-                    position: 'absolute', top: 3,
+                    position: 'absolute', top: 4,
                     width: 20, height: 20, borderRadius: '50%',
-                    background: isTog ? '#ffffff66' : '#fff',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-                    transition: 'left 0.2s',
+                    background: isTog ? '#ffffff88' : '#fff',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                    transition: 'left 0.25s cubic-bezier(0.34,1.56,0.64,1)',
                     left: avail ? 26 : 4,
                   }} />
                 </button>
@@ -192,24 +201,16 @@ function CarPhoto({ url, name, col }: { url: string | null; name: string; col: s
   const [loaded, setLoaded] = useState(false);
 
   if (!url || failed) {
-    return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <CarPlaceholder col={col} />
-      </div>
-    );
+    return <CarPlaceholder col={col} />;
   }
   return (
     <>
-      {!loaded && (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <CarPlaceholder col={col} />
-        </div>
-      )}
+      {!loaded && <CarPlaceholder col={col} />}
       <img
         src={url} alt={name}
         style={{
           width: '100%', height: '100%',
-          objectFit: 'cover',
+          objectFit: 'contain',
           objectPosition: 'center center',
           display: loaded ? 'block' : 'none',
         }}
