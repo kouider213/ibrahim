@@ -10,11 +10,14 @@ import DocumentsScreen from './screens/DocumentsScreen.tsx';
 import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
 import NotificationsScreen from './screens/NotificationsScreen.tsx';
+import TelegramScreen from './screens/TelegramScreen.tsx';
+import CapacitesScreen from './screens/CapacitesScreen.tsx';
 import { setSimActor } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
-  | 'clients' | 'reminders' | 'documents' | 'calendar' | 'notifications' | 'settings';
+  | 'clients' | 'reminders' | 'documents' | 'calendar' | 'notifications'
+  | 'telegram' | 'capacites' | 'settings';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -25,17 +28,19 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
 };
 
 const TABS: Array<{ id: Page; icon: string; label: string }> = [
-  { id: 'voice',         icon: '🎙️', label: 'VOIX'    },
-  { id: 'text',          icon: '💬', label: 'CHAT'    },
-  { id: 'bookings',      icon: '📋', label: 'RESAS'   },
-  { id: 'fleet',         icon: '🚗', label: 'PARC'    },
-  { id: 'revenue',       icon: '💰', label: 'CA'      },
-  { id: 'clients',       icon: '👥', label: 'CLIENTS' },
-  { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
-  { id: 'notifications', icon: '🔔', label: 'ALERTES' },
-  { id: 'reminders',     icon: '⏰', label: 'RAPPELS' },
-  { id: 'documents',     icon: '📄', label: 'DOCS'    },
-  { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
+  { id: 'voice',         icon: '🎙️', label: 'VOIX'     },
+  { id: 'text',          icon: '💬', label: 'CHAT'     },
+  { id: 'telegram',      icon: '✈️', label: 'TELEGRAM' },
+  { id: 'capacites',     icon: '🤖', label: 'DZARYX'   },
+  { id: 'bookings',      icon: '📋', label: 'RESAS'    },
+  { id: 'fleet',         icon: '🚗', label: 'PARC'     },
+  { id: 'revenue',       icon: '💰', label: 'CA'       },
+  { id: 'clients',       icon: '👥', label: 'CLIENTS'  },
+  { id: 'calendar',      icon: '📅', label: 'AGENDA'   },
+  { id: 'notifications', icon: '🔔', label: 'ALERTES'  },
+  { id: 'reminders',     icon: '⏰', label: 'RAPPELS'  },
+  { id: 'documents',     icon: '📄', label: 'DOCS'     },
+  { id: 'settings',      icon: '⚙️', label: 'CONFIG'   },
 ];
 
 const PHONE_W   = 375;
@@ -65,6 +70,7 @@ export default function Phone() {
   // Boot/login state
   const session = getSavedSession();
   const [simState, setSimState]       = useState<SimState>(session ? 'app' : 'locked');
+  const [powering, setPowering]       = useState(false); // power-off animation
   const [loggedActor, setLoggedActor] = useState<Actor | null>(session?.actor ?? null);
   const [loginUser, setLoginUser]     = useState('');
   const [loginPass, setLoginPass]     = useState('');
@@ -89,6 +95,19 @@ export default function Phone() {
 
   const unlock = () => setSimState('home');
   const openApp = () => setSimState('login');
+
+  const powerOff = () => {
+    if (simState === 'locked') { unlock(); return; }
+    setPowering(true);
+    setTimeout(() => {
+      localStorage.removeItem('dzaryx_session');
+      setLoggedActor(null);
+      setLoginUser('');
+      setLoginPass('');
+      setSimState('locked');
+      setPowering(false);
+    }, 1200);
+  };
 
   const doLogin = () => {
     const cred = CREDS[loginUser.toLowerCase().trim()];
@@ -127,6 +146,8 @@ export default function Phone() {
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'notifications': return <NotificationsScreen />;
+      case 'telegram':      return <TelegramScreen />;
+      case 'capacites':     return <CapacitesScreen />;
       case 'settings':      return <SettingsScreen />;
     }
   };
@@ -149,8 +170,7 @@ export default function Phone() {
       {/* Side buttons */}
       <SideButton side="left" top={120} h={32} label="vol+" />
       <SideButton side="left" top={162} h={32} label="vol-" />
-      <SideButton side="right" top={140} h={56} label="pwr"
-        onClick={simState === 'locked' ? unlock : undefined} />
+      <SideButton side="right" top={140} h={56} label="pwr" onClick={powerOff} />
 
       {/* Screen area */}
       <div style={{
@@ -202,6 +222,32 @@ export default function Phone() {
         background: '#000', zIndex: 3,
         boxShadow: 'inset 0 0 3px #000',
       }} />
+
+      {/* Power-off overlay */}
+      {powering && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 10,
+          borderRadius: RADIUS, overflow: 'hidden',
+          background: '#000',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 16,
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            border: '2px solid #00d4ff44',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <div style={{ fontSize: 22 }}>⏻</div>
+          </div>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff33', letterSpacing: '0.3em' }}>
+            DZARYX
+          </div>
+          <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#ffffff22', letterSpacing: '0.2em' }}>
+            ARRÊT EN COURS…
+          </div>
+        </div>
+      )}
     </div>
   );
 }
