@@ -25,6 +25,7 @@ export default function TextScreen({ onNavigateVoice }: Props) {
   const [status, setStatus]   = useState<DzaryxStatus>('idle');
   const [streaming, setStream] = useState('');
   const [wsConn, setWsConn]   = useState(isSocketConnected);
+  const [syncInfo, setSyncInfo] = useState<{ ok: boolean; time: string; count: number } | null>(null);
   const scrollRef              = useRef<HTMLDivElement>(null);
   const sessionId              = useRef(getOrCreateSessionId());
   const streamingMsgId         = useRef<string | null>(null);
@@ -75,6 +76,7 @@ export default function TextScreen({ onNavigateVoice }: Props) {
   useEffect(() => {
     const loadProactives = (isInitial: boolean) => {
       api.getRecentProactives().then(({ messages }) => {
+        setSyncInfo({ ok: true, time: now(), count: messages.length });
         const unseen = messages.filter(m => !seenTimestamps.current.has(m.timestamp));
         if (unseen.length === 0) return;
         unseen.forEach(m => seenTimestamps.current.add(m.timestamp));
@@ -89,7 +91,10 @@ export default function TextScreen({ onNavigateVoice }: Props) {
         } else {
           setMsgs(ms => [...ms, ...newMsgs]);
         }
-      }).catch(() => {});
+      }).catch((err: unknown) => {
+        setSyncInfo({ ok: false, time: now(), count: 0 });
+        console.error('[proactive] fetch failed:', err);
+      });
     };
 
     loadProactives(true);
@@ -196,11 +201,17 @@ export default function TextScreen({ onNavigateVoice }: Props) {
         {/* Subtitle + status */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#00d4ff44', letterSpacing: '0.18em' }}>
-            IA DE FIK CONCIERGERIE · ORAN
+            {syncInfo
+              ? syncInfo.ok
+                ? `SYNC OK · ${syncInfo.count} MSG · ${syncInfo.time}`
+                : `SYNC ERREUR · ${syncInfo.time}`
+              : 'IA DE FIK CONCIERGERIE · ORAN'}
           </span>
           <span style={{
-            fontFamily: 'Orbitron', fontSize: 7, color: col,
-            letterSpacing: '0.2em', textShadow: `0 0 6px ${col}`,
+            fontFamily: 'Orbitron', fontSize: 7,
+            color: syncInfo ? (syncInfo.ok ? '#00e676' : '#ff3366') : col,
+            letterSpacing: '0.2em',
+            textShadow: `0 0 6px ${syncInfo ? (syncInfo.ok ? '#00e676' : '#ff3366') : col}`,
           }}>{status.toUpperCase()}</span>
         </div>
         <div style={{ marginTop: 6, height: 1, background: `linear-gradient(90deg, transparent, ${col}55, transparent)` }} />
