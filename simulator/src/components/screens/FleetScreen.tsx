@@ -211,7 +211,7 @@ function CarPhoto({ url, name, col }: { url: string | null; name: string; col: s
       <img
         src={url}
         alt={name}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: loaded ? 'block' : 'none' }}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', display: loaded ? 'block' : 'none' }}
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
       />
