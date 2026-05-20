@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   api, connectSocket, getOrCreateSessionId,
   playBase64Audio, enqueueChunk, flushChunks, unlockAudio,
+  subscribeProactive, unsubscribeProactive,
   type DzaryxStatus,
 } from '../../services/api.ts';
 
@@ -62,12 +63,17 @@ export default function TextScreen({ onNavigateVoice }: Props) {
         }
         setStream('');
       },
-      onProactive: (t) => {
-        setMsgs(ms => [...ms, { id: uid(), role: 'ai', text: `📡 ${t}`, ts: now(), status: 'done' }]);
-      },
+      onProactive: () => {},
     });
     sock.on('connect',    () => setWsConn(true));
     sock.on('disconnect', () => setWsConn(false));
+  }, []);
+
+  useEffect(() => {
+    subscribeProactive((text) => {
+      setMsgs(ms => [...ms, { id: uid(), role: 'ai', text: `📡 ${text}`, ts: now(), status: 'done' }]);
+    });
+    return () => unsubscribeProactive();
   }, []);
 
   useEffect(() => {

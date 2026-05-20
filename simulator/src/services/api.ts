@@ -139,43 +139,69 @@ export interface SocketCbs {
 
 let _socket: Socket | null = null;
 
+// ── Proactive message queue ───────────────────────────────────────────────────
+// Stores messages received when no CHAT subscriber is active (different tab open).
+const _proactiveQueue: string[] = [];
+let _proactiveSub: ((text: string) => void) | null = null;
+
+function _dispatchProactive(text: string): void {
+  if (_proactiveSub) {
+    _proactiveSub(text);
+  } else {
+    _proactiveQueue.push(text);
+  }
+}
+
+export function subscribeProactive(cb: (text: string) => void): void {
+  _proactiveSub = cb;
+  // Drain queued messages that arrived while chat was not active
+  while (_proactiveQueue.length > 0) cb(_proactiveQueue.shift()!);
+}
+
+export function unsubscribeProactive(): void { _proactiveSub = null; }
+
 export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
-  if (_socket?.connected) return _socket;
-  _socket?.disconnect();
+  if (!_socket?.connected) {
+    _socket?.disconnect();
+    _socket = io(`${WS_URL}/mobile`, {
+      auth:         { token: getToken() },
+      transports:   ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      timeout: 10000,
+    });
+    _socket.on('connect',    () => console.log('[ws] connected'));
+    _socket.on('disconnect', () => console.log('[ws] disconnected'));
+  }
 
-  _socket = io(`${WS_URL}/mobile`, {
-    auth:         { token: getToken() },
-    transports:   ['websocket', 'polling'],
-    reconnection: true,
-    reconnectionDelay: 1000,
-    timeout: 10000,
-  });
-
-  _socket.on('connect',    () => console.log('[ws] connected'));
-  _socket.on('disconnect', () => console.log('[ws] disconnected'));
-
-  _socket.on('Dzaryx:status', (d: { status: DzaryxStatus; sessionId?: string; toolLabel?: string | null }) => {
+  // Always re-register session-scoped listeners with current callbacks
+  // so switching tabs updates the active handler
+  _socket.off('Dzaryx:status').on('Dzaryx:status', (d: { status: DzaryxStatus; sessionId?: string; toolLabel?: string | null }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onStatus(d.status, d.toolLabel);
   });
-  _socket.on('Dzaryx:audio', (d: { audio: string; sessionId?: string }) => {
+  _socket.off('Dzaryx:audio').on('Dzaryx:audio', (d: { audio: string; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onAudio(d.audio);
   });
-  _socket.on('Dzaryx:audio_chunk', (d: { chunk: string; sessionId?: string }) => {
+  _socket.off('Dzaryx:audio_chunk').on('Dzaryx:audio_chunk', (d: { chunk: string; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onAudioChunk(d.chunk);
   });
-  _socket.on('Dzaryx:audio_complete', (d: { sessionId?: string }) => {
+  _socket.off('Dzaryx:audio_complete').on('Dzaryx:audio_complete', (d: { sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onAudioComplete();
   });
-  _socket.on('Dzaryx:text_chunk', (d: { chunk: string; sessionId?: string }) => {
+  _socket.off('Dzaryx:text_chunk').on('Dzaryx:text_chunk', (d: { chunk: string; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onTextChunk(d.chunk);
   });
-  _socket.on('Dzaryx:text_complete', (d: { text: string; sessionId?: string }) => {
+  _socket.off('Dzaryx:text_complete').on('Dzaryx:text_complete', (d: { text: string; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onTextComplete(d.text);
   });
-  _socket.on('Dzaryx:response', (d: { text: string; fallback?: boolean; sessionId?: string }) => {
+  _socket.off('Dzaryx:response').on('Dzaryx:response', (d: { text: string; fallback?: boolean; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onResponse(d.text, d.fallback ?? false);
   });
-  _socket.on('Dzaryx:proactive', (d: { text: string }) => cbs.onProactive(d.text));
+  // Proactive: dispatch via queue AND call screen callback (VoiceScreen HUD)
+  _socket.off('Dzaryx:proactive').on('Dzaryx:proactive', (d: { text: string }) => {
+    _dispatchProactive(d.text);
+    cbs.onProactive(d.text);
+  });
 
   return _socket;
 }
