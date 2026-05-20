@@ -20,18 +20,39 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.dzaryx.app",
-      "versionCode": 4
+      "versionCode": 4,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       "expo-router",
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Orbitron-Regular.ttf",
+            "./assets/fonts/Orbitron-Bold.ttf",
+            "./assets/fonts/Exo2-Regular.ttf",
+            "./assets/fonts/Exo2-SemiBold.ttf"
+          ]
+        }
+      ],
       [
         "expo-camera",
-        { "cameraPermission": "Dzaryx utilise la caméra pour analyser ce que tu vois." }
+        {
+          "cameraPermission": "Dzaryx utilise la caméra pour analyser ce que tu vois."
+        }
       ],
       [
         "expo-av",
-        { "microphonePermission": "Dzaryx utilise le micro pour t'écouter." }
+        {
+          "microphonePermission": "Dzaryx utilise le micro pour t'écouter."
+        }
       ],
       [
         "expo-notifications",
@@ -57,14 +78,14 @@
       ]
     ],
     "scheme": "dzaryx",
-    "owner": "fikdzaryx",
+    "owner": "fikkouider",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "3536fdc5-6088-4fd4-9a4f-d443f0a52a1e"
+        "projectId": "ca9eb26d-6235-4d3c-8720-1371ccf12a65"
       }
     }
   }
