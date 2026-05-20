@@ -69,18 +69,32 @@ export default function TextScreen({ onNavigateVoice }: Props) {
     sock.on('disconnect', () => setWsConn(false));
   }, []);
 
+  // Track timestamps already displayed to avoid duplicates across polls
+  const seenTimestamps = useRef<Set<string>>(new Set());
+
   useEffect(() => {
-    // Load proactives missed before app was open (stored server-side 24h)
-    api.getRecentProactives().then(({ messages }) => {
-      if (messages.length === 0) return;
-      const historical = messages.map(m => ({
-        id: uid(), role: 'ai' as const,
-        text: `📡 ${m.text}`,
-        ts: new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        status: 'done' as const,
-      }));
-      setMsgs(ms => [ms[0], ...historical]);
-    }).catch(() => {});
+    const loadProactives = (isInitial: boolean) => {
+      api.getRecentProactives().then(({ messages }) => {
+        const unseen = messages.filter(m => !seenTimestamps.current.has(m.timestamp));
+        if (unseen.length === 0) return;
+        unseen.forEach(m => seenTimestamps.current.add(m.timestamp));
+        const newMsgs = unseen.map(m => ({
+          id: uid(), role: 'ai' as const,
+          text: `📡 ${m.text}`,
+          ts: new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          status: 'done' as const,
+        }));
+        if (isInitial) {
+          setMsgs(ms => [ms[0], ...newMsgs]);
+        } else {
+          setMsgs(ms => [...ms, ...newMsgs]);
+        }
+      }).catch(() => {});
+    };
+
+    loadProactives(true);
+    const poll = setInterval(() => loadProactives(false), 30_000);
+    return () => clearInterval(poll);
   }, []);
 
   useEffect(() => {
