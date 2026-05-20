@@ -11,23 +11,28 @@ export default function RevenueScreen() {
   const now = new Date();
   const [viewYear,  setViewYear]  = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
-  const [rev, setRev]             = useState<RevenueSummary | null>(null);
-  const [report, setReport]       = useState<FinancialReport | null>(null);
+  const [rev, setRev]                   = useState<RevenueSummary | null>(null);
+  const [report, setReport]             = useState<FinancialReport | null>(null);
+  const [annualReport, setAnnualReport] = useState<FinancialReport | null>(null);
   const [loading, setLoad]        = useState(true);
   const [clearing, setClear]      = useState(false);
   const [msg, setMsg]             = useState('');
-  const [tab, setTab]             = useState<'overview' | 'detail'>('overview');
+  const [tab, setTab]             = useState<'overview' | 'detail' | 'annual'>('overview');
 
   const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === (now.getMonth() + 1);
 
   const load = async () => {
     setLoad(true);
-    setRev(null); setReport(null);
+    setRev(null); setReport(null); setAnnualReport(null);
     try {
-      if (isCurrentMonth) {
-        setRev(await business.fetchRevenue());
-      }
-      setReport(await business.fetchFinanceReport(viewYear, viewMonth));
+      const [revRes, repRes, annRes] = await Promise.allSettled([
+        isCurrentMonth ? business.fetchRevenue() : Promise.resolve(null),
+        business.fetchFinanceReport(viewYear, viewMonth),
+        business.fetchFinanceReport(viewYear),
+      ]);
+      if (revRes.status === 'fulfilled' && revRes.value) setRev(revRes.value);
+      if (repRes.status === 'fulfilled') setReport(repRes.value);
+      if (annRes.status === 'fulfilled') setAnnualReport(annRes.value);
     } catch { /* keep null */ }
     finally { setLoad(false); }
   };
@@ -103,15 +108,19 @@ export default function RevenueScreen() {
 
         {/* Tab switcher */}
         <div style={{ display: 'flex', gap: 4 }}>
-          {(['overview', 'detail'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{
+          {([
+            { id: 'overview', label: '◉ MOIS'    },
+            { id: 'detail',   label: '≡ RÉSAS'   },
+            { id: 'annual',   label: '📊 ANNÉE'  },
+          ] as const).map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
               flex: 1, padding: '5px', borderRadius: 6,
-              background: tab === t ? 'rgba(0,212,255,0.15)' : 'transparent',
-              border: `1px solid ${tab === t ? '#00d4ff55' : '#ffffff0f'}`,
-              fontFamily: 'Orbitron', fontSize: 6, color: tab === t ? '#00d4ff' : '#ffffff33',
-              cursor: 'pointer', letterSpacing: '0.15em',
+              background: tab === t.id ? 'rgba(0,212,255,0.15)' : 'transparent',
+              border: `1px solid ${tab === t.id ? '#00d4ff55' : '#ffffff0f'}`,
+              fontFamily: 'Orbitron', fontSize: 6, color: tab === t.id ? '#00d4ff' : '#ffffff33',
+              cursor: 'pointer', letterSpacing: '0.12em',
             }}>
-              {t === 'overview' ? '◉ VUE GLOBALE' : '≡ DÉTAIL RÉSAS'}
+              {t.label}
             </button>
           ))}
         </div>
@@ -131,8 +140,10 @@ export default function RevenueScreen() {
             nbBookings={nbBookings} encaisse={encaisse} aEncaisser={aEncaisser}
             isCurrentMonth={isCurrentMonth} fmt={fmt}
           />
-        ) : (
+        ) : tab === 'detail' ? (
           <DetailTab report={report} fmt={fmt} />
+        ) : (
+          <AnnualTab report={annualReport} year={viewYear} fmt={fmt} />
         )}
 
         {/* Actions */}
@@ -335,6 +346,137 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: (n: n
           );
         })}
       </div>
+    </>
+  );
+}
+
+// ─── Annual Tab ───────────────────────────────────────────────────────────────
+
+function AnnualTab({ report, year, fmt }: {
+  report: FinancialReport | null; year: number;
+  fmt: (n: number | null | undefined) => string;
+}) {
+  if (!report) return (
+    <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#ffffff22' }}>Aucune donnée annuelle</div>
+  );
+
+  // Per-vehicle annual breakdown
+  const byVehicle: Record<string, { ca: number; profitK: number; caH: number; count: number }> = {};
+  for (const b of report.bookings) {
+    if (b.status === 'REJECTED') continue;
+    const v = b.car_name || '—';
+    if (!byVehicle[v]) byVehicle[v] = { ca: 0, profitK: 0, caH: 0, count: 0 };
+    byVehicle[v].ca     += b.final_price ?? 0;
+    byVehicle[v].count  += 1;
+    if (b.rented_by === 'Kouider') byVehicle[v].profitK += b.kouider_profit ?? 0;
+    if (b.rented_by === 'Houari')  byVehicle[v].caH     += b.owner_total ?? 0;
+  }
+  const vehicles = Object.entries(byVehicle).sort((a, b) => b[1].ca - a[1].ca);
+  const maxCA = Math.max(...vehicles.map(v => v[1].ca), 1);
+
+  return (
+    <>
+      {/* Year header */}
+      <div style={{ textAlign: 'center', fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff55', letterSpacing: '0.3em', marginBottom: 2 }}>
+        BILAN {year}
+      </div>
+
+      {/* Big annual CA */}
+      <div style={{ textAlign: 'center', background: 'rgba(0,212,255,0.05)', borderRadius: 12, padding: '14px', border: '1px solid #00d4ff1a' }}>
+        <div style={{ fontSize: 7, color: '#00d4ff44', letterSpacing: '0.25em', fontFamily: 'Orbitron', marginBottom: 4 }}>CA ANNUEL TOTAL</div>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 34, color: '#00d4ff', textShadow: '0 0 20px #00d4ff55', lineHeight: 1 }}>
+          {fmt(report.grossCA)}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 7, color: '#ffffff33' }}>
+          {report.totalBookings} réservations · {report.encaisse > 0 ? `${fmt(report.encaisse)} encaissé` : ''}
+        </div>
+      </div>
+
+      {/* K / H annual split */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        {/* Kouider annual */}
+        <div style={{ background: 'rgba(0,229,255,0.07)', borderRadius: 12, padding: '12px', border: '1px solid #00e5ff22' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#00e5ff18', border: '1.5px solid #00e5ff55',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'Orbitron', fontSize: 11, color: '#00e5ff' }}>K</div>
+            <div>
+              <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00e5ffaa', letterSpacing: '0.2em' }}>KOUIDER</div>
+              <div style={{ fontSize: 6, color: '#ffffff22' }}>{report.kouiderBookings} résas</div>
+            </div>
+          </div>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 22, color: '#00e5ff', textShadow: '0 0 12px #00e5ff44' }}>
+            {fmt(report.kouiderProfit)}
+          </div>
+          <div style={{ fontSize: 6, color: '#00e5ff44', marginTop: 3 }}>bénéfice net annuel</div>
+          <div style={{ marginTop: 6, height: 1, background: '#00e5ff10' }} />
+          <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 5 }}>
+            Encaissé: {fmt(report.encaisse)}
+          </div>
+        </div>
+
+        {/* Houari annual */}
+        <div style={{ background: 'rgba(124,58,237,0.07)', borderRadius: 12, padding: '12px', border: '1px solid #7c3aed22' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#7c3aed18', border: '1.5px solid #7c3aed55',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'Orbitron', fontSize: 11, color: '#7c3aed' }}>H</div>
+            <div>
+              <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#7c3aedaa', letterSpacing: '0.2em' }}>HOUARI</div>
+              <div style={{ fontSize: 6, color: '#ffffff22' }}>{report.houariBookings} résas</div>
+            </div>
+          </div>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 22, color: '#7c3aed', textShadow: '0 0 12px #7c3aed44' }}>
+            {fmt(report.ownerTotal)}
+          </div>
+          <div style={{ fontSize: 6, color: '#7c3aed44', marginTop: 3 }}>CA véhicules annuel</div>
+          <div style={{ marginTop: 6, height: 1, background: '#7c3aed10' }} />
+          <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 5 }}>
+            À encaisser: {fmt(report.aEncaisser)}
+          </div>
+        </div>
+      </div>
+
+      {/* Warnings */}
+      {report.missingOwnerPrice > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '7px 10px', borderRadius: 8,
+          background: 'rgba(255,179,71,0.07)', border: '1px solid #ffb34722' }}>
+          <span style={{ fontSize: 12 }}>⚠️</span>
+          <span style={{ fontSize: 8, color: '#ffb347aa', lineHeight: 1.4 }}>
+            {report.missingOwnerPrice} résa(s) sans prix propriétaire — profit partiel
+          </span>
+        </div>
+      )}
+
+      {/* Per-vehicle annual breakdown */}
+      {vehicles.length > 0 && (
+        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 12, padding: '12px', border: '1px solid #ffffff08' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff33', letterSpacing: '0.25em', marginBottom: 10 }}>
+            PAR VÉHICULE — {year}
+          </div>
+          {vehicles.map(([name, stats]) => (
+            <div key={name} style={{ marginBottom: 9 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2, alignItems: 'center' }}>
+                <span style={{ fontSize: 9, color: '#c8e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  {name}
+                </span>
+                <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff', flexShrink: 0, marginLeft: 8 }}>
+                  {fmt(stats.ca)}
+                </span>
+              </div>
+              <div style={{ height: 4, background: '#ffffff08', borderRadius: 2, overflow: 'hidden', marginBottom: 2 }}>
+                <div style={{ height: '100%', width: `${(stats.ca / maxCA) * 100}%`,
+                  background: 'linear-gradient(90deg, #00d4ff55, #00d4ff)', borderRadius: 2 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 6, color: '#ffffff22' }}>
+                <span>{stats.count} résa(s)</span>
+                {stats.profitK > 0 && <span style={{ color: '#00e5ff33' }}>K: {fmt(stats.profitK)}</span>}
+                {stats.caH    > 0 && <span style={{ color: '#7c3aed44' }}>H: {fmt(stats.caH)}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }

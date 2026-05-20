@@ -401,8 +401,8 @@ export const business = {
   createBooking: (data: Record<string, unknown>) =>
     apiFetch<{ booking: Booking }>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
 
-  fetchFinanceReport: (year: number, month: number) =>
-    apiFetch<FinancialReport>(`/api/finance/report?year=${year}&month=${month}`),
+  fetchFinanceReport: (year: number, month?: number) =>
+    apiFetch<FinancialReport>(`/api/finance/report?year=${year}${month != null ? `&month=${month}` : ''}`),
 
   clearCache: () =>
     apiFetch<{ deleted: number }>('/api/bi/cache/clear', { method: 'POST' }),
