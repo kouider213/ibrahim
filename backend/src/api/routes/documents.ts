@@ -78,7 +78,8 @@ router.get('/search', requireMobileAuth, async (req, res) => {
     if (type) q = q.eq('type', type);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
-    res.json({ documents: data ?? [], count: (data ?? []).length });
+    const docs = await signDocUrls(data ?? []);
+    res.json({ documents: docs, count: docs.length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -96,10 +97,21 @@ router.get('/:phone', requireMobileAuth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
-    res.json({ documents: data ?? [], count: (data ?? []).length });
+    const docs = await signDocUrls(data ?? []);
+    res.json({ documents: docs, count: docs.length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
+
+async function signDocUrls(docs: Array<Record<string, unknown>>): Promise<Array<Record<string, unknown>>> {
+  return Promise.all(docs.map(async (doc) => {
+    const path = doc['storage_path'] as string | undefined;
+    if (!path) return doc;
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+    if (data?.signedUrl) return { ...doc, file_url: data.signedUrl };
+    return doc;
+  }));
+}
 
 export default router;

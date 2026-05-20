@@ -312,6 +312,31 @@ export interface RevenueSummary {
   generated_at?:            string;
 }
 
+export interface FinancialBooking {
+  id: string; client_name: string; car_name: string;
+  start_date: string; end_date: string; nb_days: number;
+  final_price: number | null; client_price_per_day: number | null;
+  owner_price_per_day: number | null; owner_total: number | null;
+  rented_by: string; status: string; payment_status: string;
+  paid_amount: number; kouider_profit: number | null;
+  discount_applied: number; price_source: string; data_complete: boolean;
+}
+
+export interface FinancialReport {
+  period:             string;
+  totalBookings:      number;
+  kouiderBookings:    number;
+  houariBookings:     number;
+  grossCA:            number;
+  ownerTotal:         number;
+  kouiderProfit:      number;
+  encaisse:           number;
+  aEncaisser:         number;
+  missingOwnerPrice:  number;
+  missingClientPrice: number;
+  bookings:           FinancialBooking[];
+}
+
 export interface ClientDocument {
   id: string; client_name: string; client_phone: string;
   type: 'passport' | 'license' | 'contract' | 'other';
@@ -375,6 +400,9 @@ export const business = {
 
   createBooking: (data: Record<string, unknown>) =>
     apiFetch<{ booking: Booking }>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
+
+  fetchFinanceReport: (year: number, month: number) =>
+    apiFetch<FinancialReport>(`/api/finance/report?year=${year}&month=${month}`),
 
   clearCache: () =>
     apiFetch<{ deleted: number }>('/api/bi/cache/clear', { method: 'POST' }),
