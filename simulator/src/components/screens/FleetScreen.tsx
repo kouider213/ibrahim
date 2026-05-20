@@ -52,16 +52,16 @@ export default function FleetScreen() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-          <KpiCard label="TOTAL"  val={String(cars.length)}  col="#00d4ff" />
-          <KpiCard label="DISPO"  val={String(availCount)}   col="#00e676" />
-          <KpiCard label="OCCUP"  val={`${occPct}%`}         col="#ffb347" />
+          <KpiCard label="TOTAL"   val={String(cars.length)}  col="#00d4ff" />
+          <KpiCard label="DISPO"   val={String(availCount)}   col="#00e676" />
+          <KpiCard label="OCCUP"   val={`${occPct}%`}         col="#ffb347" />
           <KpiCard label="INDISPO" val={String(unavailCount)} col="#ff3366" />
         </div>
         <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #00d4ff44, transparent)' }} />
       </div>
 
       {/* Cars list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {loading ? (
           <HudLoader />
         ) : cars.length === 0 ? (
@@ -76,19 +76,15 @@ export default function FleetScreen() {
 
           return (
             <div key={car.id} style={{
-              borderRadius: 14, overflow: 'hidden',
-              border: `1px solid ${col}28`,
-              background: `linear-gradient(160deg, ${col}08, rgba(2,8,16,0.7))`,
+              borderRadius: 12, overflow: 'hidden',
+              border: `1px solid ${col}2a`,
+              background: `linear-gradient(135deg, ${col}07, rgba(2,8,16,0.5))`,
             }}>
-              {/* ── Photo banner — full width, tall enough to see whole car ── */}
-              <div style={{
-                width: '100%', height: 130,
-                background: `linear-gradient(135deg, ${col}0d, #020810)`,
-                position: 'relative', overflow: 'hidden',
-              }}>
+              {/* Photo banner — full width, 90px */}
+              <div style={{ width: '100%', height: 90, overflow: 'hidden', position: 'relative',
+                background: `linear-gradient(135deg, ${col}0d, #020810)` }}>
                 <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
-
-                {/* Status badge — top right */}
+                {/* Status badge */}
                 <div style={{
                   position: 'absolute', top: 8, right: 8,
                   padding: '4px 10px', borderRadius: 20,
@@ -99,33 +95,29 @@ export default function FleetScreen() {
                 }}>
                   {avail ? '● DISPO' : '○ INDISPO'}
                 </div>
-
-                {/* Occupation bar — bottom of photo */}
-                {occ30d !== null && (
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 18,
-                    background: 'linear-gradient(transparent, rgba(2,8,16,0.85))',
-                    display: 'flex', alignItems: 'center', padding: '0 10px', gap: 6 }}>
-                    <div style={{ flex: 1, height: 3, background: '#ffffff0a', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${occ30d}%`,
-                        background: `linear-gradient(90deg, ${col}66, ${col})`, borderRadius: 2 }} />
-                    </div>
-                    <span style={{ fontSize: 7, color: `${col}aa`, minWidth: 28, textAlign: 'right' }}>{occ30d}%</span>
-                  </div>
-                )}
               </div>
 
-              {/* ── Info + toggle row ── */}
+              {/* Info + toggle row */}
               <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: '#e8f4ff', fontWeight: 600,
+                  <div style={{ fontSize: 12, color: '#e8f4ff', fontWeight: 600,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
                     {car.name}
                   </div>
-                  <div style={{ fontSize: 7, color: '#ffffff44' }}>
-                    📍 {car.category ?? 'Standard'}
+                  <div style={{ fontSize: 8, color: '#ffffff44', marginBottom: occ30d !== null ? 4 : 0 }}>
+                    {car.category ?? 'Standard'}
                     {car.base_price ? ` · ${car.base_price}€/j` : ''}
                     {rev30d !== null ? ` · Rev: ${rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}` : ''}
                   </div>
+                  {occ30d !== null && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ flex: 1, height: 3, background: '#ffffff0a', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${occ30d}%`,
+                          background: `linear-gradient(90deg, ${col}88, ${col})`, borderRadius: 2 }} />
+                      </div>
+                      <span style={{ fontSize: 7, color: `${col}99`, minWidth: 28, textAlign: 'right' }}>{occ30d}%</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* iOS-style toggle */}
@@ -202,7 +194,7 @@ function CarPhoto({ url, name, col }: { url: string | null; name: string; col: s
   if (!url || failed) {
     return (
       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 40, opacity: 0.25 }}>🚗</span>
+        <CarPlaceholder col={col} />
       </div>
     );
   }
@@ -210,20 +202,37 @@ function CarPhoto({ url, name, col }: { url: string | null; name: string; col: s
     <>
       {!loaded && (
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: 40, opacity: 0.2 }}>🚗</span>
+          <CarPlaceholder col={col} />
         </div>
       )}
       <img
         src={url} alt={name}
         style={{
           width: '100%', height: '100%',
-          objectFit: 'contain',
+          objectFit: 'cover',
+          objectPosition: 'center center',
           display: loaded ? 'block' : 'none',
         }}
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
       />
     </>
+  );
+}
+
+function CarPlaceholder({ col }: { col: string }) {
+  return (
+    <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="12" width="36" height="10" rx="3" fill={col} fillOpacity="0.12" stroke={col} strokeWidth="0.8" strokeOpacity="0.5"/>
+      <path d="M 10 12 L 14 5 L 26 5 L 30 12" fill={col} fillOpacity="0.1" stroke={col} strokeWidth="0.8" strokeOpacity="0.4"/>
+      <rect x="14.5" y="6.5" width="4.5" height="5" rx="1" fill={col} fillOpacity="0.25"/>
+      <rect x="21" y="6.5" width="4.5" height="5" rx="1" fill={col} fillOpacity="0.25"/>
+      <circle cx="10" cy="22" r="3.5" fill="none" stroke={col} strokeWidth="1" strokeOpacity="0.6"/>
+      <circle cx="10" cy="22" r="1.5" fill={col} fillOpacity="0.3"/>
+      <circle cx="30" cy="22" r="3.5" fill="none" stroke={col} strokeWidth="1" strokeOpacity="0.6"/>
+      <circle cx="30" cy="22" r="1.5" fill={col} fillOpacity="0.3"/>
+      <rect x="36" y="14" width="2" height="3" rx="1" fill={col} fillOpacity="0.7"/>
+    </svg>
   );
 }
 
