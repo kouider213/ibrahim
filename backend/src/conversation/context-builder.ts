@@ -11,6 +11,7 @@ import { detectMood, saveMoodSession, type MoodResult } from '../orchestrator/mo
 import { getClientProfile } from '../orchestrator/client-intelligence.js';
 import { type OrgMember, DEFAULT_MEMBER } from '../orchestrator/org-resolver.js';
 import { getSmartReminders } from '../bi/smart-reminders.js';
+import { redis } from '../queue/queue.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -115,6 +116,13 @@ export async function buildContext(
   // Coding: deep history. Action intents: minimal history (3 msgs) to avoid echoing old confirmations. Default: 10.
   const isCodingContext = /code|fichier|github|railway|deploy|typescript|modifier|écrire|programme|lire|debug|erreur|push|commit/i.test(userMessage);
   const historyLimit = isCodingContext ? 20 : isActionIntent(userMessage) ? 3 : 10;
+
+  // ── Mode urgence ──────────────────────────────────────────────────────────
+  const URGENCY_RE = /\burgence\b|ibrahim urgence|mode urgence|priorit[eé] max/i;
+  if (URGENCY_RE.test(userMessage)) {
+    await redis.set('user:urgency_mode', '1', 'EX', 1800).catch(() => {}); // 30 min TTL
+  }
+  const inUrgencyMode = (await redis.get('user:urgency_mode').catch(() => null)) === '1';
 
   // Cross-channel: uniquement les messages récents (< 6h) pour éviter confusion
   const crossChannelSessionId = sessionId === 'voice_kouider'
@@ -318,7 +326,12 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
   const langHint = `\n\n${langDetection.systemHint}`;
   console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}" mood=${mood.mood}(${mood.intensity}) actor=${actor.ownerKey}`);
 
+  const urgencyText = inUrgencyMode
+    ? '\n\n🚨 MODE URGENCE ACTIVÉ — Réponses ultra-courtes et directes uniquement. Priorité maximum. Actions immédiates sans demander confirmation. Notifications maximales. Pas d\'explication inutile — seulement ce qui est essentiel.'
+    : '';
+
   const systemExtra = [
+    urgencyText,
     langHint,
     channelInfo,
     dateInfo,

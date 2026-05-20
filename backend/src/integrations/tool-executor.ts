@@ -387,6 +387,29 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     return `❌ Voiture déjà réservée du ${input['start_date']} au ${input['end_date']}. Vérifie avec check_car_availability.`;
   }
 
+  // ── Vendredi: avertissement livraison/retour ──────────────────────────────
+  const startDay = new Date(input['start_date'] as string).getDay(); // 0=dim, 5=ven
+  const endDay   = new Date(input['end_date']   as string).getDay();
+  const fridayWarning = (startDay === 5 || endDay === 5)
+    ? '\n⚠️ VENDREDI: La date de départ ou retour tombe un vendredi (Jumua). Confirme avec le client — livraisons/retours déconseillés ce jour-là.'
+    : '';
+
+  // ── Ramadan: détection automatique + note tarifs ──────────────────────────
+  function isInRamadan(d: string): boolean {
+    const periods: Record<number, [string, string]> = {
+      2025: ['2025-03-01', '2025-03-30'],
+      2026: ['2026-02-18', '2026-03-19'],
+      2027: ['2027-02-07', '2027-03-08'],
+      2028: ['2028-01-27', '2028-02-25'],
+    };
+    const y = new Date(d).getFullYear();
+    const p = periods[y];
+    return !!p && d >= p[0] && d <= p[1];
+  }
+  const ramadanNote = (isInRamadan(input['start_date'] as string) || isInRamadan(input['end_date'] as string))
+    ? '\n📅 RAMADAN: Dates en période de Ramadan — tarifs spéciaux Ramadan peuvent s\'appliquer. Vérifie si une remise Ramadan a été accordée au client.'
+    : '';
+
   // Calcul nb_days (variable locale, pas de colonne DB)
   const nb_days = Math.max(1, Math.ceil(
     (new Date(input['end_date'] as string).getTime() - new Date(input['start_date'] as string).getTime()) / 86_400_000,
@@ -509,7 +532,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     if (!isNaN(chatId)) sendTelegramText(chatId, alertMsg).catch(() => {});
   }
 
-  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}`;
+  return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}${fridayWarning}${ramadanNote}`;
 }
 
 async function cancelBooking(input: Record<string, unknown>): Promise<string> {
