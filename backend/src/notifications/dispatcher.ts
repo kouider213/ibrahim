@@ -42,18 +42,20 @@ const EL_VOICE_SETTINGS = {
   use_speaker_boost: true,
 };
 
-// Arabic script detection → use multilingual model for better pronunciation
+// Arabic script detection → multilingual model + language code to prevent Turkish ghost output
 const ARABIC_SCRIPT_RE = /[؀-ۿ]/;
-function pickTTSModel(text: string): string {
-  return ARABIC_SCRIPT_RE.test(text) ? 'eleven_multilingual_v2' : 'eleven_turbo_v2_5';
+function pickTTSModel(text: string): { model_id: string; language_code: string } {
+  return ARABIC_SCRIPT_RE.test(text)
+    ? { model_id: 'eleven_multilingual_v2', language_code: 'ar' }
+    : { model_id: 'eleven_turbo_v2_5',     language_code: 'fr' };
 }
 
 export async function synthesizeVoice(text: string): Promise<Buffer | null> {
-  const model_id = pickTTSModel(text);
+  const { model_id, language_code } = pickTTSModel(text);
   try {
     const response = await axios.post<ArrayBuffer>(
       `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}`,
-      { text: cleanTextForTTS(text), model_id, voice_settings: EL_VOICE_SETTINGS },
+      { text: cleanTextForTTS(text), model_id, language_code, voice_settings: EL_VOICE_SETTINGS },
       {
         headers: { 'xi-api-key': env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
         responseType: 'arraybuffer',
@@ -72,13 +74,14 @@ export async function synthesizeVoiceStream(
   text: string,
   onChunk: (chunk: Buffer) => void,
 ): Promise<boolean> {
-  const model_id = pickTTSModel(text);
+  const { model_id, language_code } = pickTTSModel(text);
   try {
     const response = await axios.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream`,
       {
         text: cleanTextForTTS(text),
         model_id,
+        language_code,
         voice_settings: EL_VOICE_SETTINGS,
         output_format: 'mp3_44100_128',
       },
