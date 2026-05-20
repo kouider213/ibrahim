@@ -6,12 +6,16 @@ import { updateClientIntelFromBooking } from '../../orchestrator/client-intellig
 
 const router = Router();
 
-// GET /api/clients — list all clients with booking counts
-router.get('/', requireMobileAuth, async (_req, res) => {
+// GET /api/clients — list clients filtered by actor (rented_by)
+router.get('/', requireMobileAuth, async (req, res) => {
+  const actorName = req.mobileActor
+    ? req.mobileActor.ownerKey.charAt(0).toUpperCase() + req.mobileActor.ownerKey.slice(1)
+    : 'Kouider';
   try {
     const { data, error } = await supabase
       .from('bookings')
       .select('client_name, client_phone, client_email, status, final_price, created_at')
+      .eq('rented_by', actorName)
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -51,7 +55,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
 
 // GET /api/clients/intelligence — list client profiles from client_intelligence table
 router.get('/intelligence', requireMobileAuth, async (req, res) => {
-  const ownerId = (req.query['owner'] as string | undefined) ?? 'kouider';
+  const ownerId = (req.query['owner'] as string | undefined) ?? req.mobileActor?.ownerKey ?? 'kouider';
   const limit   = Number(req.query['limit'] ?? 100);
   try {
     const { data, error } = await supabase

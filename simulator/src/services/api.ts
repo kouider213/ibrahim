@@ -420,7 +420,7 @@ export const business = {
     apiFetch<{ clients: ClientSummary[] }>('/api/clients'),
 
   fetchClientIntel: () =>
-    apiFetch<{ clients: ClientIntelligence[] }>('/api/clients/intelligence'),
+    apiFetch<{ clients: ClientIntelligence[] }>(`/api/clients/intelligence?owner=${_actor}`),
 
   toggleCar: (id: string, available: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),

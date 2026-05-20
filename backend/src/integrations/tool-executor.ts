@@ -141,7 +141,7 @@ async function _dispatch(
     switch (name) {
       case 'list_bookings':         return await listBookings(input);
       case 'update_booking':        return await updateBooking(input);
-      case 'create_booking':        return await createBooking(input);
+      case 'create_booking':        return await createBooking(input, sessionId);
       case 'cancel_booking':        return await cancelBooking(input);
       case 'delete_booking':        return await deleteBooking(input);
       case 'get_financial_report':  return await financialReport(input);
@@ -358,7 +358,7 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   return `✅ Réservation ${id} mise à jour: ${JSON.stringify(fields)}`;
 }
 
-async function createBooking(input: Record<string, unknown>): Promise<string> {
+async function createBooking(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (!input['client_name']) return '❌ client_name manquant';
   if (!input['start_date'])  return '❌ start_date manquant (format YYYY-MM-DD)';
   if (!input['end_date'])    return '❌ end_date manquant (format YYYY-MM-DD)';
@@ -452,7 +452,7 @@ async function createBooking(input: Record<string, unknown>): Promise<string> {
     end_date:             input['end_date'],
     final_price:          input['final_price'],
     payment_status:       'UNPAID',
-    rented_by:            input['rented_by']          ?? 'Kouider',
+    rented_by:            input['rented_by']          ?? (sessionId ? (await redis.get(`session:actor:${sessionId}`).catch(() => null) ?? 'Kouider') : 'Kouider'),
     status,
     client_price_per_day: client_ppd,
     owner_price_per_day:  owner_ppd,

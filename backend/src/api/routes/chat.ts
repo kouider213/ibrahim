@@ -44,6 +44,12 @@ router.post('/', requireMobileAuth, async (req, res) => {
     redis.set('user:tz', headerTz, 'EX', 7 * 86_400).catch(() => {}); // global fallback
   }
 
+  // Cache actor display name for tool-executor (create_booking rented_by default)
+  const mobileActorForCache = req.mobileActor;
+  if (mobileActorForCache) {
+    redis.set(`session:actor:${sessionId}`, mobileActorForCache.displayName, 'EX', 86_400).catch(() => {});
+  }
+
   // Acknowledge immediately — result delivered via Socket.IO (Dzaryx:text_complete + audio chunks)
   res.status(202).json({ status: 'processing', sessionId });
 
