@@ -1237,9 +1237,11 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     }
   }
 
+  const IMAGE_URL_RE = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
   const results = docs.map(d => {
-    const extStr = d.extracted_data ? `\nDonnées: ${JSON.stringify(d.extracted_data)}` : '';
-    return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}\nURL: ${d.file_url}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
+    const extStr  = d.extracted_data ? `\nDonnées: ${JSON.stringify(d.extracted_data)}` : '';
+    const mediaLine = d.file_url && IMAGE_URL_RE.test(d.file_url) ? `\n📹 ${d.file_url}` : (d.file_url ? `\nURL: ${d.file_url}` : '');
+    return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}${mediaLine}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
   });
 
   const telegramStatus = sentUrls.length > 0 ? `\n✅ Photo envoyée sur Telegram (${sentUrls.length} doc)` : '';
