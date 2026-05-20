@@ -10,14 +10,13 @@ import DocumentsScreen from './screens/DocumentsScreen.tsx';
 import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
 import NotificationsScreen from './screens/NotificationsScreen.tsx';
-import TelegramScreen from './screens/TelegramScreen.tsx';
 import CapacitesScreen from './screens/CapacitesScreen.tsx';
 import { setSimActor } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'reminders' | 'documents' | 'calendar' | 'notifications'
-  | 'telegram' | 'capacites' | 'settings';
+  | 'capacites' | 'settings';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -30,7 +29,6 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
 const TABS: Array<{ id: Page; icon: string; label: string }> = [
   { id: 'voice',         icon: '🎙️', label: 'VOIX'     },
   { id: 'text',          icon: '💬', label: 'CHAT'     },
-  { id: 'telegram',      icon: '✈️', label: 'TELEGRAM' },
   { id: 'capacites',     icon: '🤖', label: 'DZARYX'   },
   { id: 'bookings',      icon: '📋', label: 'RESAS'    },
   { id: 'fleet',         icon: '🚗', label: 'PARC'     },
@@ -146,7 +144,6 @@ export default function Phone() {
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'notifications': return <NotificationsScreen />;
-      case 'telegram':      return <TelegramScreen />;
       case 'capacites':     return <CapacitesScreen />;
       case 'settings':      return <SettingsScreen />;
     }
