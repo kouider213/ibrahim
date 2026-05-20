@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   api, connectSocket, getOrCreateSessionId,
   playBase64Audio, enqueueChunk, flushChunks, unlockAudio,
-  subscribeProactive, unsubscribeProactive,
+  subscribeProactive, unsubscribeProactive, isSocketConnected,
   type DzaryxStatus,
 } from '../../services/api.ts';
 
@@ -24,7 +24,7 @@ export default function TextScreen({ onNavigateVoice }: Props) {
   const [input, setInput]     = useState('');
   const [status, setStatus]   = useState<DzaryxStatus>('idle');
   const [streaming, setStream] = useState('');
-  const [wsConn, setWsConn]   = useState(false);
+  const [wsConn, setWsConn]   = useState(isSocketConnected);
   const scrollRef              = useRef<HTMLDivElement>(null);
   const sessionId              = useRef(getOrCreateSessionId());
   const streamingMsgId         = useRef<string | null>(null);

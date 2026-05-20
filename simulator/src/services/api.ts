@@ -210,6 +210,7 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
 }
 
 export function disconnectSocket(): void { _socket?.disconnect(); _socket = null; }
+export function isSocketConnected(): boolean { return _socket?.connected ?? false; }
 
 // ── Audio helpers ─────────────────────────────────────────────────────────────
 
