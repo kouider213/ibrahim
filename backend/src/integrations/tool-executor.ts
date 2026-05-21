@@ -1741,13 +1741,28 @@ async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: 
     `📍 FIK Conciergerie Oran — AutoLux Location`,
   ].join('\n');
 
+  // Generate PDF and upload to Cloudinary
+  let pdfUrl = '';
+  try {
+    const { buffer: pdfBuf } = await generateReservationVoucher(bookingId);
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
+    pdfUrl = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'raw', folder: 'dzaryx-vouchers', public_id: `bon-${refNo}`, format: 'pdf' },
+        (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
+      );
+      stream.end(pdfBuf);
+    });
+  } catch (err) {
+    console.error('[generateVoucherTool] PDF upload failed:', err instanceof Error ? err.message : err);
+  }
+
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  emitProactive(`Bon de réservation — ${clientName}`, 'info', chatText);
+  const fullText = pdfUrl ? `${chatText}\n📹 ${pdfUrl}` : chatText;
+  emitProactive(`Bon de réservation — ${clientName}`, 'info', fullText);
 
-  // Generate PDF in background (for download on demand)
-  generateReservationVoucher(bookingId).catch(() => {});
-
-  return `✅ Bon de réservation envoyé dans l'app pour ${clientName} !\n\n${chatText}`;
+  return `✅ Bon de réservation envoyé dans l'app pour ${clientName} !${pdfUrl ? '\n📎 PDF téléchargeable dans le chat' : ''}\n\n${chatText}`;
 }
 
 // ── Phase 8 handlers ─────────────────────────────────────────────────────────
@@ -1809,13 +1824,28 @@ async function generateContractTool(input: Record<string, unknown>, _sessionId?:
     `📍 FIK Conciergerie Oran — AutoLux Location`,
   ].join('\n');
 
+  // Generate PDF and upload to Cloudinary
+  let pdfUrl = '';
+  try {
+    const { buffer: pdfBuf } = await generateRentalContract(bookingId);
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
+    pdfUrl = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'raw', folder: 'dzaryx-contracts', public_id: `contrat-${contractNumber}`, format: 'pdf' },
+        (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
+      );
+      stream.end(pdfBuf);
+    });
+  } catch (err) {
+    console.error('[generateContractTool] PDF upload failed:', err instanceof Error ? err.message : err);
+  }
+
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  emitProactive(`Contrat ${contractNumber} — ${clientName}`, 'info', chatText);
+  const fullText = pdfUrl ? `${chatText}\n📹 ${pdfUrl}` : chatText;
+  emitProactive(`Contrat ${contractNumber} — ${clientName}`, 'info', fullText);
 
-  // Generate PDF in background (for download on demand)
-  generateRentalContract(bookingId).catch(() => {});
-
-  return `✅ Contrat ${contractNumber} envoyé dans l'app pour ${clientName} !\n\n${chatText}`;
+  return `✅ Contrat ${contractNumber} envoyé dans l'app pour ${clientName} !${pdfUrl ? '\n📎 PDF téléchargeable dans le chat' : ''}\n\n${chatText}`;
 }
 
 async function exportExcelTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
