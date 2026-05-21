@@ -3,12 +3,21 @@ import { business, setSimActor, getSimActor } from '../../services/api.ts';
 
 interface Job { name: string; cron: string; next: number | null; }
 interface NexusInfo {
-  nexus_online: boolean; connected?: boolean;
+  nexus_online?: boolean; connected?: boolean;
   hostname?: string; cpu_percent?: number;
   ram_used_mb?: number; ram_total_mb?: number;
   uptime_s?: number; latency_ms?: number;
   os?: string;
 }
+
+const RULES = [
+  { id: 1, rule: 'Acompte minimum 30% à la réservation pour les nouveaux clients', cat: 'BUSINESS',   priority: 9, col: '#ff3366' },
+  { id: 2, rule: 'Vérifier disponibilité voiture avant de confirmer une résa',      cat: 'BUSINESS',   priority: 10, col: '#ff3366' },
+  { id: 3, rule: 'Profit = (client_price - owner_price) × nb_jours. Jamais catalogue.', cat: 'PRICING', priority: 10, col: '#ffb347' },
+  { id: 4, rule: 'Kouider préfère les réponses courtes et directes',                cat: 'COMM',       priority: 7, col: '#00d4ff' },
+  { id: 5, rule: 'Houari gère les opérations terrain à Oran directement',           cat: 'OPÉRATIONS', priority: 8, col: '#7c3aed' },
+  { id: 6, rule: 'Houari préfère le darija oranais pour communiquer',               cat: 'COMM',       priority: 9, col: '#7c3aed' },
+];
 
 const ACTORS = [
   { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#00e5ff', icon: 'K' },
@@ -202,10 +211,38 @@ export default function SettingsScreen() {
           </Panel>
         )}
 
+        {/* Règles apprises — Phase 8 */}
+        <Panel title="RÈGLES APPRISES (PHASE 8)">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+            {RULES.map(r => (
+              <div key={r.id} style={{
+                background: 'rgba(0,212,255,0.03)', borderRadius: 8,
+                border: `1px solid ${r.col}22`, padding: '7px 10px',
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+              }}>
+                <div style={{
+                  flexShrink: 0, width: 5, height: 5, borderRadius: '50%',
+                  background: r.col, boxShadow: `0 0 5px ${r.col}`,
+                  marginTop: 4,
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 8, color: '#c8e8ff', lineHeight: 1.5 }}>{r.rule}</div>
+                  <div style={{ fontSize: 6, color: r.col, marginTop: 2, letterSpacing: '0.1em', fontFamily: 'Orbitron' }}>
+                    {r.cat} · PRIORITÉ {r.priority}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 7, color: '#ffffff22', textAlign: 'center', letterSpacing: '0.1em' }}>
+            Dzaryx apprend de chaque conversation · "sauvegarde cette règle: …"
+          </div>
+        </Panel>
+
         {/* Version */}
         <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
           <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff15', letterSpacing: '0.3em' }}>
-            DZARYX SIMULATOR v1.1 · FIK CONCIERGERIE ORAN
+            DZARYX SIMULATOR v1.2 · PHASE 8 · FIK CONCIERGERIE ORAN
           </div>
         </div>
       </div>

@@ -106,6 +106,28 @@ const MESSAGES: Record<string, TgMsg[]> = {
       tag: '📊 BILAN JOURNÉE', tagCol: '#00d4ff',
       text: 'Encaissé aujourd\'hui: 220€\nNouv. réservations: 1 (+180€)\nImpayés restants: 2 (344€)\nProfit estimé jour: 47€',
     },
+    {
+      id: 'f5', from: 'kouider', type: 'text', time: '19:00',
+      text: 'Exporte les réservations de mai en Excel',
+    },
+    {
+      id: 'f6', from: 'dzaryx', type: 'file', time: '19:01',
+      tag: '📊 EXPORT EXCEL PRÊT', tagCol: '#00e676',
+      photo: '📊',
+      text: 'reservations_mai_2026.xlsx\n18 réservations · 3 feuilles\n• Réservations détaillées\n• Bilan financier\n• Rapport par véhicule\n\nCA total: 2 847€ · Profit: 743€',
+      actions: ['TÉLÉCHARGER', 'ENVOYER EMAIL'],
+    },
+    {
+      id: 'f7', from: 'kouider', type: 'text', time: '19:10',
+      text: 'Génère le contrat pour Ahmed Mansouri Jogger du 22 au 26 mai',
+    },
+    {
+      id: 'f8', from: 'dzaryx', type: 'file', time: '19:10',
+      tag: '📝 CONTRAT PDF GÉNÉRÉ', tagCol: '#7c3aed',
+      photo: '📝',
+      text: 'contrat_ahmed_mansouri_BK2478.pdf\nAhmed Mansouri — Jogger\n22/05 → 26/05 (4 jours)\nMontant: 180€ · Acompte: 54€\n\nInclus: CGV + zone signature',
+      actions: ['ENVOYER CLIENT', 'VOIR PDF'],
+    },
   ],
   resas: [
     {

@@ -197,6 +197,17 @@ export default function DocumentsScreen() {
           )}
         </div>
 
+        {/* Contrat PDF panel */}
+        <div style={{ background: 'rgba(124,58,237,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #7c3aed22' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#7c3aed99', letterSpacing: '0.25em', marginBottom: 10 }}>
+            📝 GÉNÉRER CONTRAT PDF
+          </div>
+          <div style={{ fontSize: 8, color: '#ffffff44', marginBottom: 10, lineHeight: 1.6 }}>
+            Contrat signable avec CGV · généré depuis la réservation · envoyé Telegram.
+          </div>
+          <ContractGenerator />
+        </div>
+
         {/* OCR Scan panel */}
         <div style={{ background: 'rgba(255,107,0,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #ff6b0022' }}>
           <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#ff6b0099', letterSpacing: '0.25em', marginBottom: 10 }}>
@@ -258,6 +269,51 @@ export default function DocumentsScreen() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ContractGenerator() {
+  const [client, setClient] = useState('');
+  const [car, setCar]       = useState('');
+  const [generating, setGen] = useState(false);
+  const [result, setResult]  = useState('');
+
+  const generate = async () => {
+    if (!client.trim() || !car.trim()) return;
+    setGen(true); setResult('');
+    await new Promise(r => setTimeout(r, 1800));
+    setResult(`✅ contrat_${client.toLowerCase().replace(/\s+/g, '_')}.pdf\n📝 Contrat généré avec CGV\n📤 Envoyé dans Telegram`);
+    setGen(false);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <input value={client} onChange={e => setClient(e.target.value)} placeholder="Nom du client…" style={inputStyle} />
+      <input value={car} onChange={e => setCar(e.target.value)} placeholder="Voiture (ex: Jogger)…" style={inputStyle} />
+      <button
+        onClick={() => void generate()}
+        disabled={generating || !client.trim() || !car.trim()}
+        style={{
+          width: '100%', padding: '10px',
+          background: generating ? 'rgba(124,58,237,0.15)' : 'rgba(124,58,237,0.08)',
+          border: `1.5px solid #7c3aed${generating ? '66' : '44'}`,
+          borderRadius: 8, fontFamily: 'Orbitron', fontSize: 8,
+          color: `#7c3aed${generating || !client.trim() || !car.trim() ? '66' : 'cc'}`,
+          cursor: generating ? 'default' : 'pointer', letterSpacing: '0.15em',
+        }}
+      >
+        {generating ? '⏳ GÉNÉRATION EN COURS…' : '📝 GÉNÉRER CONTRAT'}
+      </button>
+      {result && (
+        <div style={{
+          padding: '10px 12px', background: 'rgba(124,58,237,0.08)',
+          borderRadius: 8, border: '1px solid #7c3aed22',
+          fontSize: 9, color: '#b87fff', lineHeight: 1.65,
+        }}>
+          {result}
+        </div>
+      )}
     </div>
   );
 }

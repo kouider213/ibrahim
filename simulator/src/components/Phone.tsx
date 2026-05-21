@@ -11,10 +11,11 @@ import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
 import NotificationsScreen from './screens/NotificationsScreen.tsx';
 import CapacitesScreen from './screens/CapacitesScreen.tsx';
+import TelegramScreen from './screens/TelegramScreen.tsx';
 import { setSimActor } from '../services/api.ts';
 
 export type Page =
-  | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
+  | 'voice' | 'text' | 'telegram' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'reminders' | 'documents' | 'calendar' | 'notifications'
   | 'capacites' | 'settings';
 
@@ -29,6 +30,7 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
 const TABS: Array<{ id: Page; icon: string; label: string }> = [
   { id: 'voice',         icon: '🎙️', label: 'VOIX'     },
   { id: 'text',          icon: '💬', label: 'CHAT'     },
+  { id: 'telegram',      icon: '✈️', label: 'TELEGRAM' },
   { id: 'capacites',     icon: '🤖', label: 'DZARYX'   },
   { id: 'bookings',      icon: '📋', label: 'RESAS'    },
   { id: 'fleet',         icon: '🚗', label: 'PARC'     },
@@ -136,6 +138,7 @@ export default function Phone() {
     switch (page) {
       case 'voice':         return <VoiceScreen onNavigateText={() => setPage('text')} onWsStatus={setWsOk} />;
       case 'text':          return <TextScreen onNavigateVoice={() => setPage('voice')} actor={loggedActor ?? 'kouider'} />;
+      case 'telegram':      return <TelegramScreen />;
       case 'bookings':      return <BookingsScreen />;
       case 'fleet':         return <FleetScreen />;
       case 'revenue':       return <RevenueScreen />;
