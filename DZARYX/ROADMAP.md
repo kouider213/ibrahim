@@ -1,6 +1,6 @@
 # DZARYX — Feuille de Route
 
-> Mise à jour : 2026-05-20
+> Mise à jour : 2026-05-21
 > Légende : ✅ Terminé | 🔄 En cours | 🔵 Planifié | ❌ Bloqué
 
 ---
@@ -82,18 +82,21 @@
 
 ---
 
-## Phase 6.5 — Simulateur Web Complet (✅ Terminé — 2026-05-20)
+## Phase 6.5 — Simulateur Web Complet (✅ Terminé — 2026-05-21)
 
-- ✅ Simulateur Android web (Netlify) : https://dzaryx-simulator.netlify.app
-- ✅ 13 onglets : VOIX/CHAT/TELEGRAM/DZARYX/RESAS/PARC/CA/CLIENTS/AGENDA/ALERTES/RAPPELS/DOCS/CONFIG
+- ✅ Simulateur Android web (GitHub Pages) : **https://kouider213.github.io/ibrahim/**
+- ✅ 12 onglets : VOIX/CHAT/DZARYX/RESAS/PARC/CA/CLIENTS/AGENDA/ALERTES/RAPPELS/DOCS/CONFIG
 - ✅ Boot simulation : locked → home → login (kouider/houari) → app
 - ✅ Power button animation : power-off → DZARYX logo → arrêt
 - ✅ Session persistée localStorage (auto-login)
-- ✅ TelegramScreen : 6 canaux, tous types messages, démos réalistes
 - ✅ CapacitesScreen : 14 agents, proactif timeline, 40+ capacités
 - ✅ Design cyberpunk HUD uniforme (Orbitron + Share Tech Mono + corner brackets)
 - ✅ Connexions réelles Railway API + Socket.IO
-- ✅ Multi-acteur Kouider (cyan) / Houari (violet)
+- ✅ Multi-acteur Kouider (cyan #00e5ff) / Houari (violet #7c3aed)
+- ✅ **GPS LIVRAISON panel** (RESAS) : adresse → distance/temps/frais DZD/Waze/GMaps
+- ✅ **Contrat PDF panel** (DOCS) : génération contrat simulée — Phase 8
+- ✅ **Règles Apprises panel** (CONFIG) : 6 règles seed — Phase 8
+- ⚠️ Tab Telegram SUPPRIMÉ — décision Kouider définitive (backup/admin seulement)
 
 ---
 
@@ -128,52 +131,79 @@
 - ✅ Code `dzaryx-native/` prêt — 9 écrans, voix, push notifs, OCR, multi-acteur
 
 ### Checklist avant lancement APK
-- [ ] Railway : ajouter `MOBILE_TOKEN_HOUARI`
+- ✅ Railway : `MOBILE_TOKEN_HOUARI` ajouté 2026-05-21
+- ✅ Railway : `GOOGLE_MAPS_API_KEY` ajouté 2026-05-21
 - [ ] Tester APK android sur téléphone Kouider + Houari
 - [ ] Valider voix → Whisper → Claude → TTS end-to-end
 - [ ] Valider push notifications (app fermée)
 - [ ] Valider scan OCR passeport
-- [ ] Google Maps API restreindre à Distance Matrix only
+- [ ] Google Maps API restreindre à Distance Matrix only (Google Cloud Console)
 - [ ] Révoquer EAS token `G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6` après build
 
 ---
 
-## Phase 8 — Automatisation Avancée (🔵 Planifié)
+## Phase 8 — Automatisation Avancée (🔄 Partiellement terminé — 2026-05-21)
 
 > Objectif : Dzaryx gère 100% du business de façon autonome
 
-### 8.1 — WhatsApp Bot Client
-- 🔵 Clients réservent via WhatsApp (pas par téléphone)
-- 🔵 Twilio WhatsApp Cloud API ou Meta Cloud API
-- 🔵 Flux : client envoie "je veux louer" → Dzaryx collecte infos → crée résa → envoie confirmation
-- 🔵 Variables Railway manquantes : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
-- Fichiers : `backend/src/api/routes/whatsapp.ts` (à créer)
+### 8.0 — Mémoire & Apprentissage (✅ Terminé — 2026-05-21)
+- ✅ Table `learned_rules` : règles apprises par conversation
+- ✅ Outils `save_learned_rule` / `list_learned_rules`
+- ✅ Règles injectées automatiquement dans contexte Claude (`context-builder.ts`)
+- ✅ "Dzaryx retiens que..." → sauvegarde immédiate
+- ✅ Table `assistant_profiles` : profil Dzaryx par acteur (Kouider/Houari)
+- ✅ Tables `user_behavior` + `conversation_patterns`
+- ✅ Migration Phase 8 SQL appliquée Supabase (7 tables)
 
-### 8.2 — Contrats PDF Automatiques
-- 🔵 Génération contrat de location à chaque réservation confirmée
-- 🔵 PDFKit déjà installé (recettes PDF existent)
-- 🔵 Template : nom client, voiture, dates, prix, conditions, signature zone
-- 🔵 Upload Supabase bucket `client-documents`, URL stockée dans `bookings.contract_url`
-- 🔵 Envoi automatique Telegram + WhatsApp
+### 8.1 — WhatsApp Bot Vitrine (🔵 Août 2026 — décision Kouider)
+- 🔵 Bot vitrine SEULEMENT : liste véhicules dispo + tarifs + promotions
+- 🔵 PAS de réservation automatique (info uniquement)
+- 🔵 Twilio WhatsApp Cloud API
+- 🔵 Variables Railway à ajouter : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
+- 🔵 Table `whatsapp_messages` déjà créée (Phase 8 migration)
 
-### 8.3 — Signature Électronique
-- 🔵 Client signe via lien WhatsApp (canvas HTML → image PNG → stocké Supabase)
-- 🔵 Alternative : PDF signable via HelloSign/DocuSign API
+### 8.2 — Contrats PDF Automatiques (✅ Terminé — 2026-05-21)
+- ✅ `generate_contract` tool : contrat PDF signable avec CGV + zones signature
+- ✅ `backend/src/integrations/generate-contract.ts`
+- ✅ Table `contracts` créée (Phase 8 migration)
+- ✅ Simulateur : panel "GÉNÉRER CONTRAT PDF" dans DOCS
+- 🔵 Upload Supabase bucket + envoi WhatsApp automatique (attendre WhatsApp août 2026)
 
-### 8.4 — Paiement Chargily (Algérie)
-- 🔵 Chargily Pay API (paiement CB/CIB algérien)
-- 🔵 Génération lien paiement → envoyé WhatsApp client
-- 🔵 Webhook → Dzaryx reçoit confirmation → `record_payment()` → mise à jour Supabase
+### 8.3 — Signature Électronique (🔵 Planifié)
+- 🔵 Client signe via lien (canvas HTML → image PNG → stocké Supabase)
+- 🔵 Dépend de WhatsApp (août 2026)
 
-### 8.5 — Export Comptable Excel
-- 🔵 Export mensuel/annuel : toutes réservations, paiements, profits K/H
-- 🔵 Bibliothèque : `xlsx` ou `exceljs`
-- 🔵 Envoi Telegram automatique le 1er de chaque mois
+### 8.4 — Paiement Chargily (⚪ Won't Fix — décision Kouider)
+- ⚪ Chargily Pay API — Kouider a décidé de ne pas faire pour l'instant
+- ⚪ Table `payment_links` créée mais non utilisée
 
-### 8.6 — TikTok Auto-post
+### 8.5 — Export Comptable Excel (✅ Terminé — 2026-05-21)
+- ✅ `export_excel` tool : rapport .xlsx envoyé Telegram (3 feuilles : resas, bilan, par voiture)
+- ✅ `backend/src/integrations/excel-export.ts`
+- ✅ Package `xlsx` installé
+- 🔵 Envoi automatique le 1er du mois (BullMQ job à ajouter)
+
+### 8.6 — GPS & Livraison (✅ Terminé — 2026-05-21)
+- ✅ `maps.ts` : Google Distance Matrix API + fallback vol d'oiseau
+- ✅ `calculate_delivery_fee` tool : dépôt Es Sénia → adresse client, 200 DZD/km
+- ✅ `get_travel_time` tool : temps trajet + trafic + Waze + Google Maps
+- ✅ 8 landmarks Oran préchargés (aéroport, centre, port, Bir El Djir, Ain Turk, Arzew...)
+- ✅ `GOOGLE_MAPS_API_KEY` configuré Railway
+- ✅ Simulateur : panel GPS LIVRAISON interactif dans RESAS
+- 🔵 Suivi flotte GPS live → nécessite hardware trackers (~25-50€/voiture + SIM 4G)
+
+### 8.7 — Firebase FCM Natif (🔵 Attendre APK juin 2026)
+- ✅ `fcm.ts` : Firebase Admin SDK, dual push Expo/FCM
+- ❌ `FIREBASE_SERVICE_ACCOUNT_JSON` pas encore ajouté Railway — attendre APK
+- 🔵 Après APK : Google Cloud → Service Account → JSON → Railway
+
+### 8.8 — Google STT (✅ Terminé — 2026-05-21)
+- ✅ `/api/transcribe` : Google STT provider + fallback Groq Whisper automatique
+
+### 8.9 — TikTok Auto-post (🔵 Planifié — Phase 4 restant)
 - 🔵 Publication automatique vidéos TikTok (via Apify ou TikTok Business API)
-- 🔵 Nexus PC peut lancer un script Python de post automatique
-- 🔵 Calendrier publication : 1 vidéo/semaine, timing optimal (17h-19h vendredi)
+- 🔵 Nexus PC peut lancer script Python de post automatique
+- 🔵 Calendrier : 1 vidéo/semaine, timing optimal (17h-19h vendredi)
 
 ---
 
