@@ -2,15 +2,28 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-21 (Phase 8 — Learned Rules, PDF Contrat, Excel Export, Nexus Redis, Google STT, Firebase FCM)
+> Dernière mise à jour : 2026-05-21 (Session complète — Phase 8 + GPS + Simulateur GitHub Pages)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phases 1-8 TERMINÉES ✅. Simulator complet déployé. APK bloqué EAS (reset 1er juin 2026).**
+**Phase active : Phases 1-8 TERMINÉES ✅. Simulateur GitHub Pages déployé. APK bloqué EAS (reset 1er juin 2026).**
 
-Système financier normalisé. 12 agents spécialisés opérationnels. Recherche web réelle (SearXNG+Jina). Documents clients récupérés + envoyés Telegram. Réservations créées directement. Vidéo marketing 720×1280 active. Planning Kouider embarqué. Revenus prorabilisés corrects. Dashboard mobile : 10 panels complets. **Anti-hallucination : 7 gates bloquants + fastPathGuard — Dzaryx ne ment plus, ne fabrique plus de données.**
+GPS Distance Matrix ajouté. Simulateur mis à jour sur GitHub Pages (`https://kouider213.github.io/ibrahim/`). Toutes les actions manuelles Railway/Supabase terminées. En attente de test simulateur par Kouider avant validation APK.
+
+---
+
+## URLs IMPORTANTES
+
+| Service | URL |
+|---|---|
+| **Backend Railway** | https://ibrahim-backend-production.up.railway.app |
+| **Simulateur GitHub Pages** | https://kouider213.github.io/ibrahim/ |
+| **Mobile PWA Netlify** | https://ibrahim-fik-conciergerie.netlify.app |
+| **GitHub repo** | https://github.com/kouider213/ibrahim |
+| **Supabase** | https://supabase.com/dashboard/project/febrrgqpyqqrewcohomx |
+| **Railway dashboard** | https://railway.app |
 
 ---
 
@@ -19,302 +32,350 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 ### Finance & Revenus
 - ✅ Calculs financiers : vrais prix (client_price_per_day × nb_days), zéro catalogue
 - ✅ Profit Kouider : calculé depuis Supabase, null si données manquantes (jamais inventé)
-- ✅ Revenus **prorabilisés** : today = 1 jour × tarif, semaine = overlap 7 jours, mois = overlap mois
-- ✅ "Donne moi les revenu" : FINANCE_AGENT + Claude-Sonnet + outils réels (B006 fixé)
-- ✅ Fast-mode exclu pour finance : tous les mots FR (revenu/bénéfice/profit...) → full Claude + tools
+- ✅ Revenus prorabilisés : today = 1 jour × tarif, semaine = overlap 7 jours, mois = overlap mois
 - ✅ Anti-hallucination Gates 1/2/3/4/4b/4c : bloquants (pas log-only)
 - ✅ fastPathGuard : Groq/Gemini/OpenAI bloqués si claims business data sans outils
-- ✅ System prompt : RÈGLE ABSOLUE CONNAISSANCE EN TEMPS RÉEL
+- ✅ Fast-mode exclu pour finance : tous les mots FR (revenu/bénéfice/profit...) → full Claude + tools
 
 ### Réservations
 - ✅ `create_booking` : crée directement sans confirmation, stocke vrais prix financiers
 - ✅ `car_id` résolu depuis `car_name` (plus d'UUID demandé à Claude)
 - ✅ `payment_status` normalisé UNPAID par défaut
 - ✅ Suppression réservation → suppression événement Google Calendar automatique
-- ✅ Gate 2 exemptée pour create/update_booking (opérations légitimes)
+- ✅ Anti double réservation : RPC `check_car_availability`
+
+### GPS & Livraison — NOUVEAU 2026-05-21
+- ✅ `maps.ts` : Distance Matrix API Google + fallback vol d'oiseau ±20%
+- ✅ Landmarks Oran : aéroport, centre-ville, port, gare, Bir El Djir, Es Sénia, Arzew, Ain Turk
+- ✅ `get_travel_time` tool : temps trajet réel + trafic + Waze + Google Maps
+- ✅ `calculate_delivery_fee` tool : dépôt Es Sénia → adresse client, 200 DZD/km
+- ✅ `GOOGLE_MAPS_API_KEY` ajouté Railway + env.ts
+- ✅ Simulateur RESAS : panneau "GPS LIVRAISON" interactif
 
 ### Documents Clients
-- ✅ `get_client_document` : récupère passeport/permis/contrat depuis Supabase (service key)
-- ✅ Envoi automatique document dans Telegram (buffer multipart, pas URL privée)
-- ✅ Filtres ilike Supabase corrigés (URLSearchParams + `*` bien encodé)
-- ✅ `passeport` dans TOOL_KEYWORDS → route Claude avec outils
+- ✅ `get_client_document` : récupère passeport/permis/contrat depuis Supabase
+- ✅ Envoi automatique document dans Telegram
+- ✅ `generate_contract` : contrat PDF signable avec CGV + signatures
+- ✅ `export_excel` : rapport .xlsx envoyé Telegram (3 feuilles : resas, bilan, par voiture)
+
+### Mémoire / Apprentissage — Phase 8
+- ✅ `learned_rules` table : règles apprises par conversation
+- ✅ `save_learned_rule` / `list_learned_rules` outils
+- ✅ Règles injectées automatiquement dans contexte Claude (context-builder.ts)
+- ✅ "Dzaryx retiens que..." → sauvegarde immédiate
+- ✅ `assistant_profiles` : profil Kouider (français/direct) + Houari (darija/terrain)
+- ✅ `user_behavior` + `conversation_patterns` tables
+- ✅ Migration Phase 8 appliquée Supabase ✅
+
+### Multi-acteur
+- ✅ Kouider : token `MOBILE_ACCESS_TOKEN` Railway
+- ✅ Houari : token `MOBILE_TOKEN_HOUARI` Railway (ajouté 2026-05-21)
+- ✅ Session persistée localStorage simulateur
+- ✅ Profil Dzaryx différent par acteur (langue, style, focus)
 
 ### Recherche Web & Veille
-- ✅ `web_search` : cascade SearXNG → Jina Reader → fallback (vraies données, pas hallucination)
-- ✅ Jina Reader : fonctionne sur YouTube, TikTok, sites normaux
+- ✅ `web_search` : cascade SearXNG → Jina Reader → fallback
+- ✅ Jina Reader : YouTube, TikTok, sites normaux
 - ✅ GENERAL_AGENT : minimum 2 recherches, jamais de demande permission
-- ✅ NETWORK_ANALYST : veille concurrents multi-sources avec hashtags contextuels
-- ✅ Queries concurrents routées vers Claude agentic loop (pas Groq/Gemini sans tools)
+- ✅ NETWORK_ANALYST : veille concurrents multi-sources
 
 ### Marketing & Médias
-- ✅ Création vidéo marketing : TIKTOK_AGENT → FFmpeg 720×1280 (zoompan retiré, OOM résolu)
-- ✅ Livraison Telegram : `sendPhotoBuffer` buffer direct (jamais URL Supabase privée)
+- ✅ Vidéo marketing : TIKTOK_AGENT → FFmpeg 720×1280
 - ✅ `get_car_photo` : photos réelles du parc depuis Supabase/Cloudinary
-- ✅ Images Cloudinary envoyées directement dans Telegram
 
 ### Planning & Proactivité
-- ✅ `KOUIDER_SCHEDULE` embarqué : 7 jours × (wake/travail Belgique/business Algérie/famille)
-- ✅ Notifications proactives : heure réveil par jour (pas heure fixe), message personnalisé
-- ✅ Notifications business/famille envoyées même pendant heures travail Belgique
-- ✅ Dzaryx sait : employé gère remise physique véhicules en Algérie (pas Kouider)
+- ✅ `KOUIDER_SCHEDULE` embarqué : 7 jours (réveil, travail Belgique, business Algérie)
+- ✅ Notifications proactives : heure réveil par jour, message personnalisé
+- ✅ 12 jobs schedulés BullMQ (briefing, impayés, retards, rapports...)
 
 ### Agents & Routing
-- ✅ 12 agents spécialisés : routing automatique par keywords + priority
-- ✅ Historique conversation : ne hijacke plus les agents (priority override retiré)
-- ✅ CODE_AGENT : "créer" retiré des keywords (ne vole plus les requêtes vidéo/image)
+- ✅ 14 agents spécialisés : routing automatique par keywords + priority
 - ✅ Vision cascade : Gemini Flash → OpenAI GPT-4o Vision → Claude Haiku
 
 ### Infrastructure
-- ✅ Bot Telegram : répond, full opérationnel
+- ✅ Bot Telegram : répond, full opérationnel (canal backup/admin)
 - ✅ Nexus PC Agent : streaming SSE terminal live (asyncio par ligne)
-- ✅ Nonce anti-replay : Redis NX EX 600
-- ✅ document_access_logs : table OK, logs écrits, catch non-silencieux
 - ✅ Google Calendar : lecture + création + suppression événements
 - ✅ Scan caméra live, OCR passeport, Voucher PDF
 - ✅ TypeScript : 0 erreurs | Railway déployé | Netlify déployé
+- ✅ Prompt caching activé (80% réduction coûts)
+- ✅ Firebase FCM : `fcm.ts` + `firebase-admin` (tokens natifs)
+- ✅ Google STT : `/api/transcribe` avec fallback Groq
 
-### Dashboard Mobile (Phase 6)
-- ✅ **BookingForm** : création réservation depuis mobile (voiture, client, dates, prix, profit live)
-- ✅ **CalendarView** : heatmap mois réservations (4 niveaux), stats mois, état parc
-- ✅ **ClientsView** : liste scorée VIP/FREQUENT/REGULAR/NEW, search, filtre, tel: cliquable
-- ✅ **BottomNav** : 10 items, overflow-x scroll masqué, min-width par bouton
-- ✅ Build Netlify : 12 chunks propres, 0 erreurs TS, déployé commit `bc06bc4`
+### Simulateur GitHub Pages — 12 ONGLETS
+- ✅ URL : https://kouider213.github.io/ibrahim/
+- ✅ Deploiement : push `dist/` sur branch `gh-pages` manuellement
+- ✅ Login : Kouider (kouider31) / Houari (houari31)
+- ✅ Boot screen → home → login → app
+- ✅ Power button : fade noir → logo → lock screen
+- ✅ 12 onglets : VOIX / CHAT / DZARYX / RESAS / PARC / CA / CLIENTS / AGENDA / ALERTES / RAPPELS / DOCS / CONFIG
+- ✅ RESAS : GPS LIVRAISON panel (adresse → distance/temps/frais/Waze/GMaps)
+- ✅ DOCS : Générer Contrat PDF section
+- ✅ CONFIG : Règles Apprises panel (Phase 8)
+- ✅ Build : 365KB JS, 0 erreurs TS
 
 ---
-
-### Simulateur Android Web — COMPLET 13 ONGLETS — 2026-05-20
-- ✅ `simulator/` — React+TS+Vite+Tailwind
-- ✅ Coque Android réaliste (375×812px, punch-hole, barre statut, nav)
-- ✅ **Simulation Boot complète** : locked → home → login → app (localStorage session)
-- ✅ **Power button** : pressed when unlocked → fade noir → logo Dzaryx → "ARRÊT EN COURS" → lock screen
-- ✅ **Multi-acteur** : kouider (cyan) / houari (violet) — login/logout avec badge initiale K/H
-- ✅ **13 onglets** (scrollable bottom bar) : VOIX / CHAT / TELEGRAM / DZARYX / RESAS / PARC / CA / CLIENTS / AGENDA / ALERTES / RAPPELS / DOCS / CONFIG
-- ✅ **Design system commun** : background `#020810`, Orbitron headers, Share Tech Mono data, corner brackets HUD
-- ✅ **[NOUVEAU] TelegramScreen** (`TelegramScreen.tsx`) :
-  - 6 canaux : ALL/FINANCE/RESAS/DOCS/NEXUS/MARKETING avec badges unread
-  - Bulles Telegram réalistes (Kouider droite bleue, Dzaryx gauche sombre)
-  - Types : text, alert (tag coloré + border left + actions), photo, video, file
-  - Démos : briefing matinal, alerte impayé, résa créée, doc passeport, rapport CA, vidéo marketing, PC terminal
-- ✅ **[NOUVEAU] CapacitesScreen** (`CapacitesScreen.tsx`) :
-  - Onglet "14 AGENTS" : tous les agents expandables (icon, description, 4 exemples de commandes, tags)
-  - Onglet "PROACTIF" : timeline journée type (07:00→veille) + 8 fonctionnalités proactives
-  - Onglet "CAPACITÉS" : 8 sections (IA, comm, réservations, finance, docs, PC, web, marketing) 40+ items
-- ✅ **VoiceScreen** : robot SVG v2, bouton SCAN OCR
-- ✅ **TextScreen** : chat streaming, TTS, RobotAvatar mini dans bulles
-- ✅ **BookingsScreen** : KPI glow, cards par statut, detail panel
-- ✅ **FleetScreen** : KPI 4 stats, photo banner 90px, iOS toggle, occupancy bar
-- ✅ **RevenueScreen** : 3 onglets (overview/detail/annual), nav mois/année, K/H split
-- ✅ **ClientsScreen** : avatar initiales, VIP glow ring, intel expandable
-- ✅ **CalendarScreen** : grille mensuelle, dots réservations, detail jour
-- ✅ **NotificationsScreen** : alertes HIGH/MEDIUM/LOW, dismiss, auto-refresh 60s
-- ✅ **RemindersScreen** : rappels par priorité, badge URGENT
-- ✅ **DocumentsScreen** : fetch docs, scan caméra OCR
-- ✅ **SettingsScreen** : actor cards glow, status pills pulsants, grille Nexus live (HOST/CPU/RAM/UPTIME)
-- ✅ Build propre : 364KB JS, 0 erreurs TS
-- ✅ **Déployé** : https://dzaryx-simulator.netlify.app
-- ✅ VAD / TTS / AudioContext / Feedback loop
-- Commits : `9bc0dad` + `56b3fa1` + `fdbbe4e` + `e5c4eed` + `9232dc3` + `86eec58` + `d88dbaa`
-
-### Phase 8 — AJOUTÉ 2026-05-21
-- ✅ **learned_rules** : table Supabase + service `learned-rules.ts` + outils `save_learned_rule` / `list_learned_rules`
-- ✅ **Règles injectées dans contexte** : formatRulesForContext() → systemExtra dans context-builder.ts
-- ✅ **Contrat PDF** : `generate-contract.ts` + outil `generate_contract` (≠ bon de réservation — contrat signable avec CGV + signatures)
-- ✅ **Export Excel** : `excel-export.ts` (xlsx) + outil `export_excel` → fichier .xlsx envoyé Telegram
-- ✅ **Nexus Redis health key** : heartbeat pong écrit `nexus:health` TTL=120s
-- ✅ **SettingsScreen live** : `/api/nexus/live-status` → grille HOST/PING/CPU/RAM/UPTIME/OS
-- ✅ **Google Speech-to-Text** : `@google-cloud/speech` installé, `/api/transcribe` supporte `provider: 'google'` avec fallback Groq
-- ✅ **Firebase FCM natif** : `fcm.ts` + `firebase-admin` — tokens natifs → FCM, Expo tokens → Expo push
-- ✅ **Supabase migration** : `migration_phase8.sql` — 7 tables + seed Houari + 8 règles initiales
-- ✅ Commits : `96c6376` + `bbead09` + `e096a55`
-- ⏳ Migration SQL : **à appliquer dans Supabase Dashboard** (`supabase/migration_phase8.sql`)
-- ⏳ `FIREBASE_SERVICE_ACCOUNT_JSON` : env var à ajouter Railway si notifications FCM natives souhaitées
-
-### Native App (dzaryx-native) — MISE À JOUR 2026-05-18
-- ✅ Expo SDK 54 / React Native 0.81.5 / newArchEnabled
-- ✅ Multi-acteur : Kouider (cyan #00e5ff) + Houari (violet #7c3aed)
-- ✅ Orb JARVIS — 4 états animés (idle/listen/think/speak)
-- ✅ Voice mode (hold mic → Groq Whisper → Claude → ElevenLabs)
-- ✅ Car mode (mains libres, auto-listen 8s, keep-awake)
-- ✅ Camera vision (CameraView SDK54, takePicture corrigé)
-- ✅ Settings screen (backend ping live, version 1.2.0, logout, bouton Documents)
-- ✅ Quick commands (4 boutons : résa/parc/impayés/météo)
-- ✅ Push notifications (token Expo stocké Redis, reçu même app fermée)
-- ✅ onboarding → /auth/login (acteur sélectionné avant chat)
-- ✅ Token acteur-scoped (Houari n'utilise plus le token Kouider)
-- ✅ TypeScript : 0 erreurs
-- ✅ **Écran Réservations** : liste, stats, filtres, search par nom/tél/voiture/ID, tap → détail
-- ✅ **Écran Nouvelle Résa** : client+voiture+dates+prix+PPD (envoyé en 1 seul POST)
-- ✅ **Écran Détail Résa** : infos + financier + édition statut/paiement/prix/notes + appel + suppression
-- ✅ **Écran Parc** : disponibilité toggle, revenus 30j, stats occupancy, BI Fleet
-- ✅ **Écran Revenus** : CA aujourd'hui/semaine/mois, profit Kouider, top clients
-- ✅ **Écran Rappels** : HIGH/MEDIUM/LOW, arrivées demain, passeports manquants, retards
-- ✅ **Écran Clients** : liste scorée VIP/FRÉQUENT/RÉGULIER/NOUVEAU, search, tel: cliquable
-- ✅ **Settings** : backfill intelligence clients, déclencheurs jobs, nav → Documents
-- ✅ **[NOUVEAU] Écran Documents** : fetch passeport/permis/contrat par nom client + OCR scan caméra
-- ✅ **[NOUVEAU] voice.tsx** : bouton SCAN OCR (📄) + Houari token fixé (useStore au lieu de MOBILE_TOKEN hardcodé)
-- ✅ **_layout.tsx** : route `documents` enregistrée
-
-### Conversation Engine V2 — AJOUTÉ 2026-05-16
-- ✅ Normalizer : correction typos (paseport→passeport, beringo→berlingo, etc.)
-- ✅ Entity extractor : docType, carName, action, dates, amounts, isOriginalRequest, isAdminAction
-- ✅ Pending action : Redis TTL 5min, confirm/cancel/ambiguous
-- ✅ 41 tests passent (engine-v2.test.ts)
-
-### Backend Améliorations — 2026-05-17
-- ✅ Admin delete gate : actions suppression bloquées → demande confirmation avant Claude
-- ✅ Whisper auto-detect : language hardcode 'fr' retiré → supporte darija + arabe
-- ✅ Document masking : maskSensitiveText dans readDocument()
-- ✅ Client disambiguation : plus de .maybeSingle() → message si plusieurs clients
 
 ## Ce qui ne fonctionne pas / incomplet ❌
 
 ### APK — BLOQUÉ (EAS plan mensuel épuisé)
 - ❌ **APK non buildé** — EAS Free plan épuisé ce mois
-- 🕐 **Reset June 1, 2026** (dans 13 jours)
-- Le build sera déclenché automatiquement à la prochaine session ou le 1er juin
+- 🕐 **Reset 1er juin 2026** (dans ~10 jours)
 - Token EAS encore valide : `G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6`
-- Commande prête : `EXPO_TOKEN=G7nmf_... npx eas build --platform android --profile preview --non-interactive`
+- Commande prête :
+```bash
+EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive
+```
 
-### Config Railway manquante (nécessite action Kouider)
-- ❌ `MOBILE_TOKEN_HOUARI` non ajouté → Houari ne peut pas se connecter depuis Railway
-  → Valeur : `99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2`
-- ❌ `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_WHATSAPP_FROM` → WhatsApp pas actif
+### Firebase FCM natif
+- ❌ `FIREBASE_SERVICE_ACCOUNT_JSON` pas encore ajouté Railway
+- Push via Expo fonctionne quand même — FCM natif = amélioration optionnelle
+- **Attendre que APK soit buildé avant de configurer**
 
----
+### Suivi flotte GPS live
+- ❌ Requires hardware GPS trackers dans chaque voiture (~25-50€/voiture + SIM 4G)
+- Distance Matrix fonctionne sans ça
 
-## Prochaine priorité (à faire maintenant si tu reprends)
-
-### URGENT — Actions manuelles Kouider
-1. **Railway** → Ajouter env var `MOBILE_TOKEN_HOUARI=99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2`
-2. **EAS Build APK** (attend reset 1er juin 2026) :
-   ```
-   EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive
-   ```
-3. **Google Cloud** → Restreindre Maps API `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` → Distance Matrix API only
-
-### PHASE 7 — Automatisation avancée (prochaine phase code)
-1. **WhatsApp bot client** : réservations depuis WhatsApp → `twilio/whatsapp-cloud-api`
-2. **Contrats PDF** : génération automatique depuis booking → signature électronique
-3. **Paiement Chargily** : intégration paiement algérien (CB/CIB)
-4. **Export Excel comptable** : rapport mensuel auto-généré
-5. **iOS App** : Expo EAS build --platform ios (après android validé)
-
-### SIMULATEUR — Tests à faire
-- Ouvre https://dzaryx-simulator.netlify.app
-- Teste tous les 13 onglets
-- TELEGRAM → tous les 6 canaux → vérifie les messages démo
-- DZARYX → 3 tabs (agents/proactif/capacités) → expand chaque agent
-- Power button → vérifie animation power-off → retour lock screen
+### WhatsApp bot client
+- ❌ Prévu août 2026 (Kouider attend d'avoir les dates)
+- Bot vitrine : voitures disponibles + tarifs + promos (pas de réservation)
+- Besoin : compte Twilio + TWILIO_ACCOUNT_SID/AUTH_TOKEN/WHATSAPP_FROM
 
 ---
 
-## Dernières sessions (2026-05-14 + 2026-05-15)
+## Prochaine priorité
 
-**14 mai — travail effectué (20+ commits) :**
-- Système documents clients complet (get_client_document, service key, envoi Telegram)
-- Réservations : car_id depuis nom, payment_status normalisé, création directe sans confirmation
-- Recherche web réelle : SearXNG + Jina Reader + Jina YouTube/TikTok
-- GENERAL_AGENT : web_search toujours actif, min 2 tentatives, sans permission
-- Veille concurrents multi-sources avec vrais résultats web
-- `get_car_photo` : photos réelles parc dans marketing
-- Vidéo 720×1280 livrée dans Telegram via buffer (B005 fixé)
-- Routing : history priority override retiré, CODE_AGENT keywords nettoyés
-- Google Calendar : delete événement sur suppression réservation
+### IMMEDIATE — Test simulateur (Kouider)
+→ https://kouider213.github.io/ibrahim/
+1. Tester les 12 onglets
+2. RESAS → GPS LIVRAISON → taper "aéroport" → vérifier résultat
+3. DOCS → Générer Contrat PDF → taper nom client + voiture
+4. CONFIG → voir Règles Apprises
+5. VOIX / CHAT → parler à Dzaryx (backend Railway connecté)
 
-**15 mai — travail effectué :**
-- Planning Kouider 7 jours embarqué dans system prompt
-- Notifications proactives per-day (heure réveil réelle, pas fixe)
-- Business/famille prioritaires même pendant travail Belgique
-- Revenus prorabilisés : today/week/month = jours réels × tarif journalier
-- B006 fixé : "Donne moi les revenu" → FINANCE_AGENT + Claude-Sonnet + vrais outils
-- Fast-mode exclu pour tous mots finance FR
-- B002 fixé : Redis TTL 1800→300s + endpoint POST /api/bi/cache/clear
-- B003 fixé : checkAnomalies() overlap date filter correct
-- **Phase 6 Mobile** : BookingForm + CalendarView + ClientsView + BottomNav 10 items
+### JUIN 1 — APK Android
+```bash
+EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive
+```
+Puis configurer `FIREBASE_SERVICE_ACCOUNT_JSON` Railway.
 
-**Dernier commit** : `b3b33df` fix(native): actor-scoped token, onboarding → auth/login
+### AOÛT — WhatsApp bot
+- Créer compte Twilio
+- Configurer TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_WHATSAPP_FROM Railway
+- Bot vitrine : liste voitures + tarifs + promos (pas de réservation)
 
-**Session 2026-05-17 (Feature Parity — Autonomous) :**
-- Native App : 8 écrans complets (bookings, new-booking, booking-detail, fleet, revenue, reminders, clients, settings)
-- Backend : POST /api/clients/backfill + GET /api/clients/intelligence
-- Auto-backfill client_intelligence au démarrage backend (si table vide)
-- update_car tool dans BOOKING_AGENT
-- Recherche bookings par nom/tél/voiture/ID
-- PPD (client/owner price per day) en 1 seul POST (plus de double appel)
-- Smart reminders injectés dans le contexte AI chaque matin
-- Commits : a8fce48 (backfill + search + PPD)
-
-**Session 2026-05-16/17 (Remote Control Mission) :**
-- Conversation Engine V2 complet (normalizer + entity-extractor + pending-action + engine-v2)
-- 41 tests passent
-- Admin delete gate (confirmation avant Claude)
-- Whisper auto-detect language (fr/ar/darija)
-- Native app : mode.tsx créé, settings.tsx créé, app.json fixed, chat.tsx 4 TS errors fixed
-- RÉGLAGES button + quick commands palette dans toolbar
-- Token acteur-scoped (Houari → son propre token)
-- onboarding → auth/login flow (acteur choisi avant chat)
-- PROGRESS.md créé (source de vérité complète)
-- 6 commits : aed62e3, c98bd8d, 3c144cc, 42be09b, 35fdaed, b3b33df
-
-**Session 2026-05-18 (Simulator Full Parity + APK Bugs) :**
-- Simulator : 9-tab navigation complète (Phone.tsx rewrite)
-- api.ts simulator : actor management + business API layer (15 méthodes)
-- 7 nouveaux écrans simulator : BookingsScreen, FleetScreen, RevenueScreen, ClientsScreen, RemindersScreen, DocumentsScreen, SettingsScreen
-- VoiceScreen simulator : bouton SCAN OCR ajouté
-- APK voice.tsx : Houari token fixé (B020) + bouton SCAN OCR ajouté
-- APK documents.tsx : nouvel écran (fetch docs + OCR caméra)
-- APK _layout.tsx : route documents enregistrée
-- APK settings.tsx : bouton 📄 DOCUMENTS ajouté dans Actions
-- TypeScript 0 erreurs sur les deux projets
-- Commit : `56b3fa1` — push main — Railway auto-deploy
-- Simulateur déployé Netlify : https://dzaryx-simulator.netlify.app
-
-**Session 2026-05-19 (Simulator Redesign Complet) :**
-- VoiceScreen robot v2 : tête chrome sphérique, oreilles disques, yeux LED r=17, anneau thinking jaune
-- TextScreen : header HUD + RobotAvatar mini SVG dans bulles
-- 7 écrans redesignés cyberpunk HUD : BookingsScreen, FleetScreen, RevenueScreen, ClientsScreen, RemindersScreen, DocumentsScreen, SettingsScreen
-- Design system unifié : KPI cards glow, corner brackets, gradient separators, Orbitron+ShareTechMono
-- 0 erreurs TypeScript, build propre 293KB
-- Commits : `fdbbe4e` + `e5c4eed` + `9232dc3`
-- Netlify deploy : `9232dc3` → https://dzaryx-simulator.netlify.app
-
-**Dernier commit** : `9232dc3` feat(simulator): redesign all 7 screens with cyberpunk HUD aesthetic
+### DÉCISIONS PRISES (ne pas revenir dessus)
+- iOS app : NE PAS faire tant que Kouider ne dit pas
+- Chargily paiement : NE PAS faire pour l'instant
+- Telegram : canal BACKUP/ADMIN seulement (pas canal principal)
+- Simulateur GitHub Pages : zone de test PRINCIPALE avant APK
 
 ---
 
-## Stack rapide
+## Sessions récentes détaillées
+
+### Session 2026-05-21 (aujourd'hui — session complète)
+
+**Actions manuelles effectuées par Kouider :**
+1. ✅ `MOBILE_TOKEN_HOUARI=99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2` → Railway
+2. ✅ Migration Phase 8 SQL appliquée → Supabase (7 tables créées)
+3. ✅ `GOOGLE_MAPS_API_KEY=AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo` → Railway
+
+**Code ajouté par Claude :**
+- Simulateur : Phase 8 features (Règles Apprises, Contrat PDF, Excel demo)
+- Simulateur : Tab Telegram supprimé (12 onglets)
+- Backend : `calculate_delivery_fee` tool (200 DZD/km, dépôt Es Sénia)
+- Backend : `GOOGLE_MAPS_API_KEY` dans env.ts
+- Backend : `maps.ts` déjà existait complet — juste l'env var manquait
+- Simulateur : GPS LIVRAISON panel dans RESAS
+- GitHub Pages : simulateur déployé sur branch `gh-pages`
+
+**Commits principaux :**
+- `ccbea86` feat(simulator): Phase 8 — Telegram tab + learned rules + contrat PDF + Excel
+- `af1e6bd` fix(simulator): remove Telegram tab
+- `c5c4589` feat(gps): Distance Matrix + calculate_delivery_fee + simulator GPS panel
+- gh-pages branch mis à jour manuellement (worktree git)
+
+### Session 2026-05-21 (avant cette session — Phase 8 code)
+- `96c6376` feat(phase8): learned rules, PDF contract, Excel export
+- `bbead09` feat(phase8/nexus): Redis health key + rich Nexus telemetry
+- `e096a55` feat(phase8): Google STT + Firebase FCM push notifications
+- `c963fd1` docs(dzaryx): update CURRENT_STATE + CHANGELOG for Phase 8
+
+---
+
+## Comment déployer le simulateur sur GitHub Pages
+
+```bash
+# 1. Modifier code simulateur dans simulator/src/
+# 2. Build
+cd simulator && npm run build
+
+# 3. Copier dist sur branch gh-pages via worktree
+cd .. # racine ibrahim/
+git worktree add ../gh-pages-deploy gh-pages
+cp simulator/dist/index.html ../gh-pages-deploy/index.html
+rm -rf ../gh-pages-deploy/assets
+cp -r simulator/dist/assets ../gh-pages-deploy/assets
+cd ../gh-pages-deploy
+git add index.html assets/
+git commit -m "deploy: description"
+git push origin gh-pages
+
+# 4. Nettoyer worktree
+cd ../ibrahim
+git worktree remove --force ../gh-pages-deploy
+```
+
+---
+
+## Stack technique complète
 
 ```
 Backend   : Node.js TypeScript / Express / Railway (auto-deploy push main)
-DB        : Supabase (PostgreSQL)
+DB        : Supabase (PostgreSQL) — projet febrrgqpyqqrewcohomx
 Cache     : Upstash Redis
 AI        : Claude Sonnet 4.6 (primary) + OpenAI/Gemini/Groq fallback
+Voice     : ElevenLabs (voice ID: pNInz6obpgDQGcFmaJgB)
+STT       : Groq Whisper primary / Google STT fallback
+Maps      : Google Distance Matrix API (GOOGLE_MAPS_API_KEY)
+Vision    : Gemini Flash → GPT-4o Vision → Claude Haiku cascade
 Mobile    : React 18 PWA (Vite + Tailwind) — Netlify
-PC Agent  : Python Nexus (nexus/) — tourne sur PC Kouider, namespace /nexus
-PC Agent2 : TypeScript pc-agent (pc-agent/) — namespace /pc
-Telegram  : canal principal Kouider
-Flight Bot: Python séparé (flight-bot/) — vols personnels Kouider
+Simulateur: React + Vite + Tailwind — GitHub Pages (branch gh-pages)
+Native    : Expo SDK 54 / React Native 0.81.5 (APK juin 2026)
+PC Agent  : Python Nexus (nexus/) — tourne sur PC Kouider
+Telegram  : canal backup/admin (pas canal principal)
+Queue     : BullMQ + Redis (Upstash) — 12 jobs schedulés
+Calendar  : Google Calendar (service account fikconciergerie@gmail.com)
+Storage   : Cloudinary (images/vidéos) + Supabase Storage (documents)
+Push      : Expo Push + Firebase FCM (firebase-admin)
 ```
 
-## État des composants
+## Variables Railway (toutes configurées)
 
-| Composant | Statut | Notes |
-|---|---|---|
-| backend/ | ✅ Déployé Railway | TypeScript 0 erreurs |
-| nexus/ (Python) | ✅ Tourne sur PC | Streaming SSE OK |
-| mobile/ (React) | ✅ Déployé Netlify | Dashboard + Chat |
-| dzaryx-native/ | 🟡 Code prêt, APK non buildé | 9 écrans + documents.tsx + scan + Houari fix — EAS June 1 |
-| simulator/ | ✅ Déployé Netlify 293KB | 9 onglets redesign cyberpunk HUD complet — https://dzaryx-simulator.netlify.app |
-| pc-agent/ (TS) | ❓ Non vérifié | Alternative à Nexus |
-| flight-bot/ | ❓ Non vérifié | Indépendant |
+**Obligatoires ✅:**
+- `ANTHROPIC_API_KEY`
+- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`
+- `REDIS_URL`
+- `MOBILE_ACCESS_TOKEN` (Kouider)
+- `MOBILE_TOKEN_HOUARI` ✅ ajouté 2026-05-21
+- `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID`
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`
+- `GOOGLE_MAPS_API_KEY` ✅ ajouté 2026-05-21
+- `PC_AGENT_TOKEN` + `WEBHOOK_SECRET` + `SESSION_SECRET`
+- `PUSHOVER_USER_KEY` + `PUSHOVER_APP_TOKEN`
 
----
+**Optionnels configurés ✅:**
+- `GOOGLE_SERVICE_ACCOUNT_JSON` (Google Calendar)
+- `CLOUDINARY_*` (images/vidéos)
+- `GROQ_API_KEY` + `OPENAI_API_KEY` + `GEMINI_API_KEY`
+- `ASSEMBLYAI_API_KEY`
 
-## Comment mettre à jour ce fichier
+**Optionnels manquants ❌:**
+- `FIREBASE_SERVICE_ACCOUNT_JSON` (FCM natif — attendre APK juin)
+- `TWILIO_*` (WhatsApp — août 2026)
 
-À la fin de chaque session, mettre à jour :
-- La date en haut
-- La section "Ce qui fonctionne"
-- La section "Ce qui ne fonctionne pas"
-- La section "Prochaine priorité"
-- La section "Dernière session"
+## Tables Supabase
+
+**Fik Conciergerie (existantes) :**
+- `cars` — véhicules
+- `bookings` — réservations (status: PENDING/CONFIRMED/REJECTED/ACTIVE/COMPLETED)
+- `profiles` — admins
+- `payments` — paiements
+- `reviews` — avis clients
+
+**Ibrahim/Dzaryx (créées) :**
+- `ibrahim_memory` — mémoire permanente
+- `conversations`, `ibrahim_rules`, `integrations`, `notifications`, `tasks`
+- `task_runs`, `validations`, `user_preferences`, `projects`
+- `learned_rules` ✅ Phase 8 — règles apprises par conversation
+- `assistant_profiles` ✅ Phase 8 — profil Dzaryx par acteur
+- `user_behavior` ✅ Phase 8
+- `conversation_patterns` ✅ Phase 8
+- `contracts` ✅ Phase 8 — contrats PDF générés
+- `payment_links` ✅ Phase 8 — liens paiement Chargily (futur)
+- `whatsapp_messages` ✅ Phase 8 — log WhatsApp (futur)
+- `document_access_logs`, `payment_logs`
+- `vehicle_states` — inspection avant/après location
+- `client_intelligence` — score VIP/FREQUENT/REGULAR/NEW
+
+**RPC fonctions :** `check_car_availability`, `check_vehicle_availability`, `create_booking_safe`, `get_booking_summary`
+
+## Structure fichiers backend critiques
+
+```
+backend/src/
+├── api/routes/
+│   ├── chat.ts              # Route principale chat + streaming
+│   ├── vision.ts            # Vision caméra + SCAN temps réel
+│   ├── telegram.ts          # Bot Telegram (photos, PDF, OCR)
+│   ├── bookings.ts          # API réservations
+│   ├── finance.ts           # Dashboard financier
+│   ├── calendar.ts          # Google Calendar
+│   ├── tts.ts               # ElevenLabs TTS
+│   ├── documents.ts         # Stockage documents
+│   └── widget.ts            # Widget AutoLux
+├── integrations/
+│   ├── claude-api.ts        # Wrapper Claude API (streaming + caching)
+│   ├── tool-executor.ts     # Exécuteur outils (DOIT retourner string)
+│   ├── tools.ts             # Définitions outils Claude (14 agents)
+│   ├── maps.ts              # Google Distance Matrix + Waze/GMaps links ← GPS
+│   ├── finance.ts           # computeBookingFinancials()
+│   ├── phase5-finance.ts    # resolveFinancials() dashboard
+│   ├── media-processing.ts  # Cloudinary
+│   ├── learned-rules.ts     # Phase 8 — règles apprises
+│   └── generate-contract.ts # Phase 8 — contrat PDF
+├── notifications/
+│   ├── mobile-push.ts       # emitProactive() — Socket.IO + Expo + FCM
+│   └── fcm.ts               # Firebase FCM natif
+├── conversation/
+│   ├── context-builder.ts   # buildContext() — règles injectées ici
+│   ├── orchestrator.ts      # Point entrée AI + Guards anti-hallucination
+│   └── proactive-engine.ts  # Moteur proactif
+└── queue/
+    ├── scheduler.ts         # BullMQ jobs cron (12 jobs)
+    └── jobs/
+        └── proactive-jobs.ts # Implémentation de chaque job
+```
+
+## Structure simulateur
+
+```
+simulator/src/
+├── components/
+│   ├── Phone.tsx            # Coque Android, tabs, login/logout
+│   └── screens/
+│       ├── VoiceScreen.tsx      # VOIX — vocal + SCAN OCR
+│       ├── TextScreen.tsx       # CHAT — streaming + TTS
+│       ├── CapacitesScreen.tsx  # DZARYX — 14 agents + proactif + capacités
+│       ├── BookingsScreen.tsx   # RESAS — liste + GPS LIVRAISON ← GPS panel
+│       ├── FleetScreen.tsx      # PARC — flotte + toggle dispo
+│       ├── RevenueScreen.tsx    # CA — revenus K/H + annuel
+│       ├── ClientsScreen.tsx    # CLIENTS — VIP score + search
+│       ├── CalendarScreen.tsx   # AGENDA — grille mensuelle
+│       ├── NotificationsScreen.tsx # ALERTES — HIGH/MED/LOW
+│       ├── RemindersScreen.tsx  # RAPPELS — URGENT priority
+│       ├── DocumentsScreen.tsx  # DOCS — fetch + OCR + Contrat PDF ← Phase 8
+│       └── SettingsScreen.tsx   # CONFIG — acteur + Nexus live + Règles ← Phase 8
+└── services/
+    └── api.ts               # Client API backend Railway
+```
+
+## Logins simulateur
+
+| Acteur | Login | Mot de passe | Couleur |
+|---|---|---|---|
+| Kouider | kouider | kouider31 | Cyan #00e5ff |
+| Houari | houari | houari31 | Violet #7c3aed |
+
+## Règles de code (jamais déroger)
+
+```
+1. cd backend && npx tsc --noEmit → 0 erreurs AVANT tout commit
+2. Profit = (client_price_per_day - owner_price_per_day) × nb_days — JAMAIS catalogue
+3. Si owner_price_per_day NULL → profit = null (jamais inventé)
+4. git add <fichiers spécifiques> — JAMAIS git add -A ou git add .
+5. Tool executor : TOUJOURS retourner string, jamais objet/array
+6. Simulateur : builder + pousser sur gh-pages branch manuellement
+7. Simulateur = zone test principale AVANT APK Android
+```
