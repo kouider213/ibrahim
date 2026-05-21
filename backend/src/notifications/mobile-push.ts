@@ -1,5 +1,6 @@
 import type { Namespace } from 'socket.io';
 import { redis } from '../queue/queue.js';
+import { sendFcm, isFcmToken } from './fcm.js';
 
 let _io: Namespace | null = null;
 
@@ -46,10 +47,22 @@ async function getAllPushTokens(): Promise<string[]> {
 
 async function sendExpoPush(title: string, body: string, data?: Record<string, string>): Promise<void> {
   const tokens = await getAllPushTokens();
-  if (tokens.length === 0) { console.log('[mobile-push] No push tokens — skipping FCM'); return; }
+  if (tokens.length === 0) { console.log('[mobile-push] No push tokens — skipping push'); return; }
 
-  // Expo supports array payload for batch send
-  const payloads = tokens.map(to => ({
+  const expoTokens = tokens.filter(t => !isFcmToken(t));
+  const fcmTokens  = tokens.filter(t => isFcmToken(t));
+
+  // Native FCM tokens → Firebase Admin SDK
+  for (const token of fcmTokens) {
+    sendFcm(token, title, body, data).catch(err =>
+      console.error('[mobile-push] FCM error:', err instanceof Error ? err.message : String(err)),
+    );
+  }
+
+  if (expoTokens.length === 0) return;
+
+  // Expo tokens → Expo push service
+  const payloads = expoTokens.map(to => ({
     to, title, body, data: data ?? {}, sound: 'default', priority: 'high',
   }));
 
@@ -63,7 +76,7 @@ async function sendExpoPush(title: string, body: string, data?: Record<string, s
     console.error('[mobile-push] Expo push failed:', await res.text());
   } else {
     await res.json();
-    console.log(`[mobile-push] Expo push sent to ${tokens.length} device(s)`);
+    console.log(`[mobile-push] Expo push sent to ${expoTokens.length} device(s), FCM to ${fcmTokens.length}`);
   }
 }
 

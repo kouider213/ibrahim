@@ -33,6 +33,7 @@ const envSchema = z.object({
   TWILIO_AUTH_TOKEN:    z.string().optional(),
   TWILIO_WHATSAPP_FROM:          z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON:   z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   PEXELS_API_KEY:        z.string().optional(),
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY:    z.string().optional(),
