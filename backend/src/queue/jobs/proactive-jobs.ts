@@ -9,7 +9,6 @@ function stripTgMd(s: string): string {
 import { getDailyCostReport } from '../../monitoring/cost-tracker.js';
 import { supabase } from '../../integrations/supabase.js';
 import { notifyOwner } from '../../notifications/pushover.js';
-import { sendMessage, sendVideoBuffer } from '../../integrations/telegram.js';
 import { getFinancialReport } from '../../integrations/finance.js';
 import { listUpcomingEvents } from '../../integrations/google-calendar.js';
 import { getOranWeather } from '../../integrations/web-search.js';
@@ -26,8 +25,10 @@ function ownerChatId(): string {
   return env.TELEGRAM_CHAT_ID ?? '809747124';
 }
 
+// Toutes les notifications passent par l'app (Socket.IO + Expo Push)
+// Plus de Telegram comme canal principal
 async function tg(text: string): Promise<void> {
-  await sendMessage(ownerChatId(), text);
+  emitProactive(stripTgMd(text).slice(0, 120), 'info', stripTgMd(text));
 }
 
 // ── 0. Réveil matinal 7h30 ────────────────────────────────────
@@ -387,24 +388,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 
   console.log(`[job:tiktok] Pending video saved: ${pendingId}`);
 
-  // 7. Send video to Telegram for approval
-  const approvalCaption = [
-    `🎬 *Vidéo créée — ${bestIdea.title}*`,
-    `🚗 ${videoResult.car_name}`,
-    `📝 _${videoResult.script}_`,
-    ``,
-    `✅ Réponds *Oke* pour publier sur TikTok`,
-    `❌ Réponds *Non* pour annuler`,
-  ].join('\n');
-
-  await sendVideoBuffer(ownerChatId(), videoResult.buffer, approvalCaption).catch(async () => {
-    await tg([
-      approvalCaption,
-      ``,
-      `🖼️ *Aperçu:* ${targetCar.image_url}`,
-    ].join('\n'));
-  });
-
+  // 7. Notification app (Socket.IO + push) avec URL vidéo
   await notifyOwner('📱 Vidéo TikTok prête', `${bestIdea.title} — réponds Oke pour publier`, false);
   const tiktokMediaLine = targetCar.image_url ? `\n📹 ${targetCar.image_url}` : '';
   emitProactive(`Vidéo TikTok — ${bestIdea.title} — ${targetCar.name}. Réponds Oke pour publier.`, 'info',
@@ -1113,14 +1097,6 @@ export async function jobBIReminders(_job: Job): Promise<void> {
       console.log('[job:bi-reminders] ℹ️ Aucune alerte haute priorité');
       emitProactive('Aucune alerte haute priorité.', 'info', '✅ Aucune alerte haute priorité — tout est en ordre.');
       return;
-    }
-
-    const chatId = env.TELEGRAM_CHAT_ID;
-    if (!chatId) return;
-
-    for (const r of highPri.slice(0, 5)) {
-      const emoji = r.type === 'age_alert' ? '🔞' : r.type === 'missing_passport' ? '🪪' : '⚡';
-      await sendMessage(chatId, `${emoji} *${r.message}*\n💡 ${r.action}`);
     }
 
     // Push to mobile app — full list for chat, short summary for push notif

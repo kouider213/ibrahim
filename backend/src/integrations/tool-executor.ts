@@ -64,7 +64,7 @@ import {
 } from './improvement-report.js';
 import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
-import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc, sendPhoto as sendTelegramPhotoReal, sendPhotoBuffer as sendTelegramPhotoBuffer2 } from './telegram.js';
+import { sendMessage as sendTelegramText, sendPhotoBuffer as sendTelegramPhotoBuffer2 } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 import { getLearnedRules, saveLearnedRule, formatRulesForContext } from './learned-rules.js';
 import { generateRentalContract } from './generate-contract.js';
@@ -1578,32 +1578,28 @@ async function searchImages(input: Record<string, unknown>): Promise<string> {
 }
 
 async function sendTelegramMessage(input: Record<string, unknown>): Promise<string> {
-  if (!env.TELEGRAM_CHAT_ID) return '❌ TELEGRAM_CHAT_ID non configuré sur le serveur';
-  const chatId = Number(env.TELEGRAM_CHAT_ID);
-  const message   = (input['message'] as string) ?? '';
+  const message   = String(input['message'] ?? '');
   const photoUrl  = input['photo_url']    as string | undefined;
   const docUrl    = input['document_url'] as string | undefined;
-  const caption   = (input['caption']    as string | undefined) ?? message;
+  const caption   = String(input['caption'] ?? message);
 
-  try {
-    if (photoUrl) {
-      await sendTelegramPhotoReal(chatId, photoUrl, caption);
-      if (message && message !== caption) await sendTelegramText(chatId, message);
-      return `✅ Photo envoyée sur Telegram${message ? ` avec message: "${message}"` : ''}`;
-    }
-    if (docUrl) {
-      await sendTelegramDoc(chatId, docUrl, caption);
-      if (message && message !== caption) await sendTelegramText(chatId, message);
-      return `✅ Document envoyé sur Telegram`;
-    }
-    if (message) {
-      await sendTelegramText(chatId, message);
-      return `✅ Message envoyé sur Telegram: "${message}"`;
-    }
-    return '❌ Rien à envoyer (message, photo_url ou document_url requis)';
-  } catch (err) {
-    return `❌ Erreur Telegram: ${err instanceof Error ? err.message : String(err)}`;
+  // Tout passe par l'app (Socket.IO + Expo Push) — plus Telegram
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+
+  if (photoUrl) {
+    emitProactive(caption.slice(0, 100), 'info', `📸 ${caption}\n🔗 ${photoUrl}`);
+    if (message && message !== caption) emitProactive(message.slice(0, 100), 'info', message);
+    return `✅ Photo envoyée dans l'app${message ? ` avec message: "${message}"` : ''}`;
   }
+  if (docUrl) {
+    emitProactive(caption.slice(0, 100), 'info', `📄 ${caption}\n🔗 ${docUrl}`);
+    return `✅ Document envoyé dans l'app`;
+  }
+  if (message) {
+    emitProactive(message.slice(0, 100), 'info', message);
+    return `✅ Message envoyé dans l'app: "${message}"`;
+  }
+  return '❌ Rien à envoyer (message, photo_url ou document_url requis)';
 }
 
 async function generateVoucherTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -1687,49 +1683,24 @@ async function listLearnedRulesTool(input: Record<string, unknown>, sessionId?: 
   return `📚 ${filtered.length} règle(s) apprise(s) pour ${ownerKey}:\n\n${formatRulesForContext(filtered)}`;
 }
 
-async function generateContractTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+async function generateContractTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
   const bookingId = input['booking_id'] as string | undefined;
   if (!bookingId) return '❌ booking_id requis';
 
-  const { url, clientName, buffer, contractNumber } = await generateRentalContract(bookingId);
-  const filename = `CONTRAT_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}_${contractNumber}.pdf`;
-  const caption  = `📝 Contrat de location — ${clientName} — ${contractNumber}`;
+  const { url, clientName, contractNumber } = await generateRentalContract(bookingId);
 
-  const sendDoc = async (chatId: number): Promise<void> => {
-    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
-    const form = new FormData();
-    form.append('chat_id', String(chatId));
-    form.append('document', buffer, { filename, contentType: 'application/pdf', knownLength: buffer.length });
-    form.append('caption', caption);
-    const resp = await axios.post<{ ok: boolean; description?: string }>(
-      `${botBase}/sendDocument`, form,
-      { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
-    );
-    if (!resp.data.ok) throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
-  };
+  // Notifier via app (Socket.IO + Expo Push) — plus Telegram
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+  emitProactive(
+    `Contrat ${contractNumber} généré pour ${clientName}`,
+    'info',
+    `📝 Contrat ${contractNumber} — ${clientName}\n🔗 Télécharger : ${url}`,
+  );
 
-  if (sessionId?.startsWith('telegram_')) {
-    const chatId = Number(sessionId.replace('telegram_', ''));
-    if (!isNaN(chatId)) {
-      try {
-        await sendDoc(chatId);
-        return `✅ Contrat ${contractNumber} généré et envoyé pour ${clientName} ! 📝`;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        return `⚠️ Contrat généré, envoi échoué: ${msg}\n${url}`;
-      }
-    }
-  }
-
-  if (env.TELEGRAM_CHAT_ID) {
-    await sendDoc(Number(env.TELEGRAM_CHAT_ID)).catch(
-      (e: unknown) => console.error('[contract] send failed:', e instanceof Error ? e.message : String(e)),
-    );
-  }
-  return `✅ Contrat ${contractNumber} généré pour ${clientName} ! 📝\n${url}`;
+  return `✅ Contrat ${contractNumber} généré pour ${clientName} ! 📝\n🔗 ${url}`;
 }
 
-async function exportExcelTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+async function exportExcelTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
   const year  = input['year']  ? Number(input['year'])  : undefined;
   const month = input['month'] ? Number(input['month']) : undefined;
   const buffer = await exportBookingsToExcel(year, month);
@@ -1737,43 +1708,31 @@ async function exportExcelTool(input: Record<string, unknown>, sessionId?: strin
   const y     = year  ?? new Date().getFullYear();
   const label = month ? `${String(month).padStart(2, '0')}_${y}` : String(y);
   const filename = `Fik_Conciergerie_${label}.xlsx`;
-  const caption  = `📊 Export comptable — ${label.replace('_', '/')}`;
 
-  const sendXlsx = async (chatId: number): Promise<void> => {
-    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
-    const form = new FormData();
-    form.append('chat_id', String(chatId));
-    form.append('document', buffer, {
-      filename,
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      knownLength: buffer.length,
+  // Upload sur Cloudinary pour URL téléchargeable
+  let downloadUrl = '';
+  try {
+    const { v2: cloudinary } = await import('cloudinary');
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { resource_type: 'raw', public_id: `excel/${filename}`, overwrite: true },
+        (err, res) => err ? reject(err) : resolve(res as { secure_url: string }),
+      );
+      uploadStream.end(buffer);
     });
-    form.append('caption', caption);
-    const resp = await axios.post<{ ok: boolean; description?: string }>(
-      `${botBase}/sendDocument`, form,
-      { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
-    );
-    if (!resp.data.ok) throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
-  };
-
-  if (sessionId?.startsWith('telegram_')) {
-    const chatId = Number(sessionId.replace('telegram_', ''));
-    if (!isNaN(chatId)) {
-      try {
-        await sendXlsx(chatId);
-        return `✅ Export Excel ${label} envoyé ! 📊`;
-      } catch (e) {
-        return `❌ Erreur envoi Excel: ${e instanceof Error ? e.message : String(e)}`;
-      }
-    }
+    downloadUrl = result.secure_url;
+  } catch {
+    // Pas de Cloudinary — retourner texte seul
   }
 
-  if (env.TELEGRAM_CHAT_ID) {
-    await sendXlsx(Number(env.TELEGRAM_CHAT_ID)).catch(
-      (e: unknown) => console.error('[excel] send failed:', e instanceof Error ? e.message : String(e)),
-    );
-  }
-  return `✅ Export Excel ${label} généré et envoyé sur Telegram ! 📊`;
+  // Notifier via app (Socket.IO + Expo Push)
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+  const msg = downloadUrl
+    ? `📊 Export Excel ${label} prêt\n🔗 Télécharger : ${downloadUrl}`
+    : `📊 Export Excel ${label} généré (${Math.round(buffer.length / 1024)} KB)`;
+  emitProactive(`Export Excel ${label} prêt`, 'info', msg);
+
+  return `✅ Export Excel ${label} généré ! 📊${downloadUrl ? `\n🔗 ${downloadUrl}` : ''}`;
 }
 
 async function getFleetStatus(): Promise<string> {

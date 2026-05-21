@@ -124,7 +124,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_client_document',
-    description: 'Récupérer documents client (passeport, permis, contrat). Retourne les données extraites + une ligne "URL: <url>" contenant l\'URL publique de la photo. Pour envoyer ensuite sur Telegram: extraire l\'URL de la ligne "URL:" et appeler send_telegram_message(photo_url=<url>). Utiliser quand Kouider demande à voir ou envoyer un document client.',
+    description: 'Récupérer documents client (passeport, permis, contrat). Retourne les données extraites + une ligne "URL: <url>" contenant l\'URL publique de la photo. Après récupération, appeler send_telegram_message(photo_url=<url>) pour envoyer dans l\'app. Utiliser quand Kouider/Houari demande à voir un document client.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -624,7 +624,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   // ─── TELEGRAM depuis app vocale ──────────────────────────────
   {
     name: 'send_telegram_message',
-    description: 'Envoyer un message texte ou une photo/document à Kouider via Telegram. Utiliser depuis l\'app vocale quand Kouider demande d\'envoyer quelque chose sur son Telegram (ex: "envoie-moi le passeport de Omar sur Telegram").',
+    description: 'Envoyer une notification, photo ou document à Kouider/Houari via l\'app (Socket.IO + push notification). Utiliser quand l\'utilisateur demande d\'envoyer quelque chose (ex: "envoie-moi le passeport de Omar", "notifie-moi quand c\'est prêt"). Remplace Telegram — tout passe par l\'app maintenant.',
     input_schema: {
       type: 'object' as const,
       properties: {
