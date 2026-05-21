@@ -605,17 +605,29 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
       }).catch(() => {});
     }).catch(() => {});
 
-    // Auto-generate voucher PDF → notifier via app (Socket.IO + push)
+    // Auto-generate voucher PDF → upload Cloudinary → notifier via app
     setTimeout(() => {
-      generateReservationVoucher(booking.id).then(({ clientName, url }) => {
+      generateReservationVoucher(booking.id).then(async ({ clientName, url: supaUrl, buffer }) => {
         if (!clientName) return;
+        let downloadUrl = supaUrl;
+        try {
+          const { v2: cloudinary } = await import('cloudinary');
+          cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
+          downloadUrl = await new Promise<string>((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              { resource_type: 'raw', folder: 'dzaryx-vouchers', format: 'pdf' },
+              (err, result) => { if (err || !result) reject(err ?? new Error('upload')); else resolve(result.secure_url); },
+            );
+            stream.end(buffer);
+          });
+        } catch { /* keep supaUrl fallback */ }
         import('../notifications/mobile-push.js').then(({ emitProactive }) => {
           emitProactive(
             `Bon de réservation — ${clientName}`,
             'info',
-            `📄 Bon de réservation — ${clientName} (auto-généré)\n🔗 ${url}`,
+            `📄 Bon de réservation — ${clientName} (auto-généré)\n📹 ${downloadUrl}`,
           );
-          console.log('[create_booking] Auto-voucher PDF notifié via app');
+          console.log('[create_booking] Auto-voucher notifié via app:', downloadUrl.slice(0, 60));
         }).catch(() => {});
       }).catch(() => {});
     }, 2000);
@@ -1707,17 +1719,30 @@ async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: 
   const bookingId = input['booking_id'] as string;
   if (!bookingId) return '❌ booking_id requis';
 
-  const { url, clientName } = await generateReservationVoucher(bookingId);
+  const { url: supaUrl, clientName, buffer } = await generateReservationVoucher(bookingId);
 
-  // Notifier via app (Socket.IO + Expo Push) — plus Telegram
+  // Upload buffer to Cloudinary for a public URL (Supabase bucket is private)
+  let downloadUrl = supaUrl;
+  try {
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
+    downloadUrl = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'raw', folder: 'dzaryx-vouchers', format: 'pdf' },
+        (err, result) => { if (err || !result) reject(err ?? new Error('upload')); else resolve(result.secure_url); },
+      );
+      stream.end(buffer);
+    });
+  } catch { /* keep supaUrl fallback */ }
+
   const { emitProactive } = await import('../notifications/mobile-push.js');
   emitProactive(
     `Bon de réservation — ${clientName}`,
     'info',
-    `📄 Bon de réservation — ${clientName}\n🔗 Télécharger : ${url}`,
+    `📄 Bon de réservation — ${clientName}\n📹 ${downloadUrl}`,
   );
 
-  return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n🔗 ${url}`;
+  return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n🔗 ${downloadUrl}`;
 }
 
 // ── Phase 8 handlers ─────────────────────────────────────────────────────────
@@ -1751,17 +1776,29 @@ async function generateContractTool(input: Record<string, unknown>, _sessionId?:
   const bookingId = input['booking_id'] as string | undefined;
   if (!bookingId) return '❌ booking_id requis';
 
-  const { url, clientName, contractNumber } = await generateRentalContract(bookingId);
+  const { url: supaUrl, clientName, contractNumber, buffer } = await generateRentalContract(bookingId);
 
-  // Notifier via app (Socket.IO + Expo Push) — plus Telegram
+  let downloadUrl = supaUrl;
+  try {
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
+    downloadUrl = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'raw', folder: 'dzaryx-contracts', format: 'pdf' },
+        (err, result) => { if (err || !result) reject(err ?? new Error('upload')); else resolve(result.secure_url); },
+      );
+      stream.end(buffer);
+    });
+  } catch { /* keep supaUrl fallback */ }
+
   const { emitProactive } = await import('../notifications/mobile-push.js');
   emitProactive(
     `Contrat ${contractNumber} généré pour ${clientName}`,
     'info',
-    `📝 Contrat ${contractNumber} — ${clientName}\n🔗 Télécharger : ${url}`,
+    `📝 Contrat ${contractNumber} — ${clientName}\n📹 ${downloadUrl}`,
   );
 
-  return `✅ Contrat ${contractNumber} généré pour ${clientName} ! 📝\n🔗 ${url}`;
+  return `✅ Contrat ${contractNumber} généré pour ${clientName} ! 📝\n🔗 ${downloadUrl}`;
 }
 
 async function exportExcelTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
