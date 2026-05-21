@@ -31,6 +31,7 @@ export interface FinancialReport {
   houariBookings:     number;
   grossCA:            number;
   ownerTotal:         number;
+  houariRevenue:      number;         // revenu réel Houari : owner_total (resas Kouider) + CA direct (resas Houari)
   kouiderProfit:      number;         // somme partielle — voir missingOwnerPrice
   encaisse:           number;
   aEncaisser:         number;
@@ -210,6 +211,12 @@ export async function getFinancialReport(year: number, month?: number): Promise<
   const houariBookings    = result.filter(b => b.rented_by === 'Houari').length;
   const grossCA           = result.reduce((s, b) => s + (b.final_price ?? 0), 0);
   const ownerTotal        = result.reduce((s, b) => s + (b.owner_total ?? 0), 0);
+  // Houari revenue = owner_total des resas Kouider + CA complet des resas Houari directes
+  const houariRevenue     = result.reduce((s, b) => {
+    if (b.owner_total != null) return s + b.owner_total;
+    if (b.rented_by === 'Houari') return s + (b.final_price ?? 0);
+    return s;
+  }, 0);
   const kouiderProfit     = result.reduce((s, b) => s + (b.kouider_profit ?? 0), 0);
   const encaisse          = result.reduce((s, b) => s + b.paid_amount, 0);
   const aEncaisser        = result.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0);
@@ -219,7 +226,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
   return {
     period, totalBookings: result.length,
     kouiderBookings, houariBookings,
-    grossCA, ownerTotal, kouiderProfit,
+    grossCA, ownerTotal, houariRevenue, kouiderProfit,
     encaisse, aEncaisser,
     missingOwnerPrice, missingClientPrice,
     bookings: result,

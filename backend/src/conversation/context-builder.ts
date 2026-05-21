@@ -267,11 +267,24 @@ export async function buildContext(
     : '';
 
   const financeText = financeReport
-    ? `\n\nRAPPORT FINANCIER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):
-IMPORTANT: Toutes les réservations sont gérées par KOUIDER. Houari = propriétaire des voitures (fournisseur). "Coût payé à Houari" = ce que Kouider verse au propriétaire par jour × nb jours. Ce n'est PAS un revenu séparé de Houari.
-Total: ${financeReport.totalBookings} réservations gérées par Kouider
+    ? actor.ownerKey === 'houari'
+      ? `\n\nRAPPORT FINANCIER HOUARI (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):
+IMPORTANT: Houari = propriétaire des voitures. Son revenu = son prix fixe (owner_price_per_day) × nb_jours. Pour ses réservations directes (rented_by=Houari), son revenu = ce que son client lui paie. PAS le même calcul que Kouider.
+REVENU NET HOUARI: ${financeReport.houariRevenue}€
+  → Resas gérées par Kouider (ta part): ${financeReport.ownerTotal}€
+  → Resas gérées directement par toi: ${financeReport.houariBookings} résa
+Réservations ce mois: ${financeReport.totalBookings} total
+DÉTAIL (vue Houari):
+${financeReport.bookings.map((b: any) => {
+  const isHouariDirect = b.rented_by === 'Houari';
+  const revenue = b.owner_total != null ? `${b.owner_total}€` : isHouariDirect ? `${b.final_price ?? '?'}€ (direct)` : '❓';
+  return `- ${b.client_name} | ${b.car_name} | ${b.nb_days}j | Ton prix: ${b.owner_price_per_day ?? b.client_price_per_day ?? '?'}€/j | Ton revenu: ${revenue}`;
+}).join('\n')}`
+      : `\n\nRAPPORT FINANCIER KOUIDER (${needsAnnualFinance ? 'ANNÉE ENTIÈRE' : 'MOIS EN COURS'} — ${financeReport.period}):
+IMPORTANT: Kouider fixe son propre prix client (client_price_per_day). Il paie Houari (owner_price_per_day). Son bénéfice = différence × nb jours. Houari a son propre revenu séparé (owner_price × jours).
+Total: ${financeReport.totalBookings} réservations (Kouider: ${financeReport.kouiderBookings} | Houari direct: ${financeReport.houariBookings})
 CA BRUT (prix réels clients): ${financeReport.grossCA}€
-COÛT PAYÉ À HOUARI (owner_price × nb_jours): ${financeReport.ownerTotal}€
+COÛT HOUARI (owner_price × nb_jours): ${financeReport.ownerTotal}€
 BÉNÉFICE NET KOUIDER: ${financeReport.kouiderProfit}€
 ${financeReport.missingOwnerPrice > 0 ? `⚠️ ${financeReport.missingOwnerPrice} résa sans owner_price_per_day → bénéfice partiel` : ''}
 DÉTAIL:
