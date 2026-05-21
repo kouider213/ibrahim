@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { business, setSimActor, getSimActor } from '../../services/api.ts';
 
 interface Job { name: string; cron: string; next: number | null; }
+interface NexusInfo {
+  nexus_online: boolean; connected?: boolean;
+  hostname?: string; cpu_percent?: number;
+  ram_used_mb?: number; ram_total_mb?: number;
+  uptime_s?: number; latency_ms?: number;
+  os?: string;
+}
 
 const ACTORS = [
   { id: 'kouider' as const, label: 'KOUIDER', role: 'Gérant principal', col: '#00e5ff', icon: 'K' },
@@ -11,7 +18,7 @@ const ACTORS = [
 export default function SettingsScreen() {
   const [actor, setActorLocal] = useState<'kouider' | 'houari'>(getSimActor());
   const [health, setHealth]    = useState<{ status: string; uptime?: number } | null>(null);
-  const [nexus, setNexus]      = useState<{ connected: boolean } | null>(null);
+  const [nexus, setNexus]      = useState<NexusInfo | null>(null);
   const [jobs, setJobs]        = useState<Job[]>([]);
   const [loadingH, setLH]      = useState(false);
   const [triggering, setTrig]  = useState<string | null>(null);
@@ -68,7 +75,12 @@ export default function SettingsScreen() {
   };
 
   const apiOk   = health?.status === 'ok';
-  const nexusOk = nexus?.connected ?? false;
+  const nexusOk = nexus?.nexus_online ?? nexus?.connected ?? false;
+
+  const fmtRam = (used?: number, total?: number) => {
+    if (!used) return '—';
+    return total ? `${Math.round(used / 1024)}/${Math.round(total / 1024)}GB` : `${Math.round(used / 1024)}GB`;
+  };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
@@ -129,6 +141,20 @@ export default function SettingsScreen() {
             <StatusPill label="NEXUS" val={nexusOk ? 'CONNECTÉ' : 'HORS LIGNE'} ok={nexusOk} />
             <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#00d4ff" />
           </div>
+          {nexusOk && nexus && (
+            <div style={{
+              background: 'rgba(0,230,118,0.04)', border: '1px solid #00e67610',
+              borderRadius: 8, padding: '7px 10px', marginBottom: 8,
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 12px',
+            }}>
+              {nexus.hostname && <NexusRow k="HOST" v={nexus.hostname} />}
+              {nexus.latency_ms != null && <NexusRow k="PING" v={`${nexus.latency_ms}ms`} />}
+              {nexus.cpu_percent != null && <NexusRow k="CPU" v={`${nexus.cpu_percent.toFixed(1)}%`} />}
+              {(nexus.ram_used_mb != null) && <NexusRow k="RAM" v={fmtRam(nexus.ram_used_mb, nexus.ram_total_mb)} />}
+              {nexus.uptime_s != null && <NexusRow k="UPTIME" v={fmtUptime(nexus.uptime_s)} />}
+              {nexus.os && <NexusRow k="OS" v={nexus.os.slice(0, 14)} />}
+            </div>
+          )}
           <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#00d4ff')}>
             {loadingH ? 'TEST EN COURS…' : '↻ TESTER LA CONNEXION'}
           </button>
@@ -225,6 +251,15 @@ function actionBtn(col: string): React.CSSProperties {
     color: `${col}cc`, cursor: 'pointer', letterSpacing: '0.15em',
     width: '100%', textAlign: 'center',
   };
+}
+
+function NexusRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ fontSize: 6, color: '#00e67644', letterSpacing: '0.1em' }}>{k}</span>
+      <span style={{ fontSize: 7, color: '#00e676cc', fontFamily: 'Share Tech Mono' }}>{v}</span>
+    </div>
+  );
 }
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {

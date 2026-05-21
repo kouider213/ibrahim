@@ -452,7 +452,13 @@ export const business = {
       .catch(() => ({ status: 'error' })),
 
   nexus: () =>
-    fetch(`${BACKEND_URL}/api/nexus/status`, { headers: { Authorization: `Bearer ${getToken()}` } })
-      .then(r => r.json() as Promise<{ connected: boolean }>)
-      .catch(() => ({ connected: false })),
+    fetch(`${BACKEND_URL}/api/nexus/live-status`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json() as Promise<{
+        nexus_online: boolean; connected?: boolean;
+        hostname?: string; cpu_percent?: number;
+        ram_used_mb?: number; ram_total_mb?: number;
+        uptime_s?: number; latency_ms?: number;
+        os?: string; heartbeat_at?: string;
+      }>)
+      .catch(() => ({ nexus_online: false, connected: false })),
 };

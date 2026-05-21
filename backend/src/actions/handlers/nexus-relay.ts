@@ -3,6 +3,7 @@ import { EventEmitter }    from 'events';
 import type { Server as SocketServer, Socket } from 'socket.io';
 import { processMessage }  from '../../conversation/orchestrator.js';
 import { env }             from '../../config/env.js';
+import { redis }           from '../../queue/queue.js';
 
 // ── WebSocket State Machine ───────────────────────────────────────────────────
 
@@ -256,6 +257,16 @@ function _startHeartbeat(socket: Socket, sessionId: string): void {
       if (data?.hostname && data.hostname !== 'unknown') {
         _tel.lastHostname = data.hostname;
       }
+      // Update Redis health key (fire-and-forget, TTL=120s — 4× heartbeat interval)
+      redis.set('nexus:health', JSON.stringify({
+        online:     true,
+        at:         _tel.lastHeartbeatAt,
+        hostname:   _tel.lastHostname,
+        latency_ms: _tel.lastHeartbeatLatency,
+        ram_used_mb:  _tel.lastRamUsedMb,
+        cpu_percent:  _tel.lastCpuPercent,
+        uptime_s:     _tel.lastUptimeS,
+      }), 'EX', 120).catch(() => {});
     });
   }, 30_000);
 }
