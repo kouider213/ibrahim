@@ -11,6 +11,7 @@ import { detectMood, saveMoodSession, type MoodResult } from '../orchestrator/mo
 import { getClientProfile } from '../orchestrator/client-intelligence.js';
 import { type OrgMember, DEFAULT_MEMBER } from '../orchestrator/org-resolver.js';
 import { getSmartReminders } from '../bi/smart-reminders.js';
+import { getLearnedRules, formatRulesForContext } from '../integrations/learned-rules.js';
 import { redis } from '../queue/queue.js';
 
 // Cache météo 5 minutes
@@ -140,7 +141,7 @@ export async function buildContext(
   );
   const needsReminderInject = needsReminders || oranHour < 12;
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients] = await Promise.all([
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -178,6 +179,7 @@ export async function buildContext(
       .order('total_spent', { ascending: false })
       .limit(10)
       .then((r: any) => r.data ?? [], () => []),
+    getLearnedRules(actor.ownerKey, 40).catch(() => []),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -193,6 +195,11 @@ export async function buildContext(
 
   const rulesText = rules.length > 0
     ? `\n\nRÈGLES MÉTIER ACTIVES:\n${rules.map((r: any) => `- [${r.category}] ${r.rule}`).join('\n')}`
+    : '';
+
+  const learnedRulesFormatted = formatRulesForContext(learnedRules as any[]);
+  const learnedRulesText = learnedRulesFormatted
+    ? `\n\nRÈGLES APPRISES (${actor.displayName}):\n${learnedRulesFormatted}`
     : '';
 
   // Timezones: Kouider est à Bruxelles (Europe/Brussels), Fik Conciergerie à Oran (Africa/Algiers)
@@ -382,6 +389,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     clientIntelText,
     episodesText,
     remindersText,
+    learnedRulesText,
   ].join('');
 
   // Filter old confirmation-only messages from non-recent history to prevent context contamination.

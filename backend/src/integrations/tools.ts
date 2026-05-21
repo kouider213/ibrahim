@@ -1296,4 +1296,57 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
       required: [],
     },
   },
+
+  // ─── RÈGLES APPRISES (Phase 8) ────────────────────────────────────
+  {
+    name: 'save_learned_rule',
+    description: 'Mémoriser une règle business ou préférence apprise depuis la conversation. Dzaryx la réutilisera dans les prochaines sessions. Utiliser quand l\'utilisateur dit "retiens que...", "note cette règle", "souviens-toi que pour les clients X...", "ne fais plus jamais...", "toujours faire X quand Y".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        rule:     { type: 'string', description: 'La règle en langage naturel (ex: "Toujours demander l\'acompte avant de confirmer pour les nouveaux clients")' },
+        category: { type: 'string', enum: ['business', 'client', 'pricing', 'communication', 'operations', 'reminder'], description: 'Catégorie de la règle (défaut: business)' },
+        context:  { type: 'string', description: 'Contexte d\'apprentissage (optionnel, ex: "suite au problème avec Ahmed en mai")' },
+        priority: { type: 'number', description: 'Priorité 1-10 (défaut: 5)' },
+      },
+      required: ['rule'],
+    },
+  },
+  {
+    name: 'list_learned_rules',
+    description: 'Lister les règles et préférences apprises par Dzaryx pour cet utilisateur. Utiliser quand l\'utilisateur dit "quelles règles tu connais", "qu\'est-ce que tu as appris", "montre tes règles", "quelles sont mes règles".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        category: { type: 'string', enum: ['business', 'client', 'pricing', 'communication', 'operations', 'reminder'], description: 'Filtrer par catégorie (optionnel)' },
+      },
+    },
+  },
+
+  // ─── CONTRAT PDF (Phase 8.2) ──────────────────────────────────────
+  {
+    name: 'generate_contract',
+    description: 'Générer un contrat de location complet en PDF (différent du bon de réservation — contrat avec conditions générales, signature). Crée le PDF, le stocke dans Supabase et l\'envoie sur Telegram. Utiliser quand l\'utilisateur dit "génère le contrat", "crée le contrat de location", "contrat pour X", "contrat signable pour X".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        booking_id: { type: 'string', description: 'UUID de la réservation' },
+      },
+      required: ['booking_id'],
+    },
+  },
+
+  // ─── EXPORT EXCEL (Phase 8.5) ─────────────────────────────────────
+  {
+    name: 'export_excel',
+    description: 'Générer un export Excel comptable de toutes les réservations et paiements du mois/année. Envoie le fichier .xlsx sur Telegram. Utiliser quand l\'utilisateur dit "exporte en Excel", "fichier Excel", "export Excel du mois", "données Excel", "spreadsheet".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        year:  { type: 'number', description: 'Année (défaut: année courante)' },
+        month: { type: 'number', description: 'Mois 1-12 (optionnel — sans = toute l\'année)' },
+      },
+    },
+  },
+
 ];

@@ -66,6 +66,9 @@ import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
 import { sendMessage as sendTelegramText, sendDocument as sendTelegramDoc, sendPhoto as sendTelegramPhotoReal, sendPhotoBuffer as sendTelegramPhotoBuffer2 } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
+import { getLearnedRules, saveLearnedRule, formatRulesForContext } from './learned-rules.js';
+import { generateRentalContract } from './generate-contract.js';
+import { exportBookingsToExcel } from './excel-export.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
 import { redis } from '../queue/queue.js';
 import { recordToolExecution } from '../orchestrator/action-engine.js';
@@ -278,6 +281,13 @@ async function _dispatch(
       case 'get_travel_time':            return await getTravelTimeTool(input);
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
+      // ─── RÈGLES APPRISES (Phase 8) ───
+      case 'save_learned_rule':          return await saveLearnedRuleTool(input, sessionId);
+      case 'list_learned_rules':         return await listLearnedRulesTool(input, sessionId);
+      // ─── CONTRAT PDF (Phase 8.2) ───
+      case 'generate_contract':          return await generateContractTool(input, sessionId);
+      // ─── EXPORT EXCEL (Phase 8.5) ───
+      case 'export_excel':               return await exportExcelTool(input, sessionId);
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
@@ -1647,6 +1657,122 @@ async function generateVoucherTool(input: Record<string, unknown>, sessionId?: s
     );
   }
   return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n${url}`;
+}
+
+// ── Phase 8 handlers ─────────────────────────────────────────────────────────
+
+async function saveLearnedRuleTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const rule = (input['rule'] as string | undefined)?.trim();
+  if (!rule) return '❌ rule requis';
+  const ownerKey = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
+  const result = await saveLearnedRule({
+    ownerKey,
+    category: (input['category'] as 'business' | 'client' | 'pricing' | 'communication' | 'operations' | 'reminder' | undefined) ?? 'business',
+    rule,
+    context:  input['context']  as string | undefined,
+    priority: input['priority'] ? Number(input['priority']) : undefined,
+  });
+  if (!result.ok) return '❌ Erreur lors de la sauvegarde de la règle.';
+  const op = result.operation === 'updated' ? 'mise à jour' : 'créée';
+  return `✅ Règle ${op} en mémoire (${result.id?.slice(-6)}):\n"${rule}"`;
+}
+
+async function listLearnedRulesTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const ownerKey  = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
+  const rules     = await getLearnedRules(ownerKey, 50);
+  const category  = input['category'] as string | undefined;
+  const filtered  = category ? rules.filter(r => r.category === category) : rules;
+  if (!filtered.length) return 'ℹ️ Aucune règle apprise pour le moment.';
+  return `📚 ${filtered.length} règle(s) apprise(s) pour ${ownerKey}:\n\n${formatRulesForContext(filtered)}`;
+}
+
+async function generateContractTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const bookingId = input['booking_id'] as string | undefined;
+  if (!bookingId) return '❌ booking_id requis';
+
+  const { url, clientName, buffer, contractNumber } = await generateRentalContract(bookingId);
+  const filename = `CONTRAT_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}_${contractNumber}.pdf`;
+  const caption  = `📝 Contrat de location — ${clientName} — ${contractNumber}`;
+
+  const sendDoc = async (chatId: number): Promise<void> => {
+    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('document', buffer, { filename, contentType: 'application/pdf', knownLength: buffer.length });
+    form.append('caption', caption);
+    const resp = await axios.post<{ ok: boolean; description?: string }>(
+      `${botBase}/sendDocument`, form,
+      { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
+    );
+    if (!resp.data.ok) throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
+  };
+
+  if (sessionId?.startsWith('telegram_')) {
+    const chatId = Number(sessionId.replace('telegram_', ''));
+    if (!isNaN(chatId)) {
+      try {
+        await sendDoc(chatId);
+        return `✅ Contrat ${contractNumber} généré et envoyé pour ${clientName} ! 📝`;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return `⚠️ Contrat généré, envoi échoué: ${msg}\n${url}`;
+      }
+    }
+  }
+
+  if (env.TELEGRAM_CHAT_ID) {
+    await sendDoc(Number(env.TELEGRAM_CHAT_ID)).catch(
+      (e: unknown) => console.error('[contract] send failed:', e instanceof Error ? e.message : String(e)),
+    );
+  }
+  return `✅ Contrat ${contractNumber} généré pour ${clientName} ! 📝\n${url}`;
+}
+
+async function exportExcelTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const year  = input['year']  ? Number(input['year'])  : undefined;
+  const month = input['month'] ? Number(input['month']) : undefined;
+  const buffer = await exportBookingsToExcel(year, month);
+
+  const y     = year  ?? new Date().getFullYear();
+  const label = month ? `${String(month).padStart(2, '0')}_${y}` : String(y);
+  const filename = `Fik_Conciergerie_${label}.xlsx`;
+  const caption  = `📊 Export comptable — ${label.replace('_', '/')}`;
+
+  const sendXlsx = async (chatId: number): Promise<void> => {
+    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('document', buffer, {
+      filename,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      knownLength: buffer.length,
+    });
+    form.append('caption', caption);
+    const resp = await axios.post<{ ok: boolean; description?: string }>(
+      `${botBase}/sendDocument`, form,
+      { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
+    );
+    if (!resp.data.ok) throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
+  };
+
+  if (sessionId?.startsWith('telegram_')) {
+    const chatId = Number(sessionId.replace('telegram_', ''));
+    if (!isNaN(chatId)) {
+      try {
+        await sendXlsx(chatId);
+        return `✅ Export Excel ${label} envoyé ! 📊`;
+      } catch (e) {
+        return `❌ Erreur envoi Excel: ${e instanceof Error ? e.message : String(e)}`;
+      }
+    }
+  }
+
+  if (env.TELEGRAM_CHAT_ID) {
+    await sendXlsx(Number(env.TELEGRAM_CHAT_ID)).catch(
+      (e: unknown) => console.error('[excel] send failed:', e instanceof Error ? e.message : String(e)),
+    );
+  }
+  return `✅ Export Excel ${label} généré et envoyé sur Telegram ! 📊`;
 }
 
 async function getFleetStatus(): Promise<string> {
