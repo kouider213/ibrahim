@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-05-21 — Phase 8 : Learned Rules + PDF Contrat + Excel + Nexus Health + STT + FCM (Claude Sonnet 4.6)
+
+### Phase 8 complète — 3 commits ✅
+- **Commits** : `96c6376` + `bbead09` + `e096a55`
+- **Fichiers** :
+  - `backend/src/integrations/learned-rules.ts` (NEW — CRUD règles apprises, formatage contexte)
+  - `backend/src/integrations/generate-contract.ts` (NEW — contrat PDF signable avec CGV)
+  - `backend/src/integrations/excel-export.ts` (NEW — export .xlsx comptable via SheetJS)
+  - `backend/src/notifications/fcm.ts` (NEW — Firebase Admin SDK, dual push Expo/FCM)
+  - `backend/src/integrations/tool-executor.ts` (+4 cases: save/list learned_rules, contract, excel)
+  - `backend/src/integrations/tools.ts` (+4 outils Phase 8, -create_payment_link Chargily)
+  - `backend/src/conversation/context-builder.ts` (inject learned rules dans system prompt)
+  - `backend/src/actions/handlers/nexus-relay.ts` (heartbeat → Redis nexus:health TTL=120s)
+  - `backend/src/api/routes/transcribe.ts` (Google STT provider + fallback Groq)
+  - `backend/src/notifications/mobile-push.ts` (route FCM natif vs Expo)
+  - `backend/src/config/env.ts` (FIREBASE_SERVICE_ACCOUNT_JSON)
+  - `simulator/src/services/api.ts` (nexus() → /api/nexus/live-status)
+  - `simulator/src/components/screens/SettingsScreen.tsx` (grille Nexus live HOST/CPU/RAM)
+  - `supabase/migration_phase8.sql` (NEW — 7 tables + seeds)
+- **Packages** : `xlsx`, `@google-cloud/speech`, `firebase-admin`
+- **Note** : migration_phase8.sql à appliquer manuellement dans Supabase Dashboard
+
+---
+
 ## 2026-05-20 — Simulator Capacités + Telegram Demo + Power-off (Claude Sonnet 4.6)
 
 ### 2 nouveaux écrans + power-off + Obsidian mis à jour ✅

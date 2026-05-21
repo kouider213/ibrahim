@@ -2,13 +2,13 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-20 (Simulator — +TelegramScreen +CapacitesScreen +PowerOff +Obsidian complet)
+> Dernière mise à jour : 2026-05-21 (Phase 8 — Learned Rules, PDF Contrat, Excel Export, Nexus Redis, Google STT, Firebase FCM)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phases 1-6 TERMINÉES ✅. Simulator complet déployé. Phase 7 (WhatsApp, contrats PDF, paiement) — PLANIFIÉE. APK bloqué EAS (reset 1er juin 2026).**
+**Phase active : Phases 1-8 TERMINÉES ✅. Simulator complet déployé. APK bloqué EAS (reset 1er juin 2026).**
 
 Système financier normalisé. 12 agents spécialisés opérationnels. Recherche web réelle (SearXNG+Jina). Documents clients récupérés + envoyés Telegram. Réservations créées directement. Vidéo marketing 720×1280 active. Planning Kouider embarqué. Revenus prorabilisés corrects. Dashboard mobile : 10 panels complets. **Anti-hallucination : 7 gates bloquants + fastPathGuard — Dzaryx ne ment plus, ne fabrique plus de données.**
 
@@ -109,11 +109,25 @@ Système financier normalisé. 12 agents spécialisés opérationnels. Recherche
 - ✅ **NotificationsScreen** : alertes HIGH/MEDIUM/LOW, dismiss, auto-refresh 60s
 - ✅ **RemindersScreen** : rappels par priorité, badge URGENT
 - ✅ **DocumentsScreen** : fetch docs, scan caméra OCR
-- ✅ **SettingsScreen** : actor cards glow, status pills pulsants
+- ✅ **SettingsScreen** : actor cards glow, status pills pulsants, grille Nexus live (HOST/CPU/RAM/UPTIME)
 - ✅ Build propre : 364KB JS, 0 erreurs TS
 - ✅ **Déployé** : https://dzaryx-simulator.netlify.app
 - ✅ VAD / TTS / AudioContext / Feedback loop
 - Commits : `9bc0dad` + `56b3fa1` + `fdbbe4e` + `e5c4eed` + `9232dc3` + `86eec58` + `d88dbaa`
+
+### Phase 8 — AJOUTÉ 2026-05-21
+- ✅ **learned_rules** : table Supabase + service `learned-rules.ts` + outils `save_learned_rule` / `list_learned_rules`
+- ✅ **Règles injectées dans contexte** : formatRulesForContext() → systemExtra dans context-builder.ts
+- ✅ **Contrat PDF** : `generate-contract.ts` + outil `generate_contract` (≠ bon de réservation — contrat signable avec CGV + signatures)
+- ✅ **Export Excel** : `excel-export.ts` (xlsx) + outil `export_excel` → fichier .xlsx envoyé Telegram
+- ✅ **Nexus Redis health key** : heartbeat pong écrit `nexus:health` TTL=120s
+- ✅ **SettingsScreen live** : `/api/nexus/live-status` → grille HOST/PING/CPU/RAM/UPTIME/OS
+- ✅ **Google Speech-to-Text** : `@google-cloud/speech` installé, `/api/transcribe` supporte `provider: 'google'` avec fallback Groq
+- ✅ **Firebase FCM natif** : `fcm.ts` + `firebase-admin` — tokens natifs → FCM, Expo tokens → Expo push
+- ✅ **Supabase migration** : `migration_phase8.sql` — 7 tables + seed Houari + 8 règles initiales
+- ✅ Commits : `96c6376` + `bbead09` + `e096a55`
+- ⏳ Migration SQL : **à appliquer dans Supabase Dashboard** (`supabase/migration_phase8.sql`)
+- ⏳ `FIREBASE_SERVICE_ACCOUNT_JSON` : env var à ajouter Railway si notifications FCM natives souhaitées
 
 ### Native App (dzaryx-native) — MISE À JOUR 2026-05-18
 - ✅ Expo SDK 54 / React Native 0.81.5 / newArchEnabled
