@@ -2,16 +2,17 @@
 
 > Pour un développeur (ou un agent AI) qui reprend le projet à zéro.
 > Lis ce guide en entier avant de toucher quoi que ce soit.
+> **Dernière mise à jour : 2026-05-21 — Session GPS + Phase 8 + GitHub Pages**
 
 ---
 
 ## Étape 1 — Lire ces fichiers dans l'ordre
 
-1. `DZARYX/CURRENT_STATE.md` ← ce que le projet fait MAINTENANT
-2. `DZARYX/BUGS.md` ← bugs ouverts (travailler là-dessus en priorité)
-3. `DZARYX/ROADMAP.md` ← feuille de route
-4. `DZARYX/00_INDEX.md` ← vue d'ensemble + liens
-5. `CLAUDE.md` (racine) ← règles que l'agent AI DOIT suivre
+1. `HANDOVER_CLAUDE2.md` (racine) ← **LIRE EN PREMIER** — guide complet le plus récent
+2. `DZARYX/CURRENT_STATE.md` ← état exact du projet maintenant
+3. `DZARYX/BUGS.md` ← bugs ouverts (priorité travail)
+4. `DZARYX/CHANGELOG.md` ← ce qui a été fait récemment
+5. `CLAUDE.md` (racine) ← règles agent AI OBLIGATOIRES
 
 ---
 
@@ -51,70 +52,88 @@ cd simulator && npm install && npm run dev
 
 ## Étape 4 — Tâches en attente (priorité)
 
-1. **PRIORITÉ 1 — Confirmer TTS audio fonctionne** :
-   - Ouvrir https://dzaryx-simulator.netlify.app
-   - Cliquer overlay "🎙️ APPUYER POUR ACTIVER"
-   - Parler une phrase → attendre réponse → Dzaryx DOIT parler (audio)
-   - Si silencieux : vérifier console du navigateur pour erreurs audio
+1. **PRIORITÉ 1 — Tester simulateur GitHub Pages** :
+   - URL : **https://kouider213.github.io/ibrahim/** (PAS netlify)
+   - Login kouider/kouider31 ou houari/houari31
+   - Tester : VOIX, CHAT, RESAS, GPS (tab RESAS en haut), CONTRAT (tab DOCS), RÈGLES (tab CONFIG)
+   - Tab Telegram ABSENT (décision Kouider définitive)
 
-2. **PRIORITÉ 2 — Interface/Logo** (demandé par Kouider le 2026-05-18) :
-   - Kouider veut modifier l'interface du simulateur ET le logo de l'app
-   - Demander à Kouider : quel style de logo ? couleurs ?
-
-3. **EAS Build APK** (à partir du 1 juin 2026) :
+2. **PRIORITÉ 2 — EAS Build APK** (à partir du 1 juin 2026) :
    ```bash
    cd dzaryx-native
    EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 \
    npx eas build --platform android --profile preview --non-interactive
    ```
-   - Token EAS valide : G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6
-   - RÉVOQUER sur expo.dev après build terminé
+   - RÉVOQUER le token sur expo.dev après build terminé
 
-4. **Railway** : Ajouter MOBILE_TOKEN_HOUARI + Twilio vars (action MANUELLE Kouider sur railway.app) :
-   ```
-   MOBILE_TOKEN_HOUARI = 99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2
-   ```
+3. **APRÈS APK — Firebase FCM natif** :
+   - Google Cloud Console → créer Service Account → télécharger JSON
+   - Railway : `FIREBASE_SERVICE_ACCOUNT_JSON` = contenu JSON
 
-5. **Google Cloud** : Restreindre Maps API key `AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo`
-   → Distance Matrix API uniquement
+4. **Août 2026 — WhatsApp bot vitrine** :
+   - Bot simple : véhicules dispo + tarifs + promotions SEULEMENT
+   - PAS de réservation automatique
+   - Railway à ajouter : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
 
-6. **Phase 7** (planifié) : WhatsApp bot, PDF contrats, Chargily Pay, export Excel
-
-7. **Phase 4 restant** : Wake word "Dzaryx", TikTok auto-posting, Spotify, auto-unlock PC
+5. **JAMAIS faire** (décisions définitives Kouider) :
+   - iOS app
+   - Chargily paiement
+   - Telegram comme canal principal (backup/admin seulement)
 
 ---
 
 ---
 
-## Simulateur Android Web — Tout ce qu'un Claude doit savoir
+## Simulateur — Tout ce qu'un Claude doit savoir
 
-**URL live** : https://dzaryx-simulator.netlify.app
-**Site Netlify ID** : `4734de84-0223-4bec-ba6c-d3e1eb87217e`
-**Token Netlify** : `nfp_TEgxUYzHhsYxN2cX9L1q2PXqWZGQNjqJ553e`
+**⚠️ IMPORTANT : Le simulateur principal est GitHub Pages, PAS Netlify**
+
+| Simulateur | URL | Usage |
+|------------|-----|-------|
+| **GitHub Pages** | https://kouider213.github.io/ibrahim/ | **PRINCIPAL** — zone test officielle |
+| Netlify (ancien) | https://dzaryx-simulator.netlify.app | Obsolète / plus maintenu |
+
+**Logins GitHub Pages** :
+- Kouider : `kouider` / `kouider31` (couleur cyan #00e5ff)
+- Houari : `houari` / `houari31` (couleur violet #7c3aed)
+
+**12 tabs** (2026-05-21) : VOIX / CHAT / DZARYX / RESAS / PARC / CA / CLIENTS / AGENDA / ALERTES / RAPPELS / DOCS / CONFIG
 
 ### Fichiers importants
 
 | Fichier | Rôle |
 |---------|------|
+| `simulator/src/components/Phone.tsx` | Tabs + login multi-acteur |
 | `simulator/src/services/api.ts` | Backend URL, Socket.IO, audio helpers |
-| `simulator/src/components/screens/VoiceScreen.tsx` | VAD + TTS + Canvas (MODIFIÉ 2026-05-18) |
-| `simulator/src/components/screens/TextScreen.tsx` | Chat streaming |
-| `simulator/src/App.tsx` | Layout + auto-scale responsive |
-| `simulator/make-zip.mjs` | Crée dist.zip avec POSIX paths pour Netlify |
-| `simulator/feedback-server.mjs` | Serveur local port 4567, reçoit feedbacks |
-| `simulator/feedback-inbox.json` | Feedbacks reçus (surveillé par Monitor) |
+| `simulator/src/components/screens/VoiceScreen.tsx` | VAD + TTS + Canvas |
+| `simulator/src/components/screens/BookingsScreen.tsx` | GPS calculator en haut |
+| `simulator/src/components/screens/DocumentsScreen.tsx` | Génération contrat PDF |
+| `simulator/src/components/screens/SettingsScreen.tsx` | Règles apprises + Nexus live |
 | `simulator/.env.local` | Tokens locaux — NE JAMAIS COMMITTER |
 
-### Build + Deploy Netlify (IMPORTANT — NE PAS utiliser PowerShell Compress-Archive)
+### Build + Deploy GitHub Pages (MANUEL — pas automatique)
 ```bash
-cd simulator
-npm run build
-node make-zip.mjs   # crée dist.zip avec POSIX paths (forward slashes)
-curl -s -X POST "https://api.netlify.com/api/v1/sites/4734de84-0223-4bec-ba6c-d3e1eb87217e/deploys" \
-  -H "Authorization: Bearer nfp_TEgxUYzHhsYxN2cX9L1q2PXqWZGQNjqJ553e" \
-  -H "Content-Type: application/zip" --data-binary @dist.zip
+# 1. Modifier code dans simulator/src/
+# 2. Build
+cd simulator && npm run build
+
+# 3. Worktree gh-pages
+cd ..  # racine ibrahim/
+git worktree add ../gh-pages-deploy gh-pages
+cp simulator/dist/index.html ../gh-pages-deploy/index.html
+rm -rf ../gh-pages-deploy/assets
+cp -r simulator/dist/assets ../gh-pages-deploy/assets
+cd ../gh-pages-deploy
+git add index.html assets/
+git commit -m "deploy: description"
+git push origin gh-pages
+# Si rejeté : git push --force origin gh-pages
+
+# 4. Nettoyer (Windows → souvent Permission denied → ignorer)
+cd ../ibrahim
+git worktree remove --force ../gh-pages-deploy
+git worktree prune
 ```
-**POURQUOI** : PowerShell crée des chemins avec backslashes (`/assets\index.js`) → Netlify 404
 
 ### VAD — Constantes importantes
 ```ts
@@ -194,7 +213,7 @@ node simulator/feedback-server.mjs   # → http://localhost:4567
 | WhatsAppAI (/dashboard) | 🔵 | Interface prête, API non configurée |
 | TikTokAI (/dashboard) | 🔵 | Interface prête, automation planifiée |
 
-### SIMULATEUR WEB ✅ (https://dzaryx-simulator.netlify.app)
+### SIMULATEUR WEB ✅ (https://kouider213.github.io/ibrahim/)
 | Fonction | Statut | Notes |
 |---------|--------|-------|
 | Coque Android (VoiceScreen) | ✅ | Canvas height=704, anneaux, particules |
@@ -203,7 +222,10 @@ node simulator/feedback-server.mjs   # → http://localhost:4567
 | Chrome AudioContext unlock | ✅ | Overlay obligatoire |
 | TTS audio Dzaryx | ✅ | textOnly=false confirmé |
 | Chat texte (TextScreen) | ✅ | Streaming Socket.IO |
-| FeedbackPanel (77 items) | ✅ | 3 onglets + export JSON |
+| GPS Calculator (BookingsScreen) | ✅ | 6 landmarks + input libre |
+| Contrat PDF (DocumentsScreen) | ✅ | Simulé — Phase 8 |
+| Règles Apprises (SettingsScreen) | ✅ | 6 règles seed Phase 8 |
+| Multi-acteur (Kouider/Houari) | ✅ | Couleurs + tokens séparés |
 | Responsive (petits écrans) | ✅ | Auto-scale min 45% |
 
 ### APP NATIVE (dzaryx-native) — APK À BUILDER LE 1 JUIN
@@ -271,7 +293,8 @@ git push origin main  ← Railway détecte et redéploie automatiquement
 | `EXPO_PUBLIC_MOBILE_TOKEN_HOUARI` | EAS | Token Houari |
 | `VITE_BACKEND_URL` | Netlify simulateur | URL Railway |
 | `VITE_WS_URL` | Netlify simulateur | URL WSS Railway |
-| `MOBILE_TOKEN_HOUARI` | Railway | `99c3dba3...` (à ajouter) |
+| `MOBILE_TOKEN_HOUARI` | Railway | `99c3dba3...` ✅ ajouté 2026-05-21 |
+| `GOOGLE_MAPS_API_KEY` | Railway | `AIzaSyAv7s...` ✅ ajouté 2026-05-21 |
 
 ---
 

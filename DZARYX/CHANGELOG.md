@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-21 — GPS + Simulateur Phase 8 + GitHub Pages + Houari Token (Claude Sonnet 4.6)
+
+### Session complète — commit `34b0fb7` ✅
+- **Commits** : `34b0fb7` (GPS + Simulator + GitHub Pages deploy)
+- **Backend** :
+  - `backend/src/config/env.ts` : ajout `GOOGLE_MAPS_API_KEY` (optional)
+  - `backend/src/integrations/tools.ts` : ajout outil `calculate_delivery_fee`
+  - `backend/src/integrations/tool-executor.ts` : implémentation `calculateDeliveryFeeTool`
+    - Dépôt : Es Sénia (35.6459, -0.6050) hardcodé
+    - Tarif défaut : 200 DZD/km configurable
+    - Returns : distance km, temps, frais DZD, lien Waze, lien Google Maps
+- **Simulator** (GitHub Pages — pas Netlify) :
+  - `simulator/src/components/Phone.tsx` : tab Telegram SUPPRIMÉ (décision Kouider), 12 tabs
+  - `simulator/src/components/screens/SettingsScreen.tsx` : "RÈGLES APPRISES (PHASE 8)" panel, fix `nexus_online?: boolean`
+  - `simulator/src/components/screens/DocumentsScreen.tsx` : "GÉNÉRER CONTRAT PDF" panel
+  - `simulator/src/components/screens/BookingsScreen.tsx` : panel GPS (`GpsCalculator`) avec 6 landmarks Oran
+- **Railway** (Kouider ajouté manuellement) :
+  - `MOBILE_TOKEN_HOUARI` = 99c3dba3...
+  - `GOOGLE_MAPS_API_KEY` = AIzaSyAv7s2...
+- **Supabase** : Migration Phase 8 appliquée (7 tables + seeds)
+- **GitHub Pages** : `https://kouider213.github.io/ibrahim/` déployé — simulateur principal désormais
+- **Documentation** : `CURRENT_STATE.md` + `HANDOVER_CLAUDE2.md` mis à jour intégralement
+- **Décisions Kouider** : WhatsApp → août 2026, iOS → non, Chargily → non, Telegram → backup seulement
+
+---
+
 ## 2026-05-21 — Phase 8 : Learned Rules + PDF Contrat + Excel + Nexus Health + STT + FCM (Claude Sonnet 4.6)
 
 ### Phase 8 complète — 3 commits ✅

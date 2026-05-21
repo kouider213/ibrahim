@@ -5,6 +5,82 @@
 
 ---
 
+## Session 2026-05-21 — GPS + Phase 8 Simulateur + GitHub Pages + Houari (Claude Sonnet 4.6)
+
+### Contexte
+Session de reprise après interruption. Fils de Kouider avait fermé session précédente. Reprise depuis memory + HANDOVER.
+
+### Ce qui a été fait (dans l'ordre)
+
+**1. Railway — Variables manuelles ajoutées par Kouider**
+- `MOBILE_TOKEN_HOUARI` = 99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2
+- `GOOGLE_MAPS_API_KEY` = AIzaSyAv7s2qAJiHwsAzVmeA25UEOmo8p6FIsyo
+
+**2. Supabase — Migration Phase 8 appliquée**
+- 7 tables créées : learned_rules, assistant_profiles, user_behavior, conversation_patterns, contracts, payment_links, whatsapp_messages
+- Seeds : profils Kouider + Houari, 8 règles initiales
+
+**3. Backend — GPS complet**
+- `backend/src/config/env.ts` : `GOOGLE_MAPS_API_KEY: z.string().optional()`
+- `backend/src/integrations/tools.ts` : outil `calculate_delivery_fee` ajouté
+- `backend/src/integrations/tool-executor.ts` : `calculateDeliveryFeeTool` implémenté
+  - Dépôt Es Sénia : lat=35.6459, lng=-0.6050 (hardcodé, modifier si garage change)
+  - Tarif : 200 DZD/km (paramètre rate_per_km optionnel)
+  - Avec GOOGLE_MAPS_API_KEY : trafic temps réel via Distance Matrix
+  - Sans clé : fallback estimation vol d'oiseau ±20%
+  - Output : distance, temps, frais DZD, Waze link, Google Maps link
+
+**4. Simulateur GitHub Pages — Phase 8 + GPS**
+- `Phone.tsx` : tab Telegram SUPPRIMÉ (Kouider a dit "je n'ai pas besoin de ça") — 12 tabs final
+- `SettingsScreen.tsx` : panel "RÈGLES APPRISES (PHASE 8)" avec 6 règles seed, fix TS `nexus_online?: boolean`
+- `DocumentsScreen.tsx` : panel "GÉNÉRER CONTRAT PDF" avec ContractGenerator composant
+- `BookingsScreen.tsx` : panel GPS `GpsCalculator` en haut — 6 landmarks Oran préchargés :
+  - aéroport (3.2km, 8min, 640 DZD)
+  - centre-ville (11.4km, 22min, 2280 DZD)
+  - Bir El Djir (15.1km, 28min, 3020 DZD)
+  - Aïn Türck (21.8km, 38min, 4360 DZD)
+  - Arzew (35.6km, 45min, 7120 DZD)
+  - Port d'Oran (12.1km, 25min, 2420 DZD)
+  - Input libre pour autres adresses (affiche "distance réelle depuis backend")
+
+**5. GitHub Pages déployé**
+```bash
+cd simulator && npm run build
+git worktree add ../gh-pages-deploy gh-pages
+cp simulator/dist/index.html ../gh-pages-deploy/
+cp -r simulator/dist/assets ../gh-pages-deploy/assets
+cd ../gh-pages-deploy && git add . && git commit -m "deploy: GPS + Phase 8 panels"
+git push --force origin gh-pages  # force nécessaire — remote avait avancé
+```
+- URL live : https://kouider213.github.io/ibrahim/
+- Logins : kouider/kouider31 (cyan) | houari/houari31 (violet)
+
+**6. Documentation**
+- `HANDOVER_CLAUDE2.md` : créé — guide complet pour tout agent/dev qui reprend le projet
+- `DZARYX/CURRENT_STATE.md` : mis à jour intégralement
+
+### Décisions Kouider (DÉFINITIVES — ne pas revenir dessus)
+- ❌ iOS → jamais (unless demande explicite)
+- ❌ Chargily paiement → pas pour l'instant
+- ❌ Telegram = backup/admin SEULEMENT (pas canal principal ni tab simulateur)
+- ✅ WhatsApp → août 2026 (bot vitrine simple : dispo + tarifs, PAS réservation auto)
+- ✅ Simulateur GitHub Pages = zone test principale AVANT APK
+
+### Prochaines étapes (DANS L'ORDRE)
+1. Kouider teste simulateur : https://kouider213.github.io/ibrahim/
+2. APK Android : 1er juin 2026 — `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
+3. Après APK : FIREBASE_SERVICE_ACCOUNT_JSON dans Railway → FCM natif
+4. Août 2026 : WhatsApp bot (TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_WHATSAPP_FROM)
+
+### Erreur GitHub Pages (à retenir)
+`git push --force origin gh-pages` nécessaire quand remote a été modifié entre worktree create et push.
+Sur Windows : `git worktree remove` → "Permission denied" → ignorer, faire `git worktree prune` plus tard.
+
+### Commit final session
+`34b0fb7` — docs: comprehensive session update — Phase 8 + GPS + GitHub Pages simulator
+
+---
+
 ## Session 2026-05-18 PART 2 — Simulateur Tests & Fixes (+ Audit complet)
 
 ### Ce qui a été fait
