@@ -34,13 +34,6 @@ import {
 const PROJ_W = 1080;
 const PROJ_H = 1920;
 import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
-import {
-  sendMessage as sendTelegramForMarketing,
-  sendPhoto as sendTelegramPhoto,
-  sendPhotoBuffer as sendTelegramPhotoBuffer,
-  sendVoiceBuffer,
-  sendVideoBuffer,
-} from './telegram.js';
 import { synthesizeVoice } from '../notifications/dispatcher.js';
 import type { Car } from './supabase.js';
 import { checkCarAvailability as checkAvailability } from './supabase.js';
@@ -82,6 +75,104 @@ import { saveBeforeState, saveAfterState } from './vehicle-state.js';
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
 const videoGenLocks = new Set<string>();
+
+// ── App notification helpers (replace Telegram sends in marketing tools) ───────
+async function tgMsg(_chatId: string | number | null, text: string): Promise<void> {
+  try {
+    const { emitProactive } = await import('../notifications/mobile-push.js');
+    const clean = text.replace(/[*_`[\]()]/g, '').replace(/_/g, '').slice(0, 120);
+    emitProactive(clean, 'info', text.replace(/[*_]/g, ''));
+  } catch {}
+}
+
+async function tgPhoto(_chatId: string | number | null, imageUrl: string, caption: string): Promise<void> {
+  try {
+    const { emitProactive } = await import('../notifications/mobile-push.js');
+    const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
+    emitProactive(title, 'info', `${caption.replace(/[*_]/g, '')}\n🔗 ${imageUrl}`);
+  } catch {}
+}
+
+async function tgVideo(_chatId: string | number | null, buf: Buffer, caption: string): Promise<boolean> {
+  try {
+    const { emitProactive } = await import('../notifications/mobile-push.js');
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({
+      cloud_name: env.CLOUDINARY_CLOUD_NAME,
+      api_key: env.CLOUDINARY_API_KEY,
+      api_secret: env.CLOUDINARY_API_SECRET,
+    });
+    const videoUrl: string = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'video', folder: 'dzaryx-marketing' },
+        (err, result) => {
+          if (err || !result) reject(err ?? new Error('upload failed'));
+          else resolve(result.secure_url);
+        },
+      );
+      stream.end(buf);
+    });
+    const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
+    emitProactive(title || 'Vidéo marketing prête', 'info', `${caption.replace(/[*_]/g, '')}\n🔗 ${videoUrl}`);
+    return true;
+  } catch (err) {
+    console.error('[tgVideo] cloudinary upload failed:', err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+async function tgPhotoBuffer(_chatId: string | number | null, buf: Buffer, caption: string): Promise<boolean> {
+  try {
+    const { emitProactive } = await import('../notifications/mobile-push.js');
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({
+      cloud_name: env.CLOUDINARY_CLOUD_NAME,
+      api_key: env.CLOUDINARY_API_KEY,
+      api_secret: env.CLOUDINARY_API_SECRET,
+    });
+    const imageUrl: string = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'image', folder: 'dzaryx-marketing' },
+        (err, result) => {
+          if (err || !result) reject(err ?? new Error('upload failed'));
+          else resolve(result.secure_url);
+        },
+      );
+      stream.end(buf);
+    });
+    const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
+    emitProactive(title || 'Photo marketing', 'info', `${caption.replace(/[*_]/g, '')}\n🔗 ${imageUrl}`);
+    return true;
+  } catch (err) {
+    console.error('[tgPhotoBuffer] cloudinary upload failed:', err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+async function tgVoice(_chatId: string | number | null, buf: Buffer): Promise<void> {
+  try {
+    const { emitProactive } = await import('../notifications/mobile-push.js');
+    const { v2: cloudinary } = await import('cloudinary');
+    cloudinary.config({
+      cloud_name: env.CLOUDINARY_CLOUD_NAME,
+      api_key: env.CLOUDINARY_API_KEY,
+      api_secret: env.CLOUDINARY_API_SECRET,
+    });
+    const audioUrl: string = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'video', folder: 'dzaryx-marketing', format: 'mp3' },
+        (err, result) => {
+          if (err || !result) reject(err ?? new Error('upload failed'));
+          else resolve(result.secure_url);
+        },
+      );
+      stream.end(buf);
+    });
+    emitProactive('Voix générée', 'info', `🎙️ Voix off disponible\n🔗 ${audioUrl}`);
+  } catch (err) {
+    console.error('[tgVoice] upload failed:', err instanceof Error ? err.message : err);
+  }
+}
 
 // ── Failure detection — covers catch-block errors AND business soft-failures ──
 // Patterns anchored at START (safe — no valid result begins with these)
@@ -1846,7 +1937,7 @@ async function runTikTokResearchTool(sessionId?: string, input?: Record<string, 
   }
 
   const focusLabel = carFocus ? ` — focus: ${carFocus}` : '';
-  await sendTelegramForMarketing(chatId, `🔍 *Dzaryx Marketing*\nRecherche TikTok lancée${focusLabel}... ⏳`);
+  await tgMsg(chatId, `🔍 *Dzaryx Marketing*\nRecherche TikTok lancée${focusLabel}... ⏳`);
 
   const report = await runTikTokMarketResearch(cars, carFocus, extraTags);
 
@@ -1884,7 +1975,7 @@ async function runTikTokResearchTool(sessionId?: string, input?: Record<string, 
     `💬 Dis "fais une vidéo pour [voiture]" pour créer une vidéo automatiquement !`,
   ].filter(Boolean).join('\n');
 
-  await sendTelegramForMarketing(chatId, msg);
+  await tgMsg(chatId, msg);
   return `✅ Rapport TikTok envoyé (qualité: ${report.data_quality}, ${report.top_ideas.length} idées, source: ${report.data_source.slice(0, 60)}).`;
 }
 
@@ -1970,7 +2061,7 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
   if (runwayKey || falKey) {
 
     const providerLabel = runwayKey ? 'Runway Gen-4 Turbo' : 'Kling IA';
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Vidéo TikTok — ${car.name}*\n_${providerLabel}${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ 60-240 secondes...`
     ).catch(() => {});
 
@@ -1999,7 +2090,7 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[tool:create_marketing_video] IA vidéo failed:', msg);
-      await sendTelegramForMarketing(chatId,
+      await tgMsg(chatId,
         `⚠️ _IA vidéo indisponible (\`${msg.slice(0, 120)}\`) — FFmpeg fallback..._`
       ).catch(() => {});
     }
@@ -2007,7 +2098,7 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
 
   // ── Tentative 2 : FFmpeg + ElevenLabs (local, fiable) ────────
   if (!videoBuffer) {
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Vidéo TikTok — ${car.name}*\n_Montage FFmpeg HD 1080×1920${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ Génération voix + montage...`
     ).catch(() => {});
 
@@ -2022,13 +2113,13 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
         },
         chatId,
       );
-      const deliveryNote = result.telegram_delivered ? 'envoyée sur Telegram ↑' : '⚠️ générée mais envoi Telegram échoué';
+      const deliveryNote = result.telegram_delivered ? "envoyée dans l'app ↑" : '⚠️ générée mais envoi app échoué';
       const prefix = result.telegram_delivered ? '✅' : '⚠️';
       return `${prefix} Vidéo ${result.method === 'ffmpeg' ? 'FFmpeg HD' : 'photo'} pour ${result.car_name} — ${deliveryNote} (ID: ${result.pending_id}).\nScript: "${result.script.slice(0, 80)}..."`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[tool:create_marketing_video] FFmpeg failed:', msg);
-      await sendTelegramForMarketing(chatId,
+      await tgMsg(chatId,
         `❌ _FFmpeg aussi échoué:_ \`${msg.slice(0, 200)}\`\n_Envoi photo + voix..._`
       ).catch(() => {});
     }
@@ -2105,13 +2196,13 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
 
   if (videoBuffer) {
     try {
-      await sendVideoBuffer(chatId, videoBuffer, approvalMsg);
+      await tgVideo(chatId, videoBuffer, approvalMsg);
       videoActuallySent = true;
     } catch (sendErr) {
       console.error('[tool:create_marketing_video] sendVideoBuffer failed:', sendErr instanceof Error ? sendErr.message : sendErr);
       if (carImgBuf) {
         try {
-          await sendTelegramPhotoBuffer(chatId, carImgBuf, approvalMsg);
+          await tgPhotoBuffer(chatId, carImgBuf, approvalMsg);
           photoActuallySent = true;
         } catch (photoErr) {
           console.error('[tool:create_marketing_video] photo fallback failed:', photoErr instanceof Error ? photoErr.message : photoErr);
@@ -2121,7 +2212,7 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
   } else {
     if (carImgBuf) {
       try {
-        await sendTelegramPhotoBuffer(chatId, carImgBuf, approvalMsg);
+        await tgPhotoBuffer(chatId, carImgBuf, approvalMsg);
         photoActuallySent = true;
       } catch (photoErr) {
         console.error('[tool:create_marketing_video] photo send failed:', photoErr instanceof Error ? photoErr.message : photoErr);
@@ -2131,18 +2222,18 @@ Accrocheur, prix + "Fik Conciergerie Oran" mentionnés, CTA fort. RÉPONDS UNIQU
 
   // Envoyer la voix séparément seulement si la vidéo n'a pas pu être générée
   if (!videoBuffer && audioBuffer) {
-    await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+    await tgVoice(chatId, audioBuffer).catch(() => {});
   }
 
   let resultMsg: string;
   if (videoActuallySent) {
     resultMsg = `✅ Vidéo ${method} créée et envoyée ↑ (ID: ${pendingId}). En attente de ta validation.`;
   } else if (videoBuffer) {
-    resultMsg = `⚠️ Vidéo générée mais envoi Telegram échoué${photoActuallySent ? ' — photo envoyée ↑' : ''} (ID: ${pendingId}).`;
+    resultMsg = `⚠️ Vidéo générée mais envoi app échoué${photoActuallySent ? ' — photo envoyée ↑' : ''} (ID: ${pendingId}).`;
   } else if (photoActuallySent) {
     resultMsg = `❌ Vidéo IA non générée — photo envoyée à la place ↑ (ID: ${pendingId}). Demande "fais une vidéo FFmpeg" pour forcer FFmpeg.`;
   } else {
-    resultMsg = `❌ Vidéo non créée et envoi Telegram échoué. Kling IA et FFmpeg ont tous les deux échoué. Vérifie les logs Railway.`;
+    resultMsg = `❌ Vidéo non créée et envoi app échoué. Kling IA et FFmpeg ont tous les deux échoué. Vérifie les logs Railway.`;
   }
   return resultMsg.substring(0, 3000);
 }
@@ -2171,7 +2262,7 @@ async function editMarketingVideoTool(
   const isVoiceOnly = /voix|voice|script|ton|tone|phrase|texte|parle/i.test(mod) && !/fond|background|scène|scene|caméra|camera|arrière/i.test(mod);
   const isVideoOnly = /fond|background|scène|scene|caméra|camera|arrière|décor|lumière|aéroport|corniche|plage/i.test(mod);
 
-  await sendTelegramForMarketing(chatId,
+  await tgMsg(chatId,
     `✏️ *Modification vidéo — ${session.carName}*\n_"${modification.slice(0, 80)}"_\n⏳ En cours...`
   ).catch(() => {});
 
@@ -2238,11 +2329,11 @@ async function editMarketingVideoTool(
   const approvalMsg = `✏️ *Vidéo modifiée — ${session.carName}*\n_${modification.slice(0, 100)}_\n\n✅ *Oke* pour publier | ❌ *Non* pour annuler`;
 
   if (finalVideo) {
-    await sendVideoBuffer(chatId, finalVideo, approvalMsg).catch(async () => {
-      await sendTelegramForMarketing(chatId, approvalMsg).catch(() => {});
+    await tgVideo(chatId, finalVideo, approvalMsg).catch(async () => {
+      await tgMsg(chatId, approvalMsg).catch(() => {});
     });
   } else {
-    await sendTelegramForMarketing(chatId, approvalMsg).catch(() => {});
+    await tgMsg(chatId, approvalMsg).catch(() => {});
   }
 
   return `✅ Vidéo modifiée (${provider}) et envoyée ↑`;
@@ -2267,7 +2358,7 @@ async function regenerateVoiceTool(
                      tone === 'chaleureux'      ? 'Ton chaleureux et accueillant. ' :
                      tone === 'commercial'      ? 'Ton commercial percutant. ' : '';
 
-  await sendTelegramForMarketing(chatId, `🎙️ *Nouvelle voix en cours...*\n_Ton: ${tone || 'standard'}_`).catch(() => {});
+  await tgMsg(chatId, `🎙️ *Nouvelle voix en cours...*\n_Ton: ${tone || 'standard'}_`).catch(() => {});
 
   const audioBuffer = await synthesizeVoice(tonePrefix + newScript);
   if (!audioBuffer) return '❌ ElevenLabs indisponible — vérifie ELEVENLABS_API_KEY dans Railway.';
@@ -2286,13 +2377,13 @@ async function regenerateVoiceTool(
 
   // Send
   if (finalVideo) {
-    await sendVideoBuffer(chatId, finalVideo,
+    await tgVideo(chatId, finalVideo,
       `🎙️ *Voix modifiée — ${session.carName}*\n_Script: "${newScript.slice(0, 100)}_"\n\n✅ *Oke* pour publier | ❌ *Non* pour annuler`
     ).catch(async () => {
-      await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+      await tgVoice(chatId, audioBuffer).catch(() => {});
     });
   } else {
-    await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+    await tgVoice(chatId, audioBuffer).catch(() => {});
   }
 
   return `✅ Nouvelle voix générée et envoyée ↑`;
@@ -2355,7 +2446,7 @@ async function createScenarioVideoTool(
 
   const sc = scenarios[scenario] ?? scenarios['airport_arrival'];
 
-  await sendTelegramForMarketing(chatId,
+  await tgMsg(chatId,
     `🎬 *Scénario : ${sc.label}*\n_${car.name} — ${priceDisplay}_\n⏳ Génération Runway/Kling en cours...`
   ).catch(() => {});
 
@@ -2376,7 +2467,7 @@ async function createScenarioVideoTool(
     ``,
     `📣 CTA : WhatsApp → Fik Conciergerie`,
   ].join('\n');
-  await sendTelegramForMarketing(chatId, brief).catch(() => {});
+  await tgMsg(chatId, brief).catch(() => {});
 
   // Generate video
   let videoBuffer: Buffer | null = null;
@@ -2402,7 +2493,7 @@ async function createScenarioVideoTool(
     }
   } catch (err: any) {
     console.error('[create_scenario_video] video gen failed:', err.message);
-    await sendTelegramForMarketing(chatId, `⚠️ Vidéo IA indisponible, photo envoyée à la place.`).catch(() => {});
+    await tgMsg(chatId, `⚠️ Vidéo IA indisponible, photo envoyée à la place.`).catch(() => {});
   }
 
   // Generate voice
@@ -2452,12 +2543,12 @@ async function createScenarioVideoTool(
   ].join('\n');
 
   if (finalVideo) {
-    await sendVideoBuffer(chatId, finalVideo, approvalMsg).catch(async () => {
-      await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    await tgVideo(chatId, finalVideo, approvalMsg).catch(async () => {
+      await tgPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
     });
   } else if (car.image_url) {
-    await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
-    if (audioBuffer) await sendVoiceBuffer(chatId, audioBuffer).catch(() => {});
+    await tgPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    if (audioBuffer) await tgVoice(chatId, audioBuffer).catch(() => {});
   }
 
   return `✅ Scénario "${sc.label}" généré (${provider}) et envoyé ↑ (ID: ${pendingId})`;
@@ -2521,7 +2612,7 @@ async function createVideoProjectTool(
     ``,
     `⏳ Génération en cours (car scenes = Runway/Kling, UI scenes = FFmpeg instantané)...`,
   ].join('\n');
-  await sendTelegramForMarketing(chatId, brief).catch(() => {});
+  await tgMsg(chatId, brief).catch(() => {});
 
   // ── Save project ───────────────────────────────────────────────────────────
   const project = saveVideoProject({
@@ -2557,7 +2648,7 @@ async function createVideoProjectTool(
 
       if (sc.type.startsWith('ui_')) {
         // FFmpeg synthetic — instant
-        await sendTelegramForMarketing(chatId,
+        await tgMsg(chatId,
           `🖥️ _Scène ${i + 1}/${board.scenes.length} — ${sc.label} (FFmpeg)_`
         ).catch(() => {});
         await generateUISceneFile(sc, outPath, fontPath);
@@ -2565,7 +2656,7 @@ async function createVideoProjectTool(
 
       } else {
         // Car scene — Runway/Kling
-        await sendTelegramForMarketing(chatId,
+        await tgMsg(chatId,
           `🎬 _Scène ${i + 1}/${board.scenes.length} — ${sc.label} (Runway/Kling ~90s)_`
         ).catch(() => {});
 
@@ -2595,7 +2686,7 @@ async function createVideoProjectTool(
 
         // If AI failed, fallback: generate a static image clip
         if (!carClipBuffer) {
-          await sendTelegramForMarketing(chatId,
+          await tgMsg(chatId,
             `⚠️ _Scène ${i + 1} IA indisponible — image statique utilisée_`
           ).catch(() => {});
           // Create a simple static scene from car image using FFmpeg
@@ -2637,11 +2728,11 @@ async function createVideoProjectTool(
     }
 
     // ── Generate voice ─────────────────────────────────────────────────────
-    await sendTelegramForMarketing(chatId, '🎙️ _Génération voix off ElevenLabs..._').catch(() => {});
+    await tgMsg(chatId, '🎙️ _Génération voix off ElevenLabs..._').catch(() => {});
     const audioBuffer = await synthesizeVoice(board.voiceScript).catch(() => null);
 
     // ── Assemble ──────────────────────────────────────────────────────────
-    await sendTelegramForMarketing(chatId, '🎞️ _Assemblage final FFmpeg..._').catch(() => {});
+    await tgMsg(chatId, '🎞️ _Assemblage final FFmpeg..._').catch(() => {});
     const finalBuffer = await concatScenesWithVoice(scenePaths, audioBuffer, tmpDir);
 
     // ── Save pending + session ────────────────────────────────────────────
@@ -2681,11 +2772,11 @@ async function createVideoProjectTool(
       `✏️ _"modifie la scène X", "change la voix", "refais le CTA"_`,
     ].join('\n');
 
-    await sendVideoBuffer(chatId, finalBuffer, approvalMsg).catch(async () => {
-      await sendTelegramPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
+    await tgVideo(chatId, finalBuffer, approvalMsg).catch(async () => {
+      await tgPhoto(chatId, car.image_url, approvalMsg).catch(() => {});
     });
 
-    return `✅ Projet vidéo "${board.title}" (${scenePaths.length} scènes, ${usedProvider}) envoyé sur Telegram ↑ (ID: ${pendingId}).`;
+    return `✅ Projet vidéo "${board.title}" (${scenePaths.length} scènes, ${usedProvider}) envoyé dans l'app ↑ (ID: ${pendingId}).`;
 
   } finally {
     await import('fs/promises').then(f => f.rm(tmpDir, { recursive: true, force: true })).catch(() => {});
@@ -2720,7 +2811,7 @@ async function mergeVideosTool(
     return `⚠️ Envoie au moins 2 vidéos sur Telegram avant de demander la fusion. Tu n'as envoyé que ${fileIds.length} vidéo(s) dans cette session.`;
   }
 
-  await sendTelegramForMarketing(chatId, `🎬 *Fusion de ${fileIds.length} vidéos en cours...*\n_Normalisation + montage_ ⏳`);
+  await tgMsg(chatId, `🎬 *Fusion de ${fileIds.length} vidéos en cours...*\n_Normalisation + montage_ ⏳`);
 
   // Download all videos from Telegram
   const { downloadFile: downloadTelegramFile } = await import('./telegram.js');
@@ -2728,7 +2819,7 @@ async function mergeVideosTool(
   for (const fileId of fileIds) {
     const buf = await downloadTelegramFile(fileId);
     if (!buf) {
-      await sendTelegramForMarketing(chatId, `⚠️ Impossible de télécharger la vidéo (ID: ${fileId}) — elle a peut-être expiré.`);
+      await tgMsg(chatId, `⚠️ Impossible de télécharger la vidéo (ID: ${fileId}) — elle a peut-être expiré.`);
       return `⚠️ Échec téléchargement d'une vidéo.`;
     }
     buffers.push(buf);
@@ -2737,7 +2828,7 @@ async function mergeVideosTool(
   const merged = await mergeVideos(buffers).catch(async (err) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[tool:merge_videos] failed:', msg);
-    await sendTelegramForMarketing(chatId, `⚠️ Fusion échouée: ${msg.slice(0, 120)}`);
+    await tgMsg(chatId, `⚠️ Fusion échouée: ${msg.slice(0, 120)}`);
     return null;
   });
 
@@ -2746,9 +2837,9 @@ async function mergeVideosTool(
   clearVideoBuffer(sessionId ?? '');
 
   const caption = `🎬 *Vidéo fusionnée — ${fileIds.length} clips*\n\nFusionnée par Dzaryx ✨`;
-  await sendVideoBuffer(chatId, merged, caption).catch(async (err) => {
+  await tgVideo(chatId, merged, caption).catch(async (err) => {
     console.error('[tool] merge sendVideoBuffer failed:', err instanceof Error ? err.message : err);
-    await sendTelegramForMarketing(chatId, `⚠️ Upload vidéo fusionnée échoué: ${err instanceof Error ? err.message : String(err)}`);
+    await tgMsg(chatId, `⚠️ Upload vidéo fusionnée échoué: ${err instanceof Error ? err.message : String(err)}`);
   });
 
   return `✅ ${fileIds.length} vidéos fusionnées et envoyées juste au-dessus ↑`;
@@ -2851,7 +2942,7 @@ async function analyzeCompetitors(input: Record<string, unknown>, sessionId: str
 
   // ── Notification de démarrage ──────────────────────────────
   const focusLabel = competitor ? `_Cible: ${competitor}_` : carFocus ? `_Focus: ${carFocus}_` : '_Scan général: location voiture Oran_';
-  await sendTelegramForMarketing(chatId,
+  await tgMsg(chatId,
     `🕵️ *Veille concurrentielle lancée*\n${focusLabel}\n⏳ 10 recherches en cours...`
   ).catch(() => {});
 
@@ -2974,7 +3065,7 @@ Réponds en français, format structuré Telegram (markdown bold avec **):
 
   // ── Envoi de l'analyse sur Telegram ────────────────────────
   if (makeVideo) {
-    await sendTelegramForMarketing(chatId, `${analysis.text}\n\n⏳ _Création de la contre-pub en cours..._`);
+    await tgMsg(chatId, `${analysis.text}\n\n⏳ _Création de la contre-pub en cours..._`);
     const { data: cars } = await supabase.from('cars').select('*').eq('available', true).limit(1);
     const car = (cars ?? [])[Math.floor(Math.random() * (cars ?? []).length)] as Car | undefined;
     if (car) {
@@ -2984,7 +3075,7 @@ Réponds en français, format structuré Telegram (markdown bold avec **):
   }
 
   // Envoyer l'analyse sur Telegram et la retourner aussi dans la réponse (tronquée pour Claude)
-  await sendTelegramForMarketing(chatId, analysis.text).catch(() => {});
+  await tgMsg(chatId, analysis.text).catch(() => {});
   return analysis.text.substring(0, 3000);
 }
 
@@ -3050,17 +3141,17 @@ async function publishToSocialsTool(input: Record<string, unknown>, sessionId: s
   );
 
   if (tiktokConfigured) {
-    await sendTelegramForMarketing(chatId, `🚀 *Publication TikTok en cours...*`).catch(() => {});
+    await tgMsg(chatId, `🚀 *Publication TikTok en cours...*`).catch(() => {});
     const result = await publishVideo(video);
     const reply  = result.success
       ? `✅ *Publié sur ${result.platform}*\n${result.message}${result.url ? `\n🔗 ${result.url}` : ''}`
       : `⚠️ *Problème publication:* ${result.message}\n\n${buildSharePackage(video)}`;
-    await sendTelegramForMarketing(chatId, reply).catch(() => {});
+    await tgMsg(chatId, reply).catch(() => {});
     return reply;
   }
 
   const pkg = buildSharePackage(video);
-  await sendTelegramForMarketing(chatId, pkg).catch(() => {});
+  await tgMsg(chatId, pkg).catch(() => {});
   return pkg;
 }
 
@@ -3077,10 +3168,10 @@ async function executeCodeTaskTool(input: Record<string, unknown>, sessionId?: s
   // Lance l'agent en arrière-plan (non-bloquant)
   runCodeAgent(task, chatId, repo).catch((err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
-    sendTelegramForMarketing(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
+    tgMsg(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
   });
 
-  return `✅ Code Agent lancé pour: "${task.slice(0, 80)}"\n⏳ Je te tiens informé sur Telegram au fur et à mesure (5-15 min selon la complexité).`;
+  return `✅ Code Agent lancé pour: "${task.slice(0, 80)}"\n⏳ Je te tiens informé dans l'app au fur et à mesure (5-15 min selon la complexité).`;
 }
 
 async function createNewProjectTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -3117,10 +3208,10 @@ INSTRUCTIONS TECHNIQUES:
 
   runCodeAgent(task, chatId, 'ibrahim').catch((err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
-    sendTelegramForMarketing(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
+    tgMsg(chatId, `❌ Code Agent crash: ${msg}`).catch(() => {});
   });
 
-  return `✅ Création du site pour ${clientName} (${businessType}) lancée!\n⏳ Code Agent au travail — résultat sur Telegram dans 10-20 min.`;
+  return `✅ Création du site pour ${clientName} (${businessType}) lancée!\n⏳ Code Agent au travail — résultat dans l'app dans 10-20 min.`;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -3798,14 +3889,14 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   // La transformation de scène est décrite dans le prompt texte — le modèle s'en charge.
   if (forceProvider !== 'auto' && sceneTransformation && carImageUrl) {
     const provLabel = forceProvider === 'runway' ? 'Runway Gen-3' : 'Kling 1.6';
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Génération vidéo — ${provLabel}* (provider forcé)\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Scène décrite dans le prompt — aucun pré-traitement fal.ai._\n⏳ 60-240 secondes...`
     ).catch(() => {});
     // effectiveImageUrl reste = carImageUrl (photo Supabase originale)
     // sceneTransformation reste true pour que le prompt texte soit envoyé tel quel
   } else if (sceneTransformation && carImageUrl && falKey) {
     // STEP 1 — Background removal
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Transformation de scène — ${carDisplayName}*\n✅ Photo réelle du véhicule trouvée.\n_Étape 1/3 : Extraction de la voiture (suppression du fond)..._\n⏳ Patience...`);
     let carOnlyUrl: string;
     try {
@@ -3814,7 +3905,7 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       console.log(`[generateAiVideoTool] carExtraction=true carOnlyUrl=${carOnlyUrl}`);
     } catch (extractErr: any) {
       console.warn(`[generateAiVideoTool] carExtraction=FAILED: ${extractErr.message} — fallback image originale`);
-      await sendTelegramForMarketing(chatId,
+      await tgMsg(chatId,
         `⚠️ *Extraction fond échouée — on anime directement la photo originale.*\n_${extractErr.message.slice(0, 120)}_`);
       // Fallback: skip BRIA pipeline entirely, animate original Supabase image
       carOnlyUrl = carImageUrl;
@@ -3822,7 +3913,7 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       effectiveImageUrl = carImageUrl;
       // Jump out of the BRIA block so generateVehicleVideo runs with original image
       // We set sceneTransformation=false so Runway/Kling prompt stays simple
-      await sendTelegramForMarketing(chatId,
+      await tgMsg(chatId,
         `🎬 *Génération vidéo depuis la photo originale...*\n⏳ 60-240 secondes...`);
       const genStartFb = Date.now();
       const { url: fbUrl, provider: fbProvider, mode: fbMode } = await generateVehicleVideo({
@@ -3841,21 +3932,21 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       const bufferFb = Buffer.from(respFb.data as ArrayBuffer);
       if (!isValidMp4Buffer(bufferFb)) throw new Error(`${fbProvider} a retourné un fichier invalide`);
       const captionFb = `🎬 *${carDisplayName} — Vidéo IA — ${fbProvider}*\n_Photo originale (extraction fond échouée)_`;
-      try { await sendVideoBuffer(chatId, bufferFb, captionFb); } catch {
-        await sendTelegramForMarketing(chatId, `${captionFb}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${fbUrl})`);
+      try { await tgVideo(chatId, bufferFb, captionFb); } catch {
+        await tgMsg(chatId, `${captionFb}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${fbUrl})`);
       }
-      return `✅ Vidéo créée (${fbProvider}, fallback — extraction fond échouée) — envoyée sur Telegram ↑`;
+      return `✅ Vidéo créée (${fbProvider}, fallback — extraction fond échouée) — envoyée dans l'app ↑`;
     }
 
     // STEP 2 — New scene generation — fallback to original image if BRIA fails
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `✅ *Voiture extraite.* Étape 2/3 : Création de la nouvelle scène...\n_"${requestedScene.slice(0, 60)}"_\n⏳ 30-90 secondes...`);
     let transformedUrl: string;
     try {
       transformedUrl = await generateCarInNewScene(carOnlyUrl, prompt, carDisplayName || carName || '', falKey, 150_000);
     } catch (sceneErr: any) {
       console.warn(`[generateAiVideoTool] BRIA scene FAILED: ${sceneErr.message} — fallback image originale`);
-      await sendTelegramForMarketing(chatId,
+      await tgMsg(chatId,
         `⚠️ *Création nouvelle scène échouée — on anime la photo originale.*\n_${sceneErr.message.slice(0, 120)}_`);
       // Fallback: animate original Supabase image without scene transformation
       const genStartFb2 = Date.now();
@@ -3875,10 +3966,10 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
       const bufferFb2 = Buffer.from(respFb2.data as ArrayBuffer);
       if (!isValidMp4Buffer(bufferFb2)) throw new Error(`${fbProv2} a retourné un fichier invalide`);
       const captionFb2 = `🎬 *${carDisplayName} — Vidéo IA — ${fbProv2}*\n_Photo originale (transformation scène échouée)_`;
-      try { await sendVideoBuffer(chatId, bufferFb2, captionFb2); } catch {
-        await sendTelegramForMarketing(chatId, `${captionFb2}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${fbUrl2})`);
+      try { await tgVideo(chatId, bufferFb2, captionFb2); } catch {
+        await tgMsg(chatId, `${captionFb2}\n\n⚠️ Envoi direct impossible.\n[Télécharger](${fbUrl2})`);
       }
-      return `✅ Vidéo créée (${fbProv2}, fallback — transformation scène échouée) — envoyée sur Telegram ↑`;
+      return `✅ Vidéo créée (${fbProv2}, fallback — transformation scène échouée) — envoyée dans l'app ↑`;
     }
 
     // STEP 2b — Validate the transformed keyframe
@@ -3886,7 +3977,7 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     const kfValidation = await validateTransformedKeyframe(transformedUrl);
     console.log(`[generateAiVideoTool] transformedKeyframeValidated=${kfValidation.valid} raison="${kfValidation.reason}" sizeKb=${kfValidation.sizeKb}`);
     if (!kfValidation.valid) {
-      await sendTelegramForMarketing(chatId,
+      await tgMsg(chatId,
         `❌ *Image intermédiaire invalide* (${kfValidation.reason}).\nGénération vidéo annulée — la scène créée n'est pas exploitable.`);
       throw new Error(`Keyframe invalide: ${kfValidation.reason}`);
     }
@@ -3894,18 +3985,18 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     transformedKeyframeCreated = true;
     effectiveImageUrl = transformedUrl;
     console.log(`[generateAiVideoTool] transformedKeyframeCreated=true transformedUrl=${transformedUrl}`);
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `✅ *Nouvelle scène créée avec succès* (${kfValidation.sizeKb} KB).\nÉtape 3/3 : Animation vidéo en cours...\n⏳ 60-240 secondes...`);
 
   } else if (forceProvider === 'runway') {
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Génération vidéo — Runway Gen-3* (mode forcé)\n${carImageUrl ? `✅ Photo réelle de *${carDisplayName}* trouvée.` : '⚠️ Aucune photo réelle trouvée.'}\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes, patience...`);
   } else if (carImageUrl) {
     const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Génération vidéo IA — ${providerLabel}*\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes, patience...`);
   } else {
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Génération vidéo IA — Kling 1.6*\n⚠️ Aucune photo réelle exploitable trouvée. Génération basée uniquement sur description, le rendu peut être moins fidèle.\n⏳ 60-240 secondes, patience...`);
   }
 
@@ -3948,25 +4039,25 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   if (sizeKb > 45_000) {
     console.warn(`[generateAiVideoTool] vidéo trop lourde pour Telegram API (${sizeKb} KB > 45 MB) — envoi lien direct`);
     try {
-      await sendTelegramForMarketing(chatId, `${caption}\n\n📎 Fichier trop lourd pour envoi direct.\n[▶ Télécharger la vidéo](${videoUrl})`);
+      await tgMsg(chatId, `${caption}\n\n📎 Fichier trop lourd pour envoi direct.\n[▶ Télécharger la vidéo](${videoUrl})`);
       delivered = true;
     } catch { /* ignore */ }
   } else {
     try {
-      await sendVideoBuffer(chatId, buffer, caption);
+      await tgVideo(chatId, buffer, caption);
       delivered = true;
     } catch (err: any) {
       console.error('[generateAiVideoTool] sendVideoBuffer failed:', err.message);
       try {
-        await sendTelegramForMarketing(chatId, `${caption}\n\n⚠️ Envoi direct échoué (${sizeKb} KB).\n[▶ Télécharger la vidéo](${videoUrl})`);
+        await tgMsg(chatId, `${caption}\n\n⚠️ Envoi direct échoué (${sizeKb} KB).\n[▶ Télécharger la vidéo](${videoUrl})`);
         delivered = true;
       } catch { /* both failed */ }
     }
   }
 
   const modeLabel = mode === 'image-to-video' ? `image réelle de ${carDisplayName}` : 'description texte';
-  if (delivered) return `✅ Vidéo réaliste créée (${provider}, ${mode}) depuis ${modeLabel} — envoyée sur Telegram ↑`;
-  return `⚠️ Vidéo générée via ${provider} (${mode}) depuis ${modeLabel} mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  if (delivered) return `✅ Vidéo réaliste créée (${provider}, ${mode}) depuis ${modeLabel} — envoyée dans l'app ↑`;
+  return `⚠️ Vidéo générée via ${provider} (${mode}) depuis ${modeLabel} mais envoi app échoué.\nURL directe: ${videoUrl}`;
   } finally {
     videoGenLocks.delete(lockKey);
   }
@@ -4016,11 +4107,11 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
   console.log(`[animateCarPhotoTool] image_url: ${imageUrl} | displayName: ${displayName}`);
 
   if (forceProvider === 'runway') {
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Animation photo — Runway Gen-3* (mode forcé)\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes...`);
   } else {
     const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
-    await sendTelegramForMarketing(chatId,
+    await tgMsg(chatId,
       `🎬 *Animation photo IA — ${providerLabel}*\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes...`);
   }
 
@@ -4049,18 +4140,18 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
   const caption = `🎬 *${displayName} — Vidéo réaliste — ${provider}*\n_Générée depuis la vraie photo_`;
   let delivered = false;
   try {
-    await sendVideoBuffer(chatId, buffer, caption);
+    await tgVideo(chatId, buffer, caption);
     delivered = true;
   } catch (err: any) {
     console.error('[animateCarPhotoTool] sendVideoBuffer failed:', err.message);
     try {
-      await sendTelegramForMarketing(chatId, `${caption}\n\n⚠️ Envoi direct impossible.\n[Télécharger la vidéo](${videoUrl})`);
+      await tgMsg(chatId, `${caption}\n\n⚠️ Envoi direct impossible.\n[Télécharger la vidéo](${videoUrl})`);
       delivered = true;
     } catch { /* both failed */ }
   }
 
-  if (delivered) return `✅ Photo de ${displayName} animée (${provider}, ${mode}) et envoyée sur Telegram ↑`;
-  return `⚠️ Vidéo générée (${provider}) mais envoi Telegram échoué.\nURL directe: ${videoUrl}`;
+  if (delivered) return `✅ Photo de ${displayName} animée (${provider}, ${mode}) et envoyée dans l'app ↑`;
+  return `⚠️ Vidéo générée (${provider}) mais envoi app échoué.\nURL directe: ${videoUrl}`;
   } finally {
     videoGenLocks.delete(lockKey);
   }
@@ -4089,7 +4180,7 @@ async function sendNexusCommandTool(input: Record<string, unknown>): Promise<str
     return '❌ NEXUS hors ligne — impossible d\'envoyer la commande. Lance start.bat sur le PC.';
   }
   sendToNexus('nexus:command', { text: command, source: 'dzaryx-app' });
-  return `✅ Commande envoyée à NEXUS: "${command}"\n📡 NEXUS va l\'exécuter et envoyer le résultat via Telegram ou journal.`;
+  return `✅ Commande envoyée à NEXUS: "${command}"\n📡 NEXUS va l\'exécuter et envoyer le résultat dans l\'app ou via le journal.`;
 }
 
 async function nexusScreenshotTool(input: Record<string, unknown>): Promise<string> {
