@@ -62,9 +62,7 @@ import {
   getEvolutionReport,
   formatReportForKouider,
 } from './improvement-report.js';
-import FormData from 'form-data';
 import { sendWhatsApp } from './whatsapp.js';
-import { sendMessage as sendTelegramText, sendPhotoBuffer as sendTelegramPhotoBuffer2 } from './telegram.js';
 import { generateReservationVoucher } from './generate-voucher.js';
 import { getLearnedRules, saveLearnedRule, formatRulesForContext } from './learned-rules.js';
 import { generateRentalContract } from './generate-contract.js';
@@ -516,36 +514,28 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
       }).catch(() => {});
     }).catch(() => {});
 
-    // Auto-generate and send PDF voucher to Telegram (non-bloquant)
-    // Delay 2s to let Supabase propagate the new row before PDF generation query
+    // Auto-generate voucher PDF → notifier via app (Socket.IO + push)
     setTimeout(() => {
-      generateReservationVoucher(booking.id).then(({ clientName, buffer }) => {
-        const filename = `BON_${(clientName ?? 'client').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-        const chatIdStr = env.TELEGRAM_CHAT_ID;
-        if (!chatIdStr || !buffer) return;
-        const chatId = Number(chatIdStr);
-        if (isNaN(chatId)) return;
-        const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
-        const form = new FormData();
-        form.append('chat_id', String(chatId));
-        form.append('document', buffer, {
-          filename,
-          contentType: 'application/pdf',
-          knownLength: buffer.length,
-        });
-        form.append('caption', `📄 Bon de réservation — ${clientName} (auto-généré)`);
-        axios.post(`${botBase}/sendDocument`, form, {
-          headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity,
-        }).then(() => console.log('[create_booking] Auto-voucher PDF sent')).catch(() => {});
+      generateReservationVoucher(booking.id).then(({ clientName, url }) => {
+        if (!clientName) return;
+        import('../notifications/mobile-push.js').then(({ emitProactive }) => {
+          emitProactive(
+            `Bon de réservation — ${clientName}`,
+            'info',
+            `📄 Bon de réservation — ${clientName} (auto-généré)\n🔗 ${url}`,
+          );
+          console.log('[create_booking] Auto-voucher PDF notifié via app');
+        }).catch(() => {});
       }).catch(() => {});
     }, 2000);
   } catch { calendarNote = ' | ⚠️ Google Agenda non synchro'; }
 
-  // Alert if owner_ppd missing → profit will be null, Kouider needs to fill it
-  if (owner_ppd === null && env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
-    const chatId = Number(env.TELEGRAM_CHAT_ID);
-    const alertMsg = `⚠️ *BOOKING SANS PRIX PROPRIÉTAIRE*\n👤 ${input['client_name'] as string}\n🚗 Voiture: ${carId}\n📅 ${input['start_date'] as string} → ${input['end_date'] as string}\n💶 Total client: ${input['final_price'] as string}€\n\n_Dis à Ibrahim le prix propriétaire pour calculer le profit._`;
-    if (!isNaN(chatId)) sendTelegramText(chatId, alertMsg).catch(() => {});
+  // Alert si owner_ppd manquant → notifier via app
+  if (owner_ppd === null) {
+    const alertMsg = `⚠️ Réservation sans prix propriétaire\n👤 ${input['client_name'] as string}\n🚗 ${carId}\n📅 ${input['start_date'] as string} → ${input['end_date'] as string}\n💶 Total client: ${input['final_price'] as string}€\nDis le prix propriétaire pour calculer le profit.`;
+    import('../notifications/mobile-push.js').then(({ emitProactive }) => {
+      emitProactive('Réservation sans prix propriétaire', 'alert', alertMsg);
+    }).catch(() => {});
   }
 
   return `✅ Réservation créée! ID: ${booking.id} | ${input['client_name']} | ${input['start_date']} → ${input['end_date']} | ${input['final_price']}€${calendarNote}${owner_ppd === null ? ' | ⚠️ Prix proprio manquant' : ''}${fridayWarning}${ramadanNote}`;
@@ -1201,8 +1191,8 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     return `❌ Champ "${field}" introuvable. Disponibles: ${doc.extracted_data ? Object.keys(doc.extracted_data).join(', ') : 'client_phone, file_url'}`;
   }
 
-  // Auto-send to Telegram + lazy OCR backfill
-  const chatId = env.TELEGRAM_CHAT_ID ? Number(env.TELEGRAM_CHAT_ID) : null;
+  // Auto-send to app + lazy OCR backfill
+  const { emitProactive: emitDocProactive } = await import('../notifications/mobile-push.js');
   const sentUrls: string[] = [];
   for (const d of docs) {
     if (!d.storage_path && !d.file_url) continue;
@@ -1244,10 +1234,9 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
         }
       }
 
-      if (chatId) {
-        await sendTelegramPhotoBuffer2(chatId, buf, caption);
-        sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
-      }
+      const docUrl = d.file_url ?? `${SUPA_URL}/storage/v1/object/public/client-documents/${d.storage_path}`;
+      emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n🔗 ${docUrl}`);
+      sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
     } catch (err) {
       console.error('[get_client_document] download/send failed:', err instanceof Error ? err.message : err);
     }
@@ -1260,8 +1249,8 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}${mediaLine}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
   });
 
-  const telegramStatus = sentUrls.length > 0 ? `\n✅ Photo envoyée sur Telegram (${sentUrls.length} doc)` : '';
-  return results.join('\n\n') + telegramStatus;
+  const appStatus = sentUrls.length > 0 ? `\n✅ ${sentUrls.length} doc(s) envoyé(s) dans l'app` : '';
+  return results.join('\n\n') + appStatus;
 }
 
 async function webSearch(input: Record<string, unknown>): Promise<string> {
@@ -1602,58 +1591,21 @@ async function sendTelegramMessage(input: Record<string, unknown>): Promise<stri
   return '❌ Rien à envoyer (message, photo_url ou document_url requis)';
 }
 
-async function generateVoucherTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
   const bookingId = input['booking_id'] as string;
   if (!bookingId) return '❌ booking_id requis';
 
-  const { url, clientName, buffer } = await generateReservationVoucher(bookingId);
-  const filename = `BON_${clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-  const caption  = `📄 Bon de réservation — ${clientName}`;
+  const { url, clientName } = await generateReservationVoucher(bookingId);
 
-  const sendPDF = async (chatId: number): Promise<void> => {
-    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN ?? ''}`;
-    const form = new FormData();
-    form.append('chat_id', String(chatId));
-    form.append('document', buffer, {
-      filename,
-      contentType: 'application/pdf',
-      knownLength: buffer.length,
-    });
-    if (caption) form.append('caption', caption);
+  // Notifier via app (Socket.IO + Expo Push) — plus Telegram
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+  emitProactive(
+    `Bon de réservation — ${clientName}`,
+    'info',
+    `📄 Bon de réservation — ${clientName}\n🔗 Télécharger : ${url}`,
+  );
 
-    const resp = await axios.post<{ ok: boolean; description?: string }>(
-      `${botBase}/sendDocument`,
-      form,
-      { headers: form.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity },
-    );
-
-    if (!resp.data.ok) {
-      throw new Error(`Telegram: ${resp.data.description ?? JSON.stringify(resp.data)}`);
-    }
-    console.log('[voucher] PDF sent to chatId:', chatId);
-  };
-
-  if (sessionId?.startsWith('telegram_')) {
-    const chatId = Number(sessionId.replace('telegram_', ''));
-    if (!isNaN(chatId)) {
-      try {
-        await sendPDF(chatId);
-        return `✅ Bon de réservation de ${clientName} généré et envoyé en PDF ! 📄`;
-      } catch (e: unknown) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        console.error('[voucher] sendPDF error:', errMsg);
-        return `⚠️ Bon généré, PDF non envoyé: ${errMsg}\n${url}`;
-      }
-    }
-  }
-
-  // App vocale → envoyer au chat Telegram configuré
-  if (env.TELEGRAM_CHAT_ID) {
-    await sendPDF(Number(env.TELEGRAM_CHAT_ID)).catch(
-      (e: unknown) => console.error('[voucher] voice send failed:', e instanceof Error ? e.message : String(e)),
-    );
-  }
-  return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n${url}`;
+  return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n🔗 ${url}`;
 }
 
 // ── Phase 8 handlers ─────────────────────────────────────────────────────────
@@ -3734,14 +3686,13 @@ async function generateVehicleVideo(opts: {
   throw new Error('Aucun provider vidéo configuré — ajoute FAL_KEY dans Railway → Variables');
 }
 
-async function generateImageTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+async function generateImageTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
   const token = env.REPLICATE_API_TOKEN;
   if (!token) return '❌ REPLICATE_API_TOKEN non configuré dans Railway. Ajoute-le dans Railway → Variables.';
 
   const prompt      = input['prompt'] as string;
   const aspectRatio = (input['aspect_ratio'] as string) ?? '9:16';
   const style       = (input['style'] as string) ?? 'photorealistic';
-  const chatId      = chatIdFromSession(sessionId);
 
   const styleModifier: Record<string, string> = {
     photorealistic: 'ultra-realistic, photographic, DSLR quality, 4K',
@@ -3752,7 +3703,8 @@ async function generateImageTool(input: Record<string, unknown>, sessionId?: str
 
   const fullPrompt = `${prompt}, ${styleModifier[style] ?? styleModifier['photorealistic']}`;
 
-  await sendTelegramForMarketing(chatId, `🎨 *Génération image IA — Flux.1*\n_"${prompt.slice(0, 80)}"_\n⏳ 15-30 secondes...`);
+  const { emitProactive: emitImgProactive } = await import('../notifications/mobile-push.js');
+  emitImgProactive(`Génération image IA…`, 'info', `🎨 Flux.1 en cours pour "${prompt.slice(0, 80)}"…`);
 
   const imageUrl = await replicateGenerate(
     'black-forest-labs/flux-1.1-pro',
@@ -3767,18 +3719,8 @@ async function generateImageTool(input: Record<string, unknown>, sessionId?: str
     90_000,
   );
 
-  let delivered = false;
-  try {
-    await sendTelegramPhoto(chatId, imageUrl, `🎨 *Image générée — Flux.1 Pro*\n_${prompt.slice(0, 100)}_`);
-    delivered = true;
-  } catch (err: any) {
-    console.error('[generateImageTool] sendTelegramPhoto failed:', err.message);
-  }
-
-  if (delivered) {
-    return `✅ Image Flux.1 générée et envoyée sur Telegram ↑\nURL: ${imageUrl}`;
-  }
-  return `⚠️ Image générée mais envoi Telegram échoué.\nURL directe: ${imageUrl}`;
+  emitImgProactive(`Image générée`, 'info', `🎨 Image Flux.1 Pro prête\n🔗 ${imageUrl}`);
+  return `✅ Image Flux.1 générée et envoyée dans l'app\nURL: ${imageUrl}`;
 }
 
 async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -4698,21 +4640,17 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
   await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
   await supabase.storage.from('client-documents').upload(storagePath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
 
-  if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) {
-    const chatId  = Number(env.TELEGRAM_CHAT_ID);
-    const botBase = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}`;
-    const filename = `COMPTA_${safePeriod}.pdf`;
-    const FormData2 = (await import('form-data')).default;
-    const form2 = new FormData2();
-    form2.append('chat_id', String(chatId));
-    form2.append('document', pdfBuffer, { filename, contentType: 'application/pdf', knownLength: pdfBuffer.length });
-    form2.append('caption', `📊 *Rapport comptable ${monthLabel}*\n📋 ${bookings.length} réservations · 💶 CA: ${Math.round(totalCA)}€ · Bénéfice: ${Math.round(totalProfit)}€`);
-    await axios.post(`${botBase}/sendDocument`, form2, { headers: form2.getHeaders(), maxBodyLength: Infinity, maxContentLength: Infinity }).catch(e => {
-      console.error('[export_accounting] Telegram send failed:', e instanceof Error ? e.message : e);
-    });
-  }
+  // Notifier via app avec URL Supabase Storage
+  const { data: urlData } = supabase.storage.from('client-documents').getPublicUrl(storagePath);
+  const pdfUrl = urlData?.publicUrl ?? '';
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+  emitProactive(
+    `Rapport comptable ${monthLabel} prêt`,
+    'info',
+    `📊 Rapport comptable ${monthLabel}\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Bénéfice: ${Math.round(totalProfit)}€${pdfUrl ? `\n🔗 ${pdfUrl}` : ''}`,
+  );
 
-  return `✅ Rapport comptable *${monthLabel}* généré et envoyé sur Telegram\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Proprio: ${Math.round(totalOwner)}€ | Bénéfice net: ${Math.round(totalProfit)}€ | Encaissé: ${Math.round(totalPaid)}€ | Impayés: ${unpaid.length}`;
+  return `✅ Rapport comptable ${monthLabel} généré !\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Proprio: ${Math.round(totalOwner)}€ | Bénéfice net: ${Math.round(totalProfit)}€ | Encaissé: ${Math.round(totalPaid)}€ | Impayés: ${unpaid.length}${pdfUrl ? `\n🔗 ${pdfUrl}` : ''}`;
 }
 
 
