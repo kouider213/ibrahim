@@ -1259,6 +1259,30 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── GPS LIVRAISON ────────────────────────────────────────────────
+  {
+    name: 'calculate_delivery_fee',
+    description: 'Calculer les frais de livraison d\'un véhicule chez un client à Oran. Utiliser quand Kouider demande "livraison chez le client", "combien pour livrer à X", "frais livraison", "je livre la voiture à". Calcule distance dépôt → adresse client, frais livraison (200 DZD/km), temps trajet, liens navigation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_address: {
+          type: 'string',
+          description: 'Adresse ou quartier du client (ex: "Bir El Djir", "aéroport", "Es Sénia", "Ain Turk", adresse complète)',
+        },
+        car_name: {
+          type: 'string',
+          description: 'Nom de la voiture à livrer (optionnel, pour le résumé)',
+        },
+        rate_per_km: {
+          type: 'number',
+          description: 'Tarif livraison par km en DZD (défaut: 200 DZD/km)',
+        },
+      },
+      required: ['client_address'],
+    },
+  },
+
   // ─── INSPECTION VÉHICULE ──────────────────────────────────────────
   {
     name: 'save_vehicle_state_before',

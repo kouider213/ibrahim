@@ -63,6 +63,7 @@ const envSchema = z.object({
   // ── Jina AI — Recherche web (s.jina.ai) + fetch URL (r.jina.ai) ──
   JINA_API_KEY:        z.string().optional(),
   // ── Google Custom Search API — alternative web search ──
+  GOOGLE_MAPS_API_KEY:       z.string().optional(),
   GOOGLE_SEARCH_API_KEY:    z.string().optional(),
   GOOGLE_SEARCH_ENGINE_ID:  z.string().optional(),
   // ── Phase 2: Multi-LLM Router ────────────────────────────────────────────

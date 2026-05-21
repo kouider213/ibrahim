@@ -279,6 +279,7 @@ async function _dispatch(
       // ─── IMAGE-TO-IMAGE avec conservation visage ───
       case 'transform_image':            return await executeImageToImage(input, sessionId);
       case 'get_travel_time':            return await getTravelTimeTool(input);
+      case 'calculate_delivery_fee':     return await calculateDeliveryFeeTool(input);
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
       // ─── RÈGLES APPRISES (Phase 8) ───
@@ -4493,6 +4494,46 @@ async function getTravelTimeTool(input: Record<string, unknown>): Promise<string
     arrivalTime ? `🚀 Partir à: **${result.recommended_departure}**` : '',
     ``,
     `📍 Navigation:`,
+    `• Waze: ${result.waze_link}`,
+    `• Google Maps: ${result.maps_link}`,
+    result.error ? `\n⚠️ ${result.error}` : '',
+  ].filter(l => l !== undefined);
+
+  return lines.join('\n');
+}
+
+// ── Calculate Delivery Fee Tool ───────────────────────────────────────────────
+// Dépôt Fik Conciergerie — Es Sénia, Oran
+const DEPOT_LAT = 35.6459;
+const DEPOT_LNG = -0.6050;
+
+async function calculateDeliveryFeeTool(input: Record<string, unknown>): Promise<string> {
+  const { getTravelTime } = await import('./maps.js');
+  const clientAddress = String(input['client_address'] ?? '').trim();
+  const carName       = String(input['car_name'] ?? '').trim();
+  const ratePerKm     = Number(input['rate_per_km'] ?? 200);
+
+  if (!clientAddress) return '❌ client_address requis.';
+
+  const result = await getTravelTime(DEPOT_LAT, DEPOT_LNG, clientAddress);
+
+  if (result.error && result.distance_km === 0) {
+    return `❌ Adresse non reconnue: "${clientAddress}"\nEssaie: "aéroport", "Bir El Djir", "centre-ville", "Ain Turk", "Arzew", ou adresse complète.`;
+  }
+
+  const fee     = Math.round(result.distance_km * ratePerKm);
+  const feeNote = result.error ? ' (estimation — GPS API non configurée)' : '';
+  const carNote = carName ? ` — ${carName}` : '';
+
+  const lines = [
+    `🚗 **Livraison${carNote}**`,
+    `📍 Dépôt Es Sénia → ${result.destination_label}`,
+    ``,
+    `📏 Distance: **${result.distance_km} km**`,
+    `⏱ Trajet: **${result.travel_time_minutes} min**`,
+    `💰 Frais livraison: **${fee} DZD** (${ratePerKm} DZD/km${feeNote})`,
+    ``,
+    `🗺️ Navigation:`,
     `• Waze: ${result.waze_link}`,
     `• Google Maps: ${result.maps_link}`,
     result.error ? `\n⚠️ ${result.error}` : '',
