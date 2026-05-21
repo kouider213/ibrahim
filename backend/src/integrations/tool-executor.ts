@@ -605,30 +605,25 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
       }).catch(() => {});
     }).catch(() => {});
 
-    // Auto-generate voucher PDF → upload Cloudinary → notifier via app
+    // Auto-notify via app with formatted voucher text (direct, no file upload needed)
     setTimeout(() => {
-      generateReservationVoucher(booking.id).then(async ({ clientName, url: supaUrl, buffer }) => {
-        if (!clientName) return;
-        let downloadUrl = supaUrl;
-        try {
-          const { v2: cloudinary } = await import('cloudinary');
-          cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
-          downloadUrl = await new Promise<string>((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream(
-              { resource_type: 'raw', folder: 'dzaryx-vouchers', format: 'pdf' },
-              (err, result) => { if (err || !result) reject(err ?? new Error('upload')); else resolve(result.secure_url); },
-            );
-            stream.end(buffer);
-          });
-        } catch { /* keep supaUrl fallback */ }
-        import('../notifications/mobile-push.js').then(({ emitProactive }) => {
-          emitProactive(
-            `Bon de réservation — ${clientName}`,
-            'info',
-            `📄 Bon de réservation — ${clientName} (auto-généré)\n📹 ${downloadUrl}`,
-          );
-          console.log('[create_booking] Auto-voucher notifié via app:', downloadUrl.slice(0, 60));
-        }).catch(() => {});
+      const refNo = `BK-${new Date().getFullYear()}-${String(booking.id).slice(-6).toUpperCase()}`;
+      const s = new Date(input['start_date'] as string).toLocaleDateString('fr-FR');
+      const e = new Date(input['end_date']   as string).toLocaleDateString('fr-FR');
+      const chatText = [
+        `📄 BON DE RÉSERVATION`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `👤 ${input['client_name'] as string}`,
+        `🚗 ${carName}`,
+        `📅 Du ${s} au ${e} (${nb_days}j)`,
+        `💶 Total: ${input['final_price'] as string}€`,
+        `🔢 Réf: ${refNo}`,
+        `━━━━━━━━━━━━━━━━━━━━`,
+        `📍 FIK Conciergerie Oran`,
+      ].join('\n');
+      import('../notifications/mobile-push.js').then(({ emitProactive }) => {
+        emitProactive(`Bon de réservation — ${input['client_name'] as string}`, 'info', chatText);
+        console.log('[create_booking] Auto-voucher envoyé dans app');
       }).catch(() => {});
     }, 2000);
   } catch { calendarNote = ' | ⚠️ Google Agenda non synchro'; }
@@ -1719,30 +1714,40 @@ async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: 
   const bookingId = input['booking_id'] as string;
   if (!bookingId) return '❌ booking_id requis';
 
-  const { url: supaUrl, clientName, buffer } = await generateReservationVoucher(bookingId);
+  const { data: bk } = await supabase.from('bookings').select('*, cars(name)').eq('id', bookingId).single();
+  if (!bk) return '❌ Réservation introuvable';
 
-  // Upload buffer to Cloudinary for a public URL (Supabase bucket is private)
-  let downloadUrl = supaUrl;
-  try {
-    const { v2: cloudinary } = await import('cloudinary');
-    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
-    downloadUrl = await new Promise<string>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'raw', folder: 'dzaryx-vouchers', format: 'pdf' },
-        (err, result) => { if (err || !result) reject(err ?? new Error('upload')); else resolve(result.secure_url); },
-      );
-      stream.end(buffer);
-    });
-  } catch { /* keep supaUrl fallback */ }
+  const clientName = String((bk as Record<string, unknown>)['client_name'] ?? '');
+  const carName2   = ((bk as Record<string, unknown>)['cars'] as Record<string, unknown> | null)?.['name'] as string ?? '—';
+  const start      = String((bk as Record<string, unknown>)['start_date'] ?? '');
+  const end        = String((bk as Record<string, unknown>)['end_date']   ?? '');
+  const total      = Number((bk as Record<string, unknown>)['final_price']  ?? 0);
+  const paid       = Number((bk as Record<string, unknown>)['paid_amount']  ?? 0);
+  const days2      = Math.max(1, Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / 86_400_000));
+  const startFmt   = new Date(start).toLocaleDateString('fr-FR');
+  const endFmt     = new Date(end).toLocaleDateString('fr-FR');
+  const refNo      = `BK-${new Date().getFullYear()}-${bookingId.slice(-6).toUpperCase()}`;
+  const paiement   = paid > 0 ? `${total}€ | Acompte: ${paid}€ | Reste: ${total - paid}€` : `${total}€ à régler à la restitution`;
+
+  const chatText = [
+    `📄 BON DE RÉSERVATION — FIK CONCIERGERIE`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `👤 Client:   ${clientName}`,
+    `🚗 Véhicule: ${carName2}`,
+    `📅 Période:  ${startFmt} → ${endFmt} (${days2}j)`,
+    `💶 Paiement: ${paiement}`,
+    `🔢 Réf:      ${refNo}`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📍 FIK Conciergerie Oran — AutoLux Location`,
+  ].join('\n');
 
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  emitProactive(
-    `Bon de réservation — ${clientName}`,
-    'info',
-    `📄 Bon de réservation — ${clientName}\n📹 ${downloadUrl}`,
-  );
+  emitProactive(`Bon de réservation — ${clientName}`, 'info', chatText);
 
-  return `✅ Bon de réservation PDF généré pour ${clientName} ! 📄\n🔗 ${downloadUrl}`;
+  // Generate PDF in background (for download on demand)
+  generateReservationVoucher(bookingId).catch(() => {});
+
+  return `✅ Bon de réservation envoyé dans l'app pour ${clientName} !\n\n${chatText}`;
 }
 
 // ── Phase 8 handlers ─────────────────────────────────────────────────────────
@@ -1776,29 +1781,41 @@ async function generateContractTool(input: Record<string, unknown>, _sessionId?:
   const bookingId = input['booking_id'] as string | undefined;
   if (!bookingId) return '❌ booking_id requis';
 
-  const { url: supaUrl, clientName, contractNumber, buffer } = await generateRentalContract(bookingId);
+  const { data: bk } = await supabase.from('bookings').select('*, cars(name)').eq('id', bookingId).single();
+  if (!bk) return '❌ Réservation introuvable';
 
-  let downloadUrl = supaUrl;
-  try {
-    const { v2: cloudinary } = await import('cloudinary');
-    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
-    downloadUrl = await new Promise<string>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'raw', folder: 'dzaryx-contracts', format: 'pdf' },
-        (err, result) => { if (err || !result) reject(err ?? new Error('upload')); else resolve(result.secure_url); },
-      );
-      stream.end(buffer);
-    });
-  } catch { /* keep supaUrl fallback */ }
+  const clientName   = String((bk as Record<string, unknown>)['client_name'] ?? '');
+  const carName3     = ((bk as Record<string, unknown>)['cars'] as Record<string, unknown> | null)?.['name'] as string ?? '—';
+  const start        = String((bk as Record<string, unknown>)['start_date'] ?? '');
+  const end          = String((bk as Record<string, unknown>)['end_date']   ?? '');
+  const total        = Number((bk as Record<string, unknown>)['final_price']  ?? 0);
+  const paid         = Number((bk as Record<string, unknown>)['paid_amount']  ?? 0);
+  const days3        = Math.max(1, Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / 86_400_000));
+  const startFmt     = new Date(start).toLocaleDateString('fr-FR');
+  const endFmt       = new Date(end).toLocaleDateString('fr-FR');
+  const contractNumber = `CTR-${new Date().getFullYear()}-${bookingId.slice(-6).toUpperCase()}`;
+  const reste        = total - paid;
+
+  const chatText = [
+    `📝 CONTRAT DE LOCATION — FIK CONCIERGERIE`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `👤 Locataire:  ${clientName}`,
+    `🚗 Véhicule:   ${carName3}`,
+    `📅 Période:    ${startFmt} → ${endFmt} (${days3}j)`,
+    `💶 Total:      ${total}€${paid > 0 ? ` | Acompte: ${paid}€ | Reste: ${reste}€` : ''}`,
+    `🔢 Contrat:    ${contractNumber}`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📋 Conditions: passeport conservé pendant location`,
+    `📍 FIK Conciergerie Oran — AutoLux Location`,
+  ].join('\n');
 
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  emitProactive(
-    `Contrat ${contractNumber} généré pour ${clientName}`,
-    'info',
-    `📝 Contrat ${contractNumber} — ${clientName}\n📹 ${downloadUrl}`,
-  );
+  emitProactive(`Contrat ${contractNumber} — ${clientName}`, 'info', chatText);
 
-  return `✅ Contrat ${contractNumber} généré pour ${clientName} ! 📝\n🔗 ${downloadUrl}`;
+  // Generate PDF in background (for download on demand)
+  generateRentalContract(bookingId).catch(() => {});
+
+  return `✅ Contrat ${contractNumber} envoyé dans l'app pour ${clientName} !\n\n${chatText}`;
 }
 
 async function exportExcelTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
