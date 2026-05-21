@@ -89,7 +89,7 @@ async function tgPhoto(_chatId: string | number | null, imageUrl: string, captio
   try {
     const { emitProactive } = await import('../notifications/mobile-push.js');
     const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
-    emitProactive(title, 'info', `${caption.replace(/[*_]/g, '')}\n🔗 ${imageUrl}`);
+    emitProactive(title, 'info', `${caption.replace(/[*_]/g, '')}\n📹 ${imageUrl}`);
   } catch {}
 }
 
@@ -113,7 +113,7 @@ async function tgVideo(_chatId: string | number | null, buf: Buffer, caption: st
       stream.end(buf);
     });
     const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
-    emitProactive(title || 'Vidéo marketing prête', 'info', `${caption.replace(/[*_]/g, '')}\n🔗 ${videoUrl}`);
+    emitProactive(title || 'Vidéo marketing prête', 'info', `${caption.replace(/[*_]/g, '')}\n📹 ${videoUrl}`);
     return true;
   } catch (err) {
     console.error('[tgVideo] cloudinary upload failed:', err instanceof Error ? err.message : err);
@@ -141,7 +141,7 @@ async function tgPhotoBuffer(_chatId: string | number | null, buf: Buffer, capti
       stream.end(buf);
     });
     const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
-    emitProactive(title || 'Photo marketing', 'info', `${caption.replace(/[*_]/g, '')}\n🔗 ${imageUrl}`);
+    emitProactive(title || 'Photo marketing', 'info', `${caption.replace(/[*_]/g, '')}\n📹 ${imageUrl}`);
     return true;
   } catch (err) {
     console.error('[tgPhotoBuffer] cloudinary upload failed:', err instanceof Error ? err.message : err);
@@ -1325,8 +1325,21 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
         }
       }
 
-      const docUrl = d.file_url ?? `${SUPA_URL}/storage/v1/object/public/client-documents/${d.storage_path}`;
-      emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n🔗 ${docUrl}`);
+      // Resolve a publicly-accessible URL (file_url = public CDN; storage_path = private bucket → signed URL)
+      let docUrl = d.file_url ?? '';
+      if (!docUrl && d.storage_path) {
+        try {
+          const signResp = await axiosModule.post(
+            `${SUPA_URL}/storage/v1/object/sign/client-documents/${d.storage_path}`,
+            { expiresIn: 86400 },
+            { headers: { Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' } },
+          );
+          docUrl = `${SUPA_URL}${(signResp.data as { signedURL: string }).signedURL}`;
+        } catch {
+          docUrl = `${SUPA_URL}/storage/v1/object/public/client-documents/${d.storage_path}`;
+        }
+      }
+      if (docUrl) emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n📹 ${docUrl}`);
       sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
     } catch (err) {
       console.error('[get_client_document] download/send failed:', err instanceof Error ? err.message : err);
@@ -3810,7 +3823,7 @@ async function generateImageTool(input: Record<string, unknown>, _sessionId?: st
     90_000,
   );
 
-  emitImgProactive(`Image générée`, 'info', `🎨 Image Flux.1 Pro prête\n🔗 ${imageUrl}`);
+  emitImgProactive(`Image générée`, 'info', `🎨 Image Flux.1 Pro prête\n📹 ${imageUrl}`);
   return `✅ Image Flux.1 générée et envoyée dans l'app\nURL: ${imageUrl}`;
 }
 
