@@ -1325,9 +1325,9 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
         }
       }
 
-      // Resolve a publicly-accessible URL (file_url = public CDN; storage_path = private bucket → signed URL)
-      let docUrl = d.file_url ?? '';
-      if (!docUrl && d.storage_path) {
+      // Prefer signed URL (works for private bucket); fallback to file_url if no storage_path
+      let docUrl = '';
+      if (d.storage_path) {
         try {
           const signResp = await axiosModule.post(
             `${SUPA_URL}/storage/v1/object/sign/client-documents/${d.storage_path}`,
@@ -1336,8 +1336,10 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
           );
           docUrl = `${SUPA_URL}${(signResp.data as { signedURL: string }).signedURL}`;
         } catch {
-          docUrl = `${SUPA_URL}/storage/v1/object/public/client-documents/${d.storage_path}`;
+          docUrl = d.file_url ?? '';
         }
+      } else {
+        docUrl = d.file_url ?? '';
       }
       if (docUrl) emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n📹 ${docUrl}`);
       sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
