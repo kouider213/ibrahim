@@ -1325,20 +1325,26 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
         }
       }
 
-      // Prefer signed URL (works for private bucket); fallback to file_url if no storage_path
+      // Upload buffer to Cloudinary for a reliable public URL (Supabase bucket is private)
       let docUrl = '';
-      if (d.storage_path) {
-        try {
-          const signResp = await axiosModule.post(
-            `${SUPA_URL}/storage/v1/object/sign/client-documents/${d.storage_path}`,
-            { expiresIn: 86400 },
-            { headers: { Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' } },
+      try {
+        const { v2: cloudinary } = await import('cloudinary');
+        cloudinary.config({
+          cloud_name: env.CLOUDINARY_CLOUD_NAME,
+          api_key: env.CLOUDINARY_API_KEY,
+          api_secret: env.CLOUDINARY_API_SECRET,
+        });
+        docUrl = await new Promise<string>((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type: 'auto', folder: 'dzaryx-documents' },
+            (err, result) => {
+              if (err || !result) reject(err ?? new Error('upload failed'));
+              else resolve(result.secure_url);
+            },
           );
-          docUrl = `${SUPA_URL}${(signResp.data as { signedURL: string }).signedURL}`;
-        } catch {
-          docUrl = d.file_url ?? '';
-        }
-      } else {
+          stream.end(buf);
+        });
+      } catch {
         docUrl = d.file_url ?? '';
       }
       if (docUrl) emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n📹 ${docUrl}`);
