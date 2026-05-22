@@ -284,7 +284,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 
   if (cars.length === 0) {
     await tg('📱 *Marketing TikTok*: aucune voiture disponible cette semaine.');
-    emitProactive('Aucune voiture disponible pour TikTok cette semaine.', 'info', '📱 Marketing TikTok : aucune voiture disponible cette semaine.');
+    emitProactive('Aucune voiture disponible pour TikTok cette semaine.', 'info', '📱 Marketing TikTok : aucune voiture disponible cette semaine.', 'kouider');
     return;
   }
 
@@ -297,7 +297,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
 
   if (!report || report.top_ideas.length === 0) {
     await tg('⚠️ Recherche TikTok échouée — réessaie plus tard.');
-    emitProactive('Recherche TikTok IA échouée — réessaie plus tard.', 'alert', '⚠️ Recherche marketing TikTok échouée. Réessaie plus tard.');
+    emitProactive('Recherche TikTok IA échouée — réessaie plus tard.', 'alert', '⚠️ Recherche marketing TikTok échouée. Réessaie plus tard.', 'kouider');
     return;
   }
 
@@ -338,7 +338,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   ].filter(Boolean).join('\n');
 
   await tg(researchMsg);
-  emitProactive('Rapport marketing TikTok prêt — idée générée.', 'info', stripTgMd(researchMsg));
+  emitProactive('Rapport marketing TikTok prêt — idée générée.', 'info', stripTgMd(researchMsg), 'kouider');
 
   // 4. Pick best idea and find matching car
   const bestIdea = report.top_ideas[0];
@@ -350,7 +350,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   if (!targetCar.image_url) {
     await tg(`✅ Rapport envoyé ! Pas d'image pour créer la vidéo automatiquement.\n\n*Script voix-off:*\n_${bestIdea.voiceover_script}_`);
     emitProactive(`Idée TikTok — ${bestIdea.title} — ${targetCar.name}. Pas d'image disponible.`, 'info',
-      `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}`);
+      `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}`, 'kouider');
     return;
   }
 
@@ -372,7 +372,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
       `#️⃣ ${bestIdea.hashtags.slice(0, 5).join(' ')}`,
     ].join('\n'));
     emitProactive(`Idée TikTok — ${bestIdea.title} — ${targetCar.name}. Script prêt.`, 'info',
-      `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}\n\n📱 Légende: ${bestIdea.caption}`);
+      `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}\n\n📱 Légende: ${bestIdea.caption}`, 'kouider');
     return;
   }
 
@@ -392,7 +392,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   await notifyOwner('📱 Vidéo TikTok prête', `${bestIdea.title} — réponds Oke pour publier`, false);
   const tiktokMediaLine = targetCar.image_url ? `\n📹 ${targetCar.image_url}` : '';
   emitProactive(`Vidéo TikTok — ${bestIdea.title} — ${targetCar.name}. Réponds Oke pour publier.`, 'info',
-    `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok${tiktokMediaLine}`);
+    `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok${tiktokMediaLine}`, 'kouider');
   console.log('[job:tiktok] Weekly marketing job complete');
 }
 
@@ -404,7 +404,7 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
 
   if (cars.length === 0) {
     await tg(`📱 *${label}*: aucune voiture avec photo disponible.`);
-    emitProactive(`${label} : aucune voiture avec photo disponible.`, 'info', `📱 ${label} : aucune voiture avec photo disponible.`);
+    emitProactive(`${label} : aucune voiture avec photo disponible.`, 'info', `📱 ${label} : aucune voiture avec photo disponible.`, 'kouider');
     return;
   }
 
@@ -422,7 +422,7 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
   } catch (err) {
     console.error(`[job:${style}] video failed:`, err);
     await tg(`⚠️ *${label}*: création vidéo échouée. Réessaie manuellement.`);
-    emitProactive(`${label} : création vidéo échouée pour ${car.name}.`, 'alert', `⚠️ ${label} : création vidéo échouée pour ${car.name}. Réessaie manuellement.`);
+    emitProactive(`${label} : création vidéo échouée pour ${car.name}.`, 'alert', `⚠️ ${label} : création vidéo échouée pour ${car.name}. Réessaie manuellement.`, 'kouider');
     return;
   }
 
@@ -436,7 +436,7 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
   ].join('\n'));
   const mediaLine = result.public_url ? `\n📹 ${result.public_url}` : '';
   emitProactive(`${label} — ${result.car_name}. Réponds Oke pour publier.`, 'info',
-    `🎬 ${label} — ${result.car_name}\n📝 ${result.script.slice(0, 200)}\n🏷️ ${result.hashtags.slice(0, 4).join(' ')}\n\n✅ Réponds Oke pour publier${mediaLine}`);
+    `🎬 ${label} — ${result.car_name}\n📝 ${result.script.slice(0, 200)}\n🏷️ ${result.hashtags.slice(0, 4).join(' ')}\n\n✅ Réponds Oke pour publier${mediaLine}`, 'kouider');
 }
 
 export async function jobWednesdayContent(_job: Job): Promise<void> {
@@ -855,7 +855,7 @@ export async function jobPatternDetection(_job: Job): Promise<void> {
   }
 
   await tg(lines.join('\n'));
-  emitProactive('Patterns détectés sur les 3 derniers mois.', 'info', stripTgMd(lines.join('\n')));
+  emitProactive('Patterns détectés sur les 3 derniers mois.', 'info', stripTgMd(lines.join('\n')), 'kouider');
   console.log('[job:pattern-detection] sent');
 }
 
@@ -1049,7 +1049,7 @@ Rapport pour Telegram (markdown, 12 lignes max):
     ].join('\n');
 
     await tg(msg);
-    emitProactive(`Veille concurrence — ${new Date().toLocaleDateString('fr-FR')}.`, 'info', stripTgMd(msg));
+    emitProactive(`Veille concurrence — ${new Date().toLocaleDateString('fr-FR')}.`, 'info', stripTgMd(msg), 'kouider');
     console.log('[job:competitor-watch] ✅ Rapport envoyé');
   } catch (err) {
     console.error('[job:competitor-watch] ❌', err instanceof Error ? err.message : String(err));
@@ -1066,7 +1066,7 @@ export async function jobBIDaily(_job: Job): Promise<void> {
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:bi-daily] SKIP — already sent today');
-    emitProactive('Rapport BI quotidien déjà envoyé aujourd\'hui.', 'info', '✅ Rapport BI quotidien déjà envoyé aujourd\'hui.');
+    emitProactive('Rapport BI quotidien déjà envoyé aujourd\'hui.', 'info', '✅ Rapport BI quotidien déjà envoyé aujourd\'hui.', 'kouider');
     return;
   }
 
@@ -1086,7 +1086,7 @@ export async function jobBIReminders(_job: Job): Promise<void> {
     const highPri   = reminders.filter(r => r.priority === 'HIGH');
     if (!highPri.length) {
       console.log('[job:bi-reminders] ℹ️ Aucune alerte haute priorité');
-      emitProactive('Aucune alerte haute priorité.', 'info', '✅ Aucune alerte haute priorité — tout est en ordre.');
+      emitProactive('Aucune alerte haute priorité.', 'info', '✅ Aucune alerte haute priorité — tout est en ordre.', 'kouider');
       return;
     }
 
@@ -1098,6 +1098,7 @@ export async function jobBIReminders(_job: Job): Promise<void> {
         `${mostUrgent.message} — ${mostUrgent.action}`,
         'alert',
         `⚡ ${highPri.length} alerte(s) haute priorité\n\n${allAlerts}`,
+        'kouider',
       );
     }
 
@@ -1143,7 +1144,7 @@ Si rien de nouveau ou utile: dis-le clairement en une phrase.`,
 
     const msg = `🤖 *Veille Anthropic hebdomadaire*\n\n${analysis.text}\n\n_Réponds "go" + numéro pour que j'implémente._`;
     await tg(msg);
-    emitProactive('Veille Anthropic hebdo — nouvelles fonctionnalités Claude.', 'info', stripTgMd(msg));
+    emitProactive('Veille Anthropic hebdo — nouvelles fonctionnalités Claude.', 'info', stripTgMd(msg), 'kouider');
     console.log('[job:anthropic-watch] ✅ Rapport envoyé');
   } catch (err) {
     console.error('[job:anthropic-watch] ❌', err instanceof Error ? err.message : String(err));
@@ -1156,14 +1157,14 @@ export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
   const lockKey = `job:claude-cost:sent:${today}`;
   const lock = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
   if (!lock) {
-    emitProactive('Rapport coûts Claude API déjà envoyé aujourd\'hui.', 'info', '✅ Rapport coûts Claude API déjà envoyé aujourd\'hui.');
+    emitProactive('Rapport coûts Claude API déjà envoyé aujourd\'hui.', 'info', '✅ Rapport coûts Claude API déjà envoyé aujourd\'hui.', 'kouider');
     return;
   }
 
   try {
     const report = await getDailyCostReport();
     if (report.totalUSD < 0.10) {
-      emitProactive(`Coûts Claude API faibles aujourd'hui — $${report.totalUSD.toFixed(3)}.`, 'info', `✅ Coûts Claude API aujourd'hui : $${report.totalUSD.toFixed(3)} (en dessous du seuil de $0.10).`);
+      emitProactive(`Coûts Claude API faibles aujourd'hui — $${report.totalUSD.toFixed(3)}.`, 'info', `✅ Coûts Claude API aujourd'hui : $${report.totalUSD.toFixed(3)} (en dessous du seuil de $0.10).`, 'kouider');
       return;
     }
 
@@ -1178,7 +1179,7 @@ export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
 
     if (report.alertTriggered) {
       lines.push(`\n⚠️ *Alerte seuil $5 dépassé* — vérifier l'usage`);
-      emitProactive(`Alerte coût Claude API: $${report.totalUSD.toFixed(2)} aujourd'hui. Seuil $5 dépassé.`, 'alert', stripTgMd(lines.join('\n')));
+      emitProactive(`Alerte coût Claude API: $${report.totalUSD.toFixed(2)} aujourd'hui. Seuil $5 dépassé.`, 'alert', stripTgMd(lines.join('\n')), 'kouider');
     }
 
     await tg(lines.join('\n'));
@@ -1194,7 +1195,7 @@ export async function jobClientRelance(_job: Job): Promise<void> {
   const lockKey = `job:client-relance:sent:${today}`;
   const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
   if (!acquired) {
-    emitProactive('Relance clients déjà vérifiée aujourd\'hui.', 'info', '✅ Relance clients déjà vérifiée aujourd\'hui.');
+    emitProactive('Relance clients déjà vérifiée aujourd\'hui.', 'info', '✅ Relance clients déjà vérifiée aujourd\'hui.', 'kouider');
     return;
   }
 
@@ -1213,7 +1214,7 @@ export async function jobClientRelance(_job: Job): Promise<void> {
 
     if (error || !bookings?.length) {
       console.log('[job:client-relance] Aucun client à relancer');
-      emitProactive('Aucun client à relancer pour le moment.', 'info', '✅ Aucun client inactif depuis 30-60 jours.');
+      emitProactive('Aucun client à relancer pour le moment.', 'info', '✅ Aucun client inactif depuis 30-60 jours.', 'kouider');
       return;
     }
 
@@ -1246,7 +1247,7 @@ export async function jobClientRelance(_job: Job): Promise<void> {
     ];
 
     await tg(lines.join('\n'));
-    emitProactive(`${toRelance.length} client(s) n'ont pas loué depuis 30+ jours. Pense à les relancer !`, 'alert', stripTgMd(lines.join('\n')));
+    emitProactive(`${toRelance.length} client(s) n'ont pas loué depuis 30+ jours. Pense à les relancer !`, 'alert', stripTgMd(lines.join('\n')), 'kouider');
     console.log(`[job:client-relance] ✅ ${toRelance.length} client(s) signalés`);
   } catch (err) {
     console.error('[job:client-relance] ❌', err instanceof Error ? err.message : String(err));
@@ -1260,7 +1261,7 @@ export async function jobVehicleUtilization(_job: Job): Promise<void> {
     const lockKey = `job:vehicle-utilization:sent:${today}`;
     const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) {
-      emitProactive('Rapport utilisation parc déjà envoyé aujourd\'hui.', 'info', '✅ Rapport utilisation parc déjà envoyé aujourd\'hui.');
+      emitProactive('Rapport utilisation parc déjà envoyé aujourd\'hui.', 'info', '✅ Rapport utilisation parc déjà envoyé aujourd\'hui.', 'kouider');
       return;
     }
 
@@ -1323,7 +1324,7 @@ export async function jobVehicleUtilization(_job: Job): Promise<void> {
     }
 
     await tg(lines.join('\n'));
-    emitProactive(`Rapport utilisation parc : ${sorted.length} véhicules analysés sur 30 jours.`, 'info', stripTgMd(lines.join('\n')));
+    emitProactive(`Rapport utilisation parc : ${sorted.length} véhicules analysés sur 30 jours.`, 'info', stripTgMd(lines.join('\n')), 'kouider');
     console.log('[job:vehicle-utilization] ✅ rapport envoyé');
   } catch (err) {
     console.error('[job:vehicle-utilization] ❌', err instanceof Error ? err.message : String(err));
@@ -1338,7 +1339,7 @@ export async function jobHabitCheck(_job: Job): Promise<void> {
     const lockKey = `job:habit-check:sent:${today}`;
     const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) {
-      emitProactive('Rappel habitudes déjà envoyé aujourd\'hui.', 'info', '✅ Rappel habitudes déjà envoyé aujourd\'hui.');
+      emitProactive('Rappel habitudes déjà envoyé aujourd\'hui.', 'info', '✅ Rappel habitudes déjà envoyé aujourd\'hui.', 'kouider');
       return;
     }
 
@@ -1383,7 +1384,7 @@ export async function jobHabitCheck(_job: Job): Promise<void> {
     ];
 
     await tg(lines.join('\n'));
-    emitProactive(`${due.length} habitude(s) à faire aujourd'hui : ${due.map(h => h.name).join(', ')}`, 'reminder', stripTgMd(lines.join('\n')));
+    emitProactive(`${due.length} habitude(s) à faire aujourd'hui : ${due.map(h => h.name).join(', ')}`, 'reminder', stripTgMd(lines.join('\n')), 'kouider');
     console.log(`[job:habit-check] ✅ ${due.length} habitude(s) rappelées`);
   } catch (err) {
     console.error('[job:habit-check] ❌', err instanceof Error ? err.message : String(err));

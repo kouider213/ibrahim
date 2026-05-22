@@ -90,7 +90,7 @@ export const api = {
     apiFetch<FinanceDash>('/api/finance/dashboard'),
 
   getRecentProactives: () =>
-    apiFetch<{ messages: Array<{ text: string; type: string; timestamp: string }> }>('/api/notifications/proactive/recent'),
+    apiFetch<{ messages: Array<{ text: string; type: string; timestamp: string }> }>(`/api/notifications/proactive/recent?actor=${_actor}`),
 
   sendFeedback: async (feedback: FeedbackPayload) => {
     // Send to local dev watcher (for real-time Claude fix loop)
@@ -201,7 +201,9 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onResponse(d.text, d.fallback ?? false);
   });
   // Proactive: dispatch via queue AND call screen callback (VoiceScreen HUD)
-  _socket.off('Dzaryx:proactive').on('Dzaryx:proactive', (d: { text: string }) => {
+  // Filter by targetActor — 'all' goes to everyone, actor-specific only to that actor
+  _socket.off('Dzaryx:proactive').on('Dzaryx:proactive', (d: { text: string; targetActor?: string }) => {
+    if (d.targetActor && d.targetActor !== 'all' && d.targetActor !== _actor) return;
     _dispatchProactive(d.text);
     cbs.onProactive(d.text);
   });

@@ -36,9 +36,10 @@ router.post('/:id/read', requireMobileAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// GET /api/notifications/proactive/recent — last 30 proactives (24h TTL)
-router.get('/proactive/recent', requireMobileAuth, async (_req, res) => {
-  const messages = await getRecentProactives();
+// GET /api/notifications/proactive/recent?actor=kouider|houari — last 30 proactives (24h TTL)
+router.get('/proactive/recent', requireMobileAuth, async (req, res) => {
+  const actor = typeof req.query['actor'] === 'string' ? req.query['actor'] : undefined;
+  const messages = await getRecentProactives(actor);
   res.json({ messages });
 });
 
