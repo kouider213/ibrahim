@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { business, type Booking } from '../../services/api.ts';
 
 const S: Record<string, string> = {
@@ -263,47 +263,127 @@ interface TravelResult {
   error?:               string;
 }
 
-function GpsCalculator() {
-  const [address,  setAddress]  = useState('');
-  const [result,   setResult]   = useState<TravelResult | null>(null);
-  const [loading,  setLoading]  = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
+interface Prediction { label: string; place_id: string; }
 
-  const calculate = async () => {
-    if (!address.trim()) return;
+function GpsCalculator() {
+  const [address,      setAddress]      = useState('');
+  const [result,       setResult]       = useState<TravelResult | null>(null);
+  const [loading,      setLoading]      = useState(false);
+  const [apiError,     setApiError]     = useState<string | null>(null);
+  const [predictions,  setPredictions]  = useState<Prediction[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [acLoading,    setAcLoading]    = useState(false);
+  const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapRef  = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleAddressChange = (val: string) => {
+    setAddress(val);
+    setResult(null);
+    setApiError(null);
+
+    if (acTimer.current) clearTimeout(acTimer.current);
+    if (val.trim().length < 2) { setPredictions([]); setShowDropdown(false); return; }
+
+    acTimer.current = setTimeout(async () => {
+      setAcLoading(true);
+      try {
+        const data = await business.getAutocomplete(val.trim());
+        if (data.ok && data.predictions.length > 0) {
+          setPredictions(data.predictions);
+          setShowDropdown(true);
+        } else {
+          setPredictions([]);
+          setShowDropdown(false);
+        }
+      } catch { /* silent */ } finally { setAcLoading(false); }
+    }, 350);
+  };
+
+  const selectPrediction = (p: Prediction) => {
+    setAddress(p.label);
+    setPredictions([]);
+    setShowDropdown(false);
+    void calculate(p.label);
+  };
+
+  const calculate = async (dest?: string) => {
+    const target = (dest ?? address).trim();
+    if (!target) return;
     setLoading(true); setResult(null); setApiError(null);
     try {
-      const data = await business.getTravelTime(address.trim());
+      const data = await business.getTravelTime(target, undefined, undefined, true);
       if (data.error && !data.distance_km) {
         setApiError(data.error);
       } else {
         setResult(data);
       }
-    } catch {
-      setApiError('Erreur réseau — vérifie la connexion au backend.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('401') || msg.includes('403')) setApiError('Non autorisé — token invalide');
+      else if (msg.includes('404')) setApiError('Endpoint introuvable — mets à jour le backend');
+      else if (msg.includes('500')) setApiError('Erreur serveur — vérifie Railway logs');
+      else setApiError('Connexion backend impossible — Railway hors ligne ?');
+    } finally { setLoading(false); }
   };
 
   const trafficColor = result?.traffic === 'heavy' ? '#ff3366' : result?.traffic === 'light' ? '#00e676' : '#ffb347';
 
   return (
     <div style={{ background: 'rgba(0,212,255,0.03)', borderRadius: 12, padding: 12, border: '1px solid #00d4ff12', marginBottom: 8 }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff77', letterSpacing: '0.25em', marginBottom: 6 }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff77', letterSpacing: '0.25em', marginBottom: 4 }}>
         🗺️ GPS LIVRAISON
       </div>
       <div style={{ fontSize: 7, color: '#ffffff22', marginBottom: 10 }}>
-        Utilise ta position GPS stockée · Résultat réel Maps API
+        Depuis Es Sénia (dépôt) · Distance &amp; trajet réels Google Maps
       </div>
-      <input
-        value={address}
-        onChange={e => setAddress(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && calculate()}
-        placeholder="Destination (ex: aéroport, Bir El Djir, Bruxelles…)"
-        style={inputStyle}
-      />
-      <button onClick={calculate} disabled={loading} style={{ ...createBtn, marginTop: 8, width: '100%', opacity: loading ? 0.6 : 1 }}>
+
+      {/* Input + autocomplete dropdown */}
+      <div ref={wrapRef} style={{ position: 'relative' }}>
+        <input
+          value={address}
+          onChange={e => handleAddressChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { setShowDropdown(false); void calculate(); } if (e.key === 'Escape') setShowDropdown(false); }}
+          onFocus={() => predictions.length > 0 && setShowDropdown(true)}
+          placeholder="Destination (ex: aéroport, Bir El Djir, Bruxelles…)"
+          style={{ ...inputStyle, paddingRight: acLoading ? 28 : undefined }}
+        />
+        {acLoading && (
+          <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: '#00d4ff44' }}>⏳</div>
+        )}
+        {showDropdown && predictions.length > 0 && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
+            background: '#020f1e', border: '1px solid #00d4ff33', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.6)', overflow: 'hidden', marginTop: 2,
+          }}>
+            {predictions.map((p, i) => (
+              <div key={p.place_id} onMouseDown={() => selectPrediction(p)} style={{
+                padding: '8px 12px', fontSize: 9, color: '#c8e8ff', cursor: 'pointer',
+                borderBottom: i < predictions.length - 1 ? '1px solid #00d4ff10' : 'none',
+                background: 'transparent', transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,212,255,0.08)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span style={{ color: '#00d4ff66', marginRight: 6 }}>📍</span>{p.label}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button onClick={() => { setShowDropdown(false); void calculate(); }} disabled={loading} style={{ ...createBtn, marginTop: 8, width: '100%', opacity: loading ? 0.6 : 1 }}>
         {loading ? '⏳ CALCUL EN COURS…' : '📍 CALCULER TRAJET RÉEL'}
       </button>
 

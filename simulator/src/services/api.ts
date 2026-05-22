@@ -499,8 +499,9 @@ export const business = {
   getMyLocation: () =>
     apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } | null }>('/api/location'),
 
-  getTravelTime: (destination: string, originLat?: number, originLng?: number) => {
+  getTravelTime: (destination: string, originLat?: number, originLng?: number, fromDepot?: boolean) => {
     const params = new URLSearchParams({ destination });
+    if (fromDepot) params.set('from_depot', 'true');
     if (originLat !== undefined) params.set('origin_lat', String(originLat));
     if (originLng !== undefined) params.set('origin_lng', String(originLng));
     return apiFetch<{
@@ -515,4 +516,9 @@ export const business = {
       error?: string;
     }>(`/api/maps/travel-time?${params.toString()}`);
   },
+
+  getAutocomplete: (input: string) =>
+    apiFetch<{ ok: boolean; predictions: Array<{ label: string; place_id: string }>; warning?: string }>(
+      `/api/maps/autocomplete?input=${encodeURIComponent(input)}`
+    ),
 };
