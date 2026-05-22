@@ -392,19 +392,30 @@ export default function ChatInterface() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanMode, liveVision, started]);
 
-  // Auto-start camera when Vision overlay opens
+  // Auto-start camera + voice loop when Vision overlay opens
   useEffect(() => {
-    if (overlay === 'camera' && !videoStreamRef.current && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
-      }).then(stream => {
-        videoStreamRef.current = stream;
-        const video = liveVideoRef.current;
-        if (video) { video.srcObject = stream; video.play().catch(() => {}); }
-        setLiveVision(true);
-      }).catch(() => showError('Permission caméra refusée'));
+    if (overlay === 'camera') {
+      // Start camera
+      if (!videoStreamRef.current && navigator.mediaDevices?.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        }).then(stream => {
+          videoStreamRef.current = stream;
+          const video = liveVideoRef.current;
+          if (video) { video.srcObject = stream; video.play().catch(() => {}); }
+          setLiveVision(true);
+        }).catch(() => showError('Permission caméra refusée'));
+      }
+      // Auto-start voice loop so mic button is always active in camera mode
+      if (!started) {
+        setStarted(true);
+        loopActive.current = true;
+        unlockAudio();
+        void startMicAnalyser();
+      }
     }
     if (overlay !== 'camera') stopCamera();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlay, showError, stopCamera]);
 
   // ── Send message ───────────────────────────────────────────────
@@ -995,6 +1006,23 @@ export default function ChatInterface() {
           <span>{debugMsg || (liveVision ? (scanning ? 'ANALYSE EN COURS' : 'CAMÉRA ACTIVE') : 'EN ATTENTE')}</span>
         </div>
 
+        {/* ── Voice response in camera overlay ── */}
+        {showResponse && responseText && (
+          <div style={{
+            padding: '8px 12px',
+            background: 'rgba(0,0,0,0.75)',
+            borderTop: '1px solid rgba(0,212,255,0.2)',
+            color: '#e5e7eb',
+            fontSize: 13,
+            lineHeight: 1.4,
+            maxHeight: 80,
+            overflowY: 'auto',
+          }}>
+            <span style={{ color: '#00d4ff', fontSize: 10, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: 2, display: 'block', marginBottom: 3 }}>DZARYX</span>
+            {responseText}
+          </div>
+        )}
+
         <div className="dz-cam-actions">
           <button
             type="button"
@@ -1003,6 +1031,22 @@ export default function ChatInterface() {
           >
             <span className="dz-cam-btn-ico">{liveVision ? '⏹' : '◉'}</span>
             <span className="dz-cam-btn-lbl">{liveVision ? 'STOP' : 'LIVE'}</span>
+          </button>
+
+          {/* ── MIC: speak while camera is live ── */}
+          <button
+            type="button"
+            className={`dz-cam-btn${state === 'listen' ? ' active' : ''}`}
+            onClick={handleVoiceBtn}
+            disabled={state === 'think'}
+            title="Parler à Dzaryx — le frame caméra est envoyé automatiquement"
+          >
+            <span className="dz-cam-btn-ico">
+              {state === 'listen' ? '⏹' : state === 'think' ? '⟳' : state === 'speak' ? '🔊' : '🎤'}
+            </span>
+            <span className="dz-cam-btn-lbl">
+              {state === 'listen' ? 'ÉCOUTE' : state === 'think' ? 'RÉFLÉX' : state === 'speak' ? 'PARLE' : 'MICRO'}
+            </span>
           </button>
 
           <button
