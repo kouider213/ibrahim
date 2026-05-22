@@ -612,21 +612,24 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         </div>
       )}
 
-      {/* ── LIVE CAMERA PREVIEW ── */}
-      {camActive && (
-        <div style={{
-          position: 'absolute', bottom: 108, right: 10, zIndex: 8,
-          width: 90, height: 120, borderRadius: 10,
-          border: '1.5px solid #9b59b6aa',
-          overflow: 'hidden',
-          boxShadow: '0 0 16px #9b59b666',
-        }}>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            ref={videoRef}
-            autoPlay playsInline muted
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+      {/* ── LIVE CAMERA PREVIEW — always in DOM so videoRef is ready ── */}
+      <div style={{
+        position: 'absolute', bottom: 108, right: 10, zIndex: 8,
+        width: 90, height: 120, borderRadius: 10,
+        border: `1.5px solid ${camActive ? '#9b59b6aa' : 'transparent'}`,
+        overflow: 'hidden',
+        boxShadow: camActive ? '0 0 16px #9b59b666' : 'none',
+        opacity: camActive ? 1 : 0,
+        pointerEvents: camActive ? 'auto' : 'none',
+        transition: 'opacity 0.3s',
+      }}>
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          ref={videoRef}
+          autoPlay playsInline muted
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+        {camActive && (
           <div style={{
             position: 'absolute', top: 4, left: 4,
             display: 'flex', alignItems: 'center', gap: 3,
@@ -634,8 +637,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#ff3366', boxShadow: '0 0 4px #ff3366', animation: 'statusPulse 1s ease infinite' }} />
             <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#ff3366', letterSpacing: '0.1em' }}>LIVE</span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Corner brackets */}
       {(['tl','tr','bl','br'] as const).map(p => <Corner key={p} pos={p} col={col} />)}
