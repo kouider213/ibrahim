@@ -380,7 +380,8 @@ async function _dispatch(
       case 'get_car_photo':              return await getCarPhotoTool(input);
       // ─── IMAGE-TO-IMAGE avec conservation visage ───
       case 'transform_image':            return await executeImageToImage(input, sessionId);
-      case 'get_travel_time':            return await getTravelTimeTool(input);
+      case 'get_my_location':            return await getMyLocationTool(sessionId);
+      case 'get_travel_time':            return await getTravelTimeTool(input, sessionId);
       case 'calculate_delivery_fee':     return await calculateDeliveryFeeTool(input);
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
@@ -4570,16 +4571,46 @@ async function obsidianReadNoteTool(input: Record<string, unknown>): Promise<str
   return `📓 Note Obsidian "${noteName}":\n\n${content}`;
 }
 
-// ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────────────────
-async function getTravelTimeTool(input: Record<string, unknown>): Promise<string> {
-  const { getTravelTime } = await import('./maps.js');
-  const destination  = input['destination'] as string | undefined;
-  const originLat    = input['origin_lat']  as number | undefined;
-  const originLng    = input['origin_lng']  as number | undefined;
-  const arrivalTime  = input['arrival_time'] as string | undefined;
+// ─── POSITION GPS ACTEUR ─────────────────────────────────────────────────────
+async function getMyLocationTool(sessionId?: string): Promise<string> {
+  const { getLocation } = await import('./location.js');
+  const actorId = sessionId?.includes('houari') ? 'houari' : 'kouider';
+  const loc = await getLocation(actorId);
+  if (!loc) {
+    return '📍 Position non disponible — ouvre l\'application et appuie sur "Partager ma position" dans CONFIG.';
+  }
+  const age = Math.round((Date.now() - new Date(loc.updated_at).getTime()) / 60000);
+  const city = loc.city ?? loc.country;
+  const countryEmoji = loc.country === 'Algeria' ? '🇩🇿' : loc.country === 'Belgium' ? '🇧🇪' : loc.country === 'France' ? '🇫🇷' : '🌍';
+  return [
+    `📍 Position actuelle: **${city}** ${countryEmoji}`,
+    `Coordonnées: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`,
+    `Pays: ${loc.country}`,
+    `Mise à jour: il y a ${age < 60 ? `${age} min` : `${Math.round(age / 60)}h`}`,
+  ].join('\n');
+}
 
-  if (!destination || originLat === undefined || originLng === undefined) {
-    return '❌ destination, origin_lat et origin_lng requis.';
+// ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────────────────
+async function getTravelTimeTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const { getTravelTime } = await import('./maps.js');
+  const destination = input['destination'] as string | undefined;
+  let originLat     = input['origin_lat']  as number | undefined;
+  let originLng     = input['origin_lng']  as number | undefined;
+  const arrivalTime = input['arrival_time'] as string | undefined;
+
+  if (!destination) return '❌ destination requis.';
+
+  // Auto-fallback: use stored GPS location when not provided
+  if (originLat === undefined || originLng === undefined) {
+    const { getLocation } = await import('./location.js');
+    const actorId = sessionId?.includes('houari') ? 'houari' : 'kouider';
+    const stored  = await getLocation(actorId);
+    if (stored) {
+      originLat = stored.lat;
+      originLng = stored.lng;
+    } else {
+      return '❌ Position GPS non disponible. Partage ta position depuis CONFIG dans l\'application, puis réessaie.';
+    }
   }
 
   const result = await getTravelTime(originLat, originLng, destination, arrivalTime);

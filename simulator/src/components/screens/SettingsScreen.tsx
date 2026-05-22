@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { business, setSimActor, getSimActor } from '../../services/api.ts';
 
+interface StoredLocation { lat: number; lng: number; city?: string; country: string; updated_at: string; }
+
 interface Job { name: string; cron: string; next: number | null; }
 interface NexusInfo {
   nexus_online?: boolean; connected?: boolean;
@@ -33,6 +35,8 @@ export default function SettingsScreen() {
   const [triggering, setTrig]  = useState<string | null>(null);
   const [clearing, setClear]   = useState(false);
   const [msg, setMsg]          = useState('');
+  const [locData, setLocData]  = useState<StoredLocation | null>(null);
+  const [locLoading, setLocL]  = useState(false);
 
   const checkHealth = async () => {
     setLH(true);
@@ -47,7 +51,33 @@ export default function SettingsScreen() {
     try { setJobs((await business.fetchJobs()).jobs ?? []); } catch { setJobs([]); }
   };
 
-  useEffect(() => { void checkHealth(); void loadJobs(); }, []);
+  const loadLocation = async () => {
+    try {
+      const r = await business.getMyLocation();
+      setLocData(r.location);
+    } catch { setLocData(null); }
+  };
+
+  const shareLocation = () => {
+    if (!navigator.geolocation) { setMsg('❌ Géolocalisation non supportée'); return; }
+    setLocL(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const r = await business.shareLocation(pos.coords.latitude, pos.coords.longitude);
+          setLocData(r.location);
+          const city = r.location.city ?? r.location.country;
+          setMsg(`✅ Position partagée — ${city}`);
+        } catch { setMsg('❌ Erreur partage position'); }
+        setLocL(false);
+        setTimeout(() => setMsg(''), 3000);
+      },
+      () => { setMsg('❌ Permission refusée ou timeout'); setLocL(false); setTimeout(() => setMsg(''), 3000); },
+      { timeout: 10000, enableHighAccuracy: false },
+    );
+  };
+
+  useEffect(() => { void checkHealth(); void loadJobs(); void loadLocation(); }, []);
 
   const selectActor = (id: 'kouider' | 'houari') => {
     setActorLocal(id); setSimActor(id);
@@ -140,6 +170,41 @@ export default function SettingsScreen() {
                 </button>
               );
             })}
+          </div>
+        </Panel>
+
+        {/* GPS Location */}
+        <Panel title="LOCALISATION GPS">
+          {locData ? (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%', background: '#00e676',
+                  boxShadow: '0 0 8px #00e676', flexShrink: 0,
+                  animation: 'statusPulse 2s ease infinite',
+                }} />
+                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00e676' }}>
+                  {locData.country === 'Algeria' ? '🇩🇿' : locData.country === 'Belgium' ? '🇧🇪' : locData.country === 'France' ? '🇫🇷' : '🌍'}{' '}
+                  {locData.city ?? locData.country}
+                </div>
+              </div>
+              <div style={{ fontSize: 7, color: '#ffffff33', marginBottom: 3 }}>
+                {locData.lat.toFixed(5)}, {locData.lng.toFixed(5)}
+              </div>
+              <div style={{ fontSize: 7, color: '#ffffff22' }}>
+                Mis à jour: {new Date(locData.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 8, color: '#ffffff33', marginBottom: 10 }}>
+              Position non partagée — Dzaryx ne peut pas calculer tes trajets.
+            </div>
+          )}
+          <button onClick={shareLocation} disabled={locLoading} style={actionBtn('#00e676')}>
+            {locLoading ? 'LOCALISATION EN COURS…' : '📍 PARTAGER MA POSITION'}
+          </button>
+          <div style={{ fontSize: 6, color: '#ffffff22', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
+            Dzaryx utilise ta position pour calculer tes trajets · Rappels livraison intelligents · 24h TTL
           </div>
         </Panel>
 
@@ -242,7 +307,7 @@ export default function SettingsScreen() {
         {/* Version */}
         <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
           <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff15', letterSpacing: '0.3em' }}>
-            DZARYX SIMULATOR v1.2 · PHASE 8 · FIK CONCIERGERIE ORAN
+            DZARYX SIMULATOR v1.3 · GPS BRAIN · FIK CONCIERGERIE ORAN
           </div>
         </div>
       </div>

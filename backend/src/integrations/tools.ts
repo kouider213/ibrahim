@@ -1273,7 +1273,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────
   {
     name: 'get_travel_time',
-    description: 'Calculer le temps de trajet réel avec trafic depuis la position GPS de Kouider vers n\'importe quelle destination (adresse complète, quartier, lieu connu). Utiliser quand Kouider parle d\'un rendez-vous, remise de voiture, retour client, trajet, heure de départ. TOUJOURS utiliser si userLocation est fourni et qu\'il y a une notion de déplacement. Accepte toute adresse — géocodage automatique via Google Maps. Retourne temps réel, trafic, heure de départ recommandée, liens Waze et Google Maps.',
+    description: 'Calculer le temps de trajet réel avec trafic depuis la position GPS de l\'utilisateur vers n\'importe quelle destination. Utiliser quand l\'utilisateur parle d\'un rendez-vous, remise de voiture, retour client, trajet, heure de départ. Si origin_lat/origin_lng non fournis, le backend utilise automatiquement la position GPS stockée. Accepte toute adresse — géocodage Google Maps. Retourne temps réel, trafic, heure de départ recommandée, liens Waze et Google Maps.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1287,14 +1287,25 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
         },
         origin_lat: {
           type: 'number',
-          description: 'Latitude GPS de Kouider (depuis userLocation dans le message)',
+          description: 'Latitude GPS de l\'utilisateur. Optionnel — omis = utilise position stockée en Redis.',
         },
         origin_lng: {
           type: 'number',
-          description: 'Longitude GPS de Kouider (depuis userLocation dans le message)',
+          description: 'Longitude GPS de l\'utilisateur. Optionnel — omis = utilise position stockée en Redis.',
         },
       },
-      required: ['destination', 'origin_lat', 'origin_lng'],
+      required: ['destination'],
+    },
+  },
+
+  // ─── POSITION GPS ACTEUR ──────────────────────────────────────────
+  {
+    name: 'get_my_location',
+    description: 'Récupère la position GPS actuelle de l\'utilisateur (Kouider ou Houari) depuis la dernière synchronisation mobile. Utiliser pour: "je suis où?", "combien de temps depuis ma position", "mon trajet vers X", "suis-je en Algérie ou Belgique?". Retourne ville, pays, coordonnées, heure de mise à jour.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
     },
   },
 

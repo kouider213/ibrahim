@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-05-22 — Per-Actor Notifications + Dzaryx Living Brain (Claude Sonnet 4.6)
+
+### 2 commits ✅ — `326ce67` + `4a7da96`
+
+**Per-actor notification targeting (`326ce67`) :**
+- `backend/src/queue/jobs/proactive-jobs.ts` : 11 jobs Kouider-only tagués `emitProactive(..., 'kouider')`
+- `backend/src/notifications/mobile-push.ts` : `getRecentProactives(actor?)` merge global + actor Redis
+- `backend/src/api/routes/notifications.ts` : `/proactive/recent?actor=` query param
+- `simulator/src/services/api.ts` : Socket.IO filtre `targetActor`, API passe `?actor=`
+
+**Dzaryx Living Brain (`4a7da96`) :**
+- `backend/src/integrations/client-brain.ts` (NEW) :
+  - `getClientBrain()` — profil enrichi avec voitures, mois, patterns vol, insights IA
+  - `addClientNote()` — note permanente client
+  - `setArrivalPattern()` — patterns d'arrivée (heure, jour, origine vol)
+  - `saveObservation()` — mémoire libre `dzaryx_observations`
+  - `analyzeAllClients()` — batch Claude AI → insights naturels (séparé par acteur)
+  - `learnFromConversation()` — détecte vocab approbation/rejet → `actor_brain`
+  - `getActorBrainContext()` — injecté dans prompt système
+- `backend/src/integrations/tools.ts` : 3 nouveaux outils (`get_client_brain`, `add_client_note`, `set_arrival_pattern`)
+- `backend/src/integrations/tool-executor.ts` : dispatch 3 nouveaux outils (actor détecté via sessionId)
+- `backend/src/conversation/context-builder.ts` : brain + actor brain injectés auto si client mentionné
+- `backend/src/queue/scheduler.ts` : job `client-brain-update` dimanche 3h00 Algeria
+- `backend/src/queue/jobs/proactive-jobs.ts` : `jobClientBrainUpdate` — analyse tous acteurs + résumé Kouider
+- `supabase/migrations/20260522_dzaryx_brain.sql` (NEW) : 3 nouvelles tables + colonnes `client_intelligence`
+
+**Actions manuelles Kouider :**
+- ✅ Migration `20260522_dzaryx_brain.sql` appliquée Supabase
+
+---
+
 ## 2026-05-21 — GPS + Simulateur Phase 8 + GitHub Pages + Houari Token (Claude Sonnet 4.6)
 
 ### Session complète — commit `34b0fb7` ✅

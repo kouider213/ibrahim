@@ -26,6 +26,7 @@ import {
   jobMonthlyReport,
   jobLongIdleAlert,
   jobClientBrainUpdate,
+  jobDeliveryDepartureAlert,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { notifyOwner } from '../notifications/pushover.js';
@@ -170,6 +171,11 @@ const JOBS = [
     cron:  '0 3 * * 0',          // 3h chaque dimanche — analyse patterns tous clients
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'delivery-departure-alert',
+    cron:  '*/30 7-21 * * *',    // toutes les 30min 7h-21h — alerte départ livraison depuis GPS
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -199,6 +205,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'monthly-report':           jobMonthlyReport,
   'long-idle-alert':          jobLongIdleAlert,
   'client-brain-update':      jobClientBrainUpdate,
+  'delivery-departure-alert': jobDeliveryDepartureAlert,
 };
 
 export async function initScheduler(): Promise<void> {

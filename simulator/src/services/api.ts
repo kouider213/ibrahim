@@ -92,6 +92,15 @@ export const api = {
   getRecentProactives: () =>
     apiFetch<{ messages: Array<{ text: string; type: string; timestamp: string }> }>(`/api/notifications/proactive/recent?actor=${_actor}`),
 
+  shareLocation: (lat: number, lng: number) =>
+    apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } }>('/api/location', {
+      method: 'POST',
+      body: JSON.stringify({ lat, lng }),
+    }),
+
+  getMyLocation: () =>
+    apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } | null }>('/api/location'),
+
   sendFeedback: async (feedback: FeedbackPayload) => {
     // Send to local dev watcher (for real-time Claude fix loop)
     fetch('http://localhost:4567/feedback', {
@@ -463,4 +472,13 @@ export const business = {
         os?: string; heartbeat_at?: string;
       }>)
       .catch(() => ({ nexus_online: false, connected: false })),
+
+  shareLocation: (lat: number, lng: number) =>
+    apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } }>('/api/location', {
+      method: 'POST',
+      body: JSON.stringify({ lat, lng }),
+    }),
+
+  getMyLocation: () =>
+    apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } | null }>('/api/location'),
 };

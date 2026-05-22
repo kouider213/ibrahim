@@ -2,15 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-21 (Session complète — Phase 8 + GPS + Simulateur GitHub Pages)
+> Dernière mise à jour : 2026-05-22 (Session — Per-actor notifications + Dzaryx Living Brain)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phases 1-8 TERMINÉES ✅. Simulateur GitHub Pages déployé. APK bloqué EAS (reset 1er juin 2026).**
+**Phase active : Phases 1-8 TERMINÉES ✅ + Brain System LIVE. APK bloqué EAS (reset 1er juin 2026).**
 
-GPS Distance Matrix ajouté. Simulateur mis à jour sur GitHub Pages (`https://kouider213.github.io/ibrahim/`). Toutes les actions manuelles Railway/Supabase terminées. En attente de test simulateur par Kouider avant validation APK.
+Dzaryx Living Brain déployé : intelligence client profonde (voitures préférées, mois de location, patterns d'arrivée, insights IA) + apprentissage acteur (vocabulaire Kouider/Houari). Notifications per-actor : Houari reçoit uniquement les notifs business, Kouider reçoit tout. Migration SQL appliquée Supabase ✅. Prochain brain auto-run : dimanche 3h00 Algeria.
 
 ---
 
@@ -86,7 +86,22 @@ GPS Distance Matrix ajouté. Simulateur mis à jour sur GitHub Pages (`https://k
 ### Planning & Proactivité
 - ✅ `KOUIDER_SCHEDULE` embarqué : 7 jours (réveil, travail Belgique, business Algérie)
 - ✅ Notifications proactives : heure réveil par jour, message personnalisé
-- ✅ 12 jobs schedulés BullMQ (briefing, impayés, retards, rapports...)
+- ✅ 25 jobs schedulés BullMQ (briefing, impayés, retards, rapports...)
+- ✅ **Per-actor targeting** : Houari = notifs business only | Kouider = tout
+- ✅ Redis history per-actor : `proactive:history` global + `proactive:history:kouider`
+- ✅ Socket.IO filtering côté simulateur par `targetActor` field
+
+### Dzaryx Living Brain — NOUVEAU 2026-05-22
+- ✅ `client-brain.ts` : module intelligence client complet
+- ✅ `getClientBrain()` : profil enrichi (voitures préférées, mois, vol, insights IA)
+- ✅ `analyzeAllClients()` : analyse batch Claude AI → insights naturels (auto hebdo)
+- ✅ `learnFromConversation()` : détecte vocabulaire approbation/rejet Kouider/Houari
+- ✅ `getActorBrainContext()` : injecté auto dans context-builder.ts
+- ✅ Tools : `get_client_brain`, `add_client_note`, `set_arrival_pattern`
+- ✅ `client-brain-update` job : dimanche 3h00 Algeria, analyse tous acteurs
+- ✅ Séparation acteur COMPLÈTE : `owner_id` / `actor_id` partout
+- ✅ Désambiguïsation clients homonymes via `passport_number`
+- ✅ Migration SQL appliquée Supabase ✅ (3 nouvelles tables + colonnes)
 
 ### Agents & Routing
 - ✅ 14 agents spécialisés : routing automatique par keywords + priority
@@ -145,6 +160,18 @@ EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform and
 
 ## Prochaine priorité
 
+### IMMEDIATE — Tester brain Dzaryx
+Demander à Dzaryx (Mobile ou Simulateur) :
+- "C'est qui Mohamed ?" → doit utiliser `get_client_brain`
+- "Dzaryx retiens que Mohamed préfère les voitures familiales" → `add_client_note`
+- "Mohamed arrive souvent le soir à l'aéroport" → `set_arrival_pattern`
+- Brain auto-run dans ~1 semaine (dimanche 3h) ou déclencher manuellement via API
+
+### OPTIONNEL — Lancer premier brain-update manuellement
+Brain analysera tous les clients existants immédiatement (sans attendre dimanche).
+Kouider peut demander à Dzaryx : "lance l'analyse du cerveau clients maintenant"
+Ou via API admin endpoint `triggerJob('client-brain-update')`.
+
 ### IMMEDIATE — Test simulateur (Kouider)
 → https://kouider213.github.io/ibrahim/
 1. Tester les 12 onglets
@@ -174,7 +201,35 @@ Puis configurer `FIREBASE_SERVICE_ACCOUNT_JSON` Railway.
 
 ## Sessions récentes détaillées
 
-### Session 2026-05-21 (aujourd'hui — session complète)
+### Session 2026-05-22 (aujourd'hui)
+
+**Feature 1 — Per-actor notification targeting :**
+- Kouider-only jobs : `emitProactive(..., 'kouider')` — 11 jobs tagués
+- Redis per-actor : `proactive:history:kouider` séparé du global
+- API `/proactive/recent?actor=kouider` — merge global + actor-specific
+- Simulateur : Socket.IO filtre `targetActor` côté client
+
+**Feature 2 — Dzaryx Living Brain :**
+- `client-brain.ts` nouveau module : intelligence profonde, analyse AI, learning vocab
+- 3 nouveaux outils Claude : `get_client_brain`, `add_client_note`, `set_arrival_pattern`
+- `analyzeAllClients()` : batch Claude AI → insights naturels par client
+- `actor_brain` table : apprend vocabulaire Kouider ("oke", "parfait") et Houari
+- `dzaryx_observations` : mémoire libre accumulée des conversations
+- `client_intelligence` enrichi : arrival_patterns, passport_number, ai_insights
+- Job dimanche 3h : analyse automatique tous les clients des 2 acteurs
+- Context-builder : brain injecté auto dans prompt si client mentionné
+- Séparation complète acteur à chaque layer (DB, tools, context)
+
+**Actions manuelles Kouider :**
+1. ✅ Migration SQL `20260522_dzaryx_brain.sql` appliquée → Supabase
+
+**Commits :**
+- `326ce67` feat: per-actor notification targeting (Kouider-only vs all)
+- `4a7da96` feat(brain): Dzaryx living memory — deep client profiles + auto-learning
+
+---
+
+### Session 2026-05-21 (avant — session complète)
 
 **Actions manuelles effectuées par Kouider :**
 1. ✅ `MOBILE_TOKEN_HOUARI=99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2` → Railway
@@ -196,7 +251,7 @@ Puis configurer `FIREBASE_SERVICE_ACCOUNT_JSON` Railway.
 - `c5c4589` feat(gps): Distance Matrix + calculate_delivery_fee + simulator GPS panel
 - gh-pages branch mis à jour manuellement (worktree git)
 
-### Session 2026-05-21 (avant cette session — Phase 8 code)
+### Session 2026-05-21 (Phase 8 code)
 - `96c6376` feat(phase8): learned rules, PDF contract, Excel export
 - `bbead09` feat(phase8/nexus): Redis health key + rich Nexus telemetry
 - `e096a55` feat(phase8): Google STT + Firebase FCM push notifications
@@ -245,7 +300,7 @@ Simulateur: React + Vite + Tailwind — GitHub Pages (branch gh-pages)
 Native    : Expo SDK 54 / React Native 0.81.5 (APK juin 2026)
 PC Agent  : Python Nexus (nexus/) — tourne sur PC Kouider
 Telegram  : canal backup/admin (pas canal principal)
-Queue     : BullMQ + Redis (Upstash) — 12 jobs schedulés
+Queue     : BullMQ + Redis (Upstash) — 25 jobs schedulés
 Calendar  : Google Calendar (service account fikconciergerie@gmail.com)
 Storage   : Cloudinary (images/vidéos) + Supabase Storage (documents)
 Push      : Expo Push + Firebase FCM (firebase-admin)
@@ -297,7 +352,9 @@ Push      : Expo Push + Firebase FCM (firebase-admin)
 - `whatsapp_messages` ✅ Phase 8 — log WhatsApp (futur)
 - `document_access_logs`, `payment_logs`
 - `vehicle_states` — inspection avant/après location
-- `client_intelligence` — score VIP/FREQUENT/REGULAR/NEW
+- `client_intelligence` — score VIP/FREQUENT/REGULAR/NEW + brain (arrival_patterns, passport_number, ai_insights) ✅ 2026-05-22
+- `dzaryx_observations` ✅ 2026-05-22 — observations libres accumulées par acteur
+- `actor_brain` ✅ 2026-05-22 — apprentissage vocabulaire/style Kouider et Houari
 
 **RPC fonctions :** `check_car_availability`, `check_vehicle_availability`, `create_booking_safe`, `get_booking_summary`
 
@@ -324,7 +381,8 @@ backend/src/
 │   ├── phase5-finance.ts    # resolveFinancials() dashboard
 │   ├── media-processing.ts  # Cloudinary
 │   ├── learned-rules.ts     # Phase 8 — règles apprises
-│   └── generate-contract.ts # Phase 8 — contrat PDF
+│   ├── generate-contract.ts # Phase 8 — contrat PDF
+│   └── client-brain.ts      # Brain — intelligence client + actor learning ← NOUVEAU
 ├── notifications/
 │   ├── mobile-push.ts       # emitProactive() — Socket.IO + Expo + FCM
 │   └── fcm.ts               # Firebase FCM natif

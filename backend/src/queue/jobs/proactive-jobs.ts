@@ -1530,3 +1530,69 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
     console.error('[job:long-idle] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ── 26. Alerte départ livraison — rappel depuis position GPS Kouider ──────────
+export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
+  try {
+    const now   = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const hour  = now.getHours();
+    // Only run during working hours (7h-21h Algeria time)
+    if (hour < 7 || hour > 21) return;
+
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client_name, start_date')
+      .in('status', ['CONFIRMED', 'ACTIVE'])
+      .gte('start_date', today)
+      .lte('start_date', `${today}T23:59:59.999Z`);
+
+    if (!bookings?.length) return;
+
+    const { getLocation } = await import('../../integrations/location.js');
+    const kouiderLoc = await getLocation('kouider');
+    if (!kouiderLoc) return;
+
+    const { getTravelTime } = await import('../../integrations/maps.js');
+
+    for (const booking of bookings as Array<{ id: string; client_name: string; start_date: string }>) {
+      const alertKey = `delivery-depart-alert:${booking.id}:${today}`;
+      const alreadySent = await redis.get(alertKey);
+      if (alreadySent) continue;
+
+      try {
+        const travel = await getTravelTime(kouiderLoc.lat, kouiderLoc.lng, 'aéroport');
+        const trafficEmoji = travel.traffic === 'heavy' ? '🔴' : travel.traffic === 'light' ? '🟢' : '🟡';
+        const cityLabel = kouiderLoc.city ?? kouiderLoc.country;
+
+        const msg = [
+          `🚗 Livraison aujourd'hui — ${booking.client_name}`,
+          `📍 Depuis ${cityLabel} → ${travel.destination_label}`,
+          `⏱ ${travel.travel_time_minutes}min de trajet ${trafficEmoji}`,
+          ``,
+          `📲 Navigation:`,
+          `• Waze: ${travel.waze_link}`,
+          `• GMaps: ${travel.maps_link}`,
+        ].join('\n');
+
+        const pushTitle = `🚗 Livraison — ${booking.client_name}`;
+        const pushBody  = `${travel.travel_time_minutes}min depuis ${cityLabel} → Aéroport`;
+
+        emitProactive(pushBody, 'alert', `${pushTitle}\n\n${msg}`, 'kouider');
+
+        const chatId = env.TELEGRAM_CHAT_ID;
+        if (chatId) {
+          const { sendMessage } = await import('../../integrations/telegram.js');
+          await sendMessage(chatId, `🚗 *Rappel livraison*\n\n${msg}`).catch(() => {});
+        }
+
+        await redis.set(alertKey, '1', 'EX', 86400);
+        console.log(`[job:delivery-alert] ✅ alerte envoyée — ${booking.client_name}`);
+      } catch (innerErr) {
+        console.error('[job:delivery-alert] inner error:', innerErr instanceof Error ? innerErr.message : String(innerErr));
+      }
+    }
+  } catch (err) {
+    console.error('[job:delivery-alert] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
