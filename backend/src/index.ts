@@ -45,6 +45,7 @@ import healthAiRoutes      from './api/routes/health-ai.js';
 import carsRoutes           from './api/routes/cars.js';
 import pdfRoutes            from './api/routes/pdf.js';
 import locationRoutes       from './api/routes/location.js';
+import mapsRoutes           from './api/routes/maps.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -273,6 +274,7 @@ app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
 app.use('/api/health-ai',   apiLimiter, healthAiRoutes);
 app.use('/api/pdf',         pdfRoutes);
 app.use('/api/location',   apiLimiter, locationRoutes);
+app.use('/api/maps',       apiLimiter, mapsRoutes);
 
 app.use(errorHandler);
 

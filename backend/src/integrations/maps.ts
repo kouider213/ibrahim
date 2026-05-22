@@ -35,11 +35,8 @@ const ORAN_LANDMARKS: Record<string, { lat: number; lng: number; label: string }
 };
 
 async function geocodeAddress(address: string, apiKey: string): Promise<{ lat: number; lng: number; label: string } | null> {
-  const query = address.toLowerCase().includes('oran') || address.toLowerCase().includes('algérie') || address.toLowerCase().includes('algerie')
-    ? address
-    : `${address}, Oran, Algérie`;
-
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
+  // Use address as-is — do NOT append country context (breaks international addresses like Brussels)
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
   try {
     const res = await fetch(url);
     if (!res.ok) return null;

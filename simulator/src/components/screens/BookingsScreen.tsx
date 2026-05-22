@@ -252,90 +252,107 @@ function aBtn(col: string): React.CSSProperties {
 
 // ── GPS Livraison Calculator ──────────────────────────────────────────────────
 
-const LANDMARKS: Record<string, { label: string; dist: number; time: number }> = {
-  'aéroport':    { label: 'Aéroport Ahmed Ben Bella', dist: 3.2,  time: 8  },
-  'centre':      { label: 'Centre-ville Oran',         dist: 11.4, time: 22 },
-  'bir el djir': { label: 'Bir El Djir',               dist: 15.1, time: 28 },
-  'ain turk':    { label: 'Aïn Türck',                 dist: 21.8, time: 38 },
-  'arzew':       { label: 'Arzew',                     dist: 35.6, time: 45 },
-  'port':        { label: 'Port d\'Oran',              dist: 12.1, time: 25 },
-};
+interface TravelResult {
+  distance_km?:         number;
+  travel_time_minutes?: number;
+  traffic?:             string;
+  waze_link?:           string;
+  maps_link?:           string;
+  destination_label?:   string;
+  warning?:             string;
+  error?:               string;
+}
 
 function GpsCalculator() {
-  const [address, setAddress] = useState('');
-  const [result, setResult]   = useState<{ label: string; dist: number; time: number; fee: number } | null>(null);
-  const [notFound, setNf]     = useState(false);
+  const [address,  setAddress]  = useState('');
+  const [result,   setResult]   = useState<TravelResult | null>(null);
+  const [loading,  setLoading]  = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const calculate = () => {
-    setNf(false); setResult(null);
-    const lower = address.toLowerCase().trim();
-    for (const [key, data] of Object.entries(LANDMARKS)) {
-      if (lower.includes(key) || key.includes(lower)) {
-        setResult({ ...data, fee: Math.round(data.dist * 200) });
-        return;
+  const calculate = async () => {
+    if (!address.trim()) return;
+    setLoading(true); setResult(null); setApiError(null);
+    try {
+      const data = await business.getTravelTime(address.trim());
+      if (data.error && !data.distance_km) {
+        setApiError(data.error);
+      } else {
+        setResult(data);
       }
+    } catch {
+      setApiError('Erreur réseau — vérifie la connexion au backend.');
+    } finally {
+      setLoading(false);
     }
-    // rough estimate for unknown address
-    const roughDist = 10 + Math.random() * 20;
-    const roughTime = Math.round((roughDist / 40) * 60);
-    setResult({ label: address, dist: Math.round(roughDist * 10) / 10, time: roughTime, fee: Math.round(roughDist * 200) });
   };
+
+  const trafficColor = result?.traffic === 'heavy' ? '#ff3366' : result?.traffic === 'light' ? '#00e676' : '#ffb347';
 
   return (
     <div style={{ background: 'rgba(0,212,255,0.03)', borderRadius: 12, padding: 12, border: '1px solid #00d4ff12', marginBottom: 8 }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff77', letterSpacing: '0.25em', marginBottom: 10 }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff77', letterSpacing: '0.25em', marginBottom: 6 }}>
         🗺️ GPS LIVRAISON
       </div>
-      <div style={{ fontSize: 7, color: '#ffffff33', marginBottom: 8 }}>
-        Dépôt: Es Sénia · Tarif: 200 DZD/km
+      <div style={{ fontSize: 7, color: '#ffffff22', marginBottom: 10 }}>
+        Utilise ta position GPS stockée · Résultat réel Maps API
       </div>
       <input
         value={address}
         onChange={e => setAddress(e.target.value)}
         onKeyDown={e => e.key === 'Enter' && calculate()}
-        placeholder="Adresse client (ex: aéroport, Bir El Djir, Ain Turk…)"
+        placeholder="Destination (ex: aéroport, Bir El Djir, Bruxelles…)"
         style={inputStyle}
       />
-      <button onClick={calculate} style={{ ...createBtn, marginTop: 8, width: '100%' }}>
-        📏 CALCULER FRAIS LIVRAISON
+      <button onClick={calculate} disabled={loading} style={{ ...createBtn, marginTop: 8, width: '100%', opacity: loading ? 0.6 : 1 }}>
+        {loading ? '⏳ CALCUL EN COURS…' : '📍 CALCULER TRAJET RÉEL'}
       </button>
 
-      {notFound && (
+      {apiError && (
         <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(255,51,102,0.06)', borderRadius: 8, border: '1px solid #ff336622', fontSize: 8, color: '#ff336688' }}>
-          Adresse non reconnue. Essaie: aéroport, centre, Bir El Djir, Ain Turk, Arzew, port
+          ⚠️ {apiError}
         </div>
       )}
 
       {result && (
         <div style={{ marginTop: 10, background: 'rgba(0,212,255,0.06)', borderRadius: 10, border: '1px solid #00d4ff22', padding: '10px 12px' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ffcc', marginBottom: 8 }}>📍 {result.label}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
-            {[
-              { k: 'DISTANCE', v: `${result.dist} km` },
-              { k: 'TRAJET',   v: `${result.time} min` },
-              { k: 'FRAIS',    v: `${result.fee} DZD` },
-            ].map(({ k, v }) => (
-              <div key={k} style={{ textAlign: 'center', background: 'rgba(0,212,255,0.05)', borderRadius: 8, padding: '6px 4px', border: '1px solid #00d4ff18' }}>
-                <div style={{ fontSize: 6, color: '#00d4ff55', letterSpacing: '0.1em', marginBottom: 3 }}>{k}</div>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ffcc' }}>{v}</div>
-              </div>
-            ))}
+          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ffcc', marginBottom: 8 }}>
+            📍 {result.destination_label ?? address}
           </div>
+
+          {result.warning && (
+            <div style={{ marginBottom: 8, fontSize: 7, color: '#ffb34788' }}>⚠️ {result.warning}</div>
+          )}
+
+          {(result.distance_km !== undefined || result.travel_time_minutes !== undefined) && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+              {result.distance_km !== undefined && (
+                <div style={{ textAlign: 'center', background: 'rgba(0,212,255,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #00d4ff18' }}>
+                  <div style={{ fontSize: 6, color: '#00d4ff55', letterSpacing: '0.1em', marginBottom: 3 }}>DISTANCE</div>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ffcc' }}>{result.distance_km} km</div>
+                </div>
+              )}
+              {result.travel_time_minutes !== undefined && (
+                <div style={{ textAlign: 'center', background: 'rgba(0,212,255,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #00d4ff18' }}>
+                  <div style={{ fontSize: 6, color: '#00d4ff55', letterSpacing: '0.1em', marginBottom: 3 }}>TRAJET</div>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: trafficColor }}>{result.travel_time_minutes} min</div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 6 }}>
-            <a
-              href={`https://waze.com/ul?q=${encodeURIComponent(result.label + ', Oran')}&navigate=yes`}
-              target="_blank" rel="noreferrer"
-              style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(0,230,118,0.08)', border: '1px solid #00e67622', borderRadius: 8, fontFamily: 'Orbitron', fontSize: 7, color: '#00e676', textDecoration: 'none' }}
-            >
-              🔵 WAZE
-            </a>
-            <a
-              href={`https://maps.google.com/?daddr=${encodeURIComponent(result.label + ', Oran, Algérie')}&directionsmode=driving`}
-              target="_blank" rel="noreferrer"
-              style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(255,107,107,0.08)', border: '1px solid #ff6b6b22', borderRadius: 8, fontFamily: 'Orbitron', fontSize: 7, color: '#ff6b6b', textDecoration: 'none' }}
-            >
-              🔴 GMAPS
-            </a>
+            {result.waze_link && (
+              <a href={result.waze_link} target="_blank" rel="noreferrer"
+                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(0,230,118,0.08)', border: '1px solid #00e67622', borderRadius: 8, fontFamily: 'Orbitron', fontSize: 7, color: '#00e676', textDecoration: 'none' }}>
+                🔵 WAZE
+              </a>
+            )}
+            {result.maps_link && (
+              <a href={result.maps_link} target="_blank" rel="noreferrer"
+                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(255,107,107,0.08)', border: '1px solid #ff6b6b22', borderRadius: 8, fontFamily: 'Orbitron', fontSize: 7, color: '#ff6b6b', textDecoration: 'none' }}>
+                🔴 GMAPS
+              </a>
+            )}
           </div>
         </div>
       )}
