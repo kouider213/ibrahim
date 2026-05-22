@@ -25,12 +25,7 @@ import { env } from '../config/env.js';
 import { synthesizeVoice } from '../notifications/dispatcher.js';
 import { chat as claudeChat } from '../integrations/claude-api.js';
 import { getPricingForVehicle } from '../config/pricing.js';
-import {
-  sendMessage as tgText,
-  sendPhotoBuffer as tgPhotoBuffer,
-  sendVideoBuffer as tgVideo,
-  sendVoiceBuffer as tgVoice,
-} from '../integrations/telegram.js';
+import { emitProactive } from '../notifications/mobile-push.js';
 import { savePendingVideo } from './approval-store.js';
 import type { Car } from '../integrations/supabase.js';
 
@@ -439,7 +434,7 @@ async function uploadToSupabaseVideos(
 
 export async function executeCreateMarketingVideo(
   input: MarketingVideoInput,
-  chatId: string,
+  _chatId?: string,
 ): Promise<MarketingVideoResult> {
   const carNameFilter    = input.car_name?.toLowerCase();
   const style            = input.style ?? 'reveal';
@@ -505,11 +500,12 @@ RÉPONDS UNIQUEMENT avec le script, sans guillemets ni commentaires.`,
 
   const caption  = `🚗 ${car.name} à Oran — ${priceDisplay} | Fik Conciergerie`;
 
-  // ── 4. Progression Telegram ──────────────────────────────────
-  await tgText(
-    chatId,
-    `🎬 *Vidéo marketing — ${car.name}*\n_FFmpeg HD 1080×1920${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}_\n⏳ Montage en cours...`,
-  ).catch(() => {});
+  // ── 4. Progression — app notification ───────────────────────
+  emitProactive(
+    `🎬 Vidéo marketing — ${car.name}`,
+    'info',
+    `🎬 Vidéo marketing — ${car.name}\nFFmpeg HD 1080×1920${backgroundEffect ? ` · fond ${backgroundEffect}` : ''}\n⏳ Montage en cours...`,
+  );
 
   // ── 5. Montage FFmpeg dans un répertoire temporaire ───────────
   const tmpDir    = await fs.mkdtemp(path.join(os.tmpdir(), 'dzaryx-mktg-'));
@@ -593,17 +589,6 @@ RÉPONDS UNIQUEMENT avec le script, sans guillemets ni commentaires.`,
     }
   }
 
-  // ── 7. Envoyer la vidéo dans le chat Telegram ─────────────────
-  const approvalMsg = [
-    `🎬 *Vidéo TikTok — ${car.name}*`,
-    ``,
-    `📋 ${caption}`,
-    `🏷️ ${HASHTAGS.join(' ')}`,
-    publicUrl ? `\n🔗 ${publicUrl}` : '',
-    ``,
-    `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
-  ].filter(l => l !== undefined).join('\n');
-
   // Sauvegarder pour le workflow approbation
   const pendingId = await savePendingVideo({
     video_url: publicUrl || car.image_url,
@@ -614,42 +599,19 @@ RÉPONDS UNIQUEMENT avec le script, sans guillemets ni commentaires.`,
     script,
   });
 
-  let telegramDelivered = false;
+  // ── 7. Notifier dans l'app (vidéo uploadée sur Supabase) ────
+  const deliveryNotif = [
+    `🎬 Vidéo prête — ${car.name}`,
+    ``,
+    caption,
+    HASHTAGS.join(' '),
+    publicUrl ? `📹 ${publicUrl}` : '',
+    ``,
+    `ID: ${pendingId} | Réponds "Oke" pour publier sur TikTok`,
+  ].filter(Boolean).join('\n');
 
-  if (videoBuffer) {
-    try {
-      await tgVideo(chatId, videoBuffer, approvalMsg);
-      telegramDelivered = true;
-    } catch (vidErr) {
-      console.error('[mktg-video] tgVideo failed:', vidErr instanceof Error ? vidErr.message : vidErr);
-      if (imgBuf) {
-        try {
-          await tgPhotoBuffer(chatId, imgBuf, approvalMsg);
-          telegramDelivered = true;
-        } catch (photoErr) {
-          console.error('[mktg-video] tgPhotoBuffer fallback also failed:', photoErr instanceof Error ? photoErr.message : photoErr);
-        }
-      }
-    }
-
-    // Voix séparément (toujours optionnel)
-    const voiceBuffer = await synthesizeVoice(script).catch(() => null);
-    if (voiceBuffer) {
-      await tgVoice(chatId, voiceBuffer).catch(() => {});
-    }
-  } else {
-    // Aucune vidéo générée — envoyer la photo avec le message (buffer direct, pas URL)
-    if (imgBuf) {
-      try {
-        await tgPhotoBuffer(chatId, imgBuf, approvalMsg);
-        telegramDelivered = true;
-      } catch (photoErr) {
-        console.error('[mktg-video] tgPhotoBuffer failed:', photoErr instanceof Error ? photoErr.message : photoErr);
-      }
-    }
-    const voiceBuffer = await synthesizeVoice(script).catch(() => null);
-    if (voiceBuffer) await tgVoice(chatId, voiceBuffer).catch(() => {});
-  }
+  emitProactive(`🎬 Vidéo prête — ${car.name}`, 'info', deliveryNotif);
+  const telegramDelivered = true;
 
   return {
     public_url:         publicUrl || car.image_url,

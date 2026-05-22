@@ -17,10 +17,7 @@
 
 import axios from 'axios';
 import { env } from '../config/env.js';
-import {
-  sendPhoto as sendTelegramPhoto,
-  sendMessage as sendTelegramText,
-} from './telegram.js';
+import { emitProactive } from '../notifications/mobile-push.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -369,11 +366,8 @@ export async function downloadTelegramImage(fileId: string): Promise<string> {
 
 export async function executeImageToImage(
   input: Record<string, unknown>,
-  sessionId?: string,
+  _sessionId?: string,
 ): Promise<string> {
-  const chatId = sessionId?.startsWith('telegram_')
-    ? sessionId.slice('telegram_'.length)
-    : (env.TELEGRAM_CHAT_ID ?? '');
 
   // Récupérer l'image source
   let sourceImageUrl = input['image_url'] as string | undefined;
@@ -401,13 +395,11 @@ export async function executeImageToImage(
   const strength = input['strength']  ? Number(input['strength'])        : undefined;
   const provider = (input['provider'] as ImageToImageOptions['provider'] | undefined) ?? 'auto';
 
-  // Notification
-  if (chatId) {
-    await sendTelegramText(
-      chatId,
-      `🎨 *Transformation image IA*\n_"${userPrompt.slice(0, 80)}"_\n${style ? `Style: ${style} | ` : ''}Provider: ${provider}\n⏳ 20-60 secondes...`,
-    ).catch(() => {});
-  }
+  emitProactive(
+    `🎨 Transformation image en cours…`,
+    'info',
+    `🎨 Transformation image IA\n"${userPrompt.slice(0, 80)}"\n${style ? `Style: ${style} | ` : ''}Provider: ${provider}\n⏳ 20-60 secondes...`,
+  );
 
   console.log(`[executeImageToImage] sourceUrl=${sourceImageUrl.slice(0, 80)} prompt="${userPrompt.slice(0, 80)}" style=${style} provider=${provider}`);
 
@@ -423,52 +415,30 @@ export async function executeImageToImage(
   } catch (err: any) {
     const errMsg = err.message as string;
     console.error('[executeImageToImage] FAILED:', errMsg);
-    if (chatId) {
-      await sendTelegramText(chatId, `❌ Transformation échouée: ${errMsg.slice(0, 200)}`).catch(() => {});
-    }
     return `❌ Transformation image échouée: ${errMsg.slice(0, 300)}`;
   }
 
   console.log(`[executeImageToImage] ✅ provider=${result.provider} mode=${result.mode} url=${result.url.slice(0, 80)}`);
 
-  // Envoyer le résultat sur Telegram
-  const caption = [
-    `🎨 *Image transformée — ${result.provider}*`,
-    `_Mode: ${result.mode}_`,
-    `_Prompt: "${userPrompt.slice(0, 80)}"_`,
+  const notifText = [
+    `🎨 Image transformée — ${result.provider}`,
+    `Mode: ${result.mode}`,
+    `Prompt: "${userPrompt.slice(0, 80)}"`,
+    ``,
+    `📎 ${result.url}`,
   ].join('\n');
 
-  let delivered = false;
-  if (chatId) {
-    try {
-      await sendTelegramPhoto(chatId, result.url, caption);
-      delivered = true;
-    } catch (err: any) {
-      console.error('[executeImageToImage] sendTelegramPhoto failed:', err.message);
-      try {
-        await sendTelegramText(chatId, `${caption}\n\n📎 [Voir l'image](${result.url})`);
-        delivered = true;
-      } catch { /* both failed */ }
-    }
-  }
-
-  if (delivered) {
-    return [
-      `✅ Image transformée par ${result.provider} (${result.mode})`,
-      `🖼️ Envoyée sur Telegram ↑`,
-      ``,
-      `📊 Détails:`,
-      `- Provider: ${result.provider}`,
-      `- Mode: ${result.mode}`,
-      `- Prompt: "${userPrompt.slice(0, 100)}"`,
-      `- Style: ${style ?? 'aucun'}`,
-      `- URL: ${result.url}`,
-    ].join('\n');
-  }
+  emitProactive(`🎨 Image transformée — ${result.provider}`, 'info', notifText);
 
   return [
     `✅ Image transformée par ${result.provider} (${result.mode})`,
-    `⚠️ Envoi Telegram échoué — URL directe:`,
-    result.url,
+    `🖼️ Notifié dans l'app ↑`,
+    ``,
+    `📊 Détails:`,
+    `- Provider: ${result.provider}`,
+    `- Mode: ${result.mode}`,
+    `- Prompt: "${userPrompt.slice(0, 100)}"`,
+    `- Style: ${style ?? 'aucun'}`,
+    `- URL: ${result.url}`,
   ].join('\n');
 }

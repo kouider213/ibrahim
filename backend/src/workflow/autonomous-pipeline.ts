@@ -11,14 +11,11 @@
  *   6. DECIDE — commit GitHub ou rollback (restaure original)
  *   7. NOTIFY — rapport Telegram complet
  */
-import axios from 'axios';
 import { callProvider }                    from '../providers/provider-manager.js';
 import { getFileContent, updateFile }      from '../integrations/github.js';
 import { isNexusOnline, nexusRunCommand }                 from '../actions/handlers/nexus-relay.js';
 import { DEVELOPER_AGENT }                 from '../agents/definitions/developer-agent.js';
 import { CODE_REVIEWER_AGENT }             from '../agents/definitions/code-reviewer-agent.js';
-import { env }                             from '../config/env.js';
-
 // ── Constants ─────────────────────────────────────────────────────────────────
 const BUGGY_FILE_GITHUB = 'backend/src/test/buggy_rental_calc.ts';
 const IBRAHIM_LOCAL     = 'C:\\Users\\douba\\OneDrive\\Bureau\\ibrahim\\ibrahim';
@@ -69,15 +66,10 @@ function extractDecision(text: string): 'APPROVED' | 'REJECTED' {
 }
 
 async function sendTelegram(message: string): Promise<void> {
-  const token  = env.TELEGRAM_BOT_TOKEN;
-  const chatId = env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
   try {
-    await axios.post(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      { chat_id: chatId, text: message, parse_mode: 'Markdown' },
-      { timeout: 10_000 },
-    );
+    const { emitProactive } = await import('../notifications/mobile-push.js');
+    const clean = message.replace(/\*/g, '').replace(/_/g, '').trim();
+    emitProactive(clean.slice(0, 120), 'info', clean);
   } catch { /* non-critical */ }
 }
 

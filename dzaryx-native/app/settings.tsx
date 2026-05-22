@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ScrollView, Alert, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache, fetchSchedulerJobs, fetchValidations, decideValidation, BACKEND_URL as API_BACKEND_URL, type SchedulerJob, type Validation } from '../lib/api';
+import { fetchFleetStats, triggerSchedulerJob, backfillClientIntelligence, clearBiCache, fetchSchedulerJobs, fetchValidations, decideValidation, shareLocation, getMyLocation, BACKEND_URL as API_BACKEND_URL, type SchedulerJob, type Validation, type StoredLocation } from '../lib/api';
+import * as Location from 'expo-location';
 
 interface AiHealth {
   providers: Record<string, { available: boolean; calls_today: number; emoji: string }>;
@@ -48,7 +49,7 @@ interface NexusSysinfo {
 
 const MONO       = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 const BACKEND_URL = API_BACKEND_URL;
-const APP_VERSION = '1.2.0 (build 4)';
+const APP_VERSION = '1.3.0 (build 5) · GPS';
 
 type ConnStatus = 'checking' | 'online' | 'offline';
 
@@ -92,6 +93,8 @@ export default function SettingsScreen() {
   const [finMonth,     setFinMonth]     = useState(() => String(new Date().getMonth() + 1));
   const [finData,      setFinData]      = useState<FinanceSummary | null>(null);
   const [finLoading,   setFinLoading]   = useState(false);
+  const [locData,      setLocData]      = useState<StoredLocation | null>(null);
+  const [locLoading,   setLocLoading]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,6 +103,30 @@ export default function SettingsScreen() {
       .catch(() => { if (!cancelled) setStatus('offline'); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!MOBILE_TOKEN) return;
+    getMyLocation(MOBILE_TOKEN).then(loc => { if (loc) setLocData(loc); }).catch(() => {});
+  }, [MOBILE_TOKEN]);
+
+  const handleShareLocation = useCallback(async () => {
+    if (locLoading) return;
+    setLocLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission refusée', 'Autorise la localisation dans les paramètres système.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const result = await shareLocation(pos.coords.latitude, pos.coords.longitude, MOBILE_TOKEN);
+      if (result.ok && result.location) setLocData(result.location);
+    } catch (err) {
+      Alert.alert('Erreur GPS', err instanceof Error ? err.message : String(err));
+    } finally {
+      setLocLoading(false);
+    }
+  }, [locLoading, MOBILE_TOKEN]);
 
   const loadFleetStats = useCallback(async () => {
     if (!MOBILE_TOKEN || fleetLoad) return;
@@ -374,6 +401,32 @@ export default function SettingsScreen() {
             <Text style={styles.rowSub} numberOfLines={1}>{BACKEND_URL}</Text>
           </View>
         </View>
+      </View>
+
+      {/* GPS Location */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>LOCALISATION GPS</Text>
+        {locData ? (
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>
+                {locData.country === 'Algeria' ? '🇩🇿' : locData.country === 'Belgium' ? '🇧🇪' : locData.country === 'France' ? '🇫🇷' : '🌍'}{' '}
+                {locData.city ?? locData.country}
+              </Text>
+              <Text style={styles.rowSub}>
+                {locData.lat.toFixed(5)}, {locData.lng.toFixed(5)}
+              </Text>
+              <Text style={styles.rowSub}>
+                Mis à jour: {new Date(locData.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.schedStatus}>Aucune position enregistrée</Text>
+        )}
+        <TouchableOpacity style={styles.triggerBtn} onPress={handleShareLocation} disabled={locLoading}>
+          <Text style={styles.triggerTxt}>{locLoading ? '📡 LOCALISATION EN COURS…' : '📍 PARTAGER MA POSITION'}</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Fleet stats */}

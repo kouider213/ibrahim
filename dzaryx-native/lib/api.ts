@@ -536,6 +536,47 @@ export async function decideValidation(
   } catch { return false; }
 }
 
+export interface StoredLocation {
+  lat:        number;
+  lng:        number;
+  city?:      string;
+  country:    string;
+  updated_at: string;
+}
+
+export async function shareLocation(
+  lat:          number,
+  lng:          number,
+  mobileToken?: string,
+): Promise<{ ok: boolean; location?: StoredLocation }> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/location`, {
+      method:  'POST',
+      headers: authHeaders(token),
+      body:    JSON.stringify({ lat, lng }),
+      signal:  AbortSignal.timeout(10000),
+    });
+    return res.json() as Promise<{ ok: boolean; location?: StoredLocation }>;
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function getMyLocation(mobileToken?: string): Promise<StoredLocation | null> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/location`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal:  AbortSignal.timeout(8000),
+    });
+    const data = await res.json() as { ok: boolean; location: StoredLocation | null };
+    return data.location ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function registerPushToken(
   pushToken:    string,
   mobileToken?: string,

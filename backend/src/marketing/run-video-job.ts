@@ -18,30 +18,14 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { env } from '../config/env.js';
 import { executeCreateMarketingVideo, type MarketingVideoInput, type MarketingVideoResult } from './create-marketing-video.js';
-import { sendMessage as tgText } from '../integrations/telegram.js';
-
-// ─── Configuration du job ──────────────────────────────────────────────────
-
-/** Identifiant du chat Telegram où envoyer la vidéo et les logs */
-function resolveChatId(): string {
-  return env.TELEGRAM_CHAT_ID ?? '809747124';
-}
+import { emitProactive } from '../notifications/mobile-push.js';
 
 // ─── Helpers internes ──────────────────────────────────────────────────────
 
 function log(msg: string): void {
   const ts = new Date().toLocaleTimeString('fr-FR', { timeZone: 'Africa/Algiers' });
   console.log(`[run-video-job] [${ts}] ${msg}`);
-}
-
-async function notifyTelegram(chatId: string, msg: string): Promise<void> {
-  try {
-    await tgText(chatId, msg);
-  } catch (err) {
-    log(`⚠️ Telegram notify échoué: ${err instanceof Error ? err.message : String(err)}`);
-  }
 }
 
 // ─── Fonction principale exportée ──────────────────────────────────────────
@@ -58,31 +42,21 @@ async function notifyTelegram(chatId: string, msg: string): Promise<void> {
  */
 export async function triggerMarketingVideo(
   input: MarketingVideoInput,
-  chatId?: string,
+  _chatId?: string,
 ): Promise<MarketingVideoResult> {
-  const targetChatId = chatId ?? resolveChatId();
-
   log(`🎬 Déclenchement vidéo marketing:`);
   log(`  car_name:          ${input.car_name ?? '(auto)'}`);
   log(`  style:             ${input.style ?? 'reveal'}`);
   log(`  background_effect: ${input.background_effect ?? '(aucun)'}`);
   log(`  custom_script:     ${input.custom_script ? `"${input.custom_script.slice(0, 60)}..."` : '(généré IA)'}`);
-  log(`  target_chat_id:    ${targetChatId}`);
 
-  await notifyTelegram(
-    targetChatId,
-    [
-      `🎬 *Dzaryx Marketing — Vidéo en cours*`,
-      ``,
-      `🚗 Voiture : *${input.car_name ?? 'sélection auto'}*`,
-      `🎨 Style : *${input.style ?? 'reveal'}*`,
-      `🏖️ Fond : *${input.background_effect ?? 'aucun'}*`,
-      ``,
-      `⏳ Montage HD 1080×1920 en cours — voix ElevenLabs + FFmpeg + Pexels...`,
-    ].join('\n'),
+  emitProactive(
+    `🎬 Vidéo marketing en cours — ${input.car_name ?? 'sélection auto'}`,
+    'info',
+    `🎬 Dzaryx Marketing — Vidéo en cours\n\n🚗 Voiture : ${input.car_name ?? 'sélection auto'}\n🎨 Style : ${input.style ?? 'reveal'}\n🏖️ Fond : ${input.background_effect ?? 'aucun'}\n\n⏳ Montage HD 1080×1920 en cours — voix ElevenLabs + FFmpeg + Pexels...`,
   );
 
-  const result = await executeCreateMarketingVideo(input, targetChatId);
+  const result = await executeCreateMarketingVideo(input);
 
   const statusEmoji = result.telegram_delivered ? '✅' : '⚠️';
   const methodLabel = result.method === 'ffmpeg' ? 'FFmpeg HD 1080p' : 'Photo fallback';
@@ -96,7 +70,7 @@ export async function triggerMarketingVideo(
   log(`  script (aperçu):    "${result.script.slice(0, 80)}..."`);
 
   if (!result.telegram_delivered) {
-    log(`⚠️ La vidéo n'a pas pu être livrée sur Telegram. URL de secours: ${result.public_url}`);
+    log(`⚠️ La vidéo n'a pas pu être livrée dans l'app. URL de secours: ${result.public_url}`);
   }
 
   // Résumé final dans les logs Railway (visible dans Railway → Logs)

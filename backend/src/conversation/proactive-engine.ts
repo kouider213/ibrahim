@@ -2,10 +2,8 @@ import type { Job } from 'bullmq';
 import { redis } from '../queue/queue.js';
 import { supabase, getUserProfile } from '../integrations/supabase.js';
 import { listUpcomingEvents } from '../integrations/google-calendar.js';
-import { sendMessage } from '../integrations/telegram.js';
-import { notifyOwner } from '../notifications/pushover.js';
+import { emitProactive } from '../notifications/mobile-push.js';
 import { getOranWeather } from '../integrations/web-search.js';
-import { env } from '../config/env.js';
 
 export interface TriggerResult {
   trigger: string;
@@ -17,12 +15,12 @@ type CalEvent = Awaited<ReturnType<typeof listUpcomingEvents>>[number];
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function ownerChatId(): string {
-  return env.TELEGRAM_CHAT_ID ?? '809747124';
+function stripMd(text: string): string {
+  return text.replace(/\*/g, '').replace(/_/g, '').trim();
 }
 
 async function tg(text: string): Promise<void> {
-  if (env.TELEGRAM_CHAT_ID) await sendMessage(ownerChatId(), text);
+  emitProactive(stripMd(text).slice(0, 120), 'info', stripMd(text));
 }
 
 // Redis daily lock — returns true if lock acquired (first caller wins)
@@ -172,7 +170,6 @@ async function triggerHeatAlert(demo: boolean): Promise<TriggerResult> {
     `  • Vérifier niveaux avant sorties longues`,
     `  • Prévoir eau + clim en marche`,
   ].join('\n'));
-  if (!demo) await notifyOwner(`🌡️ Chaleur Oran ${weather.temperature}°C`, 'Conseille stationnement ombragé', false);
   return { trigger: 'heat-alert', status: 'SENT' };
 }
 
@@ -293,7 +290,6 @@ async function triggerUnpaidReminder(demo: boolean): Promise<TriggerResult> {
   if (withRemaining.length > 5) lines.push(`  … et ${withRemaining.length - 5} autre(s)`);
 
   await tg(lines.join('\n'));
-  await notifyOwner(`💸 ${withRemaining.length} impayé(s) >7j`, `${totalDue}€ à encaisser`, false);
   return { trigger: 'unpaid-reminder', status: 'SENT' };
 }
 
@@ -341,7 +337,6 @@ async function triggerLateReturn(demo: boolean): Promise<TriggerResult> {
   ];
 
   await tg(lines.join('\n'));
-  await notifyOwner(`🚨 ${overdue.length} retard(s) retour`, overdue.map(b => b.client_name).join(', '), true);
   return { trigger: 'late-return', status: 'SENT' };
 }
 

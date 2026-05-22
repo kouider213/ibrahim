@@ -3,7 +3,7 @@ import { schedulerQueue, triggerJob, triggerCustomReminder, getSchedulerStatus }
 import { requireMobileAuth } from '../middleware/auth.js';
 import { buildMemoryContext } from '../../conversation/memory-selector.js';
 import { runProactiveEngine } from '../../conversation/proactive-engine.js';
-import { sendMessage as sendTelegram } from '../../integrations/telegram.js';
+import { emitProactive } from '../../notifications/mobile-push.js';
 import { env } from '../../config/env.js';
 import { redis } from '../../queue/queue.js';
 import { insertReminder, listReminders, getPendingDue, getRetryEligible } from '../../db/reminders.js';
@@ -109,9 +109,8 @@ router.get('/memory-test', requireMobileAuth, async (_req, res) => {
       ...result.entries.slice(0, 5).map(e => `• [${e.category}] ${e.content.slice(0, 80)}`),
     ];
 
-    if (env.TELEGRAM_CHAT_ID) {
-      await sendTelegram(env.TELEGRAM_CHAT_ID, telegramLines.join('\n'));
-    }
+    const notifBody = telegramLines.join('\n').replace(/[*_`[\]()]/g, '');
+    emitProactive(`🧪 Memory Engine Test — ${verdict}`, 'info', notifBody);
 
     res.json({
       ok:            true,
@@ -122,7 +121,7 @@ router.get('/memory-test', requireMobileAuth, async (_req, res) => {
       tokenEstimate: result.tokenEstimate,
       budgetTokens:  300,
       entries:       result.entries,
-      telegram_sent: !!env.TELEGRAM_CHAT_ID,
+      app_sent:      true,
       tested_at:     new Date().toISOString(),
     });
   } catch (err) {

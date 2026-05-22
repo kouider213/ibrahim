@@ -1,8 +1,5 @@
 import { redis } from '../queue/queue.js';
-import { sendMessage } from '../integrations/telegram.js';
-import { notifyOwner } from '../notifications/pushover.js';
 import { emitProactive } from '../notifications/mobile-push.js';
-import { env } from '../config/env.js';
 import {
   getPendingDue,
   getRetryEligible,
@@ -20,24 +17,11 @@ let _started = false;
 
 // ── Send a single reminder to the configured channel ─────────────────────────
 async function deliver(row: ReminderRow): Promise<string> {
-  const text = `⏰ *Rappel Dzaryx*\n\n${row.message}`;
   const providers: string[] = [];
 
-  // Always send to app (Socket.IO + Web Push)
+  // App only (Socket.IO + Expo Push)
   emitProactive(row.message, 'reminder', `⏰ Rappel\n\n${row.message}`);
   providers.push('app');
-
-  // Also send to Telegram if configured
-  if (row.telegram_target) {
-    await sendMessage(row.telegram_target, text);
-    providers.push(`telegram:${row.telegram_target}`);
-  } else if (env.TELEGRAM_CHAT_ID) {
-    await sendMessage(env.TELEGRAM_CHAT_ID, text).catch(() => {});
-    providers.push(`telegram:${env.TELEGRAM_CHAT_ID}`);
-  } else {
-    await notifyOwner('⏰ Rappel Dzaryx', row.message).catch(() => {});
-    providers.push('pushover:owner');
-  }
 
   return providers.join('+');
 }

@@ -1,8 +1,6 @@
 import { redis } from '../queue/queue.js';
 import { emitBIRefresh } from './bi-socket.js';
-import { sendMessage } from '../integrations/telegram.js';
-import { notifyOwner } from '../notifications/pushover.js';
-import { env } from '../config/env.js';
+import { emitProactive } from '../notifications/mobile-push.js';
 import { getFleetIntelligence,   type FleetIntelligence   } from './fleet-intelligence.js';
 import { getRevenueSummary,      type RevenueSummary       } from './revenue-intelligence.js';
 import { getSmartReminders,      type SmartReminder        } from './smart-reminders.js';
@@ -15,10 +13,6 @@ export interface BIReport {
   tiktok:    TikTokIntelligence;
   generated_at: string;
   runtime_ms:   number;
-}
-
-function ownerChatId(): string {
-  return env.TELEGRAM_CHAT_ID ?? '809747124';
 }
 
 function formatBITelegram(report: BIReport): string {
@@ -93,19 +87,14 @@ export async function runBIEngine(forceTelegram = false): Promise<BIReport> {
   await redis.set(CACHE_KEY, JSON.stringify(report), 'EX', 1800);
   emitBIRefresh('full');
 
-  if (forceTelegram && env.TELEGRAM_CHAT_ID) {
+  if (forceTelegram) {
     const msg = formatBITelegram(report);
-    await sendMessage(ownerChatId(), msg).catch(err => console.error('[bi] Telegram error:', err.message));
-
-    // Pushover for HIGH priority reminders
+    const clean = msg.replace(/\*/g, '').replace(/_/g, '').trim();
     const highAlerts = reminders.filter(r => r.priority === 'HIGH');
-    if (highAlerts.length > 0) {
-      await notifyOwner(
-        `🔴 ${highAlerts.length} alerte(s) urgente(s)`,
-        highAlerts.slice(0, 3).map(r => r.message).join(' | '),
-        true,
-      ).catch(() => {});
-    }
+    const shortMsg = highAlerts.length > 0
+      ? `🔴 ${highAlerts.length} alerte(s) urgente(s) — ${fleet.total_cars} voitures / ${revenue.month_revenue}€`
+      : `📊 BI — ${fleet.total_cars} voitures / ${revenue.month_revenue}€ ce mois`;
+    emitProactive(shortMsg, highAlerts.length > 0 ? 'alert' : 'info', clean);
   }
 
   console.log(`[bi-engine] Done in ${report.runtime_ms}ms — fleet:${fleet.total_cars} revenue:${revenue.month_revenue}€ reminders:${reminders.length} tiktok:${tiktok.ideas.length}`);
