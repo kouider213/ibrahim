@@ -1445,6 +1445,32 @@ export async function jobMonthlyReport(_job: Job): Promise<void> {
   }
 }
 
+// ── 25. Brain Update — mise à jour hebdomadaire cerveau clients ───────────────
+export async function jobClientBrainUpdate(_job: Job): Promise<void> {
+  try {
+    const today   = new Date().toISOString().slice(0, 10);
+    const lockKey = `job:client-brain-update:sent:${today}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    if (!acquired) {
+      console.log('[job:client-brain-update] SKIP — already ran today');
+      return;
+    }
+
+    const { analyzeAllClients } = await import('../../integrations/client-brain.js');
+
+    console.log('[job:client-brain-update] Démarrage analyse patterns clients...');
+    const kouiderCount = await analyzeAllClients('kouider');
+    const houariCount  = await analyzeAllClients('houari');
+    const total = kouiderCount + houariCount;
+
+    const msg = `🧠 Cerveau Dzaryx mis à jour — ${total} profil(s) client analysés et enrichis avec insights IA.`;
+    emitProactive(msg, 'info', `🧠 *Mise à jour cerveau Dzaryx*\n\n${total} profil(s) client analysés.\n${kouiderCount} pour Kouider — ${houariCount} pour Houari.\n\nDzaryx connaît maintenant mieux chaque client (voitures préférées, mois typiques, fiabilité paiement).`, 'kouider');
+    console.log(`[job:client-brain-update] ✅ ${total} profils mis à jour`);
+  } catch (err) {
+    console.error('[job:client-brain-update] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ── 24. Alerte véhicule immobilisé 14+ jours ─────────────────────────────────
 export async function jobLongIdleAlert(_job: Job): Promise<void> {
   try {

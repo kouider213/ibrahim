@@ -65,6 +65,7 @@ import { redis } from '../queue/queue.js';
 import { recordToolExecution } from '../orchestrator/action-engine.js';
 import { writeMemory, computeMemoryKey, type MemoryDomain } from '../orchestrator/memory-engine.js';
 import { getClientProfile } from '../orchestrator/client-intelligence.js';
+import { getClientBrain, addClientNote, setArrivalPattern, saveObservation } from './client-brain.js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { runCodeAgent } from '../agents/code-agent.js';
@@ -294,6 +295,9 @@ async function _dispatch(
       case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input);
       case 'check_car_availability':     return await checkCarAvailability(input);
       case 'get_client_profile':         return await getClientProfileTool(input['client_name'] as string);
+      case 'get_client_brain':           return await getClientBrainTool(input['name_or_phone'] as string, sessionId);
+      case 'add_client_note':            return await addClientNoteTool(input['name_or_phone'] as string, input['note'] as string, sessionId);
+      case 'set_arrival_pattern':        return await setArrivalPatternTool(input, sessionId);
       case 'track_habit':                return await trackHabitTool(input);
       // ─── GitHub search ───
       case 'github_search_code':         return await githubSearchCode(input);
@@ -4707,6 +4711,40 @@ async function getClientProfileTool(clientName: string): Promise<string> {
     p.notes ? `\n📝 Notes: ${p.notes}` : '',
   ].filter(Boolean);
   return lines.join('\n');
+}
+
+// ── Client Brain Tools ────────────────────────────────────────────────────────
+
+async function getClientBrainTool(nameOrPhone: string, sessionId?: string): Promise<string> {
+  if (!nameOrPhone) return '❌ Nom ou téléphone requis.';
+  const actorId = sessionId?.includes('houari') ? 'houari' : 'kouider';
+  const result = await getClientBrain(nameOrPhone, actorId);
+  if (!result.found) {
+    return `❌ Aucun client trouvé pour "${nameOrPhone}". Vérifie le nom ou le numéro.`;
+  }
+  return result.context;
+}
+
+async function addClientNoteTool(nameOrPhone: string, note: string, sessionId?: string): Promise<string> {
+  if (!nameOrPhone || !note) return '❌ Nom/téléphone et note requis.';
+  const actorId = sessionId?.includes('houari') ? 'houari' : 'kouider';
+  const result = await addClientNote(nameOrPhone, note, actorId);
+  // Also save as observation
+  await saveObservation('manual', `Note sur ${nameOrPhone}: ${note}`, actorId, undefined, nameOrPhone, 'manual').catch(() => {});
+  return result;
+}
+
+async function setArrivalPatternTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const nameOrPhone = input['name_or_phone'] as string;
+  if (!nameOrPhone) return '❌ Nom ou téléphone requis.';
+  const actorId = sessionId?.includes('houari') ? 'houari' : 'kouider';
+  const pattern: Record<string, string> = {};
+  if (input['typical_time'])  pattern['typical_time']  = input['typical_time'] as string;
+  if (input['typical_hour'])  pattern['typical_hour']  = input['typical_hour'] as string;
+  if (input['typical_day'])   pattern['typical_day']   = input['typical_day'] as string;
+  if (input['flight_origin']) pattern['flight_origin'] = input['flight_origin'] as string;
+  if (input['notes'])         pattern['notes']         = input['notes'] as string;
+  return setArrivalPattern(nameOrPhone, pattern, actorId);
 }
 
 // ── Export Comptable PDF ──────────────────────────────────────────────────────

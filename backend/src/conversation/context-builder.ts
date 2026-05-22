@@ -9,6 +9,7 @@ import { detectLanguage } from './language-detector.js';
 import { buildMemoryContext, type MemoryContextResult } from './memory-selector.js';
 import { detectMood, saveMoodSession, type MoodResult } from '../orchestrator/mood-detector.js';
 import { getClientProfile } from '../orchestrator/client-intelligence.js';
+import { getClientBrain, getActorBrainContext } from '../integrations/client-brain.js';
 import { type OrgMember, DEFAULT_MEMBER } from '../orchestrator/org-resolver.js';
 import { getSmartReminders } from '../bi/smart-reminders.js';
 import { getLearnedRules, formatRulesForContext } from '../integrations/learned-rules.js';
@@ -107,9 +108,11 @@ export async function buildContext(
   const needsCalendar = /agenda|calendrier|rendez|event|demain|cette semaine/i.test(userMessage);
   const needsReminders = /rappel|alerte|urgent|priorit|demain|arrivée|retour|passeport|acompte|prépare/i.test(userMessage);
 
-  // Détection client mentionné dans le message (pour injecter son profil)
-  const clientMentionMatch = userMessage.match(/(?:client|résa|réservation|document|dossier)\s+(?:de\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)/i)
-    ?? userMessage.match(/([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-ZÀ-Ü][a-zà-ü]+)?)\s+(?:réserve|loue|veut|demande)/i);
+  // Détection client mentionné dans le message — large net pour injecter profil + cerveau
+  const clientMentionMatch =
+    userMessage.match(/(?:client|résa(?:ervation)?|document|dossier|profil|infos?|préfère|loue|arrive|vient|paye)\s+(?:de\s+|sur\s+|pour\s+)?([A-ZÀ-ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-ÿ][a-zà-ÿ]+)?)/i)
+    ?? userMessage.match(/([A-ZÀ-ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-ÿ][a-zà-ÿ]+)?)\s+(?:réserve|loue|veut|demande|arrive|vient|prend|préfère)/i)
+    ?? userMessage.match(/(?:c'est qui|c est qui|qui est|profil de?)\s+([A-ZÀ-ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-ÿ][a-zà-ÿ]+)?)/i);
   const mentionedClient = clientMentionMatch?.[1] ?? null;
 
   const now = new Date();
@@ -141,7 +144,7 @@ export async function buildContext(
   );
   const needsReminderInject = needsReminders || oranHour < 12;
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules] = await Promise.all([
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -180,6 +183,8 @@ export async function buildContext(
       .limit(10)
       .then((r: any) => r.data ?? [], () => []),
     getLearnedRules(actor.ownerKey, 40).catch(() => []),
+    mentionedClient ? getClientBrain(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
+    getActorBrainContext(actor.ownerKey).catch(() => ''),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -326,6 +331,15 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? `\n\n${clientIntel.context}`
     : '';
 
+  // Cerveau enrichi du client (insights IA + arrivée + notes)
+  const brainCtx = (clientBrain as { found: boolean; context: string } | null);
+  const clientBrainText = brainCtx?.found && brainCtx.context && brainCtx.context !== clientIntelText.trim()
+    ? `\n\n${brainCtx.context}`
+    : '';
+
+  // Cerveau acteur (patterns communication Kouider/Houari appris)
+  const actorBrainText = (actorBrainCtx as string) || '';
+
   // Smart reminders (matin ou si demandé explicitement)
   const remindersArr = smartReminders as Array<{ type: string; priority: string; client_name: string; car_name: string; date: string; message: string; action: string }>;
   const highReminders = remindersArr.filter(r => r.priority === 'HIGH');
@@ -400,6 +414,8 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     pricingText,
     styleText,
     clientIntelText,
+    clientBrainText,
+    actorBrainText,
     episodesText,
     remindersText,
     learnedRulesText,

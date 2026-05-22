@@ -106,6 +106,45 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'get_client_brain',
+    description: 'Profil complet et enrichi d\'un client: voitures préférées, mois de location typiques, patterns d\'arrivée (vol le soir, arrive le lundi), insights IA générés automatiquement, fiabilité paiement, passeport pour disambiguation. Utiliser pour "Mohamed loue quoi?", "c\'est qui ce client?", "quand arrive-t-il?", "compare Mohamed Benali et Mohamed Kader".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name_or_phone: { type: 'string', description: 'Nom, prénom ou numéro de téléphone du client' },
+      },
+      required: ['name_or_phone'],
+    },
+  },
+  {
+    name: 'add_client_note',
+    description: 'Ajouter une note ou observation manuelle sur un client. Ex: "Mohamed prend toujours des vols le soir", "Client VIP — toujours prioritaire", "Attention: chien dans la voiture". La note est permanente dans le cerveau Dzaryx.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name_or_phone: { type: 'string', description: 'Nom, prénom ou numéro de téléphone' },
+        note:          { type: 'string', description: 'Observation ou note à retenir définitivement' },
+      },
+      required: ['name_or_phone', 'note'],
+    },
+  },
+  {
+    name: 'set_arrival_pattern',
+    description: 'Enregistrer le pattern d\'arrivée typique d\'un client: heure de vol, jour de la semaine, aéroport d\'origine. Ex: "Rachid arrive toujours le soir entre 21h-23h", "Karim vient de Paris CDG, arrive les vendredis". Dzaryx utilise ça pour anticiper.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name_or_phone:  { type: 'string', description: 'Nom, prénom ou numéro de téléphone' },
+        typical_time:   { type: 'string', description: 'Moment de la journée: "matin", "après-midi", "soir", "nuit"' },
+        typical_hour:   { type: 'string', description: 'Plage horaire précise: "20h-23h", "8h-10h"' },
+        typical_day:    { type: 'string', description: 'Jour de la semaine: "lundi", "vendredi", "week-end"' },
+        flight_origin:  { type: 'string', description: 'Aéroport ou ville d\'origine: "Paris CDG", "Bruxelles", "Lyon"' },
+        notes:          { type: 'string', description: 'Notes supplémentaires sur l\'arrivée' },
+      },
+      required: ['name_or_phone'],
+    },
+  },
+  {
     name: 'store_document',
     description: 'Stocker passeport/permis/contrat client + données OCR extraites. Appeler après analyse vision d\'une photo document. extracted_data contient les champs parsés (passport_number, full_name, dob, nationality, expiry_date, etc.).',
     input_schema: {
