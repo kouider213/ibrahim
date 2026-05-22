@@ -1741,29 +1741,22 @@ async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: 
     `📍 FIK Conciergerie Oran — AutoLux Location`,
   ].join('\n');
 
-  // Generate PDF and upload to Cloudinary
+  // Generate PDF and serve directly from backend (Content-Type: application/pdf)
   let pdfUrl = '';
   try {
     const { buffer: pdfBuf } = await generateReservationVoucher(bookingId);
-    const { v2: cloudinary } = await import('cloudinary');
-    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
-    pdfUrl = await new Promise<string>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'raw', folder: 'dzaryx-vouchers', public_id: `bon-${refNo}.pdf` },
-        (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
-      );
-      stream.end(pdfBuf);
-    });
+    const { storePdf } = await import('../utils/pdf-store.js');
+    const token = storePdf(pdfBuf, `bon-${refNo}.pdf`);
+    pdfUrl = `${env.BACKEND_URL}/api/pdf/${token}`;
   } catch (err) {
-    console.error('[generateVoucherTool] PDF upload failed:', err instanceof Error ? err.message : err);
+    console.error('[generateVoucherTool] PDF generation failed:', err instanceof Error ? err.message : err);
   }
 
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  const viewableUrl = pdfUrl ? `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}` : '';
-  const fullText = viewableUrl ? `${chatText}\n📹 ${viewableUrl}` : chatText;
+  const fullText = pdfUrl ? `${chatText}\n📹 ${pdfUrl}` : chatText;
   emitProactive(`Bon de réservation — ${clientName}`, 'info', fullText);
 
-  return `✅ Bon de réservation envoyé dans l'app pour ${clientName} !${viewableUrl ? '\n📎 PDF dans le chat' : ''}\n\n${chatText}`;
+  return `✅ Bon de réservation envoyé dans l'app pour ${clientName} !${pdfUrl ? '\n📎 PDF dans le chat' : ''}\n\n${chatText}`;
 }
 
 // ── Phase 8 handlers ─────────────────────────────────────────────────────────
@@ -1825,29 +1818,22 @@ async function generateContractTool(input: Record<string, unknown>, _sessionId?:
     `📍 FIK Conciergerie Oran — AutoLux Location`,
   ].join('\n');
 
-  // Generate PDF and upload to Cloudinary
+  // Generate PDF and serve directly from backend (Content-Type: application/pdf)
   let pdfUrl = '';
   try {
     const { buffer: pdfBuf } = await generateRentalContract(bookingId);
-    const { v2: cloudinary } = await import('cloudinary');
-    cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
-    pdfUrl = await new Promise<string>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'raw', folder: 'dzaryx-contracts', public_id: `contrat-${contractNumber}.pdf` },
-        (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
-      );
-      stream.end(pdfBuf);
-    });
+    const { storePdf } = await import('../utils/pdf-store.js');
+    const token = storePdf(pdfBuf, `contrat-${contractNumber}.pdf`);
+    pdfUrl = `${env.BACKEND_URL}/api/pdf/${token}`;
   } catch (err) {
-    console.error('[generateContractTool] PDF upload failed:', err instanceof Error ? err.message : err);
+    console.error('[generateContractTool] PDF generation failed:', err instanceof Error ? err.message : err);
   }
 
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  const viewableUrl = pdfUrl ? `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}` : '';
-  const fullText = viewableUrl ? `${chatText}\n📹 ${viewableUrl}` : chatText;
+  const fullText = pdfUrl ? `${chatText}\n📹 ${pdfUrl}` : chatText;
   emitProactive(`Contrat ${contractNumber} — ${clientName}`, 'info', fullText);
 
-  return `✅ Contrat ${contractNumber} envoyé dans l'app pour ${clientName} !${viewableUrl ? '\n📎 PDF dans le chat' : ''}\n\n${chatText}`;
+  return `✅ Contrat ${contractNumber} envoyé dans l'app pour ${clientName} !${pdfUrl ? '\n📎 PDF dans le chat' : ''}\n\n${chatText}`;
 }
 
 async function exportExcelTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
