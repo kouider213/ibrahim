@@ -25,11 +25,9 @@ function ownerChatId(): string {
   return env.TELEGRAM_CHAT_ID ?? '809747124';
 }
 
-// Toutes les notifications passent par l'app (Socket.IO + Expo Push)
-// Plus de Telegram comme canal principal
-async function tg(text: string): Promise<void> {
-  emitProactive(stripTgMd(text).slice(0, 120), 'info', stripTgMd(text));
-}
+// tg() — canal Telegram désactivé. Toutes les notifs passent par emitProactive() explicite.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function tg(_text: string): Promise<void> { return Promise.resolve(); }
 
 // ── 0. Réveil matinal 7h30 ────────────────────────────────────
 export async function jobMorningBriefing(_job: Job): Promise<void> {
@@ -213,6 +211,7 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
     const carName = b.cars?.name ?? 'Véhicule';
     const msg = `🚗 *Fin de location demain*\n${b.client_name} — ${carName}\nRetour le ${b.end_date}${b.client_phone ? `\n📞 ${b.client_phone}` : ''}`;
     await tg(msg);
+    emitProactive(`Fin de location demain — ${b.client_name} (${carName})`, 'reminder', stripTgMd(msg));
     await notifyOwner('🚗 Fin de réservation demain', `${b.client_name} — ${carName}`, false);
     sent++;
   }
@@ -339,6 +338,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   ].filter(Boolean).join('\n');
 
   await tg(researchMsg);
+  emitProactive('Rapport marketing TikTok prêt — idée générée.', 'info', stripTgMd(researchMsg));
 
   // 4. Pick best idea and find matching car
   const bestIdea = report.top_ideas[0];
@@ -531,6 +531,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
       const waMsg = generateSoldeMessage(clientName, remaining, carName, 1, daysWithCar);
       const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 1, daysWithCar, startDate);
       await tg(tgMsg);
+      emitProactive(`💰 Solde impayé — ${clientName} — ${remaining}€ (${carName})`, 'alert', stripTgMd(tgMsg));
       await supabase.from('relance_logs').insert({
         booking_id: bookingId, client_name: clientName, client_phone: clientPhone,
         car_name: carName, amount_due: remaining, attempt: 1,
@@ -545,6 +546,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
         const waMsg = generateSoldeMessage(clientName, remaining, carName, 2, daysWithCar);
         const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 2, daysWithCar, startDate);
         await tg(tgMsg);
+        emitProactive(`🔔 Relance 2 — ${clientName} — ${remaining}€ toujours dû (${carName})`, 'alert', stripTgMd(tgMsg));
         await supabase.from('relance_logs').insert({
           booking_id: bookingId, client_name: clientName, client_phone: clientPhone,
           car_name: carName, amount_due: remaining, attempt: 2,
@@ -557,16 +559,13 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
     } else if (attempt1Log && attempt2Log) {
       const hoursSince2 = (now.getTime() - new Date(attempt2Log.sent_at).getTime()) / 3_600_000;
       if (hoursSince2 >= 24) {
-        await tg([
-          `🔴 *SOLDE NON ENCAISSÉ — ${daysWithCar}j après remise clés*`,
-          ``,
-          `👤 *${clientName}*`,
-          `🚗 ${carName} (remis le ${startDate})`,
-          `💰 Solde restant: *${remaining}€* (total: ${total}€ | payé: ${paid}€)`,
-          `📱 ${clientPhone ?? 'Pas de téléphone'}`,
-          ``,
-          `⚠️ 2 rappels envoyés — aucun règlement. Contacte ce client directement.`,
-        ].join('\n'));
+        const urgentMsg = [
+          `🔴 SOLDE NON ENCAISSÉ — ${daysWithCar}j après remise clés`,
+          `${clientName} — ${carName} — ${remaining}€ restant`,
+          `2 rappels envoyés — aucun règlement. Contacte ce client directement.`,
+        ].join('\n');
+        await tg(urgentMsg);
+        emitProactive(`🔴 URGENT — ${clientName} — ${remaining}€ non encaissé après ${daysWithCar}j`, 'alert', urgentMsg);
         await supabase.from('relance_logs').update({ sent_at: now.toISOString(), status: 'urgent' })
           .eq('booking_id', bookingId).eq('attempt', 2);
         urgentCount++;
@@ -588,17 +587,13 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
 
     if ((logs ?? []).length > 0) continue; // déjà alerté
 
-    await tg([
-      `⚠️ *ACOMPTE MANQUANT — Arrivée dans ${daysLeft}j*`,
-      ``,
-      `👤 *${clientName}*`,
-      `🚗 ${carName}`,
-      `📅 Arrivée prévue: ${startDate}`,
-      `💰 Total: ${total}€ | Acompte: *0€ reçu*`,
-      `📱 ${clientPhone ?? 'Pas de téléphone'}`,
-      ``,
-      `💡 Ce client n'a pas encore versé d'acompte. Confirme la réservation avec lui.`,
-    ].join('\n'));
+    const acompteMsg = [
+      `⚠️ ACOMPTE MANQUANT — ${clientName} arrive dans ${daysLeft}j`,
+      `${carName} — ${total}€ total — 0€ reçu`,
+      `Confirme la réservation avec ce client.`,
+    ].join('\n');
+    await tg(acompteMsg);
+    emitProactive(`⚠️ Acompte manquant — ${clientName} (${carName}) — arrive dans ${daysLeft}j`, 'alert', acompteMsg);
 
     await supabase.from('relance_logs').insert({
       booking_id: booking.id as string, client_name: clientName, client_phone: clientPhone,
@@ -695,17 +690,13 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
     );
     const carName = (b.cars as any)?.name ?? 'Véhicule';
 
-    await tg([
-      `🚨 *RETARD DE RETOUR — ${daysLate} jour(s)*`,
-      ``,
-      `👤 *${b.client_name}*`,
-      `🚗 ${carName}`,
-      `📅 Devait rendre le *${b.end_date}*`,
-      `📱 ${b.client_phone ?? 'N/A'}`,
-      `💰 Prix total: ${b.final_price}€`,
-      ``,
-      `⚠️ Contacte ce client immédiatement.`,
-    ].join('\n'));
+    const lateMsg = [
+      `🚨 RETARD DE RETOUR — ${daysLate} jour(s)`,
+      `${b.client_name} — ${carName}`,
+      `Devait rendre le ${b.end_date} — Contacte ce client immédiatement.`,
+    ].join('\n');
+    await tg(lateMsg);
+    emitProactive(`🚨 Retard ${daysLate}j — ${b.client_name} (${carName}) — Contact urgent !`, 'alert', lateMsg);
 
     await notifyOwner(
       `🚨 Retard ${daysLate}j — ${b.client_name}`,
