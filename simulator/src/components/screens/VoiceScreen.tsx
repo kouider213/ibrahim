@@ -8,6 +8,7 @@ import {
 interface Props {
   onNavigateText: () => void;
   onWsStatus: (ok: boolean) => void;
+  actor?: 'kouider' | 'houari';
 }
 
 const STATE_COLOR: Record<DzaryxStatus, string> = {

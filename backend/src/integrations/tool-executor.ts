@@ -224,11 +224,20 @@ export async function executeTool(
   return result;
 }
 
+const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'nexus_full_status']);
+const PC_TOOLS    = new Set(['pc_run_command', 'pc_open_file', 'pc_screenshot', 'pc_list_files', 'pc_read_file']);
+
 async function _dispatch(
   name: string,
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
+  // Nexus / PC — Kouider uniquement
+  const isHouariSession = /houari/i.test(sessionId ?? '');
+  if (isHouariSession && (NEXUS_TOOLS.has(name) || PC_TOOLS.has(name))) {
+    return '❌ Nexus PC disponible uniquement pour Kouider.';
+  }
+
   try {
     switch (name) {
       case 'list_bookings':         return await listBookings(input);

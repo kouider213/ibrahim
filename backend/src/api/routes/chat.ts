@@ -6,6 +6,7 @@ import { getConversationHistory } from '../../integrations/supabase.js';
 import { redis } from '../../queue/queue.js';
 import { isValidTimezone } from '../../utils/timezone.js';
 import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
+import { env } from '../../config/env.js';
 
 const router = Router();
 
@@ -55,12 +56,18 @@ router.post('/', requireMobileAuth, async (req, res) => {
 
   // Resolve mobile actor from auth middleware
   const mobileAct = req.mobileActor;
-  const actor: OrgMember = mobileAct ? {
+  let actor: OrgMember = mobileAct ? {
     orgId:       '',
     ownerKey:    mobileAct.ownerKey,
     role:        mobileAct.role,
     displayName: mobileAct.displayName,
   } : DEFAULT_MEMBER;
+
+  // When both users share a single MOBILE_ACCESS_TOKEN, derive real actor from sessionId prefix.
+  // Sessions voice_houari / mobile_houari are created by the simulator after Houari logs in.
+  if (actor.ownerKey !== 'houari' && /^(voice|mobile)_houari($|_)/i.test(sessionId)) {
+    actor = { orgId: '', ownerKey: 'houari', role: 'admin', displayName: env.PARTNER_NAME };
+  }
 
   processWithOrchestration(message, sessionId, textOnly, imageBase64, imageMime, actor).catch(err => {
     console.error('[chat] processWithOrchestration error:', err instanceof Error ? err.message : String(err));
