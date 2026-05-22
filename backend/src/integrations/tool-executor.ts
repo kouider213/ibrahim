@@ -1749,7 +1749,7 @@ async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: 
     cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
     pdfUrl = await new Promise<string>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'image', folder: 'dzaryx-vouchers', public_id: `bon-${refNo}`, format: 'pdf' },
+        { resource_type: 'raw', folder: 'dzaryx-vouchers', public_id: `bon-${refNo}.pdf` },
         (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
       );
       stream.end(pdfBuf);
@@ -1759,10 +1759,11 @@ async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: 
   }
 
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  const fullText = pdfUrl ? `${chatText}\n📹 ${pdfUrl}` : chatText;
+  const viewableUrl = pdfUrl ? `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}` : '';
+  const fullText = viewableUrl ? `${chatText}\n📹 ${viewableUrl}` : chatText;
   emitProactive(`Bon de réservation — ${clientName}`, 'info', fullText);
 
-  return `✅ Bon de réservation envoyé dans l'app pour ${clientName} !${pdfUrl ? '\n📎 PDF téléchargeable dans le chat' : ''}\n\n${chatText}`;
+  return `✅ Bon de réservation envoyé dans l'app pour ${clientName} !${viewableUrl ? '\n📎 PDF dans le chat' : ''}\n\n${chatText}`;
 }
 
 // ── Phase 8 handlers ─────────────────────────────────────────────────────────
@@ -1832,7 +1833,7 @@ async function generateContractTool(input: Record<string, unknown>, _sessionId?:
     cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
     pdfUrl = await new Promise<string>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'image', folder: 'dzaryx-contracts', public_id: `contrat-${contractNumber}`, format: 'pdf' },
+        { resource_type: 'raw', folder: 'dzaryx-contracts', public_id: `contrat-${contractNumber}.pdf` },
         (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
       );
       stream.end(pdfBuf);
@@ -1842,10 +1843,11 @@ async function generateContractTool(input: Record<string, unknown>, _sessionId?:
   }
 
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  const fullText = pdfUrl ? `${chatText}\n📹 ${pdfUrl}` : chatText;
+  const viewableUrl = pdfUrl ? `https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}` : '';
+  const fullText = viewableUrl ? `${chatText}\n📹 ${viewableUrl}` : chatText;
   emitProactive(`Contrat ${contractNumber} — ${clientName}`, 'info', fullText);
 
-  return `✅ Contrat ${contractNumber} envoyé dans l'app pour ${clientName} !${pdfUrl ? '\n📎 PDF téléchargeable dans le chat' : ''}\n\n${chatText}`;
+  return `✅ Contrat ${contractNumber} envoyé dans l'app pour ${clientName} !${viewableUrl ? '\n📎 PDF dans le chat' : ''}\n\n${chatText}`;
 }
 
 async function exportExcelTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
