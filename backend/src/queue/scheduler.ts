@@ -29,8 +29,6 @@ import {
   jobDeliveryDepartureAlert,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
-import { notifyOwner } from '../notifications/pushover.js';
-import { sendMessage as sendTelegram } from '../integrations/telegram.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
@@ -284,15 +282,8 @@ export async function initScheduler(): Promise<void> {
         console.log(`[scheduler] custom-reminder DELIVERING — request_id=${request_id} idem=${idempotency_key} job_id=${job.id}`);
 
         try {
-          // Always deliver to app first
+          // Deliver to app (Socket.IO + Expo Push)
           emitProactive(msg, 'reminder', `⏰ Rappel\n\n${msg}`);
-          // Also Telegram/Pushover as secondary
-          const chatId = env.TELEGRAM_CHAT_ID;
-          if (chatId) {
-            await sendTelegram(chatId, `⏰ *Rappel Dzaryx*\n\n${msg}`).catch(() => {});
-          } else {
-            await notifyOwner('⏰ Rappel Dzaryx', msg).catch(() => {});
-          }
           // Update DB status if we have a dedup_key
           if (idempotency_key) {
             await supabase

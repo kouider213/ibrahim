@@ -8,7 +8,7 @@ function stripTgMd(s: string): string {
 }
 import { getDailyCostReport } from '../../monitoring/cost-tracker.js';
 import { supabase } from '../../integrations/supabase.js';
-import { notifyOwner } from '../../notifications/pushover.js';
+
 import { getFinancialReport } from '../../integrations/finance.js';
 import { listUpcomingEvents } from '../../integrations/google-calendar.js';
 import { getOranWeather } from '../../integrations/web-search.js';
@@ -212,7 +212,6 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
     const msg = `🚗 *Fin de location demain*\n${b.client_name} — ${carName}\nRetour le ${b.end_date}${b.client_phone ? `\n📞 ${b.client_phone}` : ''}`;
     await tg(msg);
     emitProactive(`Fin de location demain — ${b.client_name} (${carName})`, 'reminder', stripTgMd(msg));
-    await notifyOwner('🚗 Fin de réservation demain', `${b.client_name} — ${carName}`, false);
     sent++;
   }
 
@@ -265,7 +264,6 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
 
   const list = idleCars.map(c => `  • ${c.name}`).join('\n');
   await tg(`⚠️ *${idleCars.length} véhicule(s) sans réservation depuis 7 jours:*\n${list}\n\n💡 Fais un TikTok ou propose une promo.`);
-  await notifyOwner(`⚠️ ${idleCars.length} véhicule(s) idle`, list, false);
   emitProactive(
     `${idleCars.length} véhicule(s) sans réservation depuis 7 jours.`,
     'alert',
@@ -389,7 +387,6 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   console.log(`[job:tiktok] Pending video saved: ${pendingId}`);
 
   // 7. Notification app (Socket.IO + push) avec URL vidéo
-  await notifyOwner('📱 Vidéo TikTok prête', `${bestIdea.title} — réponds Oke pour publier`, false);
   const tiktokMediaLine = targetCar.image_url ? `\n📹 ${targetCar.image_url}` : '';
   emitProactive(`Vidéo TikTok — ${bestIdea.title} — ${targetCar.name}. Réponds Oke pour publier.`, 'info',
     `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok${tiktokMediaLine}`, 'kouider');
@@ -697,12 +694,6 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
     ].join('\n');
     await tg(lateMsg);
     emitProactive(`🚨 Retard ${daysLate}j — ${b.client_name} (${carName}) — Contact urgent !`, 'alert', lateMsg);
-
-    await notifyOwner(
-      `🚨 Retard ${daysLate}j — ${b.client_name}`,
-      `${carName} — devait rendre le ${b.end_date}`,
-      true,
-    );
   }
 
   const overdueList = (overdue as any[]).map((b: any) => {
@@ -732,7 +723,6 @@ export async function jobCheckAnomalies(_job: Job): Promise<void> {
     const result = await checkAnomalies();
     if (result && !result.includes('Aucune anomalie')) {
       await tg(`⚠️ *Anomalies financières détectées:*\n${result}`);
-      await notifyOwner('⚠️ Anomalie financière', result.slice(0, 200), true);
       emitProactive(
         `Anomalies financières détectées.`,
         'alert',
@@ -784,7 +774,6 @@ export async function jobWeeklyReport(_job: Job): Promise<void> {
   ].filter(Boolean).join('\n');
 
   await tg(report);
-  await notifyOwner('📊 Rapport hebdomadaire', report, false);
   emitProactive(`Rapport hebdo — ${confirmed.length} rés. / ${revenue}€`, 'info', stripTgMd(report));
   console.log('[job:weekly-report] sent');
 }
@@ -1579,13 +1568,6 @@ export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
         const pushBody  = `${travel.travel_time_minutes}min depuis ${cityLabel} → Aéroport`;
 
         emitProactive(pushBody, 'alert', `${pushTitle}\n\n${msg}`, 'kouider');
-
-        const chatId = env.TELEGRAM_CHAT_ID;
-        if (chatId) {
-          const { sendMessage } = await import('../../integrations/telegram.js');
-          await sendMessage(chatId, `🚗 *Rappel livraison*\n\n${msg}`).catch(() => {});
-        }
-
         await redis.set(alertKey, '1', 'EX', 86400);
         console.log(`[job:delivery-alert] ✅ alerte envoyée — ${booking.client_name}`);
       } catch (innerErr) {
