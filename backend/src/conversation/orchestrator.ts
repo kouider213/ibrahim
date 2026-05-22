@@ -291,22 +291,13 @@ export async function processMessage(
       }
     }
 
-    // Vision: Gemini+OpenAI+Claude all failed — return clean message, never crash
+    // Vision fast-path cascade failed → fall through to full Claude agentic loop
+    // The agentic loop (chatWithTools) injects imageBase64 via the Anthropic SDK (claude-api.ts)
     if (imageBase64) {
-      console.error(`[VISION_RUNTIME] ALL_PROVIDERS_FAILED session=${sessionId} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} claude=${isClaudeAvailable()}`);
-      const visionErr = 'Vision IA indisponible pour le moment. Réessaie dans quelques secondes.';
-      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: visionErr });
-      if (!textOnly) {
-        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
-        await streamAudioSentences(visionErr, sessionId);
-        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
-      }
-      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
-      return { text: visionErr, status: 'error' };
+      console.warn(`[VISION_RUNTIME] fast_cascade_failed — falling to agentic Claude (SDK) session=${sessionId} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} claude=${isClaudeAvailable()}`);
+    } else {
+      console.warn(`[MOBILE_RUNTIME] all fast providers exhausted — falling to Claude. session=${sessionId}`);
     }
-
-    // Text: all cheap providers exhausted → fall through to Claude agentic loop
-    console.warn(`[MOBILE_RUNTIME] all fast providers exhausted — falling to Claude. session=${sessionId}`);
   }
 
   // ── Phase 3: CoreRouter — pick specialized agent ──────────────────────────
