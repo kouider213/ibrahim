@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.52.0",
     "@google-cloud/speech": "^7.3.1",
     "@supabase/supabase-js": "^2.49.4",
+    "@types/web-push": "^3.6.4",
     "axios": "^1.8.4",
     "bullmq": "^5.34.6",
     "cloudinary": "^2.6.0",
@@ -31,6 +32,7 @@
     "pdfkit": "^0.15.2",
     "socket.io": "^4.8.1",
     "uuid": "^11.1.0",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5",
     "zod": "^3.24.2"
   },

@@ -1,6 +1,7 @@
 import type { Namespace } from 'socket.io';
 import { redis } from '../queue/queue.js';
 import { sendFcm, isFcmToken } from './fcm.js';
+import { broadcastWebPush } from './web-push-service.js';
 
 let _io: Namespace | null = null;
 
@@ -116,6 +117,11 @@ export function emitProactive(text: string, type: ProactiveType = 'info', chatTe
 
   sendExpoPush(title, text, { text, type }).catch(err =>
     console.error('[mobile-push] push error:', err instanceof Error ? err.message : String(err)),
+  );
+
+  // Web Push — PWA browser background notifications
+  broadcastWebPush(title, text, { text, type }).catch(err =>
+    console.error('[mobile-push] web-push error:', err instanceof Error ? err.message : String(err)),
   );
 
   console.log(`[mobile-push] Proactive (${type}): ${text.slice(0, 60)}…`);
