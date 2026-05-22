@@ -1749,7 +1749,7 @@ async function generateVoucherTool(input: Record<string, unknown>, _sessionId?: 
     cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
     pdfUrl = await new Promise<string>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'raw', folder: 'dzaryx-vouchers', public_id: `bon-${refNo}`, format: 'pdf' },
+        { resource_type: 'image', folder: 'dzaryx-vouchers', public_id: `bon-${refNo}`, format: 'pdf' },
         (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
       );
       stream.end(pdfBuf);
@@ -1832,7 +1832,7 @@ async function generateContractTool(input: Record<string, unknown>, _sessionId?:
     cloudinary.config({ cloud_name: env.CLOUDINARY_CLOUD_NAME, api_key: env.CLOUDINARY_API_KEY, api_secret: env.CLOUDINARY_API_SECRET });
     pdfUrl = await new Promise<string>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'raw', folder: 'dzaryx-contracts', public_id: `contrat-${contractNumber}`, format: 'pdf' },
+        { resource_type: 'image', folder: 'dzaryx-contracts', public_id: `contrat-${contractNumber}`, format: 'pdf' },
         (err, result) => { if (err || !result) reject(err ?? new Error('upload failed')); else resolve(result.secure_url); },
       );
       stream.end(pdfBuf);
