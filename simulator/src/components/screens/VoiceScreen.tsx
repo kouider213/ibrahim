@@ -59,6 +59,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [micErr, setMicErr]     = useState(false);
   const [wsConn, setWsConn]     = useState(false);
   const [visionActive, setVision] = useState(false);
+  const [camActive, setCamActive] = useState(false);
+  const videoRef    = useRef<HTMLVideoElement>(null);
+  const camStreamRef = useRef<MediaStream | null>(null);
   const [particles]             = useState(() => makeParticles(30));
   const [hudMsg, setHud]        = useState('SYSTÈME DZARYX INITIALISÉ');
   const [audioUnlocked, setAudioUnlocked] = useState(false);
@@ -120,10 +123,46 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     return () => {
       cancelAnimationFrame(animRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
+      camStreamRef.current?.getTracks().forEach(t => t.stop());
       audioCtxRef.current?.close().catch(() => {});
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
   }, []);
+
+  // ── Live camera ─────────────────────────────────────────────────────────────
+  async function toggleLiveCam() {
+    if (camActive) {
+      camStreamRef.current?.getTracks().forEach(t => t.stop());
+      camStreamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+      setCamActive(false);
+      setVision(false);
+      setHud('CAMÉRA DÉSACTIVÉE');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      camStreamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
+      setCamActive(true);
+      setVision(true);
+      setHud('CAMÉRA ACTIVE — PARLE PENDANT QUE TU FILMES');
+    } catch {
+      setHud('PERMISSION CAMÉRA REFUSÉE');
+    }
+  }
+
+  function captureFrame(): string | undefined {
+    const video = videoRef.current;
+    if (!video || !camStreamRef.current || video.readyState < 2) return undefined;
+    const w = video.videoWidth || 640, h = video.videoHeight || 480;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+  }
 
   // ── VAD ─────────────────────────────────────────────────────────────────────
   function startVAD() {
@@ -195,7 +234,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       const { text } = await api.transcribe(b64, 'audio/webm');
       if (!text?.trim()) { setStatus('idle'); setHud('PARLE-MOI'); return; }
       setHud(`"${text}"`);
-      const res = await api.chat(text, sessionId.current);
+      const frame = captureFrame();
+      const res = await api.chat(text, sessionId.current, frame, frame ? 'image/jpeg' : undefined);
+      if (frame) setHud(`📷 + 🎤 "${text.slice(0, 40)}"`);
       if (res.text) {
         setResp(res.text);
         setHud(res.text.slice(0, 80) + (res.text.length > 80 ? '…' : ''));
@@ -503,26 +544,39 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
           <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: `${col}55`, letterSpacing: '0.1em' }}>MAINTENIR</span>
         </div>
 
-        {/* VISION IA */}
+        {/* LIVE CAM — speak while filming */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <button
-            onClick={handleVision}
-            disabled={visionActive}
+            onClick={toggleLiveCam}
             style={{
               width: 54, height: 54, borderRadius: 14,
-              background: visionActive ? '#0a0515' : '#080808',
-              border: `1.5px solid ${visionActive ? '#9b59b6' : '#9b59b633'}`,
+              background: camActive ? '#0a0515' : '#080808',
+              border: `1.5px solid ${camActive ? '#9b59b6' : '#9b59b633'}`,
               cursor: 'pointer', display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: 2,
-              boxShadow: visionActive ? '0 0 16px #9b59b666' : '0 0 6px #9b59b618',
-              transition: 'all 0.2s',
-              fontSize: 22,
+              boxShadow: camActive ? '0 0 16px #9b59b666' : '0 0 6px #9b59b618',
+              transition: 'all 0.2s', fontSize: 22, position: 'relative',
             }}
           >
-            <VisionIcon active={visionActive} />
+            {camActive
+              ? <span style={{ fontSize: 20 }}>⏹</span>
+              : <VisionIcon active={false} />
+            }
+            {camActive && (
+              <div style={{
+                position: 'absolute', top: -4, right: -4,
+                width: 10, height: 10, borderRadius: '50%',
+                background: '#ff3366', boxShadow: '0 0 6px #ff3366',
+                animation: 'statusPulse 1s ease infinite',
+              }} />
+            )}
           </button>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#9b59b677', letterSpacing: '0.12em', textAlign: 'center' }}>VISION IA</span>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#9b59b644', letterSpacing: '0.1em', textAlign: 'center' }}>CAMÉRA</span>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#9b59b677', letterSpacing: '0.12em', textAlign: 'center' }}>
+            {camActive ? 'CAM ON' : 'LIVE CAM'}
+          </span>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#9b59b644', letterSpacing: '0.1em', textAlign: 'center' }}>
+            {camActive ? 'PARLE!' : 'VOIX+VUE'}
+          </span>
         </div>
       </div>
 
@@ -554,6 +608,31 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00d4ff55', letterSpacing: '0.2em' }}>
               MICRO + AUDIO
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LIVE CAMERA PREVIEW ── */}
+      {camActive && (
+        <div style={{
+          position: 'absolute', bottom: 108, right: 10, zIndex: 8,
+          width: 90, height: 120, borderRadius: 10,
+          border: '1.5px solid #9b59b6aa',
+          overflow: 'hidden',
+          boxShadow: '0 0 16px #9b59b666',
+        }}>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            ref={videoRef}
+            autoPlay playsInline muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+          <div style={{
+            position: 'absolute', top: 4, left: 4,
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#ff3366', boxShadow: '0 0 4px #ff3366', animation: 'statusPulse 1s ease infinite' }} />
+            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#ff3366', letterSpacing: '0.1em' }}>LIVE</span>
           </div>
         </div>
       )}
