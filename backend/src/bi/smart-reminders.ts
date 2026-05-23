@@ -27,20 +27,25 @@ type BookingRow = {
   cars?: { name: string };
 };
 
-export async function getSmartReminders(): Promise<SmartReminder[]> {
+export async function getSmartReminders(actor?: string): Promise<SmartReminder[]> {
   const today    = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   const in3days  = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
   const in48h    = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
 
+  // Houari only sees reminders for his own bookings
+  const rentedByFilter = actor === 'houari' ? 'Houari' : null;
+
   const reminders: Omit<SmartReminder, 'id'>[] = [];
 
   // 1. Arrivals tomorrow
-  const { data: arrivingTomorrow } = await supabase
+  let q1 = supabase
     .from('bookings')
     .select('id, client_name, client_phone, client_age, client_passport, start_date, end_date, final_price, paid_amount, payment_status, cars(name)')
     .in('status', ['CONFIRMED'])
     .eq('start_date', tomorrow);
+  if (rentedByFilter) q1 = q1.eq('rented_by', rentedByFilter);
+  const { data: arrivingTomorrow } = await q1;
 
   for (const b of (arrivingTomorrow ?? []) as unknown as BookingRow[]) {
     const car = b.cars?.name ?? '?';
@@ -99,13 +104,15 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
   }
 
   // 2. Missing deposit — booking in ≤3 days, 0€ paid
-  const { data: noDeposit } = await supabase
+  let q2 = supabase
     .from('bookings')
     .select('id, client_name, client_phone, start_date, final_price, paid_amount, cars(name)')
     .eq('status', 'CONFIRMED')
     .eq('paid_amount', 0)
     .lte('start_date', in3days)
     .gt('start_date', today);
+  if (rentedByFilter) q2 = q2.eq('rented_by', rentedByFilter);
+  const { data: noDeposit } = await q2;
 
   for (const b of (noDeposit ?? []) as unknown as BookingRow[]) {
     const car      = b.cars?.name ?? '?';
@@ -123,12 +130,14 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
   }
 
   // 3. Vehicles returning soon (next 48h)
-  const { data: returningSoon } = await supabase
+  let q3 = supabase
     .from('bookings')
     .select('id, client_name, client_phone, end_date, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE'])
     .gte('end_date', today)
     .lte('end_date', in48h);
+  if (rentedByFilter) q3 = q3.eq('rented_by', rentedByFilter);
+  const { data: returningSoon } = await q3;
 
   for (const b of (returningSoon ?? []) as unknown as BookingRow[]) {
     if (b.end_date === today) continue; // already handled elsewhere
@@ -146,12 +155,14 @@ export async function getSmartReminders(): Promise<SmartReminder[]> {
   }
 
   // 4. Overdue unpaid — completed/active bookings with end_date past and payment not PAID
-  const { data: overdueUnpaid } = await supabase
+  let q4 = supabase
     .from('bookings')
     .select('id, client_name, client_phone, end_date, final_price, paid_amount, cars(name)')
     .in('status', ['COMPLETED', 'ACTIVE'])
     .neq('payment_status', 'PAID')
     .lt('end_date', today);
+  if (rentedByFilter) q4 = q4.eq('rented_by', rentedByFilter);
+  const { data: overdueUnpaid } = await q4;
 
   for (const b of (overdueUnpaid ?? []) as unknown as BookingRow[]) {
     const car     = b.cars?.name ?? '?';

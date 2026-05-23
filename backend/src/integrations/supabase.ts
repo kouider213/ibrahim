@@ -255,6 +255,7 @@ export async function getBookings(filters?: {
   carId?: string;
   limit?: number;
   q?: string;
+  rentedBy?: string;
 }): Promise<Booking[]> {
   let query = supabase
     .from('bookings')
@@ -266,6 +267,7 @@ export async function getBookings(filters?: {
   if (filters?.clientPhone) query = query.eq('client_phone', filters.clientPhone);
   if (filters?.carId) query = query.eq('car_id', filters.carId);
   if (filters?.q) query = query.ilike('client_name', `%${filters.q}%`);
+  if (filters?.rentedBy) query = query.eq('rented_by', filters.rentedBy);
 
   const { data, error } = await query;
   if (error) throw new Error(`Bookings fetch failed: ${error.message}`);

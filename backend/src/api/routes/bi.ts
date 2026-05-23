@@ -38,7 +38,7 @@ router.get('/reminders', requireMobileAuth, async (req, res) => {
     const dismissed = await redis.smembers(dismissedKey).catch(() => []);
     const dismissedSet = new Set(dismissed);
 
-    const all = await getSmartReminders();
+    const all = await getSmartReminders(actor);
     const reminders = all.filter(r => !dismissedSet.has(r.id));
     res.json({ count: reminders.length, reminders });
   } catch (err) {

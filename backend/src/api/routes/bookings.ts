@@ -9,13 +9,14 @@ const router = Router();
 
 // GET /api/bookings — list bookings with filters
 router.get('/', requireMobileAuth, async (req, res) => {
-  const status = req.query['status'] as string | undefined;
-  const phone  = req.query['phone']  as string | undefined;
-  const limit  = Number(req.query['limit'] ?? 50);
-  const q      = req.query['q']      as string | undefined;
+  const status    = req.query['status']    as string | undefined;
+  const phone     = req.query['phone']     as string | undefined;
+  const limit     = Number(req.query['limit'] ?? 50);
+  const q         = req.query['q']         as string | undefined;
+  const rentedBy  = req.query['rented_by'] as string | undefined;
 
   try {
-    const bookings = await getBookings({ status, clientPhone: phone, limit, q });
+    const bookings = await getBookings({ status, clientPhone: phone, limit, q, rentedBy });
     res.json({ bookings, count: bookings.length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
