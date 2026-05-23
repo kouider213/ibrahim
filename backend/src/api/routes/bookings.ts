@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getBookings, checkCarAvailability, createBooking, supabase } from '../../integrations/supabase.js';
-import { createCalendarEvent } from '../../integrations/google-calendar.js';
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../../integrations/google-calendar.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { updateClientIntelFromBooking } from '../../orchestrator/client-intelligence.js';
 
@@ -161,6 +161,25 @@ router.patch('/:id', requireMobileAuth, async (req, res) => {
 
     if (error) throw new Error(error.message);
 
+    // Sync Google Calendar if dates or client name changed
+    if (safeUpdates['start_date'] || safeUpdates['end_date'] || safeUpdates['client_name']) {
+      const { data: calRow } = await supabase
+        .from('calendar_events')
+        .select('google_event_id')
+        .eq('booking_id', id)
+        .eq('status', 'synced')
+        .maybeSingle();
+      const googleEventId = (calRow as { google_event_id?: string } | null)?.google_event_id;
+      if (googleEventId) {
+        const updatedData = data as { client_name?: string; start_date?: string; end_date?: string };
+        updateCalendarEvent(googleEventId, {
+          summary:   updatedData.client_name ? `🚗 ${updatedData.client_name}` : undefined,
+          startDate: updatedData.start_date,
+          endDate:   updatedData.end_date,
+        }).catch(err => console.error('[bookings] Calendar update failed:', err));
+      }
+    }
+
     // If marking as PAID, auto-insert payment record (non-blocking)
     if (safeUpdates['payment_status'] === 'PAID') {
       const paidAmt = Number(safeUpdates['paid_amount'] ?? (data as { final_price?: number })?.final_price ?? 0);
@@ -299,22 +318,15 @@ router.get('/:id', requireMobileAuth, async (req, res) => {
 router.delete('/:id', requireMobileAuth, async (req, res) => {
   const { id } = req.params as { id: string };
   try {
-    // Fetch to get google_event_id if present
-    const { data: booking } = await supabase
-      .from('bookings')
-      .select('id, google_event_id')
-      .eq('id', id)
-      .single();
-
     const { error } = await supabase.from('bookings').delete().eq('id', id);
     if (error) throw new Error(error.message);
 
-    // Non-blocking calendar cleanup
-    if (booking && (booking as { google_event_id?: string }).google_event_id) {
-      const { deleteCalendarEvent } = await import('../../integrations/google-calendar.js');
-      deleteCalendarEvent((booking as { google_event_id: string }).google_event_id)
-        .catch(e => console.error('[bookings] Calendar delete failed:', e));
-    }
+    // Non-blocking calendar cleanup — check calendar_events table
+    void supabase.from('calendar_events').select('google_event_id').eq('booking_id', id).eq('status', 'synced').maybeSingle()
+      .then(({ data: calRow }) => {
+        const gid = (calRow as { google_event_id?: string } | null)?.google_event_id;
+        if (gid) void deleteCalendarEvent(gid).catch(e => console.error('[bookings] Calendar delete failed:', e));
+      });
 
     res.json({ message: 'Réservation supprimée', id });
   } catch (err) {
