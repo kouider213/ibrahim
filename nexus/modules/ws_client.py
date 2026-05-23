@@ -804,7 +804,6 @@ class NexusWSClient:
         @sio.on('nexus:screenshot_jpeg', namespace='/nexus')
         async def on_screenshot_jpeg(data: dict):
             import subprocess as _sp, tempfile as _tmp, base64 as _b64
-            quality  = max(10, min(90, int(data.get('quality', 50))))
             scale    = max(0.2, min(1.0, float(data.get('scale', 0.5))))
             tmp_path = _tmp.mktemp(suffix='.jpg', prefix='nexus_live_')
             ps_cmd = (
@@ -816,15 +815,11 @@ class NexusWSClient:
                 f"$g.CopyFromScreen($s.Location,[System.Drawing.Point]::Empty,$s.Size); "
                 f"$thumb=New-Object System.Drawing.Bitmap($w,$h); "
                 f"$tg=[System.Drawing.Graphics]::FromImage($thumb); "
-                f"$tg.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic; "
                 f"$tg.DrawImage($bmp,0,0,$w,$h); "
-                f"$enc=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders()|Where-Object{{$_.MimeType -eq 'image/jpeg'}}; "
-                f"$ep=New-Object System.Drawing.Imaging.EncoderParameters(1); "
-                f"$ep.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]{quality}); "
-                f"$thumb.Save('{tmp_path}',$enc,$ep); "
+                f"$thumb.Save('{tmp_path}'); "
                 f"$bmp.Dispose();$g.Dispose();$thumb.Dispose();$tg.Dispose()"
             )
-            log.info('nexus:screenshot_jpeg q=%d scale=%.1f', quality, scale)
+            log.info('nexus:screenshot_jpeg scale=%.1f', scale)
             loop = asyncio.get_event_loop()
             try:
                 result = await loop.run_in_executor(None, lambda: _sp.run(
