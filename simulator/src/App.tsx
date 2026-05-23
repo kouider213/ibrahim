@@ -57,7 +57,7 @@ export default function App() {
         <span style={{
           fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ff88',
           letterSpacing: '0.3em', textTransform: 'uppercase',
-        }}>DZARYX SIMULATOR v1.0</span>
+        }}>DZARYX SIMULATOR v3.0</span>
         <span style={{ width: 1, height: 14, background: '#00d4ff33' }} />
         <span style={{ fontFamily: 'Share Tech Mono', fontSize: 10, color: '#00d4ff55', letterSpacing: '0.2em' }}>
           FIK CONCIERGERIE ORAN

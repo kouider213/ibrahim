@@ -302,11 +302,12 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
           const isExp = expanded === b.id;
           return (
             <div key={b.id} style={{
-              borderRadius: 10, overflow: 'hidden',
+              borderRadius: 10,
               border: `1px solid ${stCol}33`,
               background: `linear-gradient(135deg, ${stCol}07, rgba(2,8,16,0.6))`,
               boxShadow: isExp ? `0 0 14px ${stCol}1a` : 'none',
               transition: 'box-shadow 0.2s',
+              WebkitTransform: 'translateZ(0)',
             }}>
               <div onClick={() => setExpanded(e => e === b.id ? null : b.id)}
                 style={{ padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
