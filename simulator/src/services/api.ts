@@ -338,6 +338,7 @@ export interface Booking {
   payment_status: string; status: string;
   client_price_per_day: number | null; owner_price_per_day: number | null;
   profit_kouider: number | null; nb_days: number | null;
+  paid_amount?: number | null;
   rented_by?: string | null;
   cars?: { name: string } | null;
 }
@@ -458,6 +459,9 @@ export const business = {
 
   createBooking: (data: Record<string, unknown>) =>
     apiFetch<{ booking: Booking }>('/api/bookings', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateBooking: (id: string, data: Record<string, unknown>) =>
+    apiFetch<{ booking: Booking }>(`/api/bookings/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   fetchFinanceReport: (year: number, month?: number) =>
     apiFetch<FinancialReport>(`/api/finance/report?year=${year}${month != null ? `&month=${month}` : ''}`),

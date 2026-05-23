@@ -11,6 +11,15 @@ const P: Record<string, string> = {
 
 interface Props { onNavigateVoice?: () => void; }
 
+interface EditState {
+  booking: Booking;
+  start_date: string;
+  end_date: string;
+  client_ppd: string;
+  client_name: string;
+  client_phone: string;
+}
+
 export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -21,6 +30,9 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
   const [cars, setCars]         = useState<Car[]>([]);
   const [ownerPpd, setOwnerPpd] = useState<number | null>(null);
   const [dispo, setDispo]       = useState<'ok' | 'taken' | null>(null);
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [editMsg, setEditMsg]     = useState('');
+  const [saving, setSaving]       = useState(false);
 
   const [form, setForm] = useState({
     client_name: '', client_phone: '',
@@ -57,6 +69,53 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
     );
     setDispo(conflict ? 'taken' : 'ok');
   }, [form.car_id, form.start_date, form.end_date, bookings]);
+
+  const openEdit = (b: Booking) => {
+    setEditState({
+      booking: b,
+      start_date:   b.start_date,
+      end_date:     b.end_date,
+      client_ppd:   String(b.client_price_per_day ?? ''),
+      client_name:  b.client_name,
+      client_phone: b.client_phone ?? '',
+    });
+    setEditMsg('');
+  };
+
+  const handleEdit = async () => {
+    if (!editState) return;
+    const { booking, start_date, end_date, client_ppd, client_name, client_phone } = editState;
+    if (!start_date || !end_date || new Date(end_date) <= new Date(start_date)) {
+      setEditMsg('❌ Dates invalides'); return;
+    }
+    setSaving(true);
+    const newNb  = Math.max(1, Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / 86400000));
+    const cpp    = parseFloat(client_ppd) || (booking.client_price_per_day ?? 0);
+    const opp    = booking.owner_price_per_day ?? 0;
+    const newTotal = cpp * newNb;
+    const paid     = booking.paid_amount ?? 0;
+    const delta    = newTotal - paid;
+    try {
+      await business.updateBooking(booking.id, {
+        client_name: client_name.trim(),
+        client_phone: client_phone.trim() || null,
+        start_date, end_date,
+        nb_days: newNb,
+        client_price_per_day: cpp,
+        owner_price_per_day: opp,
+        final_price: newTotal,
+        profit_kouider: opp ? (cpp - opp) * newNb : null,
+      });
+      const deltaMsg = delta > 0
+        ? `✅ Modifié — Client doit encore ${delta.toFixed(0)}€`
+        : delta < 0
+        ? `✅ Modifié — Rembourser ${Math.abs(delta).toFixed(0)}€ au client`
+        : '✅ Modifié — Aucun changement de montant';
+      setEditMsg(deltaMsg);
+      setTimeout(() => { setEditState(null); void load(); }, 2000);
+    } catch (e) { setEditMsg(`❌ ${e}`); }
+    finally { setSaving(false); }
+  };
 
   const handleSearch = (v: string) => {
     setSearch(v);
@@ -224,6 +283,79 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
         </div>
       )}
 
+      {/* Edit modal overlay */}
+      {editState && (() => {
+        const b = editState.booking;
+        const newNb   = editState.start_date && editState.end_date && new Date(editState.end_date) > new Date(editState.start_date)
+          ? Math.max(1, Math.round((new Date(editState.end_date).getTime() - new Date(editState.start_date).getTime()) / 86400000))
+          : (b.nb_days ?? 0);
+        const cpp     = parseFloat(editState.client_ppd) || (b.client_price_per_day ?? 0);
+        const newTotal = cpp * newNb;
+        const paid     = b.paid_amount ?? 0;
+        const delta    = newTotal - paid;
+        const origNb   = b.nb_days ?? 0;
+        const daysDiff = newNb - origNb;
+        return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.96)', display: 'flex', flexDirection: 'column', padding: '14px', overflowY: 'auto' }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#ffb347', letterSpacing: '0.3em', marginBottom: 10 }}>
+              MODIFIER RÉSERVATION
+            </div>
+
+            <FieldRow label="CLIENT">
+              <input value={editState.client_name} onChange={e => setEditState(s => s && ({ ...s, client_name: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+            </FieldRow>
+            <FieldRow label="TÉL">
+              <input value={editState.client_phone} onChange={e => setEditState(s => s && ({ ...s, client_phone: e.target.value }))}
+                type="tel" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+            </FieldRow>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
+              <div>
+                <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>DÉBUT</div>
+                <input type="date" value={editState.start_date}
+                  onChange={e => setEditState(s => s && ({ ...s, start_date: e.target.value }))}
+                  style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>FIN</div>
+                <input type="date" value={editState.end_date} min={editState.start_date || undefined}
+                  onChange={e => setEditState(s => s && ({ ...s, end_date: e.target.value }))}
+                  style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+              </div>
+            </div>
+
+            <FieldRow label="PRIX CLIENT €/j">
+              <input value={editState.client_ppd} onChange={e => setEditState(s => s && ({ ...s, client_ppd: e.target.value }))}
+                type="number" placeholder={String(b.client_price_per_day ?? '')}
+                style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+            </FieldRow>
+
+            {/* Smart delta */}
+            {newNb > 0 && (
+              <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: delta > 0 ? '#00d4ff0a' : delta < 0 ? '#ff33660a' : '#00e6760a', border: `1px solid ${delta > 0 ? '#00d4ff33' : delta < 0 ? '#ff336633' : '#00e67633'}` }}>
+                <div style={{ fontSize: 8, color: '#ffffff55', marginBottom: 4 }}>
+                  {daysDiff > 0 ? `+${daysDiff} jour${daysDiff > 1 ? 's' : ''}` : daysDiff < 0 ? `${daysDiff} jour${Math.abs(daysDiff) > 1 ? 's' : ''}` : `Même durée`} · {newNb}j · Nouveau total: {newTotal.toFixed(0)}€ · Déjà payé: {paid}€
+                </div>
+                <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: delta > 0 ? '#00d4ff' : delta < 0 ? '#ff3366' : '#00e676', textShadow: `0 0 8px ${delta > 0 ? '#00d4ff' : delta < 0 ? '#ff3366' : '#00e676'}44` }}>
+                  {delta > 0 ? `💳 Client doit encore ${delta.toFixed(0)}€` : delta < 0 ? `↩ Rembourser ${Math.abs(delta).toFixed(0)}€ au client` : '✅ Aucun ajustement'}
+                </div>
+              </div>
+            )}
+
+            {editMsg && <div style={{ fontSize: 8, color: editMsg.startsWith('✅') ? '#00e676' : '#ff3366', marginBottom: 8 }}>{editMsg}</div>}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleEdit} disabled={saving}
+                style={{ ...aBtn('#ffb347'), flex: 1, opacity: saving ? 0.6 : 1 }}>
+                {saving ? '…' : '✅ ENREGISTRER'}
+              </button>
+              <button onClick={() => setEditState(null)} style={{ ...aBtn('#ff3366'), flex: 1 }}>✕ ANNULER</button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Booking list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
         <GpsCalculator />
@@ -271,7 +403,8 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
                   <Row label="Prix proprio/j" val={b.owner_price_per_day ? `${b.owner_price_per_day}€` : '—'} />
                   <Row label="Profit Kouider" val={b.profit_kouider != null ? `${b.profit_kouider}€` : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
                   <Row label="Statut" val={b.status} col={stCol} />
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                    <button onClick={() => openEdit(b)} style={aBtn('#ffb347')}>✏️ MODIFIER</button>
                     <button onClick={() => handleDelete(b.id)} style={aBtn('#ff3366')}>🗑 SUPPR</button>
                     {b.client_phone && (
                       <a href={`tel:${b.client_phone}`} style={{ ...aBtn('#00d4ff') as React.CSSProperties, textDecoration: 'none' }}>📞 APPEL</a>
