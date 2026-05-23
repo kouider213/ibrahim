@@ -35,6 +35,9 @@ import {
 } from '../../actions/handlers/nexus-environment.js';
 import {
   nexusTerminalRun, nexusClaudeCodeStart, nexusGetEnvironment,
+  nexusMouseMove, nexusMouseClick, nexusMouseScroll,
+  nexusKeyPress, nexusTypeText, nexusHotkey,
+  nexusGetScreenSize, nexusScreenshotJpeg,
 } from '../../actions/handlers/nexus-relay.js';
 
 const router = Router();
@@ -898,6 +901,86 @@ router.post('/autonomous', requireMobileAuth, async (req, res) => {
 // ── GET /api/nexus/queue — command queue status ───────────────────────────────
 router.get('/queue', requireMobileAuth, (_req, res) => {
   res.json({ ok: true, busy: nexusQueue.busy, depth: nexusQueue.depth });
+});
+
+// ── Remote control — mouse/keyboard/screen ────────────────────────────────────
+
+function nexusGuard(res: import('express').Response): boolean {
+  if (!isNexusOnline()) {
+    res.status(503).json({ ok: false, error: 'NEXUS hors ligne — lance start.bat sur le PC' });
+    return false;
+  }
+  return true;
+}
+
+// POST /api/nexus/input/mouse/move
+router.post('/input/mouse/move', requireMobileAuth, async (req, res) => {
+  if (!nexusGuard(res)) return;
+  const { x, y } = req.body as { x: number; y: number };
+  try { res.json(await nexusMouseMove(Number(x), Number(y))); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/input/mouse/click
+router.post('/input/mouse/click', requireMobileAuth, async (req, res) => {
+  if (!nexusGuard(res)) return;
+  const { x, y, button } = req.body as { x: number; y: number; button?: 'left' | 'right' | 'double' };
+  try { res.json(await nexusMouseClick(Number(x), Number(y), button ?? 'left')); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/input/mouse/scroll
+router.post('/input/mouse/scroll', requireMobileAuth, async (req, res) => {
+  if (!nexusGuard(res)) return;
+  const { direction, amount } = req.body as { direction: 'up' | 'down'; amount?: number };
+  try { res.json(await nexusMouseScroll(direction, amount ?? 3)); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/input/key/press
+router.post('/input/key/press', requireMobileAuth, async (req, res) => {
+  if (!nexusGuard(res)) return;
+  const { key } = req.body as { key: string };
+  try { res.json(await nexusKeyPress(key)); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/input/key/type
+router.post('/input/key/type', requireMobileAuth, async (req, res) => {
+  if (!nexusGuard(res)) return;
+  const { text } = req.body as { text: string };
+  try { res.json(await nexusTypeText(text)); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/input/key/hotkey
+router.post('/input/key/hotkey', requireMobileAuth, async (req, res) => {
+  if (!nexusGuard(res)) return;
+  const { keys } = req.body as { keys: string[] };
+  try { res.json(await nexusHotkey(keys)); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// GET /api/nexus/screen/size
+router.get('/screen/size', requireMobileAuth, async (_req, res) => {
+  if (!nexusGuard(res)) return;
+  try { res.json(await nexusGetScreenSize()); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/screen/capture — JPEG rapide pour live view
+router.post('/screen/capture', requireMobileAuth, async (req, res) => {
+  if (!nexusGuard(res)) return;
+  const { quality, scale } = req.body as { quality?: number; scale?: number };
+  try { res.json(await nexusScreenshotJpeg(quality ?? 50, scale ?? 0.5)); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/screen/screenshot — PNG haute qualité → base64
+router.post('/screen/screenshot', requireMobileAuth, async (_req, res) => {
+  if (!nexusGuard(res)) return;
+  try { res.json(await nexusScreenshotBase64()); }
+  catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
 });
 
 export default router;

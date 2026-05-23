@@ -488,7 +488,7 @@ export const business = {
         uptime_s?: number; latency_ms?: number;
         os?: string; heartbeat_at?: string;
       }>)
-      .catch(() => ({ nexus_online: false, connected: false })),
+      .catch(() => ({ nexus_online: false, connected: false, hostname: undefined as string | undefined })),
 
   shareLocation: (lat: number, lng: number) =>
     apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } }>('/api/location', {
@@ -520,5 +520,55 @@ export const business = {
   getAutocomplete: (input: string) =>
     apiFetch<{ ok: boolean; predictions: Array<{ label: string; place_id: string }>; warning?: string }>(
       `/api/maps/autocomplete?input=${encodeURIComponent(input)}`
+    ),
+
+  // ── NEXUS remote control ───────────────────────────────────────────────────
+
+  nexusMouseMove: (x: number, y: number) =>
+    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/mouse/move', {
+      method: 'POST', body: JSON.stringify({ x, y }),
+    }),
+
+  nexusMouseClick: (x: number, y: number, button: 'left' | 'right' | 'double' = 'left') =>
+    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/mouse/click', {
+      method: 'POST', body: JSON.stringify({ x, y, button }),
+    }),
+
+  nexusMouseScroll: (direction: 'up' | 'down', amount = 3) =>
+    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/mouse/scroll', {
+      method: 'POST', body: JSON.stringify({ direction, amount }),
+    }),
+
+  nexusKeyPress: (key: string) =>
+    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/key/press', {
+      method: 'POST', body: JSON.stringify({ key }),
+    }),
+
+  nexusTypeText: (text: string) =>
+    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/key/type', {
+      method: 'POST', body: JSON.stringify({ text }),
+    }),
+
+  nexusHotkey: (keys: string[]) =>
+    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/key/hotkey', {
+      method: 'POST', body: JSON.stringify({ keys }),
+    }),
+
+  nexusGetScreenSize: () =>
+    apiFetch<{ ok: boolean; width?: number; height?: number }>('/api/nexus/screen/size'),
+
+  nexusCapture: (quality = 50, scale = 0.5) =>
+    apiFetch<{ ok: boolean; image_base64?: string; size_kb?: number; timestamp?: string; error?: string }>(
+      '/api/nexus/screen/capture', { method: 'POST', body: JSON.stringify({ quality, scale }) }
+    ),
+
+  nexusScreenshot: () =>
+    apiFetch<{ ok: boolean; image_base64?: string; size_kb?: number; error?: string }>(
+      '/api/nexus/screen/screenshot', { method: 'POST' }
+    ),
+
+  nexusRunCommand: (command: string, cwd?: string) =>
+    apiFetch<{ ok: boolean; exit_code?: number; stdout?: string; stderr?: string; error?: string }>(
+      '/api/nexus/exec', { method: 'POST', body: JSON.stringify({ command, cwd, timeout_ms: 30000 }) }
     ),
 };

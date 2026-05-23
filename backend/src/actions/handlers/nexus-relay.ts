@@ -915,6 +915,36 @@ export const nexusTerminalRun = (
 ) =>
   _nexusEmit<OsResult>('nexus:terminal_run', { command, project, cwd, timeout_s: timeoutS }, ms);
 
+// ── Remote Control — mouse/keyboard/screen ────────────────────────────────────
+
+type InputResult = { ok: boolean; result?: string; error?: string };
+
+export const nexusMouseMove  = (x: number, y: number, ms = 3_000) =>
+  _nexusEmit<InputResult>('nexus:mouse_move',   { x, y },           ms);
+
+export const nexusMouseClick = (x: number, y: number, button: 'left' | 'right' | 'double' = 'left', ms = 3_000) =>
+  _nexusEmit<InputResult>('nexus:mouse_click',  { x, y, button },   ms);
+
+export const nexusMouseScroll = (direction: 'up' | 'down', amount = 3, ms = 3_000) =>
+  _nexusEmit<InputResult>('nexus:mouse_scroll', { direction, amount }, ms);
+
+export const nexusKeyPress   = (key: string, ms = 3_000) =>
+  _nexusEmit<InputResult>('nexus:key_press',    { key },             ms);
+
+export const nexusTypeText   = (text: string, ms = 15_000) =>
+  _nexusEmit<InputResult>('nexus:type_text',    { text },            ms);
+
+export const nexusHotkey     = (keys: string[], ms = 3_000) =>
+  _nexusEmit<InputResult>('nexus:hotkey',       { keys },            ms);
+
+export const nexusGetScreenSize = (ms = 5_000) =>
+  _nexusEmit<{ ok: boolean; width?: number; height?: number }>('nexus:get_screen_size', {}, ms);
+
+export const nexusScreenshotJpeg = (quality = 50, scale = 0.5, ms = 20_000) =>
+  _nexusEmit<{ ok: boolean; image_base64?: string; size_kb?: number; timestamp?: string; error?: string }>(
+    'nexus:screenshot_jpeg', { quality, scale }, ms,
+  );
+
 export const nexusClaudeCodeStart = (
   project: string,
   prompt?: string,

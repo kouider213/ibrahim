@@ -731,6 +731,124 @@ class NexusWSClient:
                 f"Photo reçue{' — ' + caption if caption else ''} — affichée sur l'écran."
             ))
 
+        # ── Remote control — souris ──────────────────────────────────────────
+
+        @sio.on('nexus:mouse_move', namespace='/nexus')
+        async def on_mouse_move(data: dict):
+            from .input_control import InputControl
+            x = int(data.get('x', 0)); y = int(data.get('y', 0))
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: InputControl().move_mouse(x, y))
+            return {'ok': True, 'result': result}
+
+        @sio.on('nexus:mouse_click', namespace='/nexus')
+        async def on_mouse_click(data: dict):
+            from .input_control import InputControl
+            x      = int(data.get('x', 0)); y = int(data.get('y', 0))
+            button = data.get('button', 'left')
+            loop = asyncio.get_event_loop()
+            ic = InputControl()
+            if button == 'right':
+                result = await loop.run_in_executor(None, lambda: ic.right_click(x, y))
+            elif button == 'double':
+                result = await loop.run_in_executor(None, lambda: ic.double_click(x, y))
+            else:
+                result = await loop.run_in_executor(None, lambda: ic.click(x, y))
+            return {'ok': True, 'result': result}
+
+        @sio.on('nexus:mouse_scroll', namespace='/nexus')
+        async def on_mouse_scroll(data: dict):
+            from .input_control import InputControl
+            direction = data.get('direction', 'up')
+            amount    = int(data.get('amount', 3))
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: InputControl().scroll(direction, amount))
+            return {'ok': True, 'result': result}
+
+        # ── Remote control — clavier ──────────────────────────────────────────
+
+        @sio.on('nexus:key_press', namespace='/nexus')
+        async def on_key_press(data: dict):
+            from .input_control import InputControl
+            key = data.get('key', '')
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: InputControl().press_key(key))
+            return {'ok': True, 'result': result}
+
+        @sio.on('nexus:type_text', namespace='/nexus')
+        async def on_type_text(data: dict):
+            from .input_control import InputControl
+            text = data.get('text', '')[:500]
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: InputControl().type_text(text))
+            return {'ok': True, 'result': result}
+
+        @sio.on('nexus:hotkey', namespace='/nexus')
+        async def on_hotkey(data: dict):
+            from .input_control import InputControl
+            keys = data.get('keys', [])
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: InputControl().hotkey(*keys))
+            return {'ok': True, 'result': result}
+
+        # ── Remote control — infos écran ──────────────────────────────────────
+
+        @sio.on('nexus:get_screen_size', namespace='/nexus')
+        async def on_get_screen_size(_data: dict):
+            import ctypes as _ctypes
+            u32 = _ctypes.windll.user32
+            return {'ok': True, 'width': u32.GetSystemMetrics(0), 'height': u32.GetSystemMetrics(1)}
+
+        # ── Screenshot JPEG rapide (live view) ───────────────────────────────
+
+        @sio.on('nexus:screenshot_jpeg', namespace='/nexus')
+        async def on_screenshot_jpeg(data: dict):
+            import subprocess as _sp, tempfile as _tmp, base64 as _b64
+            quality  = max(10, min(90, int(data.get('quality', 50))))
+            scale    = max(0.2, min(1.0, float(data.get('scale', 0.5))))
+            tmp_path = _tmp.mktemp(suffix='.jpg', prefix='nexus_live_')
+            ps_cmd = (
+                f"Add-Type -AssemblyName System.Windows.Forms,System.Drawing; "
+                f"$s=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; "
+                f"$w=[int]($s.Width*{scale}); $h=[int]($s.Height*{scale}); "
+                f"$bmp=New-Object System.Drawing.Bitmap($s.Width,$s.Height); "
+                f"$g=[System.Drawing.Graphics]::FromImage($bmp); "
+                f"$g.CopyFromScreen($s.Location,[System.Drawing.Point]::Empty,$s.Size); "
+                f"$thumb=New-Object System.Drawing.Bitmap($w,$h); "
+                f"$tg=[System.Drawing.Graphics]::FromImage($thumb); "
+                f"$tg.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic; "
+                f"$tg.DrawImage($bmp,0,0,$w,$h); "
+                f"$enc=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders()|Where-Object{{$_.MimeType -eq 'image/jpeg'}}; "
+                f"$ep=New-Object System.Drawing.Imaging.EncoderParameters(1); "
+                f"$ep.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]{quality}); "
+                f"$thumb.Save('{tmp_path}',$enc,$ep); "
+                f"$bmp.Dispose();$g.Dispose();$thumb.Dispose();$tg.Dispose()"
+            )
+            log.info('nexus:screenshot_jpeg q=%d scale=%.1f', quality, scale)
+            loop = asyncio.get_event_loop()
+            try:
+                result = await loop.run_in_executor(None, lambda: _sp.run(
+                    ['powershell', '-NonInteractive', '-Command', ps_cmd],
+                    capture_output=True, text=True, timeout=15,
+                ))
+                if result.returncode != 0 or not os.path.exists(tmp_path):
+                    return {'ok': False, 'error': (result.stderr or result.stdout or 'failed')[:300]}
+                with open(tmp_path, 'rb') as f:
+                    img_bytes = f.read()
+                b64 = _b64.b64encode(img_bytes).decode()
+                return {
+                    'ok': True, 'image_base64': b64,
+                    'size_bytes': len(img_bytes), 'size_kb': round(len(img_bytes) / 1024, 1),
+                    'timestamp': datetime.now().isoformat(),
+                }
+            except _sp.TimeoutExpired:
+                return {'ok': False, 'error': 'Screenshot timeout 15s'}
+            except Exception as e:
+                return {'ok': False, 'error': str(e)}
+            finally:
+                try: os.remove(tmp_path)
+                except Exception: pass
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def send_to_dzaryx(self, text: str, source: str = 'nexus') -> str | None:

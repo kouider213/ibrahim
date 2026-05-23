@@ -11,12 +11,13 @@ import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
 import NotificationsScreen from './screens/NotificationsScreen.tsx';
 import CapacitesScreen from './screens/CapacitesScreen.tsx';
+import NexusScreen from './screens/NexusScreen.tsx';
 import { setSimActor } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'reminders' | 'documents' | 'calendar' | 'notifications'
-  | 'capacites' | 'settings';
+  | 'capacites' | 'settings' | 'nexus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -26,7 +27,7 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
   houari:  { password: 'houari31',  actor: 'houari'  },
 };
 
-const TABS: Array<{ id: Page; icon: string; label: string }> = [
+const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean }> = [
   { id: 'voice',         icon: '🎙️', label: 'VOIX'     },
   { id: 'text',          icon: '💬', label: 'CHAT'     },
   { id: 'capacites',     icon: '🤖', label: 'DZARYX'   },
@@ -39,6 +40,7 @@ const TABS: Array<{ id: Page; icon: string; label: string }> = [
   { id: 'reminders',     icon: '⏰', label: 'RAPPELS'  },
   { id: 'documents',     icon: '📄', label: 'DOCS'     },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'   },
+  { id: 'nexus',         icon: '🖥️', label: 'NEXUS',    kouiderOnly: true },
 ];
 
 const PHONE_W   = 375;
@@ -146,6 +148,7 @@ export default function Phone() {
       case 'notifications': return <NotificationsScreen />;
       case 'capacites':     return <CapacitesScreen />;
       case 'settings':      return <SettingsScreen />;
+      case 'nexus':         return <NexusScreen />;
     }
   };
 
@@ -206,7 +209,7 @@ export default function Phone() {
             </div>
 
             {/* Nav bar */}
-            <NavBar page={page} onPage={setPage} />
+            <NavBar page={page} onPage={setPage} actor={loggedActor ?? 'kouider'} />
           </>
         )}
       </div>
@@ -574,7 +577,8 @@ function StatusBar({ time, battery, wsOk, page, actorCol, actorInit, onLogout }:
 
 // ─── Nav Bar ──────────────────────────────────────────────────────────────────
 
-function NavBar({ page, onPage }: { page: Page; onPage: (p: Page) => void }) {
+function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void; actor: string }) {
+  const visibleTabs = TABS.filter(t => !t.kouiderOnly || actor === 'kouider');
   return (
     <div style={{
       height: NAVBAR, width: '100%',
@@ -584,7 +588,7 @@ function NavBar({ page, onPage }: { page: Page; onPage: (p: Page) => void }) {
       overflowX: 'auto',
       scrollbarWidth: 'none',
     }}>
-      {TABS.map(tab => {
+      {visibleTabs.map(tab => {
         const active = page === tab.id;
         return (
           <button
