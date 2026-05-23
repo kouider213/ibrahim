@@ -403,8 +403,8 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
                   <Row label="Prix proprio/j" val={b.owner_price_per_day ? `${b.owner_price_per_day}€` : '—'} />
                   <Row label="Profit Kouider" val={b.profit_kouider != null ? `${b.profit_kouider}€` : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
                   <Row label="Statut" val={b.status} col={stCol} />
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                    <button onClick={() => openEdit(b)} style={aBtn('#ffb347')}>✏️ MODIFIER</button>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', paddingBottom: 4 }}>
+                    <button onClick={() => openEdit(b)} style={{ ...aBtn('#ffb347'), fontWeight: 700 }}>✏️ MODIFIER</button>
                     <button onClick={() => handleDelete(b.id)} style={aBtn('#ff3366')}>🗑 SUPPR</button>
                     {b.client_phone && (
                       <a href={`tel:${b.client_phone}`} style={{ ...aBtn('#00d4ff') as React.CSSProperties, textDecoration: 'none' }}>📞 APPEL</a>
