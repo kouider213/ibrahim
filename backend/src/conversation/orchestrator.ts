@@ -32,6 +32,11 @@ export function initOrchestrator(io: Namespace): void {
   _io = io;
 }
 
+export function emitToSession(sessionId: string, text: string): void {
+  _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text });
+  _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+}
+
 export interface OrchestratorResponse {
   text:   string;
   status: 'done' | 'error';

@@ -12,7 +12,7 @@
  */
 
 import type { Namespace } from 'socket.io';
-import { processMessage, type OrchestratorResponse } from '../conversation/orchestrator.js';
+import { processMessage, emitToSession, type OrchestratorResponse } from '../conversation/orchestrator.js';
 import { type OrgMember, DEFAULT_MEMBER } from './org-resolver.js';
 import { checkFocus, type FocusDecision } from './focus-manager.js';
 import { scorePriority, type PriorityScore, type SourceChannel } from './priority-engine.js';
@@ -64,6 +64,9 @@ export async function processWithOrchestration(
       `[p15:${requestId}] FOCUS_BLOCK status=${focus.status}` +
       ` session=${sessionId.slice(0, 20)}`,
     );
+
+    // Emit to socket so the frontend bubble is not left blank
+    emitToSession(sessionId, focusText);
 
     const fakeScore: PriorityScore  = { level: 'LOW', score: 1, reason: focus.status };
     const fakeRoute: RoutingDecision = {
