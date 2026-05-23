@@ -169,7 +169,7 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
             </div>
             <div>
               <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>FIN *</div>
-              <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
+              <input type="date" value={form.end_date} min={form.start_date || undefined} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
                 style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
             </div>
           </div>
