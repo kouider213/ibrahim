@@ -162,7 +162,24 @@ export async function getTravelTime(
 
   const el = data.rows[0]?.elements[0];
   if (!el || el.status !== 'OK') {
-    throw new Error(`Google Maps: ${el?.status ?? 'no result'}`);
+    // Fallback to straight-line estimate if API returns non-OK (REQUEST_DENIED, ZERO_RESULTS, etc.)
+    const R = 6371;
+    const dLat = (dest.lat - originLat) * Math.PI / 180;
+    const dLng = (dest.lng - originLng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(originLat * Math.PI / 180) * Math.cos(dest.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return {
+      travel_time_minutes: Math.round((distKm / 40) * 60),
+      distance_km: Math.round(distKm * 10) / 10,
+      traffic: 'unknown',
+      recommended_departure: 'maintenant',
+      waze_link: buildWazeLink(dest.lat, dest.lng),
+      maps_link: buildMapsLink(dest.lat, dest.lng, dest.label),
+      destination_label: dest.label,
+      origin_lat: originLat, origin_lng: originLng,
+      dest_lat: dest.lat, dest_lng: dest.lng,
+      error: `Google Maps: ${el?.status ?? 'no result'} — estimation vol d'oiseau`,
+    };
   }
 
   const travelSeconds = el.duration_in_traffic?.value ?? el.duration.value;

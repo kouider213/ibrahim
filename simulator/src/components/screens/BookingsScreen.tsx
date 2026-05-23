@@ -345,7 +345,7 @@ function GpsCalculator() {
         🗺️ GPS LIVRAISON
       </div>
       <div style={{ fontSize: 7, color: '#ffffff22', marginBottom: 10 }}>
-        Depuis Es Sénia (dépôt) · Distance &amp; trajet réels Google Maps
+        Depuis Haï Badr (dépôt) · Distance &amp; trajet réels Google Maps
       </div>
 
       {/* Input + autocomplete dropdown */}
