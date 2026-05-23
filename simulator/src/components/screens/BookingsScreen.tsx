@@ -284,77 +284,14 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
       )}
 
       {/* Edit modal overlay */}
-      {editState && (() => {
-        const b = editState.booking;
-        const newNb   = editState.start_date && editState.end_date && new Date(editState.end_date) > new Date(editState.start_date)
-          ? Math.max(1, Math.round((new Date(editState.end_date).getTime() - new Date(editState.start_date).getTime()) / 86400000))
-          : (b.nb_days ?? 0);
-        const cpp     = parseFloat(editState.client_ppd) || (b.client_price_per_day ?? 0);
-        const newTotal = cpp * newNb;
-        const paid     = b.paid_amount ?? 0;
-        const delta    = newTotal - paid;
-        const origNb   = b.nb_days ?? 0;
-        const daysDiff = newNb - origNb;
-        return (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.96)', display: 'flex', flexDirection: 'column', padding: '14px', overflowY: 'auto' }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#ffb347', letterSpacing: '0.3em', marginBottom: 10 }}>
-              MODIFIER RÉSERVATION
-            </div>
-
-            <FieldRow label="CLIENT">
-              <input value={editState.client_name} onChange={e => setEditState(s => s && ({ ...s, client_name: e.target.value }))}
-                style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-            </FieldRow>
-            <FieldRow label="TÉL">
-              <input value={editState.client_phone} onChange={e => setEditState(s => s && ({ ...s, client_phone: e.target.value }))}
-                type="tel" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-            </FieldRow>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
-              <div>
-                <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>DÉBUT</div>
-                <input type="date" value={editState.start_date}
-                  onChange={e => setEditState(s => s && ({ ...s, start_date: e.target.value }))}
-                  style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>FIN</div>
-                <input type="date" value={editState.end_date} min={editState.start_date || undefined}
-                  onChange={e => setEditState(s => s && ({ ...s, end_date: e.target.value }))}
-                  style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-              </div>
-            </div>
-
-            <FieldRow label="PRIX CLIENT €/j">
-              <input value={editState.client_ppd} onChange={e => setEditState(s => s && ({ ...s, client_ppd: e.target.value }))}
-                type="number" placeholder={String(b.client_price_per_day ?? '')}
-                style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-            </FieldRow>
-
-            {/* Smart delta */}
-            {newNb > 0 && (
-              <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: delta > 0 ? '#00d4ff0a' : delta < 0 ? '#ff33660a' : '#00e6760a', border: `1px solid ${delta > 0 ? '#00d4ff33' : delta < 0 ? '#ff336633' : '#00e67633'}` }}>
-                <div style={{ fontSize: 8, color: '#ffffff55', marginBottom: 4 }}>
-                  {daysDiff > 0 ? `+${daysDiff} jour${daysDiff > 1 ? 's' : ''}` : daysDiff < 0 ? `${daysDiff} jour${Math.abs(daysDiff) > 1 ? 's' : ''}` : `Même durée`} · {newNb}j · Nouveau total: {newTotal.toFixed(0)}€ · Déjà payé: {paid}€
-                </div>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: delta > 0 ? '#00d4ff' : delta < 0 ? '#ff3366' : '#00e676', textShadow: `0 0 8px ${delta > 0 ? '#00d4ff' : delta < 0 ? '#ff3366' : '#00e676'}44` }}>
-                  {delta > 0 ? `💳 Client doit encore ${delta.toFixed(0)}€` : delta < 0 ? `↩ Rembourser ${Math.abs(delta).toFixed(0)}€ au client` : '✅ Aucun ajustement'}
-                </div>
-              </div>
-            )}
-
-            {editMsg && <div style={{ fontSize: 8, color: editMsg.startsWith('✅') ? '#00e676' : '#ff3366', marginBottom: 8 }}>{editMsg}</div>}
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleEdit} disabled={saving}
-                style={{ ...aBtn('#ffb347'), flex: 1, opacity: saving ? 0.6 : 1 }}>
-                {saving ? '…' : '✅ ENREGISTRER'}
-              </button>
-              <button onClick={() => setEditState(null)} style={{ ...aBtn('#ff3366'), flex: 1 }}>✕ ANNULER</button>
-            </div>
-          </div>
-        );
-      })()}
+      {editState ? <EditModal
+        editState={editState}
+        setEditState={setEditState}
+        editMsg={editMsg}
+        saving={saving}
+        handleEdit={handleEdit}
+        inputStyle={inputStyle}
+      /> : null}
 
       {/* Booking list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -403,9 +340,9 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
                   <Row label="Prix proprio/j" val={b.owner_price_per_day ? `${b.owner_price_per_day}€` : '—'} />
                   <Row label="Profit Kouider" val={b.profit_kouider != null ? `${b.profit_kouider}€` : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
                   <Row label="Statut" val={b.status} col={stCol} />
-                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', paddingBottom: 4 }}>
-                    <button onClick={() => openEdit(b)} style={{ ...aBtn('#ffb347'), fontWeight: 700 }}>✏️ MODIFIER</button>
-                    <button onClick={() => handleDelete(b.id)} style={aBtn('#ff3366')}>🗑 SUPPR</button>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <button onClick={() => openEdit(b)} style={{ background: '#ffb347', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Orbitron', fontSize: 8, color: '#000', cursor: 'pointer' }}>✏️ MODIFIER</button>
+                    <button onClick={() => handleDelete(b.id)} style={{ background: '#ff3366', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Orbitron', fontSize: 8, color: '#fff', cursor: 'pointer' }}>🗑 SUPPR</button>
                     {b.client_phone && (
                       <a href={`tel:${b.client_phone}`} style={{ ...aBtn('#00d4ff') as React.CSSProperties, textDecoration: 'none' }}>📞 APPEL</a>
                     )}
@@ -468,6 +405,87 @@ function aBtn(col: string): React.CSSProperties {
     padding: '5px 10px', fontFamily: 'Orbitron', fontSize: 7, color: col,
     cursor: 'pointer', letterSpacing: '0.1em',
   };
+}
+
+interface EditModalProps {
+  editState: { booking: Booking; start_date: string; end_date: string; client_ppd: string; client_name: string; client_phone: string };
+  setEditState: React.Dispatch<React.SetStateAction<{ booking: Booking; start_date: string; end_date: string; client_ppd: string; client_name: string; client_phone: string } | null>>;
+  editMsg: string;
+  saving: boolean;
+  handleEdit: () => void;
+  inputStyle: React.CSSProperties;
+}
+
+function EditModal({ editState, setEditState, editMsg, saving, handleEdit, inputStyle }: EditModalProps) {
+  const b = editState.booking;
+  const newNb = editState.start_date && editState.end_date && new Date(editState.end_date) > new Date(editState.start_date)
+    ? Math.max(1, Math.round((new Date(editState.end_date).getTime() - new Date(editState.start_date).getTime()) / 86400000))
+    : (b.nb_days ?? 0);
+  const cpp      = parseFloat(editState.client_ppd) || (b.client_price_per_day ?? 0);
+  const newTotal = cpp * newNb;
+  const paid     = b.paid_amount ?? 0;
+  const delta    = newTotal - paid;
+  const origNb   = b.nb_days ?? 0;
+  const daysDiff = newNb - origNb;
+  const up = (patch: Partial<typeof editState>) => setEditState(s => s ? { ...s, ...patch } : s);
+
+  return (
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, background: 'rgba(0,5,15,0.97)', display: 'flex', flexDirection: 'column', padding: '14px', overflowY: 'auto' }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#ffb347', letterSpacing: '0.3em', marginBottom: 10 }}>
+        ✏️ MODIFIER RÉSERVATION
+      </div>
+
+      <FieldRow label="CLIENT">
+        <input value={editState.client_name} onChange={e => up({ client_name: e.target.value })}
+          style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+      </FieldRow>
+      <FieldRow label="TÉL">
+        <input value={editState.client_phone} onChange={e => up({ client_phone: e.target.value })}
+          type="tel" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+      </FieldRow>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
+        <div>
+          <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2 }}>DÉBUT</div>
+          <input type="date" value={editState.start_date} onChange={e => up({ start_date: e.target.value })}
+            style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2 }}>FIN</div>
+          <input type="date" value={editState.end_date} min={editState.start_date || undefined} onChange={e => up({ end_date: e.target.value })}
+            style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+        </div>
+      </div>
+
+      <FieldRow label="PRIX CLIENT €/j">
+        <input value={editState.client_ppd} onChange={e => up({ client_ppd: e.target.value })}
+          type="number" placeholder={String(b.client_price_per_day ?? '')}
+          style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+      </FieldRow>
+
+      {newNb > 0 && (
+        <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: delta > 0 ? '#00d4ff0a' : delta < 0 ? '#ff33660a' : '#00e6760a', border: `1px solid ${delta > 0 ? '#00d4ff33' : delta < 0 ? '#ff336633' : '#00e67633'}` }}>
+          <div style={{ fontSize: 8, color: '#ffffff55', marginBottom: 4 }}>
+            {daysDiff > 0 ? `+${daysDiff}j` : daysDiff < 0 ? `${daysDiff}j` : 'Même durée'} · {newNb}j total · Nouveau: {newTotal.toFixed(0)}€ · Payé: {paid}€
+          </div>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: delta > 0 ? '#00d4ff' : delta < 0 ? '#ff3366' : '#00e676' }}>
+            {delta > 0 ? `💳 Client doit encore ${delta.toFixed(0)}€` : delta < 0 ? `↩ Rembourser ${Math.abs(delta).toFixed(0)}€ au client` : '✅ Aucun ajustement'}
+          </div>
+        </div>
+      )}
+
+      {editMsg && <div style={{ fontSize: 8, color: editMsg.startsWith('✅') ? '#00e676' : '#ff3366', marginBottom: 8 }}>{editMsg}</div>}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={handleEdit} disabled={saving} style={{ flex: 1, background: '#ffb347', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Orbitron', fontSize: 9, color: '#000', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+          {saving ? '…' : '✅ ENREGISTRER'}
+        </button>
+        <button onClick={() => setEditState(null)} style={{ flex: 1, background: '#ff3366', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Orbitron', fontSize: 9, color: '#fff', cursor: 'pointer' }}>
+          ✕ ANNULER
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── GPS Livraison Calculator ──────────────────────────────────────────────────
