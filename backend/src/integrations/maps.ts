@@ -16,6 +16,11 @@ export interface TravelTimeResult {
 
 // Known landmarks in Oran area for name→coords resolution
 const ORAN_LANDMARKS: Record<string, { lat: number; lng: number; label: string }> = {
+  'douba':             { lat: 35.6769, lng: -0.6654, label: 'Douba Groupe, Haï Badr, Oran' },
+  'agence':            { lat: 35.6769, lng: -0.6654, label: 'Douba Groupe, Haï Badr, Oran' },
+  'hay badr':          { lat: 35.6769, lng: -0.6654, label: 'Haï Badr, Oran' },
+  'haï badr':          { lat: 35.6769, lng: -0.6654, label: 'Haï Badr, Oran' },
+  'hai badr':          { lat: 35.6769, lng: -0.6654, label: 'Haï Badr, Oran' },
   'aéroport':          { lat: 35.6235, lng: -0.6212, label: 'Aéroport Ahmed Ben Bella' },
   'aeroport':          { lat: 35.6235, lng: -0.6212, label: 'Aéroport Ahmed Ben Bella' },
   'airport':           { lat: 35.6235, lng: -0.6212, label: 'Aéroport Ahmed Ben Bella' },

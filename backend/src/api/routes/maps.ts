@@ -6,9 +6,9 @@ import axios from 'axios';
 
 const router = Router();
 
-// Default depot origin — Es Sénia (Fik Conciergerie)
-const DEPOT_LAT = 35.6459;
-const DEPOT_LNG = -0.6050;
+// Default depot origin — Douba Groupe, Haï Badr, Oran (M8GM+QMV)
+const DEPOT_LAT = 35.6769;
+const DEPOT_LNG = -0.6654;
 
 // GET /api/maps/travel-time?destination=<addr>&origin_lat=<lat>&origin_lng=<lng>&from_depot=true
 // from_depot=true → use Es Sénia as origin (for delivery calculator)
