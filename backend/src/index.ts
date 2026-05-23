@@ -46,6 +46,7 @@ import carsRoutes           from './api/routes/cars.js';
 import pdfRoutes            from './api/routes/pdf.js';
 import locationRoutes       from './api/routes/location.js';
 import mapsRoutes           from './api/routes/maps.js';
+import ratesRoutes          from './api/routes/rates.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -270,6 +271,7 @@ app.use('/api/nexus/os',     apiLimiter, nexusOsRoutes);
 app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
 app.use('/api/workflow',     apiLimiter, workflowRoutes);
 app.use('/api/bi',           apiLimiter, biRoutes);
+app.use('/api/rates',        apiLimiter, ratesRoutes);
 app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
 app.use('/api/health-ai',   apiLimiter, healthAiRoutes);
 app.use('/api/pdf',         pdfRoutes);
