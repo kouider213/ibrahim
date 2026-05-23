@@ -52,7 +52,7 @@ const bookingSchema = z.object({
   rented_by:            z.enum(['Kouider', 'Houari']).optional(),
   client_price_per_day: z.number().min(0).optional(),
   owner_price_per_day:  z.number().min(0).optional(),
-  payment_status:       z.enum(['PENDING', 'PARTIAL', 'PAID']).optional(),
+  payment_status:       z.enum(['UNPAID', 'PENDING', 'PARTIAL', 'PAID']).optional(),
   paid_amount:          z.number().min(0).optional(),
   initial_status:       z.enum(['PENDING', 'CONFIRMED']).optional(),
 });

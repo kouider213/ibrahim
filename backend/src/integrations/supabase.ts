@@ -50,7 +50,7 @@ export interface Booking {
   discount_applied?:     number;
   // ──────────────────────────────────────────────────────────────────────────
   status:                'PENDING' | 'CONFIRMED' | 'REJECTED' | 'COMPLETED' | 'ACTIVE';
-  payment_status?:       'PENDING' | 'PARTIAL' | 'PAID';
+  payment_status?:       'UNPAID' | 'PENDING' | 'PARTIAL' | 'PAID';
   paid_amount?:          number;
   rented_by?:            string;
   notes?:                string;

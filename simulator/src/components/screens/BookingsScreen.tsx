@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { business, type Booking } from '../../services/api.ts';
+import { business, type Booking, type Car } from '../../services/api.ts';
 
 const S: Record<string, string> = {
   active: '#00e676', confirmed: '#00d4ff', completed: '#ffffff44',
@@ -18,10 +18,13 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showCreate, setCreate] = useState(false);
   const [msg, setMsg]           = useState('');
+  const [cars, setCars]         = useState<Car[]>([]);
+  const [ownerPpd, setOwnerPpd] = useState<number | null>(null);
+  const [dispo, setDispo]       = useState<'ok' | 'taken' | null>(null);
 
   const [form, setForm] = useState({
-    client_name: '', client_phone: '', car_name: '',
-    start_date: '', end_date: '', client_ppd: '', owner_ppd: '',
+    client_name: '', client_phone: '',
+    car_id: '', start_date: '', end_date: '', client_ppd: '',
   });
 
   const load = useCallback(async (q?: string) => {
@@ -34,6 +37,26 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Load cars when create form opens
+  useEffect(() => {
+    if (showCreate && cars.length === 0) {
+      business.fetchCars().then(r => setCars(r.cars ?? [])).catch(() => {});
+    }
+  }, [showCreate, cars.length]);
+
+  // Check availability when car + dates selected
+  useEffect(() => {
+    if (!form.car_id || !form.start_date || !form.end_date) { setDispo(null); return; }
+    const s = new Date(form.start_date).getTime();
+    const e = new Date(form.end_date).getTime();
+    const conflict = bookings.some(b =>
+      b.cars && (b as unknown as { car_id?: string }).car_id === form.car_id &&
+      b.status !== 'cancelled' &&
+      new Date(b.start_date).getTime() <= e && new Date(b.end_date).getTime() >= s
+    );
+    setDispo(conflict ? 'taken' : 'ok');
+  }, [form.car_id, form.start_date, form.end_date, bookings]);
 
   const handleSearch = (v: string) => {
     setSearch(v);
@@ -48,23 +71,33 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
   };
 
   const handleCreate = async () => {
+    if (!form.client_name.trim() || !form.car_id || !form.start_date || !form.end_date) {
+      setMsg('❌ Nom client, voiture et dates requis'); setTimeout(() => setMsg(''), 3000); return;
+    }
+    if (new Date(form.end_date) <= new Date(form.start_date)) {
+      setMsg('❌ Date de fin doit être après la date de début'); setTimeout(() => setMsg(''), 3000); return;
+    }
     const nb = Math.max(1, Math.round(
       (new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / 86400000
     ));
     const cpp = parseFloat(form.client_ppd) || 0;
-    const opp = parseFloat(form.owner_ppd) || 0;
+    const opp = ownerPpd ?? 0;
     try {
       await business.createBooking({
-        client_name: form.client_name, client_phone: form.client_phone || null,
-        car_name: form.car_name, start_date: form.start_date, end_date: form.end_date,
-        client_price_per_day: cpp || null, owner_price_per_day: opp || null,
+        client_name: form.client_name.trim(),
+        client_phone: form.client_phone.trim() || null,
+        car_id: form.car_id,
+        start_date: form.start_date, end_date: form.end_date,
+        client_price_per_day: cpp || null,
+        owner_price_per_day: opp || null,
         final_price: cpp * nb, nb_days: nb,
         profit_kouider: opp ? (cpp - opp) * nb : null,
         payment_status: 'UNPAID', status: 'confirmed',
       });
       setMsg('✅ Réservation créée');
       setCreate(false);
-      setForm({ client_name: '', client_phone: '', car_name: '', start_date: '', end_date: '', client_ppd: '', owner_ppd: '' });
+      setForm({ client_name: '', client_phone: '', car_id: '', start_date: '', end_date: '', client_ppd: '' });
+      setOwnerPpd(null); setDispo(null);
       void load();
     } catch (e) { setMsg(`❌ ${e}`); }
     setTimeout(() => setMsg(''), 3000);
@@ -108,32 +141,86 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
         <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #00d4ff44, transparent)' }} />
       </div>
 
-      {/* Create form */}
+      {/* Create form — redesigned */}
       {showCreate && (
         <div style={{ padding: '10px 14px', borderBottom: '1px solid #00d4ff18', flexShrink: 0, background: 'rgba(0,8,18,0.98)' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff77', letterSpacing: '0.3em', marginBottom: 8 }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff77', letterSpacing: '0.3em', marginBottom: 10 }}>
             NOUVELLE RÉSERVATION
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-            {([['Client', 'client_name'], ['Téléphone', 'client_phone'], ['Voiture', 'car_name'], ['', ''], ['Début', 'start_date'], ['Fin', 'end_date'], ['Prix client/j', 'client_ppd'], ['Prix proprio/j', 'owner_ppd']] as [string, string][]).map(([label, key]) =>
-              key ? (
-                <div key={key}>
-                  <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>{label}</div>
-                  <input
-                    value={(form as Record<string, string>)[key]}
-                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                    type={key.includes('date') ? 'date' : key.includes('ppd') ? 'number' : 'text'}
-                    style={{ ...inputStyle, fontSize: 9, padding: '4px 7px' }}
-                  />
-                </div>
-              ) : <div key="empty" />
-            )}
+
+          {/* Client name */}
+          <FieldRow label="CLIENT *">
+            <input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))}
+              placeholder="Prénom Nom" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+          </FieldRow>
+
+          {/* Phone optional */}
+          <FieldRow label="TÉL (optionnel)">
+            <input value={form.client_phone} onChange={e => setForm(f => ({ ...f, client_phone: e.target.value }))}
+              placeholder="+213…" type="tel" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
+          </FieldRow>
+
+          {/* Dates */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
+            <div>
+              <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>DÉBUT *</div>
+              <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>FIN *</div>
+              <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
+                style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            <button onClick={handleCreate} style={{ ...aBtn('#00e676'), flex: 1 }}>ENREGISTRER</button>
-            <button onClick={() => setCreate(false)} style={{ ...aBtn('#ff3366'), flex: 1 }}>ANNULER</button>
+
+          {/* Car selector */}
+          <FieldRow label="VOITURE *">
+            <select
+              value={form.car_id}
+              onChange={e => {
+                const car = cars.find(c => c.id === e.target.value);
+                setForm(f => ({ ...f, car_id: e.target.value }));
+                setOwnerPpd(car?.base_price ?? null);
+              }}
+              style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }}
+            >
+              <option value="">— Choisir voiture —</option>
+              {cars.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.base_price ? ` (proprio: ${c.base_price}€/j)` : ''}
+                </option>
+              ))}
+            </select>
+          </FieldRow>
+
+          {/* Availability badge */}
+          {dispo && (
+            <div style={{ marginBottom: 6, fontSize: 8, color: dispo === 'ok' ? '#00e676' : '#ff3366', fontFamily: 'Orbitron', letterSpacing: '0.1em' }}>
+              {dispo === 'ok' ? '✅ Disponible' : '❌ Déjà réservée sur ces dates'}
+            </div>
+          )}
+
+          {/* Prix client + proprio auto */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
+            <div>
+              <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT €/j</div>
+              <input type="number" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))}
+                placeholder="ex: 55" style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX PROPRIO €/j</div>
+              <div style={{ ...inputStyle, fontSize: 9, padding: '5px 6px', color: ownerPpd ? '#ffd700' : '#ffffff22', opacity: 0.7 }}>
+                {ownerPpd ? `${ownerPpd}€ (auto)` : '— sélectionner voiture'}
+              </div>
+            </div>
           </div>
-          {msg && <div style={{ fontSize: 8, color: '#00e676', marginTop: 5 }}>{msg}</div>}
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={handleCreate} style={{ ...aBtn('#00e676'), flex: 1 }}>✅ ENREGISTRER</button>
+            <button onClick={() => { setCreate(false); setDispo(null); setOwnerPpd(null); }} style={{ ...aBtn('#ff3366'), flex: 1 }}>✕ ANNULER</button>
+          </div>
+          {msg && <div style={{ fontSize: 8, color: msg.startsWith('✅') ? '#00e676' : '#ff3366', marginTop: 5 }}>{msg}</div>}
         </div>
       )}
 
@@ -273,6 +360,7 @@ function GpsCalculator() {
   const [predictions,  setPredictions]  = useState<Prediction[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [acLoading,    setAcLoading]    = useState(false);
+  const [fromDepot,    setFromDepot]    = useState(true);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef  = useRef<HTMLDivElement>(null);
 
@@ -322,7 +410,7 @@ function GpsCalculator() {
     if (!target) return;
     setLoading(true); setResult(null); setApiError(null);
     try {
-      const data = await business.getTravelTime(target, undefined, undefined, true);
+      const data = await business.getTravelTime(target, undefined, undefined, fromDepot);
       if (data.error && !data.distance_km) {
         setApiError(data.error);
       } else {
@@ -344,8 +432,23 @@ function GpsCalculator() {
       <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff77', letterSpacing: '0.25em', marginBottom: 4 }}>
         🗺️ GPS LIVRAISON
       </div>
+      {/* Toggle origine */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+        <button onClick={() => setFromDepot(true)} style={{
+          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 6,
+          background: fromDepot ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.04)',
+          border: `1px solid ${fromDepot ? '#00d4ff55' : '#00d4ff18'}`,
+          color: fromDepot ? '#00d4ff' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
+        }}>🏢 DÉPÔT</button>
+        <button onClick={() => setFromDepot(false)} style={{
+          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 6,
+          background: !fromDepot ? 'rgba(0,230,118,0.15)' : 'rgba(0,212,255,0.04)',
+          border: `1px solid ${!fromDepot ? '#00e67655' : '#00d4ff18'}`,
+          color: !fromDepot ? '#00e676' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
+        }}>📍 MA POSITION</button>
+      </div>
       <div style={{ fontSize: 7, color: '#ffffff22', marginBottom: 10 }}>
-        Depuis Haï Badr (dépôt) · Distance &amp; trajet réels Google Maps
+        {fromDepot ? 'Depuis Haï Badr (dépôt)' : 'Depuis ta position GPS'} · Distance &amp; trajet réels Google Maps
       </div>
 
       {/* Input + autocomplete dropdown */}
@@ -436,6 +539,15 @@ function GpsCalculator() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>{label}</div>
+      {children}
     </div>
   );
 }
