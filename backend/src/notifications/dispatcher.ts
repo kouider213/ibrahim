@@ -42,12 +42,12 @@ const EL_VOICE_SETTINGS = {
   use_speaker_boost: true,
 };
 
-// Arabic script detection → multilingual model + language code to prevent Turkish ghost output
+// Always use multilingual_v2 — turbo_v2_5 produces Spanish-like phonetics with French voices
 const ARABIC_SCRIPT_RE = /[؀-ۿ]/;
 function pickTTSModel(text: string): { model_id: string; language_code: string } {
   return ARABIC_SCRIPT_RE.test(text)
     ? { model_id: 'eleven_multilingual_v2', language_code: 'ar' }
-    : { model_id: 'eleven_turbo_v2_5',     language_code: 'fr' };
+    : { model_id: 'eleven_multilingual_v2', language_code: 'fr' };
 }
 
 export async function synthesizeVoice(text: string): Promise<Buffer | null> {
