@@ -301,8 +301,6 @@ async function _dispatch(
       case 'track_habit':                return await trackHabitTool(input);
       // ─── GitHub search ───
       case 'github_search_code':         return await githubSearchCode(input);
-      // ─── Documents client ───
-      case 'get_client_document':        return await getClientDocument(input);
       // ─── Telegram depuis app vocale ───
       case 'send_telegram_message':      return await sendTelegramMessage(input);
       // ─── Web / Internet ───

@@ -27,7 +27,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         end_date:    { type: 'string', description: 'Format YYYY-MM-DD' },
         final_price: { type: 'number' },
         status:         { type: 'string', enum: ['PENDING','CONFIRMED','ACTIVE','COMPLETED','REJECTED'] },
-        payment_status: { type: 'string', enum: ['pending','partial','paid'], description: 'Statut de paiement' },
+        payment_status: { type: 'string', enum: ['UNPAID','PARTIAL','PAID'], description: 'Statut de paiement' },
         paid_amount:    { type: 'number', description: 'Montant déjà encaissé en €' },
         rented_by:      { type: 'string', enum: ['Kouider','Houari'] },
         notes:          { type: 'string' },
