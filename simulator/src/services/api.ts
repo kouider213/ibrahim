@@ -95,6 +95,9 @@ export const api = {
   getSmartReminders: () =>
     apiFetch<{ reminders: Array<{ type: string; message: string; priority: 'high' | 'medium' | 'low' }> }>('/api/bi/reminders'),
 
+  getChatHistory: (sessionId: string, limit = 20) =>
+    apiFetch<{ history: Array<{ role: 'user' | 'assistant'; content: string; created_at: string }> }>(`/api/chat/${encodeURIComponent(sessionId)}/history?limit=${limit}`),
+
   shareLocation: (lat: number, lng: number) =>
     apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } }>('/api/location', {
       method: 'POST',

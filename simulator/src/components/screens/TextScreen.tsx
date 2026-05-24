@@ -38,6 +38,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   const [msgs, setMsgs]       = useState<Message[]>([{
     id: '0', role: 'ai', text: ACTOR_GREETING[actor], ts: now(),
   }]);
+  const historyLoaded = useRef(false);
   const [input, setInput]     = useState('');
   const [status, setStatus]   = useState<DzaryxStatus>('idle');
   const [streaming, setStream] = useState('');
@@ -108,6 +109,24 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     const actionable = /réservation|nouveau client|prise en charge|retour\s+(prévu|client|voiture|véhicule)|départ\s+(client|voiture|prévu|aujourd|demain)|impayé|acompte|solde\s+dû|arrive\s+(aujourd|demain)|location\s+(commence|termine|expire)/i;
     return actionable.test(text) || type === 'booking';
   };
+
+  // Load conversation history from Supabase on first mount
+  useEffect(() => {
+    if (historyLoaded.current) return;
+    historyLoaded.current = true;
+    api.getChatHistory(sessionId.current, 20).then(({ history }) => {
+      if (!history.length) return;
+      const histMsgs: Message[] = history.map(h => ({
+        id:     uid(),
+        role:   h.role === 'user' ? 'user' : 'ai',
+        text:   h.content,
+        ts:     new Date(h.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        status: 'done' as const,
+      }));
+      // Replace greeting with history + keep greeting as first item
+      setMsgs(ms => [ms[0], ...histMsgs]);
+    }).catch(() => { /* pas d'historique disponible — on garde le message d'accueil */ });
+  }, []);
 
   useEffect(() => {
     const loadProactives = (isInitial: boolean) => {
