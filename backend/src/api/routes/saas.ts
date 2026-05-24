@@ -179,4 +179,28 @@ router.get('/sectors', (_req: Request, res: Response) => {
   res.json(Object.entries(SECTORS).map(([key, val]) => ({ key, label: val.label })));
 });
 
+// ── Update config (integrations, profile, settings) ───────────────
+router.patch('/config', async (req: Request, res: Response): Promise<void> => {
+  const raw = extractBearerToken(req);
+  if (!raw) { res.status(401).json({ error: 'Token requis' }); return; }
+  const payload = verifySaasToken(raw);
+  if (!payload) { res.status(401).json({ error: 'Token invalide' }); return; }
+
+  const allowed = ['integrations', 'business_profile', 'ai_name', 'language', 'currency'];
+  const update: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) update[key] = req.body[key];
+  }
+  if (Object.keys(update).length === 0) { res.status(400).json({ error: 'Rien à mettre à jour' }); return; }
+
+  const { data, error } = await supabase
+    .from('org_configs')
+    .update(update)
+    .eq('org_id', payload.orgId)
+    .select().single();
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(data);
+});
+
 export default router;

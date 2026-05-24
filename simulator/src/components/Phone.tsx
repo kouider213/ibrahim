@@ -324,7 +324,23 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
         </button>
       </div>
 
-      <div style={{ paddingBottom: 28, display: 'flex', justifyContent: 'center', zIndex: 1 }}>
+      <div style={{ paddingBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, zIndex: 1 }}>
+        <button
+          onClick={() => window.location.href = '/ibrahim/signup'}
+          style={{
+            background: 'none',
+            border: '1px solid rgba(0,212,255,0.2)',
+            borderRadius: 20,
+            padding: '10px 24px',
+            fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
+            color: 'rgba(0,212,255,0.5)',
+            cursor: 'pointer',
+            letterSpacing: '0.08em',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          Créer votre Dzaryx →
+        </button>
         <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }} />
       </div>
     </div>
@@ -435,6 +451,20 @@ function LoginScreen({
               {error}
             </div>
           )}
+
+          <button
+            onClick={() => window.location.href = '/ibrahim/signup'}
+            style={{
+              marginTop: 4, padding: '10px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontFamily: 'Inter', fontSize: 12, fontWeight: 400,
+              color: 'rgba(0,212,255,0.35)',
+              letterSpacing: '0.04em',
+              textAlign: 'center',
+            }}
+          >
+            Pas encore de compte ? <span style={{ color: 'rgba(0,212,255,0.6)', textDecoration: 'underline' }}>Créer votre Dzaryx</span>
+          </button>
 
           <button
             onClick={onLogin}
