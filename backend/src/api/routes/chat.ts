@@ -12,10 +12,10 @@ const router = Router();
 
 const messageSchema = z.object({
   message:      z.string().min(1).max(4000),
-  sessionId:    z.string().min(1).max(128),
+  sessionId:    z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),
   textOnly:     z.boolean().optional().default(false),
-  imageBase64:  z.string().optional(),
-  imageMime:    z.string().optional().default('image/jpeg'),
+  imageBase64:  z.string().max(20_000_000).optional(),
+  imageMime:    z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']).optional().default('image/jpeg'),
 });
 
 // POST /api/chat — send a message to Dzaryx

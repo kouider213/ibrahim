@@ -38,7 +38,6 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:morning-briefing] SKIP — already sent today');
-    emitProactive('Briefing matinal déjà envoyé aujourd\'hui.', 'info', '✅ Briefing matinal déjà envoyé aujourd\'hui.', 'kouider');
     return;
   }
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);

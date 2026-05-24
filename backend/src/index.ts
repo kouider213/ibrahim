@@ -7,7 +7,7 @@ import { Server as SocketServer } from 'socket.io';
 
 import { env } from './config/env.js';
 import { SOCKET_EVENTS } from './config/constants.js';
-import { validateToken } from './auth/tokens.js';
+import { validateToken, identifyMobileActor } from './auth/tokens.js';
 
 // Middleware
 import { requestLogger, errorHandler } from './api/middleware/logger.js';
@@ -311,7 +311,13 @@ mobileNs.use((socket, next) => {
 });
 
 mobileNs.on('connection', (socket) => {
-  console.log(`[Socket] Mobile client connected: ${socket.id}`);
+  // Identify actor from token and join their room for targeted proactives
+  const token = socket.handshake.auth['token'] as string | undefined;
+  const actor = token ? identifyMobileActor(token) : null;
+  const actorRoom = actor ? `actor:${actor.id}` : 'actor:kouider';
+  void socket.join(actorRoom);
+  void socket.join('actor:all');
+  console.log(`[Socket] Mobile client connected: ${socket.id} actor=${actor?.id ?? 'unknown'} room=${actorRoom}`);
 
   socket.on(SOCKET_EVENTS.PC_REGISTER, () => {
     registerPcAgent(socket.id);

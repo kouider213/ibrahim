@@ -153,9 +153,10 @@ export function emitProactive(
     .then(() => redis.ltrim(historyKey, 0, 29))
     .catch(() => {});
 
-  // Socket.IO — include targetActor so clients can filter
+  // Socket.IO — emit only to targeted actor's room (server-side filtering)
   if (_io) {
-    _io.emit('Dzaryx:proactive', { text: chatPayload, type, timestamp, targetActor });
+    const room = targetActor === 'all' ? 'actor:all' : `actor:${targetActor}`;
+    _io.to(room).emit('Dzaryx:proactive', { text: chatPayload, type, timestamp, targetActor });
   }
 
   const title = type === 'morning'  ? '☀️ Dzaryx — Bonjour'
