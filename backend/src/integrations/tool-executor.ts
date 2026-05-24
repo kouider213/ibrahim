@@ -1306,6 +1306,7 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   // Auto-send to app via Supabase signed URL (fast, no download, works in browser without auth)
   const { emitProactive: emitDocProactive } = await import('../notifications/mobile-push.js');
   const sentUrls: string[] = [];
+  const signedUrlMap = new Map<string, string>(); // doc_id → accessible URL (for tool result)
   for (const d of docs) {
     if (!d.storage_path && !d.file_url) continue;
     const caption = `📄 ${d.client_name} — ${d.type}`;
@@ -1328,6 +1329,7 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
       if (!docUrl) docUrl = d.file_url ?? '';
 
       if (docUrl) {
+        signedUrlMap.set(d.id, docUrl);
         emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n📹 ${docUrl}`);
         sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
       }
@@ -1364,10 +1366,11 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     }
   }
 
-  const IMAGE_URL_RE = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
   const results = docs.map(d => {
     const extStr  = d.extracted_data ? `\nDonnées: ${JSON.stringify(d.extracted_data)}` : '';
-    const mediaLine = d.file_url && IMAGE_URL_RE.test(d.file_url) ? `\n📹 ${d.file_url}` : (d.file_url ? `\nURL: ${d.file_url}` : '');
+    // Always use the signed URL in the tool result so Claude can echo 📹 url in its response
+    const accessibleUrl = signedUrlMap.get(d.id) ?? d.file_url ?? '';
+    const mediaLine = accessibleUrl ? `\n📹 ${accessibleUrl}` : '';
     return `📄 ${d.client_name} (${d.client_phone ?? '—'}) — ${d.type}\nDate: ${d.created_at.slice(0, 10)}${mediaLine}${extStr}${d.notes ? `\nNote: ${d.notes}` : ''}`;
   });
 
