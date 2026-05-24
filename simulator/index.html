@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Dzaryx Simulator</title>
+    <title>Dzaryx</title>
     <link rel="manifest" href="/ibrahim/manifest.json" />
-    <meta name="theme-color" content="#00d4ff" />
+    <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -13,7 +13,151 @@
     <link rel="apple-touch-icon" href="/ibrahim/icons/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        /* Core palette */
+        --bg-base:    #000000;
+        --bg-deep:    #050816;
+        --bg-surface: #07111f;
+        --bg-card:    #0a1628;
+        --bg-elevated:#0f1e35;
+
+        /* Accents */
+        --cyan:       #00d4ff;
+        --cyan-dim:   #0099bb;
+        --cyan-glow:  rgba(0, 212, 255, 0.35);
+        --violet:     #7c3aed;
+        --violet-dim: #5b21b6;
+        --green:      #00e676;
+        --orange:     #ff9500;
+        --red:        #ff3366;
+
+        /* Text */
+        --text-primary:   rgba(255,255,255,0.92);
+        --text-secondary: rgba(255,255,255,0.55);
+        --text-muted:     rgba(255,255,255,0.25);
+
+        /* Borders */
+        --border-subtle:  rgba(0,212,255,0.08);
+        --border-dim:     rgba(0,212,255,0.15);
+        --border-active:  rgba(0,212,255,0.40);
+
+        /* Fonts */
+        --font-display: 'Orbitron', monospace;
+        --font-body:    'Inter', -apple-system, sans-serif;
+        --font-mono:    'Share Tech Mono', monospace;
+
+        /* Radius */
+        --radius-sm:  8px;
+        --radius-md:  14px;
+        --radius-lg:  20px;
+        --radius-xl:  28px;
+        --radius-pill:999px;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body, #root {
+        width: 100%; height: 100%;
+        background: #000;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* ── Scrollbars ─────────────────────────────────────────── */
+      ::-webkit-scrollbar { width: 0; height: 0; }
+
+      /* ── Global animations ──────────────────────────────────── */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.4; }
+      }
+      @keyframes glow-pulse {
+        0%, 100% { box-shadow: 0 0 12px var(--cyan-glow); }
+        50%       { box-shadow: 0 0 28px var(--cyan-glow), 0 0 50px rgba(0,212,255,0.15); }
+      }
+      @keyframes spin-slow {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+      @keyframes spin-rev {
+        from { transform: rotate(360deg); }
+        to   { transform: rotate(0deg); }
+      }
+      @keyframes halo-breathe {
+        0%, 100% { transform: translate(-50%,-50%) scale(1);   opacity: 0.6; }
+        50%       { transform: translate(-50%,-50%) scale(1.06); opacity: 1; }
+      }
+      @keyframes ring-expand {
+        0%   { transform: translate(-50%,-50%) scale(0.9); opacity: 0.7; }
+        100% { transform: translate(-50%,-50%) scale(1.4); opacity: 0; }
+      }
+      @keyframes listening-wave {
+        0%, 100% { transform: scaleY(0.3); }
+        50%       { transform: scaleY(1); }
+      }
+      @keyframes msg-in {
+        from { opacity: 0; transform: translateY(6px) scale(0.98); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @keyframes statusPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%       { opacity: 0.5; transform: scale(0.85); }
+      }
+      @keyframes neonPulse {
+        0%, 100% { box-shadow: 0 0 16px var(--cyan-glow), 0 0 32px rgba(0,212,255,0.15); }
+        50%       { box-shadow: 0 0 30px var(--cyan-glow), 0 0 60px rgba(0,212,255,0.25); }
+      }
+      @keyframes scanline-move {
+        0%   { transform: translateY(-100%); }
+        100% { transform: translateY(100vh); }
+      }
+      @keyframes shimmer {
+        0%   { background-position: -200% center; }
+        100% { background-position: 200% center; }
+      }
+
+      /* ── Scanlines overlay ──────────────────────────────────── */
+      .scanlines::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0,0,0,0.03) 2px,
+          rgba(0,0,0,0.03) 4px
+        );
+        pointer-events: none;
+        z-index: 100;
+      }
+
+      /* ── Glass card ─────────────────────────────────────────── */
+      .glass {
+        background: rgba(7, 17, 31, 0.7);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--border-dim);
+      }
+
+      /* ── Premium input ──────────────────────────────────────── */
+      input::placeholder { color: rgba(255,255,255,0.2); }
+      input:focus { outline: none; }
+
+      /* ── Tap highlight off ──────────────────────────────────── */
+      * { -webkit-tap-highlight-color: transparent; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

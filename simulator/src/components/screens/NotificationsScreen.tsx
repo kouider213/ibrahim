@@ -15,7 +15,8 @@ const TYPE_ICON: Record<string, string> = {
   LOW_PERIOD:     '📊',
 };
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen({ actor = 'kouider' }: { actor?: string }) {
+  void actor; // actor carried by API token — backend filters accordingly
   const [reminders, setReminders] = useState<SmartReminder[]>([]);
   const [loading, setLoad]        = useState(true);
   const [dismissing, setDismiss]  = useState<string | null>(null);

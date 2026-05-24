@@ -6,7 +6,8 @@ const PRI_BG    = { HIGH: '#ff336610', MEDIUM: '#ffb34710', LOW: '#ffffff06' } a
 const PRI_LABEL = { HIGH: 'URGENT', MEDIUM: 'MOYEN', LOW: 'FAIBLE' } as const;
 const PRI_ICON  = { HIGH: '🔴', MEDIUM: '🟡', LOW: '⚪' } as const;
 
-export default function RemindersScreen() {
+export default function RemindersScreen({ actor = 'kouider' }: { actor?: string }) {
+  void actor; // actor is used via API token which already carries the identity
   const [reminders, setRem] = useState<SmartReminder[]>([]);
   const [loading, setLoad]  = useState(true);
   const [dismissed, setDis] = useState<Set<string>>(new Set());

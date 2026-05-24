@@ -243,28 +243,30 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     >
       {/* Header */}
       <div style={{
-        padding: '12px 16px 8px',
-        borderBottom: `1px solid ${col}1a`,
+        padding: '10px 14px 8px',
+        borderBottom: `1px solid ${col}18`,
         flexShrink: 0,
-        background: 'rgba(2,5,16,0.96)',
+        background: 'rgba(2,5,16,0.94)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           {/* Back + connection */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button onClick={onNavigateVoice} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00d4ff66" strokeWidth="2">
+            <button onClick={onNavigateVoice} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={`${actorCol}77`} strokeWidth="2" strokeLinecap="round">
                 <polyline points="15,18 9,12 15,6" />
               </svg>
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <div style={{
-                width: 6, height: 6, borderRadius: '50%',
+                width: 5, height: 5, borderRadius: '50%',
                 background: wsConn ? '#00e676' : '#ff3366',
-                boxShadow: `0 0 5px ${wsConn ? '#00e676' : '#ff3366'}`,
+                boxShadow: `0 0 6px ${wsConn ? '#00e676' : '#ff3366'}`,
                 animation: 'statusPulse 2s ease infinite',
               }} />
-              <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: wsConn ? '#00e67677' : '#ff336677', letterSpacing: '0.1em' }}>
-                {wsConn ? 'CONNECTÉ' : 'HORS LIGNE'}
+              <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 500, color: wsConn ? '#00e67688' : '#ff336688', letterSpacing: '0.06em' }}>
+                {wsConn ? 'En ligne' : 'Hors ligne'}
               </span>
             </div>
           </div>
@@ -272,86 +274,99 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           {/* DZARYX title + actor */}
           <div style={{ textAlign: 'center' }}>
             <div style={{
-              fontFamily: 'Orbitron', fontSize: 14, fontWeight: 900,
+              fontFamily: 'Orbitron', fontSize: 15, fontWeight: 900,
               color: actorCol, letterSpacing: '0.4em',
-              textShadow: `0 0 10px ${actorCol}, 0 0 20px ${actorCol}33`,
+              textShadow: `0 0 12px ${actorCol}, 0 0 24px ${actorCol}33`,
             }}>DZARYX</div>
             <div style={{
-              fontFamily: 'Share Tech Mono', fontSize: 7,
-              color: `${actorCol}99`, letterSpacing: '0.2em', marginTop: 1,
+              fontFamily: 'Inter', fontSize: 8, fontWeight: 500,
+              color: `${actorCol}88`, letterSpacing: '0.12em', marginTop: 1,
+              textTransform: 'uppercase',
             }}>{ACTOR_LABEL[actor]}</div>
           </div>
 
           {/* Voice mode button */}
           <button onClick={onNavigateVoice} style={{
-            background: `${col}0d`, border: `1px solid ${col}33`,
-            borderRadius: 8, padding: '4px 8px', cursor: 'pointer',
+            background: `${col}0d`, border: `1px solid ${col}2a`,
+            borderRadius: 10, padding: '5px 9px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4,
+            transition: 'all 0.2s ease',
           }}>
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${col}99`, letterSpacing: '0.12em' }}>🎙️ VOCAL</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={`${col}99`} strokeWidth="2" strokeLinecap="round">
+              <rect x="9" y="2" width="6" height="11" rx="3" fill={`${col}55`} stroke="none" />
+              <path d="M5 10a7 7 0 0 0 14 0" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+            </svg>
+            <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 600, color: `${col}88`, letterSpacing: '0.06em' }}>VOCAL</span>
           </button>
         </div>
 
         {/* Subtitle + status */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#00d4ff44', letterSpacing: '0.18em' }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 400, color: `${actorCol}33`, letterSpacing: '0.06em' }}>
             {syncInfo
               ? syncInfo.ok
-                ? `SYNC OK · ${syncInfo.count} MSG · ${syncInfo.time}`
-                : `SYNC ERREUR · ${syncInfo.time}`
-              : 'IA DE FIK CONCIERGERIE · ORAN'}
+                ? `Sync · ${syncInfo.count} msg · ${syncInfo.time}`
+                : `Sync erreur · ${syncInfo.time}`
+              : 'Fik Conciergerie · Oran'}
           </span>
-          <span style={{
-            fontFamily: 'Orbitron', fontSize: 7,
-            color: syncInfo ? (syncInfo.ok ? '#00e676' : '#ff3366') : col,
-            letterSpacing: '0.2em',
-            textShadow: `0 0 6px ${syncInfo ? (syncInfo.ok ? '#00e676' : '#ff3366') : col}`,
-          }}>{status.toUpperCase()}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 4, height: 4, borderRadius: '50%', background: col, opacity: 0.7 }} />
+            <span style={{
+              fontFamily: 'Inter', fontSize: 8, fontWeight: 600,
+              color: col, letterSpacing: '0.1em', textTransform: 'uppercase',
+              textShadow: `0 0 6px ${col}88`,
+            }}>{status}</span>
+          </div>
         </div>
-        <div style={{ marginTop: 6, height: 1, background: `linear-gradient(90deg, transparent, ${col}55, transparent)` }} />
+        <div style={{ marginTop: 6, height: 1, background: `linear-gradient(90deg, transparent, ${col}44, transparent)` }} />
       </div>
 
       {/* Messages */}
       <div
         ref={scrollRef}
         style={{
-          flex: 1, overflowY: 'auto', padding: '12px 12px 0',
-          display: 'flex', flexDirection: 'column', gap: 8,
+          flex: 1, overflowY: 'auto', padding: '10px 10px 6px',
+          display: 'flex', flexDirection: 'column', gap: 10,
         }}
       >
         {msgs.map(msg => (
-          <MessageBubble key={msg.id} msg={msg} />
+          <MessageBubble key={msg.id} msg={msg} actorCol={actorCol} />
         ))}
         {streaming && streamingMsgId.current && (
-          <TypingIndicator />
+          <TypingIndicator actorCol={actorCol} />
         )}
       </div>
 
       {/* Input area */}
       <div style={{
-        borderTop: `1px solid ${col}1a`,
+        borderTop: `1px solid ${col}18`,
         flexShrink: 0,
-        background: 'rgba(2,5,16,0.95)',
+        background: 'rgba(2,5,16,0.94)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
       }}>
         {/* Image preview strip */}
         {selectedImage && (
-          <div style={{ padding: '6px 12px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ padding: '8px 12px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ position: 'relative', display: 'inline-block' }}>
               <img src={selectedImage.preview} alt="preview"
-                style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 8, border: `1px solid ${col}44` }} />
+                style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 10, border: `1px solid ${col}44` }} />
               <button onClick={() => setSelectedImage(null)} style={{
-                position: 'absolute', top: -4, right: -4,
-                width: 16, height: 16, borderRadius: '50%',
-                background: '#ff336688', border: 'none', cursor: 'pointer',
+                position: 'absolute', top: -5, right: -5,
+                width: 18, height: 18, borderRadius: '50%',
+                background: 'rgba(255,51,102,0.7)', border: 'none', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
               }}>
                 <span style={{ fontSize: 9, color: '#fff', lineHeight: 1 }}>✕</span>
               </button>
             </div>
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${col}66` }}>Photo prête</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 400, color: `${col}77` }}>Photo prête à envoyer</span>
           </div>
         )}
 
-        <div style={{ padding: '8px 12px 10px', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <div style={{ padding: '8px 10px 10px', display: 'flex', gap: 7, alignItems: 'flex-end' }}>
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -365,16 +380,17 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             onClick={() => fileInputRef.current?.click()}
             title="Envoyer une photo"
             style={{
-              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-              background: selectedImage ? `${col}22` : 'rgba(255,255,255,0.03)',
-              border: `1.5px solid ${selectedImage ? col + '88' : '#ffffff18'}`,
+              width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+              background: selectedImage ? `${col}1a` : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${selectedImage ? col + '66' : '#ffffff12'}`,
               cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: selectedImage ? `0 0 10px ${col}33` : 'none',
+              boxShadow: selectedImage ? `0 0 10px ${col}28` : 'none',
+              transition: 'all 0.2s ease',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke={selectedImage ? col : '#ffffff44'} strokeWidth="1.8">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke={selectedImage ? col : 'rgba(255,255,255,0.3)'} strokeWidth="1.8" strokeLinecap="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
               <circle cx="12" cy="13" r="4" />
             </svg>
@@ -384,36 +400,47 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={selectedImage ? 'Ajoute un message (optionnel)…' : 'Écris un message…'}
+            placeholder={selectedImage ? 'Ajoute un message (optionnel)…' : 'Message…'}
             rows={1}
             style={{
-              flex: 1, background: `${col}08`,
-              border: `1px solid ${(input || selectedImage) ? col + '55' : col + '1a'}`,
-              borderRadius: 12, padding: '8px 12px',
-              color: '#c8e8ff', fontFamily: 'Share Tech Mono', fontSize: 11,
+              flex: 1,
+              background: (input || selectedImage) ? `${col}0a` : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${(input || selectedImage) ? col + '44' : 'rgba(255,255,255,0.08)'}`,
+              borderRadius: 14, padding: '9px 13px',
+              color: 'rgba(200,232,255,0.9)',
+              fontFamily: 'Inter', fontSize: 13, fontWeight: 400,
               resize: 'none', outline: 'none',
               lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
-              transition: 'border-color 0.2s ease',
+              transition: 'border-color 0.2s ease, background 0.2s ease',
             }}
           />
           <button
             onClick={() => { unlockAudio(); send(); }}
             disabled={(!input.trim() && !selectedImage) || status === 'thinking'}
             style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: (input.trim() || selectedImage) && status !== 'thinking' ? `${col}22` : 'rgba(255,255,255,0.03)',
-              border: `1.5px solid ${(input.trim() || selectedImage) ? col + '88' : '#ffffff18'}`,
-              cursor: (input.trim() || selectedImage) ? 'pointer' : 'default',
+              width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+              background: (input.trim() || selectedImage) && status !== 'thinking'
+                ? `linear-gradient(135deg, ${col}33, ${col}18)`
+                : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${(input.trim() || selectedImage) ? col + '66' : 'rgba(255,255,255,0.08)'}`,
+              cursor: (input.trim() || selectedImage) && status !== 'thinking' ? 'pointer' : 'default',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: (input.trim() || selectedImage) ? `0 0 10px ${col}33` : 'none',
-              transition: 'all 0.2s ease', flexShrink: 0,
+              boxShadow: (input.trim() || selectedImage) ? `0 0 14px ${col}33` : 'none',
+              transition: 'all 0.2s ease',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke={(input.trim() || selectedImage) ? col : '#ffffff22'} strokeWidth="2">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22,2 15,22 11,13 2,9" />
-            </svg>
+            {status === 'thinking' ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={`${col}66`} strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin-slow 1s linear infinite' }}>
+                <circle cx="12" cy="12" r="9" strokeOpacity="0.3" />
+                <path d="M12 3a9 9 0 0 1 9 9" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke={(input.trim() || selectedImage) ? col : 'rgba(255,255,255,0.18)'} strokeWidth="2" strokeLinecap="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22,2 15,22 11,13 2,9" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
@@ -425,10 +452,9 @@ const MEDIA_RE = /^📹\s+(https?:\/\/\S+)$/;
 const VIDEO_EXT = /\.(mp4|mov|webm|ogg)(\?.*)?$/i;
 const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
 
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
   const isUser = msg.role === 'user';
 
-  // Split text into normal lines and media lines
   const lines = msg.text.split('\n');
   const mediaUrls: string[] = [];
   const textLines: string[] = [];
@@ -441,44 +467,57 @@ function MessageBubble({ msg }: { msg: Message }) {
 
   return (
     <div
-      className="bubble-in"
-      style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 6, alignItems: 'flex-end' }}
+      style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 7, alignItems: 'flex-end', animation: 'msg-in 0.22s ease' }}
     >
-      {!isUser && <RobotAvatar />}
+      {!isUser && <RobotAvatar col={actorCol} />}
       <div style={{
-        maxWidth: '78%',
+        maxWidth: '76%',
         background: isUser
-          ? 'linear-gradient(135deg, rgba(255,107,0,0.12), rgba(255,107,0,0.06))'
-          : 'linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.04))',
-        border: `1px solid ${isUser ? '#ff6b0030' : '#00d4ff22'}`,
-        borderRadius: isUser ? '14px 14px 2px 14px' : '2px 14px 14px 14px',
-        padding: '7px 11px',
+          ? 'linear-gradient(135deg, rgba(255,107,0,0.14), rgba(255,107,0,0.07))'
+          : `linear-gradient(135deg, ${actorCol}14, ${actorCol}06)`,
+        border: `1px solid ${isUser ? 'rgba(255,107,0,0.22)' : actorCol + '22'}`,
+        borderRadius: isUser ? '16px 16px 3px 16px' : '3px 16px 16px 16px',
+        padding: '9px 13px',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        boxShadow: isUser
+          ? '0 2px 16px rgba(0,0,0,0.3)'
+          : `0 2px 16px rgba(0,0,0,0.3), 0 0 20px ${actorCol}08`,
       }}>
         {msg.status === 'sending' && !msg.text ? (
-          <span style={{ color: '#00d4ff44', fontFamily: 'Share Tech Mono', fontSize: 10 }}>· · ·</span>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 0' }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: actorCol, opacity: 0.4,
+                animation: `pulse 1.2s ${i * 0.2}s ease-in-out infinite`,
+              }} />
+            ))}
+          </div>
         ) : (
           <>
             {isUser && msg.imagePreview && (
               <img src={msg.imagePreview} alt="photo"
-                style={{ display: 'block', marginBottom: displayText ? 6 : 0, width: '100%', maxHeight: 220, borderRadius: 8, objectFit: 'cover' }} />
+                style={{ display: 'block', marginBottom: displayText ? 7 : 0, width: '100%', maxHeight: 220, borderRadius: 10, objectFit: 'cover' }} />
             )}
             {displayText && (
               <p style={{
-                fontFamily: 'Share Tech Mono', fontSize: 10, lineHeight: 1.65, margin: 0,
-                color: isUser ? '#ffb347cc' : '#a0e8ffcc',
+                fontFamily: 'Inter', fontSize: 12, fontWeight: 400,
+                lineHeight: 1.6, margin: 0,
+                color: isUser ? 'rgba(255,180,100,0.9)' : 'rgba(185,225,255,0.88)',
                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
               }}>{displayText}</p>
             )}
             {mediaUrls.map((url, i) =>
               VIDEO_EXT.test(url) ? (
                 <video key={i} src={url} controls playsInline
-                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 8, background: '#000' }} />
+                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 10, background: '#000' }} />
               ) : IMAGE_EXT.test(url) ? (
                 <img key={i} src={url} alt="media"
-                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 8, objectFit: 'cover' }} />
+                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 10, objectFit: 'cover' }} />
               ) : (
                 <a key={i} href={url} target="_blank" rel="noreferrer"
-                  style={{ display: 'block', marginTop: 4, fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00d4ffaa', wordBreak: 'break-all' }}>
+                  style={{ display: 'block', marginTop: 5, fontFamily: 'Inter', fontSize: 10, color: actorCol + 'cc', wordBreak: 'break-all' }}>
                   🔗 {url.slice(0, 60)}…
                 </a>
               )
@@ -486,27 +525,33 @@ function MessageBubble({ msg }: { msg: Message }) {
           </>
         )}
         <span style={{
-          display: 'block', textAlign: 'right', marginTop: 3,
-          fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff1a', letterSpacing: '0.05em',
+          display: 'block', textAlign: 'right', marginTop: 4,
+          fontFamily: 'Inter', fontSize: 8, fontWeight: 400,
+          color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`,
+          letterSpacing: '0.03em',
         }}>{msg.ts}</span>
       </div>
     </div>
   );
 }
 
-function TypingIndicator() {
+function TypingIndicator({ actorCol }: { actorCol: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <RobotAvatar />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <RobotAvatar col={actorCol} />
       <div style={{
-        background: 'rgba(0,212,255,0.05)', border: '1px solid #00d4ff1a',
-        borderRadius: '2px 14px 14px 14px', padding: '8px 14px',
-        display: 'flex', gap: 4, alignItems: 'center',
+        background: `linear-gradient(135deg, ${actorCol}10, ${actorCol}06)`,
+        border: `1px solid ${actorCol}1a`,
+        borderRadius: '3px 16px 16px 16px',
+        padding: '10px 16px',
+        display: 'flex', gap: 5, alignItems: 'center',
+        backdropFilter: 'blur(10px)',
       }}>
         {[0, 1, 2].map(i => (
           <div key={i} style={{
-            width: 4, height: 4, borderRadius: '50%', background: '#00d4ff55',
-            animation: `floatUp 1.2s ${i * 0.2}s ease-in-out infinite`,
+            width: 5, height: 5, borderRadius: '50%',
+            background: actorCol, opacity: 0.5,
+            animation: `pulse 1.1s ${i * 0.18}s ease-in-out infinite`,
           }} />
         ))}
       </div>
@@ -514,33 +559,28 @@ function TypingIndicator() {
   );
 }
 
-function RobotAvatar() {
+function RobotAvatar({ col }: { col: string }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 40 40" fill="none"
-      style={{ flexShrink: 0, filter: 'drop-shadow(0 0 4px #00d4ff44)' }}>
+    <svg width="24" height="24" viewBox="0 0 40 40" fill="none"
+      style={{ flexShrink: 0, filter: `drop-shadow(0 0 5px ${col}55)` }}>
       <defs>
         <radialGradient id="av-head" cx="40%" cy="35%" r="65%">
           <stop offset="0%" stopColor="#1e3045" />
           <stop offset="100%" stopColor="#050c18" />
         </radialGradient>
       </defs>
-      {/* Head */}
-      <ellipse cx="20" cy="20" rx="16" ry="16" fill="url(#av-head)" />
-      <ellipse cx="20" cy="20" rx="16" ry="16" fill="none" stroke="#00d4ff" strokeWidth="0.8" strokeOpacity="0.4" />
-      {/* Visor */}
-      <ellipse cx="20" cy="21" rx="11" ry="11" fill="#01080e" opacity="0.9" />
-      {/* Eyes */}
-      <circle cx="15" cy="18" r="4" fill="#000810" />
-      <circle cx="15" cy="18" r="3" fill="none" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.6" />
-      <circle cx="15" cy="18" r="1.8" fill="#00d4ff" style={{ animation: 'eyeGlow 2s ease-in-out infinite' }} />
-      <circle cx="25" cy="18" r="4" fill="#000810" />
-      <circle cx="25" cy="18" r="3" fill="none" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.6" />
-      <circle cx="25" cy="18" r="1.8" fill="#00d4ff" style={{ animation: 'eyeGlow 2s ease-in-out infinite 0.3s' }} />
-      {/* Mouth */}
-      <rect x="14" y="25" width="12" height="2.5" rx="1" fill="#00d4ff" opacity="0.5" />
-      {/* Antenna */}
-      <line x1="23" y1="5" x2="27" y2="1" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.6" />
-      <circle cx="27" cy="1" r="1.5" fill="#00d4ff" style={{ animation: 'antennaBlink 1.5s ease infinite' }} />
+      <circle cx="20" cy="20" r="16" fill="url(#av-head)" />
+      <circle cx="20" cy="20" r="16" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.35" />
+      <ellipse cx="20" cy="21" rx="11" ry="11" fill="#01080e" opacity="0.92" />
+      <circle cx="15" cy="18" r="3.5" fill="#000810" />
+      <circle cx="15" cy="18" r="2.8" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.55" />
+      <circle cx="15" cy="18" r="1.7" fill={col} style={{ animation: 'eyeGlow 2s ease-in-out infinite' }} />
+      <circle cx="25" cy="18" r="3.5" fill="#000810" />
+      <circle cx="25" cy="18" r="2.8" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.55" />
+      <circle cx="25" cy="18" r="1.7" fill={col} style={{ animation: 'eyeGlow 2s ease-in-out infinite 0.3s' }} />
+      <path d="M 14 25 Q 20 28.5 26 25" stroke={col} strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.6" />
+      <line x1="23" y1="5" x2="27" y2="1.5" stroke={col} strokeWidth="0.8" strokeOpacity="0.5" />
+      <circle cx="27" cy="1.5" r="1.5" fill={col} opacity="0.8" style={{ animation: 'statusPulse 1.5s ease infinite' }} />
     </svg>
   );
 }

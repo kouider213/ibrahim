@@ -179,7 +179,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       onClick={onUnlock}
       style={{
         flex: 1,
-        background: 'radial-gradient(ellipse at 50% 20%, #03071a 0%, #000510 60%, #000000 100%)',
+        background: 'radial-gradient(ellipse at 50% 30%, #050e22 0%, #020810 50%, #000000 100%)',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         cursor: 'pointer', position: 'relative', overflow: 'hidden',
         userSelect: 'none',
@@ -187,32 +187,73 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
+      {/* Grid */}
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px)
+          linear-gradient(rgba(0,212,255,0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0,212,255,0.035) 1px, transparent 1px)
         `,
-        backgroundSize: '40px 40px',
+        backgroundSize: '44px 44px',
+        maskImage: 'radial-gradient(ellipse 70% 70% at 50% 40%, black 20%, transparent 100%)',
+      }} />
+      {/* Ambient glow center */}
+      <div style={{
+        position: 'absolute', top: '28%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 300, height: 300,
+        background: 'radial-gradient(circle, rgba(0,212,255,0.07) 0%, transparent 70%)',
+        zIndex: 0,
       }} />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, zIndex: 1 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 32, zIndex: 1 }}>
+        {/* Time */}
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 60, color: '#ffffff', letterSpacing: '-0.02em', lineHeight: 1, textShadow: '0 0 30px rgba(0,212,255,0.3)' }}>
+          <div style={{
+            fontFamily: 'Orbitron', fontSize: 72, fontWeight: 700,
+            color: '#ffffff', letterSpacing: '-0.03em', lineHeight: 1,
+            textShadow: '0 0 40px rgba(0,212,255,0.25)',
+          }}>
             {getTime()}
           </div>
-          <div style={{ fontFamily: 'Share Tech Mono', fontSize: 14, color: '#ffffff44', marginTop: 8, letterSpacing: '0.1em' }}>
+          <div style={{
+            fontFamily: 'Inter', fontSize: 13, fontWeight: 400,
+            color: 'rgba(255,255,255,0.35)', marginTop: 10, letterSpacing: '0.06em',
+          }}>
             {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
         </div>
-        <DzaryxIcon size={80} glow />
-        <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff44', letterSpacing: '0.25em', marginTop: 8 }}>
-          APPUYER POUR CONTINUER
+
+        {/* Icon with halo */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{
+            position: 'absolute', width: 140, height: 140, borderRadius: '50%',
+            border: '1px solid rgba(0,212,255,0.12)',
+            animation: 'halo-breathe 3s ease-in-out infinite',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+          }} />
+          <div style={{
+            position: 'absolute', width: 110, height: 110, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%)',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            animation: 'halo-breathe 3s ease-in-out infinite',
+          }} />
+          <DzaryxIcon size={88} glow />
+        </div>
+
+        <div style={{
+          fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
+          color: 'rgba(0,212,255,0.4)', letterSpacing: '0.3em',
+          textTransform: 'uppercase',
+        }}>
+          Appuyer pour continuer
         </div>
       </div>
 
-      <div style={{ paddingBottom: 24, zIndex: 1 }}>
-        <div style={{ width: 80, height: 4, borderRadius: 2, background: '#ffffff22' }} />
+      <div style={{ paddingBottom: 28, zIndex: 1 }}>
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }} />
       </div>
     </div>
   );
@@ -224,7 +265,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
   return (
     <div style={{
       flex: 1,
-      background: 'radial-gradient(ellipse at 50% 20%, #020a1a 0%, #000510 60%, #000 100%)',
+      background: 'radial-gradient(ellipse at 50% 25%, #050e22 0%, #020810 55%, #000 100%)',
       display: 'flex', flexDirection: 'column',
       position: 'relative', overflow: 'hidden',
       paddingTop: 'env(safe-area-inset-top, 0px)',
@@ -236,41 +277,55 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
           linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
           linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)
         `,
-        backgroundSize: '50px 50px',
+        backgroundSize: '48px 48px',
+        maskImage: 'radial-gradient(ellipse 80% 60% at 50% 30%, black 10%, transparent 100%)',
       }} />
 
-      <div style={{ textAlign: 'center', marginTop: 20, zIndex: 1 }}>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 36, color: '#fff', textShadow: '0 0 20px rgba(0,212,255,0.2)' }}>
+      {/* Top time */}
+      <div style={{ textAlign: 'center', paddingTop: 24, zIndex: 1 }}>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 40, fontWeight: 700, color: '#fff', textShadow: '0 0 24px rgba(0,212,255,0.2)' }}>
           {getTime()}
         </div>
-        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 12, color: '#ffffff44', marginTop: 4, letterSpacing: '0.08em' }}>
+        <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.3)', marginTop: 6, letterSpacing: '0.04em' }}>
           {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </div>
       </div>
 
+      {/* App icon */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
         <button
           onClick={onOpenApp}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-          }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
-          <div style={{
-            borderRadius: 24, overflow: 'hidden',
-            boxShadow: '0 0 40px rgba(0,212,255,0.4), 0 0 80px rgba(0,212,255,0.15)',
-            border: '1.5px solid rgba(0,212,255,0.3)',
-          }}>
-            <DzaryxIcon size={100} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ position: 'relative' }}>
+              <div style={{
+                position: 'absolute', inset: -16, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(0,212,255,0.12) 0%, transparent 70%)',
+                animation: 'halo-breathe 3s ease-in-out infinite',
+              }} />
+              <div style={{
+                borderRadius: 28, overflow: 'hidden',
+                boxShadow: '0 0 30px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1), 0 8px 32px rgba(0,0,0,0.6)',
+                border: '1px solid rgba(0,212,255,0.25)',
+              }}>
+                <DzaryxIcon size={108} />
+              </div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: 'Orbitron', fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.3em' }}>
+                DZARYX
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(0,212,255,0.5)', marginTop: 3, letterSpacing: '0.08em' }}>
+                Assistant IA · Fik Conciergerie
+              </div>
+            </div>
           </div>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 13, color: '#ffffffcc', letterSpacing: '0.05em' }}>
-            Dzaryx
-          </span>
         </button>
       </div>
 
-      <div style={{ paddingBottom: 24, display: 'flex', justifyContent: 'center', zIndex: 1 }}>
-        <div style={{ width: 80, height: 4, borderRadius: 2, background: '#ffffff22' }} />
+      <div style={{ paddingBottom: 28, display: 'flex', justifyContent: 'center', zIndex: 1 }}>
+        <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }} />
       </div>
     </div>
   );
@@ -289,13 +344,14 @@ function LoginScreen({
   return (
     <div style={{
       flex: 1,
-      background: '#020810',
+      background: 'radial-gradient(ellipse at 50% 40%, #050e22 0%, #020810 60%, #000 100%)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'Share Tech Mono', gap: 24, padding: '0 32px',
+      gap: 0, padding: '0 28px',
       position: 'relative', overflow: 'hidden',
       paddingTop: 'env(safe-area-inset-top, 0px)',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
+      {/* Background grid */}
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         backgroundImage: `
@@ -303,24 +359,51 @@ function LoginScreen({
           linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)
         `,
         backgroundSize: '40px 40px',
-        maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%)',
+        maskImage: 'radial-gradient(ellipse 90% 90% at 50% 50%, black 20%, transparent 100%)',
+      }} />
+      {/* Center glow */}
+      <div style={{
+        position: 'absolute', top: '40%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 320, height: 320,
+        background: 'radial-gradient(circle, rgba(0,212,255,0.06) 0%, transparent 70%)',
+        zIndex: 0,
       }} />
 
-      <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 28, width: '100%', maxWidth: 380 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          <DzaryxIcon size={80} glow />
-          <div style={{ fontFamily: 'Orbitron', fontSize: 16, color: '#00d4ff', letterSpacing: '0.3em', textShadow: '0 0 12px #00d4ff55' }}>
-            DZARYX
+      <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32, width: '100%', maxWidth: 360, animation: 'fadeUp 0.5s ease both' }}>
+        {/* Brand */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              position: 'absolute', inset: -12, borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(0,212,255,0.1) 0%, transparent 70%)',
+              animation: 'halo-breathe 3s ease-in-out infinite',
+            }} />
+            <DzaryxIcon size={80} glow />
           </div>
-          <div style={{ fontSize: 9, color: '#ffffff33', letterSpacing: '0.2em', fontFamily: 'Orbitron' }}>
-            FIK CONCIERGERIE ORAN
+          <div>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 22, fontWeight: 900, color: '#00d4ff', letterSpacing: '0.4em', textShadow: '0 0 20px rgba(0,212,255,0.4)', textAlign: 'center' }}>
+              DZARYX
+            </div>
+            <div style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 400, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', textAlign: 'center', marginTop: 4 }}>
+              FIK CONCIERGERIE · ORAN
+            </div>
           </div>
         </div>
 
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 7, color: '#00d4ff55', letterSpacing: '0.2em', fontFamily: 'Orbitron' }}>
-              IDENTIFIANT
+        {/* Form card */}
+        <div style={{
+          width: '100%',
+          background: 'rgba(7,17,31,0.6)',
+          border: '1px solid rgba(0,212,255,0.12)',
+          borderRadius: 20,
+          padding: '24px 20px',
+          display: 'flex', flexDirection: 'column', gap: 16,
+          backdropFilter: 'blur(20px)',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(0,212,255,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              Identifiant
             </label>
             <input
               value={user}
@@ -331,9 +414,9 @@ function LoginScreen({
               style={loginInputStyle}
             />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 7, color: '#00d4ff55', letterSpacing: '0.2em', fontFamily: 'Orbitron' }}>
-              MOT DE PASSE
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(0,212,255,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+              Mot de passe
             </label>
             <input
               ref={passRef as React.RefObject<HTMLInputElement>}
@@ -348,7 +431,7 @@ function LoginScreen({
           </div>
 
           {error && (
-            <div style={{ fontSize: 9, color: '#ff3366', textAlign: 'center', fontFamily: 'Orbitron', letterSpacing: '0.1em' }}>
+            <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 500, color: '#ff3366', textAlign: 'center', animation: 'fadeIn 0.2s ease' }}>
               {error}
             </div>
           )}
@@ -357,13 +440,15 @@ function LoginScreen({
             onClick={onLogin}
             disabled={loading || !user || !pass}
             style={{
-              marginTop: 4, padding: '14px',
-              background: loading ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.1)',
-              border: '1.5px solid #00d4ff55', borderRadius: 12,
-              fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff',
+              marginTop: 4, padding: '15px',
+              background: loading ? 'rgba(0,212,255,0.12)' : (!user || !pass ? 'rgba(0,212,255,0.06)' : 'linear-gradient(135deg, rgba(0,212,255,0.18) 0%, rgba(0,180,220,0.12) 100%)'),
+              border: `1.5px solid ${!user || !pass ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.45)'}`,
+              borderRadius: 14,
+              fontFamily: 'Orbitron', fontSize: 11, fontWeight: 700, color: !user || !pass ? 'rgba(0,212,255,0.3)' : '#00d4ff',
               cursor: loading || !user || !pass ? 'default' : 'pointer',
-              letterSpacing: '0.25em', opacity: !user || !pass ? 0.5 : 1,
-              boxShadow: '0 0 20px rgba(0,212,255,0.2)',
+              letterSpacing: '0.2em',
+              boxShadow: !user || !pass ? 'none' : '0 0 20px rgba(0,212,255,0.2)',
+              transition: 'all 0.2s ease',
             }}
           >
             {loading ? 'CONNEXION…' : 'SE CONNECTER'}
@@ -376,41 +461,62 @@ function LoginScreen({
 
 const loginInputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(0,212,255,0.05)', border: '1px solid #00d4ff22',
-  borderRadius: 10, padding: '12px 14px',
-  fontFamily: 'Share Tech Mono', fontSize: 14, color: '#c8e8ff', outline: 'none',
+  background: 'rgba(0,0,0,0.4)',
+  border: '1px solid rgba(0,212,255,0.18)',
+  borderRadius: 12, padding: '13px 16px',
+  fontFamily: 'Inter', fontSize: 15, fontWeight: 400,
+  color: 'rgba(255,255,255,0.88)', outline: 'none',
+  transition: 'border-color 0.2s ease',
 };
 
 // ─── Dzaryx SVG Icon ──────────────────────────────────────────────────────────
 
 function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100" height="100" rx="22" fill="#050d1a" />
-      <circle cx="50" cy="50" r="40" fill="none" stroke="#00d4ff" strokeWidth="0.8" strokeOpacity="0.25" strokeDasharray="4 3" />
-      <circle cx="50" cy="50" r="32" fill="none" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.4" />
-      <path d="M 16 16 L 22 16 M 16 16 L 16 22" stroke="#00d4ff" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" />
-      <path d="M 84 16 L 78 16 M 84 16 L 84 22" stroke="#00d4ff" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" />
-      <path d="M 16 84 L 22 84 M 16 84 L 16 78" stroke="#00d4ff" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" />
-      <path d="M 84 84 L 78 84 M 84 84 L 84 78" stroke="#00d4ff" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" />
-      <rect x="30" y="30" width="40" height="32" rx="7" fill="#00d4ff0d" stroke="#00d4ff" strokeWidth="1.5" strokeOpacity="0.7" />
-      <line x1="50" y1="30" x2="50" y2="22" stroke="#00d4ff" strokeWidth="1.5" strokeOpacity="0.7" strokeLinecap="round" />
-      <circle cx="50" cy="20" r="3" fill="#00d4ff" fillOpacity="0.9" />
-      {glow && <circle cx="50" cy="20" r="5" fill="#00d4ff" fillOpacity="0.2" />}
-      <rect x="35" y="37" width="12" height="9" rx="3" fill="#00d4ff" fillOpacity="0.9" />
-      <rect x="53" y="37" width="12" height="9" rx="3" fill="#00d4ff" fillOpacity="0.9" />
-      {glow && (
-        <>
-          <rect x="35" y="37" width="12" height="9" rx="3" fill="#00d4ff" fillOpacity="0.3" />
-          <rect x="53" y="37" width="12" height="9" rx="3" fill="#00d4ff" fillOpacity="0.3" />
-        </>
-      )}
-      <rect x="36" y="51" width="28" height="4" rx="2" fill="#00d4ff" fillOpacity="0.5" />
-      <rect x="44" y="62" width="12" height="5" rx="2" fill="#00d4ff" fillOpacity="0.3" />
-      <rect x="28" y="67" width="44" height="8" rx="4" fill="#00d4ff0a" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.35" />
-      <circle cx="38" cy="88" r="1.5" fill="#00d4ff" fillOpacity="0.4" />
-      <circle cx="50" cy="88" r="1.5" fill="#00d4ff" fillOpacity="0.6" />
-      <circle cx="62" cy="88" r="1.5" fill="#00d4ff" fillOpacity="0.4" />
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
+      style={glow ? { filter: 'drop-shadow(0 0 10px rgba(0,212,255,0.5)) drop-shadow(0 0 24px rgba(0,212,255,0.2))' } : undefined}>
+      {/* Base */}
+      <rect width="100" height="100" rx="24" fill="#030d1e" />
+      <rect width="100" height="100" rx="24" fill="url(#iconGrad)" fillOpacity="0.4" />
+      {/* Outer ring dashed */}
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#00d4ff" strokeWidth="0.6" strokeOpacity="0.18" strokeDasharray="5 4" />
+      {/* Inner ring solid */}
+      <circle cx="50" cy="50" r="34" fill="none" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.5" />
+      {/* Corner brackets */}
+      <path d="M14 14 L22 14 M14 14 L14 22" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      <path d="M86 14 L78 14 M86 14 L86 22" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      <path d="M14 86 L22 86 M14 86 L14 78" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      <path d="M86 86 L78 86 M86 86 L86 78" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      {/* Head body */}
+      <rect x="28" y="28" width="44" height="34" rx="9" fill="#00d4ff" fillOpacity="0.07" stroke="#00d4ff" strokeWidth="1.8" strokeOpacity="0.8" />
+      {/* Antenna */}
+      <line x1="50" y1="28" x2="50" y2="19" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.8" strokeLinecap="round" />
+      <circle cx="50" cy="17" r="3.5" fill="#00d4ff" fillOpacity="1" />
+      {glow && <circle cx="50" cy="17" r="6" fill="#00d4ff" fillOpacity="0.25" />}
+      {/* Eyes */}
+      <rect x="33" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.95" />
+      <rect x="53" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.95" />
+      {glow && <>
+        <rect x="33" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.3" />
+        <rect x="53" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.3" />
+      </>}
+      {/* Mouth bar */}
+      <rect x="34" y="52" width="32" height="4" rx="2" fill="#00d4ff" fillOpacity="0.6" />
+      {/* Neck */}
+      <rect x="44" y="62" width="12" height="6" rx="2" fill="#00d4ff" fillOpacity="0.35" />
+      {/* Base/chin */}
+      <rect x="26" y="68" width="48" height="10" rx="5" fill="#00d4ff" fillOpacity="0.07" stroke="#00d4ff" strokeWidth="1.2" strokeOpacity="0.45" />
+      {/* Status dots */}
+      <circle cx="36" cy="73" r="2" fill="#00d4ff" fillOpacity="0.45" />
+      <circle cx="50" cy="73" r="2" fill="#00d4ff" fillOpacity="0.7" />
+      <circle cx="64" cy="73" r="2" fill="#00d4ff" fillOpacity="0.45" />
+      {/* Gradient def */}
+      <defs>
+        <radialGradient id="iconGrad" cx="50%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#00d4ff" />
+          <stop offset="100%" stopColor="#000" />
+        </radialGradient>
+      </defs>
     </svg>
   );
 }
@@ -425,28 +531,48 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
   return (
     <div style={{
       width: '100%',
-      background: 'rgba(0,0,0,0.95)',
-      borderBottom: '1px solid #00d4ff12',
+      background: 'rgba(2,5,14,0.97)',
+      borderBottom: '1px solid rgba(0,212,255,0.08)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '8px 16px',
-      paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)',
+      padding: '0 16px', height: 44,
+      paddingTop: 'env(safe-area-inset-top, 0px)',
       flexShrink: 0,
     }}>
-      <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff66', letterSpacing: '0.15em' }}>
+      {/* Brand */}
+      <span style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(0,212,255,0.55)', letterSpacing: '0.2em' }}>
         DZARYX
       </span>
-      <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: wsOk ? '#00d4ff' : '#ff3366', letterSpacing: '0.15em' }}>
-        {tab?.icon} {tab?.label}
-      </span>
+
+      {/* Current page pill */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '4px 12px', borderRadius: 20,
+        background: wsOk ? 'rgba(0,212,255,0.06)' : 'rgba(255,51,102,0.06)',
+        border: `1px solid ${wsOk ? 'rgba(0,212,255,0.18)' : 'rgba(255,51,102,0.2)'}`,
+      }}>
+        <div style={{
+          width: 5, height: 5, borderRadius: '50%',
+          background: wsOk ? '#00d4ff' : '#ff3366',
+          boxShadow: `0 0 6px ${wsOk ? '#00d4ff' : '#ff3366'}`,
+          animation: 'statusPulse 2s ease infinite',
+        }} />
+        <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: wsOk ? 'rgba(0,212,255,0.85)' : '#ff3366', letterSpacing: '0.06em' }}>
+          {tab?.label ?? page.toUpperCase()}
+        </span>
+      </div>
+
+      {/* Actor avatar */}
       <button
         onClick={onLogout}
         title="Déconnexion"
         style={{
           cursor: 'pointer', padding: 0,
-          width: 24, height: 24, borderRadius: '50%',
-          background: `${actorCol}22`, border: `1px solid ${actorCol}55`,
+          width: 28, height: 28, borderRadius: '50%',
+          background: `${actorCol}18`,
+          border: `1.5px solid ${actorCol}55`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'Orbitron', fontSize: 9, color: actorCol,
+          fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: actorCol,
+          boxShadow: `0 0 10px ${actorCol}22`,
         }}
       >
         {actorInit}
@@ -462,11 +588,12 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
     (!t.kouiderOnly || actor === 'kouider') &&
     (!t.houariOnly  || actor === 'houari')
   );
+  const actorAccent = actor === 'houari' ? '#7c3aed' : '#00d4ff';
   return (
     <div style={{
       width: '100%',
-      background: 'rgba(0,0,0,0.97)',
-      borderTop: '1px solid #00d4ff12',
+      background: 'rgba(2,5,14,0.98)',
+      borderTop: '1px solid rgba(0,212,255,0.07)',
       display: 'flex', alignItems: 'stretch',
       overflowX: 'auto',
       scrollbarWidth: 'none',
@@ -480,21 +607,23 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
             key={tab.id}
             onClick={() => onPage(tab.id)}
             style={{
-              minWidth: 52, flex: '0 0 auto',
-              height: 54,
-              background: active ? '#00d4ff0d' : 'transparent',
+              minWidth: 58, flex: '0 0 auto',
+              height: 58,
+              background: active ? `${actorAccent}0c` : 'transparent',
               border: 'none',
-              borderBottom: active ? '2px solid #00d4ff' : '2px solid transparent',
+              borderTop: active ? `2px solid ${actorAccent}` : '2px solid transparent',
               cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-              transition: 'background 0.15s',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+              transition: 'background 0.15s ease',
+              position: 'relative',
             }}
           >
-            <span style={{ fontSize: 14, lineHeight: 1 }}>{tab.icon}</span>
+            <span style={{ fontSize: 16, lineHeight: 1, filter: active ? `drop-shadow(0 0 6px ${actorAccent}88)` : 'none', transition: 'filter 0.2s' }}>{tab.icon}</span>
             <span style={{
-              fontFamily: 'Orbitron', fontSize: 5.5,
-              color: active ? '#00d4ff' : '#ffffff33',
-              letterSpacing: '0.08em',
+              fontFamily: 'Inter', fontSize: 7, fontWeight: active ? 700 : 400,
+              color: active ? actorAccent : 'rgba(255,255,255,0.3)',
+              letterSpacing: '0.06em', textTransform: 'uppercase',
+              transition: 'color 0.15s',
             }}>
               {tab.label}
             </span>

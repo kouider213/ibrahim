@@ -429,45 +429,75 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         </span>
       </div>
 
-      {/* ── ROBOT ── */}
+      {/* ── ROBOT + HALO ── */}
       <div style={{
-        position: 'absolute', left: '50%', top: '46%',
+        position: 'absolute', left: '50%', top: '45%',
         transform: 'translate(-50%, -50%)',
         zIndex: 5,
       }}>
+        {/* Outer ambient ring — slow breathe */}
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          width: 340, height: 340, borderRadius: '50%',
+          border: `1px solid ${col}`,
+          opacity: 0.08,
+          animation: 'halo-breathe 4s ease-in-out infinite',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+        }} />
+        {/* Middle ring — pulse on listening */}
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          width: 280, height: 280, borderRadius: '50%',
+          border: `1px solid ${col}`,
+          opacity: status === 'listening' ? 0.3 : 0.1,
+          animation: status === 'listening' ? 'ring-expand 1.8s ease-out infinite' : 'halo-breathe 3s ease-in-out infinite 0.5s',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+        }} />
+        {/* Glow core */}
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          width: 200, height: 200, borderRadius: '50%',
+          background: `radial-gradient(circle, ${col}12 0%, transparent 70%)`,
+          animation: 'halo-breathe 2.5s ease-in-out infinite',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+        }} />
         <DzaryxRobot status={status} visionActive={visionActive} />
       </div>
 
       {/* ── STATE TEXT ── */}
       <div style={{
-        position: 'absolute', bottom: 148, left: 0, right: 0, zIndex: 6, textAlign: 'center',
+        position: 'absolute', bottom: 152, left: 0, right: 0, zIndex: 6, textAlign: 'center',
       }}>
         <div style={{
-          fontFamily: 'Exo 2', fontSize: 13, color: '#c8e8ff',
-          letterSpacing: '0.05em', marginBottom: 4,
-          textShadow: `0 0 10px ${col}44`,
+          fontFamily: 'Inter', fontSize: 14, fontWeight: 500,
+          color: 'rgba(200,232,255,0.85)',
+          letterSpacing: '0.02em', marginBottom: 6,
+          textShadow: `0 0 12px ${col}55`,
         }}>
           {STATE_MSG[status]}
         </div>
         {displayText && (
           <div style={{
-            margin: '0 20px',
-            padding: '6px 12px',
-            background: `${col}08`,
-            border: `1px solid ${col}22`,
-            borderRadius: 8,
-            fontFamily: 'Share Tech Mono', fontSize: 9,
-            color: `${col}cc`, letterSpacing: '0.06em',
-            lineHeight: 1.5,
-            maxHeight: 50, overflow: 'hidden',
+            margin: '0 24px',
+            padding: '8px 16px',
+            background: `rgba(7,17,31,0.75)`,
+            border: `1px solid ${col}25`,
+            borderRadius: 12,
+            fontFamily: 'Inter', fontSize: 12, fontWeight: 400,
+            color: `rgba(200,232,255,0.75)`,
+            lineHeight: 1.55,
+            maxHeight: 56, overflow: 'hidden',
+            backdropFilter: 'blur(10px)',
           }}>
-            {displayText.slice(0, 100)}{displayText.length > 100 ? '…' : ''}
+            {displayText.slice(0, 120)}{displayText.length > 120 ? '…' : ''}
           </div>
         )}
-        {/* HUD msg */}
-        <div style={{ marginTop: 4 }}>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#00d4ff33', letterSpacing: '0.12em' }}>
-            {hudMsg.slice(0, 60)}
+        <div style={{ marginTop: 6 }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 400, color: `${col}44`, letterSpacing: '0.08em' }}>
+            {hudMsg.slice(0, 55)}
           </span>
         </div>
       </div>
@@ -485,12 +515,12 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
 
       {/* ── BOTTOM BUTTONS ── */}
       <div style={{
-        position: 'absolute', bottom: 12, left: 0, right: 0, zIndex: 6,
+        position: 'absolute', bottom: 10, left: 0, right: 0, zIndex: 6,
         display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end',
-        padding: '0 14px',
+        padding: '0 10px',
       }}>
         {/* SCAN DOCUMENT */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
           <button
             onClick={() => {
               const input = document.createElement('input');
@@ -514,69 +544,115 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             }}
             disabled={scanActive}
             style={{
-              width: 54, height: 54, borderRadius: 14,
-              background: scanActive ? '#100a02' : '#080808',
-              border: `1.5px solid ${scanActive ? '#ffaa00' : '#ff6b0044'}`,
-              cursor: 'pointer', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 2,
-              boxShadow: scanActive ? '0 0 14px #ffaa0055' : '0 0 8px #ff6b0018',
-              transition: 'all 0.2s',
+              width: 58, height: 58, borderRadius: 16,
+              background: scanActive ? 'rgba(255,170,0,0.12)' : 'rgba(255,107,0,0.06)',
+              border: `1.5px solid ${scanActive ? '#ffaa00' : '#ff6b0055'}`,
+              cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              boxShadow: scanActive ? '0 0 18px rgba(255,170,0,0.45)' : '0 0 8px rgba(255,107,0,0.18)',
+              transition: 'all 0.25s ease',
+              backdropFilter: 'blur(8px)',
             }}
           >
-            <span style={{ fontSize: 22 }}>{scanActive ? '⏳' : '📄'}</span>
+            {scanActive ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffaa00" strokeWidth="1.8" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
+                <circle cx="12" cy="12" r="9" strokeOpacity="0.3" />
+                <path d="M12 3a9 9 0 0 1 9 9" />
+              </svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6b00cc" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" />
+                <path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+                <rect x="7" y="7" width="10" height="10" rx="1" strokeOpacity="0.5" />
+                <line x1="3" y1="12" x2="21" y2="12" strokeOpacity="0.7" />
+              </svg>
+            )}
           </button>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ff6b0077', letterSpacing: '0.12em', textAlign: 'center' }}>SCAN</span>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#ff6b0044', letterSpacing: '0.1em', textAlign: 'center' }}>DOCUMENT</span>
+          <span style={{ fontFamily: 'Inter', fontSize: 7, fontWeight: 600, color: '#ff6b00aa', letterSpacing: '0.12em', textTransform: 'uppercase' }}>SCAN</span>
+          <span style={{ fontFamily: 'Inter', fontSize: 6, fontWeight: 400, color: '#ff6b0066', letterSpacing: '0.1em', textTransform: 'uppercase' }}>DOC</span>
         </div>
 
-        {/* MIC MAINTENIR (centre, large) */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <div style={{
-            width: 68, height: 68, borderRadius: '50%',
-            border: `2.5px solid ${col}`,
-            background: `${col}12`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 0 20px ${col}55, 0 0 40px ${col}22, inset 0 0 12px ${col}0d`,
-            fontSize: 28,
-            animation: status === 'listening' ? 'neonPulse 0.8s ease infinite' : `statusPulse 3s ease infinite`,
-            cursor: 'default',
-          }}>🎙️</div>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: `${col}99`, letterSpacing: '0.12em' }}>MIC</span>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: `${col}55`, letterSpacing: '0.1em' }}>MAINTENIR</span>
+        {/* MIC — premium 90px centre */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ position: 'relative', width: 90, height: 90 }}>
+            {/* Ambient pulse ring */}
+            <div style={{
+              position: 'absolute', inset: -14,
+              borderRadius: '50%',
+              border: `1px solid ${col}`,
+              opacity: status === 'listening' ? 0.35 : 0.07,
+              animation: status === 'listening' ? 'ring-expand 1.4s ease-out infinite' : 'halo-breathe 4s ease-in-out infinite',
+              pointerEvents: 'none',
+            }} />
+            {/* Second ring (listening only) */}
+            {status === 'listening' && (
+              <div style={{
+                position: 'absolute', inset: -6,
+                borderRadius: '50%',
+                border: `1px solid ${col}`,
+                opacity: 0.25,
+                animation: 'ring-expand 1.4s ease-out infinite 0.5s',
+                pointerEvents: 'none',
+              }} />
+            )}
+            {/* Button core */}
+            <div style={{
+              width: 90, height: 90, borderRadius: '50%',
+              background: status === 'listening'
+                ? `radial-gradient(circle at 35% 30%, ${col}44, ${col}16)`
+                : `radial-gradient(circle at 35% 30%, ${col}1c, ${col}08)`,
+              border: `2px solid ${status === 'listening' ? col : col + '77'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: status === 'listening'
+                ? `0 0 30px ${col}66, 0 0 60px ${col}2a, inset 0 0 22px ${col}16`
+                : `0 0 16px ${col}33, 0 0 32px ${col}12, inset 0 0 12px ${col}0a`,
+              animation: status === 'listening' ? 'neonPulse 0.8s ease infinite' : 'statusPulse 4s ease infinite',
+              transition: 'all 0.3s ease',
+              cursor: 'default',
+            }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
+                style={{ filter: `drop-shadow(0 0 7px ${col}) drop-shadow(0 0 14px ${col}55)` }}>
+                <rect x="9" y="2" width="6" height="11" rx="3" fill={col} opacity="0.88" />
+                <path d="M5 10a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+                <line x1="12" y1="17" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="8" y1="21" x2="16" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </div>
+          </div>
+          <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 600, color: `${col}cc`, letterSpacing: '0.15em', textTransform: 'uppercase' }}>MICRO</span>
+          <span style={{ fontFamily: 'Inter', fontSize: 7, fontWeight: 400, color: `${col}66`, letterSpacing: '0.1em', textTransform: 'uppercase' }}>AUTO-VAD</span>
         </div>
 
-        {/* LIVE CAM — speak while filming */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+        {/* LIVE CAM */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
           <button
             onClick={toggleLiveCam}
             style={{
-              width: 54, height: 54, borderRadius: 14,
-              background: camActive ? '#0a0515' : '#080808',
-              border: `1.5px solid ${camActive ? '#9b59b6' : '#9b59b633'}`,
-              cursor: 'pointer', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 2,
-              boxShadow: camActive ? '0 0 16px #9b59b666' : '0 0 6px #9b59b618',
-              transition: 'all 0.2s', fontSize: 22, position: 'relative',
+              width: 58, height: 58, borderRadius: 16,
+              background: camActive ? 'rgba(155,89,182,0.14)' : 'rgba(155,89,182,0.05)',
+              border: `1.5px solid ${camActive ? '#9b59b6' : '#9b59b644'}`,
+              cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              boxShadow: camActive ? '0 0 20px rgba(155,89,182,0.55)' : '0 0 8px rgba(155,89,182,0.15)',
+              transition: 'all 0.25s ease', position: 'relative',
+              backdropFilter: 'blur(8px)',
             }}
           >
-            {camActive
-              ? <span style={{ fontSize: 20 }}>⏹</span>
-              : <VisionIcon active={false} />
-            }
+            <VisionIcon active={camActive} />
             {camActive && (
               <div style={{
                 position: 'absolute', top: -4, right: -4,
                 width: 10, height: 10, borderRadius: '50%',
-                background: '#ff3366', boxShadow: '0 0 6px #ff3366',
+                background: '#ff3366', boxShadow: '0 0 8px #ff3366',
                 animation: 'statusPulse 1s ease infinite',
               }} />
             )}
           </button>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#9b59b677', letterSpacing: '0.12em', textAlign: 'center' }}>
-            {camActive ? 'CAM ON' : 'LIVE CAM'}
+          <span style={{ fontFamily: 'Inter', fontSize: 7, fontWeight: 600, color: '#9b59b6aa', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            {camActive ? 'CAM ON' : 'CAMÉRA'}
           </span>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#9b59b644', letterSpacing: '0.1em', textAlign: 'center' }}>
-            {camActive ? 'PARLE!' : 'VOIX+VUE'}
+          <span style={{ fontFamily: 'Inter', fontSize: 6, fontWeight: 400, color: '#9b59b666', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            {camActive ? 'LIVE' : 'VOIX+VUE'}
           </span>
         </div>
       </div>
@@ -588,26 +664,35 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
           style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.93)', backdropFilter: 'blur(8px)', cursor: 'pointer',
+            background: 'rgba(0,0,0,0.94)', backdropFilter: 'blur(12px)', cursor: 'pointer',
+            animation: 'fadeIn 0.4s ease',
           }}
         >
-          {/* Mini robot preview */}
-          <div style={{ marginBottom: 24, opacity: 0.7 }}>
+          <div style={{ marginBottom: 28, opacity: 0.75 }}>
             <DzaryxRobot status="idle" visionActive={false} scale={0.55} />
           </div>
           <div style={{
-            border: '1.5px solid #00d4ff44', borderRadius: 20,
-            padding: '20px 32px', textAlign: 'center',
-            background: 'rgba(0,5,18,0.98)',
-            boxShadow: '0 0 40px #00d4ff18',
+            border: '1px solid rgba(0,212,255,0.2)', borderRadius: 22,
+            padding: '22px 36px', textAlign: 'center',
+            background: 'rgba(0,5,18,0.96)',
+            boxShadow: '0 0 50px rgba(0,212,255,0.12), 0 0 100px rgba(0,212,255,0.05)',
           }}>
             <div style={{
-              fontFamily: 'Orbitron', fontSize: 14, color: '#00d4ff',
-              letterSpacing: '0.3em', fontWeight: 700, marginBottom: 8,
-              textShadow: '0 0 14px #00d4ff',
+              fontFamily: 'Orbitron', fontSize: 15, color: '#00d4ff',
+              letterSpacing: '0.3em', fontWeight: 700, marginBottom: 6,
+              textShadow: '0 0 18px #00d4ff, 0 0 36px rgba(0,212,255,0.4)',
             }}>ACTIVER DZARYX</div>
-            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00d4ff55', letterSpacing: '0.2em' }}>
+            <div style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 400, color: 'rgba(0,212,255,0.4)', letterSpacing: '0.18em', marginBottom: 16 }}>
               MICRO + AUDIO
+            </div>
+            {/* Tap indicator */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px solid rgba(0,212,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'statusPulse 1.8s ease infinite' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" strokeWidth="2" strokeLinecap="round">
+                  <path d="M12 5v14M5 12l7 7 7-7" />
+                </svg>
+              </div>
+              <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 500, color: 'rgba(0,212,255,0.5)', letterSpacing: '0.12em' }}>APPUYER POUR DÉMARRER</span>
             </div>
           </div>
         </div>
