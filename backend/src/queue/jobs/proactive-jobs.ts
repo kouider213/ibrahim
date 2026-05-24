@@ -235,7 +235,6 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:idle-vehicle] SKIP — already sent today');
-  emitProactive('Alerte véhicules inactifs déjà vérifiée aujourd\'hui.', 'info', '✅ Vérification véhicules inactifs déjà effectuée aujourd\'hui.', 'kouider');
     return;
   }
 
@@ -257,7 +256,7 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   }
 
   if (!idleCars.length) {
-    emitProactive('Flotte OK — tous les véhicules ont des réservations actives.', 'info', '✅ Aucun véhicule inactif depuis 7 jours — flotte en bonne santé.');
+    console.log('[job:idle-vehicle] ✅ Aucun véhicule inactif');
     return;
   }
 
@@ -610,7 +609,6 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
     );
   } else {
     console.log('[job:unpaid-reminder] ℹ️ Aucune action nécessaire.');
-    emitProactive('Paiements OK — aucun impayé à relancer.', 'info', '✅ Aucun impayé à relancer — tous les clients sont à jour.');
   }
 }
 
@@ -672,7 +670,6 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
 
   if (!overdue?.length) {
     console.log('[job:late-return] ✅ Aucun retard');
-    emitProactive('Aucun retard de retour — tous les clients sont à jour.', 'info', '✅ Aucun retard de retour — tous les clients ont rendu leur véhicule à temps.');
     return;
   }
 
@@ -728,7 +725,7 @@ export async function jobCheckAnomalies(_job: Job): Promise<void> {
         `⚠️ Anomalies financières:\n\n${stripTgMd(result)}`,
       );
     } else {
-      emitProactive('Finances OK — aucune anomalie détectée.', 'info', '✅ Aucune anomalie financière détectée.');
+      console.log('[job:anomalies] ✅ Aucune anomalie financière');
     }
     console.log('[job:anomalies] check done');
   } catch (err) {
@@ -1074,7 +1071,6 @@ export async function jobBIReminders(_job: Job): Promise<void> {
     const highPri   = reminders.filter(r => r.priority === 'HIGH');
     if (!highPri.length) {
       console.log('[job:bi-reminders] ℹ️ Aucune alerte haute priorité');
-      emitProactive('Aucune alerte haute priorité.', 'info', '✅ Aucune alerte haute priorité — tout est en ordre.', 'kouider');
       return;
     }
 
@@ -1202,7 +1198,6 @@ export async function jobClientRelance(_job: Job): Promise<void> {
 
     if (error || !bookings?.length) {
       console.log('[job:client-relance] Aucun client à relancer');
-      emitProactive('Aucun client à relancer pour le moment.', 'info', '✅ Aucun client inactif depuis 30-60 jours.', 'kouider');
       return;
     }
 
@@ -1466,7 +1461,7 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
     const lockKey = `job:long-idle:sent:${today}`;
     const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) {
-      emitProactive('Alerte immobilisation déjà vérifiée aujourd\'hui.', 'info', '✅ Alerte véhicules immobilisés déjà vérifiée aujourd\'hui.');
+      console.log('[job:long-idle] SKIP — already sent today');
       return;
     }
 
@@ -1501,7 +1496,7 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
     }
 
     if (idle.length === 0) {
-      emitProactive('Tous les véhicules ont été loués récemment (< 14 jours).', 'info', '✅ Aucun véhicule immobilisé — tous ont été loués dans les 14 derniers jours.');
+      console.log('[job:long-idle] ✅ Aucun véhicule immobilisé');
       return;
     }
 
