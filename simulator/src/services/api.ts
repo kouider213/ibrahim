@@ -92,6 +92,9 @@ export const api = {
   getRecentProactives: () =>
     apiFetch<{ messages: Array<{ text: string; type: string; timestamp: string }> }>(`/api/notifications/proactive/recent?actor=${_actor}`),
 
+  getSmartReminders: () =>
+    apiFetch<{ reminders: Array<{ type: string; message: string; priority: 'high' | 'medium' | 'low' }> }>('/api/bi/reminders'),
+
   shareLocation: (lat: number, lng: number) =>
     apiFetch<{ ok: boolean; location: { lat: number; lng: number; city?: string; country: string; updated_at: string } }>('/api/location', {
       method: 'POST',
@@ -422,8 +425,12 @@ export interface ClientIntelligence {
 // ── Business API ──────────────────────────────────────────────────────────────
 
 export const business = {
-  fetchBookings: (q?: string) =>
-    apiFetch<{ bookings: Booking[] }>(`/api/bookings?limit=40${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+  fetchBookings: (q?: string, rentedBy?: string) => {
+    const p = new URLSearchParams({ limit: '40' });
+    if (q) p.set('q', q);
+    if (rentedBy) p.set('rented_by', rentedBy);
+    return apiFetch<{ bookings: Booking[] }>(`/api/bookings?${p.toString()}`);
+  },
 
   fetchCars: () =>
     apiFetch<{ cars: Car[] }>('/api/cars'),

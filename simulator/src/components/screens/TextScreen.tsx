@@ -92,11 +92,31 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   // Track timestamps already displayed to avoid duplicates across polls
   const seenTimestamps = useRef<Set<string>>(new Set());
 
+  // Filter out useless status/empty messages (for all actors)
+  const isUsefulProactive = (text: string) => {
+    const noise = /aucune alerte|tout est en ordre|rien à signaler|nothing to report|no alert|no high|no new|aucun impayé|aucun retard|tous les clients sont à jour|ont rendu leur véhicule à temps/i;
+    return !noise.test(text);
+  };
+
+  // Houari: only truly actionable booking/client messages — no perso agenda, no status reports
+  const isRelevantForActor = (text: string, type: string) => {
+    if (actor === 'kouider') return true;
+    // Block personal/agenda content regardless of other keywords
+    const personal = /agenda|temps famille|travail belgique|trajet travail|soirée|famille|perso|couch|dodo|météo|vol\s+\d|billet/i;
+    if (personal.test(text)) return false;
+    // Allow only specific actionable booking events
+    const actionable = /réservation|nouveau client|prise en charge|retour\s+(prévu|client|voiture|véhicule)|départ\s+(client|voiture|prévu|aujourd|demain)|impayé|acompte|solde\s+dû|arrive\s+(aujourd|demain)|location\s+(commence|termine|expire)/i;
+    return actionable.test(text) || type === 'booking';
+  };
+
   useEffect(() => {
     const loadProactives = (isInitial: boolean) => {
       api.getRecentProactives().then(({ messages }) => {
         setSyncInfo({ ok: true, time: now(), count: messages.length });
-        const unseen = messages.filter(m => !seenTimestamps.current.has(m.timestamp));
+        const unseen = messages
+          .filter(m => !seenTimestamps.current.has(m.timestamp))
+          .filter(m => isUsefulProactive(m.text))
+          .filter(m => isRelevantForActor(m.text, m.type));
         if (unseen.length === 0) return;
         unseen.forEach(m => seenTimestamps.current.add(m.timestamp));
         const newMsgs = unseen.map(m => ({
@@ -123,10 +143,12 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
 
   useEffect(() => {
     subscribeProactive((text) => {
+      if (!isUsefulProactive(text) || !isRelevantForActor(text, '')) return;
       setMsgs(ms => [...ms, { id: uid(), role: 'ai', text: `📡 ${text}`, ts: now(), status: 'done' }]);
     });
     return () => unsubscribeProactive();
   }, []);
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -160,15 +182,27 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     setSelectedImage(null);
     setStatus('thinking');
 
+    // Timeout: if Socket.IO never delivers response in 45s, show error
+    const timeoutId = setTimeout(() => {
+      if (streamingMsgId.current) {
+        setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
+          ? { ...m, text: '⚠️ Dzaryx ne répond pas — réessaie', status: 'error' } : m));
+        streamingMsgId.current = null;
+        setStatus('idle');
+      }
+    }, 45_000);
+
     try {
       const res = await api.chat(text || '📷 Photo', sessionId.current, img?.base64, img ? 'image/jpeg' : undefined);
       if (res.text && streamingMsgId.current) {
+        clearTimeout(timeoutId);
         setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
           ? { ...m, text: res.text!, status: 'done' } : m));
         streamingMsgId.current = null;
         if (res.audio) { unlockAudio(); await playBase64Audio(res.audio); }
       }
     } catch {
+      clearTimeout(timeoutId);
       setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
         ? { ...m, text: '⚠️ Erreur réseau', status: 'error' } : m));
       streamingMsgId.current = null;

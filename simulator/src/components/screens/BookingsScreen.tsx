@@ -9,7 +9,7 @@ const P: Record<string, string> = {
   PAID: '#00e676', UNPAID: '#ff3366', PARTIAL: '#ffb347',
 };
 
-interface Props { onNavigateVoice?: () => void; }
+interface Props { onNavigateVoice?: () => void; actor?: string; }
 
 interface EditState {
   booking: Booking;
@@ -20,7 +20,8 @@ interface EditState {
   client_phone: string;
 }
 
-export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
+export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }: Props) {
+  const isHouari = actor === 'houari';
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
@@ -37,6 +38,7 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
   const [form, setForm] = useState({
     client_name: '', client_phone: '',
     car_id: '', start_date: '', end_date: '', client_ppd: '',
+    currency: isHouari ? 'DZD' : 'EUR' as 'EUR' | 'DZD',
   });
 
   const load = useCallback(async (q?: string) => {
@@ -152,22 +154,30 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
         final_price: cpp * nb, nb_days: nb,
         profit_kouider: opp ? (cpp - opp) * nb : null,
         payment_status: 'UNPAID', status: 'confirmed',
+        rented_by: isHouari ? 'Houari' : 'Kouider',
+        currency: form.currency,
       });
       setMsg('✅ Réservation créée');
       setCreate(false);
-      setForm({ client_name: '', client_phone: '', car_id: '', start_date: '', end_date: '', client_ppd: '' });
+      setForm({ client_name: '', client_phone: '', car_id: '', start_date: '', end_date: '', client_ppd: '', currency: isHouari ? 'DZD' : 'EUR' });
       setOwnerPpd(null); setDispo(null);
       void load();
     } catch (e) { setMsg(`❌ ${e}`); }
     setTimeout(() => setMsg(''), 3000);
   };
 
-  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '?';
-
-  const activeCount  = bookings.filter(b => b.status === 'active' || b.status === 'confirmed').length;
-  const totalRevenue = bookings.reduce((s, b) => s + (b.final_price ?? 0), 0);
-  const totalProfit  = bookings.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
+  const fmtDate  = (d: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '?';
+  const bkgCcy   = (b: Booking) => (b as unknown as { currency?: string }).currency ?? 'EUR';
+  const fmtPrice = (n: number | null | undefined, ccy: string) => {
+    if (n == null) return '—';
+    return ccy === 'DZD' ? `${Math.round(n).toLocaleString('fr-FR')} DZD` : `${n}€`;
+  };
   const fmtMoney = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k€` : `${Math.round(n)}€`;
+
+  const activeCount = bookings.filter(b => b.status === 'active' || b.status === 'confirmed').length;
+  const totalRevEur = bookings.filter(b => bkgCcy(b) === 'EUR').reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const totalRevDzd = bookings.filter(b => bkgCcy(b) === 'DZD').reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const totalProfit = bookings.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
@@ -186,10 +196,11 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
         </div>
 
         {/* KPI row */}
-        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8, overflowX: 'auto' }}>
           <KpiCard label="ACTIVES" val={String(activeCount)} col="#00e676" />
-          <KpiCard label="CA" val={fmtMoney(totalRevenue)} col="#00d4ff" />
-          <KpiCard label="PROFIT" val={fmtMoney(totalProfit)} col="#ffd700" />
+          {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#00d4ff" />}
+          {totalRevDzd > 0 && <KpiCard label="CA DZD" val={totalRevDzd >= 100000 ? `${(totalRevDzd/1000).toFixed(0)}k` : String(Math.round(totalRevDzd))} col="#7c3aed" />}
+          {!isHouari && <KpiCard label="PROFIT" val={fmtMoney(totalProfit)} col="#ffd700" />}
         </div>
 
         <input
@@ -203,8 +214,22 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
       {/* Create form — redesigned */}
       {showCreate && (
         <div style={{ padding: '10px 14px', borderBottom: '1px solid #00d4ff18', flexShrink: 0, background: 'rgba(0,8,18,0.98)' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff77', letterSpacing: '0.3em', marginBottom: 10 }}>
-            NOUVELLE RÉSERVATION
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff77', letterSpacing: '0.3em' }}>
+              NOUVELLE RÉSERVATION
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['EUR', 'DZD'] as const).map(ccy => (
+                <button key={ccy} onClick={() => setForm(f => ({ ...f, currency: ccy }))} style={{
+                  background: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed33' : '#00d4ff22') : 'transparent',
+                  border: `1px solid ${form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#00d4ff') : '#ffffff22'}`,
+                  borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
+                  fontFamily: 'Orbitron', fontSize: 7,
+                  color: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#00d4ff') : '#ffffff33',
+                  letterSpacing: '0.1em',
+                }}>{ccy}</button>
+              ))}
+            </div>
           </div>
 
           {/* Client name */}
@@ -263,9 +288,9 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
           {/* Prix client + proprio auto */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
             <div>
-              <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT €/j</div>
+              <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
               <input type="number" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))}
-                placeholder="ex: 55" style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+                placeholder={form.currency === 'DZD' ? 'ex: 8000' : 'ex: 55'} style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
             </div>
             <div>
               <div style={{ fontSize: 6, color: '#00d4ff44', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX PROPRIO €/j</div>
@@ -325,8 +350,8 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff' }}>
-                    {b.final_price ? `${b.final_price}€` : '—'}
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: bkgCcy(b) === 'DZD' ? '#7c3aed' : '#00d4ff' }}>
+                    {fmtPrice(b.final_price, bkgCcy(b))}
                   </div>
                   <div style={{ fontSize: 7, color: pyCol, letterSpacing: '0.06em', marginTop: 1 }}>
                     {b.payment_status}
@@ -337,7 +362,7 @@ export default function BookingsScreen({ onNavigateVoice: _ }: Props) {
                 <div style={{ padding: '6px 12px 10px 20px', background: 'rgba(0,5,15,0.96)', borderTop: `1px solid ${stCol}22` }}>
                   <Row label="ID" val={b.id.slice(0, 8) + '…'} />
                   <Row label="Nb jours" val={String(b.nb_days ?? '?')} />
-                  <Row label="Prix client/j" val={b.client_price_per_day ? `${b.client_price_per_day}€` : '—'} />
+                  <Row label="Prix client/j" val={fmtPrice(b.client_price_per_day, bkgCcy(b))} />
                   <Row label="Prix proprio/j" val={b.owner_price_per_day ? `${b.owner_price_per_day}€` : '—'} />
                   <Row label="Profit Kouider" val={b.profit_kouider != null ? `${b.profit_kouider}€` : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
                   <Row label="Statut" val={b.status} col={stCol} />
