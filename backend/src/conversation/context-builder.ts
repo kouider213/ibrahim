@@ -319,7 +319,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
 • Réponse COURTE et ORALE — 2 à 4 phrases maximum sauf si détails vraiment nécessaires`
     : '';
 
-  const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}.${voiceFormatHint} ${currentChannel === 'Telegram' ? `${actor.displayName} écrit DEPUIS Telegram — ne jamais dire "je t'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.` : `${actor.displayName} parle via App Vocale — utiliser send_telegram_message pour lui envoyer des documents/photos.`}`;
+  const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}.${voiceFormatHint} ${currentChannel === 'Telegram' ? `${actor.displayName} écrit DEPUIS Telegram — ne jamais dire "je t'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.` : `${actor.displayName} parle via App Vocale — utiliser get_client_document pour envoyer des documents/photos directement dans le chat. JAMAIS utiliser send_telegram_message ni dire "sur Telegram".`}`;
 
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
   const crossChannelText = (crossHistory as any[]).length > 0
