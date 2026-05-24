@@ -528,55 +528,106 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
   actorCol: string; actorInit: string; onLogout: () => void;
 }) {
   const tab = TABS.find(t => t.id === page);
+  const [showMenu, setShowMenu] = useState(false);
+
   return (
     <div style={{
       width: '100%',
       background: 'rgba(2,5,14,0.97)',
       borderBottom: '1px solid rgba(0,212,255,0.08)',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 16px', height: 44,
-      paddingTop: 'env(safe-area-inset-top, 0px)',
       flexShrink: 0,
+      position: 'relative',
     }}>
-      {/* Brand */}
-      <span style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(0,212,255,0.55)', letterSpacing: '0.2em' }}>
-        DZARYX
-      </span>
+      {/* Safe-area spacer */}
+      <div style={{ height: 'env(safe-area-inset-top, 0px)' }} />
 
-      {/* Current page pill */}
+      {/* Actual content row */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '4px 12px', borderRadius: 20,
-        background: wsOk ? 'rgba(0,212,255,0.06)' : 'rgba(255,51,102,0.06)',
-        border: `1px solid ${wsOk ? 'rgba(0,212,255,0.18)' : 'rgba(255,51,102,0.2)'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 16px', height: 44,
       }}>
-        <div style={{
-          width: 5, height: 5, borderRadius: '50%',
-          background: wsOk ? '#00d4ff' : '#ff3366',
-          boxShadow: `0 0 6px ${wsOk ? '#00d4ff' : '#ff3366'}`,
-          animation: 'statusPulse 2s ease infinite',
-        }} />
-        <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: wsOk ? 'rgba(0,212,255,0.85)' : '#ff3366', letterSpacing: '0.06em' }}>
-          {tab?.label ?? page.toUpperCase()}
+        {/* Brand */}
+        <span style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(0,212,255,0.55)', letterSpacing: '0.2em' }}>
+          DZARYX
         </span>
+
+        {/* Current page pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 12px', borderRadius: 20,
+          background: wsOk ? 'rgba(0,212,255,0.06)' : 'rgba(255,51,102,0.06)',
+          border: `1px solid ${wsOk ? 'rgba(0,212,255,0.18)' : 'rgba(255,51,102,0.2)'}`,
+        }}>
+          <div style={{
+            width: 5, height: 5, borderRadius: '50%',
+            background: wsOk ? '#00d4ff' : '#ff3366',
+            boxShadow: `0 0 6px ${wsOk ? '#00d4ff' : '#ff3366'}`,
+            animation: 'statusPulse 2s ease infinite',
+          }} />
+          <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: wsOk ? 'rgba(0,212,255,0.85)' : '#ff3366', letterSpacing: '0.06em' }}>
+            {tab?.label ?? page.toUpperCase()}
+          </span>
+        </div>
+
+        {/* Actor avatar — tap = menu déconnexion */}
+        <button
+          onClick={() => setShowMenu(m => !m)}
+          style={{
+            cursor: 'pointer', padding: 0,
+            width: 32, height: 32, borderRadius: '50%',
+            background: `${actorCol}18`,
+            border: `1.5px solid ${actorCol}55`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'Orbitron', fontSize: 11, fontWeight: 700, color: actorCol,
+            boxShadow: `0 0 10px ${actorCol}22`,
+          }}
+        >
+          {actorInit}
+        </button>
       </div>
 
-      {/* Actor avatar */}
-      <button
-        onClick={onLogout}
-        title="Déconnexion"
-        style={{
-          cursor: 'pointer', padding: 0,
-          width: 28, height: 28, borderRadius: '50%',
-          background: `${actorCol}18`,
-          border: `1.5px solid ${actorCol}55`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: actorCol,
-          boxShadow: `0 0 10px ${actorCol}22`,
-        }}
-      >
-        {actorInit}
-      </button>
+      {/* Dropdown menu */}
+      {showMenu && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setShowMenu(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 98 }}
+          />
+          <div style={{
+            position: 'absolute', top: '100%', right: 12, zIndex: 99,
+            background: 'rgba(3,9,20,0.97)',
+            border: '1px solid rgba(0,212,255,0.15)',
+            borderRadius: 12,
+            overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            minWidth: 160,
+          }}>
+            <div style={{
+              padding: '8px 14px',
+              borderBottom: '1px solid rgba(0,212,255,0.08)',
+              fontFamily: 'Inter', fontSize: 10, fontWeight: 600,
+              color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em', textTransform: 'uppercase',
+            }}>
+              Connecté en tant que {actorInit === 'K' ? 'Kouider' : 'Houari'}
+            </div>
+            <button
+              onClick={() => { setShowMenu(false); onLogout(); }}
+              style={{
+                width: '100%', padding: '12px 14px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 10,
+                fontFamily: 'Inter', fontSize: 13, fontWeight: 500,
+                color: '#ff3366',
+                textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>⏻</span>
+              Se déconnecter
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
