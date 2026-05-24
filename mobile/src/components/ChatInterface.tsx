@@ -191,6 +191,8 @@ export default function ChatInterface() {
   const audioFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const elevenlabsReceived = useRef(false);
   const textInputRef       = useRef<HTMLInputElement>(null);
+  const bargeInCountRef    = useRef(0);
+  const bargeInReadyRef    = useRef(false); // delay before barge-in activates
 
   // Canvas refs
   const canvasRef    = useRef<HTMLCanvasElement>(null);
@@ -667,6 +669,40 @@ export default function ChatInterface() {
     }
   }, [state, startListeningInner, started]);
 
+  // ── Auto barge-in: détecte voix utilisateur pendant que Dzaryx parle ─
+  useEffect(() => {
+    // Allow barge-in 600ms after entering speak state (avoid cutting off first syllable)
+    if (state === 'speak') {
+      bargeInReadyRef.current = false;
+      bargeInCountRef.current = 0;
+      const delay = setTimeout(() => { bargeInReadyRef.current = true; }, 600);
+      return () => clearTimeout(delay);
+    } else {
+      bargeInReadyRef.current = false;
+      bargeInCountRef.current = 0;
+    }
+  }, [state]);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (stateRef.current !== 'speak' || !loopActive.current || !bargeInReadyRef.current) return;
+      if (!analyserRef.current) return;
+      // amp > 0.15 = voix utilisateur (pas bruit de fond ou écho haut-parleur)
+      if (ampRef.current > 0.15) {
+        bargeInCountRef.current++;
+        if (bargeInCountRef.current >= 4) { // ~200ms de parole continue
+          bargeInCountRef.current = 0;
+          bargeInReadyRef.current = false;
+          stopAudio(); window.speechSynthesis?.cancel(); clearAudioQueue();
+          startListeningInner();
+        }
+      } else {
+        bargeInCountRef.current = 0;
+      }
+    }, 50);
+    return () => clearInterval(iv);
+  }, [startListeningInner]);
+
   // ── Nexus status polling ───────────────────────────────────────
   useEffect(() => {
     const poll = async () => {
@@ -716,6 +752,10 @@ export default function ChatInterface() {
       return;
     }
     if (stateRef.current === 'listen') { recRef.current?.stop(); applyState('idle'); }
+    else if (stateRef.current === 'speak') {
+      stopAudio(); window.speechSynthesis?.cancel(); clearAudioQueue();
+      startListeningInner();
+    }
     else if (stateRef.current === 'idle') startListeningInner();
   }, [started, applyState, startListeningInner, scheduleNextListen, startMicAnalyser]);
 
