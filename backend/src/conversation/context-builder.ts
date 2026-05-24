@@ -301,13 +301,25 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? `\n\nMÉMOIRE Dzaryx (infos permanentes):\n${memResult.entries.map(m => `[${m.category}] ${m.content}`).join('\n')}`
     : '';
 
-  const currentChannel = sessionId === 'voice_kouider'
+  const isVoiceChannel = sessionId.startsWith('voice_');
+  const currentChannel = isVoiceChannel
     ? 'App Vocale'
     : sessionId.startsWith('telegram_')
     ? 'Telegram'
     : 'Inconnu';
 
-  const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}. ${currentChannel === 'Telegram' ? `${actor.displayName} écrit DEPUIS Telegram — ne jamais dire "je t'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.` : `${actor.displayName} parle via App Vocale — utiliser send_telegram_message pour lui envoyer des documents/photos.`}`;
+  const voiceFormatHint = isVoiceChannel
+    ? `\n\nFORMAT VOCAL OBLIGATOIRE (cette réponse sera LUE À VOIX HAUTE par synthèse vocale):
+• ZÉRO markdown — pas de **, pas de __, pas de ##, pas de ---, pas de tirets en début de ligne
+• ZÉRO numéros de téléphone à l'oral — dis "le numéro est disponible sur l'appli" si besoin
+• Phrases naturelles parlées — comme si tu répondais de vive voix à quelqu'un
+• Listes → phrase naturelle: "Tu as deux réservations: d'abord Dupont pour la Clio, puis Martin pour le Duster"
+• Dates: "du 28 juin au 14 juillet" (pas "28 juin → 14 juillet")
+• Noms de voitures en français: Berlingo, Clio, Logan, Sandero (pas d'accent anglais)
+• Réponse COURTE et ORALE — 2 à 4 phrases maximum sauf si détails vraiment nécessaires`
+    : '';
+
+  const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}.${voiceFormatHint} ${currentChannel === 'Telegram' ? `${actor.displayName} écrit DEPUIS Telegram — ne jamais dire "je t'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.` : `${actor.displayName} parle via App Vocale — utiliser send_telegram_message pour lui envoyer des documents/photos.`}`;
 
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
   const crossChannelText = (crossHistory as any[]).length > 0

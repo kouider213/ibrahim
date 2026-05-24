@@ -12,25 +12,66 @@ export function initDispatcher(io: Namespace): void {
 
 // ── Nettoyage texte pour TTS ─────────────────────────────────
 
+// Noms de voitures → phonétique française pour ElevenLabs
+const CAR_PHONETICS: Array<[RegExp, string]> = [
+  [/\bJumpy\b/gi,    'Djompi'],
+  [/\bDuster\b/gi,   'Douster'],
+  [/\bCreta\b/gi,    'Kréta'],
+  [/\bTiguan\b/gi,   'Tigouane'],
+  [/\bTucson\b/gi,   'Touksone'],
+  [/\bSorento\b/gi,  'Sorento'],
+  [/\bOutlander\b/gi,'Outlandeur'],
+  [/\bTransporter\b/gi,'Transporteur'],
+];
+
 export function cleanTextForTTS(text: string): string {
-  return text
-    // Supprimer les emojis
-    .replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FEFF}]|[\u{1F000}-\u{1F9FF}]/gu, '')
-    // Supprimer le markdown gras/italique
-    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
-    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
-    // Supprimer les titres markdown
-    .replace(/^#{1,6}\s+/gm, '')
-    // Supprimer les liens markdown
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    // Supprimer les bullets markdown
-    .replace(/^[-*•]\s+/gm, '')
-    // Supprimer les blocs de code
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`([^`]+)`/g, '$1')
-    // Nettoyer les espaces multiples
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  let t = text;
+
+  // 1. Supprimer les numéros de téléphone (inutiles à l'oral)
+  t = t.replace(/(?:\+?\d[\d\s\-().]{7,}\d)/g, 'numéro disponible sur l\'appli');
+
+  // 2. Supprimer les séparateurs --- / *** / ___
+  t = t.replace(/^[-*_]{2,}\s*$/gm, '');
+
+  // 3. Markdown gras/italique → texte brut
+  t = t.replace(/\*{1,3}([^*\n]+)\*{1,3}/g, '$1');
+  t = t.replace(/_{1,2}([^_\n]+)_{1,2}/g, '$1');
+
+  // 4. Titres markdown
+  t = t.replace(/^#{1,6}\s+/gm, '');
+
+  // 5. Liens markdown
+  t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+
+  // 6. Numéros de liste "1." / "2." en début de ligne → naturel
+  t = t.replace(/^\s*\d+\.\s+/gm, '');
+
+  // 7. Bullets - / * / • en début de ligne
+  t = t.replace(/^[\s]*[-*•]\s+/gm, '');
+
+  // 8. Flèche → → "au" ou "jusqu'au"
+  t = t.replace(/\s*→\s*/g, ' au ');
+  t = t.replace(/\s*->\s*/g, ' au ');
+
+  // 9. Blocs de code
+  t = t.replace(/```[\s\S]*?```/g, '');
+  t = t.replace(/`([^`]+)`/g, '$1');
+
+  // 10. Emojis
+  t = t.replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{FE00}-\u{FEFF}]|[\u{1F000}-\u{1F9FF}]/gu, '');
+
+  // 11. Phonétique française pour noms de voitures
+  for (const [re, phonetic] of CAR_PHONETICS) {
+    t = t.replace(re, phonetic);
+  }
+
+  // 12. Lignes vides multiples → une seule
+  t = t.replace(/\n{3,}/g, '\n\n');
+
+  // 13. Espaces multiples
+  t = t.replace(/[ \t]{2,}/g, ' ');
+
+  return t.trim();
 }
 
 // ── ElevenLabs TTS ────────────────────────────────────────────
