@@ -1,6 +1,6 @@
 import { supabase } from '../integrations/supabase.js';
 
-export type Mood = 'normal' | 'stressed' | 'angry' | 'happy' | 'tired' | 'rushed' | 'anxious' | 'focused';
+export type Mood = 'normal' | 'stressed' | 'angry' | 'happy' | 'tired' | 'rushed' | 'anxious' | 'focused' | 'sad';
 export type DzaryxTone = 'normal' | 'soft' | 'direct' | 'motivational' | 'silent';
 
 export interface MoodResult {
@@ -38,6 +38,15 @@ const HAPPY_SIGNALS = [
 const TIRED_SIGNALS = [
   { re: /fatigu[eé]|cr[eé]v[eé]|[eé]puis[eé]|j'?\s*ai\s+pas\s+dormi|insomnie/i,  signal: 'fatigue_explicite' },
   { re: /flemme|pas\s+le\s+courage|plus\s+d'?[eé]nergie/i,                          signal: 'manque_energie' },
+  { re: /m3yyan|m3ayan|tban|tbant|3yit|راه\s+تعبت|نعساان/i,                         signal: 'fatigue_darija' },
+];
+
+const SAD_SIGNALS = [
+  { re: /triste|malheureux|d[eé]prim[eé]|ça\s+va\s+pas|moral\s+à\s+zéro|pas\s+bien/i, signal: 'tristesse_explicite' },
+  { re: /perdu|seul|abandonné|incompris|tout\s+fout\s+le\s+camp/i,                       signal: 'detresse' },
+  { re: /😢|😞|😔|💔|😩|🥺/u,                                                           signal: 'emoji_triste' },
+  { re: /wlah\s+taban|galb[eé]|galbé|m7zon|محزون|حزين/i,                                signal: 'tristesse_darija' },
+  { re: /\.{3,}|…/,                                                                        signal: 'suspension_emotion' },
 ];
 
 const RUSHED_SIGNALS = [
@@ -86,6 +95,7 @@ function recommendTone(mood: Mood, intensity: number): DzaryxTone {
   if (mood === 'angry'   && intensity >= 3) return 'soft';
   if (mood === 'stressed' && intensity >= 3) return 'direct';
   if (mood === 'tired')                      return 'soft';
+  if (mood === 'sad')                        return 'soft';
   if (mood === 'anxious')                    return 'soft';
   if (mood === 'rushed')                     return 'direct';
   if (mood === 'happy')                      return 'motivational';
@@ -94,31 +104,41 @@ function recommendTone(mood: Mood, intensity: number): DzaryxTone {
 
 // ── Conseil pour system prompt ────────────────────────────────────────────────
 
-function buildAdvice(mood: Mood, intensity: number, _signals: string[]): string {
+function buildAdvice(mood: Mood, intensity: number, _signals: string[], actorName = 'Kouider'): string {
+  const n = actorName;
   if (mood === 'angry' && intensity >= 4) {
-    return 'HUMEUR: Kouider semble énervé. Sois très calme, concis, pas de blabla. Si une décision importante est en jeu, suggère d\'attendre avant d\'agir.';
+    return `HUMEUR DÉTECTÉE — ${n} semble énervé. Sois TRÈS calme, concis, pas de blabla. Valide ses émotions sans les amplifier. Si décision importante en jeu → suggère d'attendre avant d'agir.`;
+  }
+  if (mood === 'angry') {
+    return `HUMEUR DÉTECTÉE — ${n} est légèrement frustré. Sois direct et efficace, évite tout commentaire superflu.`;
   }
   if (mood === 'stressed' && intensity >= 3) {
-    return 'HUMEUR: Kouider est stressé. Va droit au but, solutions concrètes seulement. Pas de questions inutiles. Si décision irréversible → rappelle d\'attendre.';
+    return `HUMEUR DÉTECTÉE — ${n} est stressé. Va droit au but, solutions concrètes UNIQUEMENT. Zéro question inutile. Si décision irréversible → rappelle d'attendre.`;
+  }
+  if (mood === 'stressed') {
+    return `HUMEUR DÉTECTÉE — ${n} est un peu sous pression. Sois concis et rassurant.`;
+  }
+  if (mood === 'sad') {
+    return `HUMEUR DÉTECTÉE — ${n} semble triste ou pas bien. Sois particulièrement chaleureux et bienveillant. Commence par reconnaître son état avant de traiter la demande. Si non urgent, propose de reporter.`;
   }
   if (mood === 'tired') {
-    return 'HUMEUR: Kouider est fatigué. Réponses très courtes. Propose de remettre à demain si non urgent.';
+    return `HUMEUR DÉTECTÉE — ${n} est fatigué. Réponses très courtes. Propose de remettre à demain si non urgent.`;
   }
   if (mood === 'rushed') {
-    return 'HUMEUR: Kouider est pressé. Réponse en 1-2 phrases max. Essentiel seulement.';
+    return `HUMEUR DÉTECTÉE — ${n} est pressé. Réponse en 1-2 phrases max. Essentiel seulement.`;
   }
   if (mood === 'anxious') {
-    return 'HUMEUR: Kouider est anxieux. Sois rassurant, donne des faits concrets. Pas de "peut-être" ni "ça dépend".';
+    return `HUMEUR DÉTECTÉE — ${n} est anxieux. Sois rassurant, donne des faits concrets. Jamais de "peut-être" ni "ça dépend".`;
   }
   if (mood === 'happy') {
-    return 'HUMEUR: Kouider est de bonne humeur. Ton énergique, profites-en pour lui glisser une info business positive si pertinente.';
+    return `HUMEUR DÉTECTÉE — ${n} est de bonne humeur. Ton énergique, profites-en pour glisser une info business positive si pertinente.`;
   }
   return '';
 }
 
 // ── Détecteur principal ──────────────────────────────────────────────────────
 
-export function detectMood(text: string, hourBruxelles?: number): MoodResult {
+export function detectMood(text: string, hourBruxelles?: number, actorName?: string): MoodResult {
   const hour = hourBruxelles ?? new Date().getHours();
   const signals: string[] = [
     ...getHourSignals(hour),
@@ -132,16 +152,17 @@ export function detectMood(text: string, hourBruxelles?: number): MoodResult {
   const tiredSignals   = scoreSignals(text, TIRED_SIGNALS);
   const rushedSignals  = scoreSignals(text, RUSHED_SIGNALS);
   const anxiousSignals = scoreSignals(text, ANXIOUS_SIGNALS);
+  const sadSignals     = scoreSignals(text, SAD_SIGNALS);
 
-  signals.push(...stressSignals, ...angerSignals, ...happySignals, ...tiredSignals, ...rushedSignals, ...anxiousSignals);
+  signals.push(...stressSignals, ...angerSignals, ...happySignals, ...tiredSignals, ...rushedSignals, ...anxiousSignals, ...sadSignals);
 
-  // Scores
-  let angerScore   = angerSignals.length * 2 + (signals.includes('majuscules') ? 3 : 0);
-  let stressScore  = stressSignals.length * 2 + (signals.includes('heure_tardive') ? 1 : 0) + (signals.includes('heure_nuit') ? 2 : 0);
-  let happyScore   = happySignals.length * 2;
-  let tiredScore   = tiredSignals.length * 2 + (signals.includes('heure_nuit') ? 2 : 0) + (signals.includes('heure_tardive') ? 1 : 0);
-  let rushedScore  = (signals.includes('message_très_court') ? 2 : 0) + (signals.includes('nombreuses_fautes') ? 1 : 0);
-  let anxiousScore = anxiousSignals.length * 2;
+  const angerScore   = angerSignals.length * 2 + (signals.includes('majuscules') ? 3 : 0);
+  const stressScore  = stressSignals.length * 2 + (signals.includes('heure_tardive') ? 1 : 0) + (signals.includes('heure_nuit') ? 2 : 0);
+  const happyScore   = happySignals.length * 2;
+  const tiredScore   = tiredSignals.length * 2 + (signals.includes('heure_nuit') ? 2 : 0) + (signals.includes('heure_tardive') ? 1 : 0);
+  const rushedScore  = (signals.includes('message_très_court') ? 2 : 0) + (signals.includes('nombreuses_fautes') ? 1 : 0);
+  const anxiousScore = anxiousSignals.length * 2;
+  const sadScore     = sadSignals.length * 2 + (signals.includes('suspension_emotion') ? 1 : 0);
 
   const scores: Record<Mood, number> = {
     angry:   angerScore,
@@ -150,6 +171,7 @@ export function detectMood(text: string, hourBruxelles?: number): MoodResult {
     tired:   tiredScore,
     rushed:  rushedScore,
     anxious: anxiousScore,
+    sad:     sadScore,
     focused: 0,
     normal:  0,
   };
@@ -157,10 +179,10 @@ export function detectMood(text: string, hourBruxelles?: number): MoodResult {
   const topMood = (Object.entries(scores) as [Mood, number][])
     .sort((a, b) => b[1] - a[1])[0];
 
-  const mood      = topMood[1] >= 2 ? topMood[0] : 'normal';
-  const intensity = Math.min(5, Math.max(1, Math.round(topMood[1])));
+  const mood      = topMood![1] >= 2 ? topMood![0] : 'normal';
+  const intensity = Math.min(5, Math.max(1, Math.round(topMood![1])));
   const tone      = recommendTone(mood, intensity);
-  const advice    = buildAdvice(mood, intensity, signals);
+  const advice    = buildAdvice(mood, intensity, signals, actorName);
 
   return { mood, intensity, signals, tone, advice };
 }

@@ -192,7 +192,7 @@ export async function buildContext(
     new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', hour: 'numeric', hour12: false }).format(now),
     10,
   );
-  const mood = detectMood(userMessage, hourBruxelles);
+  const mood = detectMood(userMessage, hourBruxelles, actor.displayName);
   // Sauvegarder en background (non-bloquant)
   if (mood.mood !== 'normal') {
     saveMoodSession(sessionId, mood, userMessage).catch(() => {});
@@ -395,8 +395,17 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? '\n\n🚨 MODE URGENCE ACTIVÉ — Réponses ultra-courtes et directes uniquement. Priorité maximum. Actions immédiates sans demander confirmation. Notifications maximales. Pas d\'explication inutile — seulement ce qui est essentiel.'
     : '';
 
+  // Tolérance fautes — toujours active
+  const toleranceHint = `\n\nCOMPRÉHENSION INTELLIGENTE (OBLIGATOIRE):
+• Si le message est mal orthographié, abrégé ou phonétique → déduis l'intention, ne signale JAMAIS les fautes
+• Si transcription vocale imparfaite (accent algérien, mots coupés) → comprends le sens global
+• Français algérien / francoalgérien / darija mélangée → traite naturellement, pas de correction
+• Messages courts ("oui", "go", "nan", "sah") → déduis du contexte conversationnel
+• JAMAIS dire "je n'ai pas compris" si l'intention est devinable — fais de ton mieux`;
+
   const systemExtra = [
     actorPersonaText,
+    toleranceHint,
     urgencyText,
     langHint,
     channelInfo,
