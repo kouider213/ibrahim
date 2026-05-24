@@ -1,11 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
 import { extractBearerToken, validateToken, identifyMobileActor, type TokenType, type MobileActor } from '../../auth/tokens.js';
+import { verifySaasToken, type SaasTokenPayload } from '../../auth/saas-jwt.js';
 
 // Augment Express Request with mobile actor
 declare global {
   namespace Express {
     interface Request {
       mobileActor?: MobileActor;
+      saasActor?:   SaasTokenPayload;
     }
   }
 }
@@ -41,4 +43,13 @@ export function requireMobileAuth(req: Request, res: Response, next: NextFunctio
 
 export function requirePcAuth(req: Request, res: Response, next: NextFunction): void {
   requireAuth('pc-agent')(req, res, next);
+}
+
+export function requireSaasAuth(req: Request, res: Response, next: NextFunction): void {
+  const token = extractBearerToken(req);
+  if (!token) { res.status(401).json({ error: 'Token requis' }); return; }
+  const payload = verifySaasToken(token);
+  if (!payload) { res.status(401).json({ error: 'Token invalide ou expiré' }); return; }
+  req.saasActor = payload;
+  next();
 }

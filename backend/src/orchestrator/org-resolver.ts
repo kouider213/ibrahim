@@ -1,10 +1,11 @@
 import { supabase } from '../integrations/supabase.js';
 
 export interface OrgMember {
-  orgId:       string;                           // UUID
-  ownerKey:    string;                           // 'kouider' — data-filter key
-  role:        'owner' | 'admin' | 'member';
-  displayName: string;
+  orgId:                string;                  // UUID
+  ownerKey:             string;                  // 'kouider' — data-filter key
+  role:                 'owner' | 'admin' | 'member';
+  displayName:          string;
+  systemPromptOverride?: string;                 // SaaS tenants: dynamic sector prompt
 }
 
 // Default member — Kouider, used as fallback if DB not yet set up

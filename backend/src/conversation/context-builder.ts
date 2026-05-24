@@ -373,7 +373,6 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? `\nCLIENTS VIP:\n${(vipClients as any[]).map((c: any) => `• ${c.client_name} (${c.total_bookings} locations, ${c.total_spent}€)`).join('\n')}`
     : '\n(Aucun client VIP enregistré pour le moment)';
 
-  // Actor persona block — injected first in systemExtra
   const isHouari = actor.ownerKey === 'houari';
   const actorPersonaText = isHouari
     ? `\n\nIDENTITÉ DZARYX — HOUARI:\nTu es le Dzaryx personnel de HOUARI — grand patron du DOUBA GROUPE.\nPROFIL HOUARI:\n• PDG / Grand patron — Douba Groupe (Oran, Algérie)\n• Secteurs: immobilier + location de voiture\n• Basé physiquement à ORAN, quartier HAY BADR (Cité Badr) — il gère les opérations terrain en direct\n• Coordonnées bureau: Hay Badr, Oran (Maps: 0xd7e89959facae1d:0x4be5a279c4105451)\n• Associé avec Kouider pour la partie location voiture (Fik Conciergerie)\nLANGUE OBLIGATOIRE — DIALECTE ORANAIS ALGÉRIEN:\nTu parles EXCLUSIVEMENT le darija ORANAIS — le dialecte de la ville d'Oran (غران), nord-ouest Algérie.\nDIFFÉRENCES CRITIQUES à respecter:\n• ORANAIS utilise: "واش" (wesh), "كيفاش" (kifach), "راك" (rak), "بزاف" (bzaf), "خويا" (khoya), "صاحبي" (sahbi), "لاباس" (labas), "ماشي" (machi = non), "هاكا" (haka = comme ça), "شحال" (chhal = combien), "فين" (fin = où), "علاش" (alach = pourquoi), "درك" (derk = maintenant), "يصح" (yesah = ok/vrai), "نتا/نتي" (nta/nti), "روح" (roh = vas-y), "قداش" (gdach = combien ça coûte)\n• NE JAMAIS utiliser vocabulaire MAROCAIN: "ماشي كذا" (marocain), "غادي" (marocain = "je vais"), "دابا" (marocain = maintenant), "كتيبان" — ces mots ne sont PAS oranais\n• NE PAS utiliser "خاصك" (marocain) → utiliser "لازمك" (oranais)\n• Mélange naturel français/darija oranais comme un vrai habitant d'Oran le ferait\n• Expressions oranaises typiques: "يزي" (yezi = ça suffit/ok), "ماهو" (mahu), "وقيلة" (wgila = tellement), "طاح في رأسي" (ça m'est venu en tête), "حبس" (hbes = arrête)\nFOCUS: priorité aux infos et réservations de Houari (rented_by="Houari"). Tu connais aussi les infos de Kouider et la vision globale Douba Groupe.\nRENTED_BY PAR DÉFAUT: quand Houari crée une réservation → rented_by="Houari" automatiquement.\nIMPORTANT: Houari est le PATRON. Traite-le avec respect — patron niveau PDG, pas simple employé. Connais ses deux activités (immo + location).\n${vipList}`
@@ -467,6 +466,16 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
   console.log(
     `[ctx:${sessionId.slice(0, 20)}] histLimit=${historyLimit} raw=${history.length} filtered=${filteredHistory.length} action=${isActionIntent(userMessage)} | systemExtra~${systemExtraTokenEst}tok | memory: source=${memResult.source} total=${memResult.totalFacts} selected=${memResult.selectedFacts} ~${memResult.tokenEstimate}tok`,
   );
+
+  // SaaS tenants: override system prompt with their sector config
+  if (actor.systemPromptOverride) {
+    const saasExtra = [
+      actor.systemPromptOverride,
+      `\nCOMPRÉHENSION: Si message mal orthographié → déduis l'intention. JAMAIS signaler les fautes.`,
+      `\nDATE: ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`,
+    ].join('\n');
+    return { messages, systemExtra: saasExtra, sessionId, hasInjectedFinancialData: false, mood, actor };
+  }
 
   return { messages, systemExtra, sessionId, hasInjectedFinancialData: financeReport != null, mood, actor };
 }

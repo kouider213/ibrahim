@@ -1,4 +1,8 @@
-import AppShell from './components/Phone.tsx';
+import AppShell   from './components/Phone.tsx';
+import SaasPortal from './components/SaasPortal.tsx';
+
+const path = window.location.pathname.replace(/\/$/, '');
+const isSaas = path.endsWith('/saas') || path.endsWith('/signup') || path.endsWith('/login-saas');
 
 export default function App() {
   return (
@@ -8,7 +12,7 @@ export default function App() {
       background: '#000',
       overflow: 'hidden',
     }}>
-      <AppShell />
+      {isSaas ? <SaasPortal /> : <AppShell />}
     </div>
   );
 }
