@@ -1303,7 +1303,7 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     return `❌ Champ "${field}" introuvable. Disponibles: ${doc.extracted_data ? Object.keys(doc.extracted_data).join(', ') : 'client_phone, file_url'}`;
   }
 
-  // Auto-send to app + lazy OCR backfill
+  // Auto-send to app via Supabase signed URL (fast, no download, works in browser without auth)
   const { emitProactive: emitDocProactive } = await import('../notifications/mobile-push.js');
   const sentUrls: string[] = [];
   for (const d of docs) {
@@ -1311,67 +1311,56 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     const caption = `📄 ${d.client_name} — ${d.type}`;
 
     try {
-      // Télécharger l'image — storage_path (privé + auth) ou file_url (public)
-      let buf: Buffer | null = null;
-
-      if (d.storage_path) {
-        const authUrl = `${SUPA_URL}/storage/v1/object/client-documents/${d.storage_path}`;
-        const { data } = await axiosModule.get(authUrl, {
-          responseType: 'arraybuffer',
-          headers: { Authorization: `Bearer ${SUPA_KEY}` },
-          timeout: 20_000,
-        });
-        buf = Buffer.from(data as ArrayBuffer);
-      } else if (d.file_url && IMAGE_EXTS.test(d.file_url)) {
-        const { data } = await axiosModule.get(d.file_url, {
-          responseType: 'arraybuffer',
-          timeout: 20_000,
-        });
-        buf = Buffer.from(data as ArrayBuffer);
-      }
-
-      if (!buf) continue;
-
-      // Lazy OCR backfill — si doc sans extracted_data et type reconnu
-      if (!d.extracted_data && OCR_DOC_TYPES.test(d.type)) {
-        const ocr = await ocrDocumentBuffer(buf, d.type, d.file_url ?? d.storage_path);
-        if (ocr) {
-          d.extracted_data = ocr;
-          await axiosModule.patch(
-            `${SUPA_URL}/rest/v1/client_documents?id=eq.${d.id}`,
-            { extracted_data: ocr },
-            { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' } },
-          ).catch(() => {});
-          console.log(`[get_client_document] OCR backfill OK for doc ${d.id}`);
-        }
-      }
-
-      // Upload buffer to Cloudinary for a reliable public URL (Supabase bucket is private)
+      // Generate a 1h signed URL from Supabase — accessible in browser without auth header
       let docUrl = '';
-      try {
-        const { v2: cloudinary } = await import('cloudinary');
-        cloudinary.config({
-          cloud_name: env.CLOUDINARY_CLOUD_NAME,
-          api_key: env.CLOUDINARY_API_KEY,
-          api_secret: env.CLOUDINARY_API_SECRET,
-        });
-        docUrl = await new Promise<string>((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { resource_type: 'auto', folder: 'dzaryx-documents' },
-            (err, result) => {
-              if (err || !result) reject(err ?? new Error('upload failed'));
-              else resolve(result.secure_url);
-            },
+      if (d.storage_path) {
+        try {
+          const { data: signData } = await axiosModule.post<{ signedURL?: string }>(
+            `${SUPA_URL}/storage/v1/object/sign/client-documents/${d.storage_path}`,
+            { expiresIn: 3600 },
+            { headers: { Authorization: `Bearer ${SUPA_KEY}`, apikey: SUPA_KEY, 'Content-Type': 'application/json' }, timeout: 5_000 },
           );
-          stream.end(buf);
-        });
-      } catch {
-        docUrl = d.file_url ?? '';
+          const rel = signData?.signedURL;
+          if (rel) docUrl = rel.startsWith('http') ? rel : `${SUPA_URL}${rel}`;
+        } catch { /* fallback below */ }
       }
-      if (docUrl) emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n📹 ${docUrl}`);
-      sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
+      // Fallback: use file_url as-is (public bucket or already signed)
+      if (!docUrl) docUrl = d.file_url ?? '';
+
+      if (docUrl) {
+        emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n📹 ${docUrl}`);
+        sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
+      }
+
+      // OCR backfill in background — doesn't block doc delivery
+      if (!d.extracted_data && OCR_DOC_TYPES.test(d.type) && (d.storage_path || IMAGE_EXTS.test(d.file_url ?? ''))) {
+        void (async () => {
+          try {
+            let buf: Buffer | null = null;
+            if (d.storage_path) {
+              const { data } = await axiosModule.get(`${SUPA_URL}/storage/v1/object/client-documents/${d.storage_path}`, {
+                responseType: 'arraybuffer', headers: { Authorization: `Bearer ${SUPA_KEY}` }, timeout: 20_000,
+              });
+              buf = Buffer.from(data as ArrayBuffer);
+            } else if (d.file_url) {
+              const { data } = await axiosModule.get(d.file_url, { responseType: 'arraybuffer', timeout: 20_000 });
+              buf = Buffer.from(data as ArrayBuffer);
+            }
+            if (!buf) return;
+            const ocr = await ocrDocumentBuffer(buf, d.type, d.file_url ?? d.storage_path);
+            if (ocr) {
+              await axiosModule.patch(
+                `${SUPA_URL}/rest/v1/client_documents?id=eq.${d.id}`,
+                { extracted_data: ocr },
+                { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' } },
+              ).catch(() => {});
+              console.log(`[get_client_document] OCR backfill OK for doc ${d.id}`);
+            }
+          } catch { /* ignore background OCR failure */ }
+        })();
+      }
     } catch (err) {
-      console.error('[get_client_document] download/send failed:', err instanceof Error ? err.message : err);
+      console.error('[get_client_document] send failed:', err instanceof Error ? err.message : err);
     }
   }
 

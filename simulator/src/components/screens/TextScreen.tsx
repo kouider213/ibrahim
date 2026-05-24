@@ -512,14 +512,9 @@ function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
               VIDEO_EXT.test(url) ? (
                 <video key={i} src={url} controls playsInline
                   style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 10, background: '#000' }} />
-              ) : IMAGE_EXT.test(url) ? (
-                <img key={i} src={url} alt="media"
-                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 10, objectFit: 'cover' }} />
               ) : (
-                <a key={i} href={url} target="_blank" rel="noreferrer"
-                  style={{ display: 'block', marginTop: 5, fontFamily: 'Inter', fontSize: 10, color: actorCol + 'cc', wordBreak: 'break-all' }}>
-                  🔗 {url.slice(0, 60)}…
-                </a>
+                <img key={i} src={url} alt="document"
+                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 300, borderRadius: 10, objectFit: 'contain', background: 'rgba(0,0,0,0.2)' }} />
               )
             )}
           </>
