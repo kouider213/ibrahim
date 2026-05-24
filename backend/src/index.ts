@@ -49,6 +49,7 @@ import mapsRoutes           from './api/routes/maps.js';
 import ratesRoutes          from './api/routes/rates.js';
 import saasRoutes           from './api/routes/saas.js';
 import saasChatRoutes       from './api/routes/saas-chat.js';
+import saasDataRoutes       from './api/routes/saas-data.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -276,6 +277,7 @@ app.use('/api/bi',           apiLimiter, biRoutes);
 app.use('/api/rates',        apiLimiter, ratesRoutes);
 app.use('/api/saas',         saasRoutes);       // public: register/login — no auth limiter
 app.use('/api/saas',         saasChatRoutes);   // JWT-protected SaaS chat
+app.use('/api/saas/data',    saasDataRoutes);   // JWT-protected SaaS data (bookings/items/stats)
 app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
 app.use('/api/health-ai',   apiLimiter, healthAiRoutes);
 app.use('/api/pdf',         pdfRoutes);
