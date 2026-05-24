@@ -47,6 +47,7 @@ import pdfRoutes            from './api/routes/pdf.js';
 import locationRoutes       from './api/routes/location.js';
 import mapsRoutes           from './api/routes/maps.js';
 import ratesRoutes          from './api/routes/rates.js';
+import saasRoutes           from './api/routes/saas.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -272,6 +273,7 @@ app.use('/api/multi-agent',  apiLimiter, multiAgentRoutes);
 app.use('/api/workflow',     apiLimiter, workflowRoutes);
 app.use('/api/bi',           apiLimiter, biRoutes);
 app.use('/api/rates',        apiLimiter, ratesRoutes);
+app.use('/api/saas',         saasRoutes);  // public: register/login — no auth limiter
 app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
 app.use('/api/health-ai',   apiLimiter, healthAiRoutes);
 app.use('/api/pdf',         pdfRoutes);
