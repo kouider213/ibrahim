@@ -25,13 +25,14 @@ const bookingSchema = z.object({
 
 router.get('/bookings', async (req: Request, res: Response): Promise<void> => {
   const orgId = req.saasActor!.orgId;
-  const { status, date, limit } = req.query;
+  const { status, date, limit, order } = req.query;
+  const ascending = order === 'asc';
 
   let query = supabase
     .from('saas_bookings')
     .select('*')
     .eq('org_id', orgId)
-    .order('start_date', { ascending: false })
+    .order('start_date', { ascending })
     .limit(Number(limit ?? 50));
 
   if (status) query = query.eq('status', status as string);
@@ -192,6 +193,46 @@ router.get('/stats', async (req: Request, res: Response): Promise<void> => {
     total_bookings:  totalRes.count ?? 0,
     total_items:     itemsRes.data?.length ?? 0,
     available_items: availableItems,
+  });
+});
+
+// ── Revenue breakdown ─────────────────────────────────────────────
+
+router.get('/revenue', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  const { data } = await supabase
+    .from('saas_bookings')
+    .select('start_date, amount, currency, item_name, status')
+    .eq('org_id', orgId)
+    .neq('status', 'cancelled')
+    .gte('start_date', since.toISOString())
+    .order('start_date');
+
+  // Group by day
+  const byDay: Record<string, { date: string; revenue: number; count: number }> = {};
+  for (const b of data ?? []) {
+    const day = (b.start_date as string).slice(0, 10);
+    if (!byDay[day]) byDay[day] = { date: day, revenue: 0, count: 0 };
+    byDay[day].revenue += b.amount ?? 0;
+    byDay[day].count += 1;
+  }
+
+  // Top items by revenue
+  const byItem: Record<string, { name: string; revenue: number; count: number }> = {};
+  for (const b of data ?? []) {
+    const key = (b.item_name as string | null) ?? 'Autre';
+    if (!byItem[key]) byItem[key] = { name: key, revenue: 0, count: 0 };
+    byItem[key].revenue += b.amount ?? 0;
+    byItem[key].count += 1;
+  }
+
+  res.json({
+    days:      Object.values(byDay),
+    top_items: Object.values(byItem).sort((a, b) => b.revenue - a.revenue).slice(0, 6),
+    currency:  (data?.[0] as { currency?: string } | undefined)?.currency ?? 'DZD',
   });
 });
 
