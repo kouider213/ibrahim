@@ -94,7 +94,7 @@ export async function runBIEngine(forceTelegram = false): Promise<BIReport> {
     const shortMsg = highAlerts.length > 0
       ? `🔴 ${highAlerts.length} alerte(s) urgente(s) — ${fleet.total_cars} voitures / ${revenue.month_revenue}€`
       : `📊 BI — ${fleet.total_cars} voitures / ${revenue.month_revenue}€ ce mois`;
-    emitProactive(shortMsg, highAlerts.length > 0 ? 'alert' : 'info', clean);
+    emitProactive(shortMsg, highAlerts.length > 0 ? 'alert' : 'info', clean, 'kouider');
   }
 
   console.log(`[bi-engine] Done in ${report.runtime_ms}ms — fleet:${fleet.total_cars} revenue:${revenue.month_revenue}€ reminders:${reminders.length} tiktok:${tiktok.ideas.length}`);

@@ -38,7 +38,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:morning-briefing] SKIP — already sent today');
-    emitProactive('Briefing matinal déjà envoyé aujourd\'hui.', 'info', '✅ Briefing matinal déjà envoyé aujourd\'hui.');
+    emitProactive('Briefing matinal déjà envoyé aujourd\'hui.', 'info', '✅ Briefing matinal déjà envoyé aujourd\'hui.', 'kouider');
     return;
   }
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -172,7 +172,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   if (actives.length > 0) ttsLines.push(`${actives.length} voiture${actives.length > 1 ? 's' : ''} en location aujourd'hui.`);
   if (retToday.length > 0) ttsLines.push(`${retToday.length} retour${retToday.length > 1 ? 's' : ''} prévu${retToday.length > 1 ? 's' : ''} aujourd'hui.`);
   if (weather) ttsLines.push(`Météo Oran : ${weather.temperature} degrés, ${weather.condition}.`);
-  emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg));
+  emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg), 'kouider');
 
   console.log('[job:morning-briefing] Sent');
 }
@@ -236,7 +236,7 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:idle-vehicle] SKIP — already sent today');
-    emitProactive('Alerte véhicules inactifs déjà vérifiée aujourd\'hui.', 'info', '✅ Vérification véhicules inactifs déjà effectuée aujourd\'hui.');
+  emitProactive('Alerte véhicules inactifs déjà vérifiée aujourd\'hui.', 'info', '✅ Vérification véhicules inactifs déjà effectuée aujourd\'hui.', 'kouider');
     return;
   }
 

@@ -115,8 +115,13 @@ export async function getRecentProactives(actor?: string): Promise<Array<{ text:
       redis.lrange(PROACTIVE_HISTORY_KEY, 0, 29),
       redis.lrange(`${PROACTIVE_HISTORY_KEY}:${actor}`, 0, 29),
     ]);
+    // For houari: exclude global items explicitly tagged for kouider only
+    const houariNoise = /aucun impayé|aucun retard|tous les clients sont à jour|ont rendu leur véhicule à temps|aucune alerte|tout est en ordre|agenda|temps famille|travail belgique|trajet travail|soirée|météo|briefing matinal|conseil du jour|coûts claude|bénéfice|chiffre d'affaires|tiktok|marketing|vidéo prête/i;
+    const filteredGlobal = actor === 'houari'
+      ? globalItems.filter(i => { try { const m = parse(i); return m.targetActor !== 'kouider' && !houariNoise.test(m.text); } catch { return false; } })
+      : globalItems;
     const seen = new Set<string>();
-    const merged = [...globalItems, ...actorItems]
+    const merged = [...filteredGlobal, ...actorItems]
       .map(parse)
       .filter(m => { if (seen.has(m.timestamp)) return false; seen.add(m.timestamp); return true; })
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
