@@ -1312,17 +1312,14 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
     const caption = `📄 ${d.client_name} — ${d.type}`;
 
     try {
-      // Generate a 1h signed URL from Supabase — accessible in browser without auth header
+      // Generate a 1h signed URL via Supabase JS client — reliable, accessible in browser without auth
       let docUrl = '';
       if (d.storage_path) {
         try {
-          const { data: signData } = await axiosModule.post<{ signedURL?: string }>(
-            `${SUPA_URL}/storage/v1/object/sign/client-documents/${d.storage_path}`,
-            { expiresIn: 3600 },
-            { headers: { Authorization: `Bearer ${SUPA_KEY}`, apikey: SUPA_KEY, 'Content-Type': 'application/json' }, timeout: 5_000 },
-          );
-          const rel = signData?.signedURL;
-          if (rel) docUrl = rel.startsWith('http') ? rel : `${SUPA_URL}${rel}`;
+          const { data: signData, error: signErr } = await supabase.storage
+            .from('client-documents')
+            .createSignedUrl(d.storage_path, 3600);
+          if (!signErr && signData?.signedUrl) docUrl = signData.signedUrl;
         } catch { /* fallback below */ }
       }
       // Fallback: use file_url as-is (public bucket or already signed)
