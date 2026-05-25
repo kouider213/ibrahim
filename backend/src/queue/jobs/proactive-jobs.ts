@@ -542,6 +542,12 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
         const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 2, daysWithCar, startDate);
         await tg(tgMsg);
         emitProactive(`🔔 Relance 2 — ${clientName} — ${remaining}€ toujours dû (${carName})`, 'alert', stripTgMd(tgMsg));
+        emitProactive(
+          `⚠️ Solde impayé — ${clientName} — ${carName} — ${remaining}€ (2ème rappel)`,
+          'alert',
+          `⚠️ Solde toujours impayé après 2 rappels\n${clientName} — ${carName}\nMontant dû : ${remaining}€\nKouider gère la relance.`,
+          'houari',
+        );
         await supabase.from('relance_logs').insert({
           booking_id: bookingId, client_name: clientName, client_phone: clientPhone,
           car_name: carName, amount_due: remaining, attempt: 2,
@@ -561,6 +567,12 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
         ].join('\n');
         await tg(urgentMsg);
         emitProactive(`🔴 URGENT — ${clientName} — ${remaining}€ non encaissé après ${daysWithCar}j`, 'alert', urgentMsg);
+        emitProactive(
+          `🔴 URGENT — ${clientName} — ${remaining}€ non encaissé (${daysWithCar}j) — ${carName}`,
+          'alert',
+          `🔴 IMPAYÉ URGENT\n${clientName} — ${carName}\nMontant : ${remaining}€ depuis ${daysWithCar} jours\nKouider va le contacter directement.`,
+          'houari',
+        );
         await supabase.from('relance_logs').update({ sent_at: now.toISOString(), status: 'urgent' })
           .eq('booking_id', bookingId).eq('attempt', 2);
         urgentCount++;
@@ -700,6 +712,13 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
     `Alerte retard ! ${overdue.length} véhicule${overdue.length > 1 ? 's' : ''} pas encore rendu${overdue.length > 1 ? 's' : ''}. Contacte tes clients.`,
     'alert',
     `🚨 RETARD DE RETOUR — ${overdue.length} véhicule(s)\n\n${overdueList}\n\nContacte ces clients immédiatement.`,
+  );
+  // Houari : ses véhicules sont retenus — il doit savoir
+  emitProactive(
+    `🚨 ${overdue.length} véhicule(s) pas encore rendu(s) — retard signalé à Kouider`,
+    'alert',
+    `🚨 RETARD DE RETOUR — ${overdue.length} véhicule(s)\n\n${overdueList}\n\nKouider a été alerté pour récupérer les véhicules.`,
+    'houari',
   );
   console.log(`[job:late-return] ${overdue.length} véhicule(s) en retard détecté(s)`);
 }
@@ -1422,6 +1441,26 @@ export async function jobMonthlyReport(_job: Job): Promise<void> {
 
     await tg(lines.join('\n'));
     emitProactive(`Bilan ${monthName} : ${finance?.kouiderProfit ?? '?'}€ de bénéfice, ${allBookings.length} réservations.`, 'info', stripTgMd(lines.join('\n')));
+
+    // Houari — son bilan propriétaire (ownerTotal = sa part)
+    if (finance) {
+      const houariLines = [
+        `📊 Bilan ${monthName} ${prevYear} — Tes revenus`,
+        ``,
+        `💰 Revenus propriétaire : ${finance.ownerTotal}€`,
+        `📦 Réservations : ${allBookings.length} (${paid} payées / ${unpaid} impayées)`,
+        `💵 CA total généré : ${finance.grossCA}€`,
+        finance.missingOwnerPrice > 0
+          ? `⚠️ ${finance.missingOwnerPrice} résa sans ton tarif renseigné — dis à Kouider de compléter.`
+          : `✅ Tous les tarifs propriétaire sont renseignés.`,
+      ].join('\n');
+      emitProactive(
+        `Bilan ${monthName} — tes revenus propriétaire : ${finance.ownerTotal}€`,
+        'info',
+        houariLines,
+        'houari',
+      );
+    }
     console.log('[job:monthly-report] ✅ envoyé');
   } catch (err) {
     console.error('[job:monthly-report] ❌', err instanceof Error ? err.message : String(err));
@@ -1507,7 +1546,14 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
     ];
 
     await tg(lines.join('\n'));
-    emitProactive(`${idle.length} véhicule(s) immobilisé(s) 14+ jours : ${idle.map(c => c.name).join(', ')}`, 'alert', stripTgMd(lines.join('\n')));
+    const idleMsg = stripTgMd(lines.join('\n'));
+    emitProactive(`${idle.length} véhicule(s) immobilisé(s) 14+ jours : ${idle.map(c => c.name).join(', ')}`, 'alert', idleMsg);
+    emitProactive(
+      `${idle.length} véhicule(s) sans location depuis 14+ jours : ${idle.map(c => c.name).join(', ')}`,
+      'alert',
+      idleMsg,
+      'houari',
+    );
     console.log(`[job:long-idle] ✅ ${idle.length} véhicule(s) signalé(s)`);
   } catch (err) {
     console.error('[job:long-idle] ❌', err instanceof Error ? err.message : String(err));

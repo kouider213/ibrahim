@@ -400,7 +400,7 @@ async function _dispatch(
 async function listBookings(input: Record<string, unknown>): Promise<string> {
   let query = supabase
     .from('bookings')
-    .select('id, client_name, client_phone, start_date, end_date, final_price, status, payment_status, paid_amount, cars(name)')
+    .select('id, client_name, client_phone, start_date, end_date, final_price, currency, status, payment_status, paid_amount, cars(name)')
     .order('start_date', { ascending: false })
     .limit(Number(input['limit'] ?? 20));
 
@@ -423,10 +423,13 @@ async function listBookings(input: Record<string, unknown>): Promise<string> {
   if (!data?.length) return 'Aucune réservation trouvée.';
 
   const rows = (data as any[]).map(b => {
+    const curr = b.currency ?? 'EUR';
+    const priceStr = curr === 'DZD' ? `${b.final_price} DZD` : `${b.final_price}€`;
+    const paidStr  = curr === 'DZD' ? `${b.paid_amount ?? 0} DZD` : `${b.paid_amount ?? 0}€`;
     const payInfo = b.payment_status
-      ? ` | 💰 ${b.payment_status} (payé: ${b.paid_amount ?? 0}€)`
+      ? ` | 💰 ${b.payment_status} (payé: ${paidStr})`
       : '';
-    return `- [${b.id}] ${b.client_name} | ${b.cars?.name ?? '?'} | ${b.start_date} → ${b.end_date} | ${b.final_price}€ | ${b.status}${payInfo}`;
+    return `- [${b.id}] ${b.client_name} | ${b.cars?.name ?? '?'} | ${b.start_date} → ${b.end_date} | ${priceStr} | ${b.status}${payInfo}`;
   });
 
   return `${data.length} réservation(s):\n${rows.join('\n')}`;
@@ -450,6 +453,7 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
     fields['payment_status'] = psMap[input['payment_status'] as string] ?? (input['payment_status'] as string).toUpperCase();
   }
   if (input['paid_amount'] !== undefined) fields['paid_amount'] = Number(input['paid_amount']);
+  if (input['currency'])     fields['currency']     = input['currency'];
   if (input['rented_by'])    fields['rented_by']    = input['rented_by'];
   if (input['notes'])        fields['notes']        = input['notes'];
 
@@ -555,6 +559,10 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
   // Automotolux payment_status values: 'UNPAID' | 'PARTIAL' | 'PAID' (DEFAULT 'UNPAID')
   // nb_days, notes NOT in automotolux schema → excluded
   // client_age: column exists, make nullable via: ALTER TABLE bookings ALTER COLUMN client_age DROP NOT NULL
+  const rentedBy = (input['rented_by'] as string) ??
+    (sessionId ? (await redis.get(`session:actor:${sessionId}`).catch(() => null) ?? 'Kouider') : 'Kouider');
+  const currency = (input['currency'] as string) ?? (rentedBy === 'Houari' ? 'DZD' : 'EUR');
+
   const insertPayload: Record<string, unknown> = {
     car_id:               carId,
     client_name:          input['client_name'],
@@ -564,12 +572,13 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     end_date:             input['end_date'],
     final_price:          input['final_price'],
     payment_status:       'UNPAID',
-    rented_by:            input['rented_by']          ?? (sessionId ? (await redis.get(`session:actor:${sessionId}`).catch(() => null) ?? 'Kouider') : 'Kouider'),
+    rented_by:            rentedBy,
+    currency,
     status,
     client_price_per_day: client_ppd,
     owner_price_per_day:  owner_ppd,
     owner_total:          owner_ppd != null ? Math.round(owner_ppd * nb_days * 100) / 100 : null,
-    profit_kouider:       (client_ppd != null && owner_ppd != null && (input['rented_by'] ?? 'Kouider') !== 'Houari')
+    profit_kouider:       (client_ppd != null && owner_ppd != null && rentedBy !== 'Houari')
                             ? Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100
                             : null,
     discount_applied:     input['discount_applied']  != null ? Number(input['discount_applied']) : 0,
@@ -635,6 +644,12 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
       ].join('\n');
       import('../notifications/mobile-push.js').then(({ emitProactive }) => {
         emitProactive(`Bon de réservation — ${input['client_name'] as string}`, 'info', chatText);
+        emitProactive(
+          `Nouvelle réservation — ${input['client_name'] as string} — ${carName} (${input['start_date'] as string} → ${input['end_date'] as string})`,
+          'info',
+          `🚗 Nouvelle réservation confirmée\n👤 ${input['client_name'] as string}\n🚗 ${carName}\n📅 ${input['start_date'] as string} → ${input['end_date'] as string}\n💶 ${input['final_price'] as string}€`,
+          'houari',
+        );
         console.log('[create_booking] Auto-voucher envoyé dans app');
       }).catch(() => {});
     }, 2000);
