@@ -31,7 +31,7 @@
     "react-native-svg": "15.12.1",
     "socket.io-client": "^4.8.3",
     "zustand": "^5.0.13",
-    "@picovoice/porcupine-react-native": "^3.0.2"
+    "@react-native-voice/voice": "^3.2.4"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
