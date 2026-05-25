@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "974219484806",
+    "project_id": "dzaryx-396db",
+    "storage_bucket": "dzaryx-396db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:974219484806:android:4ca6831c9f4ff21f607b07",
+        "android_client_info": {
+          "package_name": "com.dzaryx.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLjtoFGzIFLtYGhO4Pvnuu5zX0eiySzm8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
