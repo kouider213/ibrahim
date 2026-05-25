@@ -486,7 +486,7 @@ export async function checkAnomalies(): Promise<string> {
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('client_name, final_price, start_date, end_date, cars(name)')
+    .select('client_name, final_price, client_price_per_day, owner_price_per_day, nb_days, start_date, end_date, rented_by, cars(name)')
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .lte('start_date', monthEnd)
     .gte('end_date', monthStart);
