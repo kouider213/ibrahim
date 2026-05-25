@@ -15,8 +15,8 @@ import json
 NEXUS_DIR   = os.path.dirname(os.path.abspath(__file__))
 PYTHON_EXE  = sys.executable
 
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
-TELEGRAM_CHAT_ID   = os.getenv('TELEGRAM_CHAT_ID',   '')
+BACKEND_URL    = os.getenv('BACKEND_URL', 'https://ibrahim-backend-production.up.railway.app')
+PC_AGENT_TOKEN = os.getenv('PC_AGENT_TOKEN', '')
 
 MAX_RESTARTS    = 10    # give up after this many crashes
 RESTART_DELAY_S = 5     # base delay between restarts
@@ -37,18 +37,22 @@ log = logging.getLogger('watchdog')
 
 
 def _send_telegram(text: str) -> None:
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    if not PC_AGENT_TOKEN:
+        log.info(f'[watchdog] notify (no token): {text[:80]}')
         return
     try:
-        payload = json.dumps({'chat_id': TELEGRAM_CHAT_ID, 'text': text, 'parse_mode': 'Markdown'}).encode()
+        payload = json.dumps({'text': text}).encode()
         req = urllib.request.Request(
-            f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
+            f'{BACKEND_URL}/api/nexus/watchdog-notify',
             data=payload,
-            headers={'Content-Type': 'application/json'},
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {PC_AGENT_TOKEN}',
+            },
         )
         urllib.request.urlopen(req, timeout=8)
     except Exception as e:
-        log.warning(f'Telegram error: {e}')
+        log.warning(f'Watchdog notify error: {e}')
 
 
 async def _run_nexus() -> int:

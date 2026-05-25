@@ -23,7 +23,7 @@ import {
   createAndStartTask, getTask, listTasks, cancelTask,
 } from '../../actions/handlers/nexus-task-runner.js';
 import type { TaskStep } from '../../actions/handlers/nexus-task-runner.js';
-import { requireMobileAuth } from '../middleware/auth.js';
+import { requireMobileAuth, requirePcAuth } from '../middleware/auth.js';
 import { nexusRateLimiter, nexusIpLogger, nexusAntiReplay } from '../middleware/nexus-security.js';
 import { nexusQueue } from '../../actions/handlers/nexus-command-queue.js';
 import { runAutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
@@ -58,6 +58,20 @@ router.get('/status', requireMobileAuth, (_req, res) => {
     mac:                 s.mac    || null,
     ip:                  s.publicIp || null,
   });
+});
+
+// POST /api/nexus/watchdog-notify — watchdog crash/restart alert → emitProactive (no Telegram)
+router.post('/watchdog-notify', requirePcAuth, async (req, res) => {
+  const { text } = req.body as { text?: string };
+  if (!text) { res.status(400).json({ error: 'text required' }); return; }
+  try {
+    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const clean = text.replace(/\*/g, '').replace(/_/g, '').trim().slice(0, 300);
+    emitProactive(clean.slice(0, 80), 'info', clean, 'kouider');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err) });
+  }
 });
 
 // POST /api/nexus/ping — ping réel avec heure du PC
