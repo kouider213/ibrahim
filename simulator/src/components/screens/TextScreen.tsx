@@ -470,7 +470,6 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   );
 }
 
-const MEDIA_RE = /^📹\s+(https?:\/\/\S+)$/;
 const VIDEO_EXT = /\.(mp4|mov|webm|ogg)(\?.*)?$/i;
 const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
 
@@ -481,9 +480,16 @@ function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
   const mediaUrls: string[] = [];
   const textLines: string[] = [];
   for (const line of lines) {
-    const m = MEDIA_RE.exec(line);
-    if (m) { mediaUrls.push(m[1]); }
-    else { textLines.push(line); }
+    const trimmed = line.trim();
+    // Cloudinary image URL on its own line → render as image
+    if (/^https?:\/\/res\.cloudinary\.com\/\S+$/.test(trimmed)) {
+      mediaUrls.push(trimmed);
+      continue;
+    }
+    // 📹 URL → render as video/media
+    const mv = /^📹\s+(https?:\/\/\S+)$/.exec(trimmed);
+    if (mv) { mediaUrls.push(mv[1]!); continue; }
+    textLines.push(line);
   }
   const displayText = textLines.join('\n').trim();
 
