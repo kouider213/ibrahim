@@ -965,65 +965,33 @@ export const nexusScreenUnderstand = (
   ms = 60_000,
 ) => _nexusEmit<OsResult>('nexus:screen_understand', { question, send_to_telegram: sendToTelegram, caption }, ms);
 
-// ── Telegram helpers ──────────────────────────────────────────────────────────
+// ── App notification helpers (Telegram supprimé — tout via Socket.IO) ──────────
 
 async function _sendTelegram(text: string): Promise<void> {
-  const token  = env.TELEGRAM_BOT_TOKEN;
-  const chatId = env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
   try {
-    const { default: axios } = await import('axios');
-    await axios.post(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      { chat_id: chatId, text, parse_mode: 'Markdown' },
-      { timeout: 8_000 },
-    );
+    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const clean = text.replace(/\*/g, '').replace(/_/g, '').trim();
+    emitProactive(clean.slice(0, 120), 'info', clean, 'kouider');
   } catch { /* non-critical */ }
 }
 
-async function _sendTelegramDocument(base64: string, filename: string, caption: string): Promise<void> {
-  const token  = env.TELEGRAM_BOT_TOKEN;
-  const chatId = env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+async function _sendTelegramDocument(_base64: string, filename: string, caption: string): Promise<void> {
   try {
-    const { default: axios } = await import('axios');
-    const FormData = (await import('form-data')).default;
-    const buf  = Buffer.from(base64, 'base64');
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append('caption', caption);
-    form.append('document', buf, { filename });
-    await axios.post(
-      `https://api.telegram.org/bot${token}/sendDocument`,
-      form,
-      { headers: form.getHeaders(), timeout: 30_000 },
-    );
-  } catch (e) { console.error('[NEXUS] Telegram document error:', e); }
+    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const msg = `📎 ${caption || filename}`;
+    emitProactive(msg.slice(0, 120), 'info', msg, 'kouider');
+  } catch { /* non-critical */ }
 }
 
-async function _sendTelegramPhoto(base64: string, caption: string): Promise<void> {
-  const token  = env.TELEGRAM_BOT_TOKEN;
-  const chatId = env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+async function _sendTelegramPhoto(_base64: string, caption: string): Promise<void> {
   try {
-    const { default: axios } = await import('axios');
-    const FormData = (await import('form-data')).default;
-    const buf  = Buffer.from(base64, 'base64');
-    const form = new FormData();
-    form.append('chat_id', chatId);
-    form.append('caption', caption);
-    form.append('photo', buf, { filename: 'screenshot.png', contentType: 'image/png' });
-    await axios.post(
-      `https://api.telegram.org/bot${token}/sendPhoto`,
-      form,
-      { headers: form.getHeaders(), timeout: 20_000 },
-    );
-  } catch (e) { console.error('[NEXUS] Telegram photo error:', e); }
+    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const msg = `📸 ${caption || 'Screenshot NEXUS'}`;
+    emitProactive(msg.slice(0, 120), 'info', msg, 'kouider');
+  } catch { /* non-critical */ }
 }
 
-// ── Structured Telegram notification ─────────────────────────────────────────
-// Formats ✅/❌/⚠️/ℹ️ + title + optional summary + optional details code block.
-// details are truncated to 800 chars to stay within Telegram message limits.
+// ── Structured notification → app ────────────────────────────────────────────
 
 const _STATUS_ICONS = { ok: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' } as const;
 
@@ -1035,15 +1003,9 @@ export async function sendTelegramStructured(opts: {
   durationMs?: number;
 }): Promise<void> {
   const icon  = _STATUS_ICONS[opts.status];
-  const lines: string[] = [`${icon} *${opts.title}*`];
-
+  const lines: string[] = [`${icon} ${opts.title}`];
   if (opts.summary)    lines.push(opts.summary);
-  if (opts.durationMs) lines.push(`_Durée: ${(opts.durationMs / 1000).toFixed(1)}s_`);
-
-  if (opts.details) {
-    const snippet = opts.details.trim().slice(0, 800);
-    lines.push('```', snippet, '```');
-  }
-
+  if (opts.durationMs) lines.push(`Durée: ${(opts.durationMs / 1000).toFixed(1)}s`);
+  if (opts.details)    lines.push(opts.details.trim().slice(0, 400));
   await _sendTelegram(lines.join('\n'));
 }
