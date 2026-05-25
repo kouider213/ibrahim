@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { requireSaasAuth } from '../middleware/auth.js';
 import { supabase } from '../../integrations/supabase.js';
+import { sendSaasWhatsApp, validateTwilioCredentials } from '../../integrations/saas-whatsapp.js';
+import { listOrgCalendarEvents, createOrgCalendarEvent, deleteOrgCalendarEvent } from '../../integrations/saas-calendar.js';
 
 const router = Router();
 router.use(requireSaasAuth);
@@ -278,6 +280,129 @@ router.post('/notifications/read-all', async (req: Request, res: Response): Prom
     .eq('read', false);
 
   if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(204).send();
+});
+
+// ── WhatsApp Pro ──────────────────────────────────────────────────
+
+// Configure WhatsApp (store Twilio credentials in integrations)
+router.post('/whatsapp/configure', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const { account_sid, auth_token, whatsapp_from } = req.body as {
+    account_sid?: string; auth_token?: string; whatsapp_from?: string;
+  };
+
+  if (!account_sid || !auth_token || !whatsapp_from) {
+    res.status(400).json({ error: 'account_sid, auth_token et whatsapp_from requis' });
+    return;
+  }
+
+  // Validate credentials first
+  const validation = await validateTwilioCredentials(account_sid, auth_token);
+  if (!validation.valid) {
+    res.status(400).json({ error: validation.error ?? 'Identifiants Twilio invalides' });
+    return;
+  }
+
+  // Fetch current integrations
+  const { data: cfg } = await supabase.from('org_configs').select('integrations').eq('org_id', orgId).maybeSingle();
+  const existing = (cfg?.integrations as Record<string, string>) ?? {};
+
+  const { error } = await supabase.from('org_configs').update({
+    integrations: {
+      ...existing,
+      twilio_account_sid:  account_sid,
+      twilio_auth_token:   auth_token,
+      twilio_whatsapp_from: whatsapp_from.startsWith('whatsapp:') ? whatsapp_from : `whatsapp:${whatsapp_from}`,
+    },
+    updated_at: new Date().toISOString(),
+  }).eq('org_id', orgId);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ message: `WhatsApp configuré — compte Twilio: ${validation.account_name}` });
+});
+
+// Send WhatsApp message
+router.post('/whatsapp/send', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const { to, body } = req.body as { to?: string; body?: string };
+
+  if (!to || !body) { res.status(400).json({ error: 'to et body requis' }); return; }
+
+  const result = await sendSaasWhatsApp(orgId, to, body);
+  if (!result.success) { res.status(502).json({ error: result.error }); return; }
+  res.json({ success: true, sid: result.sid });
+});
+
+// ── Google Calendar Pro ───────────────────────────────────────────
+
+// Configure Google Calendar (store service account JSON)
+router.post('/calendar/configure', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const { service_account_json, calendar_id } = req.body as {
+    service_account_json?: string; calendar_id?: string;
+  };
+
+  if (!service_account_json) { res.status(400).json({ error: 'service_account_json requis' }); return; }
+
+  // Validate JSON structure
+  try {
+    const sa = JSON.parse(service_account_json) as Record<string, string>;
+    if (!sa.client_email || !sa.private_key) {
+      res.status(400).json({ error: 'JSON invalide — client_email et private_key requis' });
+      return;
+    }
+  } catch {
+    res.status(400).json({ error: 'JSON invalide' });
+    return;
+  }
+
+  const { data: cfg } = await supabase.from('org_configs').select('integrations').eq('org_id', orgId).maybeSingle();
+  const existing = (cfg?.integrations as Record<string, string>) ?? {};
+
+  const { error } = await supabase.from('org_configs').update({
+    integrations: {
+      ...existing,
+      google_service_account_json: service_account_json,
+      ...(calendar_id ? { google_calendar_id: calendar_id } : {}),
+    },
+    updated_at: new Date().toISOString(),
+  }).eq('org_id', orgId);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ message: 'Google Calendar configuré' });
+});
+
+// List upcoming events
+router.get('/calendar/events', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const max = Math.min(Number(req.query['max'] ?? 10), 50);
+  const events = await listOrgCalendarEvents(orgId, max);
+  res.json(events);
+});
+
+// Create event
+router.post('/calendar/events', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const { summary, description, start, end, timezone } = req.body as {
+    summary?: string; description?: string; start?: string; end?: string; timezone?: string;
+  };
+
+  if (!summary || !start || !end) {
+    res.status(400).json({ error: 'summary, start et end requis' });
+    return;
+  }
+
+  const result = await createOrgCalendarEvent(orgId, { summary, description, start, end, timezone });
+  if (!result) { res.status(502).json({ error: 'Google Calendar non configuré ou erreur API' }); return; }
+  res.status(201).json(result);
+});
+
+// Delete event
+router.delete('/calendar/events/:id', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const ok = await deleteOrgCalendarEvent(orgId, req.params['id'] as string);
+  if (!ok) { res.status(502).json({ error: 'Suppression échouée' }); return; }
   res.status(204).send();
 });
 
