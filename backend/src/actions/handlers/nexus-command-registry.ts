@@ -16,7 +16,6 @@ import {
   nexusGetEnvironment,
   isNexusOnline,
 } from './nexus-relay.js';
-import { env } from '../../config/env.js';
 import { resolveProject, updateEnvironment, getEnvironment, PROJECT_REGISTRY } from './nexus-environment.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -197,19 +196,13 @@ function _isSafeCommand(cmd: string): { ok: boolean; reason?: string } {
   return { ok: false, reason: `Commande non autorisée: "${trimmed.slice(0, 60)}"` };
 }
 
-// ── Telegram helper ───────────────────────────────────────────────────────────
+// ── App notification helper ───────────────────────────────────────────────────
 
 async function _notify(text: string): Promise<void> {
-  const token  = env.TELEGRAM_BOT_TOKEN;
-  const chatId = env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
   try {
-    const { default: axios } = await import('axios');
-    await axios.post(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      { chat_id: chatId, text, parse_mode: 'Markdown' },
-      { timeout: 8_000 },
-    );
+    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const clean = text.replace(/\*/g, '').replace(/_/g, '').trim();
+    emitProactive(clean.slice(0, 120), 'info', clean, 'kouider');
   } catch { /* non-critical */ }
 }
 

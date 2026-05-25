@@ -20,7 +20,6 @@ import {
   rememberUiPattern, recordFailure, saveScreenshotMeta,
   type NexusProviderStat,
 } from './nexus-memory.js';
-import { env } from '../../config/env.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -144,15 +143,13 @@ function _hashScreen(b64: string): string {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-// ── Telegram ──────────────────────────────────────────────────────────────────
+// ── App notification helper ───────────────────────────────────────────────────
 
 async function _notify(text: string): Promise<void> {
-  const t = env.TELEGRAM_BOT_TOKEN, c = env.TELEGRAM_CHAT_ID;
-  if (!t || !c) return;
   try {
-    const { default: axios } = await import('axios');
-    await axios.post(`https://api.telegram.org/bot${t}/sendMessage`,
-      { chat_id: c, text, parse_mode: 'Markdown' }, { timeout: 8_000 });
+    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const clean = text.replace(/\*/g, '').replace(/_/g, '').trim();
+    emitProactive(clean.slice(0, 120), 'info', clean, 'kouider');
   } catch { /* non-critical */ }
 }
 
