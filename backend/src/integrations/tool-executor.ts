@@ -3887,9 +3887,6 @@ async function generateVehicleVideo(opts: {
 }
 
 async function generateImageTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
-  const token = env.REPLICATE_API_TOKEN;
-  if (!token) return '❌ REPLICATE_API_TOKEN non configuré dans Railway. Ajoute-le dans Railway → Variables.';
-
   const prompt      = input['prompt'] as string;
   const aspectRatio = (input['aspect_ratio'] as string) ?? '9:16';
   const style       = (input['style'] as string) ?? 'photorealistic';
@@ -3904,23 +3901,69 @@ async function generateImageTool(input: Record<string, unknown>, _sessionId?: st
   const fullPrompt = `${prompt}, ${styleModifier[style] ?? styleModifier['photorealistic']}`;
 
   const { emitProactive: emitImgProactive } = await import('../notifications/mobile-push.js');
-  emitImgProactive(`Génération image IA…`, 'info', `🎨 Flux.1 en cours pour "${prompt.slice(0, 80)}"…`);
+
+  // ── DALL-E 3 (primary) ────────────────────────────────────────
+  const openaiKey = env.OPENAI_API_KEY;
+  if (openaiKey) {
+    const sizeMap: Record<string, string> = {
+      '1:1':   '1024x1024',
+      '16:9':  '1792x1024',
+      '9:16':  '1024x1792',
+    };
+    const size = sizeMap[aspectRatio] ?? '1024x1024';
+
+    emitImgProactive(`Génération image DALL-E 3…`, 'info', `🎨 DALL-E 3 en cours pour "${prompt.slice(0, 80)}"…`);
+    try {
+      const res = await axios.post(
+        'https://api.openai.com/v1/images/generations',
+        { model: 'dall-e-3', prompt: fullPrompt, n: 1, size, quality: 'hd', response_format: 'url' },
+        { headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' }, timeout: 90_000 },
+      );
+      const imageUrl = (res.data as { data: { url: string }[] }).data[0]?.url;
+      if (imageUrl) {
+        emitImgProactive(`Image DALL-E 3 prête`, 'info', `🎨 Image DALL-E 3 prête\n📹 ${imageUrl}`);
+        return `✅ Image DALL-E 3 générée et envoyée dans l'app\nURL: ${imageUrl}`;
+      }
+    } catch (err: unknown) {
+      const axErr = err as { response?: { status?: number; data?: { error?: { code?: string; message?: string } } } };
+      const code = axErr?.response?.data?.error?.code;
+      const status = axErr?.response?.status;
+      // Quota / billing errors — inform user but don't fall through silently
+      if (status === 429 || code === 'insufficient_quota' || code === 'billing_hard_limit_reached') {
+        const replicateToken = env.REPLICATE_API_TOKEN;
+        if (!replicateToken) return '❌ Crédits OpenAI épuisés. Ajoute des crédits sur platform.openai.com → Billing. (REPLICATE_API_TOKEN non configuré non plus.)';
+        console.warn('[generate-image] DALL-E 3 quota exceeded — falling back to Flux 1.1 Pro');
+      } else {
+        console.error('[generate-image] DALL-E 3 error:', axErr?.response?.data ?? err);
+        // Non-quota error: fall through to Flux fallback
+      }
+    }
+  }
+
+  // ── Flux 1.1 Pro (fallback / no OpenAI key) ───────────────────
+  const token = env.REPLICATE_API_TOKEN;
+  if (!token) {
+    if (openaiKey) return '❌ Crédits OpenAI épuisés. Ajoute des crédits sur platform.openai.com → Billing, ou configure REPLICATE_API_TOKEN dans Railway.';
+    return '❌ Aucun provider image configuré. Ajoute OPENAI_API_KEY (DALL-E 3) ou REPLICATE_API_TOKEN (Flux) dans Railway → Variables.';
+  }
+
+  emitImgProactive(`Génération image Flux.1…`, 'info', `🎨 Flux.1 Pro en cours pour "${prompt.slice(0, 80)}"…`);
 
   const imageUrl = await replicateGenerate(
     'black-forest-labs/flux-1.1-pro',
     {
-      prompt:         fullPrompt,
-      aspect_ratio:   aspectRatio,
-      output_format:  'jpg',
-      output_quality: 90,
+      prompt:           fullPrompt,
+      aspect_ratio:     aspectRatio,
+      output_format:    'jpg',
+      output_quality:   90,
       safety_tolerance: 2,
     },
     token,
     90_000,
   );
 
-  emitImgProactive(`Image générée`, 'info', `🎨 Image Flux.1 Pro prête\n📹 ${imageUrl}`);
-  return `✅ Image Flux.1 générée et envoyée dans l'app\nURL: ${imageUrl}`;
+  emitImgProactive(`Image Flux.1 Pro prête`, 'info', `🎨 Image Flux.1 Pro prête\n📹 ${imageUrl}`);
+  return `✅ Image Flux.1 Pro générée et envoyée dans l'app\nURL: ${imageUrl}`;
 }
 
 async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
