@@ -2,15 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-22 (Session — Per-actor notifications + Dzaryx Living Brain)
+> Dernière mise à jour : 2026-05-25 (Session — APK ✅ + Telegram→Chat migration + SaaS multi-tenant complet)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phases 1-8 TERMINÉES ✅ + Brain System LIVE. APK bloqué EAS (reset 1er juin 2026).**
+**Phase active : Phases 1-8 TERMINÉES ✅ + Brain System LIVE + APK BUILDÉ ✅ + SaaS COMPLET ✅.**
 
-Dzaryx Living Brain déployé : intelligence client profonde (voitures préférées, mois de location, patterns d'arrivée, insights IA) + apprentissage acteur (vocabulaire Kouider/Houari). Notifications per-actor : Houari reçoit uniquement les notifs business, Kouider reçoit tout. Migration SQL appliquée Supabase ✅. Prochain brain auto-run : dimanche 3h00 Algeria.
+APK Android build réussi 2026-05-25. Migration complète Telegram→Chat : zéro message Telegram pour usage normal, tout passe par emitProactive(). Houari reçoit 8 types de notifs business. SaaS multi-tenant complet : plans, WhatsApp Pro, Calendar Pro, briefings quotidiens. 1 migration SQL à appliquer : `migration_saas_notifications.sql`.
 
 ---
 
@@ -131,21 +131,35 @@ Dzaryx Living Brain déployé : intelligence client profonde (voitures préfér�
 
 ---
 
+### APK Android ✅ BUILD RÉUSSI — 2026-05-25
+- ✅ APK buildé avec succès — token `i7Xv61ZWOwdh4omHYty7sHtNd48J5bHqM0nr06rT`
+- 📲 **Téléchargement direct** : https://expo.dev/artifacts/eas/xjD2ccEpeRkDF1mqYukMrq.apk
+- Logs build : https://expo.dev/accounts/fikkouider/projects/dzaryx/builds/fda58045-48f6-4000-bda7-ce070542a8ce
+
+**TODO — À faire maintenant :**
+- [ ] Installer APK sur téléphone Kouider
+- [ ] Installer APK sur téléphone Houari
+- [ ] Tester voix → Whisper → Claude → TTS end-to-end
+- [ ] Tester push notifications (app fermée)
+- [ ] Tester scan OCR passeport
+
+### SaaS Multi-tenant ✅ — 2026-05-25
+- ✅ `/api/saas/register` + `/api/saas/login` + `/api/saas/config`
+- ✅ `/api/saas/chat` — chat IA avec données business réelles injectées
+- ✅ `/api/saas/plans` — 3 plans : starter(0€/200msg) | pro(29€/2000msg) | enterprise(99€/∞)
+- ✅ `/api/saas/upgrade` — changer de plan
+- ✅ `/api/saas/notifications` — briefings quotidiens + alertes
+- ✅ WhatsApp Pro : per-tenant Twilio creds → `POST /api/saas/whatsapp/configure` + send
+- ✅ Google Calendar Pro : per-tenant service account → `POST /api/saas/calendar/configure` + CRUD
+- ✅ `jobSaasDailyBriefing` — 8h chaque matin, briefing pour chaque org SaaS
+- ✅ `jobSaasMonthlyReset` — 1er du mois 1h, reset compteurs messages
+- ✅ Migration SQL `migration_saas_notifications.sql` — à appliquer Supabase
+- ✅ Landing page HTML : `interface-ibrahim/dzaryx-saas-landing.html`
+
+**TODO — Actions manuelles requises :**
+- [ ] Appliquer `supabase/migration_saas_notifications.sql` dans Supabase SQL editor
+
 ## Ce qui ne fonctionne pas / incomplet ❌
-
-### APK — BLOQUÉ (EAS plan mensuel épuisé)
-- ❌ **APK non buildé** — EAS Free plan épuisé ce mois
-- 🕐 **Reset 1er juin 2026** (dans ~10 jours)
-- Token EAS encore valide : `G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6`
-- Commande prête :
-```bash
-EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive
-```
-
-### Firebase FCM natif
-- ❌ `FIREBASE_SERVICE_ACCOUNT_JSON` pas encore ajouté Railway
-- Push via Expo fonctionne quand même — FCM natif = amélioration optionnelle
-- **Attendre que APK soit buildé avant de configurer**
 
 ### Suivi flotte GPS live
 - ❌ Requires hardware GPS trackers dans chaque voiture (~25-50€/voiture + SIM 4G)
