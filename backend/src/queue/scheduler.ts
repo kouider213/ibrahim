@@ -30,6 +30,7 @@ import {
   jobHouariArrivalAlert,
   jobHouariReturnAlert,
   jobHouariWeeklyReport,
+  jobSaasDailyBriefing,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -193,6 +194,11 @@ const JOBS = [
     cron:  '15 8 * * 1',         // 8h15 chaque lundi — rapport hebdo revenus Houari
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'saas-daily-briefing',
+    cron:  '0 8 * * *',          // 8h chaque matin — briefing quotidien pour chaque org SaaS
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -226,6 +232,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'houari-arrival-alert':    jobHouariArrivalAlert,
   'houari-return-alert':     jobHouariReturnAlert,
   'houari-weekly-report':    jobHouariWeeklyReport,
+  'saas-daily-briefing':     jobSaasDailyBriefing,
 };
 
 export async function initScheduler(): Promise<void> {

@@ -1773,3 +1773,118 @@ export async function jobHouariWeeklyReport(_job: Job): Promise<void> {
     console.error('[job:houari-weekly] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ── SaaS — Briefing quotidien par tenant ─────────────────────────────────────
+// 8h chaque matin — pour chaque org SaaS active (hors Kouider qui a son propre briefing)
+export async function jobSaasDailyBriefing(_job: Job): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const lockKey = `job:saas-daily-briefing:sent:${today}`;
+  const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+  if (!acquired) { console.log('[job:saas-briefing] SKIP — already sent today'); return; }
+
+  try {
+    // Fetch all active orgs except Kouider's (plan pro with 99999 messages)
+    const { data: orgs } = await supabase
+      .from('org_configs')
+      .select('org_id, business_name, ai_name, language, currency, sector, messages_used, messages_limit')
+      .neq('messages_limit', 99999)
+      .order('created_at', { ascending: true });
+
+    if (!orgs?.length) { console.log('[job:saas-briefing] No SaaS orgs'); return; }
+
+    const now = new Date();
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd   = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+    const weekEnd    = new Date(now.getTime() + 7 * 86400000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    for (const org of orgs as unknown as Array<{
+      org_id: string;
+      business_name: string;
+      ai_name: string;
+      language: string;
+      currency: string;
+      sector: string;
+      messages_used: number;
+      messages_limit: number;
+    }>) {
+      try {
+        const orgId = org.org_id;
+        const curr  = org.currency ?? 'DZD';
+        const name  = org.ai_name ?? 'Dzaryx';
+
+        const [todayRes, weekRes, monthRes, itemsRes] = await Promise.all([
+          supabase.from('saas_bookings')
+            .select('customer_name, item_name, amount, start_date, end_date, status')
+            .eq('org_id', orgId).neq('status', 'cancelled')
+            .gte('start_date', todayStart.toISOString()).lte('start_date', todayEnd.toISOString())
+            .order('start_date'),
+          supabase.from('saas_bookings')
+            .select('customer_name, item_name, start_date, amount')
+            .eq('org_id', orgId).neq('status', 'cancelled')
+            .gt('start_date', todayEnd.toISOString()).lte('start_date', weekEnd.toISOString())
+            .order('start_date').limit(10),
+          supabase.from('saas_bookings')
+            .select('amount')
+            .eq('org_id', orgId).neq('status', 'cancelled')
+            .gte('start_date', monthStart.toISOString()),
+          supabase.from('saas_items')
+            .select('name, status')
+            .eq('org_id', orgId),
+        ]);
+
+        const todayBookings  = todayRes.data  ?? [];
+        const weekBookings   = weekRes.data   ?? [];
+        const monthRevenue   = (monthRes.data ?? []).reduce((s: number, b: { amount?: number }) => s + (b.amount ?? 0), 0);
+        const items          = itemsRes.data  ?? [];
+        const availableItems = items.filter((i: { status: string }) => i.status === 'available').length;
+
+        const dateStr = now.toLocaleDateString(org.language === 'ar' ? 'fr-FR' : `${org.language}-DZ`, {
+          weekday: 'long', day: 'numeric', month: 'long',
+        });
+
+        const lines: string[] = [
+          `☀️ Bonjour ! Rapport du ${dateStr}`,
+          '',
+          `📦 Réservations aujourd'hui : ${todayBookings.length}`,
+        ];
+
+        if (todayBookings.length > 0) {
+          for (const b of todayBookings.slice(0, 5) as Array<{ customer_name: string; item_name?: string; amount?: number; start_date: string }>) {
+            const time = new Date(b.start_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            lines.push(`  • ${b.customer_name}${b.item_name ? ` → ${b.item_name}` : ''}${b.amount ? ` | ${b.amount} ${curr}` : ''} à ${time}`);
+          }
+        }
+
+        if (weekBookings.length > 0) {
+          lines.push('', `📅 Cette semaine : ${weekBookings.length} réservation(s) à venir`);
+          for (const b of weekBookings.slice(0, 3) as Array<{ customer_name: string; item_name?: string; start_date: string }>) {
+            const day = new Date(b.start_date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+            lines.push(`  • ${day} — ${b.customer_name}${b.item_name ? ` (${b.item_name})` : ''}`);
+          }
+        }
+
+        lines.push('', `💰 CA ce mois : ${monthRevenue} ${curr}`);
+        if (items.length > 0) lines.push(`🔑 Inventaire : ${availableItems}/${items.length} disponible(s)`);
+
+        const remaining = org.messages_limit - org.messages_used;
+        lines.push('', `💬 Messages restants ce mois : ${remaining}/${org.messages_limit}`);
+        lines.push('', `— ${name}, votre assistant IA 🤖`);
+
+        await supabase.from('saas_notifications').insert({
+          org_id:     orgId,
+          type:       'daily_briefing',
+          title:      `Rapport du ${dateStr}`,
+          body:       lines.join('\n'),
+          expires_at: new Date(now.getTime() + 7 * 86400000).toISOString(),
+        });
+
+        console.log(`[job:saas-briefing] ✅ Briefing envoyé: ${org.business_name} (${todayBookings.length} résas auj.)`);
+      } catch (orgErr) {
+        console.error(`[job:saas-briefing] ❌ Org ${org.org_id}:`, orgErr instanceof Error ? orgErr.message : String(orgErr));
+      }
+    }
+  } catch (err) {
+    console.error('[job:saas-briefing] ❌', err instanceof Error ? err.message : String(err));
+  }
+}

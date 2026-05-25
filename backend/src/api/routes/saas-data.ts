@@ -236,4 +236,49 @@ router.get('/revenue', async (req: Request, res: Response): Promise<void> => {
   });
 });
 
+// ── Notifications (daily briefings + alerts) ──────────────────────
+
+router.get('/notifications', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const unreadOnly = req.query['unread'] === 'true';
+
+  let query = supabase
+    .from('saas_notifications')
+    .select('id, type, title, body, read, created_at')
+    .eq('org_id', orgId)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (unreadOnly) query = query.eq('read', false);
+
+  const { data, error } = await query;
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(data ?? []);
+});
+
+router.patch('/notifications/:id/read', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const { error } = await supabase
+    .from('saas_notifications')
+    .update({ read: true })
+    .eq('id', req.params.id)
+    .eq('org_id', orgId);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(204).send();
+});
+
+router.post('/notifications/read-all', async (req: Request, res: Response): Promise<void> => {
+  const orgId = req.saasActor!.orgId;
+  const { error } = await supabase
+    .from('saas_notifications')
+    .update({ read: true })
+    .eq('org_id', orgId)
+    .eq('read', false);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(204).send();
+});
+
 export default router;
