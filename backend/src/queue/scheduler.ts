@@ -32,6 +32,7 @@ import {
   jobHouariWeeklyReport,
   jobSaasDailyBriefing,
   jobSaasMonthlyReset,
+  jobSmartAlarm,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -205,6 +206,11 @@ const JOBS = [
     cron:  '0 1 1 * *',           // 1h le 1er du mois — reset compteurs messages SaaS
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'smart-alarm',
+    cron:  '30 22 * * *',          // 22h30 chaque soir — réveil optimal selon agenda lendemain
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -240,6 +246,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'houari-weekly-report':    jobHouariWeeklyReport,
   'saas-daily-briefing':     jobSaasDailyBriefing,
   'saas-monthly-reset':      jobSaasMonthlyReset,
+  'smart-alarm':             jobSmartAlarm,
 };
 
 export async function initScheduler(): Promise<void> {

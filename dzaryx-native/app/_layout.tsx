@@ -1,10 +1,56 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 
+// Persistent "Dzaryx actif" notification in Android notification tray
+async function setupPersistentNotification(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    await Notifications.setNotificationChannelAsync('dzaryx-quick', {
+      name: 'Dzaryx — Accès rapide',
+      importance: Notifications.AndroidImportance.LOW,
+      showBadge: false,
+      enableVibrate: false,
+      enableLights: false,
+    });
+
+    // Fixed identifier — replaces any previous instance on re-launch (no duplicates)
+    await Notifications.scheduleNotificationAsync({
+      identifier: 'dzaryx-persistent',
+      content: {
+        title: 'Dzaryx actif',
+        body: '🎙 Appuyez pour parler',
+        sticky: true,
+        data: { action: 'open_chat' },
+        android: { channelId: 'dzaryx-quick', color: '#00e5ff' } as Record<string, unknown>,
+      },
+      trigger: null,
+    });
+  } catch { /* permission denied or simulator */ }
+}
+
 export default function RootLayout() {
+  const router = useRouter();
+
+  useEffect(() => {
+    void setupPersistentNotification();
+
+    // Tap on any notification → navigate to chat
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data as { action?: string } | undefined;
+      if (data?.action === 'open_chat') {
+        router.push('/chat');
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   return (
     <>
       <StatusBar style="light" backgroundColor="#0a0a0a" />

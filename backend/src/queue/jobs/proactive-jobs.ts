@@ -1,4 +1,5 @@
-﻿import type { Job } from 'bullmq';
+﻿import { Queue } from 'bullmq';
+import type { Job } from 'bullmq';
 import { redis } from '../../queue/queue.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
 
@@ -1912,5 +1913,115 @@ export async function jobSaasDailyBriefing(_job: Job): Promise<void> {
     }
   } catch (err) {
     console.error('[job:saas-briefing] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── Smart Alarm — calcul réveil optimal selon agenda (22h30 chaque soir) ────────
+// 22h30 : lit agenda lendemain, calcule réveil = event - trajet - routine, envoie push + programme réveil
+export async function jobSmartAlarm(_job: Job): Promise<void> {
+  const ALGIERS_OFFSET_MIN = 60; // UTC+1, pas de DST en Algérie
+
+  // "tomorrow" in Algiers time
+  const nowUtc    = Date.now();
+  const nowAlg    = nowUtc + ALGIERS_OFFSET_MIN * 60_000;
+  const tomorrow  = new Date(nowAlg);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  const lockKey  = `job:smart-alarm:sent:${tomorrowStr}`;
+  const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+  if (!acquired) { console.log('[job:smart-alarm] SKIP — already sent'); return; }
+
+  try {
+    const events = await listUpcomingEvents(20).catch(() => []);
+
+    // Filter: starts tomorrow (Algiers), between 5h and 15h
+    const morningEvents = events.filter(e => {
+      if (!e.start.dateTime) return false;
+      const startUtc = new Date(e.start.dateTime).getTime();
+      const startAlg = new Date(startUtc + ALGIERS_OFFSET_MIN * 60_000);
+      const dateStr  = startAlg.toISOString().slice(0, 10);
+      const hour     = startAlg.getUTCHours();
+      return dateStr === tomorrowStr && hour >= 5 && hour <= 15;
+    });
+
+    if (morningEvents.length === 0) {
+      console.log('[job:smart-alarm] No morning events tomorrow — skip');
+      return;
+    }
+
+    // Earliest first
+    const earliest = [...morningEvents].sort(
+      (a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime(),
+    )[0];
+
+    const eventStartUtc = new Date(earliest.start.dateTime).getTime();
+    const eventAlg      = new Date(eventStartUtc + ALGIERS_OFFSET_MIN * 60_000);
+    const eH = String(eventAlg.getUTCHours()).padStart(2, '0');
+    const eM = String(eventAlg.getUTCMinutes()).padStart(2, '0');
+    const eventTimeStr = `${eH}h${eM}`;
+
+    const travelMin  = 20;   // default — améliorable via Maps API si event.location disponible
+    const routineMin = 45;   // 15min douche + 10min café + 20min préparation
+
+    const wakeUtcMs = eventStartUtc - (travelMin + routineMin) * 60_000;
+    const wakeAlg   = new Date(wakeUtcMs + ALGIERS_OFFSET_MIN * 60_000);
+    const wH = String(wakeAlg.getUTCHours()).padStart(2, '0');
+    const wM = String(wakeAlg.getUTCMinutes()).padStart(2, '0');
+    const wakeTimeStr = `${wH}h${wM}`;
+
+    const deptUtcMs = eventStartUtc - travelMin * 60_000;
+    const deptAlg   = new Date(deptUtcMs + ALGIERS_OFFSET_MIN * 60_000);
+    const dH = String(deptAlg.getUTCHours()).padStart(2, '0');
+    const dM = String(deptAlg.getUTCMinutes()).padStart(2, '0');
+    const departStr = `${dH}h${dM}`;
+
+    // ── Push 22h30 : résumé soirée ───────────────────────────────────────────
+    const eveningBody = [
+      `📅 ${earliest.summary} à ${eventTimeStr}`,
+      `⏰ Réveil recommandé : ${wakeTimeStr}`,
+      `🚗 Départ : ${departStr} (${travelMin}min de trajet)`,
+      `☕ Dzaryx te réveille automatiquement demain matin.`,
+    ].join('\n');
+
+    emitProactive(
+      `Demain ${earliest.summary} à ${eventTimeStr} — réveil ${wakeTimeStr}`,
+      'info',
+      eveningBody,
+      'kouider',
+    );
+
+    // ── Push réveil différé ──────────────────────────────────────────────────
+    const delayMs = wakeUtcMs - Date.now();
+    if (delayMs > 60_000) {
+      const wakeBody = [
+        `🌅 Réveil Kouider !`,
+        `📅 ${earliest.summary} à ${eventTimeStr} — dans ${travelMin + routineMin}min`,
+        `🚿 C'est l'heure de la douche.`,
+        `☕ Prépare ton café — départ à ${departStr}.`,
+      ].join('\n');
+
+      const q = new Queue('Dzaryx-scheduler', { connection: redis });
+      try {
+        await q.add(
+          'custom-reminder',
+          {
+            message:         wakeBody,
+            source_channel:  'smart-alarm',
+            idempotency_key: `smart-alarm:wake:${tomorrowStr}`,
+            request_id:      `smart_alarm_${tomorrowStr}`,
+          },
+          { delay: delayMs, removeOnComplete: 5, removeOnFail: 5 },
+        );
+      } finally {
+        await q.close();
+      }
+
+      console.log(`[job:smart-alarm] ✅ Wake scheduled ${wakeTimeStr} for "${earliest.summary}" @${eventTimeStr} (delay ${Math.round(delayMs / 60_000)}min)`);
+    } else {
+      console.log('[job:smart-alarm] Wake time already passed — no delayed job');
+    }
+  } catch (err) {
+    console.error('[job:smart-alarm] ❌', err instanceof Error ? err.message : String(err));
   }
 }
