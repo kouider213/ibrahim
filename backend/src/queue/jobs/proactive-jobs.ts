@@ -2051,3 +2051,51 @@ export async function jobSmartAlarm(_job: Job): Promise<void> {
     console.error('[job:smart-alarm] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ── 26. Export Excel mensuel automatique — 1er du mois 9h30 ──────────────────
+export async function jobMonthlyExcel(_job: Job): Promise<void> {
+  try {
+    const now       = new Date();
+    const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+    const prevYear  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+
+    const lockKey  = `job:monthly-excel:sent:${prevYear}-${prevMonth}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
+    if (!acquired) {
+      console.log('[job:monthly-excel] SKIP — already sent this month');
+      return;
+    }
+
+    const { exportBookingsToExcel } = await import('../../integrations/excel-export.js');
+    const buffer  = await exportBookingsToExcel(prevYear, prevMonth);
+    const label   = `${String(prevMonth).padStart(2, '0')}_${prevYear}`;
+    const filename = `fik_conciergerie_${label}.xlsx`;
+
+    let downloadUrl: string | undefined;
+    if (process.env.CLOUDINARY_URL || process.env.CLOUDINARY_CLOUD_NAME) {
+      try {
+        const { v2: cloudinary } = await import('cloudinary');
+        const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { resource_type: 'raw', public_id: `excel/${filename}`, overwrite: true },
+            (err, res) => (err ? reject(err) : resolve(res as { secure_url: string })),
+          );
+          uploadStream.end(buffer);
+        });
+        downloadUrl = result.secure_url;
+      } catch { /* no Cloudinary — push without URL */ }
+    }
+
+    const monthName = new Date(prevYear, prevMonth - 1).toLocaleDateString('fr-FR', { month: 'long' });
+    const msg = downloadUrl
+      ? `📊 Export Excel ${monthName} ${prevYear} prêt\n🔗 ${downloadUrl}`
+      : `📊 Export Excel ${monthName} ${prevYear} généré (${Math.round(buffer.length / 1024)} KB)`;
+
+    await tg(`📊 *Export Excel ${monthName} ${prevYear}*${downloadUrl ? `\n🔗 ${downloadUrl}` : '\n_(Cloudinary non configuré — demande via chat pour télécharger)_'}`);
+    emitProactive(`Export Excel ${monthName} prêt`, 'info', msg, 'kouider');
+
+    console.log(`[job:monthly-excel] ✅ ${filename} (${Math.round(buffer.length / 1024)} KB)`);
+  } catch (err) {
+    console.error('[job:monthly-excel] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
