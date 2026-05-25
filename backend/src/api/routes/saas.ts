@@ -179,6 +179,98 @@ router.get('/sectors', (_req: Request, res: Response) => {
   res.json(Object.entries(SECTORS).map(([key, val]) => ({ key, label: val.label })));
 });
 
+// ── Plans ─────────────────────────────────────────────────────────
+export const PLANS: Record<string, {
+  label: string;
+  price_monthly: number;
+  currency: string;
+  messages_limit: number;
+  features: string[];
+}> = {
+  starter: {
+    label:          'Starter',
+    price_monthly:  0,
+    currency:       'EUR',
+    messages_limit: 200,
+    features:       ['200 messages/mois', 'Chat AI sectoriel', '5 items max', 'API CRUD basique'],
+  },
+  pro: {
+    label:          'Pro',
+    price_monthly:  29,
+    currency:       'EUR',
+    messages_limit: 2000,
+    features:       ['2 000 messages/mois', 'Briefing quotidien', 'Items illimités', 'Stats avancées', 'Notifications', 'Support prioritaire'],
+  },
+  enterprise: {
+    label:          'Enterprise',
+    price_monthly:  99,
+    currency:       'EUR',
+    messages_limit: 99999,
+    features:       ['Messages illimités', 'Tous les plans Pro', 'SLA 99.9%', 'Onboarding dédié', 'API webhooks', 'Marque blanche'],
+  },
+};
+
+// GET /api/saas/plans (public)
+router.get('/plans', (_req: Request, res: Response) => {
+  res.json(Object.entries(PLANS).map(([key, val]) => ({ key, ...val })));
+});
+
+// POST /api/saas/upgrade — change plan (for now: no payment, just update limits)
+router.post('/upgrade', async (req: Request, res: Response): Promise<void> => {
+  const raw = extractBearerToken(req);
+  if (!raw) { res.status(401).json({ error: 'Token requis' }); return; }
+  const payload = verifySaasToken(raw);
+  if (!payload) { res.status(401).json({ error: 'Token invalide' }); return; }
+
+  const { plan } = req.body as { plan?: string };
+  if (!plan || !PLANS[plan]) {
+    res.status(400).json({ error: `Plan invalide. Choix: ${Object.keys(PLANS).join(', ')}` });
+    return;
+  }
+
+  const { messages_limit } = PLANS[plan]!;
+  const { data, error } = await supabase
+    .from('org_configs')
+    .update({ plan, messages_limit, updated_at: new Date().toISOString() })
+    .eq('org_id', payload.orgId)
+    .select('plan, messages_limit, messages_used')
+    .single();
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+
+  // Also update organizations table
+  await supabase.from('organizations').update({ plan }).eq('id', payload.orgId);
+
+  res.json({
+    plan,
+    messages_limit,
+    messages_used:  data.messages_used,
+    plan_info:      PLANS[plan],
+    message:        `Plan mis à jour : ${PLANS[plan]!.label} (${messages_limit} messages/mois)`,
+  });
+});
+
+// POST /api/saas/reset-usage — admin: reset monthly counter
+router.post('/reset-usage', async (req: Request, res: Response): Promise<void> => {
+  const raw = extractBearerToken(req);
+  if (!raw) { res.status(401).json({ error: 'Token requis' }); return; }
+  const payload = verifySaasToken(raw);
+  if (!payload) { res.status(401).json({ error: 'Token invalide' }); return; }
+
+  const nextReset = new Date();
+  nextReset.setMonth(nextReset.getMonth() + 1);
+  nextReset.setDate(1);
+  nextReset.setHours(0, 0, 0, 0);
+
+  const { error } = await supabase
+    .from('org_configs')
+    .update({ messages_used: 0, reset_at: nextReset.toISOString() })
+    .eq('org_id', payload.orgId);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ message: 'Compteur réinitialisé', next_reset: nextReset.toISOString() });
+});
+
 // ── Update config (integrations, profile, settings) ───────────────
 router.patch('/config', async (req: Request, res: Response): Promise<void> => {
   const raw = extractBearerToken(req);

@@ -1774,6 +1774,32 @@ export async function jobHouariWeeklyReport(_job: Job): Promise<void> {
   }
 }
 
+// ── SaaS — Reset compteurs mensuels (1er du mois 1h) ─────────────────────────
+export async function jobSaasMonthlyReset(_job: Job): Promise<void> {
+  const month = new Date().toISOString().slice(0, 7);
+  const lockKey = `job:saas-monthly-reset:sent:${month}`;
+  const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
+  if (!acquired) { console.log('[job:saas-reset] SKIP — already reset this month'); return; }
+
+  try {
+    const nextReset = new Date();
+    nextReset.setMonth(nextReset.getMonth() + 1);
+    nextReset.setDate(1);
+    nextReset.setHours(0, 0, 0, 0);
+
+    const { data: updated, error } = await supabase
+      .from('org_configs')
+      .update({ messages_used: 0, reset_at: nextReset.toISOString() })
+      .neq('messages_limit', 0)
+      .select('id');
+
+    if (error) { console.error('[job:saas-reset] ❌', error.message); return; }
+    console.log(`[job:saas-reset] ✅ Compteurs réinitialisés pour ${updated?.length ?? 0} orgs`);
+  } catch (err) {
+    console.error('[job:saas-reset] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ── SaaS — Briefing quotidien par tenant ─────────────────────────────────────
 // 8h chaque matin — pour chaque org SaaS active (hors Kouider qui a son propre briefing)
 export async function jobSaasDailyBriefing(_job: Job): Promise<void> {
