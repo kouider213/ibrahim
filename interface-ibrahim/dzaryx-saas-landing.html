@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dzaryx — L'IA qui gère votre business</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --c-bg:#050a0f;
+  --c-surface:#0d1a26;
+  --c-border:#1a3a5c;
+  --c-cyan:#00e5ff;
+  --c-cyan2:#0099cc;
+  --c-text:#e0f4ff;
+  --c-muted:#6b9ab8;
+  --c-gold:#f59e0b;
+  --c-green:#10b981;
+}
+html{scroll-behavior:smooth}
+body{background:var(--c-bg);color:var(--c-text);font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;width:100%;background:rgba(5,10,15,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--c-border);z-index:100;padding:0 5%}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:64px;max-width:1200px;margin:0 auto}
+.nav-logo{font-family:'Orbitron',sans-serif;font-size:1.4rem;font-weight:900;color:var(--c-cyan);letter-spacing:.1em}
+.nav-links{display:flex;gap:2rem;list-style:none}
+.nav-links a{color:var(--c-muted);text-decoration:none;font-size:.9rem;transition:color .2s}
+.nav-links a:hover{color:var(--c-cyan)}
+.btn-primary{background:var(--c-cyan);color:#000;padding:.6rem 1.4rem;border-radius:6px;font-weight:700;font-size:.9rem;text-decoration:none;transition:opacity .2s}
+.btn-primary:hover{opacity:.85}
+
+/* ── HERO ── */
+.hero{padding:140px 5% 100px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(0,229,255,.07) 0%,transparent 70%);pointer-events:none}
+.hero-tag{display:inline-block;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--c-cyan);font-size:.8rem;letter-spacing:.15em;text-transform:uppercase;padding:.35rem .9rem;border-radius:20px;margin-bottom:1.5rem}
+.hero h1{font-family:'Orbitron',sans-serif;font-size:clamp(2.5rem,6vw,4.5rem);font-weight:900;line-height:1.1;margin-bottom:1.5rem;max-width:900px;margin-left:auto;margin-right:auto}
+.hero h1 span{color:var(--c-cyan)}
+.hero-sub{font-size:1.2rem;color:var(--c-muted);max-width:600px;margin:0 auto 2.5rem;line-height:1.7}
+.hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.btn-outline{border:1px solid var(--c-border);color:var(--c-text);padding:.65rem 1.4rem;border-radius:6px;font-weight:500;font-size:.9rem;text-decoration:none;transition:all .2s}
+.btn-outline:hover{border-color:var(--c-cyan);color:var(--c-cyan)}
+.hero-stats{display:flex;justify-content:center;gap:4rem;margin-top:5rem;flex-wrap:wrap}
+.stat-item{text-align:center}
+.stat-num{font-family:'Orbitron',sans-serif;font-size:2.2rem;font-weight:700;color:var(--c-cyan)}
+.stat-label{font-size:.85rem;color:var(--c-muted);margin-top:.25rem}
+
+/* ── SECTIONS ── */
+section{padding:100px 5%;max-width:1200px;margin:0 auto}
+.section-tag{font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;color:var(--c-cyan);margin-bottom:.75rem}
+.section-title{font-family:'Orbitron',sans-serif;font-size:clamp(1.6rem,3.5vw,2.5rem);font-weight:700;margin-bottom:1rem}
+.section-sub{color:var(--c-muted);font-size:1.05rem;max-width:580px;margin-bottom:3.5rem;line-height:1.7}
+
+/* ── HOW IT WORKS ── */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.5rem}
+.step-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:2rem;position:relative;transition:border-color .2s}
+.step-card:hover{border-color:var(--c-cyan)}
+.step-num{font-family:'Orbitron',sans-serif;font-size:2.5rem;font-weight:900;color:rgba(0,229,255,.15);margin-bottom:1rem;line-height:1}
+.step-title{font-weight:700;font-size:1.05rem;margin-bottom:.5rem}
+.step-desc{color:var(--c-muted);font-size:.9rem}
+
+/* ── SECTORS ── */
+.sectors-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}
+.sector-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:10px;padding:1.5rem;display:flex;align-items:center;gap:1rem;cursor:default;transition:all .2s}
+.sector-card:hover{border-color:var(--c-cyan);transform:translateY(-2px)}
+.sector-icon{font-size:1.8rem;flex-shrink:0}
+.sector-name{font-weight:600;font-size:.95rem}
+.sector-desc{font-size:.8rem;color:var(--c-muted);margin-top:.2rem}
+
+/* ── FEATURES ── */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem}
+.feat-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:2rem;transition:border-color .2s}
+.feat-card:hover{border-color:var(--c-cyan)}
+.feat-icon{font-size:2rem;margin-bottom:1rem}
+.feat-title{font-weight:700;font-size:1rem;margin-bottom:.5rem}
+.feat-desc{color:var(--c-muted);font-size:.88rem;line-height:1.6}
+
+/* ── PRICING ── */
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem}
+.plan-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:14px;padding:2rem;position:relative;transition:all .2s}
+.plan-card.highlighted{border-color:var(--c-cyan);box-shadow:0 0 30px rgba(0,229,255,.12)}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--c-cyan);color:#000;font-size:.75rem;font-weight:700;padding:.25rem .8rem;border-radius:20px;letter-spacing:.1em;text-transform:uppercase}
+.plan-name{font-family:'Orbitron',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:.5rem}
+.plan-price{font-family:'Orbitron',sans-serif;font-size:2.5rem;font-weight:900;line-height:1;margin:1rem 0 .25rem}
+.plan-price span{font-size:1rem;font-weight:400;color:var(--c-muted);font-family:'Inter',sans-serif}
+.plan-desc{font-size:.85rem;color:var(--c-muted);margin-bottom:1.5rem}
+.plan-features{list-style:none;margin-bottom:2rem}
+.plan-features li{padding:.4rem 0;font-size:.88rem;color:var(--c-muted);display:flex;align-items:flex-start;gap:.5rem}
+.plan-features li::before{content:'✓';color:var(--c-cyan);font-weight:700;flex-shrink:0;margin-top:.1rem}
+.plan-cta{display:block;text-align:center;padding:.75rem;border-radius:8px;font-weight:700;font-size:.9rem;text-decoration:none;transition:all .2s}
+.plan-cta.primary{background:var(--c-cyan);color:#000}
+.plan-cta.primary:hover{opacity:.85}
+.plan-cta.secondary{border:1px solid var(--c-border);color:var(--c-text)}
+.plan-cta.secondary:hover{border-color:var(--c-cyan);color:var(--c-cyan)}
+
+/* ── API SNIPPET ── */
+.api-section{background:var(--c-surface);border-radius:16px;padding:3rem;border:1px solid var(--c-border)}
+.code-block{background:#020d14;border:1px solid var(--c-border);border-radius:10px;padding:1.5rem;font-family:'Courier New',monospace;font-size:.85rem;overflow-x:auto;margin-top:1.5rem;position:relative}
+.code-block .kw{color:var(--c-cyan)}
+.code-block .str{color:#a8ff78}
+.code-block .cm{color:var(--c-muted)}
+.code-block .key{color:#ffd700}
+
+/* ── TESTIMONIALS ── */
+.test-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem}
+.test-card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:2rem}
+.test-text{font-style:italic;color:var(--c-muted);font-size:.9rem;line-height:1.7;margin-bottom:1.5rem}
+.test-author{font-weight:600;font-size:.9rem}
+.test-role{font-size:.82rem;color:var(--c-muted)}
+
+/* ── CTA FINAL ── */
+.cta-final{text-align:center;background:var(--c-surface);border:1px solid var(--c-border);border-radius:20px;padding:5rem 3rem;position:relative;overflow:hidden}
+.cta-final::before{content:'';position:absolute;top:-100px;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(0,229,255,.05) 0%,transparent 70%);pointer-events:none}
+.cta-final h2{font-family:'Orbitron',sans-serif;font-size:clamp(1.8rem,4vw,3rem);font-weight:900;margin-bottom:1rem}
+.cta-final p{color:var(--c-muted);font-size:1.1rem;margin-bottom:2rem}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid var(--c-border);padding:3rem 5%;text-align:center;color:var(--c-muted);font-size:.85rem}
+footer a{color:var(--c-muted);text-decoration:none}
+footer a:hover{color:var(--c-cyan)}
+
+/* ── DIVIDER ── */
+.divider{border:none;border-top:1px solid var(--c-border);max-width:1200px;margin:0 auto}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .nav-links{display:none}
+  .hero-stats{gap:2rem}
+  section{padding:60px 5%}
+}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">DZARYX</div>
+    <ul class="nav-links">
+      <li><a href="#how">Comment ça marche</a></li>
+      <li><a href="#sectors">Secteurs</a></li>
+      <li><a href="#features">Fonctionnalités</a></li>
+      <li><a href="#pricing">Tarifs</a></li>
+      <li><a href="#api">API</a></li>
+    </ul>
+    <a href="#pricing" class="btn-primary">Démarrer gratuit</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<div class="hero">
+  <div class="hero-tag">🤖 Powered by Claude AI</div>
+  <h1>L'assistant IA qui <span>gère votre business</span> à votre place</h1>
+  <p class="hero-sub">Dzaryx comprend vos réservations, clients, finances et agenda en temps réel. Vous posez une question en langage naturel — Dzaryx répond avec vos vraies données.</p>
+  <div class="hero-btns">
+    <a href="#pricing" class="btn-primary">Essayer gratuitement</a>
+    <a href="#how" class="btn-outline">Voir comment ça marche</a>
+  </div>
+  <div class="hero-stats">
+    <div class="stat-item"><div class="stat-num">7</div><div class="stat-label">Secteurs métier</div></div>
+    <div class="stat-item"><div class="stat-num">&lt;1s</div><div class="stat-label">Temps de réponse</div></div>
+    <div class="stat-item"><div class="stat-num">24/7</div><div class="stat-label">Disponible</div></div>
+    <div class="stat-item"><div class="stat-num">100%</div><div class="stat-label">Vos données réelles</div></div>
+  </div>
+</div>
+
+<hr class="divider"/>
+
+<!-- ── HOW IT WORKS ── -->
+<section id="how">
+  <div class="section-tag">Processus</div>
+  <h2 class="section-title">Opérationnel en 5 minutes</h2>
+  <p class="section-sub">Pas de code requis. Inscrivez-vous, configurez votre secteur, commencez à utiliser l'IA.</p>
+  <div class="steps">
+    <div class="step-card">
+      <div class="step-num">01</div>
+      <div class="step-title">Inscription</div>
+      <div class="step-desc">Créez votre compte avec votre email et choisissez votre secteur métier.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">02</div>
+      <div class="step-title">Configuration</div>
+      <div class="step-desc">Saisissez vos données : voitures, chambres, produits, clients selon votre secteur.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">03</div>
+      <div class="step-title">Chat IA</div>
+      <div class="step-desc">Posez n'importe quelle question sur votre business. Dzaryx répond avec vos vraies données.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">04</div>
+      <div class="step-title">Briefing quotidien</div>
+      <div class="step-desc">Chaque matin, recevez automatiquement un rapport : réservations, chiffre d'affaires, alertes.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── SECTORS ── -->
+<section id="sectors">
+  <div class="section-tag">Secteurs</div>
+  <h2 class="section-title">Adapté à votre métier</h2>
+  <p class="section-sub">Dzaryx connaît les spécificités de chaque secteur et adapte ses réponses en conséquence.</p>
+  <div class="sectors-grid">
+    <div class="sector-card"><span class="sector-icon">🚗</span><div><div class="sector-name">Location voitures</div><div class="sector-desc">Réservations, flotte, tarifs</div></div></div>
+    <div class="sector-card"><span class="sector-icon">🍽️</span><div><div class="sector-name">Restaurant</div><div class="sector-desc">Tables, commandes, menu</div></div></div>
+    <div class="sector-card"><span class="sector-icon">⚖️</span><div><div class="sector-name">Avocat / Notaire</div><div class="sector-desc">Dossiers, RDV, échéances</div></div></div>
+    <div class="sector-card"><span class="sector-icon">🏥</span><div><div class="sector-name">Médecin / Clinique</div><div class="sector-desc">Patients, consultations</div></div></div>
+    <div class="sector-card"><span class="sector-icon">🏠</span><div><div class="sector-name">Immobilier</div><div class="sector-desc">Biens, visites, contrats</div></div></div>
+    <div class="sector-card"><span class="sector-icon">🏨</span><div><div class="sector-name">Hôtel / Riad</div><div class="sector-desc">Chambres, check-in/out</div></div></div>
+    <div class="sector-card"><span class="sector-icon">🛍️</span><div><div class="sector-name">Commerce</div><div class="sector-desc">Stock, ventes, clients</div></div></div>
+    <div class="sector-card"><span class="sector-icon">✨</span><div><div class="sector-name">Autre</div><div class="sector-desc">Personnalisé selon vos besoins</div></div></div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── FEATURES ── -->
+<section id="features">
+  <div class="section-tag">Fonctionnalités</div>
+  <h2 class="section-title">Tout ce dont vous avez besoin</h2>
+  <p class="section-sub">Des outils puissants pour gérer votre business au quotidien, sans effort.</p>
+  <div class="features-grid">
+    <div class="feat-card">
+      <div class="feat-icon">💬</div>
+      <div class="feat-title">Chat IA en langage naturel</div>
+      <div class="feat-desc">Posez vos questions en français, arabe ou anglais. Dzaryx comprend le contexte et répond avec précision.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">Données business en temps réel</div>
+      <div class="feat-desc">Chaque réponse s'appuie sur vos vraies données : réservations du jour, chiffre d'affaires, stocks disponibles.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">☀️</div>
+      <div class="feat-title">Briefing quotidien automatique</div>
+      <div class="feat-desc">Chaque matin à 8h, recevez un rapport complet : activité du jour, semaine à venir, CA mensuel.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📅</div>
+      <div class="feat-title">Gestion réservations / agenda</div>
+      <div class="feat-desc">Créez, modifiez, annulez des réservations directement via le chat. L'IA gère les conflits automatiquement.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔔</div>
+      <div class="feat-title">Notifications & alertes</div>
+      <div class="feat-desc">Alertes automatiques : retards, impayés, clients VIP à rappeler, véhicules/chambres disponibles.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🌍</div>
+      <div class="feat-title">Multi-langue</div>
+      <div class="feat-desc">Français, arabe, darija, anglais, espagnol. Dzaryx s'adapte à la langue de votre client.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔌</div>
+      <div class="feat-title">API REST complète</div>
+      <div class="feat-desc">Intégrez Dzaryx dans votre site ou app existante. Documentation claire, authentification JWT.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔒</div>
+      <div class="feat-title">Données isolées</div>
+      <div class="feat-desc">Chaque organisation a ses propres données entièrement isolées. Sécurité et confidentialité garanties.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── PRICING ── -->
+<section id="pricing">
+  <div class="section-tag">Tarifs</div>
+  <h2 class="section-title">Simple et transparent</h2>
+  <p class="section-sub">Commencez gratuitement. Passez au plan supérieur quand vous êtes prêt.</p>
+  <div class="pricing-grid">
+    <!-- Starter -->
+    <div class="plan-card">
+      <div class="plan-name">Starter</div>
+      <div class="plan-price">0€<span>/mois</span></div>
+      <div class="plan-desc">Pour démarrer et tester</div>
+      <ul class="plan-features">
+        <li>200 messages par mois</li>
+        <li>Chat IA sectoriel</li>
+        <li>5 items (voitures/chambres/…)</li>
+        <li>API CRUD basique</li>
+        <li>Données en temps réel</li>
+      </ul>
+      <a href="#register" class="plan-cta secondary">Commencer gratuitement</a>
+    </div>
+    <!-- Pro -->
+    <div class="plan-card highlighted">
+      <div class="plan-badge">Recommandé</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-price">29€<span>/mois</span></div>
+      <div class="plan-desc">Pour les professionnels actifs</div>
+      <ul class="plan-features">
+        <li>2 000 messages par mois</li>
+        <li>Briefing quotidien automatique</li>
+        <li>Items illimités</li>
+        <li>Statistiques avancées</li>
+        <li>Notifications & alertes</li>
+        <li>Support prioritaire</li>
+      </ul>
+      <a href="#register" class="plan-cta primary">Démarrer en Pro</a>
+    </div>
+    <!-- Enterprise -->
+    <div class="plan-card">
+      <div class="plan-name">Enterprise</div>
+      <div class="plan-price">99€<span>/mois</span></div>
+      <div class="plan-desc">Pour les grandes équipes</div>
+      <ul class="plan-features">
+        <li>Messages illimités</li>
+        <li>Tout le plan Pro</li>
+        <li>SLA 99.9%</li>
+        <li>Onboarding dédié</li>
+        <li>API webhooks</li>
+        <li>Marque blanche possible</li>
+      </ul>
+      <a href="mailto:dzaryx@fikconciergerie.com" class="plan-cta secondary">Nous contacter</a>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── API ── -->
+<section id="api">
+  <div class="api-section">
+    <div class="section-tag">Développeurs</div>
+    <h2 class="section-title">Intégration en 3 appels API</h2>
+    <p class="section-sub" style="margin-bottom:0">Ajoutez Dzaryx à votre site ou app en quelques minutes.</p>
+    <div class="code-block"><pre><span class="cm">// 1. Inscription</span>
+<span class="kw">POST</span> /api/saas/register
+{ <span class="key">"email"</span>: <span class="str">"votre@email.com"</span>, <span class="key">"business_name"</span>: <span class="str">"Mon Business"</span>,
+  <span class="key">"sector"</span>: <span class="str">"car_rental"</span>, <span class="key">"city"</span>: <span class="str">"Alger"</span>, <span class="key">"password"</span>: <span class="str">"monmdp"</span> }
+<span class="cm">→ { token: "eyJ...", org_id: "uuid", ai_name: "Dzaryx" }</span>
+
+<span class="cm">// 2. Chat avec l'IA (données business injectées automatiquement)</span>
+<span class="kw">POST</span> /api/saas/chat
+Authorization: Bearer eyJ...
+{ <span class="key">"message"</span>: <span class="str">"Combien de réservations ai-je aujourd'hui ?"</span>,
+  <span class="key">"sessionId"</span>: <span class="str">"session_123"</span> }
+<span class="cm">→ { status: "processing" }  (réponse IA en streaming Socket.IO)</span>
+
+<span class="cm">// 3. Notifications quotidiennes</span>
+<span class="kw">GET</span> /api/saas/notifications?unread=true
+Authorization: Bearer eyJ...
+<span class="cm">→ [{ title: "Rapport du lundi 25 mai", body: "...", type: "daily_briefing" }]</span></pre>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ── TESTIMONIALS ── -->
+<section id="temoignages">
+  <div class="section-tag">Témoignages</div>
+  <h2 class="section-title">Ils utilisent Dzaryx</h2>
+  <div class="test-grid">
+    <div class="test-card">
+      <p class="test-text">"Avant je passais 1h par jour à répondre aux questions sur les dispo et les prix. Maintenant Dzaryx répond instantanément avec les vraies données. Je gagne un temps fou."</p>
+      <div class="test-author">Kouider B.</div>
+      <div class="test-role">Location de voitures — Oran, Algérie</div>
+    </div>
+    <div class="test-card">
+      <p class="test-text">"Le briefing quotidien à 8h est devenu indispensable. En 30 secondes je sais tout ce qui se passe dans mon business ce jour-là. C'est comme avoir un assistant personnel."</p>
+      <div class="test-author">Sara M.</div>
+      <div class="test-role">Hôtel boutique — Marrakech</div>
+    </div>
+    <div class="test-card">
+      <p class="test-text">"L'intégration API était simple. En une demi-journée j'avais Dzaryx directement dans mon site. Les clients peuvent maintenant poser leurs questions et obtenir des réponses précises."</p>
+      <div class="test-author">Yassine K.</div>
+      <div class="test-role">Développeur — Cabinet juridique, Tunis</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA FINAL ── -->
+<section>
+  <div class="cta-final" id="register">
+    <h2>Prêt à transformer votre business ?</h2>
+    <p>Commencez gratuitement. 200 messages par mois, aucune carte bancaire requise.</p>
+    <div class="hero-btns">
+      <a href="https://ibrahim-backend-production.up.railway.app/api/saas/register" class="btn-primary" style="font-size:1rem;padding:.8rem 2rem">Créer mon compte gratuit</a>
+      <a href="https://ibrahim-backend-production.up.railway.app/api/saas/sectors" class="btn-outline" style="font-size:1rem;padding:.8rem 2rem">Voir les secteurs</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div style="font-family:'Orbitron',sans-serif;font-size:1.2rem;font-weight:900;color:var(--c-cyan);margin-bottom:1rem">DZARYX</div>
+  <p style="margin-bottom:.5rem">L'intelligence artificielle au service de votre business</p>
+  <p><a href="mailto:dzaryx@fikconciergerie.com">dzaryx@fikconciergerie.com</a> · <a href="https://ibrahim-backend-production.up.railway.app/api/saas/plans">API Docs</a></p>
+  <p style="margin-top:1rem;font-size:.8rem">© 2026 Dzaryx by Fik Conciergerie — Oran, Algérie</p>
+</footer>
+
+</body>
+</html>
