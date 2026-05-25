@@ -1,9 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
+import { useWakeWord } from '../lib/useWakeWord';
 
 // Persistent "Dzaryx actif" notification in Android notification tray
 async function setupPersistentNotification(): Promise<void> {
@@ -37,6 +38,12 @@ async function setupPersistentNotification(): Promise<void> {
 
 export default function RootLayout() {
   const router = useRouter();
+
+  // Wake word "Dzaryx" (currently placeholder "porcupine") → ouvre écran voix auto
+  const handleWakeWord = useCallback(() => {
+    router.push('/voice');
+  }, [router]);
+  useWakeWord(handleWakeWord);
 
   useEffect(() => {
     void setupPersistentNotification();
