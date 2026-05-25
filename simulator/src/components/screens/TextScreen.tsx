@@ -112,26 +112,50 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     return actionable.test(text) || type === 'booking';
   };
 
-  // Load conversation history from Supabase on first mount
+  // Load chat history + proactives together on first mount — single setMsgs to avoid race condition
   useEffect(() => {
     if (historyLoaded.current) return;
     historyLoaded.current = true;
-    api.getChatHistory(sessionId.current, 20).then(({ history }) => {
-      if (!history.length) return;
-      const histMsgs: Message[] = history.map(h => ({
-        id:     uid(),
-        role:   h.role === 'user' ? 'user' : 'ai',
-        text:   h.content,
-        ts:     new Date(h.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-        status: 'done' as const,
-      }));
-      // Replace greeting with history + keep greeting as first item
-      setMsgs(ms => [ms[0], ...histMsgs]);
-    }).catch(() => { /* pas d'historique disponible — on garde le message d'accueil */ });
+
+    Promise.all([
+      api.getChatHistory(sessionId.current, 20).catch(() => ({ history: [] as Array<{ role: 'user' | 'assistant'; content: string; created_at: string }> })),
+      api.getRecentProactives().catch(() => ({ messages: [] as Array<{ text: string; type: string; timestamp: string }> })),
+    ]).then(([{ history }, { messages }]) => {
+      const restored: Message[] = [];
+
+      for (const h of history) {
+        restored.push({
+          id: uid(), role: h.role === 'user' ? 'user' : 'ai',
+          text: h.content,
+          ts: new Date(h.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          status: 'done',
+        });
+      }
+
+      const usefulProactives = messages
+        .filter(m => isUsefulProactive(m.text))
+        .filter(m => isRelevantForActor(m.text, m.type));
+      usefulProactives.forEach(m => {
+        seenTimestamps.current.add(m.timestamp);
+        seenTexts.current.add(textKey(m.text));
+      });
+      for (const m of usefulProactives) {
+        restored.push({
+          id: uid(), role: 'ai',
+          text: `📡 ${m.text}`,
+          ts: new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+          status: 'done',
+        });
+      }
+
+      setSyncInfo({ ok: true, time: now(), count: messages.length });
+      if (restored.length > 0) setMsgs(ms => [ms[0], ...restored]);
+    }).catch(() => setSyncInfo({ ok: false, time: now(), count: 0 }));
   }, []);
 
+  // 30s poll for NEW proactives arriving after initial load
   useEffect(() => {
-    const loadProactives = (isInitial: boolean) => {
+    const poll = setInterval(() => {
       api.getRecentProactives().then(({ messages }) => {
         setSyncInfo({ ok: true, time: now(), count: messages.length });
         const unseen = messages
@@ -144,25 +168,14 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           seenTimestamps.current.add(m.timestamp);
           seenTexts.current.add(textKey(m.text));
         });
-        const newMsgs = unseen.map(m => ({
+        setMsgs(ms => [...ms, ...unseen.map(m => ({
           id: uid(), role: 'ai' as const,
           text: `📡 ${m.text}`,
           ts: new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
           status: 'done' as const,
-        }));
-        if (isInitial) {
-          setMsgs(ms => [ms[0], ...newMsgs]);
-        } else {
-          setMsgs(ms => [...ms, ...newMsgs]);
-        }
-      }).catch((err: unknown) => {
-        setSyncInfo({ ok: false, time: now(), count: 0 });
-        console.error('[proactive] fetch failed:', err);
-      });
-    };
-
-    loadProactives(true);
-    const poll = setInterval(() => loadProactives(false), 30_000);
+        }))]);
+      }).catch(() => setSyncInfo({ ok: false, time: now(), count: 0 }));
+    }, 30_000);
     return () => clearInterval(poll);
   }, []);
 
