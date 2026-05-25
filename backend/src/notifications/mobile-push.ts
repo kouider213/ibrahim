@@ -138,7 +138,7 @@ export function emitProactive(
   text: string,
   type: ProactiveType = 'info',
   chatText?: string,
-  targetActor: ProactiveActor = 'all',
+  targetActor: ProactiveActor = 'kouider',
 ): void {
   const timestamp   = new Date().toISOString();
   const chatPayload = chatText ?? text;
