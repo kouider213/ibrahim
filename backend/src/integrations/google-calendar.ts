@@ -17,6 +17,7 @@ interface CalendarEvent {
   id?:          string;
   summary:      string;
   description?: string;
+  location?:    string;   // adresse / lieu du RDV (champ standard Google Calendar)
   start:        { dateTime: string; timeZone: string };
   end:          { dateTime: string; timeZone: string };
   colorId?:     string;

@@ -1917,16 +1917,14 @@ export async function jobSaasDailyBriefing(_job: Job): Promise<void> {
 }
 
 // ── Smart Alarm — calcul réveil optimal selon agenda (22h30 chaque soir) ────────
-// 22h30 : lit agenda lendemain, calcule réveil = event - trajet - routine, envoie push + programme réveil
+// RÈGLE : zéro valeur inventée. Si lieu manquant ou GPS indisponible → dit-le explicitement.
 export async function jobSmartAlarm(_job: Job): Promise<void> {
   const ALGIERS_OFFSET_MIN = 60; // UTC+1, pas de DST en Algérie
 
-  // "tomorrow" in Algiers time
-  const nowUtc    = Date.now();
-  const nowAlg    = nowUtc + ALGIERS_OFFSET_MIN * 60_000;
+  const nowAlg    = Date.now() + ALGIERS_OFFSET_MIN * 60_000;
   const tomorrow  = new Date(nowAlg);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10); // YYYY-MM-DD
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
   const lockKey  = `job:smart-alarm:sent:${tomorrowStr}`;
   const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
@@ -1938,11 +1936,9 @@ export async function jobSmartAlarm(_job: Job): Promise<void> {
     // Filter: starts tomorrow (Algiers), between 5h and 15h
     const morningEvents = events.filter(e => {
       if (!e.start.dateTime) return false;
-      const startUtc = new Date(e.start.dateTime).getTime();
-      const startAlg = new Date(startUtc + ALGIERS_OFFSET_MIN * 60_000);
-      const dateStr  = startAlg.toISOString().slice(0, 10);
+      const startAlg = new Date(new Date(e.start.dateTime).getTime() + ALGIERS_OFFSET_MIN * 60_000);
       const hour     = startAlg.getUTCHours();
-      return dateStr === tomorrowStr && hour >= 5 && hour <= 15;
+      return startAlg.toISOString().slice(0, 10) === tomorrowStr && hour >= 5 && hour <= 15;
     });
 
     if (morningEvents.length === 0) {
@@ -1961,52 +1957,82 @@ export async function jobSmartAlarm(_job: Job): Promise<void> {
     const eM = String(eventAlg.getUTCMinutes()).padStart(2, '0');
     const eventTimeStr = `${eH}h${eM}`;
 
-    const travelMin  = 20;   // default — améliorable via Maps API si event.location disponible
-    const routineMin = 45;   // 15min douche + 10min café + 20min préparation
+    // ── Trajet : Maps API avec vraie position GPS ────────────────────────────
+    const { getTravelTime } = await import('../../integrations/maps.js');
+    const { getLocation }   = await import('../../integrations/location.js');
 
-    const wakeUtcMs = eventStartUtc - (travelMin + routineMin) * 60_000;
-    const wakeAlg   = new Date(wakeUtcMs + ALGIERS_OFFSET_MIN * 60_000);
+    const eventLocation = earliest.location?.trim();
+    const kouiderLoc    = await getLocation('kouider');
+
+    // Default origin: Haï Badr (domicile Kouider) — remplacé par GPS réel si disponible
+    const HAY_BADR = { lat: 35.6769, lng: -0.6654 };
+    const originLat = kouiderLoc?.lat ?? HAY_BADR.lat;
+    const originLng = kouiderLoc?.lng ?? HAY_BADR.lng;
+    const originLabel = kouiderLoc?.city ?? 'Haï Badr (domicile par défaut)';
+    const usingRealGps = Boolean(kouiderLoc);
+
+    let travelMin: number | null = null;
+    let travelInfo = '';
+    let departStr  = '';
+
+    if (eventLocation) {
+      const travel = await getTravelTime(originLat, originLng, eventLocation).catch(() => null);
+      if (travel && !travel.error && travel.travel_time_minutes > 0) {
+        travelMin  = travel.travel_time_minutes;
+        const trafficEmoji = travel.traffic === 'heavy' ? '🔴' : travel.traffic === 'light' ? '🟢' : '🟡';
+        travelInfo = `🚗 ${travel.travel_time_minutes}min depuis ${originLabel} ${trafficEmoji}${!usingRealGps ? ' ⚠️ GPS non disponible — domicile utilisé' : ''}\n📍 ${travel.destination_label}\n🔵 Waze: ${travel.waze_link}`;
+
+        const deptUtcMs = eventStartUtc - travelMin * 60_000;
+        const dA = new Date(deptUtcMs + ALGIERS_OFFSET_MIN * 60_000);
+        departStr = `${String(dA.getUTCHours()).padStart(2, '0')}h${String(dA.getUTCMinutes()).padStart(2, '0')}`;
+      } else {
+        travelInfo = `📍 Lieu : ${eventLocation}\n⚠️ Calcul trajet impossible — vérifie l'adresse dans l'agenda`;
+      }
+    } else {
+      travelInfo = `📍 Lieu non précisé dans l'agenda — ajoute l'adresse du RDV pour le temps de trajet`;
+    }
+
+    // ── Réveil : event_start - trajet_réel - 45min routine ─────────────────
+    const routineMin  = 45;
+    const totalBuffer = (travelMin ?? 0) + routineMin;
+    const wakeUtcMs   = eventStartUtc - totalBuffer * 60_000;
+    const wakeAlg     = new Date(wakeUtcMs + ALGIERS_OFFSET_MIN * 60_000);
     const wH = String(wakeAlg.getUTCHours()).padStart(2, '0');
     const wM = String(wakeAlg.getUTCMinutes()).padStart(2, '0');
     const wakeTimeStr = `${wH}h${wM}`;
 
-    const deptUtcMs = eventStartUtc - travelMin * 60_000;
-    const deptAlg   = new Date(deptUtcMs + ALGIERS_OFFSET_MIN * 60_000);
-    const dH = String(deptAlg.getUTCHours()).padStart(2, '0');
-    const dM = String(deptAlg.getUTCMinutes()).padStart(2, '0');
-    const departStr = `${dH}h${dM}`;
-
     // ── Push 22h30 : résumé soirée ───────────────────────────────────────────
-    const eveningBody = [
+    const eveningLines = [
       `📅 ${earliest.summary} à ${eventTimeStr}`,
-      `⏰ Réveil recommandé : ${wakeTimeStr}`,
-      `🚗 Départ : ${departStr} (${travelMin}min de trajet)`,
+      `⏰ Réveil recommandé : ${wakeTimeStr} (${routineMin}min routine${travelMin ? ` + ${travelMin}min trajet` : ''})`,
+      travelInfo,
+      departStr ? `✈️ Départ : ${departStr}` : '',
       `☕ Dzaryx te réveille automatiquement demain matin.`,
-    ].join('\n');
+    ].filter(Boolean).join('\n');
 
     emitProactive(
       `Demain ${earliest.summary} à ${eventTimeStr} — réveil ${wakeTimeStr}`,
       'info',
-      eveningBody,
+      eveningLines,
       'kouider',
     );
 
     // ── Push réveil différé ──────────────────────────────────────────────────
     const delayMs = wakeUtcMs - Date.now();
     if (delayMs > 60_000) {
-      const wakeBody = [
+      const wakeLines = [
         `🌅 Réveil Kouider !`,
-        `📅 ${earliest.summary} à ${eventTimeStr} — dans ${travelMin + routineMin}min`,
-        `🚿 C'est l'heure de la douche.`,
-        `☕ Prépare ton café — départ à ${departStr}.`,
-      ].join('\n');
+        `📅 ${earliest.summary} à ${eventTimeStr}`,
+        travelMin ? `🚗 ${travelMin}min de trajet${departStr ? ` — départ à ${departStr}` : ''}` : `📍 ${eventLocation ?? 'Lieu non précisé dans l\'agenda'}`,
+        `🚿 C'est l'heure de la douche (${routineMin}min de routine).`,
+      ].filter(Boolean).join('\n');
 
       const q = new Queue('Dzaryx-scheduler', { connection: redis });
       try {
         await q.add(
           'custom-reminder',
           {
-            message:         wakeBody,
+            message:         wakeLines,
             source_channel:  'smart-alarm',
             idempotency_key: `smart-alarm:wake:${tomorrowStr}`,
             request_id:      `smart_alarm_${tomorrowStr}`,
