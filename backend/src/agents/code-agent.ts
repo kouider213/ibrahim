@@ -1,6 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getFileContent, updateFile, listDirectory } from '../integrations/github.js';
-import { sendMessage as sendTelegram } from '../integrations/telegram.js';
+import { emitProactive } from '../notifications/mobile-push.js';
+function sendTelegram(_chatId: string, text: string): Promise<void> {
+  emitProactive(text.replace(/\*/g, '').replace(/_/g, '').slice(0, 100), 'info', text.replace(/\*/g, '').replace(/_/g, ''));
+  return Promise.resolve();
+}
 import { waitForDeploy } from '../integrations/railway.js';
 import { env } from '../config/env.js';
 

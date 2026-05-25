@@ -90,8 +90,10 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     sock.on('disconnect', () => setWsConn(false));
   }, []);
 
-  // Track timestamps already displayed to avoid duplicates across polls
+  // Track timestamps + text snippets to deduplicate between real-time Socket.IO and polling
   const seenTimestamps = useRef<Set<string>>(new Set());
+  const seenTexts      = useRef<Set<string>>(new Set());
+  const textKey = (t: string) => t.replace(/^📡\s*/, '').slice(0, 80).toLowerCase().trim();
 
   // Filter out useless status/empty messages (for all actors)
   const isUsefulProactive = (text: string) => {
@@ -134,10 +136,14 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
         setSyncInfo({ ok: true, time: now(), count: messages.length });
         const unseen = messages
           .filter(m => !seenTimestamps.current.has(m.timestamp))
+          .filter(m => !seenTexts.current.has(textKey(m.text)))
           .filter(m => isUsefulProactive(m.text))
           .filter(m => isRelevantForActor(m.text, m.type));
         if (unseen.length === 0) return;
-        unseen.forEach(m => seenTimestamps.current.add(m.timestamp));
+        unseen.forEach(m => {
+          seenTimestamps.current.add(m.timestamp);
+          seenTexts.current.add(textKey(m.text));
+        });
         const newMsgs = unseen.map(m => ({
           id: uid(), role: 'ai' as const,
           text: `📡 ${m.text}`,
@@ -163,6 +169,9 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   useEffect(() => {
     subscribeProactive((text) => {
       if (!isUsefulProactive(text) || !isRelevantForActor(text, '')) return;
+      const key = textKey(text);
+      if (seenTexts.current.has(key)) return;
+      seenTexts.current.add(key);
       setMsgs(ms => [...ms, { id: uid(), role: 'ai', text: `📡 ${text}`, ts: now(), status: 'done' }]);
     });
     return () => unsubscribeProactive();
