@@ -1572,3 +1572,158 @@ export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
     console.error('[job:delivery-alert] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── HOUARI — Notifications propriétaire véhicules ────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── H1. Arrivée client demain — "vérifie que le véhicule est prêt" ────────────
+export async function jobHouariArrivalAlert(_job: Job): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const lockKey = `job:houari-arrival:sent:${today}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    if (!acquired) { console.log('[job:houari-arrival] SKIP — already sent today'); return; }
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client_name, start_date, end_date, cars(name)')
+      .in('status', ['CONFIRMED', 'ACTIVE'])
+      .eq('start_date', tomorrowStr)
+      .order('start_date', { ascending: true });
+
+    if (!bookings?.length) {
+      console.log('[job:houari-arrival] Aucune arrivée demain');
+      return;
+    }
+
+    const lines: string[] = [
+      `🚗 Arrivées demain (${tomorrowStr}) — ${bookings.length} client(s):\n`,
+    ];
+
+    for (const b of bookings as unknown as Array<{ client_name: string; start_date: string; end_date: string; cars?: { name: string } }>) {
+      const carName = b.cars?.name ?? 'Véhicule';
+      lines.push(`• ${b.client_name} — ${carName} (jusqu'au ${b.end_date})`);
+      lines.push(`  ✅ Vérifie que le véhicule est propre et prêt`);
+    }
+
+    const msg = lines.join('\n');
+    emitProactive(
+      `${bookings.length} arrivée(s) demain — vérifie les véhicules`,
+      'reminder',
+      msg,
+      'houari',
+    );
+    console.log(`[job:houari-arrival] ✅ ${bookings.length} arrivée(s) notifiées à Houari`);
+  } catch (err) {
+    console.error('[job:houari-arrival] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── H2. Retour client demain — "n'oublie pas de récupérer la voiture" ─────────
+export async function jobHouariReturnAlert(_job: Job): Promise<void> {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const lockKey = `job:houari-return:sent:${today}`;
+    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    if (!acquired) { console.log('[job:houari-return] SKIP — already sent today'); return; }
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, client_name, start_date, end_date, client_phone, cars(name)')
+      .in('status', ['CONFIRMED', 'ACTIVE'])
+      .eq('end_date', tomorrowStr)
+      .order('end_date', { ascending: true });
+
+    if (!bookings?.length) {
+      console.log('[job:houari-return] Aucun retour demain');
+      return;
+    }
+
+    const lines: string[] = [
+      `🔑 Retours demain (${tomorrowStr}) — ${bookings.length} voiture(s):\n`,
+    ];
+
+    for (const b of bookings as unknown as Array<{ client_name: string; start_date: string; end_date: string; client_phone?: string; cars?: { name: string } }>) {
+      const carName = b.cars?.name ?? 'Véhicule';
+      lines.push(`• ${b.client_name} — ${carName}${b.client_phone ? ` (${b.client_phone})` : ''}`);
+      lines.push(`  📋 N'oublie pas : récupération + vérification état + carburant + km`);
+    }
+
+    const msg = lines.join('\n');
+    emitProactive(
+      `${bookings.length} retour(s) demain — prépare la récupération`,
+      'reminder',
+      msg,
+      'houari',
+    );
+    console.log(`[job:houari-return] ✅ ${bookings.length} retour(s) notifiés à Houari`);
+  } catch (err) {
+    console.error('[job:houari-return] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── H3. Rapport hebdo Houari — ses revenus propriétaire ───────────────────────
+export async function jobHouariWeeklyReport(_job: Job): Promise<void> {
+  try {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('client_name, start_date, end_date, owner_price_per_day, final_price, status, cars(name)')
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
+      .gte('created_at', weekAgo.toISOString());
+
+    const all = (bookings ?? []) as unknown as Array<{
+      client_name: string;
+      start_date: string;
+      end_date: string;
+      owner_price_per_day?: number;
+      final_price?: number;
+      status: string;
+      cars?: { name: string };
+    }>;
+
+    let houariTotal = 0;
+    const details: string[] = [];
+
+    for (const b of all) {
+      if (!b.owner_price_per_day) continue;
+      const nbDays = Math.max(1, Math.ceil(
+        (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
+      ));
+      const houariCut = b.owner_price_per_day * nbDays;
+      houariTotal += houariCut;
+      details.push(`  • ${b.client_name} — ${b.cars?.name ?? '?'} (${nbDays}j × ${b.owner_price_per_day}€ = ${houariCut}€)`);
+    }
+
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const lines = [
+      `📊 Rapport hebdo — ${dateStr}`,
+      ``,
+      `💰 Tes revenus cette semaine : ${houariTotal}€`,
+      `📦 Réservations : ${all.length} (${all.filter(b => b.owner_price_per_day).length} avec tarif propriétaire)`,
+      ``,
+      details.length > 0 ? `Détail :\n${details.slice(0, 5).join('\n')}` : `Aucune réservation avec tarif propriétaire cette semaine.`,
+    ].filter(Boolean).join('\n');
+
+    emitProactive(
+      `Rapport hebdo — tes revenus : ${houariTotal}€`,
+      'info',
+      lines,
+      'houari',
+    );
+    console.log(`[job:houari-weekly] ✅ Rapport envoyé à Houari (${houariTotal}€)`);
+  } catch (err) {
+    console.error('[job:houari-weekly] ❌', err instanceof Error ? err.message : String(err));
+  }
+}

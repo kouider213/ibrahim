@@ -27,6 +27,9 @@ import {
   jobLongIdleAlert,
   jobClientBrainUpdate,
   jobDeliveryDepartureAlert,
+  jobHouariArrivalAlert,
+  jobHouariReturnAlert,
+  jobHouariWeeklyReport,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -174,6 +177,22 @@ const JOBS = [
     cron:  '*/30 7-21 * * *',    // toutes les 30min 7h-21h — alerte départ livraison depuis GPS
     tz:    'Africa/Algiers',
   },
+  // ── Houari ──
+  {
+    name:  'houari-arrival-alert',
+    cron:  '0 9 * * *',          // 9h chaque jour — arrivée client demain → prépare véhicule
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'houari-return-alert',
+    cron:  '0 18 * * *',         // 18h chaque jour — retour client demain → prépare récupération
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'houari-weekly-report',
+    cron:  '15 8 * * 1',         // 8h15 chaque lundi — rapport hebdo revenus Houari
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -204,6 +223,9 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'long-idle-alert':          jobLongIdleAlert,
   'client-brain-update':      jobClientBrainUpdate,
   'delivery-departure-alert': jobDeliveryDepartureAlert,
+  'houari-arrival-alert':    jobHouariArrivalAlert,
+  'houari-return-alert':     jobHouariReturnAlert,
+  'houari-weekly-report':    jobHouariWeeklyReport,
 };
 
 export async function initScheduler(): Promise<void> {
