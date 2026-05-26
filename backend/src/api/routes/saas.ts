@@ -16,7 +16,11 @@ export const SECTORS: Record<string, { label: string; tools: string[] }> = {
   real_estate:  { label: 'Immobilier',            tools: ['manage_properties','manage_leads','manage_visits','manage_contracts','get_financial_report'] },
   hotel:        { label: 'Hôtel / Riad',          tools: ['manage_rooms','create_booking','list_bookings','update_booking','get_financial_report','create_calendar_event'] },
   retail:       { label: 'Commerce / Boutique',   tools: ['manage_inventory','manage_orders','manage_clients','get_financial_report'] },
-  custom:       { label: 'Autre / Personnalisé',  tools: [] },
+  beauty:       { label: 'Salon beauté / Coiffure', tools: ['manage_appointments','manage_clients','manage_services','get_financial_report'] },
+  auto_school:  { label: 'Auto-école',             tools: ['manage_students','manage_lessons','manage_exams','get_financial_report'] },
+  construction: { label: 'BTP / Construction',     tools: ['manage_projects','manage_quotes','manage_invoices','manage_materials','get_financial_report'] },
+  ecommerce:    { label: 'E-commerce / Boutique en ligne', tools: ['manage_products','manage_orders','manage_deliveries','get_financial_report'] },
+  custom:       { label: 'Autre / Personnalisé',   tools: [] },
 };
 
 // ── Register ──────────────────────────────────────────────────────
@@ -26,7 +30,7 @@ const registerSchema = z.object({
   business_name: z.string().min(2).max(100),
   city:          z.string().min(2).max(100),
   country:       z.string().min(2).max(100),
-  sector:        z.enum(['car_rental','restaurant','lawyer','doctor','real_estate','hotel','retail','custom']),
+  sector:        z.enum(['car_rental','restaurant','lawyer','doctor','real_estate','hotel','retail','beauty','auto_school','construction','ecommerce','custom']),
   language:      z.string().length(2).default('fr'), // fr, en, es, ar, ...
   currency:      z.string().length(3).default('DZD'),
   ai_name:       z.string().min(2).max(50).default('Dzaryx'),

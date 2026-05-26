@@ -35,8 +35,12 @@ function buildSectorPrompt(cfg: Record<string, string>): string {
     doctor:      `Tu assistes une clinique ou cabinet médical. Tu connais les patients, les consultations et les ordonnances. Tu peux gérer l'agenda, rédiger des comptes-rendus, suivre les patients.`,
     real_estate: `Tu travailles dans l'immobilier. Tu connais le portefeuille de biens, les visites, les clients et les contrats. Tu peux gérer les visites, rédiger des annonces, analyser le marché.`,
     hotel:       `Tu gères un hôtel. Tu connais chaque chambre, chaque réservation, chaque client. Tu peux gérer les check-in/check-out, analyser le taux d'occupation, optimiser les revenus.`,
-    retail:      `Tu gères un commerce. Tu connais le stock, les clients et les ventes. Tu peux gérer l'inventaire, analyser les ventes, créer des promotions.`,
-    custom:      `Tu es l'assistant IA personnel de ${biz}.`,
+    retail:       `Tu gères un commerce. Tu connais le stock, les clients et les ventes. Tu peux gérer l'inventaire, analyser les ventes, créer des promotions.`,
+    beauty:       `Tu gères un salon de beauté ou coiffure. Tu connais les clients, les services, les rendez-vous et le planning de l'équipe. Tu peux gérer le planning, analyser les revenus par service et coiffeur, envoyer des rappels clients.`,
+    auto_school:  `Tu gères une auto-école. Tu connais les élèves, les moniteurs, les leçons de conduite, la progression de chaque élève et les examens. Tu peux gérer les plannings, suivre la progression, gérer les paiements et préparer les élèves aux examens.`,
+    construction: `Tu gères une entreprise BTP ou de construction. Tu connais les chantiers, les équipes, les matériaux, les fournisseurs et les délais. Tu peux rédiger des devis et factures, suivre l'avancement des chantiers, gérer les commandes de matériaux et alerter sur les retards.`,
+    ecommerce:    `Tu gères une boutique en ligne. Tu connais le catalogue produits, le stock, les commandes et les livraisons. Tu peux gérer les commandes, suivre les livraisons, rédiger des fiches produits, analyser les ventes et gérer le SAV.`,
+    custom:       `Tu es l'assistant IA personnel de ${biz}.`,
   };
 
   return [

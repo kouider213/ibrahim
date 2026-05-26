@@ -15,14 +15,18 @@ interface OrgSession {
 }
 
 const SECTORS = [
-  { key: 'car_rental',  label: 'Location de voitures', icon: '🚗' },
-  { key: 'restaurant',  label: 'Restaurant',           icon: '🍽️' },
-  { key: 'lawyer',      label: 'Avocat / Notaire',     icon: '⚖️' },
-  { key: 'doctor',      label: 'Médecin / Clinique',   icon: '🏥' },
-  { key: 'real_estate', label: 'Immobilier',           icon: '🏠' },
-  { key: 'hotel',       label: 'Hôtel / Riad',         icon: '🏨' },
-  { key: 'retail',      label: 'Commerce',             icon: '🛍️' },
-  { key: 'custom',      label: 'Autre',                icon: '⚡' },
+  { key: 'car_rental',   label: 'Location voitures',  icon: '🚗' },
+  { key: 'restaurant',   label: 'Restaurant',          icon: '🍽️' },
+  { key: 'beauty',       label: 'Salon beauté',        icon: '💇' },
+  { key: 'lawyer',       label: 'Avocat / Notaire',    icon: '⚖️' },
+  { key: 'doctor',       label: 'Médecin / Clinique',  icon: '🏥' },
+  { key: 'real_estate',  label: 'Immobilier',          icon: '🏠' },
+  { key: 'hotel',        label: 'Hôtel / Riad',        icon: '🏨' },
+  { key: 'retail',       label: 'Commerce',            icon: '🛍️' },
+  { key: 'auto_school',  label: 'Auto-école',          icon: '🚦' },
+  { key: 'construction', label: 'BTP / Construction',  icon: '🏗️' },
+  { key: 'ecommerce',    label: 'E-commerce',          icon: '📦' },
+  { key: 'custom',       label: 'Autre',               icon: '⚡' },
 ];
 
 const SECTOR_FEATURES: Record<string, { icon: string; text: string }[]> = {
@@ -74,6 +78,34 @@ const SECTOR_FEATURES: Record<string, { icon: string; text: string }[]> = {
     { icon: '📱', text: 'Créer des offres promotionnelles et posts réseaux sociaux' },
     { icon: '🌍', text: 'Communiquer avec vos clients en plusieurs langues' },
     { icon: '💰', text: 'Suivre revenus et marges par produit' },
+  ],
+  beauty: [
+    { icon: '💇', text: 'Gérer les rendez-vous clients et le planning de l\'équipe' },
+    { icon: '📊', text: 'Suivre les services, produits vendus et chiffre d\'affaires' },
+    { icon: '📱', text: 'Envoyer des rappels de rendez-vous automatiquement' },
+    { icon: '⭐', text: 'Gérer les avis clients et fidélisation' },
+    { icon: '💰', text: 'Analyser les revenus par coiffeur et par service' },
+  ],
+  auto_school: [
+    { icon: '🚦', text: 'Gérer les élèves, leçons et plannings moniteurs' },
+    { icon: '📋', text: 'Suivre la progression de chaque élève' },
+    { icon: '📅', text: 'Planifier et confirmer les examens code et conduite' },
+    { icon: '💰', text: 'Gérer les paiements, acomptes et relances' },
+    { icon: '📱', text: 'Envoyer des rappels de cours automatiquement' },
+  ],
+  construction: [
+    { icon: '🏗️', text: 'Gérer les chantiers, équipes et planning travaux' },
+    { icon: '📦', text: 'Suivre les matériaux, stocks et fournisseurs' },
+    { icon: '💰', text: 'Calculer devis, factures et marges par chantier' },
+    { icon: '📋', text: 'Rédiger bons de commande, rapports de chantier' },
+    { icon: '⚠️', text: 'Alertes délais, retards et dépassements de budget' },
+  ],
+  ecommerce: [
+    { icon: '📦', text: 'Gérer le catalogue, stocks et commandes' },
+    { icon: '🚚', text: 'Suivre les livraisons et statuts commandes' },
+    { icon: '💰', text: 'Analyser revenus, marges et produits best-sellers' },
+    { icon: '📱', text: 'Rédiger fiches produits et posts réseaux sociaux' },
+    { icon: '⭐', text: 'Gérer les avis, retours et SAV clients' },
   ],
   custom: [
     { icon: '🤖', text: 'Un assistant IA adapté à votre activité' },
@@ -140,6 +172,38 @@ const QUICK_ACTIONS: Record<string, { icon: string; label: string; prompt: strin
     { icon: '📋', label: 'Gestion stock',          prompt: 'Aide-moi à gérer mon inventaire et identifier les produits à réapprovisionner' },
     { icon: '💰', label: 'CA ce mois',             prompt: 'Quel est notre chiffre d\'affaires ce mois-ci ?' },
     { icon: '⭐', label: 'Fidélisation client',    prompt: 'Propose-moi une stratégie pour fidéliser mes clients' },
+  ],
+  beauty: [
+    { icon: '📅', label: 'RDV du jour',            prompt: 'Liste les rendez-vous d\'aujourd\'hui avec les clients et services prévus' },
+    { icon: '➕', label: 'Nouveau RDV',             prompt: 'Je veux créer un nouveau rendez-vous client' },
+    { icon: '💰', label: 'CA ce mois',             prompt: 'Quel est le chiffre d\'affaires du salon ce mois-ci ?' },
+    { icon: '📱', label: 'Rappel client',           prompt: 'Rédige un message de rappel de rendez-vous pour un client' },
+    { icon: '⭐', label: 'Fidélisation',            prompt: 'Propose-moi une offre de fidélisation pour mes clients réguliers' },
+    { icon: '📊', label: 'Top services',            prompt: 'Quels sont les services les plus demandés ce mois ?' },
+  ],
+  auto_school: [
+    { icon: '📅', label: 'Leçons du jour',          prompt: 'Quelles leçons de conduite sont prévues aujourd\'hui ?' },
+    { icon: '➕', label: 'Nouvel élève',             prompt: 'Je veux créer un dossier pour un nouvel élève' },
+    { icon: '📊', label: 'Progression élèves',      prompt: 'Donne-moi un état de la progression de mes élèves en cours' },
+    { icon: '📋', label: 'Examen à venir',          prompt: 'Quels élèves passent l\'examen ce mois-ci ?' },
+    { icon: '💰', label: 'Paiements en attente',    prompt: 'Y a-t-il des paiements ou acomptes en attente ?' },
+    { icon: '📱', label: 'Rappel leçon',            prompt: 'Rédige un SMS de rappel pour la leçon de conduite de demain' },
+  ],
+  construction: [
+    { icon: '🏗️', label: 'Chantiers en cours',      prompt: 'Donne-moi l\'état actuel de tous les chantiers en cours' },
+    { icon: '➕', label: 'Nouveau devis',            prompt: 'Aide-moi à rédiger un devis pour un nouveau chantier' },
+    { icon: '📦', label: 'Commande matériaux',      prompt: 'Je dois commander des matériaux — aide-moi à rédiger le bon de commande' },
+    { icon: '💰', label: 'Facture chantier',        prompt: 'Aide-moi à rédiger une facture pour un chantier terminé' },
+    { icon: '⚠️', label: 'Retards & alertes',      prompt: 'Y a-t-il des chantiers en retard ou des alertes à surveiller ?' },
+    { icon: '📊', label: 'Bilan mensuel',            prompt: 'Fais-moi un bilan de l\'activité BTP ce mois-ci' },
+  ],
+  ecommerce: [
+    { icon: '📦', label: 'Commandes du jour',       prompt: 'Quelles commandes ont été passées aujourd\'hui ?' },
+    { icon: '🚚', label: 'Livraisons en cours',     prompt: 'Quel est l\'état des livraisons en cours ?' },
+    { icon: '💰', label: 'CA ce mois',              prompt: 'Quel est le chiffre d\'affaires e-commerce ce mois-ci ?' },
+    { icon: '📱', label: 'Fiche produit',           prompt: 'Rédige une fiche produit attractive pour un nouvel article' },
+    { icon: '⭐', label: 'Réponse avis',            prompt: 'Aide-moi à répondre à un avis client en ligne' },
+    { icon: '🏷️', label: 'Créer une promo',        prompt: 'Aide-moi à créer une offre promotionnelle pour booster les ventes' },
   ],
   custom: [
     { icon: '📋', label: 'Résumé du jour',         prompt: 'Fais-moi un résumé de l\'activité du jour' },
@@ -1273,8 +1337,12 @@ const SECTOR_TAB_CFG: Record<string, { icon: string; label: string; itemType: st
   doctor:      { icon: '📅', label: 'Agenda',        itemType: 'service',  itemLabel: 'Service',     bookingLabel: 'Consultation',  dateLabel: 'Date RDV' },
   lawyer:      { icon: '⚖️', label: 'Dossiers',      itemType: 'service',  itemLabel: 'Service',     bookingLabel: 'Rendez-vous',   dateLabel: 'Date RDV' },
   real_estate: { icon: '🏠', label: 'Biens',         itemType: 'property', itemLabel: 'Bien',        bookingLabel: 'Visite',        dateLabel: 'Date visite' },
-  retail:      { icon: '🛍️', label: 'Stock',         itemType: 'product',  itemLabel: 'Produit',     bookingLabel: 'Commande',      dateLabel: 'Date' },
-  custom:      { icon: '📋', label: 'Données',       itemType: 'item',     itemLabel: 'Article',     bookingLabel: 'Réservation',   dateLabel: 'Date' },
+  retail:       { icon: '🛍️', label: 'Stock',         itemType: 'product',  itemLabel: 'Produit',     bookingLabel: 'Commande',      dateLabel: 'Date' },
+  beauty:       { icon: '💇', label: 'Planning',      itemType: 'service',  itemLabel: 'Service',     bookingLabel: 'Rendez-vous',   dateLabel: 'Date RDV' },
+  auto_school:  { icon: '🚦', label: 'Élèves',        itemType: 'student',  itemLabel: 'Élève',       bookingLabel: 'Leçon',         dateLabel: 'Date leçon' },
+  construction: { icon: '🏗️', label: 'Chantiers',     itemType: 'project',  itemLabel: 'Chantier',    bookingLabel: 'Intervention',  dateLabel: 'Date début' },
+  ecommerce:    { icon: '📦', label: 'Commandes',      itemType: 'product',  itemLabel: 'Produit',     bookingLabel: 'Commande',      dateLabel: 'Date' },
+  custom:       { icon: '📋', label: 'Données',        itemType: 'item',     itemLabel: 'Article',     bookingLabel: 'Réservation',   dateLabel: 'Date' },
 };
 function getSectorTabIcon(sector: string)  { return SECTOR_TAB_CFG[sector]?.icon  ?? '📋'; }
 function getSectorTabLabel(sector: string) { return SECTOR_TAB_CFG[sector]?.label ?? 'Données'; }
