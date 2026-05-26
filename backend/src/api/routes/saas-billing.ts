@@ -18,6 +18,7 @@ const BACKEND_URL     = process.env.BACKEND_URL  ?? 'https://ibrahim-backend-pro
 const PLAN_PRICES: Record<string, { amount: number; currency: string; label: string }> = {
   pro:        { amount: 2900,  currency: 'dzd', label: 'Dzaryx Pro — 1 mois' },
   enterprise: { amount: 9900,  currency: 'dzd', label: 'Dzaryx Enterprise — 1 mois' },
+  ultimate:   { amount: 19900, currency: 'dzd', label: 'Dzaryx Ultimate IoT — 1 mois' },
 };
 
 // ── POST /api/saas/billing/checkout ──────────────────────────────────

@@ -100,11 +100,12 @@ router.get('/stats', requireSaasAuth, requireAdmin, async (_req: Request, res: R
   const total_orgs   = orgs.length;
   const pro_orgs     = orgs.filter(o => o.plan === 'pro').length;
   const ent_orgs     = orgs.filter(o => o.plan === 'enterprise').length;
-  const free_orgs    = total_orgs - pro_orgs - ent_orgs;
+  const ult_orgs     = orgs.filter(o => o.plan === 'ultimate').length;
+  const free_orgs    = total_orgs - pro_orgs - ent_orgs - ult_orgs;
   const total_msgs   = cfgs.reduce((s, c) => s + (c.messages_used as number ?? 0), 0);
-  const est_revenue_eur = pro_orgs * 29 + ent_orgs * 99;
+  const est_revenue_eur = pro_orgs * 29 + ent_orgs * 99 + ult_orgs * 199;
 
-  res.json({ total_orgs, pro_orgs, enterprise_orgs: ent_orgs, free_orgs, total_messages: total_msgs, estimated_revenue_eur: est_revenue_eur });
+  res.json({ total_orgs, pro_orgs, enterprise_orgs: ent_orgs, ultimate_orgs: ult_orgs, free_orgs, total_messages: total_msgs, estimated_revenue_eur: est_revenue_eur });
 });
 
 // ── PATCH /api/saas/admin/org/:orgId/plan ────────────────────────

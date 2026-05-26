@@ -219,6 +219,13 @@ export const PLANS: Record<string, {
     messages_limit: 99999,
     features:       ['Messages illimités', 'Tous les plans Pro', 'SLA 99.9%', 'Onboarding dédié', 'API webhooks', 'Marque blanche'],
   },
+  ultimate: {
+    label:          'Ultimate IoT',
+    price_monthly:  199,
+    currency:       'EUR',
+    messages_limit: 99999,
+    features:       ['Tout Enterprise inclus', 'Maison connectée (Zigbee, Matter)', 'Voiture connectée (OBD-II)', 'Contrôle vocal domotique via Dzaryx', 'Tableau de bord IoT temps réel', 'Matériel fourni à l\'installation', 'Support dédié 24/7'],
+  },
 };
 
 // GET /api/saas/plans (public)
