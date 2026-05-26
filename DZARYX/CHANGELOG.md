@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-05-26 — SaaS Chat Fix + Sector Personas + Plan Ultimate IoT (Claude Sonnet 4.6)
+
+### 3 commits ✅ — `e04401e` + `f5785b3` + simulator gh-pages
+
+**SaaS Chat HTTP fix (critique) :**
+- `backend/src/api/routes/saas-chat.ts` : chat via Anthropic SDK direct (Claude Haiku)
+  - **Root cause** : Socket.IO auth rejette les SaaS JWT → silence complet
+  - Fix : bypass Socket.IO, appel HTTP direct, retourne `{ text, ai_name }`
+  - `buildSectorPrompt()` totalement réécrit — 10 secteurs avec personas IA riches
+  - `sectorBehavior` map : règles de format/ton par secteur (style médecin, avocat, BTP...)
+
+**SaasPortal.tsx — Adaptation secteur complète :**
+- `simulator/src/components/SaasPortal.tsx` :
+  - Socket.IO supprimé (badge hardcodé EN LIGNE vert)
+  - `QUICK_ACTIONS` réécrits pour 11 secteurs — prompts détaillés actionnables
+  - `SECTOR_FEATURES` réécrits pour 11 secteurs — descriptions valeur business réelle
+  - `SECTOR_ITEM_EXTRA` : ajout beauty, auto_school, construction, ecommerce
+  - Plan Ultimate IoT : nouveau tier doré dans l'UI upgrade
+
+**Plan Ultimate IoT :**
+- `backend/src/api/routes/saas.ts` : plan `ultimate` ajouté (199€/mois, messages illimités, IoT features)
+- `backend/src/api/routes/saas-billing.ts` : `ultimate` → 19 900 DA/mois Chargily
+- `backend/src/api/routes/saas-admin.ts` : `ultimate_orgs` compté, revenue = pro*29 + ent*99 + ult*199
+
+**Actions manuelles requises :**
+- [ ] Appliquer `supabase/migration_saas_notifications.sql` dans Supabase SQL editor
+- [ ] Configurer SMTP Railway : `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` pour emails réels
+
+---
+
 ## 2026-05-22 — Per-Actor Notifications + Dzaryx Living Brain (Claude Sonnet 4.6)
 
 ### 2 commits ✅ — `326ce67` + `4a7da96`

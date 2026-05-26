@@ -177,11 +177,11 @@
 - ⚪ Chargily Pay API — Kouider a décidé de ne pas faire pour l'instant
 - ⚪ Table `payment_links` créée mais non utilisée
 
-### 8.5 — Export Comptable Excel (✅ Terminé — 2026-05-21)
+### 8.5 — Export Comptable Excel (✅ Terminé — 2026-05-26)
 - ✅ `export_excel` tool : rapport .xlsx envoyé Telegram (3 feuilles : resas, bilan, par voiture)
 - ✅ `backend/src/integrations/excel-export.ts`
 - ✅ Package `xlsx` installé
-- 🔵 Envoi automatique le 1er du mois (BullMQ job à ajouter)
+- ✅ `jobMonthlyExcel` BullMQ — cron `30 9 1 * *` → 9h30 le 1er du mois, envoi Telegram + Cloudinary
 
 ### 8.6 — GPS & Livraison (✅ Terminé — 2026-05-21)
 - ✅ `maps.ts` : Google Distance Matrix API + fallback vol d'oiseau
@@ -204,6 +204,33 @@
 - 🔵 Publication automatique vidéos TikTok (via Apify ou TikTok Business API)
 - 🔵 Nexus PC peut lancer script Python de post automatique
 - 🔵 Calendrier : 1 vidéo/semaine, timing optimal (17h-19h vendredi)
+
+---
+
+---
+
+## Phase 9 — Ultimate IoT (🔵 Planifié — Q3 2026)
+
+> Plan 19 900 DA/mois = Enterprise + contrôle maison + voiture
+
+### 9.1 — Maison connectée (🔵 Planifié)
+- 🔵 Raspberry Pi 4 + Zigbee dongle (CC2531 ou ConBee II)
+- 🔵 Home Assistant OS sur le Pi (open source, local)
+- 🔵 Agent Python `nexus-iot/` → API Home Assistant → relais Dzaryx
+- 🔵 Commandes vocales : "Dzaryx éteins les lumières du salon", "quelle est la température ?"
+- 🔵 Capteurs : température, humidité, présence, fenêtres, prises intelligentes
+- 🔵 Tableau de bord IoT temps réel dans SaasPortal
+
+### 9.2 — Voiture connectée (🔵 Planifié)
+- 🔵 Dongle OBD-II Bluetooth/WiFi (ELM327, ~20-50€)
+- 🔵 App mobile → Bluetooth → lecture données CAN bus
+- 🔵 Stats : carburant, vitesse, RPM, codes erreurs DTC, kilométrage
+- 🔵 Alertes : niveau carburant bas, entretien à prévoir, codes pannes
+
+### 9.3 — Hardware bundle (🔵 Planifié)
+- 🔵 Matériel vendu séparément à l'inscription Ultimate (~150-300€ one-time)
+- 🔵 Guide d'installation automatique envoyé par email
+- 🔵 Support téléphonique pour installation (SLA Ultimate)
 
 ---
 

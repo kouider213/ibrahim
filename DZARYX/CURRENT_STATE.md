@@ -2,15 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-25 (Session — APK ✅ + Telegram→Chat migration + SaaS multi-tenant complet)
+> Dernière mise à jour : 2026-05-26 (Session — SaaS chat fix HTTP + personas secteur + Plan Ultimate IoT)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phases 1-8 TERMINÉES ✅ + Brain System LIVE + APK BUILDÉ ✅ + SaaS COMPLET ✅.**
+**Phase active : Phases 1-8 TERMINÉES ✅ + Brain System LIVE + APK BUILDÉ ✅ + SaaS COMPLET ✅ + Plan Ultimate IoT ✅.**
 
-APK Android build réussi 2026-05-25. Migration complète Telegram→Chat : zéro message Telegram pour usage normal, tout passe par emitProactive(). Houari reçoit 8 types de notifs business. SaaS multi-tenant complet : plans, WhatsApp Pro, Calendar Pro, briefings quotidiens. 1 migration SQL à appliquer : `migration_saas_notifications.sql`.
+APK Android build réussi 2026-05-25. SaaS chat fixé (HTTP/Anthropic direct, bypass Socket.IO). Personas IA riches par secteur (11 secteurs). QUICK_ACTIONS + SECTOR_FEATURES adaptés. Plan Ultimate IoT ajouté (19 900 DA/mois). 1 migration SQL à appliquer : `migration_saas_notifications.sql`. SMTP emails pas encore configuré Railway.
 
 ---
 
@@ -143,21 +143,28 @@ APK Android build réussi 2026-05-25. Migration complète Telegram→Chat : zér
 - [ ] Tester push notifications (app fermée)
 - [ ] Tester scan OCR passeport
 
-### SaaS Multi-tenant ✅ — 2026-05-25
+### SaaS Multi-tenant ✅ — 2026-05-26
 - ✅ `/api/saas/register` + `/api/saas/login` + `/api/saas/config`
-- ✅ `/api/saas/chat` — chat IA avec données business réelles injectées
-- ✅ `/api/saas/plans` — 3 plans : starter(0€/200msg) | pro(29€/2000msg) | enterprise(99€/∞)
+- ✅ `/api/saas/chat` — chat IA HTTP direct (Anthropic SDK), bypass Socket.IO
+- ✅ `/api/saas/plans` — **4 plans** : starter(0€/200msg) | pro(29€/2000msg) | enterprise(99€/∞) | **ultimate(199€/∞+IoT)**
 - ✅ `/api/saas/upgrade` — changer de plan
 - ✅ `/api/saas/notifications` — briefings quotidiens + alertes
-- ✅ WhatsApp Pro : per-tenant Twilio creds → `POST /api/saas/whatsapp/configure` + send
-- ✅ Google Calendar Pro : per-tenant service account → `POST /api/saas/calendar/configure` + CRUD
+- ✅ WhatsApp Pro : per-tenant Twilio creds
+- ✅ Google Calendar Pro : per-tenant service account
 - ✅ `jobSaasDailyBriefing` — 8h chaque matin, briefing pour chaque org SaaS
 - ✅ `jobSaasMonthlyReset` — 1er du mois 1h, reset compteurs messages
-- ✅ Migration SQL `migration_saas_notifications.sql` — à appliquer Supabase
 - ✅ Landing page HTML : `interface-ibrahim/dzaryx-saas-landing.html`
+- ✅ 11 comptes test créés (1 par secteur)
+- ✅ Personas IA riches par secteur + `sectorBehavior` hints
+- ✅ QUICK_ACTIONS + SECTOR_FEATURES + SECTOR_ITEM_EXTRA adaptés par secteur
+- ✅ Plan Ultimate IoT — 19 900 DA/mois — maison connectée + voiture OBD-II
+- ✅ Emails (nodemailer) : registration + password reset + welcome Pro — **SMTP Railway pas encore configuré**
+- ✅ Billing Chargily : checkout + webhook — **CHARGILY_SECRET_KEY Railway pas encore configuré**
 
 **TODO — Actions manuelles requises :**
 - [ ] Appliquer `supabase/migration_saas_notifications.sql` dans Supabase SQL editor
+- [ ] Configurer SMTP Railway : `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` (ex: Gmail avec App Password)
+- [ ] Configurer Chargily si paiement voulu : `CHARGILY_SECRET_KEY` + `CHARGILY_WEBHOOK_SECRET`
 
 ## Ce qui ne fonctionne pas / incomplet ❌
 
