@@ -1,0 +1,109 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'dzaryx-native/**'
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: dzaryx-native/package-lock.json
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        working-directory: dzaryx-native
+        run: npm ci
+
+      - name: Expo Prebuild
+        working-directory: dzaryx-native
+        run: npx expo prebuild --platform android --clean --no-install
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > dzaryx-native/android/app/dzaryx.keystore
+
+      - name: Configure Gradle signing
+        working-directory: dzaryx-native/android
+        run: |
+          cat >> gradle.properties << 'EOF'
+          DZARYX_KEYSTORE=dzaryx.keystore
+          DZARYX_KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+          DZARYX_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+          DZARYX_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Patch build.gradle for signing
+        working-directory: dzaryx-native/android/app
+        run: |
+          # Inject signingConfig into release buildType
+          python3 << 'PYEOF'
+          import re
+
+          with open('build.gradle', 'r') as f:
+              content = f.read()
+
+          signing_config = """
+              signingConfigs {
+                  release {
+                      storeFile file(DZARYX_KEYSTORE)
+                      storePassword DZARYX_KEYSTORE_PASSWORD
+                      keyAlias DZARYX_KEY_ALIAS
+                      keyPassword DZARYX_KEY_PASSWORD
+                  }
+              }
+          """
+
+          # Insert signingConfigs before buildTypes
+          if 'signingConfigs' not in content:
+              content = content.replace(
+                  'buildTypes {',
+                  signing_config + '\n    buildTypes {'
+              )
+
+          # Add signingConfig to release buildType
+          content = re.sub(
+              r'(buildTypes\s*\{[^}]*release\s*\{)',
+              r'\1\n            signingConfig signingConfigs.release',
+              content
+          )
+
+          with open('build.gradle', 'w') as f:
+              f.write(content)
+
+          print("build.gradle patched successfully")
+          PYEOF
+
+      - name: Build Release APK
+        working-directory: dzaryx-native/android
+        run: ./gradlew assembleRelease --no-daemon
+        env:
+          GRADLE_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=512m"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dzaryx-v${{ github.run_number }}.apk
+          path: dzaryx-native/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
