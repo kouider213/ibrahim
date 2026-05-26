@@ -21,7 +21,10 @@ export default function App() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden' }}>
-      {showSaas ? <SaasPortal /> : <AppShell />}
+      {showSaas
+        ? <SaasPortal onBack={() => setShowSaas(false)} />
+        : <AppShell   onOpenAdmin={() => setShowSaas(true)} />
+      }
     </div>
   );
 }

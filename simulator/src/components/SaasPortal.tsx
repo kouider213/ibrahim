@@ -252,7 +252,7 @@ function getSessionId(orgId: string) {
 // ═════════════════════════════════════════════════════════════════
 // Main portal
 // ═════════════════════════════════════════════════════════════════
-export default function SaasPortal() {
+export default function SaasPortal({ onBack }: { onBack?: () => void }) {
   const resetToken = new URLSearchParams(window.location.search).get('reset');
   const existing   = loadSession();
   const initialMode: Mode = (() => {
@@ -277,21 +277,30 @@ export default function SaasPortal() {
   };
   const handleUpdateSession = (s: OrgSession) => { saveSession(s); setSession(s); };
 
-  if (mode === 'landing')    return <Landing onSignup={() => setMode('signup')} onLogin={() => setMode('login')} />;
+  if (mode === 'landing')    return <Landing onSignup={() => setMode('signup')} onLogin={() => setMode('login')} onBack={onBack} />;
   if (mode === 'signup')     return <SignupForm onAuth={handleAuth} onBack={() => setMode('landing')} />;
   if (mode === 'login')      return <LoginForm  onAuth={handleAuth} onBack={() => setMode('landing')} onForgot={() => setMode('forgot')} />;
   if (mode === 'forgot')     return <ForgotPasswordScreen onBack={() => setMode('login')} />;
   if (mode === 'reset')      return <ResetPasswordScreen token={resetToken ?? ''} onDone={() => setMode('login')} />;
   if (mode === 'onboarding' && session) return <OnboardingScreen session={session} onDone={handleOnboardingDone} />;
-  if (mode === 'chat'        && session) return <SaasChat session={session} onLogout={handleLogout} onUpdateSession={handleUpdateSession} />;
+  if (mode === 'chat'        && session) return <SaasChat session={session} onLogout={handleLogout} onUpdateSession={handleUpdateSession} onBack={onBack} />;
   return null;
 }
 
 // ── Landing ───────────────────────────────────────────────────────
-function Landing({ onSignup, onLogin }: { onSignup: () => void; onLogin: () => void }) {
+function Landing({ onSignup, onLogin, onBack }: { onSignup: () => void; onLogin: () => void; onBack?: () => void }) {
   return (
     <div style={S.page}>
       <div style={S.safeTop} />
+      {onBack && (
+        <button onClick={onBack} style={{
+          position: 'absolute', top: 16, left: 16, zIndex: 10,
+          background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)',
+          borderRadius: 20, padding: '6px 14px',
+          fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: 'rgba(0,212,255,0.8)',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+        }}>← Dzaryx</button>
+      )}
       <div style={S.landingContent}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <div style={{ fontSize: 64, marginBottom: 12 }}>🤖</div>
@@ -718,7 +727,7 @@ function LoginForm({ onAuth, onBack, onForgot }: { onAuth: (s: OrgSession) => vo
 // ── SaaS Chat ─────────────────────────────────────────────────────
 interface ChatMessage { role: 'user' | 'ai'; text: string; ts: number; }
 
-function SaasChat({ session, onLogout, onUpdateSession }: { session: OrgSession; onLogout: () => void; onUpdateSession: (s: OrgSession) => void }) {
+function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: OrgSession; onLogout: () => void; onUpdateSession: (s: OrgSession) => void; onBack?: () => void }) {
   const [tab, setTab]           = useState<Tab>('chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput]       = useState('');
@@ -792,9 +801,18 @@ function SaasChat({ session, onLogout, onUpdateSession }: { session: OrgSession;
               {wsOk ? 'EN LIGNE' : 'HORS LIGNE'}
             </span>
           </div>
-          <button onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter', fontSize: 16, color: 'rgba(255,255,255,0.3)', padding: '4px 8px' }}>
-            ⏻
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {onBack && (
+              <button onClick={onBack} style={{
+                background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)',
+                borderRadius: 16, padding: '4px 10px', cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: 'rgba(0,212,255,0.7)',
+              }}>← Dzaryx</button>
+            )}
+            <button onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter', fontSize: 16, color: 'rgba(255,255,255,0.3)', padding: '4px 8px' }}>
+              ⏻
+            </button>
+          </div>
         </div>
       </div>
 

@@ -46,7 +46,7 @@ function getSavedSession(): { actor: Actor; user: string } | null {
   } catch { return null; }
 }
 
-export default function Phone() {
+export default function Phone({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
   const [page, setPage]       = useState<Page>('voice');
   const [wsOk, setWsOk]       = useState(false);
 
@@ -145,7 +145,7 @@ export default function Phone() {
 
       {simState === 'app' && (
         <>
-          <StatusBar wsOk={wsOk} page={page} actorCol={actorCol} actorInit={actorInit} onLogout={logout} />
+          <StatusBar wsOk={wsOk} page={page} actorCol={actorCol} actorInit={actorInit} onLogout={logout} onOpenAdmin={actor === 'kouider' ? onOpenAdmin : undefined} />
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {renderScreen()}
           </div>
@@ -553,9 +553,10 @@ function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
-function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
+function StatusBar({ wsOk, page, actorCol, actorInit, onLogout, onOpenAdmin }: {
   wsOk: boolean; page: Page;
   actorCol: string; actorInit: string; onLogout: () => void;
+  onOpenAdmin?: () => void;
 }) {
   const tab = TABS.find(t => t.id === page);
   const [showMenu, setShowMenu] = useState(false);
@@ -599,21 +600,42 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
           </span>
         </div>
 
-        {/* Actor avatar — tap = menu déconnexion */}
-        <button
-          onClick={() => setShowMenu(m => !m)}
-          style={{
-            cursor: 'pointer', padding: 0,
-            width: 32, height: 32, borderRadius: '50%',
-            background: `${actorCol}18`,
-            border: `1.5px solid ${actorCol}55`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Orbitron', fontSize: 11, fontWeight: 700, color: actorCol,
-            boxShadow: `0 0 10px ${actorCol}22`,
-          }}
-        >
-          {actorInit}
-        </button>
+        {/* Right side: admin button (kouider only) + actor avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {onOpenAdmin && (
+            <button
+              onClick={onOpenAdmin}
+              title="God Mode"
+              style={{
+                cursor: 'pointer', padding: 0,
+                width: 30, height: 30, borderRadius: '50%',
+                background: 'rgba(255,200,0,0.07)',
+                border: '1.5px solid rgba(255,200,0,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 14,
+                boxShadow: '0 0 8px rgba(255,200,0,0.15)',
+                transition: 'all 0.2s',
+              }}
+            >
+              👑
+            </button>
+          )}
+          {/* Actor avatar — tap = menu déconnexion */}
+          <button
+            onClick={() => setShowMenu(m => !m)}
+            style={{
+              cursor: 'pointer', padding: 0,
+              width: 32, height: 32, borderRadius: '50%',
+              background: `${actorCol}18`,
+              border: `1.5px solid ${actorCol}55`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'Orbitron', fontSize: 11, fontWeight: 700, color: actorCol,
+              boxShadow: `0 0 10px ${actorCol}22`,
+            }}
+          >
+            {actorInit}
+          </button>
+        </div>
       </div>
 
       {/* Dropdown menu */}
