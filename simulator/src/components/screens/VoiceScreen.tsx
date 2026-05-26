@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   api, connectSocket, disconnectSocket, getOrCreateSessionId,
-  playBase64Audio, enqueueChunk, flushChunks, unlockAudio,
+  playBase64Audio, enqueueChunk, flushChunks, unlockAudio, stopAudio,
+  sendNativeAction, tryParseNativeAction,
   type DzaryxStatus,
 } from '../../services/api.ts';
 
@@ -33,10 +34,10 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
 };
 
 const SPEECH_RMS    = 0.004;
-const SILENCE_RMS   = 0.008;
-const SILENCE_DELAY = 1000;
-const MIN_SPEECH_MS = 200;
-const MAX_REC_MS    = 8000;
+const SILENCE_RMS   = 0.006;
+const SILENCE_DELAY = 1500;
+const MIN_SPEECH_MS = 300;
+const MAX_REC_MS    = 15000;
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const canvasRef       = useRef<HTMLCanvasElement>(null);
@@ -89,6 +90,35 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     return () => disconnectSocket();
   }, [onWsStatus]);
 
+  // ── Native wake word bridge (called from Porcupine via injectJavaScript) ────
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__triggerWakeWord = () => {
+      if (statusRef.current === 'speaking') {
+        stopAudio();
+        setStatus('idle');
+        setTimeout(() => startRecording(), 200);
+        return;
+      }
+      if (statusRef.current !== 'idle' || isRecordingRef.current) return;
+      setHud('🎤 DZARYX ACTIVÉ — J\'ÉCOUTE');
+      // Greeting vocal avant d'écouter
+      try {
+        const utter = new SpeechSynthesisUtterance('Je t\'écoute');
+        utter.lang  = 'fr-FR';
+        utter.rate  = 1.15;
+        utter.pitch = 1.0;
+        utter.onend = () => startRecording();
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utter);
+      } catch {
+        startRecording(); // fallback si SpeechSynthesis indisponible
+      }
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return () => { delete (window as any).__triggerWakeWord; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Mic init ────────────────────────────────────────────────────────────────
   const micInitRef = useRef(false);
 
@@ -112,6 +142,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       source.connect(analyser);
       analyserRef.current = analyser;
       startVAD();
+      startWakeWord();
       setHud('MICROPHONE ACTIF — PARLE-MOI');
     } catch (e) {
       console.error('[mic] error:', e);
@@ -165,6 +196,36 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
   }
 
+  // ── Wake word (SpeechRecognition API) ────────────────────────────────────────
+  function startWakeWord() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new SR() as any;
+    rec.continuous  = true;
+    rec.lang        = 'fr-FR';
+    rec.interimResults = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i]![0]!.transcript.toLowerCase();
+        if (/\bdzaryx\b|\bhey dzaryx\b|\bdzari\b/.test(t)) {
+          if (statusRef.current === 'idle') {
+            setHud('🎤 WAKE WORD DÉTECTÉ — J\'ÉCOUTE');
+            startRecording();
+          } else if (statusRef.current === 'speaking') {
+            stopAudio();
+            setStatus('idle');
+            setTimeout(() => startRecording(), 100);
+          }
+        }
+      }
+    };
+    rec.onend = () => { try { rec.start(); } catch { /* ignore */ } };
+    try { rec.start(); } catch { /* ignore */ }
+  }
+
   // ── VAD ─────────────────────────────────────────────────────────────────────
   function startVAD() {
     const analyser = analyserRef.current;
@@ -172,7 +233,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     const timeBuf = new Uint8Array(analyser.fftSize);
     const a = analyser;
     function tick() {
-      if (statusRef.current === 'speaking' || statusRef.current === 'thinking') {
+      if (statusRef.current === 'thinking') {
         requestAnimationFrame(tick); return;
       }
       a.getByteTimeDomainData(timeBuf);
@@ -188,6 +249,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | PARLE-MOI`);
       }
       if (rms > SPEECH_RMS) {
+        if (statusRef.current === 'speaking') {
+          stopAudio();
+          setStatus('idle');
+        }
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
         if (!isSpeechRef.current) { isSpeechRef.current = true; speechStartRef.current = Date.now(); }
         if (!isRecordingRef.current) startRecording();
@@ -239,9 +304,19 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       const res = await api.chat(text, sessionId.current, frame, frame ? 'image/jpeg' : undefined);
       if (frame) setHud(`📷 + 🎤 "${text.slice(0, 40)}"`);
       if (res.text) {
-        setResp(res.text);
-        setHud(res.text.slice(0, 80) + (res.text.length > 80 ? '…' : ''));
-        if (res.audio) { unlockAudio(); await playBase64Audio(res.audio); }
+        const nativeAction = tryParseNativeAction(res.text);
+        if (nativeAction) {
+          sendNativeAction(nativeAction);
+          const h = Number(nativeAction['hour'] ?? 0);
+          const m = Number(nativeAction['minute'] ?? 0);
+          const confirmText = `✅ Alarme créée pour ${String(h).padStart(2,'0')}h${String(m).padStart(2,'0')}`;
+          setResp(confirmText);
+          setHud(confirmText);
+        } else {
+          setResp(res.text);
+          setHud(res.text.slice(0, 80) + (res.text.length > 80 ? '…' : ''));
+          if (res.audio) { unlockAudio(); await playBase64Audio(res.audio); }
+        }
       }
     } catch (err) {
       console.error('[voice] error:', err);

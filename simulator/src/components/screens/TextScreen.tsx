@@ -3,6 +3,7 @@ import {
   api, connectSocket, getOrCreateSessionId,
   playBase64Audio, enqueueChunk, flushChunks, unlockAudio,
   subscribeProactive, unsubscribeProactive, isSocketConnected,
+  sendNativeAction, tryParseNativeAction,
   type DzaryxStatus,
 } from '../../services/api.ts';
 
@@ -237,8 +238,18 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       const res = await api.chat(text || '📷 Photo', sessionId.current, img?.base64, img ? 'image/jpeg' : undefined);
       if (res.text && streamingMsgId.current) {
         clearTimeout(timeoutId);
-        setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
-          ? { ...m, text: res.text!, status: 'done' } : m));
+        const nativeAction = tryParseNativeAction(res.text);
+        if (nativeAction) {
+          sendNativeAction(nativeAction);
+          const h = Number(nativeAction['hour'] ?? 0);
+          const m = Number(nativeAction['minute'] ?? 0);
+          const confirmText = `✅ Alarme créée pour ${String(h).padStart(2,'0')}h${String(m).padStart(2,'0')}`;
+          setMsgs(ms => ms.map(msg => msg.id === streamingMsgId.current
+            ? { ...msg, text: confirmText, status: 'done' } : msg));
+        } else {
+          setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
+            ? { ...m, text: res.text!, status: 'done' } : m));
+        }
         streamingMsgId.current = null;
         if (res.audio) { unlockAudio(); await playBase64Audio(res.audio); }
       }

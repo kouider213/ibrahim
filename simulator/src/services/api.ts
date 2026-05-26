@@ -336,6 +336,23 @@ export function getOrCreateSessionId(): string {
   return `voice_${_actor}`;
 }
 
+// ── React Native WebView bridge ───────────────────────────────────────────────
+export function sendNativeAction(action: Record<string, unknown>): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rn = (window as any).ReactNativeWebView;
+    if (rn?.postMessage) rn.postMessage(JSON.stringify(action));
+  } catch { /* not in WebView */ }
+}
+
+export function tryParseNativeAction(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    if (parsed['__native_action']) return parsed;
+  } catch { /* not json */ }
+  return null;
+}
+
 // ── Business types ────────────────────────────────────────────────────────────
 
 export interface Booking {
