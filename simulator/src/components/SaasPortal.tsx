@@ -860,10 +860,12 @@ interface BusinessProfile { owner_name?: string; address?: string; website?: str
 interface OrgConfig { ai_name: string; business_name: string; sector: string; language: string; city: string; country: string; plan: string; messages_used: number; messages_limit: number; integrations?: Integrations; business_profile?: BusinessProfile; }
 
 function AccountTab({ session, onLogout }: { session: OrgSession; onLogout: () => void }) {
-  const [config, setConfig]     = useState<OrgConfig | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
+  const [config, setConfig]       = useState<OrgConfig | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [checkingOut, setChkOut]  = useState(false);
+  const [showPlans, setShowPlans] = useState(false);
 
   // Integration fields
   const [waNumber, setWaNumber]     = useState('');
@@ -894,6 +896,22 @@ function AccountTab({ session, onLogout }: { session: OrgSession; onLogout: () =
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [session.token]);
+
+  const startCheckout = async (plan: string) => {
+    setChkOut(true);
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/billing/checkout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const d = await r.json() as { checkout_url?: string; error?: string };
+      if (d.checkout_url) window.open(d.checkout_url, '_blank');
+      else alert(d.error ?? 'Erreur paiement');
+    } catch { alert('Erreur réseau'); }
+    setChkOut(false);
+    setShowPlans(false);
+  };
 
   const saveIntegrations = async () => {
     setSaving(true);
@@ -975,13 +993,54 @@ function AccountTab({ session, onLogout }: { session: OrgSession; onLogout: () =
             </div>
           </div>
 
-          {/* Plan info */}
-          {planName === 'Gratuit' && (
-            <div style={{ padding: '14px', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 14, marginBottom: 16 }}>
-              <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: 'rgba(124,58,237,0.9)', marginBottom: 4 }}>✨ Passez à Pro</div>
-              <div style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
-                Messages illimités, accès prioritaire, support dédié et outils avancés pour votre business.
+          {/* Plan upgrade / billing */}
+          {planName === 'Gratuit' && !showPlans && (
+            <button
+              onClick={() => setShowPlans(true)}
+              style={{ width: '100%', padding: '14px', background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: 14, marginBottom: 16, cursor: 'pointer', textAlign: 'left' }}
+            >
+              <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: 'rgba(124,58,237,0.95)', marginBottom: 4 }}>✨ Passer à Pro</div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+                Messages illimités · notifications · stats avancées · support prioritaire
               </div>
+            </button>
+          )}
+          {planName !== 'Gratuit' && (
+            <div style={{ padding: '14px', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 14, marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: '#00d4ff', marginBottom: 4 }}>
+                {planName === 'Enterprise' ? '👑' : '✨'} Plan {planName} actif
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                {config?.messages_used ?? 0} / {config?.messages_limit ?? 0} messages utilisés ce mois
+              </div>
+            </div>
+          )}
+          {showPlans && (
+            <div style={{ marginBottom: 16 }}>
+              {[
+                { key: 'pro', label: 'Pro', price: '2 900 DA/mois', color: 'rgba(124,58,237,0.9)', bg: 'rgba(124,58,237,0.07)', border: 'rgba(124,58,237,0.25)', features: ['2 000 messages/mois', 'Briefing quotidien', 'Items illimités', 'Stats avancées', 'Notifications push', 'Support prioritaire'] },
+                { key: 'enterprise', label: 'Enterprise', price: '9 900 DA/mois', color: '#00d4ff', bg: 'rgba(0,212,255,0.05)', border: 'rgba(0,212,255,0.2)', features: ['Messages illimités', 'Tout le plan Pro', 'SLA 99.9%', 'Onboarding dédié', 'API webhooks', 'Marque blanche'] },
+              ].map(p => (
+                <div key={p.key} style={{ padding: '14px', background: p.bg, border: `1px solid ${p.border}`, borderRadius: 14, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 700, color: p.color }}>{p.label}</div>
+                    <div style={{ fontFamily: 'Inter', fontSize: 11, color: p.color, fontWeight: 600 }}>{p.price}</div>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    {p.features.map(f => <div key={f} style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>• {f}</div>)}
+                  </div>
+                  <button
+                    onClick={() => void startCheckout(p.key)}
+                    disabled={checkingOut}
+                    style={{ width: '100%', padding: '10px', background: p.bg, border: `1px solid ${p.border}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: p.color }}
+                  >
+                    {checkingOut ? 'Redirection…' : `Choisir ${p.label} →`}
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => setShowPlans(false)} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+                Annuler
+              </button>
             </div>
           )}
 
