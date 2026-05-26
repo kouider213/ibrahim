@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { storePushToken, getPushToken } from '../../notifications/mobile-push.js';
+import { storePushToken, getPushToken, emitProactive } from '../../notifications/mobile-push.js';
 import { isFcmToken } from '../../notifications/fcm.js';
 import { storeWebSub, getVapidPublicKey, isWebPushConfigured } from '../../notifications/web-push-service.js';
 import type { PushSubscription } from 'web-push';
@@ -52,6 +52,12 @@ router.get('/vapid-public-key', (_req, res) => {
     return;
   }
   res.json({ key: getVapidPublicKey() });
+});
+
+// POST /api/push-token/test — send a real push notification to test FCM
+router.post('/test', requireMobileAuth, (_req, res) => {
+  emitProactive('🔔 Test push FCM — tu reçois ça ?', 'info', undefined, 'kouider');
+  res.json({ ok: true });
 });
 
 // GET /api/push-token — debug
