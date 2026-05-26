@@ -1425,4 +1425,19 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── ALARME TÉLÉPHONE (natif Android/iOS) ────────────────────────
+  {
+    name: 'set_phone_alarm',
+    description: 'Créer une alarme sur le téléphone de l\'utilisateur. L\'alarme sonne à l\'heure demandée via l\'app alarme native. Utiliser quand l\'utilisateur dit "crée une alarme à X", "réveille-moi à X", "alarme pour X heures", "mets une alarme à Xh".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        hour:    { type: 'number', description: 'Heure (0-23)' },
+        minute:  { type: 'number', description: 'Minutes (0-59, défaut: 0)' },
+        label:   { type: 'string', description: 'Titre de l\'alarme (ex: "Dzaryx — Rappel client")' },
+      },
+      required: ['hour'],
+    },
+  },
+
 ];

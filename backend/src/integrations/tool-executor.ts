@@ -390,6 +390,13 @@ async function _dispatch(
       case 'generate_contract':          return await generateContractTool(input, sessionId);
       // ─── EXPORT EXCEL (Phase 8.5) ───
       case 'export_excel':               return await exportExcelTool(input, sessionId);
+      // ─── ALARME TÉLÉPHONE ───
+      case 'set_phone_alarm': {
+        const hour   = Number(input['hour']   ?? 0);
+        const minute = Number(input['minute'] ?? 0);
+        const label  = String(input['label']  ?? 'Dzaryx');
+        return JSON.stringify({ __native_action: 'set_alarm', hour, minute, label });
+      }
       default:                           return `Outil inconnu: ${name}`;
     }
   } catch (err) {
