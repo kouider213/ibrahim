@@ -1,10 +1,43 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { requireSaasAuth } from '../middleware/auth.js';
 import { supabase } from '../../integrations/supabase.js';
+import { signSaasToken } from '../../auth/saas-jwt.js';
 import { PLANS } from './saas.js';
 
 const router = Router();
-const ADMIN_EMAIL = process.env.SAAS_ADMIN_EMAIL ?? 'kouiderpablo@gmail.com';
+const ADMIN_EMAIL    = process.env.SAAS_ADMIN_EMAIL ?? 'kouiderpablo@gmail.com';
+const TOKEN_KOUIDER  = process.env.TOKEN_KOUIDER    ?? 'f6214183be37ad5e3c593590870077db247a4047c7de3cd72ae008e0f8d447d2';
+
+// POST /api/saas/admin/autologin — Dzaryx bearer token → SaaS JWT (kouider only)
+router.post('/autologin', async (req: Request, res: Response): Promise<void> => {
+  const auth = req.headers.authorization ?? '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (bearer !== TOKEN_KOUIDER) { res.status(403).json({ error: 'Accès refusé' }); return; }
+
+  const { data: authRow } = await supabase
+    .from('saas_auth')
+    .select('org_id')
+    .eq('email', ADMIN_EMAIL)
+    .maybeSingle();
+
+  if (!authRow) { res.status(404).json({ error: 'Compte admin introuvable' }); return; }
+
+  const { data: cfg } = await supabase
+    .from('org_configs')
+    .select('sector, ai_name, business_name')
+    .eq('org_id', authRow.org_id)
+    .maybeSingle();
+
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('owner_key')
+    .eq('id', authRow.org_id)
+    .maybeSingle();
+
+  const token = signSaasToken({ orgId: authRow.org_id, email: ADMIN_EMAIL, ownerKey: org?.owner_key ?? '', sector: cfg?.sector ?? 'custom' });
+
+  res.json({ token, org_id: authRow.org_id, email: ADMIN_EMAIL, ai_name: cfg?.ai_name ?? 'Dzaryx', business_name: cfg?.business_name ?? 'Admin', sector: cfg?.sector ?? 'custom' });
+});
 
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (req.saasActor?.email !== ADMIN_EMAIL) {
