@@ -15,6 +15,60 @@ function createTransport() {
   });
 }
 
+export async function sendVerificationCode(to: string, code: string, action: string): Promise<void> {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+  await createTransport().sendMail({
+    from: `"Dzaryx" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+    to,
+    subject: `🔐 Code de vérification Dzaryx — ${code}`,
+    html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:Arial,sans-serif;color:#fff;">
+<div style="max-width:500px;margin:0 auto;padding:40px 20px;text-align:center;">
+  <div style="font-size:40px;margin-bottom:16px;">🔐</div>
+  <div style="font-family:monospace;font-size:20px;font-weight:900;color:#00d4ff;letter-spacing:0.3em;margin-bottom:24px;">DZARYX</div>
+  <div style="font-size:14px;color:rgba(255,255,255,0.6);margin-bottom:24px;">Code de confirmation pour : <strong style="color:#fff;">${action}</strong></div>
+  <div style="background:rgba(0,212,255,0.08);border:2px solid rgba(0,212,255,0.3);border-radius:16px;padding:24px;margin-bottom:24px;">
+    <div style="font-family:monospace;font-size:42px;font-weight:900;color:#00d4ff;letter-spacing:0.4em;">${code}</div>
+  </div>
+  <div style="font-size:13px;color:rgba(255,255,255,0.35);">Ce code expire dans <strong style="color:rgba(255,255,255,0.6);">15 minutes</strong>.<br>Si vous n'avez pas fait cette demande, ignorez cet email.</div>
+</div></body></html>`,
+  });
+}
+
+export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+  await createTransport().sendMail({
+    from: `"Dzaryx" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+    to,
+    subject: `🔑 Réinitialisation de votre mot de passe Dzaryx`,
+    html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:Arial,sans-serif;color:#fff;">
+<div style="max-width:500px;margin:0 auto;padding:40px 20px;text-align:center;">
+  <div style="font-size:40px;margin-bottom:16px;">🔑</div>
+  <div style="font-family:monospace;font-size:20px;font-weight:900;color:#00d4ff;letter-spacing:0.3em;margin-bottom:24px;">DZARYX</div>
+  <div style="font-size:14px;color:rgba(255,255,255,0.6);margin-bottom:24px;">Vous avez demandé à réinitialiser votre mot de passe.</div>
+  <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#00d4ff;color:#000;border-radius:12px;font-weight:700;text-decoration:none;font-size:15px;margin-bottom:24px;">
+    🔐 Réinitialiser mon mot de passe
+  </a>
+  <div style="font-size:12px;color:rgba(255,255,255,0.3);">Ce lien expire dans <strong>1 heure</strong>.<br>Si vous n'avez pas fait cette demande, ignorez cet email.</div>
+</div></body></html>`,
+  });
+}
+
+export async function sendChangeConfirmedEmail(to: string, what: string): Promise<void> {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
+  await createTransport().sendMail({
+    from: `"Dzaryx" <${process.env.SMTP_FROM ?? process.env.SMTP_USER}>`,
+    to,
+    subject: `✅ Modification confirmée — ${what}`,
+    html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:Arial,sans-serif;color:#fff;">
+<div style="max-width:500px;margin:0 auto;padding:40px 20px;text-align:center;">
+  <div style="font-size:40px;margin-bottom:16px;">✅</div>
+  <div style="font-family:monospace;font-size:20px;font-weight:900;color:#00d4ff;letter-spacing:0.3em;margin-bottom:24px;">DZARYX</div>
+  <div style="font-size:15px;color:rgba(255,255,255,0.8);margin-bottom:12px;">Votre <strong style="color:#00d4ff;">${what}</strong> a été modifié avec succès.</div>
+  <div style="font-size:13px;color:rgba(255,255,255,0.35);">Si vous n'êtes pas à l'origine de ce changement, contactez-nous immédiatement.</div>
+</div></body></html>`,
+  });
+}
+
 export async function sendRegistrationEmail(to: string, aiName: string, businessName: string): Promise<void> {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
     console.log(`[email] SMTP non configuré — email ignoré pour ${to}`);

@@ -3,8 +3,8 @@ import { io, Socket } from 'socket.io-client';
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
 
-type Mode = 'landing' | 'signup' | 'login' | 'onboarding' | 'chat';
-type Tab  = 'chat' | 'actions' | 'agenda' | 'data' | 'revenue' | 'clients' | 'account';
+type Mode = 'landing' | 'signup' | 'login' | 'onboarding' | 'chat' | 'forgot' | 'reset';
+type Tab  = 'chat' | 'actions' | 'agenda' | 'data' | 'revenue' | 'clients' | 'account' | 'admin';
 
 interface OrgSession {
   token:         string;
@@ -12,6 +12,7 @@ interface OrgSession {
   business_name: string;
   sector:        string;
   org_id:        string;
+  email?:        string;
 }
 
 const SECTORS = [
@@ -252,8 +253,10 @@ function getSessionId(orgId: string) {
 // Main portal
 // ═════════════════════════════════════════════════════════════════
 export default function SaasPortal() {
-  const existing = loadSession();
+  const resetToken = new URLSearchParams(window.location.search).get('reset');
+  const existing   = loadSession();
   const initialMode: Mode = (() => {
+    if (resetToken) return 'reset';
     if (!existing) return 'landing';
     if (!localStorage.getItem(onboardingKey(existing.org_id))) return 'onboarding';
     return 'chat';
@@ -272,12 +275,15 @@ export default function SaasPortal() {
     if (session) localStorage.setItem(onboardingKey(session.org_id), '1');
     setMode('chat');
   };
+  const handleUpdateSession = (s: OrgSession) => { saveSession(s); setSession(s); };
 
   if (mode === 'landing')    return <Landing onSignup={() => setMode('signup')} onLogin={() => setMode('login')} />;
   if (mode === 'signup')     return <SignupForm onAuth={handleAuth} onBack={() => setMode('landing')} />;
-  if (mode === 'login')      return <LoginForm  onAuth={handleAuth} onBack={() => setMode('landing')} />;
+  if (mode === 'login')      return <LoginForm  onAuth={handleAuth} onBack={() => setMode('landing')} onForgot={() => setMode('forgot')} />;
+  if (mode === 'forgot')     return <ForgotPasswordScreen onBack={() => setMode('login')} />;
+  if (mode === 'reset')      return <ResetPasswordScreen token={resetToken ?? ''} onDone={() => setMode('login')} />;
   if (mode === 'onboarding' && session) return <OnboardingScreen session={session} onDone={handleOnboardingDone} />;
-  if (mode === 'chat'        && session) return <SaasChat session={session} onLogout={handleLogout} />;
+  if (mode === 'chat'        && session) return <SaasChat session={session} onLogout={handleLogout} onUpdateSession={handleUpdateSession} />;
   return null;
 }
 
@@ -467,7 +473,7 @@ function SignupForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBac
       setStep('done');
       // Auto-login after 3s
       setTimeout(() => {
-        onAuth({ token: data['token'] as string, ai_name: (data['ai_name'] as string) ?? aiName, business_name: data['business_name'] as string, sector: (data['sector'] as string) ?? sector, org_id: data['org_id'] as string });
+        onAuth({ token: data['token'] as string, email, ai_name: (data['ai_name'] as string) ?? aiName, business_name: data['business_name'] as string, sector: (data['sector'] as string) ?? sector, org_id: data['org_id'] as string });
       }, 3000);
     } catch { setError('Erreur réseau — réessayez'); }
     finally { setLoading(false); }
@@ -657,7 +663,7 @@ function SignupForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBac
 }
 
 // ── Login ─────────────────────────────────────────────────────────
-function LoginForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBack: () => void }) {
+function LoginForm({ onAuth, onBack, onForgot }: { onAuth: (s: OrgSession) => void; onBack: () => void; onForgot: () => void }) {
   const [email, setEmail]     = useState('');
   const [password, setPass]   = useState('');
   const [loading, setLoading] = useState(false);
@@ -674,7 +680,7 @@ function LoginForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBack
       });
       const data = await r.json() as any;
       if (!r.ok) { setError(data.error ?? 'Identifiants incorrects'); return; }
-      onAuth({ token: data.token, ai_name: data.ai_name ?? 'Dzaryx', business_name: data.business_name, sector: data.sector ?? '', org_id: data.org_id });
+      onAuth({ token: data.token, email, ai_name: data.ai_name ?? 'Dzaryx', business_name: data.business_name, sector: data.sector ?? '', org_id: data.org_id });
     } catch { setError('Erreur réseau — réessayez'); }
     finally { setLoading(false); }
   };
@@ -695,11 +701,14 @@ function LoginForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBack
         <div style={{ marginBottom: 14 }}>
           <div style={S.inputLabel}>Mot de passe</div>
           <input value={password} onChange={e => setPass(e.target.value)} type="password" placeholder="••••••••"
-            onKeyDown={e => e.key === 'Enter' && submit()} style={S.input} />
+            onKeyDown={e => e.key === 'Enter' && void submit()} style={S.input} />
         </div>
         {error && <div style={S.errorText}>{error}</div>}
-        <button onClick={submit} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
+        <button onClick={() => void submit()} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
           {loading ? 'Connexion…' : 'Se connecter'}
+        </button>
+        <button onClick={onForgot} style={{ ...S.btnSecondary, marginTop: 10 }}>
+          Mot de passe oublié ?
         </button>
       </div>
     </div>
@@ -709,7 +718,7 @@ function LoginForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBack
 // ── SaaS Chat ─────────────────────────────────────────────────────
 interface ChatMessage { role: 'user' | 'ai'; text: string; ts: number; }
 
-function SaasChat({ session, onLogout }: { session: OrgSession; onLogout: () => void }) {
+function SaasChat({ session, onLogout, onUpdateSession }: { session: OrgSession; onLogout: () => void; onUpdateSession: (s: OrgSession) => void }) {
   const [tab, setTab]           = useState<Tab>('chat');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput]       = useState('');
@@ -797,7 +806,8 @@ function SaasChat({ session, onLogout }: { session: OrgSession; onLogout: () => 
         {tab === 'data'    && <DataTab session={session} />}
         {tab === 'revenue' && <RevenueTab session={session} />}
         {tab === 'clients' && <ClientsTab session={session} />}
-        {tab === 'account' && <AccountTab session={session} onLogout={onLogout} />}
+        {tab === 'account' && <AccountTab session={session} onLogout={onLogout} onUpdateSession={onUpdateSession} />}
+        {tab === 'admin'   && <AdminTab session={session} />}
       </div>
 
       {/* Bottom nav — scrollable */}
@@ -814,6 +824,7 @@ function SaasChat({ session, onLogout }: { session: OrgSession; onLogout: () => 
           { id: 'revenue', icon: '💰', label: 'Revenus' },
           { id: 'clients', icon: '👥', label: 'Clients' },
           { id: 'account', icon: '👤', label: 'Compte' },
+          ...(session.email === 'kouiderpablo@gmail.com' ? [{ id: 'admin' as Tab, icon: '👑', label: 'Admin' }] : []),
         ] as { id: Tab; icon: string; label: string }[]).map(t => (
           <button
             key={t.id}
@@ -966,7 +977,7 @@ interface Integrations { whatsapp_number?: string; google_calendar_url?: string;
 interface BusinessProfile { owner_name?: string; address?: string; website?: string; description?: string; }
 interface OrgConfig { ai_name: string; business_name: string; sector: string; language: string; city: string; country: string; plan: string; messages_used: number; messages_limit: number; integrations?: Integrations; business_profile?: BusinessProfile; }
 
-function AccountTab({ session, onLogout }: { session: OrgSession; onLogout: () => void }) {
+function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSession; onLogout: () => void; onUpdateSession: (s: OrgSession) => void }) {
   const [config, setConfig]       = useState<OrgConfig | null>(null);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -983,6 +994,20 @@ function AccountTab({ session, onLogout }: { session: OrgSession; onLogout: () =
   const [ownerName, setOwnerName]   = useState('');
   const [address, setAddress]       = useState('');
   const [description, setDesc]      = useState('');
+
+  // Security states
+  const [secAction, setSecAction] = useState<null | 'email' | 'password'>(null);
+  const [secStep,   setSecStep]   = useState<'form' | 'verify'>('form');
+  const [newVal,    setNewVal]    = useState('');
+  const [secCode,   setSecCode]   = useState('');
+  const [secLoading,setSecLoad]   = useState(false);
+  const [secErr,    setSecErr]    = useState('');
+  const [secOk,     setSecOk]     = useState('');
+  // Delete states
+  const [delStep,   setDelStep]   = useState<'idle' | 'code'>('idle');
+  const [delCode,   setDelCode]   = useState('');
+  const [delLoading,setDelLoad]   = useState(false);
+  const [delErr,    setDelErr]    = useState('');
 
   useEffect(() => {
     fetch(`${BACKEND}/api/saas/config`, { headers: { Authorization: `Bearer ${session.token}` } })
@@ -1035,6 +1060,78 @@ function AccountTab({ session, onLogout }: { session: OrgSession; onLogout: () =
       setTimeout(() => setSaved(false), 2000);
     } catch {}
     setSaving(false);
+  };
+
+  const requestChange = async (type: 'email' | 'password') => {
+    setSecLoad(true); setSecErr('');
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/account/request-change`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, value: newVal }),
+      });
+      const d = await r.json() as { ok?: boolean; error?: string };
+      if (!r.ok) { setSecErr(d.error ?? 'Erreur'); return; }
+      setSecStep('verify');
+    } catch { setSecErr('Erreur réseau'); }
+    finally { setSecLoad(false); }
+  };
+
+  const confirmChange = async (type: 'email' | 'password') => {
+    setSecLoad(true); setSecErr('');
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/account/confirm-change`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, code: secCode }),
+      });
+      const d = await r.json() as { ok?: boolean; error?: string; new_token?: string };
+      if (!r.ok) { setSecErr(d.error ?? 'Code incorrect'); return; }
+      setSecOk(type === 'email' ? '✅ Email modifié avec succès !' : '✅ Mot de passe modifié avec succès !');
+      if (type === 'email' && d.new_token) onUpdateSession({ ...session, token: d.new_token, email: newVal });
+      setSecAction(null); setSecStep('form'); setNewVal(''); setSecCode('');
+      setTimeout(() => setSecOk(''), 4000);
+    } catch { setSecErr('Erreur réseau'); }
+    finally { setSecLoad(false); }
+  };
+
+  const requestDelete = async () => {
+    setDelLoad(true); setDelErr('');
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/account/request-delete`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      const d = await r.json() as { ok?: boolean; error?: string };
+      if (!r.ok) { setDelErr(d.error ?? 'Erreur'); return; }
+      setDelStep('code');
+    } catch { setDelErr('Erreur réseau'); }
+    finally { setDelLoad(false); }
+  };
+
+  const confirmDelete = async () => {
+    setDelLoad(true); setDelErr('');
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/account`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: delCode }),
+      });
+      const d = await r.json() as { ok?: boolean; error?: string };
+      if (!r.ok) { setDelErr(d.error ?? 'Code incorrect'); return; }
+      onLogout();
+    } catch { setDelErr('Erreur réseau'); }
+    finally { setDelLoad(false); }
+  };
+
+  const doCancelPlan = async () => {
+    try {
+      await fetch(`${BACKEND}/api/saas/account/cancel-plan`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      setConfig(prev => prev ? { ...prev, plan: 'starter', messages_limit: 200 } : prev);
+    } catch {}
   };
 
   const used   = config?.messages_used  ?? 0;
@@ -1218,6 +1315,113 @@ function AccountTab({ session, onLogout }: { session: OrgSession; onLogout: () =
           <button onClick={saveIntegrations} disabled={saving} style={{ ...S.btnPrimary, marginBottom: 16, background: saved ? 'rgba(0,230,118,0.15)' : undefined, borderColor: saved ? 'rgba(0,230,118,0.4)' : undefined, color: saved ? '#00e676' : undefined }}>
             {saving ? 'Enregistrement…' : saved ? '✓ Enregistré !' : 'Enregistrer les paramètres'}
           </button>
+
+          {/* Security */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ ...S.sectionLabel, marginBottom: 12 }}>🔐 Sécurité du compte</div>
+            {secOk && (
+              <div style={{ padding: '10px 14px', background: 'rgba(0,230,118,0.07)', border: '1px solid rgba(0,230,118,0.2)', borderRadius: 10, marginBottom: 10, fontFamily: 'Inter', fontSize: 12, color: '#00e676' }}>
+                {secOk}
+              </div>
+            )}
+            {!secAction && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  onClick={() => { setSecAction('email'); setSecStep('form'); setNewVal(''); setSecCode(''); setSecErr(''); }}
+                  style={{ padding: '12px 14px', background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)', borderRadius: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter', fontSize: 12, color: 'rgba(0,212,255,0.85)' }}
+                >
+                  📧 Changer d'adresse email
+                </button>
+                <button
+                  onClick={() => { setSecAction('password'); setSecStep('form'); setNewVal(''); setSecCode(''); setSecErr(''); }}
+                  style={{ padding: '12px 14px', background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)', borderRadius: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter', fontSize: 12, color: 'rgba(0,212,255,0.85)' }}
+                >
+                  🔑 Changer de mot de passe
+                </button>
+              </div>
+            )}
+            {secAction && secStep === 'form' && (
+              <div style={{ padding: '14px', background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)', borderRadius: 14 }}>
+                <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: '#00d4ff', marginBottom: 10 }}>
+                  {secAction === 'email' ? '📧 Nouveau email' : '🔑 Nouveau mot de passe'}
+                </div>
+                <input
+                  value={newVal} onChange={e => setNewVal(e.target.value)}
+                  type={secAction === 'email' ? 'email' : 'password'}
+                  placeholder={secAction === 'email' ? 'nouveau@email.com' : 'Min. 8 caractères'}
+                  style={{ ...S.input, marginBottom: 10 }}
+                />
+                {secErr && <div style={S.errorText}>{secErr}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setSecAction(null); setSecErr(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Annuler</button>
+                  <button onClick={() => void requestChange(secAction)} disabled={secLoading || !newVal} style={{ flex: 2, padding: '10px', background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 10, cursor: secLoading || !newVal ? 'default' : 'pointer', fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#00d4ff' }}>
+                    {secLoading ? 'Envoi…' : 'Envoyer le code →'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {secAction && secStep === 'verify' && (
+              <div style={{ padding: '14px', background: 'rgba(0,212,255,0.04)', border: '1px solid rgba(0,212,255,0.12)', borderRadius: 14 }}>
+                <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: '#00d4ff', marginBottom: 6 }}>✉️ Code envoyé sur votre email actuel</div>
+                <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Valable 15 minutes.</div>
+                <input
+                  value={secCode} onChange={e => setSecCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000" maxLength={6}
+                  style={{ ...S.input, fontFamily: 'Orbitron', fontSize: 24, letterSpacing: '0.5em', textAlign: 'center', marginBottom: 10 }}
+                />
+                {secErr && <div style={S.errorText}>{secErr}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setSecStep('form'); setSecCode(''); setSecErr(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>← Retour</button>
+                  <button onClick={() => void confirmChange(secAction)} disabled={secLoading || secCode.length !== 6} style={{ flex: 2, padding: '10px', background: 'rgba(0,212,255,0.12)', border: '1px solid rgba(0,212,255,0.3)', borderRadius: 10, cursor: secLoading || secCode.length !== 6 ? 'default' : 'pointer', fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#00d4ff' }}>
+                    {secLoading ? 'Vérification…' : 'Confirmer la modification'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Cancel plan */}
+          {config?.plan && config.plan !== 'starter' && (
+            <div style={{ marginBottom: 12 }}>
+              <button
+                onClick={() => { if (window.confirm('Annuler l\'abonnement et retourner au plan Gratuit ?')) void doCancelPlan(); }}
+                style={{ width: '100%', padding: '12px', background: 'rgba(255,149,0,0.05)', border: '1px solid rgba(255,149,0,0.2)', borderRadius: 12, cursor: 'pointer', fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,149,0,0.8)' }}
+              >
+                ⚠️ Annuler l'abonnement → retour plan Gratuit
+              </button>
+            </div>
+          )}
+
+          {/* Delete account */}
+          <div style={{ marginBottom: 16, padding: '14px', background: 'rgba(255,51,102,0.04)', border: '1px solid rgba(255,51,102,0.12)', borderRadius: 14 }}>
+            <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 700, color: 'rgba(255,51,102,0.7)', marginBottom: 8 }}>⚠️ Zone dangereuse</div>
+            {delStep === 'idle' ? (
+              <>
+                {delErr && <div style={S.errorText}>{delErr}</div>}
+                <button onClick={() => void requestDelete()} disabled={delLoading} style={{ width: '100%', padding: '10px', background: 'rgba(255,51,102,0.06)', border: '1px solid rgba(255,51,102,0.2)', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter', fontSize: 12, color: '#ff3366' }}>
+                  {delLoading ? 'Envoi…' : '🗑 Supprimer mon compte définitivement'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+                  Code de confirmation envoyé par email. Valable 15 min.
+                </div>
+                <input
+                  value={delCode} onChange={e => setDelCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000" maxLength={6}
+                  style={{ ...S.input, fontFamily: 'Orbitron', fontSize: 24, letterSpacing: '0.5em', textAlign: 'center', marginBottom: 8 }}
+                />
+                {delErr && <div style={S.errorText}>{delErr}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setDelStep('idle'); setDelCode(''); setDelErr(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Annuler</button>
+                  <button onClick={() => void confirmDelete()} disabled={delLoading || delCode.length !== 6} style={{ flex: 2, padding: '10px', background: 'rgba(255,51,102,0.1)', border: '1px solid rgba(255,51,102,0.25)', borderRadius: 10, cursor: delLoading || delCode.length !== 6 ? 'default' : 'pointer', fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#ff3366' }}>
+                    {delLoading ? 'Suppression…' : '⚠️ Confirmer la suppression'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Logout */}
           <button
@@ -2003,6 +2207,257 @@ function ItemFormModal({ session, cfg, onClose, onCreated }: {
           {loading ? 'Ajout…' : `Ajouter ${cfg.itemLabel.toLowerCase()}`}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Forgot password ───────────────────────────────────────────────
+function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
+  const [email, setEmail]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [done, setDone]       = useState(false);
+  const [error, setError]     = useState('');
+
+  const submit = async () => {
+    if (!email) { setError('Email requis'); return; }
+    setLoading(true); setError('');
+    try {
+      await fetch(`${BACKEND}/api/saas/account/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      setDone(true);
+    } catch { setError('Erreur réseau'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div style={S.page}>
+      <div style={S.safeTop} />
+      <div style={S.formHeader}>
+        <button onClick={onBack} style={S.backBtn}>← Retour</button>
+        <div style={S.formTitle}>Mot de passe oublié</div>
+        <div style={{ width: 60 }} />
+      </div>
+      <div style={S.formScroll}>
+        {done ? (
+          <div style={{ textAlign: 'center', paddingTop: 40 }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
+            <div style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 12 }}>Email envoyé !</div>
+            <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>
+              Si cet email existe, un lien de réinitialisation a été envoyé.<br />Vérifiez votre boîte mail (spam inclus).
+            </div>
+            <button onClick={onBack} style={{ ...S.btnPrimary, marginTop: 24 }}>← Retour connexion</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 20, lineHeight: 1.6 }}>
+              Entrez votre adresse email. Si un compte existe, vous recevrez un lien de réinitialisation valable 1 heure.
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={S.inputLabel}>Adresse email</div>
+              <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="vous@example.com"
+                onKeyDown={e => e.key === 'Enter' && void submit()} style={S.input} />
+            </div>
+            {error && <div style={S.errorText}>{error}</div>}
+            <button onClick={() => void submit()} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
+              {loading ? 'Envoi…' : 'Envoyer le lien de réinitialisation'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Reset password ────────────────────────────────────────────────
+function ResetPasswordScreen({ token, onDone }: { token: string; onDone: () => void }) {
+  const [password, setPassword] = useState('');
+  const [password2, setPass2]   = useState('');
+  const [showPwd, setShowPwd]   = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [done, setDone]         = useState(false);
+  const [error, setError]       = useState('');
+
+  const submit = async () => {
+    if (!password || password.length < 8) { setError('Minimum 8 caractères'); return; }
+    if (password !== password2) { setError('Mots de passe différents'); return; }
+    setLoading(true); setError('');
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/account/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const d = await r.json() as { ok?: boolean; error?: string };
+      if (!r.ok) { setError(d.error ?? 'Lien invalide ou expiré'); return; }
+      setDone(true);
+      window.history.replaceState({}, '', window.location.pathname);
+      setTimeout(() => onDone(), 3000);
+    } catch { setError('Erreur réseau'); }
+    finally { setLoading(false); }
+  };
+
+  if (done) {
+    return (
+      <div style={{ ...S.page, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', gap: 16 }}>
+        <div style={{ fontSize: 56 }}>✅</div>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 16, fontWeight: 900, color: '#00d4ff', textAlign: 'center', letterSpacing: '0.15em' }}>MOT DE PASSE RÉINITIALISÉ</div>
+        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+          Connexion automatique dans quelques secondes…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={S.page}>
+      <div style={S.safeTop} />
+      <div style={S.formHeader}>
+        <div style={{ width: 60 }} />
+        <div style={S.formTitle}>Nouveau mot de passe</div>
+        <div style={{ width: 60 }} />
+      </div>
+      <div style={S.formScroll}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={S.inputLabel}>Nouveau mot de passe (min. 8 caractères)</div>
+          <div style={{ position: 'relative' }}>
+            <input value={password} onChange={e => setPassword(e.target.value)} type={showPwd ? 'text' : 'password'} placeholder="••••••••" style={{ ...S.input, paddingRight: 48 }} />
+            <button onClick={() => setShowPwd(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}>
+              {showPwd ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={S.inputLabel}>Confirmer le mot de passe</div>
+          <input value={password2} onChange={e => setPass2(e.target.value)} type="password" placeholder="••••••••"
+            style={{ ...S.input, borderColor: password2 && password !== password2 ? 'rgba(255,51,102,0.4)' : undefined }} />
+          {password2 && password !== password2 && (
+            <div style={{ fontFamily: 'Inter', fontSize: 10, color: '#ff3366', marginTop: 4 }}>Mots de passe différents</div>
+          )}
+        </div>
+        {error && <div style={S.errorText}>{error}</div>}
+        <button onClick={() => void submit()} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
+          {loading ? 'Réinitialisation…' : 'Réinitialiser mon mot de passe'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Admin tab (God Mode) ──────────────────────────────────────────
+interface AdminOrg {
+  org_id: string; name: string; plan: string; sector: string; ai_name: string;
+  city: string; email: string; messages_used: number; messages_limit: number;
+  last_login_at: string | null; created_at: string;
+}
+interface AdminStats {
+  total_orgs: number; pro_orgs: number; enterprise_orgs: number; free_orgs: number;
+  total_messages: number; estimated_revenue_dzd: number;
+}
+
+function AdminTab({ session }: { session: OrgSession }) {
+  const [orgs, setOrgs]       = useState<AdminOrg[]>([]);
+  const [stats, setStats]     = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg]         = useState('');
+  const headers = { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' };
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [sRes, oRes] = await Promise.all([
+        fetch(`${BACKEND}/api/saas/admin/stats`, { headers }),
+        fetch(`${BACKEND}/api/saas/admin/orgs`,  { headers }),
+      ]);
+      if (sRes.ok) setStats(await sRes.json() as AdminStats);
+      if (oRes.ok) setOrgs(await oRes.json() as AdminOrg[]);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const act = async (method: string, path: string, body?: object) => {
+    setMsg('');
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/admin${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const d = await r.json() as { message?: string; error?: string };
+      setMsg(d.message ?? d.error ?? '');
+      await load();
+    } catch { setMsg('Erreur réseau'); }
+  };
+
+  const PLAN_COLORS: Record<string, string> = { starter: '#ff9500', pro: 'rgba(124,58,237,0.9)', enterprise: '#00d4ff' };
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <span style={{ fontSize: 24 }}>👑</span>
+        <div>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 13, fontWeight: 700, color: '#00d4ff', letterSpacing: '0.15em' }}>GOD MODE</div>
+          <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Admin Dzaryx — Kouider</div>
+        </div>
+      </div>
+
+      {msg && (
+        <div style={{ padding: '10px 14px', background: 'rgba(0,212,255,0.07)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 10, marginBottom: 12, fontFamily: 'Inter', fontSize: 12, color: '#00d4ff' }}>
+          {msg}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', paddingTop: 40, fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>Chargement…</div>
+      ) : (
+        <>
+          {stats && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+              {[
+                { label: 'Total clients', value: String(stats.total_orgs),    color: '#00d4ff' },
+                { label: 'Plans Pro',     value: String(stats.pro_orgs),      color: 'rgba(124,58,237,0.9)' },
+                { label: 'Enterprise',   value: String(stats.enterprise_orgs), color: '#00e676' },
+                { label: 'Rev. estimé',  value: `${(stats.estimated_revenue_dzd / 1000).toFixed(0)}k DA`, color: '#ff9500' },
+              ].map(k => (
+                <div key={k.label} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${k.color}20`, borderRadius: 12 }}>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 18, fontWeight: 700, color: k.color }}>{k.value}</div>
+                  <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{k.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={S.sectionLabel}>Clients ({orgs.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {orgs.map(org => (
+              <div key={org.org_id} style={{ padding: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>{org.name}</div>
+                    <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{org.email}</div>
+                    <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 1 }}>{org.ai_name} · {org.sector} · {org.city}</div>
+                  </div>
+                  <div style={{ padding: '3px 8px', borderRadius: 8, background: `${PLAN_COLORS[org.plan] ?? '#888'}18`, border: `1px solid ${PLAN_COLORS[org.plan] ?? '#888'}30`, flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 700, color: PLAN_COLORS[org.plan] ?? '#888' }}>{org.plan.toUpperCase()}</span>
+                  </div>
+                </div>
+                <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.25)', marginBottom: 8 }}>
+                  {org.messages_used}/{org.messages_limit} msgs · Connexion : {org.last_login_at ? new Date(org.last_login_at).toLocaleDateString('fr-FR') : 'jamais'}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+                  {org.plan !== 'pro'        && <button onClick={() => void act('PATCH', `/org/${org.org_id}/plan`, { plan: 'pro' })}        style={S.microBtn('rgba(124,58,237,0.9)')}>→ Pro</button>}
+                  {org.plan !== 'enterprise' && <button onClick={() => void act('PATCH', `/org/${org.org_id}/plan`, { plan: 'enterprise' })} style={S.microBtn('#00d4ff')}>→ Ent.</button>}
+                  {org.plan !== 'starter'    && <button onClick={() => void act('PATCH', `/org/${org.org_id}/plan`, { plan: 'starter' })}    style={S.microBtn('#ff9500')}>→ Free</button>}
+                  {org.messages_limit > 0
+                    ? <button onClick={() => void act('POST', `/org/${org.org_id}/suspend`)}   style={S.microBtn('#ff3366')}>⏸ Suspend</button>
+                    : <button onClick={() => void act('POST', `/org/${org.org_id}/unsuspend`)} style={S.microBtn('#00e676')}>▶ Réactiver</button>}
+                  <button onClick={() => { if (window.confirm(`Supprimer ${org.name} définitivement ?`)) void act('DELETE', `/org/${org.org_id}`); }} style={S.microBtn('rgba(255,51,102,0.7)')}>🗑</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

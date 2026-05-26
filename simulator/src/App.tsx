@@ -3,9 +3,11 @@ import AppShell   from './components/Phone.tsx';
 import SaasPortal from './components/SaasPortal.tsx';
 
 function isSaasHash() {
+  const sp = new URLSearchParams(window.location.search);
   return window.location.hash === '#saas'
     || window.location.pathname.endsWith('/saas')
-    || new URLSearchParams(window.location.search).has('saas');
+    || sp.has('saas')
+    || sp.has('reset');
 }
 
 export default function App() {

@@ -116,12 +116,13 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
   res.status(201).json({
     token,
-    org_id:       org.id,
-    owner_key:    ownerKey,
+    org_id:        org.id,
+    email:         d.email,
+    owner_key:     ownerKey,
     business_name: d.business_name,
-    sector:       d.sector,
-    ai_name:      d.ai_name,
-    message:      `Bienvenue ! Votre assistant ${d.ai_name} est prêt.`,
+    sector:        d.sector,
+    ai_name:       d.ai_name,
+    message:       `Bienvenue ! Votre assistant ${d.ai_name} est prêt.`,
   });
 });
 
@@ -164,7 +165,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     sector:   cfg?.sector ?? 'custom',
   });
 
-  res.json({ token, org_id: auth.org_id, ai_name: cfg?.ai_name ?? 'Dzaryx', business_name: cfg?.business_name });
+  res.json({ token, org_id: auth.org_id, email, ai_name: cfg?.ai_name ?? 'Dzaryx', business_name: cfg?.business_name, sector: cfg?.sector ?? 'custom' });
 });
 
 // ── Get config (authenticated) ────────────────────────────────────
