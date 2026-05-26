@@ -102,9 +102,9 @@ router.get('/stats', requireSaasAuth, requireAdmin, async (_req: Request, res: R
   const ent_orgs     = orgs.filter(o => o.plan === 'enterprise').length;
   const free_orgs    = total_orgs - pro_orgs - ent_orgs;
   const total_msgs   = cfgs.reduce((s, c) => s + (c.messages_used as number ?? 0), 0);
-  const est_revenue  = pro_orgs * 2900 + ent_orgs * 9900;
+  const est_revenue_eur = pro_orgs * 29 + ent_orgs * 99;
 
-  res.json({ total_orgs, pro_orgs, enterprise_orgs: ent_orgs, free_orgs, total_messages: total_msgs, estimated_revenue_dzd: est_revenue });
+  res.json({ total_orgs, pro_orgs, enterprise_orgs: ent_orgs, free_orgs, total_messages: total_msgs, estimated_revenue_eur: est_revenue_eur });
 });
 
 // ── PATCH /api/saas/admin/org/:orgId/plan ────────────────────────

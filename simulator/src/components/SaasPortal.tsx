@@ -2372,7 +2372,7 @@ interface AdminOrg {
 }
 interface AdminStats {
   total_orgs: number; pro_orgs: number; enterprise_orgs: number; free_orgs: number;
-  total_messages: number; estimated_revenue_dzd: number;
+  total_messages: number; estimated_revenue_eur: number;
 }
 
 function AdminTab({ session }: { session: OrgSession }) {
@@ -2435,7 +2435,7 @@ function AdminTab({ session }: { session: OrgSession }) {
                 { label: 'Total clients', value: String(stats.total_orgs),    color: '#00d4ff' },
                 { label: 'Plans Pro',     value: String(stats.pro_orgs),      color: 'rgba(124,58,237,0.9)' },
                 { label: 'Enterprise',   value: String(stats.enterprise_orgs), color: '#00e676' },
-                { label: 'Rev. estimé',  value: `${(stats.estimated_revenue_dzd / 1000).toFixed(0)}k DA`, color: '#ff9500' },
+                { label: 'Rev. estimé',  value: `${stats.estimated_revenue_eur} €`, color: '#ff9500' },
               ].map(k => (
                 <div key={k.label} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${k.color}20`, borderRadius: 12 }}>
                   <div style={{ fontFamily: 'Orbitron', fontSize: 18, fontWeight: 700, color: k.color }}>{k.value}</div>
