@@ -37,8 +37,6 @@ jobs:
       - name: Expo Prebuild
         working-directory: dzaryx-native
         run: npx expo prebuild --platform android --clean --no-install
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Decode keystore
         run: |
