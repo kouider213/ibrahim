@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import Anthropic from '@anthropic-ai/sdk';
 import { requireSaasAuth } from '../middleware/auth.js';
 import { supabase } from '../../integrations/supabase.js';
-import { processWithOrchestration } from '../../orchestrator/orchestrator-engine.js';
-import { type OrgMember } from '../../orchestrator/org-resolver.js';
+import { env } from '../../config/env.js';
+
+const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
 const router = Router();
 
@@ -168,6 +170,9 @@ async function buildDataContext(orgId: string, cfg: Record<string, string>): Pro
   return ctx;
 }
 
+// Conversation history per session (in-memory, max 20 turns)
+const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>();
+
 // POST /api/saas/chat
 router.post('/chat', requireSaasAuth, async (req, res) => {
   const parsed = msgSchema.safeParse(req.body);
@@ -176,7 +181,7 @@ router.post('/chat', requireSaasAuth, async (req, res) => {
     return;
   }
 
-  const { message, sessionId, textOnly } = parsed.data;
+  const { message, sessionId } = parsed.data;
   const saasActor = req.saasActor!;
 
   const { data: cfg } = await supabase
@@ -187,30 +192,38 @@ router.post('/chat', requireSaasAuth, async (req, res) => {
 
   if (!cfg) { res.status(404).json({ error: 'Organisation non trouvée' }); return; }
 
-  if (cfg.messages_used >= cfg.messages_limit) {
+  if ((cfg.messages_used ?? 0) >= (cfg.messages_limit ?? 200)) {
     res.status(429).json({ error: `Limite mensuelle atteinte (${cfg.messages_limit} messages). Passez au plan supérieur.` });
     return;
   }
 
-  await supabase.from('org_configs').update({ messages_used: cfg.messages_used + 1 }).eq('org_id', saasActor.orgId);
+  await supabase.from('org_configs').update({ messages_used: (cfg.messages_used ?? 0) + 1 }).eq('org_id', saasActor.orgId);
 
-  // Build sector prompt + inject real business data
   const [sectorPrompt, dataContext] = await Promise.all([
     Promise.resolve(buildSectorPrompt(cfg as Record<string, string>)),
     buildDataContext(saasActor.orgId, cfg as Record<string, string>),
   ]);
 
-  const actor: OrgMember = {
-    orgId:       saasActor.orgId,
-    ownerKey:    saasActor.ownerKey,
-    role:        'owner',
-    displayName: cfg.business_name ?? saasActor.email,
-    systemPromptOverride: sectorPrompt + dataContext,
-  };
+  const history = sessionHistory.get(sessionId) ?? [];
+  history.push({ role: 'user', content: message });
+  if (history.length > 40) history.splice(0, history.length - 40);
 
-  res.status(202).json({ status: 'processing', sessionId, ai_name: cfg.ai_name ?? 'Dzaryx' });
+  try {
+    const response = await anthropic.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system:     sectorPrompt + dataContext,
+      messages:   history,
+    });
 
-  await processWithOrchestration(message, sessionId, textOnly, undefined, 'image/jpeg', actor);
+    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    history.push({ role: 'assistant', content: text });
+    sessionHistory.set(sessionId, history);
+
+    res.json({ text, ai_name: cfg.ai_name ?? 'Dzaryx' });
+  } catch (e) {
+    res.status(500).json({ error: 'Erreur AI. Réessayez.' });
+  }
 });
 
 export default router;

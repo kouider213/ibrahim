@@ -765,11 +765,18 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
     setThinking(true);
     setStreaming('');
     try {
-      await fetch(`${BACKEND}/api/saas/chat`, {
+      const res = await fetch(`${BACKEND}/api/saas/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
         body: JSON.stringify({ message: text, sessionId, textOnly: true }),
       });
+      const data = await res.json() as { text?: string; error?: string };
+      setThinking(false);
+      if (data.text) {
+        setMessages(prev => [...prev, { role: 'ai', text: data.text!, ts: Date.now() }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'ai', text: data.error ?? 'Erreur. Réessayez.', ts: Date.now() }]);
+      }
     } catch {
       setThinking(false);
       setMessages(prev => [...prev, { role: 'ai', text: 'Erreur de connexion. Réessayez.', ts: Date.now() }]);
