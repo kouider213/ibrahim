@@ -326,7 +326,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
 
       <div style={{ paddingBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, zIndex: 1 }}>
         <button
-          onClick={() => window.location.href = '/ibrahim/signup'}
+          onClick={() => { window.location.hash = 'saas'; }}
           style={{
             background: 'none',
             border: '1px solid rgba(0,212,255,0.2)',
@@ -453,7 +453,7 @@ function LoginScreen({
           )}
 
           <button
-            onClick={() => window.location.href = '/ibrahim/signup'}
+            onClick={() => { window.location.hash = 'saas'; }}
             style={{
               marginTop: 4, padding: '10px',
               background: 'none', border: 'none', cursor: 'pointer',

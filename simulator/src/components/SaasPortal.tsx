@@ -426,7 +426,7 @@ function OnboardingScreen({ session, onDone }: { session: OrgSession; onDone: ()
 
 // ── Signup ────────────────────────────────────────────────────────
 function SignupForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBack: () => void }) {
-  const [step, setStep]             = useState<'sector' | 'info'>('sector');
+  const [step, setStep]             = useState<'sector' | 'info' | 'done'>('sector');
   const [sector, setSector]         = useState('');
   const [businessName, setBusiness] = useState('');
   const [city, setCity]             = useState('');
@@ -435,12 +435,25 @@ function SignupForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBac
   const [aiName, setAiName]         = useState('Dzaryx');
   const [email, setEmail]           = useState('');
   const [password, setPassword]     = useState('');
+  const [password2, setPassword2]   = useState('');
+  const [showPwd, setShowPwd]       = useState(false);
+  const [showPwd2, setShowPwd2]     = useState(false);
+  const [terms, setTerms]           = useState(false);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
+  const [registeredEmail, setRegEmail] = useState('');
+
+  // Email validation
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const pwdMatch   = password === password2 && password2.length > 0;
+  const pwdStrong  = password.length >= 8;
 
   const submit = async () => {
     if (!businessName || !email || !password || !sector) { setError('Tous les champs sont requis'); return; }
-    if (password.length < 8) { setError('Mot de passe minimum 8 caractères'); return; }
+    if (!emailValid) { setError('Adresse email invalide'); return; }
+    if (!pwdStrong) { setError('Mot de passe minimum 8 caractères'); return; }
+    if (!pwdMatch) { setError('Les mots de passe ne correspondent pas'); return; }
+    if (!terms) { setError('Vous devez accepter les conditions d\'utilisation'); return; }
     setLoading(true); setError('');
     try {
       const r = await fetch(`${BACKEND}/api/saas/register`, {
@@ -448,12 +461,42 @@ function SignupForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBac
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, business_name: businessName, city, country, sector, language, ai_name: aiName }),
       });
-      const data = await r.json() as any;
-      if (!r.ok) { setError(data.error ?? 'Erreur inscription'); return; }
-      onAuth({ token: data.token, ai_name: data.ai_name ?? aiName, business_name: data.business_name, sector: data.sector ?? sector, org_id: data.org_id });
+      const data = await r.json() as Record<string, unknown>;
+      if (!r.ok) { setError((data['error'] as string) ?? 'Erreur inscription'); return; }
+      setRegEmail(email);
+      setStep('done');
+      // Auto-login after 3s
+      setTimeout(() => {
+        onAuth({ token: data['token'] as string, ai_name: (data['ai_name'] as string) ?? aiName, business_name: data['business_name'] as string, sector: (data['sector'] as string) ?? sector, org_id: data['org_id'] as string });
+      }, 3000);
     } catch { setError('Erreur réseau — réessayez'); }
     finally { setLoading(false); }
   };
+
+  if (step === 'done') {
+    return (
+      <div style={{ ...S.page, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px', gap: 20 }}>
+        <div style={{ fontSize: 56 }}>🎉</div>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 20, fontWeight: 900, color: '#00d4ff', textAlign: 'center', letterSpacing: '0.15em' }}>
+          COMPTE CRÉÉ !
+        </div>
+        <div style={{ fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.6)', textAlign: 'center', lineHeight: 1.6 }}>
+          Un email de confirmation a été envoyé à<br />
+          <span style={{ color: '#00d4ff', fontWeight: 600 }}>{registeredEmail}</span>
+        </div>
+        <div style={{ padding: '16px', background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)', borderRadius: 14, width: '100%' }}>
+          <div style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
+            📧 Vérifiez votre boîte mail (spam inclus)<br />
+            📱 Téléchargez l'app Dzaryx depuis le lien dans l'email<br />
+            🤖 Votre assistant <strong style={{ color: '#00d4ff' }}>{aiName}</strong> est prêt à vous aider
+          </div>
+        </div>
+        <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>
+          Connexion automatique dans quelques secondes…
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={S.page}>
@@ -498,7 +541,7 @@ function SignupForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBac
           <>
             <div style={S.sectionLabel}>Informations de votre business</div>
             {[
-              { label: 'Nom du business', value: businessName, set: setBusiness, placeholder: 'Ex: La Fourchette, Cabinet Benali' },
+              { label: 'Nom du business *', value: businessName, set: setBusiness, placeholder: 'Ex: La Fourchette, Cabinet Benali' },
               { label: 'Ville', value: city, set: setCity, placeholder: 'Ex: Alger, Oran, Paris' },
               { label: 'Pays', value: country, set: setCountry, placeholder: 'Ex: Algeria, France' },
             ].map(f => (
@@ -526,20 +569,84 @@ function SignupForm({ onAuth, onBack }: { onAuth: (s: OrgSession) => void; onBac
             <div style={S.divider} />
             <div style={S.sectionLabel}>Votre compte</div>
 
-            {[
-              { label: 'Email', value: email, set: setEmail, type: 'email', placeholder: 'vous@example.com' },
-              { label: 'Mot de passe (min. 8 caractères)', value: password, set: setPassword, type: 'password', placeholder: '••••••••' },
-            ].map(f => (
-              <div key={f.label} style={{ marginBottom: 14 }}>
-                <div style={S.inputLabel}>{f.label}</div>
-                <input value={f.value} onChange={e => f.set(e.target.value)} type={f.type} placeholder={f.placeholder} style={S.input} />
+            {/* Email */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={S.inputLabel}>Adresse email *</div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={email} onChange={e => setEmail(e.target.value)}
+                  type="email" placeholder="vous@example.com"
+                  style={{ ...S.input, paddingRight: 36, borderColor: email && !emailValid ? 'rgba(255,51,102,0.4)' : undefined }}
+                />
+                {email && (
+                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14 }}>
+                    {emailValid ? '✅' : '❌'}
+                  </span>
+                )}
               </div>
-            ))}
+            </div>
+
+            {/* Password */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={S.inputLabel}>Mot de passe * (min. 8 caractères)</div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={password} onChange={e => setPassword(e.target.value)}
+                  type={showPwd ? 'text' : 'password'} placeholder="••••••••"
+                  style={{ ...S.input, paddingRight: 48, borderColor: password && !pwdStrong ? 'rgba(255,51,102,0.4)' : undefined }}
+                />
+                <button
+                  onClick={() => setShowPwd(p => !p)}
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+                >
+                  {showPwd ? '🙈' : '👁️'}
+                </button>
+              </div>
+              {password && !pwdStrong && (
+                <div style={{ fontFamily: 'Inter', fontSize: 10, color: '#ff3366', marginTop: 4 }}>Minimum 8 caractères</div>
+              )}
+            </div>
+
+            {/* Confirm password */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={S.inputLabel}>Confirmer le mot de passe *</div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={password2} onChange={e => setPassword2(e.target.value)}
+                  type={showPwd2 ? 'text' : 'password'} placeholder="••••••••"
+                  style={{ ...S.input, paddingRight: 48, borderColor: password2 && !pwdMatch ? 'rgba(255,51,102,0.4)' : password2 && pwdMatch ? 'rgba(0,230,118,0.4)' : undefined }}
+                />
+                <button
+                  onClick={() => setShowPwd2(p => !p)}
+                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+                >
+                  {showPwd2 ? '🙈' : '👁️'}
+                </button>
+              </div>
+              {password2 && (
+                <div style={{ fontFamily: 'Inter', fontSize: 10, marginTop: 4, color: pwdMatch ? '#00e676' : '#ff3366' }}>
+                  {pwdMatch ? '✓ Mots de passe identiques' : '✗ Mots de passe différents'}
+                </div>
+              )}
+            </div>
+
+            {/* Terms */}
+            <div
+              onClick={() => setTerms(t => !t)}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${terms ? 'rgba(0,212,255,0.2)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 12, marginBottom: 16, cursor: 'pointer' }}
+            >
+              <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${terms ? '#00d4ff' : 'rgba(255,255,255,0.2)'}`, background: terms ? 'rgba(0,212,255,0.15)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                {terms && <span style={{ color: '#00d4ff', fontSize: 12, fontWeight: 700 }}>✓</span>}
+              </div>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>
+                J'accepte les <span style={{ color: '#00d4ff' }}>conditions d'utilisation</span> et la <span style={{ color: '#00d4ff' }}>politique de confidentialité</span> de Dzaryx. Je confirme que les informations fournies sont exactes.
+              </div>
+            </div>
 
             {error && <div style={S.errorText}>{error}</div>}
 
-            <button onClick={submit} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
-              {loading ? 'Création en cours…' : `Créer mon ${aiName}`}
+            <button onClick={() => void submit()} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
+              {loading ? 'Création en cours…' : `Créer mon ${aiName} →`}
             </button>
             <button onClick={() => setStep('sector')} style={{ ...S.btnSecondary, marginTop: 8 }}>← Changer de secteur</button>
           </>

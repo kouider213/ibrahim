@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { supabase } from '../../integrations/supabase.js';
 import { signSaasToken, verifySaasToken } from '../../auth/saas-jwt.js';
 import { extractBearerToken } from '../../auth/tokens.js';
+import { sendRegistrationEmail } from '../../notifications/email.js';
 
 const router = Router();
 
@@ -105,7 +106,12 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     password_hash,
   });
 
-  // 5. Return JWT
+  // 5. Send registration confirmation email (non-blocking)
+  sendRegistrationEmail(d.email, d.ai_name, d.business_name).catch(e =>
+    console.error('[saas] registration email error:', e)
+  );
+
+  // 6. Return JWT
   const token = signSaasToken({ orgId: org.id, email: d.email, ownerKey, sector: d.sector });
 
   res.status(201).json({
