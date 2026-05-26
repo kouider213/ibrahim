@@ -1,21 +1,31 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { storePushToken, getPushToken } from '../../notifications/mobile-push.js';
+import { isFcmToken } from '../../notifications/fcm.js';
 import { storeWebSub, getVapidPublicKey, isWebPushConfigured } from '../../notifications/web-push-service.js';
 import type { PushSubscription } from 'web-push';
 
 const router = Router();
 
-// POST /api/push-token — Expo push token (native APK)
+// POST /api/push-token/debug — step-by-step registration diagnostics from native app
+router.post('/debug', requireMobileAuth, async (req, res) => {
+  const { step, detail, platform, ts } = req.body as { step?: string; detail?: string; platform?: string; ts?: number };
+  console.log(`[push-debug] ${platform ?? '?'} | ${step ?? '?'} | ${detail ?? ''} | t=${ts ?? 0}`);
+  res.json({ ok: true });
+});
+
+// POST /api/push-token — Expo push token OR raw FCM token (native APK)
 router.post('/', requireMobileAuth, async (req, res) => {
   const { token } = req.body as { token?: string };
-  if (!token?.startsWith('ExponentPushToken[')) {
-    res.status(400).json({ error: 'Invalid Expo push token' });
+  const isExpo = token?.startsWith('ExponentPushToken[');
+  const isFcm  = token ? isFcmToken(token) : false;
+  if (!token || (!isExpo && !isFcm)) {
+    res.status(400).json({ error: 'Invalid push token' });
     return;
   }
   const actorId = req.mobileActor?.ownerKey ?? 'kouider';
   await storePushToken(token, actorId);
-  res.json({ ok: true, actorId });
+  res.json({ ok: true, actorId, type: isExpo ? 'expo' : 'fcm' });
 });
 
 // POST /api/push-token/web — Web Push subscription (PWA browser)
