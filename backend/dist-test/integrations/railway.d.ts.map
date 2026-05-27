@@ -1,0 +1,1 @@
+{"version":3,"file":"railway.d.ts","sourceRoot":"","sources":["../../src/integrations/railway.ts"],"names":[],"mappings":"AAsBA,wBAAsB,yBAAyB,IAAI,OAAO,CAAC;IAAE,EAAE,EAAE,MAAM,CAAC;IAAC,MAAM,EAAE,MAAM,CAAA;CAAE,GAAG,IAAI,CAAC,CAoBhG;AAED,wBAAsB,aAAa,CAAC,SAAS,SAAU,GAAG,OAAO,CAAC,MAAM,CAAC,CAqCxE;AAED,wBAAsB,cAAc,CAAC,KAAK,SAAK,GAAG,OAAO,CAAC,MAAM,CAAC,CA+ChE"}

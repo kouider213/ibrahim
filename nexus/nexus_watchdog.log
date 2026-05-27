@@ -1,0 +1,10 @@
+[WATCHDOG] 2026-05-16 07:23:41 Nexus Watchdog started
+[WATCHDOG] 2026-05-16 07:23:41 Launching: C:\Users\douba\AppData\Local\Python\pythoncore-3.14-64\python.exe nexus.py  cwd=C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus
+[WATCHDOG] 2026-05-20 11:49:34 Nexus Watchdog started
+[WATCHDOG] 2026-05-20 11:49:34 Launching: C:\Users\douba\AppData\Local\Python\pythoncore-3.14-64\python.exe nexus.py  cwd=C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus
+[WATCHDOG] 2026-05-23 17:28:44 Nexus crashed exit=15 uptime=279570.0s quick=False restart=1/10
+[WATCHDOG] 2026-05-23 17:28:44 Waiting 5s before restart…
+[WATCHDOG] 2026-05-23 17:28:49 Launching: C:\Users\douba\AppData\Local\Python\pythoncore-3.14-64\python.exe nexus.py  cwd=C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus
+[WATCHDOG] 2026-05-25 11:09:23 Nexus Watchdog started
+[WATCHDOG] 2026-05-25 11:09:23 [watchdog] notify (no token): 🛡️ *Nexus Watchdog* démarré — surveillance active
+[WATCHDOG] 2026-05-25 11:09:23 Launching: C:\Users\douba\AppData\Local\Python\pythoncore-3.14-64\python.exe nexus.py  cwd=C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\nexus

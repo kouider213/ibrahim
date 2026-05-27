@@ -89,3 +89,42 @@
 {"ts": "2026-05-12T13:50:51.085624+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_b64_sent size_bytes=150169"}
 {"ts": "2026-05-12T13:50:59.303306+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_b64_sent size_bytes=150169"}
 {"ts": "2026-05-12T13:51:05.673391+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_b64_sent size_bytes=150169"}
+{"ts": "2026-05-12T14:23:47.846567+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=140322"}
+{"ts": "2026-05-12T14:38:37.281412+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: cmd /c start \"\" \"https://claude.ai\""}
+{"ts": "2026-05-12T14:38:43.465112+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: cmd /c start \"\" \"https://github.com\""}
+{"ts": "2026-05-12T14:39:01.061599+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=100581"}
+{"ts": "2026-05-12T15:24:47.281720+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: start /B python nexus_watchdog.py"}
+{"ts": "2026-05-14T08:03:57.762532+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=203999"}
+{"ts": "2026-05-14T11:40:25.181779+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=146412"}
+{"ts": "2026-05-14T11:43:24.403082+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=146412"}
+{"ts": "2026-05-14T15:08:57.604710+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=100322"}
+{"ts": "2026-05-15T11:06:03.118449+00:00", "channel": "general", "level": "INFO", "msg": "write_file ✅ path=C:\\Users\\douba\\OneDrive\\Bureau\\ibrahim\\ibrahim\\nexus\\nexus_launcher_tmp.py size=531"}
+{"ts": "2026-05-15T11:06:03.171886+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: \"C:\\Users\\douba\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe\" nexus_launch"}
+{"ts": "2026-05-15T11:06:50.095403+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python -c \"import sys, os; print('EXE:' + sys.executable); print('CWD:' + os.get"}
+{"ts": "2026-05-15T11:06:50.418483+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python -c \"import os; print('PID:' + str(os.getpid()))\""}
+{"ts": "2026-05-15T11:06:51.047924+00:00", "channel": "general", "level": "INFO", "msg": "write_file ✅ path=.\\nexus_launcher_tmp.py size=361"}
+{"ts": "2026-05-15T11:06:51.386427+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python nexus_launcher_tmp.py"}
+{"ts": "2026-05-15T11:39:17.105835+00:00", "channel": "general", "level": "INFO", "msg": "find_obsidian_vault ✅ found=3 vaults=['C:\\\\Users\\\\douba\\\\OneDrive\\\\Bureau\\\\ibrahim\\\\brain dzaryx', 'C:\\\\Users\\\\douba\\\\OneDrive\\\\Bureau\\\\ibrahim\\\\ibrahim', 'C:\\\\Users\\\\douba\\\\OneDrive\\\\Bureau\\\\ibrahim\\\\ibrahim\\\\dzaryx avancement']"}
+{"ts": "2026-05-15T12:02:31.136070+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python -c \"import sys, os; print('EXE:' + sys.executable); print('CWD:' + os.get"}
+{"ts": "2026-05-15T12:02:31.386754+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python -c \"import os; print('PID:' + str(os.getpid()))\""}
+{"ts": "2026-05-15T12:02:31.690576+00:00", "channel": "general", "level": "INFO", "msg": "write_file ✅ path=.\\nexus_launcher_tmp.py size=361"}
+{"ts": "2026-05-15T12:02:31.744274+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python nexus_launcher_tmp.py"}
+{"ts": "2026-05-15T12:04:13.396735+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python -c \"import os,sys; print('EXE:'+sys.executable); print('CWD:'+os.getcwd()"}
+{"ts": "2026-05-15T12:05:21.961586+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python -c \"import sys, os; print('EXE:' + sys.executable); print('CWD:' + os.get"}
+{"ts": "2026-05-15T12:05:22.278426+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python -c \"import os; print('PID:' + str(os.getpid()))\""}
+{"ts": "2026-05-15T12:05:22.618366+00:00", "channel": "general", "level": "INFO", "msg": "write_file ✅ path=.\\nexus_launcher_tmp.py size=361"}
+{"ts": "2026-05-15T12:05:22.680734+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: python nexus_launcher_tmp.py"}
+{"ts": "2026-05-15T12:09:33.947750+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: C:\\Users\\douba\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe -c \"import os;"}
+{"ts": "2026-05-15T12:09:34.052768+00:00", "channel": "general", "level": "INFO", "msg": "write_file ✅ path=C:\\Users\\douba\\OneDrive\\Bureau\\ibrahim\\ibrahim\\nexus\\nexus_launcher_tmp.py size=419"}
+{"ts": "2026-05-15T12:09:34.068791+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: C:\\Users\\douba\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe nexus_launcher"}
+{"ts": "2026-05-15T12:15:04.477849+00:00", "channel": "general", "level": "INFO", "msg": "self_restart requested by backend — exiting for watchdog relaunching"}
+{"ts": "2026-05-16T05:31:34.839175+00:00", "channel": "general", "level": "INFO", "msg": "find_obsidian_vault ✅ found=3 vaults=['C:\\\\Users\\\\douba\\\\OneDrive\\\\Bureau\\\\ibrahim\\\\brain dzaryx', 'C:\\\\Users\\\\douba\\\\OneDrive\\\\Bureau\\\\ibrahim\\\\ibrahim', 'C:\\\\Users\\\\douba\\\\OneDrive\\\\Bureau\\\\ibrahim\\\\ibrahim\\\\dzaryx avancement']"}
+{"ts": "2026-05-22T12:32:57.426084+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=81674"}
+{"ts": "2026-05-22T12:33:08.203063+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=81674"}
+{"ts": "2026-05-22T12:33:41.946485+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=81674"}
+{"ts": "2026-05-22T12:35:21.133048+00:00", "channel": "general", "level": "INFO", "msg": "screenshot_sent size_bytes=63486"}
+{"ts": "2026-05-22T12:37:11.703125+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: cmd /c start \"\" \"https://claude.ai\""}
+{"ts": "2026-05-22T12:37:45.020617+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: cmd /c start \"\" \"https://claude.ai\""}
+{"ts": "2026-05-23T15:27:14.690309+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: wt.exe"}
+{"ts": "2026-05-23T15:27:17.025540+00:00", "channel": "general", "level": "WARNING", "msg": "unknown_cmd_prefix: wt.exe"}
+{"ts": "2026-05-23T15:28:43.101098+00:00", "channel": "general", "level": "INFO", "msg": "self_restart requested by backend — exiting for watchdog relaunching"}

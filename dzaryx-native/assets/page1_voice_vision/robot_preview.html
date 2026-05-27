@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>DzaryxRobot — Preview 5 États</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@400;600&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #000000;
+    color: #fff;
+    font-family: 'Exo 2', sans-serif;
+    min-height: 100vh;
+    padding: 30px 20px;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  header h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px;
+    color: #00d4ff;
+    letter-spacing: 0.4em;
+    text-shadow: 0 0 20px #00d4ff66;
+    margin-bottom: 8px;
+  }
+  header p {
+    font-size: 11px;
+    color: #ffffff44;
+    letter-spacing: 0.2em;
+  }
+  .grid {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 200px;
+  }
+  .robot-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 20px;
+    border: 1px solid var(--col);
+    background: radial-gradient(ellipse at center, color-mix(in srgb, var(--col) 8%, transparent), transparent 70%);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--col) 20%, transparent),
+                inset 0 0 20px color-mix(in srgb, var(--col) 5%, transparent);
+    animation: float 3s ease-in-out infinite;
+    animation-delay: var(--delay, 0s);
+    overflow: hidden;
+  }
+  .robot-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      color-mix(in srgb, var(--col) 3%, transparent) 3px,
+      color-mix(in srgb, var(--col) 3%, transparent) 4px
+    );
+    pointer-events: none;
+  }
+  .robot-wrap img {
+    width: 180px;
+    height: 180px;
+    object-fit: contain;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 12px var(--col));
+  }
+  .state-badge {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: var(--col);
+    text-shadow: 0 0 8px var(--col);
+    padding: 4px 12px;
+    border: 1px solid var(--col);
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--col) 10%, transparent);
+  }
+  .state-meta {
+    text-align: center;
+  }
+  .state-meta .hex {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    color: var(--col);
+    opacity: 0.7;
+    margin-bottom: 4px;
+  }
+  .state-meta .desc {
+    font-size: 10px;
+    color: #ffffff55;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+  }
+  .verify-bar {
+    width: 100%;
+    background: #0a1020;
+    border: 1px solid #00d4ff15;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 9px;
+    color: #ffffff55;
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+  .verify-bar span { color: #00e676; }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+  }
+  /* Corner brackets */
+  .corner { position: absolute; width: 14px; height: 14px; }
+  .corner.tl { top: 6px; left: 6px;  border-top: 1.5px solid var(--col); border-left: 1.5px solid var(--col); }
+  .corner.tr { top: 6px; right: 6px; border-top: 1.5px solid var(--col); border-right: 1.5px solid var(--col); }
+  .corner.bl { bottom: 6px; left: 6px;  border-bottom: 1.5px solid var(--col); border-left: 1.5px solid var(--col); }
+  .corner.br { bottom: 6px; right: 6px; border-bottom: 1.5px solid var(--col); border-right: 1.5px solid var(--col); }
+
+  /* Bottom info strip */
+  .info-strip {
+    margin-top: 50px;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+    border-top: 1px solid #00d4ff12;
+    padding-top: 24px;
+  }
+  .info-block { text-align: center; }
+  .info-block .label {
+    font-family: 'Orbitron', monospace;
+    font-size: 8px;
+    color: #00d4ff44;
+    letter-spacing: 0.3em;
+    margin-bottom: 4px;
+  }
+  .info-block .value {
+    font-size: 12px;
+    color: #00e676;
+    font-family: 'Orbitron', monospace;
+    letter-spacing: 0.1em;
+  }
+
+  /* Quality badge */
+  .quality {
+    margin-top: 30px;
+    text-align: center;
+    padding: 12px 20px;
+    border: 1px solid #ffaa0033;
+    border-radius: 10px;
+    background: #ffaa0008;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .quality h3 {
+    font-family: 'Orbitron', monospace;
+    font-size: 9px;
+    color: #ffaa00;
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+  }
+  .quality p {
+    font-size: 10px;
+    color: #ffffff77;
+    line-height: 1.7;
+  }
+  .quality .ok  { color: #00e676; }
+  .quality .warn { color: #ffaa00; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DZARYX ROBOT — 5 ÉTATS</h1>
+  <p>PREVIEW PAGE · PNG 2048×2048 TRANSPARENT · REACT NATIVE / EXPO READY</p>
+</header>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="robot-wrap" style="--col:#00d4ff;--delay:0s">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <img src="robot_png/robot_idle.png" alt="idle">
+    </div>
+    <div class="state-badge" style="--col:#00d4ff">IDLE</div>
+    <div class="state-meta" style="--col:#00d4ff">
+      <div class="hex">#00D4FF</div>
+      <div class="desc">En attente<br>Sourire · Yeux LED calmes</div>
+    </div>
+    <div class="verify-bar">2048×2048 · RGBA · <span>602 KB</span></div>
+  </div>
+
+  <div class="card">
+    <div class="robot-wrap" style="--col:#00d4ff;--delay:0.4s">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <img src="robot_png/robot_listening.png" alt="listening">
+    </div>
+    <div class="state-badge" style="--col:#00d4ff">LISTENING</div>
+    <div class="state-meta" style="--col:#00d4ff">
+      <div class="hex">#00D4FF</div>
+      <div class="desc">Écoute active<br>Barres hautes · Ondes latérales</div>
+    </div>
+    <div class="verify-bar">2048×2048 · RGBA · <span>592 KB</span></div>
+  </div>
+
+  <div class="card">
+    <div class="robot-wrap" style="--col:#ffaa00;--delay:0.8s">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <img src="robot_png/robot_thinking.png" alt="thinking">
+    </div>
+    <div class="state-badge" style="--col:#ffaa00">THINKING</div>
+    <div class="state-meta" style="--col:#ffaa00">
+      <div class="hex">#FFAA00</div>
+      <div class="desc">Réflexion<br>Halos orbitaux · Yeux levés · …</div>
+    </div>
+    <div class="verify-bar">2048×2048 · RGBA · <span>724 KB</span></div>
+  </div>
+
+  <div class="card">
+    <div class="robot-wrap" style="--col:#00e676;--delay:1.2s">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <img src="robot_png/robot_speaking.png" alt="speaking">
+    </div>
+    <div class="state-badge" style="--col:#00e676">SPEAKING</div>
+    <div class="state-meta" style="--col:#00e676">
+      <div class="hex">#00E676</div>
+      <div class="desc">Parole<br>Bouche ouverte · Waveform</div>
+    </div>
+    <div class="verify-bar">2048×2048 · RGBA · <span>510 KB</span></div>
+  </div>
+
+  <div class="card">
+    <div class="robot-wrap" style="--col:#9b59b6;--delay:1.6s">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <img src="robot_png/robot_vision.png" alt="vision">
+    </div>
+    <div class="state-badge" style="--col:#9b59b6">VISION</div>
+    <div class="state-meta" style="--col:#9b59b6">
+      <div class="hex">#9B59B6</div>
+      <div class="desc">Vision IA<br>Yeux caméra · Diaphragme · Scan</div>
+    </div>
+    <div class="verify-bar">2048×2048 · RGBA · <span>494 KB</span></div>
+  </div>
+
+</div>
+
+<div class="info-strip">
+  <div class="info-block">
+    <div class="label">FORMAT</div>
+    <div class="value">PNG RGBA</div>
+  </div>
+  <div class="info-block">
+    <div class="label">RÉSOLUTION</div>
+    <div class="value">2048×2048</div>
+  </div>
+  <div class="info-block">
+    <div class="label">ALPHA</div>
+    <div class="value">TYPE 6 ✓</div>
+  </div>
+  <div class="info-block">
+    <div class="label">FOND NOIR</div>
+    <div class="value">AUCUN ✓</div>
+  </div>
+  <div class="info-block">
+    <div class="label">EXPO/RN</div>
+    <div class="value">COMPATIBLE ✓</div>
+  </div>
+  <div class="info-block">
+    <div class="label">SOURCE</div>
+    <div class="value">SVG → resvg</div>
+  </div>
+</div>
+
+<div class="quality">
+  <h3>⚠ ÉVALUATION QUALITÉ</h3>
+  <p>
+    <span class="ok">✓ Structure correcte</span> — tête sphérique chromée, yeux LED, oreilles disques, corps DZARYX, plateforme holographique, antenne.<br>
+    <span class="ok">✓ Transparence réelle</span> — fond alpha, exportable sur n'importe quel fond.<br>
+    <span class="ok">✓ Différenciation états</span> — couleurs, barres audio, bouche, yeux spécifiques à chaque état.<br>
+    <span class="warn">⚠ Style 2D vectoriel</span> — rendu SVG flat, pas de modélisation 3D photorealistic comme la référence.<br>
+    <span class="warn">⚠ Recommandation</span> — pour les assets finaux de production, confier à un designer 3D (Blender / Cinema4D) ou utiliser ces fichiers comme <strong>placeholders structurels</strong> fidèles à l'anatomie du robot.
+  </p>
+</div>
+
+</body>
+</html>

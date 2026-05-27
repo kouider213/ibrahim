@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 290 355" fill="none">
+<defs>
+  <filter id="g6" x="-60%" y="-60%" width="220%" height="220%">
+    <feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="g3" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <radialGradient id="hm" cx="38%" cy="30%" r="65%">
+    <stop offset="0%" stop-color="#3a1858"/><stop offset="35%" stop-color="#160a28"/><stop offset="100%" stop-color="#060212"/>
+  </radialGradient>
+  <radialGradient id="em" cx="30%" cy="30%" r="65%">
+    <stop offset="0%" stop-color="#301048"/><stop offset="100%" stop-color="#06020e"/>
+  </radialGradient>
+  <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%" stop-color="#1a0c30"/><stop offset="100%" stop-color="#080318"/>
+  </linearGradient>
+  <radialGradient id="eye" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#ddb8ff"/><stop offset="45%" stop-color="#9b59b6"/><stop offset="100%" stop-color="#9b59b600"/>
+  </radialGradient>
+  <radialGradient id="pg" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#9b59b655"/><stop offset="100%" stop-color="#9b59b600"/>
+  </radialGradient>
+  <radialGradient id="iris" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#9b59b6"/><stop offset="40%" stop-color="#6a1d9a"/><stop offset="100%" stop-color="#2d0845"/>
+  </radialGradient>
+</defs>
+
+<!-- PLATFORM -->
+<ellipse cx="145" cy="346" rx="90" ry="13" fill="url(#pg)"/>
+<ellipse cx="145" cy="346" rx="89" ry="12" fill="none" stroke="#9b59b6" stroke-width="0.6" opacity="0.5"/>
+<ellipse cx="145" cy="346" rx="62" ry="7" fill="none" stroke="#9b59b6" stroke-width="0.9" opacity="0.8" filter="url(#g3)"/>
+
+<!-- Scan arc in front (radar sweep) -->
+<path d="M 75 155 A 70 70 0 0 1 215 155" fill="none" stroke="#9b59b6" stroke-width="1.2" opacity="0.35" stroke-dasharray="4 3"/>
+<path d="M 80 145 A 68 68 0 0 1 210 145" fill="none" stroke="#9b59b6" stroke-width="0.7" opacity="0.2"/>
+
+<!-- LEFT EAR — low activity -->
+<circle cx="45" cy="155" r="43" fill="url(#em)" stroke="#9b59b6" stroke-width="0.7" opacity="0.75"/>
+<circle cx="45" cy="155" r="36" fill="none" stroke="#9b59b6" stroke-width="0.3" opacity="0.18"/>
+<rect x="8"  y="154" width="3" height="2"  rx="1" fill="#9b59b6" opacity="0.35"/>
+<rect x="13" y="152" width="3" height="6"  rx="1.5" fill="#9b59b6" opacity="0.5"/>
+<rect x="18" y="150" width="3" height="10" rx="1.5" fill="#9b59b6" opacity="0.65"/>
+<rect x="23" y="148" width="3" height="14" rx="1.5" fill="#9b59b6" opacity="0.78"/>
+<rect x="28" y="150" width="3" height="10" rx="1.5" fill="#9b59b6" opacity="0.65"/>
+<rect x="33" y="152" width="3" height="6"  rx="1.5" fill="#9b59b6" opacity="0.5"/>
+<rect x="38" y="154" width="3" height="2"  rx="1" fill="#9b59b6" opacity="0.35"/>
+
+<!-- RIGHT EAR — low activity -->
+<circle cx="245" cy="155" r="43" fill="url(#em)" stroke="#9b59b6" stroke-width="0.7" opacity="0.75"/>
+<circle cx="245" cy="155" r="36" fill="none" stroke="#9b59b6" stroke-width="0.3" opacity="0.18"/>
+<rect x="251" y="154" width="3" height="2"  rx="1" fill="#9b59b6" opacity="0.35"/>
+<rect x="256" y="152" width="3" height="6"  rx="1.5" fill="#9b59b6" opacity="0.5"/>
+<rect x="261" y="150" width="3" height="10" rx="1.5" fill="#9b59b6" opacity="0.65"/>
+<rect x="266" y="148" width="3" height="14" rx="1.5" fill="#9b59b6" opacity="0.78"/>
+<rect x="271" y="150" width="3" height="10" rx="1.5" fill="#9b59b6" opacity="0.65"/>
+<rect x="276" y="152" width="3" height="6"  rx="1.5" fill="#9b59b6" opacity="0.5"/>
+<rect x="281" y="154" width="3" height="2"  rx="1" fill="#9b59b6" opacity="0.35"/>
+
+<!-- HEAD sphere -->
+<circle cx="145" cy="155" r="103" fill="none" stroke="#9b59b6" stroke-width="0.8" opacity="0.1"/>
+<circle cx="145" cy="155" r="100" fill="url(#hm)" stroke="#9b59b618" stroke-width="1"/>
+<ellipse cx="110" cy="108" rx="38" ry="24" fill="white" opacity="0.05" transform="rotate(-20 110 108)"/>
+
+<!-- NECK -->
+<rect x="125" y="252" width="40" height="18" rx="6" fill="#060210" stroke="#9b59b61a" stroke-width="1"/>
+<line x1="133" y1="255" x2="133" y2="267" stroke="#9b59b6" stroke-width="0.5" opacity="0.18"/>
+<line x1="145" y1="255" x2="145" y2="267" stroke="#9b59b6" stroke-width="0.5" opacity="0.28"/>
+<line x1="157" y1="255" x2="157" y2="267" stroke="#9b59b6" stroke-width="0.5" opacity="0.18"/>
+
+<!-- BODY -->
+<rect x="72" y="264" width="146" height="76" rx="16" fill="url(#bg)" stroke="#9b59b6" stroke-width="0.8" opacity="0.72"/>
+<rect x="82" y="264" width="126" height="3" rx="1.5" fill="#9b59b6" opacity="0.1"/>
+<rect x="72" y="280" width="3" height="30" rx="1.5" fill="#9b59b6" opacity="0.2"/>
+<rect x="215" y="280" width="3" height="30" rx="1.5" fill="#9b59b6" opacity="0.2"/>
+<text x="145" y="291" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#9b59b6" text-anchor="middle" letter-spacing="3" filter="url(#g3)" opacity="0.85">DZARYX</text>
+<line x1="82" y1="302" x2="208" y2="302" stroke="#9b59b6" stroke-width="0.5" opacity="0.2"/>
+<circle cx="100" cy="315" r="4" fill="#9b59b6" filter="url(#g3)" opacity="0.85"/>
+<circle cx="114" cy="315" r="4" fill="#bb79d6" opacity="0.6"/>
+<circle cx="128" cy="315" r="3.5" fill="#9b59b6" opacity="0.42"/>
+<circle cx="141" cy="315" r="3" fill="#9b59b6" opacity="0.25"/>
+<rect x="155" y="311" width="42" height="8" rx="4" fill="#9b59b608" stroke="#9b59b622" stroke-width="0.5"/>
+<rect x="157" y="313" width="22" height="4" rx="2" fill="#9b59b6" opacity="0.42"/>
+
+<!-- VISOR with scan overlay -->
+<rect x="75" y="128" width="140" height="60" rx="12" fill="#040108" opacity="0.94"/>
+<rect x="75" y="128" width="140" height="60" rx="12" fill="none" stroke="#9b59b6" stroke-width="0.6" opacity="0.35"/>
+<!-- Visor scan lines (denser, more intense) -->
+<line x1="77" y1="132" x2="213" y2="132" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="138" x2="213" y2="138" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="144" x2="213" y2="144" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="150" x2="213" y2="150" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="156" x2="213" y2="156" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="162" x2="213" y2="162" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="168" x2="213" y2="168" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="174" x2="213" y2="174" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<line x1="77" y1="180" x2="213" y2="180" stroke="#9b59b6" stroke-width="0.4" opacity="0.12"/>
+<!-- Scan sweep glow stripe -->
+<rect x="75" y="140" width="140" height="10" rx="2" fill="#9b59b6" opacity="0.08"/>
+
+<!-- LEFT EYE — camera lens style -->
+<!-- Outer aperture ring -->
+<circle cx="113" cy="153" r="22" fill="#9b59b6" opacity="0.04" filter="url(#g6)"/>
+<circle cx="113" cy="153" r="18" fill="#9b59b6" opacity="0.10"/>
+<circle cx="113" cy="153" r="17" fill="none" stroke="#9b59b6" stroke-width="1" opacity="0.4"/>
+<circle cx="113" cy="153" r="13" fill="url(#iris)" opacity="0.85"/>
+<!-- Aperture blades -->
+<line x1="113" y1="136" x2="113" y2="141" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<line x1="113" y1="165" x2="113" y2="170" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<line x1="96"  y1="153" x2="101" y2="153" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<line x1="125" y1="153" x2="130" y2="153" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<!-- Diagonal aperture marks -->
+<line x1="101" y1="141" x2="105" y2="145" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<line x1="121" y1="161" x2="125" y2="165" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<line x1="125" y1="141" x2="121" y2="145" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<line x1="101" y1="161" x2="105" y2="165" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<!-- Pupil concentric rings -->
+<circle cx="113" cy="153" r="8"  fill="none" stroke="#ddb8ff" stroke-width="0.8" opacity="0.5"/>
+<circle cx="113" cy="153" r="5"  fill="#e8c8ff" opacity="0.9"/>
+<circle cx="110" cy="150" r="2"  fill="white" opacity="0.7"/>
+
+<!-- RIGHT EYE — camera lens style -->
+<circle cx="177" cy="153" r="22" fill="#9b59b6" opacity="0.04" filter="url(#g6)"/>
+<circle cx="177" cy="153" r="18" fill="#9b59b6" opacity="0.10"/>
+<circle cx="177" cy="153" r="17" fill="none" stroke="#9b59b6" stroke-width="1" opacity="0.4"/>
+<circle cx="177" cy="153" r="13" fill="url(#iris)" opacity="0.85"/>
+<line x1="177" y1="136" x2="177" y2="141" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<line x1="177" y1="165" x2="177" y2="170" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<line x1="160" y1="153" x2="165" y2="153" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<line x1="189" y1="153" x2="194" y2="153" stroke="#9b59b6" stroke-width="1.2" opacity="0.5"/>
+<line x1="165" y1="141" x2="169" y2="145" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<line x1="185" y1="161" x2="189" y2="165" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<line x1="189" y1="141" x2="185" y2="145" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<line x1="165" y1="161" x2="169" y2="165" stroke="#9b59b6" stroke-width="1" opacity="0.35"/>
+<circle cx="177" cy="153" r="8"  fill="none" stroke="#ddb8ff" stroke-width="0.8" opacity="0.5"/>
+<circle cx="177" cy="153" r="5"  fill="#e8c8ff" opacity="0.9"/>
+<circle cx="174" cy="150" r="2"  fill="white" opacity="0.7"/>
+
+<!-- MOUTH — neutral line (focused on vision) -->
+<line x1="122" y1="184" x2="168" y2="184" stroke="#9b59b6" stroke-width="1.8" stroke-linecap="round" opacity="0.5"/>
+
+<!-- ANTENNA -->
+<line x1="145" y1="56" x2="145" y2="70" stroke="#9b59b6" stroke-width="1.5" opacity="0.5" stroke-linecap="round"/>
+<rect x="141" y="68" width="8" height="4" rx="2" fill="#9b59b6" opacity="0.28"/>
+<circle cx="145" cy="51" r="6" fill="#9b59b6" opacity="0.88" filter="url(#g6)"/>
+<circle cx="145" cy="51" r="3.5" fill="white" opacity="0.6"/>
+</svg>

@@ -1,0 +1,20 @@
+import type { Job } from 'bullmq';
+export declare function jobMorningBriefing(_job: Job): Promise<void>;
+export declare function jobEndRentalReminder(_job: Job): Promise<void>;
+export declare function jobIdleVehicleAlert(_job: Job): Promise<void>;
+export declare function jobTikTokSuggestion(_job: Job): Promise<void>;
+export declare function jobWednesdayContent(_job: Job): Promise<void>;
+export declare function jobFridayContent(_job: Job): Promise<void>;
+export declare function jobUnpaidReminder(_job: Job): Promise<void>;
+export declare function jobLateReturnAlert(_job: Job): Promise<void>;
+export declare function jobCheckAnomalies(_job: Job): Promise<void>;
+export declare function jobWeeklyReport(_job: Job): Promise<void>;
+export declare function jobPatternDetection(_job: Job): Promise<void>;
+export declare function jobWhatsAppBookingConfirmations(_job: Job): Promise<void>;
+export declare function jobWhatsApp24hReminders(_job: Job): Promise<void>;
+export declare function jobWhatsAppReturnReminders(_job: Job): Promise<void>;
+export declare function jobCompetitorWatch(_job: Job): Promise<void>;
+export declare function jobBIDaily(_job: Job): Promise<void>;
+export declare function jobBIReminders(_job: Job): Promise<void>;
+export declare function jobAnthropicWatch(_job: Job): Promise<void>;
+//# sourceMappingURL=proactive-jobs.d.ts.map

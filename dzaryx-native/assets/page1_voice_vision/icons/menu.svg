@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<defs>
+  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <linearGradient id="line" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#00d4ff00"/><stop offset="20%" stop-color="#00d4ff"/><stop offset="80%" stop-color="#00d4ff"/><stop offset="100%" stop-color="#00d4ff00"/>
+  </linearGradient>
+</defs>
+<!-- Top line full width -->
+<line x1="8" y1="18" x2="56" y2="18" stroke="url(#line)" stroke-width="2" stroke-linecap="round" filter="url(#glow)"/>
+<!-- Middle line slightly shorter -->
+<line x1="14" y1="32" x2="50" y2="32" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" filter="url(#glow)" opacity="0.9"/>
+<!-- Bottom line shorter (progression) -->
+<line x1="20" y1="46" x2="44" y2="46" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" filter="url(#glow)" opacity="0.7"/>
+<!-- Corner brackets HUD style -->
+<path d="M 4 8 L 4 4 L 8 4"   fill="none" stroke="#00d4ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+<path d="M 60 8 L 60 4 L 56 4" fill="none" stroke="#00d4ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+<path d="M 4 56 L 4 60 L 8 60"  fill="none" stroke="#00d4ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+<path d="M 60 56 L 60 60 L 56 60" fill="none" stroke="#00d4ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+</svg>

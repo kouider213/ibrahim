@@ -1,0 +1,1 @@
+{"version":3,"file":"reminder-worker.d.ts","sourceRoot":"","sources":["../../src/workers/reminder-worker.ts"],"names":[],"mappings":"AAIA,OAAO,EAKL,KAAK,WAAW,EACjB,MAAM,oBAAoB,CAAC;AA+F5B,wBAAgB,kBAAkB,IAAI,IAAI,CAUzC;AAED,wBAAgB,kBAAkB,IAAI,IAAI,CAIzC;AAGD,wBAAsB,cAAc,IAAI,OAAO,CAAC;IAAE,SAAS,EAAE,MAAM,CAAC;IAAC,IAAI,EAAE,WAAW,EAAE,CAAA;CAAE,CAAC,CAM1F"}

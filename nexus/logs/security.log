@@ -2,3 +2,21 @@
 {"ts": "2026-05-09T17:55:59.121309+00:00", "channel": "security", "level": "WARNING", "msg": "file_read_denied", "data": {"detail": "path=C:\\Windows\\System32\\hosts"}}
 {"ts": "2026-05-09T17:55:59.286390+00:00", "channel": "security", "level": "WARNING", "msg": "process_kill_denied", "data": {"detail": "process=svchost"}}
 {"ts": "2026-05-10T10:30:39.802073+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /PID 3536 /F"}}
+{"ts": "2026-05-12T14:38:56.146291+00:00", "channel": "security", "level": "INFO", "msg": "window_close", "data": {"job_id": "os_1778596734757_11b66", "process": "chrome", "pid": 6312}}
+{"ts": "2026-05-15T12:10:09.246117+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /PID 22512 /F"}}
+{"ts": "2026-05-23T15:26:41.323639+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe && cd C:\\Users\\douba\\OneDrive\\Bureau\\ibrahim\\ibrahim\\nexus && python nexus.py"}}
+{"ts": "2026-05-23T15:27:06.033936+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe && cd C:\\Users\\douba\\OneDrive\\Bureau\\ibrahim\\ibrahim\\nexus && python nexus.py"}}
+{"ts": "2026-05-23T15:27:09.994491+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:27:10.994104+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:27:11.613127+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:27:13.842381+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:36:59.039235+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:37:02.050496+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:37:04.198880+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:37:25.985769+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:59:07.742910+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T15:59:09.464260+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T16:00:37.158320+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T16:03:28.808454+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T19:44:04.366717+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}
+{"ts": "2026-05-23T19:44:05.342681+00:00", "channel": "security", "level": "WARNING", "msg": "admin_required", "data": {"detail": "cmd=taskkill /F /IM python.exe"}}

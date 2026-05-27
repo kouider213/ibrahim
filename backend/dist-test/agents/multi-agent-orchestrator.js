@@ -1,0 +1,306 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AGENT_MAP = exports.MULTI_AGENTS = void 0;
+exports.needsMultiAgent = needsMultiAgent;
+exports.selectAgents = selectAgents;
+exports.runMultiAgent = runMultiAgent;
+/**
+ * Multi-Agent Orchestrator — Exécution parallèle de plusieurs agents LLM spécialisés.
+ *
+ * FLUX :
+ *   1. needsMultiAgent(msg) → détecte si la requête est cross-domaine
+ *   2. selectAgents(msg)    → choisit quels agents sont pertinents
+ *   3. runMultiAgent(...)   → Promise.allSettled en parallèle (timeout par agent)
+ *   4. fuseResponses(...)   → Claude synthétise toutes les réponses en une seule
+ *
+ * Chaque agent a son propre provider/model/temperature — le fallback est automatique
+ * si le provider n'est pas configuré.
+ */
+const provider_manager_js_1 = require("../providers/provider-manager.js");
+const business_agent_js_1 = require("./definitions/business-agent.js");
+const finance_agent_js_1 = require("./definitions/finance-agent.js");
+const social_agent_js_1 = require("./definitions/social-agent.js");
+const competitor_agent_js_1 = require("./definitions/competitor-agent.js");
+const developer_agent_js_1 = require("./definitions/developer-agent.js");
+const code_reviewer_agent_js_1 = require("./definitions/code-reviewer-agent.js");
+const finance_agent_runner_js_1 = require("./finance-agent-runner.js");
+const competitor_agent_runner_js_1 = require("./competitor-agent-runner.js");
+const social_agent_runner_js_1 = require("./social-agent-runner.js");
+// ── Agent catalog (pour multi-agent seulement) ────────────────────────────────
+const MULTI_AGENTS = [
+    business_agent_js_1.BUSINESS_AGENT,
+    finance_agent_js_1.FINANCE_AGENT,
+    social_agent_js_1.SOCIAL_AGENT,
+    competitor_agent_js_1.COMPETITOR_AGENT,
+    developer_agent_js_1.DEVELOPER_AGENT,
+    code_reviewer_agent_js_1.CODE_REVIEWER_AGENT,
+];
+exports.MULTI_AGENTS = MULTI_AGENTS;
+const AGENT_MAP = new Map(MULTI_AGENTS.map(a => [a.id, a]));
+exports.AGENT_MAP = AGENT_MAP;
+// ── Multi-agent trigger detection ─────────────────────────────────────────────
+const MULTI_AGENT_TRIGGERS = /\b(analyse[rz]?|bilan|évaluation|stratégi|amélioration|plan\s+(d'|pour\s+l'|d'action)|optimis|rapport\s+(?:complet|global)|résumé\s+(?:complet|global)|points?\s+(?:forts?|faibles?)|swot|recommand|que\s+(?:manque|peux[- ]tu|peut[- ]on)|état\s+(?:général|des\s+lieux))\b/i;
+const BUSINESS_CONTEXT = /\b(fik|conciergerie|oran|l'entreprise|notre|mon\s+(?:entreprise|business|agence)|dzaryx)\b/i;
+function needsMultiAgent(userMessage) {
+    return MULTI_AGENT_TRIGGERS.test(userMessage) && BUSINESS_CONTEXT.test(userMessage);
+}
+// ── Agent selection based on message content ──────────────────────────────────
+function selectAgents(userMessage) {
+    const lower = userMessage.toLowerCase();
+    const selected = new Set();
+    // Business always included for cross-domain analysis
+    selected.add('business');
+    if (/finance|argent|ca\b|chiffre|revenu|bénéfice|marge|tarif|paiement|été.*prix|prix.*été/.test(lower))
+        selected.add('finance');
+    if (/tiktok|instagram|social|contenu|viral|hashtag|publication|réseaux/.test(lower))
+        selected.add('social');
+    if (/concurrent|marché|veille|benchmark|compétiteur|position/.test(lower))
+        selected.add('competitor');
+    if (/code|tech|système|bug|infra|performance|sécurité\s+(?:du\s+)?sys/.test(lower))
+        selected.add('developer');
+    if (/audit|review|faille|dette\s+tech/.test(lower))
+        selected.add('code_reviewer');
+    // For generic "analyse/amélioration" → include finance + competitor by default
+    if (selected.size <= 1) {
+        selected.add('finance');
+        selected.add('competitor');
+    }
+    // Summer strategy → add social
+    if (/été|saison|estival|mre|vacation|vacance/.test(lower))
+        selected.add('social');
+    const ordered = ['business', 'finance', 'competitor', 'social', 'developer', 'code_reviewer'];
+    return ordered.filter(id => selected.has(id));
+}
+// ── Run a single agent with timeout ──────────────────────────────────────────
+async function runSingleAgent(agentId, userMessage, businessCtx, requestId, agentTimeoutMs, testOptions) {
+    const agent = AGENT_MAP.get(agentId);
+    if (!agent) {
+        return {
+            agentId, agentName: agentId, desiredProvider: 'unknown', actualProvider: 'unknown',
+            model: '', usedFallback: false, text: '', inputTokens: 0, outputTokens: 0,
+            latencyMs: 0, costEstUsd: 0, success: false, error: `Agent ${agentId} not found`,
+        };
+    }
+    // ── Finance agent uses tool-aware runner (accesses real Supabase data) ───────
+    if (agentId === 'finance') {
+        const agentRequestId = `${requestId}_finance`;
+        const fullMessage = businessCtx
+            ? `${userMessage}\n\nCONTEXTE MÉTIER: ${businessCtx.slice(0, 1000)}`
+            : userMessage;
+        const fr = await (0, finance_agent_runner_js_1.runFinanceAgentWithTools)(fullMessage, agentRequestId, agentTimeoutMs);
+        return {
+            agentId: 'finance',
+            agentName: fr.agent_name,
+            desiredProvider: 'openai', // original desired provider from definition
+            actualProvider: fr.provider, // claude (tool-aware runner)
+            model: fr.model,
+            usedFallback: true, // finance-agent uses tool-aware Claude runner, not GPT-4o
+            text: fr.analysis,
+            inputTokens: fr.input_tokens,
+            outputTokens: fr.output_tokens,
+            latencyMs: fr.total_ms,
+            costEstUsd: (fr.input_tokens * 3.00 + fr.output_tokens * 15.00) / 1_000_000,
+            success: fr.verdict !== 'FAILED',
+            error: fr.error,
+        };
+    }
+    // ── Social agent uses tool-aware runner (APIFY TikTok + web_search) ──────────
+    if (agentId === 'social') {
+        const agentRequestId = `${requestId}_social`;
+        const fullMessage = businessCtx
+            ? `${userMessage}\n\nCONTEXTE MÉTIER: ${businessCtx.slice(0, 1000)}`
+            : userMessage;
+        const sr = await (0, social_agent_runner_js_1.runSocialAgentWithTools)(fullMessage, agentRequestId, agentTimeoutMs);
+        return {
+            agentId: 'social',
+            agentName: sr.agent_name,
+            desiredProvider: 'groq',
+            actualProvider: sr.provider,
+            model: sr.model,
+            usedFallback: true,
+            text: sr.analysis,
+            inputTokens: sr.input_tokens,
+            outputTokens: sr.output_tokens,
+            latencyMs: sr.total_ms,
+            costEstUsd: (sr.input_tokens * 3.00 + sr.output_tokens * 15.00) / 1_000_000,
+            success: sr.verdict !== 'FAKE',
+            error: sr.error,
+        };
+    }
+    // ── Competitor agent uses tool-aware runner (web_search via Jina AI) ─────────
+    if (agentId === 'competitor') {
+        const agentRequestId = `${requestId}_competitor`;
+        const fullMessage = businessCtx
+            ? `${userMessage}\n\nCONTEXTE MÉTIER: ${businessCtx.slice(0, 1000)}`
+            : userMessage;
+        const cr = await (0, competitor_agent_runner_js_1.runCompetitorAgentWithTools)(fullMessage, agentRequestId, agentTimeoutMs);
+        return {
+            agentId: 'competitor',
+            agentName: cr.agent_name,
+            desiredProvider: 'groq', // original desired provider from definition
+            actualProvider: cr.provider, // claude (tool-aware runner)
+            model: cr.model,
+            usedFallback: true, // competitor-agent uses tool-aware Claude runner, not Groq
+            text: cr.analysis,
+            inputTokens: cr.input_tokens,
+            outputTokens: cr.output_tokens,
+            latencyMs: cr.total_ms,
+            costEstUsd: (cr.input_tokens * 3.00 + cr.output_tokens * 15.00) / 1_000_000,
+            success: cr.verdict !== 'FAKE',
+            error: cr.error,
+        };
+    }
+    const agentRequestId = `${requestId}_${agentId}`;
+    console.log(`[multi-agent:${agentRequestId}] ▶ ${agent.name} (${agent.provider}/${agent.model})`);
+    // Build system prompt: agent speciality + business context
+    const systemPrompt = [
+        agent.systemPrompt,
+        businessCtx ? `\n\n--- CONTEXTE MÉTIER ACTUEL ---\n${businessCtx.slice(0, 3000)}` : '',
+    ].join('');
+    const question = `${userMessage}\n\nDonne une analyse concise et actionnable depuis ta spécialité (${agent.name}).`;
+    try {
+        const result = await (0, provider_manager_js_1.callProvider)({ provider: agent.provider, model: agent.model, temperature: agent.temperature, maxTokens: agent.maxTokens, fallback: agent.fallback }, question, systemPrompt, agentTimeoutMs, testOptions);
+        console.log(`[multi-agent:${agentRequestId}] ✅ ${agent.name} ` +
+            `provider=${result.provider} model=${result.model} ` +
+            `fallback=${result.usedFallback} ${result.latencyMs}ms $${result.costEstUsd.toFixed(6)}`);
+        return {
+            agentId,
+            agentName: agent.name,
+            desiredProvider: agent.provider,
+            actualProvider: result.provider,
+            model: result.model,
+            usedFallback: result.usedFallback,
+            text: result.text,
+            inputTokens: result.inputTokens,
+            outputTokens: result.outputTokens,
+            latencyMs: result.latencyMs,
+            costEstUsd: result.costEstUsd,
+            success: true,
+        };
+    }
+    catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const timedOut = errMsg.includes('timeout');
+        console.error(`[multi-agent:${agentRequestId}] ❌ ${agent.name} FAILED: ${errMsg}`);
+        return {
+            agentId,
+            agentName: agent.name,
+            desiredProvider: agent.provider,
+            actualProvider: agent.provider,
+            model: agent.model,
+            usedFallback: false,
+            text: '',
+            inputTokens: 0,
+            outputTokens: 0,
+            latencyMs: agentTimeoutMs,
+            costEstUsd: 0,
+            success: false,
+            error: errMsg,
+            timedOut,
+        };
+    }
+}
+// ── Fuse agent responses into a single coherent answer ────────────────────────
+async function fuseResponses(userMessage, agentResults, requestId) {
+    const t0 = Date.now();
+    const successful = agentResults.filter(r => r.success && r.text.trim().length > 50);
+    if (successful.length === 0) {
+        return { text: '❌ Aucun agent n\'a produit de réponse exploitable.', latencyMs: 0 };
+    }
+    if (successful.length === 1) {
+        return { text: successful[0].text, latencyMs: Date.now() - t0 };
+    }
+    const agentSection = successful
+        .map(r => `### ${r.agentName} (${r.actualProvider}/${r.model})\n${r.text}`)
+        .join('\n\n---\n\n');
+    const fusionPrompt = `Tu es Dzaryx. Tes agents spécialisés ont analysé la demande suivante :
+"${userMessage}"
+
+Voici leurs analyses :
+
+${agentSection}
+
+CONSIGNE :
+1. Fusionne ces analyses en UNE réponse cohérente, structurée et directement actionnable.
+2. Ne répète pas "l'Agent X dit que..." — intègre les insights directement.
+3. Commence par les recommandations les plus impactantes.
+4. Format : bullet points clairs, section par domaine si pertinent.
+5. Conclusion : les 3 actions prioritaires à lancer en premier.
+6. Réponse en français (ou darija si approprié).`;
+    console.log(`[multi-agent:${requestId}] FUSION — ${successful.length} agents → Claude claude-sonnet-4-6`);
+    const fused = await (0, provider_manager_js_1.callProvider)({ provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.6, maxTokens: 2000 }, fusionPrompt, 'Tu es Dzaryx, assistant IA de Fik Conciergerie Oran. Synthétise les analyses de tes agents spécialisés.', 60_000);
+    console.log(`[multi-agent:${requestId}] FUSION ✅ ${fused.text.length} chars ${Date.now() - t0}ms`);
+    return { text: fused.text, latencyMs: Date.now() - t0 };
+}
+// ── Main entry point ──────────────────────────────────────────────────────────
+async function runMultiAgent(userMessage, businessContext, agentIds, requestId, agentTimeoutMs = 30_000, testOptions, sequential = false) {
+    const t0 = Date.now();
+    console.log(`[multi-agent:${requestId}] ▶ START ` +
+        `agents=[${agentIds.join(',')}] ` +
+        `mode=${sequential ? 'sequential' : 'parallel'} ` +
+        `providers: ${agentIds.map(id => AGENT_MAP.get(id)?.provider ?? '?').join(',')}` +
+        (testOptions?.forceUnavailable?.length ? ` forceDown=[${testOptions.forceUnavailable.join(',')}]` : ''));
+    let agentResults;
+    if (sequential) {
+        // Sequential mode: each agent receives context from previous agent outputs
+        agentResults = [];
+        for (const id of agentIds) {
+            const priorCtx = agentResults.length
+                ? `\n\n--- ANALYSES PRÉCÉDENTES ---\n` +
+                    agentResults.filter(r => r.success).map(r => `[${r.agentName}]: ${r.text.slice(0, 800)}`).join('\n\n')
+                : '';
+            const enriched = businessContext + priorCtx;
+            const r = await runSingleAgent(id, userMessage, enriched, requestId, agentTimeoutMs, testOptions);
+            agentResults.push(r);
+        }
+    }
+    else {
+        // Parallel mode (default): Promise.allSettled — never let one failure block others
+        const settled = await Promise.allSettled(agentIds.map(id => runSingleAgent(id, userMessage, businessContext, requestId, agentTimeoutMs, testOptions)));
+        agentResults = settled.map((s, i) => {
+            if (s.status === 'fulfilled')
+                return s.value;
+            const id = agentIds[i];
+            return {
+                agentId: id, agentName: id, desiredProvider: '?', actualProvider: '?',
+                model: '', usedFallback: false, text: '', inputTokens: 0, outputTokens: 0,
+                latencyMs: agentTimeoutMs, costEstUsd: 0, success: false, error: s.reason?.message ?? 'unknown',
+            };
+        });
+    }
+    const { text: fusedResponse, latencyMs: fusionLatencyMs } = await fuseResponses(userMessage, agentResults, requestId);
+    const totalLatencyMs = Date.now() - t0;
+    const agentsSucceeded = agentResults.filter(r => r.success).length;
+    const agentsFailed = agentResults.filter(r => !r.success).length;
+    const totalCostUsd = agentResults.reduce((s, r) => s + r.costEstUsd, 0);
+    const totalInputTokens = agentResults.reduce((s, r) => s + r.inputTokens, 0);
+    const totalOutputTokens = agentResults.reduce((s, r) => s + r.outputTokens, 0);
+    console.log(`[multi-agent:${requestId}] DONE ` +
+        `succeeded=${agentsSucceeded}/${agentIds.length} ` +
+        `totalMs=${totalLatencyMs} totalCost=$${totalCostUsd.toFixed(6)}`);
+    // Structured execution trace
+    console.log(`[multi-agent-trace] {` +
+        `"request_id":"${requestId}",` +
+        `"agents_requested":${JSON.stringify(agentIds)},` +
+        `"agents_succeeded":${agentsSucceeded},` +
+        `"agents_failed":${agentsFailed},` +
+        `"total_latency_ms":${totalLatencyMs},` +
+        `"total_cost_usd":${totalCostUsd.toFixed(6)},` +
+        `"providers_used":${JSON.stringify(agentResults.map(r => ({ id: r.agentId, p: r.actualProvider, m: r.model, ok: r.success })))}` +
+        `}`);
+    return {
+        requestId,
+        userMessage,
+        agentsRequested: agentIds,
+        agentsSucceeded,
+        agentsFailed,
+        totalLatencyMs,
+        totalCostUsd,
+        totalInputTokens,
+        totalOutputTokens,
+        agentResults,
+        fusedResponse,
+        fusionLatencyMs,
+    };
+}
+//# sourceMappingURL=multi-agent-orchestrator.js.map

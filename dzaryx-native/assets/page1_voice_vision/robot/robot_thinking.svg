@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 290 355" fill="none">
+<defs>
+  <filter id="g6" x="-60%" y="-60%" width="220%" height="220%">
+    <feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <filter id="g3" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <radialGradient id="hm" cx="38%" cy="30%" r="65%">
+    <stop offset="0%" stop-color="#604020"/><stop offset="35%" stop-color="#261808"/><stop offset="100%" stop-color="#0a0600"/>
+  </radialGradient>
+  <radialGradient id="em" cx="30%" cy="30%" r="65%">
+    <stop offset="0%" stop-color="#503818"/><stop offset="100%" stop-color="#0a0600"/>
+  </radialGradient>
+  <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%" stop-color="#2a1c08"/><stop offset="100%" stop-color="#100a00"/>
+  </linearGradient>
+  <radialGradient id="eye" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#ffe88a"/><stop offset="50%" stop-color="#ffaa00"/><stop offset="100%" stop-color="#ffaa0000"/>
+  </radialGradient>
+  <radialGradient id="pg" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#ffaa0055"/><stop offset="100%" stop-color="#ffaa0000"/>
+  </radialGradient>
+</defs>
+
+<!-- PLATFORM -->
+<ellipse cx="145" cy="346" rx="90" ry="13" fill="url(#pg)"/>
+<ellipse cx="145" cy="346" rx="89" ry="12" fill="none" stroke="#ffaa00" stroke-width="0.6" opacity="0.45"/>
+<ellipse cx="145" cy="346" rx="62" ry="7" fill="none" stroke="#ffaa00" stroke-width="0.9" opacity="0.7" filter="url(#g3)"/>
+
+<!-- THINKING HALO — dashed orbits around head -->
+<circle cx="145" cy="155" r="118" fill="none" stroke="#ffaa00" stroke-width="1.2" stroke-dasharray="6 4" opacity="0.3" filter="url(#g6)"/>
+<circle cx="145" cy="155" r="113" fill="none" stroke="#ffaa00" stroke-width="0.7" stroke-dasharray="3 8" opacity="0.2"/>
+
+<!-- Thought particles -->
+<circle cx="48"  cy="62"  r="3.5" fill="#ffaa00" opacity="0.6" filter="url(#g3)"/>
+<circle cx="38"  cy="90"  r="2.5" fill="#ffaa00" opacity="0.45"/>
+<circle cx="240" cy="58"  r="4"   fill="#ffaa00" opacity="0.65" filter="url(#g3)"/>
+<circle cx="252" cy="88"  r="2"   fill="#ffaa00" opacity="0.4"/>
+<circle cx="68"  cy="42"  r="2"   fill="#ffaa00" opacity="0.35"/>
+<circle cx="224" cy="44"  r="2.5" fill="#ffaa00" opacity="0.38"/>
+<circle cx="30"  cy="130" r="1.8" fill="#ffaa00" opacity="0.3"/>
+<circle cx="258" cy="128" r="1.8" fill="#ffaa00" opacity="0.3"/>
+
+<!-- LEFT EAR — calm (low activity) -->
+<circle cx="45" cy="155" r="43" fill="url(#em)" stroke="#ffaa00" stroke-width="0.7" opacity="0.7"/>
+<circle cx="45" cy="155" r="36" fill="none" stroke="#ffaa00" stroke-width="0.3" opacity="0.18"/>
+<rect x="8"  y="154" width="3" height="2"  rx="1" fill="#ffaa00" opacity="0.35"/>
+<rect x="13" y="152" width="3" height="6"  rx="1.5" fill="#ffaa00" opacity="0.5"/>
+<rect x="18" y="150" width="3" height="10" rx="1.5" fill="#ffaa00" opacity="0.65"/>
+<rect x="23" y="148" width="3" height="14" rx="1.5" fill="#ffaa00" opacity="0.8"/>
+<rect x="28" y="150" width="3" height="10" rx="1.5" fill="#ffaa00" opacity="0.65"/>
+<rect x="33" y="152" width="3" height="6"  rx="1.5" fill="#ffaa00" opacity="0.5"/>
+<rect x="38" y="154" width="3" height="2"  rx="1" fill="#ffaa00" opacity="0.35"/>
+
+<!-- RIGHT EAR — calm -->
+<circle cx="245" cy="155" r="43" fill="url(#em)" stroke="#ffaa00" stroke-width="0.7" opacity="0.7"/>
+<circle cx="245" cy="155" r="36" fill="none" stroke="#ffaa00" stroke-width="0.3" opacity="0.18"/>
+<rect x="251" y="154" width="3" height="2"  rx="1" fill="#ffaa00" opacity="0.35"/>
+<rect x="256" y="152" width="3" height="6"  rx="1.5" fill="#ffaa00" opacity="0.5"/>
+<rect x="261" y="150" width="3" height="10" rx="1.5" fill="#ffaa00" opacity="0.65"/>
+<rect x="266" y="148" width="3" height="14" rx="1.5" fill="#ffaa00" opacity="0.8"/>
+<rect x="271" y="150" width="3" height="10" rx="1.5" fill="#ffaa00" opacity="0.65"/>
+<rect x="276" y="152" width="3" height="6"  rx="1.5" fill="#ffaa00" opacity="0.5"/>
+<rect x="281" y="154" width="3" height="2"  rx="1" fill="#ffaa00" opacity="0.35"/>
+
+<!-- HEAD sphere -->
+<circle cx="145" cy="155" r="103" fill="none" stroke="#ffaa00" stroke-width="1" opacity="0.1"/>
+<circle cx="145" cy="155" r="100" fill="url(#hm)" stroke="#ffaa0018" stroke-width="1"/>
+<ellipse cx="110" cy="108" rx="38" ry="24" fill="white" opacity="0.05" transform="rotate(-20 110 108)"/>
+
+<!-- Inner thinking halo (tight around head) -->
+<circle cx="145" cy="155" r="106" fill="none" stroke="#ffaa00" stroke-width="1.5" opacity="0.2" filter="url(#g3)"/>
+
+<!-- NECK -->
+<rect x="125" y="252" width="40" height="18" rx="6" fill="#0a0800" stroke="#ffaa001a" stroke-width="1"/>
+<line x1="133" y1="255" x2="133" y2="267" stroke="#ffaa00" stroke-width="0.5" opacity="0.18"/>
+<line x1="145" y1="255" x2="145" y2="267" stroke="#ffaa00" stroke-width="0.5" opacity="0.28"/>
+<line x1="157" y1="255" x2="157" y2="267" stroke="#ffaa00" stroke-width="0.5" opacity="0.18"/>
+
+<!-- BODY -->
+<rect x="72" y="264" width="146" height="76" rx="16" fill="url(#bg)" stroke="#ffaa00" stroke-width="0.8" opacity="0.7"/>
+<rect x="82" y="264" width="126" height="3" rx="1.5" fill="#ffaa00" opacity="0.1"/>
+<rect x="72" y="280" width="3" height="30" rx="1.5" fill="#ffaa00" opacity="0.18"/>
+<rect x="215" y="280" width="3" height="30" rx="1.5" fill="#ffaa00" opacity="0.18"/>
+<text x="145" y="291" font-family="'Courier New',monospace" font-size="13" font-weight="bold" fill="#ffaa00" text-anchor="middle" letter-spacing="3" filter="url(#g3)" opacity="0.85">DZARYX</text>
+<line x1="82" y1="302" x2="208" y2="302" stroke="#ffaa00" stroke-width="0.5" opacity="0.18"/>
+<circle cx="100" cy="315" r="4" fill="#ffaa00" filter="url(#g3)" opacity="0.8"/>
+<circle cx="114" cy="315" r="4" fill="#ffcc44" opacity="0.55"/>
+<circle cx="128" cy="315" r="3.5" fill="#ffaa00" opacity="0.42"/>
+<circle cx="141" cy="315" r="3" fill="#ffaa00" opacity="0.25"/>
+<rect x="155" y="311" width="42" height="8" rx="4" fill="#ffaa0008" stroke="#ffaa0022" stroke-width="0.5"/>
+<rect x="157" y="313" width="20" height="4" rx="2" fill="#ffaa00" opacity="0.4"/>
+
+<!-- VISOR -->
+<rect x="75" y="128" width="140" height="60" rx="12" fill="#050400" opacity="0.95"/>
+<rect x="75" y="128" width="140" height="60" rx="12" fill="none" stroke="#ffaa00" stroke-width="0.5" opacity="0.3"/>
+<line x1="77" y1="140" x2="213" y2="140" stroke="#ffaa00" stroke-width="0.3" opacity="0.07"/>
+<line x1="77" y1="152" x2="213" y2="152" stroke="#ffaa00" stroke-width="0.3" opacity="0.07"/>
+<line x1="77" y1="164" x2="213" y2="164" stroke="#ffaa00" stroke-width="0.3" opacity="0.07"/>
+<line x1="77" y1="176" x2="213" y2="176" stroke="#ffaa00" stroke-width="0.3" opacity="0.07"/>
+
+<!-- LEFT EYE — looking up (pupils shifted up) -->
+<circle cx="113" cy="151" r="24" fill="#ffaa00" opacity="0.04" filter="url(#g6)"/>
+<circle cx="113" cy="151" r="17" fill="#ffaa00" opacity="0.12"/>
+<circle cx="113" cy="151" r="13" fill="#ffaa00" opacity="0.23"/>
+<circle cx="113" cy="151" r="9"  fill="url(#eye)" filter="url(#g3)"/>
+<circle cx="113" cy="148" r="5"  fill="#fff0c8" opacity="0.9"/>
+<circle cx="110" cy="146" r="2.5" fill="white" opacity="0.65"/>
+
+<!-- RIGHT EYE — looking up -->
+<circle cx="177" cy="151" r="24" fill="#ffaa00" opacity="0.04" filter="url(#g6)"/>
+<circle cx="177" cy="151" r="17" fill="#ffaa00" opacity="0.12"/>
+<circle cx="177" cy="151" r="13" fill="#ffaa00" opacity="0.23"/>
+<circle cx="177" cy="151" r="9"  fill="url(#eye)" filter="url(#g3)"/>
+<circle cx="177" cy="148" r="5"  fill="#fff0c8" opacity="0.9"/>
+<circle cx="174" cy="146" r="2.5" fill="white" opacity="0.65"/>
+
+<!-- MOUTH — thinking dots -->
+<circle cx="128" cy="186" r="3" fill="#ffaa00" opacity="0.55"/>
+<circle cx="145" cy="187" r="3" fill="#ffaa00" opacity="0.7" filter="url(#g3)"/>
+<circle cx="162" cy="186" r="3" fill="#ffaa00" opacity="0.55"/>
+
+<!-- ANTENNA — bright (processing) -->
+<line x1="145" y1="56" x2="145" y2="70" stroke="#ffaa00" stroke-width="1.5" opacity="0.55" stroke-linecap="round"/>
+<rect x="141" y="68" width="8" height="4" rx="2" fill="#ffaa00" opacity="0.3"/>
+<circle cx="145" cy="51" r="7" fill="#ffaa00" opacity="0.9" filter="url(#g6)"/>
+<circle cx="145" cy="51" r="4" fill="white" opacity="0.65"/>
+</svg>
