@@ -7,7 +7,7 @@ import {
   toLocalISO,
   isValidTimezone,
 } from '../utils/timezone.js';
-import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent } from './google-calendar.js';
+import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
@@ -314,6 +314,9 @@ async function _dispatch(
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'sync_calendar':             return await syncCalendarTool();
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
+      case 'create_personal_event':     return await createPersonalEventTool(input);
+      case 'list_personal_events':      return await listPersonalEventsTool(input);
+      case 'delete_personal_event':     return await deletePersonalEventTool(input);
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
       // ─── OBSIDIAN BRAIN ───
@@ -1661,6 +1664,40 @@ async function deleteCalendarEventTool(input: Record<string, unknown>): Promise<
   const ok = await deleteCalendarEvent(googleEventId);
   if (!ok) return `❌ Impossible de supprimer l'événement ${googleEventId}`;
   return `✅ Événement ${googleEventId} supprimé de Google Agenda`;
+}
+
+// ── Personal calendar tools ───────────────────────────────────
+
+async function createPersonalEventTool(input: Record<string, unknown>): Promise<string> {
+  const title         = input['title']          as string | undefined;
+  const startDatetime = input['start_datetime'] as string | undefined;
+  const endDatetime   = input['end_datetime']   as string | undefined;
+  const description   = input['description']   as string | undefined;
+  const allDay        = input['all_day']        as boolean | undefined;
+
+  if (!title || !startDatetime || !endDatetime)
+    return '❌ title, start_datetime, end_datetime sont requis';
+
+  const eventId = await createPersonalCalendarEvent(title, startDatetime, endDatetime, description, allDay);
+  if (!eventId) return '❌ Impossible de créer l\'événement. Vérifie que l\'agenda kouiderpablo@gmail.com est partagé avec le service account et que PERSONAL_GCAL_ID est configuré dans Railway.';
+  return `✅ Événement ajouté dans ton agenda perso !\n📅 ${title}\n🗓️ ${startDatetime} → ${endDatetime}${description ? `\n📝 ${description}` : ''}\n🔗 Event ID: ${eventId}`;
+}
+
+async function listPersonalEventsTool(input: Record<string, unknown>): Promise<string> {
+  const maxResults = Number(input['max_results'] ?? 15);
+  const events = await listPersonalEvents(maxResults);
+  if (!events.length) return '📅 Aucun événement à venir dans ton agenda perso (kouiderpablo@gmail.com).';
+  return `📅 ${events.length} événement(s) dans ton agenda perso:\n${events.map((e: any) => {
+    const start = e.start?.dateTime?.slice(0, 16).replace('T', ' ') ?? e.start?.date ?? '?';
+    return `- ${e.summary} | ${start}`;
+  }).join('\n')}`;
+}
+
+async function deletePersonalEventTool(input: Record<string, unknown>): Promise<string> {
+  const googleEventId = input['google_event_id'] as string | undefined;
+  if (!googleEventId) return '❌ google_event_id requis — appelle list_personal_events pour obtenir l\'ID';
+  await deletePersonalCalendarEvent(googleEventId);
+  return `✅ Événement ${googleEventId} supprimé de ton agenda perso`;
 }
 
 async function searchImages(input: Record<string, unknown>): Promise<string> {

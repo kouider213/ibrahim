@@ -1,6 +1,6 @@
 ﻿import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, getRecentEpisodes, supabase } from '../integrations/supabase.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
-import { listUpcomingEvents } from '../integrations/google-calendar.js';
+import { listUpcomingEvents, listPersonalEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
 import { formatPricingTable } from '../config/pricing.js';
 import type { Message } from '../integrations/claude-api.js';
@@ -144,7 +144,9 @@ export async function buildContext(
   );
   const needsReminderInject = needsReminders || oranHour < 12;
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx] = await Promise.all([
+  const isKouider = actor.ownerKey === 'kouider';
+
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx, personalCalendarEvents] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -185,6 +187,7 @@ export async function buildContext(
     getLearnedRules(actor.ownerKey, 40).catch(() => []),
     mentionedClient ? getClientBrain(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
     getActorBrainContext(actor.ownerKey).catch(() => ''),
+    isKouider ? listPersonalEvents(10).catch(() => []) : Promise.resolve([]),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -256,10 +259,17 @@ export async function buildContext(
       : '',
   ].join('');
 
-  // Agenda (seulement si demandé)
+  // Agenda Fik Conciergerie (seulement si demandé)
   const calendarText = calendarEvents.length > 0
-    ? `\n\nAGENDA GOOGLE (${calendarEvents.length} événements à venir):\n${calendarEvents.slice(0, 5).map((e: any) =>
-        `- ${e.summary} → ${e.start}`
+    ? `\n\nAGENDA FIK CONCIERGERIE (${calendarEvents.length} événements):\n${calendarEvents.slice(0, 5).map((e: any) =>
+        `- ${e.summary} → ${e.start?.dateTime?.slice(0, 16).replace('T', ' ') ?? e.start?.date ?? '?'}`
+      ).join('\n')}`
+    : '';
+
+  // Agenda perso Kouider (kouiderpablo@gmail.com) — Kouider uniquement
+  const personalCalendarText = (personalCalendarEvents as any[]).length > 0
+    ? `\n\nAGENDA PERSO KOUIDER (${(personalCalendarEvents as any[]).length} événements privés):\n${(personalCalendarEvents as any[]).slice(0, 7).map((e: any) =>
+        `- ${e.summary} → ${e.start?.dateTime?.slice(0, 16).replace('T', ' ') ?? e.start?.date ?? '?'}`
       ).join('\n')}`
     : '';
 
@@ -426,6 +436,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     fleetText,
     bookingsText,
     calendarText,
+    personalCalendarText,
     newsText,
     financeText,
     memoriesText,

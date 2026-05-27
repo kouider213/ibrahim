@@ -811,6 +811,43 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
       required: ['booking_id', 'client_name', 'car_name', 'start_date', 'end_date'],
     },
   },
+  // ─── AGENDA PERSO KOUIDER (kouiderpablo@gmail.com) ──────────
+  {
+    name: 'create_personal_event',
+    description: 'Créer un événement dans l\'agenda PERSONNEL de Kouider (kouiderpablo@gmail.com) — RDV privés, voyages, visites médicales, rappels perso, anniversaires, etc. NE PAS utiliser pour les réservations Fik Conciergerie. Utiliser quand Kouider dit "mets dans mon agenda perso", "ajoute un RDV privé", "note ce voyage", "rappelle-moi ce truc perso".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title:          { type: 'string', description: 'Titre de l\'événement (ex: "RDV médecin", "Vol Bruxelles → Oran")' },
+        start_datetime: { type: 'string', description: 'Début : YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS (ex: 2026-07-15 ou 2026-07-15T14:30:00)' },
+        end_datetime:   { type: 'string', description: 'Fin : YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS. Si heure non précisée, mettre +1h après le début' },
+        description:    { type: 'string', description: 'Détails/notes optionnels' },
+        all_day:        { type: 'boolean', description: 'true = événement journée entière (pas d\'heure précise)' },
+      },
+      required: ['title', 'start_datetime', 'end_datetime'],
+    },
+  },
+  {
+    name: 'list_personal_events',
+    description: 'Voir les prochains événements de l\'agenda PERSONNEL de Kouider (kouiderpablo@gmail.com). Utiliser quand Kouider demande "c\'est quoi mon agenda perso", "mes RDV privés", "qu\'est-ce que j\'ai de prévu perso".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        max_results: { type: 'number', description: 'Nombre max d\'événements (défaut: 15)' },
+      },
+    },
+  },
+  {
+    name: 'delete_personal_event',
+    description: 'Supprimer un événement de l\'agenda PERSONNEL de Kouider. Appeler list_personal_events d\'abord pour obtenir l\'ID.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        google_event_id: { type: 'string', description: 'ID Google de l\'événement (obtenu via list_personal_events)' },
+      },
+      required: ['google_event_id'],
+    },
+  },
   {
     name: 'sync_calendar',
     description: 'Synchroniser TOUTES les réservations CONFIRMED/ACTIVE pas encore dans Google Agenda. Utiliser pour un sync en masse ou vérifier que tout est bien dans le calendrier.',

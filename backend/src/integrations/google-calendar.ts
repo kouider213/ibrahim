@@ -7,6 +7,7 @@ const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 const GOOGLE_TOKEN_URL     = 'https://oauth2.googleapis.com/token';
 const CALENDAR_SCOPE       = 'https://www.googleapis.com/auth/calendar';
 const CALENDAR_ID          = 'fikconciergerie@gmail.com';
+const getPersonalCalId     = () => env.PERSONAL_GCAL_ID ?? 'kouiderpablo@gmail.com';
 
 interface ServiceAccountKey {
   client_email: string;
@@ -192,6 +193,42 @@ export async function syncPendingBookings(): Promise<number> {
     if (await createCalendarEvent(b.id, b.client_name, carName, b.start_date, b.end_date, b.notes)) count++;
   }
   return count;
+}
+
+// ── Personal calendar (kouiderpablo@gmail.com) ────────────────
+
+export async function listPersonalEvents(maxResults = 15): Promise<CalendarEvent[]> {
+  const calId = getPersonalCalId();
+  const res = await calendarRequest<{ items: CalendarEvent[] }>('GET',
+    `/calendars/${encodeURIComponent(calId)}/events?maxResults=${maxResults}&orderBy=startTime&singleEvents=true&timeMin=${new Date().toISOString()}`);
+  return res?.items ?? [];
+}
+
+export async function createPersonalCalendarEvent(
+  title: string,
+  startDateTime: string,
+  endDateTime: string,
+  description?: string,
+  allDay?: boolean,
+): Promise<string | null> {
+  const calId = getPersonalCalId();
+  const body: Record<string, unknown> = { summary: title };
+  if (description) body['description'] = description;
+  if (allDay) {
+    body['start'] = { date: startDateTime.slice(0, 10) };
+    body['end']   = { date: endDateTime.slice(0, 10) };
+  } else {
+    body['start'] = { dateTime: startDateTime.includes('T') ? startDateTime : `${startDateTime}T09:00:00`, timeZone: 'Africa/Algiers' };
+    body['end']   = { dateTime: endDateTime.includes('T')   ? endDateTime   : `${endDateTime}T10:00:00`,   timeZone: 'Africa/Algiers' };
+  }
+  const created = await calendarRequest<{ id: string }>('POST', `/calendars/${encodeURIComponent(calId)}/events`, body);
+  return created?.id ?? null;
+}
+
+export async function deletePersonalCalendarEvent(googleEventId: string): Promise<boolean> {
+  const calId = getPersonalCalId();
+  await calendarRequest('DELETE', `/calendars/${encodeURIComponent(calId)}/events/${googleEventId}`);
+  return true;
 }
 
 // ── OAuth (kept for backward compat) ──────────────────────────
