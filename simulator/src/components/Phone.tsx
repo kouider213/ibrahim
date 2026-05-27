@@ -46,7 +46,7 @@ function getSavedSession(): { actor: Actor; user: string } | null {
   } catch { return null; }
 }
 
-export default function Phone({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
+export default function Phone() {
   const [page, setPage]       = useState<Page>('voice');
   const [wsOk, setWsOk]       = useState(false);
 
@@ -145,7 +145,7 @@ export default function Phone({ onOpenAdmin }: { onOpenAdmin?: () => void }) {
 
       {simState === 'app' && (
         <>
-          <StatusBar wsOk={wsOk} page={page} actorCol={actorCol} actorInit={actorInit} onLogout={logout} onOpenAdmin={actor === 'kouider' ? onOpenAdmin : undefined} />
+          <StatusBar wsOk={wsOk} page={page} actorCol={actorCol} actorInit={actorInit} onLogout={logout} />
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {renderScreen()}
           </div>
@@ -324,23 +324,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
         </button>
       </div>
 
-      <div style={{ paddingBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, zIndex: 1 }}>
-        <button
-          onClick={() => { window.location.hash = 'saas'; }}
-          style={{
-            background: 'none',
-            border: '1px solid rgba(0,212,255,0.2)',
-            borderRadius: 20,
-            padding: '10px 24px',
-            fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
-            color: 'rgba(0,212,255,0.5)',
-            cursor: 'pointer',
-            letterSpacing: '0.08em',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          Créer votre Dzaryx →
-        </button>
+      <div style={{ paddingBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
         <div style={{ width: 40, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.15)' }} />
       </div>
     </div>
@@ -453,20 +437,6 @@ function LoginScreen({
           )}
 
           <button
-            onClick={() => { window.location.hash = 'saas'; }}
-            style={{
-              marginTop: 4, padding: '10px',
-              background: 'none', border: 'none', cursor: 'pointer',
-              fontFamily: 'Inter', fontSize: 12, fontWeight: 400,
-              color: 'rgba(0,212,255,0.35)',
-              letterSpacing: '0.04em',
-              textAlign: 'center',
-            }}
-          >
-            Pas encore de compte ? <span style={{ color: 'rgba(0,212,255,0.6)', textDecoration: 'underline' }}>Créer votre Dzaryx</span>
-          </button>
-
-          <button
             onClick={onLogin}
             disabled={loading || !user || !pass}
             style={{
@@ -553,10 +523,9 @@ function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean
 
 // ─── Status Bar ───────────────────────────────────────────────────────────────
 
-function StatusBar({ wsOk, page, actorCol, actorInit, onLogout, onOpenAdmin }: {
+function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
   wsOk: boolean; page: Page;
   actorCol: string; actorInit: string; onLogout: () => void;
-  onOpenAdmin?: () => void;
 }) {
   const tab = TABS.find(t => t.id === page);
   const [showMenu, setShowMenu] = useState(false);
@@ -600,26 +569,8 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout, onOpenAdmin }: {
           </span>
         </div>
 
-        {/* Right side: admin button (kouider only) + actor avatar */}
+        {/* Right side: actor avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {onOpenAdmin && (
-            <button
-              onClick={onOpenAdmin}
-              title="God Mode"
-              style={{
-                cursor: 'pointer', padding: 0,
-                width: 30, height: 30, borderRadius: '50%',
-                background: 'rgba(255,200,0,0.07)',
-                border: '1.5px solid rgba(255,200,0,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 14,
-                boxShadow: '0 0 8px rgba(255,200,0,0.15)',
-                transition: 'all 0.2s',
-              }}
-            >
-              👑
-            </button>
-          )}
           {/* Actor avatar — tap = menu déconnexion */}
           <button
             onClick={() => setShowMenu(m => !m)}
