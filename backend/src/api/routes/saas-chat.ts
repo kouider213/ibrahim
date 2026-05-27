@@ -192,6 +192,34 @@ async function buildDataContext(orgId: string, cfg: Record<string, string>): Pro
   if (profile?.owner_name) ctx += `Propriétaire/gérant: ${profile.owner_name}\n`;
   if (profile?.address) ctx += `Adresse: ${profile.address}\n`;
 
+  // Social media
+  if (integ?.instagram) ctx += `Instagram: @${(integ.instagram as string).replace('@', '')}\n`;
+  if (integ?.tiktok)    ctx += `TikTok: @${(integ.tiktok as string).replace('@', '')}\n`;
+  if (integ?.facebook)  ctx += `Facebook: ${integ.facebook}\n`;
+  if (integ?.website)   ctx += `Site web: ${integ.website}\n`;
+
+  // Sector knowledge base — injected verbatim so AI knows the business inside out
+  if (profile) {
+    const knowledgeKeys = ['menu', 'chef', 'capacity', 'specialties', 'staff', 'services', 'total_rooms', 'amenities', 'checkin_time', 'star_rating', 'domains', 'languages', 'fees', 'equipment', 'brands_used', 'license_types', 'coverage_areas', 'certifications', 'product_categories', 'delivery_zones', 'return_policy', 'brands_sold', 'loyalty_program', 'property_types', 'commission', 'fleet_details', 'description_full', 'vehicles'];
+    const knowledgeLabels: Record<string, string> = {
+      menu: 'Menu/Tarifs', chef: 'Chef/Cuisine', capacity: 'Capacité', specialties: 'Spécialités',
+      staff: 'Équipe', services: 'Services', total_rooms: 'Chambres', amenities: 'Équipements',
+      checkin_time: 'Check-in/out', star_rating: 'Classement', domains: 'Domaines juridiques',
+      languages: 'Langues', fees: 'Tarifs/Honoraires', equipment: 'Équipements médicaux',
+      brands_used: 'Marques', license_types: 'Permis proposés', coverage_areas: 'Zones activité',
+      certifications: 'Certifications', product_categories: 'Catégories produits',
+      delivery_zones: 'Livraison', return_policy: 'Retours', brands_sold: 'Marques vendues',
+      loyalty_program: 'Fidélité', property_types: 'Types biens', commission: 'Commission',
+      fleet_details: 'Parc véhicules', description_full: 'Description', vehicles: 'Véhicules',
+    };
+    const parts: string[] = [];
+    knowledgeKeys.forEach(k => {
+      const val = (profile as Record<string, string | undefined>)[k];
+      if (val) parts.push(`${knowledgeLabels[k] ?? k}: ${val}`);
+    });
+    if (parts.length > 0) ctx += `\nCONNAISSANCE BUSINESS:\n${parts.join('\n')}\n`;
+  }
+
   ctx += '=== FIN DONNÉES ===';
   return ctx;
 }

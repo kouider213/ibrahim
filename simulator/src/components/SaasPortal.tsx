@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
 
 const BACKEND = (import.meta as any).env?.VITE_BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
 
@@ -32,11 +31,11 @@ const SECTORS = [
 
 const SECTOR_FEATURES: Record<string, { icon: string; text: string }[]> = {
   restaurant: [
-    { icon: '📋', text: 'Gérer vos réservations et tables en temps réel' },
-    { icon: '📊', text: 'Analyser vos ventes, plats populaires et chiffre d\'affaires' },
-    { icon: '📱', text: 'Générer des posts Instagram et réponses clients automatiquement' },
-    { icon: '🌍', text: 'Communiquer avec vos clients en français, arabe, anglais, espagnol' },
-    { icon: '🍽️', text: 'Proposer des menus du jour, suggestions et idées créatives' },
+    { icon: '📋', text: 'Réservations du jour par service (midi/soir) — tables, couverts, statut en temps réel' },
+    { icon: '🍽️', text: 'Menu du jour généré par l\'IA selon vos spéciaux et la saison' },
+    { icon: '📸', text: 'Posts Instagram et légendes créatives générés automatiquement' },
+    { icon: '⭐', text: 'Réponses professionnelles aux avis Google et TripAdvisor' },
+    { icon: '💰', text: 'CA par service, plats best-sellers, analyse des ventes hebdomadaires' },
   ],
   car_rental: [
     { icon: '🚗', text: 'Gérer les réservations et votre parc véhicules' },
@@ -46,173 +45,259 @@ const SECTOR_FEATURES: Record<string, { icon: string; text: string }[]> = {
     { icon: '📊', text: 'Analyser votre activité semaine par semaine' },
   ],
   hotel: [
-    { icon: '🏨', text: 'Gérer les chambres, check-in et check-out' },
-    { icon: '📊', text: 'Suivre le taux d\'occupation et les revenus' },
-    { icon: '⭐', text: 'Rédiger des réponses aux avis clients automatiquement' },
-    { icon: '🌍', text: 'Accueillir vos clients dans leur langue' },
-    { icon: '📋', text: 'Gérer les réservations et demandes spéciales' },
+    { icon: '🏨', text: 'Check-ins et check-outs du jour — chambres prêtes, arrivées à venir' },
+    { icon: '📊', text: 'Taux d\'occupation en temps réel et RevPAR (revenu par chambre)' },
+    { icon: '✉️', text: 'Emails de bienvenue personnalisés et réponses Booking.com/TripAdvisor' },
+    { icon: '🔔', text: 'Gestion des demandes spéciales clients (early check-in, allergies, préférences)' },
+    { icon: '💰', text: 'Optimisation tarifaire selon le taux d\'occupation et la saison' },
   ],
   lawyer: [
-    { icon: '⚖️', text: 'Rédiger des courriers, actes et notes juridiques' },
-    { icon: '📋', text: 'Gérer votre agenda et rendez-vous clients' },
-    { icon: '📄', text: 'Résumer et analyser des documents juridiques' },
-    { icon: '🌍', text: 'Communiquer avec vos clients en plusieurs langues' },
-    { icon: '🔍', text: 'Rechercher des précédents et informations légales' },
+    { icon: '⚖️', text: 'Rédaction de courriers, mises en demeure, actes et notes juridiques' },
+    { icon: '🗓️', text: 'Agenda des audiences, délais de procédure et échéances critiques' },
+    { icon: '📄', text: 'Résumé et analyse de documents juridiques complexes' },
+    { icon: '💼', text: 'Suivi des dossiers clients, facturation et honoraires par affaire' },
+    { icon: '⚡', text: 'Alertes automatiques sur les délais urgents — zéro oubli' },
   ],
   doctor: [
-    { icon: '📅', text: 'Gérer les rendez-vous et consultations' },
-    { icon: '📄', text: 'Rédiger comptes-rendus et ordonnances types' },
-    { icon: '📱', text: 'Envoyer des rappels de rendez-vous aux patients' },
-    { icon: '🌍', text: 'Communiquer avec les patients en plusieurs langues' },
-    { icon: '📊', text: 'Suivre statistiques de consultations' },
+    { icon: '📅', text: 'Planning des consultations du jour — patients, horaires, motifs' },
+    { icon: '📄', text: 'Templates de comptes-rendus et ordonnances types à personnaliser' },
+    { icon: '📱', text: 'Rappels de rendez-vous automatiques envoyés aux patients' },
+    { icon: '📊', text: 'Statistiques d\'activité — nb consultations, motifs fréquents, tendances' },
+    { icon: '🔒', text: 'Données patients traitées avec discrétion absolue' },
   ],
   real_estate: [
-    { icon: '🏠', text: 'Gérer votre portefeuille de biens immobiliers' },
-    { icon: '📋', text: 'Rédiger des annonces et fiches descriptives' },
-    { icon: '📅', text: 'Organiser les visites et rendez-vous clients' },
-    { icon: '💰', text: 'Calculer rentabilité, prix au m² et estimations' },
-    { icon: '📱', text: 'Envoyer des propositions personnalisées aux clients' },
+    { icon: '🏠', text: 'Portefeuille complet — biens disponibles, en visite, sous compromis, vendus' },
+    { icon: '✍️', text: 'Annonces immobilières percutantes rédigées par l\'IA en 30 secondes' },
+    { icon: '📅', text: 'Planning des visites optimisé — aucun rendez-vous manqué' },
+    { icon: '💰', text: 'Estimation prix au m², rentabilité locative, analyse marché local' },
+    { icon: '📱', text: 'Suivi prospects et messages de relance personnalisés automatiques' },
   ],
   retail: [
-    { icon: '🛍️', text: 'Gérer votre catalogue et stock produits' },
-    { icon: '📊', text: 'Analyser les ventes et produits populaires' },
-    { icon: '📱', text: 'Créer des offres promotionnelles et posts réseaux sociaux' },
-    { icon: '🌍', text: 'Communiquer avec vos clients en plusieurs langues' },
-    { icon: '💰', text: 'Suivre revenus et marges par produit' },
+    { icon: '🛍️', text: 'Stock en temps réel — alertes automatiques produits en rupture' },
+    { icon: '💰', text: 'Ventes du jour, marges par produit, best-sellers du mois' },
+    { icon: '🎯', text: 'Promotions et offres flash créées en 1 tap — prêtes à publier' },
+    { icon: '📸', text: 'Posts Instagram/Facebook/TikTok générés avec hashtags locaux' },
+    { icon: '⭐', text: 'Programme fidélité et relances clients personnalisées automatiques' },
   ],
   beauty: [
-    { icon: '💇', text: 'Gérer les rendez-vous clients et le planning de l\'équipe' },
-    { icon: '📊', text: 'Suivre les services, produits vendus et chiffre d\'affaires' },
-    { icon: '📱', text: 'Envoyer des rappels de rendez-vous automatiquement' },
-    { icon: '⭐', text: 'Gérer les avis clients et fidélisation' },
-    { icon: '💰', text: 'Analyser les revenus par coiffeur et par service' },
+    { icon: '💇', text: 'Planning par coiffeur/technicien — qui fait quoi, créneaux libres en temps réel' },
+    { icon: '📱', text: 'Rappels de RDV automatiques (message WhatsApp prêt à envoyer)' },
+    { icon: '💰', text: 'CA par coiffeur, par service, par semaine — qui performe le mieux' },
+    { icon: '📸', text: 'Légendes Instagram avant/après avec hashtags beauté et locaux' },
+    { icon: '🎁', text: 'Campagnes fidélité — offre retour 6 semaines, cadeau anniversaire client' },
   ],
   auto_school: [
-    { icon: '🚦', text: 'Gérer les élèves, leçons et plannings moniteurs' },
-    { icon: '📋', text: 'Suivre la progression de chaque élève' },
-    { icon: '📅', text: 'Planifier et confirmer les examens code et conduite' },
-    { icon: '💰', text: 'Gérer les paiements, acomptes et relances' },
-    { icon: '📱', text: 'Envoyer des rappels de cours automatiquement' },
+    { icon: '🚦', text: 'Planning leçons du jour — élève, moniteur, véhicule (manuelle/auto)' },
+    { icon: '📈', text: 'Progression de chaque élève — heures faites, restantes, points à améliorer' },
+    { icon: '🎯', text: 'Élèves prêts pour l\'examen — identification automatique selon la progression' },
+    { icon: '💰', text: 'Suivi paiements — acomptes reçus, soldes dus, relances automatiques' },
+    { icon: '📱', text: 'Rappels de leçon automatiques — plus d\'absences de dernière minute' },
   ],
   construction: [
-    { icon: '🏗️', text: 'Gérer les chantiers, équipes et planning travaux' },
-    { icon: '📦', text: 'Suivre les matériaux, stocks et fournisseurs' },
-    { icon: '💰', text: 'Calculer devis, factures et marges par chantier' },
-    { icon: '📋', text: 'Rédiger bons de commande, rapports de chantier' },
-    { icon: '⚠️', text: 'Alertes délais, retards et dépassements de budget' },
+    { icon: '🏗️', text: 'État en temps réel de tous vos chantiers — avancement, délais, équipes' },
+    { icon: '📋', text: 'Devis professionnels détaillés générés par l\'IA (main-d\'œuvre + matériaux + marge)' },
+    { icon: '🧾', text: 'Factures de situation et bons de commande matériaux en quelques secondes' },
+    { icon: '⚠️', text: 'Alertes retards, dépassements de budget et commandes urgentes' },
+    { icon: '💰', text: 'Rentabilité par chantier — coûts réels vs budget prévu' },
   ],
   ecommerce: [
-    { icon: '📦', text: 'Gérer le catalogue, stocks et commandes' },
-    { icon: '🚚', text: 'Suivre les livraisons et statuts commandes' },
-    { icon: '💰', text: 'Analyser revenus, marges et produits best-sellers' },
-    { icon: '📱', text: 'Rédiger fiches produits et posts réseaux sociaux' },
-    { icon: '⭐', text: 'Gérer les avis, retours et SAV clients' },
+    { icon: '📦', text: 'Commandes du jour — nouvelles, en préparation, expédiées, livrées, retours' },
+    { icon: '🚚', text: 'Suivi livraisons en temps réel — statuts et alertes retards transporteur' },
+    { icon: '✍️', text: 'Fiches produits optimisées SEO générées par l\'IA en 30 secondes' },
+    { icon: '⭐', text: 'Réponses aux avis clients — positifs et négatifs — professionnelles et rapides' },
+    { icon: '💰', text: 'CA, marges, best-sellers, stock bas — tableau de bord complet' },
   ],
   custom: [
-    { icon: '🤖', text: 'Un assistant IA adapté à votre activité' },
-    { icon: '🌍', text: 'Communiquer en français, arabe, anglais, espagnol' },
-    { icon: '📊', text: 'Analyser vos données et activité business' },
-    { icon: '📋', text: 'Rédiger emails, courriers et documents' },
-    { icon: '⚡', text: 'Automatiser les tâches répétitives' },
+    { icon: '🤖', text: 'Assistant IA 100% adapté à votre activité et votre vocabulaire métier' },
+    { icon: '🌍', text: 'Répond en français, arabe (darija), anglais, espagnol' },
+    { icon: '📊', text: 'Analyse vos données et génère des rapports d\'activité personnalisés' },
+    { icon: '📋', text: 'Rédige emails, courriers, posts réseaux sociaux et documents' },
+    { icon: '⚡', text: 'Automatise les tâches répétitives et vous libère du temps' },
+  ],
+};
+
+const SECTOR_KNOWLEDGE_FIELDS: Record<string, { key: string; label: string; placeholder: string; textarea?: boolean }[]> = {
+  restaurant: [
+    { key: 'menu',          label: 'Menu / Carte',              placeholder: 'Entrées, plats, desserts, prix…', textarea: true },
+    { key: 'chef',          label: 'Chef / Cuisine',            placeholder: 'Ex: Chef Ahmed, cuisine méditerranéenne' },
+    { key: 'capacity',      label: 'Capacité (couverts)',       placeholder: 'Ex: 60 couverts, 2 salles' },
+    { key: 'specialties',   label: 'Spécialités maison',        placeholder: 'Ex: Tajine, couscous royal, pastilla…' },
+    { key: 'staff',         label: 'Équipe',                    placeholder: 'Ex: 3 serveurs, 2 cuisiniers…' },
+    { key: 'services',      label: 'Services proposés',         placeholder: 'Ex: midi 12h-15h, soir 19h-23h, terrasse' },
+  ],
+  hotel: [
+    { key: 'total_rooms',   label: 'Chambres / Types',          placeholder: 'Ex: 24 ch: 10 standard, 8 sup., 4 suites' },
+    { key: 'amenities',     label: 'Équipements / Services',    placeholder: 'Ex: piscine, spa, wifi, parking, resto…' },
+    { key: 'checkin_time',  label: 'Check-in / Check-out',      placeholder: 'Ex: Check-in 14h, check-out 12h' },
+    { key: 'star_rating',   label: 'Classement',                placeholder: 'Ex: 4 étoiles, Riad 5* Tripadvisor' },
+    { key: 'staff',         label: 'Équipe clé',                placeholder: 'Ex: Directeur: M. Benali, réception 24/7' },
+    { key: 'specialties',   label: 'Atouts / Points forts',     placeholder: 'Ex: vue mer, proche aéroport, salle conf.' },
+  ],
+  lawyer: [
+    { key: 'domains',       label: 'Domaines juridiques',       placeholder: 'Ex: droit commercial, immobilier, pénal…' },
+    { key: 'staff',         label: 'Équipe / Associés',         placeholder: 'Ex: Maître Benali + 2 collaborateurs' },
+    { key: 'languages',     label: 'Langues de travail',        placeholder: 'Ex: français, arabe, anglais' },
+    { key: 'fees',          label: 'Honoraires / Tarifs',       placeholder: 'Ex: consultation 3 000 DA, forfaits…' },
+    { key: 'specialties',   label: 'Spécialisations',           placeholder: 'Ex: divorce, licenciement, recouvrement' },
+  ],
+  doctor: [
+    { key: 'specialties',   label: 'Spécialité(s)',             placeholder: 'Ex: médecine générale, cardiologie…' },
+    { key: 'staff',         label: 'Équipe médicale',           placeholder: 'Ex: Dr. Bensalem + 1 infirmière' },
+    { key: 'equipment',     label: 'Équipements / Actes',       placeholder: 'Ex: écho, ECG, spirométrie, chirurgical' },
+    { key: 'fees',          label: 'Tarifs consultation',       placeholder: 'Ex: consultation 1 500 DA' },
+    { key: 'services',      label: 'Services spécifiques',      placeholder: 'Ex: urgences, vaccins, certificats médicaux' },
+  ],
+  beauty: [
+    { key: 'staff',         label: 'Équipe / Coiffeurs',        placeholder: 'Ex: Karima (coloriste), Sofia (esthét.)' },
+    { key: 'menu',          label: 'Tarifs & Services',         placeholder: 'Ex: coupe femme 800 DA, couleur 2500 DA…', textarea: true },
+    { key: 'brands_used',   label: 'Marques utilisées',         placeholder: 'Ex: L\'Oréal, Wella, OPI, Kérastase…' },
+    { key: 'specialties',   label: 'Spécialités',               placeholder: 'Ex: balayage, kératine, extensions, nail art' },
+  ],
+  auto_school: [
+    { key: 'staff',         label: 'Moniteurs / Formateurs',    placeholder: 'Ex: M. Hadj (15 ans exp.), Mme Amira…' },
+    { key: 'vehicles',      label: 'Véhicules',                 placeholder: 'Ex: 3 Clio manuelle, 2 Yaris automatique' },
+    { key: 'menu',          label: 'Forfaits / Tarifs',         placeholder: 'Ex: Code 5 000 DA, Permis B 35 000 DA…', textarea: true },
+    { key: 'license_types', label: 'Permis proposés',           placeholder: 'Ex: Permis B, A (moto), C (poids lourd)' },
+    { key: 'specialties',   label: 'Points forts',              placeholder: 'Ex: taux réussite 85%, conduite accompagnée' },
+  ],
+  construction: [
+    { key: 'specialties',   label: 'Travaux / Spécialités',     placeholder: 'Ex: gros œuvre, carrelage, plomberie…' },
+    { key: 'coverage_areas',label: 'Zones d\'intervention',     placeholder: 'Ex: Oran, Tlemcen, Sidi Bel Abbès' },
+    { key: 'staff',         label: 'Équipe / Ouvriers',         placeholder: 'Ex: 12 ouvriers qualifiés, 3 chefs chantier' },
+    { key: 'certifications',label: 'Agréments / Certifs',       placeholder: 'Ex: agrément bâtiment, qualibat, ISO' },
+    { key: 'fees',          label: 'Tarifs / Taux horaires',    placeholder: 'Ex: main d\'œuvre 800 DA/h, devis gratuit' },
+  ],
+  ecommerce: [
+    { key: 'product_categories', label: 'Catégories produits',  placeholder: 'Ex: vêtements, électronique, cosmétiques…' },
+    { key: 'specialties',   label: 'Produits phares',           placeholder: 'Ex: robes kabyles, parfums orientaux…' },
+    { key: 'delivery_zones',label: 'Zones livraison',           placeholder: 'Ex: toute Algérie, 48h Oran, domicile' },
+    { key: 'return_policy', label: 'Politique retour',          placeholder: 'Ex: retour 7 jours, échange gratuit' },
+    { key: 'brands_used',   label: 'Marques vendues',           placeholder: 'Ex: Nike, Zara, Samsung, marques locales' },
+  ],
+  retail: [
+    { key: 'product_categories', label: 'Rayons / Catégories', placeholder: 'Ex: alimentation, hygiène, textile…' },
+    { key: 'brands_sold',   label: 'Marques principales',       placeholder: 'Ex: Hamoud, Ifri, Soummam, Samsung…' },
+    { key: 'specialties',   label: 'Produits phares',           placeholder: 'Ex: épicerie fine, produits bio, import' },
+    { key: 'staff',         label: 'Équipe',                    placeholder: 'Ex: 4 vendeurs, 1 caissière, 1 magasinier' },
+    { key: 'loyalty_program', label: 'Programme fidélité',      placeholder: 'Ex: carte fidélité, -10% après 10 achats' },
+  ],
+  real_estate: [
+    { key: 'coverage_areas',label: 'Zones d\'activité',         placeholder: 'Ex: Oran centre, Bir El Djir, Es Sénia…' },
+    { key: 'property_types',label: 'Types de biens',            placeholder: 'Ex: appartements, villas, locaux, terrains' },
+    { key: 'staff',         label: 'Agents / Équipe',           placeholder: 'Ex: M. Benahmed (senior), 2 agents juniors' },
+    { key: 'commission',    label: 'Commission / Frais',        placeholder: 'Ex: 2.5% vente, 1 mois loyer à la location' },
+    { key: 'specialties',   label: 'Spécialités',               placeholder: 'Ex: neuf promoteur, prestige, investissement' },
+  ],
+  car_rental: [
+    { key: 'fleet_details', label: 'Détails du parc',           placeholder: 'Ex: 5 berlines, 3 SUV, 2 utilitaires…' },
+    { key: 'delivery_zones',label: 'Livraison véhicules',       placeholder: 'Ex: aéroport, gare, hôtels Oran +200 DA/km' },
+    { key: 'specialties',   label: 'Services / Avantages',      placeholder: 'Ex: assurance incluse, sans caution, GPS offert' },
+    { key: 'fees',          label: 'Conditions / Dépôt',        placeholder: 'Ex: caution 10 000 DA, permis +2 ans, 25 ans min.' },
+  ],
+  custom: [
+    { key: 'description_full', label: 'Description complète',   placeholder: 'Décrivez votre activité en détail…', textarea: true },
+    { key: 'staff',         label: 'Équipe',                    placeholder: 'Ex: 5 personnes dont 2 experts…' },
+    { key: 'menu',          label: 'Services / Offres',         placeholder: 'Ex: prestation A 5 000 DA, prestation B…', textarea: true },
+    { key: 'specialties',   label: 'Points forts / Valeurs',    placeholder: 'Ex: 10 ans d\'expérience, certifié…' },
   ],
 };
 
 const QUICK_ACTIONS: Record<string, { icon: string; label: string; prompt: string }[]> = {
   restaurant: [
-    { icon: '📋', label: 'Réservations du jour',  prompt: 'Montre-moi les réservations d\'aujourd\'hui' },
-    { icon: '➕', label: 'Créer une réservation', prompt: 'Je veux créer une nouvelle réservation pour ce soir' },
-    { icon: '💰', label: 'Ventes ce mois',        prompt: 'Quel est notre chiffre d\'affaires ce mois-ci ?' },
-    { icon: '📱', label: 'Post Instagram',         prompt: 'Rédige un post Instagram attrayant pour le restaurant aujourd\'hui' },
-    { icon: '🍽️', label: 'Idée menu du jour',    prompt: 'Propose-moi un menu du jour original et équilibré' },
-    { icon: '⭐', label: 'Répondre à un avis',    prompt: 'Aide-moi à répondre professionnellement à un avis client Google' },
+    { icon: '📋', label: 'Réservations du jour',   prompt: 'Montre-moi toutes les réservations d\'aujourd\'hui avec les tables, le nombre de couverts et les horaires, service midi et service soir séparément' },
+    { icon: '🍽️', label: 'Menu du jour',           prompt: 'Propose-moi un menu du jour complet et original (entrée, plat, dessert) avec des arguments de vente pour Instagram' },
+    { icon: '💰', label: 'CA du service',           prompt: 'Quel est le chiffre d\'affaires d\'aujourd\'hui et des 7 derniers jours ? Quels sont nos plats/tables qui rapportent le plus ?' },
+    { icon: '📸', label: 'Post Instagram',          prompt: 'Rédige un post Instagram percutant pour aujourd\'hui avec une belle accroche, description du spécial du jour et 10 hashtags locaux et culinaires pertinents' },
+    { icon: '⭐', label: 'Répondre à un avis',      prompt: 'Aide-moi à rédiger une réponse professionnelle et chaleureuse à un avis client Google — propose 3 versions selon si l\'avis est positif, neutre ou négatif' },
+    { icon: '🪑', label: 'Tables disponibles',      prompt: 'Quelles tables sont disponibles ce soir ? Y a-t-il des créneaux libres pour des réservations de dernière minute ?' },
   ],
   car_rental: [
-    { icon: '🚗', label: 'Voitures disponibles',  prompt: 'Quelles voitures sont disponibles ce week-end ?' },
-    { icon: '➕', label: 'Créer une location',     prompt: 'Je veux créer une nouvelle réservation pour un client' },
-    { icon: '💰', label: 'CA cette semaine',       prompt: 'Quel est le chiffre d\'affaires de cette semaine ?' },
-    { icon: '📱', label: 'Message confirmation',   prompt: 'Rédige un message WhatsApp de confirmation de location pour un client' },
-    { icon: '📊', label: 'Stats du mois',          prompt: 'Donne-moi un résumé des performances du mois en cours' },
-    { icon: '🔧', label: 'Maintenance',            prompt: 'Aide-moi à planifier la maintenance de mon parc véhicules' },
+    { icon: '🚗', label: 'Voitures disponibles',   prompt: 'Quelles voitures sont disponibles maintenant et ce week-end ?' },
+    { icon: '➕', label: 'Créer une location',      prompt: 'Je veux créer une nouvelle réservation pour un client' },
+    { icon: '💰', label: 'CA cette semaine',        prompt: 'Quel est le chiffre d\'affaires de cette semaine ?' },
+    { icon: '📱', label: 'Message confirmation',    prompt: 'Rédige un message WhatsApp de confirmation de location pour un client' },
+    { icon: '📊', label: 'Stats du mois',           prompt: 'Donne-moi un résumé des performances du mois en cours' },
+    { icon: '🔧', label: 'Maintenance',             prompt: 'Aide-moi à planifier la maintenance de mon parc véhicules' },
   ],
   hotel: [
-    { icon: '🏨', label: 'Check-ins du jour',      prompt: 'Liste les check-ins et check-outs d\'aujourd\'hui' },
-    { icon: '➕', label: 'Créer une réservation',  prompt: 'Je veux créer une réservation chambre pour un client' },
-    { icon: '📊', label: 'Taux d\'occupation',     prompt: 'Quel est notre taux d\'occupation ce mois ?' },
-    { icon: '⭐', label: 'Répondre à un avis',     prompt: 'Aide-moi à répondre à un avis client sur Booking.com' },
-    { icon: '📱', label: 'Email de bienvenue',     prompt: 'Rédige un email de bienvenue pour un nouveau client' },
-    { icon: '💰', label: 'Revenus ce mois',        prompt: 'Quel sont les revenus de l\'hôtel ce mois-ci ?' },
+    { icon: '🏨', label: 'Arrivées & départs',      prompt: 'Liste tous les check-ins et check-outs d\'aujourd\'hui avec les noms des clients, numéros de chambre et horaires prévus — priorise ce qui est urgent' },
+    { icon: '📊', label: 'Chambres & occupation',   prompt: 'Combien de chambres sont libres ce soir et cette semaine ? Quel est notre taux d\'occupation et RevPAR ce mois ?' },
+    { icon: '✉️', label: 'Email bienvenue',         prompt: 'Rédige un email de bienvenue élégant et personnalisé pour un client qui arrive aujourd\'hui — chaleureux, professionnel, multilingue si besoin' },
+    { icon: '⭐', label: 'Répondre Booking.com',    prompt: 'Aide-moi à rédiger une réponse parfaite à un avis sur Booking.com ou TripAdvisor — propose une version pour avis 5★ et une pour avis négatif' },
+    { icon: '💰', label: 'Revenus & performance',   prompt: 'Quel est le revenu de cet hôtel ce mois-ci ? Quelles chambres rapportent le plus ? Quel taux d\'occupation avons-nous ?' },
+    { icon: '🔔', label: 'Demande spéciale client', prompt: 'Un client a une demande spéciale (lit bébé, early check-in, allergie, vue mer) — aide-moi à organiser et confirmer cette demande' },
   ],
   lawyer: [
-    { icon: '📄', label: 'Rédiger un courrier',    prompt: 'Aide-moi à rédiger un courrier professionnel pour un client' },
-    { icon: '📋', label: 'Mes RDV du jour',        prompt: 'Quels sont mes rendez-vous clients aujourd\'hui ?' },
-    { icon: '🔍', label: 'Analyser un document',   prompt: 'Je vais te partager un document, analyse-le et résume les points clés' },
-    { icon: '⚖️', label: 'Note juridique',         prompt: 'Aide-moi à rédiger une note de synthèse juridique' },
-    { icon: '📱', label: 'Répondre à un client',   prompt: 'Aide-moi à rédiger une réponse claire et professionnelle à un client' },
-    { icon: '📊', label: 'Résumé d\'activité',     prompt: 'Donne-moi un résumé de l\'activité du cabinet ce mois' },
+    { icon: '⚖️', label: 'Mes urgences du jour',    prompt: 'Quels sont mes rendez-vous d\'aujourd\'hui ? Y a-t-il des audiences, des délais de procédure ou des échéances juridiques urgentes à ne pas rater cette semaine ?' },
+    { icon: '📄', label: 'Mise en demeure',          prompt: 'Rédige une lettre de mise en demeure professionnelle et formelle — demande-moi les informations nécessaires (destinataire, objet, faits, demande)' },
+    { icon: '📋', label: 'Note de synthèse',         prompt: 'Aide-moi à rédiger une note de synthèse juridique sur un dossier — structure en faits, problème juridique, analyse, conclusion' },
+    { icon: '🔍', label: 'Analyser un document',     prompt: 'Je vais te décrire un document juridique — analyse-le, résume les points clés, identifie les risques et les clauses importantes' },
+    { icon: '💼', label: 'Honoraires & facturation', prompt: 'Aide-moi à rédiger une note d\'honoraires professionnelle pour un client — demande-moi les informations nécessaires' },
+    { icon: '📅', label: 'Agenda de la semaine',     prompt: 'Donne-moi un résumé de l\'agenda de la semaine avec les priorités et les délais critiques à respecter' },
   ],
   doctor: [
-    { icon: '📅', label: 'Consultations du jour',  prompt: 'Liste les consultations prévues aujourd\'hui' },
-    { icon: '📄', label: 'Compte-rendu',           prompt: 'Aide-moi à rédiger un compte-rendu de consultation' },
-    { icon: '📱', label: 'Rappel RDV patient',     prompt: 'Rédige un SMS de rappel de rendez-vous pour un patient' },
-    { icon: '💊', label: 'Ordonnance type',        prompt: 'Aide-moi à rédiger une ordonnance type pour un traitement courant' },
-    { icon: '📊', label: 'Stats consultations',    prompt: 'Combien de consultations avons-nous eu ce mois ?' },
-    { icon: '⭐', label: 'Répondre à un patient',  prompt: 'Aide-moi à répondre de manière bienveillante à un patient' },
+    { icon: '📅', label: 'Patients du jour',         prompt: 'Liste toutes les consultations prévues aujourd\'hui avec les horaires et motifs — organise par priorité et identifie les patients urgents' },
+    { icon: '📄', label: 'Rapport de consultation',  prompt: 'Aide-moi à rédiger un compte-rendu de consultation médical structuré — motif, anamnèse, examen, conclusion, suivi — je vais te donner les détails' },
+    { icon: '📱', label: 'Rappel patient SMS',        prompt: 'Rédige un SMS de rappel de rendez-vous pour un patient pour demain — courtois, clair, avec l\'horaire et l\'adresse du cabinet' },
+    { icon: '💊', label: 'Ordonnance type',           prompt: 'Génère un template d\'ordonnance type à compléter pour un traitement courant — rappelle que c\'est un modèle à valider par le médecin' },
+    { icon: '📊', label: 'Stats du mois',             prompt: 'Combien de consultations avons-nous effectuées ce mois ? Quels sont les motifs de consultation les plus fréquents ? Bilan d\'activité complet' },
+    { icon: '✉️', label: 'Répondre à un patient',    prompt: 'Aide-moi à répondre de manière bienveillante, claire et professionnelle à la question ou demande d\'un patient — je vais te donner le contexte' },
   ],
   real_estate: [
-    { icon: '🏠', label: 'Créer une annonce',      prompt: 'Aide-moi à rédiger une annonce immobilière attrayante' },
-    { icon: '📅', label: 'Visites du jour',        prompt: 'Quelles visites sont prévues aujourd\'hui ?' },
-    { icon: '💰', label: 'Estimation prix',        prompt: 'Aide-moi à estimer le prix d\'un bien immobilier' },
-    { icon: '📱', label: 'Contacter un acheteur',  prompt: 'Rédige un message personnalisé pour un acheteur potentiel' },
-    { icon: '📊', label: 'Portfolio biens',        prompt: 'Donne-moi un résumé de mon portefeuille de biens' },
-    { icon: '⭐', label: 'Réponse avis',           prompt: 'Aide-moi à répondre à un avis client sur mon agence' },
+    { icon: '📅', label: 'Visites du jour',           prompt: 'Quelles visites de biens sont prévues aujourd\'hui ? Donne-moi les détails (client, bien, heure, localisation) et les biens les plus susceptibles d\'intéresser' },
+    { icon: '✍️', label: 'Rédiger une annonce',       prompt: 'Rédige une annonce immobilière percutante pour un bien — demande-moi la surface, le quartier, le type, le prix et les atouts clés' },
+    { icon: '🏠', label: 'Biens disponibles',          prompt: 'Quels biens sont actuellement disponibles dans mon portefeuille ? Résume les caractéristiques clés et les prix de chacun' },
+    { icon: '💰', label: 'Estimation & rentabilité',   prompt: 'Aide-moi à estimer le prix d\'un bien au m² et à calculer sa rentabilité locative brute et nette selon le quartier et le type de bien' },
+    { icon: '📱', label: 'Message prospect',           prompt: 'Rédige un message de relance commercial personnalisé pour un acheteur potentiel — chaleureux, professionnel, avec une proposition de bien adapté à son budget' },
+    { icon: '📊', label: 'Bilan des ventes',           prompt: 'Quel est le bilan des transactions ce mois ? Biens vendus, visites effectuées, leads en cours, revenus de commission générés' },
   ],
   retail: [
-    { icon: '📊', label: 'Ventes du jour',         prompt: 'Quelles sont les ventes d\'aujourd\'hui ?' },
-    { icon: '🏷️', label: 'Créer une promo',       prompt: 'Aide-moi à créer une offre promotionnelle attractive' },
-    { icon: '📱', label: 'Post réseaux sociaux',   prompt: 'Rédige un post pour nos réseaux sociaux pour promouvoir nos produits' },
-    { icon: '📋', label: 'Gestion stock',          prompt: 'Aide-moi à gérer mon inventaire et identifier les produits à réapprovisionner' },
-    { icon: '💰', label: 'CA ce mois',             prompt: 'Quel est notre chiffre d\'affaires ce mois-ci ?' },
-    { icon: '⭐', label: 'Fidélisation client',    prompt: 'Propose-moi une stratégie pour fidéliser mes clients' },
+    { icon: '📊', label: 'Ventes & stock du jour',    prompt: 'Quelles sont les ventes d\'aujourd\'hui ? Quels produits se vendent bien ? Y a-t-il des alertes de stock bas à traiter maintenant ?' },
+    { icon: '🏷️', label: 'Créer une promotion',       prompt: 'Crée une offre promotionnelle attractive pour booster les ventes — propose 3 idées de promos différentes avec % de remise, durée et produits ciblés' },
+    { icon: '📸', label: 'Post réseaux sociaux',       prompt: 'Rédige 3 versions de posts pour Instagram/Facebook/TikTok pour promouvoir mes produits aujourd\'hui — accroche, description, hashtags locaux et tendance' },
+    { icon: '💰', label: 'CA & marges du mois',        prompt: 'Quel est le chiffre d\'affaires ce mois-ci ? Quels sont les produits les plus rentables et ceux qui ne tournent pas ?' },
+    { icon: '📦', label: 'Inventaire & réassort',      prompt: 'Quels produits sont en stock bas ou en rupture ? Aide-moi à prioriser les réassorts et rédige une liste de commande fournisseur' },
+    { icon: '⭐', label: 'Fidéliser mes clients',       prompt: 'Propose-moi une stratégie de fidélisation complète pour ma boutique — programme points, offres anniversaire, relances clients inactifs' },
   ],
   beauty: [
-    { icon: '📅', label: 'RDV du jour',            prompt: 'Liste les rendez-vous d\'aujourd\'hui avec les clients et services prévus' },
-    { icon: '➕', label: 'Nouveau RDV',             prompt: 'Je veux créer un nouveau rendez-vous client' },
-    { icon: '💰', label: 'CA ce mois',             prompt: 'Quel est le chiffre d\'affaires du salon ce mois-ci ?' },
-    { icon: '📱', label: 'Rappel client',           prompt: 'Rédige un message de rappel de rendez-vous pour un client' },
-    { icon: '⭐', label: 'Fidélisation',            prompt: 'Propose-moi une offre de fidélisation pour mes clients réguliers' },
-    { icon: '📊', label: 'Top services',            prompt: 'Quels sont les services les plus demandés ce mois ?' },
+    { icon: '💇', label: 'Planning du jour',           prompt: 'Montre-moi le planning complet d\'aujourd\'hui par coiffeur/technicien — clients, services, horaires et créneaux libres pour de nouveaux RDV' },
+    { icon: '➕', label: 'Nouveau rendez-vous',        prompt: 'Je veux créer un nouveau rendez-vous client — demande-moi le nom du client, le service souhaité, le coiffeur préféré et le créneau' },
+    { icon: '📱', label: 'Rappel clients demain',       prompt: 'Rédige des messages de rappel de rendez-vous pour les clients de demain — format WhatsApp prêt à copier-coller, chaleureux et professionnel' },
+    { icon: '💰', label: 'CA par coiffeur',            prompt: 'Quel est le chiffre d\'affaires de ce mois par coiffeur et par service ? Qui performe le mieux et quels services sont les plus demandés ?' },
+    { icon: '📸', label: 'Post Instagram',             prompt: 'Rédige une légende Instagram percutante pour une photo avant/après — tendance, inspirante, avec hashtags beauté et locaux pertinents' },
+    { icon: '🎁', label: 'Offre fidélité',             prompt: 'Crée une campagne de fidélisation pour mes clients réguliers — offre retour 6 semaines, cadeau anniversaire, programme points — prête à envoyer' },
   ],
   auto_school: [
-    { icon: '📅', label: 'Leçons du jour',          prompt: 'Quelles leçons de conduite sont prévues aujourd\'hui ?' },
-    { icon: '➕', label: 'Nouvel élève',             prompt: 'Je veux créer un dossier pour un nouvel élève' },
-    { icon: '📊', label: 'Progression élèves',      prompt: 'Donne-moi un état de la progression de mes élèves en cours' },
-    { icon: '📋', label: 'Examen à venir',          prompt: 'Quels élèves passent l\'examen ce mois-ci ?' },
-    { icon: '💰', label: 'Paiements en attente',    prompt: 'Y a-t-il des paiements ou acomptes en attente ?' },
-    { icon: '📱', label: 'Rappel leçon',            prompt: 'Rédige un SMS de rappel pour la leçon de conduite de demain' },
+    { icon: '🚦', label: 'Leçons du jour',             prompt: 'Liste toutes les leçons de conduite d\'aujourd\'hui — élève, moniteur, véhicule (manuelle/automatique), heure — avec les créneaux libres pour de nouvelles leçons' },
+    { icon: '📈', label: 'Progression d\'un élève',    prompt: 'Je veux voir la progression détaillée d\'un élève — heures effectuées, heures restantes, points forts, difficultés, est-il prêt pour l\'examen ?' },
+    { icon: '🎯', label: 'Prêts pour l\'examen',       prompt: 'Quels élèves sont prêts à passer l\'examen de conduite ce mois-ci selon leur progression et heures effectuées ? Classe-les par niveau de préparation' },
+    { icon: '💰', label: 'Paiements en retard',        prompt: 'Y a-t-il des élèves avec des paiements ou acomptes en retard ? Liste-les avec les montants dus et aide-moi à rédiger un message de relance poli' },
+    { icon: '📱', label: 'Rappel leçon demain',        prompt: 'Rédige un SMS de rappel pour les élèves qui ont une leçon de conduite demain — format court, clair, avec l\'heure et le lieu de rendez-vous' },
+    { icon: '📅', label: 'Planning moniteurs',         prompt: 'Donne-moi le planning complet des moniteurs pour cette semaine — qui est disponible, quels véhicules sont libres, comment optimiser les créneaux' },
   ],
   construction: [
-    { icon: '🏗️', label: 'Chantiers en cours',      prompt: 'Donne-moi l\'état actuel de tous les chantiers en cours' },
-    { icon: '➕', label: 'Nouveau devis',            prompt: 'Aide-moi à rédiger un devis pour un nouveau chantier' },
-    { icon: '📦', label: 'Commande matériaux',      prompt: 'Je dois commander des matériaux — aide-moi à rédiger le bon de commande' },
-    { icon: '💰', label: 'Facture chantier',        prompt: 'Aide-moi à rédiger une facture pour un chantier terminé' },
-    { icon: '⚠️', label: 'Retards & alertes',      prompt: 'Y a-t-il des chantiers en retard ou des alertes à surveiller ?' },
-    { icon: '📊', label: 'Bilan mensuel',            prompt: 'Fais-moi un bilan de l\'activité BTP ce mois-ci' },
+    { icon: '🏗️', label: 'État des chantiers',         prompt: 'Donne-moi l\'état en temps réel de tous mes chantiers actifs — avancement %, équipes assignées, délai prévu vs réel, alertes retards ou dépassements' },
+    { icon: '📋', label: 'Rédiger un devis',            prompt: 'Aide-moi à rédiger un devis professionnel détaillé pour un nouveau chantier — demande-moi le type de travaux, la surface, les matériaux et ma marge cible' },
+    { icon: '🧾', label: 'Créer une facture',           prompt: 'Rédige une facture de situation d\'avancement ou de solde pour un chantier terminé — structure professionnelle avec lignes détaillées main-d\'œuvre + matériaux + TVA' },
+    { icon: '📦', label: 'Commande matériaux',          prompt: 'Je dois commander des matériaux pour un chantier — aide-moi à rédiger un bon de commande avec désignations, quantités, références et fournisseur' },
+    { icon: '⚠️', label: 'Alertes & retards',          prompt: 'Y a-t-il des chantiers en retard sur le planning ou en dépassement de budget ? Analyse la situation et propose des mesures correctives' },
+    { icon: '📊', label: 'Rentabilité par chantier',   prompt: 'Analyse la rentabilité de chaque chantier — coûts réels vs budget prévu, marge réalisée, et donne-moi un bilan financier mensuel de l\'entreprise' },
   ],
   ecommerce: [
-    { icon: '📦', label: 'Commandes du jour',       prompt: 'Quelles commandes ont été passées aujourd\'hui ?' },
-    { icon: '🚚', label: 'Livraisons en cours',     prompt: 'Quel est l\'état des livraisons en cours ?' },
-    { icon: '💰', label: 'CA ce mois',              prompt: 'Quel est le chiffre d\'affaires e-commerce ce mois-ci ?' },
-    { icon: '📱', label: 'Fiche produit',           prompt: 'Rédige une fiche produit attractive pour un nouvel article' },
-    { icon: '⭐', label: 'Réponse avis',            prompt: 'Aide-moi à répondre à un avis client en ligne' },
-    { icon: '🏷️', label: 'Créer une promo',        prompt: 'Aide-moi à créer une offre promotionnelle pour booster les ventes' },
+    { icon: '📦', label: 'Commandes à traiter',        prompt: 'Quelles commandes sont en attente de traitement aujourd\'hui ? Liste-les avec les produits, quantités et adresses de livraison — priorise les urgentes' },
+    { icon: '🚚', label: 'Livraisons en cours',        prompt: 'Quel est le statut de toutes les livraisons en cours ? Y a-t-il des retards ou des litiges transporteur à gérer maintenant ?' },
+    { icon: '⚠️', label: 'Alertes stock bas',          prompt: 'Quels produits sont en stock bas ou en rupture imminente ? Aide-moi à prioriser les réassorts et rédige une liste de commande fournisseur urgente' },
+    { icon: '✍️', label: 'Fiche produit SEO',          prompt: 'Rédige une fiche produit optimisée SEO pour un article — accroche percutante, bénéfices clients, caractéristiques techniques, appel à l\'action — je te donne les détails' },
+    { icon: '⭐', label: 'Répondre à un avis',         prompt: 'Aide-moi à répondre à un avis client — propose une réponse chaleureuse pour un avis positif et une réponse solution-oriented pour un avis négatif' },
+    { icon: '🎯', label: 'Créer une promo flash',      prompt: 'Crée une offre promotionnelle flash pour booster les ventes immédiatement — code promo, % remise, durée limitée, produits ciblés et message marketing' },
   ],
   custom: [
-    { icon: '📋', label: 'Résumé du jour',         prompt: 'Fais-moi un résumé de l\'activité du jour' },
-    { icon: '📄', label: 'Rédiger un document',    prompt: 'Aide-moi à rédiger un document professionnel' },
-    { icon: '📱', label: 'Message client',         prompt: 'Aide-moi à rédiger un message professionnel pour un client' },
-    { icon: '📊', label: 'Analyser des données',   prompt: 'Aide-moi à analyser des données de mon business' },
-    { icon: '💡', label: 'Idée créative',          prompt: 'Donne-moi des idées créatives pour développer mon business' },
-    { icon: '⭐', label: 'Améliorer mon service',  prompt: 'Comment puis-je améliorer la qualité de mon service ?' },
+    { icon: '📋', label: 'Bilan du jour',              prompt: 'Fais-moi un bilan complet de l\'activité d\'aujourd\'hui — réservations, revenus, clients, points importants à ne pas oublier' },
+    { icon: '📄', label: 'Rédiger un document',        prompt: 'Aide-moi à rédiger un document professionnel — email, courrier, rapport, offre commerciale — je te donne le contexte' },
+    { icon: '📱', label: 'Message client',             prompt: 'Aide-moi à rédiger un message professionnel et efficace pour un client — je te donne la situation et le ton souhaité' },
+    { icon: '💡', label: 'Idée business',              prompt: 'Donne-moi 5 idées concrètes et actionnables pour développer mon activité et augmenter mon chiffre d\'affaires ce mois-ci' },
+    { icon: '📊', label: 'Analyser mes données',       prompt: 'Analyse mes données business et donne-moi les insights les plus importants — tendances, opportunités, alertes' },
+    { icon: '⭐', label: 'Améliorer mon service',       prompt: 'Comment puis-je améliorer la qualité de mon service et la satisfaction client ? Donne-moi 5 actions concrètes à appliquer cette semaine' },
   ],
 };
 
@@ -732,29 +817,11 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput]       = useState('');
   const [thinking, setThinking] = useState(false);
-  const [streaming, setStreaming] = useState('');
-  const [wsOk, setWsOk]         = useState(false);
-  const socketRef = useRef<Socket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const sessionId = getSessionId(session.org_id);
   const aiName    = session.ai_name ?? 'Dzaryx';
 
-  useEffect(() => {
-    const sock = io(BACKEND, {
-      auth: { token: session.token },
-      query: { sessionId },
-      transports: ['websocket', 'polling'],
-    });
-    sock.on('connect',    () => setWsOk(true));
-    sock.on('disconnect', () => setWsOk(false));
-    sock.on('Dzaryx:text_chunk',    (chunk: string) => setStreaming(prev => prev + chunk));
-    sock.on('Dzaryx:text_complete', (text: string)  => { setStreaming(''); setThinking(false); setMessages(prev => [...prev, { role: 'ai', text, ts: Date.now() }]); });
-    sock.on('Dzaryx:status', ({ status }: { status: string }) => { if (status === 'thinking') setThinking(true); if (status === 'idle') setThinking(false); });
-    socketRef.current = sock;
-    return () => { sock.disconnect(); };
-  }, [session.token, sessionId]);
-
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, streaming]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
 
   const send = async (msg?: string) => {
     const text = (msg ?? input).trim();
@@ -763,7 +830,6 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
     setTab('chat');
     setMessages(prev => [...prev, { role: 'user', text, ts: Date.now() }]);
     setThinking(true);
-    setStreaming('');
     try {
       const res = await fetch(`${BACKEND}/api/saas/chat`, {
         method: 'POST',
@@ -800,13 +866,11 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
           <div style={{
             display: 'flex', alignItems: 'center', gap: 5,
             padding: '3px 10px', borderRadius: 20,
-            background: wsOk ? 'rgba(0,212,255,0.06)' : 'rgba(255,51,102,0.06)',
-            border: `1px solid ${wsOk ? 'rgba(0,212,255,0.18)' : 'rgba(255,51,102,0.2)'}`,
+            background: 'rgba(0,212,255,0.06)',
+            border: '1px solid rgba(0,212,255,0.18)',
           }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: wsOk ? '#00d4ff' : '#ff3366' }} />
-            <span style={{ fontFamily: 'Inter', fontSize: 10, color: wsOk ? 'rgba(0,212,255,0.85)' : '#ff3366' }}>
-              {wsOk ? 'EN LIGNE' : 'HORS LIGNE'}
-            </span>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#00d4ff' }} />
+            <span style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(0,212,255,0.85)' }}>EN LIGNE</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {onBack && (
@@ -825,7 +889,7 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
 
       {/* Tab content */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {tab === 'chat'    && <ChatTab messages={messages} streaming={streaming} thinking={thinking} input={input} setInput={setInput} onSend={() => send()} aiName={aiName} bottomRef={bottomRef} />}
+        {tab === 'chat'    && <ChatTab messages={messages} thinking={thinking} input={input} setInput={setInput} onSend={() => send()} aiName={aiName} bottomRef={bottomRef} />}
         {tab === 'actions' && <ActionsTab sector={session.sector} aiName={aiName} onAction={send} />}
         {tab === 'agenda'  && <AgendaTab session={session} />}
         {tab === 'data'    && <DataTab session={session} />}
@@ -871,8 +935,8 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
 }
 
 // ── Chat tab ──────────────────────────────────────────────────────
-function ChatTab({ messages, streaming, thinking, input, setInput, onSend, aiName, bottomRef }: {
-  messages: ChatMessage[]; streaming: string; thinking: boolean;
+function ChatTab({ messages, thinking, input, setInput, onSend, aiName, bottomRef }: {
+  messages: ChatMessage[]; thinking: boolean;
   input: string; setInput: (v: string) => void; onSend: () => void;
   aiName: string; bottomRef: React.RefObject<HTMLDivElement>;
 }) {
@@ -903,10 +967,10 @@ function ChatTab({ messages, streaming, thinking, input, setInput, onSend, aiNam
             </div>
           </div>
         ))}
-        {(thinking || streaming) && (
+        {thinking && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: '18px 18px 18px 4px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', fontFamily: 'Inter', fontSize: 14, color: 'rgba(255,255,255,0.88)', lineHeight: 1.5 }}>
-              {streaming || <span style={{ color: 'rgba(0,212,255,0.5)' }}>···</span>}
+              <span style={{ color: 'rgba(0,212,255,0.5)' }}>···</span>
             </div>
           </div>
         )}
@@ -998,8 +1062,8 @@ function ActionsTab({ sector, aiName, onAction }: { sector: string; aiName: stri
 }
 
 // ── Account tab ───────────────────────────────────────────────────
-interface Integrations { whatsapp_number?: string; google_calendar_url?: string; business_hours_open?: string; business_hours_close?: string; }
-interface BusinessProfile { owner_name?: string; address?: string; website?: string; description?: string; }
+interface Integrations { whatsapp_number?: string; google_calendar_url?: string; business_hours_open?: string; business_hours_close?: string; instagram?: string; tiktok?: string; facebook?: string; website?: string; }
+interface BusinessProfile { owner_name?: string; address?: string; website?: string; description?: string; [key: string]: string | undefined; }
 interface OrgConfig { ai_name: string; business_name: string; sector: string; language: string; city: string; country: string; plan: string; messages_used: number; messages_limit: number; integrations?: Integrations; business_profile?: BusinessProfile; }
 
 function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSession; onLogout: () => void; onUpdateSession: (s: OrgSession) => void }) {
@@ -1019,6 +1083,14 @@ function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSessio
   const [ownerName, setOwnerName]   = useState('');
   const [address, setAddress]       = useState('');
   const [description, setDesc]      = useState('');
+
+  // Social media
+  const [instagram, setInstagram] = useState('');
+  const [tiktok, setTiktok]       = useState('');
+  const [facebook, setFacebook]   = useState('');
+  const [website, setWebsite]     = useState('');
+  // Sector knowledge
+  const [knowledge, setKnowledge] = useState<Record<string, string>>({});
 
   // Security states
   const [secAction, setSecAction] = useState<null | 'email' | 'password'>(null);
@@ -1049,6 +1121,14 @@ function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSessio
         setOwnerName(p.owner_name ?? '');
         setAddress(p.address ?? '');
         setDesc(p.description ?? '');
+        setInstagram(i.instagram ?? '');
+        setTiktok(i.tiktok ?? '');
+        setFacebook(i.facebook ?? '');
+        setWebsite(i.website ?? '');
+        const fields = SECTOR_KNOWLEDGE_FIELDS[cfg.sector] ?? SECTOR_KNOWLEDGE_FIELDS['custom']!;
+        const k: Record<string, string> = {};
+        fields.forEach(f => { k[f.key] = (p as Record<string, string | undefined>)[f.key] ?? ''; });
+        setKnowledge(k);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -1077,8 +1157,8 @@ function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSessio
         method: 'PATCH',
         headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          integrations: { whatsapp_number: waNumber, google_calendar_url: gcalUrl, business_hours_open: hoursOpen, business_hours_close: hoursClose },
-          business_profile: { owner_name: ownerName, address, description },
+          integrations: { whatsapp_number: waNumber, google_calendar_url: gcalUrl, business_hours_open: hoursOpen, business_hours_close: hoursClose, instagram, tiktok, facebook, website },
+          business_profile: { owner_name: ownerName, address, description, ...knowledge },
         }),
       });
       setSaved(true);
@@ -1162,7 +1242,7 @@ function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSessio
   const used   = config?.messages_used  ?? 0;
   const limit  = config?.messages_limit ?? 100;
   const pct    = Math.min(100, Math.round((used / limit) * 100));
-  const planName = config?.plan === 'pro' ? 'Pro' : config?.plan === 'enterprise' ? 'Enterprise' : 'Gratuit';
+  const planName = config?.plan === 'pro' ? 'Pro' : config?.plan === 'enterprise' ? 'Enterprise' : config?.plan === 'ultimate' ? 'Ultimate' : 'Gratuit';
 
   const LANG_LABELS: Record<string, string> = { fr: 'Français', ar: 'Arabe (Darija)', en: 'English', es: 'Español' };
 
@@ -1235,9 +1315,9 @@ function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSessio
             </button>
           )}
           {planName !== 'Gratuit' && (
-            <div style={{ padding: '14px', background: 'rgba(0,212,255,0.06)', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 14, marginBottom: 16 }}>
-              <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: '#00d4ff', marginBottom: 4 }}>
-                {planName === 'Enterprise' ? '👑' : '✨'} Plan {planName} actif
+            <div style={{ padding: '14px', background: planName === 'Ultimate' ? 'rgba(255,215,0,0.05)' : 'rgba(0,212,255,0.06)', border: `1px solid ${planName === 'Ultimate' ? 'rgba(255,215,0,0.25)' : 'rgba(0,212,255,0.2)'}`, borderRadius: 14, marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 600, color: planName === 'Ultimate' ? '#ffd700' : '#00d4ff', marginBottom: 4 }}>
+                {planName === 'Enterprise' ? '👑' : planName === 'Ultimate' ? '🏠' : '✨'} Plan {planName} actif
               </div>
               <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
                 {config?.messages_used ?? 0} / {config?.messages_limit ?? 0} messages utilisés ce mois
@@ -1249,6 +1329,7 @@ function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSessio
               {[
                 { key: 'pro', label: 'Pro', price: '2 900 DA/mois', color: 'rgba(124,58,237,0.9)', bg: 'rgba(124,58,237,0.07)', border: 'rgba(124,58,237,0.25)', features: ['2 000 messages/mois', 'Briefing quotidien', 'Items illimités', 'Stats avancées', 'Notifications push', 'Support prioritaire'] },
                 { key: 'enterprise', label: 'Enterprise', price: '9 900 DA/mois', color: '#00d4ff', bg: 'rgba(0,212,255,0.05)', border: 'rgba(0,212,255,0.2)', features: ['Messages illimités', 'Tout le plan Pro', 'SLA 99.9%', 'Onboarding dédié', 'API webhooks', 'Marque blanche'] },
+                { key: 'ultimate', label: '🏠 Ultimate IoT', price: '19 900 DA/mois', color: '#ffd700', bg: 'rgba(255,215,0,0.04)', border: 'rgba(255,215,0,0.2)', features: ['Tout Enterprise inclus', 'Maison connectée (Zigbee)', 'Voiture connectée (OBD-II)', 'Contrôle domotique vocal', 'Dashboard IoT temps réel', 'Matériel inclus à l\'install'] },
               ].map(p => (
                 <div key={p.key} style={{ padding: '14px', background: p.bg, border: `1px solid ${p.border}`, borderRadius: 14, marginBottom: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -1285,6 +1366,58 @@ function AccountTab({ session, onLogout, onUpdateSession }: { session: OrgSessio
                 <div key={f.label}>
                   <div style={S.inputLabel}>{f.label}</div>
                   <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder} style={S.input} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Sector knowledge base */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ ...S.sectionLabel, marginBottom: 4 }}>🧠 Profil business complet</div>
+            <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.25)', marginBottom: 10 }}>
+              Ces infos sont injectées dans chaque conversation — Dzaryx connaît votre business par cœur
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(SECTOR_KNOWLEDGE_FIELDS[config?.sector ?? session.sector] ?? SECTOR_KNOWLEDGE_FIELDS['custom']!).map(f => (
+                <div key={f.key}>
+                  <div style={S.inputLabel}>{f.label}</div>
+                  {f.textarea ? (
+                    <textarea
+                      value={knowledge[f.key] ?? ''}
+                      onChange={e => setKnowledge(prev => ({ ...prev, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      rows={3}
+                      style={{ ...S.input, resize: 'vertical' as const, height: 'auto', minHeight: 64 }}
+                    />
+                  ) : (
+                    <input
+                      value={knowledge[f.key] ?? ''}
+                      onChange={e => setKnowledge(prev => ({ ...prev, [f.key]: e.target.value }))}
+                      placeholder={f.placeholder}
+                      style={S.input}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Social media */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ ...S.sectionLabel, marginBottom: 4 }}>📱 Réseaux sociaux</div>
+            <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.25)', marginBottom: 10 }}>
+              Dzaryx génère des posts et rédige du contenu adapté à chaque réseau
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { label: 'Instagram', value: instagram, set: setInstagram, placeholder: '@votre_compte', color: '#e1306c' },
+                { label: 'TikTok',    value: tiktok,    set: setTiktok,    placeholder: '@votre_tiktok',  color: '#69c9d0' },
+                { label: 'Facebook',  value: facebook,  set: setFacebook,  placeholder: 'URL page Facebook', color: '#1877f2' },
+                { label: 'Site web',  value: website,   set: setWebsite,   placeholder: 'https://votre-site.com', color: '#00d4ff' },
+              ].map(f => (
+                <div key={f.label}>
+                  <div style={{ ...S.inputLabel, color: f.color }}>{f.label}</div>
+                  <input value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder} style={{ ...S.input, borderColor: f.value ? f.color + '50' : undefined }} />
                 </div>
               ))}
             </div>
@@ -2080,7 +2213,7 @@ function BookingFormModal({ session, cfg, items, onClose, onCreated }: {
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <div style={S.inputLabel}>Montant (DZD)</div>
+          <div style={S.inputLabel}>Montant</div>
           <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={S.input} />
         </div>
 
@@ -2135,6 +2268,29 @@ const SECTOR_ITEM_EXTRA: Record<string, { label: string; key: string; placeholde
     { label: 'Référence',  key: 'ref',          placeholder: 'SKU-001' },
     { label: 'Catégorie',  key: 'category',     placeholder: 'Vêtements / Chaussures / Accessoires' },
     { label: 'Stock',      key: 'stock',        placeholder: '50', type: 'number' },
+  ],
+  beauty: [
+    { label: 'Durée (min)',  key: 'duration',   placeholder: '30', type: 'number' },
+    { label: 'Catégorie',   key: 'category',   placeholder: 'Coiffure / Soin / Maquillage / Onglerie' },
+    { label: 'Coiffeur',    key: 'technician', placeholder: 'Sofia, Rania…' },
+  ],
+  auto_school: [
+    { label: 'Marque',         key: 'brand',        placeholder: 'Renault, Peugeot, Dacia…' },
+    { label: 'Immatriculation',key: 'plate',         placeholder: '16-12345-16' },
+    { label: 'Type de boîte',  key: 'gearbox',       placeholder: 'Manuelle / Automatique' },
+    { label: 'Type de permis', key: 'license_type',  placeholder: 'B / A / C / EC' },
+  ],
+  construction: [
+    { label: 'Localisation',   key: 'location',     placeholder: 'Oran, Bir El Djir…' },
+    { label: 'Budget prévu',   key: 'budget',       placeholder: '500000', type: 'number' },
+    { label: 'Type de travaux',key: 'work_type',    placeholder: 'Gros œuvre / Finition / Électricité / Plomberie' },
+    { label: 'Surface (m²)',   key: 'surface',      placeholder: '120', type: 'number' },
+  ],
+  ecommerce: [
+    { label: 'Référence/SKU',  key: 'ref',          placeholder: 'SKU-001' },
+    { label: 'Catégorie',      key: 'category',     placeholder: 'Électronique / Mode / Beauté / Maison' },
+    { label: 'Stock',          key: 'stock',        placeholder: '100', type: 'number' },
+    { label: 'Fournisseur',    key: 'supplier',     placeholder: 'Nom du fournisseur' },
   ],
 };
 
@@ -2197,7 +2353,7 @@ function ItemFormModal({ session, cfg, onClose, onCreated }: {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           <div>
-            <div style={S.inputLabel}>Prix / jour (DZD)</div>
+            <div style={S.inputLabel}>Prix / jour</div>
             <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0" style={S.input} />
           </div>
           <div>
@@ -2378,7 +2534,7 @@ interface AdminOrg {
   last_login_at: string | null; created_at: string;
 }
 interface AdminStats {
-  total_orgs: number; pro_orgs: number; enterprise_orgs: number; free_orgs: number;
+  total_orgs: number; pro_orgs: number; enterprise_orgs: number; ultimate_orgs: number; free_orgs: number;
   total_messages: number; estimated_revenue_eur: number;
 }
 
@@ -2414,7 +2570,7 @@ function AdminTab({ session }: { session: OrgSession }) {
     } catch { setMsg('Erreur réseau'); }
   };
 
-  const PLAN_COLORS: Record<string, string> = { starter: '#ff9500', pro: 'rgba(124,58,237,0.9)', enterprise: '#00d4ff' };
+  const PLAN_COLORS: Record<string, string> = { starter: '#ff9500', pro: 'rgba(124,58,237,0.9)', enterprise: '#00d4ff', ultimate: '#ffd700' };
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
@@ -2442,6 +2598,7 @@ function AdminTab({ session }: { session: OrgSession }) {
                 { label: 'Total clients', value: String(stats.total_orgs),    color: '#00d4ff' },
                 { label: 'Plans Pro',     value: String(stats.pro_orgs),      color: 'rgba(124,58,237,0.9)' },
                 { label: 'Enterprise',   value: String(stats.enterprise_orgs), color: '#00e676' },
+                { label: 'Ultimate IoT', value: String(stats.ultimate_orgs ?? 0), color: '#ffd700' },
                 { label: 'Rev. estimé',  value: `${stats.estimated_revenue_eur} €`, color: '#ff9500' },
               ].map(k => (
                 <div key={k.label} style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${k.color}20`, borderRadius: 12 }}>
@@ -2472,6 +2629,7 @@ function AdminTab({ session }: { session: OrgSession }) {
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
                   {org.plan !== 'pro'        && <button onClick={() => void act('PATCH', `/org/${org.org_id}/plan`, { plan: 'pro' })}        style={S.microBtn('rgba(124,58,237,0.9)')}>→ Pro</button>}
                   {org.plan !== 'enterprise' && <button onClick={() => void act('PATCH', `/org/${org.org_id}/plan`, { plan: 'enterprise' })} style={S.microBtn('#00d4ff')}>→ Ent.</button>}
+                  {org.plan !== 'ultimate'   && <button onClick={() => void act('PATCH', `/org/${org.org_id}/plan`, { plan: 'ultimate' })}   style={S.microBtn('#ffd700')}>→ IoT</button>}
                   {org.plan !== 'starter'    && <button onClick={() => void act('PATCH', `/org/${org.org_id}/plan`, { plan: 'starter' })}    style={S.microBtn('#ff9500')}>→ Free</button>}
                   {org.messages_limit > 0
                     ? <button onClick={() => void act('POST', `/org/${org.org_id}/suspend`)}   style={S.microBtn('#ff3366')}>⏸ Suspend</button>
