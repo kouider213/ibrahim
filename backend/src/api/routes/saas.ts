@@ -8,6 +8,20 @@ import { sendRegistrationEmail } from '../../notifications/email.js';
 
 const router = Router();
 
+const ADMIN_EMAIL  = process.env.SAAS_ADMIN_EMAIL  ?? 'kouiderpablo@gmail.com';
+const HOUARI_EMAIL = process.env.SAAS_HOUARI_EMAIL ?? '';
+const VIP_UNLIMITED = 9_999_999;
+
+async function ensureVipPlan(email: string, orgId: string): Promise<void> {
+  if (!email) return;
+  const normalized = email.toLowerCase();
+  if (normalized !== ADMIN_EMAIL.toLowerCase() && (!HOUARI_EMAIL || normalized !== HOUARI_EMAIL.toLowerCase())) return;
+  await Promise.all([
+    supabase.from('org_configs').update({ plan: 'ultimate', messages_limit: VIP_UNLIMITED }).eq('org_id', orgId),
+    supabase.from('organizations').update({ plan: 'ultimate' }).eq('id', orgId),
+  ]);
+}
+
 // ── Sectors available ─────────────────────────────────────────────
 export const SECTORS: Record<string, { label: string; tools: string[] }> = {
   car_rental:   { label: 'Location de voitures', tools: ['create_booking','list_bookings','update_booking','cancel_booking','list_cars','get_financial_report','create_calendar_event'] },
@@ -155,8 +169,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     .eq('id', auth.org_id)
     .maybeSingle();
 
-  // Update last login
-  await supabase.from('saas_auth').update({ last_login_at: new Date().toISOString() }).eq('id', auth.id);
+  // Update last login + ensure VIP accounts stay unlimited
+  await Promise.all([
+    supabase.from('saas_auth').update({ last_login_at: new Date().toISOString() }).eq('id', auth.id),
+    ensureVipPlan(email, auth.org_id),
+  ]);
 
   const token = signSaasToken({
     orgId:    auth.org_id,

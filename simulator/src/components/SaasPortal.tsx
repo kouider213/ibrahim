@@ -369,7 +369,10 @@ export default function SaasPortal({ onBack }: { onBack?: () => void }) {
   if (mode === 'forgot')     return <ForgotPasswordScreen onBack={() => setMode('login')} />;
   if (mode === 'reset')      return <ResetPasswordScreen token={resetToken ?? ''} onDone={() => setMode('login')} />;
   if (mode === 'onboarding' && session) return <OnboardingScreen session={session} onDone={handleOnboardingDone} />;
-  if (mode === 'chat'        && session) return <SaasChat session={session} onLogout={handleLogout} onUpdateSession={handleUpdateSession} onBack={onBack} />;
+  if (mode === 'chat'        && session) {
+    if (session.sector === 'god_mode') return <GodModePortal session={session} onLogout={handleLogout} />;
+    return <SaasChat session={session} onLogout={handleLogout} onUpdateSession={handleUpdateSession} onBack={onBack} />;
+  }
   return null;
 }
 
@@ -2534,6 +2537,332 @@ function ResetPasswordScreen({ token, onDone }: { token: string; onDone: () => v
         <button onClick={() => void submit()} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
           {loading ? 'Réinitialisation…' : 'Réinitialiser mon mot de passe'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── GOD MODE Portal ───────────────────────────────────────────────
+type GodTab = 'chat' | 'voice' | 'stats' | 'clients' | 'actions';
+
+function GodModePortal({ session, onLogout }: { session: OrgSession; onLogout: () => void }) {
+  const [tab, setTab]           = useState<GodTab>('chat');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput]       = useState('');
+  const [thinking, setThinking] = useState(false);
+  const [orgs, setOrgs]         = useState<AdminOrg[]>([]);
+  const [stats, setStats]       = useState<AdminStats | null>(null);
+  const [loadingData, setLoadingData] = useState(false);
+  const [actionMsg, setActionMsg]     = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const sessionId = getSessionId(session.org_id + '_god');
+  const headers   = { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' };
+
+  const PLAN_COLORS: Record<string, string> = { starter: '#ff9500', pro: 'rgba(124,58,237,0.9)', enterprise: '#00d4ff', ultimate: '#ffd700' };
+  const GOD_TABS: { id: GodTab; icon: string; label: string }[] = [
+    { id: 'chat',    icon: '💬', label: 'Chat CEO' },
+    { id: 'voice',   icon: '🎙️', label: 'Vocal' },
+    { id: 'stats',   icon: '📊', label: 'Stats' },
+    { id: 'clients', icon: '👥', label: 'Clients' },
+    { id: 'actions', icon: '⚡', label: 'Actions' },
+  ];
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
+
+  useEffect(() => {
+    if (tab === 'stats' || tab === 'clients') void loadData();
+  }, [tab]);
+
+  const loadData = async () => {
+    setLoadingData(true);
+    try {
+      const [sRes, oRes] = await Promise.all([
+        fetch(`${BACKEND}/api/saas/admin/stats`, { headers }),
+        fetch(`${BACKEND}/api/saas/admin/orgs`,  { headers }),
+      ]);
+      if (sRes.ok) setStats(await sRes.json() as AdminStats);
+      if (oRes.ok) setOrgs(await oRes.json() as AdminOrg[]);
+    } catch {}
+    setLoadingData(false);
+  };
+
+  const send = async (msg?: string) => {
+    const text = (msg ?? input).trim();
+    if (!text || thinking) return;
+    setInput('');
+    setTab('chat');
+    setMessages(prev => [...prev, { role: 'user', text, ts: Date.now() }]);
+    setThinking(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/saas/admin/chat`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ message: text, sessionId }),
+      });
+      const data = await res.json() as { text?: string; error?: string };
+      setThinking(false);
+      setMessages(prev => [...prev, { role: 'ai', text: data.text ?? data.error ?? 'Erreur. Réessayez.', ts: Date.now() }]);
+    } catch {
+      setThinking(false);
+      setMessages(prev => [...prev, { role: 'ai', text: 'Erreur de connexion.', ts: Date.now() }]);
+    }
+  };
+
+  const adminAct = async (method: string, path: string, body?: object) => {
+    setActionMsg('');
+    try {
+      const r = await fetch(`${BACKEND}/api/saas/admin${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const d = await r.json() as { message?: string; error?: string };
+      setActionMsg(d.message ?? d.error ?? '');
+      void loadData();
+    } catch { setActionMsg('Erreur réseau'); }
+  };
+
+  const G = {
+    gold: '#ffd700', goldFaint: 'rgba(255,215,0,0.15)', goldBorder: 'rgba(255,215,0,0.2)',
+    bg: 'rgba(0,0,0,0.97)', bgCard: 'rgba(255,255,255,0.03)',
+  };
+
+  return (
+    <div style={{ ...S.page, display: 'flex', flexDirection: 'column', background: 'radial-gradient(ellipse at 50% 15%, #120820 0%, #050210 55%, #000 100%)' }}>
+      {/* Header */}
+      <div style={{ flexShrink: 0 }}>
+        <div style={S.safeTop} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 50, background: G.bg, borderBottom: `1px solid ${G.goldBorder}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 22 }}>👑</span>
+            <div>
+              <div style={{ fontFamily: 'Orbitron', fontSize: 12, fontWeight: 700, color: G.gold, letterSpacing: '0.2em' }}>DZARYX CEO</div>
+              <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(255,215,0,0.4)', marginTop: 1 }}>GOD MODE · Kouider</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,215,0,0.06)', border: `1px solid ${G.goldBorder}` }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: G.gold, boxShadow: `0 0 6px ${G.gold}` }} />
+            <span style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,215,0,0.85)' }}>LIVE</span>
+          </div>
+          <button onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'rgba(255,215,0,0.35)', padding: '4px 8px' }}>⏻</button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+        {/* ─ CHAT ─ */}
+        {tab === 'chat' && (
+          <>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {messages.length === 0 && !thinking && (
+                <div style={{ textAlign: 'center', paddingTop: 32 }}>
+                  <div style={{ fontSize: 52, marginBottom: 10 }}>👑</div>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 13, fontWeight: 700, color: G.gold, letterSpacing: '0.15em', marginBottom: 6 }}>DZARYX CEO</div>
+                  <div style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, marginBottom: 24 }}>Je connais chaque client, chaque euro, chaque décision.</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 300, margin: '0 auto' }}>
+                    {['Quel est mon MRR ce mois ?', 'Qui sont mes nouveaux clients ?', 'Analyse ma croissance', 'Conseil stratégique du jour'].map(q => (
+                      <button key={q} onClick={() => void send(q)} style={{ padding: '10px 14px', background: 'rgba(255,215,0,0.05)', border: `1px solid ${G.goldBorder}`, borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,215,0,0.65)', textAlign: 'left' as const }}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {messages.map(m => (
+                <div key={m.ts} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: m.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: m.role === 'user' ? G.goldFaint : G.bgCard, border: `1px solid ${m.role === 'user' ? G.goldBorder : 'rgba(255,255,255,0.08)'}`, fontFamily: 'Inter', fontSize: 14, color: 'rgba(255,255,255,0.88)', lineHeight: 1.5, whiteSpace: 'pre-wrap' as const }}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {thinking && (
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: '18px 18px 18px 4px', background: G.bgCard, border: '1px solid rgba(255,255,255,0.08)', fontFamily: 'Inter', fontSize: 14, color: G.gold }}>···</div>
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+            <div style={{ flexShrink: 0, padding: '12px 16px', background: G.bg, borderTop: `1px solid ${G.goldBorder}30` }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder="Message à Dzaryx CEO…" rows={1} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: `1px solid rgba(255,215,0,0.12)`, borderRadius: 14, padding: '10px 14px', fontFamily: 'Inter', fontSize: 14, color: 'rgba(255,255,255,0.88)', resize: 'none', outline: 'none', maxHeight: 120, overflowY: 'auto' }} />
+                <button onClick={() => void send()} disabled={!input.trim() || thinking} style={{ width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: !input.trim() || thinking ? 'default' : 'pointer', background: !input.trim() || thinking ? 'rgba(255,215,0,0.08)' : G.gold, color: !input.trim() || thinking ? 'rgba(255,215,0,0.3)' : '#000', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>↑</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ─ VOICE ─ */}
+        {tab === 'voice' && <GodVoiceTab onSend={send} thinking={thinking} />}
+
+        {/* ─ STATS ─ */}
+        {tab === 'stats' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(255,215,0,0.45)', letterSpacing: '0.15em', marginBottom: 16 }}>TABLEAU DE BORD — REVENUS</div>
+            {loadingData ? (
+              <div style={{ textAlign: 'center', paddingTop: 40, fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>Chargement…</div>
+            ) : stats ? (
+              <>
+                <div style={{ padding: '20px', background: 'linear-gradient(135deg, rgba(255,215,0,0.09), rgba(255,180,0,0.04))', border: `1px solid ${G.goldBorder}`, borderRadius: 16, marginBottom: 16 }}>
+                  <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,215,0,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: 4 }}>MRR Estimé</div>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 34, fontWeight: 700, color: G.gold }}>{stats.estimated_revenue_eur.toLocaleString('fr-FR')} €</div>
+                  <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Mensuel récurrent · {stats.total_orgs} comptes total</div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  {[
+                    { label: 'Gratuit',         count: stats.free_orgs,       price: 0,                              color: '#888' },
+                    { label: 'Pro · 29 €/mois', count: stats.pro_orgs,        price: 29  * stats.pro_orgs,           color: 'rgba(124,58,237,0.9)' },
+                    { label: 'Ent. · 99 €/mois',count: stats.enterprise_orgs, price: 99  * stats.enterprise_orgs,    color: '#00d4ff' },
+                    { label: 'Ult. · 199 €/mois',count: stats.ultimate_orgs,  price: 199 * stats.ultimate_orgs,      color: G.gold },
+                  ].map(p => (
+                    <div key={p.label} style={{ padding: '14px', background: G.bgCard, border: `1px solid ${p.color}20`, borderRadius: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                        <span style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{p.label}</span>
+                      </div>
+                      <div style={{ fontFamily: 'Orbitron', fontSize: 24, fontWeight: 700, color: p.color }}>{p.count}</div>
+                      {p.price > 0 && <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>{p.price.toLocaleString('fr-FR')} € / mois</div>}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: '14px', background: G.bgCard, border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 }}>
+                  <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Messages IA total</div>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 22, fontWeight: 700, color: '#00d4ff', marginTop: 4 }}>{stats.total_messages.toLocaleString('fr-FR')}</div>
+                </div>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter', fontSize: 12, paddingTop: 40 }}>Aucune donnée</div>
+            )}
+          </div>
+        )}
+
+        {/* ─ CLIENTS ─ */}
+        {tab === 'clients' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(255,215,0,0.45)', letterSpacing: '0.15em', marginBottom: 12 }}>CLIENTS ({orgs.length})</div>
+            {actionMsg && <div style={{ padding: '10px 14px', background: 'rgba(255,215,0,0.07)', border: `1px solid ${G.goldBorder}`, borderRadius: 10, marginBottom: 12, fontFamily: 'Inter', fontSize: 12, color: G.gold }}>{actionMsg}</div>}
+            {loadingData ? (
+              <div style={{ textAlign: 'center', paddingTop: 40, fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>Chargement…</div>
+            ) : orgs.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter', fontSize: 12, paddingTop: 40 }}>Aucun client pour l'instant.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {orgs.map(org => (
+                  <div key={org.org_id} style={{ padding: '14px', background: G.bgCard, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.9)' }}>{org.name}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{org.email}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 1 }}>{org.ai_name} · {org.sector} · {org.city}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(255,255,255,0.18)', marginTop: 2 }}>
+                          {org.messages_used}/{org.messages_limit} msgs · Connexion: {org.last_login_at ? new Date(org.last_login_at).toLocaleDateString('fr-FR') : 'jamais'} · Créé: {new Date(org.created_at).toLocaleDateString('fr-FR')}
+                        </div>
+                      </div>
+                      <div style={{ padding: '3px 8px', borderRadius: 8, background: `${PLAN_COLORS[org.plan] ?? '#888'}18`, border: `1px solid ${PLAN_COLORS[org.plan] ?? '#888'}30`, flexShrink: 0, marginLeft: 8 }}>
+                        <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 700, color: PLAN_COLORS[org.plan] ?? '#888' }}>{org.plan.toUpperCase()}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
+                      {org.plan !== 'pro'        && <button onClick={() => void adminAct('PATCH', `/org/${org.org_id}/plan`, { plan: 'pro' })}        style={S.microBtn('rgba(124,58,237,0.9)')}>→ Pro</button>}
+                      {org.plan !== 'enterprise' && <button onClick={() => void adminAct('PATCH', `/org/${org.org_id}/plan`, { plan: 'enterprise' })} style={S.microBtn('#00d4ff')}>→ Ent.</button>}
+                      {org.plan !== 'ultimate'   && <button onClick={() => void adminAct('PATCH', `/org/${org.org_id}/plan`, { plan: 'ultimate' })}   style={S.microBtn(G.gold)}>→ Ultimate</button>}
+                      {org.plan !== 'starter'    && <button onClick={() => void adminAct('PATCH', `/org/${org.org_id}/plan`, { plan: 'starter' })}    style={S.microBtn('#ff9500')}>→ Free</button>}
+                      {org.messages_limit > 0
+                        ? <button onClick={() => void adminAct('POST', `/org/${org.org_id}/suspend`)}   style={S.microBtn('#ff3366')}>⏸ Suspendre</button>
+                        : <button onClick={() => void adminAct('POST', `/org/${org.org_id}/unsuspend`)} style={S.microBtn('#00e676')}>▶ Réactiver</button>}
+                      <button onClick={() => { const msg = window.prompt(`Email rapide à ${org.name} :`); if (msg) { setTab('chat'); void send(`Rédige un email professionnel à ${org.name} (${org.email}) — sujet : ${msg}`); } }} style={S.microBtn('#00d4ff')}>✉️ Email</button>
+                      <button onClick={() => { if (window.confirm(`Supprimer ${org.name} définitivement ?`)) void adminAct('DELETE', `/org/${org.org_id}`); }} style={S.microBtn('rgba(255,51,102,0.7)')}>🗑</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─ ACTIONS ─ */}
+        {tab === 'actions' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(255,215,0,0.45)', letterSpacing: '0.15em', marginBottom: 16 }}>ACTIONS RAPIDES CEO</div>
+            {([
+              { icon: '📊', title: 'Rapport mensuel',       desc: 'MRR + clients + croissance + recommandations',     action: 'Génère un rapport mensuel complet : MRR, nouveaux clients, churned, tendances et 3 recommandations CEO actionnables' },
+              { icon: '✉️', title: 'Email aux abonnés',      desc: 'Rédige un email à envoyer à tous les clients',     action: 'Rédige un email professionnel et engageant à envoyer à tous mes abonnés Dzaryx. Parle des nouveautés et de la roadmap. Ton: direct, confiant, patron.' },
+              { icon: '📱', title: 'Post réseaux sociaux',   desc: 'LinkedIn + Instagram pour Dzaryx SaaS',            action: 'Crée un post LinkedIn et Instagram percutant pour promouvoir Dzaryx — plateforme IA pour PME. Inclus hashtags pertinents.' },
+              { icon: '🎯', title: 'Stratégie acquisition',  desc: 'Plan pour acquérir de nouveaux clients',           action: 'Propose une stratégie d\'acquisition clients concrète pour Dzaryx SaaS ce mois : canaux, messages clés, objectifs chiffrés.' },
+              { icon: '⚡', title: 'Optimiser conversions',  desc: 'Freemium → Pro : comment améliorer',               action: 'Analyse comment améliorer le taux de conversion freemium → Pro pour Dzaryx. Propose 5 actions concrètes à appliquer cette semaine.' },
+              { icon: '🌍', title: 'Plan expansion',         desc: 'Stratégie pour nouveaux marchés',                  action: 'Quel est le meilleur marché à cibler après l\'Algérie pour Dzaryx SaaS ? Analyse et plan d\'action détaillé.' },
+              { icon: '💡', title: 'Idée feature produit',   desc: 'Quelle feature ajouter en priorité',               action: 'Quelle fonctionnalité dois-je ajouter en priorité à Dzaryx pour augmenter la rétention et attirer de nouveaux clients ? Justifie avec des données marché.' },
+              { icon: '🔍', title: 'Analyse concurrents',    desc: 'Positionnement vs concurrents IA',                 action: 'Analyse les concurrents de Dzaryx sur le marché des assistants IA pour PME. Quel est notre avantage compétitif ? Comment se différencier ?' },
+            ] as { icon: string; title: string; desc: string; action: string }[]).map(a => (
+              <button key={a.title} onClick={() => { setTab('chat'); void send(a.action); }} style={{ width: '100%', textAlign: 'left' as const, padding: '14px 16px', background: G.bgCard, border: `1px solid rgba(255,215,0,0.1)`, borderRadius: 14, cursor: 'pointer', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <span style={{ fontSize: 24, flexShrink: 0 }}>{a.icon}</span>
+                <div>
+                  <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', marginBottom: 3 }}>{a.title}</div>
+                  <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{a.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom nav */}
+      <div style={{ flexShrink: 0, display: 'flex', background: G.bg, borderTop: `1px solid rgba(255,215,0,0.08)`, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {GOD_TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, height: 60, background: 'none', border: 'none', cursor: 'pointer', borderTop: `2px solid ${tab === t.id ? G.gold : 'transparent'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <span style={{ fontSize: 20, filter: tab === t.id ? `drop-shadow(0 0 6px rgba(255,215,0,0.7))` : 'none' }}>{t.icon}</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? G.gold : 'rgba(255,255,255,0.25)', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>{t.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GodVoiceTab({ onSend, thinking }: { onSend: (msg: string) => void; thinking: boolean }) {
+  const [listening, setListening]   = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const recognitionRef  = useRef<any>(null);
+  const transcriptRef   = useRef('');
+
+  const start = () => {
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('Reconnaissance vocale non supportée. Utilisez Chrome ou Safari.'); return; }
+    const rec = new SR();
+    rec.lang = 'fr-FR';
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.onresult = (e: any) => {
+      const t = Array.from(e.results as any[]).map((r: any) => r[0].transcript).join('');
+      setTranscript(t);
+      transcriptRef.current = t;
+    };
+    rec.onend = () => {
+      setListening(false);
+      if (transcriptRef.current.trim()) onSend(transcriptRef.current.trim());
+      transcriptRef.current = '';
+    };
+    rec.onerror = () => setListening(false);
+    rec.start();
+    recognitionRef.current = rec;
+    setListening(true);
+    setTranscript('');
+    transcriptRef.current = '';
+  };
+
+  const stop = () => recognitionRef.current?.stop();
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', gap: 24 }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(255,215,0,0.45)', letterSpacing: '0.2em' }}>MODE VOCAL CEO</div>
+      <button onClick={listening ? stop : start} disabled={thinking} style={{ width: 100, height: 100, borderRadius: '50%', border: 'none', cursor: thinking ? 'default' : 'pointer', background: listening ? 'radial-gradient(circle, rgba(255,215,0,0.25), rgba(255,180,0,0.1))' : 'rgba(255,215,0,0.07)', outline: listening ? '2px solid rgba(255,215,0,0.4)' : '2px solid rgba(255,215,0,0.1)', boxShadow: listening ? '0 0 30px rgba(255,215,0,0.3)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, transition: 'all 0.3s ease' }}>
+        🎙️
+      </button>
+      <div style={{ fontFamily: 'Inter', fontSize: 13, color: listening ? '#ffd700' : 'rgba(255,255,255,0.3)', textAlign: 'center' as const }}>
+        {thinking ? 'Dzaryx CEO réfléchit…' : listening ? 'En écoute…' : 'Appuyez pour parler'}
+      </div>
+      {transcript && (
+        <div style={{ padding: '12px 16px', background: 'rgba(255,215,0,0.06)', border: '1px solid rgba(255,215,0,0.15)', borderRadius: 12, maxWidth: 280, fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.7)', textAlign: 'center' as const }}>
+          "{transcript}"
+        </div>
+      )}
+      <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.2)', textAlign: 'center' as const, maxWidth: 240 }}>
+        Parlez en français. Votre message sera envoyé à Dzaryx CEO automatiquement.
       </div>
     </div>
   );

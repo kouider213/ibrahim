@@ -47,12 +47,33 @@ async function sendDebug(step: string, detail?: string): Promise<void> {
   } catch { /* silent */ }
 }
 
+async function setupNotificationChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync('dzaryx_default', {
+      name: 'Dzaryx — Notifications',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 300, 150, 300],
+      enableVibrate: true,
+      enableLights: true,
+      lightColor: '#00d4ff',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      showBadge: true,
+    });
+  } catch (e) {
+    console.warn('[channel] setup failed:', e);
+  }
+}
+
 async function registerPushToken(): Promise<void> {
   await sendDebug('start');
   try {
     if (Platform.OS !== 'android') { await sendDebug('skip_not_android'); return; }
     const already = await AsyncStorage.getItem(TOKEN_KEY);
     if (already) { await sendDebug('already_registered', already.slice(0, 20)); return; }
+
+    await setupNotificationChannel();
 
     const { status: existing } = await Notifications.getPermissionsAsync();
     const finalStatus = existing === 'granted'
@@ -233,6 +254,8 @@ export default function App() {
   const [fleetCache, setFleetCache] = useState<FleetCache | null>(null);
   const appStateRef      = useRef<AppStateStatus>('active');
   const lastBgTimeRef    = useRef<number | null>(null);
+  const pendingAction    = useRef<string | null>(null); // action to run once WebView is ready
+  const webviewReady     = useRef(false);
 
   const handleRetry = useCallback(() => {
     retryKey.current += 1;
@@ -246,21 +269,26 @@ export default function App() {
     if (ok) setIsLocked(false);
   }, []);
 
+  function injectOrQueue(js: string) {
+    if (webviewReady.current) {
+      webviewRef.current?.injectJavaScript(js);
+    } else {
+      pendingAction.current = js;
+    }
+  }
+
   function triggerVoiceInWebView() {
-    webviewRef.current?.injectJavaScript(
-      'window.__triggerWakeWord && window.__triggerWakeWord(); void 0;'
-    );
+    injectOrQueue('window.__triggerWakeWord && window.__triggerWakeWord(); void 0;');
   }
 
   function routeQuickAction(actionId: string) {
-    // Inject JS event so the simulator web app can navigate to the right section
     const js = `
       window.dispatchEvent(new CustomEvent('dzaryx:action', {
         detail: { type: 'navigate', target: ${JSON.stringify(actionId)} }
       }));
       void 0;
     `;
-    setTimeout(() => webviewRef.current?.injectJavaScript(js), 800);
+    setTimeout(() => injectOrQueue(js), 600);
   }
 
   useEffect(() => {
@@ -281,11 +309,16 @@ export default function App() {
     // Refresh fleet cache in background
     void fetchAndCacheFleet().then(c => { if (c) setFleetCache(c); });
 
-    // Notification response listener
+    // Notification response listener — handles tap from locked screen
     const responseSub = Notifications.addNotificationResponseReceivedListener(response => {
-      const isVoiceAction = response.actionIdentifier === 'voice'
-        || (response.notification.request.content.data as Record<string, unknown>)?.['trigger'] === 'voice';
-      if (isVoiceAction) setTimeout(() => triggerVoiceInWebView(), 500);
+      const data = response.notification.request.content.data as Record<string, unknown>;
+      const isVoice  = response.actionIdentifier === 'voice' || data?.['trigger'] === 'voice';
+      const navTarget = data?.['navigate'] as string | undefined;
+      if (isVoice) {
+        setTimeout(() => triggerVoiceInWebView(), 1000);
+      } else if (navTarget) {
+        setTimeout(() => routeQuickAction(navTarget), 1000);
+      }
     });
 
     // Deep links
@@ -365,7 +398,14 @@ export default function App() {
           mediaPlaybackRequiresUserAction={false}
           allowsFullscreenVideo
           originWhitelist={['*']}
-          onLoadEnd={() => setLoading(false)}
+          onLoadEnd={() => {
+            setLoading(false);
+            webviewReady.current = true;
+            if (pendingAction.current) {
+              webviewRef.current?.injectJavaScript(pendingAction.current);
+              pendingAction.current = null;
+            }
+          }}
           onError={e => {
             const code = e.nativeEvent.code;
             if (code !== -10) { setOffline(true); setLoading(false); }
