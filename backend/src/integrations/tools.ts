@@ -1462,6 +1462,51 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── SUGGESTIONS TARIFAIRES INTELLIGENTES ────────────────────────
+  {
+    name: 'suggest_smart_pricing',
+    description: 'Analyse les données de location et suggère des ajustements de prix optimaux pour maximiser le CA. À utiliser quand Kouider ou Houari demande "quel prix mettre ?", "est-ce que je devrais baisser/augmenter le prix ?", "suggestions tarifaires", "optimiser les prix".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_id:    { type: 'string', description: 'UUID du véhicule (optionnel, si pas précisé → analyse toute la flotte)' },
+        car_name:  { type: 'string', description: 'Nom du véhicule (ex: "Duster", "Clio")' },
+        owner_key: { type: 'string', description: 'kouider ou houari', enum: ['kouider', 'houari'] },
+      },
+      required: [],
+    },
+  },
+  // ─── MAINTENANCE VÉHICULE ─────────────────────────────────────────
+  {
+    name: 'update_vehicle_maintenance',
+    description: 'Met à jour les données d\'entretien d\'un véhicule: kilométrage actuel, date du dernier entretien, date du prochain entretien. Utiliser quand Kouider dit "j\'ai fait la vidange de X", "mets à jour le km de X", "prochain entretien de X le...".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_id:              { type: 'string',  description: 'UUID du véhicule' },
+        car_name:            { type: 'string',  description: 'Nom du véhicule (ex: "Duster")' },
+        current_km:          { type: 'number',  description: 'Kilométrage actuel du véhicule' },
+        last_service_date:   { type: 'string',  description: 'Date du dernier entretien (YYYY-MM-DD)' },
+        last_service_km:     { type: 'number',  description: 'Km au dernier entretien' },
+        next_service_date:   { type: 'string',  description: 'Date du prochain entretien prévu (YYYY-MM-DD)' },
+        next_service_km:     { type: 'number',  description: 'Km prévu pour le prochain entretien' },
+        service_interval_km: { type: 'number',  description: 'Intervalle entretien en km (défaut: 10000)' },
+        service_notes:       { type: 'string',  description: 'Notes sur l\'entretien (ex: "vidange + filtres faits")' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'get_vehicle_maintenance',
+    description: 'Consulte l\'état d\'entretien du parc: kilométrage, derniers entretiens, prochains entretiens. Utiliser quand demande "état entretien", "vidange de X", "prochain service", "km du Duster".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name: { type: 'string', description: 'Nom du véhicule (optionnel, si vide → tous les véhicules)' },
+      },
+      required: [],
+    },
+  },
   // ─── ALARME TÉLÉPHONE (natif Android/iOS) ────────────────────────
   {
     name: 'set_phone_alarm',

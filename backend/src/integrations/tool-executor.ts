@@ -393,6 +393,11 @@ async function _dispatch(
       case 'generate_contract':          return await generateContractTool(input, sessionId);
       // ─── EXPORT EXCEL (Phase 8.5) ───
       case 'export_excel':               return await exportExcelTool(input, sessionId);
+      // ─── SMART PRICING ───
+      case 'suggest_smart_pricing':          return await suggestSmartPricingTool(input, sessionId);
+      // ─── MAINTENANCE VÉHICULE ───
+      case 'update_vehicle_maintenance':     return await updateVehicleMaintenanceTool(input);
+      case 'get_vehicle_maintenance':        return await getVehicleMaintenanceTool(input);
       // ─── ALARME TÉLÉPHONE ───
       case 'set_phone_alarm': {
         const hour   = Number(input['hour']   ?? 0);
@@ -5119,4 +5124,167 @@ async function getVehicleStatesTool(input: Record<string, unknown>, sessionId?: 
   });
 
   return `🚗 **Historique inspections:**\n\n${lines.join('\n')}`;
+}
+
+// ── Smart Pricing Suggestions ─────────────────────────────────────────────────
+async function suggestSmartPricingTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
+  const carId   = input['car_id']   ? String(input['car_id'])   : undefined;
+  const carName = input['car_name'] ? String(input['car_name']) : undefined;
+
+  const now       = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const todayStr  = now.toISOString().slice(0, 10);
+
+  let carQuery = supabase
+    .from('cars')
+    .select('id, name, category, resale_price, owner_price_per_day, available');
+  if (carId)   carQuery = carQuery.eq('id', carId);
+  if (carName) carQuery = carQuery.ilike('name', `%${carName}%`);
+
+  const { data: cars } = await carQuery.limit(carId || carName ? 1 : 20);
+  if (!cars?.length) return '❌ Véhicule(s) introuvable(s).';
+
+  const results: string[] = ['📊 SUGGESTIONS TARIFAIRES INTELLIGENTES', ''];
+
+  for (const car of cars as Array<{
+    id: string; name: string; category: string;
+    resale_price?: number; owner_price_per_day?: number;
+  }>) {
+    const [bookingsRes, idleRes] = await Promise.all([
+      supabase.from('bookings')
+        .select('client_price_per_day, owner_price_per_day, nb_days, final_price, start_date, end_date')
+        .eq('car_id', car.id).neq('status', 'cancelled')
+        .gte('start_date', monthStart).lte('start_date', todayStr),
+      supabase.from('bookings')
+        .select('end_date').eq('car_id', car.id).neq('status', 'cancelled')
+        .order('end_date', { ascending: false }).limit(1),
+    ]);
+
+    const bookings = bookingsRes.data ?? [];
+    const totalDays = bookings.reduce((s, b: any) => s + (b.nb_days ?? 0), 0);
+    const avgPrice  = bookings.length > 0
+      ? Math.round(bookings.reduce((s: number, b: any) => s + (b.client_price_per_day ?? 0), 0) / bookings.length)
+      : 0;
+    const currentPrice = car.resale_price ?? 0;
+    const ownerPrice   = car.owner_price_per_day ?? 0;
+
+    // Calcul jours depuis dernière location
+    const lastBookingDate = idleRes.data?.[0]?.end_date;
+    const idleDays = lastBookingDate
+      ? Math.floor((Date.now() - new Date(lastBookingDate).getTime()) / 86400000)
+      : null;
+
+    // Logique de suggestion
+    let suggestion = '';
+    let reason     = '';
+
+    if (bookings.length >= 3 && avgPrice >= currentPrice) {
+      // Forte demande — augmenter prix
+      const newPrice = Math.round(currentPrice * 1.1 / 100) * 100;
+      suggestion = `↑ Augmenter à ${newPrice}€/j (+10%)`;
+      reason     = `Forte demande ce mois (${bookings.length} locations, prix moyen ${avgPrice}€)`;
+    } else if (idleDays !== null && idleDays >= 10) {
+      // Voiture immobile — baisser prix
+      const newPrice = Math.max(ownerPrice + 500, Math.round(currentPrice * 0.9 / 100) * 100);
+      suggestion = `↓ Baisser à ${newPrice}€/j (-10%)`;
+      reason     = `Immobilisé depuis ${idleDays}j — attirer clients avec prix compétitif`;
+    } else if (bookings.length === 0) {
+      suggestion = `↓ Essayer ${Math.round(currentPrice * 0.85 / 100) * 100}€/j (-15%)`;
+      reason     = `Aucune location ce mois — stimuler la demande`;
+    } else {
+      suggestion = `✓ Prix actuel correct (${currentPrice}€/j)`;
+      reason     = `${bookings.length} location(s), ${totalDays} jours loués ce mois`;
+    }
+
+    results.push(`🚗 **${car.name}** [${car.category}]`);
+    results.push(`   Prix actuel: ${currentPrice}€/j | Propriétaire: ${ownerPrice}€/j | Marge: ${currentPrice - ownerPrice}€`);
+    results.push(`   Ce mois: ${bookings.length} locations, ${totalDays} jours${idleDays !== null ? `, idle ${idleDays}j` : ''}`);
+    results.push(`   💡 ${suggestion}`);
+    results.push(`   Raison: ${reason}`);
+    results.push('');
+  }
+
+  return results.join('\n');
+}
+
+// ── Vehicle Maintenance Update ────────────────────────────────────────────────
+async function updateVehicleMaintenanceTool(input: Record<string, unknown>): Promise<string> {
+  const carId           = String(input['car_id']          ?? '');
+  const carName         = String(input['car_name']        ?? '');
+  const currentKm       = input['current_km']       != null ? Number(input['current_km'])       : undefined;
+  const lastServiceDate = input['last_service_date'] != null ? String(input['last_service_date']) : undefined;
+  const lastServiceKm   = input['last_service_km']   != null ? Number(input['last_service_km'])   : undefined;
+  const nextServiceDate = input['next_service_date'] != null ? String(input['next_service_date']) : undefined;
+  const nextServiceKm   = input['next_service_km']   != null ? Number(input['next_service_km'])   : undefined;
+  const serviceNotes    = input['service_notes']    != null ? String(input['service_notes'])    : undefined;
+  const intervalKm      = input['service_interval_km'] != null ? Number(input['service_interval_km']) : undefined;
+
+  if (!carId && !carName) return '❌ Précise l\'id ou le nom du véhicule.';
+
+  const updates: Record<string, unknown> = {};
+  if (currentKm       != null) updates['current_km']          = currentKm;
+  if (lastServiceDate)         updates['last_service_date']    = lastServiceDate;
+  if (lastServiceKm   != null) updates['last_service_km']      = lastServiceKm;
+  if (nextServiceDate)         updates['next_service_date']    = nextServiceDate;
+  if (nextServiceKm   != null) updates['next_service_km']      = nextServiceKm;
+  if (serviceNotes)            updates['service_notes']        = serviceNotes;
+  if (intervalKm      != null) updates['service_interval_km']  = intervalKm;
+
+  if (!Object.keys(updates).length) return '❌ Aucune donnée à mettre à jour.';
+
+  let query = supabase.from('cars').update(updates);
+  if (carId)   query = query.eq('id', carId);
+  if (carName) query = query.ilike('name', `%${carName}%`);
+
+  const { error } = await query;
+  if (error) return `❌ Erreur mise à jour: ${error.message}`;
+
+  const parts: string[] = [];
+  if (currentKm       != null) parts.push(`kilométrage: ${currentKm.toLocaleString()} km`);
+  if (lastServiceDate)         parts.push(`dernier entretien: ${lastServiceDate}`);
+  if (nextServiceDate)         parts.push(`prochain entretien: ${nextServiceDate}`);
+  if (serviceNotes)            parts.push(`notes: ${serviceNotes}`);
+
+  return `✅ Entretien mis à jour pour ${carName || carId}: ${parts.join(', ')}`;
+}
+
+// ── Vehicle Maintenance Status ────────────────────────────────────────────────
+async function getVehicleMaintenanceTool(input: Record<string, unknown>): Promise<string> {
+  const carName = input['car_name'] ? String(input['car_name']) : undefined;
+
+  let query = supabase
+    .from('cars')
+    .select('name, category, current_km, last_service_date, last_service_km, next_service_date, next_service_km, service_interval_km, service_notes');
+  if (carName) query = query.ilike('name', `%${carName}%`);
+
+  const { data: cars, error } = await query.order('name');
+  if (error || !cars?.length) return '❌ Données entretien indisponibles.';
+
+  const today = new Date();
+  const lines: string[] = ['🔧 ÉTAT ENTRETIEN PARC AUTO', ''];
+
+  for (const car of cars as Array<{
+    name: string; category: string; current_km?: number;
+    last_service_date?: string; next_service_date?: string;
+    service_interval_km?: number; service_notes?: string;
+  }>) {
+    const kmInfo = car.current_km ? `${car.current_km.toLocaleString()} km` : 'km inconnu';
+    let statusEmoji = '❓';
+    let statusText  = 'Aucune donnée';
+
+    if (car.next_service_date) {
+      const diff = Math.ceil((new Date(car.next_service_date).getTime() - today.getTime()) / 86400000);
+      if (diff < 0)   { statusEmoji = '🔴'; statusText = `EN RETARD de ${Math.abs(diff)}j`; }
+      else if (diff <= 14) { statusEmoji = '🟡'; statusText = `dans ${diff}j`; }
+      else                 { statusEmoji = '🟢'; statusText = `dans ${diff}j`; }
+    }
+
+    lines.push(`${statusEmoji} **${car.name}** [${car.category}] — ${kmInfo}`);
+    if (car.last_service_date) lines.push(`   Dernier entretien: ${car.last_service_date}`);
+    if (car.next_service_date) lines.push(`   Prochain: ${car.next_service_date} (${statusText})`);
+    if (car.service_notes)     lines.push(`   Notes: ${car.service_notes}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
 }

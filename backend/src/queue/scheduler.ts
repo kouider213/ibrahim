@@ -30,8 +30,8 @@ import {
   jobHouariArrivalAlert,
   jobHouariReturnAlert,
   jobHouariWeeklyReport,
-  jobSaasDailyBriefing,
-  jobSaasMonthlyReset,
+  jobDocumentExpiryAlert,
+  jobMaintenanceAlert,
   jobSmartAlarm,
   jobMonthlyExcel,
 } from './jobs/proactive-jobs.js';
@@ -198,13 +198,13 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
-    name:  'saas-daily-briefing',
-    cron:  '0 8 * * *',          // 8h chaque matin — briefing quotidien pour chaque org SaaS
+    name:  'document-expiry-alert',
+    cron:  '0 9 * * 1',           // 9h chaque lundi — alertes documents clients expirant bientôt
     tz:    'Africa/Algiers',
   },
   {
-    name:  'saas-monthly-reset',
-    cron:  '0 1 1 * *',           // 1h le 1er du mois — reset compteurs messages SaaS
+    name:  'maintenance-alert',
+    cron:  '0 8 * * 1',           // 8h chaque lundi — véhicules en retard d'entretien
     tz:    'Africa/Algiers',
   },
   {
@@ -250,8 +250,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'houari-arrival-alert':    jobHouariArrivalAlert,
   'houari-return-alert':     jobHouariReturnAlert,
   'houari-weekly-report':    jobHouariWeeklyReport,
-  'saas-daily-briefing':     jobSaasDailyBriefing,
-  'saas-monthly-reset':      jobSaasMonthlyReset,
+  'document-expiry-alert':   jobDocumentExpiryAlert,
+  'maintenance-alert':       jobMaintenanceAlert,
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
 };

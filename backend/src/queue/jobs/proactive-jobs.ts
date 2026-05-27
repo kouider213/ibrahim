@@ -1775,144 +1775,138 @@ export async function jobHouariWeeklyReport(_job: Job): Promise<void> {
   }
 }
 
-// ── SaaS — Reset compteurs mensuels (1er du mois 1h) ─────────────────────────
-export async function jobSaasMonthlyReset(_job: Job): Promise<void> {
-  const month = new Date().toISOString().slice(0, 7);
-  const lockKey = `job:saas-monthly-reset:sent:${month}`;
-  const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
-  if (!acquired) { console.log('[job:saas-reset] SKIP — already reset this month'); return; }
+// ── Document Expiry Alert — lundi 9h — passeport/permis expirant dans 30j ─────
+export async function jobDocumentExpiryAlert(_job: Job): Promise<void> {
+  const week = new Date().toISOString().slice(0, 7) + '-W' + Math.ceil(new Date().getDate() / 7);
+  const lockKey = `job:doc-expiry:sent:${week}`;
+  const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 7, 'NX');
+  if (!acquired) { console.log('[job:doc-expiry] SKIP — already sent this week'); return; }
 
   try {
-    const nextReset = new Date();
-    nextReset.setMonth(nextReset.getMonth() + 1);
-    nextReset.setDate(1);
-    nextReset.setHours(0, 0, 0, 0);
+    const today = new Date();
+    const in30  = new Date(today.getTime() + 30 * 86400000);
+    const in7   = new Date(today.getTime() + 7  * 86400000);
+    const todayStr = today.toISOString().slice(0, 10);
+    const in30Str  = in30.toISOString().slice(0, 10);
 
-    const { data: updated, error } = await supabase
-      .from('org_configs')
-      .update({ messages_used: 0, reset_at: nextReset.toISOString() })
-      .neq('messages_limit', 0)
-      .select('id');
+    // Fetch bookings with client documents expiring soon
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('client_name, client_phone, passport_expiry, license_expiry, start_date, end_date, rented_by')
+      .or(`passport_expiry.gte.${todayStr},license_expiry.gte.${todayStr}`)
+      .or(`passport_expiry.lte.${in30Str},license_expiry.lte.${in30Str}`)
+      .neq('status', 'cancelled')
+      .order('start_date', { ascending: true });
 
-    if (error) { console.error('[job:saas-reset] ❌', error.message); return; }
-    console.log(`[job:saas-reset] ✅ Compteurs réinitialisés pour ${updated?.length ?? 0} orgs`);
+    if (!bookings?.length) { console.log('[job:doc-expiry] No expiring documents found'); return; }
+
+    const critical: string[] = [];
+    const warning:  string[] = [];
+
+    for (const b of bookings as Array<{
+      client_name: string;
+      client_phone?: string;
+      passport_expiry?: string;
+      license_expiry?: string;
+      start_date: string;
+      end_date: string;
+      rented_by?: string;
+    }>) {
+      const checkDoc = (label: string, expiry?: string) => {
+        if (!expiry) return;
+        const exp  = new Date(expiry);
+        const diff = Math.ceil((exp.getTime() - today.getTime()) / 86400000);
+        if (diff < 0) {
+          critical.push(`❌ ${b.client_name} — ${label} EXPIRÉ il y a ${Math.abs(diff)}j (${expiry})`);
+        } else if (exp <= in7) {
+          critical.push(`🚨 ${b.client_name} — ${label} expire dans ${diff}j (${expiry})`);
+        } else if (exp <= in30) {
+          warning.push(`⚠️ ${b.client_name} — ${label} expire dans ${diff}j (${expiry})`);
+        }
+      };
+      checkDoc('Passeport', b.passport_expiry);
+      checkDoc('Permis', b.license_expiry);
+    }
+
+    if (critical.length === 0 && warning.length === 0) {
+      console.log('[job:doc-expiry] All documents valid (>30 days)');
+      return;
+    }
+
+    const lines: string[] = ['📋 ALERTE DOCUMENTS CLIENTS'];
+    if (critical.length > 0) { lines.push('', '🚨 URGENT:', ...critical); }
+    if (warning.length > 0)  { lines.push('', '⚠️ À surveiller:', ...warning); }
+    lines.push('', 'Demande les copies mises à jour dès que possible.');
+
+    const msg = lines.join('\n');
+    emitProactive('Documents clients expirant bientôt', 'alert', msg, 'kouider');
+    if (critical.length > 0) emitProactive('Documents urgents — Houari', 'alert', msg, 'houari');
+    console.log(`[job:doc-expiry] ✅ ${critical.length} urgent(s), ${warning.length} avertissement(s)`);
   } catch (err) {
-    console.error('[job:saas-reset] ❌', err instanceof Error ? err.message : String(err));
+    console.error('[job:doc-expiry] ❌', err instanceof Error ? err.message : String(err));
   }
 }
 
-// ── SaaS — Briefing quotidien par tenant ─────────────────────────────────────
-// 8h chaque matin — pour chaque org SaaS active (hors Kouider qui a son propre briefing)
-export async function jobSaasDailyBriefing(_job: Job): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10);
-  const lockKey = `job:saas-daily-briefing:sent:${today}`;
-  const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
-  if (!acquired) { console.log('[job:saas-briefing] SKIP — already sent today'); return; }
+// ── Maintenance Alert — lundi 8h — véhicules en retard d'entretien ────────────
+export async function jobMaintenanceAlert(_job: Job): Promise<void> {
+  const week = new Date().toISOString().slice(0, 7) + '-W' + Math.ceil(new Date().getDate() / 7);
+  const lockKey = `job:maintenance:sent:${week}`;
+  const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 7, 'NX');
+  if (!acquired) { console.log('[job:maintenance] SKIP — already sent this week'); return; }
 
   try {
-    // Fetch all active orgs except Kouider's (plan pro with 99999 messages)
-    const { data: orgs } = await supabase
-      .from('org_configs')
-      .select('org_id, business_name, ai_name, language, currency, sector, messages_used, messages_limit')
-      .neq('messages_limit', 99999)
-      .order('created_at', { ascending: true });
+    const in30  = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
 
-    if (!orgs?.length) { console.log('[job:saas-briefing] No SaaS orgs'); return; }
+    const { data: cars } = await supabase
+      .from('cars')
+      .select('id, name, category, available, last_service_date, next_service_date, current_km, service_interval_km, service_notes')
+      .or(`next_service_date.lte.${in30},next_service_date.is.null`);
 
-    const now = new Date();
-    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-    const todayEnd   = new Date(now); todayEnd.setHours(23, 59, 59, 999);
-    const weekEnd    = new Date(now.getTime() + 7 * 86400000);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (!cars?.length) { console.log('[job:maintenance] No maintenance data found'); return; }
 
-    for (const org of orgs as unknown as Array<{
-      org_id: string;
-      business_name: string;
-      ai_name: string;
-      language: string;
-      currency: string;
-      sector: string;
-      messages_used: number;
-      messages_limit: number;
+    const overdue:  string[] = [];
+    const upcoming: string[] = [];
+    const unknown:  string[] = [];
+
+    for (const car of cars as Array<{
+      name: string;
+      next_service_date?: string;
+      last_service_date?: string;
+      current_km?: number;
+      service_interval_km?: number;
+      service_notes?: string;
     }>) {
-      try {
-        const orgId = org.org_id;
-        const curr  = org.currency ?? 'DZD';
-        const name  = org.ai_name ?? 'Dzaryx';
-
-        const [todayRes, weekRes, monthRes, itemsRes] = await Promise.all([
-          supabase.from('saas_bookings')
-            .select('customer_name, item_name, amount, start_date, end_date, status')
-            .eq('org_id', orgId).neq('status', 'cancelled')
-            .gte('start_date', todayStart.toISOString()).lte('start_date', todayEnd.toISOString())
-            .order('start_date'),
-          supabase.from('saas_bookings')
-            .select('customer_name, item_name, start_date, amount')
-            .eq('org_id', orgId).neq('status', 'cancelled')
-            .gt('start_date', todayEnd.toISOString()).lte('start_date', weekEnd.toISOString())
-            .order('start_date').limit(10),
-          supabase.from('saas_bookings')
-            .select('amount')
-            .eq('org_id', orgId).neq('status', 'cancelled')
-            .gte('start_date', monthStart.toISOString()),
-          supabase.from('saas_items')
-            .select('name, status')
-            .eq('org_id', orgId),
-        ]);
-
-        const todayBookings  = todayRes.data  ?? [];
-        const weekBookings   = weekRes.data   ?? [];
-        const monthRevenue   = (monthRes.data ?? []).reduce((s: number, b: { amount?: number }) => s + (b.amount ?? 0), 0);
-        const items          = itemsRes.data  ?? [];
-        const availableItems = items.filter((i: { status: string }) => i.status === 'available').length;
-
-        const dateStr = now.toLocaleDateString(org.language === 'ar' ? 'fr-FR' : `${org.language}-DZ`, {
-          weekday: 'long', day: 'numeric', month: 'long',
-        });
-
-        const lines: string[] = [
-          `☀️ Bonjour ! Rapport du ${dateStr}`,
-          '',
-          `📦 Réservations aujourd'hui : ${todayBookings.length}`,
-        ];
-
-        if (todayBookings.length > 0) {
-          for (const b of todayBookings.slice(0, 5) as Array<{ customer_name: string; item_name?: string; amount?: number; start_date: string }>) {
-            const time = new Date(b.start_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-            lines.push(`  • ${b.customer_name}${b.item_name ? ` → ${b.item_name}` : ''}${b.amount ? ` | ${b.amount} ${curr}` : ''} à ${time}`);
-          }
-        }
-
-        if (weekBookings.length > 0) {
-          lines.push('', `📅 Cette semaine : ${weekBookings.length} réservation(s) à venir`);
-          for (const b of weekBookings.slice(0, 3) as Array<{ customer_name: string; item_name?: string; start_date: string }>) {
-            const day = new Date(b.start_date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-            lines.push(`  • ${day} — ${b.customer_name}${b.item_name ? ` (${b.item_name})` : ''}`);
-          }
-        }
-
-        lines.push('', `💰 CA ce mois : ${monthRevenue} ${curr}`);
-        if (items.length > 0) lines.push(`🔑 Inventaire : ${availableItems}/${items.length} disponible(s)`);
-
-        const remaining = org.messages_limit - org.messages_used;
-        lines.push('', `💬 Messages restants ce mois : ${remaining}/${org.messages_limit}`);
-        lines.push('', `— ${name}, votre assistant IA 🤖`);
-
-        await supabase.from('saas_notifications').insert({
-          org_id:     orgId,
-          type:       'daily_briefing',
-          title:      `Rapport du ${dateStr}`,
-          body:       lines.join('\n'),
-          expires_at: new Date(now.getTime() + 7 * 86400000).toISOString(),
-        });
-
-        console.log(`[job:saas-briefing] ✅ Briefing envoyé: ${org.business_name} (${todayBookings.length} résas auj.)`);
-      } catch (orgErr) {
-        console.error(`[job:saas-briefing] ❌ Org ${org.org_id}:`, orgErr instanceof Error ? orgErr.message : String(orgErr));
+      if (!car.next_service_date && !car.last_service_date) {
+        unknown.push(`❓ ${car.name} — aucune donnée entretien`);
+        continue;
+      }
+      if (!car.next_service_date) continue;
+      const diff = Math.ceil((new Date(car.next_service_date).getTime() - Date.now()) / 86400000);
+      const kmInfo = car.current_km ? ` | ${car.current_km.toLocaleString()} km` : '';
+      if (diff < 0) {
+        overdue.push(`🔴 ${car.name} — entretien EN RETARD de ${Math.abs(diff)}j${kmInfo}`);
+      } else if (diff <= 30) {
+        upcoming.push(`🟡 ${car.name} — entretien dans ${diff}j (${car.next_service_date})${kmInfo}`);
       }
     }
+
+    if (overdue.length === 0 && upcoming.length === 0 && unknown.length === 0) {
+      console.log('[job:maintenance] All vehicles up to date');
+      return;
+    }
+
+    const lines: string[] = ['🔧 RAPPORT ENTRETIEN PARC AUTO'];
+    if (overdue.length > 0)  { lines.push('', '🔴 EN RETARD:', ...overdue); }
+    if (upcoming.length > 0) { lines.push('', '🟡 À PLANIFIER:', ...upcoming); }
+    if (unknown.length > 0)  { lines.push('', '❓ SANS DONNÉES:', ...unknown); }
+    lines.push('', 'Planifie les entretiens pour éviter immobilisation de flotte.');
+
+    const msg = lines.join('\n');
+    emitProactive('Entretien véhicules — action requise', 'alert', msg, 'kouider');
+    emitProactive('Entretien véhicules', 'alert', msg, 'houari');
+    console.log(`[job:maintenance] ✅ ${overdue.length} en retard, ${upcoming.length} à venir, ${unknown.length} sans données`);
   } catch (err) {
-    console.error('[job:saas-briefing] ❌', err instanceof Error ? err.message : String(err));
+    console.error('[job:maintenance] ❌', err instanceof Error ? err.message : String(err));
   }
 }
 
