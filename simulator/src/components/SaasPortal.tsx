@@ -824,9 +824,17 @@ function LoginForm({ onAuth, onBack, onForgot }: { onAuth: (s: OrgSession) => vo
 // ── SaaS Chat ─────────────────────────────────────────────────────
 interface ChatMessage { role: 'user' | 'ai'; text: string; ts: number; }
 
+function loadMsgs(key: string): ChatMessage[] {
+  try { return JSON.parse(localStorage.getItem(key) ?? '[]') as ChatMessage[]; } catch { return []; }
+}
+function saveMsgs(key: string, msgs: ChatMessage[]) {
+  localStorage.setItem(key, JSON.stringify(msgs.slice(-60)));
+}
+
 function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: OrgSession; onLogout: () => void; onUpdateSession: (s: OrgSession) => void; onBack?: () => void }) {
+  const msgsKey = `saas_msgs_${session.org_id}`;
   const [tab, setTab]           = useState<Tab>('chat');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMsgs(msgsKey));
   const [input, setInput]       = useState('');
   const [thinking, setThinking] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -834,6 +842,7 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
   const aiName    = session.ai_name ?? 'Dzaryx';
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
+  useEffect(() => { saveMsgs(msgsKey, messages); }, [messages]);
 
   const send = async (msg?: string) => {
     const text = (msg ?? input).trim();
@@ -2546,8 +2555,9 @@ function ResetPasswordScreen({ token, onDone }: { token: string; onDone: () => v
 type GodTab = 'chat' | 'voice' | 'stats' | 'clients' | 'actions';
 
 function GodModePortal({ session, onLogout }: { session: OrgSession; onLogout: () => void }) {
+  const godMsgsKey = `saas_msgs_god_${session.org_id}`;
   const [tab, setTab]           = useState<GodTab>('chat');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadMsgs(godMsgsKey));
   const [input, setInput]       = useState('');
   const [thinking, setThinking] = useState(false);
   const [orgs, setOrgs]         = useState<AdminOrg[]>([]);
@@ -2568,6 +2578,7 @@ function GodModePortal({ session, onLogout }: { session: OrgSession; onLogout: (
   ];
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, thinking]);
+  useEffect(() => { saveMsgs(godMsgsKey, messages); }, [messages]);
 
   useEffect(() => {
     if (tab === 'stats' || tab === 'clients') void loadData();
