@@ -29,7 +29,9 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "plugins": [
@@ -78,7 +80,9 @@
           "photosPermission": "Dzaryx accède à ta galerie pour scanner des documents.",
           "cameraPermission": "Dzaryx utilise la caméra pour scanner des documents."
         }
-      ]
+      ],
+      "expo-local-authentication",
+      "expo-quick-actions"
     ],
     "scheme": "dzaryx",
     "owner": "fikkouider",

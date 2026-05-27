@@ -343,6 +343,7 @@ export default function SaasPortal({ onBack }: { onBack?: () => void }) {
   const initialMode: Mode = (() => {
     if (resetToken) return 'reset';
     if (!existing) return 'landing';
+    if (existing.sector === 'god_mode') return 'chat'; // admin: skip onboarding
     if (!localStorage.getItem(onboardingKey(existing.org_id))) return 'onboarding';
     return 'chat';
   })();
@@ -762,6 +763,7 @@ function LoginForm({ onAuth, onBack, onForgot }: { onAuth: (s: OrgSession) => vo
   const [password, setPass]   = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
+  const [showPwd, setShowPwd] = useState(false);
 
   const submit = async () => {
     if (!email || !password) { setError('Email et mot de passe requis'); return; }
@@ -794,8 +796,15 @@ function LoginForm({ onAuth, onBack, onForgot }: { onAuth: (s: OrgSession) => vo
         </div>
         <div style={{ marginBottom: 14 }}>
           <div style={S.inputLabel}>Mot de passe</div>
-          <input value={password} onChange={e => setPass(e.target.value)} type="password" placeholder="••••••••"
-            onKeyDown={e => e.key === 'Enter' && void submit()} style={S.input} />
+          <div style={{ position: 'relative' }}>
+            <input value={password} onChange={e => setPass(e.target.value)}
+              type={showPwd ? 'text' : 'password'} placeholder="••••••••"
+              onKeyDown={e => e.key === 'Enter' && void submit()}
+              style={{ ...S.input, paddingRight: 48 }} />
+            <button onClick={() => setShowPwd(v => !v)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'rgba(255,255,255,0.4)' }}>
+              {showPwd ? '🙈' : '👁️'}
+            </button>
+          </div>
         </div>
         {error && <div style={S.errorText}>{error}</div>}
         <button onClick={() => void submit()} disabled={loading} style={loading ? S.btnDisabled : S.btnPrimary}>
@@ -831,7 +840,10 @@ function SaasChat({ session, onLogout, onUpdateSession, onBack }: { session: Org
     setMessages(prev => [...prev, { role: 'user', text, ts: Date.now() }]);
     setThinking(true);
     try {
-      const res = await fetch(`${BACKEND}/api/saas/chat`, {
+      const chatEndpoint = session.sector === 'god_mode'
+        ? `${BACKEND}/api/saas/admin/chat`
+        : `${BACKEND}/api/saas/chat`;
+      const res = await fetch(chatEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
         body: JSON.stringify({ message: text, sessionId, textOnly: true }),
