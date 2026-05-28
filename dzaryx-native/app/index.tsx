@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet, BackHandler, Platform, Linking, View, Text,
-  TouchableOpacity, ActivityIndicator, AppState, AppStateStatus,
+  TouchableOpacity, ActivityIndicator, AppState, AppStateStatus, Image,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type WebViewRef from 'react-native-webview';
@@ -203,13 +203,29 @@ async function fetchAndCacheFleet(): Promise<FleetCache | null> {
 function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   return (
     <View style={lock.container}>
-      <Text style={lock.hex}>⬡</Text>
+      {/* Corner brackets */}
+      <View style={[lock.corner, lock.tl]} /><View style={[lock.corner, lock.tr]} />
+      <View style={[lock.corner, lock.bl]} /><View style={[lock.corner, lock.br]} />
+
+      {/* Logo */}
+      <Image source={require('../assets/icon.png')} style={lock.logo} resizeMode="contain" />
+
+      {/* Brand */}
       <Text style={lock.brand}>DZARYX</Text>
-      <Text style={lock.subtitle}>Identificación requerida</Text>
-      <TouchableOpacity style={lock.btn} onPress={onUnlock} activeOpacity={0.75}>
-        <Text style={lock.btnIcon}>☉</Text>
-        <Text style={lock.btnText}>Déverrouiller</Text>
+      <View style={lock.divider} />
+      <Text style={lock.subtitle}>IDENTIFICATION REQUISE</Text>
+
+      {/* Biometric button */}
+      <TouchableOpacity style={lock.btn} onPress={onUnlock} activeOpacity={0.7}>
+        <View style={lock.btnInner}>
+          <Text style={lock.btnIcon}>⬡</Text>
+          <Text style={lock.btnText}>DÉVERROUILLER</Text>
+          <Text style={lock.btnSub}>Face ID · Empreinte</Text>
+        </View>
       </TouchableOpacity>
+
+      {/* Bottom status line */}
+      <Text style={lock.status}>● SYSTÈME EN LIGNE</Text>
     </View>
   );
 }
@@ -217,29 +233,39 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
 function OfflineScreen({ onRetry, cache }: { onRetry: () => void; cache: FleetCache | null }) {
   return (
     <View style={err.container}>
-      <Text style={err.icon}>📡</Text>
-      <Text style={err.title}>Pas de connexion</Text>
+      <View style={[lock.corner, lock.tl]} /><View style={[lock.corner, lock.tr]} />
+      <View style={[lock.corner, lock.bl]} /><View style={[lock.corner, lock.br]} />
+
+      <Image source={require('../assets/icon.png')} style={err.logo} resizeMode="contain" />
+      <Text style={err.title}>SIGNAL PERDU</Text>
+      <View style={lock.divider} />
+
       {cache ? (
         <>
-          <Text style={err.cacheLabel}>Dernière sync — {cache.last_sync}</Text>
+          <Text style={err.syncLabel}>DERNIÈRE SYNC — {cache.last_sync}</Text>
           <View style={err.cacheRow}>
             <View style={err.cacheStat}>
-              <Text style={err.cacheNum}>{cache.cars_available}/{cache.cars_total}</Text>
-              <Text style={err.cacheDesc}>Voitures dispo</Text>
+              <Text style={err.cacheNum}>{cache.cars_available}</Text>
+              <Text style={err.cacheDen}>/{cache.cars_total}</Text>
+              <Text style={err.cacheDesc}>DISPO</Text>
             </View>
             <View style={err.cacheDivider} />
             <View style={err.cacheStat}>
               <Text style={err.cacheNum}>{cache.bookings_today}</Text>
-              <Text style={err.cacheDesc}>Résa aujourd'hui</Text>
+              <Text style={err.cacheDen}> </Text>
+              <Text style={err.cacheDesc}>RÉSA ACTIVES</Text>
             </View>
           </View>
         </>
       ) : (
-        <Text style={err.subtitle}>Vérifiez votre connexion puis réessayez.</Text>
+        <Text style={err.subtitle}>Vérifiez votre connexion réseau</Text>
       )}
-      <TouchableOpacity style={err.btn} onPress={onRetry}>
-        <Text style={err.btnText}>↺  Réessayer</Text>
+
+      <TouchableOpacity style={err.btn} onPress={onRetry} activeOpacity={0.7}>
+        <Text style={err.btnText}>↺  RÉESSAYER</Text>
       </TouchableOpacity>
+
+      <Text style={lock.status}>● HORS LIGNE</Text>
     </View>
   );
 }
@@ -389,7 +415,9 @@ export default function App() {
     <View style={{ flex: 1, backgroundColor: '#000000' }}>
       {loading && !offline && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#00d4ff" />
+          <Image source={require('../assets/icon.png')} style={styles.loadingLogo} resizeMode="contain" />
+          <ActivityIndicator size="large" color="#00d4ff" style={{ marginTop: 24 }} />
+          <Text style={styles.loadingText}>INITIALISATION…</Text>
         </View>
       )}
       {/* Wake word indicator — subtle dot bottom-right */}
@@ -439,34 +467,61 @@ export default function App() {
   );
 }
 
+const C = '#00d4ff';
+const BG = '#020810';
+
 const styles = StyleSheet.create({
-  webview:        { flex: 1, backgroundColor: '#000000' },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  webview:        { flex: 1, backgroundColor: BG },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  loadingLogo:    { width: 120, height: 120, opacity: 0.9 },
+  loadingText:    { marginTop: 12, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 11, color: `${C}66`, letterSpacing: 4 },
   wakeIndicator:  { position: 'absolute', bottom: 12, right: 12, zIndex: 20 },
   wakeDot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: '#00e676', opacity: 0.7 },
 });
 
+const CORNER_SIZE = 18;
+const CORNER_W = 2;
+
 const lock = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050510', alignItems: 'center', justifyContent: 'center', padding: 40 },
-  hex:       { fontSize: 64, color: '#00d4ff', marginBottom: 16 },
-  brand:     { fontSize: 28, fontWeight: '900', color: '#ffffff', letterSpacing: 6, marginBottom: 8 },
-  subtitle:  { fontSize: 13, color: 'rgba(255,255,255,0.35)', letterSpacing: 2, marginBottom: 56 },
-  btn:       { paddingVertical: 18, paddingHorizontal: 48, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(0,212,255,0.5)', backgroundColor: 'rgba(0,212,255,0.1)', alignItems: 'center' },
-  btnIcon:   { fontSize: 28, marginBottom: 6 },
-  btnText:   { fontSize: 15, fontWeight: '700', color: '#00d4ff', letterSpacing: 2 },
+  container: {
+    flex: 1, backgroundColor: BG,
+    alignItems: 'center', justifyContent: 'center', padding: 40,
+  },
+  corner: {
+    position: 'absolute', width: CORNER_SIZE, height: CORNER_SIZE,
+  },
+  tl: { top: 20, left: 20, borderTopWidth: CORNER_W, borderLeftWidth: CORNER_W, borderColor: `${C}55` },
+  tr: { top: 20, right: 20, borderTopWidth: CORNER_W, borderRightWidth: CORNER_W, borderColor: `${C}55` },
+  bl: { bottom: 20, left: 20, borderBottomWidth: CORNER_W, borderLeftWidth: CORNER_W, borderColor: `${C}55` },
+  br: { bottom: 20, right: 20, borderBottomWidth: CORNER_W, borderRightWidth: CORNER_W, borderColor: `${C}55` },
+  logo:     { width: 140, height: 140, marginBottom: 28 },
+  brand:    { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 26, fontWeight: '900', color: C, letterSpacing: 10, marginBottom: 14 },
+  divider:  { width: 120, height: 1, backgroundColor: `${C}33`, marginBottom: 14 },
+  subtitle: { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 9, color: `${C}55`, letterSpacing: 4, marginBottom: 56 },
+  btn: {
+    borderWidth: 1.5, borderColor: `${C}55`, borderRadius: 20,
+    backgroundColor: `${C}0d`, paddingHorizontal: 56, paddingVertical: 6,
+    shadowColor: C, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 18,
+  },
+  btnInner: { alignItems: 'center', paddingVertical: 14 },
+  btnIcon:  { fontSize: 32, color: C, marginBottom: 8 },
+  btnText:  { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 14, fontWeight: '700', color: C, letterSpacing: 4 },
+  btnSub:   { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 9, color: `${C}66`, letterSpacing: 2, marginTop: 6 },
+  status:   { position: 'absolute', bottom: 36, fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 8, color: `${C}44`, letterSpacing: 3 },
 });
 
 const err = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  icon:        { fontSize: 56, marginBottom: 20 },
-  title:       { fontSize: 18, fontWeight: '900', color: '#00d4ff', marginBottom: 12, letterSpacing: 2 },
-  subtitle:    { fontSize: 14, color: 'rgba(255,255,255,0.45)', textAlign: 'center', lineHeight: 22, marginBottom: 32 },
-  cacheLabel:  { fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 1, marginBottom: 20 },
-  cacheRow:    { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,212,255,0.2)', borderRadius: 14, paddingVertical: 20, paddingHorizontal: 32, marginBottom: 32, backgroundColor: 'rgba(0,212,255,0.05)' },
-  cacheStat:   { alignItems: 'center', flex: 1 },
-  cacheDivider:{ width: 1, height: 40, backgroundColor: 'rgba(0,212,255,0.2)' },
-  cacheNum:    { fontSize: 28, fontWeight: '900', color: '#00d4ff', marginBottom: 4 },
-  cacheDesc:   { fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5 },
-  btn:         { paddingVertical: 14, paddingHorizontal: 36, borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(0,212,255,0.35)', backgroundColor: 'rgba(0,212,255,0.08)' },
-  btnText:     { fontSize: 15, fontWeight: '700', color: '#00d4ff', letterSpacing: 1 },
+  container: { flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  logo:      { width: 110, height: 110, marginBottom: 24, opacity: 0.7 },
+  title:     { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 18, fontWeight: '900', color: '#ff3366', letterSpacing: 6, marginBottom: 14 },
+  syncLabel: { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 9, color: `${C}44`, letterSpacing: 2, marginBottom: 24 },
+  subtitle:  { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 12, color: 'rgba(255,255,255,0.35)', textAlign: 'center', lineHeight: 20, marginBottom: 32 },
+  cacheRow:  { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: `${C}22`, borderRadius: 16, paddingVertical: 24, paddingHorizontal: 36, marginBottom: 36, backgroundColor: `${C}07` },
+  cacheStat: { alignItems: 'center', flex: 1 },
+  cacheDivider: { width: 1, height: 44, backgroundColor: `${C}22` },
+  cacheNum:  { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 32, fontWeight: '900', color: C },
+  cacheDen:  { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 14, color: `${C}55` },
+  cacheDesc: { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 8, color: `${C}55`, letterSpacing: 2, marginTop: 4 },
+  btn:       { borderWidth: 1.5, borderColor: `${C}44`, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40, backgroundColor: `${C}0a` },
+  btnText:   { fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace', fontSize: 13, fontWeight: '700', color: C, letterSpacing: 3 },
 });
