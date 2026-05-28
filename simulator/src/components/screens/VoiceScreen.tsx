@@ -582,40 +582,40 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
 
       {/* ── ROBOT + HALO ── */}
       <div style={{
-        position: 'absolute', left: '50%', top: '45%',
+        position: 'absolute', left: '50%', top: '40%',
         transform: 'translate(-50%, -50%)',
         zIndex: 5,
       }}>
-        {/* Outer ambient ring — slow breathe */}
+        {/* Outer ambient ring */}
         <div style={{
-          position: 'absolute', top: '50%', left: '50%',
-          width: 340, height: 340, borderRadius: '50%',
+          position: 'absolute', top: '42%', left: '50%',
+          width: 240, height: 240, borderRadius: '50%',
           border: `1px solid ${col}`,
-          opacity: 0.08,
+          opacity: 0.07,
           animation: 'halo-breathe 4s ease-in-out infinite',
           transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
         }} />
         {/* Middle ring — pulse on listening */}
         <div style={{
-          position: 'absolute', top: '50%', left: '50%',
-          width: 280, height: 280, borderRadius: '50%',
+          position: 'absolute', top: '42%', left: '50%',
+          width: 196, height: 196, borderRadius: '50%',
           border: `1px solid ${col}`,
-          opacity: status === 'listening' ? 0.3 : 0.1,
+          opacity: status === 'listening' ? 0.28 : 0.09,
           animation: status === 'listening' ? 'ring-expand 1.8s ease-out infinite' : 'halo-breathe 3s ease-in-out infinite 0.5s',
           transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
         }} />
         {/* Glow core */}
         <div style={{
-          position: 'absolute', top: '50%', left: '50%',
-          width: 200, height: 200, borderRadius: '50%',
-          background: `radial-gradient(circle, ${col}12 0%, transparent 70%)`,
+          position: 'absolute', top: '42%', left: '50%',
+          width: 150, height: 150, borderRadius: '50%',
+          background: `radial-gradient(circle, ${col}10 0%, transparent 70%)`,
           animation: 'halo-breathe 2.5s ease-in-out infinite',
           transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
         }} />
-        <DzaryxRobot status={status} visionActive={visionActive} />
+        <DzaryxRobot status={status} visionActive={visionActive} scale={0.82} />
       </div>
 
       {/* ── STATE TEXT ── */}
@@ -1234,62 +1234,79 @@ function DzaryxRobot({
       )}
 
       {/* ── NECK — articulated ── */}
-      <rect x="130" y="256" width="30" height="8"  rx="4" fill="#0c1a28" stroke={col} strokeWidth="0.7" strokeOpacity="0.3" />
-      <rect x="127" y="262" width="36" height="8"  rx="4" fill="#0a1620" stroke={col} strokeWidth="0.6" strokeOpacity="0.25" />
-      <rect x="130" y="268" width="30" height="6"  rx="3" fill="#080e18" stroke={col} strokeWidth="0.5" strokeOpacity="0.2" />
-      {/* Cable bundles */}
-      <line x1="137" y1="256" x2="137" y2="274" stroke={col} strokeWidth="0.8" strokeOpacity="0.2" />
-      <line x1="145" y1="256" x2="145" y2="274" stroke={col} strokeWidth="0.8" strokeOpacity="0.2" />
-      <line x1="153" y1="256" x2="153" y2="274" stroke={col} strokeWidth="0.8" strokeOpacity="0.2" />
+      <rect x="132" y="256" width="26" height="7"  rx="3.5" fill="#0c1a28" stroke={col} strokeWidth="0.6" strokeOpacity="0.3" />
+      <rect x="128" y="261" width="34" height="7"  rx="3.5" fill="#0a1620" stroke={col} strokeWidth="0.5" strokeOpacity="0.25" />
+      <rect x="132" y="266" width="26" height="6"  rx="3" fill="#080e18" stroke={col} strokeWidth="0.5" strokeOpacity="0.2" />
+      <line x1="139" y1="256" x2="139" y2="272" stroke={col} strokeWidth="0.7" strokeOpacity="0.2" />
+      <line x1="145" y1="256" x2="145" y2="272" stroke={col} strokeWidth="0.7" strokeOpacity="0.2" />
+      <line x1="151" y1="256" x2="151" y2="272" stroke={col} strokeWidth="0.7" strokeOpacity="0.2" />
 
       {/* ── BODY ── */}
-      {/* Ground glow */}
-      <ellipse cx="145" cy="362" rx="70" ry="13" fill={col} opacity="0.1" filter="url(#glow10)" />
-      <ellipse cx="145" cy="366" rx="44" ry="7"  fill={col} opacity="0.07" />
+      <ellipse cx="145" cy="368" rx="72" ry="10" fill={col} opacity="0.09" filter="url(#glow10)" />
+      <ellipse cx="145" cy="372" rx="46" ry="6"  fill={col} opacity="0.06" />
 
-      {/* Shoulder guards */}
-      <path d="M 94 286 Q 80 275 82 260 L 94 272 Z" fill="#0c1828" stroke={col} strokeWidth="0.7" strokeOpacity="0.25" />
-      <path d="M 196 286 Q 210 275 208 260 L 196 272 Z" fill="#0c1828" stroke={col} strokeWidth="0.7" strokeOpacity="0.25" />
+      {/* Shoulder pads — proper arm stubs */}
+      <rect x="62" y="272" width="32" height="52" rx="16" fill="#0e1e30" stroke={col} strokeWidth="0.9" strokeOpacity="0.28" />
+      <rect x="62" y="272" width="32" height="52" rx="16" fill="none" stroke="white" strokeWidth="0.3" strokeOpacity="0.05" />
+      <rect x="67" y="285" width="22" height="4"  rx="2" fill={col} opacity="0.3" />
+      <rect x="67" y="292" width="14" height="3"  rx="1.5" fill={col} opacity="0.2" />
+      <circle cx="78" cy="308" r="7" fill="#060e18" stroke={col} strokeWidth="0.7" strokeOpacity="0.4" />
+      <circle cx="78" cy="308" r="3.5" fill={col} opacity={isListening ? 0.8 : 0.3} filter="url(#glow3)" />
 
-      {/* Body main shape */}
-      <rect x="88" y="274" width="114" height="88" rx="24" fill="url(#rg-bd)" />
-      <rect x="88" y="274" width="114" height="88" rx="24" fill="none" stroke={col} strokeWidth="1.4" strokeOpacity="0.32" />
+      <rect x="196" y="272" width="32" height="52" rx="16" fill="#0e1e30" stroke={col} strokeWidth="0.9" strokeOpacity="0.28" />
+      <rect x="196" y="272" width="32" height="52" rx="16" fill="none" stroke="white" strokeWidth="0.3" strokeOpacity="0.05" />
+      <rect x="201" y="285" width="22" height="4" rx="2" fill={col} opacity="0.3" />
+      <rect x="209" y="292" width="14" height="3" rx="1.5" fill={col} opacity="0.2" />
+      <circle cx="212" cy="308" r="7" fill="#060e18" stroke={col} strokeWidth="0.7" strokeOpacity="0.4" />
+      <circle cx="212" cy="308" r="3.5" fill={col} opacity={isListening ? 0.8 : 0.3} filter="url(#glow3)" />
+
+      {/* Body main — wider and taller */}
+      <rect x="82" y="272" width="126" height="96" rx="26" fill="url(#rg-bd)" />
+      <rect x="82" y="272" width="126" height="96" rx="26" fill="none" stroke={col} strokeWidth="1.4" strokeOpacity="0.32" />
+      <rect x="82" y="272" width="126" height="96" rx="26" fill="none" stroke="white" strokeWidth="0.4" strokeOpacity="0.04" />
 
       {/* Body panel lines */}
-      <line x1="101" y1="296" x2="189" y2="296" stroke={col} strokeWidth="0.6" strokeOpacity="0.2" />
-      <line x1="101" y1="348" x2="189" y2="348" stroke={col} strokeWidth="0.5" strokeOpacity="0.15" />
+      <line x1="96" y1="294" x2="194" y2="294" stroke={col} strokeWidth="0.6" strokeOpacity="0.18" />
+      <line x1="96" y1="352" x2="194" y2="352" stroke={col} strokeWidth="0.5" strokeOpacity="0.13" />
 
-      {/* LED strips on body sides */}
-      {[292, 304, 316, 328].map((ly, i) => (
-        <rect key={i} x="92"  y={ly} width="4" height="3" rx="1.5"
-          fill={col} opacity={isListening || isSpeaking ? 0.8 : 0.25}
-          style={isListening || isSpeaking ? { animation: `earBar${(i % 5) + 1} ${0.3 + i * 0.05}s ease infinite` } : {}} />
+      {/* LED strips on body edges */}
+      {[282, 296, 310, 324, 338].map((ly, i) => (
+        <rect key={i} x="86"  y={ly} width="5" height="3" rx="1.5"
+          fill={col} opacity={isListening || isSpeaking ? 0.85 : 0.28}
+          style={isListening || isSpeaking ? { animation: `earBar${(i % 5) + 1} ${0.28 + i * 0.05}s ease infinite` } : {}} />
       ))}
-      {[292, 304, 316, 328].map((ly, i) => (
-        <rect key={i} x="194" y={ly} width="4" height="3" rx="1.5"
-          fill={col} opacity={isListening || isSpeaking ? 0.8 : 0.25}
-          style={isListening || isSpeaking ? { animation: `earBar${5 - (i % 5)} ${0.3 + i * 0.05}s ease infinite` } : {}} />
+      {[282, 296, 310, 324, 338].map((ly, i) => (
+        <rect key={i} x="199" y={ly} width="5" height="3" rx="1.5"
+          fill={col} opacity={isListening || isSpeaking ? 0.85 : 0.28}
+          style={isListening || isSpeaking ? { animation: `earBar${5 - (i % 5)} ${0.28 + i * 0.05}s ease infinite` } : {}} />
       ))}
 
-      {/* Chest core — hexagonal power crystal */}
+      {/* Chest core — hexagonal power crystal, bigger */}
       <polygon
-        points="145,305 155,311 155,323 145,329 135,323 135,311"
-        fill={`url(#rg-core-${status})`} stroke={col} strokeWidth="1.2" strokeOpacity="0.7"
+        points="145,300 158,308 158,324 145,332 132,324 132,308"
+        fill={`url(#rg-core-${status})`} stroke={col} strokeWidth="1.4" strokeOpacity="0.75"
         filter="url(#glow6)" style={{ animation: 'eyeGlow 3s ease-in-out infinite' }}
       />
       <polygon
-        points="145,311 151,315 151,321 145,325 139,321 139,315"
-        fill={col} opacity="0.5" filter="url(#glow3)"
+        points="145,307 154,312 154,320 145,325 136,320 136,312"
+        fill={col} opacity="0.4" filter="url(#glow3)"
       />
+      <circle cx="145" cy="316" r="4" fill="white" opacity="0.5" />
 
-      {/* DZARYX text under core */}
-      <text x="145" y="345" fill={col}
-        fontFamily="Orbitron, Share Tech Mono, monospace" fontSize="8.5" fontWeight="700"
-        textAnchor="middle" letterSpacing="5" opacity="0.85"
+      {/* Circuit trace details */}
+      <line x1="158" y1="316" x2="178" y2="316" stroke={col} strokeWidth="0.6" strokeOpacity="0.25" />
+      <line x1="178" y1="316" x2="178" y2="308" stroke={col} strokeWidth="0.6" strokeOpacity="0.2" />
+      <line x1="132" y1="316" x2="112" y2="316" stroke={col} strokeWidth="0.6" strokeOpacity="0.25" />
+      <line x1="112" y1="316" x2="112" y2="308" stroke={col} strokeWidth="0.6" strokeOpacity="0.2" />
+
+      {/* DZARYX text */}
+      <text x="145" y="349" fill={col}
+        fontFamily="Orbitron, Share Tech Mono, monospace" fontSize="8" fontWeight="700"
+        textAnchor="middle" letterSpacing="5" opacity="0.8"
         filter="url(#glow3)">DZARYX</text>
 
       {/* Body specular */}
-      <ellipse cx="112" cy="284" rx="24" ry="10" fill="white" opacity="0.035" />
+      <ellipse cx="108" cy="283" rx="26" ry="10" fill="white" opacity="0.04" />
 
       {/* ── WAVEFORM BARS ── */}
       {(isListening || isSpeaking) && (
