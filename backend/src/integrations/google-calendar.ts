@@ -8,6 +8,7 @@ const GOOGLE_TOKEN_URL     = 'https://oauth2.googleapis.com/token';
 const CALENDAR_SCOPE       = 'https://www.googleapis.com/auth/calendar';
 const CALENDAR_ID          = 'fikconciergerie@gmail.com';
 const getPersonalCalId     = () => env.PERSONAL_GCAL_ID ?? 'kouiderpablo@gmail.com';
+const getHouariCalId       = () => env.HOUARI_GCAL_ID   ?? 'houari.douba@gmail.com';
 
 interface ServiceAccountKey {
   client_email: string;
@@ -227,6 +228,42 @@ export async function createPersonalCalendarEvent(
 
 export async function deletePersonalCalendarEvent(googleEventId: string): Promise<boolean> {
   const calId = getPersonalCalId();
+  await calendarRequest('DELETE', `/calendars/${encodeURIComponent(calId)}/events/${googleEventId}`);
+  return true;
+}
+
+// ── Houari personal calendar ──────────────────────────────────
+
+export async function listHouariEvents(maxResults = 15): Promise<CalendarEvent[]> {
+  const calId = getHouariCalId();
+  const res = await calendarRequest<{ items: CalendarEvent[] }>('GET',
+    `/calendars/${encodeURIComponent(calId)}/events?maxResults=${maxResults}&orderBy=startTime&singleEvents=true&timeMin=${new Date().toISOString()}`);
+  return res?.items ?? [];
+}
+
+export async function createHouariCalendarEvent(
+  title: string,
+  startDateTime: string,
+  endDateTime: string,
+  description?: string,
+  allDay?: boolean,
+): Promise<string | null> {
+  const calId = getHouariCalId();
+  const body: Record<string, unknown> = { summary: title };
+  if (description) body['description'] = description;
+  if (allDay) {
+    body['start'] = { date: startDateTime.slice(0, 10) };
+    body['end']   = { date: endDateTime.slice(0, 10) };
+  } else {
+    body['start'] = { dateTime: startDateTime.includes('T') ? startDateTime : `${startDateTime}T09:00:00`, timeZone: 'Africa/Algiers' };
+    body['end']   = { dateTime: endDateTime.includes('T')   ? endDateTime   : `${endDateTime}T10:00:00`,   timeZone: 'Africa/Algiers' };
+  }
+  const created = await calendarRequest<{ id: string }>('POST', `/calendars/${encodeURIComponent(calId)}/events`, body);
+  return created?.id ?? null;
+}
+
+export async function deleteHouariCalendarEvent(googleEventId: string): Promise<boolean> {
+  const calId = getHouariCalId();
   await calendarRequest('DELETE', `/calendars/${encodeURIComponent(calId)}/events/${googleEventId}`);
   return true;
 }

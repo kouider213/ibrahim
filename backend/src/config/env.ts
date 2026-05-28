@@ -34,6 +34,7 @@ const envSchema = z.object({
   TWILIO_WHATSAPP_FROM:          z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON:   z.string().optional(),
   PERSONAL_GCAL_ID:              z.string().optional(), // kouiderpablo@gmail.com personal calendar
+  HOUARI_GCAL_ID:                z.string().optional(), // houari personal calendar
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   VAPID_PUBLIC_KEY:  z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

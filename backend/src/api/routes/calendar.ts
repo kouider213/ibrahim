@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getAuthUrl, exchangeCodeForTokens, listUpcomingEvents,
   createCalendarEvent, syncPendingBookings,
+  listPersonalEvents, listHouariEvents,
 } from '../../integrations/google-calendar.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 
@@ -56,6 +57,39 @@ router.post('/events', requireMobileAuth, async (req, res) => {
   try {
     const eventId = await createCalendarEvent(bookingId, clientName, carName, startDate, endDate, notes);
     res.json({ eventId, success: !!eventId });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/calendar/all — multi-calendar events, actor-aware
+router.get('/all', requireMobileAuth, async (req, res) => {
+  const actor = (req.query['actor'] as string) === 'houari' ? 'houari' : 'kouider';
+  try {
+    const [fikRaw, kouiderRaw, houariRaw] = await Promise.all([
+      listUpcomingEvents(50),
+      actor === 'kouider' ? listPersonalEvents(20) : Promise.resolve([]),
+      listHouariEvents(20),
+    ]);
+    type Source = 'fik' | 'kouider' | 'houari';
+    interface RawEvent {
+      id?: string; summary: string; description?: string; location?: string;
+      start: { dateTime?: string; date?: string; timeZone?: string };
+      end:   { dateTime?: string; date?: string; timeZone?: string };
+      colorId?: string;
+    }
+    const tag = <S extends Source>(evts: RawEvent[], s: S) =>
+      evts.map(e => ({ ...e, source: s }));
+    const events = [
+      ...tag(fikRaw as RawEvent[],     'fik'),
+      ...tag(kouiderRaw as RawEvent[], 'kouider'),
+      ...tag(houariRaw as RawEvent[],  'houari'),
+    ].sort((a, b) => {
+      const aT = (a.start.dateTime ?? a.start.date ?? '');
+      const bT = (b.start.dateTime ?? b.start.date ?? '');
+      return aT.localeCompare(bT);
+    });
+    res.json({ events, actor });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
