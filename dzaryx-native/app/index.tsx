@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as QuickActions from 'expo-quick-actions';
+import { useWakeWord } from '../lib/useWakeWord';
 
 const APP_URL          = 'https://kouider213.github.io/ibrahim/';
 const BACKEND_URL      = 'https://ibrahim-backend-production.up.railway.app';
@@ -254,7 +255,7 @@ export default function App() {
   const [fleetCache, setFleetCache] = useState<FleetCache | null>(null);
   const appStateRef      = useRef<AppStateStatus>('active');
   const lastBgTimeRef    = useRef<number | null>(null);
-  const pendingAction    = useRef<string | null>(null); // action to run once WebView is ready
+  const pendingAction    = useRef<string | null>(null);
   const webviewReady     = useRef(false);
 
   const handleRetry = useCallback(() => {
@@ -280,6 +281,13 @@ export default function App() {
   function triggerVoiceInWebView() {
     injectOrQueue('window.__triggerWakeWord && window.__triggerWakeWord(); void 0;');
   }
+
+  // Porcupine wake word — fires when "Jarvis" / "Dzaryx" detected in background
+  const { active: wakeActive } = useWakeWord(
+    useCallback(() => {
+      if (!isLocked) triggerVoiceInWebView();
+    }, [isLocked]) // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   function routeQuickAction(actionId: string) {
     const js = `
@@ -384,6 +392,12 @@ export default function App() {
           <ActivityIndicator size="large" color="#00d4ff" />
         </View>
       )}
+      {/* Wake word indicator — subtle dot bottom-right */}
+      {wakeActive && !loading && !offline && (
+        <View style={styles.wakeIndicator} pointerEvents="none">
+          <View style={styles.wakeDot} />
+        </View>
+      )}
       {offline ? (
         <OfflineScreen onRetry={handleRetry} cache={fleetCache} />
       ) : (
@@ -428,6 +442,8 @@ export default function App() {
 const styles = StyleSheet.create({
   webview:        { flex: 1, backgroundColor: '#000000' },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+  wakeIndicator:  { position: 'absolute', bottom: 12, right: 12, zIndex: 20 },
+  wakeDot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: '#00e676', opacity: 0.7 },
 });
 
 const lock = StyleSheet.create({
