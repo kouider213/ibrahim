@@ -78,6 +78,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   continuousModeRef.current = continuousMode;
   const prevStatusRef = useRef<DzaryxStatus>('idle');
 
+  const [handsFree, setHandsFree]         = useState(false);
+  const handsFreeRef = useRef(false);
+  handsFreeRef.current = handsFree;
+  const [wakeWordOn, setWakeWordOn]       = useState(false);
+
   // ── Socket.IO ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const sock = connectSocket(sessionId.current, {
@@ -109,10 +114,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     prevStatusRef.current = status;
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Native wake word bridge (called from Porcupine via injectJavaScript) ────
+  // ── Native wake word bridge (Porcupine via React Native injectJavaScript) ────
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__triggerWakeWord = () => {
+    const activate = (skipGreeting = false) => {
       if (statusRef.current === 'speaking') {
         stopAudio();
         setStatus('idle');
@@ -121,21 +125,30 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       }
       if (statusRef.current !== 'idle' || isRecordingRef.current) return;
       setHud('🎤 DZARYX ACTIVÉ — J\'ÉCOUTE');
-      // Greeting vocal avant d'écouter
+      if (skipGreeting || handsFreeRef.current) {
+        startRecording();
+        return;
+      }
       try {
         const utter = new SpeechSynthesisUtterance('Je t\'écoute');
-        utter.lang  = 'fr-FR';
-        utter.rate  = 1.15;
-        utter.pitch = 1.0;
+        utter.lang = 'fr-FR'; utter.rate = 1.15; utter.pitch = 1.0;
         utter.onend = () => startRecording();
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(utter);
       } catch {
-        startRecording(); // fallback si SpeechSynthesis indisponible
+        startRecording();
       }
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return () => { delete (window as any).__triggerWakeWord; };
+    (window as any).__triggerWakeWord = () => activate(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__triggerWakeWordFast = () => activate(true);
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__triggerWakeWord;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__triggerWakeWordFast;
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mic init ────────────────────────────────────────────────────────────────
@@ -215,24 +228,39 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
   }
 
-  // ── Wake word (SpeechRecognition API) ────────────────────────────────────────
+  // ── Wake word (SpeechRecognition API — browser fallback for Porcupine) ───────
+  const WAKE_RE = /\b(dzaryx|dzari|hey dzaryx|ibrahim|hey ibrahim|dzarieks)\b/;
   function startWakeWord() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rec = new SR() as any;
-    rec.continuous  = true;
-    rec.lang        = 'fr-FR';
+    rec.continuous     = true;
+    rec.lang           = 'fr-FR';
     rec.interimResults = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onstart  = () => setWakeWordOn(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onerror  = () => setWakeWordOn(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i]![0]!.transcript.toLowerCase();
-        if (/\bdzaryx\b|\bhey dzaryx\b|\bdzari\b/.test(t)) {
-          if (statusRef.current === 'idle') {
-            setHud('🎤 WAKE WORD DÉTECTÉ — J\'ÉCOUTE');
-            startRecording();
+        const t = (e.results[i]![0]!.transcript as string).toLowerCase();
+        if (WAKE_RE.test(t)) {
+          if (statusRef.current === 'idle' && !isRecordingRef.current) {
+            setHud('🎤 WAKE WORD — DZARYX ACTIVÉ');
+            if (handsFreeRef.current) {
+              startRecording();
+            } else {
+              try {
+                const utter = new SpeechSynthesisUtterance('Je t\'écoute');
+                utter.lang = 'fr-FR'; utter.rate = 1.15;
+                utter.onend = () => startRecording();
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utter);
+              } catch { startRecording(); }
+            }
           } else if (statusRef.current === 'speaking') {
             stopAudio();
             setStatus('idle');
@@ -241,7 +269,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         }
       }
     };
-    rec.onend = () => { try { rec.start(); } catch { /* ignore */ } };
+    rec.onend = () => {
+      setWakeWordOn(false);
+      setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 300);
+    };
     try { rec.start(); } catch { /* ignore */ }
   }
 
@@ -489,10 +520,35 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             ))}
           </div>
         </div>
-        <div style={{ textAlign: 'center', marginBottom: 4 }}>
+        <div style={{ textAlign: 'center', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00d4ff44', letterSpacing: '0.2em' }}>
             IA DE FIK CONCIERGERIE · ORAN
           </span>
+          {/* Wake word indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <div style={{
+              width: 5, height: 5, borderRadius: '50%',
+              background: wakeWordOn ? '#00e676' : '#ffffff22',
+              boxShadow: wakeWordOn ? '0 0 6px #00e676' : 'none',
+            }} />
+            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: wakeWordOn ? '#00e67666' : '#ffffff22', letterSpacing: '0.1em' }}>
+              WAKE
+            </span>
+          </div>
+          {/* Hands-free toggle */}
+          <button
+            onClick={() => setHandsFree(h => !h)}
+            style={{
+              background: handsFree ? 'rgba(0,230,118,0.12)' : 'transparent',
+              border: `1px solid ${handsFree ? '#00e67666' : '#ffffff22'}`,
+              borderRadius: 4, padding: '1px 5px', cursor: 'pointer',
+              fontFamily: 'Share Tech Mono', fontSize: 6,
+              color: handsFree ? '#00e676' : '#ffffff33',
+              letterSpacing: '0.08em',
+            }}
+          >
+            {handsFree ? '🙌 LIBRE' : 'MAINS'}
+          </button>
         </div>
         <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${col}55, transparent)` }} />
       </div>
