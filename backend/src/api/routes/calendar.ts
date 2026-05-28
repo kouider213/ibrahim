@@ -3,6 +3,7 @@ import {
   getAuthUrl, exchangeCodeForTokens, listUpcomingEvents,
   createCalendarEvent, syncPendingBookings,
   listPersonalEvents, listHouariEvents,
+  createPersonalCalendarEvent, createHouariCalendarEvent,
 } from '../../integrations/google-calendar.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 
@@ -90,6 +91,35 @@ router.get('/all', requireMobileAuth, async (req, res) => {
       return aT.localeCompare(bT);
     });
     res.json({ events, actor });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/calendar/add — create event in specific calendar (fik | kouider | houari)
+router.post('/add', requireMobileAuth, async (req, res) => {
+  const { calendar, title, startDateTime, endDateTime, description, allDay } = req.body as {
+    calendar: 'fik' | 'kouider' | 'houari';
+    title: string;
+    startDateTime: string;
+    endDateTime:   string;
+    description?:  string;
+    allDay?:       boolean;
+  };
+  if (!calendar || !title || !startDateTime || !endDateTime) {
+    res.status(400).json({ error: 'calendar, title, startDateTime, endDateTime requis' });
+    return;
+  }
+  try {
+    let eventId: string | null = null;
+    if (calendar === 'fik') {
+      eventId = await createCalendarEvent(`add_${Date.now()}`, title, '', startDateTime.slice(0,10), endDateTime.slice(0,10), description);
+    } else if (calendar === 'kouider') {
+      eventId = await createPersonalCalendarEvent(title, startDateTime, endDateTime, description, allDay);
+    } else {
+      eventId = await createHouariCalendarEvent(title, startDateTime, endDateTime, description, allDay);
+    }
+    res.json({ eventId, success: !!eventId });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

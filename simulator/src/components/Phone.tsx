@@ -34,10 +34,10 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'demandes',      icon: '📩', label: 'DEMANDES', kouiderOnly: true },
   { id: 'currency',      icon: '💱', label: 'SARF',    houariOnly: true },
   { id: 'immo',          icon: '🏠', label: 'IMMO',    houariOnly: true },
-  { id: 'bookings',      icon: '📋', label: 'RESAS',   kouiderOnly: true },
-  { id: 'fleet',         icon: '🚗', label: 'PARC',    kouiderOnly: true },
-  { id: 'revenue',       icon: '💰', label: 'CA',      kouiderOnly: true },
-  { id: 'clients',       icon: '👥', label: 'CLIENTS', kouiderOnly: true },
+  { id: 'bookings',      icon: '📋', label: 'RESAS'   },
+  { id: 'fleet',         icon: '🚗', label: 'PARC'    },
+  { id: 'revenue',       icon: '💰', label: 'CA'      },
+  { id: 'clients',       icon: '👥', label: 'CLIENTS' },
   { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
   { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
@@ -137,7 +137,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = ['currency', 'immo'];
-  const kouiderOnlyPages: Page[] = ['capacites', 'demandes', 'bookings', 'fleet', 'revenue', 'clients', 'documents'];
+  const kouiderOnlyPages: Page[] = ['capacites', 'demandes', 'documents'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';

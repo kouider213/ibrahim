@@ -57,6 +57,12 @@ export default function CalendarScreen() {
   const [selected, setSelected]     = useState<string | null>(null);
   const [viewDate, setViewDate]     = useState(new Date());
   const [filter, setFilter]         = useState<Filter>('all');
+  const [showAdd, setShowAdd]       = useState(false);
+  const [addForm, setAddForm]       = useState({ title: '', date: '', time: '09:00', duration: '1', calendar: (actor === 'houari' ? 'houari' : 'kouider') as 'fik' | 'kouider' | 'houari', allDay: false });
+  const [addSaving, setAddSaving]   = useState(false);
+  const [toast, setToast]           = useState<string | null>(null);
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
   const today = useMemo(() => isoDate(new Date()), []);
 
@@ -147,6 +153,42 @@ export default function CalendarScreen() {
   const prevMonth = () => setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
   const nextMonth = () => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
 
+  const handleAddSubmit = async () => {
+    if (!addForm.title || !addForm.date) return;
+    setAddSaving(true);
+    try {
+      let startDateTime: string;
+      let endDateTime: string;
+      if (addForm.allDay) {
+        startDateTime = addForm.date;
+        endDateTime   = addForm.date;
+      } else {
+        startDateTime = `${addForm.date}T${addForm.time}:00`;
+        const endMs   = new Date(startDateTime).getTime() + parseFloat(addForm.duration) * 3600_000;
+        endDateTime   = new Date(endMs).toISOString().slice(0, 16);
+      }
+      await apiFetch('/api/calendar/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          calendar: addForm.calendar,
+          title: addForm.title,
+          startDateTime,
+          endDateTime,
+          allDay: addForm.allDay,
+        }),
+      });
+      setShowAdd(false);
+      setAddForm({ title: '', date: '', time: '09:00', duration: '1', calendar: actor === 'houari' ? 'houari' : 'kouider', allDay: false });
+      showToast('✅ Événement ajouté');
+      void load();
+    } catch {
+      showToast('❌ Erreur lors de l\'ajout');
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
   const fmtDate = (iso: string) => {
     const d = new Date(iso);
     return `${d.getDate()} ${MONTH_FR[d.getMonth()]}`;
@@ -162,7 +204,15 @@ export default function CalendarScreen() {
           <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #00d4ff55' }}>
             CALENDRIER
           </div>
-          <button onClick={() => void load()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#00d4ff55' }}>↻</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => void load()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#00d4ff55' }}>↻</button>
+            <button
+              onClick={() => setShowAdd(true)}
+              style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff', letterSpacing: '0.1em' }}
+            >
+              + AJOUTER
+            </button>
+          </div>
         </div>
 
         {/* Filter tabs */}
@@ -369,9 +419,145 @@ export default function CalendarScreen() {
           </div>
         )}
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,212,255,0.15)', border: '1px solid #00d4ff44',
+          borderRadius: 20, padding: '8px 18px', fontSize: 9, color: '#00d4ff',
+          fontFamily: 'Orbitron', letterSpacing: '0.1em', zIndex: 100,
+          backdropFilter: 'blur(10px)',
+        }}>
+          {toast}
+        </div>
+      )}
+
+      {/* Add event modal */}
+      {showAdd && (
+        <div
+          onClick={() => setShowAdd(false)}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', background: '#061220', borderTop: '1px solid #00d4ff33', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}
+          >
+            <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff', letterSpacing: '0.2em', marginBottom: 4 }}>
+              + NOUVEL ÉVÉNEMENT
+            </div>
+
+            {/* Calendar selector */}
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['fik', actor === 'houari' ? 'houari' : 'kouider'] as const).map(cal => {
+                const col = SOURCE_COL[cal as Source];
+                return (
+                  <button
+                    key={cal}
+                    onClick={() => setAddForm(f => ({ ...f, calendar: cal }))}
+                    style={{
+                      flex: 1, padding: '6px 4px',
+                      background: addForm.calendar === cal ? `${col}20` : 'transparent',
+                      border: `1px solid ${addForm.calendar === cal ? col + '66' : '#ffffff11'}`,
+                      borderRadius: 8, cursor: 'pointer',
+                      fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.1em',
+                      color: addForm.calendar === cal ? col : '#ffffff33',
+                    }}
+                  >
+                    {SOURCE_LABEL[cal as Source]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Title */}
+            <input
+              type="text"
+              placeholder="Titre de l'événement"
+              value={addForm.title}
+              onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))}
+              style={inputStyle}
+            />
+
+            {/* Date + allDay toggle */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="date"
+                value={addForm.date}
+                onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))}
+                style={{ ...inputStyle, flex: 1, colorScheme: 'dark' }}
+              />
+              <button
+                onClick={() => setAddForm(f => ({ ...f, allDay: !f.allDay }))}
+                style={{
+                  padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
+                  background: addForm.allDay ? 'rgba(0,212,255,0.15)' : 'transparent',
+                  border: `1px solid ${addForm.allDay ? '#00d4ff66' : '#ffffff11'}`,
+                  fontFamily: 'Orbitron', fontSize: 6, color: addForm.allDay ? '#00d4ff' : '#ffffff33',
+                  letterSpacing: '0.1em', whiteSpace: 'nowrap',
+                }}
+              >
+                JOURNÉE
+              </button>
+            </div>
+
+            {/* Time + Duration (hidden if allDay) */}
+            {!addForm.allDay && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="time"
+                  value={addForm.time}
+                  onChange={e => setAddForm(f => ({ ...f, time: e.target.value }))}
+                  style={{ ...inputStyle, flex: 1, colorScheme: 'dark' }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="24"
+                    step="0.5"
+                    value={addForm.duration}
+                    onChange={e => setAddForm(f => ({ ...f, duration: e.target.value }))}
+                    style={{ ...inputStyle, flex: 1, textAlign: 'center' }}
+                  />
+                  <span style={{ fontSize: 7, color: '#ffffff33', whiteSpace: 'nowrap' }}>h</span>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button
+                onClick={() => setShowAdd(false)}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #ffffff11', borderRadius: 10, cursor: 'pointer', fontFamily: 'Orbitron', fontSize: 8, color: '#ffffff33' }}
+              >
+                ANNULER
+              </button>
+              <button
+                onClick={() => void handleAddSubmit()}
+                disabled={addSaving || !addForm.title || !addForm.date}
+                style={{
+                  flex: 2, padding: '10px', borderRadius: 10, cursor: addSaving ? 'default' : 'pointer',
+                  background: addSaving ? 'rgba(0,212,255,0.05)' : 'rgba(0,212,255,0.15)',
+                  border: '1px solid #00d4ff44',
+                  fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff', letterSpacing: '0.1em',
+                }}
+              >
+                {addSaving ? '...' : '✓ AJOUTER'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.04)', border: '1px solid #ffffff11',
+  borderRadius: 8, padding: '8px 10px', color: '#e8f4ff',
+  fontFamily: 'Share Tech Mono', fontSize: 10, outline: 'none', width: '100%', boxSizing: 'border-box',
+};
 
 const navBtn: React.CSSProperties = {
   background: 'rgba(0,212,255,0.08)', border: '1px solid #00d4ff22', borderRadius: 6,
