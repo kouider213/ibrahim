@@ -29,7 +29,6 @@ import schedulerRoutes     from './api/routes/scheduler.js';
 import widgetRoutes        from './api/routes/widget.js';
 import financeRoutes       from './api/routes/finance.js';
 import documentsRoutes     from './api/routes/documents.js';
-import telegramRoutes      from './api/routes/telegram.js';
 import ttsRoutes           from './api/routes/tts.js';
 import transcribeRoutes    from './api/routes/transcribe.js';
 import pushTokenRoutes     from './api/routes/push-token.js';
@@ -102,7 +101,6 @@ app.get('/health', (_req, res) => {
     apis: {
       anthropic:   !!process.env.ANTHROPIC_API_KEY  ? '🟢' : '🔴',
       elevenlabs:  !!process.env.ELEVENLABS_API_KEY ? '🟢' : '🔴',
-      telegram:    !!process.env.TELEGRAM_BOT_TOKEN ? '🟢' : '🔴',
       supabase:    !!process.env.SUPABASE_URL        ? '🟢' : '🔴',
       pexels:      !!process.env.PEXELS_API_KEY      ? '🟢' : '🔴',
       cloudinary:  !!process.env.CLOUDINARY_API_KEY  ? '🟢' : '🔴',
@@ -138,7 +136,7 @@ app.post('/api/marketing/video', apiLimiter, async (req: express.Request, res: e
     chat_id?:           string;
   };
 
-  const targetChatId = chat_id ?? env.TELEGRAM_CHAT_ID ?? '809747124';
+  const targetChatId = chat_id ?? '809747124';
 
   try {
     const { triggerMarketingVideo } = await import('./marketing/run-video-job.js');
@@ -154,7 +152,7 @@ app.post('/api/marketing/video', apiLimiter, async (req: express.Request, res: e
       ok:       true,
       message:  `Vidéo marketing lancée — ${car_name ?? 'voiture auto'} (${style ?? 'reveal'}, fond: ${background_effect ?? 'aucun'})`,
       chat_id:  targetChatId,
-      note:     'La vidéo sera envoyée sur Telegram dans 30-120 secondes selon la charge.',
+      note:     'La vidéo sera livrée dans l\'app dans 30-120 secondes selon la charge.',
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -260,7 +258,6 @@ app.use('/api/scheduler',     apiLimiter, schedulerRoutes);
 app.use('/api/widget',        apiLimiter, widgetRoutes);
 app.use('/api/finance',       apiLimiter, financeRoutes);
 app.use('/api/documents',     apiLimiter, documentsRoutes);
-app.use('/api/telegram',      telegramRoutes);
 app.use('/api/tts',           apiLimiter, ttsRoutes);
 app.use('/api/transcribe',   apiLimiter, transcribeRoutes);
 app.use('/api/push-token',   apiLimiter, pushTokenRoutes);
@@ -348,33 +345,6 @@ desktopNs.on('connection', (socket) => {
   });
 });
 
-// ── Telegram webhook auto-registration ───────────────────────
-async function registerTelegramWebhook(): Promise<void> {
-  const token = env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
-  const backendUrl = env.BACKEND_URL ?? 'https://ibrahim-backend-production.up.railway.app';
-  if (backendUrl.includes('localhost')) return; // skip in local dev
-  const webhookUrl = `${backendUrl}/api/telegram/webhook`;
-  try {
-    const { default: axios } = await import('axios');
-    const body: Record<string, unknown> = {
-      url:                  webhookUrl,
-      allowed_updates:      ['message'],
-      drop_pending_updates: false,
-      max_connections:      40,
-    };
-    if (env.WEBHOOK_SECRET) body['secret_token'] = env.WEBHOOK_SECRET;
-    const { data } = await axios.post(`https://api.telegram.org/bot${token}/setWebhook`, body, { timeout: 10_000 });
-    if (data.ok) {
-      console.log(`✅ Telegram webhook registered: ${webhookUrl}`);
-    } else {
-      console.error(`[telegram] Webhook registration failed: ${JSON.stringify(data)}`);
-    }
-  } catch (err) {
-    console.error('[telegram] Webhook registration error:', err instanceof Error ? err.message : err);
-  }
-}
-
 // ── Auto-backfill client intelligence on startup (if table is empty) ─────────
 async function autoBackfillClientIntel(): Promise<void> {
   try {
@@ -434,6 +404,5 @@ server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
   initScheduler();
   initReminderWorker();
-  void registerTelegramWebhook();
   void autoBackfillClientIntel();
 });

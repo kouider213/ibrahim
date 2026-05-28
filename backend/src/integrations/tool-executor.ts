@@ -17,7 +17,6 @@ import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
 import { runTikTokMarketResearch } from '../marketing/market-research.js';
-import { mergeVideos } from '../marketing/video-creator.js';
 import { savePendingVideo } from '../marketing/approval-store.js';
 import { saveVideoSession, getLatestVideoSession } from '../marketing/video-session-store.js';
 import { executeCreateMarketingVideo, isValidMp4Buffer, mergeVideoWithAudio } from '../marketing/create-marketing-video.js';
@@ -33,7 +32,7 @@ import {
 
 const PROJ_W = 1080;
 const PROJ_H = 1920;
-import { getVideoBuffer, clearVideoBuffer } from '../marketing/video-buffer.js';
+import { getVideoBuffer } from '../marketing/video-buffer.js';
 import { synthesizeVoice } from '../notifications/dispatcher.js';
 import type { Car } from './supabase.js';
 import { checkCarAvailability as checkAvailability } from './supabase.js';
@@ -1573,7 +1572,6 @@ async function scheduleReminder(
     timezone_source:  resolved.source,
     created_by:       source_channel,
     session_id:       sessionId,
-    telegram_target:  env.TELEGRAM_CHAT_ID ?? undefined,
     dedup_key:        idempotency_key,
   });
 
@@ -2962,45 +2960,13 @@ async function mergeVideosTool(
   _input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
-  const chatId  = chatIdFromSession(sessionId);
   const fileIds = getVideoBuffer(sessionId ?? '');
 
   if (fileIds.length < 2) {
-    return `⚠️ Envoie au moins 2 vidéos sur Telegram avant de demander la fusion. Tu n'as envoyé que ${fileIds.length} vidéo(s) dans cette session.`;
+    return `⚠️ Envoie au moins 2 vidéos avant de demander la fusion. Tu n'as envoyé que ${fileIds.length} vidéo(s) dans cette session.`;
   }
 
-  await tgMsg(chatId, `🎬 *Fusion de ${fileIds.length} vidéos en cours...*\n_Normalisation + montage_ ⏳`);
-
-  // Download all videos from Telegram
-  const { downloadFile: downloadTelegramFile } = await import('./telegram.js');
-  const buffers: Buffer[] = [];
-  for (const fileId of fileIds) {
-    const buf = await downloadTelegramFile(fileId);
-    if (!buf) {
-      await tgMsg(chatId, `⚠️ Impossible de télécharger la vidéo (ID: ${fileId}) — elle a peut-être expiré.`);
-      return `⚠️ Échec téléchargement d'une vidéo.`;
-    }
-    buffers.push(buf);
-  }
-
-  const merged = await mergeVideos(buffers).catch(async (err) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[tool:merge_videos] failed:', msg);
-    await tgMsg(chatId, `⚠️ Fusion échouée: ${msg.slice(0, 120)}`);
-    return null;
-  });
-
-  if (!merged) return '⚠️ Fusion des vidéos échouée.';
-
-  clearVideoBuffer(sessionId ?? '');
-
-  const caption = `🎬 *Vidéo fusionnée — ${fileIds.length} clips*\n\nFusionnée par Dzaryx ✨`;
-  await tgVideo(chatId, merged, caption).catch(async (err) => {
-    console.error('[tool] merge sendVideoBuffer failed:', err instanceof Error ? err.message : err);
-    await tgMsg(chatId, `⚠️ Upload vidéo fusionnée échoué: ${err instanceof Error ? err.message : String(err)}`);
-  });
-
-  return `✅ ${fileIds.length} vidéos fusionnées et envoyées juste au-dessus ↑`;
+  return `⚠️ Fusion de vidéos non disponible dans cette version.`;
 }
 
 // ════════════════════════════════════════════════════════════════

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { business, type Car, type FleetIntel } from '../../services/api.ts';
+import { useState, useEffect, useRef } from 'react';
+import { business, api, getOrCreateSessionId, type Car, type FleetIntel } from '../../services/api.ts';
 
 // Catalog prices (ref only for display — never used in financial calculations)
 const PRICE_CATALOG: Array<{ match: string; h: number; k: number }> = [
@@ -26,12 +26,18 @@ function getCatalog(name: string): { h: number; k: number } | null {
   return PRICE_CATALOG.find(p => n.includes(p.match)) ?? null;
 }
 
+type InspectMode = 'before' | 'after';
+interface InspectState { carId: string; carName: string; mode: InspectMode; client: string; sending: boolean; done: string | null }
+
 export default function FleetScreen() {
   const [intel, setIntel]  = useState<FleetIntel | null>(null);
   const [cars, setCars]    = useState<Car[]>([]);
   const [loading, setLoad] = useState(true);
   const [toggling, setTog] = useState<string | null>(null);
   const [msg, setMsg]      = useState('');
+  const [inspect, setInspect] = useState<InspectState | null>(null);
+  const sessionId = useRef(getOrCreateSessionId());
+  const fileRef   = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoad(true);
@@ -56,6 +62,22 @@ export default function FleetScreen() {
       setTimeout(() => setMsg(''), 2500);
     }
     setTog(null);
+  };
+
+  const submitInspection = async (imageBase64: string) => {
+    if (!inspect) return;
+    setInspect(s => s && { ...s, sending: true });
+    const label  = inspect.mode === 'before' ? 'avant' : 'après';
+    const client = inspect.client.trim() || 'client';
+    const text   = `inspection ${label} location ${inspect.carName} pour client ${client}`;
+    try {
+      const res = await api.chat(text, sessionId.current, imageBase64, 'image/jpeg');
+      setInspect(s => s && { ...s, sending: false, done: res.text?.slice(0, 120) ?? '✅ Enregistré' });
+      setTimeout(() => setInspect(null), 3000);
+    } catch {
+      setInspect(s => s && { ...s, sending: false, done: '❌ Erreur envoi' });
+      setTimeout(() => setInspect(null), 2000);
+    }
   };
 
   const availCount   = cars.filter(c => c.available).length;
@@ -179,8 +201,8 @@ export default function FleetScreen() {
                 )}
               </div>
 
-              {/* Right — toggle + label */}
-              <div style={{ flexShrink: 0, padding: '0 12px 0 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              {/* Right — toggle + label + inspection */}
+              <div style={{ flexShrink: 0, padding: '0 10px 0 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                 <button
                   onClick={() => void toggle(car)}
                   disabled={isTog}
@@ -209,6 +231,17 @@ export default function FleetScreen() {
                 <span style={{ fontSize: 6, fontFamily: 'Orbitron', color: col, letterSpacing: '0.1em' }}>
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
                 </span>
+                {/* Inspection photo button */}
+                <button
+                  onClick={() => setInspect({ carId: car.id, carName: car.name, mode: 'before', client: '', sending: false, done: null })}
+                  title="Photo inspection avant/après"
+                  style={{
+                    width: 36, height: 22, borderRadius: 6, border: '1px solid #ffb34744',
+                    background: 'rgba(255,179,71,0.06)', cursor: 'pointer',
+                    fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#ffb347aa', transition: 'all 0.2s',
+                  }}
+                >📷</button>
               </div>
             </div>
           );
@@ -219,6 +252,124 @@ export default function FleetScreen() {
       <div style={{ padding: '6px 14px 8px', borderTop: '1px solid #ffffff08', flexShrink: 0 }}>
         <button onClick={() => void load()} style={refreshBtn}>↻ ACTUALISER LE PARC</button>
       </div>
+
+      {/* Hidden file input for inspection photos */}
+      <input
+        ref={fileRef} type="file" accept="image/*" capture="environment"
+        style={{ display: 'none' }}
+        onChange={async e => {
+          const file = e.target.files?.[0];
+          if (!file || !inspect) return;
+          e.target.value = '';
+          const b64 = await new Promise<string>((res, rej) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res((reader.result as string).split(',')[1] ?? '');
+            reader.onerror = rej;
+            reader.readAsDataURL(file);
+          });
+          void submitInspection(b64);
+        }}
+      />
+
+      {/* Inspection modal */}
+      {inspect && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 50,
+          background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(12px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #0a1628, #060e1c)',
+            border: '1px solid #ffb34733', borderRadius: 18,
+            padding: '24px 22px', width: '80%', maxWidth: 280,
+            boxShadow: '0 0 40px rgba(255,179,71,0.12)',
+          }}>
+            {inspect.done ? (
+              <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
+                <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00e676', lineHeight: 1.5 }}>
+                  {inspect.done}
+                </div>
+              </div>
+            ) : inspect.sending ? (
+              <div style={{ textAlign: 'center', padding: '14px 0' }}>
+                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#ffb347', letterSpacing: '0.2em', animation: 'statusPulse 1s ease infinite' }}>
+                  ANALYSE EN COURS…
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#ffb347', letterSpacing: '0.2em', marginBottom: 4, textAlign: 'center' }}>
+                  INSPECTION
+                </div>
+                <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#ffffff66', letterSpacing: '0.1em', marginBottom: 16, textAlign: 'center' }}>
+                  {inspect.carName.toUpperCase()}
+                </div>
+
+                {/* AVANT / APRÈS toggle */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                  {(['before', 'after'] as const).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setInspect(s => s && { ...s, mode: m })}
+                      style={{
+                        flex: 1, padding: '8px 0', borderRadius: 10,
+                        border: `1.5px solid ${inspect.mode === m ? '#ffb347' : '#ffffff18'}`,
+                        background: inspect.mode === m ? 'rgba(255,179,71,0.12)' : 'transparent',
+                        color: inspect.mode === m ? '#ffb347' : '#ffffff44',
+                        fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em',
+                        cursor: 'pointer', transition: 'all 0.2s',
+                      }}
+                    >{m === 'before' ? 'AVANT' : 'APRÈS'}</button>
+                  ))}
+                </div>
+
+                {/* Client name */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff44', letterSpacing: '0.1em', marginBottom: 6 }}>NOM CLIENT</div>
+                  <input
+                    value={inspect.client}
+                    onChange={e => setInspect(s => s && { ...s, client: e.target.value })}
+                    placeholder="Ex: Benali Mohamed"
+                    style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 8,
+                      border: '1px solid #ffffff18', background: 'rgba(255,255,255,0.04)',
+                      color: '#ffffff', fontFamily: 'Share Tech Mono', fontSize: 10,
+                      outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                {/* Photo button */}
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={!inspect.client.trim()}
+                  style={{
+                    width: '100%', padding: '10px 0', borderRadius: 10,
+                    border: '1.5px solid #ffb34766',
+                    background: inspect.client.trim() ? 'rgba(255,179,71,0.12)' : 'rgba(255,255,255,0.03)',
+                    color: inspect.client.trim() ? '#ffb347' : '#ffffff33',
+                    fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em',
+                    cursor: inspect.client.trim() ? 'pointer' : 'not-allowed',
+                    marginBottom: 8, transition: 'all 0.2s',
+                  }}
+                >📷 PRENDRE PHOTO</button>
+
+                {/* Cancel */}
+                <button
+                  onClick={() => setInspect(null)}
+                  style={{
+                    width: '100%', padding: '7px 0', borderRadius: 10,
+                    border: '1px solid #ffffff12', background: 'transparent',
+                    color: '#ffffff33', fontFamily: 'Share Tech Mono', fontSize: 8,
+                    letterSpacing: '0.1em', cursor: 'pointer',
+                  }}
+                >ANNULER</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

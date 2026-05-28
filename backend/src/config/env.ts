@@ -100,17 +100,3 @@ function loadEnv() {
 export const env = loadEnv();
 export type Env = typeof env;
 
-// ── Admin helpers ─────────────────────────────────────────────────────────────
-
-let _adminSet: Set<string> | null = null;
-
-function _getAdminSet(): Set<string> {
-  if (_adminSet) return _adminSet;
-  const raw = env.TELEGRAM_ADMIN_IDS ?? env.TELEGRAM_CHAT_ID ?? '';
-  _adminSet  = new Set(raw.split(',').map(s => s.trim()).filter(Boolean));
-  return _adminSet;
-}
-
-export function isTelegramAdmin(chatId: number): boolean {
-  return _getAdminSet().has(String(chatId));
-}

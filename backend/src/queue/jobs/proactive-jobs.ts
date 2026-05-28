@@ -22,14 +22,6 @@ import { createMarketingVideo } from '../../marketing/video-creator.js';
 import { savePendingVideo } from '../../marketing/approval-store.js';
 import type { Car } from '../../integrations/supabase.js';
 
-function ownerChatId(): string {
-  return env.TELEGRAM_CHAT_ID ?? '809747124';
-}
-
-// tg() — canal Telegram désactivé. Toutes les notifs passent par emitProactive() explicite.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function tg(_text: string): Promise<void> { return Promise.resolve(); }
-
 // ── 0. Réveil matinal 7h30 ────────────────────────────────────
 export async function jobMorningBriefing(_job: Job): Promise<void> {
   const today    = new Date().toISOString().slice(0, 10);
@@ -165,7 +157,6 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   }
 
   const fullMsg = lines.join('\n');
-  await tg(fullMsg);
 
   // Proactive push — short text for push notif, full message for chat
   const ttsLines: string[] = [`${greeting} Kouider !`];
@@ -210,7 +201,6 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
     }
     const carName = b.cars?.name ?? 'Véhicule';
     const msg = `🚗 *Fin de location demain*\n${b.client_name} — ${carName}\nRetour le ${b.end_date}${b.client_phone ? `\n📞 ${b.client_phone}` : ''}`;
-    await tg(msg);
     emitProactive(`Fin de location demain — ${b.client_name} (${carName})`, 'reminder', stripTgMd(msg));
     sent++;
   }
@@ -262,7 +252,6 @@ export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   }
 
   const list = idleCars.map(c => `  • ${c.name}`).join('\n');
-  await tg(`⚠️ *${idleCars.length} véhicule(s) sans réservation depuis 7 jours:*\n${list}\n\n💡 Fais un TikTok ou propose une promo.`);
   emitProactive(
     `${idleCars.length} véhicule(s) sans réservation depuis 7 jours.`,
     'alert',
@@ -280,20 +269,17 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   const cars = (carsRaw ?? []) as Car[];
 
   if (cars.length === 0) {
-    await tg('📱 *Marketing TikTok*: aucune voiture disponible cette semaine.');
     emitProactive('Aucune voiture disponible pour TikTok cette semaine.', 'info', '📱 Marketing TikTok : aucune voiture disponible cette semaine.', 'kouider');
     return;
   }
 
   // 2. Run market research with Claude
-  await tg('🔍 *Dzaryx Marketing*\nAnalyse TikTok en cours... ⏳');
   const report = await runTikTokMarketResearch(cars).catch(err => {
     console.error('[job:tiktok] research failed:', err);
     return null;
   });
 
   if (!report || report.top_ideas.length === 0) {
-    await tg('⚠️ Recherche TikTok échouée — réessaie plus tard.');
     emitProactive('Recherche TikTok IA échouée — réessaie plus tard.', 'alert', '⚠️ Recherche marketing TikTok échouée. Réessaie plus tard.', 'kouider');
     return;
   }
@@ -334,7 +320,6 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
     `⏳ _Création vidéo de la meilleure idée en cours..._`,
   ].filter(Boolean).join('\n');
 
-  await tg(researchMsg);
   emitProactive('Rapport marketing TikTok prêt — idée générée.', 'info', stripTgMd(researchMsg), 'kouider');
 
   // 4. Pick best idea and find matching car
@@ -345,7 +330,6 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   ) ?? cars[0];
 
   if (!targetCar.image_url) {
-    await tg(`✅ Rapport envoyé ! Pas d'image pour créer la vidéo automatiquement.\n\n*Script voix-off:*\n_${bestIdea.voiceover_script}_`);
     emitProactive(`Idée TikTok — ${bestIdea.title} — ${targetCar.name}. Pas d'image disponible.`, 'info',
       `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}`, 'kouider');
     return;
@@ -359,15 +343,6 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   });
 
   if (!videoResult) {
-    await tg([
-      `✅ *Idée #1 — ${bestIdea.title}*`,
-      ``,
-      `📝 *Script voix-off:*`,
-      `_${bestIdea.voiceover_script}_`,
-      ``,
-      `📱 *Légende:* ${bestIdea.caption}`,
-      `#️⃣ ${bestIdea.hashtags.slice(0, 5).join(' ')}`,
-    ].join('\n'));
     emitProactive(`Idée TikTok — ${bestIdea.title} — ${targetCar.name}. Script prêt.`, 'info',
       `🎬 Idée TikTok — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${bestIdea.voiceover_script ?? ''}\n\n📱 Légende: ${bestIdea.caption}`, 'kouider');
     return;
@@ -399,13 +374,11 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
   const cars = ((carsRaw ?? []) as Car[]).filter(c => c.image_url);
 
   if (cars.length === 0) {
-    await tg(`📱 *${label}*: aucune voiture avec photo disponible.`);
     emitProactive(`${label} : aucune voiture avec photo disponible.`, 'info', `📱 ${label} : aucune voiture avec photo disponible.`, 'kouider');
     return;
   }
 
   const car = cars[Math.floor(Math.random() * cars.length)];
-  await tg(`🎬 *${label}*\n_Création vidéo ${style} pour ${car.name}..._`);
 
   const { executeCreateMarketingVideo } = await import('../../marketing/create-marketing-video.js');
   let result: Awaited<ReturnType<typeof executeCreateMarketingVideo>> | null = null;
@@ -413,23 +386,14 @@ async function createWeeklyVideo(style: 'lifestyle' | 'prix' | 'temoignage', lab
   try {
     result = await executeCreateMarketingVideo(
       { car_name: car.name, style },
-      ownerChatId(),
+      '',
     );
   } catch (err) {
     console.error(`[job:${style}] video failed:`, err);
-    await tg(`⚠️ *${label}*: création vidéo échouée. Réessaie manuellement.`);
     emitProactive(`${label} : création vidéo échouée pour ${car.name}.`, 'alert', `⚠️ ${label} : création vidéo échouée pour ${car.name}. Réessaie manuellement.`, 'kouider');
     return;
   }
 
-  await tg([
-    `✅ *${label} — ${result.car_name}*`,
-    ``,
-    `📝 _${result.script}_`,
-    `🏷️ ${result.hashtags.slice(0, 4).join(' ')}`,
-    ``,
-    `✅ Réponds *Oke* pour publier | ❌ *Non* pour annuler`,
-  ].join('\n'));
   const mediaLine = result.public_url ? `\n📹 ${result.public_url}` : '';
   emitProactive(`${label} — ${result.car_name}. Réponds Oke pour publier.`, 'info',
     `🎬 ${label} — ${result.car_name}\n📝 ${result.script.slice(0, 200)}\n🏷️ ${result.hashtags.slice(0, 4).join(' ')}\n\n✅ Réponds Oke pour publier${mediaLine}`, 'kouider');
@@ -526,7 +490,6 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
       // Première alerte solde (J+0 à J+1 après remise clés)
       const waMsg = generateSoldeMessage(clientName, remaining, carName, 1, daysWithCar);
       const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 1, daysWithCar, startDate);
-      await tg(tgMsg);
       emitProactive(`💰 Solde impayé — ${clientName} — ${remaining}€ (${carName})`, 'alert', stripTgMd(tgMsg));
       await supabase.from('relance_logs').insert({
         booking_id: bookingId, client_name: clientName, client_phone: clientPhone,
@@ -541,7 +504,6 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
       if (hoursSince1 >= 24) {
         const waMsg = generateSoldeMessage(clientName, remaining, carName, 2, daysWithCar);
         const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 2, daysWithCar, startDate);
-        await tg(tgMsg);
         emitProactive(`🔔 Relance 2 — ${clientName} — ${remaining}€ toujours dû (${carName})`, 'alert', stripTgMd(tgMsg));
         emitProactive(
           `⚠️ Solde impayé — ${clientName} — ${carName} — ${remaining}€ (2ème rappel)`,
@@ -566,7 +528,6 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
           `${clientName} — ${carName} — ${remaining}€ restant`,
           `2 rappels envoyés — aucun règlement. Contacte ce client directement.`,
         ].join('\n');
-        await tg(urgentMsg);
         emitProactive(`🔴 URGENT — ${clientName} — ${remaining}€ non encaissé après ${daysWithCar}j`, 'alert', urgentMsg);
         emitProactive(
           `🔴 URGENT — ${clientName} — ${remaining}€ non encaissé (${daysWithCar}j) — ${carName}`,
@@ -600,7 +561,6 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
       `${carName} — ${total}€ total — 0€ reçu`,
       `Confirme la réservation avec ce client.`,
     ].join('\n');
-    await tg(acompteMsg);
     emitProactive(`⚠️ Acompte manquant — ${clientName} (${carName}) — arrive dans ${daysLeft}j`, 'alert', acompteMsg);
 
     await supabase.from('relance_logs').insert({
@@ -701,7 +661,6 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
       `${b.client_name} — ${carName}`,
       `Devait rendre le ${b.end_date} — Contacte ce client immédiatement.`,
     ].join('\n');
-    await tg(lateMsg);
     emitProactive(`🚨 Retard ${daysLate}j — ${b.client_name} (${carName}) — Contact urgent !`, 'alert', lateMsg);
   }
 
@@ -738,7 +697,6 @@ export async function jobCheckAnomalies(_job: Job): Promise<void> {
     const { checkAnomalies } = await import('../../integrations/phase5-finance.js');
     const result = await checkAnomalies();
     if (result && !result.includes('Aucune anomalie')) {
-      await tg(`⚠️ *Anomalies financières détectées:*\n${result}`);
       emitProactive(
         `Anomalies financières détectées.`,
         'alert',
@@ -789,7 +747,6 @@ export async function jobWeeklyReport(_job: Job): Promise<void> {
     topCars || '  • Aucune réservation',
   ].filter(Boolean).join('\n');
 
-  await tg(report);
   emitProactive(`Rapport hebdo — ${confirmed.length} rés. / ${revenue}€`, 'info', stripTgMd(report));
   console.log('[job:weekly-report] sent');
 }
@@ -859,7 +816,6 @@ export async function jobPatternDetection(_job: Job): Promise<void> {
     lines.push(`📅 *Jour le plus actif:* ${dayNames[Number(topDay[0])]} (${topDay[1]} réservations)`);
   }
 
-  await tg(lines.join('\n'));
   emitProactive('Patterns détectés sur les 3 derniers mois.', 'info', stripTgMd(lines.join('\n')), 'kouider');
   console.log('[job:pattern-detection] sent');
 }
@@ -1053,7 +1009,6 @@ Rapport pour Telegram (markdown, 12 lignes max):
       `💡 _Dis "analyse didanolocation" ou "vidéo concurrence" pour aller plus loin._`,
     ].join('\n');
 
-    await tg(msg);
     emitProactive(`Veille concurrence — ${new Date().toLocaleDateString('fr-FR')}.`, 'info', stripTgMd(msg), 'kouider');
     console.log('[job:competitor-watch] ✅ Rapport envoyé');
   } catch (err) {
@@ -1147,7 +1102,6 @@ Si rien de nouveau ou utile: dis-le clairement en une phrase.`,
     }], undefined);
 
     const msg = `🤖 *Veille Anthropic hebdomadaire*\n\n${analysis.text}\n\n_Réponds "go" + numéro pour que j'implémente._`;
-    await tg(msg);
     emitProactive('Veille Anthropic hebdo — nouvelles fonctionnalités Claude.', 'info', stripTgMd(msg), 'kouider');
     console.log('[job:anthropic-watch] ✅ Rapport envoyé');
   } catch (err) {
@@ -1186,7 +1140,6 @@ export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
       emitProactive(`Alerte coût Claude API: $${report.totalUSD.toFixed(2)} aujourd'hui. Seuil $5 dépassé.`, 'alert', stripTgMd(lines.join('\n')), 'kouider');
     }
 
-    await tg(lines.join('\n'));
     console.log(`[job:claude-cost] ✅ Rapport envoyé — $${report.totalUSD.toFixed(3)}`);
   } catch (err) {
     console.error('[job:claude-cost] ❌', err instanceof Error ? err.message : String(err));
@@ -1249,7 +1202,6 @@ export async function jobClientRelance(_job: Job): Promise<void> {
       `\n💡 _Pense à les contacter pour les fidéliser ou proposer une promo._`,
     ];
 
-    await tg(lines.join('\n'));
     emitProactive(`${toRelance.length} client(s) n'ont pas loué depuis 30+ jours. Pense à les relancer !`, 'alert', stripTgMd(lines.join('\n')), 'kouider');
     console.log(`[job:client-relance] ✅ ${toRelance.length} client(s) signalés`);
   } catch (err) {
@@ -1326,7 +1278,6 @@ export async function jobVehicleUtilization(_job: Job): Promise<void> {
       }
     }
 
-    await tg(lines.join('\n'));
     emitProactive(`Rapport utilisation parc : ${sorted.length} véhicules analysés sur 30 jours.`, 'info', stripTgMd(lines.join('\n')), 'kouider');
     console.log('[job:vehicle-utilization] ✅ rapport envoyé');
   } catch (err) {
@@ -1386,7 +1337,6 @@ export async function jobHabitCheck(_job: Job): Promise<void> {
       `\nBonne journée ! 💪`,
     ];
 
-    await tg(lines.join('\n'));
     emitProactive(`${due.length} habitude(s) à faire aujourd'hui : ${due.map(h => h.name).join(', ')}`, 'reminder', stripTgMd(lines.join('\n')), 'kouider');
     console.log(`[job:habit-check] ✅ ${due.length} habitude(s) rappelées`);
   } catch (err) {
@@ -1440,7 +1390,6 @@ export async function jobMonthlyReport(_job: Job): Promise<void> {
 
     lines.push(`\n💡 _Dzaryx génère automatiquement ce bilan chaque 1er du mois._`);
 
-    await tg(lines.join('\n'));
     emitProactive(`Bilan ${monthName} : ${finance?.kouiderProfit ?? '?'}€ de bénéfice, ${allBookings.length} réservations.`, 'info', stripTgMd(lines.join('\n')));
 
     // Houari — son bilan propriétaire (ownerTotal = sa part)
@@ -1546,7 +1495,6 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
       `\n💡 _Vérifie l'état mécanique et envisage une promo ou une révision._`,
     ];
 
-    await tg(lines.join('\n'));
     const idleMsg = stripTgMd(lines.join('\n'));
     emitProactive(`${idle.length} véhicule(s) immobilisé(s) 14+ jours : ${idle.map(c => c.name).join(', ')}`, 'alert', idleMsg);
     emitProactive(
@@ -2085,7 +2033,6 @@ export async function jobMonthlyExcel(_job: Job): Promise<void> {
       ? `📊 Export Excel ${monthName} ${prevYear} prêt\n🔗 ${downloadUrl}`
       : `📊 Export Excel ${monthName} ${prevYear} généré (${Math.round(buffer.length / 1024)} KB)`;
 
-    await tg(`📊 *Export Excel ${monthName} ${prevYear}*${downloadUrl ? `\n🔗 ${downloadUrl}` : '\n_(Cloudinary non configuré — demande via chat pour télécharger)_'}`);
     emitProactive(`Export Excel ${monthName} prêt`, 'info', msg, 'kouider');
 
     console.log(`[job:monthly-excel] ✅ ${filename} (${Math.round(buffer.length / 1024)} KB)`);

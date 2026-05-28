@@ -73,6 +73,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const statusRef = useRef(status);
   statusRef.current = status;
 
+  const [continuousMode, setContinuousMode] = useState(false);
+  const continuousModeRef = useRef(false);
+  continuousModeRef.current = continuousMode;
+  const prevStatusRef = useRef<DzaryxStatus>('idle');
+
   // ── Socket.IO ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const sock = connectSocket(sessionId.current, {
@@ -89,6 +94,19 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     sock.on('disconnect', () => { setWsConn(false); onWsStatus(false); });
     return () => disconnectSocket();
   }, [onWsStatus]);
+
+  // ── Continuous voice mode — auto-restart after TTS completes ──────────────
+  useEffect(() => {
+    if (prevStatusRef.current === 'speaking' && status === 'idle' && continuousModeRef.current) {
+      setTimeout(() => {
+        if (statusRef.current === 'idle' && !isRecordingRef.current) {
+          setHud('🔄 MODE CONTINU — J\'ÉCOUTE...');
+          startRecording();
+        }
+      }, 700);
+    }
+    prevStatusRef.current = status;
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Native wake word bridge (called from Porcupine via injectJavaScript) ────
   useEffect(() => {
@@ -695,7 +713,20 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             </div>
           </div>
           <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 600, color: `${col}cc`, letterSpacing: '0.15em', textTransform: 'uppercase' }}>MICRO</span>
-          <span style={{ fontFamily: 'Inter', fontSize: 7, fontWeight: 400, color: `${col}66`, letterSpacing: '0.1em', textTransform: 'uppercase' }}>AUTO-VAD</span>
+          {/* Continuous mode toggle */}
+          <button
+            onClick={() => setContinuousMode(m => !m)}
+            style={{
+              marginTop: 2, padding: '2px 8px', borderRadius: 8,
+              background: continuousMode ? `${col}22` : 'transparent',
+              border: `1px solid ${continuousMode ? col : col + '44'}`,
+              cursor: 'pointer', color: continuousMode ? col : `${col}66`,
+              fontFamily: 'Share Tech Mono', fontSize: 6, letterSpacing: '0.12em',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {continuousMode ? '🔄 CONTINU' : '⏸ PAUSE'}
+          </button>
         </div>
 
         {/* LIVE CAM */}
