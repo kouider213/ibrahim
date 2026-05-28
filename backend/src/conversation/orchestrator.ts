@@ -486,5 +486,7 @@ async function streamAudioSentences(text: string, sessionId: string): Promise<vo
         mimeType: 'audio/mpeg',
       });
     }).catch((err: unknown) => console.error('[orchestrator] audio error:', err));
+    // Signal client to flush+play this sentence immediately without waiting for all
+    _io?.emit(SOCKET_EVENTS.AUDIO_SENTENCE_DONE, { sessionId });
   }
 }

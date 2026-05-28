@@ -35,8 +35,8 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
 
 const SPEECH_RMS    = 0.004;
 const SILENCE_RMS   = 0.006;
-const SILENCE_DELAY = 1500;
-const MIN_SPEECH_MS = 300;
+const SILENCE_DELAY = 900;
+const MIN_SPEECH_MS = 250;
 const MAX_REC_MS    = 15000;
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
@@ -82,9 +82,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   useEffect(() => {
     const sock = connectSocket(sessionId.current, {
       onStatus:        (s, l) => { setStatus(s); setLabel(l ?? null); },
-      onAudio:         b64 => playBase64Audio(b64),
-      onAudioChunk:    b64 => enqueueChunk(b64),
-      onAudioComplete: ()  => flushChunks(),
+      onAudio:             b64 => playBase64Audio(b64),
+      onAudioChunk:        b64 => enqueueChunk(b64),
+      onAudioComplete:     ()  => flushChunks(),
+      onAudioSentenceDone: ()  => flushChunks(),
       onTextChunk:     c   => setStream(s => s + c),
       onTextComplete:  t   => { setResp(t); setStream(''); },
       onResponse:      (t, _fb) => { setResp(t); setStream(''); },
@@ -103,7 +104,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
           setHud('🔄 MODE CONTINU — J\'ÉCOUTE...');
           startRecording();
         }
-      }, 700);
+      }, 400);
     }
     prevStatusRef.current = status;
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -162,14 +162,15 @@ export interface FeedbackPayload {
 export type DzaryxStatus = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 export interface SocketCbs {
-  onStatus:        (s: DzaryxStatus, label?: string | null) => void;
-  onAudio:         (b64: string) => void;
-  onAudioChunk:    (b64: string) => void;
-  onAudioComplete: () => void;
-  onTextChunk:     (chunk: string) => void;
-  onTextComplete:  (text: string) => void;
-  onResponse:      (text: string, fallback: boolean) => void;
-  onProactive:     (text: string) => void;
+  onStatus:            (s: DzaryxStatus, label?: string | null) => void;
+  onAudio:             (b64: string) => void;
+  onAudioChunk:        (b64: string) => void;
+  onAudioComplete:     () => void;
+  onAudioSentenceDone: () => void;
+  onTextChunk:         (chunk: string) => void;
+  onTextComplete:      (text: string) => void;
+  onResponse:          (text: string, fallback: boolean) => void;
+  onProactive:         (text: string) => void;
 }
 
 let _socket: Socket | null = null;
@@ -222,6 +223,9 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
   });
   _socket.off('Dzaryx:audio_complete').on('Dzaryx:audio_complete', (d: { sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onAudioComplete();
+  });
+  _socket.off('Dzaryx:audio_sentence_done').on('Dzaryx:audio_sentence_done', (d: { sessionId?: string }) => {
+    if (!d.sessionId || d.sessionId === sessionId) cbs.onAudioSentenceDone();
   });
   _socket.off('Dzaryx:text_chunk').on('Dzaryx:text_chunk', (d: { chunk: string; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onTextChunk(d.chunk);
