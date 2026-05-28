@@ -11,12 +11,13 @@ import CalendarScreen from './screens/CalendarScreen.tsx';
 import CapacitesScreen from './screens/CapacitesScreen.tsx';
 import CurrencyScreen from './screens/CurrencyScreen.tsx';
 import DemandesScreen from './screens/DemandesScreen.tsx';
+import ImmoScreen from './screens/ImmoScreen.tsx';
 import { setSimActor } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'capacites' | 'settings' | 'currency' | 'demandes';
+  | 'capacites' | 'settings' | 'currency' | 'demandes' | 'immo';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -32,6 +33,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'capacites',     icon: '🤖', label: 'DZARYX',   kouiderOnly: true },
   { id: 'demandes',      icon: '📩', label: 'DEMANDES', kouiderOnly: true },
   { id: 'currency',      icon: '💱', label: 'SARF',    houariOnly: true },
+  { id: 'immo',          icon: '🏠', label: 'IMMO',    houariOnly: true },
   { id: 'bookings',      icon: '📋', label: 'RESAS'   },
   { id: 'fleet',         icon: '🚗', label: 'PARC'    },
   { id: 'revenue',       icon: '💰', label: 'CA'      },
@@ -129,6 +131,7 @@ export default function Phone() {
       case 'settings':      return <SettingsScreen />;
       case 'currency':      return <CurrencyScreen actor={actor} />;
       case 'demandes':      return <DemandesScreen />;
+      case 'immo':          return <ImmoScreen />;
     }
   };
 
