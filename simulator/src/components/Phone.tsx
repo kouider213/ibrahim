@@ -48,9 +48,13 @@ function getSavedSession(): { actor: Actor; user: string } | null {
   } catch { return null; }
 }
 
+interface Notif { text: string; deepLink?: Page }
+
 export default function Phone() {
   const [page, setPage]       = useState<Page>('voice');
   const [wsOk, setWsOk]       = useState(false);
+  const [notif, setNotif]     = useState<Notif | null>(null);
+  const notifTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const session = getSavedSession();
   const [simState, setSimState]         = useState<SimState>(session ? 'app' : 'locked');
@@ -65,6 +69,17 @@ export default function Phone() {
   useEffect(() => {
     if (loggedActor) setSimActor(loggedActor);
   }, [loggedActor]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { text, deepLink } = (e as CustomEvent<{ text: string; deepLink?: string }>).detail;
+      if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+      setNotif({ text, deepLink: deepLink as Page | undefined });
+      notifTimerRef.current = setTimeout(() => setNotif(null), 5000);
+    };
+    window.addEventListener('Dzaryx:notify', handler);
+    return () => { window.removeEventListener('Dzaryx:notify', handler); if (notifTimerRef.current) clearTimeout(notifTimerRef.current); };
+  }, []);
 
   const unlock  = () => setSimState('home');
   const openApp = () => setSimState('login');
@@ -168,6 +183,58 @@ export default function Phone() {
           <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff44', letterSpacing: '0.3em' }}>
             DÉCONNEXION…
           </div>
+        </div>
+      )}
+
+      {/* Notification banner */}
+      {notif && simState === 'app' && (
+        <div style={{
+          position: 'absolute', top: 38, left: 8, right: 8, zIndex: 30,
+          background: 'rgba(2,8,20,0.97)',
+          border: '1px solid #00d4ff44',
+          borderRadius: 12,
+          padding: '10px 12px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          boxShadow: '0 4px 24px rgba(0,212,255,0.2)',
+          animation: 'fadeIn 0.25s ease',
+          backdropFilter: 'blur(12px)',
+        }}>
+          <div style={{ fontSize: 16, flexShrink: 0 }}>
+            {notif.text.startsWith('🚨') || notif.text.startsWith('🔴') ? '🚨'
+              : notif.text.startsWith('💰') ? '💰'
+              : notif.text.startsWith('☀️') ? '☀️'
+              : '🔔'}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff', letterSpacing: '0.15em', marginBottom: 2 }}>
+              DZARYX
+            </div>
+            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#c8e8ff', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              {notif.text.replace(/^[^\s]+\s/, '').slice(0, 60)}
+            </div>
+          </div>
+          {notif.deepLink && (
+            <button
+              onClick={() => { setPage(notif.deepLink!); setNotif(null); }}
+              style={{
+                background: 'rgba(0,212,255,0.12)', border: '1px solid #00d4ff55',
+                borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+                fontFamily: 'Orbitron', fontSize: 6, color: '#00d4ff', letterSpacing: '0.12em',
+                flexShrink: 0,
+              }}
+            >
+              VOIR
+            </button>
+          )}
+          <button
+            onClick={() => setNotif(null)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#ffffff33', fontSize: 12, padding: '0 2px', flexShrink: 0,
+            }}
+          >
+            ×
+          </button>
         </div>
       )}
     </div>

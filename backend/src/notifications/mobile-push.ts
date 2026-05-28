@@ -139,6 +139,7 @@ export function emitProactive(
   type: ProactiveType = 'info',
   chatText?: string,
   targetActor: ProactiveActor = 'kouider',
+  deepLink?: string,
 ): void {
   const timestamp   = new Date().toISOString();
   const chatPayload = chatText ?? text;
@@ -147,7 +148,7 @@ export function emitProactive(
   const historyKey = targetActor === 'all'
     ? PROACTIVE_HISTORY_KEY
     : `proactive:history:${targetActor}`;
-  const entry = JSON.stringify({ text: chatPayload, type, timestamp, targetActor });
+  const entry = JSON.stringify({ text: chatPayload, type, timestamp, targetActor, deepLink });
   redis.lpush(historyKey, entry)
     .then(() => redis.expire(historyKey, PROACTIVE_HISTORY_TTL))
     .then(() => redis.ltrim(historyKey, 0, 29))
@@ -156,7 +157,7 @@ export function emitProactive(
   // Socket.IO — emit only to targeted actor's room (server-side filtering)
   if (_io) {
     const room = targetActor === 'all' ? 'actor:all' : `actor:${targetActor}`;
-    _io.to(room).emit('Dzaryx:proactive', { text: chatPayload, type, timestamp, targetActor });
+    _io.to(room).emit('Dzaryx:proactive', { text: chatPayload, type, timestamp, targetActor, deepLink });
   }
 
   const title = type === 'morning'  ? '☀️ Dzaryx — Bonjour'

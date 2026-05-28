@@ -163,7 +163,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   if (actives.length > 0) ttsLines.push(`${actives.length} voiture${actives.length > 1 ? 's' : ''} en location aujourd'hui.`);
   if (retToday.length > 0) ttsLines.push(`${retToday.length} retour${retToday.length > 1 ? 's' : ''} prévu${retToday.length > 1 ? 's' : ''} aujourd'hui.`);
   if (weather) ttsLines.push(`Météo Oran : ${weather.temperature} degrés, ${weather.condition}.`);
-  emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg), 'kouider');
+  emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg), 'kouider', 'bookings');
 
   console.log('[job:morning-briefing] Sent');
 }
@@ -201,7 +201,7 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
     }
     const carName = b.cars?.name ?? 'Véhicule';
     const msg = `🚗 *Fin de location demain*\n${b.client_name} — ${carName}\nRetour le ${b.end_date}${b.client_phone ? `\n📞 ${b.client_phone}` : ''}`;
-    emitProactive(`Fin de location demain — ${b.client_name} (${carName})`, 'reminder', stripTgMd(msg));
+    emitProactive(`Fin de location demain — ${b.client_name} (${carName})`, 'reminder', stripTgMd(msg), 'kouider', 'fleet');
     sent++;
   }
 
@@ -490,7 +490,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
       // Première alerte solde (J+0 à J+1 après remise clés)
       const waMsg = generateSoldeMessage(clientName, remaining, carName, 1, daysWithCar);
       const tgMsg = buildTelegramSolde(clientName, clientPhone, carName, remaining, total, paid, 1, daysWithCar, startDate);
-      emitProactive(`💰 Solde impayé — ${clientName} — ${remaining}€ (${carName})`, 'alert', stripTgMd(tgMsg));
+      emitProactive(`💰 Solde impayé — ${clientName} — ${remaining}€ (${carName})`, 'alert', stripTgMd(tgMsg), 'kouider', 'bookings');
       await supabase.from('relance_logs').insert({
         booking_id: bookingId, client_name: clientName, client_phone: clientPhone,
         car_name: carName, amount_due: remaining, attempt: 1,
@@ -528,7 +528,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
           `${clientName} — ${carName} — ${remaining}€ restant`,
           `2 rappels envoyés — aucun règlement. Contacte ce client directement.`,
         ].join('\n');
-        emitProactive(`🔴 URGENT — ${clientName} — ${remaining}€ non encaissé après ${daysWithCar}j`, 'alert', urgentMsg);
+        emitProactive(`🔴 URGENT — ${clientName} — ${remaining}€ non encaissé après ${daysWithCar}j`, 'alert', urgentMsg, 'kouider', 'bookings');
         emitProactive(
           `🔴 URGENT — ${clientName} — ${remaining}€ non encaissé (${daysWithCar}j) — ${carName}`,
           'alert',
@@ -661,7 +661,7 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
       `${b.client_name} — ${carName}`,
       `Devait rendre le ${b.end_date} — Contacte ce client immédiatement.`,
     ].join('\n');
-    emitProactive(`🚨 Retard ${daysLate}j — ${b.client_name} (${carName}) — Contact urgent !`, 'alert', lateMsg);
+    emitProactive(`🚨 Retard ${daysLate}j — ${b.client_name} (${carName}) — Contact urgent !`, 'alert', lateMsg, 'kouider', 'fleet');
   }
 
   const overdueList = (overdue as any[]).map((b: any) => {

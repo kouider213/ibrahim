@@ -180,12 +180,16 @@ let _socket: Socket | null = null;
 const _proactiveQueue: string[] = [];
 let _proactiveSub: ((text: string) => void) | null = null;
 
-function _dispatchProactive(text: string): void {
+function _dispatchProactive(text: string, deepLink?: string): void {
   if (_proactiveSub) {
     _proactiveSub(text);
   } else {
     _proactiveQueue.push(text);
   }
+  // Global event — Phone.tsx listens to show notification banner
+  try {
+    window.dispatchEvent(new CustomEvent('Dzaryx:notify', { detail: { text, deepLink } }));
+  } catch { /* SSR guard */ }
 }
 
 export function subscribeProactive(cb: (text: string) => void): void {
@@ -238,9 +242,9 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
   });
   // Proactive: dispatch via queue AND call screen callback (VoiceScreen HUD)
   // Filter by targetActor — 'all' goes to everyone, actor-specific only to that actor
-  _socket.off('Dzaryx:proactive').on('Dzaryx:proactive', (d: { text: string; targetActor?: string }) => {
+  _socket.off('Dzaryx:proactive').on('Dzaryx:proactive', (d: { text: string; targetActor?: string; deepLink?: string }) => {
     if (d.targetActor && d.targetActor !== 'all' && d.targetActor !== _actor) return;
-    _dispatchProactive(d.text);
+    _dispatchProactive(d.text, d.deepLink);
     cbs.onProactive(d.text);
   });
 
