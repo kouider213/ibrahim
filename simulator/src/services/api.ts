@@ -157,6 +157,60 @@ export interface FeedbackPayload {
   category: string; text: string; screenshot?: string; url?: string; timestamp?: string;
 }
 
+// ── Web Push subscription ─────────────────────────────────────────────────────
+
+function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = atob(base64);
+  const buf     = new ArrayBuffer(raw.length);
+  const view    = new DataView(buf);
+  for (let i = 0; i < raw.length; i++) view.setUint8(i, raw.charCodeAt(i));
+  return buf;
+}
+
+let _webPushRegistered = false;
+
+export async function registerWebPush(): Promise<void> {
+  if (_webPushRegistered) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return;
+
+    const reg = await navigator.serviceWorker.ready;
+
+    // Fetch VAPID public key from backend
+    const res = await fetch(`${BACKEND_URL}/api/push-token/vapid-public-key`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) return;
+    const { key } = await res.json() as { key: string };
+
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: urlBase64ToUint8Array(key),
+    });
+
+    // Send subscription to backend
+    await fetch(`${BACKEND_URL}/api/push-token/web`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${getToken()}`,
+        'X-Session-Id':  _actor,
+      },
+      body: JSON.stringify(sub.toJSON()),
+    });
+
+    _webPushRegistered = true;
+    console.log('[webpush] subscribed for actor:', _actor);
+  } catch (err) {
+    console.warn('[webpush] registration failed:', err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
 
 export type DzaryxStatus = 'idle' | 'listening' | 'thinking' | 'speaking';

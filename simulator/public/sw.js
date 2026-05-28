@@ -1,4 +1,5 @@
-const CACHE = 'dzaryx-v2';
+const CACHE = 'dzaryx-v3';
+const APP_URL = 'https://kouider213.github.io/ibrahim/';
 const STATIC = [
   '/ibrahim/',
   '/ibrahim/index.html',
@@ -55,4 +56,49 @@ self.addEventListener('fetch', e => {
       })
     );
   }
+});
+
+// ── Push notifications ────────────────────────────────────────────────────────
+
+self.addEventListener('push', e => {
+  let title = '🔔 Dzaryx';
+  let body  = 'Nouveau message';
+  let data  = {};
+
+  try {
+    const payload = e.data ? e.data.json() : {};
+    title = payload.title ?? title;
+    body  = payload.body  ?? payload.text ?? body;
+    data  = payload.data  ?? payload;
+  } catch { /* ignore parse error */ }
+
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:   '/ibrahim/icons/icon-192.png',
+      badge:  '/ibrahim/icons/icon-192.png',
+      data,
+      vibrate: [200, 100, 200],
+      requireInteraction: false,
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const deepLink = e.notification.data?.deepLink ?? e.notification.data?.text;
+  const url = APP_URL + (deepLink ? `?deeplink=${encodeURIComponent(deepLink)}` : '');
+
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      for (const client of clients) {
+        if (client.url.startsWith(APP_URL)) {
+          client.focus();
+          client.postMessage({ type: 'NOTIF_CLICK', deepLink });
+          return;
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
 });

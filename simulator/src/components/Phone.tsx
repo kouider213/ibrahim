@@ -12,7 +12,7 @@ import CapacitesScreen from './screens/CapacitesScreen.tsx';
 import CurrencyScreen from './screens/CurrencyScreen.tsx';
 import DemandesScreen from './screens/DemandesScreen.tsx';
 import ImmoScreen from './screens/ImmoScreen.tsx';
-import { setSimActor } from '../services/api.ts';
+import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
@@ -69,7 +69,10 @@ export default function Phone() {
   const passRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (loggedActor) setSimActor(loggedActor);
+    if (loggedActor) {
+      setSimActor(loggedActor);
+      void registerWebPush();
+    }
   }, [loggedActor]);
 
   useEffect(() => {
@@ -80,7 +83,22 @@ export default function Phone() {
       notifTimerRef.current = setTimeout(() => setNotif(null), 5000);
     };
     window.addEventListener('Dzaryx:notify', handler);
-    return () => { window.removeEventListener('Dzaryx:notify', handler); if (notifTimerRef.current) clearTimeout(notifTimerRef.current); };
+
+    // SW notificationclick → navigate to deepLink page
+    const swHandler = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === 'NOTIF_CLICK') {
+        const dl = (e.data as { deepLink?: string }).deepLink;
+        if (dl) setPage(dl as Page);
+        setSimState('app');
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', swHandler);
+
+    return () => {
+      window.removeEventListener('Dzaryx:notify', handler);
+      navigator.serviceWorker?.removeEventListener('message', swHandler);
+      if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    };
   }, []);
 
   const unlock  = () => setSimState('home');
@@ -112,6 +130,7 @@ export default function Phone() {
       localStorage.setItem('dzaryx_session', JSON.stringify({ actor: cred.actor, user: loginUser.toLowerCase().trim() }));
       setSimState('app');
       setLoginLoading(false);
+      void registerWebPush();
     }, 600);
   };
 
