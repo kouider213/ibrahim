@@ -10,12 +10,13 @@ import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
 import CapacitesScreen from './screens/CapacitesScreen.tsx';
 import CurrencyScreen from './screens/CurrencyScreen.tsx';
+import DemandesScreen from './screens/DemandesScreen.tsx';
 import { setSimActor } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'capacites' | 'settings' | 'currency';
+  | 'capacites' | 'settings' | 'currency' | 'demandes';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -28,8 +29,9 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
 const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean; houariOnly?: boolean }> = [
   { id: 'voice',         icon: '🎙️', label: 'VOIX'    },
   { id: 'text',          icon: '💬', label: 'CHAT'    },
-  { id: 'capacites',     icon: '🤖', label: 'DZARYX',  kouiderOnly: true },
-  { id: 'currency',      icon: '💱', label: 'SARF',   houariOnly: true },
+  { id: 'capacites',     icon: '🤖', label: 'DZARYX',   kouiderOnly: true },
+  { id: 'demandes',      icon: '📩', label: 'DEMANDES', kouiderOnly: true },
+  { id: 'currency',      icon: '💱', label: 'SARF',    houariOnly: true },
   { id: 'bookings',      icon: '📋', label: 'RESAS'   },
   { id: 'fleet',         icon: '🚗', label: 'PARC'    },
   { id: 'revenue',       icon: '💰', label: 'CA'      },
@@ -111,6 +113,7 @@ export default function Phone() {
       case 'capacites':     return <CapacitesScreen />;
       case 'settings':      return <SettingsScreen />;
       case 'currency':      return <CurrencyScreen actor={actor} />;
+      case 'demandes':      return <DemandesScreen />;
     }
   };
 
