@@ -34,12 +34,12 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'demandes',      icon: '📩', label: 'DEMANDES', kouiderOnly: true },
   { id: 'currency',      icon: '💱', label: 'SARF',    houariOnly: true },
   { id: 'immo',          icon: '🏠', label: 'IMMO',    houariOnly: true },
-  { id: 'bookings',      icon: '📋', label: 'RESAS'   },
-  { id: 'fleet',         icon: '🚗', label: 'PARC'    },
-  { id: 'revenue',       icon: '💰', label: 'CA'      },
-  { id: 'clients',       icon: '👥', label: 'CLIENTS' },
+  { id: 'bookings',      icon: '📋', label: 'RESAS',   kouiderOnly: true },
+  { id: 'fleet',         icon: '🚗', label: 'PARC',    kouiderOnly: true },
+  { id: 'revenue',       icon: '💰', label: 'CA',      kouiderOnly: true },
+  { id: 'clients',       icon: '👥', label: 'CLIENTS', kouiderOnly: true },
   { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
-  { id: 'documents',     icon: '📄', label: 'DOCS'    },
+  { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
 ];
 
@@ -117,8 +117,17 @@ export default function Phone() {
 
   const actor = loggedActor ?? 'kouider';
 
+  const houariOnlyPages: Page[] = ['currency', 'immo'];
+  const kouiderOnlyPages: Page[] = ['capacites', 'demandes', 'bookings', 'fleet', 'revenue', 'clients', 'documents'];
+
+  const safePage: Page = (() => {
+    if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
+    if (actor === 'kouider' && houariOnlyPages.includes(page)) return 'voice';
+    return page;
+  })();
+
   const renderScreen = () => {
-    switch (page) {
+    switch (safePage) {
       case 'voice':         return <VoiceScreen onNavigateText={() => setPage('text')} onWsStatus={setWsOk} actor={actor} />;
       case 'text':          return <TextScreen onNavigateVoice={() => setPage('voice')} actor={actor} />;
       case 'bookings':      return <BookingsScreen actor={actor} />;
@@ -166,11 +175,11 @@ export default function Phone() {
 
       {simState === 'app' && (
         <>
-          <StatusBar wsOk={wsOk} page={page} actorCol={actorCol} actorInit={actorInit} onLogout={logout} />
+          <StatusBar wsOk={wsOk} page={safePage} actorCol={actorCol} actorInit={actorInit} onLogout={logout} />
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {renderScreen()}
           </div>
-          <NavBar page={page} onPage={setPage} actor={loggedActor ?? 'kouider'} />
+          <NavBar page={safePage} onPage={setPage} actor={loggedActor ?? 'kouider'} />
         </>
       )}
 
