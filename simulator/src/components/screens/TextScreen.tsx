@@ -487,6 +487,7 @@ const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
 
 function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
   const isUser = msg.role === 'user';
+  const [copied, setCopied] = useState(false);
 
   const lines = msg.text.split('\n');
   const mediaUrls: string[] = [];
@@ -559,12 +560,30 @@ function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
             )}
           </>
         )}
-        <span style={{
-          display: 'block', textAlign: 'right', marginTop: 4,
-          fontFamily: 'Inter', fontSize: 8, fontWeight: 400,
-          color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`,
-          letterSpacing: '0.03em',
-        }}>{msg.ts}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+          <span style={{
+            fontFamily: 'Inter', fontSize: 8, fontWeight: 400,
+            color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`,
+            letterSpacing: '0.03em',
+          }}>{msg.ts}</span>
+          {!isUser && msg.text && msg.status === 'done' && (
+            <button
+              onClick={() => {
+                void navigator.clipboard.writeText(msg.text);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px',
+                color: copied ? actorCol : `${actorCol}44`,
+                fontFamily: 'Inter', fontSize: 8, letterSpacing: '0.06em',
+                transition: 'color 0.2s',
+              }}
+            >
+              {copied ? '✓' : '⎘'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

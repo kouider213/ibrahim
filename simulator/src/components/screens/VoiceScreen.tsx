@@ -69,6 +69,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [rmsLevel, setRmsLevel] = useState(0);
   const rmsRef = useRef(0);
+  const [respExpanded, setRespExpanded] = useState(false);
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -630,19 +631,35 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
           {STATE_MSG[status]}
         </div>
         {displayText && (
-          <div style={{
-            margin: '0 24px',
-            padding: '8px 16px',
-            background: `rgba(7,17,31,0.75)`,
-            border: `1px solid ${col}25`,
-            borderRadius: 12,
-            fontFamily: 'Inter', fontSize: 12, fontWeight: 400,
-            color: `rgba(200,232,255,0.75)`,
-            lineHeight: 1.55,
-            maxHeight: 56, overflow: 'hidden',
-            backdropFilter: 'blur(10px)',
-          }}>
-            {displayText.slice(0, 120)}{displayText.length > 120 ? '…' : ''}
+          <div
+            onClick={() => setRespExpanded(e => !e)}
+            style={{
+              margin: '0 20px',
+              padding: '8px 14px',
+              background: `rgba(7,17,31,0.82)`,
+              border: `1px solid ${col}25`,
+              borderRadius: 12,
+              fontFamily: 'Inter', fontSize: 11, fontWeight: 400,
+              color: `rgba(200,232,255,0.82)`,
+              lineHeight: 1.6,
+              maxHeight: respExpanded ? 200 : 64,
+              overflow: respExpanded ? 'auto' : 'hidden',
+              backdropFilter: 'blur(10px)',
+              cursor: 'pointer',
+              transition: 'max-height 0.3s ease',
+              position: 'relative',
+            }}
+          >
+            {displayText}
+            {!respExpanded && displayText.length > 100 && (
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, height: 24,
+                background: `linear-gradient(transparent, rgba(7,17,31,0.9))`,
+                display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 2,
+              }}>
+                <span style={{ fontSize: 7, color: `${col}88`, fontFamily: 'Inter', letterSpacing: '0.1em' }}>▼ VOIR TOUT</span>
+              </div>
+            )}
           </div>
         )}
         <div style={{ marginTop: 6 }}>
@@ -745,31 +762,53 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
                 pointerEvents: 'none',
               }} />
             )}
-            {/* Button core */}
-            <div style={{
-              width: 90, height: 90, borderRadius: '50%',
-              background: status === 'listening'
-                ? `radial-gradient(circle at 35% 30%, ${col}44, ${col}16)`
-                : `radial-gradient(circle at 35% 30%, ${col}1c, ${col}08)`,
-              border: `2px solid ${status === 'listening' ? col : col + '77'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: status === 'listening'
-                ? `0 0 30px ${col}66, 0 0 60px ${col}2a, inset 0 0 22px ${col}16`
-                : `0 0 16px ${col}33, 0 0 32px ${col}12, inset 0 0 12px ${col}0a`,
-              animation: status === 'listening' ? 'neonPulse 0.8s ease infinite' : 'statusPulse 4s ease infinite',
-              transition: 'all 0.3s ease',
-              cursor: 'default',
-            }}>
+            {/* Button core — tappable */}
+            <div
+              onClick={() => {
+                if (status === 'idle' && !isRecordingRef.current) {
+                  unlockAudio();
+                  if (streamRef.current) { startRecording(); setHud('🎤 MANUEL — J\'ÉCOUTE'); }
+                  else { setHud('MIC NON ACTIVÉ'); }
+                } else if (status === 'listening') {
+                  stopRecordingAndProcess();
+                } else if (status === 'speaking') {
+                  stopAudio(); setStatus('idle');
+                }
+              }}
+              style={{
+                width: 90, height: 90, borderRadius: '50%',
+                background: status === 'listening'
+                  ? `radial-gradient(circle at 35% 30%, ${col}44, ${col}16)`
+                  : `radial-gradient(circle at 35% 30%, ${col}1c, ${col}08)`,
+                border: `2px solid ${status === 'listening' ? col : col + '77'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: status === 'listening'
+                  ? `0 0 30px ${col}66, 0 0 60px ${col}2a, inset 0 0 22px ${col}16`
+                  : `0 0 16px ${col}33, 0 0 32px ${col}12, inset 0 0 12px ${col}0a`,
+                animation: status === 'listening' ? 'neonPulse 0.8s ease infinite' : 'statusPulse 4s ease infinite',
+                transition: 'all 0.3s ease',
+                cursor: status === 'thinking' ? 'default' : 'pointer',
+              }}
+            >
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
                 style={{ filter: `drop-shadow(0 0 7px ${col}) drop-shadow(0 0 14px ${col}55)` }}>
-                <rect x="9" y="2" width="6" height="11" rx="3" fill={col} opacity="0.88" />
-                <path d="M5 10a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
-                <line x1="12" y1="17" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
-                <line x1="8" y1="21" x2="16" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+                {status === 'listening' ? (
+                  // Stop icon when listening
+                  <rect x="7" y="7" width="10" height="10" rx="2" fill={col} opacity="0.88" />
+                ) : (
+                  <>
+                    <rect x="9" y="2" width="6" height="11" rx="3" fill={col} opacity="0.88" />
+                    <path d="M5 10a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+                    <line x1="12" y1="17" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+                    <line x1="8" y1="21" x2="16" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+                  </>
+                )}
               </svg>
             </div>
           </div>
-          <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 600, color: `${col}cc`, letterSpacing: '0.15em', textTransform: 'uppercase' }}>MICRO</span>
+          <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 600, color: `${col}cc`, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+            {status === 'listening' ? 'STOP' : status === 'speaking' ? 'COUPER' : 'MICRO'}
+          </span>
           {/* Continuous mode toggle */}
           <button
             onClick={() => setContinuousMode(m => !m)}
