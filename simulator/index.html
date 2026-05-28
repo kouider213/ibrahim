@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Dzaryx</title>
+    <title>Dzaryx — Assistant IA Fik Conciergerie</title>
+    <meta name="description" content="Assistant IA personnel de Fik Conciergerie Oran. Gestion réservations, parc véhicules, immobilier — en Darija et Français." />
+    <meta name="robots" content="noindex, nofollow" />
     <link rel="manifest" href="/ibrahim/manifest.json" />
     <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -11,6 +13,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Dzaryx" />
     <link rel="apple-touch-icon" href="/ibrahim/icons/icon-192.png" />
+    <!-- Open Graph -->
+    <meta property="og:title" content="Dzaryx — Assistant IA Fik Conciergerie" />
+    <meta property="og:description" content="Assistant IA personnel — Fik Conciergerie Oran" />
+    <meta property="og:image" content="/ibrahim/icons/icon-512.png" />
+    <meta property="og:type" content="website" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
@@ -168,5 +175,13 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/ibrahim/sw.js', { scope: '/ibrahim/' })
+            .catch(() => { /* SW optional — app still works offline via manifest cache */ });
+        });
+      }
+    </script>
   </body>
 </html>
