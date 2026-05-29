@@ -155,9 +155,14 @@ export function emitProactive(
     .catch(() => {});
 
   // Socket.IO — emit only to targeted actor's room (server-side filtering)
+  let appConnected = false;
   if (_io) {
     const room = targetActor === 'all' ? 'actor:all' : `actor:${targetActor}`;
     _io.to(room).emit('Dzaryx:proactive', { text: chatPayload, type, timestamp, targetActor, deepLink });
+    // Check if any Socket.IO client is in the room (app open)
+    _io.in(room).fetchSockets().then(sockets => {
+      appConnected = sockets.length > 0;
+    }).catch(() => {});
   }
 
   const title = type === 'morning'  ? '☀️ Dzaryx — Bonjour'
@@ -172,6 +177,17 @@ export function emitProactive(
   sendTargetedWebPush(title, text, { text, type }, targetActor).catch(err =>
     console.error('[mobile-push] web-push error:', err instanceof Error ? err.message : String(err)),
   );
+
+  // Telegram fallback — only if app offline (no Socket.IO client connected)
+  // Delay 3s to let fetchSockets() resolve before checking
+  setTimeout(() => {
+    if (!appConnected) {
+      import('../integrations/telegram.js').then(({ sendMessage }) => {
+        const chatId = process.env['TELEGRAM_CHAT_ID'] ?? '809747124';
+        sendMessage(chatId, chatPayload).catch(() => {});
+      }).catch(() => {});
+    }
+  }, 3_000);
 
   console.log(`[mobile-push] Proactive (${type}) → ${targetActor}: ${text.slice(0, 60)}…`);
 }
