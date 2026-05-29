@@ -31,6 +31,13 @@ const STATE_LABEL: Record<State, string> = {
   speak:  'RÉPONSE',
 };
 
+const STATE_MSG: Record<State, string> = {
+  idle:   'Je suis prêt à vous écouter',
+  listen: 'Parlez naturellement…',
+  think:  'Réflexion en cours…',
+  speak:  'Dzaryx vous répond…',
+};
+
 // VAD constants
 const SPEAK_DB    = -25;
 const SILENCE_DB  = -40;
@@ -361,10 +368,6 @@ export default function VoiceScreen() {
   const waveScale = waveAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.12, 1] });
 
   const isActive = appState !== 'idle';
-  const orbGlow = appState === 'listen' ? GOLD
-                : appState === 'think'  ? '#9B59B6'
-                : appState === 'speak'  ? '#52E3A1'
-                : '#4FC3F7';
 
   return (
     <View style={s.container}>
@@ -383,70 +386,75 @@ export default function VoiceScreen() {
         </View>
       </View>
 
-      {/* ── Orb area ── */}
-      <View style={s.orbArea}>
+      {/* ── Centre (orb + hud + réponse) — vertically centered ── */}
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: W }}>
 
-        {/* Outer expansion ring (listen) */}
-        <Animated.View style={[
-          s.ring, s.ringOuter,
-          { borderColor: orbGlow + '33', transform: [{ scale: ring2Scale }], opacity: ring2Op },
-        ]} />
+        {/* Orb area */}
+        <View style={s.orbArea}>
 
-        {/* Inner ring */}
-        <Animated.View style={[
-          s.ring, s.ringInner,
-          { borderColor: orbGlow + '66', transform: [{ scale: ring1Scale }], opacity: ring1Op },
-        ]} />
+          {/* Outer expansion ring (listen) */}
+          <Animated.View style={[
+            s.ring, s.ringOuter,
+            { borderColor: GOLD + '33', transform: [{ scale: ring2Scale }], opacity: ring2Op },
+          ]} />
 
-        {/* Think arc spinner */}
-        {appState === 'think' && (
-          <Animated.View style={[s.spinArc, { borderTopColor: GOLD, transform: [{ rotate: spinDeg }] }]} />
-        )}
+          {/* Inner ring */}
+          <Animated.View style={[
+            s.ring, s.ringInner,
+            { borderColor: GOLD + '66', transform: [{ scale: ring1Scale }], opacity: ring1Op },
+          ]} />
 
-        {/* Main orb */}
-        <Animated.View style={[
-          s.orb,
-          {
-            shadowColor:     orbGlow,
-            backgroundColor: orbGlow + '18',
-            borderColor:     orbGlow + (isActive ? 'CC' : '44'),
-            transform: [
-              { scale: appState === 'speak' ? waveScale : orbScale },
-            ],
-            opacity: appState === 'idle' ? orbOpacity.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) : 1,
-          },
-        ]}>
-          {/* D monogram */}
-          <Text style={[s.orbMonogram, { color: orbGlow }]}>D</Text>
-        </Animated.View>
+          {/* Think arc spinner */}
+          {appState === 'think' && (
+            <Animated.View style={[s.spinArc, { borderTopColor: GOLD, transform: [{ rotate: spinDeg }] }]} />
+          )}
 
-        {/* Listen sound bars */}
-        {appState === 'listen' && (
-          <View style={s.soundBars}>
-            {[0.4, 0.7, 1, 0.6, 0.9, 0.5, 0.8].map((h, i) => (
-              <SoundBar key={i} heightRatio={h} delay={i * 80} color={GOLD} />
-            ))}
+          {/* Main orb */}
+          <Animated.View style={[
+            s.orb,
+            {
+              shadowColor:     GOLD,
+              backgroundColor: GOLD + (isActive ? '22' : '10'),
+              borderColor:     GOLD + (isActive ? 'CC' : '44'),
+              transform: [
+                { scale: appState === 'speak' ? waveScale : orbScale },
+              ],
+              opacity: appState === 'idle' ? orbOpacity.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) : 1,
+            },
+          ]}>
+            {/* D monogram */}
+            <Text style={[s.orbMonogram, { color: GOLD }]}>D</Text>
+          </Animated.View>
+
+          {/* Listen sound bars */}
+          {appState === 'listen' && (
+            <View style={s.soundBars}>
+              {[0.4, 0.7, 1, 0.6, 0.9, 0.5, 0.8].map((h, i) => (
+                <SoundBar key={i} heightRatio={h} delay={i * 80} color={GOLD} />
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* HUD subtitle */}
+        <Text style={s.hudText} numberOfLines={1}>{hudText}</Text>
+
+        {/* Response area */}
+        {response ? (
+          <ScrollView
+            style={s.responseBox}
+            contentContainerStyle={{ padding: 16 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={s.responseText}>{response}</Text>
+          </ScrollView>
+        ) : (
+          <View style={s.responseBoxEmpty}>
+            <Text style={s.placeholderText}>{STATE_MSG[appState]}</Text>
           </View>
         )}
+
       </View>
-
-      {/* ── HUD subtitle ── */}
-      <Text style={s.hudText} numberOfLines={1}>{hudText}</Text>
-
-      {/* ── Response area ── */}
-      {response ? (
-        <ScrollView
-          style={s.responseBox}
-          contentContainerStyle={{ padding: 16 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={s.responseText}>{response}</Text>
-        </ScrollView>
-      ) : (
-        <View style={s.responseBox}>
-          <Text style={s.placeholderText}>Parlez naturellement…</Text>
-        </View>
-      )}
 
       {/* ── Bottom actions ── */}
       <View style={s.bottomBar}>
@@ -462,14 +470,14 @@ export default function VoiceScreen() {
 
         {/* Center mic — push to talk fallback */}
         <TouchableOpacity
-          style={[s.micBtn, { shadowColor: orbGlow, borderColor: orbGlow + (isActive ? 'FF' : '55') }]}
+          style={[s.micBtn, { shadowColor: GOLD, borderColor: GOLD + (isActive ? 'FF' : '55') }]}
           onPress={() => {
             if (appState === 'idle') setHud('Parlez maintenant…');
           }}
           activeOpacity={0.8}
         >
-          <View style={[s.micBtnInner, { backgroundColor: isActive ? orbGlow + '33' : '#FFFFFF0D' }]}>
-            <Text style={[s.micIcon, { color: isActive ? orbGlow : WHITE + '88' }]}>
+          <View style={[s.micBtnInner, { backgroundColor: isActive ? GOLD + '33' : '#FFFFFF0D' }]}>
+            <Text style={[s.micIcon, { color: isActive ? GOLD : WHITE + '88' }]}>
               {appState === 'think' ? '◎' : appState === 'speak' ? '▶' : '◉'}
             </Text>
           </View>
@@ -540,7 +548,7 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: BG,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingTop: Platform.OS === 'ios' ? 56 : 44,
     paddingBottom: 12,
   },
@@ -643,14 +651,18 @@ const s = StyleSheet.create({
   // Response
   responseBox: {
     width: W - 32,
-    flex: 1,
     maxHeight: H * 0.22,
     backgroundColor: '#FFFFFF07',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: GOLD + '22',
     marginVertical: 8,
-    justifyContent: 'center',
+  },
+  responseBoxEmpty: {
+    width: W - 32,
+    backgroundColor: 'transparent',
+    marginVertical: 8,
+    alignItems: 'center',
   },
   responseText: {
     color: WHITE,
