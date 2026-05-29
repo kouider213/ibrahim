@@ -102,14 +102,14 @@
       "./plugins/withWakeScreen.js"
     ],
     "scheme": "dzaryx",
-    "owner": "fikkouider",
+    "owner": "dzaryxdoubas-organization",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ca9eb26d-6235-4d3c-8720-1371ccf12a65"
+        "projectId": "42ec59cf-d194-4fbd-b45e-e5543c199c2e"
       }
     }
   }
