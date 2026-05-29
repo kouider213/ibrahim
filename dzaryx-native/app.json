@@ -29,8 +29,6 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
       ],
@@ -93,8 +91,7 @@
         }
       ],
       "expo-local-authentication",
-      "expo-quick-actions",
-      "./plugins/withWakeScreen.js"
+      "expo-quick-actions"
     ],
     "scheme": "dzaryx",
     "owner": "dzaryxdoubas-organization",
