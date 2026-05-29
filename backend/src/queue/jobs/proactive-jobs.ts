@@ -22,7 +22,7 @@ import { createMarketingVideo } from '../../marketing/video-creator.js';
 import { savePendingVideo } from '../../marketing/approval-store.js';
 import type { Car } from '../../integrations/supabase.js';
 
-// ── 0. Réveil matinal 7h30 ────────────────────────────────────
+// ── 0. Réveil matinal 7h30 — app only (Socket.IO + Expo Push), no Telegram ────
 export async function jobMorningBriefing(_job: Job): Promise<void> {
   const today    = new Date().toISOString().slice(0, 10);
 
