@@ -9,7 +9,6 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as QuickActions from 'expo-quick-actions';
-import { useWakeWord } from '../lib/useWakeWord';
 
 const APP_URL          = 'https://kouider213.github.io/ibrahim/';
 const BACKEND_URL      = 'https://ibrahim-backend-production.up.railway.app';
@@ -308,12 +307,6 @@ export default function App() {
     injectOrQueue('window.__triggerWakeWord && window.__triggerWakeWord(); void 0;');
   }
 
-  // Porcupine wake word — fires when "Jarvis" / "Dzaryx" detected in background
-  const { active: wakeActive } = useWakeWord(
-    useCallback(() => {
-      if (!isLocked) triggerVoiceInWebView();
-    }, [isLocked]) // eslint-disable-line react-hooks/exhaustive-deps
-  );
 
   function routeQuickAction(actionId: string) {
     const js = `
@@ -418,12 +411,6 @@ export default function App() {
           <Image source={require('../assets/icon.png')} style={styles.loadingLogo} resizeMode="contain" />
           <ActivityIndicator size="large" color="#00d4ff" style={{ marginTop: 24 }} />
           <Text style={styles.loadingText}>INITIALISATION…</Text>
-        </View>
-      )}
-      {/* Wake word indicator — subtle dot bottom-right */}
-      {wakeActive && !loading && !offline && (
-        <View style={styles.wakeIndicator} pointerEvents="none">
-          <View style={styles.wakeDot} />
         </View>
       )}
       {offline ? (
