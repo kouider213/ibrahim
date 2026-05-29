@@ -12,9 +12,7 @@ const router = Router();
 // GET /api/content/status — TikTok pending + WhatsApp config status
 router.get('/status', requireMobileAuth, (_req, res) => {
   const pending = getLatestPendingVideo();
-  const whatsappConfigured = Boolean(
-    env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM,
-  );
+  const whatsappConfigured = Boolean(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID);
   const tiktokConfigured = Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID);
 
   res.json({
@@ -32,7 +30,7 @@ router.get('/status', requireMobileAuth, (_req, res) => {
     },
     whatsapp: {
       configured: whatsappConfigured,
-      from: whatsappConfigured ? env.TWILIO_WHATSAPP_FROM : null,
+      phoneId: whatsappConfigured ? env.WHATSAPP_PHONE_ID : null,
     },
   });
 });

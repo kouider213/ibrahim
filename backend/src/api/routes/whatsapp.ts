@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import express from 'express';
 import crypto from 'crypto';
-import axios from 'axios';
 import { env } from '../../config/env.js';
 import { notifyOwner } from '../../notifications/pushover.js';
 import { buildContext } from '../../conversation/context-builder.js';
@@ -17,31 +16,44 @@ import {
 } from '../../services/wa-booking-flow.js';
 
 const router = Router();
-router.use(express.urlencoded({ extended: false }));
+router.use(express.json());
 
-// ── Twilio signature validation ────────────────────────────────────────────────
-function validateTwilioSignature(req: express.Request): boolean {
-  if (!env.TWILIO_AUTH_TOKEN) return true;
-  const signature  = req.headers['x-twilio-signature'] as string | undefined;
-  if (!signature) return false;
-  const url        = `${env.BACKEND_URL}${req.originalUrl}`;
-  const params     = req.body as Record<string, string>;
-  const sortedKeys = Object.keys(params).sort();
-  const str        = sortedKeys.reduce((acc, k) => acc + k + params[k], url);
-  const expected   = crypto.createHmac('sha1', env.TWILIO_AUTH_TOKEN).update(str).digest('base64');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+// ── Meta webhook signature validation ─────────────────────────────────────────
+function validateMetaSignature(req: express.Request): boolean {
+  if (!env.WHATSAPP_TOKEN) return true; // skip if not configured
+  const sig = req.headers['x-hub-signature-256'] as string | undefined;
+  if (!sig) return false;
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', env.WHATSAPP_TOKEN)
+    .update(JSON.stringify(req.body))
+    .digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch {
+    return false;
+  }
 }
 
-// ── Download Twilio media as base64 ───────────────────────────────────────────
-async function downloadTwilioMedia(mediaUrl: string): Promise<{ base64: string; mime: string } | null> {
+// ── Download Meta media as base64 ─────────────────────────────────────────────
+async function downloadMetaMedia(mediaId: string): Promise<{ base64: string; mime: string } | null> {
+  if (!env.WHATSAPP_TOKEN) return null;
   try {
-    const response = await axios.get<ArrayBuffer>(mediaUrl, {
-      responseType: 'arraybuffer',
-      auth: { username: env.TWILIO_ACCOUNT_SID!, password: env.TWILIO_AUTH_TOKEN! },
-      timeout: 15_000,
+    // Step 1: get download URL
+    const urlRes = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
     });
-    const mime   = (response.headers['content-type'] as string | undefined) ?? 'image/jpeg';
-    const base64 = Buffer.from(response.data as ArrayBuffer).toString('base64');
+    if (!urlRes.ok) return null;
+    const urlData = await urlRes.json() as { url?: string; mime_type?: string };
+    if (!urlData.url) return null;
+
+    // Step 2: download binary
+    const mediaRes = await fetch(urlData.url, {
+      headers: { Authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+    });
+    if (!mediaRes.ok) return null;
+    const buf    = Buffer.from(await mediaRes.arrayBuffer());
+    const mime   = urlData.mime_type ?? 'image/jpeg';
+    const base64 = buf.toString('base64');
     return { base64, mime };
   } catch (e) {
     console.error('[whatsapp] Media download failed:', e instanceof Error ? e.message : String(e));
@@ -49,49 +61,71 @@ async function downloadTwilioMedia(mediaUrl: string): Promise<{ base64: string; 
   }
 }
 
+// ── GET /api/whatsapp/webhook — Meta verification challenge ───────────────────
+router.get('/webhook', (req, res) => {
+  const mode      = req.query['hub.mode']         as string | undefined;
+  const token     = req.query['hub.verify_token'] as string | undefined;
+  const challenge = req.query['hub.challenge']    as string | undefined;
+
+  if (mode === 'subscribe' && token === (env.WHATSAPP_VERIFY_TOKEN ?? 'dzaryx_verify')) {
+    res.status(200).send(challenge ?? '');
+  } else {
+    res.sendStatus(403);
+  }
+});
+
 // ── POST /api/whatsapp/webhook ─────────────────────────────────────────────────
 router.post('/webhook', async (req, res) => {
-  res.set('Content-Type', 'text/xml');
-  res.send('<Response/>');
+  res.sendStatus(200); // Meta requires 200 immediately
 
-  if (!validateTwilioSignature(req)) {
-    console.warn('[whatsapp] Invalid Twilio signature — ignored');
+  if (!validateMetaSignature(req)) {
+    console.warn('[whatsapp] Invalid Meta signature — ignored');
     return;
   }
 
-  const body      = req.body as Record<string, string>;
-  const from      = body['From']      ?? '';
-  const text      = body['Body']      ?? '';
-  const numMedia  = parseInt(body['NumMedia'] ?? '0', 10);
-  const mediaUrl0 = body['MediaUrl0'] ?? '';
-  const mediaMime = body['MediaContentType0'] ?? 'image/jpeg';
+  type MetaMsg = {
+    from?: string; type?: string; text?: { body?: string };
+    image?: { id?: string; mime_type?: string };
+    document?: { id?: string; mime_type?: string };
+    id?: string;
+  };
 
+  const value = (req.body as {
+    entry?: Array<{ changes?: Array<{ value?: { messages?: MetaMsg[] } }> }>
+  }).entry?.[0]?.changes?.[0]?.value;
+
+  const messages = value?.messages;
+  if (!messages || messages.length === 0) return;
+
+  const msg    = messages[0] as MetaMsg;
+  const from   = msg.from ?? '';
   if (!from) return;
 
-  const phone     = from.replace('whatsapp:', '');
+  const text      = msg.text?.body ?? '';
+  const mediaId   = msg.image?.id ?? msg.document?.id ?? null;
+  const mediaMime = msg.image ? (msg.image.mime_type ?? 'image/jpeg') : (msg.document?.mime_type ?? 'application/pdf');
+
+  const phone     = from.replace(/^\+/, '');
   const sessionId = `wa_${phone.replace(/\D/g, '')}`;
   const lang      = detectLanguage(text || 'fr');
 
-  console.log(`[whatsapp] ${phone} [${lang}] media=${numMedia}: ${text.slice(0, 60)}`);
+  console.log(`[whatsapp] ${phone} [${lang}] media=${mediaId ? 1 : 0}: ${text.slice(0, 60)}`);
 
-  // Save inbound message
   void supabase.from('whatsapp_messages').insert({
-    from_number: phone, body: text || `[MEDIA × ${numMedia}]`,
-    direction: 'inbound', media_count: numMedia,
+    from_number: phone, body: text || '[MEDIA]',
+    direction: 'inbound', media_count: mediaId ? 1 : 0,
   });
 
-  // ── Handle media (photos) ──────────────────────────────────────
-  if (numMedia > 0 && mediaUrl0) {
-    const mediaMimeStr = mediaMime.startsWith('image') ? mediaMime : 'image/jpeg';
-    const downloaded = await downloadTwilioMedia(mediaUrl0);
+  // ── Handle media (photos / docs) ──────────────────────────────
+  if (mediaId) {
+    const downloaded = await downloadMetaMedia(mediaId);
     if (downloaded) {
       try {
-        const reply = await handleClientDocument(phone, lang, downloaded.base64, mediaMimeStr);
+        const reply = await handleClientDocument(phone, lang, downloaded.base64, mediaMime);
         await sendWhatsApp(phone, reply);
         if (text) {
-          // Also process the text part below
           void supabase.from('conversations').insert([
-            { session_id: sessionId, role: 'user', content: `[PHOTO] ${text}` },
+            { session_id: sessionId, role: 'user', content: `[MEDIA] ${text}` },
             { session_id: sessionId, role: 'assistant', content: reply },
           ]);
         }
@@ -99,35 +133,29 @@ router.post('/webhook', async (req, res) => {
         console.error('[whatsapp] Media processing error:', e instanceof Error ? e.message : e);
       }
     }
-    // If no text accompanying, stop here
     if (!text) return;
   }
 
   if (!text) return;
 
-  // Notify owner (fire-and-forget)
   notifyOwner(`📱 WhatsApp [${lang.toUpperCase()}]: ${phone}`, text.length > 200 ? text.slice(0, 200) + '…' : text, false).catch(() => {});
 
   try {
     const sess = await getSession(phone);
 
-    // ── Booking flow state machine ─────────────────────────────
     const bookingIntent = isBookingRequest(text);
     const flowResult    = await handleBookingFlow(phone, text, lang, bookingIntent);
 
     if (flowResult.handled && flowResult.reply) {
       await sendWhatsApp(phone, flowResult.reply);
       await Promise.all([
-        saveConversationTurn(sessionId, 'user',      text,           { source: 'whatsapp', lang }),
+        saveConversationTurn(sessionId, 'user',      text,             { source: 'whatsapp', lang }),
         saveConversationTurn(sessionId, 'assistant', flowResult.reply, { source: 'whatsapp', lang, flow: 'booking' }),
       ]);
       return;
     }
 
-    // ── Generic Claude reply ───────────────────────────────────
     const clientSystemExtra = getClientSystemPrompt(lang);
-
-    // Inject booking flow state awareness into system prompt
     const stateHint = sess.state !== 'idle'
       ? `\n\nÉTAT RÉSERVATION: ${sess.state}. Ne relance pas le processus de collecte d'infos — le système le gère automatiquement.`
       : '';
@@ -137,11 +165,9 @@ router.post('/webhook', async (req, res) => {
     const response    = await chatWithTools(ctx.messages, systemExtra);
     const replyText   = response.text;
 
-    // Plaintes + demandes réservation avec prix → validation avant envoi
     const needsValidation = isComplaint(text) || (bookingIntent && /DZD|\d+\s*€|\d+\s*DA/i.test(replyText));
 
     if (needsValidation) {
-      // Send ack to client immediately
       const ack = lang === 'ar'
         ? 'شكراً لتواصلك. وكيلنا سيراجع ردنا ويتواصل معك قريباً. 🙏'
         : lang === 'en'
@@ -149,7 +175,6 @@ router.post('/webhook', async (req, res) => {
         : 'Merci de votre message. Notre équipe va examiner et vous répondre très prochainement. 🙏';
       await sendWhatsApp(phone, ack);
 
-      // Store for Kouider to validate and send manually
       await supabase.from('validations').insert({
         type:     'client_reply',
         context:  { description: `Réponse WhatsApp à ${phone} [${lang}]: "${text.slice(0, 120)}"`, phone, lang, isComplaint: isComplaint(text), isBooking: bookingIntent },
@@ -179,7 +204,6 @@ router.post('/send', async (req, res) => {
 });
 
 // ── GET /api/whatsapp/requests ─────────────────────────────────────────────────
-// Kouider fetches pending booking requests
 router.get('/requests', async (_req, res) => {
   const { data, error } = await supabase
     .from('wa_booking_requests')
@@ -192,7 +216,6 @@ router.get('/requests', async (_req, res) => {
 });
 
 // ── POST /api/whatsapp/requests/:id/approve ────────────────────────────────────
-// Kouider approves request → sends payment instructions
 router.post('/requests/:id/approve', async (req, res) => {
   const { id } = req.params;
   const { bank_account, daily_rate } = req.body as { bank_account?: string; daily_rate?: number };
@@ -231,7 +254,6 @@ router.post('/requests/:id/reject', async (req, res) => {
       ? `We're sorry, we cannot confirm your booking at this time.${reason ? ` Reason: ${reason}` : ''} Feel free to contact us for other dates. 🙏`
       : `Nous sommes désolés, nous ne pouvons pas confirmer votre réservation pour le moment.${reason ? ` Motif : ${reason}` : ''} N'hésitez pas à nous recontacter pour d'autres dates. 🙏`;
     await sendWhatsApp(r.phone, msg);
-    // Clear session
     const sess = await getSession(r.phone);
     await saveSession({ ...sess, state: 'idle', requestId: undefined });
   }
@@ -244,7 +266,6 @@ router.post('/requests/:id/reject', async (req, res) => {
 });
 
 // ── POST /api/whatsapp/requests/:id/confirm-payment ───────────────────────────
-// Kouider confirms acompte received → request docs
 router.post('/requests/:id/confirm-payment', async (_req, res) => {
   const { id } = _req.params;
   const ok = await confirmPaymentAndRequestDocs(id);
@@ -252,7 +273,6 @@ router.post('/requests/:id/confirm-payment', async (_req, res) => {
 });
 
 // ── POST /api/whatsapp/requests/:id/finalize ──────────────────────────────────
-// Kouider finalizes: create booking + calendar + confirm to client
 router.post('/requests/:id/finalize', async (req, res) => {
   const { id } = req.params;
   const { car_id } = req.body as { car_id?: string };
@@ -264,13 +284,15 @@ router.post('/requests/:id/finalize', async (req, res) => {
 // ── GET /api/whatsapp/status ───────────────────────────────────────────────────
 router.get('/status', (_req, res) => {
   res.json({
-    configured:  !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN),
+    configured:  !!(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID),
     webhookUrl:  `${env.BACKEND_URL}/api/whatsapp/webhook`,
+    provider:    'Meta WhatsApp Cloud API (free tier)',
     instructions: [
-      '1. Créer un compte Twilio sur twilio.com',
-      '2. Activer WhatsApp Sandbox: console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn',
-      '3. Configurer le webhook URL vers: ' + env.BACKEND_URL + '/api/whatsapp/webhook',
-      '4. Ajouter dans Railway: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM (whatsapp:+14155238886)',
+      '1. Créer une app Meta Developers: developers.facebook.com',
+      '2. Ajouter produit "WhatsApp" → Business account',
+      '3. Récupérer Phone Number ID et Token permanent',
+      '4. Configurer webhook URL: ' + env.BACKEND_URL + '/api/whatsapp/webhook',
+      '5. Ajouter dans Railway: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN',
     ],
   });
 });

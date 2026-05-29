@@ -264,16 +264,14 @@ export async function initScheduler(): Promise<void> {
     console.log(`[scheduler] Cleaned: ${rj.name}`);
   }
 
-  // WhatsApp jobs — enregistrés seulement si Twilio configuré
-  const twilioConfigured = Boolean(
-    env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_WHATSAPP_FROM,
-  );
+  // WhatsApp jobs — enregistrés seulement si Meta configuré
+  const metaConfigured = Boolean(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID);
   const WA_JOBS = new Set(['wa-booking-confirmations', 'wa-24h-reminders', 'wa-return-reminders']);
 
   // Register all repeatable jobs (ardoise propre)
   for (const job of JOBS) {
-    if (WA_JOBS.has(job.name) && !twilioConfigured) {
-      console.log(`[scheduler] SKIP (Twilio non configuré): ${job.name}`);
+    if (WA_JOBS.has(job.name) && !metaConfigured) {
+      console.log(`[scheduler] SKIP (Meta WhatsApp non configuré): ${job.name}`);
       continue;
     }
     await schedulerQueue.add(
