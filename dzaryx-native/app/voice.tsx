@@ -5,9 +5,9 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as KeepAwake from 'expo-keep-awake';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import { BACKEND_URL } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -31,11 +31,11 @@ const STATE_LABEL: Record<State, string> = {
 };
 
 // VAD constants
-const SPEAK_DB    = -28;  // dB above = speaking
+const SPEAK_DB    = -25;  // dB above = speaking (more sensitive)
 const SILENCE_DB  = -40;  // dB below = silence
-const SILENCE_END = 1400; // ms silence to end utterance
-const MIN_SPEECH  = 350;  // ms minimum speech
-const VAD_POLL    = 150;  // ms poll interval
+const SILENCE_END = 800;  // ms silence to end utterance (was 1400)
+const MIN_SPEECH  = 300;  // ms minimum speech
+const VAD_POLL    = 100;  // ms poll interval (was 150)
 
 export default function VoiceScreen() {
   const router = useRouter();
@@ -277,10 +277,10 @@ export default function VoiceScreen() {
     if (!uri) { setAppState('idle'); await beginRecording(); return; }
 
     try {
-      // Convert URI to base64
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const b64 = await blobToBase64(blob);
+      // Read audio file directly as base64 (faster than blob/FileReader)
+      const b64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
 
       // Transcribe
       const transcribeRes = await fetch(`${BACKEND_URL}/api/transcribe`, {
@@ -530,18 +530,6 @@ async function playAudioBase64(b64: string): Promise<void> {
   } catch (err) {
     console.error('[audio] playback error:', err);
   }
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((res, rej) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      res(dataUrl.split(',')[1] ?? '');
-    };
-    reader.onerror = rej;
-    reader.readAsDataURL(blob);
-  });
 }
 
 function Corner({ pos, col }: { pos: 'tl' | 'tr' | 'bl' | 'br'; col: string }) {

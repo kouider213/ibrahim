@@ -51,9 +51,9 @@ async function transcribeWithGroq(audio: string, mimeType: string): Promise<stri
 
   const form = new FormData();
   form.append('file', new Blob([buf], { type: mimeType }), `audio.${ext}`);
-  form.append('model', 'whisper-large-v3');
-  form.append('language', 'fr');
-  form.append('prompt', 'Conversation en français avec Dzaryx, assistant pour Fik Conciergerie Oran, location de voitures. Mots-clés: réservation, voiture, client, Oran, paiement, acompte.');
+  form.append('model', 'whisper-large-v3-turbo');
+  // No language lock — user speaks Darija (French/Arabic/Berber mix)
+  form.append('prompt', 'Dzaryx — Fik Conciergerie Oran — location voitures. Mots: réservation, voiture, client, paiement, acompte, disponible, Oran, Algérie. حجز، سيارة، عميل، دفع، متاح، وهران.');
   form.append('response_format', 'json');
 
   const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
