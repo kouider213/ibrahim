@@ -12,9 +12,6 @@ import {
   jobPatternDetection,
   jobCheckAnomalies,
   jobLateReturnAlert,
-  jobWhatsAppBookingConfirmations,
-  jobWhatsApp24hReminders,
-  jobWhatsAppReturnReminders,
   jobAnthropicWatch,
   jobCompetitorWatch,
   jobBIDaily,
@@ -37,7 +34,6 @@ import {
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { emitProactive } from '../notifications/mobile-push.js';
-import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
 
 const SCHEDULER_QUEUE = 'Dzaryx-scheduler';
@@ -98,22 +94,6 @@ const JOBS = [
   {
     name:  'late-return-alert',
     cron:  '0 11 * * *',       // 11h chaque jour — véhicules pas encore rendus
-    tz:    'Africa/Algiers',
-  },
-  // ── Phase 6 — WhatsApp ──
-  {
-    name:  'wa-booking-confirmations',
-    cron:  '*/10 * * * *',     // toutes les 10 min — envoi confirmations WhatsApp
-    tz:    'Africa/Algiers',
-  },
-  {
-    name:  'wa-24h-reminders',
-    cron:  '0 10 * * *',       // 10h chaque jour — rappel J-1
-    tz:    'Africa/Algiers',
-  },
-  {
-    name:  'wa-return-reminders',
-    cron:  '0 9 * * *',        // 9h chaque jour — rappel retour aujourd'hui
     tz:    'Africa/Algiers',
   },
   {
@@ -231,9 +211,6 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'pattern-detection':        jobPatternDetection,
   'check-anomalies':          jobCheckAnomalies,
   'late-return-alert':        jobLateReturnAlert,
-  'wa-booking-confirmations': jobWhatsAppBookingConfirmations,
-  'wa-24h-reminders':         jobWhatsApp24hReminders,
-  'wa-return-reminders':      jobWhatsAppReturnReminders,
   'anthropic-watch':          jobAnthropicWatch,
   'competitor-watch':         jobCompetitorWatch,
   'proactive-engine':         async (job: Job) => { await runProactiveEngine(job); },
@@ -264,16 +241,8 @@ export async function initScheduler(): Promise<void> {
     console.log(`[scheduler] Cleaned: ${rj.name}`);
   }
 
-  // WhatsApp jobs — enregistrés seulement si Meta configuré
-  const metaConfigured = Boolean(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID);
-  const WA_JOBS = new Set(['wa-booking-confirmations', 'wa-24h-reminders', 'wa-return-reminders']);
-
   // Register all repeatable jobs (ardoise propre)
   for (const job of JOBS) {
-    if (WA_JOBS.has(job.name) && !metaConfigured) {
-      console.log(`[scheduler] SKIP (Meta WhatsApp non configuré): ${job.name}`);
-      continue;
-    }
     await schedulerQueue.add(
       job.name,
       {},

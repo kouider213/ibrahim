@@ -29,9 +29,6 @@ const envSchema = z.object({
   RAILWAY_PROJECT_ID:   z.string().optional(),
   RAILWAY_SERVICE_ID:   z.string().optional(),
   SUPABASE_ACCESS_TOKEN:z.string().optional(),
-  WHATSAPP_TOKEN:       z.string().optional(), // Meta Graph API bearer token
-  WHATSAPP_PHONE_ID:    z.string().optional(), // Meta Phone Number ID
-  WHATSAPP_VERIFY_TOKEN: z.string().optional(), // Webhook verify token
   GOOGLE_SERVICE_ACCOUNT_JSON:   z.string().optional(),
   PERSONAL_GCAL_ID:              z.string().optional(), // kouiderpablo@gmail.com personal calendar
   HOUARI_GCAL_ID:                z.string().optional(), // houari personal calendar

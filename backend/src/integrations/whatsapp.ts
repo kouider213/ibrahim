@@ -1,6 +1,4 @@
-﻿import { env } from '../config/env.js';
-
-// ── Language detection ────────────────────────────────────────
+﻿// ── Language detection ────────────────────────────────────────
 
 export type Lang = 'ar' | 'fr' | 'en';
 
@@ -74,43 +72,12 @@ export function isComplaint(text: string): boolean {
   return COMPLAINT_PATTERNS.test(text);
 }
 
-// ── Send WhatsApp via Meta Cloud API ─────────────────────────
+// ── WhatsApp géré manuellement — envoi désactivé ─────────────
 
-export async function sendWhatsApp(to: string, body: string): Promise<boolean> {
-  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) {
-    console.warn('[whatsapp] Meta not configured — message not sent');
-    return false;
-  }
-
-  // Strip whatsapp: prefix if present, Meta expects raw number with country code
-  const phone = to.replace(/^whatsapp:/, '').replace(/^\+/, '');
-
-  try {
-    const url = `https://graph.facebook.com/v19.0/${env.WHATSAPP_PHONE_ID}/messages`;
-    const res = await fetch(url, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${env.WHATSAPP_TOKEN}`,
-      },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to:                phone,
-        type:              'text',
-        text:              { body },
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('[whatsapp] Send failed:', err);
-      return false;
-    }
-    console.log(`[whatsapp] ✅ Sent to ${phone}: ${body.slice(0, 60)}`);
-    return true;
-  } catch (err) {
-    console.error('[whatsapp] Send failed:', err instanceof Error ? err.message : String(err));
-    return false;
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function sendWhatsApp(_to: string, _body: string): Promise<boolean> {
+  console.log('[whatsapp] Disabled — WhatsApp managed manually by Kouider');
+  return false;
 }
 
 // ── Send booking confirmation ─────────────────────────────────

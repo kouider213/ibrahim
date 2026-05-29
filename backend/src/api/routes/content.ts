@@ -12,7 +12,7 @@ const router = Router();
 // GET /api/content/status — TikTok pending + WhatsApp config status
 router.get('/status', requireMobileAuth, (_req, res) => {
   const pending = getLatestPendingVideo();
-  const whatsappConfigured = Boolean(env.WHATSAPP_TOKEN && env.WHATSAPP_PHONE_ID);
+  const whatsappConfigured = false; // WhatsApp géré manuellement par Kouider
   const tiktokConfigured = Boolean(env.TIKTOK_ACCESS_TOKEN && env.TIKTOK_OPEN_ID);
 
   res.json({
@@ -30,7 +30,7 @@ router.get('/status', requireMobileAuth, (_req, res) => {
     },
     whatsapp: {
       configured: whatsappConfigured,
-      phoneId: whatsappConfigured ? env.WHATSAPP_PHONE_ID : null,
+      phoneId: null,
     },
   });
 });
