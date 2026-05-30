@@ -8,7 +8,7 @@ export type DashSection =
   | 'tiktok'
   | 'core'
   | 'voice'
-  | 'booking'
+  | 'sarf'
   | 'calendar'
   | 'clients';
 
@@ -16,7 +16,7 @@ export const NAV_ITEMS: { id: DashSection; icon: string; label: string; badge?: 
   { id: 'fleet',    icon: '🚗', label: 'Fleet'    },
   { id: 'revenue',  icon: '₿',  label: 'Revenue'  },
   { id: 'alerts',   icon: '🔔', label: 'Alertes'  },
-  { id: 'booking',  icon: '📝', label: 'Résa'     },
+  { id: 'sarf',     icon: '💱', label: 'Sarf'     },
   { id: 'calendar', icon: '📅', label: 'Calendrier'},
   { id: 'clients',  icon: '👥', label: 'Clients'  },
   { id: 'whatsapp', icon: '💬', label: 'WhatsApp' },
