@@ -32,25 +32,43 @@ setInterval(() => {
   }
 }, 300_000);
 
-const WIDGET_BASE_PROMPT = `Tu es Dzaryx, l'assistant virtuel d'AutoLux Location — agence de location de véhicules premium à Oran, Algérie.
+const WIDGET_BASE_PROMPT = `Tu es l'assistant virtuel de Fik Conciergerie — agence de location de véhicules premium à Oran, Algérie.
 
 RÈGLES ABSOLUES:
-- Tu réponds dans la langue utilisée par le client (français, arabe, anglais)
-- Tu donnes uniquement des informations PUBLIQUES sur AutoLux
-- Tu ne discutes JAMAIS des données internes, réservations d'autres clients, finances
-- Si le client veut réserver → tu lui donnes WhatsApp: +32466311469
-- Tu es chaleureux, professionnel, concis (2-3 phrases max)
+- Réponds TOUJOURS dans la langue du client (français, arabe dialectal algérien, anglais)
+- Infos PUBLIQUES uniquement — jamais les données d'autres clients, finances internes
+- Réponses courtes et claires (2-4 phrases max)
+- Si le client veut réserver ou a une question complexe → donne WhatsApp +32466311469
+- Si on demande si un véhicule est dispo → utilise la liste ci-dessous (DISPONIBLE/NON DISPONIBLE)
+- Tu connais les réservations futures pour répondre "disponible du X au Y ?"
 
-INFORMATIONS AUTOLUX:
+INFOS FIK CONCIERGERIE:
 📍 Oran, Algérie
-📱 WhatsApp: +32466311469 (pour réserver)
-✈️ Livraison gratuite aéroport Es-Sénia
-👤 Âge minimum: 35 ans
-🪪 Documents requis: pièce d'identité + permis de conduire
+📱 WhatsApp: +32466311469 (réservation et questions)
+✈️ Livraison à l'aéroport Es-Sénia
+🏪 Récupération directement au magasin
+👤 Âge minimum: 35 ans (obligation assurance — protège le client et l'agence)
+🪪 Documents: pièce d'identité + permis de conduire
+💰 Aucune caution requise
+📅 Disponible 24h/24 · 7j/7 · jours fériés inclus
+🌐 Réservation en ligne: https://autolux-location.vercel.app/reservation
 
-Si on te pose une question hors contexte AutoLux → redirige poliment vers les véhicules ou le contact.`;
+CONDITIONS:
+- Pas de caution
+- Véhicule nettoyé et vérifié avant chaque location
+- Confirmation par WhatsApp sous 1h
+- Paiement à la remise des clés
 
-// Cache fleet + active bookings for 3 minutes to avoid hitting Supabase on every message
+RÉSERVATION EN LIGNE:
+1. Choisir le véhicule sur le site
+2. Sélectionner les dates (calendrier dispo en temps réel)
+3. Remplir le formulaire (nom, téléphone, âge)
+4. WhatsApp s'ouvre automatiquement avec toutes les infos
+5. Confirmation de l'équipe sous 1h
+
+Questions hors contexte → réponds brièvement et redirige vers les véhicules.`;
+
+// Cache fleet + upcoming bookings for 3 minutes
 let fleetCache: { data: string; ts: number } | null = null;
 
 async function getLiveFleetContext(): Promise<string> {
@@ -58,24 +76,48 @@ async function getLiveFleetContext(): Promise<string> {
 
   try {
     const today = new Date().toISOString().slice(0, 10);
+    const in60days = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
 
     const [{ data: cars }, { data: bookings }] = await Promise.all([
-      supabase.from('cars').select('name, category, resale_price, available').order('name'),
+      supabase.from('cars').select('id, name, category, resale_price, seats, fuel, available').order('resale_price'),
       supabase.from('bookings')
-        .select('car_id, start_date, end_date, status, cars(name)')
-        .in('status', ['CONFIRMED', 'ACTIVE'])
-        .lte('start_date', today)
+        .select('car_id, start_date, end_date, status')
+        .in('status', ['ACCEPTED', 'CONFIRMED', 'ACTIVE', 'PENDING'])
+        .lte('start_date', in60days)
         .gte('end_date', today),
     ]);
 
-    const rentedCarIds = new Set((bookings ?? []).map((b: Record<string, unknown>) => b.car_id as string));
+    // Build map: car_id → list of booked ranges
+    const bookedMap = new Map<string, Array<{ start: string; end: string }>>();
+    for (const b of (bookings ?? []) as Array<{ car_id: string; start_date: string; end_date: string }>) {
+      if (!bookedMap.has(b.car_id)) bookedMap.set(b.car_id, []);
+      bookedMap.get(b.car_id)!.push({ start: b.start_date, end: b.end_date });
+    }
 
     const fleetLines = (cars ?? []).map((c: Record<string, unknown>) => {
-      const rented = rentedCarIds.has(c.id as string) || !c.available;
-      return `• ${c.name} [${c.category}] — ${c.resale_price}€/jour — ${rented ? 'NON DISPONIBLE ACTUELLEMENT' : 'DISPONIBLE'}`;
+      const ranges = bookedMap.get(c.id as string) || [];
+      const isBookedToday = ranges.some(r => r.start <= today && r.end >= today);
+      const unavailable = isBookedToday || !c.available;
+      const nextBooking = ranges
+        .filter(r => r.start > today)
+        .sort((a, b) => a.start.localeCompare(b.start))[0];
+
+      let status = unavailable ? '🔴 NON DISPONIBLE' : '🟢 DISPONIBLE';
+      if (!unavailable && nextBooking) status += ` (réservé du ${nextBooking.start} au ${nextBooking.end})`;
+      if (unavailable) {
+        const end = ranges.find(r => r.start <= today && r.end >= today);
+        if (end) status += ` jusqu'au ${end.end}`;
+      }
+
+      return `• ${c.name} | ${c.category} | ${c.seats}p | ${c.fuel} | ${c.resale_price}€/j | ${status}`;
     });
 
-    const ctx = `\nFLOTTE ACTUELLE (mise à jour en temps réel):\n${fleetLines.join('\n')}`;
+    const ctx = [
+      `\n\nFLOTTE FIK CONCIERGERIE (temps réel — ${today}):`,
+      ...fleetLines,
+      `\nPour vérifier dispo sur des dates précises → le client peut aller sur https://autolux-location.vercel.app/reservation et sélectionner le véhicule.`,
+    ].join('\n');
+
     fleetCache = { data: ctx, ts: Date.now() };
     return ctx;
   } catch {
