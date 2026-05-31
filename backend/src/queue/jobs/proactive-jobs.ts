@@ -734,6 +734,35 @@ export async function jobWeeklyReport(_job: Job): Promise<void> {
   // Finance du mois
   const finance = await getFinancialReport(new Date().getFullYear(), new Date().getMonth() + 1).catch(() => null);
 
+  // Stats site web (page_views + car_views)
+  let siteSection = '';
+  try {
+    const [pvRes, cvRes] = await Promise.all([
+      supabase.from('page_views').select('device, session_id').gte('created_at', weekAgo.toISOString()),
+      supabase.from('car_views').select('id, cars(name)').gte('created_at', weekAgo.toISOString()),
+    ]);
+    const pv = pvRes.data || [];
+    const cv = cvRes.data || [];
+    const uniqueSessions = new Set(pv.map((v: any) => v.session_id).filter(Boolean)).size;
+    const mobile = pv.filter((v: any) => v.device === 'mobile').length;
+    const mobilePct = pv.length > 0 ? Math.round((mobile / pv.length) * 100) : 0;
+    const carViewCount: Record<string, number> = {};
+    (cv as any[]).forEach((v: any) => {
+      const name = v.cars?.name || '?';
+      carViewCount[name] = (carViewCount[name] || 0) + 1;
+    });
+    const topCarViews = Object.entries(carViewCount).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([n, c]) => `  • ${n}: ${c} vues`).join('\n');
+    const convPct = uniqueSessions > 0 ? Math.round((all.length / uniqueSessions) * 100) : 0;
+    siteSection = [
+      ``,
+      `🌐 Site autolux-location.vercel.app:`,
+      `  👁️ ${pv.length} pages vues | ${uniqueSessions} visiteurs uniques | ${mobilePct}% mobile`,
+      `  📈 Taux conversion: ${convPct}% (visiteurs → réservations)`,
+      topCarViews ? `  🔥 Véhicules les plus vus:\n${topCarViews}` : '',
+    ].filter(Boolean).join('\n');
+  } catch { siteSection = ''; }
+
   const report = [
     `📊 *Rapport hebdo — ${new Date().toLocaleDateString('fr-FR')}*`,
     ``,
@@ -741,11 +770,12 @@ export async function jobWeeklyReport(_job: Job): Promise<void> {
     `💰 Revenus: ${revenue}€`,
     finance ? `💼 Bénéfice Kouider ce mois: ${finance.kouiderProfit}€` : '',
     ``,
-    `🚗 Top véhicules:`,
+    `🚗 Top véhicules loués:`,
     topCars || '  • Aucune réservation',
+    siteSection,
   ].filter(Boolean).join('\n');
 
-  emitProactive(`Rapport hebdo — ${confirmed.length} rés. / ${revenue}€`, 'info', stripTgMd(report));
+  emitProactive(`Rapport hebdo — ${confirmed.length} rés. / ${revenue}€ | ${report.includes('visiteurs') ? 'site ✓' : ''}`, 'info', stripTgMd(report));
   console.log('[job:weekly-report] sent');
 }
 
