@@ -1294,8 +1294,27 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
 
   // ─── GESTION PARC VÉHICULES ──────────────────────────────────────
   {
+    name: 'add_car',
+    description: 'Ajouter un NOUVEAU véhicule sur le site Fik Conciergerie (autolux-location.vercel.app). Utiliser quand Kouider dit "j\'ai acheté une nouvelle voiture", "ajoute le [nom] à la flotte", "nouveau véhicule [nom]". Le véhicule apparaîtra immédiatement sur le site et dans la page réservation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name:         { type: 'string',  description: 'Nom complet du véhicule (ex: "Renault Clio 5 Alpine")' },
+        category:     { type: 'string',  description: 'Catégorie: citadine, berline, SUV, familiale, utilitaire, premium' },
+        seats:        { type: 'number',  description: 'Nombre de places (défaut: 5)' },
+        fuel:         { type: 'string',  description: 'Carburant: essence, diesel, électrique, hybride' },
+        transmission: { type: 'string',  description: 'Transmission: manuelle, automatique' },
+        base_price:   { type: 'number',  description: 'Prix propriétaire (Houari) par jour en €' },
+        resale_price: { type: 'number',  description: 'Prix client (affiché sur le site) par jour en €' },
+        description:  { type: 'string',  description: 'Description du véhicule pour la fiche client' },
+        image_url:    { type: 'string',  description: 'URL de la photo du véhicule (Supabase Storage ou autre)' },
+      },
+      required: ['name'],
+    },
+  },
+  {
     name: 'update_car',
-    description: 'Mettre à jour un véhicule du parc : disponibilité, prix. Utiliser quand Kouider dit "la Clio est disponible", "marque la Sandero comme louée", "change le prix du Duster à 80€/j". Recherche automatique par nom.',
+    description: 'Mettre à jour un véhicule EXISTANT du parc : disponibilité, prix. Utiliser quand Kouider dit "la Clio est disponible", "marque la Sandero comme louée", "change le prix du Duster à 80€/j". Recherche automatique par nom.',
     input_schema: {
       type: 'object' as const,
       properties: {

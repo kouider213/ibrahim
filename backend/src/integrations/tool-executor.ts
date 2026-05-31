@@ -385,6 +385,7 @@ async function _dispatch(
       case 'calculate_delivery_fee':     return await calculateDeliveryFeeTool(input);
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
+      case 'add_car':                    return await addCarTool(input);
       // ─── RÈGLES APPRISES (Phase 8) ───
       case 'save_learned_rule':          return await saveLearnedRuleTool(input, sessionId);
       case 'list_learned_rules':         return await listLearnedRulesTool(input, sessionId);
@@ -5019,6 +5020,47 @@ async function updateCarTool(input: Record<string, unknown>): Promise<string> {
     car.resale_price != null ? `🏠 Prix proprio: ${car.resale_price}€/j` : '',
   ].filter(Boolean);
   return lines.join('\n');
+}
+
+// ─── AJOUTER VÉHICULE ───────────────────────────────────────────────────────
+
+async function addCarTool(input: Record<string, unknown>): Promise<string> {
+  const name = input['name'] as string;
+  if (!name) return '❌ Le nom du véhicule est requis';
+
+  const basePrice    = Number(input['base_price']   ?? 0);
+  const resalePrice  = Number(input['resale_price']  ?? input['client_price'] ?? 0);
+  const seats        = Number(input['seats']         ?? 5);
+  const category     = (input['category']   as string) || 'berline';
+  const fuel         = (input['fuel']       as string) || 'essence';
+  const transmission = (input['transmission'] as string) || 'manuelle';
+  const description  = (input['description'] as string) || null;
+  const imageUrl     = (input['image_url']  as string) || null;
+
+  const { data, error } = await supabase
+    .from('cars')
+    .insert({
+      name, base_price: basePrice, resale_price: resalePrice,
+      seats, category, fuel, transmission, description,
+      image_url: imageUrl, available: true,
+      created_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (error) return `❌ Erreur ajout véhicule: ${error.message}`;
+
+  const car = data as { id: string; name: string };
+  return [
+    `✅ Véhicule ajouté sur le site Fik Conciergerie`,
+    `🚗 ${car.name} (ID: ${car.id})`,
+    `📍 Catégorie: ${category} | ${seats} places | ${fuel}`,
+    resalePrice > 0 ? `💶 Prix client: ${resalePrice}€/jour` : '',
+    basePrice > 0   ? `🏠 Prix proprio: ${basePrice}€/jour` : '',
+    imageUrl        ? `🖼️ Photo: ${imageUrl}` : '⚠️ Pas de photo — ajoute une image via le site admin',
+    ``,
+    `Le véhicule est maintenant disponible sur autolux-location.vercel.app`,
+  ].filter(Boolean).join('\n');
 }
 
 // ─── INSPECTION VÉHICULE ────────────────────────────────────────────────────
