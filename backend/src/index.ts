@@ -398,6 +398,52 @@ async function autoBackfillClientIntel(): Promise<void> {
   }
 }
 
+// ── Realtime listener: site Fik → push Kouider + Houari ─────────────────────
+// Quand un client réserve sur autolux-location.vercel.app, le site insère
+// dans la table `notifications`. On écoute en Realtime et on push immédiatement
+// via Socket.IO vers les deux acteurs mobiles.
+async function initFikRealtimeListener(): Promise<void> {
+  try {
+    const { supabase: sb } = await import('./integrations/supabase.js');
+    const { emitProactive }  = await import('./notifications/mobile-push.js');
+
+    sb.channel('fik-site-notifications')
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications',
+      }, (payload) => {
+        const row = payload.new as {
+          type: string; title: string; message: string; priority?: number;
+          payload?: Record<string, unknown>;
+        };
+
+        // Only process events from the rental site
+        if (!row.type) return;
+
+        const isNewBooking = row.type === 'new_booking' || row.type === 'fik_event';
+        const isNewReview  = row.type === 'new_review';
+
+        if (isNewBooking) {
+          const msg = `🚗 ${row.title}\n\n${row.message}`;
+          // Push to both actors
+          emitProactive(row.title, 'alert', msg, 'kouider', 'bookings');
+          emitProactive(row.title, 'alert', msg, 'houari', 'bookings');
+          console.log('[fik-realtime] New booking pushed to Kouider + Houari');
+        }
+
+        if (isNewReview) {
+          const msg = `⭐ ${row.title}\n${row.message}`;
+          emitProactive(row.title, 'info', msg, 'kouider');
+          console.log('[fik-realtime] New review pushed to Kouider');
+        }
+      })
+      .subscribe((status) => {
+        console.log(`[fik-realtime] Supabase channel status: ${status}`);
+      });
+  } catch (err) {
+    console.error('[fik-realtime] Init failed:', err instanceof Error ? err.message : err);
+  }
+}
+
 // ── Start server ──────────────────────────────────────────────
 const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
@@ -405,4 +451,5 @@ server.listen(PORT, () => {
   initScheduler();
   initReminderWorker();
   void autoBackfillClientIntel();
+  void initFikRealtimeListener();
 });

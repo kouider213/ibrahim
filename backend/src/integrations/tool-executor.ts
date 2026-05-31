@@ -386,6 +386,7 @@ async function _dispatch(
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
       case 'add_car':                    return await addCarTool(input);
+      case 'delete_car':                 return await deleteCarTool(input);
       // ─── ANALYTICS SITE ───
       case 'get_site_analytics':         return await getSiteAnalyticsTool(input);
       // ─── AVIS CLIENTS ───
@@ -5002,10 +5003,16 @@ async function updateCarTool(input: Record<string, unknown>): Promise<string> {
   if (!carId) return '❌ car_name ou car_id requis';
 
   const updates: Record<string, unknown> = {};
-  if (input['available']    !== undefined) updates['available']    = input['available'];
-  if (input['base_price']   !== undefined) updates['base_price']   = input['base_price'];
-  if (input['resale_price'] !== undefined) updates['resale_price'] = input['resale_price'];
-  if (input['description']  !== undefined) updates['description']  = input['description'];
+  if (input['available']     !== undefined) updates['available']     = input['available'];
+  if (input['base_price']    !== undefined) updates['base_price']    = input['base_price'];
+  if (input['resale_price']  !== undefined) updates['resale_price']  = input['resale_price'];
+  if (input['description']   !== undefined) updates['description']   = input['description'];
+  if (input['name']          !== undefined) updates['name']          = input['name'];
+  if (input['category']      !== undefined) updates['category']      = input['category'];
+  if (input['seats']         !== undefined) updates['seats']         = Number(input['seats']);
+  if (input['fuel']          !== undefined) updates['fuel']          = input['fuel'];
+  if (input['transmission']  !== undefined) updates['transmission']  = input['transmission'];
+  if (input['image_url']     !== undefined) updates['image_url']     = input['image_url'];
 
   if (Object.keys(updates).length === 0) return '❌ Aucun champ à mettre à jour fourni';
 
@@ -5171,6 +5178,36 @@ async function addCarTool(input: Record<string, unknown>): Promise<string> {
     ``,
     `Le véhicule est maintenant disponible sur autolux-location.vercel.app`,
   ].filter(Boolean).join('\n');
+}
+
+// ─── SUPPRIMER VÉHICULE ─────────────────────────────────────────────────────
+
+async function deleteCarTool(input: Record<string, unknown>): Promise<string> {
+  let carId = input['car_id'] as string | undefined;
+  let carName = '';
+
+  if (!carId && input['car_name']) {
+    const { data } = await supabase.from('cars').select('id, name').ilike('name', `%${input['car_name']}%`).limit(1).single();
+    if (!data) return `❌ Véhicule "${input['car_name']}" introuvable`;
+    carId = (data as { id: string; name: string }).id;
+    carName = (data as { id: string; name: string }).name;
+  }
+  if (!carId) return '❌ car_name ou car_id requis';
+
+  // Check for active bookings before delete
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: active } = await supabase.from('bookings')
+    .select('id, status').eq('car_id', carId)
+    .in('status', ['ACCEPTED', 'CONFIRMED', 'ACTIVE', 'PENDING'])
+    .gte('end_date', today).limit(1);
+
+  if (active && active.length > 0) {
+    return `⚠️ Impossible de supprimer ${carName || carId} — il a ${active.length} réservation(s) active(s). Annule d'abord les réservations ou marque-le indisponible.`;
+  }
+
+  const { error } = await supabase.from('cars').delete().eq('id', carId);
+  if (error) return `❌ Erreur suppression: ${error.message}`;
+  return `🗑️ Véhicule ${carName || carId} supprimé de la flotte et du site Fik Conciergerie.`;
 }
 
 // ─── INSPECTION VÉHICULE ────────────────────────────────────────────────────
