@@ -386,6 +386,12 @@ async function _dispatch(
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
       case 'add_car':                    return await addCarTool(input);
+      // ─── ANALYTICS SITE ───
+      case 'get_site_analytics':         return await getSiteAnalyticsTool(input);
+      // ─── AVIS CLIENTS ───
+      case 'list_reviews':               return await listReviewsTool(input);
+      case 'approve_review':             return await approveReviewTool(input);
+      case 'delete_review':              return await deleteReviewTool(input);
       // ─── RÈGLES APPRISES (Phase 8) ───
       case 'save_learned_rule':          return await saveLearnedRuleTool(input, sessionId);
       case 'list_learned_rules':         return await listLearnedRulesTool(input, sessionId);
@@ -5020,6 +5026,110 @@ async function updateCarTool(input: Record<string, unknown>): Promise<string> {
     car.resale_price != null ? `🏠 Prix proprio: ${car.resale_price}€/j` : '',
   ].filter(Boolean);
   return lines.join('\n');
+}
+
+// ─── ANALYTICS SITE FIK ─────────────────────────────────────────────────────
+
+async function getSiteAnalyticsTool(input: Record<string, unknown>): Promise<string> {
+  const days = Number(input['days'] ?? 30);
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  try {
+    const [pvRes, cvRes, bookRes] = await Promise.all([
+      supabase.from('page_views').select('page, device, country, session_id, created_at').gte('created_at', since),
+      supabase.from('car_views').select('car_id, device, country, created_at, cars(name)').gte('created_at', since),
+      supabase.from('bookings').select('id, created_at, status').gte('created_at', since),
+    ]);
+
+    const pv      = pvRes.data   || [];
+    const cv      = cvRes.data   || [];
+    const bk      = bookRes.data || [];
+
+    const totalViews     = pv.length;
+    const uniqueSessions = new Set(pv.map((v: { session_id: string | null }) => v.session_id).filter(Boolean)).size;
+    const mobileViews    = pv.filter((v: { device: string }) => v.device === 'mobile').length;
+    const mobilePct      = totalViews > 0 ? Math.round((mobileViews / totalViews) * 100) : 0;
+
+    // Top pages
+    const pageCount: Record<string, number> = {};
+    pv.forEach((v: { page: string }) => { pageCount[v.page] = (pageCount[v.page] || 0) + 1; });
+    const topPages = Object.entries(pageCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    // Top countries
+    const countryCount: Record<string, number> = {};
+    pv.filter((v: { country: string | null }) => v.country).forEach((v: { country: string }) => {
+      countryCount[v.country] = (countryCount[v.country] || 0) + 1;
+    });
+    const topCountries = Object.entries(countryCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    // Top cars
+    const carCount: Record<string, number> = {};
+    (cv as any[]).forEach((v: any) => {
+      const name = v.cars?.name || 'Inconnu';
+      carCount[name] = (carCount[name] || 0) + 1;
+    });
+    const topCars = Object.entries(carCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    const lines = [
+      `📊 Analytics site Fik Conciergerie — ${days} derniers jours`,
+      ``,
+      `👁️ ${totalViews} pages vues | ${uniqueSessions} sessions uniques | ${mobilePct}% mobile`,
+      `📅 ${bk.length} nouvelles demandes de réservation`,
+      totalViews > 0 ? `📈 Conversion: ${Math.round((bk.length / uniqueSessions) * 100)}% des sessions` : '',
+      ``,
+      `📄 Pages les plus visitées:`,
+      ...topPages.map(([p, n]) => `  ${p || '/'} → ${n} vues`),
+      ``,
+      topCars.length > 0 ? `🚗 Véhicules les plus vus:` : '',
+      ...topCars.map(([n, c]) => `  ${n} → ${c} vues`),
+      ``,
+      topCountries.length > 0 ? `🌍 Pays:` : '',
+      ...topCountries.map(([c, n]) => `  ${c}: ${n} visites`),
+    ].filter(l => l !== null && l !== undefined);
+
+    return lines.join('\n');
+  } catch (err) {
+    return `❌ Erreur analytics: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+// ─── AVIS CLIENTS ────────────────────────────────────────────────────────────
+
+async function listReviewsTool(input: Record<string, unknown>): Promise<string> {
+  const filter = input['filter'] as string || 'all'; // 'pending' | 'approved' | 'all'
+  try {
+    let query = supabase.from('reviews').select('*').order('created_at', { ascending: false }).limit(20);
+    if (filter === 'pending')  query = supabase.from('reviews').select('*').eq('approved', false).order('created_at', { ascending: false }).limit(20);
+    if (filter === 'approved') query = supabase.from('reviews').select('*').eq('approved', true).order('created_at', { ascending: false }).limit(20);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const reviews = (data || []) as Array<{ id: string; client_name: string; rating: number; comment: string; approved: boolean; created_at: string }>;
+    if (reviews.length === 0) return `📭 Aucun avis ${filter === 'pending' ? 'en attente' : filter === 'approved' ? 'publié' : ''} trouvé.`;
+    return [
+      `⭐ ${reviews.length} avis (${filter}):`,
+      ...reviews.map(r =>
+        `\n[${r.id.substring(0,8)}] ${r.approved ? '✅' : '⏳'} ${r.client_name} — ${r.rating}/5\n  "${r.comment.substring(0, 100)}${r.comment.length > 100 ? '...' : ''}"`
+      ),
+    ].join('\n');
+  } catch (err) {
+    return `❌ Erreur: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function approveReviewTool(input: Record<string, unknown>): Promise<string> {
+  const id = input['review_id'] as string;
+  if (!id) return '❌ review_id requis';
+  const { error } = await supabase.from('reviews').update({ approved: true }).eq('id', id);
+  if (error) return `❌ Erreur: ${error.message}`;
+  return `✅ Avis [${id.substring(0,8)}] publié sur le site.`;
+}
+
+async function deleteReviewTool(input: Record<string, unknown>): Promise<string> {
+  const id = input['review_id'] as string;
+  if (!id) return '❌ review_id requis';
+  const { error } = await supabase.from('reviews').delete().eq('id', id);
+  if (error) return `❌ Erreur: ${error.message}`;
+  return `🗑️ Avis [${id.substring(0,8)}] supprimé du site.`;
 }
 
 // ─── AJOUTER VÉHICULE ───────────────────────────────────────────────────────

@@ -1313,6 +1313,48 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'get_site_analytics',
+    description: 'Obtenir les stats du site Fik Conciergerie : visites, pages populaires, véhicules vus, taux conversion, pays visiteurs. Utile pour "combien de visites ce mois", "quel véhicule le plus vu", "taux conversion site".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        days: { type: 'number', description: 'Nombre de derniers jours à analyser (défaut: 30)' },
+      },
+    },
+  },
+  {
+    name: 'list_reviews',
+    description: 'Lister les avis clients du site. Filtre par: pending (en attente modération), approved (publié), all.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        filter: { type: 'string', description: 'pending | approved | all (défaut: all)' },
+      },
+    },
+  },
+  {
+    name: 'approve_review',
+    description: 'Publier un avis en attente sur le site.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        review_id: { type: 'string', description: 'ID de l\'avis à publier' },
+      },
+      required: ['review_id'],
+    },
+  },
+  {
+    name: 'delete_review',
+    description: 'Supprimer un avis du site.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        review_id: { type: 'string', description: 'ID de l\'avis à supprimer' },
+      },
+      required: ['review_id'],
+    },
+  },
+  {
     name: 'update_car',
     description: 'Mettre à jour un véhicule EXISTANT du parc : disponibilité, prix. Utiliser quand Kouider dit "la Clio est disponible", "marque la Sandero comme louée", "change le prix du Duster à 80€/j". Recherche automatique par nom.',
     input_schema: {
