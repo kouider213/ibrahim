@@ -1935,11 +1935,11 @@ async function exportExcelTool(input: Record<string, unknown>, _sessionId?: stri
   // Notifier via app (Socket.IO + Expo Push)
   const { emitProactive } = await import('../notifications/mobile-push.js');
   const msg = downloadUrl
-    ? `📊 Export Excel ${label} prêt\n🔗 Télécharger : ${downloadUrl}`
+    ? `🛰 📊 Export Excel ${label} prêt\n🔗\n${downloadUrl}`
     : `📊 Export Excel ${label} généré (${Math.round(buffer.length / 1024)} KB)`;
   emitProactive(`Export Excel ${label} prêt`, 'info', msg);
 
-  return `✅ Export Excel ${label} généré ! 📊${downloadUrl ? `\n🔗 ${downloadUrl}` : ''}`;
+  return `✅ Export Excel ${label} généré ! 📊${downloadUrl ? `\n🔗\n${downloadUrl}` : ''}`;
 }
 
 async function getFleetStatus(): Promise<string> {
@@ -4977,10 +4977,10 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
   emitProactive(
     `Rapport comptable ${monthLabel} prêt`,
     'info',
-    `📊 Rapport comptable ${monthLabel}\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Bénéfice: ${Math.round(totalProfit)}€${pdfUrl ? `\n🔗 ${pdfUrl}` : ''}`,
+    `🛰 📊 Rapport comptable ${monthLabel}\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Bénéfice: ${Math.round(totalProfit)}€${pdfUrl ? `\n🔗\n${pdfUrl}` : ''}`,
   );
 
-  return `✅ Rapport comptable ${monthLabel} généré !\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Proprio: ${Math.round(totalOwner)}€ | Bénéfice net: ${Math.round(totalProfit)}€ | Encaissé: ${Math.round(totalPaid)}€ | Impayés: ${unpaid.length}${pdfUrl ? `\n🔗 ${pdfUrl}` : ''}`;
+  return `✅ Rapport comptable ${monthLabel} généré !\n📋 ${bookings.length} réservations | CA: ${Math.round(totalCA)}€ | Proprio: ${Math.round(totalOwner)}€ | Bénéfice net: ${Math.round(totalProfit)}€ | Encaissé: ${Math.round(totalPaid)}€ | Impayés: ${unpaid.length}${pdfUrl ? `\n🔗\n${pdfUrl}` : ''}`;
 }
 
 
