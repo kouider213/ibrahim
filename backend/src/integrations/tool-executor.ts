@@ -4965,21 +4965,15 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
     doc.end();
   });
 
-  // Upload sur Cloudinary (raw) pour URL publique téléchargeable
+  // Servir via Railway /api/pdf/:token — content-type application/pdf correct pour iOS
   const safePeriod = `${year}-${String(month).padStart(2, '0')}`;
   let pdfUrl = '';
   try {
-    const { v2: cloudinary } = await import('cloudinary');
-    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'raw', public_id: `accounting/COMPTA_${safePeriod}`, format: 'pdf', overwrite: true },
-        (err, res) => err ? reject(err) : resolve(res as { secure_url: string }),
-      );
-      stream.end(pdfBuffer);
-    });
-    pdfUrl = result.secure_url;
+    const { storePdf } = await import('../utils/pdf-store.js');
+    const token = storePdf(pdfBuffer, `COMPTA_${safePeriod}.pdf`);
+    pdfUrl = `${env.BACKEND_URL}/api/pdf/${token}`;
   } catch (err) {
-    console.error('[exportAccountingPDF] Cloudinary upload failed:', err instanceof Error ? err.message : err);
+    console.error('[exportAccountingPDF] PDF store failed:', err instanceof Error ? err.message : err);
   }
   const { emitProactive } = await import('../notifications/mobile-push.js');
   emitProactive(
