@@ -7,7 +7,15 @@
 
 ## Bugs Ouverts 🔴
 
-_(aucun bug critique ouvert — tous fixés)_
+### B025 — Token GitHub exposé dans git remote (SÉCURITÉ)
+- **Statut** : 🔴 OUVERT — action manuelle requise
+- **Fichier** : `.git/config` du repo ibrahim (local PC Kouider)
+- **Description** : `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` était dans l'URL git remote. Supprimé de l'URL, mais le token lui-même doit être révoqué sur GitHub.
+- **Fix** : Aller sur github.com/settings/tokens → Delete ce token → Générer nouveau si besoin
+
+### B026 — Vercel peut perdre accès après privatisation repo (à vérifier)
+- **Statut** : 🔴 À VÉRIFIER
+- **Description** : `autolux-location` est passé de PUBLIC à PRIVÉ. Vercel doit toujours avoir accès via GitHub App (pas via token URL). Si build échoue → reconnecter dans Vercel dashboard → Settings → Git.
 
 ---
 

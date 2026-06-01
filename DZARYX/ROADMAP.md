@@ -1,7 +1,49 @@
 # DZARYX — Feuille de Route
 
-> Mise à jour : 2026-05-21
-> Légende : ✅ Terminé | 🔄 En cours | 🔵 Planifié | ❌ Bloqué
+> Mise à jour : **2026-06-01**
+> Légende : ✅ Terminé | 🔄 En cours | 🔵 Planifié | ❌ Bloqué | ⚪ Won't Fix
+
+---
+
+## Phase 10 — Site Admin WOW + Multi-Photos + Gallery Dzaryx (✅ Terminé — 2026-06-01)
+
+### 10.1 — Admin UI Redesign Premium ✅
+- ✅ Design system unifié : gradient text, accent top line, ambient glow sur toutes les cards KPI
+- ✅ `KpiCard` component : icon Lucide coloré, nombre gradient, delta % vs mois précédent
+- ✅ `FinanceCard` component : premium avec total gradient en bas
+- ✅ `pages/admin/index.js` — Dashboard complet reécrit
+- ✅ `pages/admin/bookings.js` — filter tabs premium, empty state Lucide
+- ✅ `pages/admin/clients.js` — KPI gradient, layout liste+détail
+- ✅ `pages/admin/reviews.js` — KPI gradient, Stars avec fill
+- ✅ `pages/admin/analytics.js` — StatCard premium, period selector
+- ✅ `pages/admin/cars.js` — carousel photo, grille upload, marge visible
+- ✅ `components/AdminLayout.js` — logo image au lieu de FK
+- ✅ 0 emoji dans tout l'admin — 100% Lucide icons
+- ✅ `globals.css` mis à jour : card-dark plus sombre + classes admin
+
+### 10.2 — Multi-Photos Véhicules ✅
+- ✅ Table `car_photos` créée (Supabase migration `0004_car_photos.sql`)
+- ✅ Carousel photos sur les cards voiture (desktop hover navigation)
+- ✅ Formulaire admin : grille 3 colonnes, badge PRINCIPALE, réordonner, supprimer
+- ✅ 10 photos max par véhicule
+- ✅ `image_url` = photos[0] (rétrocompatibilité garantie)
+- ✅ `get_car_photo` tool mis à jour : query `car_photos` + fallback `image_url`
+
+### 10.3 — Gallery Photos Dzaryx Mobile ✅
+- ✅ `Dzaryx:proactive` socket event désormais géré dans `api.ts`
+- ✅ Accumulation photos séquentielles (timer 1.2s)
+- ✅ Gallery overlay fullscreen : grille 2 colonnes
+- ✅ Tap photo → fullscreen avec navigation ‹ ›
+- ✅ Bouton WhatsApp (partage message avec liens)
+- ✅ Bouton Enregistrer (ouvre dans Safari)
+
+### 10.4 — Protection Propriété Intellectuelle ✅
+- ✅ Repos GitHub mis en PRIVÉ
+- ✅ LICENSE All Rights Reserved dans les deux repos
+- ✅ Watermark `DZX-FK-OAN-2024-K7X9M2Q1` dans tool-executor.ts
+- ✅ Token exposé supprimé de git remote
+
+---
 
 ---
 

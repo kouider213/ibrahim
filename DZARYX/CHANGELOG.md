@@ -5,6 +5,183 @@
 
 ---
 
+## 2026-06-01 — Admin UI WOW + Multi-photos voitures + Gallery Dzaryx + Protection GitHub
+
+### autolux-location (Vercel) — Commits : `39ed840`, `233f3f5`, `96caa8c`, `cf16200`, `81923f8`, `5377056`, `3ee5784`
+
+#### Design system admin — Pattern premium appliqué à toutes les pages
+
+**Principe :** Chaque carte KPI admin suit ce template :
+```jsx
+// Ligne gradient colorée en haut (1px)
+<div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-{color}-500/0 via-{color}-500 to-{color}-500/0" />
+// Halo ambient dans le coin supérieur droit
+<div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-{color}-500/8 blur-3xl pointer-events-none" />
+// Nombre en gradient coloré (bg-clip-text text-transparent)
+<div className="font-display text-3xl font-black bg-gradient-to-br from-{color}-300 to-{color}-500 bg-clip-text text-transparent tabular-nums" />
+```
+Couleurs disponibles : `gold` (or), `blue` (bleu), `emerald` (vert), `amber` (amber/orange), `purple` (violet)
+
+#### `pages/admin/index.js` — Dashboard (commit `39ed840`, `cf16200`)
+- **Supprimé** : ancien code avec emoji 📅 ⏳ 💰 📈 et cartes plates
+- **Ajouté** : composant `KpiCard(Icon, accentColor, label, value, sub, delta)`
+  - `delta` : affiche `<Delta v={caDelta} />` avec `ChevronUp`/`ChevronDown` en vert/rouge
+  - `DeltaBadge` → `Delta` component (plus propre)
+- **Ajouté** : composant `FinanceCard(title, rows, accent, accentColor)`
+  - Rows = `[{label, value, highlight}]` — highlight = couleur accent
+  - Accent = bloc du bas avec total en grand gradient
+- **Greeting** : `"Bonjour, <span gradient-or>Kouider</span>"` au lieu de `Bonjour Kouider 👋`
+- **Section headers** : lignes gradient `from-gold-500/30 to-transparent` + label centré
+- **Table réservations** : headers en `text-[10px] font-black uppercase tracking-widest`, montants en gradient or
+- **StatusBadge** : `{label, bg, text, dot}` par statut, inline-flex avec dot coloré
+
+#### `pages/admin/bookings.js` — Réservations (commit `96caa8c`)
+- **Supprimé** : emoji 📭 dans l'empty state
+- **Ajouté** : `CalendarCheck` Lucide dans l'empty state
+- **Modifié** : filter tabs → `rounded-xl` + count badge `text-[10px] px-1.5 rounded-md`
+- **Ajouté** : `CalendarCheck` dans les imports Lucide
+
+#### `pages/admin/clients.js` — Clients (commit `233f3f5`, `cf16200`)
+- **Supprimé** : émojis 👥 ⭐ 💰 dans les KPI cards
+- **Ajouté** : 4 KPI cards avec pattern premium (grid 2×2 sur mobile)
+  - `Users` (bleu) → total clients
+  - `Repeat2` (vert) → clients fidèles (bookings > 1)
+  - `TrendingUp` (or) → CA total
+  - `Users` (or) → valeur moyenne client
+- **Modifié** : layout `grid-cols-1 lg:grid-cols-3` → liste (col-1) + détail (col-2)
+- **Modifié** : client sélectionné → grid info avec 2 cartes gold highlighted (Réservations, Total dépensé)
+- **Modifié** : bouton Appeler avec `Phone` Lucide icon
+
+#### `pages/admin/reviews.js` — Avis (commit `233f3f5`, `cf16200`)
+- **Supprimé** : cartes KPI plates avec emoji
+- **Ajouté** : 3 KPI cards premium
+  - `Star` (or) → note moyenne (calcul `reviews.reduce / reviews.length`)
+  - `Clock` (amber) → en attente
+  - `CheckCircle2` (vert) → publiés
+- **Modifié** : filter tabs → même style que bookings
+- **Modifié** : card avis → header avec avatar gold, date complète FR, étoiles avec `fill-current`
+- **Actions** : `CheckCircle2` + "Publier", `Trash2` + "Supprimer" (plus d'emoji ✓ 🗑)
+
+#### `pages/admin/analytics.js` — Analytics (commit `96caa8c`, `cf16200`)
+- **Refait** : `StatCard` component — pattern premium complet
+  - `colors` objet → `c` objet avec `{line, glow, icon, grad}` par couleur
+  - Gradient text pour la valeur principale
+- **Modifié** : period selector → container `bg-white/[0.04] border border-white/[0.08] rounded-xl p-1` avec boutons internes
+- **Modifié** : section headers → `text-white/60 text-xs font-bold uppercase tracking-widest`
+- **Modifié** : Clarity section → `Monitor` Lucide icon (plus de ⬡ emoji)
+
+#### `pages/admin/cars.js` — Véhicules (commit `96caa8c`, `5377056`)
+- **Imports ajoutés** : `Car, Plus, Edit2, Trash2, Eye, EyeOff, Camera, ImageIcon, Loader2, X, ChevronLeft, ChevronRight, GripVertical`
+- **State ajouté** : `photos: [{url}]` (tableau de photos), `photoIdx: {[carId]: number}` (index carousel par voiture)
+- **Fonctions ajoutées** :
+  - `uploadPhoto(file)` : FileReader → base64 → POST `/api/upload-car-image` → push dans `photos[]`
+  - `removePhoto(idx)` : `setPhotos(prev => prev.filter((_, i) => i !== idx))`
+  - `movePhoto(idx, dir)` : swap photos[idx] ↔ photos[idx+dir]
+  - `openEdit(car)` : charge `car.car_photos.sort(position).map(url)` dans `photos` state
+  - `handleSave()` : `DELETE car_photos WHERE car_id` + `INSERT car_photos[]` + `image_url = photos[0]?.url`
+- **Card voiture redesignée** :
+  - Hauteur photo 44 (h-44) vs ancienne h-36
+  - Badge statut en haut gauche (pill coloré)
+  - Compteur `1/3` en haut droit
+  - Navigation carousel `ChevronLeft`/`ChevronRight` au hover (opacity-0 group-hover:opacity-100)
+  - Dots de navigation en bas (cliquables)
+  - Gradient overlay `from-[#141414] to-transparent` sur 1/3 bas de l'image
+  - Infos : 3 colonnes Proprio/Marge/Photos dans `bg-white/[0.04] rounded-xl`
+  - Boutons : `Edit2 Modifier`, `EyeOff/Eye` (sans texte), `Trash2` (rouge)
+- **Modal formulaire redesigné** :
+  - `rounded-t-3xl sm:rounded-2xl` (bottom sheet sur mobile)
+  - `bg-black/80 backdrop-blur-sm` (overlay premium)
+  - Header sticky avec titre + `X` button rond
+  - Marge preview : `bg-emerald-500/10` si ≥0, `bg-red-500/10` si <0
+  - Section photos : grille 3 colonnes
+    - Badge "PRINCIPALE" or sur photo[0]
+    - Overlay hover avec ◀ 🗑 ▶
+  - Boutons upload : camera + galerie avec Loader2 animé
+
+#### `components/AdminLayout.js` — Sidebar (commit `39ed840`)
+- **Logo** : `<img src="/logo.png" className="w-9 h-9 object-contain drop-shadow-[0_0_12px_rgba(226,182,20,0.4)]" />` au lieu de div "FK"
+
+#### `styles/globals.css`
+- **Modifié** : `.card-dark` → `bg-[#141414]` (plus #1a1a1a → plus sombre)
+- **Ajouté** : `.admin-section-label` (text-white/30 text-[10px] font-black uppercase tracking-[0.15em])
+- **Ajouté** : `.admin-number` (font-display font-black tabular-nums gradient or)
+
+#### `supabase/0004_car_photos.sql` (nouveau)
+```sql
+CREATE TABLE car_photos (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  car_id     UUID REFERENCES cars(id) ON DELETE CASCADE NOT NULL,
+  url        TEXT NOT NULL,
+  position   INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_car_photos_car      ON car_photos(car_id);
+CREATE INDEX idx_car_photos_position ON car_photos(car_id, position);
+ALTER TABLE car_photos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "car_photos: read public" ON car_photos FOR SELECT USING (true);
+CREATE POLICY "car_photos: admin write" ON car_photos FOR ALL
+  USING (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('kouider', 'houari')));
+```
+
+#### `LICENSE` (nouveau dans autolux-location)
+- "All Rights Reserved — Fik Conciergerie — Oran, Algeria"
+- Interdit : copie, fork commercial, reverse engineering de la logique IA
+
+---
+
+### ibrahim (Railway + Netlify) — Commits : `c3f8f85`, `fd6352b`
+
+#### `backend/src/integrations/tool-executor.ts` (commit `c3f8f85`)
+- **Watermark ajouté** : header JSDoc avec signature `DZX-FK-OAN-2024-K7X9M2Q1`
+- **`getCarPhotoTool()` reécrit** :
+  - Avant : `select('id, name, image_url')` → 1 seule photo
+  - Après : `select('id, name, image_url, car_photos(url, position)')` → toutes les photos
+  - Trie `car_photos` par `position` ASC
+  - Fallback : si `car_photos` vide → utilise `image_url`
+  - Émet chaque photo : `emitProactive(label, 'info', label + '\n' + url)` avec 400ms delay
+  - Retourne : `"✅ 3 photos envoyées pour 'Berlingo':\n1. url1\n2. url2\n3. url3"`
+
+#### `mobile/src/services/api.ts` (commit `fd6352b`)
+- **Interface `SocketCallbacks`** : ajout `onProactive?: (text: string, type: string, imageUrls: string[]) => void`
+- **Handler socket `Dzaryx:proactive`** :
+  ```typescript
+  _socket.on('Dzaryx:proactive', (data: { text: string; type: string }) => {
+    const imageUrls = (data.text.match(/https?:\/\/\S+\.(?:jpg|jpeg|png|webp|gif)(?:\?\S*)?/gi) ?? [])
+      .filter(u => !u.includes('📹'));
+    callbacks.onProactive?.(data.text, data.type ?? 'info', imageUrls);
+  });
+  ```
+
+#### `mobile/src/components/ChatInterface.tsx` (commit `fd6352b`)
+- **State ajouté** :
+  ```typescript
+  const [galleryPhotos,  setGalleryPhotos]  = useState<string[]>([]);
+  const [galleryTitle,   setGalleryTitle]   = useState('');
+  const [galleryOpen,    setGalleryOpen]    = useState(false);
+  const [galleryFullIdx, setGalleryFullIdx] = useState<number | null>(null);
+  const [sharingSaving,  setSharingSaving]  = useState(false);
+  const galleryAccumRef = useRef<{urls: string[]; title: string; timer: ReturnType<typeof setTimeout>|null}>(...);
+  ```
+- **`onProactive` callback** : accumule dans `galleryAccumRef`, timer 1.2s puis affiche gallery
+- **Gallery overlay** : `position:fixed inset-0 z-200`
+  - Header : label "DZARYX — PHOTOS" + titre + compteur
+  - Grid `repeat(2, 1fr)` aspect-ratio 4/3 → tap → fullscreen
+  - Button WhatsApp : `wa.me/?text=📸 titre\n\nPhoto 1: url\nPhoto 2: url...`
+  - Button "Enregistrer tout" : loop `window.open(url, '_blank')` avec 400ms delay
+- **Fullscreen overlay** : `position:fixed inset-0 z-300`
+  - Image `max-h-80vh object-contain`
+  - Navigation ‹ › avec `setGalleryFullIdx(i => i-1/i+1)`
+  - Button WhatsApp photo unique
+  - Button Enregistrer `window.open(url, '_blank')`
+  - Tap extérieur → `setGalleryFullIdx(null)`
+
+#### Protection GitHub
+- API GitHub PATCH : `{"private":true}` sur `autolux-location` et `ibrahim`
+- `git remote set-url origin` : token supprimé de l'URL
+- `LICENSE` All Rights Reserved dans les deux repos
+
+---
+
 ## 2026-05-31 — Site autolux-location v2 (Next.js 14) + Widget Dzaryx + 15 nouveaux outils (Claude Sonnet 4.6)
 
 ### Commits rental-system ✅ — `aca07a4` ← dernier (5 commits hier)
