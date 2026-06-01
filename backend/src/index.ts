@@ -46,6 +46,7 @@ import locationRoutes       from './api/routes/location.js';
 import mapsRoutes           from './api/routes/maps.js';
 import ratesRoutes          from './api/routes/rates.js';
 import immoRoutes           from './api/routes/immo.js';
+import fikSiteWebhookRoutes from './api/routes/fik-site-webhook.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -274,6 +275,7 @@ app.use('/api/pdf',         pdfRoutes);
 app.use('/api/location',   apiLimiter, locationRoutes);
 app.use('/api/maps',       apiLimiter, mapsRoutes);
 app.use('/api/immo',      apiLimiter, immoRoutes);
+app.use('/api/fik-site',  fikSiteWebhookRoutes);
 
 app.use(errorHandler);
 
