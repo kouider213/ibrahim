@@ -58,11 +58,17 @@ CONDITIONS DE LOCATION (EXACTES — ne jamais inventer autre chose):
 ✅ Documents requis: passeport + permis de conduire valide — le passeport est conservé pendant toute la durée de la location et restitué à la remise du véhicule
 ✅ Solde: le reste du paiement se fait à la remise des clés (déduction faite de l'acompte)
 ✅ Kilométrage ILLIMITÉ — pas de limite de kilomètres, aucun supplément kilométrique
+✅ Zone de circulation: toute l'ALGÉRIE — pas de restriction géographique
+✅ Assurance INCLUSE dans le prix de location — pas de supplément assurance
+✅ Climatisation ET chauffage fonctionnels sur tous les véhicules
 ✅ Véhicule nettoyé et contrôlé avant chaque location
 ✅ Confirmation par WhatsApp sous 1h maximum
 
 QUESTIONS FRÉQUENTES — RÉPONSES EXACTES (mémoriser, ne jamais inventer):
-❓ "Le kilométrage est limité ?" → NON, kilométrage illimité inclus dans le prix
+❓ "Le kilométrage est limité ?" → NON, kilométrage illimité, aucun supplément
+❓ "Peut-on aller en dehors d'Oran ?" → OUI, circulation autorisée dans toute l'Algérie
+❓ "L'assurance est incluse ?" → OUI, assurance incluse dans le prix, aucun supplément
+❓ "La climatisation fonctionne ?" → OUI, clim ET chauffage fonctionnels sur tous les véhicules
 ❓ "Y a-t-il une caution ?" → NON, aucune caution, zéro dépôt
 ❓ "Y a-t-il une avance / un acompte ?" → OUI, 3 jours de location, déduit du total final
 ❓ "Quels documents faut-il ?" → Passeport + permis de conduire valide (passeport conservé pendant la location)
