@@ -4869,8 +4869,16 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
   const bookings = (rows ?? []) as Array<Record<string, unknown>>;
 
   const totalCA     = bookings.reduce((s, b) => s + (Number(b['final_price'])    || 0), 0);
-  const totalOwner  = bookings.reduce((s, b) => s + (Number(b['owner_price_per_day']) || 0) * Math.max(1, Math.ceil((new Date(b['end_date'] as string).getTime() - new Date(b['start_date'] as string).getTime()) / 86_400_000)), 0);
-  const totalProfit = bookings.reduce((s, b) => s + (Number(b['profit_kouider']) || 0), 0);
+  const getDays = (b: Record<string, unknown>) => Math.max(1, Math.ceil((new Date(b['end_date'] as string).getTime() - new Date(b['start_date'] as string).getTime()) / 86_400_000));
+  const totalOwner  = bookings.reduce((s, b) => s + (Number(b['owner_price_per_day']) || 0) * getDays(b), 0);
+  // Profit Kouider = CA client - coût proprio (depuis profit_kouider ou calculé)
+  const totalProfit = bookings.reduce((s, b) => {
+    if (b['profit_kouider'] != null && Number(b['profit_kouider']) !== 0) return s + Number(b['profit_kouider']);
+    const ownerCost = (Number(b['owner_price_per_day']) || 0) * getDays(b);
+    return s + (ownerCost > 0 ? (Number(b['final_price']) || 0) - ownerCost : 0);
+  }, 0);
+  // Revenu Houari = somme coûts proprio
+  const totalHouari = totalOwner;
   const totalPaid   = bookings.reduce((s, b) => s + (Number(b['paid_amount'])    || 0), 0);
   const unpaid      = bookings.filter(b => b['payment_status'] !== 'PAID');
   const monthLabel  = new Date(year, month - 1, 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
@@ -4898,10 +4906,10 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
     const kpiY = doc.y;
     const kpiW = 120;
     const kpis = [
-      { label: 'Réservations', value: String(bookings.length) },
-      { label: 'CA Total',     value: `${Math.round(totalCA)}€` },
-      { label: 'Propriétaire', value: `${Math.round(totalOwner)}€` },
-      { label: 'Bénéfice net', value: `${Math.round(totalProfit)}€` },
+      { label: 'Réservations',      value: String(bookings.length) },
+      { label: 'CA Total',          value: `${Math.round(totalCA)}€` },
+      { label: 'Profit Kouider',    value: `${Math.round(totalProfit)}€` },
+      { label: 'Revenu Houari',     value: `${Math.round(totalHouari)}€` },
       { label: 'Encaissé',     value: `${Math.round(totalPaid)}€` },
       { label: 'Impayés',      value: String(unpaid.length) },
     ];
@@ -4935,7 +4943,11 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
       const car = (b['cars'] as { name: string } | null)?.name ?? '—';
       const days = Math.max(1, Math.ceil((new Date(b['end_date'] as string).getTime() - new Date(b['start_date'] as string).getTime()) / 86_400_000));
       const ownerTot = (Number(b['owner_price_per_day']) || 0) * days;
-      const profit   = Number(b['profit_kouider']) || null;
+      const ca       = Number(b['final_price']) || 0;
+      // Profit: utilise profit_kouider si dispo, sinon calcule CA - coût proprio
+      const profit   = b['profit_kouider'] != null && Number(b['profit_kouider']) !== 0
+        ? Number(b['profit_kouider'])
+        : ownerTot > 0 ? ca - ownerTot : null;
       const isPaid   = b['payment_status'] === 'PAID';
       const rowY2    = doc.y;
       let rx = 40;

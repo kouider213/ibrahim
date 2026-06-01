@@ -27,8 +27,9 @@ const CAR_PHONETICS: Array<[RegExp, string]> = [
 export function cleanTextForTTS(text: string): string {
   let t = text;
 
-  // 1a. Supprimer les lignes 📹 url (visuelles uniquement — jamais lues à voix haute)
+  // 1a. Supprimer toutes les URLs (visuelles uniquement — jamais lues à voix haute)
   t = t.replace(/^📹\s+https?:\/\/\S+\s*$/gm, '');
+  t = t.replace(/https?:\/\/[^\s\])"']+/g, '');
 
   // 1b. Supprimer les numéros de téléphone (inutiles à l'oral)
   t = t.replace(/(?:\+?\d[\d\s\-().]{7,}\d)/g, 'numéro disponible sur l\'appli');
