@@ -4527,28 +4527,51 @@ async function healthCheckAllTool(): Promise<string> {
   return `🔍 HEALTH CHECK DZARYX\n📅 ${now} (Oran)\n\n${results.join('\n')}`;
 }
 
-// ─── get_car_photo — vraie photo depuis Supabase ───────────────────────────
+// ─── get_car_photo — toutes les photos depuis Supabase (car_photos + image_url) ─
 async function getCarPhotoTool(input: Record<string, unknown>): Promise<string> {
   const carName = (input['car_name'] as string | undefined)?.trim();
   if (!carName) return '❌ Paramètre car_name manquant.';
 
+  // Fetch car + its photos table
   const { data: cars, error } = await supabase
     .from('cars')
-    .select('id, name, image_url')
+    .select('id, name, image_url, car_photos(url, position)')
     .ilike('name', `%${carName}%`)
     .limit(5);
 
   if (error) return `❌ Erreur Supabase: ${error.message}`;
   if (!cars || cars.length === 0) return `❌ Aucune voiture trouvée pour "${carName}" dans la flotte.`;
 
-  const car = (cars as { id: string; name: string; image_url: string | null }[])
-    .find(c => c.image_url) ?? null;
+  const car = (cars as any[]).find(c => c.image_url || (c.car_photos && c.car_photos.length > 0)) ?? cars[0];
 
-  if (!car || !car.image_url) {
-    return `⚠️ Voiture "${cars[0]?.name}" trouvée mais aucune photo enregistrée. Ajoute une photo dans le tableau de bord.`;
+  // Collect all unique photo URLs (car_photos ordered by position, then image_url as fallback)
+  const extraPhotos: string[] = (car.car_photos ?? [])
+    .sort((a: any, b: any) => a.position - b.position)
+    .map((p: any) => p.url as string)
+    .filter(Boolean);
+
+  const allUrls: string[] = [];
+  if (extraPhotos.length > 0) {
+    allUrls.push(...extraPhotos);
+  } else if (car.image_url) {
+    allUrls.push(car.image_url as string);
   }
 
-  return `✅ Photo trouvée pour ${car.name}:\nURL: ${car.image_url}\n\nUtilise cette URL avec enhance_image, create_social_variants, ou add_text_overlay pour créer la pub.`;
+  if (allUrls.length === 0) {
+    return `⚠️ Voiture "${car.name}" trouvée mais aucune photo. Ajoute des photos dans le tableau de bord.`;
+  }
+
+  // Emit each photo separately to the mobile app (like WhatsApp gallery)
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+  for (let i = 0; i < allUrls.length; i++) {
+    const label = allUrls.length > 1 ? `${car.name} — photo ${i + 1}/${allUrls.length}` : car.name;
+    emitProactive(label, 'info', `${label}\n${allUrls[i]}`);
+    if (i < allUrls.length - 1) {
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+
+  return `✅ ${allUrls.length} photo${allUrls.length > 1 ? 's' : ''} envoyée${allUrls.length > 1 ? 's' : ''} pour "${car.name}":\n${allUrls.map((u, i) => `${i + 1}. ${u}`).join('\n')}\n\nUtilise ces URLs avec enhance_image ou create_social_variants.`;
 }
 
 // ─── OBSIDIAN BRAIN ───────────────────────────────────────────────────────────

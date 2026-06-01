@@ -134,6 +134,7 @@ export interface SocketCallbacks {
   onResponse:      (text: string, fallback: boolean) => void;
   onValidation:    (validation: unknown) => void;
   onTaskUpdate:    (task: unknown) => void;
+  onProactive?:    (text: string, type: string, imageUrls: string[]) => void;
 }
 
 let _socket: Socket | null = null;
@@ -186,6 +187,16 @@ export function connectSocket(sessionId: string, callbacks: SocketCallbacks): So
 
   _socket.on('Dzaryx:task_update', (t: unknown) => {
     callbacks.onTaskUpdate(t);
+  });
+
+  // ── Proactive messages (notifications spontanées de l'IA) ──
+  _socket.on('Dzaryx:proactive', (data: { text: string; type: string }) => {
+    if (!callbacks.onProactive) return;
+    const text = data.text ?? '';
+    // Extract all image URLs from the text
+    const imageUrls = (text.match(/https?:\/\/\S+\.(?:jpg|jpeg|png|webp|gif)(?:\?\S*)?/gi) ?? [])
+      .filter(u => !u.includes('📹'));
+    callbacks.onProactive(text, data.type ?? 'info', imageUrls);
   });
 
   return _socket;

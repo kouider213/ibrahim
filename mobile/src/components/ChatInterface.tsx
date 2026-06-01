@@ -177,6 +177,14 @@ export default function ChatInterface() {
   const [errorVisible, setErrorVisible] = useState(false);
   const [debugMsg,     setDebugMsg]     = useState('');
 
+  // ── Photo gallery (photos reçues de Dzaryx) ────────────────────
+  const [galleryPhotos,    setGalleryPhotos]    = useState<string[]>([]);
+  const [galleryTitle,     setGalleryTitle]     = useState('');
+  const [galleryOpen,      setGalleryOpen]      = useState(false);
+  const [galleryFullIdx,   setGalleryFullIdx]   = useState<number | null>(null);
+  const [sharingSaving,    setSharingSaving]    = useState(false);
+  const galleryAccumRef = useRef<{ urls: string[]; title: string; timer: ReturnType<typeof setTimeout> | null }>({ urls: [], title: '', timer: null });
+
   // ── Refs ───────────────────────────────────────────────────────
   const pendingPhotoRef    = useRef<{ base64: string; mime: string } | null>(null);
   const scanIntervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -652,6 +660,20 @@ export default function ChatInterface() {
       onResponse: () => {},
       onValidation: () => { setTimeout(() => { if (loopActive.current) { applyState('idle'); scheduleNextListen(); } }, 3000); },
       onTaskUpdate: () => {},
+      onProactive: (text, _type, imageUrls) => {
+        if (imageUrls.length === 0) return; // text-only proactive — ignore here
+        // Accumulate photos arriving in rapid sequence (e.g. 1/3, 2/3, 3/3)
+        const acc = galleryAccumRef.current;
+        acc.urls.push(...imageUrls);
+        if (!acc.title) acc.title = text.split('\n')[0] ?? 'Photos';
+        if (acc.timer) clearTimeout(acc.timer);
+        acc.timer = setTimeout(() => {
+          setGalleryPhotos([...acc.urls]);
+          setGalleryTitle(acc.title);
+          setGalleryOpen(true);
+          acc.urls = []; acc.title = ''; acc.timer = null;
+        }, 1200); // wait 1.2s to collect all sequential photos
+      },
     });
     const onAudioEnded = () => {
       if (audioFallbackTimer.current) { clearTimeout(audioFallbackTimer.current); audioFallbackTimer.current = null; }
@@ -1211,6 +1233,135 @@ export default function ChatInterface() {
               <span className="dz-menu-ico">←</span>
               <span className="dz-menu-lbl">Fermer</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Photo Gallery Overlay ── */}
+      {galleryOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(0,0,0,0.96)',
+          display: 'flex', flexDirection: 'column',
+          overflowY: 'auto',
+        }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)',
+            position: 'sticky', top: 0, background: 'rgba(0,0,0,0.95)', zIndex: 10,
+          }}>
+            <div>
+              <div style={{ color: '#00d4ff', fontSize: 10, fontFamily: 'monospace', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 2 }}>DZARYX — PHOTOS</div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 600 }}>{galleryTitle}</div>
+              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>{galleryPhotos.length} photo{galleryPhotos.length > 1 ? 's' : ''}</div>
+            </div>
+            <button onClick={() => { setGalleryOpen(false); setGalleryFullIdx(null); }}
+              style={{ color: 'rgba(255,255,255,0.5)', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer', padding: 8 }}>
+              ✕
+            </button>
+          </div>
+
+          {/* Photo grid */}
+          <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, flex: 1 }}>
+            {galleryPhotos.map((url, i) => (
+              <div key={i} style={{ position: 'relative', aspectRatio: '4/3', borderRadius: 12, overflow: 'hidden', background: '#111', cursor: 'pointer' }}
+                onClick={() => setGalleryFullIdx(i)}>
+                <img src={url} alt={`photo ${i+1}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{
+                  position: 'absolute', bottom: 6, right: 6,
+                  background: 'rgba(0,0,0,0.6)', borderRadius: 6, padding: '2px 6px',
+                  color: 'rgba(255,255,255,0.6)', fontSize: 10,
+                }}>{i+1}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Action bar */}
+          <div style={{
+            padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', gap: 10, position: 'sticky', bottom: 0, background: 'rgba(0,0,0,0.95)',
+          }}>
+            {/* Envoyer WhatsApp — tous les liens */}
+            <button
+              style={{
+                flex: 1, padding: '12px 0', borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: '#25D366', color: '#fff', fontWeight: 700, fontSize: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+              onClick={() => {
+                const msg = `📸 *${galleryTitle}*\n\n${galleryPhotos.map((u, i) => `Photo ${i+1}: ${u}`).join('\n')}`;
+                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+              }}>
+              <span>WhatsApp</span>
+            </button>
+            {/* Sauvegarder toutes */}
+            <button
+              disabled={sharingSaving}
+              style={{
+                flex: 1, padding: '12px 0', borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)',
+                cursor: 'pointer', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.8)',
+                fontWeight: 600, fontSize: 14, opacity: sharingSaving ? 0.5 : 1,
+              }}
+              onClick={async () => {
+                if (sharingSaving) return;
+                setSharingSaving(true);
+                for (const url of galleryPhotos) {
+                  window.open(url, '_blank');
+                  await new Promise(r => setTimeout(r, 400));
+                }
+                setSharingSaving(false);
+              }}>
+              {sharingSaving ? 'Ouverture...' : 'Enregistrer tout'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Photo fullscreen ── */}
+      {galleryFullIdx !== null && galleryOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 300,
+          background: 'rgba(0,0,0,0.98)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        }}
+          onClick={() => setGalleryFullIdx(null)}>
+          <img
+            src={galleryPhotos[galleryFullIdx]}
+            alt="photo"
+            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8 }}
+            onClick={e => e.stopPropagation()}
+          />
+          <div style={{ display: 'flex', gap: 12, marginTop: 20 }} onClick={e => e.stopPropagation()}>
+            {/* Partager cette photo */}
+            <button
+              style={{ padding: '10px 24px', borderRadius: 12, background: '#25D366', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: 14 }}
+              onClick={() => {
+                const url = galleryPhotos[galleryFullIdx!];
+                const msg = `📸 ${galleryTitle}\n${url}`;
+                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+              }}>
+              WhatsApp
+            </button>
+            {/* Sauvegarder cette photo */}
+            <button
+              style={{ padding: '10px 24px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.8)', fontWeight: 600, border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', fontSize: 14 }}
+              onClick={() => window.open(galleryPhotos[galleryFullIdx!], '_blank')}>
+              Enregistrer
+            </button>
+            {/* Navigation */}
+            {galleryFullIdx > 0 && (
+              <button style={{ padding: '10px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 18 }}
+                onClick={() => setGalleryFullIdx(i => i! - 1)}>‹</button>
+            )}
+            {galleryFullIdx < galleryPhotos.length - 1 && (
+              <button style={{ padding: '10px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 18 }}
+                onClick={() => setGalleryFullIdx(i => i! + 1)}>›</button>
+            )}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 12 }}>
+            {(galleryFullIdx ?? 0) + 1} / {galleryPhotos.length} · Appuie ailleurs pour fermer
           </div>
         </div>
       )}
