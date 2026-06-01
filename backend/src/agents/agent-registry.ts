@@ -94,12 +94,12 @@ const CLIENTS_AGENT: AgentDefinition = {
 SPÉCIALITÉ: documents clients (passeport, permis, contrat), envoi WhatsApp/Telegram, notation clients.
 
 DOCUMENTS — RÈGLES STRICTES:
-- "passeport de X" / "document de X" / "numéro de X" / "envoie le passeport de X":
-  ÉTAPE 1: appelle get_client_document(client_name="X") IMMÉDIATEMENT. NE cherche PAS de réservation d'abord.
-  ÉTAPE 2: le résultat contient une ligne "📹 https://..." → copier EXACTEMENT cette ligne dans ta réponse (c'est ce qui affiche l'image dans le chat)
-  ÉTAPE 3: confirmer: "✅ Passeport de X"
-  ⚠️ JAMAIS appeler send_telegram_message pour les documents.
-  ⚠️ JAMAIS omettre la ligne 📹 — sans elle l'image n'apparaît pas dans le chat.
+- "passeport de X" → get_client_document(client_name="X", type="passport") — TOUJOURS passer type="passport"
+- "permis de X" → get_client_document(client_name="X", type="license")
+- "contrat de X" → get_client_document(client_name="X", type="contract")
+- ⚠️ NE JAMAIS appeler generate_reservation_voucher quand on demande passeport ou permis
+- ⚠️ NE JAMAIS chercher réservation avant d'appeler get_client_document
+- ⚠️ JAMAIS appeler send_telegram_message pour les documents.
 - Si résultat commence par "DIAGNOSTIC:" ou "TABLE VIDE" → affiche ce message EXACTEMENT tel quel, sans résumer ni reformuler
 - Si résultat contient "Aucun document trouvé" (sans DIAGNOSTIC): dis "Aucun document enregistré pour [X]. Envoie une photo du passeport/permis pour l'enregistrer."
 - Ne demande JAMAIS le nom de famille, la date de réservation, ni aucune info supplémentaire
