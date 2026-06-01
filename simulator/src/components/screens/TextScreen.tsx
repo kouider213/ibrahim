@@ -484,108 +484,229 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
 
 const VIDEO_EXT = /\.(mp4|mov|webm|ogg)(\?.*)?$/i;
 const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
+const DOC_EXT   = /\.(xlsx|xls|pdf|docx|doc|csv|zip)(\?.*)?$/i;
+const URL_RE    = /(https?:\/\/[^\s\])"']+)/g;
+
+type MediaItem = { url: string; kind: 'image' | 'video' | 'doc' };
+
+function parseMessage(text: string): { displayText: string; media: MediaItem[] } {
+  const lines = text.split('\n');
+  const media: MediaItem[] = [];
+  const textLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // 📹 prefix → video
+    const mv = /^📹\s+(https?:\/\/\S+)$/.exec(trimmed);
+    if (mv) { media.push({ url: mv[1]!, kind: 'video' }); continue; }
+    // 🔗 URL inline (emoji + space + url on same line)
+    const linkv = /^🔗\s+(https?:\/\/\S+)$/.exec(trimmed);
+    if (linkv) {
+      const u = linkv[1]!;
+      if (VIDEO_EXT.test(u))     media.push({ url: u, kind: 'video' });
+      else if (DOC_EXT.test(u))  media.push({ url: u, kind: 'doc' });
+      else                        media.push({ url: u, kind: IMAGE_EXT.test(u) ? 'image' : 'doc' });
+      continue;
+    }
+    // Standalone URL line
+    if (/^https?:\/\/\S+$/.test(trimmed)) {
+      if (VIDEO_EXT.test(trimmed))     media.push({ url: trimmed, kind: 'video' });
+      else if (DOC_EXT.test(trimmed))  media.push({ url: trimmed, kind: 'doc'   });
+      else if (IMAGE_EXT.test(trimmed) || trimmed.includes('cloudinary') || trimmed.includes('supabase'))
+        media.push({ url: trimmed, kind: 'image' });
+      else media.push({ url: trimmed, kind: 'doc' }); // unknown URL → treat as download
+      continue;
+    }
+    textLines.push(line);
+  }
+  return { displayText: textLines.join('\n').trim(), media };
+}
+
+// Render text with clickable URLs — doc URLs (.pdf/.xlsx) = bouton téléchargement
+function RichText({ text, color }: { text: string; color: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <p style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 400, lineHeight: 1.6, margin: 0, color, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+      {parts.map((part, i) => {
+        if (!URL_RE.test(part)) return part;
+        const isDoc = DOC_EXT.test(part);
+        if (isDoc) {
+          const fname = part.split('/').pop()?.split('?')[0] ?? 'fichier';
+          const isExcel = /\.xlsx?$/i.test(fname);
+          const icon = isExcel ? '📊' : '📄';
+          return (
+            <a key={i} href={part} target="_blank" rel="noopener noreferrer" download={fname}
+              onClick={e => e.stopPropagation()}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.3)',
+                borderRadius: 8, padding: '5px 10px', textDecoration: 'none',
+                color: '#00d4ff', fontFamily: 'Inter', fontSize: 11, fontWeight: 600,
+                marginTop: 4, wordBreak: 'break-all',
+              }}>
+              {icon} {fname} ⬇
+            </a>
+          );
+        }
+        return (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+            style={{ color: '#00d4ff', textDecoration: 'underline', wordBreak: 'break-all' }}
+            onClick={e => e.stopPropagation()}>
+            {part.length > 50 ? part.slice(0, 50) + '…' : part}
+          </a>
+        );
+      })}
+    </p>
+  );
+}
 
 function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
-  const lines = msg.text.split('\n');
-  const mediaUrls: string[] = [];
-  const textLines: string[] = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    // Cloudinary image URL on its own line → render as image
-    if (/^https?:\/\/res\.cloudinary\.com\/\S+$/.test(trimmed)) {
-      mediaUrls.push(trimmed);
-      continue;
-    }
-    // 📹 URL → render as video/media
-    const mv = /^📹\s+(https?:\/\/\S+)$/.exec(trimmed);
-    if (mv) { mediaUrls.push(mv[1]!); continue; }
-    textLines.push(line);
-  }
-  const displayText = textLines.join('\n').trim();
+  const { displayText, media } = parseMessage(msg.text);
+
+  const downloadFile = (url: string) => {
+    // iOS Safari: ouvrir dans nouvel onglet → appui long → "Ajouter aux photos"
+    // navigator.share après await est bloqué par iOS (pas de geste synchrone)
+    window.open(url, '_blank');
+  };
 
   return (
-    <div
-      style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 7, alignItems: 'flex-end', animation: 'msg-in 0.22s ease' }}
-    >
-      {!isUser && <RobotAvatar col={actorCol} />}
-      <div style={{
-        maxWidth: '76%',
-        background: isUser
-          ? 'linear-gradient(135deg, rgba(255,107,0,0.14), rgba(255,107,0,0.07))'
-          : `linear-gradient(135deg, ${actorCol}14, ${actorCol}06)`,
-        border: `1px solid ${isUser ? 'rgba(255,107,0,0.22)' : actorCol + '22'}`,
-        borderRadius: isUser ? '16px 16px 3px 16px' : '3px 16px 16px 16px',
-        padding: '9px 13px',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        boxShadow: isUser
-          ? '0 2px 16px rgba(0,0,0,0.3)'
-          : `0 2px 16px rgba(0,0,0,0.3), 0 0 20px ${actorCol}08`,
-      }}>
-        {msg.status === 'sending' && !msg.text ? (
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 0' }}>
-            {[0,1,2].map(i => (
-              <div key={i} style={{
-                width: 5, height: 5, borderRadius: '50%',
-                background: actorCol, opacity: 0.4,
-                animation: `pulse 1.2s ${i * 0.2}s ease-in-out infinite`,
-              }} />
-            ))}
-          </div>
-        ) : (
-          <>
-            {isUser && msg.imagePreview && (
-              <img src={msg.imagePreview} alt="photo"
-                style={{ display: 'block', marginBottom: displayText ? 7 : 0, width: '100%', maxHeight: 220, borderRadius: 10, objectFit: 'cover' }} />
-            )}
-            {displayText && (
-              <p style={{
-                fontFamily: 'Inter', fontSize: 12, fontWeight: 400,
-                lineHeight: 1.6, margin: 0,
-                color: isUser ? 'rgba(255,180,100,0.9)' : 'rgba(185,225,255,0.88)',
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-              }}>{displayText}</p>
-            )}
-            {mediaUrls.map((url, i) =>
-              VIDEO_EXT.test(url) ? (
-                <video key={i} src={url} controls playsInline
-                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 10, background: '#000' }} />
-              ) : (
-                <img key={i} src={url} alt="document"
-                  style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 300, borderRadius: 10, objectFit: 'contain', background: 'rgba(0,0,0,0.2)' }} />
-              )
-            )}
-          </>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-          <span style={{
-            fontFamily: 'Inter', fontSize: 8, fontWeight: 400,
-            color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`,
-            letterSpacing: '0.03em',
-          }}>{msg.ts}</span>
-          {!isUser && msg.text && msg.status === 'done' && (
+    <>
+      {/* Lightbox fullscreen image */}
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.92)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          }}
+        >
+          <img src={lightbox} alt="fullscreen"
+            style={{ maxWidth: '95vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 12 }} />
+          <div style={{ display: 'flex', gap: 12 }}>
             <button
-              onClick={() => {
-                void navigator.clipboard.writeText(msg.text);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
+              onClick={e => { e.stopPropagation(); downloadFile(lightbox); }}
               style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px',
-                color: copied ? actorCol : `${actorCol}44`,
-                fontFamily: 'Inter', fontSize: 8, letterSpacing: '0.06em',
-                transition: 'color 0.2s',
+                background: '#00d4ff22', border: '1px solid #00d4ff66', borderRadius: 10,
+                color: '#00d4ff', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
+                padding: '8px 20px', cursor: 'pointer',
               }}
-            >
-              {copied ? '✓' : '⎘'}
-            </button>
+            >⬇ Enregistrer</button>
+            <button
+              onClick={() => setLightbox(null)}
+              style={{
+                background: '#ff336622', border: '1px solid #ff336666', borderRadius: 10,
+                color: '#ff3366', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
+                padding: '8px 20px', cursor: 'pointer',
+              }}
+            >✕ Fermer</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', gap: 7, alignItems: 'flex-end', animation: 'msg-in 0.22s ease' }}>
+        {!isUser && <RobotAvatar col={actorCol} />}
+        <div style={{
+          maxWidth: '76%',
+          background: isUser
+            ? 'linear-gradient(135deg, rgba(255,107,0,0.14), rgba(255,107,0,0.07))'
+            : `linear-gradient(135deg, ${actorCol}14, ${actorCol}06)`,
+          border: `1px solid ${isUser ? 'rgba(255,107,0,0.22)' : actorCol + '22'}`,
+          borderRadius: isUser ? '16px 16px 3px 16px' : '3px 16px 16px 16px',
+          padding: '9px 13px',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: isUser ? '0 2px 16px rgba(0,0,0,0.3)' : `0 2px 16px rgba(0,0,0,0.3), 0 0 20px ${actorCol}08`,
+        }}>
+          {msg.status === 'sending' && !msg.text ? (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 0' }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: actorCol, opacity: 0.4, animation: `pulse 1.2s ${i * 0.2}s ease-in-out infinite` }} />
+              ))}
+            </div>
+          ) : (
+            <>
+              {isUser && msg.imagePreview && (
+                <img src={msg.imagePreview} alt="photo"
+                  onClick={() => setLightbox(msg.imagePreview!)}
+                  style={{ display: 'block', marginBottom: displayText ? 7 : 0, width: '100%', maxHeight: 220, borderRadius: 10, objectFit: 'cover', cursor: 'zoom-in' }} />
+              )}
+              {displayText && (
+                <RichText
+                  text={displayText}
+                  color={isUser ? 'rgba(255,180,100,0.9)' : 'rgba(185,225,255,0.88)'}
+                />
+              )}
+              {media.map((item, i) => {
+                if (item.kind === 'video') return (
+                  <video key={i} src={item.url} controls playsInline
+                    style={{ display: 'block', marginTop: 8, width: '100%', maxHeight: 280, borderRadius: 10, background: '#000' }} />
+                );
+                if (item.kind === 'image') return (
+                  <div key={i} style={{ marginTop: 8, position: 'relative' }}>
+                    <img src={item.url} alt="document"
+                      onClick={() => setLightbox(item.url)}
+                      style={{ display: 'block', width: '100%', maxHeight: 300, borderRadius: 10, objectFit: 'contain', background: 'rgba(0,0,0,0.2)', cursor: 'zoom-in' }} />
+                    <button
+                      onClick={() => downloadFile(item.url)}
+                      style={{
+                        position: 'absolute', bottom: 6, right: 6,
+                        background: 'rgba(0,0,0,0.65)', border: '1px solid #ffffff33',
+                        borderRadius: 8, color: '#fff', fontFamily: 'Inter', fontSize: 10,
+                        padding: '4px 10px', cursor: 'pointer',
+                      }}
+                    >⬇ Enregistrer</button>
+                  </div>
+                );
+                // doc / excel / pdf
+                const filename = item.url.split('/').pop()?.split('?')[0] ?? 'fichier';
+                const isExcel = /\.xlsx?$/i.test(filename);
+                const isPdf   = /\.pdf$/i.test(filename);
+                const icon = isExcel ? '📊' : isPdf ? '📄' : '📎';
+                return (
+                  <div key={i} style={{ marginTop: 8 }}>
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={filename}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)',
+                        borderRadius: 10, padding: '10px 14px', textDecoration: 'none',
+                        color: '#00d4ff',
+                      }}
+                    >
+                      <span style={{ fontSize: 22 }}>{icon}</span>
+                      <div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#00d4ff' }}>{filename}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(0,212,255,0.55)', marginTop: 2 }}>
+                          Appuyer pour télécharger
+                        </div>
+                      </div>
+                      <span style={{ marginLeft: 'auto', fontSize: 16 }}>⬇</span>
+                    </a>
+                  </div>
+                );
+              })}
+            </>
           )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
+            {!isUser && msg.text && msg.status === 'done' && (
+              <button
+                onClick={() => { void navigator.clipboard.writeText(msg.text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: copied ? actorCol : `${actorCol}44`, fontFamily: 'Inter', fontSize: 8, letterSpacing: '0.06em', transition: 'color 0.2s' }}
+              >{copied ? '✓' : '⎘'}</button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
