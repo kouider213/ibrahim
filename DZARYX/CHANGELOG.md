@@ -5,6 +5,100 @@
 
 ---
 
+## 2026-05-31 — Site autolux-location v2 (Next.js 14) + Widget Dzaryx + 15 nouveaux outils (Claude Sonnet 4.6)
+
+### Commits rental-system ✅ — `aca07a4` ← dernier (5 commits hier)
+### Commits ibrahim ✅ — `aca07a4` côté backend (déjà pushés Railway)
+
+---
+
+### rental-system (autolux-location.vercel.app) — Site Next.js 14 refactorisé
+
+**Stack:** Next.js 14 + Tailwind + Framer Motion + GSAP + Supabase + Twilio + jsPDF
+**Repo:** https://github.com/kouider213/autolux-location → Netlify auto-deploy
+
+**Pages publiques:**
+- `pages/index.js` — Homepage dark/gold, carousel avantages Framer Motion + swipe mobile
+- `pages/reservation.js` — Formulaire multi-étapes (véhicule → dates → client), calcul prix, WhatsApp auto-formaté + lien suivi
+- `pages/cars.js` + `pages/cars/[id].js` — Catalogue + fiche détaillée véhicule
+- `pages/immo.js` + `pages/immo/[id].js` — Section immobilière Douba Groupe
+- `pages/contact.js` — Page contact premium
+- `pages/conditions.js` + `pages/reviews.js` — CGV + avis clients
+- `pages/suivi/[id].js` — Suivi réservation client (status + WhatsApp)
+
+**Admin (`/admin`):**
+- `admin/index.js` — Dashboard KPIs temps réel (revenus, réservations, calculs alignés Dzaryx)
+- `admin/bookings.js` — Gestion réservations
+- `admin/clients.js` — Gestion clients
+- `admin/cars.js` — Gestion parc (Realtime Supabase)
+- `admin/immo.js` — Gestion annonces immobilières (20 photos)
+- `admin/calendar.js` — Agenda
+- `admin/reviews.js` — Modération avis
+- `admin/analytics.js` — Tableau analytics (pages vues, devices, top véhicules)
+
+**API Routes:**
+- `api/notify-dzaryx.js` — Hook → insère dans table `notifications` Supabase → Dzaryx reçoit nouvelle réservation/avis en temps réel
+- `api/track.js` — Tracking analytics pages vues
+- `api/booking.js` — Création réservation
+- `api/update-booking-status.js` — MAJ statut + WhatsApp auto au client si accepté
+- `api/calendar-event.js` — Création Google Calendar
+- `api/upload-car-image.js` — Upload photo véhicule
+
+**Librairies:**
+- `lib/tracker.js` — Analytics client-side (sessionId, device, referrer)
+- `lib/booking.js` — Logique réservation partagée
+- `lib/supabase.js` — Client Supabase
+
+**Infra:**
+- `netlify.toml` → `@netlify/plugin-nextjs`, build Node 20, headers sécurité
+- `public/widget.js` — Widget chatbot copie locale (servi par Netlify)
+- SEO : `sitemap.xml.js`, `robots.txt`, `404.js`
+
+---
+
+### ibrahim/backend — 15 nouveaux outils Dzaryx
+
+**`backend/src/integrations/tools.ts` ← +15 outils:**
+- `update_calendar_event` — Modifier événement Google Agenda existant
+- `transform_image` — Image-to-image conservation visage (fal.ai IP-Adapter → Flux → Replicate)
+- `obsidian_find_vault` — Détecter vault Obsidian via Nexus
+- `obsidian_read_client` / `obsidian_update_client` / `obsidian_list_clients` — Fiches clients Obsidian
+- `obsidian_write_note` / `obsidian_read_note` — Notes libres Obsidian
+- `health_check_all` — Test tous les services (Railway/Claude/ElevenLabs/Supabase/Calendar/Nexus/GitHub)
+- `track_habit` — Suivi habitudes/routines Kouider (BullMQ cron)
+- `export_accounting` — Rapport compta PDF mensuel → Telegram
+- `add_car` / `update_car` / `delete_car` — Gestion parc via Dzaryx
+- `get_site_analytics` — Stats site (visites, conversion, top véhicules)
+- `list_reviews` / `approve_review` / `delete_review` — Modération avis site
+- `get_my_location` — Position GPS acteur depuis app mobile
+- `save_vehicle_state_before` / `save_vehicle_state_after` / `get_vehicle_states` — Inspection véhicule avant/après location
+- `suggest_smart_pricing` — Suggestions tarifaires IA
+- `update_vehicle_maintenance` / `get_vehicle_maintenance` — Suivi entretien (km, vidange, révision)
+- `set_phone_alarm` — Alarme native téléphone
+
+**`backend/src/api/routes/widget.ts` ← NOUVEAU:**
+- `POST /api/widget/chat` — Assistant client public (rate limit 20/min)
+- `GET /api/widget/embed.js` — Script JS à intégrer sur n'importe quel site
+- LLM waterfall: Groq → Gemini → OpenAI → Claude Haiku
+- Cache flotte Supabase 3 min → affiche DISPONIBLE/NON DISPONIBLE temps réel
+
+**`backend/src/whatsapp/` ← NOUVEAU dossier:**
+- `client-session.ts` — Sessions WhatsApp in-memory (TTL 2h), logs → `whatsapp_messages`
+- `language-detector.ts` — Détection FR/AR (MSA + darija latine)/EN + templates multilingues
+
+---
+
+### Connexion site ↔ Dzaryx
+
+```
+Client réserve sur autolux-location
+  → api/booking.js → Supabase bookings
+  → api/notify-dzaryx.js → Supabase notifications (pending)
+  → Dzaryx dispatcher → Socket.IO → app Kouider (alerte instantanée)
+```
+
+---
+
 ## 2026-05-26 — SaaS Chat Fix + Sector Personas + Plan Ultimate IoT (Claude Sonnet 4.6)
 
 ### 3 commits ✅ — `e04401e` + `f5785b3` + simulator gh-pages

@@ -2,15 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : 2026-05-26 (Session — SaaS chat fix HTTP + personas secteur + Plan Ultimate IoT)
+> Dernière mise à jour : 2026-05-31 (Session — Site autolux Next.js 14 + Widget Dzaryx + 15 nouveaux outils)
 
 ---
 
 ## Où en est le projet (maintenant)
 
-**Phase active : Phases 1-8 TERMINÉES ✅ + Brain System LIVE + APK BUILDÉ ✅ + SaaS COMPLET ✅ + Plan Ultimate IoT ✅.**
+**Phase active : Phases 1-8 TERMINÉES ✅ + Brain System LIVE + APK BUILDÉ ✅ + SaaS COMPLET ✅ + Site autolux v2 LIVE ✅ + 15 nouveaux outils Dzaryx ✅.**
 
-APK Android build réussi 2026-05-25. SaaS chat fixé (HTTP/Anthropic direct, bypass Socket.IO). Personas IA riches par secteur (11 secteurs). QUICK_ACTIONS + SECTOR_FEATURES adaptés. Plan Ultimate IoT ajouté (19 900 DA/mois). 1 migration SQL à appliquer : `migration_saas_notifications.sql`. SMTP emails pas encore configuré Railway.
+Site autolux-location entièrement refactorisé en Next.js 14 (2026-05-31). Widget Dzaryx embarqué sur le site. Hook notify-dzaryx → Kouider alerte temps réel à chaque réservation. WhatsApp session system prêt (multi-langue FR/AR/EN). 15 nouveaux outils Dzaryx (Obsidian, inspection véhicule, maintenance, alarme, analytics site...). 1 migration SQL à appliquer : `migration_saas_notifications.sql`. SMTP emails pas encore configuré Railway.
 
 ---
 
@@ -221,6 +221,27 @@ Puis configurer `FIREBASE_SERVICE_ACCOUNT_JSON` Railway.
 ---
 
 ## Sessions récentes détaillées
+
+### Session 2026-05-31
+
+**Site autolux-location v2 (Next.js 14):**
+- Site entier refactorisé : homepage, réservation multi-étapes, catalogue, immo, admin complet
+- `api/notify-dzaryx.js` : hook → Supabase `notifications` → Dzaryx alerte Kouider temps réel
+- `api/update-booking-status.js` : WhatsApp auto au client si réservation acceptée
+- `lib/tracker.js` + `api/track.js` : analytics pages vues (device, session, referrer)
+- Admin : dashboard KPIs, bookings, cars, clients, immo, calendar, reviews, analytics
+- SEO : sitemap.xml, robots.txt, 404.js
+- Build Next.js → Netlify (Node 20, `@netlify/plugin-nextjs`)
+- Commits pushés sur https://github.com/kouider213/autolux-location ✅
+
+**Ibrahim backend — Dzaryx:**
+- `api/routes/widget.ts` : widget chatbot public (POST /api/widget/chat + GET /api/widget/embed.js)
+  - Rate limit 20/min, LLM waterfall Groq→Gemini→OpenAI→Haiku, cache flotte 3 min
+- `whatsapp/client-session.ts` + `whatsapp/language-detector.ts` : session WA multi-langue FR/AR/EN
+- 15 nouveaux outils Claude dans tools.ts + tool-executor.ts
+- Commits pushés → Railway auto-déployé ✅
+
+---
 
 ### Session 2026-05-22 (aujourd'hui)
 
