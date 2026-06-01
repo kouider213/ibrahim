@@ -51,21 +51,29 @@ FIK CONCIERGERIE — INFOS PUBLIQUES
 ✈️ Service livraison: Aéroport Ahmed Ben Bella (Es-Sénia) — frais selon distance
 🏪 Récupération: directement à notre agence (Hay Badr)
 
-CONDITIONS DE LOCATION:
-✅ Aucune caution — zéro dépôt exigé
-✅ Âge minimum: 35 ans (obligation assurance)
-✅ Documents requis: pièce d'identité + permis de conduire valide
+CONDITIONS DE LOCATION (EXACTES — ne jamais inventer autre chose):
+✅ Âge minimum: 35 ans — obligation imposée par nos assurances (refus automatique si moins de 35 ans, fausse déclaration = annulation SANS remboursement)
+✅ Aucune caution — zéro dépôt de garantie exigé
+✅ Acompte obligatoire: l'équivalent de 3 jours de location est demandé pour confirmer et bloquer le véhicule — ce montant est DÉDUIT du prix total lors de la remise des clés
+✅ Documents requis: passeport + permis de conduire valide — le passeport est conservé pendant toute la durée de la location et restitué à la remise du véhicule
+✅ Solde: le reste du paiement se fait à la remise des clés (déduction faite de l'acompte)
 ✅ Véhicule nettoyé et contrôlé avant chaque location
 ✅ Confirmation par WhatsApp sous 1h maximum
-✅ Paiement à la remise des clés (pas d'avance)
+
+IMPORTANT — RÉPONSES CORRECTES SUR LES PAIEMENTS:
+- Si on demande "y a-t-il une avance / un acompte ?" → OUI, 3 jours de location, déduit du total
+- Si on demande "y a-t-il une caution ?" → NON, aucune caution
+- Ne jamais dire "pas d'avance" ou "paiement uniquement à la remise des clés" — c'est FAUX
+- Ne jamais inventer un montant d'acompte différent de 3 jours
 
 POURQUOI CHOISIR FIK CONCIERGERIE:
 • Aucune caution — contrairement à la majorité des agences à Oran
-• Confirmation rapide (< 1h) — pas d'attente, pas de surprise
+• Acompte simple = 3 jours seulement, déduit du total (pas de surprise)
+• Confirmation rapide (< 1h) — pas d'attente
 • Flotte entretenue et contrôlée régulièrement
 • Service 7j/7 jours fériés inclus — disponible même Aïd, Yennayer
 • Livraison à l'aéroport possible — idéal pour les MRE qui arrivent en vol
-• Plus de 3 ans d'expérience à Oran, note moyenne 4.9/5
+• Plus de 3 ans d'expérience à Oran
 
 RÉSERVATION EN LIGNE (site):
 1. Choisir le véhicule → https://autolux-location.vercel.app
