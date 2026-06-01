@@ -1,4 +1,10 @@
-﻿import { supabase } from './supabase.js';
+﻿/**
+ * DZARYX AI Agent — Tool Executor
+ * © 2024-2026 Kouider — Fik Conciergerie, Oran, Algeria
+ * PROPRIETARY — ALL RIGHTS RESERVED — UNAUTHORIZED USE PROHIBITED
+ * Signature: DZX-FK-OAN-2024-K7X9M2Q1
+ */
+import { supabase } from './supabase.js';
 import { insertReminder, findByDedupKey } from '../db/reminders.js';
 import {
   resolveTimezone,
