@@ -89,7 +89,7 @@ async function tgPhoto(_chatId: string | number | null, imageUrl: string, captio
   try {
     const { emitProactive } = await import('../notifications/mobile-push.js');
     const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
-    emitProactive(title, 'info', `${caption.replace(/[*_]/g, '')}\n📹 ${imageUrl}`);
+    emitProactive(title, 'info', `${caption.replace(/[*_]/g, '')}\n${imageUrl}`);
   } catch {}
 }
 
@@ -141,7 +141,7 @@ async function tgPhotoBuffer(_chatId: string | number | null, buf: Buffer, capti
       stream.end(buf);
     });
     const title = caption.replace(/[*_`[\]()]/g, '').slice(0, 80);
-    emitProactive(title || 'Photo marketing', 'info', `${caption.replace(/[*_]/g, '')}\n📹 ${imageUrl}`);
+    emitProactive(title || 'Photo marketing', 'info', `${caption.replace(/[*_]/g, '')}\n${imageUrl}`);
     return true;
   } catch (err) {
     console.error('[tgPhotoBuffer] cloudinary upload failed:', err instanceof Error ? err.message : err);
@@ -1362,7 +1362,7 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
 
       if (docUrl) {
         signedUrlMap.set(d.id, docUrl);
-        emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n📹 ${docUrl}`);
+        emitDocProactive(`Document — ${d.client_name}`, 'info', `${caption}\n${docUrl}`);
         sentUrls.push(d.storage_path ?? d.file_url ?? d.id);
       }
 
@@ -4965,14 +4965,22 @@ async function exportAccountingPDF(input: Record<string, unknown>): Promise<stri
     doc.end();
   });
 
-  const safePeriod  = `${year}-${String(month).padStart(2, '0')}`;
-  const storagePath = `accounting/COMPTA_${safePeriod}.pdf`;
-  await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
-  await supabase.storage.from('client-documents').upload(storagePath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
-
-  // Notifier via app avec URL Supabase Storage
-  const { data: urlData } = supabase.storage.from('client-documents').getPublicUrl(storagePath);
-  const pdfUrl = urlData?.publicUrl ?? '';
+  // Upload sur Cloudinary (raw) pour URL publique téléchargeable
+  const safePeriod = `${year}-${String(month).padStart(2, '0')}`;
+  let pdfUrl = '';
+  try {
+    const { v2: cloudinary } = await import('cloudinary');
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'raw', public_id: `accounting/COMPTA_${safePeriod}`, format: 'pdf', overwrite: true },
+        (err, res) => err ? reject(err) : resolve(res as { secure_url: string }),
+      );
+      stream.end(pdfBuffer);
+    });
+    pdfUrl = result.secure_url;
+  } catch (err) {
+    console.error('[exportAccountingPDF] Cloudinary upload failed:', err instanceof Error ? err.message : err);
+  }
   const { emitProactive } = await import('../notifications/mobile-push.js');
   emitProactive(
     `Rapport comptable ${monthLabel} prêt`,
