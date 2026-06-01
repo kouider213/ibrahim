@@ -1314,7 +1314,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   },
   {
     name: 'get_site_analytics',
-    description: 'Obtenir les stats du site Fik Conciergerie : visites, pages populaires, véhicules vus, taux conversion, pays visiteurs. Utile pour "combien de visites ce mois", "quel véhicule le plus vu", "taux conversion site".',
+    description: 'Obtenir les statistiques RÉELLES du site autolux-location.vercel.app depuis Supabase (table page_views + car_views). TOUJOURS utiliser cet outil quand Kouider dit "stats du site", "statistiques site", "combien de visites", "trafic site", "qui visite le site", "analytics". NE JAMAIS utiliser github_read_file pour ça — les données sont en base Supabase, pas sur GitHub.',
     input_schema: {
       type: 'object' as const,
       properties: {
