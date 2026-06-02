@@ -1,0 +1,56 @@
+{
+  "id": "/ibrahim/",
+  "name": "Dzaryx — Assistant IA Fik Conciergerie",
+  "short_name": "Dzaryx",
+  "description": "Assistant IA personnel de Fik Conciergerie Oran. Gestion réservations, parc véhicules, immobilier et plus — en Darija et Français.",
+  "start_url": "/ibrahim/",
+  "scope": "/ibrahim/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/ibrahim/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ibrahim/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/ibrahim/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ibrahim/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mode Vocal",
+      "short_name": "Vocal",
+      "url": "/ibrahim/",
+      "icons": [{ "src": "/ibrahim/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Chat Texte",
+      "short_name": "Chat",
+      "url": "/ibrahim/?page=text",
+      "icons": [{ "src": "/ibrahim/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "fr",
+  "dir": "ltr",
+  "prefer_related_applications": false
+}
