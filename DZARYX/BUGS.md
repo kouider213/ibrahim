@@ -8,14 +8,50 @@
 ## Bugs Ouverts 🔴
 
 ### B025 — Token GitHub exposé dans git remote (SÉCURITÉ)
-- **Statut** : 🔴 OUVERT — action manuelle requise
+- **Statut** : 🔴 OUVERT — action manuelle requise (Kouider)
 - **Fichier** : `.git/config` du repo ibrahim (local PC Kouider)
 - **Description** : `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` était dans l'URL git remote. Supprimé de l'URL, mais le token lui-même doit être révoqué sur GitHub.
 - **Fix** : Aller sur github.com/settings/tokens → Delete ce token → Générer nouveau si besoin
 
-### B026 — Vercel peut perdre accès après privatisation repo (à vérifier)
-- **Statut** : 🔴 À VÉRIFIER
-- **Description** : `autolux-location` est passé de PUBLIC à PRIVÉ. Vercel doit toujours avoir accès via GitHub App (pas via token URL). Si build échoue → reconnecter dans Vercel dashboard → Settings → Git.
+---
+
+## Bugs Fixés (Audit complet 2026-06-02) ✅
+
+### B026 — Vercel/Pages perdent accès quand repo privé
+- **Statut** : ✅ RÉSOLU — 2026-06-02
+- **Description** : Plan Hobby Vercel + GitHub Pages gratuit ne supportent pas repos privés. Mise en privé a cassé les 2 déploiements.
+- **Fix** : Les 2 repos (`autolux-location`, `ibrahim`) remis en PUBLIC. Vercel redéploie, GitHub Pages réactivé (`gh-pages` branch). Protection réelle = API keys Railway + données Supabase (jamais exposées).
+
+### B027 — Simulateur servait vieille build après réactivation Pages
+- **Statut** : ✅ RÉSOLU — 2026-06-02
+- **Description** : Réactivation GitHub Pages pointait sur build `gh-pages` du 06-01 12:14. Les changements TextScreen 06-01 (RichText) cassaient persist chat + proactifs en apparence (en réalité = cache SW stale).
+- **Fix** : Restauré base 05-31 + réappliqué RichText proprement. Vrai bug trouvé : `URL_RE.test()` regex global stateful → détection URL erratique. Fixé avec regex non-global ancré `URL_IS`. SW v3→v7 pour cache bust.
+
+### B028 — TTS latence élevée (eleven_multilingual_v2)
+- **Statut** : ✅ AMÉLIORÉ — 2026-06-02
+- **Fichier** : `backend/src/notifications/dispatcher.ts`
+- **Description** : Stream TTS sans `optimize_streaming_latency` → premier son lent.
+- **Fix** : Ajout `?optimize_streaming_latency=3` au stream endpoint. Voix inchangée, premier chunk audio plus rapide. (Note : `eleven_flash_v2_5` possible amélioration future mais risque phonétique français.)
+
+### B029 — Mobile TS error (SarfPanel outputLabel inutilisé)
+- **Statut** : ✅ FIXÉ — 2026-06-02
+- **Fichier** : `mobile/src/components/dashboard/panels/SarfPanel.tsx`
+- **Fix** : Variable `outputLabel` supprimée. Mobile TS = 0 erreur.
+
+---
+
+## Résultats Audit Complet 2026-06-02
+
+| Composant | TS/Build | État |
+|---|---|---|
+| Backend (Railway) | ✅ 0 erreur | OK |
+| Simulateur (gh-pages) | ✅ 0 erreur | OK — orbe premium |
+| Mobile PWA (Netlify) | ✅ 0 erreur | OK |
+| Site autolux (Vercel) | ✅ 32 routes | OK |
+| App native (dzaryx-native) | présent | OK |
+| Latence TTS | optimisé | OK |
+| Routing LLM | salutations→Groq, business→Claude | équilibré |
+| Délais artificiels chat | aucun | OK |
 
 ---
 
