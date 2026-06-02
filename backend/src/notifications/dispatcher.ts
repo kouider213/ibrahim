@@ -122,7 +122,8 @@ export async function synthesizeVoiceStream(
   const { model_id, language_code } = pickTTSModel(text);
   try {
     const response = await axios.post(
-      `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream`,
+      // optimize_streaming_latency=3 → premier chunk audio plus rapide (moins d'attente perçue)
+      `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream?optimize_streaming_latency=3`,
       {
         text: cleanTextForTTS(text),
         model_id,

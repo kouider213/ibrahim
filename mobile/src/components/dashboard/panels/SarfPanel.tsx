@@ -159,7 +159,6 @@ export default function SarfPanel() {
   };
 
   const inputLabel = direction === 'EUR_TO_DZD' ? 'EUR €' : 'DA (Dinars)';
-  const outputLabel = direction === 'EUR_TO_DZD' ? 'DA (Dinars)' : 'EUR €';
   const presets = direction === 'EUR_TO_DZD' ? EUR_PRESETS : DZD_PRESETS;
   const placeholderTxt = direction === 'EUR_TO_DZD' ? 'Ex: 100' : 'Ex: 20000';
 
