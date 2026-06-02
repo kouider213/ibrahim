@@ -934,7 +934,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   );
 }
 
-// ── DZARYX ROBOT SVG — Premium v2 ────────────────────────────────────────────
+// ── DZARYX ORB — premium voice core (no robot) ───────────────────────────────
 
 function DzaryxRobot({
   status, visionActive, scale = 1,
@@ -944,385 +944,137 @@ function DzaryxRobot({
   scale?: number;
 }) {
   const col         = STATE_COLOR[status];
+  const accent      = visionActive ? '#9b59b6' : col;
   const isListening = status === 'listening';
-  const isSpeaking  = status === 'speaking';
   const isThinking  = status === 'thinking';
-  const eyeCol      = visionActive ? '#9b59b6' : col;
-  const floatAnim   = isListening ? 'robotFloatListen' : 'robotFloat';
+  const isSpeaking  = status === 'speaking';
 
-  const w = Math.round(290 * scale);
-  const h = Math.round(380 * scale);
+  const size = Math.round(300 * scale);
+  const C = 150; // center
 
-  // Eye helper — renders a premium multi-layer eye
-  const Eye = ({ cx, cy, delay = '0s' }: { cx: number; cy: number; delay?: string }) => (
-    <>
-      {/* Socket shadow */}
-      <circle cx={cx} cy={cy} r="28" fill="#000408" />
-      {/* Outer chrome ring */}
-      <circle cx={cx} cy={cy} r="26" fill="none" stroke={eyeCol} strokeWidth="1.5" strokeOpacity="0.35" />
-      {/* Mid iris ring */}
-      <circle cx={cx} cy={cy} r="22" fill="none" stroke={eyeCol} strokeWidth="0.7" strokeOpacity="0.2" />
-      {/* Inner dark iris */}
-      <circle cx={cx} cy={cy} r="19" fill="#000d1a" />
-      {/* Iris fill glow */}
-      <circle cx={cx} cy={cy} r="17" fill={eyeCol} opacity="0.88"
-        filter="url(#glow6)" style={{ animation: `eyeGlow 2.4s ease-in-out infinite ${delay}` }} />
-      {/* Iris rings detail */}
-      <circle cx={cx} cy={cy} r="13" fill="none" stroke="white" strokeWidth="0.6" strokeOpacity="0.18" />
-      <circle cx={cx} cy={cy} r="9"  fill="none" stroke="white" strokeWidth="0.5" strokeOpacity="0.12" />
-      {/* Pupil */}
-      <circle cx={cx} cy={cy} r="5.5" fill="#000408" />
-      {/* Pupil glow dot */}
-      <circle cx={cx} cy={cy} r="3.5" fill={eyeCol} opacity="0.95" filter="url(#glow3)" />
-      {/* Cross-hair lines */}
-      <line x1={cx - 26} y1={cy} x2={cx - 20} y2={cy} stroke={eyeCol} strokeWidth="0.8" strokeOpacity="0.4" />
-      <line x1={cx + 20} y1={cy} x2={cx + 26} y2={cy} stroke={eyeCol} strokeWidth="0.8" strokeOpacity="0.4" />
-      <line x1={cx} y1={cy - 26} x2={cx} y2={cy - 20} stroke={eyeCol} strokeWidth="0.8" strokeOpacity="0.4" />
-      <line x1={cx} y1={cy + 20} x2={cx} y2={cy + 26} stroke={eyeCol} strokeWidth="0.8" strokeOpacity="0.4" />
-      {/* Specular shine top-left */}
-      <ellipse cx={cx - 7} cy={cy - 8} rx="6" ry="3.5" fill="white" opacity="0.32" />
-      <ellipse cx={cx - 5} cy={cy - 6} rx="2.5" ry="1.5" fill="white" opacity="0.42" />
-      {/* Scan beam when listening */}
-      {isListening && (
-        <line x1={cx - 26} y1={cy} x2={cx + 26} y2={cy} stroke={eyeCol} strokeWidth="1.5" strokeOpacity="0.6"
-          filter="url(#glow3)" style={{ animation: `eyeGlow 0.6s ease-in-out infinite ${delay}` }} />
-      )}
-    </>
+  // Orbital ring — elliptical, tilted, with a travelling particle
+  const Ring = ({ rx, ry, rot, dur, reverse, op }: { rx: number; ry: number; rot: number; dur: number; reverse?: boolean; op: number }) => (
+    <g style={{ transformOrigin: `${C}px ${C}px`, animation: `${reverse ? 'coreSpinR' : 'coreSpin'} ${dur}s linear infinite` }}>
+      <g transform={`rotate(${rot} ${C} ${C})`}>
+        <ellipse cx={C} cy={C} rx={rx} ry={ry} fill="none" stroke={accent} strokeWidth="0.8" strokeOpacity={op} />
+        {/* travelling particle on the ring */}
+        <circle cx={C + rx} cy={C} r="2.6" fill={accent} filter="url(#orbGlowS)" />
+        <circle cx={C - rx} cy={C} r="1.6" fill={accent} fillOpacity="0.7" />
+      </g>
+    </g>
   );
 
   return (
     <svg
-      width={w} height={h}
-      viewBox="0 0 290 380"
+      width={size} height={size}
+      viewBox="0 0 300 300"
       fill="none"
       style={{
-        animation: `${floatAnim} 3.2s ease-in-out infinite`,
-        filter: `drop-shadow(0 0 20px ${col}55) drop-shadow(0 0 40px ${col}1a)`,
         overflow: 'visible',
+        animation: 'orbFloat 4.5s ease-in-out infinite',
+        filter: `drop-shadow(0 0 26px ${col}44) drop-shadow(0 0 60px ${col}18)`,
       }}
     >
       <defs>
-        {/* Head chrome gradient */}
-        <radialGradient id={`rg-hd-${status}`} cx="32%" cy="24%" r="74%">
-          <stop offset="0%"   stopColor="#5a7a9a" />
-          <stop offset="15%"  stopColor="#304860" />
-          <stop offset="45%"  stopColor="#182840" />
-          <stop offset="100%" stopColor="#03080f" />
+        {/* Sphere body — glossy depth */}
+        <radialGradient id={`orb-body-${status}`} cx="38%" cy="30%" r="72%">
+          <stop offset="0%"   stopColor={accent} stopOpacity="0.95" />
+          <stop offset="22%"  stopColor={accent} stopOpacity="0.55" />
+          <stop offset="55%"  stopColor="#0a1830" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#02060f" />
         </radialGradient>
-        {/* Head bottom shadow */}
-        <radialGradient id="rg-hd-bot" cx="50%" cy="100%" r="60%">
-          <stop offset="0%" stopColor="#000000" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+        {/* Inner core glow */}
+        <radialGradient id={`orb-core-${status}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="30%"  stopColor={accent}  stopOpacity="0.9" />
+          <stop offset="70%"  stopColor={accent}  stopOpacity="0.25" />
+          <stop offset="100%" stopColor={accent}  stopOpacity="0" />
         </radialGradient>
-        {/* Ear gradient */}
-        <radialGradient id="rg-ear" cx="38%" cy="32%" r="68%">
-          <stop offset="0%"   stopColor="#243850" />
-          <stop offset="100%" stopColor="#040c18" />
+        {/* Specular highlight */}
+        <radialGradient id="orb-spec" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </radialGradient>
-        {/* Body gradient */}
-        <radialGradient id="rg-bd" cx="36%" cy="22%" r="72%">
-          <stop offset="0%"   stopColor="#223050" />
-          <stop offset="45%"  stopColor="#0e1e34" />
-          <stop offset="100%" stopColor="#03070f" />
+        {/* Ambient halo */}
+        <radialGradient id={`orb-halo-${status}`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stopColor={col} stopOpacity="0.20" />
+          <stop offset="60%"  stopColor={col} stopOpacity="0.05" />
+          <stop offset="100%" stopColor={col} stopOpacity="0" />
         </radialGradient>
-        {/* Chest core gradient */}
-        <radialGradient id={`rg-core-${status}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor={col}     stopOpacity="0.9" />
-          <stop offset="50%"  stopColor={col}     stopOpacity="0.4" />
-          <stop offset="100%" stopColor={col}     stopOpacity="0" />
-        </radialGradient>
-        {/* Glow filters */}
-        <filter id="glow3" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="3" result="b" />
+        <filter id="orbGlowS" x="-120%" y="-120%" width="340%" height="340%">
+          <feGaussianBlur stdDeviation="2.5" result="b" />
           <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        <filter id="glow6" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur stdDeviation="6" result="b" />
+        <filter id="orbGlowL" x="-140%" y="-140%" width="380%" height="380%">
+          <feGaussianBlur stdDeviation="8" result="b" />
           <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
-        <filter id="glow10" x="-120%" y="-120%" width="340%" height="340%">
-          <feGaussianBlur stdDeviation="10" result="b" />
-          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
+        <clipPath id="orb-clip"><circle cx={C} cy={C} r="62" /></clipPath>
       </defs>
 
-      {/* ── OUTER ORBIT RINGS ── */}
-      <circle cx="145" cy="158" r="134"
-        stroke={col} strokeWidth="0.6" strokeDasharray="6 26" strokeOpacity="0.16"
-        style={{ transformOrigin: '145px 158px', animation: 'spinSlow 32s linear infinite' }} />
-      <circle cx="145" cy="158" r="120"
-        stroke={col} strokeWidth="0.4" strokeDasharray="3 20" strokeOpacity="0.1"
-        style={{ transformOrigin: '145px 158px', animation: 'spinMed 22s linear infinite reverse' }} />
+      {/* ── AMBIENT HALO ── */}
+      <circle cx={C} cy={C} r="120" fill={`url(#orb-halo-${status})`}
+        style={{ animation: 'corePulse 4s ease-in-out infinite' }} />
 
-      {/* ── THINKING HALO ── */}
-      {isThinking && (
-        <circle cx="145" cy="158" r="122"
-          stroke="#ffaa00" strokeWidth="2.5" strokeDasharray="8 12" strokeOpacity="0.9"
-          filter="url(#glow6)"
-          style={{ transformOrigin: '145px 158px', animation: 'thinkHalo 1.8s linear infinite' }} />
-      )}
-
-      {/* ── ANTENNA ── */}
-      <line x1="145" y1="52" x2="145" y2="24" stroke={col} strokeWidth="1.5" strokeOpacity="0.5" />
-      <line x1="145" y1="28" x2="132" y2="16" stroke={col} strokeWidth="1" strokeOpacity="0.3" />
-      <line x1="145" y1="28" x2="158" y2="16" stroke={col} strokeWidth="1" strokeOpacity="0.3" />
-      <circle cx="145" cy="22" r="5" fill={col} opacity="0.9" filter="url(#glow6)"
-        style={{ animation: 'eyeGlow 1.8s ease-in-out infinite' }} />
-      <circle cx="132" cy="14" r="3" fill={col} opacity="0.5" filter="url(#glow3)" />
-      <circle cx="158" cy="14" r="3" fill={col} opacity="0.5" filter="url(#glow3)" />
-
-      {/* ── LEFT EAR ── */}
-      <circle cx="32" cy="160" r="38" fill={col} opacity={isListening ? 0.07 : 0.02} />
-      <circle cx="32" cy="160" r="32" fill="url(#rg-ear)" />
-      <circle cx="32" cy="160" r="32" fill="none" stroke={col}
-        strokeWidth={isListening ? 1.8 : 0.9} strokeOpacity={isListening ? 0.7 : 0.28} />
-      {/* Ear grille rings */}
-      <circle cx="32" cy="160" r="24" fill="#030c18" />
-      <circle cx="32" cy="160" r="24" fill="none" stroke={col} strokeWidth="0.6" strokeOpacity="0.25" />
-      <circle cx="32" cy="160" r="17" fill="none" stroke={col} strokeWidth="0.5" strokeOpacity="0.18" />
-      <circle cx="32" cy="160" r="10" fill="none" stroke={col} strokeWidth="0.5" strokeOpacity={isListening ? 0.4 : 0.12} />
-      {/* Core LED */}
-      <circle cx="32" cy="160" r="5" fill={col} opacity={isListening ? 0.95 : 0.35} filter="url(#glow3)" />
-      {/* Grille segments */}
-      {[0, 45, 90, 135].map(angle => {
-        const rad = angle * Math.PI / 180;
-        const x1 = 32 + Math.cos(rad) * 11; const y1 = 160 + Math.sin(rad) * 11;
-        const x2 = 32 + Math.cos(rad) * 23; const y2 = 160 + Math.sin(rad) * 23;
-        return <line key={angle} x1={x1} y1={y1} x2={x2} y2={y2} stroke={col} strokeWidth="0.5" strokeOpacity="0.2" />;
-      })}
-      {/* Audio bars */}
-      {[13, 18, 23, 28, 33, 38, 43, 48].map((bx, i) => {
-        const hArr = [4, 7, 11, 15, 14, 10, 7, 4];
-        const bh = hArr[i] ?? 5;
-        return (
-          <rect key={i} x={bx} y={160 - bh / 2} width="2" height={bh} rx="1"
-            fill={col} opacity={isListening ? 0.85 : 0.2}
-            style={isListening ? { animation: `earBar${Math.min(i + 1, 5)} ${0.26 + (i % 5) * 0.05}s ease ${i * 0.035}s infinite` } : {}} />
-        );
-      })}
-      <ellipse cx="20" cy="147" rx="8" ry="4" fill="white" opacity="0.05" />
-
-      {/* ── RIGHT EAR ── */}
-      <circle cx="258" cy="160" r="38" fill={col} opacity={isListening ? 0.07 : 0.02} />
-      <circle cx="258" cy="160" r="32" fill="url(#rg-ear)" />
-      <circle cx="258" cy="160" r="32" fill="none" stroke={col}
-        strokeWidth={isListening ? 1.8 : 0.9} strokeOpacity={isListening ? 0.7 : 0.28} />
-      <circle cx="258" cy="160" r="24" fill="#030c18" />
-      <circle cx="258" cy="160" r="24" fill="none" stroke={col} strokeWidth="0.6" strokeOpacity="0.25" />
-      <circle cx="258" cy="160" r="17" fill="none" stroke={col} strokeWidth="0.5" strokeOpacity="0.18" />
-      <circle cx="258" cy="160" r="10" fill="none" stroke={col} strokeWidth="0.5" strokeOpacity={isListening ? 0.4 : 0.12} />
-      <circle cx="258" cy="160" r="5" fill={col} opacity={isListening ? 0.95 : 0.35} filter="url(#glow3)" />
-      {[0, 45, 90, 135].map(angle => {
-        const rad = angle * Math.PI / 180;
-        const x1 = 258 + Math.cos(rad) * 11; const y1 = 160 + Math.sin(rad) * 11;
-        const x2 = 258 + Math.cos(rad) * 23; const y2 = 160 + Math.sin(rad) * 23;
-        return <line key={angle} x1={x1} y1={y1} x2={x2} y2={y2} stroke={col} strokeWidth="0.5" strokeOpacity="0.2" />;
-      })}
-      {[230, 235, 240, 245, 250, 255, 260, 265].map((bx, i) => {
-        const hArr = [4, 7, 11, 15, 14, 10, 7, 4];
-        const bh = hArr[i] ?? 5;
-        return (
-          <rect key={i} x={bx} y={160 - bh / 2} width="2" height={bh} rx="1"
-            fill={col} opacity={isListening ? 0.85 : 0.2}
-            style={isListening ? { animation: `earBar${5 - (i % 5)} ${0.26 + (i % 5) * 0.05}s ease ${i * 0.035}s infinite` } : {}} />
-        );
-      })}
-      <ellipse cx="246" cy="147" rx="8" ry="4" fill="white" opacity="0.05" />
-
-      {/* ── HEAD SPHERE ── */}
-      <circle cx="145" cy="158" r="106" fill={col} opacity="0.04" />
-      {/* Main head */}
-      <circle cx="145" cy="158" r="100" fill={`url(#rg-hd-${status})`} />
-      {/* Bottom shadow overlay */}
-      <circle cx="145" cy="158" r="100" fill="url(#rg-hd-bot)" />
-      {/* Chrome rim */}
-      <circle cx="145" cy="158" r="100" fill="none" stroke={col} strokeWidth="1.8" strokeOpacity="0.28" />
-      <circle cx="145" cy="158" r="97"  fill="none" stroke="white" strokeWidth="0.5" strokeOpacity="0.08" />
-      {/* Panel seam lines on head */}
-      <path d="M 145 58 Q 190 100 190 158" fill="none" stroke="white" strokeWidth="0.4" strokeOpacity="0.06" />
-      <path d="M 145 58 Q 100 100 100 158" fill="none" stroke="white" strokeWidth="0.4" strokeOpacity="0.06" />
-      <ellipse cx="145" cy="75"  rx="50" ry="8" fill="none" stroke={col} strokeWidth="0.4" strokeOpacity="0.1" />
-      {/* Specular highlights */}
-      <ellipse cx="106" cy="106" rx="36" ry="21" fill="white" opacity="0.085" />
-      <ellipse cx="98"  cy="96"  rx="17" ry="10" fill="white" opacity="0.10" />
-      <ellipse cx="92"  cy="90"  rx="8"  ry="5"  fill="white" opacity="0.08" />
-      {/* Tech hex screws on head edge */}
-      {[50, 130, 230, 310].map((deg, i) => {
-        const r = 92, rad = deg * Math.PI / 180;
-        const sx = 145 + Math.cos(rad) * r, sy = 158 + Math.sin(rad) * r;
-        return <circle key={i} cx={sx} cy={sy} r="2" fill="none" stroke={col} strokeWidth="0.7" strokeOpacity="0.25" />;
-      })}
-
-      {/* ── FOREHEAD TECH STRIP ── */}
-      <rect x="110" y="72" width="70" height="8" rx="4" fill="#0a1828" stroke={col} strokeWidth="0.6" strokeOpacity="0.3" />
-      <rect x="114" y="74" width="12" height="4" rx="2" fill={col} opacity="0.6" />
-      <rect x="129" y="74" width="6"  height="4" rx="2" fill={col} opacity="0.3" />
-      <rect x="138" y="74" width="18" height="4" rx="2" fill={col} opacity="0.4" />
-      <rect x="159" y="74" width="8"  height="4" rx="2" fill={col} opacity="0.25" />
-
-      {/* ── FACE VISOR ── */}
-      <ellipse cx="145" cy="164" rx="70" ry="74" fill="#000000" opacity="0.97" />
-      <ellipse cx="145" cy="164" rx="70" ry="74" fill="none" stroke={col} strokeWidth="0.8" strokeOpacity="0.18" />
-      {/* Visor top gloss */}
-      <ellipse cx="145" cy="112" rx="44" ry="12" fill={col} opacity="0.045" />
-      {/* HUD corner markers */}
-      {[[82, 100], [208, 100], [82, 220], [208, 220]].map(([mx, my], i) => {
-        const hLen = i % 2 === 0 ? 8 : -8;
-        const vLen = i < 2 ? 8 : -8;
-        return (
-          <g key={i}>
-            <line x1={mx} y1={my} x2={mx + hLen} y2={my} stroke={col} strokeWidth="1" strokeOpacity="0.35" />
-            <line x1={mx} y1={my} x2={mx} y2={my + vLen} stroke={col} strokeWidth="1" strokeOpacity="0.35" />
-          </g>
-        );
-      })}
-
-      {/* ── EYES ── */}
-      {visionActive ? (
-        // Vision camera eyes — purple
-        <>
-          {[114, 176].map((ex, i) => (
-            <g key={i}>
-              <circle cx={ex} cy="152" r="28" fill="#08001a" />
-              <circle cx={ex} cy="152" r="26" fill="none" stroke="#9b59b6" strokeWidth="2" strokeOpacity="0.8" filter="url(#glow3)" />
-              <circle cx={ex} cy="152" r="20" fill="none" stroke="#9b59b6" strokeWidth="1" strokeOpacity="0.5" />
-              <circle cx={ex} cy="152" r="13" fill="none" stroke="#9b59b6" strokeWidth="0.8" strokeOpacity="0.35" />
-              <circle cx={ex} cy="152" r="7"  fill="#9b59b6" opacity="0.9" filter="url(#glow6)"
-                style={{ animation: `eyeGlow 2s ease infinite ${i * 0.3}s` }} />
-              <circle cx={ex} cy="152" r="3" fill="white" opacity="0.8" />
-              <ellipse cx={ex - 8} cy="143" rx="6" ry="3.5" fill="white" opacity="0.2" />
-              {/* Camera crosshair */}
-              <line x1={ex - 26} y1="152" x2={ex + 26} y2="152" stroke="#9b59b6" strokeWidth="0.5" strokeOpacity="0.3" />
-              <line x1={ex} y1="126" x2={ex} y2="178" stroke="#9b59b6" strokeWidth="0.5" strokeOpacity="0.3" />
-            </g>
-          ))}
-        </>
-      ) : (
-        <>
-          <Eye cx={114} cy={152} delay="0s" />
-          <Eye cx={176} cy={152} delay="0.35s" />
-        </>
-      )}
-
-      {/* ── NOSE SENSOR (small detail) ── */}
-      <rect x="141" y="178" width="8" height="3" rx="1.5" fill={col} opacity="0.25" />
-
-      {/* ── MOUTH ── */}
-      {isSpeaking ? (
-        // Speaking: multi-bar spectrum
-        <g>
-          {[108, 116, 124, 132, 140, 148, 156, 164, 172].map((bx, i) => {
-            const heights = [4, 7, 10, 13, 15, 13, 10, 7, 4];
-            const bh = heights[i] ?? 6;
-            return (
-              <rect key={i} x={bx} y={196 - bh / 2} width="5" height={bh} rx="2.5"
-                fill={col} opacity="0.9" filter="url(#glow3)"
-                style={{ animation: `earBar${(i % 5) + 1} ${0.2 + (i % 4) * 0.07}s ease ${i * 0.03}s infinite` }} />
-            );
-          })}
-        </g>
-      ) : (
-        // Idle/Listening: curved smile with detail
-        <>
-          <path d="M 110 196 Q 145 218 180 196"
-            stroke={col} strokeWidth="3" strokeLinecap="round" fill="none"
-            opacity={status === 'idle' ? 0.55 : 0.8} filter="url(#glow3)" />
-          {/* Teeth hint */}
-          <path d="M 120 198 Q 145 208 170 198"
-            stroke="white" strokeWidth="0.6" strokeLinecap="round" fill="none" opacity="0.08" />
-        </>
-      )}
-
-      {/* ── NECK — articulated ── */}
-      <rect x="132" y="256" width="26" height="7"  rx="3.5" fill="#0c1a28" stroke={col} strokeWidth="0.6" strokeOpacity="0.3" />
-      <rect x="128" y="261" width="34" height="7"  rx="3.5" fill="#0a1620" stroke={col} strokeWidth="0.5" strokeOpacity="0.25" />
-      <rect x="132" y="266" width="26" height="6"  rx="3" fill="#080e18" stroke={col} strokeWidth="0.5" strokeOpacity="0.2" />
-      <line x1="139" y1="256" x2="139" y2="272" stroke={col} strokeWidth="0.7" strokeOpacity="0.2" />
-      <line x1="145" y1="256" x2="145" y2="272" stroke={col} strokeWidth="0.7" strokeOpacity="0.2" />
-      <line x1="151" y1="256" x2="151" y2="272" stroke={col} strokeWidth="0.7" strokeOpacity="0.2" />
-
-      {/* ── BODY ── */}
-      <ellipse cx="145" cy="368" rx="72" ry="10" fill={col} opacity="0.09" filter="url(#glow10)" />
-      <ellipse cx="145" cy="372" rx="46" ry="6"  fill={col} opacity="0.06" />
-
-      {/* Shoulder pads — proper arm stubs */}
-      <rect x="62" y="272" width="32" height="52" rx="16" fill="#0e1e30" stroke={col} strokeWidth="0.9" strokeOpacity="0.28" />
-      <rect x="62" y="272" width="32" height="52" rx="16" fill="none" stroke="white" strokeWidth="0.3" strokeOpacity="0.05" />
-      <rect x="67" y="285" width="22" height="4"  rx="2" fill={col} opacity="0.3" />
-      <rect x="67" y="292" width="14" height="3"  rx="1.5" fill={col} opacity="0.2" />
-      <circle cx="78" cy="308" r="7" fill="#060e18" stroke={col} strokeWidth="0.7" strokeOpacity="0.4" />
-      <circle cx="78" cy="308" r="3.5" fill={col} opacity={isListening ? 0.8 : 0.3} filter="url(#glow3)" />
-
-      <rect x="196" y="272" width="32" height="52" rx="16" fill="#0e1e30" stroke={col} strokeWidth="0.9" strokeOpacity="0.28" />
-      <rect x="196" y="272" width="32" height="52" rx="16" fill="none" stroke="white" strokeWidth="0.3" strokeOpacity="0.05" />
-      <rect x="201" y="285" width="22" height="4" rx="2" fill={col} opacity="0.3" />
-      <rect x="209" y="292" width="14" height="3" rx="1.5" fill={col} opacity="0.2" />
-      <circle cx="212" cy="308" r="7" fill="#060e18" stroke={col} strokeWidth="0.7" strokeOpacity="0.4" />
-      <circle cx="212" cy="308" r="3.5" fill={col} opacity={isListening ? 0.8 : 0.3} filter="url(#glow3)" />
-
-      {/* Body main — wider and taller */}
-      <rect x="82" y="272" width="126" height="96" rx="26" fill="url(#rg-bd)" />
-      <rect x="82" y="272" width="126" height="96" rx="26" fill="none" stroke={col} strokeWidth="1.4" strokeOpacity="0.32" />
-      <rect x="82" y="272" width="126" height="96" rx="26" fill="none" stroke="white" strokeWidth="0.4" strokeOpacity="0.04" />
-
-      {/* Body panel lines */}
-      <line x1="96" y1="294" x2="194" y2="294" stroke={col} strokeWidth="0.6" strokeOpacity="0.18" />
-      <line x1="96" y1="352" x2="194" y2="352" stroke={col} strokeWidth="0.5" strokeOpacity="0.13" />
-
-      {/* LED strips on body edges */}
-      {[282, 296, 310, 324, 338].map((ly, i) => (
-        <rect key={i} x="86"  y={ly} width="5" height="3" rx="1.5"
-          fill={col} opacity={isListening || isSpeaking ? 0.85 : 0.28}
-          style={isListening || isSpeaking ? { animation: `earBar${(i % 5) + 1} ${0.28 + i * 0.05}s ease infinite` } : {}} />
-      ))}
-      {[282, 296, 310, 324, 338].map((ly, i) => (
-        <rect key={i} x="199" y={ly} width="5" height="3" rx="1.5"
-          fill={col} opacity={isListening || isSpeaking ? 0.85 : 0.28}
-          style={isListening || isSpeaking ? { animation: `earBar${5 - (i % 5)} ${0.28 + i * 0.05}s ease infinite` } : {}} />
-      ))}
-
-      {/* Chest core — hexagonal power crystal, bigger */}
-      <polygon
-        points="145,300 158,308 158,324 145,332 132,324 132,308"
-        fill={`url(#rg-core-${status})`} stroke={col} strokeWidth="1.4" strokeOpacity="0.75"
-        filter="url(#glow6)" style={{ animation: 'eyeGlow 3s ease-in-out infinite' }}
-      />
-      <polygon
-        points="145,307 154,312 154,320 145,325 136,320 136,312"
-        fill={col} opacity="0.4" filter="url(#glow3)"
-      />
-      <circle cx="145" cy="316" r="4" fill="white" opacity="0.5" />
-
-      {/* Circuit trace details */}
-      <line x1="158" y1="316" x2="178" y2="316" stroke={col} strokeWidth="0.6" strokeOpacity="0.25" />
-      <line x1="178" y1="316" x2="178" y2="308" stroke={col} strokeWidth="0.6" strokeOpacity="0.2" />
-      <line x1="132" y1="316" x2="112" y2="316" stroke={col} strokeWidth="0.6" strokeOpacity="0.25" />
-      <line x1="112" y1="316" x2="112" y2="308" stroke={col} strokeWidth="0.6" strokeOpacity="0.2" />
-
-      {/* DZARYX text */}
-      <text x="145" y="349" fill={col}
-        fontFamily="Orbitron, Share Tech Mono, monospace" fontSize="8" fontWeight="700"
-        textAnchor="middle" letterSpacing="5" opacity="0.8"
-        filter="url(#glow3)">DZARYX</text>
-
-      {/* Body specular */}
-      <ellipse cx="108" cy="283" rx="26" ry="10" fill="white" opacity="0.04" />
-
-      {/* ── WAVEFORM BARS ── */}
+      {/* ── REACTIVE PULSE WAVES ── */}
       {(isListening || isSpeaking) && (
-        <g opacity="0.75">
-          {Array.from({ length: 20 }, (_, i) => {
-            const bx = 40 + i * 11;
-            const baseH = 3 + Math.sin(i * 0.9) * 3.5;
-            return (
-              <rect key={i} x={bx} y={366 - baseH / 2} width="6" height={baseH} rx="3"
-                fill={col} filter="url(#glow3)"
-                style={{ animation: `earBar${(i % 5) + 1} ${0.22 + (i % 4) * 0.07}s ease ${i * 0.025}s infinite` }}
-              />
-            );
-          })}
+        <g style={{ transformOrigin: `${C}px ${C}px` }}>
+          {[0, 1, 2].map(i => (
+            <circle key={i} cx={C} cy={C} r="70" fill="none" stroke={col} strokeWidth="1.4"
+              style={{
+                transformOrigin: `${C}px ${C}px`,
+                animation: `orbRipple ${isListening ? 1.5 : 2.2}s ease-out ${i * (isListening ? 0.5 : 0.73)}s infinite`,
+              }} />
+          ))}
         </g>
       )}
+
+      {/* ── ORBITAL RINGS ── */}
+      <Ring rx={132} ry={46}  rot={0}   dur={26} op={0.18} />
+      <Ring rx={120} ry={120} rot={0}   dur={40} reverse op={0.10} />
+      <Ring rx={108} ry={40}  rot={62}  dur={18} reverse op={0.22} />
+      <Ring rx={96}  ry={36}  rot={-58} dur={14} op={0.20} />
+
+      {/* ── THINKING COMET ARC ── */}
+      {isThinking && (
+        <g style={{ transformOrigin: `${C}px ${C}px`, animation: 'coreSpin 1.4s linear infinite' }}>
+          <path d={`M ${C} ${C - 84} A 84 84 0 0 1 ${C + 72} ${C - 42}`}
+            fill="none" stroke={col} strokeWidth="3" strokeLinecap="round"
+            filter="url(#orbGlowS)" strokeOpacity="0.9" />
+          <circle cx={C} cy={C - 84} r="4" fill="#fff" filter="url(#orbGlowS)" />
+        </g>
+      )}
+
+      {/* ── SPHERE ── */}
+      <circle cx={C} cy={C} r="62" fill={`url(#orb-body-${status})`} stroke={accent} strokeWidth="0.8" strokeOpacity="0.4" />
+
+      {/* Inner tech detail — clipped grid + rotating arcs */}
+      <g clipPath="url(#orb-clip)" opacity="0.5">
+        <g style={{ transformOrigin: `${C}px ${C}px`, animation: 'coreSpin 30s linear infinite' }}>
+          <ellipse cx={C} cy={C} rx="55" ry="20" fill="none" stroke={accent} strokeWidth="0.5" strokeOpacity="0.4" />
+          <ellipse cx={C} cy={C} rx="55" ry="40" fill="none" stroke={accent} strokeWidth="0.5" strokeOpacity="0.3" />
+          <line x1={C - 60} y1={C} x2={C + 60} y2={C} stroke={accent} strokeWidth="0.5" strokeOpacity="0.3" />
+        </g>
+        <g style={{ transformOrigin: `${C}px ${C}px`, animation: 'coreSpinR 22s linear infinite' }}>
+          <ellipse cx={C} cy={C} rx="20" ry="55" fill="none" stroke={accent} strokeWidth="0.5" strokeOpacity="0.3" />
+        </g>
+      </g>
+
+      {/* Core glow — pulsing */}
+      <circle cx={C} cy={C} r="34" fill={`url(#orb-core-${status})`}
+        style={{ animation: `corePulse ${isListening ? 0.8 : isSpeaking ? 1.1 : 2.6}s ease-in-out infinite` }} />
+
+      {/* Bright nucleus */}
+      <circle cx={C} cy={C} r={isListening ? 9 : isSpeaking ? 8 : 6} fill="#ffffff" filter="url(#orbGlowL)"
+        style={{ animation: `corePulse ${isSpeaking ? 0.9 : 2}s ease-in-out infinite` }} />
+
+      {/* Glossy specular highlight top-left */}
+      <ellipse cx={C - 20} cy={C - 24} rx="20" ry="13" fill="url(#orb-spec)" opacity="0.5"
+        style={{ animation: 'shimmer 5s ease-in-out infinite' }} />
+
+      {/* Rim light bottom-right */}
+      <path d={`M ${C + 44} ${C + 30} A 62 62 0 0 1 ${C - 10} ${C + 60}`}
+        fill="none" stroke={accent} strokeWidth="1.5" strokeOpacity="0.3" strokeLinecap="round" />
     </svg>
   );
 }
