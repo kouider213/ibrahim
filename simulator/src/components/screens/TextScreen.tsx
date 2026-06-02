@@ -486,6 +486,9 @@ const VIDEO_EXT = /\.(mp4|mov|webm|ogg)(\?.*)?$/i;
 const IMAGE_EXT = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
 const DOC_EXT   = /\.(xlsx|xls|pdf|docx|doc|csv|zip)(\?.*)?$/i;
 const URL_RE    = /(https?:\/\/[^\s\])"']+)/g;
+// Non-global anchored test — split() parts are exact URLs or plain text.
+// Using URL_RE.test() (global flag) is stateful via lastIndex → flaky detection.
+const URL_IS    = /^https?:\/\/[^\s\])"']+$/;
 
 type MediaItem = { url: string; kind: 'image' | 'video' | 'doc' };
 
@@ -528,7 +531,7 @@ function RichText({ text, color }: { text: string; color: string }) {
   return (
     <p style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 400, lineHeight: 1.6, margin: 0, color, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
       {parts.map((part, i) => {
-        if (!URL_RE.test(part)) return part;
+        if (!URL_IS.test(part)) return part;
         const isDoc = DOC_EXT.test(part);
         if (isDoc) {
           const fname = part.split('/').pop()?.split('?')[0] ?? 'fichier';
