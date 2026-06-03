@@ -48,7 +48,7 @@ const SILENCE_DELAY = 1300;   // ms de silence après parole avant d'envoyer (la
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
-const BUILD_TAG     = 'v14'; // marqueur build visible — confirme que la nouvelle version tourne
+const BUILD_TAG     = 'v15'; // marqueur build visible — confirme que la nouvelle version tourne
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
@@ -242,6 +242,31 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   // réactive le micro automatiquement (plus besoin de re-taper "ACTIVER DZARYX").
   useEffect(() => {
     if (sessionAudioUnlocked) { initMic(); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Watchdog mains-libres : garde le micro vivant sans aucun bouton ──────────
+  // Toutes les 3s : si "thinking" est bloqué trop longtemps → on débloque ;
+  // si le micro a été coupé (track morte, iOS, interruption) → on le relance.
+  const thinkingSinceRef = useRef(0);
+  useEffect(() => {
+    if (status === 'thinking') { if (!thinkingSinceRef.current) thinkingSinceRef.current = Date.now(); }
+    else thinkingSinceRef.current = 0;
+  }, [status]);
+  useEffect(() => {
+    const wd = setInterval(() => {
+      if (!sessionAudioUnlocked) return; // pas encore activé une 1ère fois
+      // 1) "thinking" figé > 22s → débloque (sinon micro gelé)
+      if (statusRef.current === 'thinking' && thinkingSinceRef.current && Date.now() - thinkingSinceRef.current > 22_000) {
+        setStatus('idle'); setHud('PRÊT — PARLE-MOI'); thinkingSinceRef.current = 0;
+      }
+      // 2) micro coupé (stream mort) alors qu'on est au repos → on relance
+      const live = !!streamRef.current && streamRef.current.getAudioTracks().some(t => t.readyState === 'live');
+      if (!live && statusRef.current !== 'speaking' && statusRef.current !== 'thinking') {
+        micInitRef.current = false; // autorise une ré-init
+        initMic();
+      }
+    }, 3000);
+    return () => clearInterval(wd);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live camera ─────────────────────────────────────────────────────────────
@@ -454,6 +479,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       console.error('[voice] error:', err);
       setStatus('idle');
       setHud('ERREUR — RÉESSAIE');
+    } finally {
+      // Toujours revenir à idle après traitement (sauf si Dzaryx parle encore).
+      // Sinon le statut reste bloqué sur "thinking" → le VAD se fige → micro mort.
+      if (statusRef.current === 'thinking') setStatus('idle');
     }
   }
 
