@@ -48,7 +48,7 @@ const SILENCE_DELAY = 1300;   // ms de silence après parole avant d'envoyer (la
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
-const BUILD_TAG     = 'v15'; // marqueur build visible — confirme que la nouvelle version tourne
+const BUILD_TAG     = 'v16'; // marqueur build visible — confirme que la nouvelle version tourne
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
@@ -372,12 +372,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       rmsRef.current = rms;
       setRmsLevel(Math.min(rms * 80, 1));
       if (statusRef.current === 'idle' && !isRecordingRef.current) {
-        setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | PARLE-MOI`);
+        const hint = handsFreeRef.current ? 'PARLE-MOI' : 'TAPE 🎤 POUR PARLER';
+        setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | ${hint}`);
       }
       if (rms > ARM_RMS) {
         // 1er son → on enregistre TOUT DE SUITE (capture le début du mot, jamais coupé).
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
-        if (!isRecordingRef.current) { startRecording(true); armStartRef.current = Date.now(); }
+        // Auto-armement (écoute sans bouton) UNIQUEMENT en mode mains-libres.
+        // Sinon (défaut) on n'enregistre QUE quand l'utilisateur tape MICRO → on ne
+        // capte plus l'ambiant ni les autres voix → Dzaryx comprend bien ce qu'IL dit.
+        if (!isRecordingRef.current && handsFreeRef.current) { startRecording(true); armStartRef.current = Date.now(); }
         if (rms > SPEECH_RMS) {
           // Vraie voix confirmée → barge-in + on marque le tour de parole
           if (statusRef.current === 'speaking') { stopAudio(); setStatus('idle'); }
