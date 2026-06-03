@@ -36,14 +36,16 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
 // VAD à 2 seuils — capture le DÉBUT du mot (sinon Whisper comprend de travers).
 // ARM (bas) = on enregistre dès le 1er son → le début du mot n'est jamais coupé.
 // SPEECH (haut) = on CONFIRME que c'est de la vraie voix ; sinon on JETTE (= bruit, pas envoyé à Whisper).
-const ARM_RMS       = 0.006;  // démarre l'enregistrement tôt (capture l'attaque du mot, même voix douce)
-const SPEECH_RMS    = 0.014;  // doit être atteint pour confirmer une vraie parole (sinon jeté)
-const SILENCE_RMS   = 0.009;  // sous ce niveau = silence
+// Seuils calibrés bas : le micro de Kouider enregistre la voix à ~7-8 (rms ~0.0075).
+// Avant SPEECH=0.014/SILENCE=0.009 → sa voix était traitée comme silence → jamais envoyée.
+const ARM_RMS       = 0.0035; // démarre l'enregistrement très tôt (capture l'attaque du mot, voix douce)
+const SPEECH_RMS    = 0.006;  // confirme une vraie parole (la voix ~0.0075 passe largement)
+const SILENCE_RMS   = 0.0035; // sous ce niveau = silence (l'ambiant ~0.001-0.002 reste silence)
 const SILENCE_DELAY = 750;    // ms de silence après parole avant d'envoyer
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
-const BUILD_TAG     = 'v9'; // marqueur build visible — confirme que la nouvelle version tourne
+const BUILD_TAG     = 'v11'; // marqueur build visible — confirme que la nouvelle version tourne
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
