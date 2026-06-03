@@ -42,7 +42,7 @@ const STATE_MSG: Record<State, string> = {
 const SPEAK_DB    = -22;   // était -25 → trop sensible, le bruit ambiant déclenchait l'écoute
 const SILENCE_DB  = -40;
 const SILENCE_END = 800;
-const MIN_SPEECH  = 500;   // rejette les bruits courts < 0,5s (était 300 → charabia)
+const MIN_SPEECH  = 300;   // rejette les bruits ultra-courts SANS jeter "oui/non" (le vrai filtre = seuil dB)
 const VAD_POLL    = 100;
 
 export default function VoiceScreen() {

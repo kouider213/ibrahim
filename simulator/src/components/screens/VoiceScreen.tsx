@@ -38,7 +38,7 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
 const SPEECH_RMS    = 0.018;  // était 0.004 → trop bas, le moindre bruit déclenchait l'écoute
 const SILENCE_RMS   = 0.012;  // seuil bas de fin de parole (sous le seuil de parole)
 const SILENCE_DELAY = 800;    // ms de silence avant d'envoyer (était 900)
-const MIN_SPEECH_MS = 450;    // rejette les bruits < 0,45s (était 250 → charabia)
+const MIN_SPEECH_MS = 300;    // rejette les bruits ultra-courts SANS jeter "oui/non" (le vrai filtre = seuil RMS + sustain)
 const SPEECH_SUSTAIN = 4;     // frames consécutives au-dessus du seuil avant de démarrer (anti-faux-départ)
 const MAX_REC_MS    = 15000;
 

@@ -238,7 +238,11 @@ export async function processMessage(
   console.log(`[router] provider=${route.provider} reason="${route.reason}" fallback=${route.fallback}`);
 
   // ── Fast path cascade: Groq/Gemini/OpenAI before any Claude call ─────────
-  if (route.fastPath && (route.provider === 'groq' || route.provider === 'gemini')) {
+  // Caméra+voix EN DIRECT (session voice_ + image): on force toujours la cascade vision
+  // rapide (Claude Haiku en premier) même sans clé Gemini → réponse rapide garantie.
+  // Le scanner texte (avec outils possibles) garde son routing normal.
+  const _isLiveVisionTurn = !!imageBase64 && sessionId.startsWith('voice_');
+  if (_isLiveVisionTurn || (route.fastPath && (route.provider === 'groq' || route.provider === 'gemini'))) {
     const fastToday = new Date().toISOString().slice(0, 10);
 
     type FP = { key: string; fn: () => Promise<string> };
