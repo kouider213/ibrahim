@@ -499,9 +499,17 @@ function parseMessage(text: string): { displayText: string; media: MediaItem[] }
 
   for (const line of lines) {
     const trimmed = line.trim();
-    // 📹 prefix → video
+    // 📹 prefix → média : détecte image / vidéo / doc selon l'extension.
+    // (Un passeport est une IMAGE, pas une vidéo — sinon <video src=image.jpg> = boîte noire.)
     const mv = /^📹\s+(https?:\/\/\S+)$/.exec(trimmed);
-    if (mv) { media.push({ url: mv[1]!, kind: 'video' }); continue; }
+    if (mv) {
+      const u = mv[1]!;
+      if (VIDEO_EXT.test(u))      media.push({ url: u, kind: 'video' });
+      else if (IMAGE_EXT.test(u)) media.push({ url: u, kind: 'image' });
+      else if (DOC_EXT.test(u))   media.push({ url: u, kind: 'doc' });
+      else                         media.push({ url: u, kind: 'image' }); // défaut: image (passeport/permis signés)
+      continue;
+    }
     // 🔗 URL inline (emoji + space + url on same line)
     const linkv = /^🔗\s+(https?:\/\/\S+)$/.exec(trimmed);
     if (linkv) {

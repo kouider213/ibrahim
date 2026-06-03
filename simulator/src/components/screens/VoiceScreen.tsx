@@ -45,7 +45,7 @@ const SILENCE_DELAY = 750;    // ms de silence après parole avant d'envoyer
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
-const BUILD_TAG     = 'v11'; // marqueur build visible — confirme que la nouvelle version tourne
+const BUILD_TAG     = 'v12'; // marqueur build visible — confirme que la nouvelle version tourne
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
