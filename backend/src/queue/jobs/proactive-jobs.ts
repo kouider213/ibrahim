@@ -347,8 +347,26 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   }
 
   // 6. Save as pending (waiting for "Oke" approval)
+  //    BUG FIX: createMarketingVideo retourne un BUFFER vidéo mais ne l'uploadait
+  //    jamais → on affichait l'image de la voiture dans un <video> = boîte noire.
+  //    On uploade la vraie vidéo vers Supabase Storage et on utilise son URL.
+  let realVideoUrl = targetCar.image_url; // fallback si upload échoue
+  try {
+    const filename = `tiktok/${targetCar.id}-${Date.now()}.mp4`;
+    const { error: upErr } = await supabase.storage
+      .from('videos')
+      .upload(filename, videoResult.buffer, { contentType: 'video/mp4', upsert: true, cacheControl: '3600' });
+    if (!upErr) {
+      realVideoUrl = supabase.storage.from('videos').getPublicUrl(filename).data.publicUrl;
+      console.log(`[job:tiktok] Vidéo uploadée: ${realVideoUrl}`);
+    } else {
+      console.error('[job:tiktok] Upload vidéo échoué:', upErr.message);
+    }
+  } catch (e) {
+    console.error('[job:tiktok] Upload vidéo exception:', e);
+  }
   const pendingId = await savePendingVideo({
-    video_url: targetCar.image_url,
+    video_url: realVideoUrl,
     caption:   videoResult.caption,
     hashtags:  videoResult.hashtags,
     car_name:  videoResult.car_name,
@@ -359,7 +377,7 @@ export async function jobTikTokSuggestion(_job: Job): Promise<void> {
   console.log(`[job:tiktok] Pending video saved: ${pendingId}`);
 
   // 7. Notification app (Socket.IO + push) avec URL vidéo
-  const tiktokMediaLine = targetCar.image_url ? `\n📹 ${targetCar.image_url}` : '';
+  const tiktokMediaLine = realVideoUrl ? `\n📹 ${realVideoUrl}` : '';
   emitProactive(`Vidéo TikTok — ${bestIdea.title} — ${targetCar.name}. Réponds Oke pour publier.`, 'info',
     `🎬 Vidéo TikTok créée — ${bestIdea.title}\n🚗 ${targetCar.name}\n📝 ${videoResult.script.slice(0, 200)}\n\n✅ Réponds Oke pour publier sur TikTok${tiktokMediaLine}`, 'kouider');
   console.log('[job:tiktok] Weekly marketing job complete');
