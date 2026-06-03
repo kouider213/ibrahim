@@ -16,9 +16,17 @@
 ### dzaryx-native/ — Fix build SDK 54
 - **`app/voice.tsx`** : `EncodingType` retiré d'expo-file-system v19 → import via `expo-file-system/legacy`. Native TS = 0 erreur.
 
-### Suivi
-- Compréhension vocale (Whisper turbo) : itérer avec exemples réels si besoin.
-- `buildContext` charge ~20 sources en parallèle même en vocal — optimisation lean-context vocale à faire avec test live.
+### simulator/ — Micro plus de re-tap (kouider213.github.io/ibrahim)
+- **`src/components/screens/VoiceScreen.tsx`** : `audioUnlocked` persiste pour la session (flag module-level) → changer d'onglet VOIX↔CHAT ne réaffiche plus "ACTIVER DZARYX" à chaque retour. Au remontage, si déjà débloqué cette session → `initMic()` auto. SW `dzaryx-v9`→`v10`.
+
+### backend/ + Supabase — Vidéos TikTok ne s'affichaient plus (boîte noire)
+- **Cause racine** : le bucket Supabase Storage **`videos` n'existait pas** → tout upload vidéo échouait. De plus le job `jobWeeklyMarketing` affichait l'**image** de la voiture dans un `<video>` = boîte noire.
+- **Fix** : bucket `videos` créé (public). **`src/queue/jobs/proactive-jobs.ts`** : la vidéo générée (buffer) est uploadée vers `videos` et son URL permanente utilisée dans le message proactif (au lieu de l'image).
+
+### Suivi (non résolu — besoin test live)
+- "Il répond pas / MIC 0.0" en vocal : l'analyser ne capte pas (AudioContext suspendu ?) — à débugger avec l'app ouverte. Le fix auto-initMic devrait aider.
+- Compréhension vocale (Whisper turbo) : itérer avec exemples réels.
+- `buildContext` charge ~20 sources en parallèle même en vocal — optimisation lean-context vocale possible.
 
 ---
 
