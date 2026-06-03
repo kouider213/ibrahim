@@ -93,25 +93,25 @@ function analyzeComplexity(messages: Message[]): { level: ComplexityLevel; budge
 
   // HIGH: Stratégie, optimisation, analyse approfondie
   if (/stratégi|optimis|analyse complète|plan d'action|business plan|prévision annuelle|comment améliorer|استراتيج|تحسين|تحليل|خطة|تطوير/i.test(text)) {
-    return { level: 'high', budget: 10000 };
+    return { level: 'high', budget: 6000 };
   }
 
   // MEDIUM: Tâches de codage — thinking aide à planifier avant d'écrire → moins d'erreurs → moins de redéploiements
   if (/debug.*erreur|typescript.*error|fix.*bug|implémenter.*feature|architecture|refactor|crée.*fichier|ajoute.*fonction|modifie.*code|écris.*fonction/i.test(text)) {
-    return { level: 'medium', budget: 5000 };
+    return { level: 'medium', budget: 4000 };
   }
 
-  // MEDIUM: Calculs financiers, comparaisons, rapports
+  // MEDIUM: Calculs financiers — un simple lookup data + calcul ne nécessite pas un gros budget
   if (/combien.*gagn|bénéfice|rentabilité|comparaison|rapport financier|revenu.*mois|كم|ربح|مدخول|مقارنة|تقرير/i.test(text)) {
-    return { level: 'medium', budget: 6000 };
+    return { level: 'low', budget: 2500 };
   }
   if (/recommand|conseil|suggestion|meilleur|quel.*choix/i.test(text)) {
-    return { level: 'medium', budget: 6000 };
+    return { level: 'low', budget: 3000 };
   }
 
   // LOW: Questions de contexte, résumés
   if (/résumé|recap|qu'est-ce que|explique|c'est quoi|ملخص|اشرح/i.test(text)) {
-    return { level: 'low', budget: 3000 };
+    return { level: 'low', budget: 1500 };
   }
 
   // NONE: Questions factuelles, actions simples
@@ -222,10 +222,14 @@ export async function chatWithTools(
 
   // ══════════════════════════════════════════════════════════════════════════
   // ADAPTIVE THINKING: Ajuster le budget selon la complexité
+  // Mode vocal (voice_) = priorité VITESSE : pas de réflexion étendue (elle ajoute
+  // plusieurs secondes avant le premier mot). Les outils + gates anti-hallucination
+  // garantissent déjà l'exactitude des données. Le texte garde la réflexion.
   // ══════════════════════════════════════════════════════════════════════════
+  const isVoiceTurn = sid.startsWith('voice_');
   const complexity = analyzeComplexity(processedMessages);
-  const useThinking = complexity.level !== 'none';
-  const thinkingBudget = complexity.budget;
+  const useThinking = !isVoiceTurn && complexity.level !== 'none';
+  const thinkingBudget = isVoiceTurn ? 0 : complexity.budget;
 
   // ══════════════════════════════════════════════════════════════════════════
   // WEB SEARCH NATIF: Ajouter le server tool si nécessaire

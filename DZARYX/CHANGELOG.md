@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-06-03 — Latence réduite (réponses plus rapides) + fix native expo-fs
+
+### backend/ — Réflexion étendue (thinking) optimisée pour la vitesse
+- **`src/integrations/claude-api.ts`** :
+  - **Tours vocaux (`voice_`) : thinking DÉSACTIVÉ** → plus de phase de réflexion de plusieurs secondes avant le premier mot. Outils + gates anti-hallucination garantissent déjà l'exactitude. Le mode texte garde la réflexion.
+  - **Budgets thinking réduits** (texte) : high 10000→6000, codage 5000→4000, finance 6000→2500, recommandation 6000→3000, résumé 3000→1500.
+- **Raison** : Kouider — "Dzaryx met trop de temps à répondre, surtout en vocal/vision".
+
+### dzaryx-native/ — Fix build SDK 54
+- **`app/voice.tsx`** : `EncodingType` retiré d'expo-file-system v19 → import via `expo-file-system/legacy`. Native TS = 0 erreur.
+
+### Suivi
+- Compréhension vocale (Whisper turbo) : itérer avec exemples réels si besoin.
+- `buildContext` charge ~20 sources en parallèle même en vocal — optimisation lean-context vocale à faire avec test live.
+
+---
+
 ## 2026-06-01 — Admin UI WOW + Multi-photos voitures + Gallery Dzaryx + Protection GitHub
 
 ### autolux-location (Vercel) — Commits : `39ed840`, `233f3f5`, `96caa8c`, `cf16200`, `81923f8`, `5377056`, `3ee5784`
