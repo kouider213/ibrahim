@@ -45,6 +45,12 @@ const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → o
 const MAX_REC_MS    = 15000;
 const BUILD_TAG     = 'v9'; // marqueur build visible — confirme que la nouvelle version tourne
 
+// Persiste l'état "audio débloqué" pour toute la session de page (survit aux
+// changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
+// l'audio est débloqué au niveau navigateur → inutile de redemander à chaque
+// retour sur l'écran Voix.
+let sessionAudioUnlocked = false;
+
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const animRef         = useRef<number>(0);
@@ -74,7 +80,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const camStreamRef = useRef<MediaStream | null>(null);
   const [particles]             = useState(() => makeParticles(30));
   const [hudMsg, setHud]        = useState('SYSTÈME DZARYX INITIALISÉ');
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const [audioUnlocked, setAudioUnlocked] = useState(sessionAudioUnlocked);
   const [rmsLevel, setRmsLevel] = useState(0);
   const rmsRef = useRef(0);
   const [respExpanded, setRespExpanded] = useState(false);
@@ -201,6 +207,12 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
   }, []);
+
+  // Retour sur l'écran Voix après l'avoir déjà débloqué une fois cette session :
+  // réactive le micro automatiquement (plus besoin de re-taper "ACTIVER DZARYX").
+  useEffect(() => {
+    if (sessionAudioUnlocked) { initMic(); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live camera ─────────────────────────────────────────────────────────────
   async function toggleLiveCam() {
@@ -903,7 +915,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       {/* ── AUDIO UNLOCK OVERLAY ── */}
       {!audioUnlocked && (
         <div
-          onClick={e => { e.stopPropagation(); unlockAudio(); setAudioUnlocked(true); initMic(); }}
+          onClick={e => { e.stopPropagation(); sessionAudioUnlocked = true; unlockAudio(); setAudioUnlocked(true); initMic(); }}
           style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
