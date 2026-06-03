@@ -63,6 +63,10 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'check_car_availability','generate_reservation_voucher','get_late_returns',
     'get_fleet_status','send_whatsapp_to_client','schedule_reminder','create_calendar_event','rate_client',
     'update_car',
+    // Photos du parc : Kouider demande souvent "envoie une photo de [voiture]" dans
+    // un contexte véhicule/flotte → cet agent gagne (priorité 10). Sans ce tool il
+    // improvisait "je n'ai pas accès aux photos". Maintenant il récupère la vraie photo.
+    'get_car_photo',
   ],
   keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible)\b/i,
   priority:  10,
