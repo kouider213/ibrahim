@@ -6,10 +6,7 @@ import { executeNexusCommand } from './nexus-command-registry.js';
 import type { CommandType } from './nexus-command-registry.js';
 import { runVisionLoop } from './nexus-vision-loop.js';
 import { isNexusOnline } from './nexus-relay.js';
-import {
-  callGroq, callGemini,
-  isGroqAvailable, isGeminiAvailable,
-} from '../../integrations/llm-router.js';
+import { callGroq, isGroqAvailable } from '../../integrations/llm-router.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -197,9 +194,8 @@ async function _decompose(objective: string, taskId: string): Promise<TaskStep[]
   const prompt = `Décompose cette tâche PC en étapes: "${objective}"`;
   let raw = '';
   try {
-    if (isGroqAvailable())        raw = await callGroq(prompt, DECOMPOSE_EXTRA);
-    else if (isGeminiAvailable()) raw = await callGemini(prompt, DECOMPOSE_EXTRA);
-    else return _fallbackStep(objective, taskId);
+    if (isGroqAvailable()) raw = await callGroq(prompt, DECOMPOSE_EXTRA);
+    else return _fallbackStep(objective, taskId);  // jamais Gemini — consigne Kouider
   } catch (err) {
     console.warn(`[NEXUS_TASK] decompose_error: ${err instanceof Error ? err.message : String(err)}`);
     return _fallbackStep(objective, taskId);

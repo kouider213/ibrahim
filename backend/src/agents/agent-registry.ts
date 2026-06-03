@@ -161,7 +161,7 @@ RÉPONSE FINALE OBLIGATOIRE: après add_text_overlay, ta réponse DOIT contenir 
   ],
   keywords:  /\b(image|photo|vid[eé]o|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|r[eé]seaux|instagram|reel|story|banner|logo|supprimer\s+fond|optimiser|g[eé]n[eè]re?r?\s+(?:image|photo|visuel)|crée?\w*\s+(?:image|photo|pub|visuel|affiche)|image\s+ia|photo\s+ia)\b/i,
   priority:  6,
-  llm: { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
+  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.7, maxTokens: 1200, fallback: 'groq' },
 };
 
 // ── Agent 6: TikTok ───────────────────────────────────────────────────────────
@@ -229,7 +229,7 @@ TOUJOURS: produire du code React/CSS directement utilisable, penser mobile-first
   ],
   keywords:  /\b(design|ui|ux|interface|maquette|composant|css|layout|couleur|palette|logo|icône|figma|wireframe|prototype|style|thème|charte graphique)\b/i,
   priority:  7,
-  llm: { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.7, maxTokens: 1200, fallback: 'claude' },
+  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.7, maxTokens: 1200, fallback: 'groq' },
 };
 
 // ── Agent 10: Code Reviewer ───────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 /**
  * LLM Router — Phase 2
- * Groq (fast/simple) → Claude (agentic/tools) → OpenAI / Gemini (fallback)
+ * RÈGLE KOUIDER: uniquement Claude ou Groq. Gemini/OpenAI ne sont PLUS utilisés dans le routing.
+ * Groq (rapide/simple + vision secours) → Claude (agentique/outils/vision principale).
  */
 import { Dzaryx } from '../config/constants.js';
 
@@ -20,38 +21,29 @@ export interface RouteDecision {
 // ── Keywords that signal tools are required ──────────────────────────────────
 const TOOL_KEYWORDS = /réservation|booking|location|voiture|client|facture|paiement|caisse|finance|revenu|revenus|bénéfice|profit|gagné|gain|météo|news|agenda|calendrier|github|deploy|railway|code|script|whatsapp|telegram|mémoire|souvien|rappelle|mémo|tiktok|vidéo|image|photo|pdf|document|contrat|passeport|permis|envoie|concurrent|concurrentiel|veille|recherche\s+con|actualité|actu|sport|foot|politique|économie|taux|dinar|dzd|dollar|euro|algérie|algérien|alger|oran|condition|visa|formalité|loi|règlement|info\s+sur|qu.est.ce\s+que|c.est\s+quoi|explique|comment\s+(?!ça|ca)|pourquoi|quand\s+(?!même)|où\s+(?!est|sont)|qui\s+est\s+(?!tu)|quel\s+(?!age|âge)|compta|comptable|export\s+compta|bilan\s+mensuel/i;
 
-// ── Long-context keywords → Gemini (1M token window) ─────────────────────────
-const LONG_CONTEXT_KEYWORDS = /analyse (ce|cet|ce long|tout ce|l'ensemble)|résume (ce|cet|tout)|lis (ce|cet|tout le)|compare (ces|les deux|plusieurs)/i;
-
 // ── Simple non-tool queries → Groq fast path ─────────────────────────────────
 const SIMPLE_GREET  = /^(bonjour|salut|hello|hi|hey|bonsoir|salam|coucou|yo|wesh)[\s!?.]*$/i;
 const SIMPLE_QUERY  = /^(comment (ça|ca) va|ça va|ca va|tu vas bien|quoi de neuf|what'?s up|merci|ok|oui|non|yes|no|d'?accord|parfait|super|gg|bravo)[\s!?.]*$/i;
 const SIMPLE_WHOAMI = /^(qui es[- ]tu|c'est quoi dzaryx|présente[- ]toi|dis[- ]moi qui tu es|tu t'appelles comment)[\s!?.]*$/i;
 
 function classifyRequest(text: string, hasImage: boolean, messageCount: number): RouteDecision {
-  // Vision: Gemini Flash first (cheaper, 1M context), OpenAI Vision fallback
+  // RÈGLE KOUIDER: tout passe par Claude ou Groq. JAMAIS Gemini/OpenAI.
+  // Vision = Claude (rapide + natif images). Le tour vocal+image force la cascade rapide côté orchestrateur.
   if (hasImage) {
-    return GEMINI_KEY
-      ? { provider: 'gemini', fallback: OPENAI_KEY ? 'openai' : 'claude', fastPath: true, reason: 'image/vision-gemini' }
-      : { provider: 'claude', fallback: 'gemini', fastPath: false, reason: 'image/vision' };
+    return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'image/vision-claude' };
   }
 
   // Business tools keywords → Claude agentic loop
   if (TOOL_KEYWORDS.test(text)) {
-    return { provider: 'claude', fallback: 'openai', fastPath: false, reason: 'tools required' };
+    return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'tools required' };
   }
 
-  // Very long messages + long-context keywords → Gemini (1M token window, cheap)
-  if (text.length > 2000 && GEMINI_KEY && LONG_CONTEXT_KEYWORDS.test(text)) {
-    return { provider: 'gemini', fallback: 'claude', fastPath: true, reason: 'long context' };
-  }
-
-  // Long messages → Claude (complex reasoning likely needed)
+  // Long messages → Claude (raisonnement complexe probable)
   if (text.length > 300) {
-    return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'long message' };
+    return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'long message' };
   }
 
-  // Pure greetings/ack → Groq (no knowledge/tools needed, ultra-fast)
+  // Pure greetings/ack → Groq (ni connaissance ni outils, ultra-rapide)
   // Check BEFORE the short-message block so greetings never fall through to Claude
   if (GROQ_KEY && (SIMPLE_GREET.test(text) || SIMPLE_QUERY.test(text) || SIMPLE_WHOAMI.test(text))) {
     return { provider: 'groq', fallback: 'claude', fastPath: true, reason: 'simple greeting' };
@@ -61,18 +53,17 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
   if (text.length <= 100) {
     const isNumericReply = /^[\+\d][\d\s\-().]{2,}$/.test(text.trim()) || /^\d+\s*(ans?|€|\$|eur|dzd|jours?|km)?$/i.test(text.trim());
     if (messageCount > 2 && isNumericReply) {
-      return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'numeric reply in conversation' };
+      return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'numeric reply in conversation' };
     }
   }
 
   // Multi-turn conversation context → Claude (has memory/context)
   if (messageCount > 2) {
-    return { provider: 'claude', fallback: OPENAI_KEY ? 'openai' : 'gemini', fastPath: false, reason: 'conversation context' };
+    return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'conversation context' };
   }
 
   // Default: Claude with full agentic loop
-  const fallback: LLMProvider = OPENAI_KEY ? 'openai' : GEMINI_KEY ? 'gemini' : 'claude';
-  return { provider: 'claude', fallback, fastPath: false, reason: 'default' };
+  return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'default' };
 }
 
 // ── Groq Vision (Llama 4 Scout — vision-capable, free tier) ─────────────────

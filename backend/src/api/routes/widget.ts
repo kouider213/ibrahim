@@ -2,7 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
 import { supabase } from '../../integrations/supabase.js';
-import { callGroq, callGemini, callOpenAI, isGroqAvailable, isGeminiAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
+import { callGroq, isGroqAvailable } from '../../integrations/llm-router.js';
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -194,23 +194,11 @@ router.post('/chat', async (req, res) => {
 
     let text = '';
 
-    // Groq first (free/fast for simple chat), then Gemini, then OpenAI, then Haiku
+    // Groq d'abord (rapide/gratuit), puis Claude Haiku ci-dessous. JAMAIS Gemini/OpenAI (consigne Kouider).
     if (isGroqAvailable()) {
       try {
         text = await callGroq(lastUserMsg, systemPrompt);
         console.log('[AI_ROUTER] provider=groq route=widget');
-      } catch {}
-    }
-    if (!text && isGeminiAvailable()) {
-      try {
-        text = await callGemini(lastUserMsg, systemPrompt);
-        console.log('[AI_ROUTER] provider=gemini route=widget');
-      } catch {}
-    }
-    if (!text && isOpenAIAvailable()) {
-      try {
-        text = await callOpenAI(messages, systemPrompt);
-        console.log('[AI_ROUTER] provider=openai route=widget');
       } catch {}
     }
     if (!text) {

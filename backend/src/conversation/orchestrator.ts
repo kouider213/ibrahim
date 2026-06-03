@@ -8,7 +8,7 @@ import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hall
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
-import { classifyRequest, callGroq, callGemini, callOpenAI, callOpenAIVision, callClaudeVision, isOpenAIAvailable, isGeminiAvailable, isGroqAvailable, isClaudeAvailable } from '../integrations/llm-router.js';
+import { classifyRequest, callGroq, callGroqVision, callClaudeVision, isGroqAvailable, isClaudeAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
 import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agents/multi-agent-orchestrator.js';
 import type { Namespace }                        from 'socket.io';
@@ -242,33 +242,21 @@ export async function processMessage(
   // rapide (Claude Haiku en premier) même sans clé Gemini → réponse rapide garantie.
   // Le scanner texte (avec outils possibles) garde son routing normal.
   const _isLiveVisionTurn = !!imageBase64 && sessionId.startsWith('voice_');
-  if (_isLiveVisionTurn || (route.fastPath && (route.provider === 'groq' || route.provider === 'gemini'))) {
+  if (_isLiveVisionTurn || (route.fastPath && route.provider === 'groq')) {
     const fastToday = new Date().toISOString().slice(0, 10);
 
     type FP = { key: string; fn: () => Promise<string> };
     const fpCascade: FP[] = [];
 
     if (imageBase64) {
-      // Vision cascade: CLAUDE D'ABORD (Kouider veut Claude obligatoire pour la vision).
-      // Claude Haiku 4.5 = rapide + natif images. Gemini/OpenAI = secours d'urgence seulement
-      // (n'arrivent que si Claude tombe — la vision ne meurt jamais complètement).
-      console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} claude=${isClaudeAvailable()} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()}`);
-      if (isClaudeAvailable())   fpCascade.push({ key: 'claude', fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
-      if (isGeminiAvailable())   fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime) });
-      if (isOpenAIAvailable())   fpCascade.push({ key: 'openai', fn: () => callOpenAIVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      // Vision = CLAUDE uniquement (+ Groq vision en secours). JAMAIS Gemini/OpenAI (consigne Kouider).
+      // Claude Haiku 4.5 = rapide + natif images.
+      console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} claude=${isClaudeAvailable()} groq=${isGroqAvailable()}`);
+      if (isClaudeAvailable())   fpCascade.push({ key: 'claude',      fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      if (isGroqAvailable())     fpCascade.push({ key: 'groq-vision', fn: () => callGroqVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
     } else {
-      // Text: primary provider first, then alternatives, then OpenAI
-      if (route.provider === 'groq') {
-        fpCascade.push({ key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
-        if (isGeminiAvailable()) fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra) });
-      } else {
-        fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra) });
-        if (isGroqAvailable())   fpCascade.push({ key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
-      }
-      if (isOpenAIAvailable()) {
-        const plain = ctx.messages.map(m => ({ role: m.role as 'user' | 'assistant', content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
-        fpCascade.push({ key: 'openai', fn: () => callOpenAI(plain, ctx.systemExtra) });
-      }
+      // Texte rapide = Groq uniquement. Si échec → fallthrough vers Claude (boucle agentique). JAMAIS Gemini/OpenAI.
+      if (isGroqAvailable()) fpCascade.push({ key: 'groq', fn: () => callGroq(userMessage, ctx.systemExtra) });
     }
 
     for (const fp of fpCascade) {
@@ -305,7 +293,7 @@ export async function processMessage(
     // Vision fast-path cascade failed → fall through to full Claude agentic loop
     // The agentic loop (chatWithTools) injects imageBase64 via the Anthropic SDK (claude-api.ts)
     if (imageBase64) {
-      console.warn(`[VISION_RUNTIME] fast_cascade_failed — falling to agentic Claude (SDK) session=${sessionId} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} claude=${isClaudeAvailable()}`);
+      console.warn(`[VISION_RUNTIME] fast_cascade_failed — falling to agentic Claude (SDK) session=${sessionId} claude=${isClaudeAvailable()} groq=${isGroqAvailable()}`);
     } else {
       console.warn(`[MOBILE_RUNTIME] all fast providers exhausted — falling to Claude. session=${sessionId}`);
     }
@@ -359,16 +347,9 @@ export async function processMessage(
     redis.incr(`provider:fallback:${today}:claude`).catch(() => {});
     console.warn(`[provider-monitor] Claude failed — entering fallback chain. session=${sessionId}`);
 
-    const plainMessages = ctx.messages.map(m => ({
-      role:    m.role as 'user' | 'assistant',
-      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-    }));
-
     const fallbackProviders: Array<{ name: string; key: string; fn: () => Promise<string> }> = [];
-    // Groq first — fastest + cheapest ($0.59/MTok input vs $3.00 Claude)
+    // Fallback = Groq UNIQUEMENT (consigne Kouider: jamais Gemini/OpenAI). Claude a déjà échoué ici.
     if (isGroqAvailable())   fallbackProviders.push({ name: 'Groq LLaMA3', key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
-    if (isOpenAIAvailable()) fallbackProviders.push({ name: 'OpenAI GPT-4o', key: 'openai', fn: () => callOpenAI(plainMessages, ctx.systemExtra) });
-    if (isGeminiAvailable()) fallbackProviders.push({ name: 'Gemini Flash',  key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra) });
 
     for (const fb of fallbackProviders) {
       console.warn(`[router] Attempting ${fb.name} fallback…`);

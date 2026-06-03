@@ -11,8 +11,8 @@ import {
 import { executeNexusCommand } from './nexus-command-registry.js';
 import type { CommandType } from './nexus-command-registry.js';
 import {
-  callGemini, callClaudeVision, callOpenAIVision, callGroqVision,
-  isGeminiAvailable, isClaudeAvailable, isOpenAIAvailable, isGroqAvailable,
+  callClaudeVision, callGroqVision,
+  isClaudeAvailable, isGroqAvailable,
 } from '../../integrations/llm-router.js';
 import {
   saveTask, saveStep, saveWorkflow, getSuccessfulWorkflow,
@@ -270,12 +270,10 @@ export async function analyzeScreen(
   const ctxLine  = contextHint ? `\nCONTEXTE PC: ${contextHint}` : '';
   const prompt   = `OBJECTIF: ${objective}${ctxLine}\nÉTAPE: ${step}/${maxSteps}\nHISTORIQUE: ${history}\n\nAnalyse l'écran. JSON uniquement:\n{"screen_analysis":"...","ui_elements":["..."],"detected_errors":[],"objective_status":"in_progress|completed|failed|blocked","next_action":{"type":"...","payload":{}},"reasoning":"...","confidence":0.0}`;
 
-  // Build available providers
+  // Build available providers — Claude + Groq UNIQUEMENT (jamais Gemini/OpenAI — consigne Kouider)
   const available = [
-    ...(isGroqAvailable()   ? ['groq']   : []),
-    ...(isGeminiAvailable() ? ['gemini'] : []),
     ...(isClaudeAvailable() ? ['claude'] : []),
-    ...(isOpenAIAvailable() ? ['openai'] : []),
+    ...(isGroqAvailable()   ? ['groq']   : []),
   ];
 
   // Dynamic ranking: use historical stats if available, else default order
@@ -290,9 +288,7 @@ export async function analyzeScreen(
   console.log(`[NEXUS_VISION] analyze step=${step}/${maxSteps} providers=[${providerOrder.join(',')}] mime=${mime} b64len=${cleanB64.length}`);
 
   const _call = (p: string) => {
-    if (p === 'groq')   return callGroqVision(prompt, VISION_EXTRA, cleanB64, mime, true);
-    if (p === 'gemini') return callGemini(prompt, VISION_EXTRA, cleanB64, mime);
-    if (p === 'openai') return callOpenAIVision(prompt, VISION_EXTRA, cleanB64, mime);
+    if (p === 'groq') return callGroqVision(prompt, VISION_EXTRA, cleanB64, mime, true);
     return callClaudeVision(prompt, VISION_EXTRA, cleanB64, mime, true);
   };
 
