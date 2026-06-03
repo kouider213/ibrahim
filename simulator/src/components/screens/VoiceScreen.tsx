@@ -44,17 +44,26 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
 const ARM_RMS       = 0.005;  // démarre l'enregistrement quand ça monte au-dessus de l'ambiant
 const SPEECH_RMS    = 0.0058; // confirme une vraie parole (voix 6-8 passe largement)
 const SILENCE_RMS   = 0.0048; // au-dessus de l'ambiant (3.8) → on détecte bien la fin de parole → on envoie
-const SILENCE_DELAY = 750;    // ms de silence après parole avant d'envoyer
+const SILENCE_DELAY = 1300;   // ms de silence après parole avant d'envoyer (laisse le temps de respirer/réfléchir entre les mots, sinon ça coupe)
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
-const BUILD_TAG     = 'v13'; // marqueur build visible — confirme que la nouvelle version tourne
+const BUILD_TAG     = 'v14'; // marqueur build visible — confirme que la nouvelle version tourne
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
 // l'audio est débloqué au niveau navigateur → inutile de redemander à chaque
 // retour sur l'écran Voix.
 let sessionAudioUnlocked = false;
+
+// Extrait les URLs d'images d'une réponse (ex: passeport/permis client envoyé
+// par le backend) pour les afficher EN MODE VOIX aussi (avant: texte seul).
+const IMG_URL_RE = /https?:\/\/[^\s\])"']+\.(?:jpg|jpeg|png|webp|gif|avif)(?:\?[^\s\])"']*)?/gi;
+function imageUrlsFrom(text: string): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(IMG_URL_RE)) out.add(m[0]);
+  return [...out];
+}
 
 // Stream micro partagé pour toute la session de page : on le garde ouvert quand on
 // change d'onglet (VOIX↔CHAT) → pas de nouvel appel getUserMedia → iOS ne redemande
@@ -736,6 +745,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
             )}
           </div>
         )}
+        {/* Images (passeport/permis/doc client) affichées aussi en mode voix */}
+        {imageUrlsFrom(displayText).slice(0, 3).map((u, i) => (
+          <a key={i} href={u} target="_blank" rel="noopener noreferrer" style={{ display: 'block', margin: '8px 20px 0' }}>
+            <img src={u} alt="document"
+              style={{ width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 12, border: `1px solid ${col}33`, background: 'rgba(0,0,0,0.3)' }} />
+          </a>
+        ))}
         <div style={{ marginTop: 6 }}>
           <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 400, color: `${col}44`, letterSpacing: '0.08em' }}>
             {hudMsg.slice(0, 55)}
