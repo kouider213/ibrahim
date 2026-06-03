@@ -19,7 +19,9 @@ export interface RouteDecision {
 }
 
 // ── Keywords that signal tools are required ──────────────────────────────────
-const TOOL_KEYWORDS = /réservation|booking|location|voiture|client|facture|paiement|caisse|finance|revenu|revenus|bénéfice|profit|gagné|gain|météo|news|agenda|calendrier|github|deploy|railway|code|script|whatsapp|telegram|mémoire|souvien|rappelle|mémo|tiktok|vidéo|image|photo|pdf|document|contrat|passeport|permis|envoie|concurrent|concurrentiel|veille|recherche\s+con|actualité|actu|sport|foot|politique|économie|taux|dinar|dzd|dollar|euro|algérie|algérien|alger|oran|condition|visa|formalité|loi|règlement|info\s+sur|qu.est.ce\s+que|c.est\s+quoi|explique|comment\s+(?!ça|ca)|pourquoi|quand\s+(?!même)|où\s+(?!est|sont)|qui\s+est\s+(?!tu)|quel\s+(?!age|âge)|compta|comptable|export\s+compta|bilan\s+mensuel/i;
+// Robuste aux fautes de frappe courantes : pass?e?ports? matche passeport/paseport/
+// passport/pasport ; envoi matche envoi/envoie/envoyer ; montre/affiche = demande de doc.
+const TOOL_KEYWORDS = /réservation|booking|location|voiture|client|facture|paiement|caisse|finance|revenu|revenus|bénéfice|profit|gagné|gain|météo|news|agenda|calendrier|github|deploy|railway|code|script|whatsapp|telegram|mémoire|souvien|rappelle|mémo|tiktok|vidéo|image|photo|pdf|document|contrat|pass?e?ports?|permis|cni|carte\s*(?:grise|id|identité)|envoi|montre|affiche|concurrent|concurrentiel|veille|recherche\s+con|actualité|actu|sport|foot|politique|économie|taux|dinar|dzd|dollar|euro|algérie|algérien|alger|oran|condition|visa|formalité|loi|règlement|info\s+sur|qu.est.ce\s+que|c.est\s+quoi|explique|comment\s+(?!ça|ca)|pourquoi|quand\s+(?!même)|où\s+(?!est|sont)|qui\s+est\s+(?!tu)|quel\s+(?!age|âge)|compta|comptable|export\s+compta|bilan\s+mensuel/i;
 
 // ── Simple non-tool queries → Groq fast path ─────────────────────────────────
 const SIMPLE_GREET  = /^(bonjour|salut|hello|hi|hey|bonsoir|salam|coucou|yo|wesh)[\s!?.]*$/i;
