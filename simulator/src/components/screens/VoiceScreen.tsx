@@ -33,14 +33,17 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
   speaking:  'Dzaryx vous répond...',
 };
 
-// VAD — seuils relevés pour ne plus démarrer sur le bruit de fond ni mal comprendre.
-// SPEECH_RMS (haut) > SILENCE_RMS (bas) = hystérésis propre.
-const SPEECH_RMS    = 0.018;  // était 0.004 → trop bas, le moindre bruit déclenchait l'écoute
-const SILENCE_RMS   = 0.012;  // seuil bas de fin de parole (sous le seuil de parole)
-const SILENCE_DELAY = 800;    // ms de silence avant d'envoyer (était 900)
-const MIN_SPEECH_MS = 300;    // rejette les bruits ultra-courts SANS jeter "oui/non" (le vrai filtre = seuil RMS + sustain)
-const SPEECH_SUSTAIN = 4;     // frames consécutives au-dessus du seuil avant de démarrer (anti-faux-départ)
+// VAD à 2 seuils — capture le DÉBUT du mot (sinon Whisper comprend de travers).
+// ARM (bas) = on enregistre dès le 1er son → le début du mot n'est jamais coupé.
+// SPEECH (haut) = on CONFIRME que c'est de la vraie voix ; sinon on JETTE (= bruit, pas envoyé à Whisper).
+const ARM_RMS       = 0.006;  // démarre l'enregistrement tôt (capture l'attaque du mot, même voix douce)
+const SPEECH_RMS    = 0.014;  // doit être atteint pour confirmer une vraie parole (sinon jeté)
+const SILENCE_RMS   = 0.009;  // sous ce niveau = silence
+const SILENCE_DELAY = 750;    // ms de silence après parole avant d'envoyer
+const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
+const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
+const BUILD_TAG     = 'v9'; // marqueur build visible — confirme que la nouvelle version tourne
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const canvasRef       = useRef<HTMLCanvasElement>(null);
@@ -52,7 +55,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const streamRef       = useRef<MediaStream | null>(null);
   const audioCtxRef     = useRef<AudioContext | null>(null);
   const speechStartRef  = useRef<number>(0);
-  const speechHitsRef   = useRef(0);
+  const armStartRef     = useRef<number>(0);
+  const realSpeechRef   = useRef(false);
   const isSpeechRef     = useRef(false);
   const isRecordingRef  = useRef(false);
   const sessionId       = useRef(getOrCreateSessionId());
@@ -303,27 +307,32 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       if (statusRef.current === 'idle' && !isRecordingRef.current) {
         setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | PARLE-MOI`);
       }
-      if (rms > SPEECH_RMS) {
-        speechHitsRef.current++;
-        if (statusRef.current === 'speaking') {
-          stopAudio();
-          setStatus('idle');
-        }
+      if (rms > ARM_RMS) {
+        // 1er son → on enregistre TOUT DE SUITE (capture le début du mot, jamais coupé).
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
-        // Exiger un son SOUTENU (≥ SPEECH_SUSTAIN frames) avant de démarrer → évite les faux départs sur un bruit bref
-        if (speechHitsRef.current >= SPEECH_SUSTAIN) {
-          if (!isSpeechRef.current) { isSpeechRef.current = true; speechStartRef.current = Date.now(); }
-          if (!isRecordingRef.current) startRecording();
+        if (!isRecordingRef.current) { startRecording(true); armStartRef.current = Date.now(); }
+        if (rms > SPEECH_RMS) {
+          // Vraie voix confirmée → barge-in + on marque le tour de parole
+          if (statusRef.current === 'speaking') { stopAudio(); setStatus('idle'); }
+          if (!realSpeechRef.current) { realSpeechRef.current = true; speechStartRef.current = Date.now(); setStatus('listening'); }
+        } else if (isRecordingRef.current && !realSpeechRef.current && Date.now() - armStartRef.current > NO_SPEECH_MS) {
+          // Armé par un bruit, jamais de vraie voix → on jette (pas envoyé à Whisper)
+          discardRecording();
         }
       } else {
-        speechHitsRef.current = 0;
-        if (rms < SILENCE_RMS && isSpeechRef.current && !silenceTimerRef.current) {
-          silenceTimerRef.current = setTimeout(() => {
-            silenceTimerRef.current = null;
-            const dur = Date.now() - speechStartRef.current;
-            if (dur > MIN_SPEECH_MS) stopRecordingAndProcess();
-            else resetVAD();
-          }, SILENCE_DELAY);
+        // Calme (sous ARM)
+        if (isRecordingRef.current && realSpeechRef.current) {
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(() => {
+              silenceTimerRef.current = null;
+              const dur = Date.now() - speechStartRef.current;
+              if (dur > MIN_SPEECH_MS) stopRecordingAndProcess();
+              else discardRecording();
+            }, SILENCE_DELAY);
+          }
+        } else if (isRecordingRef.current && !realSpeechRef.current && Date.now() - armStartRef.current > 400) {
+          // Armé par un blip puis calme, pas de vraie voix → jeter vite
+          discardRecording();
         }
       }
       requestAnimationFrame(tick);
@@ -331,10 +340,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     tick();
   }
 
-  function startRecording() {
+  // silent=true → armement VAD (on enregistre sans afficher "écoute" tant que la vraie voix n'est pas confirmée)
+  function startRecording(silent = false) {
     const stream = streamRef.current;
     if (!stream || isRecordingRef.current) return;
     isRecordingRef.current = true;
+    realSpeechRef.current  = !silent;       // démarrage manuel/wake = tour de parole confirmé d'office
+    armStartRef.current    = Date.now();
     chunksRef.current = [];
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus' : 'audio/webm';
@@ -342,9 +354,25 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
     rec.start(100);
     recorderRef.current = rec;
-    setStatus('listening');
-    setHud('ENREGISTREMENT EN COURS...');
-    setTimeout(() => { if (isRecordingRef.current) stopRecordingAndProcess(); }, MAX_REC_MS);
+    if (!silent) {
+      speechStartRef.current = Date.now();
+      setStatus('listening');
+      setHud('ENREGISTREMENT EN COURS...');
+    }
+    setTimeout(() => {
+      if (!isRecordingRef.current) return;
+      if (realSpeechRef.current) stopRecordingAndProcess();
+      else discardRecording();
+    }, MAX_REC_MS);
+  }
+
+  // Jette l'enregistrement en cours sans le transcrire (bruit, pas de vraie voix)
+  function discardRecording() {
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    if (rec && rec.state !== 'inactive') { try { rec.onstop = null; rec.stop(); } catch { /* ignore */ } }
+    chunksRef.current = [];
+    resetVAD();
   }
 
   async function stopRecordingAndProcess() {
@@ -390,7 +418,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   function resetVAD() {
     isRecordingRef.current = false;
     isSpeechRef.current    = false;
-    speechHitsRef.current  = 0;
+    realSpeechRef.current  = false;
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     if (statusRef.current !== 'speaking' && statusRef.current !== 'thinking') setStatus('idle');
   }
 
@@ -515,7 +544,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
               {wsConn ? 'CONNECTÉ' : 'HORS LIGNE'}
             </span>
             <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff22', letterSpacing: '0.08em' }}>
-              · SYSTÈME EN LIGNE
+              · SYSTÈME EN LIGNE · {BUILD_TAG}
             </span>
           </div>
 

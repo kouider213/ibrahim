@@ -52,8 +52,9 @@ async function transcribeWithGroq(audio: string, mimeType: string): Promise<stri
   const form = new FormData();
   form.append('file', new Blob([buf], { type: mimeType }), `audio.${ext}`);
   form.append('model', 'whisper-large-v3-turbo');
-  // No language lock — user speaks Darija (French/Arabic/Berber mix)
-  form.append('prompt', 'Dzaryx — Fik Conciergerie Oran — location voitures. Mots: réservation, voiture, client, paiement, acompte, disponible, Oran, Algérie. حجز، سيارة، عميل، دفع، متاح، وهران.');
+  // Pas de verrou de langue (français + darija oranaise mélangés).
+  // Prompt COURT = contexte léger sans forcer des mots (un long lexique biaise Whisper → "comprend de travers").
+  form.append('prompt', "Conversation à Oran : français et arabe algérien (darija). Location de voitures.");
   form.append('response_format', 'json');
 
   const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
