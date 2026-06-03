@@ -33,6 +33,10 @@ const envSchema = z.object({
   PERSONAL_GCAL_ID:              z.string().optional(), // kouiderpablo@gmail.com personal calendar
   HOUARI_GCAL_ID:                z.string().optional(), // houari personal calendar
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  // ── Notifications Nexus (PC agent) ──
+  // 'true' = Nexus peut pousser des proactifs vers l'app. Absent / autre = OFF (anti-spam).
+  // Désactivé par défaut : Kouider recevait les mêmes alertes Nexus en boucle.
+  NEXUS_PROACTIVE_ENABLED: z.string().optional(),
   VAPID_PUBLIC_KEY:  z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_EMAIL:       z.string().optional(),

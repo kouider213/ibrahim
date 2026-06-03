@@ -200,9 +200,9 @@ function _isSafeCommand(cmd: string): { ok: boolean; reason?: string } {
 
 async function _notify(text: string): Promise<void> {
   try {
-    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
     const clean = text.replace(/\*/g, '').replace(/_/g, '').trim();
-    emitProactive(clean.slice(0, 120), 'info', clean, 'kouider');
+    emitNexusProactive(clean.slice(0, 120), 'info', clean, 'kouider');
   } catch { /* non-critical */ }
 }
 

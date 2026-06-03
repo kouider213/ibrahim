@@ -1,5 +1,6 @@
 import type { Namespace } from 'socket.io';
 import { redis } from '../queue/queue.js';
+import { env } from '../config/env.js';
 import { sendFcm, isFcmToken } from './fcm.js';
 import { getWebSub, getAllWebSubs, sendWebPush } from './web-push-service.js';
 
@@ -174,4 +175,23 @@ export function emitProactive(
   );
 
   console.log(`[mobile-push] Proactive (${type}) → ${targetActor}: ${text.slice(0, 60)}…`);
+}
+
+/**
+ * Proactif émis par l'agent PC Nexus (watchdog, task-runner, vision-loop, relay…).
+ * Désactivé par défaut (anti-spam) : Nexus renvoyait les mêmes alertes en boucle.
+ * Réactiver avec NEXUS_PROACTIVE_ENABLED=true sur Railway si besoin un jour.
+ */
+export function emitNexusProactive(
+  text: string,
+  type: ProactiveType = 'info',
+  chatText?: string,
+  targetActor: ProactiveActor = 'kouider',
+): void {
+  if (env.NEXUS_PROACTIVE_ENABLED !== 'true') {
+    // Silencieux : on log seulement, aucune notif poussée.
+    console.log(`[mobile-push] Nexus proactive SUPPRIMÉ (NEXUS_PROACTIVE_ENABLED!=true): ${text.slice(0, 60)}…`);
+    return;
+  }
+  emitProactive(text, type, chatText, targetActor);
 }

@@ -65,9 +65,9 @@ router.post('/watchdog-notify', requirePcAuth, async (req, res) => {
   const { text } = req.body as { text?: string };
   if (!text) { res.status(400).json({ error: 'text required' }); return; }
   try {
-    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
     const clean = text.replace(/\*/g, '').replace(/_/g, '').trim().slice(0, 300);
-    emitProactive(clean.slice(0, 80), 'info', clean, 'kouider');
+    emitNexusProactive(clean.slice(0, 80), 'info', clean, 'kouider');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ ok: false, error: String(err) });

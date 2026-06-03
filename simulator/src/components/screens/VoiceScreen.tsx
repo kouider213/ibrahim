@@ -33,10 +33,13 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
   speaking:  'Dzaryx vous répond...',
 };
 
-const SPEECH_RMS    = 0.004;
-const SILENCE_RMS   = 0.006;
-const SILENCE_DELAY = 900;
-const MIN_SPEECH_MS = 250;
+// VAD — seuils relevés pour ne plus démarrer sur le bruit de fond ni mal comprendre.
+// SPEECH_RMS (haut) > SILENCE_RMS (bas) = hystérésis propre.
+const SPEECH_RMS    = 0.018;  // était 0.004 → trop bas, le moindre bruit déclenchait l'écoute
+const SILENCE_RMS   = 0.012;  // seuil bas de fin de parole (sous le seuil de parole)
+const SILENCE_DELAY = 800;    // ms de silence avant d'envoyer (était 900)
+const MIN_SPEECH_MS = 450;    // rejette les bruits < 0,45s (était 250 → charabia)
+const SPEECH_SUSTAIN = 4;     // frames consécutives au-dessus du seuil avant de démarrer (anti-faux-départ)
 const MAX_REC_MS    = 15000;
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
@@ -49,6 +52,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const streamRef       = useRef<MediaStream | null>(null);
   const audioCtxRef     = useRef<AudioContext | null>(null);
   const speechStartRef  = useRef<number>(0);
+  const speechHitsRef   = useRef(0);
   const isSpeechRef     = useRef(false);
   const isRecordingRef  = useRef(false);
   const sessionId       = useRef(getOrCreateSessionId());
@@ -300,20 +304,27 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | PARLE-MOI`);
       }
       if (rms > SPEECH_RMS) {
+        speechHitsRef.current++;
         if (statusRef.current === 'speaking') {
           stopAudio();
           setStatus('idle');
         }
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
-        if (!isSpeechRef.current) { isSpeechRef.current = true; speechStartRef.current = Date.now(); }
-        if (!isRecordingRef.current) startRecording();
-      } else if (rms < SILENCE_RMS && isSpeechRef.current && !silenceTimerRef.current) {
-        silenceTimerRef.current = setTimeout(() => {
-          silenceTimerRef.current = null;
-          const dur = Date.now() - speechStartRef.current;
-          if (dur > MIN_SPEECH_MS) stopRecordingAndProcess();
-          else resetVAD();
-        }, SILENCE_DELAY);
+        // Exiger un son SOUTENU (≥ SPEECH_SUSTAIN frames) avant de démarrer → évite les faux départs sur un bruit bref
+        if (speechHitsRef.current >= SPEECH_SUSTAIN) {
+          if (!isSpeechRef.current) { isSpeechRef.current = true; speechStartRef.current = Date.now(); }
+          if (!isRecordingRef.current) startRecording();
+        }
+      } else {
+        speechHitsRef.current = 0;
+        if (rms < SILENCE_RMS && isSpeechRef.current && !silenceTimerRef.current) {
+          silenceTimerRef.current = setTimeout(() => {
+            silenceTimerRef.current = null;
+            const dur = Date.now() - speechStartRef.current;
+            if (dur > MIN_SPEECH_MS) stopRecordingAndProcess();
+            else resetVAD();
+          }, SILENCE_DELAY);
+        }
       }
       requestAnimationFrame(tick);
     }
@@ -379,6 +390,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   function resetVAD() {
     isRecordingRef.current = false;
     isSpeechRef.current    = false;
+    speechHitsRef.current  = 0;
     if (statusRef.current !== 'speaking' && statusRef.current !== 'thinking') setStatus('idle');
   }
 

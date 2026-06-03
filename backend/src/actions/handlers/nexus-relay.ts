@@ -969,25 +969,25 @@ export const nexusScreenUnderstand = (
 
 async function _sendTelegram(text: string): Promise<void> {
   try {
-    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
     const clean = text.replace(/\*/g, '').replace(/_/g, '').trim();
-    emitProactive(clean.slice(0, 120), 'info', clean, 'kouider');
+    emitNexusProactive(clean.slice(0, 120), 'info', clean, 'kouider');
   } catch { /* non-critical */ }
 }
 
 async function _sendTelegramDocument(_base64: string, filename: string, caption: string): Promise<void> {
   try {
-    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
     const msg = `📎 ${caption || filename}`;
-    emitProactive(msg.slice(0, 120), 'info', msg, 'kouider');
+    emitNexusProactive(msg.slice(0, 120), 'info', msg, 'kouider');
   } catch { /* non-critical */ }
 }
 
 async function _sendTelegramPhoto(_base64: string, caption: string): Promise<void> {
   try {
-    const { emitProactive } = await import('../../notifications/mobile-push.js');
+    const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
     const msg = `📸 ${caption || 'Screenshot NEXUS'}`;
-    emitProactive(msg.slice(0, 120), 'info', msg, 'kouider');
+    emitNexusProactive(msg.slice(0, 120), 'info', msg, 'kouider');
   } catch { /* non-critical */ }
 }
 

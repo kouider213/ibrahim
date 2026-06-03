@@ -245,11 +245,13 @@ export async function processMessage(
     const fpCascade: FP[] = [];
 
     if (imageBase64) {
-      // Vision cascade: Gemini → OpenAI → Claude (lightweight, no tool loop) → clean error
-      console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()} claude=${isClaudeAvailable()}`);
+      // Vision cascade: CLAUDE D'ABORD (Kouider veut Claude obligatoire pour la vision).
+      // Claude Haiku 4.5 = rapide + natif images. Gemini/OpenAI = secours d'urgence seulement
+      // (n'arrivent que si Claude tombe — la vision ne meurt jamais complètement).
+      console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} claude=${isClaudeAvailable()} gemini=${isGeminiAvailable()} openai=${isOpenAIAvailable()}`);
+      if (isClaudeAvailable())   fpCascade.push({ key: 'claude', fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
       if (isGeminiAvailable())   fpCascade.push({ key: 'gemini', fn: () => callGemini(userMessage, ctx.systemExtra, imageBase64, imageMime) });
       if (isOpenAIAvailable())   fpCascade.push({ key: 'openai', fn: () => callOpenAIVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
-      if (isClaudeAvailable())   fpCascade.push({ key: 'claude', fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
     } else {
       // Text: primary provider first, then alternatives, then OpenAI
       if (route.provider === 'groq') {
