@@ -36,22 +36,31 @@ const STATE_MSG: Record<DzaryxStatus, string> = {
 // VAD à 2 seuils — capture le DÉBUT du mot (sinon Whisper comprend de travers).
 // ARM (bas) = on enregistre dès le 1er son → le début du mot n'est jamais coupé.
 // SPEECH (haut) = on CONFIRME que c'est de la vraie voix ; sinon on JETTE (= bruit, pas envoyé à Whisper).
-// Seuils calibrés bas : le micro de Kouider enregistre la voix à ~7-8 (rms ~0.0075).
-// Avant SPEECH=0.014/SILENCE=0.009 → sa voix était traitée comme silence → jamais envoyée.
-const ARM_RMS       = 0.0035; // démarre l'enregistrement très tôt (capture l'attaque du mot, voix douce)
-const SPEECH_RMS    = 0.006;  // confirme une vraie parole (la voix ~0.0075 passe largement)
-const SILENCE_RMS   = 0.0035; // sous ce niveau = silence (l'ambiant ~0.001-0.002 reste silence)
+// Seuils calibrés sur le micro réel de Kouider :
+//   ambiant (silence) ≈ 3.8 (rms 0.0038)  ·  voix ≈ 6-8 (rms 0.006-0.008)
+// Le seuil de SILENCE doit être ENTRE l'ambiant et la voix, sinon :
+//   - trop bas (< ambiant) → le système croit qu'on parle tout le temps → n'envoie jamais
+//   - trop haut (> voix)   → la voix est prise pour du silence → jamais confirmée
+const ARM_RMS       = 0.005;  // démarre l'enregistrement quand ça monte au-dessus de l'ambiant
+const SPEECH_RMS    = 0.0058; // confirme une vraie parole (voix 6-8 passe largement)
+const SILENCE_RMS   = 0.0048; // au-dessus de l'ambiant (3.8) → on détecte bien la fin de parole → on envoie
 const SILENCE_DELAY = 750;    // ms de silence après parole avant d'envoyer
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
-const BUILD_TAG     = 'v12'; // marqueur build visible — confirme que la nouvelle version tourne
+const BUILD_TAG     = 'v13'; // marqueur build visible — confirme que la nouvelle version tourne
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
 // l'audio est débloqué au niveau navigateur → inutile de redemander à chaque
 // retour sur l'écran Voix.
 let sessionAudioUnlocked = false;
+
+// Stream micro partagé pour toute la session de page : on le garde ouvert quand on
+// change d'onglet (VOIX↔CHAT) → pas de nouvel appel getUserMedia → iOS ne redemande
+// PAS la permission à chaque retour. (Le re-prompt au lancement de l'app reste une
+// limite iOS pour les sites web — installer en PWA / autoriser dans Réglages Safari.)
+let sharedMicStream: MediaStream | null = null;
 
 export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const canvasRef       = useRef<HTMLCanvasElement>(null);
@@ -176,10 +185,18 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     micInitRef.current = true;
     drawCanvas();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: false,
-      });
+      // Réutilise le stream déjà ouvert cette session (pas de re-prompt iOS au
+      // changement d'onglet). Sinon en demande un nouveau (déclenche la permission).
+      let stream = sharedMicStream;
+      const live = !!stream && stream.getAudioTracks().some(t => t.readyState === 'live');
+      if (!live) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false,
+        });
+        sharedMicStream = stream;
+      }
+      if (!stream) throw new Error('Stream micro indisponible');
       streamRef.current = stream;
       const audioCtx = new AudioContext({ sampleRate: 44100 });
       audioCtxRef.current = audioCtx;
@@ -203,7 +220,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current);
-      streamRef.current?.getTracks().forEach(t => t.stop());
+      // NE PAS couper le micro partagé (sharedMicStream) au changement d'onglet :
+      // on le garde ouvert pour éviter qu'iOS redemande la permission au retour.
+      // On coupe seulement la caméra + l'AudioContext (recréé à la prochaine init).
       camStreamRef.current?.getTracks().forEach(t => t.stop());
       audioCtxRef.current?.close().catch(() => {});
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
