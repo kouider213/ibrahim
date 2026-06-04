@@ -493,8 +493,17 @@ export interface SmartReminder {
   date: string; message: string; action: string;
 }
 
+export type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo' | 'demande';
+
 export interface ClientSummary {
   name: string; phone: string | null; bookingCount: number; totalSpent: number; lastBooking: string;
+  types?: ClientType[];
+}
+
+export interface ClientOperation {
+  id: string; client_name: string; client_phone: string | null;
+  deal_type: string; item_label: string | null; amount: number | null;
+  currency: string | null; status: string | null; created_at: string;
 }
 
 export interface ClientIntelligence {
@@ -539,6 +548,16 @@ export const business = {
 
   fetchClientIntel: () =>
     apiFetch<{ clients: ClientIntelligence[] }>(`/api/clients/intelligence?owner=${_actor}`),
+
+  fetchOperations: () =>
+    apiFetch<{ operations: ClientOperation[] }>('/api/clients/operations'),
+
+  fetchClientDeals: (name?: string, phone?: string) => {
+    const p = new URLSearchParams();
+    if (phone) p.set('phone', phone);
+    if (name)  p.set('name', name);
+    return apiFetch<{ deals: ClientOperation[] }>(`/api/clients/deals?${p.toString()}`);
+  },
 
   toggleCar: (id: string, available: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),

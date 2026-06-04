@@ -1,5 +1,21 @@
 import { useState, useEffect } from 'react';
-import { business, type ClientSummary, type ClientIntelligence } from '../../services/api.ts';
+import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType } from '../../services/api.ts';
+
+const TYPE_META: Record<ClientType, { label: string; col: string }> = {
+  loc_auto:   { label: 'LOC AUTO',   col: '#00d4ff' },
+  loc_immo:   { label: 'LOC IMMO',   col: '#b06bff' },
+  achat_auto: { label: 'ACHAT AUTO', col: '#ff9f43' },
+  achat_immo: { label: 'ACHAT IMMO', col: '#00e676' },
+  demande:    { label: 'DEMANDE',    col: '#ff5fa2' },
+};
+
+const OP_META: Record<string, { label: string; icon: string; col: string }> = {
+  location_immo:      { label: 'Location immo',  icon: '🏠', col: '#b06bff' },
+  vente_immo:         { label: 'Achat immo',     icon: '🏠', col: '#00e676' },
+  vente_voiture:      { label: 'Achat voiture',  icon: '🚗', col: '#ff9f43' },
+  demande_specifique: { label: 'Demande spéciale', icon: '✨', col: '#ff5fa2' },
+  demande:            { label: 'Demande spéciale', icon: '✨', col: '#ff5fa2' },
+};
 
 const SCORE_COL: Record<string, string> = {
   VIP: '#ffd700', FREQUENT: '#00d4ff', FRÉQUENT: '#00d4ff',
@@ -13,6 +29,7 @@ const SCORE_BG: Record<string, string> = {
 export default function ClientsScreen() {
   const [clients, setClients]   = useState<ClientSummary[]>([]);
   const [intel, setIntel]       = useState<Map<string, ClientIntelligence>>(new Map());
+  const [ops, setOps]           = useState<Map<string, ClientOperation[]>>(new Map());
   const [loading, setLoad]      = useState(true);
   const [search, setSearch]     = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -20,14 +37,21 @@ export default function ClientsScreen() {
   const load = async () => {
     setLoad(true);
     try {
-      const [clientRes, intelRes] = await Promise.all([
+      const [clientRes, intelRes, opsRes] = await Promise.all([
         business.fetchClients().catch(() => ({ clients: [] as ClientSummary[] })),
         business.fetchClientIntel().catch(() => ({ clients: [] as ClientIntelligence[] })),
+        business.fetchOperations().catch(() => ({ operations: [] as ClientOperation[] })),
       ]);
       setClients(clientRes.clients ?? []);
       const map = new Map<string, ClientIntelligence>();
       (intelRes.clients ?? []).forEach(c => map.set(c.client_name, c));
       setIntel(map);
+      const opMap = new Map<string, ClientOperation[]>();
+      (opsRes.operations ?? []).forEach(o => {
+        const arr = opMap.get(o.client_name) ?? [];
+        arr.push(o); opMap.set(o.client_name, arr);
+      });
+      setOps(opMap);
     } finally { setLoad(false); }
   };
 
@@ -116,6 +140,20 @@ export default function ClientsScreen() {
                   <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>
                     {c.bookingCount} résa · {fmt(c.totalSpent)}
                   </div>
+                  {c.types && c.types.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
+                      {c.types.map(t => {
+                        const m = TYPE_META[t]; if (!m) return null;
+                        return (
+                          <span key={t} style={{
+                            fontSize: 6, fontFamily: 'Orbitron', letterSpacing: '0.08em',
+                            color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`,
+                            borderRadius: 4, padding: '2px 5px',
+                          }}>{m.label}</span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Score + phone */}
@@ -136,17 +174,43 @@ export default function ClientsScreen() {
                 </div>
               </div>
 
-              {/* Intelligence detail */}
-              {isExp && ci && (
+              {/* Intelligence + opérations detail */}
+              {isExp && (ci || (ops.get(c.name)?.length ?? 0) > 0) && (
                 <div style={{ padding: '6px 12px 10px 20px', background: 'rgba(0,5,15,0.96)', borderTop: `1px solid ${scCol}18` }}>
-                  <Row label="Voitures préférées" val={(ci.preferred_cars ?? []).join(', ') || '—'} />
-                  <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days}j` : '—'} />
-                  <Row label="Style négociation" val={ci.negotiation_style ?? '—'} />
-                  <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
-                  <Row label="Dépenses total" val={fmt(ci.total_spent)} col="#ffd700" />
-                  {ci.notes && (
-                    <div style={{ marginTop: 6, padding: '6px 8px', background: '#00d4ff05', borderRadius: 6, border: '1px solid #00d4ff0f', fontSize: 8, color: '#ffffff77', lineHeight: 1.6 }}>
-                      {ci.notes}
+                  {ci && <>
+                    <Row label="Voitures préférées" val={(ci.preferred_cars ?? []).join(', ') || '—'} />
+                    <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days}j` : '—'} />
+                    <Row label="Style négociation" val={ci.negotiation_style ?? '—'} />
+                    <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
+                    <Row label="Dépenses total" val={fmt(ci.total_spent)} col="#ffd700" />
+                    {ci.notes && (
+                      <div style={{ marginTop: 6, padding: '6px 8px', background: '#00d4ff05', borderRadius: 6, border: '1px solid #00d4ff0f', fontSize: 8, color: '#ffffff77', lineHeight: 1.6 }}>
+                        {ci.notes}
+                      </div>
+                    )}
+                  </>}
+
+                  {/* Ce que le client a pris (immo / vente / demandes) */}
+                  {(ops.get(c.name)?.length ?? 0) > 0 && (
+                    <div style={{ marginTop: ci ? 8 : 0 }}>
+                      <div style={{ fontSize: 7, color: '#ffffff33', letterSpacing: '0.2em', marginBottom: 4 }}>IMMO · VENTE · DEMANDES</div>
+                      {(ops.get(c.name) ?? []).map(op => {
+                        const m = OP_META[op.deal_type] ?? { label: op.deal_type, icon: '•', col: '#888' };
+                        const cur = op.currency === 'DZD' ? 'DA' : (op.currency || '€');
+                        return (
+                          <div key={op.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', borderBottom: '1px solid #ffffff08' }}>
+                            <span style={{ fontSize: 11 }}>{m.icon}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 8, color: m.col }}>{m.label}</div>
+                              {op.item_label && <div style={{ fontSize: 7, color: '#ffffff55', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.item_label}</div>}
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: 8, color: '#fff' }}>{op.amount != null ? `${Number(op.amount).toLocaleString()} ${cur}` : '—'}</div>
+                              <div style={{ fontSize: 6, color: '#ffffff33' }}>{String(op.created_at).slice(0, 10)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
