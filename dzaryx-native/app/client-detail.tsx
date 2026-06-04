@@ -5,7 +5,15 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchClientIntelligence, fetchBookings, updateClientNotes, BACKEND_URL, type ClientIntelligence, type Booking } from '../lib/api';
+import { fetchClientIntelligence, fetchBookings, fetchClientDeals, updateClientNotes, BACKEND_URL, type ClientIntelligence, type Booking, type ClientDeal } from '../lib/api';
+
+const DEAL_META: Record<string, { label: string; icon: string; color: string }> = {
+  location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', color: '#b06bff' },
+  vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', color: '#00ff88' },
+  vente_voiture:      { label: 'ACHAT VOITURE',  icon: '🚗', color: '#ff9f43' },
+  demande_specifique: { label: 'DEMANDE SPÉCIALE', icon: '✨', color: '#ff5fa2' },
+  demande:            { label: 'DEMANDE SPÉCIALE', icon: '✨', color: '#ff5fa2' },
+};
 
 interface ClientDocument {
   id:           string;
@@ -59,6 +67,7 @@ export default function ClientDetailScreen() {
 
   const [intel,         setIntel]         = useState<ClientIntelligence | null>(null);
   const [bookings,      setBookings]      = useState<Booking[]>([]);
+  const [deals,         setDeals]         = useState<ClientDeal[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [editingNotes,  setEditingNotes]  = useState(false);
   const [notesText,     setNotesText]     = useState('');
@@ -69,9 +78,10 @@ export default function ClientDetailScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [all, bks] = await Promise.all([
+    const [all, bks, dls] = await Promise.all([
       fetchClientIntelligence(TOKEN),
       name ? fetchBookings(TOKEN, undefined, 50, name) : Promise.resolve([]),
+      fetchClientDeals(name, phone, TOKEN),
     ]);
     const match = all.find(c =>
       c.client_name.toLowerCase() === (name ?? '').toLowerCase() ||
@@ -79,6 +89,7 @@ export default function ClientDetailScreen() {
     );
     setIntel(match ?? null);
     setBookings(bks.sort((a, b) => b.start_date.localeCompare(a.start_date)));
+    setDeals(dls);
     setLoading(false);
   }, [TOKEN, name, phone]);
 
@@ -312,10 +323,35 @@ export default function ClientDetailScreen() {
           </View>
         )}
 
+        {/* Opérations immo / vente / demandes (client_deals) */}
+        {deals.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>IMMO · VENTE · DEMANDES ({deals.length})</Text>
+            {deals.map((d, i) => {
+              const m = DEAL_META[d.deal_type] ?? { label: d.deal_type.toUpperCase(), icon: '•', color: '#888' };
+              return (
+                <View key={d.id ?? i} style={styles.dealRow}>
+                  <Text style={styles.dealIcon}>{m.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.dealType, { color: m.color }]}>{m.label}</Text>
+                    {d.item_label ? <Text style={styles.dealItem}>{d.item_label}</Text> : null}
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.dealAmount}>
+                      {d.amount != null ? `${Math.round(d.amount)} ${d.currency === 'DZD' ? 'DA' : d.currency || '€'}` : '—'}
+                    </Text>
+                    <Text style={styles.dealDate}>{fmtDate(d.created_at)}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* Booking history */}
         {bookings.length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>RÉSERVATIONS ({bookings.length})</Text>
+            <Text style={styles.sectionTitle}>LOCATION VOITURE ({bookings.length})</Text>
             {bookings.map((b, i) => {
               const car = (b.cars as { name: string } | null)?.name ?? '—';
               const sc  = b.status === 'COMPLETED' ? '#555' : b.status === 'REJECTED' ? '#ff4444' : b.status === 'ACTIVE' ? '#00e5ff' : '#00ff88';
@@ -407,6 +443,13 @@ const styles = StyleSheet.create({
   },
   noIntelTitle: { color: '#444', fontSize: 12, fontFamily: MONO, letterSpacing: 4, marginBottom: 12 },
   noIntelSub:   { color: '#2a2a2a', fontSize: 10, fontFamily: MONO, letterSpacing: 1, lineHeight: 18, textAlign: 'center' },
+
+  dealRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
+  dealIcon:   { fontSize: 16 },
+  dealType:   { fontSize: 9, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },
+  dealItem:   { color: '#666', fontSize: 9, fontFamily: MONO, marginTop: 2 },
+  dealAmount: { color: '#fff', fontSize: 11, fontFamily: MONO, fontWeight: '700' },
+  dealDate:   { color: '#333', fontSize: 8, fontFamily: MONO, marginTop: 2 },
 
   bkRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#0d0d0d' },
   bkCar:    { color: '#888', fontSize: 10, fontFamily: MONO, fontWeight: '700', letterSpacing: 1 },

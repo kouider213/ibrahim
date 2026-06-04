@@ -386,7 +386,7 @@ export async function dismissReminder(id: string, mobileToken?: string): Promise
   } catch { return false; }
 }
 
-export type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo';
+export type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo' | 'demande';
 
 export interface ClientSummary {
   name:         string;
@@ -408,6 +408,35 @@ export async function fetchClients(mobileToken?: string): Promise<ClientSummary[
     if (!res.ok) return [];
     const data = await res.json() as { clients: ClientSummary[] };
     return data.clients ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export interface ClientDeal {
+  id:          string;
+  deal_type:   string;            // location_immo | vente_immo | vente_voiture | demande_specifique...
+  item_label:  string | null;
+  amount:      number | null;
+  currency:    string | null;
+  status:      string | null;
+  created_at:  string;
+}
+
+export async function fetchClientDeals(name?: string, phone?: string, mobileToken?: string): Promise<ClientDeal[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  const qs = new URLSearchParams();
+  if (phone) qs.set('phone', phone);
+  if (name)  qs.set('name', name);
+  if (![...qs].length) return [];
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/clients/deals?${qs.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { deals: ClientDeal[] };
+    return data.deals ?? [];
   } catch {
     return [];
   }

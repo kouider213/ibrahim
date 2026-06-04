@@ -14,6 +14,7 @@ const TYPE_META: Record<ClientType, { label: string; color: string }> = {
   loc_immo:   { label: 'LOC IMMO',   color: '#b06bff' },
   achat_auto: { label: 'ACHAT AUTO', color: '#ff9f43' },
   achat_immo: { label: 'ACHAT IMMO', color: '#00ff88' },
+  demande:    { label: 'DEMANDE',    color: '#ff5fa2' },
 };
 
 function scoreClient(count: number, spent: number): { label: string; color: string } {

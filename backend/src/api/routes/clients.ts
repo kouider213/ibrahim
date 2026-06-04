@@ -21,7 +21,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
     if (error) throw new Error(error.message);
 
     // Group by phone. `types` = activités du client (loc_auto/loc_immo/achat_auto/achat_immo)
-    type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo';
+    type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo' | 'demande';
     const clientMap = new Map<string, {
       name: string; phone: string; email: string; bookingCount: number;
       totalSpent: number; lastBooking: string; types: Set<ClientType>;
@@ -54,6 +54,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
     // Merge client_deals (immobilier + vente voiture) — by phone, fallback name
     const dealTypeMap: Record<string, ClientType> = {
       location_immo: 'loc_immo', vente_immo: 'achat_immo', vente_voiture: 'achat_auto',
+      demande_specifique: 'demande', demande: 'demande',
     };
     const { data: deals } = await supabase
       .from('client_deals')
@@ -200,6 +201,26 @@ router.patch('/:phone/notes', requireMobileAuth, async (req, res) => {
       .single();
     if (error) throw new Error(error.message);
     res.json({ ok: true, client: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/clients/deals?name=&phone= — opérations immo/vente/demandes du client
+router.get('/deals', requireMobileAuth, async (req, res) => {
+  const name  = (req.query['name']  as string | undefined)?.trim();
+  const phone = (req.query['phone'] as string | undefined)?.trim();
+  if (!name && !phone) { res.status(400).json({ error: 'name ou phone requis' }); return; }
+  try {
+    let q = supabase
+      .from('client_deals')
+      .select('id, client_name, client_phone, deal_type, item_label, amount, currency, status, created_at')
+      .order('created_at', { ascending: false });
+    if (phone) q = q.eq('client_phone', phone);
+    else if (name) q = q.ilike('client_name', name);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    res.json({ deals: data ?? [] });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
