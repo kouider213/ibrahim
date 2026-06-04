@@ -389,6 +389,7 @@ async function _dispatch(
       case 'get_property_photo':         return await getPropertyPhotoTool(input);
       case 'update_property_status':     return await updatePropertyStatusTool(input);
       case 'list_vehicles_for_sale':     return await listVehiclesForSaleTool(input);
+      case 'get_vehicle_sale_photo':     return await getVehicleSalePhotoTool(input);
       case 'mark_vehicle_sold':          return await markVehicleSoldTool(input);
       case 'record_client_deal':         return await recordClientDealTool(input);
       case 'get_client_history':         return await getClientHistoryTool(input);
@@ -4681,6 +4682,34 @@ async function updatePropertyStatusTool(input: Record<string, unknown>): Promise
   }
   const label = status === 'loue' ? 'LOUÉ' : status === 'vendu' ? 'VENDU' : status;
   return `✅ "${p.title}" marqué ${label} sur le site${clientName ? ` (client: ${clientName})` : ''}. Le bien n'apparaît plus dans les disponibilités.`;
+}
+
+async function getVehicleSalePhotoTool(input: Record<string, unknown>): Promise<string> {
+  const query = (input['vehicle_query'] as string | undefined)?.trim();
+  if (!query) return '❌ vehicle_query requis.';
+
+  const { data: vs, error } = await supabase.from('vehicles_for_sale')
+    .select('id, brand, model, image_url, vehicle_sale_photos(url, position)')
+    .or(`brand.ilike.%${query}%,model.ilike.%${query}%`).limit(5);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!vs || vs.length === 0) return `❌ Aucune voiture à vendre trouvée pour "${query}".`;
+
+  const v = (vs as any[]).find(x => x.image_url || (x.vehicle_sale_photos && x.vehicle_sale_photos.length > 0)) ?? vs[0];
+  const extra: string[] = (v.vehicle_sale_photos ?? [])
+    .sort((a: any, b: any) => a.position - b.position).map((p: any) => p.url as string).filter(Boolean);
+  const allUrls: string[] = [];
+  if (extra.length > 0) allUrls.push(...extra);
+  else if (v.image_url) allUrls.push(v.image_url as string);
+  if (allUrls.length === 0) return `⚠️ "${v.brand} ${v.model}" trouvée mais aucune photo. Ajoute des photos dans l'admin du site.`;
+
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+  const name = `${v.brand} ${v.model}`;
+  for (let i = 0; i < allUrls.length; i++) {
+    const label = allUrls.length > 1 ? `${name} — photo ${i + 1}/${allUrls.length}` : name;
+    emitProactive(label, 'info', `${label}\n${allUrls[i]}`);
+    if (i < allUrls.length - 1) await new Promise(r => setTimeout(r, 400));
+  }
+  return `✅ ${allUrls.length} photo${allUrls.length > 1 ? 's' : ''} envoyée${allUrls.length > 1 ? 's' : ''} pour "${name}".`;
 }
 
 async function listVehiclesForSaleTool(input: Record<string, unknown>): Promise<string> {

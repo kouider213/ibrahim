@@ -1149,6 +1149,17 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'get_vehicle_sale_photo',
+    description: 'Récupérer et envoyer TOUTES les photos d\'une voiture À VENDRE (stock de vente, pas le parc de location) depuis Supabase. Utiliser quand Kouider demande "envoie les photos de la Golf 8 à vendre", "montre la voiture en vente". Envoie chaque photo à l\'app (galerie), autant qu\'il y en a.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        vehicle_query: { type: 'string', description: 'Marque/modèle de la voiture à vendre (ex: "Golf 8", "Clio 4"). Insensible à la casse.' },
+      },
+      required: ['vehicle_query'],
+    },
+  },
+  {
     name: 'mark_vehicle_sold',
     description: 'Marquer une voiture À VENDRE comme VENDUE (ou réservée) sur le site. À utiliser quand un client achète une voiture du stock de vente. Met à jour le site (disparaît des dispos) + enregistre l\'opération client. Ex: "la Golf 8 est vendue à Karim pour 2500000 DA".',
     input_schema: {
