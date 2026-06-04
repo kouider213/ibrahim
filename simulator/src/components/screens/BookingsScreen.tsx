@@ -368,10 +368,13 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   }}>
                     <span style={{ fontSize: 15 }}>{m.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.client_name}</div>
-                      <div style={{ fontSize: 8, color: m.col, marginTop: 1 }}>
-                        {m.label}{op.item_label ? ` · ${op.item_label}` : ''}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.client_name}</span>
+                        <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Orbitron', letterSpacing: '0.08em', color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`, borderRadius: 4, padding: '2px 5px' }}>
+                          {m.label}
+                        </span>
                       </div>
+                      {op.item_label ? <div style={{ fontSize: 8, color: '#ffffff55', marginTop: 1 }}>{op.item_label}</div> : null}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#fff' }}>
@@ -409,8 +412,13 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   animation: b.status === 'active' ? 'statusPulse 2s ease infinite' : 'none',
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {b.client_name}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {b.client_name}
+                    </span>
+                    <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Orbitron', letterSpacing: '0.08em', color: '#00d4ff', background: '#00d4ff14', border: '1px solid #00d4ff44', borderRadius: 4, padding: '2px 5px' }}>
+                      LOC AUTO
+                    </span>
                   </div>
                   <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>
                     {b.cars?.name ?? '?'} · {fmtDate(b.start_date)} → {fmtDate(b.end_date)}
