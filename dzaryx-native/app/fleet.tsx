@@ -5,9 +5,35 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchAllCars, fetchBookings, updateCar, createCar, fetchFleetStats, type Car, type Booking, type FleetIntelligence } from '../lib/api';
+import {
+  fetchAllCars, fetchBookings, updateCar, createCar, fetchFleetStats,
+  fetchProperties, fetchVehiclesForSale, updateProperty, updateVehicleSale,
+  type Car, type Booking, type FleetIntelligence, type Property, type VehicleForSale,
+} from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
+
+type ParcTab = 'cars' | 'immo' | 'vente';
+
+function propTitle(p: Property): string { return (p.title || p.name || 'Bien').toString(); }
+function propPrice(p: Property): string {
+  if (p.price == null) return 'prix sur demande';
+  const cur = p.currency === 'DZD' ? 'DA' : (p.currency || '€');
+  const suffix = p.transaction === 'vente' ? '' : '/mois';
+  return `${Number(p.price).toLocaleString()} ${cur}${suffix}`;
+}
+const IMMO_STATUS: Record<string, { label: string; color: string }> = {
+  disponible:  { label: 'DISPONIBLE', color: '#00ff88' },
+  libre:       { label: 'DISPONIBLE', color: '#00ff88' },
+  loue:        { label: 'LOUÉ',       color: '#ffaa00' },
+  vendu:       { label: 'VENDU',      color: '#ff5fa2' },
+  coming_soon: { label: 'BIENTÔT',    color: '#00e5ff' },
+};
+const VENTE_STATUS: Record<string, { label: string; color: string }> = {
+  disponible: { label: 'À VENDRE', color: '#00ff88' },
+  reserve:    { label: 'RÉSERVÉE', color: '#ffaa00' },
+  vendu:      { label: 'VENDUE',   color: '#ff5fa2' },
+};
 
 function fmtDate(d: string): string {
   try { return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }); }
@@ -28,6 +54,10 @@ export default function FleetScreen() {
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
 
+  const [tab,         setTab]        = useState<ParcTab>('cars');
+  const [properties,  setProperties] = useState<Property[]>([]);
+  const [vehicles,    setVehicles]   = useState<VehicleForSale[]>([]);
+  const [togglingItem, setTogglingItem] = useState<string | null>(null);
   const [cars,        setCars]       = useState<Car[]>([]);
   const [fleet,       setFleet]      = useState<FleetIntelligence | null>(null);
   const [activeBookings,  setActiveBookings]  = useState<Booking[]>([]);
@@ -57,15 +87,19 @@ export default function FleetScreen() {
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     const today = new Date().toISOString().slice(0, 10);
-    const [c, f, booksActive, booksConfirmed, booksPending] = await Promise.all([
+    const [c, f, booksActive, booksConfirmed, booksPending, props, vfs] = await Promise.all([
       fetchAllCars(TOKEN),
       fetchFleetStats(TOKEN),
       fetchBookings(TOKEN, 'ACTIVE', 100),
       fetchBookings(TOKEN, 'CONFIRMED', 100),
       fetchBookings(TOKEN, 'PENDING', 100),
+      fetchProperties(TOKEN),
+      fetchVehiclesForSale(TOKEN),
     ]);
     setCars(c);
     setFleet(f);
+    setProperties(props);
+    setVehicles(vfs);
     const all = [...booksActive, ...booksConfirmed];
     setActiveBookings(all.filter(b => b.start_date <= today && b.end_date >= today));
     setArrivalsToday(all.filter(b => b.start_date === today));
@@ -103,6 +137,43 @@ export default function FleetScreen() {
         },
       ],
     );
+  }, [TOKEN]);
+
+  const cyclePropertyStatus = useCallback((p: Property) => {
+    const isVente = p.transaction === 'vente';
+    const opts = isVente
+      ? [{ k: 'disponible', l: 'Disponible' }, { k: 'vendu', l: 'Vendu' }, { k: 'coming_soon', l: 'Bientôt' }]
+      : [{ k: 'disponible', l: 'Disponible' }, { k: 'loue', l: 'Loué' }, { k: 'coming_soon', l: 'Bientôt' }];
+    Alert.alert(propTitle(p), 'Changer le statut :', [
+      ...opts.map(o => ({
+        text: o.l,
+        onPress: async () => {
+          setTogglingItem(p.id);
+          const ok = await updateProperty(p.id, { status: o.k }, TOKEN);
+          setTogglingItem(null);
+          if (ok) setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: o.k } : x));
+          else Alert.alert('Erreur', 'Mise à jour échouée.');
+        },
+      })),
+      { text: 'Annuler', style: 'cancel' as const },
+    ]);
+  }, [TOKEN]);
+
+  const cycleVehicleStatus = useCallback((v: VehicleForSale) => {
+    const opts = [{ k: 'disponible', l: 'À vendre' }, { k: 'reserve', l: 'Réservée' }, { k: 'vendu', l: 'Vendue' }];
+    Alert.alert(`${v.brand} ${v.model}`, 'Changer le statut :', [
+      ...opts.map(o => ({
+        text: o.l,
+        onPress: async () => {
+          setTogglingItem(v.id);
+          const ok = await updateVehicleSale(v.id, { status: o.k }, TOKEN);
+          setTogglingItem(null);
+          if (ok) setVehicles(prev => prev.map(x => x.id === v.id ? { ...x, status: o.k } : x));
+          else Alert.alert('Erreur', 'Mise à jour échouée.');
+        },
+      })),
+      { text: 'Annuler', style: 'cancel' as const },
+    ]);
   }, [TOKEN]);
 
   const savePrices = useCallback(async (car: Car) => {
@@ -165,34 +236,79 @@ export default function FleetScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backTxt}>← RETOUR</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>PARC VÉHICULES</Text>
-        <TouchableOpacity style={styles.addCarBtn} onPress={() => setShowAddCar(v => !v)}>
-          <Text style={styles.addCarTxt}>{showAddCar ? '✕' : '+ VOITURE'}</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>{tab === 'cars' ? 'PARC VÉHICULES' : tab === 'immo' ? 'IMMOBILIER' : 'VENTE AUTO'}</Text>
+        {tab === 'cars' && (
+          <TouchableOpacity style={styles.addCarBtn} onPress={() => setShowAddCar(v => !v)}>
+            <Text style={styles.addCarTxt}>{showAddCar ? '✕' : '+ VOITURE'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Segment switcher */}
+      <View style={styles.segRow}>
+        {([['cars', '🚗 LOCATION'], ['immo', '🏠 IMMO'], ['vente', '💰 VENTE']] as [ParcTab, string][]).map(([k, lbl]) => (
+          <TouchableOpacity key={k} style={[styles.segBtn, tab === k && styles.segBtnActive]} onPress={() => setTab(k)}>
+            <Text style={[styles.segTxt, tab === k && styles.segTxtActive]}>{lbl}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Stats */}
       <View style={styles.statsRow}>
-        <View style={styles.statPill}>
-          <Text style={styles.statNum}>{cars.length}</Text>
-          <Text style={styles.statLbl}>TOTAL</Text>
-        </View>
-        <View style={styles.statPill}>
-          <Text style={[styles.statNum, { color: '#00ff88' }]}>{available}</Text>
-          <Text style={styles.statLbl}>DISPO</Text>
-        </View>
-        <View style={styles.statPill}>
-          <Text style={[styles.statNum, { color: '#ffaa00' }]}>{rented}</Text>
-          <Text style={styles.statLbl}>EN LOC</Text>
-        </View>
-        {fleet?.occupancy_avg_pct != null && (
+        {tab === 'cars' && (<>
           <View style={styles.statPill}>
-            <Text style={[styles.statNum, { color: '#00e5ff', fontSize: 16 }]}>
-              {Math.round(fleet.occupancy_avg_pct)}%
-            </Text>
-            <Text style={styles.statLbl}>OCCUP</Text>
+            <Text style={styles.statNum}>{cars.length}</Text>
+            <Text style={styles.statLbl}>TOTAL</Text>
           </View>
-        )}
+          <View style={styles.statPill}>
+            <Text style={[styles.statNum, { color: '#00ff88' }]}>{available}</Text>
+            <Text style={styles.statLbl}>DISPO</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statNum, { color: '#ffaa00' }]}>{rented}</Text>
+            <Text style={styles.statLbl}>EN LOC</Text>
+          </View>
+          {fleet?.occupancy_avg_pct != null && (
+            <View style={styles.statPill}>
+              <Text style={[styles.statNum, { color: '#00e5ff', fontSize: 16 }]}>
+                {Math.round(fleet.occupancy_avg_pct)}%
+              </Text>
+              <Text style={styles.statLbl}>OCCUP</Text>
+            </View>
+          )}
+        </>)}
+        {tab === 'immo' && (<>
+          <View style={styles.statPill}>
+            <Text style={styles.statNum}>{properties.length}</Text>
+            <Text style={styles.statLbl}>BIENS</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statNum, { color: '#00ff88' }]}>{properties.filter(p => ['disponible','libre'].includes((p.status||'').toLowerCase())).length}</Text>
+            <Text style={styles.statLbl}>DISPO</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statNum, { color: '#b06bff' }]}>{properties.filter(p => p.transaction === 'location').length}</Text>
+            <Text style={styles.statLbl}>LOCATION</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statNum, { color: '#00ff88' }]}>{properties.filter(p => p.transaction === 'vente').length}</Text>
+            <Text style={styles.statLbl}>VENTE</Text>
+          </View>
+        </>)}
+        {tab === 'vente' && (<>
+          <View style={styles.statPill}>
+            <Text style={styles.statNum}>{vehicles.length}</Text>
+            <Text style={styles.statLbl}>TOTAL</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statNum, { color: '#00ff88' }]}>{vehicles.filter(v => (v.status||'').toLowerCase() === 'disponible').length}</Text>
+            <Text style={styles.statLbl}>À VENDRE</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statNum, { color: '#ff5fa2' }]}>{vehicles.filter(v => (v.status||'').toLowerCase() === 'vendu').length}</Text>
+            <Text style={styles.statLbl}>VENDUES</Text>
+          </View>
+        </>)}
       </View>
 
       <ScrollView
@@ -201,7 +317,7 @@ export default function FleetScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#00e5ff" />}
       >
         {/* Today's arrivals & returns */}
-        {(arrivalsToday.length > 0 || returnsToday.length > 0) && (
+        {tab === 'cars' && (arrivalsToday.length > 0 || returnsToday.length > 0) && (
           <View style={styles.todayCard}>
             {arrivalsToday.length > 0 && (
               <>
@@ -247,11 +363,83 @@ export default function FleetScreen() {
 
         {loading && <ActivityIndicator color="#00e5ff" style={{ marginTop: 40 }} />}
 
-        {!loading && cars.length === 0 && (
+        {!loading && tab === 'cars' && cars.length === 0 && (
           <Text style={styles.emptyTxt}>AUCUN VÉHICULE</Text>
         )}
 
-        {!loading && cars.map(car => {
+        {/* ── IMMOBILIER ── */}
+        {!loading && tab === 'immo' && (
+          properties.length === 0
+            ? <Text style={styles.emptyTxt}>AUCUN BIEN — ajoute depuis le site</Text>
+            : properties.map(p => {
+                const st = IMMO_STATUS[(p.status || 'disponible').toLowerCase()] ?? { label: (p.status||'').toUpperCase(), color: '#888' };
+                const txn = p.transaction === 'vente' ? 'À VENDRE' : 'À LOUER';
+                return (
+                  <View key={p.id} style={styles.card}>
+                    <View style={styles.cardTop}>
+                      <View style={[styles.availDot, { backgroundColor: st.color }]} />
+                      <Text style={styles.carName}>{propTitle(p).toUpperCase()}</Text>
+                      <Text style={[styles.availLabel, { color: st.color }]}>{st.label}</Text>
+                    </View>
+                    <View style={styles.metaRow}>
+                      <Text style={styles.metaChip}>🏠 {txn}</Text>
+                      {(p.city || p.district) && <Text style={styles.metaChip}>{[p.district, p.city].filter(Boolean).join(', ')}</Text>}
+                      {(p.rooms ?? p.bedrooms) != null && <Text style={styles.metaChip}>{p.rooms ?? p.bedrooms} pièces</Text>}
+                      {p.surface != null && <Text style={styles.metaChip}>{p.surface} m²</Text>}
+                    </View>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceClient}>{propPrice(p)}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.toggleBtn, styles.toggleBtnBusy]}
+                      onPress={() => cyclePropertyStatus(p)}
+                      disabled={togglingItem === p.id}
+                    >
+                      {togglingItem === p.id
+                        ? <ActivityIndicator size="small" color="#ffaa00" />
+                        : <Text style={[styles.toggleTxt, { color: '#ffaa00' }]}>🔄 CHANGER LE STATUT</Text>}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+        )}
+
+        {/* ── VENTE AUTO ── */}
+        {!loading && tab === 'vente' && (
+          vehicles.length === 0
+            ? <Text style={styles.emptyTxt}>AUCUNE VOITURE À VENDRE — ajoute depuis le site</Text>
+            : vehicles.map(v => {
+                const st = VENTE_STATUS[(v.status || 'disponible').toLowerCase()] ?? { label: (v.status||'').toUpperCase(), color: '#888' };
+                const cur = v.currency === 'DZD' ? 'DA' : (v.currency || '€');
+                return (
+                  <View key={v.id} style={styles.card}>
+                    <View style={styles.cardTop}>
+                      <View style={[styles.availDot, { backgroundColor: st.color }]} />
+                      <Text style={styles.carName}>{`${v.brand} ${v.model}`.toUpperCase()}</Text>
+                      <Text style={[styles.availLabel, { color: st.color }]}>{st.label}</Text>
+                    </View>
+                    <View style={styles.metaRow}>
+                      {v.year != null && <Text style={styles.metaChip}>{v.year}</Text>}
+                      {v.mileage != null && <Text style={styles.metaChip}>{Number(v.mileage).toLocaleString()} km</Text>}
+                    </View>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceClient}>{v.price != null ? `${Number(v.price).toLocaleString()} ${cur}` : 'prix sur demande'}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.toggleBtn, styles.toggleBtnBusy]}
+                      onPress={() => cycleVehicleStatus(v)}
+                      disabled={togglingItem === v.id}
+                    >
+                      {togglingItem === v.id
+                        ? <ActivityIndicator size="small" color="#ffaa00" />
+                        : <Text style={[styles.toggleTxt, { color: '#ffaa00' }]}>🔄 CHANGER LE STATUT</Text>}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+        )}
+
+        {!loading && tab === 'cars' && cars.map(car => {
           const fleetStat     = fleet?.stats?.find(s => s.car_name === car.name);
           const isToggling    = toggling === car.id;
           const currentRenter = activeBookings.find(b => b.car_id === car.id);
@@ -432,7 +620,7 @@ export default function FleetScreen() {
         })}
 
         {/* Add car form */}
-        {showAddCar && (
+        {tab === 'cars' && showAddCar && (
           <View style={styles.addCarCard}>
             <Text style={styles.addCarTitle}>NOUVEAU VÉHICULE</Text>
 
@@ -485,6 +673,12 @@ const styles = StyleSheet.create({
   backBtn: { paddingVertical: 8 },
   backTxt: { color: '#00e5ff', fontSize: 10, fontFamily: MONO, letterSpacing: 3 },
   title:   { flex: 1, color: '#fff', fontSize: 13, fontFamily: MONO, letterSpacing: 6, fontWeight: '700' },
+
+  segRow:       { flexDirection: 'row', paddingHorizontal: 20, gap: 6, marginBottom: 12 },
+  segBtn:       { flex: 1, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
+  segBtnActive: { borderColor: '#00e5ff', backgroundColor: '#00e5ff14' },
+  segTxt:       { color: '#555', fontSize: 8, fontFamily: MONO, letterSpacing: 1, fontWeight: '700' },
+  segTxtActive: { color: '#00e5ff' },
 
   statsRow:  { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 },
   statPill:  { flex: 1, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },

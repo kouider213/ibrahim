@@ -743,3 +743,86 @@ export async function recordPayment(
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+// ── IMMOBILIER (properties) ──────────────────────────────────────────────────
+export interface Property {
+  id:           string;
+  title?:       string | null;
+  name?:        string | null;
+  city?:        string | null;
+  district?:    string | null;
+  transaction?: string | null;   // location | vente
+  price?:       number | null;
+  currency?:    string | null;
+  price_type?:  string | null;
+  status?:      string | null;   // disponible | loue | vendu | coming_soon
+  bedrooms?:    number | null;
+  rooms?:       number | null;
+  surface?:     number | null;
+  image_url?:   string | null;
+}
+
+export async function fetchProperties(mobileToken?: string): Promise<Property[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/immo/properties`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { properties: Property[] };
+    return data.properties ?? [];
+  } catch { return []; }
+}
+
+export async function updateProperty(id: string, updates: Partial<Property>, mobileToken?: string): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/immo/properties/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+      signal: AbortSignal.timeout(10000),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// ── VENTE VÉHICULES (vehicles_for_sale) ──────────────────────────────────────
+export interface VehicleForSale {
+  id:           string;
+  brand:        string;
+  model:        string;
+  year?:        number | null;
+  price?:       number | null;
+  currency?:    string | null;
+  status?:      string | null;   // disponible | reserve | vendu
+  mileage?:     number | null;
+  image_url?:   string | null;
+}
+
+export async function fetchVehiclesForSale(mobileToken?: string): Promise<VehicleForSale[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/immo/vehicles-for-sale`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { vehicles: VehicleForSale[] };
+    return data.vehicles ?? [];
+  } catch { return []; }
+}
+
+export async function updateVehicleSale(id: string, updates: Partial<VehicleForSale>, mobileToken?: string): Promise<boolean> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/immo/vehicles-for-sale/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+      signal: AbortSignal.timeout(10000),
+    });
+    return res.ok;
+  } catch { return false; }
+}

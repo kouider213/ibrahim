@@ -81,4 +81,37 @@ router.delete('/properties/:id', requireMobileAuth, async (req, res) => {
   }
 });
 
+// ── VENTE VÉHICULES (vehicles_for_sale) ──────────────────────────────────────
+
+// GET /api/immo/vehicles-for-sale
+router.get('/vehicles-for-sale', requireMobileAuth, async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('vehicles_for_sale')
+      .select('id, brand, model, year, price, currency, status, mileage, image_url, created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ vehicles: data ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// PATCH /api/immo/vehicles-for-sale/:id  (ex: marquer vendu)
+router.patch('/vehicles-for-sale/:id', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const updates = req.body as Record<string, unknown>;
+  try {
+    const { data, error } = await supabase
+      .from('vehicles_for_sale')
+      .update(updates)
+      .eq('id', id)
+      .select().single();
+    if (error) throw error;
+    res.json({ vehicle: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;
