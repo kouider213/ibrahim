@@ -1114,13 +1114,12 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   },
   {
     name: 'get_property_photo',
-    description: 'Récupérer et envoyer TOUTES les photos d\'un bien immobilier (appartement/maison) depuis Supabase. Utiliser quand Kouider demande "envoie les photos de [bien]", "montre l\'appartement Hay Badr". Envoie chaque photo à l\'app (comme une galerie WhatsApp), 10 photos ou plus.',
+    description: 'Envoyer les photos des biens immobiliers (appartements/maisons). TOUJOURS appeler quand Kouider demande "envoie les photos des biens", "montre l\'appartement Hay Badr". Laisser property_query VIDE (ou "tous") pour envoyer les photos de TOUS les biens. Mettre le titre/ville pour un seul. NE JAMAIS dire "pas de photo" sans avoir appelé ce tool.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        property_query: { type: 'string', description: 'Titre ou ville du bien (ex: "appartement Hay Badr", "villa Oran"). Insensible à la casse.' },
+        property_query: { type: 'string', description: 'Titre/ville pour UN bien (ex: "appartement Hay Badr"). VIDE ou "tous" = tous les biens.' },
       },
-      required: ['property_query'],
     },
   },
   {
@@ -1150,13 +1149,12 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   },
   {
     name: 'get_vehicle_sale_photo',
-    description: 'Récupérer et envoyer TOUTES les photos d\'une voiture À VENDRE (stock de vente, pas le parc de location) depuis Supabase. Utiliser quand Kouider demande "envoie les photos de la Golf 8 à vendre", "montre la voiture en vente". Envoie chaque photo à l\'app (galerie), autant qu\'il y en a.',
+    description: 'Envoyer les photos des voitures À VENDRE (stock de vente). TOUJOURS appeler ce tool quand Kouider demande "envoie les photos des véhicules à vendre", "montre les voitures en vente", "les photos de la Golf 8". Laisser vehicle_query VIDE (ou "tous") pour envoyer les photos de TOUTES les voitures à vendre. Mettre la marque/modèle pour une seule. NE JAMAIS dire "pas de photo" sans avoir appelé ce tool.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        vehicle_query: { type: 'string', description: 'Marque/modèle de la voiture à vendre (ex: "Golf 8", "Clio 4"). Insensible à la casse.' },
+        vehicle_query: { type: 'string', description: 'Marque/modèle pour UNE voiture (ex: "Golf 8"). VIDE ou "tous" = toutes les voitures à vendre.' },
       },
-      required: ['vehicle_query'],
     },
   },
   {

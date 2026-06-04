@@ -4611,30 +4611,35 @@ async function logClientDeal(d: {
 }
 
 async function getPropertyPhotoTool(input: Record<string, unknown>): Promise<string> {
-  const query = (input['property_query'] as string | undefined)?.trim();
-  if (!query) return '❌ property_query requis.';
+  const raw = (input['property_query'] as string | undefined)?.trim() || '';
+  const wantAll = !raw || /^(tous|toutes|tout|all|les?\s+biens?|appartements?|immobilier)/i.test(raw);
 
-  const { data: props, error } = await supabase.from('properties')
-    .select('id, title, city, image_url, property_photos(url, position)')
-    .or(`title.ilike.%${query}%,city.ilike.%${query}%`).limit(5);
+  let q = supabase.from('properties').select('id, title, city, image_url, property_photos(url, position)');
+  if (!wantAll) q = q.or(`title.ilike.%${raw}%,city.ilike.%${raw}%`);
+  const { data: props, error } = await q.limit(wantAll ? 20 : 5);
   if (error) return `❌ Erreur Supabase: ${error.message}`;
-  if (!props || props.length === 0) return `❌ Aucun bien trouvé pour "${query}".`;
+  if (!props || props.length === 0) return wantAll ? 'Aucun bien immobilier enregistré.' : `❌ Aucun bien trouvé pour "${raw}".`;
 
-  const prop = (props as any[]).find(p => p.image_url || (p.property_photos && p.property_photos.length > 0)) ?? props[0];
-  const extra: string[] = (prop.property_photos ?? [])
-    .sort((a: any, b: any) => a.position - b.position).map((p: any) => p.url as string).filter(Boolean);
-  const allUrls: string[] = [];
-  if (extra.length > 0) allUrls.push(...extra);
-  else if (prop.image_url) allUrls.push(prop.image_url as string);
-  if (allUrls.length === 0) return `⚠️ Bien "${prop.title}" trouvé mais aucune photo. Ajoute des photos dans l'admin du site.`;
-
+  const targets = wantAll ? (props as any[]) : [(props as any[]).find(p => p.image_url || (p.property_photos && p.property_photos.length > 0)) ?? props[0]];
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  for (let i = 0; i < allUrls.length; i++) {
-    const label = allUrls.length > 1 ? `${prop.title} — photo ${i + 1}/${allUrls.length}` : prop.title;
-    emitProactive(label, 'info', `${label}\n${allUrls[i]}`);
-    if (i < allUrls.length - 1) await new Promise(r => setTimeout(r, 400));
+  let totalSent = 0;
+  const sentNames: string[] = [];
+
+  for (const prop of targets) {
+    const extra: string[] = (prop.property_photos ?? [])
+      .sort((a: any, b: any) => a.position - b.position).map((p: any) => p.url as string).filter(Boolean);
+    const urls: string[] = extra.length > 0 ? extra : (prop.image_url ? [prop.image_url as string] : []);
+    if (urls.length === 0) continue;
+    for (let i = 0; i < urls.length; i++) {
+      const label = urls.length > 1 ? `${prop.title} — photo ${i + 1}/${urls.length}` : prop.title;
+      emitProactive(label, 'info', `${label}\n${urls[i]}`);
+      totalSent++;
+      await new Promise(r => setTimeout(r, 350));
+    }
+    sentNames.push(prop.title);
   }
-  return `✅ ${allUrls.length} photo${allUrls.length > 1 ? 's' : ''} envoyée${allUrls.length > 1 ? 's' : ''} pour "${prop.title}".`;
+  if (totalSent === 0) return '⚠️ Biens trouvés mais aucun n\'a de photo. Ajoute des photos dans l\'admin du site.';
+  return `✅ ${totalSent} photo(s) envoyée(s) pour : ${sentNames.join(', ')}.`;
 }
 
 async function listPropertiesTool(input: Record<string, unknown>): Promise<string> {
@@ -4685,31 +4690,36 @@ async function updatePropertyStatusTool(input: Record<string, unknown>): Promise
 }
 
 async function getVehicleSalePhotoTool(input: Record<string, unknown>): Promise<string> {
-  const query = (input['vehicle_query'] as string | undefined)?.trim();
-  if (!query) return '❌ vehicle_query requis.';
+  const raw = (input['vehicle_query'] as string | undefined)?.trim() || '';
+  const wantAll = !raw || /^(tous|toutes|tout|all|les?\s+voitures?|v[eé]hicules?)/i.test(raw);
 
-  const { data: vs, error } = await supabase.from('vehicles_for_sale')
-    .select('id, brand, model, image_url, vehicle_sale_photos(url, position)')
-    .or(`brand.ilike.%${query}%,model.ilike.%${query}%`).limit(5);
+  let q = supabase.from('vehicles_for_sale').select('id, brand, model, image_url, vehicle_sale_photos(url, position)');
+  if (!wantAll) q = q.or(`brand.ilike.%${raw}%,model.ilike.%${raw}%`);
+  const { data: vs, error } = await q.limit(wantAll ? 20 : 5);
   if (error) return `❌ Erreur Supabase: ${error.message}`;
-  if (!vs || vs.length === 0) return `❌ Aucune voiture à vendre trouvée pour "${query}".`;
+  if (!vs || vs.length === 0) return wantAll ? 'Aucune voiture à vendre enregistrée.' : `❌ Aucune voiture à vendre trouvée pour "${raw}".`;
 
-  const v = (vs as any[]).find(x => x.image_url || (x.vehicle_sale_photos && x.vehicle_sale_photos.length > 0)) ?? vs[0];
-  const extra: string[] = (v.vehicle_sale_photos ?? [])
-    .sort((a: any, b: any) => a.position - b.position).map((p: any) => p.url as string).filter(Boolean);
-  const allUrls: string[] = [];
-  if (extra.length > 0) allUrls.push(...extra);
-  else if (v.image_url) allUrls.push(v.image_url as string);
-  if (allUrls.length === 0) return `⚠️ "${v.brand} ${v.model}" trouvée mais aucune photo. Ajoute des photos dans l'admin du site.`;
-
+  const targets = wantAll ? (vs as any[]) : [(vs as any[]).find(x => x.image_url || (x.vehicle_sale_photos && x.vehicle_sale_photos.length > 0)) ?? vs[0]];
   const { emitProactive } = await import('../notifications/mobile-push.js');
-  const name = `${v.brand} ${v.model}`;
-  for (let i = 0; i < allUrls.length; i++) {
-    const label = allUrls.length > 1 ? `${name} — photo ${i + 1}/${allUrls.length}` : name;
-    emitProactive(label, 'info', `${label}\n${allUrls[i]}`);
-    if (i < allUrls.length - 1) await new Promise(r => setTimeout(r, 400));
+  let totalSent = 0;
+  const sentNames: string[] = [];
+
+  for (const v of targets) {
+    const extra: string[] = (v.vehicle_sale_photos ?? [])
+      .sort((a: any, b: any) => a.position - b.position).map((p: any) => p.url as string).filter(Boolean);
+    const urls: string[] = extra.length > 0 ? extra : (v.image_url ? [v.image_url as string] : []);
+    if (urls.length === 0) continue;
+    const name = `${v.brand} ${v.model}`;
+    for (let i = 0; i < urls.length; i++) {
+      const label = urls.length > 1 ? `${name} — photo ${i + 1}/${urls.length}` : name;
+      emitProactive(label, 'info', `${label}\n${urls[i]}`);
+      totalSent++;
+      await new Promise(r => setTimeout(r, 350));
+    }
+    sentNames.push(name);
   }
-  return `✅ ${allUrls.length} photo${allUrls.length > 1 ? 's' : ''} envoyée${allUrls.length > 1 ? 's' : ''} pour "${name}".`;
+  if (totalSent === 0) return '⚠️ Voitures trouvées mais aucune n\'a de photo. Ajoute des photos dans l\'admin du site.';
+  return `✅ ${totalSent} photo(s) envoyée(s) pour : ${sentNames.join(', ')}.`;
 }
 
 async function listVehiclesForSaleTool(input: Record<string, unknown>): Promise<string> {
