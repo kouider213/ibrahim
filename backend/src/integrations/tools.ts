@@ -1309,6 +1309,11 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'get_daily_report',
+    description: 'Rapport du jour complet : arrivées/retours de voitures aujourd\'hui, opérations (locations/ventes immo+auto) du jour, nouvelles demandes/leads, et alertes (paiements en retard, biens dispo depuis longtemps). Utiliser quand Kouider demande "le rapport du jour", "résumé d\'aujourd\'hui", "quoi de neuf", "fais le point".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
     name: 'record_client_deal',
     description: 'Enregistrer une opération client générique (quand aucun autre outil ne colle) pour garder une trace de QUI a fait QUOI. Utiliser pour noter manuellement une location/vente/commande. Le statut des items se gère avec update_property_status / mark_vehicle_sold / create_booking.',
     input_schema: {

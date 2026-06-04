@@ -394,6 +394,7 @@ async function _dispatch(
       case 'list_leads':                 return await listLeadsTool(input);
       case 'update_lead_status':         return await updateLeadStatusTool(input);
       case 'match_lead':                 return await matchLeadTool(input);
+      case 'get_daily_report':           return await getDailyReportTool();
       case 'list_properties':            return await listPropertiesTool(input);
       case 'get_property_photo':         return await getPropertyPhotoTool(input);
       case 'update_property_status':     return await updatePropertyStatusTool(input);
@@ -4783,6 +4784,48 @@ async function matchLeadTool(input: Record<string, unknown>): Promise<string> {
   }
   if (matches.length === 0) return `Pour ${lead.client_name} ("${lead.criteria}") : rien dans le stock actuel. Je te préviens dès qu'un bien correspond.`;
   return `Pour ${lead.client_name} ("${lead.criteria}") — ${matches.length} dans le stock :\n${matches.slice(0, 8).join('\n')}`;
+}
+
+async function getDailyReportTool(): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const dayStart = today + 'T00:00:00';
+  const out: string[] = [`📅 RAPPORT DU ${new Date().toLocaleDateString('fr-FR')}`];
+
+  // Arrivées / retours voitures aujourd'hui
+  const { data: bks } = await supabase.from('bookings')
+    .select('client_name, start_date, end_date, status, payment_status, final_price, cars(name)')
+    .in('status', ['CONFIRMED', 'ACTIVE']);
+  const arr = (bks as any[] || []).filter(b => b.start_date === today);
+  const ret = (bks as any[] || []).filter(b => b.end_date === today);
+  out.push(`\n🚗 VOITURES — ${arr.length} arrivée(s), ${ret.length} retour(s)`);
+  arr.forEach(b => out.push(`  ✈️ ${b.client_name} prend ${b.cars?.name ?? '?'}`));
+  ret.forEach(b => out.push(`  🔙 ${b.client_name} rend ${b.cars?.name ?? '?'}`));
+
+  // Opérations du jour (client_deals)
+  const { data: deals } = await supabase.from('client_deals')
+    .select('client_name, deal_type, item_label, amount, currency').gte('created_at', dayStart);
+  if ((deals as any[])?.length) {
+    out.push(`\n💼 OPÉRATIONS DU JOUR — ${(deals as any[]).length}`);
+    (deals as any[]).forEach(d => out.push(`  • ${d.client_name} — ${d.deal_type}${d.item_label ? ` (${d.item_label})` : ''}${d.amount ? ` · ${Number(d.amount).toLocaleString()} ${d.currency === 'DZD' ? 'DA' : '€'}` : ''}`));
+  }
+
+  // Nouveaux leads
+  const { data: leads } = await supabase.from('client_leads')
+    .select('client_name, criteria, status').eq('status', 'nouveau').limit(20);
+  if ((leads as any[])?.length) {
+    out.push(`\n📥 DEMANDES À TRAITER — ${(leads as any[]).length}`);
+    (leads as any[]).forEach(l => out.push(`  • ${l.client_name} : ${l.criteria}`));
+  }
+
+  // Alertes : paiements en retard (fin passée, pas PAID)
+  const overdue = (bks as any[] || []).filter(b => b.end_date < today && b.payment_status !== 'PAID');
+  if (overdue.length) {
+    out.push(`\n⚠️ PAIEMENTS EN RETARD — ${overdue.length}`);
+    overdue.slice(0, 10).forEach(b => out.push(`  💰 ${b.client_name} — ${b.final_price ?? '?'}€ (${b.cars?.name ?? '?'})`));
+  }
+
+  if (out.length === 1) out.push('\nRien de spécial aujourd\'hui. Bonne journée 👌');
+  return out.join('\n');
 }
 
 async function setSiteHeroTool(input: Record<string, unknown>): Promise<string> {

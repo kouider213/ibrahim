@@ -89,7 +89,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'list_properties', 'get_property_photo', 'update_property_status', 'list_vehicles_for_sale',
     'get_vehicle_sale_photo', 'mark_vehicle_sold', 'record_client_deal', 'get_client_history',
     'create_property', 'add_vehicle_for_sale', 'update_property', 'update_vehicle_details', 'set_site_hero',
-    'record_lead', 'list_leads', 'update_lead_status', 'match_lead',
+    'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
   ],
   keywords:  /\b(réservations?|booking|louer|location|disponib|voitures?|retard|flotte|clients?|arrivée|départ|véhicules?|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartements?|immobilier|immo|biens?|maisons?|villas?|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,
   priority:  10,
@@ -400,7 +400,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'mark_vehicle_sold',
     'record_client_deal', 'get_client_history', 'get_car_photo', 'list_bookings',
     'create_property', 'add_vehicle_for_sale', 'update_property', 'update_vehicle_details', 'set_site_hero',
-    'record_lead', 'list_leads', 'update_lead_status', 'match_lead'],
+    'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
