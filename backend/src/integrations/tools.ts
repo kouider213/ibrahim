@@ -1101,6 +1101,85 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── IMMOBILIER & VENTE — synchro site (mêmes tables que le site web) ─────────
+  {
+    name: 'list_properties',
+    description: 'Lister les biens immobiliers (appartements/maisons) du site Fik Conciergerie depuis Supabase. Utiliser quand Kouider demande "mes biens", "l\'immobilier", "les appartements", "quels biens dispo". Montre titre, ville, prix, transaction (location/vente) et statut (disponible/loué/vendu).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', description: 'Filtre optionnel: disponible | loue | vendu | coming_soon. Vide = tous.' },
+      },
+    },
+  },
+  {
+    name: 'update_property_status',
+    description: 'Changer le statut d\'un bien immobilier sur le site (le rendre LOUÉ ou VENDU ou disponible). À utiliser quand un client loue/achète un appartement ou une maison (via WhatsApp). Met à jour le site automatiquement (le bien disparaît des dispos) ET enregistre l\'opération client. Ex: "marque l\'appartement Hay Badr comme loué par Mohamed".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        property_query: { type: 'string', description: 'Titre ou ville du bien (ex: "appartement Hay Badr", "villa Oran"). Insensible à la casse.' },
+        new_status:     { type: 'string', description: 'Nouveau statut: loue | vendu | disponible' },
+        client_name:    { type: 'string', description: 'Nom du client (si loué/vendu) — pour enregistrer qui.' },
+        client_phone:   { type: 'string', description: 'Téléphone du client (optionnel).' },
+        amount:         { type: 'number', description: 'Montant (loyer total ou prix de vente, optionnel).' },
+      },
+      required: ['property_query', 'new_status'],
+    },
+  },
+  {
+    name: 'list_vehicles_for_sale',
+    description: 'Lister les voitures À VENDRE du site Fik Conciergerie (différent du parc de location). Utiliser quand Kouider demande "les voitures à vendre", "mon stock de vente". Montre marque, modèle, année, prix, statut.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', description: 'Filtre optionnel: disponible | reserve | vendu | coming_soon. Vide = tous.' },
+      },
+    },
+  },
+  {
+    name: 'mark_vehicle_sold',
+    description: 'Marquer une voiture À VENDRE comme VENDUE (ou réservée) sur le site. À utiliser quand un client achète une voiture du stock de vente. Met à jour le site (disparaît des dispos) + enregistre l\'opération client. Ex: "la Golf 8 est vendue à Karim pour 2500000 DA".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        vehicle_query: { type: 'string', description: 'Marque/modèle de la voiture à vendre (ex: "Golf 8", "Clio 4"). Insensible à la casse.' },
+        new_status:    { type: 'string', description: 'Nouveau statut: vendu | reserve | disponible. Défaut: vendu.' },
+        client_name:   { type: 'string', description: 'Nom de l\'acheteur (optionnel).' },
+        client_phone:  { type: 'string', description: 'Téléphone (optionnel).' },
+        amount:        { type: 'number', description: 'Prix de vente (optionnel).' },
+      },
+      required: ['vehicle_query'],
+    },
+  },
+  {
+    name: 'record_client_deal',
+    description: 'Enregistrer une opération client générique (quand aucun autre outil ne colle) pour garder une trace de QUI a fait QUOI. Utiliser pour noter manuellement une location/vente/commande. Le statut des items se gère avec update_property_status / mark_vehicle_sold / create_booking.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:  { type: 'string', description: 'Nom du client.' },
+        client_phone: { type: 'string', description: 'Téléphone (optionnel).' },
+        deal_type:    { type: 'string', description: 'location_voiture | vente_voiture | location_immo | vente_immo | commande_vehicule' },
+        item_label:   { type: 'string', description: 'Ce qui est concerné (ex: "Clio 5 Alpine", "Appartement Hay Badr").' },
+        amount:       { type: 'number', description: 'Montant (optionnel).' },
+        notes:        { type: 'string', description: 'Note libre (optionnel).' },
+      },
+      required: ['client_name', 'deal_type'],
+    },
+  },
+  {
+    name: 'get_client_history',
+    description: 'Voir TOUT l\'historique d\'un client : ses locations de voiture, locations/achats immo, achats voiture. Utiliser quand Kouider demande "qu\'est-ce que Mohamed a fait", "c\'est quel type de client", "montre l\'historique de X". Croise les réservations voiture + les opérations client_deals.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_query: { type: 'string', description: 'Nom ou téléphone du client.' },
+      },
+      required: ['client_query'],
+    },
+  },
+
   // ─── NEXUS PC AGENT ──────────────────────────────────────────────
   {
     name: 'ping_nexus',

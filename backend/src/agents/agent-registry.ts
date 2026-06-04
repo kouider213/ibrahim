@@ -67,8 +67,11 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     // un contexte véhicule/flotte → cet agent gagne (priorité 10). Sans ce tool il
     // improvisait "je n'ai pas accès aux photos". Maintenant il récupère la vraie photo.
     'get_car_photo',
+    // Immobilier + vente voiture + historique client (synchro site) :
+    'list_properties', 'update_property_status', 'list_vehicles_for_sale',
+    'mark_vehicle_sold', 'record_client_deal', 'get_client_history',
   ],
-  keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible)\b/i,
+  keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartement|immobilier|immo|bien|maison|villa|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,
   priority:  10,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500 },
 };
@@ -114,6 +117,7 @@ ENREGISTREMENT DOCUMENT:
   toolNames: [
     'store_document','get_client_document','send_whatsapp_to_client','send_telegram_message',
     'rate_client','record_feedback','get_client_profile','list_bookings',
+    'get_client_history','record_client_deal',
   ],
   keywords:  /\b(client|document|contrat|passep|passeport|paseport|pasport|passport|permis|permi|identit|whatsapp|sms|message|envoyer|envoi|notif|noter|évaluation|historique\s+client|profil\s+client|qui\s+est\s+[A-Z])\b/i,
   priority:  8,

@@ -384,6 +384,13 @@ async function _dispatch(
       case 'generate_ai_video':          return await generateAiVideoTool(input, sessionId);
       case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
       case 'get_car_photo':              return await getCarPhotoTool(input);
+      // ─── IMMOBILIER & VENTE — synchro site ───
+      case 'list_properties':            return await listPropertiesTool(input);
+      case 'update_property_status':     return await updatePropertyStatusTool(input);
+      case 'list_vehicles_for_sale':     return await listVehiclesForSaleTool(input);
+      case 'mark_vehicle_sold':          return await markVehicleSoldTool(input);
+      case 'record_client_deal':         return await recordClientDealTool(input);
+      case 'get_client_history':         return await getClientHistoryTool(input);
       // ─── IMAGE-TO-IMAGE avec conservation visage ───
       case 'transform_image':            return await executeImageToImage(input, sessionId);
       case 'get_my_location':            return await getMyLocationTool(sessionId);
@@ -4578,6 +4585,165 @@ async function getCarPhotoTool(input: Record<string, unknown>): Promise<string> 
   }
 
   return `✅ ${allUrls.length} photo${allUrls.length > 1 ? 's' : ''} envoyée${allUrls.length > 1 ? 's' : ''} pour "${car.name}":\n${allUrls.map((u, i) => `${i + 1}. ${u}`).join('\n')}\n\nUtilise ces URLs avec enhance_image ou create_social_variants.`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// IMMOBILIER & VENTE — synchro avec le site (mêmes tables Supabase)
+// ════════════════════════════════════════════════════════════════════════════
+
+// Enregistre une opération dans client_deals (trace QUI a fait QUOI). Non-bloquant.
+async function logClientDeal(d: {
+  client_name?: string; client_phone?: string; deal_type: string;
+  item_table?: string; item_id?: string; item_label?: string;
+  amount?: number; currency?: string; status?: string; notes?: string;
+}): Promise<void> {
+  if (!d.client_name) return; // pas de client → on ne loggue pas
+  try {
+    await supabase.from('client_deals').insert([{
+      client_name: d.client_name, client_phone: d.client_phone ?? null,
+      deal_type: d.deal_type, item_table: d.item_table ?? null, item_id: d.item_id ?? null,
+      item_label: d.item_label ?? null, amount: d.amount ?? null, currency: d.currency ?? 'DZD',
+      status: d.status ?? 'termine', notes: d.notes ?? null,
+    }]);
+  } catch (e) { console.error('[client_deals] insert fail:', e instanceof Error ? e.message : e); }
+}
+
+async function listPropertiesTool(input: Record<string, unknown>): Promise<string> {
+  const status = (input['status'] as string | undefined)?.trim();
+  let q = supabase.from('properties').select('id, title, city, district, transaction, price, currency, status, bedrooms').order('created_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  const { data, error } = await q.limit(50);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!data || data.length === 0) return status ? `Aucun bien avec le statut "${status}".` : 'Aucun bien immobilier enregistré.';
+  const cur = (c: string) => (c === 'DZD' ? 'DA' : '€');
+  const lines = (data as any[]).map(p => {
+    const txn = p.transaction === 'vente' ? 'À vendre' : 'À louer';
+    const price = p.price ? `${Number(p.price).toLocaleString()} ${cur(p.currency)}${p.transaction === 'vente' ? '' : '/mois'}` : 'prix sur demande';
+    return `🏠 ${p.title} — ${[p.district, p.city].filter(Boolean).join(', ')} · ${txn} · ${price} · statut: ${p.status}`;
+  });
+  return `${data.length} bien(s) :\n${lines.join('\n')}`;
+}
+
+async function updatePropertyStatusTool(input: Record<string, unknown>): Promise<string> {
+  const query  = (input['property_query'] as string | undefined)?.trim();
+  const status = (input['new_status'] as string | undefined)?.trim();
+  if (!query || !status) return '❌ property_query et new_status requis.';
+  const valid = ['loue', 'vendu', 'disponible', 'coming_soon'];
+  if (!valid.includes(status)) return `❌ Statut invalide. Utilise: ${valid.join(', ')}.`;
+
+  const { data: props, error } = await supabase.from('properties')
+    .select('id, title, city, transaction, price, currency')
+    .or(`title.ilike.%${query}%,city.ilike.%${query}%`).limit(5);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!props || props.length === 0) return `❌ Aucun bien trouvé pour "${query}".`;
+  if (props.length > 1) return `⚠️ Plusieurs biens correspondent à "${query}":\n${(props as any[]).map(p => `• ${p.title} (${p.city})`).join('\n')}\nPrécise lequel.`;
+
+  const p = (props as any[])[0];
+  const { error: upErr } = await supabase.from('properties').update({ status }).eq('id', p.id);
+  if (upErr) return `❌ Échec mise à jour: ${upErr.message}`;
+
+  const clientName = input['client_name'] as string | undefined;
+  if (clientName && (status === 'loue' || status === 'vendu')) {
+    await logClientDeal({
+      client_name: clientName, client_phone: input['client_phone'] as string | undefined,
+      deal_type: status === 'vendu' ? 'vente_immo' : 'location_immo',
+      item_table: 'properties', item_id: String(p.id), item_label: p.title,
+      amount: input['amount'] as number | undefined, currency: p.currency,
+    });
+  }
+  const label = status === 'loue' ? 'LOUÉ' : status === 'vendu' ? 'VENDU' : status;
+  return `✅ "${p.title}" marqué ${label} sur le site${clientName ? ` (client: ${clientName})` : ''}. Le bien n'apparaît plus dans les disponibilités.`;
+}
+
+async function listVehiclesForSaleTool(input: Record<string, unknown>): Promise<string> {
+  const status = (input['status'] as string | undefined)?.trim();
+  let q = supabase.from('vehicles_for_sale').select('id, brand, model, year, price, currency, status, mileage').order('created_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  const { data, error } = await q.limit(50);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!data || data.length === 0) return status ? `Aucune voiture à vendre avec le statut "${status}".` : 'Aucune voiture à vendre enregistrée.';
+  const cur = (c: string) => (c === 'DZD' ? 'DA' : '€');
+  const lines = (data as any[]).map(v => `🚗 ${v.brand} ${v.model}${v.year ? ` (${v.year})` : ''} — ${v.price ? Number(v.price).toLocaleString() + ' ' + cur(v.currency) : 'prix sur demande'} · ${v.mileage != null ? v.mileage + ' km · ' : ''}statut: ${v.status}`);
+  return `${data.length} voiture(s) à vendre :\n${lines.join('\n')}`;
+}
+
+async function markVehicleSoldTool(input: Record<string, unknown>): Promise<string> {
+  const query  = (input['vehicle_query'] as string | undefined)?.trim();
+  const status = ((input['new_status'] as string | undefined)?.trim()) || 'vendu';
+  if (!query) return '❌ vehicle_query requis.';
+  const valid = ['vendu', 'reserve', 'disponible'];
+  if (!valid.includes(status)) return `❌ Statut invalide. Utilise: ${valid.join(', ')}.`;
+
+  const { data: vs, error } = await supabase.from('vehicles_for_sale')
+    .select('id, brand, model, price, currency')
+    .or(`brand.ilike.%${query}%,model.ilike.%${query}%`).limit(5);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!vs || vs.length === 0) return `❌ Aucune voiture à vendre trouvée pour "${query}".`;
+  if (vs.length > 1) return `⚠️ Plusieurs voitures correspondent:\n${(vs as any[]).map(v => `• ${v.brand} ${v.model}`).join('\n')}\nPrécise laquelle.`;
+
+  const v = (vs as any[])[0];
+  const { error: upErr } = await supabase.from('vehicles_for_sale').update({ status }).eq('id', v.id);
+  if (upErr) return `❌ Échec mise à jour: ${upErr.message}`;
+
+  const clientName = input['client_name'] as string | undefined;
+  if (clientName && status === 'vendu') {
+    await logClientDeal({
+      client_name: clientName, client_phone: input['client_phone'] as string | undefined,
+      deal_type: 'vente_voiture', item_table: 'vehicles_for_sale', item_id: String(v.id),
+      item_label: `${v.brand} ${v.model}`, amount: input['amount'] as number | undefined, currency: v.currency,
+    });
+  }
+  const label = status === 'vendu' ? 'VENDUE' : status === 'reserve' ? 'RÉSERVÉE' : status;
+  return `✅ ${v.brand} ${v.model} marquée ${label} sur le site${clientName ? ` (acheteur: ${clientName})` : ''}.`;
+}
+
+async function recordClientDealTool(input: Record<string, unknown>): Promise<string> {
+  const clientName = (input['client_name'] as string | undefined)?.trim();
+  const dealType   = (input['deal_type'] as string | undefined)?.trim();
+  if (!clientName || !dealType) return '❌ client_name et deal_type requis.';
+  await logClientDeal({
+    client_name: clientName, client_phone: input['client_phone'] as string | undefined,
+    deal_type: dealType, item_label: input['item_label'] as string | undefined,
+    amount: input['amount'] as number | undefined, notes: input['notes'] as string | undefined,
+  });
+  return `✅ Opération enregistrée pour ${clientName} (${dealType}).`;
+}
+
+async function getClientHistoryTool(input: Record<string, unknown>): Promise<string> {
+  const query = (input['client_query'] as string | undefined)?.trim();
+  if (!query) return '❌ client_query requis.';
+
+  // 1) Réservations voiture (table bookings)
+  const { data: bookings } = await supabase.from('bookings')
+    .select('client_name, client_phone, start_date, end_date, total_price, currency, status')
+    .or(`client_name.ilike.%${query}%,client_phone.ilike.%${query}%`).order('created_at', { ascending: false }).limit(20);
+
+  // 2) Autres opérations (client_deals)
+  const { data: deals } = await supabase.from('client_deals')
+    .select('deal_type, item_label, amount, currency, status, created_at')
+    .or(`client_name.ilike.%${query}%,client_phone.ilike.%${query}%`).order('created_at', { ascending: false }).limit(20);
+
+  const lines: string[] = [];
+  if (bookings && bookings.length) {
+    lines.push(`🚗 Locations voiture (${bookings.length}) :`);
+    (bookings as any[]).forEach(b => lines.push(`  • ${b.start_date} → ${b.end_date} · ${b.total_price ? b.total_price + ' ' + (b.currency === 'EUR' ? '€' : 'DA') : '—'} · ${b.status}`));
+  }
+  if (deals && deals.length) {
+    lines.push(`📋 Autres opérations (${deals.length}) :`);
+    (deals as any[]).forEach(d => lines.push(`  • ${d.deal_type} — ${d.item_label ?? ''} · ${d.amount ? d.amount + ' ' + (d.currency || 'DA') : ''} · ${d.status} (${String(d.created_at).slice(0, 10)})`));
+  }
+  if (lines.length === 0) return `Aucun historique trouvé pour "${query}".`;
+
+  // Détermine le profil
+  const types = new Set<string>();
+  if (bookings?.length) types.add('locataire voiture');
+  (deals as any[] | null)?.forEach(d => {
+    if (d.deal_type === 'location_immo') types.add('locataire immobilier');
+    if (d.deal_type === 'vente_immo') types.add('acheteur immobilier');
+    if (d.deal_type === 'vente_voiture') types.add('acheteur voiture');
+  });
+  const profil = types.size ? `\n👤 Profil: ${[...types].join(', ')}` : '';
+  return `Historique de "${query}" :${profil}\n${lines.join('\n')}`;
 }
 
 // ─── OBSIDIAN BRAIN ───────────────────────────────────────────────────────────
