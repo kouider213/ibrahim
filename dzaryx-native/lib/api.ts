@@ -386,6 +386,8 @@ export async function dismissReminder(id: string, mobileToken?: string): Promise
   } catch { return false; }
 }
 
+export type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo';
+
 export interface ClientSummary {
   name:         string;
   phone:        string | null;
@@ -393,6 +395,7 @@ export interface ClientSummary {
   bookingCount: number;
   totalSpent:   number;
   lastBooking:  string;
+  types?:       ClientType[];
 }
 
 export async function fetchClients(mobileToken?: string): Promise<ClientSummary[]> {

@@ -5,9 +5,16 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchClients, type ClientSummary } from '../lib/api';
+import { fetchClients, type ClientSummary, type ClientType } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
+
+const TYPE_META: Record<ClientType, { label: string; color: string }> = {
+  loc_auto:   { label: 'LOC AUTO',   color: '#00e5ff' },
+  loc_immo:   { label: 'LOC IMMO',   color: '#b06bff' },
+  achat_auto: { label: 'ACHAT AUTO', color: '#ff9f43' },
+  achat_immo: { label: 'ACHAT IMMO', color: '#00ff88' },
+};
 
 function scoreClient(count: number, spent: number): { label: string; color: string } {
   if (count >= 5 || spent >= 1000) return { label: 'VIP',      color: '#ffd700' };
@@ -124,6 +131,20 @@ export default function ClientsScreen() {
                 <Text style={styles.clientName}>{c.name.toUpperCase()}</Text>
               </View>
 
+              {c.types && c.types.length > 0 && (
+                <View style={styles.typesRow}>
+                  {c.types.map(t => {
+                    const m = TYPE_META[t];
+                    if (!m) return null;
+                    return (
+                      <View key={t} style={[styles.typeChip, { borderColor: m.color, backgroundColor: `${m.color}14` }]}>
+                        <Text style={[styles.typeChipTxt, { color: m.color }]}>{m.label}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
               <View style={styles.statsLine}>
                 <Text style={styles.statItem}>{c.bookingCount} résa</Text>
                 <Text style={styles.statDot}>·</Text>
@@ -186,6 +207,10 @@ const styles = StyleSheet.create({
   scoreBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   scoreTxt:   { fontSize: 7, fontFamily: MONO, letterSpacing: 1, fontWeight: '700' },
   clientName: { color: '#fff', fontSize: 12, fontFamily: MONO, fontWeight: '700', letterSpacing: 2, flex: 1 },
+
+  typesRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 8 },
+  typeChip:    { borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 },
+  typeChipTxt: { fontSize: 7, fontFamily: MONO, letterSpacing: 1, fontWeight: '700' },
 
   statsLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 },
   statItem:  { color: '#444', fontSize: 9, fontFamily: MONO, letterSpacing: 1 },

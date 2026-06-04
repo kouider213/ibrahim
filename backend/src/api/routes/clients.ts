@@ -20,9 +20,11 @@ router.get('/', requireMobileAuth, async (req, res) => {
 
     if (error) throw new Error(error.message);
 
-    // Group by phone
+    // Group by phone. `types` = activités du client (loc_auto/loc_immo/achat_auto/achat_immo)
+    type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo';
     const clientMap = new Map<string, {
-      name: string; phone: string; email: string; bookingCount: number; totalSpent: number; lastBooking: string;
+      name: string; phone: string; email: string; bookingCount: number;
+      totalSpent: number; lastBooking: string; types: Set<ClientType>;
     }>();
 
     for (const b of (data ?? []) as Array<{
@@ -33,6 +35,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
       const existing = clientMap.get(key);
       if (existing) {
         existing.bookingCount++;
+        existing.types.add('loc_auto');
         if (b.status === 'CONFIRMED' || b.status === 'COMPLETED') existing.totalSpent += b.final_price ?? 0;
         if (b.created_at > existing.lastBooking) existing.lastBooking = b.created_at;
       } else {
@@ -43,11 +46,45 @@ router.get('/', requireMobileAuth, async (req, res) => {
           bookingCount: 1,
           totalSpent:   b.status === 'CONFIRMED' ? (b.final_price ?? 0) : 0,
           lastBooking:  b.created_at,
+          types:        new Set<ClientType>(['loc_auto']),
         });
       }
     }
 
-    res.json({ clients: Array.from(clientMap.values()) });
+    // Merge client_deals (immobilier + vente voiture) — by phone, fallback name
+    const dealTypeMap: Record<string, ClientType> = {
+      location_immo: 'loc_immo', vente_immo: 'achat_immo', vente_voiture: 'achat_auto',
+    };
+    const { data: deals } = await supabase
+      .from('client_deals')
+      .select('client_name, client_phone, deal_type, amount, status, created_at');
+    for (const d of (deals ?? []) as Array<{
+      client_name: string; client_phone: string | null; deal_type: string;
+      amount: number | null; status: string | null; created_at: string;
+    }>) {
+      const t = dealTypeMap[d.deal_type];
+      if (!t) continue;
+      const key = d.client_phone ?? d.client_name;
+      const existing = clientMap.get(key)
+        ?? Array.from(clientMap.values()).find(c => c.name === d.client_name);
+      if (existing) {
+        existing.types.add(t);
+        if (d.created_at > existing.lastBooking) existing.lastBooking = d.created_at;
+      } else {
+        clientMap.set(key, {
+          name:         d.client_name,
+          phone:        d.client_phone ?? '',
+          email:        '',
+          bookingCount: 0,
+          totalSpent:   0,
+          lastBooking:  d.created_at,
+          types:        new Set<ClientType>([t]),
+        });
+      }
+    }
+
+    const clients = Array.from(clientMap.values()).map(c => ({ ...c, types: Array.from(c.types) }));
+    res.json({ clients });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
