@@ -385,6 +385,8 @@ async function _dispatch(
       case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
       case 'get_car_photo':              return await getCarPhotoTool(input);
       // ─── IMMOBILIER & VENTE — synchro site ───
+      case 'create_property':            return await createPropertyTool(input);
+      case 'add_vehicle_for_sale':       return await addVehicleForSaleTool(input);
       case 'list_properties':            return await listPropertiesTool(input);
       case 'get_property_photo':         return await getPropertyPhotoTool(input);
       case 'update_property_status':     return await updatePropertyStatusTool(input);
@@ -4640,6 +4642,56 @@ async function getPropertyPhotoTool(input: Record<string, unknown>): Promise<str
   }
   if (totalSent === 0) return '⚠️ Biens trouvés mais aucun n\'a de photo. Ajoute des photos dans l\'admin du site.';
   return `✅ ${totalSent} photo(s) envoyée(s) pour : ${sentNames.join(', ')}.`;
+}
+
+async function createPropertyTool(input: Record<string, unknown>): Promise<string> {
+  const title = (input['title'] as string | undefined)?.trim();
+  const transaction = (input['transaction'] as string | undefined)?.trim();
+  const price = input['price'] as number | undefined;
+  if (!title || !transaction || price == null) return '❌ title, transaction et price requis.';
+  if (!['location', 'vente'].includes(transaction)) return '❌ transaction doit être "location" ou "vente".';
+
+  const row: Record<string, unknown> = {
+    title,
+    name: title,                                  // colonne legacy NOT NULL éventuelle
+    transaction,
+    city:        (input['city'] as string | undefined)?.trim() || 'Oran',
+    district:    (input['district'] as string | undefined)?.trim() || null,
+    price,
+    currency:    (input['currency'] as string | undefined)?.trim() || 'DZD',
+    price_type:  transaction === 'location' ? 'mois' : 'total',
+    type:        (input['type'] as string | undefined)?.trim() || 'appartement',
+    rooms:       (input['rooms'] as number | undefined) ?? null,
+    surface:     (input['surface'] as number | undefined) ?? null,
+    description: (input['description'] as string | undefined)?.trim() || null,
+    status:      (input['status'] as string | undefined)?.trim() || 'disponible',
+  };
+  const { data, error } = await supabase.from('properties').insert([row]).select('id, title').single();
+  if (error) return `❌ Erreur création bien: ${error.message}`;
+  const cur = row.currency === 'DZD' ? 'DA' : '€';
+  const suffix = transaction === 'location' ? '/mois' : '';
+  return `✅ Bien ajouté sur le site : "${(data as any).title}" — ${transaction === 'vente' ? 'à vendre' : 'à louer'} à ${row.city} · ${Number(price).toLocaleString()} ${cur}${suffix}. Visible sur fikconciergerie.com. Ajoute des photos depuis l'admin ou l'app.`;
+}
+
+async function addVehicleForSaleTool(input: Record<string, unknown>): Promise<string> {
+  const brand = (input['brand'] as string | undefined)?.trim();
+  const model = (input['model'] as string | undefined)?.trim();
+  const price = input['price'] as number | undefined;
+  if (!brand || !model || price == null) return '❌ brand, model et price requis.';
+
+  const row: Record<string, unknown> = {
+    brand, model, price,
+    year:         (input['year'] as number | undefined) ?? null,
+    currency:     (input['currency'] as string | undefined)?.trim() || 'DZD',
+    mileage:      (input['mileage'] as number | undefined) ?? null,
+    fuel:         (input['fuel'] as string | undefined)?.trim() || null,
+    transmission: (input['transmission'] as string | undefined)?.trim() || null,
+    status:       (input['status'] as string | undefined)?.trim() || 'disponible',
+  };
+  const { data, error } = await supabase.from('vehicles_for_sale').insert([row]).select('id, brand, model').single();
+  if (error) return `❌ Erreur ajout voiture à vendre: ${error.message}`;
+  const cur = row.currency === 'DZD' ? 'DA' : '€';
+  return `✅ Voiture à vendre ajoutée sur le site : ${(data as any).brand} ${(data as any).model}${row.year ? ` (${row.year})` : ''} · ${Number(price).toLocaleString()} ${cur}. Visible sur le site. Ajoute des photos depuis l'admin ou l'app.`;
 }
 
 async function listPropertiesTool(input: Record<string, unknown>): Promise<string> {

@@ -1173,6 +1173,46 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'create_property',
+    description: 'Ajouter un NOUVEAU bien immobilier sur le site Fik Conciergerie (apparaît immédiatement sur fikconciergerie.com). Utiliser quand Kouider dit "ajoute un appartement à louer", "rajoute une villa à vendre", "nouveau bien". Le bien est créé dans la base partagée du site.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title:       { type: 'string', description: 'Titre du bien (ex: "F3 lumineux Hay Badr", "Villa avec piscine Bir El Djir").' },
+        transaction: { type: 'string', enum: ['location', 'vente'], description: 'location = à louer, vente = à vendre.' },
+        city:        { type: 'string', description: 'Ville (défaut: Oran).' },
+        district:    { type: 'string', description: 'Quartier (ex: Hay Badr, Bir El Djir). Optionnel.' },
+        price:       { type: 'number', description: 'Prix: loyer/mois si location, prix total si vente.' },
+        currency:    { type: 'string', enum: ['DZD', 'EUR'], description: 'Devise. Défaut: DZD.' },
+        type:        { type: 'string', description: 'Type: appartement | villa | maison | studio | local | terrain. Optionnel.' },
+        rooms:       { type: 'number', description: 'Nombre de pièces (optionnel).' },
+        surface:     { type: 'number', description: 'Surface en m² (optionnel).' },
+        description: { type: 'string', description: 'Description (optionnel).' },
+        status:      { type: 'string', enum: ['disponible', 'coming_soon'], description: 'Défaut: disponible.' },
+      },
+      required: ['title', 'transaction', 'price'],
+    },
+  },
+  {
+    name: 'add_vehicle_for_sale',
+    description: 'Ajouter une NOUVELLE voiture À VENDRE sur le site Fik Conciergerie (apparaît immédiatement sur le site, stock de vente — différent du parc de location). Utiliser quand Kouider dit "ajoute une voiture à vendre", "rajoute une Audi Q3 à vendre".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        brand:        { type: 'string', description: 'Marque (ex: Audi, Volkswagen, Renault).' },
+        model:        { type: 'string', description: 'Modèle (ex: Q3, Golf 8, Clio 4).' },
+        year:         { type: 'number', description: 'Année (ex: 2020). Optionnel.' },
+        price:        { type: 'number', description: 'Prix de vente.' },
+        currency:     { type: 'string', enum: ['DZD', 'EUR'], description: 'Devise. Défaut: DZD.' },
+        mileage:      { type: 'number', description: 'Kilométrage (optionnel).' },
+        fuel:         { type: 'string', description: 'Carburant: essence | diesel | hybride | électrique. Optionnel.' },
+        transmission: { type: 'string', description: 'Boîte: manuelle | automatique. Optionnel.' },
+        status:       { type: 'string', enum: ['disponible', 'coming_soon'], description: 'Défaut: disponible.' },
+      },
+      required: ['brand', 'model', 'price'],
+    },
+  },
+  {
     name: 'record_client_deal',
     description: 'Enregistrer une opération client générique (quand aucun autre outil ne colle) pour garder une trace de QUI a fait QUOI. Utiliser pour noter manuellement une location/vente/commande. Le statut des items se gère avec update_property_status / mark_vehicle_sold / create_booking.',
     input_schema: {

@@ -35,6 +35,10 @@ IMMOBILIER & VENTE — RÈGLE ABSOLUE (le contexte injecté ne contient PAS l'im
 - "infos sur le bien X" → appelle list_properties puis filtre.
 ⛔ INTERDIT de répondre "pas de biens enregistrés" / "Fik fait que la location" de mémoire. Appelle l'outil, c'est lui qui dit la vérité de la base.
 📛 TOUJOURS citer le NOM/TITRE exact de chaque bien et véhicule renvoyé par l'outil (ex: "le bien Test", pas "un bien"). Ne paraphrase JAMAIS en cachant le nom.
+➕ AJOUT SUR LE SITE :
+- "ajoute/rajoute un appartement/villa/maison/local à louer ou à vendre" → create_property (transaction=location|vente, price, city). Apparaît direct sur fikconciergerie.com.
+- "ajoute/rajoute une voiture à vendre" → add_vehicle_for_sale (brand, model, price).
+- Si une info manque (prix, location ou vente), pose UNE question courte puis crée. Devise par défaut DZD.
 
 PHOTOS — RÈGLE ABSOLUE (avant de répondre quoi que ce soit sur les photos):
 - "envoie/montre les photos des véhicules à vendre" / "voitures en vente" → appelle get_vehicle_sale_photo (vehicle_query VIDE = toutes).
@@ -84,6 +88,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     // Immobilier + vente voiture + historique client (synchro site) :
     'list_properties', 'get_property_photo', 'update_property_status', 'list_vehicles_for_sale',
     'get_vehicle_sale_photo', 'mark_vehicle_sold', 'record_client_deal', 'get_client_history',
+    'create_property', 'add_vehicle_for_sale',
   ],
   keywords:  /\b(réservations?|booking|louer|location|disponib|voitures?|retard|flotte|clients?|arrivée|départ|véhicules?|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartements?|immobilier|immo|biens?|maisons?|villas?|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,
   priority:  10,
@@ -392,7 +397,8 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     // sortait les appels en texte <invoke> faute d'avoir l'outil en natif).
     'list_properties', 'get_property_photo', 'update_property_status',
     'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'mark_vehicle_sold',
-    'record_client_deal', 'get_client_history', 'get_car_photo', 'list_bookings'],
+    'record_client_deal', 'get_client_history', 'get_car_photo', 'list_bookings',
+    'create_property', 'add_vehicle_for_sale'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
