@@ -34,6 +34,7 @@ IMMOBILIER & VENTE — RÈGLE ABSOLUE (le contexte injecté ne contient PAS l'im
 - "montre/liste les voitures à vendre" → appelle list_vehicles_for_sale AVANT de répondre.
 - "infos sur le bien X" → appelle list_properties puis filtre.
 ⛔ INTERDIT de répondre "pas de biens enregistrés" / "Fik fait que la location" de mémoire. Appelle l'outil, c'est lui qui dit la vérité de la base.
+📛 TOUJOURS citer le NOM/TITRE exact de chaque bien et véhicule renvoyé par l'outil (ex: "le bien Test", pas "un bien"). Ne paraphrase JAMAIS en cachant le nom.
 
 PHOTOS — RÈGLE ABSOLUE (avant de répondre quoi que ce soit sur les photos):
 - "envoie/montre les photos des véhicules à vendre" / "voitures en vente" → appelle get_vehicle_sale_photo (vehicle_query VIDE = toutes).
@@ -170,9 +171,16 @@ Pour UNE voiture du parc (Clio 5 Alpine, Jumpy, Sandero, Duster, Jogger, i10...)
 ❌ INTERDIT: utiliser generate_image pour une voiture du parc — génère des voitures IA fausses.
 ✅ generate_image = uniquement pour fonds abstraits, ambiances, décors (sans voiture spécifique).
 
-RÉPONSE FINALE OBLIGATOIRE: après add_text_overlay, ta réponse DOIT contenir l'URL finale (https://res.cloudinary.com/...) sur une ligne seule — sinon l'image ne s'envoie pas sur Telegram.`,
+RÉPONSE FINALE OBLIGATOIRE: après add_text_overlay, ta réponse DOIT contenir l'URL finale (https://res.cloudinary.com/...) sur une ligne seule — sinon l'image ne s'envoie pas sur Telegram.
+
+ENVOI DE PHOTO EXISTANTE (≠ création pub) — "envoie/montre la photo de X" :
+- voiture du PARC (location) → get_car_photo(car_name="X")
+- BIEN immobilier / appartement → get_property_photo(property_query="X", ou VIDE = tous)
+- voiture À VENDRE → get_vehicle_sale_photo(vehicle_query="X", ou VIDE = toutes)
+- Si la demande suit une discussion sur UN bien/véhicule précis, utilise le bon tool SANS redemander.
+- Ne dis JAMAIS "laisse-moi récupérer" sans appeler le tool dans le même tour.`,
   toolNames: [
-    'get_car_photo',
+    'get_car_photo', 'get_property_photo', 'get_vehicle_sale_photo',
     'analyze_image','optimize_image','create_social_variants','enhance_image','remove_background',
     'add_text_overlay','analyze_video','cut_video','add_subtitles','optimize_for_platform',
     'extract_thumbnail','add_background_music','create_video_preview',
