@@ -416,7 +416,7 @@ function ImmoPane({ onMsg }: { onMsg: (m: string) => void }) {
   const [loading, setLoad] = useState(true);
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [f, setF] = useState({ title: '', transaction: 'location', city: 'Oran', district: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
+  const [f, setF] = useState({ title: '', transaction: 'location', city: 'Oran', district: '', address: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
 
   const load = async () => { setLoad(true); try { const r = await business.fetchProperties(); setItems(r.properties ?? []); } catch { setItems([]); } finally { setLoad(false); } };
   useEffect(() => { void load(); }, []);
@@ -427,12 +427,12 @@ function ImmoPane({ onMsg }: { onMsg: (m: string) => void }) {
     try {
       await business.createProperty({
         title: f.title.trim(), name: f.title.trim(), transaction: f.transaction,
-        city: f.city.trim() || 'Oran', district: f.district.trim() || null,
+        city: f.city.trim() || 'Oran', district: f.district.trim() || null, address: f.address.trim() || null,
         price: Number(f.price), currency: f.currency, price_type: f.transaction === 'location' ? 'mois' : 'total',
         type: f.type, rooms: f.rooms ? Number(f.rooms) : null, status: 'disponible',
       });
       onMsg('✅ Bien ajouté au site'); setShow(false);
-      setF({ title: '', transaction: 'location', city: 'Oran', district: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
+      setF({ title: '', transaction: 'location', city: 'Oran', district: '', address: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
       void load();
     } catch { onMsg('❌ Échec ajout'); } finally { setBusy(null); }
   };
@@ -470,6 +470,7 @@ function ImmoPane({ onMsg }: { onMsg: (m: string) => void }) {
             <input value={f.city} onChange={e => setF(s => ({ ...s, city: e.target.value }))} placeholder="Ville" style={paneInput} />
             <input value={f.district} onChange={e => setF(s => ({ ...s, district: e.target.value }))} placeholder="Quartier" style={paneInput} />
           </div>
+          <input value={f.address} onChange={e => setF(s => ({ ...s, address: e.target.value }))} placeholder="Adresse précise (pour la carte Google Maps)" style={paneInput} />
           <div style={{ display: 'flex', gap: 5 }}>
             <input value={f.price} onChange={e => setF(s => ({ ...s, price: e.target.value }))} type="number" placeholder={f.transaction === 'location' ? 'Loyer/mois' : 'Prix vente'} style={paneInput} />
             <select value={f.currency} onChange={e => setF(s => ({ ...s, currency: e.target.value }))} style={{ ...paneInput, flex: '0 0 70px' }}><option>DZD</option><option>EUR</option></select>
