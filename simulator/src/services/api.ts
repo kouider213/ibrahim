@@ -520,6 +520,13 @@ export interface SaleVehicle {
   mileage?: number | null; image_url?: string | null;
 }
 
+export interface ClientLead {
+  id: string; client_name: string; client_phone?: string | null;
+  category: string; criteria: string; budget_max?: number | null;
+  currency?: string | null; city?: string | null; status: string;
+  notes?: string | null; created_at: string;
+}
+
 export interface ClientIntelligence {
   client_name: string; preferred_cars: string[];
   typical_duration_days: number | null; negotiation_style: string;
@@ -565,6 +572,14 @@ export const business = {
 
   fetchOperations: () =>
     apiFetch<{ operations: ClientOperation[] }>('/api/clients/operations'),
+
+  // Leads / demandes clients
+  fetchLeads: (status?: string) =>
+    apiFetch<{ leads: ClientLead[] }>(`/api/clients/leads${status ? `?status=${status}` : ''}`),
+  createLead: (data: Record<string, unknown>) =>
+    apiFetch<{ lead: ClientLead }>('/api/clients/leads', { method: 'POST', body: JSON.stringify(data) }),
+  updateLead: (id: string, data: Record<string, unknown>) =>
+    apiFetch<{ lead: ClientLead }>(`/api/clients/leads/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Immobilier (synchro site)
   fetchProperties: () =>
