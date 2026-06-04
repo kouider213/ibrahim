@@ -506,6 +506,20 @@ export interface ClientOperation {
   currency: string | null; status: string | null; created_at: string;
 }
 
+export interface SiteProperty {
+  id: string; title?: string | null; name?: string | null;
+  city?: string | null; district?: string | null; transaction?: string | null;
+  price?: number | null; currency?: string | null; price_type?: string | null;
+  status?: string | null; type?: string | null; rooms?: number | null;
+  surface?: number | null; image_url?: string | null;
+}
+
+export interface SaleVehicle {
+  id: string; brand: string; model: string; year?: number | null;
+  price?: number | null; currency?: string | null; status?: string | null;
+  mileage?: number | null; image_url?: string | null;
+}
+
 export interface ClientIntelligence {
   client_name: string; preferred_cars: string[];
   typical_duration_days: number | null; negotiation_style: string;
@@ -551,6 +565,24 @@ export const business = {
 
   fetchOperations: () =>
     apiFetch<{ operations: ClientOperation[] }>('/api/clients/operations'),
+
+  // Immobilier (synchro site)
+  fetchProperties: () =>
+    apiFetch<{ properties: SiteProperty[] }>('/api/immo/properties'),
+  createProperty: (data: Record<string, unknown>) =>
+    apiFetch<{ property: SiteProperty }>('/api/immo/properties', { method: 'POST', body: JSON.stringify(data) }),
+  updateProperty: (id: string, data: Record<string, unknown>) =>
+    apiFetch<{ property: SiteProperty }>(`/api/immo/properties/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProperty: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/immo/properties/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // Vente véhicules (synchro site)
+  fetchVehiclesForSale: () =>
+    apiFetch<{ vehicles: SaleVehicle[] }>('/api/immo/vehicles-for-sale'),
+  addVehicleForSale: (data: Record<string, unknown>) =>
+    apiFetch<{ vehicle: SaleVehicle }>('/api/immo/vehicles-for-sale', { method: 'POST', body: JSON.stringify(data) }),
+  updateVehicleSale: (id: string, data: Record<string, unknown>) =>
+    apiFetch<{ vehicle: SaleVehicle }>(`/api/immo/vehicles-for-sale/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   fetchClientDeals: (name?: string, phone?: string) => {
     const p = new URLSearchParams();

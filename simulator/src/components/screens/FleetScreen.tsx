@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { business, api, getOrCreateSessionId, type Car, type FleetIntel } from '../../services/api.ts';
+import { business, api, getOrCreateSessionId, type Car, type FleetIntel, type SiteProperty, type SaleVehicle } from '../../services/api.ts';
+
+type ParcTab = 'cars' | 'immo' | 'vente';
 
 // Catalog prices (ref only for display — never used in financial calculations)
 const PRICE_CATALOG: Array<{ match: string; h: number; k: number }> = [
@@ -30,6 +32,7 @@ type InspectMode = 'before' | 'after';
 interface InspectState { carId: string; carName: string; mode: InspectMode; client: string; sending: boolean; done: string | null }
 
 export default function FleetScreen() {
+  const [tab, setTab]      = useState<ParcTab>('cars');
   const [intel, setIntel]  = useState<FleetIntel | null>(null);
   const [cars, setCars]    = useState<Car[]>([]);
   const [loading, setLoad] = useState(true);
@@ -92,22 +95,41 @@ export default function FleetScreen() {
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #00d4ff12', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #00d4ff55' }}>
-            PARC VÉHICULES
+            {tab === 'cars' ? 'PARC VÉHICULES' : tab === 'immo' ? 'IMMOBILIER' : 'VENTE AUTO'}
           </div>
           {msg && (
             <span style={{ fontSize: 8, color: '#00e676', fontFamily: 'Orbitron', letterSpacing: '0.1em' }}>{msg}</span>
           )}
         </div>
+        {/* Segment switcher */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+          {([['cars', '🚗 LOCATION'], ['immo', '🏠 IMMO'], ['vente', '💰 VENTE']] as [ParcTab, string][]).map(([k, lbl]) => (
+            <button key={k} onClick={() => setTab(k)} style={{
+              flex: 1, padding: '6px 4px', borderRadius: 7,
+              background: tab === k ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.04)',
+              border: `1px solid #00d4ff${tab === k ? '88' : '22'}`,
+              fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.08em',
+              color: `#00d4ff${tab === k ? '' : '77'}`, cursor: 'pointer',
+            }}>{lbl}</button>
+          ))}
+        </div>
+        {tab === 'cars' && (
         <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
           <KpiCard label="TOTAL"   val={String(cars.length)}  col="#00d4ff" />
           <KpiCard label="DISPO"   val={String(availCount)}   col="#00e676" />
           <KpiCard label="OCCUP"   val={`${occPct}%`}         col="#ffb347" />
           <KpiCard label="INDISPO" val={String(unavailCount)} col="#ff3366" />
         </div>
+        )}
         <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #00d4ff44, transparent)' }} />
       </div>
 
+      {/* Immo / Vente panes */}
+      {tab === 'immo'  && <ImmoPane  onMsg={(m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); }} />}
+      {tab === 'vente' && <VentePane onMsg={(m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); }} />}
+
       {/* Cars list */}
+      {tab === 'cars' && (
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {loading ? (
           <HudLoader />
@@ -247,11 +269,14 @@ export default function FleetScreen() {
           );
         })}
       </div>
+      )}
 
       {/* Footer refresh */}
+      {tab === 'cars' && (
       <div style={{ padding: '6px 14px 8px', borderTop: '1px solid #ffffff08', flexShrink: 0 }}>
         <button onClick={() => void load()} style={refreshBtn}>↻ ACTUALISER LE PARC</button>
       </div>
+      )}
 
       {/* Hidden file input for inspection photos */}
       <input
@@ -370,6 +395,199 @@ export default function FleetScreen() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── IMMO PANE ────────────────────────────────────────────────────────────────
+const IMMO_ST: Record<string, { label: string; col: string }> = {
+  disponible: { label: 'DISPO', col: '#00e676' }, libre: { label: 'DISPO', col: '#00e676' },
+  loue: { label: 'LOUÉ', col: '#ffb347' }, vendu: { label: 'VENDU', col: '#ff5fa2' },
+  coming_soon: { label: 'BIENTÔT', col: '#00d4ff' },
+};
+const paneInput: React.CSSProperties = {
+  width: '100%', boxSizing: 'border-box', background: 'rgba(0,212,255,0.04)',
+  border: '1px solid #00d4ff1a', borderRadius: 7, padding: '6px 8px',
+  fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
+};
+
+function ImmoPane({ onMsg }: { onMsg: (m: string) => void }) {
+  const [items, setItems] = useState<SiteProperty[]>([]);
+  const [loading, setLoad] = useState(true);
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [f, setF] = useState({ title: '', transaction: 'location', city: 'Oran', district: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
+
+  const load = async () => { setLoad(true); try { const r = await business.fetchProperties(); setItems(r.properties ?? []); } catch { setItems([]); } finally { setLoad(false); } };
+  useEffect(() => { void load(); }, []);
+
+  const add = async () => {
+    if (!f.title.trim() || !f.price) { onMsg('❌ Titre + prix requis'); return; }
+    setBusy('add');
+    try {
+      await business.createProperty({
+        title: f.title.trim(), name: f.title.trim(), transaction: f.transaction,
+        city: f.city.trim() || 'Oran', district: f.district.trim() || null,
+        price: Number(f.price), currency: f.currency, price_type: f.transaction === 'location' ? 'mois' : 'total',
+        type: f.type, rooms: f.rooms ? Number(f.rooms) : null, status: 'disponible',
+      });
+      onMsg('✅ Bien ajouté au site'); setShow(false);
+      setF({ title: '', transaction: 'location', city: 'Oran', district: '', price: '', currency: 'DZD', type: 'appartement', rooms: '' });
+      void load();
+    } catch { onMsg('❌ Échec ajout'); } finally { setBusy(null); }
+  };
+
+  const cycle = async (p: SiteProperty) => {
+    const order = p.transaction === 'vente' ? ['disponible', 'vendu', 'coming_soon'] : ['disponible', 'loue', 'coming_soon'];
+    const cur = (p.status || 'disponible').toLowerCase();
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    setBusy(p.id);
+    try { await business.updateProperty(p.id, { status: next }); setItems(xs => xs.map(x => x.id === p.id ? { ...x, status: next } : x)); }
+    catch { onMsg('❌ Échec MAJ'); } finally { setBusy(null); }
+  };
+
+  const del = async (p: SiteProperty) => {
+    if (!confirm(`Supprimer "${p.title || p.name}" du site ?`)) return;
+    setBusy(p.id);
+    try { await business.deleteProperty(p.id); setItems(xs => xs.filter(x => x.id !== p.id)); onMsg('🗑 Supprimé'); }
+    catch { onMsg('❌ Échec'); } finally { setBusy(null); }
+  };
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <button onClick={() => setShow(s => !s)} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#b388ff', border: '1px solid #b388ff44', background: 'rgba(179,136,255,0.08)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>
+        {show ? '✕ FERMER' : '+ AJOUTER UN BIEN'}
+      </button>
+      {show && (
+        <div style={{ background: 'rgba(179,136,255,0.05)', border: '1px solid #b388ff22', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {(['location', 'vente'] as const).map(t => (
+              <button key={t} onClick={() => setF(s => ({ ...s, transaction: t }))} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: f.transaction === t ? '#b388ff22' : 'transparent', border: `1px solid ${f.transaction === t ? '#b388ff' : '#ffffff22'}`, color: f.transaction === t ? '#b388ff' : '#ffffff44' }}>{t === 'location' ? 'À LOUER' : 'À VENDRE'}</button>
+            ))}
+          </div>
+          <input value={f.title} onChange={e => setF(s => ({ ...s, title: e.target.value }))} placeholder="Titre (ex: F3 Hay Badr)" style={paneInput} />
+          <div style={{ display: 'flex', gap: 5 }}>
+            <input value={f.city} onChange={e => setF(s => ({ ...s, city: e.target.value }))} placeholder="Ville" style={paneInput} />
+            <input value={f.district} onChange={e => setF(s => ({ ...s, district: e.target.value }))} placeholder="Quartier" style={paneInput} />
+          </div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <input value={f.price} onChange={e => setF(s => ({ ...s, price: e.target.value }))} type="number" placeholder={f.transaction === 'location' ? 'Loyer/mois' : 'Prix vente'} style={paneInput} />
+            <select value={f.currency} onChange={e => setF(s => ({ ...s, currency: e.target.value }))} style={{ ...paneInput, flex: '0 0 70px' }}><option>DZD</option><option>EUR</option></select>
+          </div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <select value={f.type} onChange={e => setF(s => ({ ...s, type: e.target.value }))} style={paneInput}>
+              {['appartement', 'villa', 'maison', 'studio', 'local', 'terrain'].map(o => <option key={o}>{o}</option>)}
+            </select>
+            <input value={f.rooms} onChange={e => setF(s => ({ ...s, rooms: e.target.value }))} type="number" placeholder="Pièces" style={paneInput} />
+          </div>
+          <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ AJOUTER AU SITE'}</button>
+        </div>
+      )}
+      {loading ? <HudLoader /> : items.length === 0 ? <HudEmpty text="Aucun bien — ajoute le premier" /> : items.map(p => {
+        const st = IMMO_ST[(p.status || 'disponible').toLowerCase()] ?? { label: (p.status || '').toUpperCase(), col: '#888' };
+        const cur = p.currency === 'DZD' ? 'DA' : (p.currency || '€');
+        return (
+          <div key={p.id} style={{ borderRadius: 10, border: `1px solid ${st.col}33`, background: `linear-gradient(135deg, ${st.col}08, rgba(2,8,16,0.6))`, padding: '9px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14 }}>🏠</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || p.name}</div>
+                <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>
+                  {p.transaction === 'vente' ? 'À vendre' : 'À louer'} · {[p.district, p.city].filter(Boolean).join(', ')}{p.rooms ? ` · ${p.rooms}p` : ''}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#fff' }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
+                <div style={{ fontSize: 7, color: st.col, marginTop: 1 }}>{st.label}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
+              <button onClick={() => void cycle(p)} disabled={busy === p.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
+              <button onClick={() => void del(p)} disabled={busy === p.id} style={{ flex: '0 0 70px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}>🗑</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── VENTE PANE ───────────────────────────────────────────────────────────────
+const VENTE_ST: Record<string, { label: string; col: string }> = {
+  disponible: { label: 'À VENDRE', col: '#00e676' }, reserve: { label: 'RÉSERVÉE', col: '#ffb347' }, vendu: { label: 'VENDUE', col: '#ff5fa2' },
+};
+
+function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
+  const [items, setItems] = useState<SaleVehicle[]>([]);
+  const [loading, setLoad] = useState(true);
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [f, setF] = useState({ brand: '', model: '', year: '', price: '', currency: 'DZD', mileage: '' });
+
+  const load = async () => { setLoad(true); try { const r = await business.fetchVehiclesForSale(); setItems(r.vehicles ?? []); } catch { setItems([]); } finally { setLoad(false); } };
+  useEffect(() => { void load(); }, []);
+
+  const add = async () => {
+    if (!f.brand.trim() || !f.model.trim() || !f.price) { onMsg('❌ Marque + modèle + prix requis'); return; }
+    setBusy('add');
+    try {
+      await business.addVehicleForSale({ brand: f.brand.trim(), model: f.model.trim(), year: f.year ? Number(f.year) : null, price: Number(f.price), currency: f.currency, mileage: f.mileage ? Number(f.mileage) : null, status: 'disponible' });
+      onMsg('✅ Voiture ajoutée au site'); setShow(false);
+      setF({ brand: '', model: '', year: '', price: '', currency: 'DZD', mileage: '' });
+      void load();
+    } catch { onMsg('❌ Échec ajout'); } finally { setBusy(null); }
+  };
+
+  const cycle = async (v: SaleVehicle) => {
+    const order = ['disponible', 'reserve', 'vendu'];
+    const next = order[(order.indexOf((v.status || 'disponible').toLowerCase()) + 1) % order.length];
+    setBusy(v.id);
+    try { await business.updateVehicleSale(v.id, { status: next }); setItems(xs => xs.map(x => x.id === v.id ? { ...x, status: next } : x)); }
+    catch { onMsg('❌ Échec MAJ'); } finally { setBusy(null); }
+  };
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <button onClick={() => setShow(s => !s)} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#ffb347', border: '1px solid #ffb34744', background: 'rgba(255,179,71,0.08)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>
+        {show ? '✕ FERMER' : '+ AJOUTER UNE VOITURE À VENDRE'}
+      </button>
+      {show && (
+        <div style={{ background: 'rgba(255,179,71,0.05)', border: '1px solid #ffb34722', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <input value={f.brand} onChange={e => setF(s => ({ ...s, brand: e.target.value }))} placeholder="Marque (Audi)" style={paneInput} />
+            <input value={f.model} onChange={e => setF(s => ({ ...s, model: e.target.value }))} placeholder="Modèle (Q3)" style={paneInput} />
+          </div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <input value={f.year} onChange={e => setF(s => ({ ...s, year: e.target.value }))} type="number" placeholder="Année" style={paneInput} />
+            <input value={f.mileage} onChange={e => setF(s => ({ ...s, mileage: e.target.value }))} type="number" placeholder="Km" style={paneInput} />
+          </div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <input value={f.price} onChange={e => setF(s => ({ ...s, price: e.target.value }))} type="number" placeholder="Prix vente" style={paneInput} />
+            <select value={f.currency} onChange={e => setF(s => ({ ...s, currency: e.target.value }))} style={{ ...paneInput, flex: '0 0 70px' }}><option>DZD</option><option>EUR</option></select>
+          </div>
+          <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ AJOUTER AU SITE'}</button>
+        </div>
+      )}
+      {loading ? <HudLoader /> : items.length === 0 ? <HudEmpty text="Aucune voiture à vendre — ajoute la première" /> : items.map(v => {
+        const st = VENTE_ST[(v.status || 'disponible').toLowerCase()] ?? { label: (v.status || '').toUpperCase(), col: '#888' };
+        const cur = v.currency === 'DZD' ? 'DA' : (v.currency || '€');
+        return (
+          <div key={v.id} style={{ borderRadius: 10, border: `1px solid ${st.col}33`, background: `linear-gradient(135deg, ${st.col}08, rgba(2,8,16,0.6))`, padding: '9px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 14 }}>🚗</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.brand} {v.model}</div>
+                <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>{[v.year, v.mileage ? `${Number(v.mileage).toLocaleString('fr-FR')} km` : null].filter(Boolean).join(' · ') || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#fff' }}>{v.price != null ? `${Number(v.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
+                <div style={{ fontSize: 7, color: st.col, marginTop: 1 }}>{st.label}</div>
+              </div>
+            </div>
+            <button onClick={() => void cycle(v)} disabled={busy === v.id} style={{ width: '100%', marginTop: 8, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 CHANGER STATUT</button>
+          </div>
+        );
+      })}
     </div>
   );
 }
