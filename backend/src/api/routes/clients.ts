@@ -206,6 +206,56 @@ router.patch('/:phone/notes', requireMobileAuth, async (req, res) => {
   }
 });
 
+// GET /api/clients/leads — demandes/leads clients (recherches en cours)
+router.get('/leads', requireMobileAuth, async (req, res) => {
+  const status = (req.query['status'] as string | undefined)?.trim();
+  try {
+    let q = supabase.from('client_leads')
+      .select('id, client_name, client_phone, category, criteria, budget_max, currency, city, status, notes, created_at')
+      .order('created_at', { ascending: false }).limit(200);
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    res.json({ leads: data ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// PATCH /api/clients/leads/:id — changer statut d'un lead
+router.patch('/leads/:id', requireMobileAuth, async (req, res) => {
+  const id = req.params['id'] as string;
+  const body = req.body as { status?: string; notes?: string };
+  try {
+    const upd: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (body.status) upd['status'] = body.status;
+    if (body.notes != null) upd['notes'] = body.notes;
+    const { data, error } = await supabase.from('client_leads').update(upd).eq('id', id).select().single();
+    if (error) throw new Error(error.message);
+    res.json({ lead: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/clients/leads — créer un lead depuis l'app
+router.post('/leads', requireMobileAuth, async (req, res) => {
+  const b = req.body as Record<string, unknown>;
+  if (!b['client_name'] || !b['criteria']) { res.status(400).json({ error: 'client_name et criteria requis' }); return; }
+  try {
+    const { data, error } = await supabase.from('client_leads').insert([{
+      client_name: b['client_name'], client_phone: b['client_phone'] ?? null,
+      category: b['category'] ?? 'immo_location', criteria: b['criteria'],
+      budget_max: b['budget_max'] ?? null, currency: b['currency'] ?? 'DZD',
+      city: b['city'] ?? null, status: 'nouveau',
+    }]).select().single();
+    if (error) throw new Error(error.message);
+    res.status(201).json({ lead: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/clients/operations — TOUTES les opérations immo/vente/demandes (vue RESAS)
 router.get('/operations', requireMobileAuth, async (_req, res) => {
   try {

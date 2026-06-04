@@ -390,6 +390,10 @@ async function _dispatch(
       case 'update_property':            return await updatePropertyTool(input);
       case 'update_vehicle_details':     return await updateVehicleDetailsTool(input);
       case 'set_site_hero':              return await setSiteHeroTool(input);
+      case 'record_lead':                return await recordLeadTool(input);
+      case 'list_leads':                 return await listLeadsTool(input);
+      case 'update_lead_status':         return await updateLeadStatusTool(input);
+      case 'match_lead':                 return await matchLeadTool(input);
       case 'list_properties':            return await listPropertiesTool(input);
       case 'get_property_photo':         return await getPropertyPhotoTool(input);
       case 'update_property_status':     return await updatePropertyStatusTool(input);
@@ -4696,6 +4700,89 @@ async function addVehicleForSaleTool(input: Record<string, unknown>): Promise<st
   if (error) return `❌ Erreur ajout voiture à vendre: ${error.message}`;
   const cur = row.currency === 'DZD' ? 'DA' : '€';
   return `✅ Voiture à vendre ajoutée sur le site : ${(data as any).brand} ${(data as any).model}${row.year ? ` (${row.year})` : ''} · ${Number(price).toLocaleString()} ${cur}. Visible sur le site. Ajoute des photos depuis l'admin ou l'app.`;
+}
+
+const LEAD_CAT_LABEL: Record<string, string> = {
+  immo_location: 'Location immo', immo_vente: 'Achat immo',
+  voiture_location: 'Location voiture', voiture_vente: 'Achat voiture',
+};
+
+async function recordLeadTool(input: Record<string, unknown>): Promise<string> {
+  const client_name = (input['client_name'] as string | undefined)?.trim();
+  const category = (input['category'] as string | undefined)?.trim();
+  const criteria = (input['criteria'] as string | undefined)?.trim();
+  if (!client_name || !category || !criteria) return '❌ client_name, category et criteria requis.';
+  const row = {
+    client_name, client_phone: (input['client_phone'] as string | undefined)?.trim() || null,
+    category, criteria,
+    budget_max: (input['budget_max'] as number | undefined) ?? null,
+    currency: (input['currency'] as string | undefined)?.trim() || 'DZD',
+    city: (input['city'] as string | undefined)?.trim() || null,
+    status: 'nouveau',
+  };
+  const { error } = await supabase.from('client_leads').insert([row]);
+  if (error) return `❌ Erreur: ${error.message} (lance la migration 0016_client_leads.sql si la table manque).`;
+  return `✅ Demande enregistrée : ${client_name} cherche "${criteria}" (${LEAD_CAT_LABEL[category] || category}${row.budget_max ? `, budget ${Number(row.budget_max).toLocaleString()} ${row.currency === 'DZD' ? 'DA' : '€'}` : ''}). Dis "qu'est-ce que j'ai pour ${client_name}" pour matcher au stock.`;
+}
+
+async function listLeadsTool(input: Record<string, unknown>): Promise<string> {
+  const status = (input['status'] as string | undefined)?.trim();
+  let q = supabase.from('client_leads').select('client_name, category, criteria, budget_max, currency, city, status, created_at').order('created_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  else q = q.in('status', ['nouveau', 'en_cours']);
+  const { data, error } = await q.limit(50);
+  if (error) return `❌ Erreur: ${error.message}`;
+  if (!data || data.length === 0) return status ? `Aucune demande "${status}".` : 'Aucune demande en cours.';
+  const lines = (data as any[]).map(l => {
+    const b = l.budget_max ? ` · ≤${Number(l.budget_max).toLocaleString()} ${l.currency === 'DZD' ? 'DA' : '€'}` : '';
+    return `📥 ${l.client_name} — ${LEAD_CAT_LABEL[l.category] || l.category} : ${l.criteria}${l.city ? ` (${l.city})` : ''}${b} · ${l.status}`;
+  });
+  return `${data.length} demande(s) :\n${lines.join('\n')}`;
+}
+
+async function updateLeadStatusTool(input: Record<string, unknown>): Promise<string> {
+  const query = (input['lead_query'] as string | undefined)?.trim();
+  const status = (input['status'] as string | undefined)?.trim();
+  if (!query || !status) return '❌ lead_query et status requis.';
+  const { data: leads, error } = await supabase.from('client_leads')
+    .select('id, client_name, criteria').or(`client_name.ilike.%${query}%,criteria.ilike.%${query}%`).limit(5);
+  if (error) return `❌ Erreur: ${error.message}`;
+  if (!leads || leads.length === 0) return `❌ Aucune demande trouvée pour "${query}".`;
+  if (leads.length > 1) return `⚠️ Plusieurs demandes:\n${(leads as any[]).map(l => `• ${l.client_name} — ${l.criteria}`).join('\n')}\nPrécise.`;
+  const l = (leads as any[])[0];
+  const upd: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+  if (input['notes']) upd['notes'] = input['notes'];
+  const { error: e2 } = await supabase.from('client_leads').update(upd).eq('id', l.id);
+  if (e2) return `❌ Échec: ${e2.message}`;
+  return `✅ Demande de ${l.client_name} → ${status}.`;
+}
+
+async function matchLeadTool(input: Record<string, unknown>): Promise<string> {
+  const query = (input['lead_query'] as string | undefined)?.trim();
+  if (!query) return '❌ lead_query requis.';
+  const { data: leads } = await supabase.from('client_leads')
+    .select('*').or(`client_name.ilike.%${query}%,criteria.ilike.%${query}%`).limit(1);
+  const lead = (leads as any[] | null)?.[0];
+  if (!lead) return `❌ Aucune demande trouvée pour "${query}".`;
+
+  const immo = lead.category.startsWith('immo');
+  const txn = lead.category.endsWith('vente') ? 'vente' : 'location';
+  let matches: string[] = [];
+  if (immo) {
+    let q = supabase.from('properties').select('title, city, district, price, currency, transaction, status').eq('transaction', txn).eq('status', 'disponible');
+    const { data } = await q.limit(50);
+    matches = ((data as any[]) || [])
+      .filter(p => !lead.city || (p.city || '').toLowerCase().includes(String(lead.city).toLowerCase()) || (p.district || '').toLowerCase().includes(String(lead.city).toLowerCase()))
+      .filter(p => !lead.budget_max || p.price == null || Number(p.price) <= Number(lead.budget_max) * 1.1)
+      .map(p => `🏠 ${p.title} — ${[p.district, p.city].filter(Boolean).join(', ')} · ${p.price ? Number(p.price).toLocaleString() + ' ' + (p.currency === 'DZD' ? 'DA' : '€') : 'prix sur demande'}`);
+  } else {
+    const { data } = await supabase.from('vehicles_for_sale').select('brand, model, year, price, currency, status').eq('status', 'disponible').limit(50);
+    matches = ((data as any[]) || [])
+      .filter(v => !lead.budget_max || v.price == null || Number(v.price) <= Number(lead.budget_max) * 1.1)
+      .map(v => `🚗 ${v.brand} ${v.model}${v.year ? ` (${v.year})` : ''} · ${v.price ? Number(v.price).toLocaleString() + ' ' + (v.currency === 'DZD' ? 'DA' : '€') : 'prix sur demande'}`);
+  }
+  if (matches.length === 0) return `Pour ${lead.client_name} ("${lead.criteria}") : rien dans le stock actuel. Je te préviens dès qu'un bien correspond.`;
+  return `Pour ${lead.client_name} ("${lead.criteria}") — ${matches.length} dans le stock :\n${matches.slice(0, 8).join('\n')}`;
 }
 
 async function setSiteHeroTool(input: Record<string, unknown>): Promise<string> {

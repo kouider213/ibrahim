@@ -1258,6 +1258,57 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'record_lead',
+    description: 'Enregistrer une DEMANDE / LEAD client : un client qui CHERCHE un bien ou une voiture (pas encore conclu). Ex: "untel cherche un F4 à Bir El Djir max 50000", "un client veut acheter une Golf récente budget 3M". Le lead est suivi et matché au stock.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:  { type: 'string', description: 'Nom du client.' },
+        client_phone: { type: 'string', description: 'Téléphone (optionnel).' },
+        category:     { type: 'string', enum: ['immo_location', 'immo_vente', 'voiture_location', 'voiture_vente'], description: 'Type de recherche.' },
+        criteria:     { type: 'string', description: 'Ce qu\'il cherche (ex: "F4, 2 chambres, Bir El Djir, balcon").' },
+        budget_max:   { type: 'number', description: 'Budget max (loyer/mois ou prix).' },
+        currency:     { type: 'string', enum: ['DZD', 'EUR'], description: 'Devise. Défaut DZD.' },
+        city:         { type: 'string', description: 'Ville recherchée (optionnel).' },
+      },
+      required: ['client_name', 'category', 'criteria'],
+    },
+  },
+  {
+    name: 'list_leads',
+    description: 'Lister les demandes/leads clients (recherches en cours). Utiliser quand Kouider demande "les demandes", "qui cherche quoi", "mes leads". Filtrable par statut.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', enum: ['nouveau', 'en_cours', 'conclu', 'perdu'], description: 'Filtre optionnel. Vide = tous (sauf conclu/perdu par défaut).' },
+      },
+    },
+  },
+  {
+    name: 'update_lead_status',
+    description: 'Changer le statut d\'un lead/demande (nouveau → en_cours → conclu/perdu). Ex: "marque la demande de Karim comme conclue".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        lead_query: { type: 'string', description: 'Nom du client ou critère du lead.' },
+        status:     { type: 'string', enum: ['nouveau', 'en_cours', 'conclu', 'perdu'], description: 'Nouveau statut.' },
+        notes:      { type: 'string', description: 'Note optionnelle.' },
+      },
+      required: ['lead_query', 'status'],
+    },
+  },
+  {
+    name: 'match_lead',
+    description: 'Trouver dans le stock (biens ou voitures à vendre) ce qui correspond à un lead/demande client. Utiliser quand Kouider demande "quel bien correspond à la demande de X", "qu\'est-ce que j\'ai pour Karim". Compare la ville et le budget.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        lead_query: { type: 'string', description: 'Nom du client ou critère du lead à matcher.' },
+      },
+      required: ['lead_query'],
+    },
+  },
+  {
     name: 'record_client_deal',
     description: 'Enregistrer une opération client générique (quand aucun autre outil ne colle) pour garder une trace de QUI a fait QUOI. Utiliser pour noter manuellement une location/vente/commande. Le statut des items se gère avec update_property_status / mark_vehicle_sold / create_booking.',
     input_schema: {
