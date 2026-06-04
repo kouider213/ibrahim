@@ -68,7 +68,7 @@ function isFastModeEligible(messages: Message[]): boolean {
 
   // Questions courtes (< 30 chars) sans action business
   if (text.length < 30) {
-    const needsAction = /réserv|booking|modifi|change|crée|créer|créé|génère|générer|généré|génér|bon|bonz|voucher|contrat|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|image|photo|montre|envoie|rappel|remind|web|internet|info|client|voiture|doc|passeport|permis|agenda|paiement|facture|revenu|revenus|bénéfice|profit|gagné|gain|argent|chiffre|recette|encaissé|dette|caisse|trésorerie|obsidian|vault|nexus/i.test(text);
+    const needsAction = /réserv|booking|modifi|change|crée|créer|créé|génère|générer|généré|génér|bon|bonz|voucher|contrat|supprimer|annuler|rapport|finance|combien|météo|actualité|cherche|search|trouve|image|photo|montre|affiche|liste|list|envoie|rappel|remind|web|internet|info|client|voiture|véhicule|vehicule|bien|biens|immobil|appart|villa|maison|terrain|local|vente|vendre|vendu|louer|loué|location|parc|stock|dispo|doc|passeport|permis|agenda|paiement|facture|revenu|revenus|bénéfice|profit|gagné|gain|argent|chiffre|recette|encaissé|dette|caisse|trésorerie|obsidian|vault|nexus/i.test(text);
     if (!needsAction) return true;
   }
 
