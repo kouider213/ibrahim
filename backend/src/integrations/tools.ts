@@ -1182,6 +1182,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
         transaction: { type: 'string', enum: ['location', 'vente'], description: 'location = à louer, vente = à vendre.' },
         city:        { type: 'string', description: 'Ville (défaut: Oran).' },
         district:    { type: 'string', description: 'Quartier (ex: Hay Badr, Bir El Djir). Optionnel.' },
+        address:     { type: 'string', description: 'Adresse précise (rue, quartier, ville) — affichée sur une carte Google Maps sur l\'annonce. Ex: "Cité Hay Badr, Bât 12, Oran". Optionnel mais recommandé.' },
         price:       { type: 'number', description: 'Prix: loyer/mois si location, prix total si vente.' },
         currency:    { type: 'string', enum: ['DZD', 'EUR'], description: 'Devise. Défaut: DZD.' },
         type:        { type: 'string', description: 'Type: appartement | villa | maison | studio | local | terrain. Optionnel.' },
@@ -1210,6 +1211,39 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
         status:       { type: 'string', enum: ['disponible', 'coming_soon'], description: 'Défaut: disponible.' },
       },
       required: ['brand', 'model', 'price'],
+    },
+  },
+  {
+    name: 'update_property',
+    description: 'Modifier les infos d\'un bien immobilier existant sur le site (prix, description, titre, adresse, ville, surface, pièces). NE PAS utiliser pour le statut loué/vendu (→ update_property_status). Ex: "change le prix de l\'appartement Hay Badr à 45000", "ajoute une description à la villa Oran".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        property_query: { type: 'string', description: 'Titre ou ville du bien à modifier (recherche partielle).' },
+        price:       { type: 'number', description: 'Nouveau prix (optionnel).' },
+        description: { type: 'string', description: 'Nouvelle description (optionnel).' },
+        title:       { type: 'string', description: 'Nouveau titre (optionnel).' },
+        address:     { type: 'string', description: 'Nouvelle adresse pour la carte (optionnel).' },
+        city:        { type: 'string', description: 'Nouvelle ville (optionnel).' },
+        district:    { type: 'string', description: 'Nouveau quartier (optionnel).' },
+        surface:     { type: 'number', description: 'Surface m² (optionnel).' },
+        rooms:       { type: 'number', description: 'Nombre de pièces (optionnel).' },
+      },
+      required: ['property_query'],
+    },
+  },
+  {
+    name: 'update_vehicle_details',
+    description: 'Modifier les infos d\'une voiture À VENDRE existante (prix, année, km). NE PAS utiliser pour vendu/réservé (→ mark_vehicle_sold). Ex: "baisse le prix de la Golf 8 à 2300000".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        vehicle_query: { type: 'string', description: 'Marque/modèle de la voiture à modifier.' },
+        price:   { type: 'number', description: 'Nouveau prix (optionnel).' },
+        year:    { type: 'number', description: 'Année (optionnel).' },
+        mileage: { type: 'number', description: 'Kilométrage (optionnel).' },
+      },
+      required: ['vehicle_query'],
     },
   },
   {

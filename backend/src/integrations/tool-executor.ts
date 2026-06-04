@@ -387,6 +387,8 @@ async function _dispatch(
       // ─── IMMOBILIER & VENTE — synchro site ───
       case 'create_property':            return await createPropertyTool(input);
       case 'add_vehicle_for_sale':       return await addVehicleForSaleTool(input);
+      case 'update_property':            return await updatePropertyTool(input);
+      case 'update_vehicle_details':     return await updateVehicleDetailsTool(input);
       case 'list_properties':            return await listPropertiesTool(input);
       case 'get_property_photo':         return await getPropertyPhotoTool(input);
       case 'update_property_status':     return await updatePropertyStatusTool(input);
@@ -4657,6 +4659,7 @@ async function createPropertyTool(input: Record<string, unknown>): Promise<strin
     transaction,
     city:        (input['city'] as string | undefined)?.trim() || 'Oran',
     district:    (input['district'] as string | undefined)?.trim() || null,
+    address:     (input['address'] as string | undefined)?.trim() || null,
     price,
     currency:    (input['currency'] as string | undefined)?.trim() || 'DZD',
     price_type:  transaction === 'location' ? 'mois' : 'total',
@@ -4692,6 +4695,48 @@ async function addVehicleForSaleTool(input: Record<string, unknown>): Promise<st
   if (error) return `❌ Erreur ajout voiture à vendre: ${error.message}`;
   const cur = row.currency === 'DZD' ? 'DA' : '€';
   return `✅ Voiture à vendre ajoutée sur le site : ${(data as any).brand} ${(data as any).model}${row.year ? ` (${row.year})` : ''} · ${Number(price).toLocaleString()} ${cur}. Visible sur le site. Ajoute des photos depuis l'admin ou l'app.`;
+}
+
+async function updatePropertyTool(input: Record<string, unknown>): Promise<string> {
+  const query = (input['property_query'] as string | undefined)?.trim();
+  if (!query) return '❌ property_query requis.';
+  const updates: Record<string, unknown> = {};
+  for (const k of ['price', 'description', 'title', 'address', 'city', 'district', 'surface', 'rooms'] as const) {
+    if (input[k] != null && input[k] !== '') updates[k] = input[k];
+  }
+  if (Object.keys(updates).length === 0) return '❌ Aucune modification fournie.';
+
+  const { data: props, error } = await supabase.from('properties')
+    .select('id, title, city').or(`title.ilike.%${query}%,city.ilike.%${query}%`).limit(5);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!props || props.length === 0) return `❌ Aucun bien trouvé pour "${query}".`;
+  if (props.length > 1) return `⚠️ Plusieurs biens correspondent:\n${(props as any[]).map(p => `• ${p.title} (${p.city})`).join('\n')}\nPrécise lequel.`;
+
+  const p = (props as any[])[0];
+  const { error: upErr } = await supabase.from('properties').update(updates).eq('id', p.id);
+  if (upErr) return `❌ Échec mise à jour: ${upErr.message}`;
+  return `✅ "${p.title}" mis à jour sur le site (${Object.keys(updates).join(', ')}).`;
+}
+
+async function updateVehicleDetailsTool(input: Record<string, unknown>): Promise<string> {
+  const query = (input['vehicle_query'] as string | undefined)?.trim();
+  if (!query) return '❌ vehicle_query requis.';
+  const updates: Record<string, unknown> = {};
+  for (const k of ['price', 'year', 'mileage'] as const) {
+    if (input[k] != null) updates[k] = input[k];
+  }
+  if (Object.keys(updates).length === 0) return '❌ Aucune modification fournie.';
+
+  const { data: vs, error } = await supabase.from('vehicles_for_sale')
+    .select('id, brand, model').or(`brand.ilike.%${query}%,model.ilike.%${query}%`).limit(5);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!vs || vs.length === 0) return `❌ Aucune voiture à vendre trouvée pour "${query}".`;
+  if (vs.length > 1) return `⚠️ Plusieurs voitures correspondent:\n${(vs as any[]).map(v => `• ${v.brand} ${v.model}`).join('\n')}\nPrécise laquelle.`;
+
+  const v = (vs as any[])[0];
+  const { error: upErr } = await supabase.from('vehicles_for_sale').update(updates).eq('id', v.id);
+  if (upErr) return `❌ Échec mise à jour: ${upErr.message}`;
+  return `✅ ${v.brand} ${v.model} mis à jour sur le site (${Object.keys(updates).join(', ')}).`;
 }
 
 async function listPropertiesTool(input: Record<string, unknown>): Promise<string> {
