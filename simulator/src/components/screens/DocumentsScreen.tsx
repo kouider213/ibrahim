@@ -273,33 +273,61 @@ export default function DocumentsScreen() {
   );
 }
 
+const CONTRACT_KINDS = [
+  { key: 'loc_auto',   label: 'LOCATION VOITURE', who: 'Nom du client…',   item: 'Voiture (ex: Jogger)…',        doc: 'contrat de location voiture' },
+  { key: 'loc_immo',   label: 'LOCATION IMMO',    who: 'Nom du locataire…', item: 'Bien (ex: Appart Hay Badr)…',  doc: 'contrat de location immobilière' },
+  { key: 'vente_immo', label: 'VENTE IMMO',       who: 'Nom de l’acheteur…', item: 'Bien (ex: Villa Bir El Djir)…', doc: 'compromis de vente immobilière' },
+  { key: 'vente_auto', label: 'VENTE VOITURE',    who: 'Nom de l’acheteur…', item: 'Voiture (ex: Audi Q3)…',       doc: 'contrat de vente véhicule' },
+] as const;
+
 function ContractGenerator() {
+  const [kind, setKind]     = useState<typeof CONTRACT_KINDS[number]['key']>('loc_auto');
   const [client, setClient] = useState('');
-  const [car, setCar]       = useState('');
+  const [item, setItem]     = useState('');
   const [generating, setGen] = useState(false);
   const [result, setResult]  = useState('');
 
+  const cfg = CONTRACT_KINDS.find(k => k.key === kind)!;
+
   const generate = async () => {
-    if (!client.trim() || !car.trim()) return;
+    if (!client.trim() || !item.trim()) return;
     setGen(true); setResult('');
     await new Promise(r => setTimeout(r, 1800));
-    setResult(`✅ contrat_${client.toLowerCase().replace(/\s+/g, '_')}.pdf\n📝 Contrat généré avec CGV\n📤 Envoyé dans Telegram`);
+    setResult(`✅ ${cfg.key}_${client.toLowerCase().replace(/\s+/g, '_')}.pdf\n📝 ${cfg.doc.charAt(0).toUpperCase() + cfg.doc.slice(1)} généré avec CGV\n👤 ${client} · ${item}\n📤 Envoyé dans Telegram`);
     setGen(false);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <input value={client} onChange={e => setClient(e.target.value)} placeholder="Nom du client…" style={inputStyle} />
-      <input value={car} onChange={e => setCar(e.target.value)} placeholder="Voiture (ex: Jogger)…" style={inputStyle} />
+      {/* Type de contrat */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+        {CONTRACT_KINDS.map(k => {
+          const active = kind === k.key;
+          return (
+            <button key={k.key} onClick={() => { setKind(k.key); setResult(''); }}
+              style={{
+                flex: '1 1 45%', padding: '7px 4px', borderRadius: 7,
+                background: active ? 'rgba(124,58,237,0.18)' : 'rgba(124,58,237,0.05)',
+                border: `1px solid #7c3aed${active ? '88' : '33'}`,
+                fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.1em',
+                color: `#b87fff${active ? '' : '88'}`, cursor: 'pointer',
+              }}>
+              {k.label}
+            </button>
+          );
+        })}
+      </div>
+      <input value={client} onChange={e => setClient(e.target.value)} placeholder={cfg.who} style={inputStyle} />
+      <input value={item} onChange={e => setItem(e.target.value)} placeholder={cfg.item} style={inputStyle} />
       <button
         onClick={() => void generate()}
-        disabled={generating || !client.trim() || !car.trim()}
+        disabled={generating || !client.trim() || !item.trim()}
         style={{
           width: '100%', padding: '10px',
           background: generating ? 'rgba(124,58,237,0.15)' : 'rgba(124,58,237,0.08)',
           border: `1.5px solid #7c3aed${generating ? '66' : '44'}`,
           borderRadius: 8, fontFamily: 'Orbitron', fontSize: 8,
-          color: `#7c3aed${generating || !client.trim() || !car.trim() ? '66' : 'cc'}`,
+          color: `#7c3aed${generating || !client.trim() || !item.trim() ? '66' : 'cc'}`,
           cursor: generating ? 'default' : 'pointer', letterSpacing: '0.15em',
         }}
       >
@@ -309,7 +337,7 @@ function ContractGenerator() {
         <div style={{
           padding: '10px 12px', background: 'rgba(124,58,237,0.08)',
           borderRadius: 8, border: '1px solid #7c3aed22',
-          fontSize: 9, color: '#b87fff', lineHeight: 1.65,
+          fontSize: 9, color: '#b87fff', lineHeight: 1.65, whiteSpace: 'pre-line',
         }}>
           {result}
         </div>
