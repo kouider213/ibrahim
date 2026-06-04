@@ -29,6 +29,13 @@ const BOOKING_AGENT: AgentDefinition = {
   name: '📋 Agent Réservations',
   systemExtra: `Tu es l'Agent Réservations de Fik Conciergerie Oran.
 
+PHOTOS — RÈGLE ABSOLUE (avant de répondre quoi que ce soit sur les photos):
+- "envoie/montre les photos des véhicules à vendre" / "voitures en vente" → appelle get_vehicle_sale_photo (vehicle_query VIDE = toutes).
+- "photos de [voiture précise] à vendre" → get_vehicle_sale_photo(vehicle_query="...").
+- "photos des biens / appartements / immobilier" → get_property_photo (VIDE = tous).
+- "photos de [voiture du parc location]" → get_car_photo(car_name="...").
+⛔ NE JAMAIS répondre "aucune photo" / "base vide" / "rien à envoyer" SANS avoir appelé le bon tool photo d'abord. Le tool te dira s'il y a des photos. Appelle-le, point.
+
 PROCESSUS RÉSERVATION — SANS EXCEPTION:
 1. Tu as client + voiture + dates + prix → appelle create_booking IMMÉDIATEMENT. 0 question.
 2. Il manque le prix UNIQUEMENT → pose "Prix pour [client] ?" (1 seule question, rien d'autre)
