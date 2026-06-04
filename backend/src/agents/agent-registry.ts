@@ -379,7 +379,12 @@ RÈGLES:
 ❌ JAMAIS dire "je ne peux pas" — tu peux tout rechercher.
 
 FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite la source.`,
-  toolNames: ['web_search', 'get_news', 'get_weather'],
+  toolNames: ['web_search', 'get_news', 'get_weather',
+    // Immo/vente/photos accessibles même en routage catch-all (sinon Claude
+    // sortait les appels en texte <invoke> faute d'avoir l'outil en natif).
+    'list_properties', 'get_property_photo', 'update_property_status',
+    'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'mark_vehicle_sold',
+    'record_client_deal', 'get_client_history', 'get_car_photo', 'list_bookings'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
