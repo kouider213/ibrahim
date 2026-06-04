@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { business, type Booking, type Car } from '../../services/api.ts';
+import { business, type Booking, type Car, type ClientOperation } from '../../services/api.ts';
+
+type ResaMode = 'resa' | 'ops';
+
+const OP_META: Record<string, { label: string; icon: string; col: string }> = {
+  location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', col: '#b06bff' },
+  vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', col: '#00e676' },
+  vente_voiture:      { label: 'ACHAT VOITURE',  icon: '🚗', col: '#ff9f43' },
+  demande_specifique: { label: 'DEMANDE SPÉCIALE', icon: '✨', col: '#ff5fa2' },
+  demande:            { label: 'DEMANDE SPÉCIALE', icon: '✨', col: '#ff5fa2' },
+};
 
 const S: Record<string, string> = {
   active: '#00e676', confirmed: '#00d4ff', completed: '#ffffff44',
@@ -22,6 +32,8 @@ interface EditState {
 
 export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }: Props) {
   const isHouari = actor === 'houari';
+  const [mode, setMode]         = useState<ResaMode>('resa');
+  const [operations, setOps]    = useState<ClientOperation[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
@@ -44,8 +56,12 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   const load = useCallback(async (q?: string) => {
     setLoading(true);
     try {
-      const r = await business.fetchBookings(q);
+      const [r, ops] = await Promise.all([
+        business.fetchBookings(q),
+        business.fetchOperations().catch(() => ({ operations: [] as ClientOperation[] })),
+      ]);
       setBookings(r.bookings ?? []);
+      setOps(ops.operations ?? []);
     } catch { setBookings([]); }
     finally { setLoading(false); }
   }, []);
@@ -190,29 +206,46 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
             RÉSERVATIONS
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff55', letterSpacing: '0.15em' }}>{bookings.length}</span>
-            <button onClick={() => setCreate(c => !c)} style={createBtn}>+ CRÉER</button>
+            <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#00d4ff55', letterSpacing: '0.15em' }}>{mode === 'resa' ? bookings.length : operations.length}</span>
+            {mode === 'resa' && <button onClick={() => setCreate(c => !c)} style={createBtn}>+ CRÉER</button>}
           </div>
         </div>
 
+        {/* Segment résa voiture / opérations */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+          {([['resa', '🚗 RÉSA VOITURE'], ['ops', '🏠 OPÉRATIONS']] as [ResaMode, string][]).map(([k, lbl]) => (
+            <button key={k} onClick={() => setMode(k)} style={{
+              flex: 1, padding: '6px 4px', borderRadius: 7,
+              background: mode === k ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.04)',
+              border: `1px solid #00d4ff${mode === k ? '88' : '22'}`,
+              fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.1em',
+              color: `#00d4ff${mode === k ? '' : '77'}`, cursor: 'pointer',
+            }}>{lbl}</button>
+          ))}
+        </div>
+
         {/* KPI row */}
+        {mode === 'resa' && (
         <div style={{ display: 'flex', gap: 5, marginBottom: 8, overflowX: 'auto' }}>
           <KpiCard label="ACTIVES" val={String(activeCount)} col="#00e676" />
           {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#00d4ff" />}
           {totalRevDzd > 0 && <KpiCard label="CA DZD" val={totalRevDzd >= 100000 ? `${(totalRevDzd/1000).toFixed(0)}k` : String(Math.round(totalRevDzd))} col="#7c3aed" />}
           {!isHouari && <KpiCard label="PROFIT" val={fmtMoney(totalProfit)} col="#ffd700" />}
         </div>
+        )}
 
+        {mode === 'resa' && (
         <input
           value={search} onChange={e => handleSearch(e.target.value)}
           placeholder="Chercher client / voiture…"
           style={inputStyle}
         />
+        )}
         <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #00d4ff44, transparent)' }} />
       </div>
 
       {/* Create form — redesigned */}
-      {showCreate && (
+      {mode === 'resa' && showCreate && (
         <div style={{ padding: '10px 14px', borderBottom: '1px solid #00d4ff18', flexShrink: 0, background: 'rgba(0,8,18,0.98)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff77', letterSpacing: '0.3em' }}>
@@ -320,8 +353,42 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
 
       {/* Booking list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <GpsCalculator />
-        {loading ? <HudLoader /> : bookings.length === 0 ? <HudEmpty text="Aucune réservation" /> : bookings.map(b => {
+        {/* OPÉRATIONS immo / vente / demandes */}
+        {mode === 'ops' && (
+          loading ? <HudLoader /> : operations.length === 0
+            ? <HudEmpty text="Aucune opération — Dzaryx les enregistre quand tu marques un bien loué/vendu ou une voiture vendue." />
+            : operations.map(op => {
+                const m = OP_META[op.deal_type] ?? { label: op.deal_type.toUpperCase(), icon: '•', col: '#888' };
+                const cur = op.currency === 'DZD' ? 'DA' : (op.currency || '€');
+                return (
+                  <div key={op.id} style={{
+                    borderRadius: 10, border: `1px solid ${m.col}33`,
+                    background: `linear-gradient(135deg, ${m.col}08, rgba(2,8,16,0.6))`,
+                    padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span style={{ fontSize: 15 }}>{m.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.client_name}</div>
+                      <div style={{ fontSize: 8, color: m.col, marginTop: 1 }}>
+                        {m.label}{op.item_label ? ` · ${op.item_label}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#fff' }}>
+                        {op.amount != null ? `${Number(op.amount).toLocaleString('fr-FR')} ${cur}` : '—'}
+                      </div>
+                      <div style={{ fontSize: 7, color: '#ffffff33', marginTop: 1 }}>{String(op.created_at).slice(0, 10)}</div>
+                    </div>
+                    {op.client_phone && (
+                      <a href={`tel:${op.client_phone}`} onClick={e => e.stopPropagation()} style={{ fontSize: 14, textDecoration: 'none' }}>📞</a>
+                    )}
+                  </div>
+                );
+              })
+        )}
+
+        {mode === 'resa' && <GpsCalculator />}
+        {mode === 'resa' && (loading ? <HudLoader /> : bookings.length === 0 ? <HudEmpty text="Aucune réservation" /> : bookings.map(b => {
           const stCol = S[b.status] ?? '#ffffff44';
           const pyCol = P[b.payment_status?.toUpperCase() ?? ''] ?? '#ffffff33';
           const isExp = expanded === b.id;
@@ -377,7 +444,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
               )}
             </div>
           );
-        })}
+        }))}
       </div>
     </div>
   );
