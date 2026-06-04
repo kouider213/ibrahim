@@ -2,11 +2,20 @@ import { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, RefreshControl, Linking, Alert, TextInput, Share } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useStore } from '../lib/store';
-import { fetchBookings, updateBookingField, type Booking } from '../lib/api';
+import { fetchBookings, updateBookingField, fetchOperations, type Booking, type ClientOperation } from '../lib/api';
 
 const MONO = Platform.OS === 'ios' ? 'Courier New' : 'monospace';
 
 type Filter = 'ALL' | 'ACTIVE' | 'CONFIRMED' | 'PENDING' | 'COMPLETED' | 'REJECTED';
+type ResaMode = 'resa' | 'ops';
+
+const OP_META: Record<string, { label: string; icon: string; color: string }> = {
+  location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', color: '#b06bff' },
+  vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', color: '#00ff88' },
+  vente_voiture:      { label: 'ACHAT VOITURE',  icon: '🚗', color: '#ff9f43' },
+  demande_specifique: { label: 'DEMANDE SPÉCIALE', icon: '✨', color: '#ff5fa2' },
+  demande:            { label: 'DEMANDE SPÉCIALE', icon: '✨', color: '#ff5fa2' },
+};
 
 const STATUS_COLOR: Record<string, string> = {
   ACTIVE:    '#00e5ff',
@@ -65,6 +74,8 @@ export default function BookingsScreen() {
   const { mobileToken } = useStore();
   const TOKEN = mobileToken();
 
+  const [mode,        setMode]        = useState<ResaMode>('resa');
+  const [operations,  setOperations]  = useState<ClientOperation[]>([]);
   const [bookings,    setBookings]    = useState<Booking[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
@@ -76,8 +87,12 @@ export default function BookingsScreen() {
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
-    const data = await fetchBookings(TOKEN, undefined, 200);
+    const [data, ops] = await Promise.all([
+      fetchBookings(TOKEN, undefined, 200),
+      fetchOperations(TOKEN),
+    ]);
     setBookings(data);
+    setOperations(ops);
     if (isRefresh) setRefreshing(false); else setLoading(false);
   }, [TOKEN]);
 
@@ -173,18 +188,34 @@ export default function BookingsScreen() {
             <Text style={styles.lateTxt}>{stats.late} EN RETARD</Text>
           </View>
         )}
-        <TouchableOpacity style={styles.calBtn} onPress={() => setShowCalendar(v => !v)}>
-          <Text style={styles.calTxt}>{showCalendar ? '☰ LISTE' : '📅 CAL'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
-          <Text style={styles.exportTxt}>📤</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/new-booking')}>
-          <Text style={styles.addTxt}>+ CRÉER</Text>
-        </TouchableOpacity>
+        {mode === 'resa' && (
+          <TouchableOpacity style={styles.calBtn} onPress={() => setShowCalendar(v => !v)}>
+            <Text style={styles.calTxt}>{showCalendar ? '☰ LISTE' : '📅 CAL'}</Text>
+          </TouchableOpacity>
+        )}
+        {mode === 'resa' && (
+          <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
+            <Text style={styles.exportTxt}>📤</Text>
+          </TouchableOpacity>
+        )}
+        {mode === 'resa' && (
+          <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/new-booking')}>
+            <Text style={styles.addTxt}>+ CRÉER</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Segment: résa voiture / opérations */}
+      <View style={styles.segRow}>
+        {([['resa', '🚗 RÉSA VOITURE'], ['ops', '🏠 OPÉRATIONS']] as [ResaMode, string][]).map(([k, lbl]) => (
+          <TouchableOpacity key={k} style={[styles.segBtn, mode === k && styles.segBtnActive]} onPress={() => setMode(k)}>
+            <Text style={[styles.segTxt, mode === k && styles.segTxtActive]}>{lbl}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Quick stats bar */}
+      {mode === 'resa' && (
       <View style={styles.statsRow}>
         <View style={styles.statPill}>
           <Text style={styles.statNum}>{stats.total}</Text>
@@ -205,9 +236,10 @@ export default function BookingsScreen() {
           </View>
         )}
       </View>
+      )}
 
       {/* Calendar heatmap */}
-      {showCalendar && (() => {
+      {mode === 'resa' && showCalendar && (() => {
         const days = buildCalendar(calMonth);
         const firstDow = new Date(calMonth + '-01').getDay(); // 0=Sun
         const blanks = Array(firstDow).fill(null);
@@ -266,6 +298,7 @@ export default function BookingsScreen() {
       })()}
 
       {/* Filter tabs */}
+      {mode === 'resa' && (
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
         {(['ALL', 'ACTIVE', 'CONFIRMED', 'PENDING', 'COMPLETED', 'REJECTED'] as Filter[]).map(f => (
           <TouchableOpacity
@@ -279,9 +312,10 @@ export default function BookingsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+      )}
 
       {/* Day filter indicator */}
-      {selectedDay && (
+      {mode === 'resa' && selectedDay && (
         <View style={styles.dayFilterBar}>
           <Text style={styles.dayFilterTxt}>📅 {selectedDay} — {filtered.length} résa</Text>
           <TouchableOpacity onPress={() => setSelectedDay(null)}>
@@ -291,6 +325,7 @@ export default function BookingsScreen() {
       )}
 
       {/* Search */}
+      {mode === 'resa' && (
       <View style={styles.searchBox}>
         <TextInput
           style={styles.searchInput}
@@ -305,6 +340,7 @@ export default function BookingsScreen() {
           </TouchableOpacity>
         )}
       </View>
+      )}
 
       {/* List */}
       <ScrollView
@@ -315,10 +351,46 @@ export default function BookingsScreen() {
         {loading && (
           <Text style={styles.emptyTxt}>CHARGEMENT...</Text>
         )}
-        {!loading && filtered.length === 0 && (
+
+        {/* OPÉRATIONS (immo / vente / demandes) */}
+        {!loading && mode === 'ops' && (
+          operations.length === 0
+            ? <Text style={styles.emptyTxt}>AUCUNE OPÉRATION{'\n'}Dzaryx les enregistre quand tu marques un bien loué/vendu ou une voiture vendue.</Text>
+            : operations.map(op => {
+                const m = OP_META[op.deal_type] ?? { label: op.deal_type.toUpperCase(), icon: '•', color: '#888' };
+                const cur = op.currency === 'DZD' ? 'DA' : (op.currency || '€');
+                return (
+                  <TouchableOpacity key={op.id} activeOpacity={0.8}
+                    onPress={() => router.push({ pathname: '/client-detail', params: { name: op.client_name, phone: op.client_phone ?? '' } })}>
+                    <View style={styles.card}>
+                      <View style={styles.cardTop}>
+                        <Text style={{ fontSize: 14 }}>{m.icon}</Text>
+                        <Text style={styles.clientName}>{op.client_name.toUpperCase()}</Text>
+                        <Text style={[styles.statusLabel, { color: m.color }]}>{m.label}</Text>
+                      </View>
+                      {op.item_label ? <Text style={styles.carName}>{op.item_label}</Text> : null}
+                      <View style={styles.finRow}>
+                        <Text style={styles.price}>{op.amount != null ? `${Number(op.amount).toLocaleString()} ${cur}` : '—'}</Text>
+                        <Text style={styles.daysTxt}>{fmtDate(op.created_at)}</Text>
+                        {op.status ? <Text style={[styles.payStatus, { color: '#888' }]}>{op.status.toUpperCase()}</Text> : null}
+                      </View>
+                      {op.client_phone && (
+                        <View style={styles.actionsRow}>
+                          <TouchableOpacity style={styles.callBtn} onPress={(e) => { e.stopPropagation(); Linking.openURL(`tel:${op.client_phone}`); }}>
+                            <Text style={styles.callTxt}>📞</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+        )}
+
+        {!loading && mode === 'resa' && filtered.length === 0 && (
           <Text style={styles.emptyTxt}>AUCUNE RÉSERVATION</Text>
         )}
-        {!loading && filtered.map(b => {
+        {!loading && mode === 'resa' && filtered.map(b => {
           const late    = isLate(b);
           const upcoming = isUpcoming(b);
           const color   = late ? '#ff4444' : (STATUS_COLOR[b.status] ?? '#555');
@@ -427,6 +499,12 @@ const styles = StyleSheet.create({
   lateTxt:   { color: '#ff4444', fontSize: 8, fontFamily: MONO, letterSpacing: 2 },
   addBtn:    { backgroundColor: '#00ff8822', borderWidth: 1, borderColor: '#00ff88', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   addTxt:    { color: '#00ff88', fontSize: 8, fontFamily: MONO, letterSpacing: 2, fontWeight: '700' },
+
+  segRow:       { flexDirection: 'row', paddingHorizontal: 20, gap: 6, marginBottom: 12 },
+  segBtn:       { flex: 1, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
+  segBtnActive: { borderColor: '#00e5ff', backgroundColor: '#00e5ff14' },
+  segTxt:       { color: '#555', fontSize: 8, fontFamily: MONO, letterSpacing: 1, fontWeight: '700' },
+  segTxtActive: { color: '#00e5ff' },
 
   statsRow:  { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 },
   statPill:  { flex: 1, backgroundColor: '#050505', borderWidth: 1, borderColor: '#111', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },

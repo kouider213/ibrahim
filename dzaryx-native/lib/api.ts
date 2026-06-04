@@ -423,6 +423,24 @@ export interface ClientDeal {
   created_at:  string;
 }
 
+export interface ClientOperation extends ClientDeal {
+  client_name:  string;
+  client_phone: string | null;
+}
+
+export async function fetchOperations(mobileToken?: string): Promise<ClientOperation[]> {
+  const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/clients/operations`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { operations: ClientOperation[] };
+    return data.operations ?? [];
+  } catch { return []; }
+}
+
 export async function fetchClientDeals(name?: string, phone?: string, mobileToken?: string): Promise<ClientDeal[]> {
   const token = mobileToken ?? process.env.EXPO_PUBLIC_MOBILE_TOKEN ?? '';
   const qs = new URLSearchParams();

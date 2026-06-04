@@ -206,6 +206,21 @@ router.patch('/:phone/notes', requireMobileAuth, async (req, res) => {
   }
 });
 
+// GET /api/clients/operations — TOUTES les opérations immo/vente/demandes (vue RESAS)
+router.get('/operations', requireMobileAuth, async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('client_deals')
+      .select('id, client_name, client_phone, deal_type, item_label, amount, currency, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(300);
+    if (error) throw new Error(error.message);
+    res.json({ operations: data ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // GET /api/clients/deals?name=&phone= — opérations immo/vente/demandes du client
 router.get('/deals', requireMobileAuth, async (req, res) => {
   const name  = (req.query['name']  as string | undefined)?.trim();
