@@ -1214,6 +1214,17 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'set_site_hero',
+    description: 'Changer le média du HERO (grande image/vidéo de la page d\'accueil fikconciergerie.com). Donne une URL d\'image (.jpg/.png) ou de vidéo (.mp4) pour la mettre en fond du hero. Utiliser "reset" pour revenir à la photo automatique. Ex: "mets cette vidéo pub en accueil https://...", "remets la photo auto en accueil".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        media_url: { type: 'string', description: 'URL complète de l\'image ou vidéo (https://...). Mettre "reset" ou vide pour revenir à la photo automatique.' },
+      },
+      required: ['media_url'],
+    },
+  },
+  {
     name: 'update_property',
     description: 'Modifier les infos d\'un bien immobilier existant sur le site (prix, description, titre, adresse, ville, surface, pièces). NE PAS utiliser pour le statut loué/vendu (→ update_property_status). Ex: "change le prix de l\'appartement Hay Badr à 45000", "ajoute une description à la villa Oran".',
     input_schema: {

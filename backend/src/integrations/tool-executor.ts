@@ -389,6 +389,7 @@ async function _dispatch(
       case 'add_vehicle_for_sale':       return await addVehicleForSaleTool(input);
       case 'update_property':            return await updatePropertyTool(input);
       case 'update_vehicle_details':     return await updateVehicleDetailsTool(input);
+      case 'set_site_hero':              return await setSiteHeroTool(input);
       case 'list_properties':            return await listPropertiesTool(input);
       case 'get_property_photo':         return await getPropertyPhotoTool(input);
       case 'update_property_status':     return await updatePropertyStatusTool(input);
@@ -4695,6 +4696,17 @@ async function addVehicleForSaleTool(input: Record<string, unknown>): Promise<st
   if (error) return `❌ Erreur ajout voiture à vendre: ${error.message}`;
   const cur = row.currency === 'DZD' ? 'DA' : '€';
   return `✅ Voiture à vendre ajoutée sur le site : ${(data as any).brand} ${(data as any).model}${row.year ? ` (${row.year})` : ''} · ${Number(price).toLocaleString()} ${cur}. Visible sur le site. Ajoute des photos depuis l'admin ou l'app.`;
+}
+
+async function setSiteHeroTool(input: Record<string, unknown>): Promise<string> {
+  let url = (input['media_url'] as string | undefined)?.trim() || '';
+  if (/^(reset|auto|défaut|defaut|vide|none)$/i.test(url)) url = '';
+  if (url && !/^https?:\/\//i.test(url)) return '❌ media_url doit être une URL complète (https://...) ou "reset".';
+  const { error } = await supabase.from('site_settings').update({ hero_media_url: url }).eq('id', 1);
+  if (error) return `❌ Erreur: ${error.message} (lance la migration 0015_hero_media.sql si la colonne manque).`;
+  if (!url) return '✅ Hero remis sur la photo automatique de la voiture en avant.';
+  const isVid = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+  return `✅ Hero de l'accueil mis à jour avec ${isVid ? 'la vidéo' : 'la photo'}. Visible sur fikconciergerie.com.`;
 }
 
 async function updatePropertyTool(input: Record<string, unknown>): Promise<string> {
