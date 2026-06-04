@@ -386,6 +386,7 @@ async function _dispatch(
       case 'get_car_photo':              return await getCarPhotoTool(input);
       // ─── IMMOBILIER & VENTE — synchro site ───
       case 'list_properties':            return await listPropertiesTool(input);
+      case 'get_property_photo':         return await getPropertyPhotoTool(input);
       case 'update_property_status':     return await updatePropertyStatusTool(input);
       case 'list_vehicles_for_sale':     return await listVehiclesForSaleTool(input);
       case 'mark_vehicle_sold':          return await markVehicleSoldTool(input);
@@ -4606,6 +4607,33 @@ async function logClientDeal(d: {
       status: d.status ?? 'termine', notes: d.notes ?? null,
     }]);
   } catch (e) { console.error('[client_deals] insert fail:', e instanceof Error ? e.message : e); }
+}
+
+async function getPropertyPhotoTool(input: Record<string, unknown>): Promise<string> {
+  const query = (input['property_query'] as string | undefined)?.trim();
+  if (!query) return '❌ property_query requis.';
+
+  const { data: props, error } = await supabase.from('properties')
+    .select('id, title, city, image_url, property_photos(url, position)')
+    .or(`title.ilike.%${query}%,city.ilike.%${query}%`).limit(5);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!props || props.length === 0) return `❌ Aucun bien trouvé pour "${query}".`;
+
+  const prop = (props as any[]).find(p => p.image_url || (p.property_photos && p.property_photos.length > 0)) ?? props[0];
+  const extra: string[] = (prop.property_photos ?? [])
+    .sort((a: any, b: any) => a.position - b.position).map((p: any) => p.url as string).filter(Boolean);
+  const allUrls: string[] = [];
+  if (extra.length > 0) allUrls.push(...extra);
+  else if (prop.image_url) allUrls.push(prop.image_url as string);
+  if (allUrls.length === 0) return `⚠️ Bien "${prop.title}" trouvé mais aucune photo. Ajoute des photos dans l'admin du site.`;
+
+  const { emitProactive } = await import('../notifications/mobile-push.js');
+  for (let i = 0; i < allUrls.length; i++) {
+    const label = allUrls.length > 1 ? `${prop.title} — photo ${i + 1}/${allUrls.length}` : prop.title;
+    emitProactive(label, 'info', `${label}\n${allUrls[i]}`);
+    if (i < allUrls.length - 1) await new Promise(r => setTimeout(r, 400));
+  }
+  return `✅ ${allUrls.length} photo${allUrls.length > 1 ? 's' : ''} envoyée${allUrls.length > 1 ? 's' : ''} pour "${prop.title}".`;
 }
 
 async function listPropertiesTool(input: Record<string, unknown>): Promise<string> {

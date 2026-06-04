@@ -68,7 +68,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     // improvisait "je n'ai pas accès aux photos". Maintenant il récupère la vraie photo.
     'get_car_photo',
     // Immobilier + vente voiture + historique client (synchro site) :
-    'list_properties', 'update_property_status', 'list_vehicles_for_sale',
+    'list_properties', 'get_property_photo', 'update_property_status', 'list_vehicles_for_sale',
     'mark_vehicle_sold', 'record_client_deal', 'get_client_history',
   ],
   keywords:  /\b(réservation|booking|louer|location|disponib|voiture|retard|flotte|client|arrivée|départ|véhicule|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartement|immobilier|immo|bien|maison|villa|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,

@@ -1113,6 +1113,17 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'get_property_photo',
+    description: 'Récupérer et envoyer TOUTES les photos d\'un bien immobilier (appartement/maison) depuis Supabase. Utiliser quand Kouider demande "envoie les photos de [bien]", "montre l\'appartement Hay Badr". Envoie chaque photo à l\'app (comme une galerie WhatsApp), 10 photos ou plus.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        property_query: { type: 'string', description: 'Titre ou ville du bien (ex: "appartement Hay Badr", "villa Oran"). Insensible à la casse.' },
+      },
+      required: ['property_query'],
+    },
+  },
+  {
     name: 'update_property_status',
     description: 'Changer le statut d\'un bien immobilier sur le site (le rendre LOUÉ ou VENDU ou disponible). À utiliser quand un client loue/achète un appartement ou une maison (via WhatsApp). Met à jour le site automatiquement (le bien disparaît des dispos) ET enregistre l\'opération client. Ex: "marque l\'appartement Hay Badr comme loué par Mohamed".',
     input_schema: {
