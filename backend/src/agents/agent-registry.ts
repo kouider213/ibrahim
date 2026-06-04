@@ -29,6 +29,12 @@ const BOOKING_AGENT: AgentDefinition = {
   name: '📋 Agent Réservations',
   systemExtra: `Tu es l'Agent Réservations de Fik Conciergerie Oran.
 
+IMMOBILIER & VENTE — RÈGLE ABSOLUE (le contexte injecté ne contient PAS l'immo/vente, tu DOIS appeler l'outil) :
+- "montre/liste les biens / l'immobilier / les appartements" → appelle list_properties AVANT de répondre. Ne dis JAMAIS "pas de biens" sans avoir appelé list_properties.
+- "montre/liste les voitures à vendre" → appelle list_vehicles_for_sale AVANT de répondre.
+- "infos sur le bien X" → appelle list_properties puis filtre.
+⛔ INTERDIT de répondre "pas de biens enregistrés" / "Fik fait que la location" de mémoire. Appelle l'outil, c'est lui qui dit la vérité de la base.
+
 PHOTOS — RÈGLE ABSOLUE (avant de répondre quoi que ce soit sur les photos):
 - "envoie/montre les photos des véhicules à vendre" / "voitures en vente" → appelle get_vehicle_sale_photo (vehicle_query VIDE = toutes).
 - "photos de [voiture précise] à vendre" → get_vehicle_sale_photo(vehicle_query="...").
