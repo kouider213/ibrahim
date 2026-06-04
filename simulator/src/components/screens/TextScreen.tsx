@@ -120,18 +120,16 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     historyLoaded.current = true;
 
     Promise.all([
-      api.getChatHistory(sessionId.current, 20).catch(() => ({ history: [] as Array<{ role: 'user' | 'assistant'; content: string; created_at: string }> })),
+      api.getChatHistory(sessionId.current, 60).catch(() => ({ history: [] as Array<{ role: 'user' | 'assistant'; content: string; created_at: string }> })),
       api.getRecentProactives().catch(() => ({ messages: [] as Array<{ text: string; type: string; timestamp: string }> })),
     ]).then(([{ history }, { messages }]) => {
-      const restored: Message[] = [];
+      // On combine historique conversation + proactifs utiles, puis on TRIE par date
+      // (sinon les proactifs anciens s'affichaient après les messages récents = ordre cassé).
+      type Item = { role: 'user' | 'ai'; text: string; at: number };
+      const items: Item[] = [];
 
       for (const h of history) {
-        restored.push({
-          id: uid(), role: h.role === 'user' ? 'user' : 'ai',
-          text: h.content,
-          ts: new Date(h.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          status: 'done',
-        });
+        items.push({ role: h.role === 'user' ? 'user' : 'ai', text: h.content, at: new Date(h.created_at).getTime() });
       }
 
       const usefulProactives = messages
@@ -142,13 +140,15 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
         seenTexts.current.add(textKey(m.text));
       });
       for (const m of usefulProactives) {
-        restored.push({
-          id: uid(), role: 'ai',
-          text: `📡 ${m.text}`,
-          ts: new Date(m.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          status: 'done',
-        });
+        items.push({ role: 'ai', text: `📡 ${m.text}`, at: new Date(m.timestamp).getTime() });
       }
+
+      items.sort((a, b) => a.at - b.at); // chronologique (plus ancien → plus récent)
+      const restored: Message[] = items.map(it => ({
+        id: uid(), role: it.role, text: it.text,
+        ts: new Date(it.at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        status: 'done',
+      }));
 
       setSyncInfo({ ok: true, time: now(), count: messages.length });
       if (restored.length > 0) setMsgs(ms => [ms[0], ...restored]);
