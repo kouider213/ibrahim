@@ -30,12 +30,29 @@
 - **Site** : LIVE, mode dispo "à confirmer" ON, chatbot retiré.
 - **Backend** : LIVE sur Railway. Bot WhatsApp client **désactivé** (commit `fbf2a3c`). Immo unifié (commit `c6c4fd3`).
 - **Immo** : schéma `properties` unifié app+site. Table prod **vide** (0 bien).
-- **Migrations** : 0015/0016/0017 toutes faites.
-- **Pas de chantier en cours non terminé.** Tout est déployé et stable.
+- **Migrations** : 0015/0016/0017 faites. ⚠️ **0018_packs.sql À LANCER** (table `packs`, sinon /packs vide).
+- **Packs** : feature déployée sur le site (commit `debfeed`). En attente du SQL 0018.
+- Gestion Packs côté Dzaryx (app/chat) = pas encore faite (à décider).
 
 ---
 
 ## Entrées (plus récent en haut)
+
+### 2026-06-05 — Nouvelle feature : Packs séjour (site)
+- **Quoi** : section "Packs" sur le site (combos voiture + immo + jet ski + chauffeur), même stack que
+  immo/vente-voitures. Table `packs` + `pack_photos` (migration `0018`, RLS, 4 packs seed). Page publique
+  `/packs` (filtres par gamme, cards, inclusions, bilingue FR/AR), détail `/packs/[id]`, admin CRUD
+  `/admin/packs` (photos, gamme, inclusions par cases, features, statut, featured). Liens Navbar + sidebar admin.
+- **Pourquoi** : Kouider veut vendre des séjours clé en main par paliers de gamme (entrée: voiture+appart,
+  médium: voiture+villa, premium: voiture+villa+jetski, entreprise/groupe: villa+voiture avec chauffeur).
+- **Fichiers** (repo `autolux-location`/`rental-system`) : `supabase/0018_packs.sql`, `pages/packs.js`,
+  `pages/packs/[id].js`, `pages/admin/packs.js`, `components/Navbar.js`, `components/AdminLayout.js`.
+- **Commit** : `debfeed` (repo site). Build Next.js OK (EXIT=0).
+- **État** : ✅ déployé (Vercel).
+- **⚠️ ACTION REQUISE** : lancer **`supabase/0018_packs.sql`** dans Supabase SQL Editor pour créer la table
+  `packs` (+ 4 packs d'exemple). Tant que pas fait, `/packs` affiche "bientôt disponibles" (vide, sans erreur).
+- **⏭️ Prochaine étape possible** : ajouter la gestion Packs côté Dzaryx (route `/api/packs` + outils chat
+  `list_packs`/`create_pack`... comme immo) **si** Kouider veut gérer les packs depuis l'app, pas juste l'admin site.
 
 ### 2026-06-05 — Création du centre de documentation Obsidian
 - **Quoi** : audit complet site + Dzaryx écrit dans `DZARYX/AUDIT/` (10 notes + hub + canvas).
