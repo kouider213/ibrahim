@@ -46,7 +46,7 @@ import locationRoutes       from './api/routes/location.js';
 import mapsRoutes           from './api/routes/maps.js';
 import ratesRoutes          from './api/routes/rates.js';
 import immoRoutes           from './api/routes/immo.js';
-import whatsappRoutes       from './api/routes/whatsapp.js';
+// import whatsappRoutes       from './api/routes/whatsapp.js'; // désactivé — bot client WhatsApp pas utilisé pour l'instant
 import fikSiteWebhookRoutes from './api/routes/fik-site-webhook.js';
 
 // Integrations
@@ -272,7 +272,7 @@ app.use('/api/bi',           apiLimiter, biRoutes);
 app.use('/api/rates',        apiLimiter, ratesRoutes);
 app.use('/api/orchestrator', apiLimiter, orchestratorRoutes);
 app.use('/api/health-ai',   apiLimiter, healthAiRoutes);
-app.use('/api/whatsapp',     whatsappRoutes);
+// app.use('/api/whatsapp',     whatsappRoutes); // désactivé — réactiver + sécuriser (signature Meta + rate limit + dédup) avant de brancher
 app.use('/api/pdf',         pdfRoutes);
 app.use('/api/location',   apiLimiter, locationRoutes);
 app.use('/api/maps',       apiLimiter, mapsRoutes);
