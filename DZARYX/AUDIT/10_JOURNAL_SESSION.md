@@ -32,7 +32,8 @@
 - **Immo** : schéma `properties` unifié app+site. Table prod **vide** (0 bien).
 - **Migrations** : 0015/0016/0017 faites. ⚠️ **0018_packs.sql À LANCER** (table `packs`, sinon /packs vide).
 - **Packs** : déployés (site `a0ffc19` + Dzaryx `d235f7d`). Liés à l'inventaire réel (car_id/property_id).
-  Gérables via chat Dzaryx (`list_packs`/`create_pack`/`set_pack_status`). **En attente du SQL 0018.**
+  Gérables via chat Dzaryx (`list_packs`/`create_pack`/`set_pack_status`). **SQL 0018 LANCÉ ✅ (2026-06-05) —
+  tables `packs` + `pack_photos` créées en prod. Feature 100% opérationnelle.**
 
 ---
 
