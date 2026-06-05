@@ -3,6 +3,10 @@
 > Note principale. Liens vers toutes les autres notes.
 > Statut global : **Phase Mobile Terminée ✅ | Simulateur Web ✅ | APK pending EAS (June 1)**
 
+> 🆕 **2026-06-05 — NOUVEAU CENTRE DE DOC COMPLET (site + Dzaryx) :** → **[[🏠 HUB]]**
+> Audit détaillé, diagrammes, carte interactive [[system-map.canvas]], décisions, et **journal vivant**
+> [[10_JOURNAL_SESSION]] (où on s'est arrêté). Commence par là si tu reprends le projet.
+
 ---
 
 ## Liens rapides
