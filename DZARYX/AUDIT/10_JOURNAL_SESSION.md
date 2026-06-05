@@ -39,6 +39,18 @@
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-05 — Packs sur la home + conditions
+- **Quoi** : (1) section "Packs séjour" sur la home (`pages/index.js`) avec le slider `ShowcaseCarousel`
+  (même composant que vente/immo) — badge gamme, inclusions, prix, bouton "Tous les packs", dispo dérivée
+  (cache les packs dont la voiture/bien est loué). Data chargée en getStaticProps + refresh client.
+  (2) Section "Packs séjour (tout-en-un)" ajoutée aux **conditions** (`lib/conditions.js`, FR/AR) — apparaît
+  sur /conditions ET dans l'admin conditions (SECTIONS itéré).
+- **Pourquoi** : Kouider — la home doit présenter les packs comme la location/immo ; et les conditions doivent
+  couvrir les packs maintenant qu'on en gère.
+- **Fichiers** : `pages/index.js`, `lib/conditions.js` (repo site).
+- **Commit** : `9f41878`. Build OK.
+- **État** : ✅ déployé (Vercel).
+
 ### 2026-06-05 — Fix RLS packs (insert bloqué) + feature validée
 - **Quoi** : à l'ajout d'un pack depuis l'admin → "new row violates row-level security policy for table packs".
   Cause : la policy d'écriture utilisait un sous-select `profiles` (`auth.uid() IN (SELECT id FROM profiles WHERE role IN ...)`)
