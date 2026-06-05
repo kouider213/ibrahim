@@ -31,12 +31,31 @@
 - **Backend** : LIVE sur Railway. Bot WhatsApp client **désactivé** (commit `fbf2a3c`). Immo unifié (commit `c6c4fd3`).
 - **Immo** : schéma `properties` unifié app+site. Table prod **vide** (0 bien).
 - **Migrations** : 0015/0016/0017 faites. ⚠️ **0018_packs.sql À LANCER** (table `packs`, sinon /packs vide).
-- **Packs** : feature déployée sur le site (commit `debfeed`). En attente du SQL 0018.
-- Gestion Packs côté Dzaryx (app/chat) = pas encore faite (à décider).
+- **Packs** : déployés (site `a0ffc19` + Dzaryx `d235f7d`). Liés à l'inventaire réel (car_id/property_id).
+  Gérables via chat Dzaryx (`list_packs`/`create_pack`/`set_pack_status`). **En attente du SQL 0018.**
 
 ---
 
 ## Entrées (plus récent en haut)
+
+### 2026-06-05 — Packs : liés à l'inventaire réel + gestion Dzaryx
+- **Quoi** :
+  1. Chaque pack pointe vers un VRAI véhicule (`packs.car_id`→`cars`) + un VRAI bien (`packs.property_id`→`properties`),
+     nullable (pack entreprise/chauffeur = sans voiture du parc). Admin = dropdowns inventaire. Dispo du pack DÉRIVÉE :
+     indispo si la voiture (`available=false`) ou le bien (`status≠disponible`) est déjà loué. Pages publiques affichent
+     le vrai véhicule + bien (cartes cliquables) + badge indispo.
+  2. Backend Dzaryx : outils chat `list_packs`, `create_pack` (lie véhicule+bien par nom), `set_pack_status`
+     (câblés agents Réservation + Général). Route REST `/api/packs` (CRUD, whitelist PATCH).
+- **Pourquoi** : Kouider — un pack = mêmes voitures/biens que ceux loués à l'unité sur le site. Prendre un pack
+  bloque ce véhicule + ce bien. Gérable aussi en parlant à Dzaryx (comme immo).
+- **Fichiers** : site (`0018_packs.sql` + car_id/property_id, `packs.js`, `packs/[id].js`, `admin/packs.js`),
+  Dzaryx (`tool-executor.ts`, `tools.ts`, `agent-registry.ts`, `api/routes/packs.ts`, `index.ts`).
+- **Commits** : site `a0ffc19`, Dzaryx `d235f7d`. Build site OK, tsc backend OK.
+- **État** : ✅ déployé (Vercel + Railway).
+- **⚠️ ACTION REQUISE** : lancer **`supabase/0018_packs.sql`** dans Supabase (table `packs` + `pack_photos` +
+  liens car_id/property_id + 4 packs seed). Les FK exigent que `cars` et `properties` existent (OK).
+- **⏭️ Reste possible (plus tard)** : le pack entreprise (voiture avec chauffeur) — Kouider n'a pas encore la
+  voiture-chauffeur, il l'ajoutera. Blocage par DATES (pas juste statut) si besoin d'un vrai calendrier packs.
 
 ### 2026-06-05 — Nouvelle feature : Packs séjour (site)
 - **Quoi** : section "Packs" sur le site (combos voiture + immo + jet ski + chauffeur), même stack que
