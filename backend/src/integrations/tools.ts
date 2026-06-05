@@ -1173,6 +1173,55 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
   {
+    name: 'list_packs',
+    description: 'Lister les packs séjour (combos voiture + immobilier + jet ski + chauffeur) du site Fik Conciergerie. Montre nom, gamme, prix, le véhicule et le bien liés, et si le pack est disponible (un pack est indispo si sa voiture ou son bien est déjà loué). Utiliser quand Kouider demande "mes packs", "les packs séjour", "quels packs dispo".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status: { type: 'string', description: 'Filtrer par statut: disponible | indisponible | coming_soon. Optionnel.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'create_pack',
+    description: 'Créer un NOUVEAU pack séjour sur le site (apparaît sur fikconciergerie.com/packs). Un pack combine un VRAI véhicule du parc location + un VRAI bien immo du site. Lie-les via car_name et property_title (noms existants) pour que la dispo du pack suive la leur. Ex: "crée un pack Évasion : Clio 5 + appartement Hay Badr, 50000 DA". Laisse car_name vide pour le pack entreprise (voiture avec chauffeur hors parc).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title:          { type: 'string', description: 'Nom du pack (ex: "Pack Évasion")' },
+        tier:           { type: 'string', enum: ['entree', 'medium', 'premium', 'entreprise'], description: 'Gamme du pack' },
+        tagline:        { type: 'string', description: 'Accroche courte (1 ligne)' },
+        description:    { type: 'string', description: 'Description du pack' },
+        price:          { type: 'number', description: 'Prix. Laisser vide = "Sur devis".' },
+        price_type:     { type: 'string', enum: ['sejour', 'jour', 'semaine', 'sur_devis'], description: 'Unité de prix' },
+        currency:       { type: 'string', enum: ['DZD', 'EUR'] },
+        duration:       { type: 'string', description: 'Durée indicative (ex: "7 jours", "week-end")' },
+        car_name:       { type: 'string', description: 'Nom du véhicule du parc à lier (optionnel — vide = pack chauffeur)' },
+        property_title: { type: 'string', description: 'Titre du bien immo à lier (optionnel)' },
+        inc_car:        { type: 'boolean', description: 'Inclut une voiture' },
+        inc_apartment:  { type: 'boolean', description: 'Inclut un appartement' },
+        inc_villa:      { type: 'boolean', description: 'Inclut une villa' },
+        inc_jetski:     { type: 'boolean', description: 'Inclut un jet ski' },
+        inc_driver:     { type: 'boolean', description: 'Inclut un chauffeur' },
+        features:       { type: 'array', items: { type: 'string' }, description: 'Liste des éléments inclus (puces)' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'set_pack_status',
+    description: 'Changer le statut d\'un pack séjour (disponible | indisponible | coming_soon) sur le site. Ex: "rends le pack Prestige indisponible". Note: si la voiture ou le bien lié est déjà loué, le pack est déjà auto-indisponible.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        pack_query: { type: 'string', description: 'Nom (ou partie) du pack' },
+        status:     { type: 'string', enum: ['disponible', 'indisponible', 'coming_soon'] },
+      },
+      required: ['pack_query', 'status'],
+    },
+  },
+  {
     name: 'create_property',
     description: 'Ajouter un NOUVEAU bien immobilier sur le site Fik Conciergerie (apparaît immédiatement sur fikconciergerie.com). Utiliser quand Kouider dit "ajoute un appartement à louer", "rajoute une villa à vendre", "nouveau bien". Le bien est créé dans la base partagée du site.',
     input_schema: {

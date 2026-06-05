@@ -46,6 +46,7 @@ import locationRoutes       from './api/routes/location.js';
 import mapsRoutes           from './api/routes/maps.js';
 import ratesRoutes          from './api/routes/rates.js';
 import immoRoutes           from './api/routes/immo.js';
+import packsRoutes          from './api/routes/packs.js';
 // import whatsappRoutes       from './api/routes/whatsapp.js'; // désactivé — bot client WhatsApp pas utilisé pour l'instant
 import fikSiteWebhookRoutes from './api/routes/fik-site-webhook.js';
 
@@ -277,6 +278,7 @@ app.use('/api/pdf',         pdfRoutes);
 app.use('/api/location',   apiLimiter, locationRoutes);
 app.use('/api/maps',       apiLimiter, mapsRoutes);
 app.use('/api/immo',      apiLimiter, immoRoutes);
+app.use('/api/packs',     apiLimiter, packsRoutes);
 app.use('/api/fik-site',  fikSiteWebhookRoutes);
 
 app.use(errorHandler);

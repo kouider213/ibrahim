@@ -401,6 +401,10 @@ async function _dispatch(
       case 'list_vehicles_for_sale':     return await listVehiclesForSaleTool(input);
       case 'get_vehicle_sale_photo':     return await getVehicleSalePhotoTool(input);
       case 'mark_vehicle_sold':          return await markVehicleSoldTool(input);
+      // ─── PACKS (combos voiture + immo + jet ski) — synchro site ───
+      case 'list_packs':                 return await listPacksTool(input);
+      case 'create_pack':                return await createPackTool(input);
+      case 'set_pack_status':            return await setPackStatusTool(input);
       case 'record_client_deal':         return await recordClientDealTool(input);
       case 'get_client_history':         return await getClientHistoryTool(input);
       // ─── IMAGE-TO-IMAGE avec conservation visage ───
@@ -4895,6 +4899,101 @@ async function listPropertiesTool(input: Record<string, unknown>): Promise<strin
     return `🏠 ${p.title} — ${[p.district, p.city].filter(Boolean).join(', ')} · ${txn} · ${price} · statut: ${p.status}`;
   });
   return `${data.length} bien(s) :\n${lines.join('\n')}`;
+}
+
+// ─── PACKS (combos voiture + immo + jet ski + chauffeur) ───────────────────────
+const PACK_TIER_LABEL: Record<string, string> = {
+  entree: 'Entrée de gamme', medium: 'Médium', premium: 'Premium', entreprise: 'Entreprise/Groupe',
+};
+
+// Dispo dérivée : pack dispo seulement si le véhicule lié est libre ET le bien lié dispo.
+function packIsAvailable(p: any): boolean {
+  if (p.status !== 'disponible') return false;
+  const carOk  = !p.car      || p.car.available !== false;
+  const propOk = !p.property || (p.property.status || 'disponible') === 'disponible';
+  return carOk && propOk;
+}
+
+async function listPacksTool(input: Record<string, unknown>): Promise<string> {
+  const status = (input['status'] as string | undefined)?.trim();
+  let q = supabase.from('packs')
+    .select('id, title, tier, price, price_type, currency, status, car:cars(name, available), property:properties(title, status)')
+    .order('position', { ascending: true });
+  if (status) q = q.eq('status', status);
+  const { data, error } = await q.limit(50);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!data || data.length === 0) return 'Aucun pack enregistré. Crée-en un avec create_pack.';
+  const cur = (c: string) => (c === 'DZD' ? 'DA' : '€');
+  const lines = (data as any[]).map(p => {
+    const price = (!p.price || p.price_type === 'sur_devis') ? 'sur devis' : `${Number(p.price).toLocaleString()} ${cur(p.currency)}`;
+    const car  = p.car ? p.car.name : '—';
+    const prop = p.property ? p.property.title : '—';
+    const dispo = packIsAvailable(p) ? '🟢 dispo' : '🔴 indispo';
+    return `📦 ${p.title} (${PACK_TIER_LABEL[p.tier] || p.tier}) · ${price} · 🚗 ${car} · 🏠 ${prop} · ${dispo}`;
+  });
+  return `${data.length} pack(s) :\n${lines.join('\n')}`;
+}
+
+async function createPackTool(input: Record<string, unknown>): Promise<string> {
+  const title = (input['title'] as string | undefined)?.trim();
+  if (!title) return '❌ title requis (nom du pack).';
+  const tier = (input['tier'] as string | undefined)?.trim() || 'entree';
+
+  // Résolution véhicule + bien réels par nom (optionnel)
+  let car_id: string | null = null, carName = '';
+  const carQuery = (input['car_name'] as string | undefined)?.trim();
+  if (carQuery) {
+    const { data } = await supabase.from('cars').select('id, name').ilike('name', `%${carQuery}%`).limit(1);
+    if (data && data[0]) { car_id = (data[0] as any).id; carName = (data[0] as any).name; }
+  }
+  let property_id: string | null = null, propName = '';
+  const propQuery = (input['property_title'] as string | undefined)?.trim();
+  if (propQuery) {
+    const { data } = await supabase.from('properties').select('id, title').ilike('title', `%${propQuery}%`).limit(1);
+    if (data && data[0]) { property_id = (data[0] as any).id; propName = (data[0] as any).title; }
+  }
+
+  const feat = input['features'];
+  const features = Array.isArray(feat) ? feat.map(String)
+    : typeof feat === 'string' ? feat.split('\n').map(s => s.trim()).filter(Boolean) : null;
+
+  const row: Record<string, unknown> = {
+    title, tier,
+    tagline:     (input['tagline'] as string | undefined)?.trim() || null,
+    description: (input['description'] as string | undefined)?.trim() || null,
+    price:       (input['price'] as number | undefined) ?? null,
+    price_type:  (input['price_type'] as string | undefined)?.trim() || 'sejour',
+    currency:    (input['currency'] as string | undefined)?.trim() || 'DZD',
+    duration:    (input['duration'] as string | undefined)?.trim() || null,
+    car_id, property_id,
+    inc_car:       input['inc_car']       === true || (input['inc_car'] === undefined && car_id != null),
+    inc_apartment: input['inc_apartment'] === true,
+    inc_villa:     input['inc_villa']     === true,
+    inc_jetski:    input['inc_jetski']    === true,
+    inc_driver:    input['inc_driver']    === true,
+    features,
+    status: 'disponible',
+  };
+  const { data, error } = await supabase.from('packs').insert([row]).select('id, title').single();
+  if (error) return `❌ Erreur création pack: ${error.message} (lance la migration 0018_packs.sql si la table manque).`;
+  const linked = [carName ? `🚗 ${carName}` : null, propName ? `🏠 ${propName}` : null].filter(Boolean).join(' + ');
+  return `✅ Pack "${(data as any).title}" créé sur le site (${PACK_TIER_LABEL[tier] || tier})${linked ? ` — lié à ${linked}` : ''}. Visible sur fikconciergerie.com/packs. Ajoute des photos depuis l'admin.`;
+}
+
+async function setPackStatusTool(input: Record<string, unknown>): Promise<string> {
+  const query  = (input['pack_query'] as string | undefined)?.trim();
+  const status = (input['status'] as string | undefined)?.trim();
+  if (!query || !status) return '❌ pack_query et status requis.';
+  const valid = ['disponible', 'indisponible', 'coming_soon'];
+  if (!valid.includes(status)) return `❌ Statut invalide. Utilise: ${valid.join(', ')}.`;
+  const { data: packs, error } = await supabase.from('packs').select('id, title').ilike('title', `%${query}%`).limit(5);
+  if (error) return `❌ Erreur Supabase: ${error.message}`;
+  if (!packs || packs.length === 0) return `❌ Aucun pack trouvé pour "${query}".`;
+  if (packs.length > 1) return `⚠️ Plusieurs packs:\n${(packs as any[]).map(p => `• ${p.title}`).join('\n')}\nPrécise lequel.`;
+  const p = (packs as any[])[0];
+  const { error: upErr } = await supabase.from('packs').update({ status }).eq('id', p.id);
+  if (upErr) return `❌ Échec: ${upErr.message}`;
+  return `✅ Pack "${p.title}" → ${status}.`;
 }
 
 async function updatePropertyStatusTool(input: Record<string, unknown>): Promise<string> {
