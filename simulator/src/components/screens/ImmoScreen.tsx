@@ -1,26 +1,33 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../services/api.ts';
 
-type PropStatus = 'loué' | 'libre' | 'en_travaux' | 'à_vendre';
-type PropType   = 'appartement' | 'villa' | 'commercial' | 'terrain' | 'bureau';
+// Statuts unifiés app + site. `disponible` = visible sur fikconciergerie.com.
+type PropStatus      = 'disponible' | 'loué' | 'vendu' | 'en_travaux';
+type PropType        = 'appartement' | 'villa' | 'commercial' | 'terrain' | 'bureau';
+type PropTransaction = 'location' | 'vente';
 
 interface Property {
   id: string;
-  name: string;
-  address?: string;
+  title?: string | null;
+  name?: string | null;          // legacy = mirror de title
   type: PropType;
+  transaction?: PropTransaction | null;
   status: PropStatus;
-  monthly_rent?: number | null;
+  price?: number | null;
+  monthly_rent?: number | null;  // legacy/interne (miroir de price en location)
+  city?: string | null;
+  district?: string | null;
   tenant_name?: string | null;
+  address?: string | null;
   notes?: string | null;
   created_at: string;
 }
 
 const STATUS_COL: Record<PropStatus, string> = {
-  'loué':       '#00e676',
-  'libre':      '#ffb347',
+  'disponible': '#00e676',
+  'loué':       '#ffb347',
+  'vendu':      '#00d4ff',
   'en_travaux': '#ff6b00',
-  'à_vendre':   '#00d4ff',
 };
 
 const TYPE_ICON: Record<PropType, string> = {
@@ -31,11 +38,20 @@ const TYPE_ICON: Record<PropType, string> = {
   bureau:      '🏢',
 };
 
-const STATUSES: PropStatus[] = ['loué', 'libre', 'en_travaux', 'à_vendre'];
+const STATUSES: PropStatus[] = ['disponible', 'loué', 'vendu', 'en_travaux'];
 const TYPES: PropType[]      = ['appartement', 'villa', 'commercial', 'terrain', 'bureau'];
 
-interface AddForm { name: string; address: string; type: PropType; status: PropStatus; monthly_rent: string; tenant_name: string; notes: string }
-const EMPTY_FORM: AddForm = { name: '', address: '', type: 'appartement', status: 'libre', monthly_rent: '', tenant_name: '', notes: '' };
+const propTitle = (p: Property) => p.title || p.name || 'Sans titre';
+const propPrice = (p: Property) => (p.price ?? p.monthly_rent ?? null);
+
+interface AddForm {
+  title: string; transaction: PropTransaction; type: PropType; status: PropStatus;
+  price: string; city: string; district: string; tenant_name: string; notes: string;
+}
+const EMPTY_FORM: AddForm = {
+  title: '', transaction: 'location', type: 'appartement', status: 'disponible',
+  price: '', city: 'Oran', district: '', tenant_name: '', notes: '',
+};
 
 export default function ImmoScreen() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -61,41 +77,44 @@ export default function ImmoScreen() {
 
   const stats = {
     total:   properties.length,
+    dispo:   properties.filter(p => p.status === 'disponible').length,
     loued:   properties.filter(p => p.status === 'loué').length,
-    libre:   properties.filter(p => p.status === 'libre').length,
-    revenu:  properties.filter(p => p.status === 'loué').reduce((s, p) => s + (p.monthly_rent ?? 0), 0),
+    revenu:  properties.filter(p => p.status === 'loué').reduce((s, p) => s + (propPrice(p) ?? 0), 0),
   };
 
   const handleAdd = async () => {
-    if (!form.name.trim()) return;
+    if (!form.title.trim()) return;
     setSaving(true);
     try {
       await apiFetch('/api/immo/properties', {
         method: 'POST',
         body: JSON.stringify({
-          name:         form.name.trim(),
-          address:      form.address.trim() || undefined,
-          type:         form.type,
-          status:       form.status,
-          monthly_rent: form.monthly_rent ? Number(form.monthly_rent) : null,
-          tenant_name:  form.tenant_name.trim() || null,
-          notes:        form.notes.trim() || null,
+          title:       form.title.trim(),
+          transaction: form.transaction,
+          type:        form.type,
+          status:      form.status,
+          price:       form.price ? Number(form.price) : null,
+          city:        form.city.trim() || 'Oran',
+          district:    form.district.trim() || null,
+          tenant_name: form.tenant_name.trim() || null,
+          notes:       form.notes.trim() || null,
         }),
       });
       setShowAdd(false);
       setForm(EMPTY_FORM);
-      showToast('✅ Bien ajouté');
+      showToast('✅ Bien ajouté (app + site)');
       await load();
     } catch { showToast('❌ Erreur ajout'); }
     finally { setSaving(false); }
   };
 
   const toggleStatus = async (p: Property) => {
-    const next: PropStatus = p.status === 'loué' ? 'libre' : p.status === 'libre' ? 'loué' : p.status;
+    // disponible ↔ loué (les autres statuts ne togglent pas)
+    const next: PropStatus = p.status === 'loué' ? 'disponible' : p.status === 'disponible' ? 'loué' : p.status;
     try {
       await apiFetch(`/api/immo/properties/${p.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: next, tenant_name: next === 'libre' ? null : p.tenant_name }),
+        body: JSON.stringify({ status: next, tenant_name: next === 'disponible' ? null : p.tenant_name }),
       });
       setProperties(prev => prev.map(x => x.id === p.id ? { ...x, status: next } : x));
     } catch { showToast('❌ Erreur'); }
@@ -138,8 +157,8 @@ export default function ImmoScreen() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5 }}>
           {[
             { label: 'TOTAL', val: stats.total,               col: '#b388ff' },
-            { label: 'LOUÉS', val: stats.loued,               col: '#00e676' },
-            { label: 'LIBRES', val: stats.libre,              col: '#ffb347' },
+            { label: 'DISPO', val: stats.dispo,               col: '#00e676' },
+            { label: 'LOUÉS', val: stats.loued,               col: '#ffb347' },
             { label: 'REVENU', val: `${Math.round(stats.revenu / 1000)}k`, col: '#00d4ff' },
           ].map(s => (
             <div key={s.label} style={{ background: `${s.col}0a`, border: `1px solid ${s.col}22`, borderRadius: 8, padding: '6px 4px', textAlign: 'center' }}>
@@ -160,6 +179,9 @@ export default function ImmoScreen() {
           properties.map(p => {
             const sc = STATUS_COL[p.status] ?? '#ffffff44';
             const isSel = p.id === selected;
+            const prix = propPrice(p);
+            const loc  = [p.district, p.city].filter(Boolean).join(', ') || p.address;
+            const isVente = p.transaction === 'vente';
             return (
               <div
                 key={p.id}
@@ -173,19 +195,24 @@ export default function ImmoScreen() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>{TYPE_ICON[p.type] ?? '🏠'}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: '#e8f4ff', fontWeight: 600 }}>{p.name}</div>
-                    {p.address && <div style={{ fontSize: 7, color: '#ffffff44', marginTop: 1 }}>{p.address}</div>}
+                    <div style={{ fontSize: 11, color: '#e8f4ff', fontWeight: 600 }}>{propTitle(p)}</div>
+                    {loc && <div style={{ fontSize: 7, color: '#ffffff44', marginTop: 1 }}>{loc}</div>}
                   </div>
-                  <span style={{
-                    fontSize: 6, color: sc, fontFamily: 'Orbitron', letterSpacing: '0.1em',
-                    background: `${sc}18`, padding: '2px 6px', borderRadius: 4,
-                  }}>
-                    {p.status.toUpperCase()}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <span style={{
+                      fontSize: 6, color: sc, fontFamily: 'Orbitron', letterSpacing: '0.1em',
+                      background: `${sc}18`, padding: '2px 6px', borderRadius: 4,
+                    }}>
+                      {p.status.toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: 5, color: isVente ? '#00d4ff99' : '#b388ff99', fontFamily: 'Orbitron', letterSpacing: '0.1em' }}>
+                      {isVente ? 'À VENDRE' : 'À LOUER'}
+                    </span>
+                  </div>
                 </div>
-                {(p.monthly_rent || p.tenant_name) && (
+                {(prix || p.tenant_name) && (
                   <div style={{ display: 'flex', gap: 12, fontSize: 8, color: '#ffffff55' }}>
-                    {p.monthly_rent && <span style={{ color: '#00e676aa' }}>{p.monthly_rent.toLocaleString('fr-DZ')} DA/mois</span>}
+                    {prix != null && <span style={{ color: '#00e676aa' }}>{prix.toLocaleString('fr-DZ')} DA{isVente ? '' : '/mois'}</span>}
                     {p.tenant_name  && <span>{p.tenant_name}</span>}
                   </div>
                 )}
@@ -193,16 +220,16 @@ export default function ImmoScreen() {
                 {/* Expanded actions */}
                 {isSel && (
                   <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {(p.status === 'loué' || p.status === 'libre') && (
+                    {(p.status === 'loué' || p.status === 'disponible') && (
                       <button
                         onClick={e => { e.stopPropagation(); void toggleStatus(p); }}
                         style={{ padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'Orbitron', fontSize: 6, letterSpacing: '0.1em', background: `${sc}18`, border: `1px solid ${sc}44`, color: sc }}
                       >
-                        {p.status === 'loué' ? '→ LIBRE' : '→ LOUÉ'}
+                        {p.status === 'loué' ? '→ DISPONIBLE' : '→ LOUÉ'}
                       </button>
                     )}
                     <button
-                      onClick={e => { e.stopPropagation(); if (confirm(`Supprimer ${p.name} ?`)) void deleteProp(p.id); }}
+                      onClick={e => { e.stopPropagation(); if (confirm(`Supprimer ${propTitle(p)} ?`)) void deleteProp(p.id); }}
                       style={{ padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'Orbitron', fontSize: 6, letterSpacing: '0.1em', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}
                     >
                       SUPPRIMER
@@ -221,11 +248,12 @@ export default function ImmoScreen() {
           <div style={{ width: '100%', background: '#070f1e', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', border: '1px solid #b388ff22' }}>
             <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#b388ff', letterSpacing: '0.2em', marginBottom: 14 }}>NOUVEAU BIEN</div>
             {[
-              { label: 'NOM *', key: 'name' as const,        type: 'text' },
-              { label: 'ADRESSE', key: 'address' as const,   type: 'text' },
-              { label: 'LOYER (DA)', key: 'monthly_rent' as const, type: 'number' },
-              { label: 'LOCATAIRE', key: 'tenant_name' as const, type: 'text' },
-              { label: 'NOTES', key: 'notes' as const,       type: 'text' },
+              { label: 'TITRE *', key: 'title' as const,            type: 'text' },
+              { label: 'PRIX (DA)', key: 'price' as const,          type: 'number' },
+              { label: 'VILLE', key: 'city' as const,               type: 'text' },
+              { label: 'QUARTIER', key: 'district' as const,        type: 'text' },
+              { label: 'LOCATAIRE (si loué)', key: 'tenant_name' as const, type: 'text' },
+              { label: 'NOTES', key: 'notes' as const,              type: 'text' },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 6, color: '#b388ff88', letterSpacing: '0.15em', marginBottom: 3 }}>{f.label}</div>
@@ -237,7 +265,15 @@ export default function ImmoScreen() {
                 />
               </div>
             ))}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 6, color: '#b388ff88', letterSpacing: '0.15em', marginBottom: 3 }}>OPÉRATION</div>
+                <select value={form.transaction} onChange={e => setForm(p => ({ ...p, transaction: e.target.value as PropTransaction }))}
+                  style={{ width: '100%', background: '#070f1e', border: '1px solid #b388ff33', borderRadius: 6, padding: '6px 8px', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 9 }}>
+                  <option value="location">à louer</option>
+                  <option value="vente">à vendre</option>
+                </select>
+              </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 6, color: '#b388ff88', letterSpacing: '0.15em', marginBottom: 3 }}>TYPE</div>
                 <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value as PropType }))}
@@ -258,7 +294,7 @@ export default function ImmoScreen() {
                 style={{ flex: 1, padding: 10, borderRadius: 8, background: 'transparent', border: '1px solid #ffffff22', cursor: 'pointer', color: '#ffffff66', fontFamily: 'Orbitron', fontSize: 8 }}>
                 ANNULER
               </button>
-              <button onClick={() => void handleAdd()} disabled={saving || !form.name.trim()}
+              <button onClick={() => void handleAdd()} disabled={saving || !form.title.trim()}
                 style={{ flex: 2, padding: 10, borderRadius: 8, background: saving ? '#b388ff22' : 'rgba(179,136,255,0.18)', border: '1px solid #b388ff66', cursor: saving ? 'default' : 'pointer', color: '#b388ff', fontFamily: 'Orbitron', fontSize: 8 }}>
                 {saving ? 'AJOUT…' : 'CONFIRMER'}
               </button>
@@ -273,8 +309,6 @@ export default function ImmoScreen() {
           {toast}
         </div>
       )}
-
-      {/* Suppress unused sel warning */}
     </div>
   );
 }
