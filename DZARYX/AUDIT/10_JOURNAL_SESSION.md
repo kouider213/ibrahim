@@ -39,6 +39,15 @@
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-05 — Seed avis (reviews) tous services + multilingue
+- **Quoi** : 31 avis insérés dans `reviews` (approved=true) couvrant location, immo (loc+vente), vente voiture,
+  packs. Mix français / **darija oranaise** (arabizi + arabe) / arabe classique. **100% Oran** (Fik ne sert qu'Oran).
+- **Pourquoi** : Kouider — il n'y avait que des avis location ; il en faut pour tous les services + en arabe/darija.
+- **Important darija** : 100% algérien (koulech/fissa3/tonobil/walou, négation -ch, كيما/مليح/الطوموبيل) — PAS de
+  mots marocains (kolxi/dghya/بحال/زوين/مزيان/الكار). Tous les avis mentionnent Oran.
+- **Comment** : INSERT SQL collé en prod par Kouider (Success). Pas de fichier repo (données pures).
+- **État** : ✅ en prod. Visibles home (6 derniers) + /reviews. Gérables admin → Avis.
+
 ### 2026-06-05 — Packs sur la home + conditions
 - **Quoi** : (1) section "Packs séjour" sur la home (`pages/index.js`) avec le slider `ShowcaseCarousel`
   (même composant que vente/immo) — badge gamme, inclusions, prix, bouton "Tous les packs", dispo dérivée
