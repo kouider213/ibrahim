@@ -39,6 +39,16 @@
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-05 — Fix RLS packs (insert bloqué) + feature validée
+- **Quoi** : à l'ajout d'un pack depuis l'admin → "new row violates row-level security policy for table packs".
+  Cause : la policy d'écriture utilisait un sous-select `profiles` (`auth.uid() IN (SELECT id FROM profiles WHERE role IN ...)`)
+  qui échoue à l'INSERT (la RLS de `profiles` empêche le sous-select de voir la ligne). Remplacée par
+  `auth.role() = 'authenticated'` (USING + WITH CHECK) → admin connecté écrit, public (anon) lit seulement.
+- **Fix appliqué** : SQL passé en prod par Kouider (DROP + CREATE POLICY). Fichier repo mis à jour (`0018_packs.sql`).
+- **Commit** : site `fdbe109`. **Pack ajouté avec succès — feature confirmée OK par Kouider.**
+- **⚠️ RÈGLE pour les prochaines tables du site** : pour l'écriture admin, utiliser
+  `USING (auth.role()='authenticated') WITH CHECK (auth.role()='authenticated')` — PAS le sous-select sur `profiles`.
+
 ### 2026-06-05 — Packs : liés à l'inventaire réel + gestion Dzaryx
 - **Quoi** :
   1. Chaque pack pointe vers un VRAI véhicule (`packs.car_id`→`cars`) + un VRAI bien (`packs.property_id`→`properties`),
