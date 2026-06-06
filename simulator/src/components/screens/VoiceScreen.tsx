@@ -304,7 +304,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         return;
       }
       try {
-        const utter = new SpeechSynthesisUtterance('Je t\'écoute');
+        const utter = new SpeechSynthesisUtterance('Je suis à ton écoute');
         utter.lang = 'fr-FR'; utter.rate = 1.15; utter.pitch = 1.0;
         utter.onend = () => startRecording();
         window.speechSynthesis.cancel();
@@ -491,7 +491,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
               startRecording();
             } else {
               try {
-                const utter = new SpeechSynthesisUtterance('Je t\'écoute');
+                const utter = new SpeechSynthesisUtterance('Je suis à ton écoute');
                 utter.lang = 'fr-FR'; utter.rate = 1.15;
                 utter.onend = () => startRecording();
                 window.speechSynthesis.cancel();
