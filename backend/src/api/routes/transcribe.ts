@@ -20,10 +20,12 @@ router.post('/', requireMobileAuth, async (req, res) => {
   const useGoogle = (provider === 'google' || !env.GROQ_API_KEY) && !!env.GOOGLE_SERVICE_ACCOUNT_JSON;
 
   try {
-    const text = useGoogle
+    const raw = useGoogle
       ? await transcribeWithGoogle(audio, mimeType)
       : await transcribeWithGroq(audio, mimeType);
-    res.json({ text: text.trim(), provider: useGoogle ? 'google' : 'groq' });
+    // Filtre anti-hallucination Whisper (sur silence/bruit il invente "Merci", "Sous-titres…")
+    const text = cleanTranscript(raw);
+    res.json({ text, provider: useGoogle ? 'google' : 'groq' });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[transcribe]', msg);
@@ -38,6 +40,31 @@ router.post('/', requireMobileAuth, async (req, res) => {
     res.status(500).json({ error: msg });
   }
 });
+
+// Phrases d'hallucination Whisper quand l'audio = silence/bruit (texte ENTIER = junk → on jette).
+const FULL_JUNK = [
+  /^\s*merci\s*\.?\s*$/i,
+  /^\s*merci beaucoup\s*\.?\s*$/i,
+  /^\s*(you|thank you|thanks|bye)\s*\.?\s*$/i,
+  /^\s*sous-titres?.*$/i,
+  /^\s*\W+\s*$/,            // ponctuation/symboles seuls (♪ ... !!!)
+  /^\s*(au revoir|à bientôt)\s*\.?\s*$/i,
+];
+// Si l'audio contient ces fragments parasites → junk (peu importe le reste).
+const CONTAINS_JUNK = [
+  /amara\.org/i,
+  /radio[- ]canada/i,
+  /merci d'avoir regard/i,
+  /abonnez[- ]vous/i,
+  /sous-titrage/i,
+];
+function cleanTranscript(t: string): string {
+  const s = (t ?? '').trim();
+  if (s.length < 2) return '';
+  if (FULL_JUNK.some(re => re.test(s)))     return '';
+  if (CONTAINS_JUNK.some(re => re.test(s))) return '';
+  return s;
+}
 
 async function transcribeWithGroq(audio: string, mimeType: string): Promise<string> {
   const groqKey = env.GROQ_API_KEY;

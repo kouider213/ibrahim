@@ -1032,21 +1032,21 @@ function DzaryxRobot({
   );
 }
 
-// ── Étoile Dzaryx (sparkle façon Gemini, en or) ──────────────────────────────
+// ── Logo Dzaryx au centre (remplace l'étoile) ────────────────────────────────
 function Sparkle({ col, active }: { col: string; active: boolean }) {
+  const size = active ? 96 : 80;
+  const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
   return (
-    <svg width={active ? 42 : 34} height={active ? 42 : 34} viewBox="0 0 24 24" fill="none"
+    <img
+      src={`${base}logo.png`}
+      alt="Dzaryx"
       style={{
-        filter: `drop-shadow(0 0 10px ${col}aa) drop-shadow(0 0 24px ${col}55)`,
+        width: size, height: size, objectFit: 'contain',
+        filter: `drop-shadow(0 0 18px ${col}77) drop-shadow(0 0 40px ${col}33)`,
         transition: 'all 0.3s ease',
-        animation: active ? 'corePulse 1.4s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite',
+        animation: active ? 'corePulse 1.6s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite',
       }}
-    >
-      <path
-        d="M12 0 C12.6 6.4 17.6 11.4 24 12 C17.6 12.6 12.6 17.6 12 24 C11.4 17.6 6.4 12.6 0 12 C6.4 11.4 11.4 6.4 12 0 Z"
-        fill={col}
-      />
-    </svg>
+    />
   );
 }
 
