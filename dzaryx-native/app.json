@@ -12,7 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0a"
     },
-    "assetBundlePatterns": ["assets/**"],
+    "assetBundlePatterns": [
+      "assets/**"
+    ],
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -31,7 +33,7 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
-      ],
+      ]
     },
     "ios": {
       "bundleIdentifier": "com.dzaryx.app",
@@ -40,7 +42,9 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Dzaryx utilise le micro pour t'écouter et détecter le wake word.",
         "NSCameraUsageDescription": "Dzaryx utilise la caméra pour analyser ce que tu vois.",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "plugins": [
@@ -94,14 +98,14 @@
       "expo-quick-actions"
     ],
     "scheme": "dzaryx",
-    "owner": "dzaryxdoubas-organization",
+    "owner": "fikkouider",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "42ec59cf-d194-4fbd-b45e-e5543c199c2e"
+        "projectId": "ca9eb26d-6235-4d3c-8720-1371ccf12a65"
       }
     }
   }
