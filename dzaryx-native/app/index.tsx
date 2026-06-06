@@ -140,6 +140,11 @@ async function setupVoiceShortcut(): Promise<void> {
 async function handleNativeAction(data: string): Promise<void> {
   try {
     const action = JSON.parse(data) as Record<string, unknown>;
+    if (action['__native_action'] === 'open_overlay' && Platform.OS === 'android') {
+      // Ouvre l'overlay flottant Dzaryx par-dessus les autres apps
+      await Linking.openURL('dzaryxoverlay://go');
+      return;
+    }
     if (action['__native_action'] === 'set_alarm' && Platform.OS === 'android') {
       const h = Number(action['hour']   ?? 0);
       const m = Number(action['minute'] ?? 0);

@@ -95,7 +95,8 @@
         }
       ],
       "expo-local-authentication",
-      "expo-quick-actions"
+      "expo-quick-actions",
+      "./plugins/withDzaryxOverlay"
     ],
     "scheme": "dzaryx",
     "owner": "fikkouider",

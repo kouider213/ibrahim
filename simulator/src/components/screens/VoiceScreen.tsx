@@ -776,20 +776,38 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
           )}
         </div>
 
-        {/* Mains-libres */}
-        <button
-          onClick={() => setHandsFree(h => !h)}
-          style={{
-            background: handsFree ? `${col}1c` : 'transparent',
-            border: `1px solid ${handsFree ? col + '88' : 'rgba(255,255,255,0.14)'}`,
-            borderRadius: 16, padding: '4px 12px', cursor: 'pointer',
-            fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
-            color: handsFree ? col : 'rgba(255,255,255,0.4)',
-            letterSpacing: '0.02em', transition: 'all 0.2s ease',
-          }}
-        >
-          {handsFree ? 'Mains libres' : 'Manuel'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Overlay flottant (par-dessus les autres apps) — natif Android uniquement */}
+          {!(typeof location !== 'undefined' && location.search.includes('overlay')) && (
+            <button
+              onClick={() => sendNativeAction({ __native_action: 'open_overlay' })}
+              title="Ouvrir en overlay par-dessus les autres apps"
+              style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: 16, padding: '4px 10px', cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 13, fontWeight: 500,
+                color: 'rgba(255,255,255,0.55)', transition: 'all 0.2s ease',
+              }}
+            >
+              ⧉
+            </button>
+          )}
+
+          {/* Mains-libres */}
+          <button
+            onClick={() => setHandsFree(h => !h)}
+            style={{
+              background: handsFree ? `${col}1c` : 'transparent',
+              border: `1px solid ${handsFree ? col + '88' : 'rgba(255,255,255,0.14)'}`,
+              borderRadius: 16, padding: '4px 12px', cursor: 'pointer',
+              fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
+              color: handsFree ? col : 'rgba(255,255,255,0.4)',
+              letterSpacing: '0.02em', transition: 'all 0.2s ease',
+            }}
+          >
+            {handsFree ? 'Mains libres' : 'Manuel'}
+          </button>
+        </div>
       </div>
 
       {/* ── ÉTOILE DZARYX (centre, façon Gemini) ── */}
