@@ -173,6 +173,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   }
 
   function startSRDictation(): boolean {
+    // En overlay (WebView), SpeechRecognition est cassé → on force VAD+Whisper (return false).
+    if (compact) return false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) return false;
@@ -195,7 +197,19 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     rec.lang = 'fr-FR';
     rec.interimResults = true;
     rec.onstart = () => setWakeWordOn(true);
-    rec.onerror = () => setWakeWordOn(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onerror = (e: any) => {
+      setWakeWordOn(false);
+      // SpeechRecognition indisponible (fréquent dans la WebView overlay) → on BASCULE
+      // définitivement sur le VAD+Whisper (sinon le micro reste gelé).
+      const fatal = e && (e.error === 'not-allowed' || e.error === 'service-not-allowed'
+        || e.error === 'audio-capture' || e.error === 'language-not-supported');
+      if (fatal) {
+        srWantedRef.current = false;
+        srDictationRef.current = false; // réactive le VAD (tick) → écoute via Whisper
+        stopSR();
+      }
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
       // Sécurité : si Dzaryx parle/réfléchit, on ignore (il ne doit pas s'entendre)
