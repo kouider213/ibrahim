@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   api, connectSocket, disconnectSocket, getOrCreateSessionId,
-  playBase64Audio, enqueueChunk, flushChunks, unlockAudio, stopAudio,
+  playBase64Audio, enqueueChunk, flushChunks, unlockAudio, stopAudio, isAudioPlaying,
   sendNativeAction, tryParseNativeAction,
   type DzaryxStatus,
 } from '../../services/api.ts';
@@ -91,6 +91,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [camActive, setCamActive] = useState(false);
   const videoRef    = useRef<HTMLVideoElement>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const facingModeRef = useRef<'environment' | 'user'>('environment');
+  facingModeRef.current = facingMode;
   const [particles]             = useState(() => makeParticles(30));
   const [, setHud]              = useState('SYSTÈME DZARYX INITIALISÉ');
   const [audioUnlocked, setAudioUnlocked] = useState(sessionAudioUnlocked);
@@ -278,7 +281,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: { ideal: facingModeRef.current }, width: { ideal: 640 }, height: { ideal: 480 } },
       });
       camStreamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
@@ -287,6 +290,23 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       setHud('CAMÉRA ACTIVE — PARLE PENDANT QUE TU FILMES');
     } catch {
       setHud('PERMISSION CAMÉRA REFUSÉE');
+    }
+  }
+
+  // Bascule caméra avant ↔ arrière (comme Gemini)
+  async function flipCam() {
+    const next = facingModeRef.current === 'environment' ? 'user' : 'environment';
+    facingModeRef.current = next;
+    setFacingMode(next);
+    camStreamRef.current?.getTracks().forEach(t => t.stop());
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: next }, width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      camStreamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
+    } catch {
+      setHud('Bascule caméra impossible');
     }
   }
 
@@ -379,8 +399,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         // capte plus l'ambiant ni les autres voix → Dzaryx comprend bien ce qu'IL dit.
         if (!isRecordingRef.current && handsFreeRef.current) { startRecording(true); armStartRef.current = Date.now(); }
         if (rms > SPEECH_RMS) {
-          // Vraie voix confirmée → barge-in + on marque le tour de parole
-          if (statusRef.current === 'speaking') { stopAudio(); setStatus('idle'); }
+          // Vraie voix confirmée → BARGE-IN : si Dzaryx parle (ou audio en cours), on le COUPE
+          // tout de suite (comme Gemini) — indépendant du statut, basé sur l'audio réellement joué.
+          if (statusRef.current === 'speaking' || isAudioPlaying()) { stopAudio(); setStatus('idle'); }
           if (!realSpeechRef.current) { realSpeechRef.current = true; speechStartRef.current = Date.now(); setStatus('listening'); }
         } else if (isRecordingRef.current && !realSpeechRef.current && Date.now() - armStartRef.current > NO_SPEECH_MS) {
           // Armé par un bruit, jamais de vraie voix → on jette (pas envoyé à Whisper)
@@ -866,21 +887,40 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         <video
           ref={videoRef}
           autoPlay playsInline muted
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
         />
         {/* dégradé bas pour lisibilité des contrôles */}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, transparent 30%, transparent 55%, rgba(0,0,0,0.85) 100%)' }} />
         {camActive && (
-          <div style={{
-            position: 'absolute', top: 56, left: 18,
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '4px 10px', borderRadius: 12, background: 'rgba(0,0,0,0.4)',
-          }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF5A5A', boxShadow: '0 0 6px #FF5A5A' }} />
-            <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 500, color: '#fff', letterSpacing: '0.02em' }}>
-              {visionActive ? 'Vision en direct' : 'Caméra'}
-            </span>
-          </div>
+          <>
+            <div style={{
+              position: 'absolute', top: 56, left: 18,
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 12, background: 'rgba(0,0,0,0.4)',
+            }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF5A5A', boxShadow: '0 0 6px #FF5A5A' }} />
+              <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 500, color: '#fff', letterSpacing: '0.02em' }}>
+                {visionActive ? 'Vision en direct' : 'Caméra'}
+              </span>
+            </div>
+            {/* Flip caméra avant/arrière */}
+            <button
+              onClick={flipCam}
+              aria-label="Changer de caméra"
+              style={{
+                position: 'absolute', top: 50, right: 18,
+                width: 40, height: 40, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.25)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6" /><path d="M9 21H3v-6" />
+                <path d="M21 3l-7 7" /><path d="M3 21l7-7" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </>
         )}
       </div>
     </div>
