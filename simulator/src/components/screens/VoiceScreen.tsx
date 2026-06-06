@@ -109,14 +109,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   statusRef.current = status;
 
   // Son d'activation micro (façon Gemini)
-  function playActivationSound() {
+  function playSound(file: string, vol: number) {
     try {
       const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
-      const a = new Audio(`${base}sounds/startup.wav`);
-      a.volume = 0.5;
+      const a = new Audio(`${base}sounds/${file}`);
+      a.volume = vol;
       void a.play().catch(() => {});
     } catch { /* ignore */ }
   }
+  function playActivationSound() { playSound('startup.wav', 0.5); }   // ouverture du mode vocal
+  function playListenSound()     { playSound('listening.wav', 0.6); } // à CHAQUE début d'écoute
 
   // Envoie un texte (dicté par SpeechRecognition) à Dzaryx + joue la réponse
   async function processUserText(text: string) {
@@ -229,6 +231,15 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       }, 400);
     }
     prevStatusRef.current = status;
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Son à CHAQUE début d'écoute (transition → listening) ──────────────────
+  const prevListenRef = useRef<DzaryxStatus>('idle');
+  useEffect(() => {
+    if (status === 'listening' && prevListenRef.current !== 'listening') {
+      playListenSound();
+    }
+    prevListenRef.current = status;
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Native wake word bridge (Porcupine via React Native injectJavaScript) ────
