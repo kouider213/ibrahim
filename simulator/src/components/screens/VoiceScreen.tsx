@@ -101,13 +101,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  const [continuousMode, setContinuousMode] = useState(false);
-  const continuousModeRef = useRef(false);
+  // Conversation continue activée par DÉFAUT (comme Gemini Live) :
+  // mains-libres = le VAD s'arme tout seul au son, sans toucher l'orbe ;
+  // continu = re-écoute automatiquement après chaque réponse → vraie conversation.
+  const [continuousMode, setContinuousMode] = useState(true);
+  const continuousModeRef = useRef(true);
   continuousModeRef.current = continuousMode;
   const prevStatusRef = useRef<DzaryxStatus>('idle');
 
-  const [handsFree, setHandsFree]         = useState(false);
-  const handsFreeRef = useRef(false);
+  const [handsFree, setHandsFree]         = useState(true);
+  const handsFreeRef = useRef(true);
   handsFreeRef.current = handsFree;
   const [wakeWordOn, setWakeWordOn]       = useState(false);
 
