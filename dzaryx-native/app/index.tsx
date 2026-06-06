@@ -338,6 +338,11 @@ export default function App() {
     void registerPushToken();
     void setupVoiceShortcut();
 
+    // Démarre le service wake word "Zaria" (écoute fond → ouvre la barre overlay)
+    if (Platform.OS === 'android') {
+      setTimeout(() => { Linking.openURL('dzaryxwake://start').catch(() => {}); }, 1500);
+    }
+
     // Refresh fleet cache in background
     void fetchAndCacheFleet().then(c => { if (c) setFleetCache(c); });
 
