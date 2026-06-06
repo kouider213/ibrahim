@@ -104,6 +104,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const [liveText, setLiveText] = useState('');   // transcription live (ce que TU dis)
   const srDictationRef = useRef(false);            // SpeechRecognition pilote la conversation (Android)
   const soundPlayedRef = useRef(false);            // son d'activation joué une fois
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const srRecRef       = useRef<any>(null);        // instance SpeechRecognition courante
+  const srWantedRef    = useRef(false);            // on VEUT écouter (vrai tant qu'on est sur l'écran)
+  const srSilenceRef   = useRef<ReturnType<typeof setTimeout> | null>(null); // timer fin-de-tour
+  const srLastTextRef  = useRef('');               // dernier interim (pour finaliser au silence)
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -149,43 +154,83 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     }
   }
 
-  // SpeechRecognition continu (Google STT navigateur) = détecte début/fin tout seul, comme Gemini.
-  // Dispo sur Android (WebView Chrome). Sur iOS WKWebView : indispo → fallback VAD+Whisper.
+  // SpeechRecognition (Google STT navigateur) = comme Gemini, mais avec gestion stricte des tours :
+  // - écoute UNIQUEMENT quand Dzaryx ne parle/réfléchit pas (sinon il s'entend lui-même → croit que tu parles)
+  // - fin de tour détectée par SILENCE (~1,1s sans nouveau mot) → il sait que t'as fini → il répond
+  // Dispo Android (WebView Chrome). iOS WKWebView : indispo → fallback VAD+Whisper.
+  function clearSrSilence() {
+    if (srSilenceRef.current) { clearTimeout(srSilenceRef.current); srSilenceRef.current = null; }
+  }
+
+  function srFinalize(text: string) {
+    clearSrSilence();
+    const t = text.trim();
+    srLastTextRef.current = '';
+    setLiveText('');
+    stopSR();                 // on coupe l'écoute pendant qu'il traite/parle
+    if (t) void processUserText(t);
+  }
+
   function startSRDictation(): boolean {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!SR) return false;
+    srWantedRef.current  = true;
+    srDictationRef.current = true;
+    beginSR();
+    return true;
+  }
+
+  function beginSR() {
+    if (!srWantedRef.current) return;
+    if (srRecRef.current) return;                                   // déjà en écoute
+    if (statusRef.current === 'thinking' || statusRef.current === 'speaking') return; // pas pendant qu'il parle
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SR) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rec = new SR() as any;
     rec.continuous = true;
     rec.lang = 'fr-FR';
     rec.interimResults = true;
-    rec.onstart = () => { setWakeWordOn(true); };
-    rec.onerror = () => { setWakeWordOn(false); };
+    rec.onstart = () => setWakeWordOn(true);
+    rec.onerror = () => setWakeWordOn(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
+      // Sécurité : si Dzaryx parle/réfléchit, on ignore (il ne doit pas s'entendre)
+      if (statusRef.current === 'thinking' || statusRef.current === 'speaking') return;
       let interim = '', final = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const tr = e.results[i]![0]!.transcript as string;
         if (e.results[i]!.isFinal) final += tr; else interim += tr;
       }
-      // Barge-in : tu reparles pendant que Dzaryx parle → on le coupe direct
-      if ((interim.trim() || final.trim()) && (statusRef.current === 'speaking' || isAudioPlaying())) {
-        stopAudio(); setStatus('idle');
-      }
+      if (final.trim()) { srFinalize(final); return; }
       if (interim.trim()) {
         setLiveText(interim);
+        srLastTextRef.current = interim;
         if (statusRef.current === 'idle') setStatus('listening');
+        // fin de tour par silence : plus aucun mot pendant 1,1s → on finalise
+        clearSrSilence();
+        srSilenceRef.current = setTimeout(() => srFinalize(srLastTextRef.current), 1100);
       }
-      if (final.trim()) { void processUserText(final.trim()); }
     };
     rec.onend = () => {
       setWakeWordOn(false);
-      // Reste vivant : on relance (sauf si on a quitté l'écran)
-      if (srDictationRef.current) { setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 250); }
+      srRecRef.current = null;
+      // relance si on veut toujours écouter ET qu'il ne parle/réfléchit pas
+      if (srWantedRef.current && statusRef.current !== 'thinking' && statusRef.current !== 'speaking') {
+        setTimeout(() => beginSR(), 200);
+      }
     };
-    try { rec.start(); srDictationRef.current = true; return true; }
-    catch { return false; }
+    try { rec.start(); srRecRef.current = rec; } catch { /* ignore */ }
+  }
+
+  function stopSR() {
+    clearSrSilence();
+    const rec = srRecRef.current;
+    srRecRef.current = null;
+    if (rec) { try { rec.onend = null; rec.abort(); } catch { /* ignore */ } }
+    setWakeWordOn(false);
   }
 
   // Conversation continue activée par DÉFAUT (comme Gemini Live) :
@@ -221,7 +266,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
 
   // ── Continuous voice mode — auto-restart after TTS completes ──────────────
   useEffect(() => {
-    if (prevStatusRef.current === 'speaking' && status === 'idle' && continuousModeRef.current) {
+    // Mode continu Whisper (fallback iOS uniquement) — quand SR pilote, c'est l'effet SR qui reprend l'écoute
+    if (!srDictationRef.current && prevStatusRef.current === 'speaking' && status === 'idle' && continuousModeRef.current) {
       setTimeout(() => {
         if (statusRef.current === 'idle' && !isRecordingRef.current) {
           setHud('🔄 MODE CONTINU — J\'ÉCOUTE...');
@@ -230,6 +276,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       }, 400);
     }
     prevStatusRef.current = status;
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── SR : pause quand Dzaryx réfléchit/parle, reprend quand il a fini ──────────
+  useEffect(() => {
+    if (!srDictationRef.current) return;
+    if (status === 'thinking' || status === 'speaking') {
+      stopSR();                                   // il ne s'entend plus lui-même
+    } else {
+      setTimeout(() => beginSR(), 150);           // idle/listening → on (re)écoute
+    }
   }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Native wake word bridge (Porcupine via React Native injectJavaScript) ────
@@ -316,7 +372,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current);
-      srDictationRef.current = false; // stoppe la relance SpeechRecognition au changement d'onglet
+      srWantedRef.current = false; srDictationRef.current = false; stopSR(); // stoppe l'écoute au changement d'onglet
       // NE PAS couper le micro partagé (sharedMicStream) au changement d'onglet :
       // on le garde ouvert pour éviter qu'iOS redemande la permission au retour.
       // On coupe seulement la caméra + l'AudioContext (recréé à la prochaine init).
