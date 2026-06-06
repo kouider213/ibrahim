@@ -12,25 +12,19 @@ interface Props {
   actor?: 'kouider' | 'houari';
 }
 
+// Palette or Dzaryx — un seul hue, intensité varie selon l'état (calme façon Gemini)
 const STATE_COLOR: Record<DzaryxStatus, string> = {
-  idle:      '#00d4ff',
-  listening: '#ff3366',
-  thinking:  '#ffaa00',
-  speaking:  '#00e676',
-};
-
-const STATE_LABEL: Record<DzaryxStatus, [string, string]> = {
-  idle:      ['EN ATTENTE', 'STANDBY'],
-  listening: ['ÉCOUTE ACTIVE', 'LISTENING'],
-  thinking:  ['TRAITEMENT', 'THINKING'],
-  speaking:  ['PARLE', 'SPEAKING'],
+  idle:      '#C9A96E',
+  listening: '#E8C98A',
+  thinking:  '#D4B87A',
+  speaking:  '#E8C98A',
 };
 
 const STATE_MSG: Record<DzaryxStatus, string> = {
-  idle:      'Je suis prêt à vous écouter',
-  listening: 'Parlez naturellement...',
-  thinking:  'Réflexion en cours...',
-  speaking:  'Dzaryx vous répond...',
+  idle:      'Sur quoi puis-je vous aider ?',
+  listening: 'Je vous écoute…',
+  thinking:  'Un instant…',
+  speaking:  'Dzaryx répond',
 };
 
 // VAD à 2 seuils — capture le DÉBUT du mot (sinon Whisper comprend de travers).
@@ -48,7 +42,6 @@ const SILENCE_DELAY = 1300;   // ms de silence après parole avant d'envoyer (la
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
-const BUILD_TAG     = 'v17'; // marqueur build visible — confirme que la nouvelle version tourne
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
@@ -88,7 +81,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const sessionId       = useRef(getOrCreateSessionId());
 
   const [status, setStatus]     = useState<DzaryxStatus>('idle');
-  const [toolLabel, setLabel]   = useState<string | null>(null);
+  const [, setLabel]            = useState<string | null>(null);
   const [response, setResp]     = useState('');
   const [respStream, setStream] = useState('');
   const [scanActive, setScanActive] = useState(false);
@@ -99,7 +92,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const videoRef    = useRef<HTMLVideoElement>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
   const [particles]             = useState(() => makeParticles(30));
-  const [hudMsg, setHud]        = useState('SYSTÈME DZARYX INITIALISÉ');
+  const [, setHud]              = useState('SYSTÈME DZARYX INITIALISÉ');
   const [audioUnlocked, setAudioUnlocked] = useState(sessionAudioUnlocked);
   const [rmsLevel, setRmsLevel] = useState(0);
   const rmsRef = useRef(0);
@@ -504,7 +497,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
     const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2;
+    const cx = W / 2;
 
     function frame(t: number) {
       animRef.current = requestAnimationFrame(frame);
@@ -517,43 +510,29 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       const amp   = Math.max(rms * 3, pulse * 0.06);
       const col   = STATE_COLOR[statusRef.current];
 
-      for (let y = 0; y < H; y += 4) {
-        ctx.fillStyle = 'rgba(0,0,0,0.04)';
-        ctx.fillRect(0, y, W, 2);
-      }
+      // Lueur ambiante douce qui monte du bas (façon Gemini)
+      const glow = ctx.createRadialGradient(cx, H * 1.02, 0, cx, H * 1.02, H * 0.6);
+      glow.addColorStop(0, hexToRgba(col, 0.10 + amp * 0.06));
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
 
-      // Subtle ambient rings
-      [0.95, 0.75].forEach((f, i) => {
-        const r = Math.min(cx, cy) * f;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = hexToRgba(col, (0.04 - i * 0.015) * (1 + amp * 2));
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      });
-
-      // Floating particles
+      // Particules très discrètes (poussière d'or)
       particles.forEach((p, idx) => {
-        p.y -= p.vy * (1 + amp);
-        p.x += Math.sin(t * 0.001 + idx) * 0.2;
-        p.life -= 0.002;
+        p.y -= p.vy * (1 + amp) * 0.6;
+        p.x += Math.sin(t * 0.001 + idx) * 0.15;
+        p.life -= 0.0015;
         if (p.life <= 0) {
           p.x = Math.random() * W;
           p.y = H + 10;
           p.life = 0.4 + Math.random() * 0.6;
-          p.vy = 0.2 + Math.random() * 0.4;
+          p.vy = 0.15 + Math.random() * 0.3;
         }
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = hexToRgba(col, p.life * 0.25);
+        ctx.fillStyle = hexToRgba(col, p.life * 0.12);
         ctx.fill();
       });
-
-      // Star field
-      if (t % 3 < 1) {
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.fillRect(Math.random() * W, Math.random() * H * 0.6, 1, 1);
-      }
     }
     frame(0);
   }, [particles]);
@@ -588,8 +567,12 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   }
 
   const col = STATE_COLOR[status];
-  const [labelFr, labelEn] = STATE_LABEL[status];
   const displayText = respStream || response;
+  const isListening = status === 'listening';
+  const isThinking  = status === 'thinking';
+  const isSpeaking  = status === 'speaking';
+  const orbActive   = isListening || isSpeaking || isThinking;
+  const DIM = 'rgba(255,255,255,0.42)';
 
   return (
     <div
@@ -600,436 +583,278 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       <canvas ref={canvasRef} width={347} height={704}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
 
-      {/* ── HEADER ── */}
+      {/* ── HEADER (minimal, façon Gemini) ── */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6,
-        padding: '10px 16px 6px',
-        background: 'linear-gradient(180deg, rgba(0,0,0,0.92) 60%, transparent)',
+        padding: '14px 18px 8px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-          {/* Connection */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: wsConn ? '#00e676' : '#ff3366',
-              boxShadow: `0 0 8px ${wsConn ? '#00e676' : '#ff3366'}`,
-              animation: 'statusPulse 2s ease infinite',
-            }} />
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: wsConn ? '#00e67688' : '#ff336688', letterSpacing: '0.12em' }}>
-              {wsConn ? 'CONNECTÉ' : 'HORS LIGNE'}
-            </span>
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff22', letterSpacing: '0.08em' }}>
-              · SYSTÈME EN LIGNE · {BUILD_TAG}
-            </span>
-          </div>
-
-          {/* DZARYX */}
-          <div style={{
-            fontFamily: 'Orbitron', fontSize: 18, fontWeight: 900,
-            color: '#00d4ff', letterSpacing: '0.4em',
-            textShadow: '0 0 14px #00d4ff, 0 0 28px #00d4ff44',
-          }}>DZARYX</div>
-
-          {/* Menu icon */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, cursor: 'pointer', padding: 4 }}>
-            {[0,1,2].map(i => (
-              <div key={i} style={{ width: 16, height: 1.5, background: '#00d4ff55', borderRadius: 1 }} />
-            ))}
-          </div>
-        </div>
-        <div style={{ textAlign: 'center', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#00d4ff44', letterSpacing: '0.2em' }}>
-            IA DE FIK CONCIERGERIE · ORAN
-          </span>
-          {/* Wake word indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <div style={{
-              width: 5, height: 5, borderRadius: '50%',
-              background: wakeWordOn ? '#00e676' : '#ffffff22',
-              boxShadow: wakeWordOn ? '0 0 6px #00e676' : 'none',
-            }} />
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: wakeWordOn ? '#00e67666' : '#ffffff22', letterSpacing: '0.1em' }}>
-              WAKE
-            </span>
-          </div>
-          {/* Hands-free toggle */}
-          <button
-            onClick={() => setHandsFree(h => !h)}
-            style={{
-              background: handsFree ? 'rgba(0,230,118,0.12)' : 'transparent',
-              border: `1px solid ${handsFree ? '#00e67666' : '#ffffff22'}`,
-              borderRadius: 4, padding: '1px 5px', cursor: 'pointer',
-              fontFamily: 'Share Tech Mono', fontSize: 6,
-              color: handsFree ? '#00e676' : '#ffffff33',
-              letterSpacing: '0.08em',
-            }}
-          >
-            {handsFree ? '🙌 LIBRE' : 'MAINS'}
-          </button>
-        </div>
-        <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${col}55, transparent)` }} />
-      </div>
-
-      {/* ── STATUS BADGE ── */}
-      <div style={{
-        position: 'absolute', top: 74, left: 0, right: 0, zIndex: 6,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          padding: '5px 16px', borderRadius: 20,
-          border: `1.5px solid ${col}55`, background: `${col}0d`,
-          boxShadow: `0 0 12px ${col}22`,
-        }}>
+        {/* Connexion + nom */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <div style={{
             width: 6, height: 6, borderRadius: '50%',
-            background: col, boxShadow: `0 0 8px ${col}`,
-            animation: 'statusPulse 1.5s ease infinite',
+            background: wsConn ? '#52E3A1' : '#FF5A5A',
+            boxShadow: `0 0 8px ${wsConn ? '#52E3A1' : '#FF5A5A'}`,
           }} />
-          <span style={{
-            fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700,
-            color: col, letterSpacing: '0.2em', textShadow: `0 0 8px ${col}`,
-          }}>{labelFr}{toolLabel ? ` — ${toolLabel}` : ''}</span>
+          <span style={{ fontFamily: 'Inter', fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.62)', letterSpacing: '0.01em' }}>
+            Dzaryx
+          </span>
+          {wakeWordOn && (
+            <span style={{ fontFamily: 'Inter', fontSize: 9, color: `${col}99`, letterSpacing: '0.08em', marginLeft: 2 }}>· à l'écoute</span>
+          )}
         </div>
-        <span style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: `${col}55`, letterSpacing: '0.3em' }}>
-          {labelEn}
-        </span>
+
+        {/* Mains-libres */}
+        <button
+          onClick={() => setHandsFree(h => !h)}
+          style={{
+            background: handsFree ? `${col}1c` : 'transparent',
+            border: `1px solid ${handsFree ? col + '88' : 'rgba(255,255,255,0.14)'}`,
+            borderRadius: 16, padding: '4px 12px', cursor: 'pointer',
+            fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
+            color: handsFree ? col : 'rgba(255,255,255,0.4)',
+            letterSpacing: '0.02em', transition: 'all 0.2s ease',
+          }}
+        >
+          {handsFree ? 'Mains libres' : 'Manuel'}
+        </button>
       </div>
 
-      {/* ── ROBOT + HALO ── */}
+      {/* ── ÉTOILE DZARYX (centre, façon Gemini) ── */}
       <div style={{
-        position: 'absolute', left: '50%', top: '40%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 5,
+        position: 'absolute', left: 0, right: 0, top: '33%',
+        display: 'flex', justifyContent: 'center', zIndex: 5, pointerEvents: 'none',
       }}>
-        {/* Outer ambient ring */}
-        <div style={{
-          position: 'absolute', top: '42%', left: '50%',
-          width: 240, height: 240, borderRadius: '50%',
-          border: `1px solid ${col}`,
-          opacity: 0.07,
-          animation: 'halo-breathe 4s ease-in-out infinite',
-          transform: 'translate(-50%, -50%)',
-          pointerEvents: 'none',
-        }} />
-        {/* Middle ring — pulse on listening */}
-        <div style={{
-          position: 'absolute', top: '42%', left: '50%',
-          width: 196, height: 196, borderRadius: '50%',
-          border: `1px solid ${col}`,
-          opacity: status === 'listening' ? 0.28 : 0.09,
-          animation: status === 'listening' ? 'ring-expand 1.8s ease-out infinite' : 'halo-breathe 3s ease-in-out infinite 0.5s',
-          transform: 'translate(-50%, -50%)',
-          pointerEvents: 'none',
-        }} />
-        {/* Glow core */}
-        <div style={{
-          position: 'absolute', top: '42%', left: '50%',
-          width: 150, height: 150, borderRadius: '50%',
-          background: `radial-gradient(circle, ${col}10 0%, transparent 70%)`,
-          animation: 'halo-breathe 2.5s ease-in-out infinite',
-          transform: 'translate(-50%, -50%)',
-          pointerEvents: 'none',
-        }} />
-        <DzaryxRobot status={status} visionActive={visionActive} scale={0.82} />
+        <Sparkle col={col} active={orbActive} />
       </div>
 
-      {/* ── STATE TEXT ── */}
+      {/* ── TEXTE CENTRAL (salutation / réponse) ── */}
       <div style={{
-        position: 'absolute', bottom: 152, left: 0, right: 0, zIndex: 6, textAlign: 'center',
+        position: 'absolute', top: '42%', left: 0, right: 0, zIndex: 6,
+        padding: '0 26px', textAlign: 'center',
+        maxHeight: '38%', display: 'flex', flexDirection: 'column', alignItems: 'center',
       }}>
-        <div style={{
-          fontFamily: 'Inter', fontSize: 14, fontWeight: 500,
-          color: 'rgba(200,232,255,0.85)',
-          letterSpacing: '0.02em', marginBottom: 6,
-          textShadow: `0 0 12px ${col}55`,
-        }}>
-          {STATE_MSG[status]}
-        </div>
-        {displayText && (
+        {displayText ? (
           <div
             onClick={() => setRespExpanded(e => !e)}
             style={{
-              margin: '0 20px',
-              padding: '8px 14px',
-              background: `rgba(7,17,31,0.82)`,
-              border: `1px solid ${col}25`,
-              borderRadius: 12,
-              fontFamily: 'Inter', fontSize: 11, fontWeight: 400,
-              color: `rgba(200,232,255,0.82)`,
-              lineHeight: 1.6,
-              maxHeight: respExpanded ? 200 : 64,
-              overflow: respExpanded ? 'auto' : 'hidden',
-              backdropFilter: 'blur(10px)',
-              cursor: 'pointer',
-              transition: 'max-height 0.3s ease',
-              position: 'relative',
+              fontFamily: 'Inter', fontSize: 18, fontWeight: 300,
+              color: 'rgba(255,255,255,0.92)',
+              lineHeight: 1.55, letterSpacing: '0.01em',
+              maxHeight: respExpanded ? 280 : 168,
+              overflow: 'auto', cursor: 'pointer', width: '100%',
             }}
           >
             {displayText}
-            {!respExpanded && displayText.length > 100 && (
-              <div style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0, height: 24,
-                background: `linear-gradient(transparent, rgba(7,17,31,0.9))`,
-                display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 2,
-              }}>
-                <span style={{ fontSize: 7, color: `${col}88`, fontFamily: 'Inter', letterSpacing: '0.1em' }}>▼ VOIR TOUT</span>
-              </div>
-            )}
+          </div>
+        ) : (
+          <div style={{
+            fontFamily: 'Inter', fontSize: 27, fontWeight: 300,
+            color: 'rgba(255,255,255,0.96)',
+            lineHeight: 1.25, letterSpacing: '0.01em',
+          }}>
+            {STATE_MSG[status]}
           </div>
         )}
-        {/* Images (passeport/permis/doc client) affichées aussi en mode voix */}
+
+        {/* Images (passeport/permis/doc client) */}
         {imageUrlsFrom(displayText).slice(0, 3).map((u, i) => (
-          <a key={i} href={u} target="_blank" rel="noopener noreferrer" style={{ display: 'block', margin: '8px 20px 0' }}>
+          <a key={i} href={u} target="_blank" rel="noopener noreferrer" style={{ display: 'block', margin: '12px 0 0', width: '100%' }}>
             <img src={u} alt="document"
-              style={{ width: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 12, border: `1px solid ${col}33`, background: 'rgba(0,0,0,0.3)' }} />
+              style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 14, border: `1px solid ${col}33`, background: 'rgba(0,0,0,0.3)' }} />
           </a>
         ))}
-        <div style={{ marginTop: 6 }}>
-          <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 400, color: `${col}44`, letterSpacing: '0.08em' }}>
-            {hudMsg.slice(0, 55)}
-          </span>
-        </div>
       </div>
 
-      {/* ── RMS BAR ── */}
-      {audioUnlocked && (
-        <div style={{ position: 'absolute', bottom: 144, left: 20, right: 20, zIndex: 6, height: 2, background: '#ffffff08', borderRadius: 1 }}>
-          <div style={{
-            height: '100%', width: `${rmsLevel * 100}%`,
-            background: rmsLevel > 0.05 ? '#ff3366' : col,
-            borderRadius: 1, transition: 'width 0.04s linear',
-          }} />
-        </div>
-      )}
-
-      {/* ── BOTTOM BUTTONS ── */}
+      {/* ── BARRE D'ACTIONS (façon Gemini Live) ── */}
       <div style={{
-        position: 'absolute', bottom: 10, left: 0, right: 0, zIndex: 6,
-        display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end',
-        padding: '0 10px',
+        position: 'absolute', bottom: 26, left: 0, right: 0, zIndex: 6,
+        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 22,
+        padding: '0 18px',
       }}>
-        {/* SCAN DOCUMENT */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-          <button
-            onClick={() => {
-              const input = document.createElement('input');
-              input.type = 'file'; input.accept = 'image/*';
-              input.onchange = async () => {
-                const file = input.files?.[0]; if (!file) return;
-                setScanActive(true);
-                try {
-                  const b64 = await new Promise<string>((res, rej) => {
-                    const reader = new FileReader();
-                    reader.onload = () => res((reader.result as string).split(',')[1] ?? '');
-                    reader.onerror = rej; reader.readAsDataURL(file);
-                  });
-                  const scan = await api.scan(b64, file.type);
-                  const chat = await api.chat(`[SCAN OCR] ${scan.description}`, sessionId.current);
-                  if (chat.text) setResp(chat.text);
-                  if (chat.audio) await playBase64Audio(chat.audio);
-                } catch { /* ignore */ } finally { setScanActive(false); }
-              };
-              input.click();
-            }}
-            disabled={scanActive}
-            style={{
-              width: 58, height: 58, borderRadius: 16,
-              background: scanActive ? 'rgba(255,170,0,0.12)' : 'rgba(255,107,0,0.06)',
-              border: `1.5px solid ${scanActive ? '#ffaa00' : '#ff6b0055'}`,
-              cursor: 'pointer', display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              boxShadow: scanActive ? '0 0 18px rgba(255,170,0,0.45)' : '0 0 8px rgba(255,107,0,0.18)',
-              transition: 'all 0.25s ease',
-              backdropFilter: 'blur(8px)',
-            }}
-          >
-            {scanActive ? (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffaa00" strokeWidth="1.8" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
-                <circle cx="12" cy="12" r="9" strokeOpacity="0.3" />
-                <path d="M12 3a9 9 0 0 1 9 9" />
-              </svg>
-            ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff6b00cc" strokeWidth="1.5" strokeLinecap="round">
-                <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" />
-                <path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-                <rect x="7" y="7" width="10" height="10" rx="1" strokeOpacity="0.5" />
-                <line x1="3" y1="12" x2="21" y2="12" strokeOpacity="0.7" />
-              </svg>
-            )}
-          </button>
-          <span style={{ fontFamily: 'Inter', fontSize: 7, fontWeight: 600, color: '#ff6b00aa', letterSpacing: '0.12em', textTransform: 'uppercase' }}>SCAN</span>
-          <span style={{ fontFamily: 'Inter', fontSize: 6, fontWeight: 400, color: '#ff6b0066', letterSpacing: '0.1em', textTransform: 'uppercase' }}>DOC</span>
-        </div>
-
-        {/* MIC — premium 90px centre */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          <div style={{ position: 'relative', width: 90, height: 90 }}>
-            {/* Ambient pulse ring */}
+        {/* CAMÉRA / VISION */}
+        <button
+          onClick={toggleLiveCam}
+          style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: camActive ? `${col}1c` : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${camActive ? col + '99' : 'rgba(255,255,255,0.14)'}`,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s ease', position: 'relative',
+          }}
+          aria-label="Caméra"
+        >
+          <VisionIcon active={camActive} />
+          {camActive && (
             <div style={{
-              position: 'absolute', inset: -14,
-              borderRadius: '50%',
-              border: `1px solid ${col}`,
-              opacity: status === 'listening' ? 0.35 : 0.07,
-              animation: status === 'listening' ? 'ring-expand 1.4s ease-out infinite' : 'halo-breathe 4s ease-in-out infinite',
-              pointerEvents: 'none',
+              position: 'absolute', top: -2, right: -2,
+              width: 9, height: 9, borderRadius: '50%',
+              background: '#FF5A5A', boxShadow: '0 0 6px #FF5A5A',
             }} />
-            {/* Second ring (listening only) */}
-            {status === 'listening' && (
-              <div style={{
-                position: 'absolute', inset: -6,
-                borderRadius: '50%',
-                border: `1px solid ${col}`,
-                opacity: 0.25,
-                animation: 'ring-expand 1.4s ease-out infinite 0.5s',
-                pointerEvents: 'none',
-              }} />
-            )}
-            {/* Button core — tappable */}
-            <div
-              onClick={() => {
-                if (status === 'idle' && !isRecordingRef.current) {
-                  unlockAudio();
-                  if (streamRef.current) { startRecording(); setHud('🎤 MANUEL — J\'ÉCOUTE'); }
-                  else { setHud('MIC NON ACTIVÉ'); }
-                } else if (status === 'listening') {
-                  stopRecordingAndProcess();
-                } else if (status === 'speaking') {
-                  stopAudio(); setStatus('idle');
-                }
-              }}
-              style={{
-                width: 90, height: 90, borderRadius: '50%',
-                background: status === 'listening'
-                  ? `radial-gradient(circle at 35% 30%, ${col}44, ${col}16)`
-                  : `radial-gradient(circle at 35% 30%, ${col}1c, ${col}08)`,
-                border: `2px solid ${status === 'listening' ? col : col + '77'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: status === 'listening'
-                  ? `0 0 30px ${col}66, 0 0 60px ${col}2a, inset 0 0 22px ${col}16`
-                  : `0 0 16px ${col}33, 0 0 32px ${col}12, inset 0 0 12px ${col}0a`,
-                animation: status === 'listening' ? 'neonPulse 0.8s ease infinite' : 'statusPulse 4s ease infinite',
-                transition: 'all 0.3s ease',
-                cursor: status === 'thinking' ? 'default' : 'pointer',
-              }}
-            >
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
-                style={{ filter: `drop-shadow(0 0 7px ${col}) drop-shadow(0 0 14px ${col}55)` }}>
-                {status === 'listening' ? (
-                  // Stop icon when listening
-                  <rect x="7" y="7" width="10" height="10" rx="2" fill={col} opacity="0.88" />
-                ) : (
-                  <>
-                    <rect x="9" y="2" width="6" height="11" rx="3" fill={col} opacity="0.88" />
-                    <path d="M5 10a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
-                    <line x1="12" y1="17" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
-                    <line x1="8" y1="21" x2="16" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
-                  </>
-                )}
-              </svg>
-            </div>
-          </div>
-          <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 600, color: `${col}cc`, letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-            {status === 'listening' ? 'STOP' : status === 'speaking' ? 'COUPER' : 'MICRO'}
-          </span>
-          {/* Continuous mode toggle */}
-          <button
-            onClick={() => setContinuousMode(m => !m)}
-            style={{
-              marginTop: 2, padding: '2px 8px', borderRadius: 8,
-              background: continuousMode ? `${col}22` : 'transparent',
-              border: `1px solid ${continuousMode ? col : col + '44'}`,
-              cursor: 'pointer', color: continuousMode ? col : `${col}66`,
-              fontFamily: 'Share Tech Mono', fontSize: 6, letterSpacing: '0.12em',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {continuousMode ? '🔄 CONTINU' : '⏸ PAUSE'}
-          </button>
-        </div>
+          )}
+        </button>
 
-        {/* LIVE CAM */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-          <button
-            onClick={toggleLiveCam}
-            style={{
-              width: 58, height: 58, borderRadius: 16,
-              background: camActive ? 'rgba(155,89,182,0.14)' : 'rgba(155,89,182,0.05)',
-              border: `1.5px solid ${camActive ? '#9b59b6' : '#9b59b644'}`,
-              cursor: 'pointer', display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              boxShadow: camActive ? '0 0 20px rgba(155,89,182,0.55)' : '0 0 8px rgba(155,89,182,0.15)',
-              transition: 'all 0.25s ease', position: 'relative',
-              backdropFilter: 'blur(8px)',
-            }}
-          >
-            <VisionIcon active={camActive} />
-            {camActive && (
-              <div style={{
-                position: 'absolute', top: -4, right: -4,
-                width: 10, height: 10, borderRadius: '50%',
-                background: '#ff3366', boxShadow: '0 0 8px #ff3366',
-                animation: 'statusPulse 1s ease infinite',
-              }} />
-            )}
-          </button>
-          <span style={{ fontFamily: 'Inter', fontSize: 7, fontWeight: 600, color: '#9b59b6aa', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            {camActive ? 'CAM ON' : 'CAMÉRA'}
-          </span>
-          <span style={{ fontFamily: 'Inter', fontSize: 6, fontWeight: 400, color: '#9b59b666', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            {camActive ? 'LIVE' : 'VOIX+VUE'}
-          </span>
-        </div>
+        {/* ORBE PILL — micro, coeur lumineux tappable */}
+        <button
+          onClick={() => {
+            if (status === 'idle' && !isRecordingRef.current) {
+              unlockAudio();
+              if (streamRef.current) { startRecording(); setHud('Écoute…'); }
+              else { setHud('Micro non activé'); }
+            } else if (status === 'listening') {
+              stopRecordingAndProcess();
+            } else if (status === 'speaking') {
+              stopAudio(); setStatus('idle');
+            }
+          }}
+          disabled={isThinking}
+          style={{
+            position: 'relative',
+            width: 118, height: 56, borderRadius: 28, padding: 0,
+            background: orbActive
+              ? `linear-gradient(180deg, ${col}33, ${col}14)`
+              : 'rgba(20,16,8,0.9)',
+            border: `1px solid ${orbActive ? col : col + '55'}`,
+            cursor: isThinking ? 'default' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: isListening
+              ? `0 0 ${22 + rmsLevel * 40}px ${col}aa, 0 0 70px ${col}33`
+              : orbActive ? `0 0 26px ${col}77` : `0 0 16px ${col}33`,
+            transition: 'box-shadow 0.08s linear, background 0.3s ease, border 0.3s ease',
+            overflow: 'hidden',
+          }}
+          aria-label="Micro"
+        >
+          {isThinking ? (
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
+              <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
+              <path d="M12 3a9 9 0 0 1 9 9" />
+            </svg>
+          ) : isListening ? (
+            // barres d'onde réactives
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 24 }}>
+              {[0.5, 0.85, 1, 0.7, 0.9].map((h, i) => (
+                <div key={i} style={{
+                  width: 4, borderRadius: 2, background: col,
+                  height: `${Math.max(6, (h * (0.4 + rmsLevel * 1.6)) * 24)}px`,
+                  transition: 'height 0.08s linear',
+                }} />
+              ))}
+            </div>
+          ) : isSpeaking ? (
+            <div style={{ width: 56, height: 18, borderRadius: 9, background: col, opacity: 0.9, animation: 'corePulse 1.1s ease-in-out infinite' }} />
+          ) : (
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <rect x="9" y="3" width="6" height="11" rx="3" fill={col} />
+              <path d="M5 11a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+              <line x1="12" y1="18" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
+
+        {/* SCAN DOC */}
+        <button
+          onClick={() => {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'image/*';
+            input.onchange = async () => {
+              const file = input.files?.[0]; if (!file) return;
+              setScanActive(true);
+              try {
+                const b64 = await new Promise<string>((res, rej) => {
+                  const reader = new FileReader();
+                  reader.onload = () => res((reader.result as string).split(',')[1] ?? '');
+                  reader.onerror = rej; reader.readAsDataURL(file);
+                });
+                const scan = await api.scan(b64, file.type);
+                const chat = await api.chat(`[SCAN OCR] ${scan.description}`, sessionId.current);
+                if (chat.text) setResp(chat.text);
+                if (chat.audio) await playBase64Audio(chat.audio);
+              } catch { /* ignore */ } finally { setScanActive(false); }
+            };
+            input.click();
+          }}
+          disabled={scanActive}
+          style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: scanActive ? `${col}1c` : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${scanActive ? col + '99' : 'rgba(255,255,255,0.14)'}`,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s ease',
+          }}
+          aria-label="Scanner un document"
+        >
+          {scanActive ? (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="1.8" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
+              <circle cx="12" cy="12" r="9" strokeOpacity="0.3" />
+              <path d="M12 3a9 9 0 0 1 9 9" />
+            </svg>
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" />
+              <path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+              <rect x="7" y="7" width="10" height="10" rx="1" strokeOpacity="0.5" />
+              <line x1="3" y1="12" x2="21" y2="12" strokeOpacity="0.7" />
+            </svg>
+          )}
+        </button>
       </div>
 
-      {/* ── AUDIO UNLOCK OVERLAY ── */}
+      {/* Mode continu — petit toggle discret */}
+      <button
+        onClick={() => setContinuousMode(m => !m)}
+        style={{
+          position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 6,
+          padding: '4px 14px', borderRadius: 14,
+          background: continuousMode ? `${col}1c` : 'transparent',
+          border: `1px solid ${continuousMode ? col + '88' : 'rgba(255,255,255,0.12)'}`,
+          cursor: 'pointer', color: continuousMode ? col : 'rgba(255,255,255,0.4)',
+          fontFamily: 'Inter', fontSize: 10, fontWeight: 500, letterSpacing: '0.02em',
+          transition: 'all 0.2s ease',
+        }}
+      >
+        {continuousMode ? 'Conversation continue' : 'Appui pour parler'}
+      </button>
+
+      {/* ── OVERLAY D'ACTIVATION (clean) ── */}
       {!audioUnlocked && (
         <div
           onClick={e => { e.stopPropagation(); sessionAudioUnlocked = true; unlockAudio(); setAudioUnlocked(true); initMic(); }}
           style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.94)', backdropFilter: 'blur(12px)', cursor: 'pointer',
-            animation: 'fadeIn 0.4s ease',
+            background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(8px)', cursor: 'pointer',
+            animation: 'fadeIn 0.4s ease', padding: '0 32px',
           }}
         >
-          <div style={{ marginBottom: 28, opacity: 0.75 }}>
-            <DzaryxRobot status="idle" visionActive={false} scale={0.55} />
+          <Sparkle col={col} active={false} />
+          <div style={{
+            fontFamily: 'Inter', fontSize: 22, fontWeight: 300,
+            color: 'rgba(255,255,255,0.95)', marginTop: 26, textAlign: 'center', lineHeight: 1.3,
+          }}>
+            Activer Dzaryx
+          </div>
+          <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 300, color: 'rgba(255,255,255,0.4)', marginTop: 10, textAlign: 'center' }}>
+            Appuyez pour démarrer le micro
           </div>
           <div style={{
-            border: '1px solid rgba(0,212,255,0.2)', borderRadius: 22,
-            padding: '22px 36px', textAlign: 'center',
-            background: 'rgba(0,5,18,0.96)',
-            boxShadow: '0 0 50px rgba(0,212,255,0.12), 0 0 100px rgba(0,212,255,0.05)',
+            marginTop: 26, width: 44, height: 44, borderRadius: '50%',
+            border: `1px solid ${col}66`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: `0 0 20px ${col}33`,
           }}>
-            <div style={{
-              fontFamily: 'Orbitron', fontSize: 15, color: '#00d4ff',
-              letterSpacing: '0.3em', fontWeight: 700, marginBottom: 6,
-              textShadow: '0 0 18px #00d4ff, 0 0 36px rgba(0,212,255,0.4)',
-            }}>ACTIVER DZARYX</div>
-            <div style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 400, color: 'rgba(0,212,255,0.4)', letterSpacing: '0.18em', marginBottom: 16 }}>
-              MICRO + AUDIO
-            </div>
-            {/* Tap indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px solid rgba(0,212,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'statusPulse 1.8s ease infinite' }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00d4ff" strokeWidth="2" strokeLinecap="round">
-                  <path d="M12 5v14M5 12l7 7 7-7" />
-                </svg>
-              </div>
-              <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 500, color: 'rgba(0,212,255,0.5)', letterSpacing: '0.12em' }}>APPUYER POUR DÉMARRER</span>
-            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <rect x="9" y="3" width="6" height="11" rx="3" fill={col} />
+              <path d="M5 11a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+              <line x1="12" y1="18" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
           </div>
         </div>
       )}
 
-      {/* ── LIVE CAMERA PREVIEW — always in DOM so videoRef is ready ── */}
+      {/* ── CAMÉRA PLEIN ÉCRAN (mode vision) — toujours en DOM pour videoRef ── */}
       <div style={{
-        position: 'absolute', bottom: 108, right: 10, zIndex: 8,
-        width: 90, height: 120, borderRadius: 10,
-        border: `1.5px solid ${camActive ? '#9b59b6aa' : 'transparent'}`,
+        position: 'absolute', inset: 0, zIndex: 2,
         overflow: 'hidden',
-        boxShadow: camActive ? '0 0 16px #9b59b666' : 'none',
         opacity: camActive ? 1 : 0,
         pointerEvents: camActive ? 'auto' : 'none',
         transition: 'opacity 0.3s',
@@ -1040,19 +865,21 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
           autoPlay playsInline muted
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
+        {/* dégradé bas pour lisibilité des contrôles */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, transparent 30%, transparent 55%, rgba(0,0,0,0.85) 100%)' }} />
         {camActive && (
           <div style={{
-            position: 'absolute', top: 4, left: 4,
-            display: 'flex', alignItems: 'center', gap: 3,
+            position: 'absolute', top: 56, left: 18,
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px', borderRadius: 12, background: 'rgba(0,0,0,0.4)',
           }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#ff3366', boxShadow: '0 0 4px #ff3366', animation: 'statusPulse 1s ease infinite' }} />
-            <span style={{ fontFamily: 'Share Tech Mono', fontSize: 6, color: '#ff3366', letterSpacing: '0.1em' }}>LIVE</span>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF5A5A', boxShadow: '0 0 6px #FF5A5A' }} />
+            <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 500, color: '#fff', letterSpacing: '0.02em' }}>
+              {visionActive ? 'Vision en direct' : 'Caméra'}
+            </span>
           </div>
         )}
       </div>
-
-      {/* Corner brackets */}
-      {(['tl','tr','bl','br'] as const).map(p => <Corner key={p} pos={p} col={col} />)}
     </div>
   );
 }
@@ -1198,6 +1025,24 @@ function DzaryxRobot({
       {/* Rim light bottom-right */}
       <path d={`M ${C + 44} ${C + 30} A 62 62 0 0 1 ${C - 10} ${C + 60}`}
         fill="none" stroke={accent} strokeWidth="1.5" strokeOpacity="0.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── Étoile Dzaryx (sparkle façon Gemini, en or) ──────────────────────────────
+function Sparkle({ col, active }: { col: string; active: boolean }) {
+  return (
+    <svg width={active ? 42 : 34} height={active ? 42 : 34} viewBox="0 0 24 24" fill="none"
+      style={{
+        filter: `drop-shadow(0 0 10px ${col}aa) drop-shadow(0 0 24px ${col}55)`,
+        transition: 'all 0.3s ease',
+        animation: active ? 'corePulse 1.4s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite',
+      }}
+    >
+      <path
+        d="M12 0 C12.6 6.4 17.6 11.4 24 12 C17.6 12.6 12.6 17.6 12 24 C11.4 17.6 6.4 12.6 0 12 C6.4 11.4 11.4 6.4 12 0 Z"
+        fill={col}
+      />
     </svg>
   );
 }

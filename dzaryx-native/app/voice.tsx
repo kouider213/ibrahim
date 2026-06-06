@@ -16,33 +16,24 @@ const { width: W, height: H } = Dimensions.get('window');
 
 type State = 'idle' | 'listen' | 'think' | 'speak';
 
-// ── Premium color palette ─────────────────────────────────────
-const GOLD    = '#C9A96E';
-const GOLD_DIM = '#C9A96E44';
+// ── Palette épurée (Gemini calm + or Dzaryx) ──────────────────
+const GOLD     = '#C9A96E';
 const GOLD_HI  = '#E8C98A';
-const WHITE   = '#FFFFFF';
-const DIM     = '#FFFFFF33';
-const BG      = '#000000';
-
-const STATE_LABEL: Record<State, string> = {
-  idle:   'EN ATTENTE',
-  listen: 'ÉCOUTE',
-  think:  'TRAITEMENT',
-  speak:  'RÉPONSE',
-};
+const WHITE    = '#FFFFFF';
+const BG       = '#000000';
 
 const STATE_MSG: Record<State, string> = {
-  idle:   'Je suis prêt à vous écouter',
-  listen: 'Parlez naturellement…',
-  think:  'Réflexion en cours…',
-  speak:  'Dzaryx vous répond…',
+  idle:   'Appuyez ou parlez',
+  listen: 'Je vous écoute…',
+  think:  'Un instant…',
+  speak:  'Dzaryx répond',
 };
 
 // VAD constants — seuils relevés pour ne plus déclencher sur le bruit de fond
-const SPEAK_DB    = -22;   // était -25 → trop sensible, le bruit ambiant déclenchait l'écoute
+const SPEAK_DB    = -22;
 const SILENCE_DB  = -40;
 const SILENCE_END = 800;
-const MIN_SPEECH  = 300;   // rejette les bruits ultra-courts SANS jeter "oui/non" (le vrai filtre = seuil dB)
+const MIN_SPEECH  = 300;
 const VAD_POLL    = 100;
 
 export default function VoiceScreen() {
@@ -50,10 +41,15 @@ export default function VoiceScreen() {
 
   const mobileToken  = useStore(s => s.mobileToken);
   const getSessionId = useStore(s => s.sessionId);
+  const displayName  = useStore(s => s.displayName);
+  const actorId      = useStore(s => s.actorId);
+
+  const firstName = displayName?.split(' ')[0]
+    ?? (actorId ? actorId.charAt(0).toUpperCase() + actorId.slice(1) : 'Kouider');
 
   const [appState, setAppState]    = useState<State>('idle');
   const [response, setResponse]    = useState('');
-  const [hudText, setHud]          = useState('Système actif');
+  const [userText, setUserText]    = useState('');     // ce que TU as dit (live transcript)
   const [wsConnected, setWsConn]   = useState(false);
   const [visionLoading, setVision] = useState(false);
   const [scanLoading, setScan]     = useState(false);
@@ -66,27 +62,41 @@ export default function VoiceScreen() {
   const isSpeakingRef  = useRef(false);
   const stateRef       = useRef<State>('idle');
   const sessionIdRef   = useRef(getSessionId());
+  const chimeRef       = useRef<Audio.Sound | null>(null);
 
   stateRef.current = appState;
 
+  // Précharge le petit son d'activation micro (façon Gemini)
+  useEffect(() => {
+    let mounted = true;
+    Audio.Sound.createAsync(
+      require('../assets/page1_voice_vision/audio/listening.wav'),
+      { shouldPlay: false, volume: 0.5 },
+    ).then(({ sound }) => {
+      if (mounted) chimeRef.current = sound;
+      else sound.unloadAsync().catch(() => {});
+    }).catch(() => {});
+    return () => { mounted = false; chimeRef.current?.unloadAsync().catch(() => {}); chimeRef.current = null; };
+  }, []);
+
+  function playChime() {
+    chimeRef.current?.replayAsync().catch(() => {});
+  }
+
   // ── Animations ────────────────────────────────────────────────
   const orbScale   = useRef(new Animated.Value(1)).current;
-  const orbOpacity = useRef(new Animated.Value(0.15)).current;
+  const orbGlow    = useRef(new Animated.Value(0.35)).current;
   const ring1Scale = useRef(new Animated.Value(1)).current;
-  const ring1Op    = useRef(new Animated.Value(0.5)).current;
+  const ring1Op    = useRef(new Animated.Value(0)).current;
   const ring2Scale = useRef(new Animated.Value(1)).current;
-  const ring2Op    = useRef(new Animated.Value(0.3)).current;
+  const ring2Op    = useRef(new Animated.Value(0)).current;
   const spinAnim   = useRef(new Animated.Value(0)).current;
   const waveAnim   = useRef(new Animated.Value(0)).current;
 
-  // Idle: gentle pulse on orb
-  const idleAnim = useRef<Animated.CompositeAnimation | null>(null);
-  // Listen: rings expand
+  const idleAnim   = useRef<Animated.CompositeAnimation | null>(null);
   const listenAnim = useRef<Animated.CompositeAnimation | null>(null);
-  // Think: spin arc
-  const thinkAnim = useRef<Animated.CompositeAnimation | null>(null);
-  // Speak: wave bounce
-  const speakAnim = useRef<Animated.CompositeAnimation | null>(null);
+  const thinkAnim  = useRef<Animated.CompositeAnimation | null>(null);
+  const speakAnim  = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     stopAllAnims();
@@ -94,49 +104,57 @@ export default function VoiceScreen() {
       idleAnim.current = Animated.loop(
         Animated.sequence([
           Animated.parallel([
-            Animated.timing(orbScale,   { toValue: 1.06, duration: 2000, useNativeDriver: true }),
-            Animated.timing(orbOpacity, { toValue: 0.25, duration: 2000, useNativeDriver: true }),
+            Animated.timing(orbScale, { toValue: 1.05, duration: 2600, useNativeDriver: true }),
+            Animated.timing(orbGlow,  { toValue: 0.55, duration: 2600, useNativeDriver: true }),
           ]),
           Animated.parallel([
-            Animated.timing(orbScale,   { toValue: 1.0, duration: 2000, useNativeDriver: true }),
-            Animated.timing(orbOpacity, { toValue: 0.12, duration: 2000, useNativeDriver: true }),
+            Animated.timing(orbScale, { toValue: 1.0, duration: 2600, useNativeDriver: true }),
+            Animated.timing(orbGlow,  { toValue: 0.35, duration: 2600, useNativeDriver: true }),
           ]),
         ]),
       );
       idleAnim.current.start();
     } else if (appState === 'listen') {
-      ring1Scale.setValue(1); ring1Op.setValue(0.6);
-      ring2Scale.setValue(1); ring2Op.setValue(0.3);
+      ring1Scale.setValue(1); ring1Op.setValue(0.5);
+      ring2Scale.setValue(1); ring2Op.setValue(0.25);
+      orbGlow.setValue(0.7);
       listenAnim.current = Animated.loop(
         Animated.parallel([
           Animated.sequence([
-            Animated.timing(ring1Scale, { toValue: 1.6, duration: 900, useNativeDriver: true }),
-            Animated.timing(ring1Scale, { toValue: 1.0, duration: 900, useNativeDriver: true }),
+            Animated.timing(ring1Scale, { toValue: 1.7, duration: 1400, useNativeDriver: true }),
+            Animated.timing(ring1Scale, { toValue: 1.0, duration: 0, useNativeDriver: true }),
           ]),
           Animated.sequence([
-            Animated.timing(ring1Op, { toValue: 0, duration: 900, useNativeDriver: true }),
-            Animated.timing(ring1Op, { toValue: 0.6, duration: 900, useNativeDriver: true }),
+            Animated.timing(ring1Op, { toValue: 0, duration: 1400, useNativeDriver: true }),
+            Animated.timing(ring1Op, { toValue: 0.5, duration: 0, useNativeDriver: true }),
           ]),
           Animated.sequence([
-            Animated.delay(400),
-            Animated.timing(ring2Scale, { toValue: 1.9, duration: 900, useNativeDriver: true }),
-            Animated.timing(ring2Scale, { toValue: 1.0, duration: 900, useNativeDriver: true }),
+            Animated.delay(700),
+            Animated.timing(ring2Scale, { toValue: 2.1, duration: 1400, useNativeDriver: true }),
+            Animated.timing(ring2Scale, { toValue: 1.0, duration: 0, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.delay(700),
+            Animated.timing(ring2Op, { toValue: 0, duration: 1400, useNativeDriver: true }),
+            Animated.timing(ring2Op, { toValue: 0.25, duration: 0, useNativeDriver: true }),
           ]),
         ]),
       );
       listenAnim.current.start();
     } else if (appState === 'think') {
+      orbGlow.setValue(0.5);
       spinAnim.setValue(0);
       thinkAnim.current = Animated.loop(
-        Animated.timing(spinAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(spinAnim, { toValue: 1, duration: 1400, useNativeDriver: true }),
       );
       thinkAnim.current.start();
     } else if (appState === 'speak') {
+      orbGlow.setValue(0.7);
       waveAnim.setValue(0);
       speakAnim.current = Animated.loop(
         Animated.sequence([
-          Animated.timing(waveAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-          Animated.timing(waveAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+          Animated.timing(waveAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+          Animated.timing(waveAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
         ]),
       );
       speakAnim.current.start();
@@ -149,7 +167,6 @@ export default function VoiceScreen() {
     thinkAnim.current?.stop();
     speakAnim.current?.stop();
     orbScale.setValue(1);
-    orbOpacity.setValue(0.15);
     ring1Scale.setValue(1);
     ring1Op.setValue(0);
     ring2Scale.setValue(1);
@@ -177,18 +194,17 @@ export default function VoiceScreen() {
     sock.on('Dzaryx:status', (d: { status: string; sessionId?: string; toolLabel?: string | null }) => {
       if (d.sessionId && d.sessionId !== sid) return;
       setAppState(d.status as State);
-      if (d.toolLabel) setHud(d.toolLabel);
     });
     sock.on('Dzaryx:text_complete', (d: { text: string; sessionId?: string }) => {
       if (d.sessionId && d.sessionId !== sid) return;
-      setResponse(d.text); setHud(d.text.slice(0, 100));
+      setResponse(d.text);
     });
     sock.on('Dzaryx:response', (d: { text: string; sessionId?: string }) => {
       if (d.sessionId && d.sessionId !== sid) return;
-      setResponse(d.text); setHud(d.text.slice(0, 100));
+      setResponse(d.text);
     });
     sock.on('Dzaryx:proactive', (d: { text: string }) => {
-      setResponse(d.text); setHud(d.text.slice(0, 80));
+      setResponse(d.text);
     });
     socketRef.current = sock;
     return () => { sock.disconnect(); socketRef.current = null; };
@@ -199,11 +215,11 @@ export default function VoiceScreen() {
     let alive = true;
     async function initMic() {
       const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') { setHud('Microphone refusé'); return; }
+      if (status !== 'granted') { setResponse('Microphone refusé — autorise-le dans les réglages.'); return; }
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true, playsInSilentModeIOS: true, staysActiveInBackground: true,
       });
-      if (alive) { startVADLoop(); setHud('Parlez naturellement…'); }
+      if (alive) { startVADLoop(); }
     }
     initMic();
     return () => { alive = false; stopVADLoop(); stopRecording().catch(() => {}); };
@@ -223,6 +239,7 @@ export default function VoiceScreen() {
           if (!isSpeakingRef.current) {
             isSpeakingRef.current = true;
             speechStartRef.current = Date.now();
+            playChime();
             setAppState('listen');
           }
         } else if (isSpeakingRef.current && !silenceRef.current) {
@@ -274,7 +291,6 @@ export default function VoiceScreen() {
     if (stateRef.current === 'think' || stateRef.current === 'speak') return;
     isSpeakingRef.current = false;
     setAppState('think');
-    setHud('Analyse en cours…');
     const uri = await stopRecording();
     if (!uri) { setAppState('idle'); await beginRecording(); return; }
     try {
@@ -287,7 +303,8 @@ export default function VoiceScreen() {
       if (!transcribeRes.ok) throw new Error('Transcription failed');
       const { text } = await transcribeRes.json() as { text: string };
       if (!text?.trim()) { setAppState('idle'); await beginRecording(); return; }
-      setHud(`"${text}"`);
+      setUserText(text);
+      setResponse('');
       const chatRes = await fetch(`${BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${mobileToken()}` },
@@ -295,12 +312,12 @@ export default function VoiceScreen() {
       });
       if (chatRes.ok) {
         const data = await chatRes.json() as { text?: string; audio?: string };
-        if (data.text) { setResponse(data.text); setHud(data.text.slice(0, 80)); }
+        if (data.text) { setResponse(data.text); }
         if (data.audio) { setAppState('speak'); await playAudioBase64(data.audio); setAppState('idle'); }
       }
     } catch (err) {
       console.error('[voice] processRecording:', err);
-      setHud('Erreur — réessaie');
+      setResponse('Erreur — réessaie.');
       setAppState('idle');
     } finally {
       await beginRecording();
@@ -314,7 +331,7 @@ export default function VoiceScreen() {
       if (result.canceled || !result.assets[0]?.base64) { setScan(false); return; }
       const b64 = result.assets[0].base64;
       const mime = result.assets[0].mimeType ?? 'image/jpeg';
-      setAppState('think'); setHud('Lecture document…');
+      setAppState('think'); setUserText('Document scanné');
       const scanRes = await fetch(`${BACKEND_URL}/api/vision/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${mobileToken()}` },
@@ -328,10 +345,10 @@ export default function VoiceScreen() {
       });
       if (chatRes.ok) {
         const data = await chatRes.json() as { text?: string; audio?: string };
-        if (data.text) { setResponse(data.text); setHud(data.text.slice(0, 80)); }
+        if (data.text) { setResponse(data.text); }
         if (data.audio) { setAppState('speak'); await playAudioBase64(data.audio); }
       }
-    } catch (err) { console.error('[scan]:', err); setHud('Erreur scan'); }
+    } catch (err) { console.error('[scan]:', err); setResponse('Erreur scan'); }
     finally { setAppState('idle'); setScan(false); }
   }, [mobileToken]);
 
@@ -342,7 +359,7 @@ export default function VoiceScreen() {
       if (result.canceled || !result.assets[0]?.base64) { setVision(false); return; }
       const b64  = result.assets[0].base64;
       const mime = result.assets[0].mimeType ?? 'image/jpeg';
-      setAppState('think'); setHud('Analyse visuelle…');
+      setAppState('think'); setUserText('Analyse visuelle');
       const visionRes = await fetch(`${BACKEND_URL}/api/vision/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${mobileToken()}` },
@@ -356,171 +373,105 @@ export default function VoiceScreen() {
       });
       if (chatRes.ok) {
         const data = await chatRes.json() as { text?: string; audio?: string };
-        if (data.text) { setResponse(data.text); setHud(data.text.slice(0, 80)); }
+        if (data.text) { setResponse(data.text); }
         if (data.audio) { setAppState('speak'); await playAudioBase64(data.audio); }
       }
-    } catch (err) { console.error('[vision]:', err); setHud('Erreur vision'); }
+    } catch (err) { console.error('[vision]:', err); setResponse('Erreur vision'); }
     finally { setAppState('idle'); setVision(false); }
   }, [mobileToken]);
 
   // ── Computed animation values ─────────────────────────────────
-  const spinDeg = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
-  const waveScale = waveAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.12, 1] });
-
-  const isActive = appState !== 'idle';
+  const spinDeg   = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const waveScale = waveAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.1, 1] });
+  const coreScale = appState === 'speak' ? waveScale : orbScale;
 
   return (
     <View style={s.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* ── Top header ── */}
+      {/* Lueur ambiante bas (façon Gemini) */}
+      <View pointerEvents="none" style={s.ambientGlow} />
+
+      {/* ── Top minimal ── */}
       <View style={s.header}>
-        <View style={s.headerLeft}>
-          <View style={[s.connDot, { backgroundColor: wsConnected ? '#52E3A1' : '#FF4444' }]} />
-          <Text style={s.headerTitle}>DZARYX</Text>
+        <TouchableOpacity onPress={() => router.back()} style={s.iconBtn} hitSlop={12}>
+          <Text style={s.backIcon}>‹</Text>
+        </TouchableOpacity>
+        <View style={s.connRow}>
+          <View style={[s.connDot, { backgroundColor: wsConnected ? '#52E3A1' : '#FF5A5A' }]} />
+          <Text style={s.connLabel}>Dzaryx</Text>
         </View>
-        <View style={s.stateBadge}>
-          <Text style={[s.stateBadgeText, { color: isActive ? GOLD : DIM }]}>
-            {STATE_LABEL[appState]}
-          </Text>
+        <View style={s.iconBtn} />
+      </View>
+
+      {/* ── Centre : étoile + texte (façon Gemini Live) ── */}
+      <View style={s.center}>
+        {/* étoile Dzaryx */}
+        <View style={s.sparkleWrap}>
+          <View style={[s.sparkle, { transform: [{ rotate: '0deg' }] }]} />
+          <View style={[s.sparkle, { transform: [{ rotate: '45deg' }], opacity: 0.5 }]} />
+        </View>
+
+        {/* Texte */}
+        <View style={s.textArea}>
+          {response ? (
+            <ScrollView
+              style={s.responseScroll}
+              contentContainerStyle={{ paddingVertical: 4 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {!!userText && <Text style={s.userLine}>« {userText} »</Text>}
+              <Text style={s.responseText}>{response}</Text>
+            </ScrollView>
+          ) : appState === 'idle' ? (
+            <>
+              <Text style={s.greeting}>Bonjour, {firstName}</Text>
+              <Text style={s.subtle}>Sur quoi puis-je vous aider ?</Text>
+            </>
+          ) : (
+            <>
+              {!!userText && appState !== 'listen' && <Text style={s.userLine}>« {userText} »</Text>}
+              <Text style={s.stateLine}>{STATE_MSG[appState]}</Text>
+            </>
+          )}
         </View>
       </View>
 
-      {/* ── Centre (orb + hud + réponse) — vertically centered ── */}
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: W }}>
-
-        {/* Orb area */}
-        <View style={s.orbArea}>
-
-          {/* Outer expansion ring (listen) */}
-          <Animated.View style={[
-            s.ring, s.ringOuter,
-            { borderColor: GOLD + '33', transform: [{ scale: ring2Scale }], opacity: ring2Op },
-          ]} />
-
-          {/* Inner ring */}
-          <Animated.View style={[
-            s.ring, s.ringInner,
-            { borderColor: GOLD + '66', transform: [{ scale: ring1Scale }], opacity: ring1Op },
-          ]} />
-
-          {/* Think arc spinner */}
-          {appState === 'think' && (
-            <Animated.View style={[s.spinArc, { borderTopColor: GOLD, transform: [{ rotate: spinDeg }] }]} />
-          )}
-
-          {/* Main orb */}
-          <Animated.View style={[
-            s.orb,
-            {
-              shadowColor:     GOLD,
-              backgroundColor: GOLD + (isActive ? '22' : '10'),
-              borderColor:     GOLD + (isActive ? 'CC' : '44'),
-              transform: [
-                { scale: appState === 'speak' ? waveScale : orbScale },
-              ],
-              opacity: appState === 'idle' ? orbOpacity.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) : 1,
-            },
-          ]}>
-            {/* D monogram */}
-            <Text style={[s.orbMonogram, { color: GOLD }]}>D</Text>
-          </Animated.View>
-
-          {/* Listen sound bars */}
-          {appState === 'listen' && (
-            <View style={s.soundBars}>
-              {[0.4, 0.7, 1, 0.6, 0.9, 0.5, 0.8].map((h, i) => (
-                <SoundBar key={i} heightRatio={h} delay={i * 80} color={GOLD} />
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* HUD subtitle */}
-        <Text style={s.hudText} numberOfLines={1}>{hudText}</Text>
-
-        {/* Response area */}
-        {response ? (
-          <ScrollView
-            style={s.responseBox}
-            contentContainerStyle={{ padding: 16 }}
-            showsVerticalScrollIndicator={false}
-          >
-            <Text style={s.responseText}>{response}</Text>
-          </ScrollView>
-        ) : (
-          <View style={s.responseBoxEmpty}>
-            <Text style={s.placeholderText}>{STATE_MSG[appState]}</Text>
-          </View>
-        )}
-
-      </View>
-
-      {/* ── Bottom actions ── */}
+      {/* ── Bas : caméra · orbe pill · scan ── */}
       <View style={s.bottomBar}>
-        {/* SCAN */}
         <TouchableOpacity
-          style={[s.actionBtn, scanLoading && s.actionBtnActive]}
-          onPress={handleScan}
-          disabled={scanLoading}
-        >
-          <Text style={s.actionIcon}>⬡</Text>
-          <Text style={s.actionLabel}>SCAN</Text>
-        </TouchableOpacity>
-
-        {/* Center mic — push to talk fallback */}
-        <TouchableOpacity
-          style={[s.micBtn, { shadowColor: GOLD, borderColor: GOLD + (isActive ? 'FF' : '55') }]}
-          onPress={() => {
-            if (appState === 'idle') setHud('Parlez maintenant…');
-          }}
-          activeOpacity={0.8}
-        >
-          <View style={[s.micBtnInner, { backgroundColor: isActive ? GOLD + '33' : '#FFFFFF0D' }]}>
-            <Text style={[s.micIcon, { color: isActive ? GOLD : WHITE + '88' }]}>
-              {appState === 'think' ? '◎' : appState === 'speak' ? '▶' : '◉'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* CAMERA */}
-        <TouchableOpacity
-          style={[s.actionBtn, visionLoading && s.actionBtnActive]}
+          style={[s.ghostBtn, visionLoading && s.ghostBtnActive]}
           onPress={handleVision}
           disabled={visionLoading}
+          activeOpacity={0.7}
         >
-          <Text style={s.actionIcon}>◈</Text>
-          <Text style={s.actionLabel}>CAMÉRA</Text>
+          <Text style={s.ghostIcon}>◎</Text>
+        </TouchableOpacity>
+
+        {/* Orbe pill — coeur lumineux, animé selon l'état */}
+        <View style={s.pillWrap}>
+          {/* halo lumineux */}
+          <Animated.View style={[s.pillGlow, { opacity: orbGlow, transform: [{ scaleX: coreScale }] }]} />
+          {/* arc de réflexion */}
+          {appState === 'think' && (
+            <Animated.View style={[s.pillSpin, { transform: [{ rotate: spinDeg }] }]} />
+          )}
+          {/* pill */}
+          <Animated.View style={[s.pill, { transform: [{ scaleX: coreScale }] }]}>
+            <View style={s.pillCore} />
+          </Animated.View>
+        </View>
+
+        <TouchableOpacity
+          style={[s.ghostBtn, scanLoading && s.ghostBtnActive]}
+          onPress={handleScan}
+          disabled={scanLoading}
+          activeOpacity={0.7}
+        >
+          <Text style={s.ghostIcon}>⌑</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Bottom safe area spacer */}
-      <View style={{ height: Platform.OS === 'android' ? 8 : 0 }} />
     </View>
-  );
-}
-
-// ── Sound bar component ───────────────────────────────────────
-function SoundBar({ heightRatio, delay, color }: { heightRatio: number; delay: number; color: string }) {
-  const anim = useRef(new Animated.Value(0.3)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, { toValue: heightRatio, duration: 300 + delay, useNativeDriver: false }),
-        Animated.timing(anim, { toValue: 0.2,         duration: 300 + delay, useNativeDriver: false }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
-  return (
-    <Animated.View style={{
-      width: 3, marginHorizontal: 2,
-      borderRadius: 2,
-      backgroundColor: color,
-      height: anim.interpolate({ inputRange: [0, 1], outputRange: [4, 28] }),
-      opacity: 0.9,
-    }} />
   );
 }
 
@@ -543,189 +494,194 @@ async function playAudioBase64(b64: string): Promise<void> {
 }
 
 // ── Styles ────────────────────────────────────────────────────
+const SANS = Platform.OS === 'ios' ? 'System' : 'sans-serif';
+const SANS_LIGHT = Platform.OS === 'ios' ? 'System' : 'sans-serif-light';
+
 const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: Platform.OS === 'ios' ? 56 : 44,
-    paddingBottom: 12,
+    paddingTop: Platform.OS === 'ios' ? 56 : 40,
+    paddingBottom: 28,
+  },
+
+  // Lueur ambiante bas
+  ambientGlow: {
+    position: 'absolute',
+    bottom: -H * 0.18,
+    alignSelf: 'center',
+    width: W * 1.3,
+    height: H * 0.45,
+    borderRadius: W,
+    backgroundColor: GOLD,
+    opacity: 0.06,
   },
 
   // Header
   header: {
-    width: W - 32,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingHorizontal: 18,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  iconBtn: {
+    width: 40, height: 40,
+    alignItems: 'center', justifyContent: 'center',
   },
-  connDot: {
-    width: 6, height: 6, borderRadius: 3,
-  },
-  headerTitle: {
-    color: GOLD,
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 4,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-  },
-  stateBadge: {
-    paddingHorizontal: 12, paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: GOLD_DIM,
-    backgroundColor: GOLD + '0A',
-  },
-  stateBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 2.5,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
-  },
-
-  // Orb
-  orbArea: {
-    width: 280, height: 280,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 8,
-  },
-  ring: {
-    position: 'absolute',
-    borderRadius: 9999,
-    borderWidth: 1,
-  },
-  ringOuter: { width: 240, height: 240 },
-  ringInner: { width: 180, height: 180 },
-  spinArc: {
-    position: 'absolute',
-    width: 144, height: 144,
-    borderRadius: 72,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    borderTopColor: GOLD,
-  },
-  orb: {
-    width: 120, height: 120,
-    borderRadius: 60,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 32,
-    elevation: 12,
-  },
-  orbMonogram: {
-    fontSize: 36,
+  backIcon: {
+    color: WHITE + 'AA',
+    fontSize: 34,
     fontWeight: '300',
-    letterSpacing: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif-light',
+    marginTop: -4,
   },
-  soundBars: {
-    position: 'absolute',
-    bottom: 28,
+  connRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 32,
+    gap: 7,
+  },
+  connDot: { width: 6, height: 6, borderRadius: 3 },
+  connLabel: {
+    color: WHITE + '99',
+    fontSize: 15,
+    fontWeight: '500',
+    fontFamily: SANS,
+    letterSpacing: 0.3,
   },
 
-  // HUD
-  hudText: {
-    color: WHITE + '50',
-    fontSize: 11,
-    letterSpacing: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
-    paddingHorizontal: 24,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-
-  // Response
-  responseBox: {
-    width: W - 32,
-    maxHeight: H * 0.22,
-    backgroundColor: '#FFFFFF07',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: GOLD + '22',
-    marginVertical: 8,
-  },
-  responseBoxEmpty: {
-    width: W - 32,
-    backgroundColor: 'transparent',
-    marginVertical: 8,
+  // Centre
+  center: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sparkleWrap: {
+    width: 30, height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 26,
+  },
+  sparkle: {
+    position: 'absolute',
+    width: 26, height: 26,
+    backgroundColor: GOLD,
+    borderRadius: 7,
+    // losange à 4 branches (approx étoile Gemini)
+    transform: [{ rotate: '0deg' }],
+  },
+
+  // Texte
+  textArea: {
+    width: W - 56,
+    maxHeight: H * 0.26,
+    marginTop: 44,
+    alignItems: 'center',
+  },
+  greeting: {
+    color: WHITE,
+    fontSize: 30,
+    fontWeight: '300',
+    fontFamily: SANS_LIGHT,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  subtle: {
+    color: WHITE + '40',
+    fontSize: 15,
+    fontFamily: SANS,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  stateLine: {
+    color: WHITE + '80',
+    fontSize: 19,
+    fontWeight: '300',
+    fontFamily: SANS_LIGHT,
+    textAlign: 'center',
+  },
+  userLine: {
+    color: GOLD_HI,
+    fontSize: 15,
+    fontFamily: SANS,
+    textAlign: 'center',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  responseScroll: {
+    width: '100%',
   },
   responseText: {
-    color: WHITE,
-    fontSize: 14,
-    lineHeight: 22,
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
-  },
-  placeholderText: {
-    color: WHITE + '1A',
-    fontSize: 13,
+    color: WHITE + 'E6',
+    fontSize: 18,
+    lineHeight: 27,
+    fontWeight: '300',
+    fontFamily: SANS_LIGHT,
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Helvetica Neue' : 'sans-serif',
-    paddingVertical: 20,
   },
 
-  // Bottom bar
+  // Bas
   bottomBar: {
-    width: W - 32,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    gap: 28,
+    paddingHorizontal: 24,
   },
-  actionBtn: {
-    width: 64, height: 64,
-    borderRadius: 20,
+  ghostBtn: {
+    width: 52, height: 52,
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: WHITE + '18',
-    backgroundColor: WHITE + '06',
+    borderColor: WHITE + '1A',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
   },
-  actionBtnActive: {
-    borderColor: GOLD + '88',
-    backgroundColor: GOLD + '12',
+  ghostBtnActive: {
+    borderColor: GOLD + '99',
+    backgroundColor: GOLD + '14',
   },
-  actionIcon: {
-    fontSize: 20,
-    color: WHITE + 'AA',
+  ghostIcon: {
+    fontSize: 22,
+    color: WHITE + '99',
   },
-  actionLabel: {
-    color: WHITE + '55',
-    fontSize: 8,
-    letterSpacing: 1.5,
-    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+
+  // Orbe pill (centre du bas)
+  pillWrap: {
+    width: 116, height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  micBtn: {
-    width: 80, height: 80,
-    borderRadius: 40,
-    borderWidth: 1.5,
+  pillGlow: {
+    position: 'absolute',
+    width: 104, height: 50,
+    borderRadius: 25,
+    backgroundColor: GOLD,
+    shadowColor: GOLD,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowOpacity: 0.9,
+    shadowRadius: 28,
+    elevation: 18,
   },
-  micBtnInner: {
-    flex: 1,
-    borderRadius: 40,
+  pillSpin: {
+    position: 'absolute',
+    width: 108, height: 54,
+    borderRadius: 27,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderTopColor: GOLD_HI,
+  },
+  pill: {
+    width: 96, height: 46,
+    borderRadius: 23,
+    backgroundColor: '#1a1408',
+    borderWidth: 1,
+    borderColor: GOLD + '66',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  micIcon: {
-    fontSize: 28,
+  pillCore: {
+    width: 64, height: 22,
+    borderRadius: 11,
+    backgroundColor: GOLD,
+    opacity: 0.9,
   },
 });
