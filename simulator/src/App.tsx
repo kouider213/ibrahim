@@ -14,7 +14,7 @@ export default function App() {
     setSimActor(actor);
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden' }}>
-        <VoiceScreen onNavigateText={() => {}} onWsStatus={() => {}} actor={actor} />
+        <VoiceScreen onNavigateText={() => {}} onWsStatus={() => {}} actor={actor} compact />
       </div>
     );
   }

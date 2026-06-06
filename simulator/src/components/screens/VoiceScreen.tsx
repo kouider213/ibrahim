@@ -10,6 +10,7 @@ interface Props {
   onNavigateText: () => void;
   onWsStatus: (ok: boolean) => void;
   actor?: 'kouider' | 'houari';
+  compact?: boolean;  // overlay barre fine (façon Gemini)
 }
 
 // Palette or Dzaryx — un seul hue, intensité varie selon l'état (calme façon Gemini)
@@ -64,7 +65,7 @@ function imageUrlsFrom(text: string): string[] {
 // limite iOS pour les sites web — installer en PWA / autoriser dans Réglages Safari.)
 let sharedMicStream: MediaStream | null = null;
 
-export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
+export default function VoiceScreen({ onNavigateText, onWsStatus, compact = false }: Props) {
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const animRef         = useRef<number>(0);
   const analyserRef     = useRef<AnalyserNode | null>(null);
@@ -745,6 +746,101 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const isSpeaking  = status === 'speaking';
   const orbActive   = isListening || isSpeaking || isThinking;
   const DIM = 'rgba(255,255,255,0.42)';
+
+  // ── BARRE FINE (overlay façon Gemini) ─────────────────────────────────────
+  if (compact) {
+    const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
+    const micTap = () => {
+      if (status === 'idle' && !isRecordingRef.current) {
+        unlockAudio();
+        if (streamRef.current) { startRecording(); } else { setHud('Micro non activé'); }
+      } else if (status === 'listening') {
+        stopRecordingAndProcess();
+      } else if (status === 'speaking') {
+        stopAudio(); setStatus('idle');
+      }
+    };
+    const barText = !audioUnlocked
+      ? 'Appuyez pour activer'
+      : (liveText || displayText || STATE_MSG[status]);
+    const activate = () => {
+      sessionAudioUnlocked = true; unlockAudio(); setAudioUnlocked(true); initMic();
+    };
+    return (
+      <div style={{
+        width: '100%', height: '100%', background: '#0a0a0a',
+        display: 'flex', alignItems: 'center', gap: 10, padding: '0 46px 0 12px',
+        position: 'relative', overflow: 'hidden',
+        borderBottom: `1px solid ${col}33`,
+      }}>
+        {/* halo bas */}
+        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 140% at 50% 130%, ${col}1f, transparent 60%)`, pointerEvents: 'none' }} />
+
+        {/* logo */}
+        <img src={`${base}logo.png`} alt="Dzaryx"
+          style={{ width: 34, height: 34, objectFit: 'contain', flexShrink: 0,
+            filter: `drop-shadow(0 0 8px ${col}66)`,
+            animation: orbActive ? 'corePulse 1.4s ease-in-out infinite' : 'none' }} />
+
+        {/* texte (live / réponse / état) */}
+        <div
+          onClick={!audioUnlocked ? activate : undefined}
+          style={{
+            flex: 1, minWidth: 0, color: liveText ? '#E8C98A' : 'rgba(255,255,255,0.9)',
+            fontFamily: 'Inter', fontSize: 13, fontWeight: 300, lineHeight: 1.3,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+            overflow: 'hidden', cursor: !audioUnlocked ? 'pointer' : 'default',
+          }}
+        >
+          {barText}
+        </div>
+
+        {/* caméra (analyse vision) */}
+        <button onClick={handleVision} aria-label="Caméra" disabled={!audioUnlocked}
+          style={{
+            width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            opacity: audioUnlocked ? 1 : 0.4,
+          }}>
+          <svg width="18" height="14" viewBox="0 0 24 18" fill="none" stroke={col} strokeWidth="1.6" strokeLinecap="round">
+            <path d="M1 9C4 3.5 8 1 12 1s8 2.5 11 8c-3 5.5-7 8-11 8S4 14.5 1 9z" />
+            <circle cx="12" cy="9" r="3.5" />
+          </svg>
+        </button>
+
+        {/* mic / état */}
+        <button onClick={!audioUnlocked ? activate : micTap} aria-label="Micro"
+          style={{
+            width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
+            background: orbActive ? `linear-gradient(180deg, ${col}44, ${col}18)` : `${col}1f`,
+            border: `1px solid ${orbActive ? col : col + '66'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            boxShadow: isListening ? `0 0 ${14 + rmsLevel * 26}px ${col}aa` : `0 0 12px ${col}44`,
+            transition: 'box-shadow 0.08s linear',
+          }}>
+          {isListening ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2.5, height: 18 }}>
+              {[0.5, 0.9, 0.7].map((h, i) => (
+                <div key={i} style={{ width: 3, borderRadius: 2, background: col,
+                  height: `${Math.max(5, h * (0.4 + rmsLevel * 1.6) * 18)}px`, transition: 'height 0.08s linear' }} />
+              ))}
+            </div>
+          ) : isThinking ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
+              <circle cx="12" cy="12" r="9" strokeOpacity="0.25" /><path d="M12 3a9 9 0 0 1 9 9" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="9" y="3" width="6" height="11" rx="3" fill={col} />
+              <path d="M5 11a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+              <line x1="12" y1="18" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          )}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div

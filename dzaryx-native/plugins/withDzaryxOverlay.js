@@ -81,7 +81,7 @@ class DzaryxOverlayService : Service() {
     windowManager = wm
 
     val container = FrameLayout(this)
-    container.setBackgroundColor(Color.parseColor("#CC000000"))
+    container.setBackgroundColor(Color.TRANSPARENT)
 
     val web = WebView(this)
     web.settings.javaScriptEnabled = true
@@ -121,7 +121,7 @@ class DzaryxOverlayService : Service() {
     else
       @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
 
-    val height = (resources.displayMetrics.heightPixels * 0.42).toInt()
+    val height = (resources.displayMetrics.density * 88).toInt()
     val lp = WindowManager.LayoutParams(
       WindowManager.LayoutParams.MATCH_PARENT,
       height,
@@ -130,6 +130,7 @@ class DzaryxOverlayService : Service() {
       PixelFormat.TRANSLUCENT
     )
     lp.gravity = Gravity.TOP
+    lp.y = (resources.displayMetrics.density * 24).toInt()
 
     overlayView = container
     try { wm.addView(container, lp) } catch (e: Exception) { stopSelf() }
