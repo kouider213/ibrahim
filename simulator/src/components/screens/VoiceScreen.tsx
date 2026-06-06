@@ -101,8 +101,91 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   const rmsRef = useRef(0);
   const [respExpanded, setRespExpanded] = useState(false);
 
+  const [liveText, setLiveText] = useState('');   // transcription live (ce que TU dis)
+  const srDictationRef = useRef(false);            // SpeechRecognition pilote la conversation (Android)
+  const soundPlayedRef = useRef(false);            // son d'activation joué une fois
+
   const statusRef = useRef(status);
   statusRef.current = status;
+
+  // Son d'activation micro (façon Gemini)
+  function playActivationSound() {
+    try {
+      const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
+      const a = new Audio(`${base}sounds/startup.wav`);
+      a.volume = 0.5;
+      void a.play().catch(() => {});
+    } catch { /* ignore */ }
+  }
+
+  // Envoie un texte (dicté par SpeechRecognition) à Dzaryx + joue la réponse
+  async function processUserText(text: string) {
+    const t = text.trim();
+    if (!t) return;
+    if (statusRef.current === 'thinking') return;
+    setLiveText('');
+    setResp('');
+    setStatus('thinking');
+    try {
+      const frame = captureFrame();
+      const res = await api.chat(t, sessionId.current, frame, frame ? 'image/jpeg' : undefined);
+      if (res.text) {
+        const nativeAction = tryParseNativeAction(res.text);
+        if (nativeAction) {
+          sendNativeAction(nativeAction);
+          const h = Number(nativeAction['hour'] ?? 0);
+          const m = Number(nativeAction['minute'] ?? 0);
+          setResp(`✅ Alarme créée pour ${String(h).padStart(2,'0')}h${String(m).padStart(2,'0')}`);
+        } else {
+          setResp(res.text);
+          if (res.audio) { unlockAudio(); await playBase64Audio(res.audio); }
+        }
+      }
+    } catch {
+      setHud('Erreur — réessaie');
+    } finally {
+      if ((statusRef.current as string) === 'thinking') setStatus('idle');
+    }
+  }
+
+  // SpeechRecognition continu (Google STT navigateur) = détecte début/fin tout seul, comme Gemini.
+  // Dispo sur Android (WebView Chrome). Sur iOS WKWebView : indispo → fallback VAD+Whisper.
+  function startSRDictation(): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SR) return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new SR() as any;
+    rec.continuous = true;
+    rec.lang = 'fr-FR';
+    rec.interimResults = true;
+    rec.onstart = () => { setWakeWordOn(true); };
+    rec.onerror = () => { setWakeWordOn(false); };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      let interim = '', final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const tr = e.results[i]![0]!.transcript as string;
+        if (e.results[i]!.isFinal) final += tr; else interim += tr;
+      }
+      // Barge-in : tu reparles pendant que Dzaryx parle → on le coupe direct
+      if ((interim.trim() || final.trim()) && (statusRef.current === 'speaking' || isAudioPlaying())) {
+        stopAudio(); setStatus('idle');
+      }
+      if (interim.trim()) {
+        setLiveText(interim);
+        if (statusRef.current === 'idle') setStatus('listening');
+      }
+      if (final.trim()) { void processUserText(final.trim()); }
+    };
+    rec.onend = () => {
+      setWakeWordOn(false);
+      // Reste vivant : on relance (sauf si on a quitté l'écran)
+      if (srDictationRef.current) { setTimeout(() => { try { rec.start(); } catch { /* ignore */ } }, 250); }
+    };
+    try { rec.start(); srDictationRef.current = true; return true; }
+    catch { return false; }
+  }
 
   // Conversation continue activée par DÉFAUT (comme Gemini Live) :
   // mains-libres = le VAD s'arme tout seul au son, sans toucher l'orbe ;
@@ -216,7 +299,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       source.connect(analyser);
       analyserRef.current = analyser;
       startVAD();
-      startWakeWord();
+      if (!soundPlayedRef.current) { soundPlayedRef.current = true; playActivationSound(); }
+      // Android (WebView Chrome) : SpeechRecognition pilote la conversation (comme Gemini).
+      // iOS WKWebView : indispo → fallback wake word + VAD/Whisper.
+      const srOk = startSRDictation();
+      if (!srOk) startWakeWord();
       setHud('MICROPHONE ACTIF — PARLE-MOI');
     } catch (e) {
       console.error('[mic] error:', e);
@@ -228,6 +315,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current);
+      srDictationRef.current = false; // stoppe la relance SpeechRecognition au changement d'onglet
       // NE PAS couper le micro partagé (sharedMicStream) au changement d'onglet :
       // on le garde ouvert pour éviter qu'iOS redemande la permission au retour.
       // On coupe seulement la caméra + l'AudioContext (recréé à la prochaine init).
@@ -387,6 +475,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
       const rms = Math.sqrt(sq / timeBuf.length);
       rmsRef.current = rms;
       setRmsLevel(Math.min(rms * 80, 1));
+      // Si SpeechRecognition pilote (Android) : on garde le RMS juste pour l'orbe,
+      // mais on NE touche PAS à l'enregistrement (sinon flicker arm/désarm). SR gère tout.
+      if (srDictationRef.current) { requestAnimationFrame(tick); return; }
       if (statusRef.current === 'idle' && !isRecordingRef.current) {
         const hint = handsFreeRef.current ? 'PARLE-MOI' : 'TAPE 🎤 POUR PARLER';
         setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | ${hint}`);
@@ -658,7 +749,14 @@ export default function VoiceScreen({ onNavigateText, onWsStatus }: Props) {
         padding: '0 26px', textAlign: 'center',
         maxHeight: '38%', display: 'flex', flexDirection: 'column', alignItems: 'center',
       }}>
-        {displayText ? (
+        {liveText ? (
+          <div style={{
+            fontFamily: 'Inter', fontSize: 21, fontWeight: 300,
+            color: '#E8C98A', lineHeight: 1.4, letterSpacing: '0.01em', fontStyle: 'italic',
+          }}>
+            {liveText}
+          </div>
+        ) : displayText ? (
           <div
             onClick={() => setRespExpanded(e => !e)}
             style={{
