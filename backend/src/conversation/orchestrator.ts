@@ -127,7 +127,7 @@ export async function processMessage(
   // 2. Construire le contexte + sauvegarder le message user en parallèle
   const actorUserId = actor.ownerKey === 'houari' || sessionId.toLowerCase().includes('houari') ? 'houari' : 'kouider';
   const [ctx] = await Promise.all([
-    buildContext(sessionId, effectiveMessage, actor),
+    buildContext(sessionId, effectiveMessage, actor, textOnly),
     saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
       console.error('[orchestrator] user save error:', err),
     ),

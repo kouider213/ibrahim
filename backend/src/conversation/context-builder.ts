@@ -101,6 +101,7 @@ export async function buildContext(
   sessionId:   string,
   userMessage: string,
   actor:       OrgMember = DEFAULT_MEMBER,
+  textOnly:    boolean = false,
 ): Promise<ConversationContext> {
   const needsNews     = /actualit|news|journal|presse|info/i.test(userMessage);
   const needsFinance  = /combien|gagn|b[eé]n[eé]fice|revenu|profit|finance|rapport|mois|argent|kouider|houari|part.*houari|part.*kouider|total|depuis.*janvier|d[eé]but.*ann[eé]e|cette.*ann[eé]e|bilan/i.test(userMessage);
@@ -312,13 +313,16 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     : '';
 
   const isVoiceChannel = sessionId.startsWith('voice_');
+  // Sortie vocale réelle = canal voix ET pas textOnly (le CHAT texte passe textOnly=true
+  // sur le même sessionId voice_ → sinon il serait pris pour du vocal, bloquant markdown/graphes).
+  const isVoiceOutput = isVoiceChannel && !textOnly;
   const currentChannel = isVoiceChannel
     ? 'App Vocale'
     : sessionId.startsWith('telegram_')
     ? 'Telegram'
     : 'Inconnu';
 
-  const voiceFormatHint = isVoiceChannel
+  const voiceFormatHint = isVoiceOutput
     ? `\n\nFORMAT VOCAL OBLIGATOIRE (cette réponse sera LUE À VOIX HAUTE par synthèse vocale):
 • ZÉRO markdown — pas de **, pas de __, pas de ##, pas de ---, pas de tirets en début de ligne
 • ZÉRO numéros de téléphone à l'oral — dis "le numéro est disponible sur l'appli" si besoin
@@ -330,7 +334,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     : '';
 
   // Graphiques — UNIQUEMENT en mode texte (pas vocal, ça serait lu à voix haute)
-  const chartHint = !isVoiceChannel
+  const chartHint = !isVoiceOutput
     ? `\n\nGRAPHIQUES (mode texte): si ${actor.displayName} demande un graphique / camembert / courbe / visualisation de chiffres (revenus, parc, clients, paiements, comparaison...), réponds avec un bloc de code \`\`\`chart contenant du JSON sur une ligne, format:
 \`\`\`chart
 {"type":"bar","title":"Revenus par mois","unit":"€","data":[{"label":"Juin","value":1200},{"label":"Juillet","value":1800}]}

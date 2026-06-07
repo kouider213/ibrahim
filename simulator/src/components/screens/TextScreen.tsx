@@ -277,7 +277,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     }, 45_000);
 
     try {
-      const res = await api.chat(text || '📷 Photo', sessionId.current, img?.base64, img ? 'image/jpeg' : undefined);
+      const res = await api.chat(text || '📷 Photo', sessionId.current, img?.base64, img ? 'image/jpeg' : undefined, true);
       if (res.text && streamingMsgId.current) {
         clearTimeout(timeoutId);
         const nativeAction = tryParseNativeAction(res.text);
