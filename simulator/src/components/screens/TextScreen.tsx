@@ -48,6 +48,50 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   const sessionId              = useRef(getOrCreateSessionId());
   const streamingMsgId         = useRef<string | null>(null);
 
+  // Dictée vocale dans le chat
+  const [recording, setRecording] = useState(false);
+  const recorderRef  = useRef<MediaRecorder | null>(null);
+  const chunksRef    = useRef<Blob[]>([]);
+  const micStreamRef = useRef<MediaStream | null>(null);
+
+  const toggleDictation = useCallback(async () => {
+    if (recording) {
+      const rec = recorderRef.current;
+      if (rec && rec.state !== 'inactive') {
+        await new Promise<void>(r => { rec.onstop = () => r(); rec.stop(); });
+      }
+      recorderRef.current = null;
+      setRecording(false);
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      chunksRef.current = [];
+      if (blob.size < 500) return;
+      try {
+        const b64: string = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onloadend = () => res((r.result as string).split(',')[1] ?? '');
+          r.onerror = rej; r.readAsDataURL(blob);
+        });
+        const { text } = await api.transcribe(b64, 'audio/webm');
+        if (text?.trim()) setInput(prev => (prev ? prev + ' ' : '') + text.trim());
+      } catch { /* ignore */ }
+      return;
+    }
+    try {
+      unlockAudio();
+      const stream = micStreamRef.current ?? await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      micStreamRef.current = stream;
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      chunksRef.current = [];
+      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.start(100);
+      recorderRef.current = rec;
+      setRecording(true);
+    } catch { /* micro refusé */ }
+  }, [recording]);
+
   useEffect(() => {
     const sock = connectSocket(sessionId.current, {
       onStatus:        (s) => setStatus(s),
@@ -382,6 +426,25 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
               resize: 'none', outline: 'none', lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
             }}
           />
+
+          {/* Dictée vocale (parler au lieu de taper) */}
+          <button
+            onClick={toggleDictation}
+            aria-label="Dictée vocale"
+            style={{
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 1,
+              background: recording ? '#FF5A5A22' : 'transparent',
+              border: recording ? '1px solid #FF5A5A' : 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: recording ? 'statusPulse 1s ease infinite' : 'none',
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+              stroke={recording ? '#FF5A5A' : 'rgba(255,255,255,0.55)'} strokeWidth="1.8" strokeLinecap="round">
+              <rect x="9" y="2" width="6" height="11" rx="3" fill={recording ? '#FF5A5A' : 'rgba(255,255,255,0.3)'} stroke="none" />
+              <path d="M5 10a7 7 0 0 0 14 0" /><line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+          </button>
 
           {/* Envoyer (flèche si texte, micro sinon) */}
           <button
