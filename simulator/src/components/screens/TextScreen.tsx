@@ -45,6 +45,8 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   const [wsConn, setWsConn]   = useState(isSocketConnected);
   const [, setSyncInfo] = useState<{ ok: boolean; time: string; count: number } | null>(null);
   const [selectedImage, setSelectedImage] = useState<{ base64: string; preview: string } | null>(null);
+  const [search, setSearch]       = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   const scrollRef              = useRef<HTMLDivElement>(null);
   const fileInputRef           = useRef<HTMLInputElement>(null);
   const sessionId              = useRef(getOrCreateSessionId());
@@ -345,21 +347,42 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           </span>
         </div>
 
-        {/* Bouton vocal */}
-        <button onClick={onNavigateVoice} style={{
-          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: '50%', width: 38, height: 38, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.2s ease',
-        }} aria-label="Mode vocal">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="1.8" strokeLinecap="round">
-            <rect x="9" y="2" width="6" height="11" rx="3" fill={`${col}44`} stroke="none" />
-            <path d="M5 10a7 7 0 0 0 14 0" />
-            <line x1="12" y1="17" x2="12" y2="21" />
-            <line x1="8" y1="21" x2="16" y2="21" />
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Recherche dans l'historique */}
+          <button onClick={() => { setShowSearch(s => !s); if (showSearch) setSearch(''); }} style={{
+            background: showSearch ? `${col}1c` : 'rgba(255,255,255,0.04)', border: `1px solid ${showSearch ? col + '88' : 'rgba(255,255,255,0.12)'}`,
+            borderRadius: '50%', width: 38, height: 38, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }} aria-label="Rechercher">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={showSearch ? col : 'rgba(255,255,255,0.6)'} strokeWidth="1.8" strokeLinecap="round">
+              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </button>
+          {/* Bouton vocal */}
+          <button onClick={onNavigateVoice} style={{
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '50%', width: 38, height: 38, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s ease',
+          }} aria-label="Mode vocal">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="1.8" strokeLinecap="round">
+              <rect x="9" y="2" width="6" height="11" rx="3" fill={`${col}44`} stroke="none" />
+              <path d="M5 10a7 7 0 0 0 14 0" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+            </svg>
+          </button>
+        </div>
       </div>
+      {showSearch && (
+        <div style={{ padding: '0 16px 8px' }}>
+          <input
+            autoFocus value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher dans la conversation…"
+            style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: '9px 13px', color: '#fff', fontFamily: 'Inter', fontSize: 14, outline: 'none' }}
+          />
+        </div>
+      )}
 
       {/* Messages */}
       <div
@@ -369,14 +392,21 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           display: 'flex', flexDirection: 'column', gap: 14,
         }}
       >
-        {msgs.map((msg, i) => (
+        {(search.trim()
+          ? msgs.filter(m => m.text.toLowerCase().includes(search.trim().toLowerCase()))
+          : msgs
+        ).map((msg, i, arr) => (
           <MessageBubble
             key={msg.id}
             msg={msg}
             actorCol={actorCol}
-            onRegenerate={(i === msgs.length - 1 && msg.role === 'ai' && msg.status === 'done') ? regenerate : undefined}
+            onRegenerate={(!search.trim() && i === arr.length - 1 && msg.role === 'ai' && msg.status === 'done') ? regenerate : undefined}
+            onEdit={msg.role === 'user' ? () => { setInput(msg.text); setShowSearch(false); setSearch(''); } : undefined}
           />
         ))}
+        {search.trim() && !msgs.some(m => m.text.toLowerCase().includes(search.trim().toLowerCase())) && (
+          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter', fontSize: 13, padding: 20 }}>Aucun résultat</div>
+        )}
         {streaming && streamingMsgId.current && (
           <TypingIndicator actorCol={actorCol} />
         )}
@@ -719,7 +749,7 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
-function MessageBubble({ msg, actorCol, onRegenerate }: { msg: Message; actorCol: string; onRegenerate?: () => void }) {
+function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; actorCol: string; onRegenerate?: () => void; onEdit?: () => void }) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -856,6 +886,21 @@ function MessageBubble({ msg, actorCol, onRegenerate }: { msg: Message; actorCol
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
             <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
             <div style={{ display: 'flex', gap: 6 }}>
+            {isUser && onEdit && (
+              <button
+                onClick={onEdit}
+                aria-label="Éditer"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
+                  borderRadius: 14, padding: '5px 12px', cursor: 'pointer',
+                  color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter', fontSize: 12, fontWeight: 500,
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                Éditer
+              </button>
+            )}
             {!isUser && onRegenerate && (
               <button
                 onClick={onRegenerate}
