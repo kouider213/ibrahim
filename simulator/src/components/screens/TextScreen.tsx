@@ -310,8 +310,8 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       <div
         ref={scrollRef}
         style={{
-          flex: 1, overflowY: 'auto', padding: '10px 10px 6px',
-          display: 'flex', flexDirection: 'column', gap: 10,
+          flex: 1, overflowY: 'auto', padding: '10px 12px 24px',
+          display: 'flex', flexDirection: 'column', gap: 14,
         }}
       >
         {msgs.map(msg => (
@@ -633,13 +633,26 @@ function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
               })}
             </>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-            <span style={{ fontFamily: 'Inter', fontSize: 8, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
+            <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
             {!isUser && msg.text && msg.status === 'done' && (
               <button
-                onClick={() => { void navigator.clipboard.writeText(msg.text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: copied ? actorCol : `${actorCol}44`, fontFamily: 'Inter', fontSize: 8, letterSpacing: '0.06em', transition: 'color 0.2s' }}
-              >{copied ? '✓' : '⎘'}</button>
+                onClick={() => { void navigator.clipboard.writeText(parseMessage(msg.text).displayText || msg.text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: copied ? `${actorCol}22` : 'rgba(255,255,255,0.06)',
+                  border: `1px solid ${copied ? actorCol : 'rgba(255,255,255,0.14)'}`,
+                  borderRadius: 14, padding: '5px 12px', cursor: 'pointer',
+                  color: copied ? actorCol : 'rgba(255,255,255,0.7)',
+                  fontFamily: 'Inter', fontSize: 12, fontWeight: 500, transition: 'all 0.2s',
+                }}
+              >
+                {copied ? (
+                  <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={actorCol} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copié</>
+                ) : (
+                  <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier</>
+                )}
+              </button>
             )}
           </div>
         </div>
