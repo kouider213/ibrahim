@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   api, connectSocket, getOrCreateSessionId,
   playBase64Audio, enqueueChunk, flushChunks, unlockAudio,
@@ -504,6 +506,22 @@ function RichText({ text, color }: { text: string; color: string }) {
   );
 }
 
+// Rendu Markdown (gras, listes, titres, tableaux, code) — réponses Dzaryx façon ChatGPT/Claude
+function Markdown({ text }: { text: string }) {
+  return (
+    <div className="dz-md">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ node, ...p }) => <a {...p} target="_blank" rel="noopener noreferrer" />,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
 function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
@@ -574,10 +592,9 @@ function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
                   style={{ display: 'block', marginBottom: displayText ? 7 : 0, width: '100%', maxHeight: 220, borderRadius: 10, objectFit: 'cover', cursor: 'zoom-in' }} />
               )}
               {displayText && (
-                <RichText
-                  text={displayText}
-                  color={isUser ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.90)'}
-                />
+                isUser
+                  ? <RichText text={displayText} color="rgba(255,255,255,0.92)" />
+                  : <Markdown text={displayText} />
               )}
               {media.map((item, i) => {
                 if (item.kind === 'video') return (
