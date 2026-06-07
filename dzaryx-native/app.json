@@ -96,18 +96,26 @@
       ],
       "expo-local-authentication",
       "expo-quick-actions",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Dzaryx enregistre les photos (voitures, documents) dans ta galerie.",
+          "savePhotosPermission": "Dzaryx enregistre les photos dans ta galerie.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
       "./plugins/withDzaryxOverlay",
       "./plugins/withDzaryxWakeWord"
     ],
     "scheme": "dzaryx",
-    "owner": "fikdzaryx",
+    "owner": "fikkouider",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "3536fdc5-6088-4fd4-9a4f-d443f0a52a1e"
+        "projectId": "ca9eb26d-6235-4d3c-8720-1371ccf12a65"
       }
     }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import html2canvas from 'html2canvas';
 import {
   api, connectSocket, getOrCreateSessionId,
   playBase64Audio, enqueueChunk, flushChunks, unlockAudio,
@@ -15,6 +16,7 @@ interface Message {
   id: string; role: 'user' | 'ai'; text: string;
   ts: string; status?: 'sending' | 'done' | 'error';
   imagePreview?: string;
+  fresh?: boolean;  // réponse fraîche → effet "écriture" (streaming typewriter)
 }
 
 const ACTOR_GREETING: Record<'kouider' | 'houari', string> = {
@@ -290,7 +292,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             ? { ...msg, text: confirmText, status: 'done' } : msg));
         } else {
           setMsgs(ms => ms.map(m => m.id === streamingMsgId.current
-            ? { ...m, text: res.text!, status: 'done' } : m));
+            ? { ...m, text: res.text!, status: 'done', fresh: true } : m));
         }
         streamingMsgId.current = null;
         if (res.audio) { unlockAudio(); await playBase64Audio(res.audio); }
@@ -591,9 +593,31 @@ function Chart({ spec }: { spec: ChartSpec }) {
   const unit = spec.unit ?? '';
   const fmt = (v: number) => `${v.toLocaleString('fr-FR')}${unit ? ' ' + unit : ''}`;
 
+  const cardRef = useRef<HTMLDivElement>(null);
+  const saveChart = async () => {
+    if (!cardRef.current) return;
+    try {
+      const canvas = await html2canvas(cardRef.current, { backgroundColor: '#141414', scale: 2 });
+      const dataUrl = canvas.toDataURL('image/png');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rn = (window as any).ReactNativeWebView;
+      if (rn?.postMessage) {
+        sendNativeAction({ __native_action: 'save_image_data', data: dataUrl });
+      } else {
+        const a = document.createElement('a'); a.href = dataUrl; a.download = 'graphique-dzaryx.png'; a.click();
+      }
+    } catch { /* ignore */ }
+  };
+
   const card = (children: React.ReactNode) => (
-    <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, padding: '14px 14px 12px', margin: '8px 0' }}>
-      {spec.title && <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>{spec.title}</div>}
+    <div ref={cardRef} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, padding: '14px 14px 12px', margin: '8px 0', position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
+        {spec.title ? <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: '#fff' }}>{spec.title}</div> : <span />}
+        <button onClick={saveChart} title="Télécharger le graphique" data-html2canvas-ignore="true"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '4px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: 13, flexShrink: 0 }}>
+          ⤓
+        </button>
+      </div>
       {children}
     </div>
   );
@@ -647,6 +671,28 @@ function Chart({ spec }: { spec: ChartSpec }) {
   );
 }
 
+// Effet "écriture" (streaming) — révèle le texte puis bascule en markdown complet
+function Typewriter({ text }: { text: string }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    setN(0);
+    let i = 0;
+    const step = Math.max(2, Math.round(text.length / 110));
+    const id = setInterval(() => {
+      i += step;
+      if (i >= text.length) { setN(text.length); clearInterval(id); }
+      else setN(i);
+    }, 16);
+    return () => clearInterval(id);
+  }, [text]);
+  if (n >= text.length) return <Markdown text={text} />;
+  return (
+    <div className="dz-md" style={{ whiteSpace: 'pre-wrap' }}>
+      {text.slice(0, n)}<span style={{ opacity: 0.5 }}>▍</span>
+    </div>
+  );
+}
+
 // Rendu Markdown (gras, listes, titres, tableaux, code, GRAPHIQUES) — façon ChatGPT/Claude
 function Markdown({ text }: { text: string }) {
   return (
@@ -681,9 +727,15 @@ function MessageBubble({ msg, actorCol, onRegenerate }: { msg: Message; actorCol
   const { displayText, media } = parseMessage(msg.text);
 
   const downloadFile = (url: string) => {
-    // iOS Safari: ouvrir dans nouvel onglet → appui long → "Ajouter aux photos"
-    // navigator.share après await est bloqué par iOS (pas de geste synchrone)
-    window.open(url, '_blank');
+    // Dans l'app native → vraie sauvegarde dans la galerie (via expo-media-library).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rn = (window as any).ReactNativeWebView;
+    if (rn?.postMessage) {
+      sendNativeAction({ __native_action: 'save_image', url });
+    } else {
+      // navigateur web → ouvre dans un onglet (appui long → enregistrer)
+      window.open(url, '_blank');
+    }
   };
 
   return (
@@ -745,7 +797,7 @@ function MessageBubble({ msg, actorCol, onRegenerate }: { msg: Message; actorCol
               {displayText && (
                 isUser
                   ? <RichText text={displayText} color="rgba(255,255,255,0.92)" />
-                  : <Markdown text={displayText} />
+                  : (msg.fresh ? <Typewriter text={displayText} /> : <Markdown text={displayText} />)
               )}
               {media.map((item, i) => {
                 if (item.kind === 'video') return (

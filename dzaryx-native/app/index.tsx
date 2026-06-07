@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet, BackHandler, Platform, Linking, View, Text,
-  TouchableOpacity, ActivityIndicator, AppState, AppStateStatus, Image,
+  TouchableOpacity, ActivityIndicator, AppState, AppStateStatus, Image, Alert,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type WebViewRef from 'react-native-webview';
@@ -9,6 +9,8 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as QuickActions from 'expo-quick-actions';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const APP_URL          = 'https://kouider213.github.io/ibrahim/';
 const BACKEND_URL      = 'https://ibrahim-backend-production.up.railway.app';
@@ -140,6 +142,40 @@ async function setupVoiceShortcut(): Promise<void> {
 async function handleNativeAction(data: string): Promise<void> {
   try {
     const action = JSON.parse(data) as Record<string, unknown>;
+    if (action['__native_action'] === 'save_image') {
+      // Télécharge l'image + l'enregistre dans la galerie (vraie photo)
+      const url = String(action['url'] ?? '');
+      if (!url) return;
+      try {
+        const perm = await MediaLibrary.requestPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission refusée', 'Autorise l\'accès aux photos pour enregistrer.'); return; }
+        const ext = /\.(png|webp|gif)/i.exec(url)?.[1] ?? 'jpg';
+        const target = `${FileSystem.cacheDirectory}dzaryx_${Date.now()}.${ext}`;
+        const dl = await FileSystem.downloadAsync(url, target);
+        await MediaLibrary.saveToLibraryAsync(dl.uri);
+        Alert.alert('✅ Enregistré', 'Photo enregistrée dans ta galerie.');
+      } catch {
+        Alert.alert('Erreur', 'Impossible d\'enregistrer la photo.');
+      }
+      return;
+    }
+    if (action['__native_action'] === 'save_image_data') {
+      // Enregistre une image base64 (ex: graphique capturé) dans la galerie
+      const raw = String(action['data'] ?? '');
+      if (!raw) return;
+      try {
+        const perm = await MediaLibrary.requestPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission refusée', 'Autorise l\'accès aux photos.'); return; }
+        const base64 = raw.includes(',') ? raw.split(',')[1] : raw;
+        const target = `${FileSystem.cacheDirectory}dzaryx_${Date.now()}.png`;
+        await FileSystem.writeAsStringAsync(target, base64, { encoding: FileSystem.EncodingType.Base64 });
+        await MediaLibrary.saveToLibraryAsync(target);
+        Alert.alert('✅ Enregistré', 'Image enregistrée dans ta galerie.');
+      } catch {
+        Alert.alert('Erreur', 'Impossible d\'enregistrer l\'image.');
+      }
+      return;
+    }
     if (action['__native_action'] === 'open_overlay' && Platform.OS === 'android') {
       // Ouvre l'overlay flottant Dzaryx par-dessus les autres apps
       await Linking.openURL('dzaryxoverlay://go');
