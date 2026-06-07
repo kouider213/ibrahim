@@ -413,18 +413,14 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       unlockAudio();
       setAudioUnlocked(true);
       initMic();
-      // Après le greeting → 1 tour d'écoute auto (tu parles direct). Ensuite = tap micro.
-      const listenOnce = () => setTimeout(() => {
-        if (streamRef.current && statusRef.current === 'idle' && !isRecordingRef.current) startRecording();
-      }, 200);
+      // Push-to-talk : pas d'écoute auto (le VAD est off en overlay). Juste le greeting,
+      // puis l'utilisateur tape le micro pour parler (tap = enregistre, re-tap = envoie).
       try {
-        const u = new SpeechSynthesisUtterance('Je suis à ton écoute');
+        const u = new SpeechSynthesisUtterance('Je suis à ton écoute, appuie sur le micro pour me parler');
         u.lang = 'fr-FR'; u.rate = 1.1;
-        u.onend = listenOnce;
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
-        setTimeout(listenOnce, 2200); // fallback si onend ne se déclenche pas (WebView)
-      } catch { listenOnce(); }
+      } catch { /* ignore */ }
     }, 350);
     return () => clearTimeout(t);
   }, [compact]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -573,9 +569,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       const rms = Math.sqrt(sq / timeBuf.length);
       rmsRef.current = rms;
       setRmsLevel(Math.min(rms * 80, 1));
-      // Si SpeechRecognition pilote (Android) : on garde le RMS juste pour l'orbe,
-      // mais on NE touche PAS à l'enregistrement (sinon flicker arm/désarm). SR gère tout.
-      if (srDictationRef.current) { requestAnimationFrame(tick); return; }
+      // Overlay (compact) : AudioContext souvent suspendu → le VAD lirait "silence" et couperait
+      // l'enregistrement à tort. On désactive le VAD → push-to-talk pur (tap start / tap envoie).
+      // De même si SpeechRecognition pilote (app normale Android).
+      if (compact || srDictationRef.current) { requestAnimationFrame(tick); return; }
       if (statusRef.current === 'idle' && !isRecordingRef.current) {
         const hint = handsFreeRef.current ? 'PARLE-MOI' : 'TAPE 🎤 POUR PARLER';
         setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | ${hint}`);
