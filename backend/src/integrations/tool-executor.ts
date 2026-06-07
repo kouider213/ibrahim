@@ -451,12 +451,14 @@ async function _dispatch(
 async function listBookings(input: Record<string, unknown>): Promise<string> {
   let query = supabase
     .from('bookings')
-    .select('id, client_name, client_phone, start_date, end_date, final_price, currency, status, payment_status, paid_amount, cars(name)')
+    .select('id, client_name, client_phone, start_date, end_date, final_price, currency, status, payment_status, paid_amount, rented_by, cars(name)')
     .order('start_date', { ascending: false })
     .limit(Number(input['limit'] ?? 20));
 
   if (input['status'])      query = query.eq('status', input['status'] as string);
   if (input['client_name']) query = query.ilike('client_name', `%${input['client_name']}%`);
+  // Filtre par acteur (ex: "réservations de Houari") — rented_by stocké 'Houari'/'Kouider'
+  if (input['rented_by'])   query = query.ilike('rented_by', `%${input['rented_by']}%`);
 
   const { data, error } = await query;
   if (error) {
@@ -480,7 +482,8 @@ async function listBookings(input: Record<string, unknown>): Promise<string> {
     const payInfo = b.payment_status
       ? ` | 💰 ${b.payment_status} (payé: ${paidStr})`
       : '';
-    return `- [${b.id}] ${b.client_name} | ${b.cars?.name ?? '?'} | ${b.start_date} → ${b.end_date} | ${priceStr} | ${b.status}${payInfo}`;
+    const who = b.rented_by ? ` | 👤 ${b.rented_by}` : '';
+    return `- [${b.id}] ${b.client_name} | ${b.cars?.name ?? '?'} | ${b.start_date} → ${b.end_date} | ${priceStr} | ${b.status}${who}${payInfo}`;
   });
 
   return `${data.length} réservation(s):\n${rows.join('\n')}`;
@@ -610,8 +613,12 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
   // Automotolux payment_status values: 'UNPAID' | 'PARTIAL' | 'PAID' (DEFAULT 'UNPAID')
   // nb_days, notes NOT in automotolux schema → excluded
   // client_age: column exists, make nullable via: ALTER TABLE bookings ALTER COLUMN client_age DROP NOT NULL
-  const rentedBy = (input['rented_by'] as string) ??
-    (sessionId ? (await redis.get(`session:actor:${sessionId}`).catch(() => null) ?? 'Kouider') : 'Kouider');
+  // Acteur robuste : input explicite > cache session > déduit du sessionId (houari/kouider).
+  // Normalisé en 'Houari'/'Kouider' (la casse compte pour profit_kouider + filtres).
+  const actorRaw = (input['rented_by'] as string)
+    ?? (sessionId ? await redis.get(`session:actor:${sessionId}`).catch(() => null) : null)
+    ?? (sessionId && /houari/i.test(sessionId) ? 'houari' : 'kouider');
+  const rentedBy = /houari/i.test(String(actorRaw)) ? 'Houari' : 'Kouider';
   const currency = (input['currency'] as string) ?? (rentedBy === 'Houari' ? 'DZD' : 'EUR');
 
   const insertPayload: Record<string, unknown> = {
@@ -1263,13 +1270,15 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
 
   const overlappingQuery = supabase
     .from('bookings')
-    .select('car_id')
+    .select('car_id, rented_by, client_name, start_date, end_date')
     .in('status', ['CONFIRMED', 'ACTIVE'])
     .lt('start_date', endDate)
     .gt('end_date', startDate);
 
   const { data: overlapping } = await overlappingQuery;
-  const busyCarIds = new Set((overlapping ?? []).map((b: { car_id: string }) => b.car_id));
+  type OverlapRow = { car_id: string; rented_by?: string; client_name?: string; start_date?: string; end_date?: string };
+  const overlapRows = (overlapping ?? []) as OverlapRow[];
+  const busyCarIds = new Set(overlapRows.map(b => b.car_id));
 
   let carsQuery = supabase.from('cars').select('id, name, base_price, category').eq('available', true);
   if (carId) carsQuery = carsQuery.eq('id', carId);
@@ -1284,9 +1293,19 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
   const available = (cars ?? []).filter((c: { id: string }) => !busyCarIds.has(c.id));
 
   if (!available.length) {
-    return carId
-      ? `❌ La voiture demandée n'est pas disponible du ${startDate} au ${endDate}.`
-      : `❌ Aucune voiture disponible du ${startDate} au ${endDate}.`;
+    // Si une voiture précise est demandée → dire QUI l'a bloquée + pour quel client + dates
+    if (carId) {
+      const conflicts = overlapRows.filter(b => b.car_id === carId);
+      if (conflicts.length) {
+        const details = conflicts.map(c => {
+          const who = c.rented_by ? `bloquée par ${c.rented_by}` : 'réservée';
+          return `❌ ${who} pour le client ${c.client_name ?? '?'} du ${c.start_date} au ${c.end_date}`;
+        }).join('\n');
+        return `${details}\n→ Indisponible sur la période demandée (${startDate} → ${endDate}).`;
+      }
+      return `❌ La voiture demandée n'est pas disponible du ${startDate} au ${endDate}.`;
+    }
+    return `❌ Aucune voiture disponible du ${startDate} au ${endDate}.`;
   }
 
   const lines = available.map((c: { id: string; name: string; base_price: number; category: string }) => {
