@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-06-07 — Création annonces + photos via chat, vision chat, fixes matching
+
+### backend/ + simulator/
+- **`9e45312`** — Dzaryx attache les photos jointes au chat à la NOUVELLE annonce (voiture location `add_car`/`car_photos`, immo `create_property`/`property_photos`, vente `add_vehicle_for_sale`/`vehicle_sale_photos`, pack `image_url`). Endpoint `POST /api/cars/session-photos` (upload Cloudinary + cache Redis `session:photos:{sid}` 15min) → `attachSessionPhotos()` consommé par les tools create. Frontend `TextScreen` : détection `isCreateIntent` distingue création / store voiture existante / vision.
+- **`4856275`** — `add_car` ajouté aux agents Réservations + Général (était scopé hors → Dzaryx ne pouvait PAS créer de voiture de location via chat).
+- **`e54811b`** — Vision dans le chat : bypass des guards business (`fastPathGuard`/`checkAntiHallucination`) quand `imageBase64` présent (la réponse décrit l'image, pas une requête DB → écrasée à tort par `FAST_PATH_REFUSAL`).
+- **`d4aa670`** — Matching voiture par score de tokens (≥3 lettres) dans `/api/cars/photos` (le fallback exigeait tous les mots, un token "9" cassait "Jumpy 9 Places").
+- **Tests live (Railway + Supabase)** : création voiture via chat OK, création + 2 photos attachées (car_photos + image_url) OK, cleanup OK.
+
 ## 2026-06-03 — Latence réduite (réponses plus rapides) + fix native expo-fs
 
 ### backend/ — Réflexion étendue (thinking) optimisée pour la vitesse
