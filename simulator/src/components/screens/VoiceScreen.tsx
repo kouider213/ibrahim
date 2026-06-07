@@ -403,6 +403,24 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     if (sessionAudioUnlocked) { initMic(); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // OVERLAY : auto-activation (pas de tap). Micro ouvert direct + "Je suis à ton écoute".
+  useEffect(() => {
+    if (!compact) return;
+    const t = setTimeout(() => {
+      sessionAudioUnlocked = true;
+      unlockAudio();
+      setAudioUnlocked(true);
+      initMic();
+      try {
+        const u = new SpeechSynthesisUtterance('Je suis à ton écoute');
+        u.lang = 'fr-FR'; u.rate = 1.1;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      } catch { /* ignore */ }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [compact]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Watchdog mains-libres : garde le micro vivant sans aucun bouton ──────────
   // Toutes les 3s : si "thinking" est bloqué trop longtemps → on débloque ;
   // si le micro a été coupé (track morte, iOS, interruption) → on le relance.
