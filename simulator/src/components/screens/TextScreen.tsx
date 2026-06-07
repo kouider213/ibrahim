@@ -248,8 +248,8 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     } catch { /* ignore */ }
   }, []);
 
-  const send = useCallback(async () => {
-    const text = input.trim();
+  const send = useCallback(async (forced?: string) => {
+    const text = (forced ?? input).trim();
     if ((!text && !selectedImage) || status === 'thinking') return;
 
     const img = selectedImage;
@@ -302,6 +302,13 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       streamingMsgId.current = null;
     }
   }, [input, status, selectedImage]);
+
+  // Régénérer : renvoie le dernier message utilisateur
+  const regenerate = useCallback(() => {
+    if (status === 'thinking') return;
+    const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+    if (lastUser) void send(lastUser.text);
+  }, [msgs, status, send]);
 
   const col = STATUS_COLOR[status];
 
@@ -360,8 +367,13 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           display: 'flex', flexDirection: 'column', gap: 14,
         }}
       >
-        {msgs.map(msg => (
-          <MessageBubble key={msg.id} msg={msg} actorCol={actorCol} />
+        {msgs.map((msg, i) => (
+          <MessageBubble
+            key={msg.id}
+            msg={msg}
+            actorCol={actorCol}
+            onRegenerate={(i === msgs.length - 1 && msg.role === 'ai' && msg.status === 'done') ? regenerate : undefined}
+          />
         ))}
         {streaming && streamingMsgId.current && (
           <TypingIndicator actorCol={actorCol} />
@@ -585,7 +597,7 @@ function Markdown({ text }: { text: string }) {
   );
 }
 
-function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
+function MessageBubble({ msg, actorCol, onRegenerate }: { msg: Message; actorCol: string; onRegenerate?: () => void }) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -715,6 +727,22 @@ function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
           )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
             <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: 400, color: isUser ? 'rgba(255,180,80,0.3)' : `${actorCol}33`, letterSpacing: '0.03em' }}>{msg.ts}</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+            {!isUser && onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                aria-label="Régénérer"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
+                  borderRadius: 14, padding: '5px 12px', cursor: 'pointer',
+                  color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter', fontSize: 12, fontWeight: 500,
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Régénérer
+              </button>
+            )}
             {!isUser && msg.text && msg.status === 'done' && (
               <button
                 onClick={() => { void navigator.clipboard.writeText(parseMessage(msg.text).displayText || msg.text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
@@ -734,6 +762,7 @@ function MessageBubble({ msg, actorCol }: { msg: Message; actorCol: string }) {
                 )}
               </button>
             )}
+            </div>
           </div>
         </div>
       </div>
