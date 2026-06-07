@@ -251,13 +251,15 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   // Conversation continue activée par DÉFAUT (comme Gemini Live) :
   // mains-libres = le VAD s'arme tout seul au son, sans toucher l'orbe ;
   // continu = re-écoute automatiquement après chaque réponse → vraie conversation.
-  const [continuousMode, setContinuousMode] = useState(true);
-  const continuousModeRef = useRef(true);
+  // App normale = conversation continue (SR Google). Overlay (compact) = push-to-talk
+  // (tap micro → 1 tour → réponse) car le VAD continu flicke dans la WebView overlay.
+  const [continuousMode, setContinuousMode] = useState(!compact);
+  const continuousModeRef = useRef(!compact);
   continuousModeRef.current = continuousMode;
   const prevStatusRef = useRef<DzaryxStatus>('idle');
 
-  const [handsFree, setHandsFree]         = useState(true);
-  const handsFreeRef = useRef(true);
+  const [handsFree, setHandsFree]         = useState(!compact);
+  const handsFreeRef = useRef(!compact);
   handsFreeRef.current = handsFree;
   const [wakeWordOn, setWakeWordOn]       = useState(false);
 
@@ -411,12 +413,18 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       unlockAudio();
       setAudioUnlocked(true);
       initMic();
+      // Après le greeting → 1 tour d'écoute auto (tu parles direct). Ensuite = tap micro.
+      const listenOnce = () => setTimeout(() => {
+        if (streamRef.current && statusRef.current === 'idle' && !isRecordingRef.current) startRecording();
+      }, 200);
       try {
         const u = new SpeechSynthesisUtterance('Je suis à ton écoute');
         u.lang = 'fr-FR'; u.rate = 1.1;
+        u.onend = listenOnce;
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
-      } catch { /* ignore */ }
+        setTimeout(listenOnce, 2200); // fallback si onend ne se déclenche pas (WebView)
+      } catch { listenOnce(); }
     }, 350);
     return () => clearTimeout(t);
   }, [compact]); // eslint-disable-line react-hooks/exhaustive-deps
