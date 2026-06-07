@@ -49,6 +49,12 @@ export const api = {
       body:   JSON.stringify({ message, sessionId, textOnly: textOnly && !imageBase64, imageBase64, imageMime }),
     }),
 
+  uploadCarPhotos: (message: string, images: string[]) =>
+    apiFetch<{ text: string; count?: number; car?: string }>('/api/cars/photos', {
+      method: 'POST',
+      body:   JSON.stringify({ message, images }),
+    }),
+
   transcribe: (audioBase64: string, mimeType = 'audio/webm') =>
     apiFetch<TranscribeResponse>('/api/transcribe', {
       method: 'POST',

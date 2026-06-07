@@ -44,7 +44,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   const [streaming, setStream] = useState('');
   const [wsConn, setWsConn]   = useState(isSocketConnected);
   const [, setSyncInfo] = useState<{ ok: boolean; time: string; count: number } | null>(null);
-  const [selectedImage, setSelectedImage] = useState<{ base64: string; preview: string } | null>(null);
+  const [selectedImages, setSelectedImages] = useState<{ base64: string; preview: string }[]>([]);
   const [search, setSearch]       = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const scrollRef              = useRef<HTMLDivElement>(null);
@@ -243,20 +243,44 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   }, [msgs, streaming]);
 
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
     e.target.value = '';
-    try {
-      const b64 = await compressImage(file, 1200, 0.75);
-      setSelectedImage({ base64: b64, preview: `data:image/jpeg;base64,${b64}` });
-    } catch { /* ignore */ }
+    for (const file of files) {
+      try {
+        const b64 = await compressImage(file, 1400, 0.78);
+        setSelectedImages(prev => prev.length >= 15 ? prev : [...prev, { base64: b64, preview: `data:image/jpeg;base64,${b64}` }]);
+      } catch { /* ignore */ }
+    }
   }, []);
+
+  // Détecte "enregistre ces photos pour la voiture X"
+  const isStoreIntent = (t: string) => /\b(enregistre|range|sauvegarde|stocke|ajoute(?:r)?\s+(?:ces|les|la|au)?)\b/i.test(t) || /voici.*photo|photos?\s+(du|de|des|pour)/i.test(t);
 
   const send = useCallback(async (forced?: string) => {
     const text = (forced ?? input).trim();
-    if ((!text && !selectedImage) || status === 'thinking') return;
+    if ((!text && !selectedImages.length) || status === 'thinking') return;
 
-    const img = selectedImage;
+    // CAS SPÉCIAL — ranger plusieurs photos sur une voiture (Supabase)
+    if (selectedImages.length && isStoreIntent(text)) {
+      const imgs = selectedImages;
+      setMsgs(ms => [...ms,
+        { id: uid(), role: 'user', text: `${text}  (${imgs.length} photo${imgs.length > 1 ? 's' : ''})`, ts: now(), status: 'done', imagePreview: imgs[0].preview },
+        { id: uid(), role: 'ai', text: '', ts: now(), status: 'sending' },
+      ]);
+      const aiId = uid(); // not used as streamingMsgId here
+      void aiId;
+      setInput(''); setSelectedImages([]); setStatus('thinking');
+      try {
+        const r = await api.uploadCarPhotos(text, imgs.map(i => i.base64));
+        setMsgs(ms => { const copy = [...ms]; for (let i = copy.length - 1; i >= 0; i--) { if (copy[i].role === 'ai' && copy[i].status === 'sending') { copy[i] = { ...copy[i], text: r.text, status: 'done' }; break; } } return copy; });
+      } catch {
+        setMsgs(ms => { const copy = [...ms]; for (let i = copy.length - 1; i >= 0; i--) { if (copy[i].role === 'ai' && copy[i].status === 'sending') { copy[i] = { ...copy[i], text: '⚠️ Erreur enregistrement photos', status: 'error' }; break; } } return copy; });
+      } finally { setStatus('idle'); }
+      return;
+    }
+
+    const img = selectedImages[0] ?? null;
     const userMsg: Message = {
       id: uid(), role: 'user',
       text: text || '📷 Photo',
@@ -267,7 +291,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     setMsgs(ms => [...ms, userMsg, aiMsg]);
     streamingMsgId.current = aiMsg.id;
     setInput('');
-    setSelectedImage(null);
+    setSelectedImages([]);
     setStatus('thinking');
 
     // Timeout: if Socket.IO never delivers response in 45s, show error
@@ -305,7 +329,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
         ? { ...m, text: '⚠️ Erreur réseau', status: 'error' } : m));
       streamingMsgId.current = null;
     }
-  }, [input, status, selectedImage]);
+  }, [input, status, selectedImages]);
 
   // Régénérer : renvoie le dernier message utilisateur
   const regenerate = useCallback(() => {
@@ -414,26 +438,30 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
 
       {/* Zone de saisie — pill (façon Gemini) */}
       <div style={{ flexShrink: 0, background: '#000', padding: '8px 12px 14px' }}>
-        {/* Aperçu image */}
-        {selectedImage && (
-          <div style={{ padding: '0 4px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <img src={selectedImage.preview} alt="preview"
-                style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(255,255,255,0.14)' }} />
-              <button onClick={() => setSelectedImage(null)} style={{
-                position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.22)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-              }}>
-                <span style={{ fontSize: 10, color: '#fff', lineHeight: 1 }}>✕</span>
-              </button>
-            </div>
-            <span style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Photo prête</span>
+        {/* Aperçu photos (multiple) */}
+        {selectedImages.length > 0 && (
+          <div style={{ padding: '0 4px 8px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {selectedImages.map((im, idx) => (
+              <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                <img src={im.preview} alt="preview"
+                  style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 12, border: '1px solid rgba(255,255,255,0.14)' }} />
+                <button onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} style={{
+                  position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.22)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                }}>
+                  <span style={{ fontSize: 10, color: '#fff', lineHeight: 1 }}>✕</span>
+                </button>
+              </div>
+            ))}
+            <span style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+              {selectedImages.length} photo{selectedImages.length > 1 ? 's' : ''} — dis "enregistre pour le [voiture]" pour les ranger
+            </span>
           </div>
         )}
 
-        {/* Hidden file input */}
-        <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageSelect} />
+        {/* Hidden file input (multiple) */}
+        <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleImageSelect} />
 
         {/* Pill */}
         <div style={{
@@ -448,11 +476,11 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             aria-label="Ajouter une photo"
             style={{
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 1,
-              background: selectedImage ? `${col}1c` : 'transparent', border: 'none', cursor: 'pointer',
+              background: selectedImages.length ? `${col}1c` : 'transparent', border: 'none', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selectedImage ? col : 'rgba(255,255,255,0.55)'} strokeWidth="1.8" strokeLinecap="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selectedImages.length ? col : 'rgba(255,255,255,0.55)'} strokeWidth="1.8" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
@@ -461,7 +489,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={selectedImage ? 'Ajoute un message…' : 'Message à Dzaryx'}
+            placeholder={selectedImages.length ? 'Ajoute un message…' : 'Message à Dzaryx'}
             rows={1}
             style={{
               flex: 1, background: 'transparent', border: 'none',
@@ -492,12 +520,12 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
 
           {/* Envoyer (flèche si texte, micro sinon) */}
           <button
-            onClick={() => { unlockAudio(); if (input.trim() || selectedImage) send(); else onNavigateVoice(); }}
+            onClick={() => { unlockAudio(); if (input.trim() || selectedImages.length) send(); else onNavigateVoice(); }}
             disabled={status === 'thinking'}
-            aria-label={(input.trim() || selectedImage) ? 'Envoyer' : 'Mode vocal'}
+            aria-label={(input.trim() || selectedImages.length) ? 'Envoyer' : 'Mode vocal'}
             style={{
               width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-              background: (input.trim() || selectedImage) ? col : 'rgba(255,255,255,0.10)',
+              background: (input.trim() || selectedImages.length) ? col : 'rgba(255,255,255,0.10)',
               border: 'none', cursor: status === 'thinking' ? 'default' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.2s ease',
@@ -507,7 +535,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" style={{ animation: 'spin-slow 1s linear infinite' }}>
                 <circle cx="12" cy="12" r="9" strokeOpacity="0.3" /><path d="M12 3a9 9 0 0 1 9 9" />
               </svg>
-            ) : (input.trim() || selectedImage) ? (
+            ) : (input.trim() || selectedImages.length) ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5,12 12,5 19,12" />
               </svg>
