@@ -35,7 +35,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import ai.picovoice.porcupine.PorcupineManager
 import ai.picovoice.porcupine.PorcupineManagerCallback
@@ -87,11 +89,15 @@ class DzaryxWakeWordService : Service() {
     return out.absolutePath
   }
 
+  private val retryHandler = Handler(Looper.getMainLooper())
+
   private fun startPorcupine() {
-    // Micro requis
+    // Micro requis — si pas accordé, on garde le service VIVANT (notif reste → tap ouvre overlay),
+    // on retente plus tard. JAMAIS de stopSelf (sinon la notif disparaît).
     if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
       != PackageManager.PERMISSION_GRANTED) {
-      stopSelf(); return
+      retryHandler.postDelayed({ if (porcupineManager == null) startPorcupine() }, 8000)
+      return
     }
     try {
       val keywordPath = copyAsset("${PPN_ASSET}")
@@ -102,7 +108,10 @@ class DzaryxWakeWordService : Service() {
         .build(applicationContext, PorcupineManagerCallback { onWake() })
       porcupineManager?.start()
     } catch (e: Exception) {
-      stopSelf()
+      // Échec (activation hors-ligne, etc.) → on NE tue PAS le service (notif reste utilisable),
+      // on retente dans 10s (ex: internet revenu).
+      porcupineManager = null
+      retryHandler.postDelayed({ if (porcupineManager == null) startPorcupine() }, 10000)
     }
   }
 
@@ -113,6 +122,7 @@ class DzaryxWakeWordService : Service() {
   }
 
   override fun onDestroy() {
+    retryHandler.removeCallbacksAndMessages(null)
     try { porcupineManager?.stop(); porcupineManager?.delete() } catch (e: Exception) {}
     porcupineManager = null
     super.onDestroy()
@@ -120,16 +130,49 @@ class DzaryxWakeWordService : Service() {
 }
 `;
 
+const BOOT_KT = `package ${PKG}
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+
+class DzaryxBootReceiver : BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent?) {
+    if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
+      val i = Intent(context, DzaryxWakeWordService::class.java)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i)
+      else context.startService(i)
+    }
+  }
+}
+`;
+
 const LAUNCHER_KT = `package ${PKG}
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 
 class DzaryxWakeLauncherActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    // Exemption batterie (OnePlus tue les services fond sinon)
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+          val bi = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + packageName))
+          bi.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          startActivity(bi)
+        }
+      }
+    } catch (e: Exception) {}
     try {
       val i = Intent(this, DzaryxWakeWordService::class.java)
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i) else startService(i)
@@ -148,6 +191,7 @@ function withKotlin(config) {
       fs.mkdirSync(javaDir, { recursive: true });
       fs.writeFileSync(path.join(javaDir, 'DzaryxWakeWordService.kt'), SERVICE_KT);
       fs.writeFileSync(path.join(javaDir, 'DzaryxWakeLauncherActivity.kt'), LAUNCHER_KT);
+      fs.writeFileSync(path.join(javaDir, 'DzaryxBootReceiver.kt'), BOOT_KT);
 
       // Copie le .ppn dans les assets Android
       const assetsDir = path.join(root, 'app', 'src', 'main', 'assets');
@@ -176,7 +220,13 @@ function withManifest(config) {
   return withAndroidManifest(config, (cfg) => {
     const manifest = cfg.modResults;
     manifest.manifest['uses-permission'] = manifest.manifest['uses-permission'] || [];
-    const perms = ['android.permission.RECORD_AUDIO', 'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MICROPHONE'];
+    const perms = [
+      'android.permission.RECORD_AUDIO',
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_MICROPHONE',
+      'android.permission.RECEIVE_BOOT_COMPLETED',
+      'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
+    ];
     for (const p of perms) {
       if (!manifest.manifest['uses-permission'].some((u) => u.$['android:name'] === p)) {
         manifest.manifest['uses-permission'].push({ $: { 'android:name': p } });
@@ -184,6 +234,17 @@ function withManifest(config) {
     }
 
     const app = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
+
+    // BootReceiver — relance le wake word après redémarrage
+    app.receiver = app.receiver || [];
+    if (!app.receiver.some((r) => r.$['android:name'] === '.DzaryxBootReceiver')) {
+      app.receiver.push({
+        $: { 'android:name': '.DzaryxBootReceiver', 'android:exported': 'true' },
+        'intent-filter': [
+          { action: [{ $: { 'android:name': 'android.intent.action.BOOT_COMPLETED' } }] },
+        ],
+      });
+    }
     app.service = app.service || [];
     if (!app.service.some((s) => s.$['android:name'] === '.DzaryxWakeWordService')) {
       app.service.push({

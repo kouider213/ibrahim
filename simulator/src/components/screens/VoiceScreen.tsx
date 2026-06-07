@@ -328,11 +328,15 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     (window as any).__triggerWakeWord = () => activate(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__triggerWakeWordFast = () => activate(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__triggerVision = () => { unlockAudio(); toggleLiveCam(); };
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__triggerWakeWord;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__triggerWakeWordFast;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__triggerVision;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -826,13 +830,12 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           {barText}
         </div>
 
-        {/* caméra (analyse vision) */}
-        <button onClick={handleVision} aria-label="Caméra" disabled={!audioUnlocked}
+        {/* caméra → ouvre l'app en mode vision (deep link capté par l'overlay natif) */}
+        <button onClick={() => { window.location.href = 'dzaryx://vision'; }} aria-label="Caméra"
           style={{
             width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
             background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            opacity: audioUnlocked ? 1 : 0.4,
           }}>
           <svg width="18" height="14" viewBox="0 0 24 18" fill="none" stroke={col} strokeWidth="1.6" strokeLinecap="round">
             <path d="M1 9C4 3.5 8 1 12 1s8 2.5 11 8c-3 5.5-7 8-11 8S4 14.5 1 9z" />

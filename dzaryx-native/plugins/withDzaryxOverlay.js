@@ -31,6 +31,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -39,6 +40,7 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -87,7 +89,22 @@ class DzaryxOverlayService : Service() {
     web.settings.javaScriptEnabled = true
     web.settings.domStorageEnabled = true
     web.settings.mediaPlaybackRequiresUserGesture = false
-    web.webViewClient = WebViewClient()
+    web.webViewClient = object : WebViewClient() {
+      override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+        val url = request?.url?.toString() ?: return false
+        // Lien non-http (ex: dzaryx://vision) → ouvre l'app + ferme l'overlay
+        if (!url.startsWith("http")) {
+          try {
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(i)
+          } catch (e: Exception) {}
+          removeOverlay(); stopSelf()
+          return true
+        }
+        return false
+      }
+    }
     web.webChromeClient = object : WebChromeClient() {
       override fun onPermissionRequest(request: PermissionRequest) {
         request.grant(request.resources)
