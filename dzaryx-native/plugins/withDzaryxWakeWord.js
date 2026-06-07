@@ -55,13 +55,8 @@ class DzaryxWakeWordService : Service() {
     return START_STICKY
   }
 
-  private fun startForegroundNotif() {
+  private fun buildNotif(text: String): Notification {
     val channelId = "dzaryx_wake"
-    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val ch = NotificationChannel(channelId, "Dzaryx — \\"Zaria\\"", NotificationManager.IMPORTANCE_MIN)
-      nm.createNotificationChannel(ch)
-    }
     // Tap sur la notif → ouvre la barre overlay (pas l'app entière)
     val overlayIntent = Intent(this, DzaryxOverlayLauncherActivity::class.java)
     overlayIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -69,16 +64,32 @@ class DzaryxWakeWordService : Service() {
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
     else PendingIntent.FLAG_UPDATE_CURRENT
     val pi = PendingIntent.getActivity(this, 0, overlayIntent, piFlags)
-
     val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
       Notification.Builder(this, channelId) else Notification.Builder(this)
-    val notif = builder
-      .setContentTitle("Dzaryx à l'écoute")
-      .setContentText("Dis \\"Zaria\\" ou tape ici pour parler")
+    return builder
+      .setContentTitle("Dzaryx")
+      .setContentText(text)
       .setSmallIcon(applicationInfo.icon)
       .setContentIntent(pi)
+      .setOngoing(true)
       .build()
-    startForeground(4243, notif)
+  }
+
+  private fun startForegroundNotif() {
+    val channelId = "dzaryx_wake"
+    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val ch = NotificationChannel(channelId, "Dzaryx", NotificationManager.IMPORTANCE_MIN)
+      nm.createNotificationChannel(ch)
+    }
+    startForeground(4243, buildNotif("Tape ici pour parler"))
+  }
+
+  private fun updateNotif(text: String) {
+    try {
+      val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      nm.notify(4243, buildNotif(text))
+    } catch (e: Exception) {}
   }
 
   private fun copyAsset(name: String): String {
@@ -107,6 +118,7 @@ class DzaryxWakeWordService : Service() {
         .setSensitivity(0.85f)
         .build(applicationContext, PorcupineManagerCallback { onWake() })
       porcupineManager?.start()
+      updateNotif("🎙️ Dis \\"Zaria\\" — à l'écoute")
     } catch (e: Exception) {
       // Échec (activation hors-ligne, etc.) → on NE tue PAS le service (notif reste utilisable),
       // on retente dans 10s (ex: internet revenu).
