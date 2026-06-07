@@ -352,7 +352,7 @@ export default function App() {
       const isVoice  = response.actionIdentifier === 'voice' || data?.['trigger'] === 'voice';
       const navTarget = data?.['navigate'] as string | undefined;
       if (isVoice) {
-        setTimeout(() => triggerVoiceInWebView(), 1000);
+        Linking.openURL('dzaryxoverlay://go').catch(() => {});
       } else if (navTarget) {
         setTimeout(() => routeQuickAction(navTarget), 1000);
       }

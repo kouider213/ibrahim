@@ -22,13 +22,14 @@ const PKG = 'com.dzaryx.app';
 const PPN_ASSET = 'Zaria_android.ppn';
 // Clé Picovoice : JAMAIS en dur dans le repo. Lue depuis l'env (secret EAS).
 const ACCESS_KEY = process.env.PICOVOICE_ACCESS_KEY || '';
-const PORCUPINE_VERSION = '3.0.2';
+const PORCUPINE_VERSION = '4.0.0';  // DOIT matcher le .ppn (Zaria..._v4_0_0)
 
 const SERVICE_KT = `package ${PKG}
 
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -59,12 +60,21 @@ class DzaryxWakeWordService : Service() {
       val ch = NotificationChannel(channelId, "Dzaryx — \\"Zaria\\"", NotificationManager.IMPORTANCE_MIN)
       nm.createNotificationChannel(ch)
     }
+    // Tap sur la notif → ouvre la barre overlay (pas l'app entière)
+    val overlayIntent = Intent(this, DzaryxOverlayLauncherActivity::class.java)
+    overlayIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val piFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+    else PendingIntent.FLAG_UPDATE_CURRENT
+    val pi = PendingIntent.getActivity(this, 0, overlayIntent, piFlags)
+
     val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
       Notification.Builder(this, channelId) else Notification.Builder(this)
     val notif = builder
       .setContentTitle("Dzaryx à l'écoute")
-      .setContentText("Dis \\"Zaria\\" pour me parler")
+      .setContentText("Dis \\"Zaria\\" ou tape ici pour parler")
       .setSmallIcon(applicationInfo.icon)
+      .setContentIntent(pi)
       .build()
     startForeground(4243, notif)
   }
