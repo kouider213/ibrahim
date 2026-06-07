@@ -329,6 +329,17 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
 • Réponse COURTE et ORALE — 2 à 4 phrases maximum sauf si détails vraiment nécessaires`
     : '';
 
+  // Graphiques — UNIQUEMENT en mode texte (pas vocal, ça serait lu à voix haute)
+  const chartHint = !isVoiceChannel
+    ? `\n\nGRAPHIQUES (mode texte): si ${actor.displayName} demande un graphique / camembert / courbe / visualisation de chiffres (revenus, parc, clients, paiements, comparaison...), réponds avec un bloc de code \`\`\`chart contenant du JSON sur une ligne, format:
+\`\`\`chart
+{"type":"bar","title":"Revenus par mois","unit":"€","data":[{"label":"Juin","value":1200},{"label":"Juillet","value":1800}]}
+\`\`\`
+• type: "bar" (barres, défaut, pour comparer) | "pie" (camembert, pour une répartition) | "line"
+• Utilise les VRAIES données (de get_revenue_report, get_fleet_status, etc.) — JAMAIS inventées
+• Une courte phrase peut précéder le bloc. Mets le bloc \`\`\`chart seulement si un visuel est pertinent.`
+    : '';
+
   const channelInfo = `\n\nCANAL ACTUEL: ${currentChannel}.${voiceFormatHint} ${currentChannel === 'Telegram' ? `${actor.displayName} écrit DEPUIS Telegram — ne jamais dire "je t'envoie sur Telegram", il EST déjà sur Telegram. Envoyer les documents directement dans ce chat.` : `${actor.displayName} parle via App Vocale — utiliser get_client_document pour envoyer des documents/photos directement dans le chat. JAMAIS utiliser send_telegram_message ni dire "sur Telegram".`}`;
 
   const crossChannelLabel = sessionId === 'voice_kouider' ? 'TELEGRAM' : 'APP VOCALE';
@@ -430,6 +441,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     urgencyText,
     langHint,
     channelInfo,
+    chartHint,
     dateInfo,
     moodText,
     weatherText,

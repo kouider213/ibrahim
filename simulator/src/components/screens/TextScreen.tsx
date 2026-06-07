@@ -581,7 +581,73 @@ function RichText({ text, color }: { text: string; color: string }) {
   );
 }
 
-// Rendu Markdown (gras, listes, titres, tableaux, code) — réponses Dzaryx façon ChatGPT/Claude
+// Graphique (barres / camembert) — rendu maison, thème sombre + or
+type ChartSpec = { type?: 'bar' | 'pie' | 'line'; title?: string; data?: Array<{ label: string; value: number }>; unit?: string };
+const CHART_COLORS = ['#C9A96E', '#52E3A1', '#00d4ff', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
+
+function Chart({ spec }: { spec: ChartSpec }) {
+  const data = (spec.data ?? []).filter(d => d && typeof d.value === 'number');
+  if (!data.length) return null;
+  const unit = spec.unit ?? '';
+  const fmt = (v: number) => `${v.toLocaleString('fr-FR')}${unit ? ' ' + unit : ''}`;
+
+  const card = (children: React.ReactNode) => (
+    <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14, padding: '14px 14px 12px', margin: '8px 0' }}>
+      {spec.title && <div style={{ fontFamily: 'Inter', fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 12 }}>{spec.title}</div>}
+      {children}
+    </div>
+  );
+
+  if (spec.type === 'pie') {
+    const total = data.reduce((s, d) => s + Math.max(0, d.value), 0) || 1;
+    let acc = 0; const R = 52, C = 64, cir = 2 * Math.PI * R;
+    return card(
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <svg width={C * 2} height={C * 2} viewBox={`0 0 ${C * 2} ${C * 2}`}>
+          {data.map((d, i) => {
+            const frac = Math.max(0, d.value) / total;
+            const dash = frac * cir;
+            const el = (
+              <circle key={i} cx={C} cy={C} r={R} fill="none" stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                strokeWidth={22} strokeDasharray={`${dash} ${cir - dash}`} strokeDashoffset={-acc * cir}
+                transform={`rotate(-90 ${C} ${C})`} />
+            );
+            acc += frac; return el;
+          })}
+        </svg>
+        <div style={{ flex: 1, minWidth: 120 }}>
+          {data.map((d, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: CHART_COLORS[i % CHART_COLORS.length], flexShrink: 0 }} />
+              <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.85)', flex: 1 }}>{d.label}</span>
+              <span style={{ fontFamily: 'Inter', fontSize: 12, color: '#fff', fontWeight: 600 }}>{fmt(d.value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // bar (défaut, + 'line' traité comme barres)
+  const max = Math.max(...data.map(d => d.value), 1);
+  return card(
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      {data.map((d, i) => (
+        <div key={i}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+            <span style={{ fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>{d.label}</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 12, color: '#fff', fontWeight: 600 }}>{fmt(d.value)}</span>
+          </div>
+          <div style={{ height: 9, background: 'rgba(255,255,255,0.07)', borderRadius: 5, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.max(2, (d.value / max) * 100)}%`, background: CHART_COLORS[i % CHART_COLORS.length], borderRadius: 5, transition: 'width 0.5s ease' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Rendu Markdown (gras, listes, titres, tableaux, code, GRAPHIQUES) — façon ChatGPT/Claude
 function Markdown({ text }: { text: string }) {
   return (
     <div className="dz-md">
@@ -589,6 +655,16 @@ function Markdown({ text }: { text: string }) {
         remarkPlugins={[remarkGfm]}
         components={{
           a: ({ node, ...p }) => <a {...p} target="_blank" rel="noopener noreferrer" />,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          code: ({ node, className, children, ...p }: any) => {
+            if (/language-chart/.test(className || '')) {
+              try {
+                const spec = JSON.parse(String(children).trim()) as ChartSpec;
+                return <Chart spec={spec} />;
+              } catch { /* JSON invalide → code normal */ }
+            }
+            return <code className={className} {...p}>{children}</code>;
+          },
         }}
       >
         {text}
