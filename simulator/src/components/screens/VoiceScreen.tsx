@@ -173,15 +173,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   }
 
   function startSRDictation(): boolean {
-    // En overlay (WebView), SpeechRecognition est cassé → on force VAD+Whisper (return false).
-    if (compact) return false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-    if (!SR) return false;
-    srWantedRef.current  = true;
-    srDictationRef.current = true;
-    beginSR();
-    return true;
+    // SpeechRecognition (Google) est CASSÉ dans la WebView Android de Kouider (aucun résultat,
+    // pas d'erreur → micro gelé). On le DÉSACTIVE partout → VAD+Whisper (fiable, marchait avant).
+    return false;
   }
 
   function beginSR() {
