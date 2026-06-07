@@ -100,14 +100,14 @@
       "./plugins/withDzaryxWakeWord"
     ],
     "scheme": "dzaryx",
-    "owner": "fikkouider",
+    "owner": "fikdzaryx",
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ca9eb26d-6235-4d3c-8720-1371ccf12a65"
+        "projectId": "3536fdc5-6088-4fd4-9a4f-d443f0a52a1e"
       }
     }
   }
