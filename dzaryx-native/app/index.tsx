@@ -17,7 +17,6 @@ const FLEET_CACHE_KEY  = 'dzaryx:fleet_cache_v2';
 const TOKEN_KOUIDER    = 'f6214183be37ad5e3c593590870077db247a4047c7de3cd72ae008e0f8d447d2';
 const TOKEN_HOUARI     = '99c3dba3359626a99f527dba6dd994a64049cc0984036933b7f96adddb41bfe2';
 const WAKE_TRIGGER_URL = 'dzaryx://voice';
-const VISION_TRIGGER_URL = 'dzaryx://vision';
 const VOICE_NOTIF_ID   = 'dzaryx-voice-shortcut';
 const RELOCK_DELAY_MS  = 5 * 60 * 1000; // 5 minutes background → relock
 
@@ -366,12 +365,12 @@ export default function App() {
     // Deep links
     Linking.getInitialURL().then(url => {
       if (url === WAKE_TRIGGER_URL) setTimeout(() => triggerVoiceInWebView(), 2500);
-      else if (url === VISION_TRIGGER_URL) setTimeout(() => triggerVisionInWebView(), 2500);
+      else if (url && url.includes('vision')) setTimeout(() => triggerVisionInWebView(), 2500);
     });
 
     const linkSub = Linking.addEventListener('url', ({ url }) => {
       if (url === WAKE_TRIGGER_URL) triggerVoiceInWebView();
-      else if (url === VISION_TRIGGER_URL) triggerVisionInWebView();
+      else if (url && url.includes('vision')) triggerVisionInWebView();
     });
 
     // Hardware back button

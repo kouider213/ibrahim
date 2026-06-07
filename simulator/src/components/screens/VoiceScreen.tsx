@@ -830,8 +830,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           {barText}
         </div>
 
-        {/* caméra → ouvre l'app en mode vision (deep link capté par l'overlay natif) */}
-        <button onClick={() => { window.location.href = 'dzaryx://vision'; }} aria-label="Caméra"
+        {/* caméra → ouvre l'app (racine = WebView, pas de route 404) en mode vision */}
+        <button onClick={() => { window.location.href = 'dzaryx://?vision=1'; }} aria-label="Caméra"
           style={{
             width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
             background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.14)',

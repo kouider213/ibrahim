@@ -104,7 +104,7 @@ class DzaryxWakeWordService : Service() {
       porcupineManager = PorcupineManager.Builder()
         .setAccessKey("${ACCESS_KEY}")
         .setKeywordPath(keywordPath)
-        .setSensitivity(0.7f)
+        .setSensitivity(0.85f)
         .build(applicationContext, PorcupineManagerCallback { onWake() })
       porcupineManager?.start()
     } catch (e: Exception) {
