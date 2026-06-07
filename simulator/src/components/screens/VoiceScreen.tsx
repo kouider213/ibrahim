@@ -247,13 +247,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   // continu = re-écoute automatiquement après chaque réponse → vraie conversation.
   // App normale = conversation continue (SR Google). Overlay (compact) = push-to-talk
   // (tap micro → 1 tour → réponse) car le VAD continu flicke dans la WebView overlay.
-  const [continuousMode, setContinuousMode] = useState(!compact);
-  const continuousModeRef = useRef(!compact);
+  const [continuousMode, setContinuousMode] = useState(false);
+  const continuousModeRef = useRef(false);
   continuousModeRef.current = continuousMode;
   const prevStatusRef = useRef<DzaryxStatus>('idle');
 
-  const [handsFree, setHandsFree]         = useState(!compact);
-  const handsFreeRef = useRef(!compact);
+  const [handsFree, setHandsFree]         = useState(false);
+  const handsFreeRef = useRef(false);
   handsFreeRef.current = handsFree;
   const [wakeWordOn, setWakeWordOn]       = useState(false);
 
@@ -563,10 +563,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       const rms = Math.sqrt(sq / timeBuf.length);
       rmsRef.current = rms;
       setRmsLevel(Math.min(rms * 80, 1));
-      // Overlay (compact) : AudioContext souvent suspendu → le VAD lirait "silence" et couperait
-      // l'enregistrement à tort. On désactive le VAD → push-to-talk pur (tap start / tap envoie).
-      // De même si SpeechRecognition pilote (app normale Android).
-      if (compact || srDictationRef.current) { requestAnimationFrame(tick); return; }
+      // VAD désactivé par DÉFAUT (handsFree off) : trop instable sur ce micro (flicker arm/désarm).
+      // → push-to-talk (tap micro = démarre, re-tap = envoie). Le VAD continu ne tourne QUE si
+      // l'utilisateur active "Mains libres". On garde le RMS (calculé au-dessus) pour l'orbe.
+      if (!handsFreeRef.current) { requestAnimationFrame(tick); return; }
       if (statusRef.current === 'idle' && !isRecordingRef.current) {
         const hint = handsFreeRef.current ? 'PARLE-MOI' : 'TAPE 🎤 POUR PARLER';
         setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | ${hint}`);
