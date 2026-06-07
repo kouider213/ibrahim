@@ -265,8 +265,12 @@ export async function processMessage(
         const fastText = await fp.fn();
         redis.incr(`provider:calls:${fastToday}:${fp.key}`).catch(() => {});
         const guarded1  = guardResponse(fastText, userMessage, requestId);
-        const phantom1  = phantomGuard(guarded1, [], userMessage, requestId);
-        const safeText  = fastPathGuard(phantom1, userMessage, requestId);
+        // Vision: la réponse décrit le contenu de l'IMAGE (pas une requête DB).
+        // Les guards business (phantom/fastPath) feraient des faux positifs sur
+        // une capture qui parle de dispo/dates/montants → on les saute pour la vision.
+        const safeText  = imageBase64
+          ? guarded1
+          : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId);
         if (imageBase64) {
           console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
         }
@@ -401,7 +405,11 @@ export async function processMessage(
   const toolsForGate = ctx.hasInjectedFinancialData && !response.toolsExecuted.some(t => t.name === 'get_financial_report')
     ? [...response.toolsExecuted, { name: 'get_financial_report', success: true, result: 'context-injected' }]
     : response.toolsExecuted;
-  const halluCheck   = checkAntiHallucination(phantomText, toolsForGate, userMessage, requestId);
+  // Vision: la réponse décrit le contenu de l'IMAGE → ne pas la traiter comme une
+  // affirmation DB (sinon faux positif sur capture qui parle de dispo/montants).
+  const halluCheck   = imageBase64
+    ? { blocked: null as string | null, reason: null as string | null }
+    : checkAntiHallucination(phantomText, toolsForGate, userMessage, requestId);
   const safeText     = halluCheck.blocked ?? phantomText;
   // Log trace complète
   const phantomBlocked = phantomText === PHANTOM_REFUSAL;
