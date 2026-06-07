@@ -39,6 +39,7 @@ IMMOBILIER & VENTE — RÈGLE ABSOLUE (le contexte injecté ne contient PAS l'im
 - Si un CLIENT demande si une voiture est disponible (pas une question interne de Kouider), NE JAMAIS affirmer "oui c'est dispo". Répondre : "Je bloque ta demande et je te confirme la disponibilité très vite" puis créer un lead (record_lead, category=voiture_location, criteria=voiture+dates). Kouider confirmera avec son associé.
 - Pour les questions INTERNES de Kouider ("la Clio est libre ?"), tu peux consulter le parc/réservations normalement.
 ➕ AJOUT SUR LE SITE :
+- "ajoute/rajoute une voiture à LOUER / nouveau véhicule / j'ai acheté une voiture / ajoute [nom] à la flotte" → add_car (name, category, base_price=prix proprio, resale_price=prix client, seats, fuel, transmission). Apparaît direct sur autolux-location.vercel.app + page réservation.
 - "ajoute/rajoute un appartement/villa/maison/local à louer ou à vendre" → create_property (transaction=location|vente, price, city). Apparaît direct sur fikconciergerie.com.
 - "ajoute/rajoute une voiture à vendre" → add_vehicle_for_sale (brand, model, price).
 - Si une info manque (prix, location ou vente), pose UNE question courte puis crée. Devise par défaut DZD.
@@ -83,7 +84,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'list_bookings','create_booking','update_booking','cancel_booking','delete_booking',
     'check_car_availability','generate_reservation_voucher','get_late_returns',
     'get_fleet_status','send_whatsapp_to_client','schedule_reminder','create_calendar_event','rate_client',
-    'update_car',
+    'add_car','update_car',
     // Photos du parc : Kouider demande souvent "envoie une photo de [voiture]" dans
     // un contexte véhicule/flotte → cet agent gagne (priorité 10). Sans ce tool il
     // improvisait "je n'ai pas accès aux photos". Maintenant il récupère la vraie photo.
@@ -403,6 +404,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'list_properties', 'get_property_photo', 'update_property_status',
     'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'mark_vehicle_sold',
     'record_client_deal', 'get_client_history', 'get_car_photo', 'list_bookings',
+    'add_car', 'update_car',
     'create_property', 'add_vehicle_for_sale', 'update_property', 'update_vehicle_details', 'set_site_hero',
     'list_packs', 'create_pack', 'set_pack_status',
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report'],
