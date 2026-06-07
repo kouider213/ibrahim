@@ -29,9 +29,21 @@ router.post('/photos', requireMobileAuth, async (req, res) => {
     const list = (cars ?? []) as { id: string; name: string; image_url: string | null }[];
     const hint = (car_name ?? message).toLowerCase();
     const sorted = [...list].sort((a, b) => b.name.length - a.name.length);
+    // 1) nom complet présent dans le message → match direct
     let car = sorted.find(c => c.name && hint.includes(c.name.toLowerCase())) ?? null;
-    if (!car) car = sorted.find(c => c.name && c.name.toLowerCase().split(/\s+/).every(t => t.length > 1 && hint.includes(t))) ?? null;
-    if (!car) { res.json({ text: '❌ Je n\'ai pas reconnu la voiture. Précise le nom exact (ex: "Clio 5 Alpine").' }); return; }
+    // 2) sinon score = nb de tokens distinctifs (≥3 lettres) du nom présents dans le message
+    if (!car) {
+      let best: { car: typeof list[number]; score: number } | null = null;
+      for (const c of sorted) {
+        if (!c.name) continue;
+        const toks = c.name.toLowerCase().split(/\s+/).filter(t => t.length >= 3);
+        if (!toks.length) continue;
+        const score = toks.filter(t => hint.includes(t)).length;
+        if (score > 0 && (!best || score > best.score)) best = { car: c, score };
+      }
+      car = best?.car ?? null;
+    }
+    if (!car) { res.json({ text: '❌ Je n\'ai pas reconnu la voiture. Précise le nom exact (ex: "Clio 5 Alpine", "Jumpy").' }); return; }
 
     const { data: existing } = await supabase.from('car_photos').select('position').eq('car_id', car.id).order('position', { ascending: false }).limit(1);
     let pos = existing && existing.length ? Number((existing[0] as { position: number }).position) + 1 : 0;
