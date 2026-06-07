@@ -385,8 +385,8 @@ async function _dispatch(
       case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
       case 'get_car_photo':              return await getCarPhotoTool(input);
       // ─── IMMOBILIER & VENTE — synchro site ───
-      case 'create_property':            return await createPropertyTool(input);
-      case 'add_vehicle_for_sale':       return await addVehicleForSaleTool(input);
+      case 'create_property':            return await createPropertyTool(input, sessionId);
+      case 'add_vehicle_for_sale':       return await addVehicleForSaleTool(input, sessionId);
       case 'update_property':            return await updatePropertyTool(input);
       case 'update_vehicle_details':     return await updateVehicleDetailsTool(input);
       case 'set_site_hero':              return await setSiteHeroTool(input);
@@ -403,7 +403,7 @@ async function _dispatch(
       case 'mark_vehicle_sold':          return await markVehicleSoldTool(input);
       // ─── PACKS (combos voiture + immo + jet ski) — synchro site ───
       case 'list_packs':                 return await listPacksTool(input);
-      case 'create_pack':                return await createPackTool(input);
+      case 'create_pack':                return await createPackTool(input, sessionId);
       case 'set_pack_status':            return await setPackStatusTool(input);
       case 'record_client_deal':         return await recordClientDealTool(input);
       case 'get_client_history':         return await getClientHistoryTool(input);
@@ -414,7 +414,7 @@ async function _dispatch(
       case 'calculate_delivery_fee':     return await calculateDeliveryFeeTool(input);
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
-      case 'add_car':                    return await addCarTool(input);
+      case 'add_car':                    return await addCarTool(input, sessionId);
       case 'delete_car':                 return await deleteCarTool(input);
       // ─── ANALYTICS SITE ───
       case 'get_site_analytics':         return await getSiteAnalyticsTool(input);
@@ -4675,7 +4675,7 @@ async function getPropertyPhotoTool(input: Record<string, unknown>): Promise<str
   return `✅ ${totalSent} photo(s) envoyée(s) pour : ${sentNames.join(', ')}.`;
 }
 
-async function createPropertyTool(input: Record<string, unknown>): Promise<string> {
+async function createPropertyTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const title = (input['title'] as string | undefined)?.trim();
   const transaction = (input['transaction'] as string | undefined)?.trim();
   const price = input['price'] as number | undefined;
@@ -4702,10 +4702,12 @@ async function createPropertyTool(input: Record<string, unknown>): Promise<strin
   if (error) return `❌ Erreur création bien: ${error.message}`;
   const cur = row.currency === 'DZD' ? 'DA' : '€';
   const suffix = transaction === 'location' ? '/mois' : '';
-  return `✅ Bien ajouté sur le site : "${(data as any).title}" — ${transaction === 'vente' ? 'à vendre' : 'à louer'} à ${row.city} · ${Number(price).toLocaleString()} ${cur}${suffix}. Visible sur fikconciergerie.com. Ajoute des photos depuis l'admin ou l'app.`;
+  const nPhotos = await attachSessionPhotos(sessionId, { photoTable: 'property_photos', fk: 'property_id', ownerId: (data as any).id, mainTable: 'properties' });
+  const photoNote = nPhotos > 0 ? ` 📸 ${nPhotos} photo(s) attachée(s).` : ' Joins des photos dans le chat ou ajoute via l\'admin.';
+  return `✅ Bien ajouté sur le site : "${(data as any).title}" — ${transaction === 'vente' ? 'à vendre' : 'à louer'} à ${row.city} · ${Number(price).toLocaleString()} ${cur}${suffix}. Visible sur fikconciergerie.com.${photoNote}`;
 }
 
-async function addVehicleForSaleTool(input: Record<string, unknown>): Promise<string> {
+async function addVehicleForSaleTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const brand = (input['brand'] as string | undefined)?.trim();
   const model = (input['model'] as string | undefined)?.trim();
   const price = input['price'] as number | undefined;
@@ -4723,7 +4725,9 @@ async function addVehicleForSaleTool(input: Record<string, unknown>): Promise<st
   const { data, error } = await supabase.from('vehicles_for_sale').insert([row]).select('id, brand, model').single();
   if (error) return `❌ Erreur ajout voiture à vendre: ${error.message}`;
   const cur = row.currency === 'DZD' ? 'DA' : '€';
-  return `✅ Voiture à vendre ajoutée sur le site : ${(data as any).brand} ${(data as any).model}${row.year ? ` (${row.year})` : ''} · ${Number(price).toLocaleString()} ${cur}. Visible sur le site. Ajoute des photos depuis l'admin ou l'app.`;
+  const nPhotos = await attachSessionPhotos(sessionId, { photoTable: 'vehicle_sale_photos', fk: 'vehicle_id', ownerId: (data as any).id, mainTable: 'vehicles_for_sale' });
+  const photoNote = nPhotos > 0 ? ` 📸 ${nPhotos} photo(s) attachée(s).` : ' Joins des photos dans le chat ou ajoute via l\'admin.';
+  return `✅ Voiture à vendre ajoutée sur le site : ${(data as any).brand} ${(data as any).model}${row.year ? ` (${row.year})` : ''} · ${Number(price).toLocaleString()} ${cur}. Visible sur le site.${photoNote}`;
 }
 
 const LEAD_CAT_LABEL: Record<string, string> = {
@@ -4953,7 +4957,7 @@ async function listPacksTool(input: Record<string, unknown>): Promise<string> {
   return `${data.length} pack(s) :\n${lines.join('\n')}`;
 }
 
-async function createPackTool(input: Record<string, unknown>): Promise<string> {
+async function createPackTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const title = (input['title'] as string | undefined)?.trim();
   if (!title) return '❌ title requis (nom du pack).';
   const tier = (input['tier'] as string | undefined)?.trim() || 'entree';
@@ -4996,7 +5000,10 @@ async function createPackTool(input: Record<string, unknown>): Promise<string> {
   const { data, error } = await supabase.from('packs').insert([row]).select('id, title').single();
   if (error) return `❌ Erreur création pack: ${error.message} (lance la migration 0018_packs.sql si la table manque).`;
   const linked = [carName ? `🚗 ${carName}` : null, propName ? `🏠 ${propName}` : null].filter(Boolean).join(' + ');
-  return `✅ Pack "${(data as any).title}" créé sur le site (${PACK_TIER_LABEL[tier] || tier})${linked ? ` — lié à ${linked}` : ''}. Visible sur fikconciergerie.com/packs. Ajoute des photos depuis l'admin.`;
+  // Packs : pas de table photos dédiée → on attache juste l'image principale (image_url).
+  const nPhotos = await attachSessionPhotos(sessionId, { photoTable: null, fk: '', ownerId: (data as any).id, mainTable: 'packs' });
+  const photoNote = nPhotos > 0 ? ` 📸 Photo principale attachée.` : ' Ajoute des photos depuis l\'admin.';
+  return `✅ Pack "${(data as any).title}" créé sur le site (${PACK_TIER_LABEL[tier] || tier})${linked ? ` — lié à ${linked}` : ''}. Visible sur fikconciergerie.com/packs.${photoNote}`;
 }
 
 async function setPackStatusTool(input: Record<string, unknown>): Promise<string> {
@@ -5774,7 +5781,37 @@ async function deleteReviewTool(input: Record<string, unknown>): Promise<string>
 
 // ─── AJOUTER VÉHICULE ───────────────────────────────────────────────────────
 
-async function addCarTool(input: Record<string, unknown>): Promise<string> {
+// Récupère les photos jointes dans le chat (uploadées via POST /api/cars/session-photos
+// → cache Redis session:photos:{sessionId}) et les attache à une annonce fraîchement
+// créée : insert dans la table photos + image_url = 1ère photo. Vide le cache ensuite.
+// Resilient : si une table photo manque, on n'échoue pas la création.
+async function attachSessionPhotos(
+  sessionId: string | undefined,
+  opts: { photoTable: string | null; fk: string; ownerId: string; mainTable: string },
+): Promise<number> {
+  if (!sessionId) return 0;
+  const key = `session:photos:${sessionId}`;
+  let urls: string[] = [];
+  try {
+    const raw = await redis.get(key);
+    if (!raw) return 0;
+    urls = JSON.parse(raw) as string[];
+  } catch { return 0; }
+  if (!urls.length) return 0;
+
+  if (opts.photoTable) {
+    let pos = 0;
+    for (const url of urls) {
+      try { await supabase.from(opts.photoTable).insert({ [opts.fk]: opts.ownerId, url, position: pos++ }); }
+      catch { /* table photo absente → on garde au moins image_url */ }
+    }
+  }
+  try { await supabase.from(opts.mainTable).update({ image_url: urls[0] }).eq('id', opts.ownerId); } catch { /* pas de colonne image_url */ }
+  await redis.del(key).catch(() => {});
+  return urls.length;
+}
+
+async function addCarTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const name = input['name'] as string;
   if (!name) return '❌ Le nom du véhicule est requis';
 
@@ -5801,13 +5838,14 @@ async function addCarTool(input: Record<string, unknown>): Promise<string> {
   if (error) return `❌ Erreur ajout véhicule: ${error.message}`;
 
   const car = data as { id: string; name: string };
+  const nPhotos = await attachSessionPhotos(sessionId, { photoTable: 'car_photos', fk: 'car_id', ownerId: car.id, mainTable: 'cars' });
   return [
     `✅ Véhicule ajouté sur le site Fik Conciergerie`,
     `🚗 ${car.name} (ID: ${car.id})`,
     `📍 Catégorie: ${category} | ${seats} places | ${fuel}`,
     resalePrice > 0 ? `💶 Prix client: ${resalePrice}€/jour` : '',
     basePrice > 0   ? `🏠 Prix proprio: ${basePrice}€/jour` : '',
-    imageUrl        ? `🖼️ Photo: ${imageUrl}` : '⚠️ Pas de photo — ajoute une image via le site admin',
+    nPhotos > 0     ? `📸 ${nPhotos} photo(s) attachée(s)` : (imageUrl ? `🖼️ Photo: ${imageUrl}` : '⚠️ Pas de photo — joins des photos dans le chat ou ajoute via l\'admin'),
     ``,
     `Le véhicule est maintenant disponible sur autolux-location.vercel.app`,
   ].filter(Boolean).join('\n');

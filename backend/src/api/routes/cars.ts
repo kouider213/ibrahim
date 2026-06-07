@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { v2 as cloudinary } from 'cloudinary';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { redis } from '../../queue/queue.js';
 import { env } from '../../config/env.js';
 
 cloudinary.config({
@@ -61,6 +62,32 @@ router.post('/photos', requireMobileAuth, async (req, res) => {
       await supabase.from('cars').update({ image_url: urls[0] }).eq('id', car.id);
     }
     res.json({ text: `✅ ${urls.length} photo(s) enregistrée(s) pour ${car.name}. Dis "montre les photos du ${car.name}" pour les revoir/envoyer.`, count: urls.length, car: car.name });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/cars/session-photos — upload des photos jointes dans le chat → Cloudinary,
+// puis cache des URLs en Redis (clé session). Quand Dzaryx crée une annonce
+// (add_car / create_property / add_vehicle_for_sale / create_pack) il récupère
+// ces photos et les attache automatiquement à la nouvelle annonce.
+const sessionPhotosSchema = z.object({
+  sessionId: z.string().min(1).max(128),
+  images:    z.array(z.string().min(10)).min(1).max(15),
+});
+router.post('/session-photos', requireMobileAuth, async (req, res) => {
+  const parsed = sessionPhotosSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: 'Invalid request' }); return; }
+  const { sessionId, images } = parsed.data;
+  try {
+    const urls: string[] = [];
+    for (const b64 of images) {
+      const dataUri = b64.startsWith('data:') ? b64 : `data:image/jpeg;base64,${b64}`;
+      const up = await cloudinary.uploader.upload(dataUri, { folder: `pending/${sessionId}` });
+      urls.push(up.secure_url);
+    }
+    await redis.set(`session:photos:${sessionId}`, JSON.stringify(urls), 'EX', 900);
+    res.json({ count: urls.length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

@@ -254,15 +254,18 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     }
   }, []);
 
-  // Détecte "enregistre ces photos pour la voiture X"
+  // Détecte "enregistre ces photos pour la voiture X" (voiture EXISTANTE)
   const isStoreIntent = (t: string) => /\b(enregistre|range|sauvegarde|stocke|ajoute(?:r)?\s+(?:ces|les|la|au)?)\b/i.test(t) || /voici.*photo|photos?\s+(du|de|des|pour)/i.test(t);
+  // Détecte "crée/ajoute une NOUVELLE annonce" (voiture location/vente, immo, pack)
+  const isCreateIntent = (t: string) => /\b(cr[ée]e?r?|cree|nouvelle?\s+annonce|publie|met(?:s)?\s+en\s+ligne)\b/i.test(t)
+    || /\b(ajoute|rajoute)\b.*\b(voiture|v[ée]hicule|annonce|appartement|villa|maison|local|studio|bien|pack|à\s+louer|à\s+vendre|flotte|location|vente)\b/i.test(t);
 
   const send = useCallback(async (forced?: string) => {
     const text = (forced ?? input).trim();
     if ((!text && !selectedImages.length) || status === 'thinking') return;
 
-    // CAS SPÉCIAL — ranger plusieurs photos sur une voiture (Supabase)
-    if (selectedImages.length && isStoreIntent(text)) {
+    // CAS SPÉCIAL — ranger plusieurs photos sur une voiture EXISTANTE (Supabase)
+    if (selectedImages.length && isStoreIntent(text) && !isCreateIntent(text)) {
       const imgs = selectedImages;
       setMsgs(ms => [...ms,
         { id: uid(), role: 'user', text: `${text}  (${imgs.length} photo${imgs.length > 1 ? 's' : ''})`, ts: now(), status: 'done', imagePreview: imgs[0].preview },
@@ -280,12 +283,19 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
       return;
     }
 
-    const img = selectedImages[0] ?? null;
+    // CAS — créer une annonce AVEC photos jointes : on cache les photos pour la
+    // session puis Dzaryx (add_car / create_property / ...) les attache à l'annonce.
+    const creatingWithPhotos = selectedImages.length > 0 && isCreateIntent(text);
+    const firstPreview = selectedImages[0]?.preview;
+    // En création-avec-photos on n'envoie PAS l'image en vision (elles sont cachées côté session).
+    const img = creatingWithPhotos ? null : (selectedImages[0] ?? null);
+    const photosToCache = creatingWithPhotos ? selectedImages.map(i => i.base64) : [];
+
     const userMsg: Message = {
       id: uid(), role: 'user',
-      text: text || '📷 Photo',
+      text: creatingWithPhotos ? `${text}  (${selectedImages.length} photo${selectedImages.length > 1 ? 's' : ''})` : (text || '📷 Photo'),
       ts: now(), status: 'done',
-      imagePreview: img?.preview,
+      imagePreview: img?.preview ?? firstPreview,
     };
     const aiMsg: Message = { id: uid(), role: 'ai', text: '', ts: now(), status: 'sending' };
     setMsgs(ms => [...ms, userMsg, aiMsg]);
@@ -293,6 +303,11 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     setInput('');
     setSelectedImages([]);
     setStatus('thinking');
+
+    // Upload + cache des photos AVANT d'appeler Dzaryx (sinon le tool create ne les voit pas)
+    if (creatingWithPhotos) {
+      try { await api.uploadSessionPhotos(sessionId.current, photosToCache); } catch { /* non bloquant */ }
+    }
 
     // Timeout: if Socket.IO never delivers response in 45s, show error
     const timeoutId = setTimeout(() => {

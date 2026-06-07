@@ -49,6 +49,14 @@ export const api = {
       body:   JSON.stringify({ message, sessionId, textOnly: textOnly && !imageBase64, imageBase64, imageMime }),
     }),
 
+  // Cache des photos jointes dans le chat pour la session → Dzaryx les attache
+  // automatiquement à l'annonce qu'il va créer (add_car / create_property / ...).
+  uploadSessionPhotos: (sessionId: string, images: string[]) =>
+    apiFetch<{ count: number }>('/api/cars/session-photos', {
+      method: 'POST',
+      body:   JSON.stringify({ sessionId, images }),
+    }),
+
   uploadCarPhotos: (message: string, images: string[]) =>
     apiFetch<{ text: string; count?: number; car?: string }>('/api/cars/photos', {
       method: 'POST',
