@@ -158,7 +158,10 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
 
   type MonthRow = PriceRow & { id: string; client_name: string; client_phone?: string };
   const monthRows    = (monthRes.data ?? []) as MonthRow[];
-  const monthRevenue = sumProrated(monthRows, monthStart, monthEnd);
+  // CA du mois = montant COMPLET des réservations du mois (cohérent avec le bénéfice
+  // Kouider et la part Houari, qui comptent la résa entière). Pas de prorata sinon
+  // le CA paraît faux (ex: 80€ affiché pour une location de 640€).
+  const monthRevenue = sumCA(monthRows);
 
   const rejected     = (rejectedRes.data ?? []) as PriceRow[];
 
@@ -203,7 +206,7 @@ export async function getRevenueSummary(): Promise<RevenueSummary> {
 
   type LastMonthRow = PriceRow & { owner_price_per_day?: number | null };
   const lastMonthRows   = (lastMonthRes.data ?? []) as LastMonthRow[];
-  const lastMonthRevenue = sumProrated(lastMonthRows, lastMonthStart, lastMonthEnd);
+  const lastMonthRevenue = sumCA(lastMonthRows);
   const lastMonthProfit  = lastMonthRows.reduce((s, b) => {
     const ppd  = b.client_price_per_day;
     const oppd = b.owner_price_per_day;

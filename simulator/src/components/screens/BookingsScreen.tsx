@@ -413,11 +413,18 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {(() => {
+                      const by = (b as unknown as { rented_by?: string }).rented_by ?? 'Kouider';
+                      const isH = by.toLowerCase().startsWith('h');
+                      const c = isH ? '#a78bfa' : '#10b981';
+                      return (
+                        <span title={by} style={{ flexShrink: 0, width: 17, height: 17, borderRadius: '50%', background: `${c}1f`, border: `1px solid ${c}66`, color: c, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {isH ? 'H' : 'K'}
+                        </span>
+                      );
+                    })()}
                     <span style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {b.client_name}
-                    </span>
-                    <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em', color: '#10b981', background: '#10b98114', border: '1px solid #10b98144', borderRadius: 4, padding: '2px 5px' }}>
-                      LOC AUTO
                     </span>
                   </div>
                   <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>
