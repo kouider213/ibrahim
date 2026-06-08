@@ -22,6 +22,7 @@ export interface FinancialBooking {
   discount_applied:      number;
   price_source:          'explicit' | 'computed' | 'missing';
   data_complete:         boolean;
+  currency:              string;             // 'EUR' (défaut) | 'DZD' (locations Houari en dinars)
 }
 
 export interface FinancialReport {
@@ -38,6 +39,8 @@ export interface FinancialReport {
   missingOwnerPrice:  number;         // nb bookings sans owner_price_per_day
   missingClientPrice: number;         // nb bookings sans client_price_per_day (revenus non fiables)
   bookings:           FinancialBooking[];
+  // CA en dinars (locations Houari en DZD) — séparé, n'affecte pas les totaux EUR ci-dessus
+  dzd:                { ca: number; houariCA: number; encaisse: number; aEncaisser: number; bookings: number };
 }
 
 // ── Seed pricing table ────────────────────────────────────────────────────────
@@ -159,7 +162,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client_name, start_date, end_date, nb_days, final_price, client_price_per_day, owner_price_per_day, discount_applied, paid_amount, payment_status, rented_by, status, cars(name)')
+    .select('id, client_name, start_date, end_date, nb_days, final_price, client_price_per_day, owner_price_per_day, discount_applied, paid_amount, payment_status, rented_by, status, currency, cars(name)')
     .in('status', ['CONFIRMED', 'COMPLETED', 'ACTIVE'])
     .lte('start_date', endDate)
     .gte('end_date',   startDate)
@@ -173,7 +176,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
     client_price_per_day?: number | null; owner_price_per_day?: number | null;
     discount_applied?: number | null;
     paid_amount?: number | null; payment_status?: string | null;
-    rented_by?: string | null; status: string;
+    rented_by?: string | null; status: string; currency?: string | null;
     cars?: { name: string } | { name: string }[] | null;
   }>;
 
@@ -204,24 +207,38 @@ export async function getFinancialReport(year: number, month?: number): Promise<
       discount_applied:     calc.discount_applied,
       price_source:         calc.price_source,
       data_complete:        calc.data_complete,
+      currency:             (b.currency ?? 'EUR').toUpperCase(),
     };
   });
 
-  const kouiderBookings   = result.filter(b => b.rented_by !== 'Houari').length;
-  const houariBookings    = result.filter(b => b.rented_by === 'Houari').length;
-  const grossCA           = result.reduce((s, b) => s + (b.final_price ?? 0), 0);
-  const ownerTotal        = result.reduce((s, b) => s + (b.owner_total ?? 0), 0);
+  // Séparation par devise : les totaux EUR (historique) excluent les locations DZD,
+  // pour ne RIEN changer aux chiffres existants. Le DZD est compté à part.
+  const eur = result.filter(b => b.currency !== 'DZD');
+  const dzdList = result.filter(b => b.currency === 'DZD');
+
+  const kouiderBookings   = eur.filter(b => b.rented_by !== 'Houari').length;
+  const houariBookings    = eur.filter(b => b.rented_by === 'Houari').length;
+  const grossCA           = eur.reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const ownerTotal        = eur.reduce((s, b) => s + (b.owner_total ?? 0), 0);
   // Houari revenue = owner_total des resas Kouider + CA complet des resas Houari directes
-  const houariRevenue     = result.reduce((s, b) => {
+  const houariRevenue     = eur.reduce((s, b) => {
     if (b.owner_total != null) return s + b.owner_total;
     if (b.rented_by === 'Houari') return s + (b.final_price ?? 0);
     return s;
   }, 0);
-  const kouiderProfit     = result.reduce((s, b) => s + (b.kouider_profit ?? 0), 0);
-  const encaisse          = result.reduce((s, b) => s + b.paid_amount, 0);
-  const aEncaisser        = result.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0);
-  const missingOwnerPrice = result.filter(b => b.owner_price_per_day === null && b.rented_by !== 'Houari').length;
-  const missingClientPrice = result.filter(b => b.price_source === 'missing').length;
+  const kouiderProfit     = eur.reduce((s, b) => s + (b.kouider_profit ?? 0), 0);
+  const encaisse          = eur.reduce((s, b) => s + b.paid_amount, 0);
+  const aEncaisser        = eur.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0);
+  const missingOwnerPrice = eur.filter(b => b.owner_price_per_day === null && b.rented_by !== 'Houari').length;
+  const missingClientPrice = eur.filter(b => b.price_source === 'missing').length;
+
+  const dzd = {
+    ca:         Math.round(dzdList.reduce((s, b) => s + (b.final_price ?? 0), 0) * 100) / 100,
+    houariCA:   Math.round(dzdList.filter(b => b.rented_by === 'Houari').reduce((s, b) => s + (b.final_price ?? 0), 0) * 100) / 100,
+    encaisse:   Math.round(dzdList.reduce((s, b) => s + b.paid_amount, 0) * 100) / 100,
+    aEncaisser: Math.round(dzdList.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0) * 100) / 100,
+    bookings:   dzdList.length,
+  };
 
   return {
     period, totalBookings: result.length,
@@ -230,6 +247,7 @@ export async function getFinancialReport(year: number, month?: number): Promise<
     encaisse, aEncaisser,
     missingOwnerPrice, missingClientPrice,
     bookings: result,
+    dzd,
   };
 }
 

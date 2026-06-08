@@ -148,7 +148,7 @@ export default function Phone() {
       case 'voice':         return <VoiceScreen onNavigateText={() => setPage('text')} onWsStatus={setWsOk} actor={actor} />;
       case 'text':          return <TextScreen onNavigateVoice={() => setPage('voice')} actor={actor} />;
       case 'bookings':      return <BookingsScreen actor={actor} />;
-      case 'fleet':         return <FleetScreen />;
+      case 'fleet':         return <FleetScreen actor={actor} />;
       case 'revenue':       return <RevenueScreen />;
       case 'clients':       return <ClientsScreen />;
       case 'leads':         return <LeadsScreen />;

@@ -129,6 +129,27 @@ export default function RevenueScreen() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {report?.dzd && report.dzd.bookings > 0 && (
+          <div style={{ borderRadius: 12, border: '1px solid #e9b94944', background: 'linear-gradient(135deg, rgba(233,185,73,0.10), rgba(2,8,16,0.6))', padding: '11px 13px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b949', letterSpacing: '0.15em' }}>💱 CA EN DINARS (HOUARI)</span>
+              <span style={{ fontSize: 7, color: '#e9b94999' }}>{report.dzd.bookings} location{report.dzd.bookings > 1 ? 's' : ''}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
+              {[
+                { l: 'CA', v: report.dzd.ca, c: '#e9b949' },
+                { l: 'ENCAISSÉ', v: report.dzd.encaisse, c: '#00e676' },
+                { l: 'À ENCAISSER', v: report.dzd.aEncaisser, c: '#ffb347' },
+              ].map(s => (
+                <div key={s.l} style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'Orbitron', fontSize: 12, color: s.c }}>{Math.round(s.v).toLocaleString('fr-FR')}</div>
+                  <div style={{ fontSize: 6, color: `${s.c}88`, letterSpacing: '0.08em', marginTop: 1 }}>{s.l} (DA)</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 6.5, color: '#ffffff33', textAlign: 'center', marginTop: 7 }}>Séparé du CA en euros · les locations de Houari en dinars</div>
+          </div>
+        )}
         {loading ? (
           <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Orbitron', fontSize: 9, color: '#00d4ff33', letterSpacing: '0.25em' }}>
             CHARGEMENT…

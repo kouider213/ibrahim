@@ -31,7 +31,8 @@ function getCatalog(name: string): { h: number; k: number } | null {
 type InspectKind = 'vehicle' | 'property';
 interface InspectOpen { kind: InspectKind; name: string }
 
-export default function FleetScreen() {
+export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
+  const isHouari = actor === 'houari';
   const [tab, setTab]      = useState<ParcTab>('cars');
   const [intel, setIntel]  = useState<FleetIntel | null>(null);
   const [cars, setCars]    = useState<Car[]>([]);
@@ -39,6 +40,7 @@ export default function FleetScreen() {
   const [toggling, setTog] = useState<string | null>(null);
   const [msg, setMsg]      = useState('');
   const [inspect, setInspect] = useState<InspectOpen | null>(null);
+  const [editCar, setEditCar] = useState<Car | null>(null);
   const sessionId = useRef(getOrCreateSessionId());
 
   const load = async () => {
@@ -126,11 +128,11 @@ export default function FleetScreen() {
           const rev30d  = stat ? Math.round(stat.revenue_30d) : null;
           const occ30d  = stat ? Math.round(stat.occupancy_pct) : null;
           const catalog = getCatalog(car.name);
-          // houari price: base_price from DB, fallback catalog
-          const hPrice  = car.base_price ?? catalog?.h ?? null;
-          // kouider price: catalog (reference only — real price is per booking)
-          const kPrice  = catalog?.k ?? null;
-          const profit  = (hPrice && kPrice) ? kPrice - hPrice : null;
+          const cur     = isHouari ? 'DA' : '€';
+          // Houari : prix en DZD (houari_*). Kouider : prix EUR actuels (base/resale, fallback catalogue).
+          const hPrice  = isHouari ? (car.houari_base_price   ?? null) : (car.base_price   ?? catalog?.h ?? null);
+          const kPrice  = isHouari ? (car.houari_resale_price ?? null) : (car.resale_price ?? catalog?.k ?? null);
+          const profit  = (hPrice != null && kPrice != null) ? Math.round((kPrice - hPrice) * 100) / 100 : null;
 
           return (
             <div key={car.id} style={{
@@ -172,19 +174,22 @@ export default function FleetScreen() {
                 <div style={{ display: 'flex', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
                   {hPrice !== null && (
                     <span style={{ fontSize: 7.5, background: '#ffffff0a', border: '1px solid #ffffff18', borderRadius: 5, padding: '2px 6px', color: '#ff3366cc' }}>
-                      H: {hPrice}€/j
+                      H: {hPrice} {cur}/j
                     </span>
                   )}
                   {kPrice !== null && (
                     <span style={{ fontSize: 7.5, background: '#00e6760a', border: '1px solid #00e67622', borderRadius: 5, padding: '2px 6px', color: '#00e676cc' }}>
-                      K: {kPrice}€/j
+                      K: {kPrice} {cur}/j
                     </span>
                   )}
                   {profit !== null && (
                     <span style={{ fontSize: 7.5, background: '#ffb3470a', border: '1px solid #ffb34722', borderRadius: 5, padding: '2px 6px', color: '#ffb347cc' }}>
-                      +{profit}€/j
+                      +{profit} {cur}/j
                     </span>
                   )}
+                  <span style={{ fontSize: 7.5, background: isHouari ? '#e9b9491a' : '#ffffff08', border: `1px solid ${isHouari ? '#e9b94944' : '#ffffff14'}`, borderRadius: 5, padding: '2px 6px', color: isHouari ? '#e9b949' : '#ffffff55' }}>
+                    {cur}
+                  </span>
                 </div>
                 {/* Rev 30j + occupation */}
                 {rev30d !== null && (
@@ -236,17 +241,29 @@ export default function FleetScreen() {
                 <span style={{ fontSize: 6, fontFamily: 'Orbitron', color: col, letterSpacing: '0.1em' }}>
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
                 </span>
-                {/* Inspection photo button */}
-                <button
-                  onClick={() => setInspect({ kind: 'vehicle', name: car.name })}
-                  title="Photo inspection avant/après"
-                  style={{
-                    width: 36, height: 22, borderRadius: 6, border: '1px solid #ffb34744',
-                    background: 'rgba(255,179,71,0.06)', cursor: 'pointer',
-                    fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#ffb347aa', transition: 'all 0.2s',
-                  }}
-                >📷</button>
+                {/* Actions : édition prix/devise + inspection */}
+                <div style={{ display: 'flex', gap: 5 }}>
+                  <button
+                    onClick={() => setEditCar(car)}
+                    title="Modifier prix & devise"
+                    style={{
+                      width: 36, height: 22, borderRadius: 6, border: '1px solid #e9b94944',
+                      background: 'rgba(233,185,73,0.06)', cursor: 'pointer',
+                      fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#e9b949', transition: 'all 0.2s',
+                    }}
+                  >✎</button>
+                  <button
+                    onClick={() => setInspect({ kind: 'vehicle', name: car.name })}
+                    title="Photo inspection avant/après"
+                    style={{
+                      width: 36, height: 22, borderRadius: 6, border: '1px solid #ffb34744',
+                      background: 'rgba(255,179,71,0.06)', cursor: 'pointer',
+                      fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#ffb347aa', transition: 'all 0.2s',
+                    }}
+                  >📷</button>
+                </div>
               </div>
             </div>
           );
@@ -270,9 +287,83 @@ export default function FleetScreen() {
           onClose={() => setInspect(null)}
         />
       )}
+
+      {/* Édition prix / devise par voiture */}
+      {editCar && (
+        <CarEditModal
+          car={editCar}
+          isHouari={isHouari}
+          onClose={() => setEditCar(null)}
+          onSaved={(updated) => { setCars(cs => cs.map(c => c.id === updated.id ? updated : c)); setEditCar(null); setMsg('✅ Prix mis à jour'); setTimeout(() => setMsg(''), 2000); }}
+        />
+      )}
     </div>
   );
 }
+
+// ── Édition prix voiture (Kouider €, Houari DZD) ──────────────────────────────
+function CarEditModal({ car, isHouari, onClose, onSaved }: {
+  car: Car; isHouari: boolean; onClose: () => void; onSaved: (c: Car) => void;
+}) {
+  const cur = isHouari ? 'DA' : '€';
+  const initOwner  = isHouari ? car.houari_base_price   : car.base_price;
+  const initClient = isHouari ? car.houari_resale_price : car.resale_price;
+  const [owner, setOwner]   = useState(initOwner  != null ? String(initOwner)  : '');
+  const [client, setClient] = useState(initClient != null ? String(initClient) : '');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const save = async () => {
+    setSaving(true); setErr('');
+    const o = owner  ? Number(owner)  : null;
+    const c = client ? Number(client) : null;
+    const payload: Record<string, unknown> = isHouari
+      ? { houari_base_price: o, houari_resale_price: c }
+      : { base_price: o, resale_price: c };
+    try {
+      const r = await business.updateCar(car.id, payload);
+      onSaved(r.car ?? { ...car, ...payload });
+    } catch { setErr('Échec. Réessaie.'); setSaving(false); }
+  };
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }}>
+      <div style={{ width: '90%', maxWidth: 300, background: 'linear-gradient(135deg, #0a1628, #060e1c)', border: '1px solid #e9b94933', borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#e9b949', letterSpacing: '0.15em', textAlign: 'center' }}>MODIFIER PRIX</div>
+        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#ffffff66', textAlign: 'center', marginBottom: 4 }}>{car.name.toUpperCase()}</div>
+        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: isHouari ? '#e9b949' : '#00e676', textAlign: 'center', marginBottom: 14 }}>
+          {isHouari ? '💱 Tarifs HOUARI — en dinars (DA)' : '💶 Tarifs KOUIDER — en euros (€)'}
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 7, color: '#ffffff55', letterSpacing: '0.1em', marginBottom: 5 }}>PRIX PROPRIO /JOUR ({cur})</div>
+          <input value={owner} onChange={e => setOwner(e.target.value)} type="number" inputMode="numeric" placeholder={isHouari ? 'ex: 5500' : 'ex: 35'}
+            style={editInp} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 7, color: '#ffffff55', letterSpacing: '0.1em', marginBottom: 5 }}>PRIX CLIENT /JOUR ({cur})</div>
+          <input value={client} onChange={e => setClient(e.target.value)} type="number" inputMode="numeric" placeholder={isHouari ? 'ex: 7000' : 'ex: 45'}
+            style={editInp} />
+        </div>
+        {owner && client && Number(client) >= Number(owner) && (
+          <div style={{ fontSize: 9, color: '#ffb347', textAlign: 'center', marginBottom: 10 }}>Marge : {Math.round((Number(client) - Number(owner)) * 100) / 100} {cur}/j</div>
+        )}
+        {err && <div style={{ fontSize: 9, color: '#ff6b8a', textAlign: 'center', marginBottom: 8 }}>{err}</div>}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid #ffffff18', background: 'transparent', color: '#ffffff66', fontFamily: 'Orbitron', fontSize: 8, cursor: 'pointer' }}>ANNULER</button>
+          <button onClick={() => void save()} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #e9b949, #f3d488)', color: '#1a1300', fontFamily: 'Orbitron', fontSize: 8, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? '…' : 'ENREGISTRER'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const editInp: CSSProperties = {
+  width: '100%', padding: '10px 12px', borderRadius: 9, border: '1px solid #ffffff1e',
+  background: 'rgba(255,255,255,0.04)', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 13,
+  outline: 'none', boxSizing: 'border-box',
+};
 
 // ── IMMO PANE ────────────────────────────────────────────────────────────────
 const IMMO_ST: Record<string, { label: string; col: string }> = {

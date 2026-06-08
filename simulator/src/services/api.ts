@@ -444,7 +444,10 @@ export interface Booking {
 
 export interface Car {
   id: string; name: string; available: boolean;
-  base_price: number | null; category: string | null;
+  base_price: number | null; resale_price?: number | null;
+  owner_price_per_day?: number | null;
+  houari_base_price?: number | null; houari_resale_price?: number | null;
+  currency?: string | null; category: string | null;
   image_url?: string | null;
 }
 
@@ -545,6 +548,7 @@ export interface FinancialReport {
   missingOwnerPrice:  number;
   missingClientPrice: number;
   bookings:           FinancialBooking[];
+  dzd?:               { ca: number; houariCA: number; encaisse: number; aEncaisser: number; bookings: number };
 }
 
 export interface ClientDocument {
@@ -680,6 +684,9 @@ export const business = {
 
   toggleCar: (id: string, available: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),
+
+  updateCar: (id: string, data: Record<string, unknown>) =>
+    apiFetch<{ car: Car }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   // Inspection avant/après (véhicule ou bien) — multi-photos, renvoie photos + dégâts localisés
   inspect: (kind: 'vehicle' | 'property', body: {

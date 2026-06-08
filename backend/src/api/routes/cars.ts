@@ -153,15 +153,19 @@ router.post('/', requireMobileAuth, async (req, res) => {
 });
 
 const carUpdateSchema = z.object({
-  name:         z.string().min(1).optional(),
-  category:     z.string().optional(),
-  available:    z.boolean().optional(),
-  base_price:   z.number().min(0).optional(),
-  resale_price: z.number().min(0).optional(),
-  description:  z.string().optional(),
-  seats:        z.number().int().min(1).optional(),
-  fuel:         z.string().optional(),
-  transmission: z.string().optional(),
+  name:                z.string().min(1).optional(),
+  category:            z.string().optional(),
+  available:           z.boolean().optional(),
+  base_price:          z.number().min(0).optional(),
+  resale_price:        z.number().min(0).optional(),
+  owner_price_per_day: z.number().min(0).optional(),
+  houari_base_price:   z.number().min(0).nullable().optional(),
+  houari_resale_price: z.number().min(0).nullable().optional(),
+  currency:            z.enum(['EUR', 'DZD']).optional(),
+  description:         z.string().optional(),
+  seats:               z.number().int().min(1).optional(),
+  fuel:                z.string().optional(),
+  transmission:        z.string().optional(),
 });
 
 // PATCH /api/cars/:id — update car fields (availability, price, etc.)
