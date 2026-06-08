@@ -39,13 +39,13 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #3b82f612', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#3b82f6', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #3b82f655' }}>
             RAPPELS
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -58,7 +58,7 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                 {byPri.HIGH.length} URGENT
               </div>
             )}
-            <button onClick={() => void load()} style={{ background: 'none', border: '1px solid #6366f122', borderRadius: 6, padding: '3px 8px', color: '#6366f166', cursor: 'pointer', fontSize: 12 }}>
+            <button onClick={() => void load()} style={{ background: 'none', border: '1px solid #3b82f622', borderRadius: 6, padding: '3px 8px', color: '#3b82f666', cursor: 'pointer', fontSize: 12 }}>
               ↻
             </button>
           </div>
@@ -78,13 +78,13 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)' }} />
+        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #3b82f644, transparent)' }} />
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
+          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#3b82f633', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 28 }}>✅</div>
@@ -161,7 +161,7 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
 }
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#6366f1';
+  const s = 12, t = 1.5, col = '#3b82f6';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';

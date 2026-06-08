@@ -34,7 +34,7 @@ const AGENTS: Agent[] = [
     tags: ['CA', 'PROFIT', 'IMPAYÉS', 'EXPORT'],
   },
   {
-    id: 'clients', icon: '👤', name: 'Agent Clients', col: '#6366f1',
+    id: 'clients', icon: '👤', name: 'Agent Clients', col: '#3b82f6',
     desc: 'Documents (passeport, permis, contrat). Score VIP/FREQUENT. Envoi WhatsApp/Telegram. Profil intelligence.',
     examples: [
       'Passeport de Sofiane Khelifi',
@@ -171,7 +171,7 @@ const PROACTIVE_FEATURES = [
   { icon: '☀️', title: 'Briefing Matinal', col: '#ffb347', desc: 'Chaque matin à l\'heure de réveil de Kouider — CA du jour, retours, impayés, météo Oran' },
   { icon: '⚠️', title: 'Alertes Impayés', col: '#ff3366', desc: '48h → relance normale · 72h+ → alerte urgente · calcul automatique délai' },
   { icon: '🚗', title: 'Retours Véhicules', col: '#00e676', desc: '1h avant chaque retour prévu → rappel client + montant à encaisser' },
-  { icon: '📅', title: 'Arrivées J+1', col: '#6366f1', desc: 'Soir J-1 → liste des clients attendus demain + docs manquants' },
+  { icon: '📅', title: 'Arrivées J+1', col: '#3b82f6', desc: 'Soir J-1 → liste des clients attendus demain + docs manquants' },
   { icon: '📊', title: 'Bilan Quotidien', col: '#c084fc', desc: '18h30 chaque jour → CA encaissé, nouvelles réservations, résumé' },
   { icon: '🚨', title: 'Anomalies Business', col: '#ff6b6b', desc: 'Perte réelle (client_ppd < owner_ppd), grande résa > 2000€, voiture surutilisée' },
   { icon: '📄', title: 'Docs Manquants', col: '#fb923c', desc: 'Rappel si client actif sans passeport/permis enregistré' },
@@ -185,30 +185,30 @@ export default function CapacitesScreen() {
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column',
-      background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif',
+      background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif',
       position: 'relative', overflow: 'hidden',
     }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 0', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155', marginBottom: 8 }}>
+      <div style={{ padding: '10px 14px 0', borderBottom: '1px solid #3b82f612', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#3b82f6', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #3b82f655', marginBottom: 8 }}>
           DZARYX — CAPACITÉS
         </div>
         <div style={{ display: 'flex', gap: 4, marginBottom: 0 }}>
           {(['agents', 'proactif', 'capacites'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              flex: 1, background: activeTab === tab ? '#6366f10d' : 'transparent',
-              border: 'none', borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
+              flex: 1, background: activeTab === tab ? '#3b82f60d' : 'transparent',
+              border: 'none', borderBottom: activeTab === tab ? '2px solid #3b82f6' : '2px solid transparent',
               padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 7,
-              color: activeTab === tab ? '#6366f1' : '#ffffff33',
+              color: activeTab === tab ? '#3b82f6' : '#ffffff33',
               letterSpacing: '0.15em', cursor: 'pointer',
             }}>
               {tab === 'agents' ? '14 AGENTS' : tab === 'proactif' ? 'PROACTIF' : 'CAPACITÉS'}
             </button>
           ))}
         </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)', marginTop: 0 }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #3b82f644, transparent)', marginTop: 0 }} />
       </div>
 
       {/* Content */}
@@ -224,7 +224,7 @@ export default function CapacitesScreen() {
               return (
                 <div key={agent.id} style={{
                   borderRadius: 10, border: `1px solid ${agent.col}22`,
-                  background: `linear-gradient(135deg, ${agent.col}05, rgba(2,8,16,0.6))`,
+                  background: `linear-gradient(135deg, ${agent.col}05, rgba(10,10,12,0.6))`,
                   overflow: 'hidden',
                 }}>
                   <button
@@ -287,8 +287,8 @@ export default function CapacitesScreen() {
             </div>
 
             {/* Timeline visual */}
-            <div style={{ background: 'rgba(99,102,241,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #6366f10f', marginBottom: 4 }}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f166', letterSpacing: '0.2em', marginBottom: 10 }}>
+            <div style={{ background: 'rgba(59,130,246,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #3b82f60f', marginBottom: 4 }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#3b82f666', letterSpacing: '0.2em', marginBottom: 10 }}>
                 ◉ TIMELINE JOURNÉE TYPE — KOUIDER
               </div>
               {[
@@ -296,7 +296,7 @@ export default function CapacitesScreen() {
                 { time: '08:15', label: 'Alertes impayés', col: '#ff3366', icon: '⚠️' },
                 { time: 'J-1h', label: 'Rappel chaque retour', col: '#00e676', icon: '🚗' },
                 { time: '18:00', label: 'Bilan journée', col: '#c084fc', icon: '📊' },
-                { time: 'Veille', label: 'Arrivées lendemain', col: '#6366f1', icon: '📅' },
+                { time: 'Veille', label: 'Arrivées lendemain', col: '#3b82f6', icon: '📅' },
                 { time: 'Live', label: 'Anomalies en temps réel', col: '#ff6b6b', icon: '🚨' },
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -315,7 +315,7 @@ export default function CapacitesScreen() {
             {PROACTIVE_FEATURES.map(f => (
               <div key={f.title} style={{
                 borderRadius: 10, border: `1px solid ${f.col}22`,
-                background: `linear-gradient(135deg, ${f.col}05, rgba(2,8,16,0.6))`,
+                background: `linear-gradient(135deg, ${f.col}05, rgba(10,10,12,0.6))`,
                 padding: '10px 12px',
                 display: 'flex', alignItems: 'flex-start', gap: 10,
               }}>
@@ -341,7 +341,7 @@ export default function CapacitesScreen() {
 
             {[
               {
-                title: '🤖 Intelligence Artificielle', col: '#6366f1',
+                title: '🤖 Intelligence Artificielle', col: '#3b82f6',
                 items: [
                   'Claude Sonnet 4.6 (IA principale)',
                   'OpenAI GPT-4o (finance + code review)',
@@ -444,7 +444,7 @@ export default function CapacitesScreen() {
             ].map(section => (
               <div key={section.title} style={{
                 borderRadius: 10, border: `1px solid ${section.col}22`,
-                background: `linear-gradient(135deg, ${section.col}05, rgba(2,8,16,0.5))`,
+                background: `linear-gradient(135deg, ${section.col}05, rgba(10,10,12,0.5))`,
                 padding: '10px 12px',
               }}>
                 <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: section.col, letterSpacing: '0.15em', marginBottom: 8 }}>
@@ -466,7 +466,7 @@ export default function CapacitesScreen() {
 }
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#6366f1';
+  const s = 12, t = 1.5, col = '#3b82f6';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';

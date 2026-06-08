@@ -658,7 +658,7 @@ function RichText({ text, color }: { text: string; color: string }) {
 
 // Graphique (barres / camembert) — rendu maison, thème sombre + or
 type ChartSpec = { type?: 'bar' | 'pie' | 'line'; title?: string; data?: Array<{ label: string; value: number }>; unit?: string };
-const CHART_COLORS = ['#C9A96E', '#52E3A1', '#6366f1', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
+const CHART_COLORS = ['#C9A96E', '#52E3A1', '#3b82f6', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
 
 function Chart({ spec }: { spec: ChartSpec }) {
   const data = (spec.data ?? []).filter(d => d && typeof d.value === 'number');
@@ -829,8 +829,8 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
             <button
               onClick={e => { e.stopPropagation(); downloadFile(lightbox); }}
               style={{
-                background: '#6366f122', border: '1px solid #6366f166', borderRadius: 10,
-                color: '#6366f1', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
+                background: '#3b82f622', border: '1px solid #3b82f666', borderRadius: 10,
+                color: '#3b82f6', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
                 padding: '8px 20px', cursor: 'pointer',
               }}
             >⬇ Enregistrer</button>
@@ -914,15 +914,15 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                       download={filename}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)',
+                        background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)',
                         borderRadius: 10, padding: '10px 14px', textDecoration: 'none',
-                        color: '#6366f1',
+                        color: '#3b82f6',
                       }}
                     >
                       <span style={{ fontSize: 22 }}>{icon}</span>
                       <div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#6366f1' }}>{filename}</div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(99,102,241,0.55)', marginTop: 2 }}>
+                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#3b82f6' }}>{filename}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(59,130,246,0.55)', marginTop: 2 }}>
                           Appuyer pour télécharger
                         </div>
                       </div>

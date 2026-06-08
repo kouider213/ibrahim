@@ -130,10 +130,10 @@ export default function ImmoScreen() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #b388ff22', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #b388ff22', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#b388ff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #b388ff55' }}>
             IMMOBILIER
@@ -245,7 +245,7 @@ export default function ImmoScreen() {
       {/* Add modal */}
       {showAdd && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'flex-end' }}>
-          <div style={{ width: '100%', background: '#070f1e', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', border: '1px solid #b388ff22' }}>
+          <div style={{ width: '100%', background: '#161618', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', border: '1px solid #b388ff22' }}>
             <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#b388ff', letterSpacing: '0.2em', marginBottom: 14 }}>NOUVEAU BIEN</div>
             {[
               { label: 'TITRE *', key: 'title' as const,            type: 'text' },
@@ -269,7 +269,7 @@ export default function ImmoScreen() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 6, color: '#b388ff88', letterSpacing: '0.15em', marginBottom: 3 }}>OPÉRATION</div>
                 <select value={form.transaction} onChange={e => setForm(p => ({ ...p, transaction: e.target.value as PropTransaction }))}
-                  style={{ width: '100%', background: '#070f1e', border: '1px solid #b388ff33', borderRadius: 6, padding: '6px 8px', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 9 }}>
+                  style={{ width: '100%', background: '#161618', border: '1px solid #b388ff33', borderRadius: 6, padding: '6px 8px', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 9 }}>
                   <option value="location">à louer</option>
                   <option value="vente">à vendre</option>
                 </select>
@@ -277,14 +277,14 @@ export default function ImmoScreen() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 6, color: '#b388ff88', letterSpacing: '0.15em', marginBottom: 3 }}>TYPE</div>
                 <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value as PropType }))}
-                  style={{ width: '100%', background: '#070f1e', border: '1px solid #b388ff33', borderRadius: 6, padding: '6px 8px', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 9 }}>
+                  style={{ width: '100%', background: '#161618', border: '1px solid #b388ff33', borderRadius: 6, padding: '6px 8px', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 9 }}>
                   {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 6, color: '#b388ff88', letterSpacing: '0.15em', marginBottom: 3 }}>STATUT</div>
                 <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as PropStatus }))}
-                  style={{ width: '100%', background: '#070f1e', border: '1px solid #b388ff33', borderRadius: 6, padding: '6px 8px', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 9 }}>
+                  style={{ width: '100%', background: '#161618', border: '1px solid #b388ff33', borderRadius: 6, padding: '6px 8px', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 9 }}>
                   {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
