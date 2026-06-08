@@ -25,19 +25,312 @@
 
 ---
 
-## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-05)
+## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-07)
 
 - **Site** : LIVE, mode dispo "à confirmer" ON, chatbot retiré.
 - **Backend** : LIVE sur Railway. Bot WhatsApp client **désactivé** (commit `fbf2a3c`). Immo unifié (commit `c6c4fd3`).
 - **Immo** : schéma `properties` unifié app+site. Table prod **vide** (0 bien).
-- **Migrations** : 0015/0016/0017 faites. ⚠️ **0018_packs.sql À LANCER** (table `packs`, sinon /packs vide).
-- **Packs** : déployés (site `a0ffc19` + Dzaryx `d235f7d`). Liés à l'inventaire réel (car_id/property_id).
-  Gérables via chat Dzaryx (`list_packs`/`create_pack`/`set_pack_status`). **SQL 0018 LANCÉ ✅ (2026-06-05) —
-  tables `packs` + `pack_photos` créées en prod. Feature 100% opérationnelle.**
+- **Migrations** : 0015/0016/0017/0018 faites. Aucune migration en attente.
+- **Packs** : déployés + SQL 0018 lancé. Liés à l'inventaire réel. Gérables via chat Dzaryx. 100% opérationnel.
+- **Simulateur (= l'UI réelle de l'app)** : LIVE github.io. Cache SW **v43**. ⚠️ Après chaque deploy, Kouider
+  doit **fermer l'app à FOND + rouvrir** (sinon l'ancien SW sert l'ancienne UI). Voir [[dzaryx_ui_architecture]].
+- **App native** : redesign Gemini fait (vocal + chat + vision). Overlay flottant **OK** (testé OnePlus 5T).
+  Wake word "Zaria" (Porcupine) **branché mais ne fire PAS encore en vocal** (init/sensibilité — la notif tap
+  marche comme substitut). Dernier APK installé = build wake word. **Sécu** : tokens mobiles sortis du repo → **env**
+  (`5efb8e7`). EAS relié au compte Play officiel `@fikdzaryx/dzaryx` (`819a3e7`).
+- **Chat Dzaryx (06-07 PM)** : façon ChatGPT/Gemini — copier, markdown, dictée vocale, régénérer, éditer, recherche
+  historique, streaming typewriter, **graphiques** (barres/camembert/courbe), **téléchargement** photos+graphes.
+- **Création annonces via chat (06-07 PM)** : Dzaryx crée voiture loc/vente, immo loc/vente, pack — et **attache
+  les photos jointes au chat** automatiquement. **Testé live, vert.** Vision marche aussi dans le chat.
+
+### 🛑 OÙ ON S'EST ARRÊTÉ EXACTEMENT (fin session 2026-06-07 ~18h15)
+
+Session clôturée proprement (changelog `aa8b2d0`, journal à jour). Tout déployé + testé live. **Reste 3 trucs,
+tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
+
+1. **Wake word "Zaria" en vocal ne fire pas** — Porcupine s'initialise mais ne détecte pas la voix. La notif tap +
+   l'overlay marchent comme substitut. → **Besoin des logs du device** (logcat OnePlus 5T) pour debugger. Pistes :
+   version Porcupine vs `.ppn` v4, sensibilité (0.85), micro déjà capté par l'app.
+2. **Upload + analyse PDF/Excel dans le chat** — pas fait. Envoyer un contrat/facture/tableau → Dzaryx lit/analyse.
+   ~1h de boulot, besoin parsing backend.
+3. **Vérifs côté Kouider (juste tester sur l'app réelle, pas du code)** : vision chat, store photos Jumpy,
+   création annonce + photos sur autolux. (Tout vert en test backend, à confirmer sur device.)
+
+**Play Store** = exclu pour l'instant (build prod AAB + clé de signature Google requise quand on voudra publier).
 
 ---
 
 ## Entrées (plus récent en haut)
+
+### 2026-06-08 — IMMO/ACHAT : annonces complètes + photos + adresse + Opportunités (veille marché)
+- **Demandes Kouider** (suite refonte) : (1) remplacer "ce que Dzaryx sait faire" par un court "comment utiliser" ;
+  (2) formulaires d'annonce aussi complets que le site (toutes les infos + **plusieurs photos**) ; (3) **adresse**
+  autocomplétée (façon RESAS/Google) → **carte** sur l'annonce immo du site ; (4) remplacer "Opportunités" par une
+  **vraie veille business** (marché auto Algérie, nouveautés, **lois d'import**, blocage bateaux été, quand importer…).
+- **Fait** :
+  1. **Forms complets** (app) : immo = type/surface/pièces/chambres/SDB/étage/adresse/description ; voiture à vendre =
+     carburant/boîte/ville/état/description. **Multi-photos** (1ʳᵉ = principale). Backend `immo.ts` POST accepte tous
+     les champs + `photos[]` → Cloudinary → `property_photos`/`vehicle_sale_photos` + `image_url`.
+  2. **Adresse autocomplétée** via `/api/maps/autocomplete` (Google Places, déjà existant) → composant `AddressInput`
+     débouncé. La **carte** est **déjà** rendue sur `immo/[id].js` du site (embed par adresse) → rien à changer côté site.
+  3. **"Comment utiliser"** (4 lignes) remplace les cartes capacités sur IMMO + ACHAT.
+  4. **Opportunités = veille réelle** : `backend/src/integrations/opportunities.ts` — Claude **Sonnet + web_search natif**
+     → briefing JSON (marché/location/nouveautés/lois/import) orienté Oran, **cache Redis 12h**. Route
+     `GET /api/deals/opportunities?force=`. App : onglet Opportunités dynamique (résumé + cartes catégorie + urgence +
+     bouton Actualiser). **Testé live : 8 items pertinents** (Fiat Tafraoui, marques chinoises, etc.).
+- **Piège résolu** : le modèle écrivait une longue analyse avant le JSON → tronqué. Fix : **JSON-only strict** +
+  `max_tokens 4500` (commit `60719d5`).
+- **Commits** : `68295d5` (forms+photos+adresse+comment utiliser), `a1d254b` + `60719d5` (opportunités). Simulateur **v49**.
+  tsc backend EXIT 0, build sim EXIT 0.
+- **⏭️ Reste (optionnel)** : **auto-veille quotidienne** — job scheduler qui rafraîchit les opportunités chaque jour
+  et **pousse une notif proactive** si une opportunité `urgent` apparaît ("Kouider, bientôt import -10 ans…").
+  Aujourd'hui c'est à la demande (bouton Actualiser) + cache 12h. (Champ debug `_raw` laissé sur réponse vide.)
+
+### 2026-06-08 — Refonte nav : pages IMMO + ACHAT/REVENTE premium (Gemini), Capacités → Config
+- **Demande Kouider** : virer l'onglet **DZARYX** (Capacités/Proactif, inutile) → le mettre dans Config ; le
+  remplacer par une page **IMMO** (location+vente, connectée au site, + capacités Dzaryx immo) ; ajouter une page
+  **ACHAT/REVENTE** (voitures + immo + opportunités) ; design **premium façon Gemini**, sans rien casser.
+- **Fait** (simulateur = l'UI réelle) :
+  - Onglet `capacites` (DZARYX) **retiré de la nav** → `CapacitesScreen` intégré **en bas de CONFIG** (repliable).
+  - **`ImmoProScreen.tsx`** (nouveau) : hub immo premium — filtres Tous/À louer/À vendre, stats, ajout bien, cycle
+    statut, **état des lieux** (réutilise `InspectionModal`, exporté depuis FleetScreen), section "Ce que Dzaryx fait
+    pour l'immo". Données via `/api/immo` (site).
+  - **`DealsScreen.tsx`** (nouveau) : ACHAT/REVENTE — onglets Voitures / Immo / Opportunités, ajout voiture à vendre,
+    cycle statut, exemples d'analyse d'opportunités, section capacités Dzaryx (estimer prix, marge, créer annonce…).
+  - Design : noir + or, typo sans-serif, cartes douces, dégradés, pills statut — rupture avec le cyberpunk
+    (Orbitron/cyan) des autres écrans.
+  - Nav Kouider : VOIX·CHAT·**IMMO**·**ACHAT**·RESAS·PARC·CA·CLIENTS·DEMANDES·AGENDA·DOCS·CONFIG. IMMO+ACHAT visibles
+    aussi Houari ; SARF reste Houari, DOCS reste Kouider. Ancien `ImmoScreen.tsx` (Houari) = **fichier mort** (plus importé).
+- **Commit** : `e49c978`. Simulateur gh-pages **v47**. Build EXIT 0.
+- **⏭️ Suite possible** : rendre les autres écrans (PARC/RESAS/CA…) au même style Gemini si Kouider valide la direction ;
+  brancher "Opportunités" sur une vraie analyse Dzaryx (outil estimation marge).
+
+### 2026-06-08 — Inspection avant/après : véhicule + immobilier (Vision Sonnet, photo stockée, marqueurs, lien réservation) ⭐
+- **Demande Kouider** : quand on prend une photo avant/après d'un véhicule (loué à un client), l'enregistrer **avec
+  la réservation du client**, l'**analyser avec Claude Vision** (accident/dégâts en détail, vrai avant/après), et
+  **montrer où sont les défauts**. Pareil pour les **biens immobiliers**.
+- **Ce qui existait** : table `vehicle_states` + analyse Vision (Haiku) avant/après, mais photo **non stockée**
+  (`photos: []`), **pas liée** à la réservation, **pas d'immo**, défauts en texte seulement.
+- **Fait** :
+  1. **`backend/src/integrations/inspection-core.ts`** (nouveau) — moteur partagé : analyse **Claude Sonnet 4.6**
+     → **JSON structuré** = pour chaque dégât { label, severity, location, is_new, **box {x,y,w,h}** normalisé 0..1 }
+     + flag **accident** + sévérité globale. Upload photo → **Cloudinary** (`uploadInspectionPhoto`).
+  2. **`vehicle-state.ts`** réécrit — stocke la **photo Cloudinary**, **lie la réservation** du client
+     (`resolveBookingId` : cherche le booking par client + voiture → `booking_id`), enregistre `damage_boxes`,
+     `accident`, `severity`. Retour structuré (photoUrl + analysis) pour l'app.
+  3. **`property-state.ts`** (nouveau) — même système pour l'**immobilier** (état des lieux entrée/sortie), table
+     **`property_states`**, lié au bien (`property_id`) + locataire.
+  4. **REST** `backend/src/api/routes/inspections.ts` : `POST /api/inspections/vehicle|property` (analyse) +
+     `GET` (historique). Monté dans `index.ts`.
+  5. **Chat** : tools `save_property_state_before/after`, `get_property_states` (tools.ts + tool-executor.ts) ;
+     **fast-path** orchestrator étendu — détecte véhicule **ou** bien (mots immo + état des lieux) sur photo+message.
+  6. **App** (`simulator/.../FleetScreen.tsx`) : modal **`InspectionModal`** générique (véhicule + bien). Affiche la
+     **photo avec marqueurs numérotés** des dégâts (boîtes colorées par sévérité) + **légende** + bannière 🚨
+     **accident** + rapport texte. Bouton 📷 ajouté aussi sur chaque **bien** de l'onglet IMMO.
+- **Décisions (validées Kouider)** : marqueurs visuels sur la photo + modèle **Sonnet 4.6** (preuve litige → précision).
+- **Fichiers** : voir liste ci-dessus + `simulator/src/services/api.ts` (méthodes `inspect`/`fetchInspections` + types),
+  `supabase/migration_inspection_upgrade.sql`.
+- **Commit** : `84583b4` (poussé → Railway). Simulateur gh-pages **v44** (Published). tsc backend EXIT 0, build sim EXIT 0.
+- **🛑 ACTION REQUISE (Kouider)** : lancer **`supabase/migration_inspection_upgrade.sql`** dans Supabase > SQL Editor
+  (ajoute `damage_boxes`/`accident`/`severity` à `vehicle_states` + crée `property_states`). **Tant que pas fait,
+  l'enregistrement d'une inspection échoue** (colonnes/table manquantes).
+- **Multi-photos ✅ (ajouté ensuite, commit `bb50152`)** : une inspection accepte **plusieurs photos** (angles).
+  `inspection-core.analyzeInspectionPhotos` + `processInspection` (chaque dégât tagué `photo_index`). REST accepte
+  `images[]`. App : sélection multi (miniatures + retrait), bouton ANALYSER (N), résultat = chaque photo avec ses
+  marqueurs + légende globale. Pas de changement SQL (photos `TEXT[]`, `damage_boxes` JSONB). Simulateur **v45**.
+- **⏭️ Idées suite** : PDF du constat avant/après signable, rattacher l'inspection au PDF de contrat de location.
+
+### 2026-06-08 — Vérif toggle dispo/indispo + fix refresh catalogue site
+- **Demande** : vérifier que le bouton DISPO (écran PARC de l'app) passe vraiment les véhicules
+  disponible/indisponible **et** que ça se reflète sur le site.
+- **Vérif (chaîne complète, OK)** : `FleetScreen.toggle` → `api.toggleCar(id, !available)` →
+  **`PATCH /api/cars/:id {available}`** → backend `cars.ts` (zod whitelist inclut `available`) →
+  `supabase.from('cars').update({available})`. ✅ écrit bien la colonne `cars.available`.
+- **Côté site** (`rental-system`) : la dispo par voiture = `car.available && !réservation_active_aujourdhui`.
+  - **Détail** `/cars/[id]` : `getServerSideProps` → instant. ✅
+  - **Home** `/` : getStaticProps r:10 **+ refetch client** → instant au reload ; une voiture indispo est
+    **cachée** du carrousel (dans les 2 modes).
+  - **Catalogue** `/cars` : ⚠️ ne faisait QUE `getStaticProps revalidate:30` (pas de refetch client) → un
+    toggle n'apparaissait qu'après revalidation ISR (même classe de bug que la page avis).
+- **Fix** : ajout d'un **refetch client des cars au mount** dans `pages/cars.js` (pattern de la home). SSR/ISR gardé
+  pour le SEO. Build site EXIT 0.
+- **⚠️ Rappel mode dispo** (important pour Kouider plus tard) : tant que le **mode "à confirmer"** est **ON**
+  (état actuel), le **catalogue** affiche TOUT en "Sur demande" / "Vérifier la dispo" et **ignore** `available`
+  pour le badge → un toggle indispo n'a pas d'effet visuel sur `/cars` (la home, elle, cache quand même la voiture).
+  Quand Kouider aura les vraies dates → **Admin → Réglages → "Disponibilité des voitures" → 🟢 Dispos réelles**
+  (`availability_mode=false`, migration 0017 déjà faite) → là le catalogue + détail montrent vert "Disponible" /
+  rouge "Indisponible" selon le toggle. Voir [[08_DECISIONS#mode-dispo]].
+- **Commit** : site `c247974` (poussé → Vercel). **État** : ✅ déployé.
+
+### 2026-06-07 17:06 — Dzaryx crée les annonces + attache les photos du chat (+ fixes) ⭐ DERNIER TRAVAIL
+- **Quoi** : Dzaryx peut maintenant **créer une annonce depuis le chat** et y **attacher les photos jointes**
+  au message, pour les 4 types :
+  | Type | Outil | Photos |
+  |---|---|---|
+  | Voiture location | `add_car` | ✅ multi → `car_photos` + `image_url` |
+  | Immobilier (loc/vente) | `create_property` | ✅ multi → `property_photos` + `image_url` |
+  | Voiture à vendre | `add_vehicle_for_sale` | ✅ multi → `vehicle_sale_photos` + `image_url` |
+  | Pack | `create_pack` | ✅ photo principale (`image_url`) |
+- **Mécanique photos** : nouveau endpoint **`POST /api/cars/session-photos`** → upload Cloudinary + cache Redis
+  `session:photos:{sessionId}` (TTL 15 min). À la création, `attachSessionPhotos()` consomme le cache et lie les
+  photos à la nouvelle ligne. Frontend `TextScreen` : fonction `isCreateIntent` distingue **3 cas** quand tu joins
+  des photos → (a) *"crée une voiture/appart/pack…"* = nouvelle annonce + photos ; (b) *"range/enregistre les photos
+  du Clio"* = ajout à une annonce **existante** ; (c) *"tu vois quoi"* = analyse **vision**.
+- **Bugs trouvés + fixés dans la foulée** :
+  - `d4aa670` — **matching voiture** par score de tokens (≥3 lettres) dans `/api/cars/photos`. Avant, le fallback
+    exigeait TOUS les mots → un token "9" cassait "Jumpy 9 Places".
+  - `e54811b` — **vision dans le chat** : bypass des guards business (`fastPathGuard`/`checkAntiHallucination`)
+    quand `imageBase64` présent. La réponse décrit l'image (pas une requête DB) → était écrasée à tort par
+    `FAST_PATH_REFUSAL`.
+  - `4856275` — **`add_car` débloqué** : il était scopé HORS des agents → Dzaryx ne pouvait PAS créer de voiture
+    de location. Ajouté aux agents **Réservations + Général**.
+- **Exemples à dire à Dzaryx** : *"crée une nouvelle voiture de location Clio 5, citadine, essence, prix client
+  4500, prix proprio 3500"* (+ photos jointes) · *"ajoute un appartement à louer à Oran, 3 pièces, 50000 DA/mois"*
+  (+ photos) · *"ajoute une voiture à vendre Golf 7, 2018, 280 DA"* (+ photos).
+- **Fichiers** : `backend/src/api/routes/cars.ts` (endpoint + attach), `backend/src/integrations/tool-executor.ts`,
+  `backend/src/integrations/tools.ts`, `backend/src/agents/agent-registry.ts`,
+  `simulator/src/components/screens/TextScreen.tsx`, `simulator/src/services/api.ts` (`uploadSessionPhotos`).
+- **Commits** : `1d5bd08` (upload multi-photos), `d4aa670`, `e54811b`, `4856275`, `9e45312` (attach), `aa8b2d0` (changelog).
+- **Test live end-to-end (prod Railway + Supabase)** : ✅ `session-photos: 200 {count:2}` → `chat: 202` →
+  `CAR CREATED + image_url:true` → `PHOTOS attached: 2 (position 0,1)` → `CLEANED UP`. Tout vert.
+- **État** : ✅ déployé (backend Railway `9e45312` + web gh-pages **v43**). Session clôturée.
+- **⏭️ Prochaine étape** : voir **"OÙ ON S'EST ARRÊTÉ"** en haut (wake word logs / PDF-Excel / vérifs device).
+
+### 2026-06-07 13:30→16:00 — Chat façon ChatGPT/Gemini + sécu tokens env + EAS relink
+- **Quoi** (tout dans le **simulateur** `TextScreen.tsx`, = l'UI réelle ; ordre chronologique) :
+  - `5022f43` — **bouton Copier** visible (façon Gemini/ChatGPT) + affichage du **texte complet** + espace en bas.
+  - `4f67b83` — **rendu markdown** (gras / listes / titres / tableaux / code) façon ChatGPT/Claude.
+  - `11ba8c6` — **dictée vocale** dans le chat (micro → transcription dans l'input).
+  - `e12395d` — bouton **Régénérer** (renvoie le dernier message).
+  - `70f7f88` + `6d95e21` — **graphiques** : Dzaryx génère barres/camembert/courbe via un **bloc `chart` JSON**
+    dans sa réponse. ⚠️ `6d95e21` corrige une confusion : le backend prenait le chat texte pour du vocal →
+    flag **`textOnly`** ajouté pour que markdown + graphes ne s'affichent QUE en chat texte.
+  - `1001514` — **streaming typewriter** + **téléchargement** des photos ET des graphiques en galerie
+    (`expo-media-library` côté natif).
+  - `265bcfd` — **éditer un message** déjà envoyé + **recherche** dans l'historique.
+- **Sécu** : `5efb8e7` — **tokens mobiles sortis du repo** (Kouider/Houari) → lus via **variables d'env** au build
+  (plus en dur dans `dzaryx-native/app/index.tsx`). Voir [[08_DECISIONS#tokens-env]].
+- **EAS** : `819a3e7` — projet relié au compte Play **officiel** `@fikdzaryx/dzaryx` (pour les futurs builds de prod).
+- **Fichiers** : `simulator/src/components/screens/TextScreen.tsx`, `simulator/src/services/api.ts`,
+  `backend/src/conversation/context-builder.ts`, `backend/src/conversation/orchestrator.ts`,
+  `dzaryx-native/app/index.tsx`, `dzaryx-native/app.json`, `simulator/public/sw.js` (bumps v37→v43).
+- **État** : ✅ déployé (web gh-pages + backend Railway).
+
+### 2026-06-07 14:39 — Réservations : attribution Kouider/Houari robuste + "qui a bloqué ?"
+- **Quoi** : `create_booking` attribue maintenant la réservation au **bon acteur** (Kouider/Houari) de façon
+  robuste ; le **check de dispo** dit désormais **QUI** a bloqué le créneau (acteur + client + dates) au lieu d'un
+  simple "indispo" ; la **liste** des réservations est filtrée **par acteur**.
+- **Pourquoi** : Kouider et Houari sont parfois connectés **en même temps**, chacun sur son login → il faut que rien
+  ne se mélange et qu'on voie d'où vient un conflit de dates.
+- **Fichiers** : `backend/src/integrations/tool-executor.ts`. **Commit** : `7283337`.
+- **État** : ✅ déployé (Railway). tsc backend EXIT 0.
+
+### 2026-06-07 — Vocal: tap-to-talk partout + wake service robuste + vision overlay→app
+- **Bug central** : le VAD (détection volume) flicke sur le micro de Kouider → coupe le micro instantanément
+  (app ET overlay). SpeechRecognition Google **cassé dans la WebView** (gèle si activé). 
+  → **Solution** : SpeechRecognition DÉSACTIVÉ partout ; **tap-to-talk par défaut** (tap micro=enregistre,
+  re-tap=envoie ; VAD ne tourne que si "Mains libres" activé manuellement). App vocal = **OK confirmé** par Kouider.
+  Commits web : `0e3103a`, `a94d671`, `8fbe382`, etc.
+- **Overlay micro** : AudioContext suspendu en overlay → VAD coupait → tap-to-talk (MediaRecorder, indép. AudioContext).
+- **Wake/notif cassés après réinstall+reboot** : service fond tué + Porcupine perd son activation (cache effacé,
+  besoin internet). → Build robuste : **service ne se tue JAMAIS** (notif reste même si Porcupine échoue) + **retry**
+  Porcupine (8-10s) + **BootReceiver** (auto-start après reboot) + **exemption batterie** (popup au lancement).
+- **Vision overlay** : le micro/file-chooser en overlay = limité → bouton caméra overlay fait `window.location='dzaryx://vision'`,
+  capté par le WebViewClient de l'overlay (`shouldOverrideUrlLoading`) → ouvre l'app + `__triggerVision` → `toggleLiveCam`.
+- **Fichiers** : `plugins/withDzaryxWakeWord.js` (resilient+boot+battery), `plugins/withDzaryxOverlay.js` (deep-link),
+  `app/index.tsx` (dzaryx://vision), `VoiceScreen.tsx` (tap-to-talk, __triggerVision, bouton vision deep-link).
+- **Commit** : `7962f96`. Prebuild clean validé. Build EAS robuste en cours.
+- **État** : 🟡 build en cours. APK précédents : wake `nTAdWGSKpDR6XyyEAWXdmg.apk`.
+- **⏭️ Reste** : confirmer overlay micro marche (sinon Android bloque le micro en fenêtre overlay = pivoter wake→ouvre app) ;
+  Play Store (prod AAB, besoin clé Google) ; sécu tokens en dur dans index.tsx.
+
+### 2026-06-06 — Wake word "Zaria" (Porcupine, service fond) + barre fine overlay
+- **Barre fine** : overlay passé d'un panneau 42% à une **barre fine 88dp** en haut (plugin `density*88`, fond transparent)
+  + rendu web compact `compact` (App.tsx `?overlay=1` → VoiceScreen compact = logo/texte/caméra/mic, commit `380bf46`).
+- **Fix micro overlay** : SpeechRecognition KO dans la WebView overlay → en `compact` on force **VAD+Whisper**
+  (`startSRDictation` return false si compact ; + fallback si SR error fatal). Commit `2ed7dd2`. (Web, pas de build.)
+- **Wake word** : Picovoice approuvé. Wake word entraîné = **"Zaria"** (en, Android, `Zaria_en_android_v4_0_0.ppn`)
+  — "Dzaryx" refusé par le vocab Porcupine (mot inventé). Modèle copié `dzaryx-native/assets/wakeword/Zaria_android.ppn`.
+  Plugin `withDzaryxWakeWord.js` : dépendance `ai.picovoice:porcupine-android:3.0.2`, **Service fond** `DzaryxWakeWordService`
+  (PorcupineManager → onWake → démarre `DzaryxOverlayService`), activity trampoline `dzaryxwake://start`, copie .ppn en assets.
+  Démarrage : `index.tsx` → `Linking.openURL('dzaryxwake://start')` au lancement (1.5s delay).
+- **⚠️ Clé Picovoice** : PAS dans le repo (bloqué par classifier, à raison). Stockée en **variable d'env EAS**
+  `PICOVOICE_ACCESS_KEY` (env production, sensitive). Plugin la lit via `process.env`. Révocable sur console.picovoice.ai.
+- **⚠️ Risques** : (1) version Porcupine 3.0.2 vs .ppn v4 → mismatch possible (wake silencieux) → bumper si besoin ;
+  (2) pas d'auto-start au boot (rouvrir app 1× après reboot) ; (3) vision dans overlay pas encore (file chooser natif).
+- **Commits** : `380bf46` (barre), `2ed7dd2` (fix micro), `252c259` (wake word). Prebuild validé. Build EAS en cours.
+- **État** : 🟡 build wake word en cours. APK barre fine OK avant : `rrmAjmp9rhQCR7ofdbzy6J.apk`.
+
+### 2026-06-06 — Overlay flottant natif (Build A — itération 1)
+- **Quoi** : config plugin Expo `dzaryx-native/plugins/withDzaryxOverlay.js` qui injecte au prebuild :
+  permissions (SYSTEM_ALERT_WINDOW, FOREGROUND_SERVICE_MICROPHONE), un **Service Kotlin** `DzaryxOverlayService`
+  (WebView chargeant la page vocale `?overlay=1` PAR-DESSUS les autres apps via WindowManager TYPE_APPLICATION_OVERLAY,
+  onPermissionRequest→grant micro, bouton ✕), et une Activity trampoline `DzaryxOverlayLauncherActivity`
+  (deep link `dzaryxoverlay://go` → demande permission overlay puis démarre le service).
+- **Déclenchement** : bouton ⧉ (web VoiceScreen) → `sendNativeAction({__native_action:'open_overlay'})` →
+  `index.tsx` → `Linking.openURL('dzaryxoverlay://go')`. (Plus tard : notif + wake word Picovoice → même deep link.)
+- **⚠️ android/ est gitignored (managed)** → EAS régénère au prebuild → TOUT le natif DOIT passer par config plugin
+  (pas d'édition directe de android/). Validé en local : `npx expo prebuild -p android` OK, Kotlin + manifest injectés.
+- **Fichiers** : `dzaryx-native/plugins/withDzaryxOverlay.js`, `app.json` (plugin ajouté), `app/index.tsx` (handler open_overlay),
+  `simulator/.../VoiceScreen.tsx` (bouton ⧉), `simulator/public/sw.js` (v24).
+- **Commit** : `8221357`. Build EAS APK lancé (preview).
+- **État** : ✅ **OVERLAY FONCTIONNE** (testé OnePlus 5T 2026-06-06) — la fenêtre Dzaryx s'affiche par-dessus
+  l'écran d'accueil avec la voix compacte (logo, texte, mic, caméra, scan, ✕). APK : `hN4hgiVDV2DtZY7GGn3AoT.apk`
+  (versionCode 16, keystore zlb4WDEwpw). Mode compact web `?overlay=1` (App.tsx → VoiceScreen seul, commit `455ab76`).
+  ⚠️ Install : signature EAS ≠ signature Play (Google re-signe) → désinstaller l'app Play avant d'installer l'APK test.
+- **⏭️ Itérations prévues** : (1) overlay COMPACT (voix seule, pas le shell complet) via mode `?overlay=1` dans App.tsx ;
+  (2) passer l'auth/acteur dans l'URL (WebView overlay = session séparée) ; (3) déclencher depuis la notif + wake word ;
+  (4) greeting auto "Je suis à ton écoute" au lancement overlay. Picovoice = en attente d'appro (Build B).
+
+### 2026-06-06 — Itérations vocal Gemini (suite)
+- **Quoi** : (1) **conversation continue mains-libres par défaut** (`handsFree`+`continuousMode` = true) → plus besoin
+  d'appuyer, le VAD s'arme seul, détecte début/fin de phrase, répond, reboucle. (2) **Logo Dzaryx au centre**
+  (remplace l'étoile) — `simulator/public/logo.png` (copié de `ibrahim/logo.png`), via `import.meta.env.BASE_URL`.
+  (3) **Filtre anti-hallucination Whisper** côté backend (`transcribe.ts`) — jette "Merci/Sous-titres/amara.org…"
+  inventés sur silence/bruit. (4) **Bump SW cache v17→v18** — l'ancien service worker cachait l'UI = les MAJ ne
+  s'affichaient pas (cause des "ça change pas"). (5) **Barge-in** : coupe l'audio dès qu'on reparle (basé sur
+  `isAudioPlaying()`, indépendant du statut). (6) **Flip caméra** avant/arrière en mode vision (+ miroir cam avant).
+- **⚠️ Limite web confirmée** : Whisper-après-silence comprend moins bien que Gemini (= Google STT temps réel).
+  Vrai saut = **STT natif** (`@react-native-voice` = Google SpeechRecognizer) → nécessite build EAS. Idem pour
+  "Hey Dzaryx" fond/app fermée (Porcupine + foreground service Android). iPhone = Siri only.
+- **⚠️ Cache** : à chaque déploiement, l'utilisateur doit **fermer l'app à FOND + rouvrir** (le SW sert l'ancienne
+  version sinon). Network-first sur le HTML donc OK après 1 réouverture une fois le SW v18 actif.
+- **Fichiers** : `simulator/src/components/screens/VoiceScreen.tsx`, `simulator/public/sw.js`, `simulator/public/logo.png`, `backend/src/api/routes/transcribe.ts`.
+- **Commits** : `b8f9c87` (continu défaut), `49e4e98` (logo+filtre+SW), `c1187d7` (barge-in+flip). Build simulateur EXIT 0, tsc backend EXIT 0.
+- **État** : ✅ github.io Published + backend poussé (Railway). Voir [[dzaryx_ui_architecture]].
+
+### 2026-06-06 — Redesign UI Gemini : vocal + chat + vision (simulateur)
+- **Quoi** : refonte visuelle des écrans VOIX (`VoiceScreen.tsx`) et CHAT (`TextScreen.tsx`) du **simulateur web**
+  vers un style épuré façon Google Gemini, en gardant l'**or Dzaryx** comme accent unique. **Logique 100% intacte**
+  (VAD, wake word, caméra live, vision, scan, mode continu, mains libres, socket, historique, proactifs).
+  - VOIX : fond noir + lueur or basse (plus de scanlines/HUD/coins/Orbitron/monospace), header minimal,
+    **étoile or au centre** + grand texte fin (salutation/réponse), **orbe pill lumineux en bas** (caméra·orbe·scan)
+    avec barres d'onde réactives au volume, **vision = caméra plein écran**, overlay activation épuré.
+  - CHAT : fond noir, header minimal, **bulles user grises à droite**, **réponse IA plein texte sans bulle/avatar**,
+    **input pill** (mic si vide, flèche si texte), liens/docs en or.
+- **⚠️ Découverte clé** : l'UI réelle utilisée = le **simulateur web** (`simulator/`) chargé en WebView par l'app
+  native (`dzaryx-native/app/index.tsx` → `kouider213.github.io/ibrahim/`). Les écrans natifs `app/voice.tsx`/`chat.tsx`
+  ne sont PAS affichés (route `_layout` ne déclare que `index`). Donc le travail UI se fait dans `simulator/`.
+  (`app/voice.tsx` natif a quand même été modernisé au passage — inoffensif.)
+- **Déploiement** : `cd simulator && npm run build && npx gh-pages -d dist` → **github.io (Published)**. Visible au
+  reload de l'app. (Netlify build aussi possible via netlify.toml base=simulator.)
+- **Fichiers** : `simulator/src/components/screens/VoiceScreen.tsx`, `TextScreen.tsx`, `dzaryx-native/app/voice.tsx`.
+- **Commit** : `a086d33`. Build simulateur EXIT 0 (tsc+vite). Build natif tsc EXIT 0.
+- **État** : ✅ déployé github.io.
+- **⏭️ Reste possible** : (1) son d'activation micro "trop stylé" comme Gemini — assets `dzaryx-native/assets/page1_voice_vision/audio/listening.wav` existent (branchés côté natif, à brancher côté web si voulu) ;
+  (2) **vrai wake word fond/app fermée** = nécessite natif Android (Porcupine + foreground service) — iPhone restera Siri ;
+  (3) **sécu** : tokens en dur dans `dzaryx-native/app/index.tsx` (TOKEN_KOUIDER/HOUARI) à sortir du bundle.
+
+### 2026-06-06 — Fix avis invisibles sur /reviews
+- **Quoi** : page `/reviews` n'affichait pas les avis seedés (visibles sur la home seulement).
+- **Cause** : home fait un refresh client-side (useEffect supabase) → toujours frais ; `/reviews` dépendait
+  UNIQUEMENT de getStaticProps + ISR `revalidate:30` → page figée au build, avis seedés après build pas affichés
+  tant qu'aucune revalidation Netlify déclenchée.
+- **Fix** : ajout refresh client-side dans `/reviews` (même pattern que la home : `reviews` en state, useEffect
+  qui re-fetch `reviews` approved au mount).
+- **Fichiers** : `pages/reviews.js` (repo site).
+- **Commit** : `418e08e`. Build OK.
+- **État** : ✅ poussé → redéploiement auto.
 
 ### 2026-06-05 — Seed avis (reviews) tous services + multilingue
 - **Quoi** : 31 avis insérés dans `reviews` (approved=true) couvrant location, immo (loc+vente), vente voiture,

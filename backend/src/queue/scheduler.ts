@@ -31,6 +31,7 @@ import {
   jobMaintenanceAlert,
   jobSmartAlarm,
   jobMonthlyExcel,
+  jobOpportunitiesWatch,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -104,6 +105,11 @@ const JOBS = [
   {
     name:  'competitor-watch',
     cron:  '0 11 * * 1,4',    // 11h lundi + jeudi — veille concurrence TikTok/Telegram
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'opportunities-watch',
+    cron:  '0 9 * * 6',       // 9h chaque samedi — veille marché auto Algérie (1×/semaine)
     tz:    'Africa/Algiers',
   },
   {
@@ -213,6 +219,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'late-return-alert':        jobLateReturnAlert,
   'anthropic-watch':          jobAnthropicWatch,
   'competitor-watch':         jobCompetitorWatch,
+  'opportunities-watch':      jobOpportunitiesWatch,
   'proactive-engine':         async (job: Job) => { await runProactiveEngine(job); },
   'bi-daily':                 jobBIDaily,
   'bi-reminders':             jobBIReminders,

@@ -16,6 +16,7 @@ import { getOranWeather } from '../../integrations/web-search.js';
 import { chat } from '../../integrations/claude-api.js';
 import axios from 'axios';
 import { runTikTokMarketResearch } from '../../marketing/market-research.js';
+import { getAutoOpportunities } from '../../integrations/opportunities.js';
 import { createMarketingVideo } from '../../marketing/video-creator.js';
 import { savePendingVideo } from '../../marketing/approval-store.js';
 import type { Car } from '../../integrations/supabase.js';
@@ -1985,5 +1986,27 @@ export async function jobMonthlyExcel(_job: Job): Promise<void> {
     console.log(`[job:monthly-excel] ✅ ${filename} (${Math.round(buffer.length / 1024)} KB)`);
   } catch (err) {
     console.error('[job:monthly-excel] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── Veille opportunités marché auto — 1×/semaine (samedi) ─────────────────────
+export async function jobOpportunitiesWatch(_job: Job): Promise<void> {
+  try {
+    const report = await getAutoOpportunities(true); // force refresh
+    if (!report.items.length) {
+      console.log('[job:opportunities-watch] aucun item');
+      return;
+    }
+    const urgent = report.items.filter(i => i.urgency === 'urgent');
+    const top = (urgent.length ? urgent : report.items).slice(0, 5);
+    const lines = top.map(o => `• ${o.title}${o.action ? ` — ${o.action}` : (o.detail ? ` — ${o.detail}` : '')}`);
+    const full = `🔎 *Veille marché auto (hebdo)*\n\n${report.summary}\n\n${lines.join('\n')}`;
+    const tts = urgent.length
+      ? `Kouider, ${urgent.length} opportunité${urgent.length > 1 ? 's' : ''} importante${urgent.length > 1 ? 's' : ''} cette semaine. ${urgent[0].title}.`
+      : `Veille marché auto de la semaine prête : ${report.items.length} opportunités.`;
+    emitProactive(tts, urgent.length ? 'alert' : 'info', stripTgMd(full), 'kouider', 'deals');
+    console.log(`[job:opportunities-watch] ✅ ${report.items.length} items (${urgent.length} urgents)`);
+  } catch (err) {
+    console.error('[job:opportunities-watch] ❌', err instanceof Error ? err.message : String(err));
   }
 }
