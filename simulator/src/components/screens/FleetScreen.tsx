@@ -560,7 +560,7 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function InspectionModal({ kind, subject, sessionId, onClose }: {
+export function InspectionModal({ kind, subject, sessionId, onClose }: {
   kind: 'vehicle' | 'property'; subject: string; sessionId: string; onClose: () => void;
 }) {
   const [mode, setMode]     = useState<'before' | 'after'>('before');

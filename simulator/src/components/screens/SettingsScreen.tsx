@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { business, setSimActor, getSimActor } from '../../services/api.ts';
+import CapacitesScreen from './CapacitesScreen.tsx';
 
 interface StoredLocation { lat: number; lng: number; city?: string; country: string; updated_at: string; }
 
@@ -34,6 +35,7 @@ export default function SettingsScreen() {
   const [loadingH, setLH]      = useState(false);
   const [triggering, setTrig]  = useState<string | null>(null);
   const [clearing, setClear]   = useState(false);
+  const [showCaps, setShowCaps] = useState(false);
   const [msg, setMsg]          = useState('');
   const [locData, setLocData]  = useState<StoredLocation | null>(null);
   const [locLoading, setLocL]  = useState(false);
@@ -302,6 +304,22 @@ export default function SettingsScreen() {
           <div style={{ fontSize: 7, color: '#ffffff22', textAlign: 'center', letterSpacing: '0.1em' }}>
             Dzaryx apprend de chaque conversation · "sauvegarde cette règle: …"
           </div>
+        </Panel>
+
+        {/* Capacités & Agents Dzaryx (déplacé ici depuis l'onglet DZARYX) */}
+        <Panel title="CAPACITÉS & AGENTS DZARYX">
+          <button
+            onClick={() => setShowCaps(s => !s)}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(0,212,255,0.06)', border: '1px solid #00d4ff22', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Share Tech Mono', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <span>🤖 14 agents · ce que Dzaryx sait faire</span>
+            <span style={{ color: '#00d4ff88' }}>{showCaps ? '▲' : '▼'}</span>
+          </button>
+          {showCaps && (
+            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #00d4ff12' }}>
+              <CapacitesScreen />
+            </div>
+          )}
         </Panel>
 
         {/* Version */}

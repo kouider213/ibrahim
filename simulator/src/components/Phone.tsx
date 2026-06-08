@@ -8,16 +8,16 @@ import ClientsScreen from './screens/ClientsScreen.tsx';
 import DocumentsScreen from './screens/DocumentsScreen.tsx';
 import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
-import CapacitesScreen from './screens/CapacitesScreen.tsx';
 import CurrencyScreen from './screens/CurrencyScreen.tsx';
-import ImmoScreen from './screens/ImmoScreen.tsx';
+import ImmoProScreen from './screens/ImmoProScreen.tsx';
+import DealsScreen from './screens/DealsScreen.tsx';
 import LeadsScreen from './screens/LeadsScreen.tsx';
 import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'capacites' | 'settings' | 'currency' | 'immo' | 'leads';
+  | 'settings' | 'currency' | 'immo' | 'deals' | 'leads';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -30,9 +30,9 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
 const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean; houariOnly?: boolean }> = [
   { id: 'voice',         icon: '🎙️', label: 'VOIX'    },
   { id: 'text',          icon: '💬', label: 'CHAT'    },
-  { id: 'capacites',     icon: '🤖', label: 'DZARYX',   kouiderOnly: true },
+  { id: 'immo',          icon: '🏠', label: 'IMMO'    },
+  { id: 'deals',         icon: '🔁', label: 'ACHAT'   },
   { id: 'currency',      icon: '💱', label: 'SARF',    houariOnly: true },
-  { id: 'immo',          icon: '🏠', label: 'IMMO',    houariOnly: true },
   { id: 'bookings',      icon: '📋', label: 'RESAS'   },
   { id: 'fleet',         icon: '🚗', label: 'PARC'    },
   { id: 'revenue',       icon: '💰', label: 'CA'      },
@@ -136,8 +136,8 @@ export default function Phone() {
 
   const actor = loggedActor ?? 'kouider';
 
-  const houariOnlyPages: Page[] = ['currency', 'immo'];
-  const kouiderOnlyPages: Page[] = ['capacites', 'documents'];
+  const houariOnlyPages: Page[] = ['currency'];
+  const kouiderOnlyPages: Page[] = ['documents'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -156,10 +156,10 @@ export default function Phone() {
       case 'leads':         return <LeadsScreen />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
-      case 'capacites':     return <CapacitesScreen />;
       case 'settings':      return <SettingsScreen />;
       case 'currency':      return <CurrencyScreen actor={actor} />;
-      case 'immo':          return <ImmoScreen />;
+      case 'immo':          return <ImmoProScreen />;
+      case 'deals':         return <DealsScreen />;
     }
   };
 
