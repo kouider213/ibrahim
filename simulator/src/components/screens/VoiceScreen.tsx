@@ -1224,23 +1224,40 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
                 {visionActive ? 'Vision en direct' : 'Caméra'}
               </span>
             </div>
-            {/* Flip caméra avant/arrière */}
-            <button
-              onClick={flipCam}
-              aria-label="Changer de caméra"
-              style={{
-                position: 'absolute', top: 50, right: 18,
-                width: 40, height: 40, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.25)',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 3h6v6" /><path d="M9 21H3v-6" />
-                <path d="M21 3l-7 7" /><path d="M3 21l7-7" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
+            {/* Barre de contrôle plein écran : micro + sortie */}
+            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 26, zIndex: 3 }}>
+              {/* Sortir de la vision */}
+              <button onClick={toggleLiveCam} aria-label="Quitter la vision"
+                style={{ width: 54, height: 54, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+              {/* Micro (tap pour parler) */}
+              <button
+                onClick={() => {
+                  if (status === 'idle' && !isRecordingRef.current) { unlockAudio(); if (streamRef.current) { startRecording(); setHud('Écoute…'); } else { setHud('Micro non activé'); } }
+                  else if (status === 'listening') { stopRecordingAndProcess(); }
+                  else if (status === 'speaking') { stopAudio(); setStatus('idle'); }
+                }}
+                aria-label="Micro"
+                style={{
+                  width: 76, height: 76, borderRadius: '50%', cursor: 'pointer',
+                  background: status === 'listening' ? 'linear-gradient(180deg,#FF5A5A,#d83a3a)' : 'linear-gradient(180deg,#10b981,#0e9e6e)',
+                  border: '3px solid rgba(255,255,255,0.85)',
+                  boxShadow: status === 'listening' ? `0 0 ${24 + rmsLevel * 50}px #FF5A5Aaa` : '0 6px 24px rgba(16,185,129,0.5)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'box-shadow .08s linear',
+                }}>
+                {status === 'listening' ? (
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                ) : (
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0M12 17v4" /></svg>
+                )}
+              </button>
+              {/* Flip (place symétrique) */}
+              <button onClick={flipCam} aria-label="Changer caméra"
+                style={{ width: 54, height: 54, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.25)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6" /><path d="M9 21H3v-6" /><path d="M21 3l-7 7" /><path d="M3 21l7-7" /><circle cx="12" cy="12" r="3" /></svg>
+              </button>
+            </div>
           </>
         )}
       </div>
