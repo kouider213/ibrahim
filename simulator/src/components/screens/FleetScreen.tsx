@@ -77,9 +77,9 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #00d4ff12', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #e9b94912', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#00d4ff', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #00d4ff55' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#e9b949', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #e9b94955' }}>
             {tab === 'cars' ? 'PARC VÉHICULES' : tab === 'immo' ? 'IMMOBILIER' : 'VENTE AUTO'}
           </div>
           {msg && (
@@ -91,22 +91,22 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
           {([['cars', '🚗 LOCATION'], ['immo', '🏠 IMMO'], ['vente', '💰 VENTE']] as [ParcTab, string][]).map(([k, lbl]) => (
             <button key={k} onClick={() => setTab(k)} style={{
               flex: 1, padding: '6px 4px', borderRadius: 7,
-              background: tab === k ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.04)',
-              border: `1px solid #00d4ff${tab === k ? '88' : '22'}`,
+              background: tab === k ? 'rgba(233,185,73,0.15)' : 'rgba(233,185,73,0.04)',
+              border: `1px solid #e9b949${tab === k ? '88' : '22'}`,
               fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.08em',
-              color: `#00d4ff${tab === k ? '' : '77'}`, cursor: 'pointer',
+              color: `#e9b949${tab === k ? '' : '77'}`, cursor: 'pointer',
             }}>{lbl}</button>
           ))}
         </div>
         {tab === 'cars' && (
         <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-          <KpiCard label="TOTAL"   val={String(cars.length)}  col="#00d4ff" />
+          <KpiCard label="TOTAL"   val={String(cars.length)}  col="#e9b949" />
           <KpiCard label="DISPO"   val={String(availCount)}   col="#00e676" />
           <KpiCard label="OCCUP"   val={`${occPct}%`}         col="#ffb347" />
           <KpiCard label="INDISPO" val={String(unavailCount)} col="#ff3366" />
         </div>
         )}
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #00d4ff44, transparent)' }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #e9b94944, transparent)' }} />
       </div>
 
       {/* Immo / Vente panes */}
@@ -369,11 +369,11 @@ const editInp: CSSProperties = {
 const IMMO_ST: Record<string, { label: string; col: string }> = {
   disponible: { label: 'DISPO', col: '#00e676' }, libre: { label: 'DISPO', col: '#00e676' },
   loue: { label: 'LOUÉ', col: '#ffb347' }, vendu: { label: 'VENDU', col: '#ff5fa2' },
-  coming_soon: { label: 'BIENTÔT', col: '#00d4ff' },
+  coming_soon: { label: 'BIENTÔT', col: '#e9b949' },
 };
 const paneInput: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: 'rgba(0,212,255,0.04)',
-  border: '1px solid #00d4ff1a', borderRadius: 7, padding: '6px 8px',
+  width: '100%', boxSizing: 'border-box', background: 'rgba(233,185,73,0.04)',
+  border: '1px solid #e9b9491a', borderRadius: 7, padding: '6px 8px',
   fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
@@ -470,7 +470,7 @@ function ImmoPane({ onMsg, onInspect }: { onMsg: (m: string) => void; onInspect:
             </div>
             <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
               <button onClick={() => void cycle(p)} disabled={busy === p.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
-              <button onClick={() => onInspect(p.title || p.name || 'Bien')} title="État des lieux entrée/sortie" style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 9, cursor: 'pointer', background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44', color: '#00d4ff' }}>📷</button>
+              <button onClick={() => onInspect(p.title || p.name || 'Bien')} title="État des lieux entrée/sortie" style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 9, cursor: 'pointer', background: 'rgba(233,185,73,0.1)', border: '1px solid #e9b94944', color: '#e9b949' }}>📷</button>
               <button onClick={() => void del(p)} disabled={busy === p.id} style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}>🗑</button>
             </div>
           </div>
@@ -571,7 +571,7 @@ function KpiCard({ label, val, col }: { label: string; val: string; col: string 
 
 function HudLoader() {
   return (
-    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#00d4ff33', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>
+    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#e9b94933', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>
       CHARGEMENT…
     </div>
   );
@@ -582,9 +582,9 @@ function HudEmpty({ text }: { text: string }) {
 }
 
 const refreshBtn: React.CSSProperties = {
-  background: 'transparent', border: '1px solid #00d4ff22', borderRadius: 6,
+  background: 'transparent', border: '1px solid #e9b94922', borderRadius: 6,
   padding: '5px 12px', fontFamily: 'Orbitron', fontSize: 7,
-  color: '#00d4ff55', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
+  color: '#e9b94955', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
 };
 
 function CarPhoto({ url, name, col }: { url: string | null; name: string; col: string }) {
@@ -629,7 +629,7 @@ function CarPlaceholder({ col }: { col: string }) {
 }
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#00d4ff';
+  const s = 12, t = 1.5, col = '#e9b949';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
@@ -747,7 +747,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setResult(null); setShots([]); setMode(mode === 'before' ? 'after' : mode); }} style={inspBtn('#00d4ff')}>+ NOUVELLE</button>
+              <button onClick={() => { setResult(null); setShots([]); setMode(mode === 'before' ? 'after' : mode); }} style={inspBtn('#e9b949')}>+ NOUVELLE</button>
               <button onClick={onClose} style={inspBtn('#ffb347')}>✓ TERMINÉ</button>
             </div>
           </>
