@@ -211,15 +211,15 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                     {cur}
                   </span>
                 </div>
-                {/* Rev 30j + occupation */}
-                {rev30d !== null && (
-                  <div style={{ fontSize: 7, color: '#ffffff33', marginBottom: 4 }}>
-                    REV. 30J <span style={{ color: '#ffffffaa', fontWeight: 600 }}>
+                {/* Rev 30j + occupation — affichés seulement s'il y a de l'activité */}
+                {rev30d !== null && rev30d > 0 && (
+                  <div style={{ fontSize: 8, color: '#9b9ba6', marginBottom: 4 }}>
+                    REV. 30J <span style={{ color: '#e5e7eb', fontWeight: 700 }}>
                       {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
                     </span>
                   </div>
                 )}
-                {occ30d !== null && (
+                {occ30d !== null && occ30d > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <div style={{ flex: 1, height: 3, background: '#ffffff09', borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}55, ${col})`, borderRadius: 2, transition: 'width 0.6s ease' }} />
