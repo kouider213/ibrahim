@@ -60,8 +60,8 @@ export default function DocumentsScreen() {
           style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column' }}
           onClick={() => setViewDoc(null)}
         >
-          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #3b82f622' }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#3b82f6', letterSpacing: '0.2em' }}>
+          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #10b98122' }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#10b981', letterSpacing: '0.2em' }}>
               {viewDoc.type.toUpperCase()} — {viewDoc.client_name}
             </span>
             <button
@@ -75,7 +75,7 @@ export default function DocumentsScreen() {
             <img
               src={viewDoc.file_url}
               alt={viewDoc.type}
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8, border: '1px solid #3b82f622' }}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8, border: '1px solid #10b98122' }}
               onClick={e => e.stopPropagation()}
             />
           </div>
@@ -87,21 +87,21 @@ export default function DocumentsScreen() {
       )}
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #3b82f612', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#3b82f6', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #3b82f655' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #10b98155' }}>
             DOCUMENTS
           </div>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#3b82f644', letterSpacing: '0.2em' }}>BASE CLIENTS</span>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b98144', letterSpacing: '0.2em' }}>BASE CLIENTS</span>
         </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #3b82f644, transparent)' }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
         {/* Fetch document panel */}
-        <div style={{ background: 'rgba(59,130,246,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #3b82f61a' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#3b82f677', letterSpacing: '0.25em', marginBottom: 10 }}>
+        <div style={{ background: 'rgba(16,185,129,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #10b9811a' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b98177', letterSpacing: '0.25em', marginBottom: 10 }}>
             ▶ RÉCUPÉRER DOCUMENT CLIENT
           </div>
 
@@ -122,10 +122,10 @@ export default function DocumentsScreen() {
                   disabled={loading}
                   style={{
                     flex: 1,
-                    background: active ? 'rgba(59,130,246,0.15)' : loading ? 'rgba(59,130,246,0.03)' : 'rgba(59,130,246,0.08)',
-                    border: `1px solid #3b82f6${active ? '88' : loading ? '18' : '44'}`,
+                    background: active ? 'rgba(16,185,129,0.15)' : loading ? 'rgba(16,185,129,0.03)' : 'rgba(16,185,129,0.08)',
+                    border: `1px solid #10b981${active ? '88' : loading ? '18' : '44'}`,
                     borderRadius: 10, padding: '10px 6px',
-                    fontFamily: 'Inter, sans-serif', color: `#3b82f6${loading ? '55' : 'cc'}`,
+                    fontFamily: 'Inter, sans-serif', color: `#10b981${loading ? '55' : 'cc'}`,
                     cursor: loading ? 'default' : 'pointer', textAlign: 'center',
                     transition: 'all 0.2s',
                   }}
@@ -138,7 +138,7 @@ export default function DocumentsScreen() {
           </div>
 
           {loading && (
-            <div style={{ marginTop: 10, textAlign: 'center', fontSize: 8, color: '#3b82f655', letterSpacing: '0.2em', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ marginTop: 10, textAlign: 'center', fontSize: 8, color: '#10b98155', letterSpacing: '0.2em', fontFamily: 'Inter, sans-serif' }}>
               RÉCUPÉRATION EN COURS…
             </div>
           )}
@@ -152,7 +152,7 @@ export default function DocumentsScreen() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontSize: 7, color: '#3b82f644', letterSpacing: '0.15em', fontFamily: 'Inter, sans-serif' }}>
+                  <div style={{ fontSize: 7, color: '#10b98144', letterSpacing: '0.15em', fontFamily: 'Inter, sans-serif' }}>
                     {docs.length} DOCUMENT{docs.length > 1 ? 'S' : ''} TROUVÉ{docs.length > 1 ? 'S' : ''}
                   </div>
                   {docs.map(doc => (
@@ -161,15 +161,15 @@ export default function DocumentsScreen() {
                       onClick={() => setViewDoc(doc)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        background: 'rgba(59,130,246,0.05)', borderRadius: 10,
-                        border: '1px solid #3b82f622', padding: '8px 10px',
+                        background: 'rgba(16,185,129,0.05)', borderRadius: 10,
+                        border: '1px solid #10b98122', padding: '8px 10px',
                         cursor: 'pointer',
                       }}
                     >
                       <div style={{
                         width: 48, height: 48, borderRadius: 8, flexShrink: 0,
-                        overflow: 'hidden', border: '1px solid #3b82f622',
-                        background: '#3b82f608',
+                        overflow: 'hidden', border: '1px solid #10b98122',
+                        background: '#10b98108',
                       }}>
                         <img
                           src={doc.file_url}
@@ -178,7 +178,7 @@ export default function DocumentsScreen() {
                         />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#3b82f6cc', letterSpacing: '0.15em', marginBottom: 2 }}>
+                        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b981cc', letterSpacing: '0.15em', marginBottom: 2 }}>
                           {doc.type.toUpperCase()}
                         </div>
                         <div style={{ fontSize: 8, color: '#c8e8ff', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -188,7 +188,7 @@ export default function DocumentsScreen() {
                           {new Date(doc.created_at).toLocaleDateString('fr-FR')}
                         </div>
                       </div>
-                      <div style={{ fontSize: 8, color: '#3b82f644' }}>▶</div>
+                      <div style={{ fontSize: 8, color: '#10b98144' }}>▶</div>
                     </div>
                   ))}
                 </div>
@@ -348,13 +348,13 @@ function ContractGenerator() {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(59,130,246,0.04)', border: '1px solid #3b82f61a',
+  background: 'rgba(16,185,129,0.04)', border: '1px solid #10b9811a',
   borderRadius: 8, padding: '8px 10px',
   fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#3b82f6';
+  const s = 12, t = 1.5, col = 'transparent';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';

@@ -4,11 +4,11 @@ import { business, type ClientLead } from '../../services/api.ts';
 const CAT_META: Record<string, { label: string; icon: string; col: string }> = {
   immo_location:    { label: 'LOC IMMO',     icon: '🏠', col: '#b06bff' },
   immo_vente:       { label: 'ACHAT IMMO',   icon: '🏠', col: '#00e676' },
-  voiture_location: { label: 'LOC VOITURE',  icon: '🚗', col: '#3b82f6' },
+  voiture_location: { label: 'LOC VOITURE',  icon: '🚗', col: '#10b981' },
   voiture_vente:    { label: 'ACHAT VOIT.',  icon: '🚗', col: '#ff9f43' },
 };
 const STATUS_META: Record<string, { label: string; col: string }> = {
-  nouveau:  { label: 'NOUVEAU',  col: '#3b82f6' },
+  nouveau:  { label: 'NOUVEAU',  col: '#10b981' },
   en_cours: { label: 'EN COURS', col: '#ffb347' },
   conclu:   { label: 'CONCLU',   col: '#00e676' },
   perdu:    { label: 'PERDU',    col: '#ff3366' },
@@ -16,8 +16,8 @@ const STATUS_META: Record<string, { label: string; col: string }> = {
 const STATUS_FLOW = ['nouveau', 'en_cours', 'conclu', 'perdu'];
 
 const inp: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: 'rgba(59,130,246,0.04)',
-  border: '1px solid #3b82f61a', borderRadius: 7, padding: '7px 9px',
+  width: '100%', boxSizing: 'border-box', background: 'rgba(16,185,129,0.04)',
+  border: '1px solid #10b9811a', borderRadius: 7, padding: '7px 9px',
   fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#c8e8ff', outline: 'none',
 };
 
@@ -65,26 +65,26 @@ export default function LeadsScreen() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #3b82f612', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#3b82f6', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #3b82f655' }}>DEMANDES</div>
-          <button onClick={() => setShow(s => !s)} style={{ background: '#3b82f618', border: '1px solid #3b82f655', borderRadius: 8, padding: '4px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#3b82f6', cursor: 'pointer', letterSpacing: '0.12em' }}>{show ? '✕' : '+ DEMANDE'}</button>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #10b98155' }}>DEMANDES</div>
+          <button onClick={() => setShow(s => !s)} style={{ background: '#10b98118', border: '1px solid #10b98155', borderRadius: 8, padding: '4px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b981', cursor: 'pointer', letterSpacing: '0.12em' }}>{show ? '✕' : '+ DEMANDE'}</button>
         </div>
         <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
-          <Kpi label="NOUVEAUX" val={String(nouveaux)} col="#3b82f6" />
+          <Kpi label="NOUVEAUX" val={String(nouveaux)} col="#10b981" />
           <Kpi label="EN COURS" val={String(enCours)} col="#ffb347" />
           <Kpi label="TOTAL" val={String(leads.length)} col="#00e676" />
         </div>
         <div style={{ display: 'flex', gap: 5 }}>
           {([['actifs', 'ACTIFS'], ['conclu', 'CONCLUS'], ['all', 'TOUT']] as [string, string][]).map(([k, lbl]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '5px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: filter === k ? 'rgba(59,130,246,0.15)' : 'transparent', border: `1px solid #3b82f6${filter === k ? '88' : '22'}`, color: `#3b82f6${filter === k ? '' : '66'}` }}>{lbl}</button>
+            <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '5px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: filter === k ? 'rgba(16,185,129,0.15)' : 'transparent', border: `1px solid #10b981${filter === k ? '88' : '22'}`, color: `#10b981${filter === k ? '' : '66'}` }}>{lbl}</button>
           ))}
         </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {show && (
-          <div style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid #3b82f622', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid #10b98122', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {Object.entries(CAT_META).map(([k, m]) => (
                 <button key={k} onClick={() => setF(s => ({ ...s, category: k }))} style={{ flex: '1 1 45%', padding: '5px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6, cursor: 'pointer', background: f.category === k ? `${m.col}22` : 'transparent', border: `1px solid ${f.category === k ? m.col : '#ffffff22'}`, color: f.category === k ? m.col : '#ffffff44' }}>{m.icon} {m.label}</button>
@@ -141,10 +141,10 @@ function Kpi({ label, val, col }: { label: string; val: string; col: string }) {
     </div>
   );
 }
-function Loader() { return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#3b82f633', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>; }
+function Loader() { return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#10b98133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>; }
 function Empty({ text }: { text: string }) { return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#ffffff1a', letterSpacing: '0.1em' }}>{text}</div>; }
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#3b82f6';
+  const s = 12, t = 1.5, col = 'transparent';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l') ? `${t}px solid ${col}33` : 'none';

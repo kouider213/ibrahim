@@ -8,13 +8,13 @@ const OPP_META: Record<string, { icon: string; label: string }> = {
   loi:      { icon: '📜', label: 'Loi' },
   modele:   { icon: '🆕', label: 'Nouveauté' },
 };
-const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#3b82f6', info: '#9b9ba6' };
+const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#10b981', info: '#9b9ba6' };
 const URG_LABEL: Record<string, string> = { urgent: 'URGENT', a_suivre: 'À suivre', info: 'Info' };
 
 const C = {
-  bg: '#f5f6f8', surface: '#ffffff', surface2: '#eef0f3', border: 'rgba(0,0,0,0.08)',
-  gold: '#2563eb', goldSoft: '#3b82f6', text: '#0f1115', muted: '#6b7280',
-  green: '#059669', blue: '#2563eb', red: '#e11d48', violet: '#7c3aed',
+  bg: '#0b0b0d', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.07)',
+  gold: '#10b981', goldSoft: '#34d399', text: '#f5f5f7', muted: '#9b9ba6',
+  green: '#34d399', blue: '#34d399', red: '#fb7185', violet: '#a78bfa',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
 
@@ -134,7 +134,7 @@ export default function DealsScreen() {
       <div style={{ position: 'relative', padding: '22px 18px 16px', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${C.violet}22, transparent 70%)`, pointerEvents: 'none' }} />
         <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.gold, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Dzaryx · Trading</div>
-        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: `linear-gradient(120deg, #0f1115, ${C.goldSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Achat & Revente</div>
+        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: `linear-gradient(120deg, #fff, ${C.goldSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Achat & Revente</div>
         <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}` }} />
           Voitures & biens · synchro fikconciergerie.com
