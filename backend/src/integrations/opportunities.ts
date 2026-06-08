@@ -99,6 +99,8 @@ export async function getAutoOpportunities(force = false): Promise<Opportunities
 
   if (items.length) {
     try { await redis.set(CACHE_KEY, JSON.stringify(report), 'EX', CACHE_TTL); } catch { /* ignore */ }
+  } else {
+    (report as any)._raw = (text || '(vide)').slice(0, 1200);
   }
   return report;
 }
