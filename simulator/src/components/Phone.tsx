@@ -149,7 +149,7 @@ export default function Phone() {
       case 'text':          return <TextScreen onNavigateVoice={() => setPage('voice')} actor={actor} />;
       case 'bookings':      return <BookingsScreen actor={actor} />;
       case 'fleet':         return <FleetScreen actor={actor} />;
-      case 'revenue':       return <RevenueScreen />;
+      case 'revenue':       return <RevenueScreen actor={actor} />;
       case 'clients':       return <ClientsScreen />;
       case 'leads':         return <LeadsScreen />;
       case 'documents':     return <DocumentsScreen />;
@@ -570,52 +570,19 @@ const loginInputStyle: React.CSSProperties = {
 // ─── Dzaryx SVG Icon ──────────────────────────────────────────────────────────
 
 function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean }) {
+  const src = `${((import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/'}logo.png`;
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
-      style={glow ? { filter: 'drop-shadow(0 0 10px rgba(233,185,73,0.5)) drop-shadow(0 0 24px rgba(233,185,73,0.2))' } : undefined}>
-      {/* Base */}
-      <rect width="100" height="100" rx="24" fill="#030d1e" />
-      <rect width="100" height="100" rx="24" fill="url(#iconGrad)" fillOpacity="0.4" />
-      {/* Outer ring dashed */}
-      <circle cx="50" cy="50" r="42" fill="none" stroke="#e9b949" strokeWidth="0.6" strokeOpacity="0.18" strokeDasharray="5 4" />
-      {/* Inner ring solid */}
-      <circle cx="50" cy="50" r="34" fill="none" stroke="#e9b949" strokeWidth="1" strokeOpacity="0.5" />
-      {/* Corner brackets */}
-      <path d="M14 14 L22 14 M14 14 L14 22" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
-      <path d="M86 14 L78 14 M86 14 L86 22" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
-      <path d="M14 86 L22 86 M14 86 L14 78" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
-      <path d="M86 86 L78 86 M86 86 L86 78" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
-      {/* Head body */}
-      <rect x="28" y="28" width="44" height="34" rx="9" fill="#e9b949" fillOpacity="0.07" stroke="#e9b949" strokeWidth="1.8" strokeOpacity="0.8" />
-      {/* Antenna */}
-      <line x1="50" y1="28" x2="50" y2="19" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.8" strokeLinecap="round" />
-      <circle cx="50" cy="17" r="3.5" fill="#e9b949" fillOpacity="1" />
-      {glow && <circle cx="50" cy="17" r="6" fill="#e9b949" fillOpacity="0.25" />}
-      {/* Eyes */}
-      <rect x="33" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.95" />
-      <rect x="53" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.95" />
-      {glow && <>
-        <rect x="33" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.3" />
-        <rect x="53" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.3" />
-      </>}
-      {/* Mouth bar */}
-      <rect x="34" y="52" width="32" height="4" rx="2" fill="#e9b949" fillOpacity="0.6" />
-      {/* Neck */}
-      <rect x="44" y="62" width="12" height="6" rx="2" fill="#e9b949" fillOpacity="0.35" />
-      {/* Base/chin */}
-      <rect x="26" y="68" width="48" height="10" rx="5" fill="#e9b949" fillOpacity="0.07" stroke="#e9b949" strokeWidth="1.2" strokeOpacity="0.45" />
-      {/* Status dots */}
-      <circle cx="36" cy="73" r="2" fill="#e9b949" fillOpacity="0.45" />
-      <circle cx="50" cy="73" r="2" fill="#e9b949" fillOpacity="0.7" />
-      <circle cx="64" cy="73" r="2" fill="#e9b949" fillOpacity="0.45" />
-      {/* Gradient def */}
-      <defs>
-        <radialGradient id="iconGrad" cx="50%" cy="30%" r="70%">
-          <stop offset="0%" stopColor="#e9b949" />
-          <stop offset="100%" stopColor="#000" />
-        </radialGradient>
-      </defs>
-    </svg>
+    <img
+      src={src}
+      alt="Dzaryx"
+      width={size}
+      height={size}
+      style={{
+        width: size, height: size, objectFit: 'contain',
+        borderRadius: size * 0.22,
+        filter: glow ? 'drop-shadow(0 0 14px rgba(233,185,73,0.45)) drop-shadow(0 0 30px rgba(233,185,73,0.18))' : undefined,
+      }}
+    />
   );
 }
 

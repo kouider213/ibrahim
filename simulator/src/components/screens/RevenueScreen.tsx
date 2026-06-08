@@ -7,7 +7,8 @@ const SCORE_COL: Record<string, string> = {
 };
 const MONTH_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
 
-export default function RevenueScreen() {
+export default function RevenueScreen({ actor = 'kouider' }: { actor?: string }) {
+  const isHouari = actor === 'houari';
   const now = new Date();
   const [viewYear,  setViewYear]  = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
@@ -129,7 +130,7 @@ export default function RevenueScreen() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {report?.dzd && report.dzd.bookings > 0 && (
+        {report?.dzd && (isHouari || report.dzd.bookings > 0) && (
           <div style={{ borderRadius: 12, border: '1px solid #e9b94944', background: 'linear-gradient(135deg, rgba(233,185,73,0.10), rgba(2,8,16,0.6))', padding: '11px 13px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b949', letterSpacing: '0.15em' }}>💱 CA EN DINARS (HOUARI)</span>

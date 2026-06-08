@@ -63,6 +63,13 @@ export const api = {
       body:   JSON.stringify({ message, images }),
     }),
 
+  // Ajoute des photos à une voiture précise (par nom) → car_photos + image_url
+  addCarPhotos: (carName: string, images: string[]) =>
+    apiFetch<{ text: string; count?: number; car?: string }>('/api/cars/photos', {
+      method: 'POST',
+      body:   JSON.stringify({ car_name: carName, images }),
+    }),
+
   transcribe: (audioBase64: string, mimeType = 'audio/webm') =>
     apiFetch<TranscribeResponse>('/api/transcribe', {
       method: 'POST',
@@ -687,6 +694,9 @@ export const business = {
 
   updateCar: (id: string, data: Record<string, unknown>) =>
     apiFetch<{ car: Car }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  addCarPhotos: (carName: string, images: string[]) =>
+    apiFetch<{ text: string; count?: number; car?: string }>('/api/cars/photos', { method: 'POST', body: JSON.stringify({ car_name: carName, images }) }),
 
   // Inspection avant/après (véhicule ou bien) — multi-photos, renvoie photos + dégâts localisés
   inspect: (kind: 'vehicle' | 'property', body: {

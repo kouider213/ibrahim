@@ -41,7 +41,26 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   const [msg, setMsg]      = useState('');
   const [inspect, setInspect] = useState<InspectOpen | null>(null);
   const [editCar, setEditCar] = useState<Car | null>(null);
+  const [photoBusy, setPhotoBusy] = useState<string | null>(null);
+  const photoTarget = useRef<string>('');
+  const carPhotoRef = useRef<HTMLInputElement>(null);
   const sessionId = useRef(getOrCreateSessionId());
+
+  const onCarPhotos = async (files: File[]) => {
+    const name = photoTarget.current;
+    if (!files.length || !name) return;
+    setPhotoBusy(name);
+    try {
+      const imgs = await Promise.all(files.slice(0, 15).map(f => new Promise<string>((res, rej) => {
+        const r = new FileReader(); r.onloadend = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f);
+      })));
+      const r = await business.addCarPhotos(name, imgs);
+      setMsg(`✅ ${r.count ?? imgs.length} photo(s) — ${name}`);
+      setTimeout(() => setMsg(''), 2500);
+      void load();
+    } catch { setMsg('❌ Échec photos'); setTimeout(() => setMsg(''), 2500); }
+    finally { setPhotoBusy(null); }
+  };
 
   const load = async () => {
     setLoad(true);
@@ -241,23 +260,33 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                 <span style={{ fontSize: 6, fontFamily: 'Orbitron', color: col, letterSpacing: '0.1em' }}>
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
                 </span>
-                {/* Actions : édition prix/devise + inspection */}
+                {/* Actions : édition prix + photos + inspection */}
                 <div style={{ display: 'flex', gap: 5 }}>
                   <button
                     onClick={() => setEditCar(car)}
                     title="Modifier prix & devise"
                     style={{
-                      width: 36, height: 22, borderRadius: 6, border: '1px solid #e9b94944',
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #e9b94944',
                       background: 'rgba(233,185,73,0.06)', cursor: 'pointer',
                       fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#e9b949', transition: 'all 0.2s',
                     }}
                   >✎</button>
                   <button
+                    onClick={() => { photoTarget.current = car.name; carPhotoRef.current?.click(); }}
+                    title="Ajouter des photos du véhicule"
+                    style={{
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #00e67644',
+                      background: 'rgba(0,230,118,0.06)', cursor: 'pointer',
+                      fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#00e676', transition: 'all 0.2s',
+                    }}
+                  >{photoBusy === car.name ? '…' : '🖼️'}</button>
+                  <button
                     onClick={() => setInspect({ kind: 'vehicle', name: car.name })}
                     title="Photo inspection avant/après"
                     style={{
-                      width: 36, height: 22, borderRadius: 6, border: '1px solid #ffb34744',
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #ffb34744',
                       background: 'rgba(255,179,71,0.06)', cursor: 'pointer',
                       fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#ffb347aa', transition: 'all 0.2s',
@@ -277,6 +306,10 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
         <button onClick={() => void load()} style={refreshBtn}>↻ ACTUALISER LE PARC</button>
       </div>
       )}
+
+      {/* Input caché — ajout multi-photos véhicule (PARC) */}
+      <input ref={carPhotoRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+        onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void onCarPhotos(arr); }} />
 
       {/* Inspection modal (véhicule + bien) */}
       {inspect && (
@@ -317,8 +350,9 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
     setSaving(true); setErr('');
     const o = owner  ? Number(owner)  : null;
     const c = client ? Number(client) : null;
+    // Houari = propriétaire → pas de prix proprio, juste le prix client (DZD).
     const payload: Record<string, unknown> = isHouari
-      ? { houari_base_price: o, houari_resale_price: c }
+      ? { houari_resale_price: c }
       : { base_price: o, resale_price: c };
     try {
       const r = await business.updateCar(car.id, payload);
@@ -335,17 +369,18 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
           {isHouari ? '💱 Tarifs HOUARI — en dinars (DA)' : '💶 Tarifs KOUIDER — en euros (€)'}
         </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 7, color: '#ffffff55', letterSpacing: '0.1em', marginBottom: 5 }}>PRIX PROPRIO /JOUR ({cur})</div>
-          <input value={owner} onChange={e => setOwner(e.target.value)} type="number" inputMode="numeric" placeholder={isHouari ? 'ex: 5500' : 'ex: 35'}
-            style={editInp} />
-        </div>
+        {!isHouari && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 7, color: '#ffffff55', letterSpacing: '0.1em', marginBottom: 5 }}>PRIX PROPRIO /JOUR ({cur})</div>
+            <input value={owner} onChange={e => setOwner(e.target.value)} type="number" inputMode="numeric" placeholder="ex: 35" style={editInp} />
+          </div>
+        )}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 7, color: '#ffffff55', letterSpacing: '0.1em', marginBottom: 5 }}>PRIX CLIENT /JOUR ({cur})</div>
+          <div style={{ fontSize: 7, color: '#ffffff55', letterSpacing: '0.1em', marginBottom: 5 }}>PRIX {isHouari ? 'DE LOCATION' : 'CLIENT'} /JOUR ({cur})</div>
           <input value={client} onChange={e => setClient(e.target.value)} type="number" inputMode="numeric" placeholder={isHouari ? 'ex: 7000' : 'ex: 45'}
             style={editInp} />
         </div>
-        {owner && client && Number(client) >= Number(owner) && (
+        {!isHouari && owner && client && Number(client) >= Number(owner) && (
           <div style={{ fontSize: 9, color: '#ffb347', textAlign: 'center', marginBottom: 10 }}>Marge : {Math.round((Number(client) - Number(owner)) * 100) / 100} {cur}/j</div>
         )}
         {err && <div style={{ fontSize: 9, color: '#ff6b8a', textAlign: 'center', marginBottom: 8 }}>{err}</div>}
