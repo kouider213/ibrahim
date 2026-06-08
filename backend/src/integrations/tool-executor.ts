@@ -5908,7 +5908,7 @@ async function saveVehicleStateBefore(
   }
   if (!b64) return '❌ Aucune image trouvée. Envoie une photo du véhicule avec ce message.';
 
-  const result = await saveBeforeState(clientName, carName, b64, mime, 'kouider');
+  const result = await saveBeforeState(clientName, carName, [{ base64: b64, mime }], 'kouider');
   return result.message;
 }
 
@@ -5932,7 +5932,7 @@ async function saveVehicleStateAfter(
   }
   if (!b64) return '❌ Aucune image trouvée. Envoie une photo du véhicule avec ce message.';
 
-  const result = await saveAfterState(clientName, carName, b64, mime, 'kouider');
+  const result = await saveAfterState(clientName, carName, [{ base64: b64, mime }], 'kouider');
   return result.message;
 }
 
@@ -5980,7 +5980,7 @@ async function savePropertyStateBefore(
   const { b64, mime } = await getInspectionImage(imageBase64, imageMime, sessionId);
   if (!b64) return '❌ Aucune image trouvée. Envoie une photo du bien avec ce message.';
   const owner = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
-  const result = await savePropertyBeforeState(clientName, propertyName, b64, mime, owner);
+  const result = await savePropertyBeforeState(clientName, propertyName, [{ base64: b64, mime }], owner);
   return result.message;
 }
 
@@ -5993,7 +5993,7 @@ async function savePropertyStateAfter(
   const { b64, mime } = await getInspectionImage(imageBase64, imageMime, sessionId);
   if (!b64) return '❌ Aucune image trouvée. Envoie une photo du bien avec ce message.';
   const owner = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
-  const result = await savePropertyAfterState(clientName, propertyName, b64, mime, owner);
+  const result = await savePropertyAfterState(clientName, propertyName, [{ base64: b64, mime }], owner);
   return result.message;
 }
 

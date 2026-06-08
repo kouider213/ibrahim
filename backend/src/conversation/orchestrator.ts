@@ -192,13 +192,14 @@ export async function processMessage(
     const ownerKey   = actor.ownerKey ?? 'kouider';
     console.log(`[inspection] kind=${isProperty ? 'property' : 'vehicle'} type=${isBefore ? 'before' : 'after'} client=${clientName} subject=${subject}`);
     try {
+      const imgs = [{ base64: imageBase64, mime: imageMime }];
       const result = isProperty
         ? (isBefore
-            ? await savePropertyBeforeState(clientName, subject, imageBase64, imageMime, ownerKey)
-            : await savePropertyAfterState(clientName, subject, imageBase64, imageMime, ownerKey))
+            ? await savePropertyBeforeState(clientName, subject, imgs, ownerKey)
+            : await savePropertyAfterState(clientName, subject, imgs, ownerKey))
         : (isBefore
-            ? await saveBeforeState(clientName, subject, imageBase64, imageMime, ownerKey)
-            : await saveAfterState(clientName, subject, imageBase64, imageMime, ownerKey));
+            ? await saveBeforeState(clientName, subject, imgs, ownerKey)
+            : await saveAfterState(clientName, subject, imgs, ownerKey));
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: result.message });
       saveConversationTurn(sessionId, 'assistant', result.message).catch(() => {});
       if (!textOnly) {

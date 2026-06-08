@@ -454,6 +454,7 @@ export interface DamageBox {
   severity: 'aucun' | 'leger' | 'moyen' | 'grave';
   location: string;
   is_new?: boolean;
+  photo_index?: number;
   box: { x: number; y: number; w: number; h: number };
 }
 export interface InspectionAnalysis {
@@ -470,6 +471,7 @@ export interface InspectionResult {
   message: string;
   stateId?: string;
   photoUrl?: string | null;
+  photos?: string[];
   bookingId?: string | null;
   analysis?: InspectionAnalysis;
 }
@@ -665,10 +667,10 @@ export const business = {
   toggleCar: (id: string, available: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),
 
-  // Inspection avant/après (véhicule ou bien) — renvoie photo + dégâts localisés
+  // Inspection avant/après (véhicule ou bien) — multi-photos, renvoie photos + dégâts localisés
   inspect: (kind: 'vehicle' | 'property', body: {
     mode: 'before' | 'after'; client_name: string; subject: string;
-    image: string; mime?: string; session_id?: string; ref_id?: string;
+    images: string[]; mime?: string; session_id?: string; ref_id?: string;
   }) =>
     apiFetch<InspectionResult>(`/api/inspections/${kind}`, { method: 'POST', body: JSON.stringify(body) }),
 

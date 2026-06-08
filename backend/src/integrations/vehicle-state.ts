@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 import {
-  analyzeInspectionPhoto, uploadInspectionPhoto, formatDamageLines,
-  type InspectionAnalysis, type DamageBox,
+  processInspection, formatDamageLines,
+  type InspectionAnalysis, type DamageBox, type InspectionImage,
 } from './inspection-core.js';
 
 export interface VehicleState {
@@ -25,7 +25,8 @@ export interface SaveStateResult {
   success:    boolean;
   message:    string;             // texte prêt pour le chat
   stateId?:   string;
-  photoUrl?:  string | null;
+  photoUrl?:  string | null;      // 1ère photo (rétrocompat)
+  photos?:    string[];           // toutes les photos
   bookingId?: string | null;
   analysis?:  InspectionAnalysis;
 }
@@ -53,15 +54,14 @@ async function resolveBookingId(clientName: string, carName: string): Promise<st
 export async function saveBeforeState(
   clientName: string,
   carName:    string,
-  base64:     string,
-  mime        = 'image/jpeg',
+  images:     InspectionImage[],
   ownerKey    = 'kouider',
   bookingId?: string,
 ): Promise<SaveStateResult> {
   try {
-    const [analysis, photoUrl, resolvedBooking] = await Promise.all([
-      analyzeInspectionPhoto(base64, mime, 'vehicle', 'before'),
-      uploadInspectionPhoto(base64, mime, 'inspections/vehicles'),
+    if (!images.length) return { success: false, message: '❌ Aucune photo fournie.' };
+    const [{ photos, analysis }, resolvedBooking] = await Promise.all([
+      processInspection(images, 'vehicle', 'before', 'inspections/vehicles'),
       bookingId ? Promise.resolve(bookingId) : resolveBookingId(clientName, carName),
     ]);
 
@@ -71,7 +71,7 @@ export async function saveBeforeState(
       car_name:        carName,
       booking_id:      resolvedBooking ?? null,
       state_type:      'before',
-      photos:          photoUrl ? [photoUrl] : [],
+      photos,
       ai_description:  analysis.description,
       damages:         analysis.damages,
       damage_boxes:    analysis.damageBoxes,
@@ -81,12 +81,12 @@ export async function saveBeforeState(
     }).select('id').single();
     if (error) throw error;
 
-    const dmgLines = formatDamageLines(analysis.damageBoxes);
+    const nb = photos.length > 1 ? ` (${photos.length} photos)` : '';
     const message = analysis.damageDetected
-      ? `📋 *État AVANT — ${carName} (${clientName})*\n\n${analysis.description}\n\n⚠️ *Dégâts existants notés :*\n${dmgLines}\n\n_Dossier ${data.id.slice(-8)}${resolvedBooking ? ' · lié à la réservation' : ''}_`
-      : `📋 *État AVANT — ${carName} (${clientName})*\n\n${analysis.description}\n\n✅ *Aucun dégât constaté.*\n\n_Dossier ${data.id.slice(-8)}${resolvedBooking ? ' · lié à la réservation' : ''}_`;
+      ? `📋 *État AVANT — ${carName} (${clientName})*${nb}\n\n${analysis.description}\n\n⚠️ *Dégâts existants notés :*\n${formatDamageLines(analysis.damageBoxes)}\n\n_Dossier ${data.id.slice(-8)}${resolvedBooking ? ' · lié à la réservation' : ''}_`
+      : `📋 *État AVANT — ${carName} (${clientName})*${nb}\n\n${analysis.description}\n\n✅ *Aucun dégât constaté.*\n\n_Dossier ${data.id.slice(-8)}${resolvedBooking ? ' · lié à la réservation' : ''}_`;
 
-    return { success: true, message, stateId: data.id, photoUrl, bookingId: resolvedBooking, analysis };
+    return { success: true, message, stateId: data.id, photoUrl: photos[0] ?? null, photos, bookingId: resolvedBooking, analysis };
   } catch (e) {
     console.error('[vehicle-state] saveBeforeState error:', e);
     return { success: false, message: '❌ Erreur lors de l\'analyse. Réessaie.' };
@@ -97,11 +97,11 @@ export async function saveBeforeState(
 export async function saveAfterState(
   clientName: string,
   carName:    string,
-  base64:     string,
-  mime        = 'image/jpeg',
+  images:     InspectionImage[],
   ownerKey    = 'kouider',
 ): Promise<SaveStateResult> {
   try {
+    if (!images.length) return { success: false, message: '❌ Aucune photo fournie.' };
     const { data: beforeStates } = await supabase
       .from('vehicle_states')
       .select('ai_description, created_at, id, booking_id')
@@ -120,10 +120,9 @@ export async function saveAfterState(
       };
     }
 
-    const [analysis, photoUrl] = await Promise.all([
-      analyzeInspectionPhoto(base64, mime, 'vehicle', 'after', beforeState.ai_description ?? ''),
-      uploadInspectionPhoto(base64, mime, 'inspections/vehicles'),
-    ]);
+    const { photos, analysis } = await processInspection(
+      images, 'vehicle', 'after', 'inspections/vehicles', beforeState.ai_description ?? '',
+    );
 
     const { data, error } = await supabase.from('vehicle_states').insert({
       owner_key:         ownerKey,
@@ -131,7 +130,7 @@ export async function saveAfterState(
       car_name:          carName,
       booking_id:        beforeState.booking_id ?? null,
       state_type:        'after',
-      photos:            photoUrl ? [photoUrl] : [],
+      photos,
       ai_description:    analysis.description,
       damages:           analysis.damages,
       damage_boxes:      analysis.damageBoxes,
@@ -144,21 +143,13 @@ export async function saveAfterState(
 
     const dateAvant = new Date(beforeState.created_at).toLocaleDateString('fr-FR');
     const newDmg    = analysis.damageBoxes.filter(d => d.is_new);
+    const nb        = photos.length > 1 ? ` (${photos.length} photos)` : '';
 
-    let message: string;
-    if (analysis.damageDetected) {
-      message = `🔍 *Rapport retour — ${carName} (${clientName})*\n\n`
-        + `📅 État initial : ${dateAvant}\n\n`
-        + `${analysis.accident ? '🚨 *ACCIDENT / CHOC DÉTECTÉ*\n\n' : ''}`
-        + `🆕 *Nouveaux dégâts :*\n${formatDamageLines(newDmg)}\n\n`
-        + `📝 ${analysis.comparisonReport ?? analysis.description}\n\n_Dossier ${data.id.slice(-8)}_`;
-    } else {
-      message = `✅ *Retour OK — ${carName} (${clientName})*\n\n`
-        + `📅 État initial : ${dateAvant}\n\n`
-        + `Aucun nouveau dégât par rapport à l'état initial.\n\n${analysis.description}\n\n_Dossier ${data.id.slice(-8)}_`;
-    }
+    const message = analysis.damageDetected
+      ? `🔍 *Rapport retour — ${carName} (${clientName})*${nb}\n\n📅 État initial : ${dateAvant}\n\n${analysis.accident ? '🚨 *ACCIDENT / CHOC DÉTECTÉ*\n\n' : ''}🆕 *Nouveaux dégâts :*\n${formatDamageLines(newDmg)}\n\n📝 ${analysis.comparisonReport ?? analysis.description}\n\n_Dossier ${data.id.slice(-8)}_`
+      : `✅ *Retour OK — ${carName} (${clientName})*${nb}\n\n📅 État initial : ${dateAvant}\n\nAucun nouveau dégât par rapport à l'état initial.\n\n${analysis.description}\n\n_Dossier ${data.id.slice(-8)}_`;
 
-    return { success: true, message, stateId: data.id, photoUrl, bookingId: beforeState.booking_id ?? null, analysis };
+    return { success: true, message, stateId: data.id, photoUrl: photos[0] ?? null, photos, bookingId: beforeState.booking_id ?? null, analysis };
   } catch (e) {
     console.error('[vehicle-state] saveAfterState error:', e);
     return { success: false, message: '❌ Erreur lors de la comparaison. Réessaie.' };

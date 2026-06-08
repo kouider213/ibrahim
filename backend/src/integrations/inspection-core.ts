@@ -14,13 +14,16 @@ export type InspectionKind = 'vehicle' | 'property';
 export type StateType      = 'before' | 'after';
 export type Severity       = 'aucun' | 'leger' | 'moyen' | 'grave';
 
+export interface InspectionImage { base64: string; mime: string }
+
 // Une boîte = un dégât localisé. x,y,w,h normalisés 0..1, origine coin haut-gauche.
 export interface DamageBox {
-  label:    string;     // ex "Rayure aile avant gauche"
-  severity: Severity;
-  location: string;     // ex "aile avant gauche"
-  is_new?:  boolean;    // (état 'after') dégât apparu pendant la location
-  box:      { x: number; y: number; w: number; h: number };
+  label:        string;   // ex "Rayure aile avant gauche"
+  severity:     Severity;
+  location:     string;   // ex "aile avant gauche"
+  is_new?:      boolean;  // (état 'after') dégât apparu pendant la location
+  photo_index?: number;   // index de la photo (multi-photos) à laquelle la boîte appartient
+  box:          { x: number; y: number; w: number; h: number };
 }
 
 export interface InspectionAnalysis {
@@ -206,4 +209,73 @@ export function formatDamageLines(boxes: DamageBox[]): string {
   return boxes
     .map((d, i) => `${i + 1}. ${icon(d.severity)} ${d.label}${d.is_new ? ' *(NOUVEAU)*' : ''}`)
     .join('\n');
+}
+
+const SEV_RANK: Record<Severity, number> = { aucun: 0, leger: 1, moyen: 2, grave: 3 };
+
+// ── Analyse de PLUSIEURS photos (multi-angles) → fusion ──────────
+export async function analyzeInspectionPhotos(
+  images: InspectionImage[],
+  kind: InspectionKind,
+  stateType: StateType,
+  beforeDescription?: string,
+): Promise<InspectionAnalysis> {
+  if (!images.length) {
+    return { description: '', severity: 'aucun', accident: false, damages: [], damageBoxes: [], damageDetected: false };
+  }
+  const results = await Promise.all(
+    images.map(im => analyzeInspectionPhoto(im.base64, im.mime, kind, stateType, beforeDescription)),
+  );
+
+  const damageBoxes: DamageBox[] = [];
+  let worst: Severity = 'aucun';
+  let accident = false;
+  let damageDetected = false;
+  const descParts: string[] = [];
+  const cmpParts:  string[] = [];
+
+  results.forEach((r, idx) => {
+    for (const b of r.damageBoxes) damageBoxes.push({ ...b, photo_index: idx });
+    if (SEV_RANK[r.severity] > SEV_RANK[worst]) worst = r.severity;
+    accident       = accident || r.accident;
+    damageDetected = damageDetected || r.damageDetected;
+    const tag = images.length > 1 ? `📷 Photo ${idx + 1} : ` : '';
+    descParts.push(tag + r.description);
+    if (r.comparisonReport) cmpParts.push(tag + r.comparisonReport);
+  });
+
+  return {
+    description:      descParts.join('\n\n'),
+    severity:         worst,
+    accident,
+    damages:          damageBoxes.map(d => d.label),
+    damageBoxes,
+    damageDetected,
+    comparisonReport: stateType === 'after' ? cmpParts.join('\n\n') : undefined,
+  };
+}
+
+// Upload toutes les photos + analyse + aligne photo_index sur les photos réellement uploadées.
+export async function processInspection(
+  images: InspectionImage[],
+  kind: InspectionKind,
+  stateType: StateType,
+  folder: string,
+  beforeDescription?: string,
+): Promise<{ photos: string[]; analysis: InspectionAnalysis }> {
+  const [uploaded, analysis] = await Promise.all([
+    Promise.all(images.map(im => uploadInspectionPhoto(im.base64, im.mime, folder))),
+    analyzeInspectionPhotos(images, kind, stateType, beforeDescription),
+  ]);
+
+  const photos: string[] = [];
+  const indexMap = new Map<number, number>();
+  uploaded.forEach((url, i) => { if (url) { indexMap.set(i, photos.length); photos.push(url); } });
+
+  analysis.damageBoxes = analysis.damageBoxes.map(b => ({
+    ...b,
+    photo_index: b.photo_index != null ? (indexMap.get(b.photo_index) ?? 0) : 0,
+  }));
+
+  return { photos, analysis };
 }

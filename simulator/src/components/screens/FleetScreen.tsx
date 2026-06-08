@@ -551,6 +551,15 @@ function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
 // ── INSPECTION MODAL (véhicule + bien) ───────────────────────────────────────
 const SEV_COL: Record<string, string> = { grave: '#ff3366', moyen: '#ffb347', leger: '#ffd54f', aucun: '#7a8aa0' };
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onloadend = () => res(r.result as string);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
 function InspectionModal({ kind, subject, sessionId, onClose }: {
   kind: 'vehicle' | 'property'; subject: string; sessionId: string; onClose: () => void;
 }) {
@@ -559,23 +568,24 @@ function InspectionModal({ kind, subject, sessionId, onClose }: {
   const [busy, setBusy]     = useState(false);
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [err, setErr]       = useState('');
+  const [shots, setShots]   = useState<string[]>([]);   // data URLs des photos choisies
   const fileRef = useRef<HTMLInputElement>(null);
 
   const title = kind === 'vehicle' ? 'INSPECTION VÉHICULE' : 'ÉTAT DES LIEUX';
 
-  const onFile = async (file: File) => {
+  const addFiles = async (files: FileList) => {
+    const urls = await Promise.all(Array.from(files).slice(0, 8).map(fileToDataUrl));
+    setShots(s => [...s, ...urls].slice(0, 8));
+  };
+
+  const submit = async () => {
+    if (!shots.length || !client.trim()) return;
     setBusy(true); setErr('');
     try {
-      const dataUrl = await new Promise<string>((res, rej) => {
-        const r = new FileReader();
-        r.onloadend = () => res(r.result as string);
-        r.onerror = rej;
-        r.readAsDataURL(file);
-      });
-      const b64 = dataUrl.split(',')[1] ?? '';
+      const images = shots.map(u => u.split(',')[1] ?? '');
       const r = await business.inspect(kind, {
         mode, client_name: client.trim(), subject,
-        image: b64, mime: file.type || 'image/jpeg', session_id: sessionId,
+        images, mime: 'image/jpeg', session_id: sessionId,
       });
       if (r.success) setResult(r);
       else setErr(r.message || 'Échec de l\'analyse');
@@ -585,6 +595,7 @@ function InspectionModal({ kind, subject, sessionId, onClose }: {
   };
 
   const boxes: DamageBox[] = result?.analysis?.damageBoxes ?? [];
+  const photos: string[]   = result?.photos ?? (result?.photoUrl ? [result.photoUrl] : []);
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.94)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
@@ -594,25 +605,26 @@ function InspectionModal({ kind, subject, sessionId, onClose }: {
 
         {result ? (
           <>
-            {/* Photo + marqueurs */}
-            {result.photoUrl && (
-              <div style={{ position: 'relative', width: '100%', borderRadius: 10, overflow: 'hidden', marginBottom: 10, border: '1px solid #ffffff14' }}>
-                <img src={result.photoUrl} alt="inspection" style={{ width: '100%', display: 'block' }} />
-                {boxes.map((d, i) => {
-                  const col = SEV_COL[d.severity] ?? '#ffb347';
-                  return (
-                    <div key={i}>
-                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%`, border: `2px solid ${col}`, borderRadius: 4, boxShadow: `0 0 8px ${col}88`, boxSizing: 'border-box' }} />
-                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 16, height: 16, padding: '0 3px', borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Orbitron', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
             {result.analysis?.accident && (
               <div style={{ background: 'rgba(255,51,102,0.15)', border: '1px solid #ff336655', borderRadius: 8, padding: '6px 8px', marginBottom: 8, color: '#ff6b8a', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.1em', textAlign: 'center' }}>🚨 ACCIDENT / CHOC DÉTECTÉ</div>
             )}
+
+            {/* Chaque photo + ses marqueurs (numéros globaux) */}
+            {photos.map((url, pi) => (
+              <div key={pi} style={{ position: 'relative', width: '100%', borderRadius: 10, overflow: 'hidden', marginBottom: 8, border: '1px solid #ffffff14' }}>
+                <img src={url} alt={`inspection ${pi + 1}`} style={{ width: '100%', display: 'block' }} />
+                {boxes.map((d, gi) => (d.photo_index ?? 0) !== pi ? null : (() => {
+                  const col = SEV_COL[d.severity] ?? '#ffb347';
+                  return (
+                    <div key={gi}>
+                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%`, border: `2px solid ${col}`, borderRadius: 4, boxShadow: `0 0 8px ${col}88`, boxSizing: 'border-box' }} />
+                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 16, height: 16, padding: '0 3px', borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Orbitron', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gi + 1}</div>
+                    </div>
+                  );
+                })())}
+                {photos.length > 1 && <div style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 8, padding: '1px 5px', borderRadius: 5 }}>Photo {pi + 1}/{photos.length}</div>}
+              </div>
+            ))}
 
             {/* Légende dégâts */}
             {boxes.length > 0 ? (
@@ -639,12 +651,12 @@ function InspectionModal({ kind, subject, sessionId, onClose }: {
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setResult(null); setMode(mode === 'before' ? 'after' : mode); }} style={inspBtn('#00d4ff')}>+ AUTRE PHOTO</button>
+              <button onClick={() => { setResult(null); setShots([]); setMode(mode === 'before' ? 'after' : mode); }} style={inspBtn('#00d4ff')}>+ NOUVELLE</button>
               <button onClick={onClose} style={inspBtn('#ffb347')}>✓ TERMINÉ</button>
             </div>
           </>
         ) : busy ? (
-          <div style={{ textAlign: 'center', padding: '18px 0', fontFamily: 'Orbitron', fontSize: 10, color: '#ffb347', letterSpacing: '0.2em', animation: 'statusPulse 1s ease infinite' }}>ANALYSE CLAUDE EN COURS…</div>
+          <div style={{ textAlign: 'center', padding: '18px 0', fontFamily: 'Orbitron', fontSize: 10, color: '#ffb347', letterSpacing: '0.2em', animation: 'statusPulse 1s ease infinite' }}>ANALYSE CLAUDE EN COURS…<br /><span style={{ fontSize: 8, color: '#ffffff55' }}>{shots.length} photo{shots.length > 1 ? 's' : ''}</span></div>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -660,10 +672,23 @@ function InspectionModal({ kind, subject, sessionId, onClose }: {
               <input value={client} onChange={e => setClient(e.target.value)} placeholder="Ex: Benali Mohamed" style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #ffffff18', background: 'rgba(255,255,255,0.04)', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 10, outline: 'none', boxSizing: 'border-box' }} />
             </div>
 
+            {/* Miniatures des photos choisies */}
+            {shots.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                {shots.map((u, i) => (
+                  <div key={i} style={{ position: 'relative', width: 54, height: 54, borderRadius: 8, overflow: 'hidden', border: '1px solid #ffffff22' }}>
+                    <img src={u} alt={`p${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button onClick={() => setShots(s => s.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(255,51,102,0.85)', color: '#fff', fontSize: 10, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {err && <div style={{ color: '#ff6b8a', fontFamily: 'Share Tech Mono', fontSize: 8.5, marginBottom: 8, lineHeight: 1.4 }}>{err}</div>}
 
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onFile(f); }} />
-            <button onClick={() => fileRef.current?.click()} disabled={!client.trim()} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #ffb34766', background: client.trim() ? 'rgba(255,179,71,0.12)' : 'rgba(255,255,255,0.03)', color: client.trim() ? '#ffb347' : '#ffffff33', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em', cursor: client.trim() ? 'pointer' : 'not-allowed', marginBottom: 8 }}>📷 PRENDRE / CHOISIR PHOTO</button>
+            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const fs = e.target.files; e.target.value = ''; if (fs && fs.length) void addFiles(fs); }} />
+            <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1.5px dashed #ffb34755', background: 'rgba(255,179,71,0.06)', color: '#ffb347', fontFamily: 'Orbitron', fontSize: 8.5, letterSpacing: '0.15em', cursor: 'pointer', marginBottom: 8 }}>📷 {shots.length ? 'AJOUTER PHOTO' : 'PRENDRE / CHOISIR PHOTOS'}</button>
+            <button onClick={() => void submit()} disabled={!client.trim() || !shots.length} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #00e67666', background: (client.trim() && shots.length) ? 'rgba(0,230,118,0.12)' : 'rgba(255,255,255,0.03)', color: (client.trim() && shots.length) ? '#00e676' : '#ffffff33', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em', cursor: (client.trim() && shots.length) ? 'pointer' : 'not-allowed', marginBottom: 8 }}>🔍 ANALYSER {shots.length > 0 ? `(${shots.length})` : ''}</button>
             <button onClick={onClose} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: '1px solid #ffffff12', background: 'transparent', color: '#ffffff33', fontFamily: 'Share Tech Mono', fontSize: 8, letterSpacing: '0.1em', cursor: 'pointer' }}>ANNULER</button>
           </>
         )}
