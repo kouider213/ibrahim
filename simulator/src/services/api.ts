@@ -448,6 +448,48 @@ export interface Car {
   image_url?: string | null;
 }
 
+// ── Inspection (état avant/après véhicule + bien) ──────────────────
+export interface DamageBox {
+  label: string;
+  severity: 'aucun' | 'leger' | 'moyen' | 'grave';
+  location: string;
+  is_new?: boolean;
+  box: { x: number; y: number; w: number; h: number };
+}
+export interface InspectionAnalysis {
+  description: string;
+  severity: 'aucun' | 'leger' | 'moyen' | 'grave';
+  accident: boolean;
+  damages: string[];
+  damageBoxes: DamageBox[];
+  damageDetected: boolean;
+  comparisonReport?: string;
+}
+export interface InspectionResult {
+  success: boolean;
+  message: string;
+  stateId?: string;
+  photoUrl?: string | null;
+  bookingId?: string | null;
+  analysis?: InspectionAnalysis;
+}
+export interface InspectionState {
+  id: string;
+  client_name: string;
+  car_name?: string;
+  property_name?: string;
+  state_type: 'before' | 'after';
+  photos: string[];
+  ai_description: string | null;
+  damages: string[];
+  damage_boxes: DamageBox[];
+  damage_detected: boolean;
+  accident: boolean;
+  severity: string | null;
+  comparison_report: string | null;
+  created_at: string;
+}
+
 export interface FleetStat { car_name: string; available_now: boolean; occupancy_pct: number; revenue_30d: number; }
 export interface FleetIntel { total_cars: number; available_now_count: number; occupancy_avg_pct: number; stats: FleetStat[]; }
 
@@ -622,6 +664,18 @@ export const business = {
 
   toggleCar: (id: string, available: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),
+
+  // Inspection avant/après (véhicule ou bien) — renvoie photo + dégâts localisés
+  inspect: (kind: 'vehicle' | 'property', body: {
+    mode: 'before' | 'after'; client_name: string; subject: string;
+    image: string; mime?: string; session_id?: string; ref_id?: string;
+  }) =>
+    apiFetch<InspectionResult>(`/api/inspections/${kind}`, { method: 'POST', body: JSON.stringify(body) }),
+
+  fetchInspections: (kind: 'vehicle' | 'property', client: string, subject: string, sessionId: string) => {
+    const p = new URLSearchParams({ client, subject, session_id: sessionId });
+    return apiFetch<{ states: InspectionState[] }>(`/api/inspections/${kind}?${p.toString()}`);
+  },
 
   deleteBooking: (id: string) =>
     apiFetch<{ ok: boolean }>(`/api/bookings/${encodeURIComponent(id)}`, { method: 'DELETE' }),

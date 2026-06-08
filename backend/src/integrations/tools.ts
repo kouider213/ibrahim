@@ -1777,6 +1777,44 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── INSPECTION IMMOBILIER ────────────────────────────────────────
+  {
+    name: 'save_property_state_before',
+    description: 'Enregistre l\'état d\'un BIEN IMMOBILIER AVANT l\'entrée du locataire (état des lieux d\'entrée). Utiliser quand on envoie une photo d\'un appartement/villa/local avec "état avant", "état des lieux entrée", "avant location bien". Nécessite une image jointe. Analyse AI des défauts (murs, sols, humidité...) + stocke la photo dans property_states.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:   { type: 'string', description: 'Nom du locataire' },
+        property_name: { type: 'string', description: 'Titre/nom du bien (ex: "Appartement Hay Badr F3")' },
+      },
+      required: ['client_name', 'property_name'],
+    },
+  },
+  {
+    name: 'save_property_state_after',
+    description: 'Enregistre l\'état d\'un BIEN IMMOBILIER APRÈS le départ du locataire (état des lieux de sortie) et compare avec l\'entrée pour détecter les nouveaux défauts. Utiliser avec une photo + "état après", "état des lieux sortie", "retour bien".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:   { type: 'string', description: 'Nom du locataire' },
+        property_name: { type: 'string', description: 'Titre/nom du bien' },
+      },
+      required: ['client_name', 'property_name'],
+    },
+  },
+  {
+    name: 'get_property_states',
+    description: 'Voir l\'historique des états des lieux d\'un bien immobilier (avant/après) pour un locataire ou un bien.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:   { type: 'string', description: 'Filtrer par locataire (optionnel)' },
+        property_name: { type: 'string', description: 'Filtrer par bien (optionnel)' },
+      },
+      required: [],
+    },
+  },
+
   // ─── RÈGLES APPRISES (Phase 8) ────────────────────────────────────
   {
     name: 'save_learned_rule',

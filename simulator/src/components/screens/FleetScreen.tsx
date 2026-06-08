@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { business, api, getOrCreateSessionId, type Car, type FleetIntel, type SiteProperty, type SaleVehicle } from '../../services/api.ts';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { business, getOrCreateSessionId, type Car, type FleetIntel, type SiteProperty, type SaleVehicle, type InspectionResult, type DamageBox } from '../../services/api.ts';
 
 type ParcTab = 'cars' | 'immo' | 'vente';
 
@@ -28,8 +28,8 @@ function getCatalog(name: string): { h: number; k: number } | null {
   return PRICE_CATALOG.find(p => n.includes(p.match)) ?? null;
 }
 
-type InspectMode = 'before' | 'after';
-interface InspectState { carId: string; carName: string; mode: InspectMode; client: string; sending: boolean; done: string | null }
+type InspectKind = 'vehicle' | 'property';
+interface InspectOpen { kind: InspectKind; name: string }
 
 export default function FleetScreen() {
   const [tab, setTab]      = useState<ParcTab>('cars');
@@ -38,9 +38,8 @@ export default function FleetScreen() {
   const [loading, setLoad] = useState(true);
   const [toggling, setTog] = useState<string | null>(null);
   const [msg, setMsg]      = useState('');
-  const [inspect, setInspect] = useState<InspectState | null>(null);
+  const [inspect, setInspect] = useState<InspectOpen | null>(null);
   const sessionId = useRef(getOrCreateSessionId());
-  const fileRef   = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoad(true);
@@ -65,22 +64,6 @@ export default function FleetScreen() {
       setTimeout(() => setMsg(''), 2500);
     }
     setTog(null);
-  };
-
-  const submitInspection = async (imageBase64: string) => {
-    if (!inspect) return;
-    setInspect(s => s && { ...s, sending: true });
-    const label  = inspect.mode === 'before' ? 'avant' : 'après';
-    const client = inspect.client.trim() || 'client';
-    const text   = `inspection ${label} location ${inspect.carName} pour client ${client}`;
-    try {
-      const res = await api.chat(text, sessionId.current, imageBase64, 'image/jpeg');
-      setInspect(s => s && { ...s, sending: false, done: res.text?.slice(0, 120) ?? '✅ Enregistré' });
-      setTimeout(() => setInspect(null), 3000);
-    } catch {
-      setInspect(s => s && { ...s, sending: false, done: '❌ Erreur envoi' });
-      setTimeout(() => setInspect(null), 2000);
-    }
   };
 
   const availCount   = cars.filter(c => c.available).length;
@@ -125,7 +108,7 @@ export default function FleetScreen() {
       </div>
 
       {/* Immo / Vente panes */}
-      {tab === 'immo'  && <ImmoPane  onMsg={(m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); }} />}
+      {tab === 'immo'  && <ImmoPane  onMsg={(m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); }} onInspect={(name) => setInspect({ kind: 'property', name })} />}
       {tab === 'vente' && <VentePane onMsg={(m) => { setMsg(m); setTimeout(() => setMsg(''), 2500); }} />}
 
       {/* Cars list */}
@@ -255,7 +238,7 @@ export default function FleetScreen() {
                 </span>
                 {/* Inspection photo button */}
                 <button
-                  onClick={() => setInspect({ carId: car.id, carName: car.name, mode: 'before', client: '', sending: false, done: null })}
+                  onClick={() => setInspect({ kind: 'vehicle', name: car.name })}
                   title="Photo inspection avant/après"
                   style={{
                     width: 36, height: 22, borderRadius: 6, border: '1px solid #ffb34744',
@@ -278,122 +261,14 @@ export default function FleetScreen() {
       </div>
       )}
 
-      {/* Hidden file input for inspection photos */}
-      <input
-        ref={fileRef} type="file" accept="image/*" capture="environment"
-        style={{ display: 'none' }}
-        onChange={async e => {
-          const file = e.target.files?.[0];
-          if (!file || !inspect) return;
-          e.target.value = '';
-          const b64 = await new Promise<string>((res, rej) => {
-            const reader = new FileReader();
-            reader.onloadend = () => res((reader.result as string).split(',')[1] ?? '');
-            reader.onerror = rej;
-            reader.readAsDataURL(file);
-          });
-          void submitInspection(b64);
-        }}
-      />
-
-      {/* Inspection modal */}
+      {/* Inspection modal (véhicule + bien) */}
       {inspect && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 50,
-          background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(12px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #0a1628, #060e1c)',
-            border: '1px solid #ffb34733', borderRadius: 18,
-            padding: '24px 22px', width: '80%', maxWidth: 280,
-            boxShadow: '0 0 40px rgba(255,179,71,0.12)',
-          }}>
-            {inspect.done ? (
-              <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
-                <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#00e676', lineHeight: 1.5 }}>
-                  {inspect.done}
-                </div>
-              </div>
-            ) : inspect.sending ? (
-              <div style={{ textAlign: 'center', padding: '14px 0' }}>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#ffb347', letterSpacing: '0.2em', animation: 'statusPulse 1s ease infinite' }}>
-                  ANALYSE EN COURS…
-                </div>
-              </div>
-            ) : (
-              <>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#ffb347', letterSpacing: '0.2em', marginBottom: 4, textAlign: 'center' }}>
-                  INSPECTION
-                </div>
-                <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#ffffff66', letterSpacing: '0.1em', marginBottom: 16, textAlign: 'center' }}>
-                  {inspect.carName.toUpperCase()}
-                </div>
-
-                {/* AVANT / APRÈS toggle */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                  {(['before', 'after'] as const).map(m => (
-                    <button
-                      key={m}
-                      onClick={() => setInspect(s => s && { ...s, mode: m })}
-                      style={{
-                        flex: 1, padding: '8px 0', borderRadius: 10,
-                        border: `1.5px solid ${inspect.mode === m ? '#ffb347' : '#ffffff18'}`,
-                        background: inspect.mode === m ? 'rgba(255,179,71,0.12)' : 'transparent',
-                        color: inspect.mode === m ? '#ffb347' : '#ffffff44',
-                        fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em',
-                        cursor: 'pointer', transition: 'all 0.2s',
-                      }}
-                    >{m === 'before' ? 'AVANT' : 'APRÈS'}</button>
-                  ))}
-                </div>
-
-                {/* Client name */}
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff44', letterSpacing: '0.1em', marginBottom: 6 }}>NOM CLIENT</div>
-                  <input
-                    value={inspect.client}
-                    onChange={e => setInspect(s => s && { ...s, client: e.target.value })}
-                    placeholder="Ex: Benali Mohamed"
-                    style={{
-                      width: '100%', padding: '8px 10px', borderRadius: 8,
-                      border: '1px solid #ffffff18', background: 'rgba(255,255,255,0.04)',
-                      color: '#ffffff', fontFamily: 'Share Tech Mono', fontSize: 10,
-                      outline: 'none', boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-
-                {/* Photo button */}
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={!inspect.client.trim()}
-                  style={{
-                    width: '100%', padding: '10px 0', borderRadius: 10,
-                    border: '1.5px solid #ffb34766',
-                    background: inspect.client.trim() ? 'rgba(255,179,71,0.12)' : 'rgba(255,255,255,0.03)',
-                    color: inspect.client.trim() ? '#ffb347' : '#ffffff33',
-                    fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em',
-                    cursor: inspect.client.trim() ? 'pointer' : 'not-allowed',
-                    marginBottom: 8, transition: 'all 0.2s',
-                  }}
-                >📷 PRENDRE PHOTO</button>
-
-                {/* Cancel */}
-                <button
-                  onClick={() => setInspect(null)}
-                  style={{
-                    width: '100%', padding: '7px 0', borderRadius: 10,
-                    border: '1px solid #ffffff12', background: 'transparent',
-                    color: '#ffffff33', fontFamily: 'Share Tech Mono', fontSize: 8,
-                    letterSpacing: '0.1em', cursor: 'pointer',
-                  }}
-                >ANNULER</button>
-              </>
-            )}
-          </div>
-        </div>
+        <InspectionModal
+          kind={inspect.kind}
+          subject={inspect.name}
+          sessionId={sessionId.current}
+          onClose={() => setInspect(null)}
+        />
       )}
     </div>
   );
@@ -411,7 +286,7 @@ const paneInput: React.CSSProperties = {
   fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
-function ImmoPane({ onMsg }: { onMsg: (m: string) => void }) {
+function ImmoPane({ onMsg, onInspect }: { onMsg: (m: string) => void; onInspect: (name: string) => void }) {
   const [items, setItems] = useState<SiteProperty[]>([]);
   const [loading, setLoad] = useState(true);
   const [show, setShow] = useState(false);
@@ -504,7 +379,8 @@ function ImmoPane({ onMsg }: { onMsg: (m: string) => void }) {
             </div>
             <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
               <button onClick={() => void cycle(p)} disabled={busy === p.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
-              <button onClick={() => void del(p)} disabled={busy === p.id} style={{ flex: '0 0 70px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}>🗑</button>
+              <button onClick={() => onInspect(p.title || p.name || 'Bien')} title="État des lieux entrée/sortie" style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 9, cursor: 'pointer', background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44', color: '#00d4ff' }}>📷</button>
+              <button onClick={() => void del(p)} disabled={busy === p.id} style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}>🗑</button>
             </div>
           </div>
         );
@@ -670,4 +546,132 @@ function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
   const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
   const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
   return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
+}
+
+// ── INSPECTION MODAL (véhicule + bien) ───────────────────────────────────────
+const SEV_COL: Record<string, string> = { grave: '#ff3366', moyen: '#ffb347', leger: '#ffd54f', aucun: '#7a8aa0' };
+
+function InspectionModal({ kind, subject, sessionId, onClose }: {
+  kind: 'vehicle' | 'property'; subject: string; sessionId: string; onClose: () => void;
+}) {
+  const [mode, setMode]     = useState<'before' | 'after'>('before');
+  const [client, setClient] = useState('');
+  const [busy, setBusy]     = useState(false);
+  const [result, setResult] = useState<InspectionResult | null>(null);
+  const [err, setErr]       = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const title = kind === 'vehicle' ? 'INSPECTION VÉHICULE' : 'ÉTAT DES LIEUX';
+
+  const onFile = async (file: File) => {
+    setBusy(true); setErr('');
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onloadend = () => res(r.result as string);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const b64 = dataUrl.split(',')[1] ?? '';
+      const r = await business.inspect(kind, {
+        mode, client_name: client.trim(), subject,
+        image: b64, mime: file.type || 'image/jpeg', session_id: sessionId,
+      });
+      if (r.success) setResult(r);
+      else setErr(r.message || 'Échec de l\'analyse');
+    } catch {
+      setErr('Erreur réseau. Réessaie.');
+    } finally { setBusy(false); }
+  };
+
+  const boxes: DamageBox[] = result?.analysis?.damageBoxes ?? [];
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.94)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div style={{ background: 'linear-gradient(135deg, #0a1628, #060e1c)', border: '1px solid #ffb34733', borderRadius: 18, padding: 18, width: '92%', maxWidth: 320, maxHeight: '92%', overflowY: 'auto', boxShadow: '0 0 40px rgba(255,179,71,0.12)' }}>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#ffb347', letterSpacing: '0.2em', textAlign: 'center' }}>{title}</div>
+        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#ffffff66', letterSpacing: '0.1em', marginBottom: 14, textAlign: 'center' }}>{subject.toUpperCase()}</div>
+
+        {result ? (
+          <>
+            {/* Photo + marqueurs */}
+            {result.photoUrl && (
+              <div style={{ position: 'relative', width: '100%', borderRadius: 10, overflow: 'hidden', marginBottom: 10, border: '1px solid #ffffff14' }}>
+                <img src={result.photoUrl} alt="inspection" style={{ width: '100%', display: 'block' }} />
+                {boxes.map((d, i) => {
+                  const col = SEV_COL[d.severity] ?? '#ffb347';
+                  return (
+                    <div key={i}>
+                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%`, border: `2px solid ${col}`, borderRadius: 4, boxShadow: `0 0 8px ${col}88`, boxSizing: 'border-box' }} />
+                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 16, height: 16, padding: '0 3px', borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Orbitron', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {result.analysis?.accident && (
+              <div style={{ background: 'rgba(255,51,102,0.15)', border: '1px solid #ff336655', borderRadius: 8, padding: '6px 8px', marginBottom: 8, color: '#ff6b8a', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.1em', textAlign: 'center' }}>🚨 ACCIDENT / CHOC DÉTECTÉ</div>
+            )}
+
+            {/* Légende dégâts */}
+            {boxes.length > 0 ? (
+              <div style={{ marginBottom: 10 }}>
+                {boxes.map((d, i) => {
+                  const col = SEV_COL[d.severity] ?? '#ffb347';
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', marginBottom: 5 }}>
+                      <span style={{ flex: '0 0 16px', height: 16, borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Orbitron', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                      <span style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#dfeaff', lineHeight: 1.35 }}>
+                        {d.label}{d.is_new ? <b style={{ color: '#ff6b8a' }}> · NOUVEAU</b> : ''}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ color: '#00e676', fontFamily: 'Share Tech Mono', fontSize: 10, textAlign: 'center', marginBottom: 10 }}>✅ Aucun {kind === 'vehicle' ? 'dégât' : 'défaut'} détecté</div>
+            )}
+
+            {/* Rapport texte */}
+            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8.5, color: '#ffffff88', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto', borderTop: '1px solid #ffffff10', paddingTop: 8, marginBottom: 12 }}>
+              {result.analysis?.comparisonReport || result.analysis?.description || ''}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setResult(null); setMode(mode === 'before' ? 'after' : mode); }} style={inspBtn('#00d4ff')}>+ AUTRE PHOTO</button>
+              <button onClick={onClose} style={inspBtn('#ffb347')}>✓ TERMINÉ</button>
+            </div>
+          </>
+        ) : busy ? (
+          <div style={{ textAlign: 'center', padding: '18px 0', fontFamily: 'Orbitron', fontSize: 10, color: '#ffb347', letterSpacing: '0.2em', animation: 'statusPulse 1s ease infinite' }}>ANALYSE CLAUDE EN COURS…</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {(['before', 'after'] as const).map(m => (
+                <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `1.5px solid ${mode === m ? '#ffb347' : '#ffffff18'}`, background: mode === m ? 'rgba(255,179,71,0.12)' : 'transparent', color: mode === m ? '#ffb347' : '#ffffff44', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em', cursor: 'pointer' }}>
+                  {m === 'before' ? (kind === 'vehicle' ? 'AVANT' : 'ENTRÉE') : (kind === 'vehicle' ? 'APRÈS' : 'SORTIE')}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff44', letterSpacing: '0.1em', marginBottom: 6 }}>{kind === 'vehicle' ? 'NOM CLIENT' : 'NOM LOCATAIRE'}</div>
+              <input value={client} onChange={e => setClient(e.target.value)} placeholder="Ex: Benali Mohamed" style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #ffffff18', background: 'rgba(255,255,255,0.04)', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 10, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            {err && <div style={{ color: '#ff6b8a', fontFamily: 'Share Tech Mono', fontSize: 8.5, marginBottom: 8, lineHeight: 1.4 }}>{err}</div>}
+
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void onFile(f); }} />
+            <button onClick={() => fileRef.current?.click()} disabled={!client.trim()} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #ffb34766', background: client.trim() ? 'rgba(255,179,71,0.12)' : 'rgba(255,255,255,0.03)', color: client.trim() ? '#ffb347' : '#ffffff33', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em', cursor: client.trim() ? 'pointer' : 'not-allowed', marginBottom: 8 }}>📷 PRENDRE / CHOISIR PHOTO</button>
+            <button onClick={onClose} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: '1px solid #ffffff12', background: 'transparent', color: '#ffffff33', fontFamily: 'Share Tech Mono', fontSize: 8, letterSpacing: '0.1em', cursor: 'pointer' }}>ANNULER</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function inspBtn(col: string): CSSProperties {
+  return { flex: 1, padding: '9px 0', borderRadius: 10, border: `1.5px solid ${col}66`, background: `${col}1a`, color: col, fontFamily: 'Orbitron', fontSize: 8.5, letterSpacing: '0.12em', cursor: 'pointer' };
 }

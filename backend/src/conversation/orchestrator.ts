@@ -15,6 +15,7 @@ import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 import { redis }                                 from '../queue/queue.js';
 import { saveBeforeState, saveAfterState }        from '../integrations/vehicle-state.js';
+import { savePropertyBeforeState, savePropertyAfterState } from '../integrations/property-state.js';
 
 let _io: Namespace | null = null;
 let _reqCounter = 0;
@@ -175,21 +176,29 @@ export async function processMessage(
     redis.set(`session:image:${sessionId}`, JSON.stringify({ base64: imageBase64, mime: imageMime }), 'EX', 300).catch(() => {});
   }
 
-  // ── Vehicle inspection pre-check (photo + état avant/après keywords) ────────
-  const INSPECTION_BEFORE_RE = /[eé]tat\s+(v[eé]hicule|voiture|avant)|inspection\s+(avant|initiale|d[eé]part)|d[eé]part\s+v[eé]hicule/i;
-  const INSPECTION_AFTER_RE  = /retour\s+v[eé]hicule|v[eé]rifie?\s+retour|[eé]tat\s+(retour|apr[eè]s|fin)|inspection\s+(retour|apr[eè]s|fin)/i;
+  // ── Inspection pre-check (photo + état avant/après keywords) — véhicule OU bien ─
+  const INSPECTION_BEFORE_RE = /[eé]tat\s+(v[eé]hicule|voiture|bien|appartement|maison|villa|avant)|inspection\s+(avant|initiale|d[eé]part)|d[eé]part\s+v[eé]hicule|[eé]tat\s+des\s+lieux.*(entr[eé]e|avant)?|entr[eé]e\s+locataire/i;
+  const INSPECTION_AFTER_RE  = /retour\s+(v[eé]hicule|bien)|v[eé]rifie?\s+retour|[eé]tat\s+(retour|apr[eè]s|fin)|inspection\s+(retour|apr[eè]s|fin)|[eé]tat\s+des\s+lieux.*(sortie|apr[eè]s)|sortie\s+locataire/i;
+  const PROPERTY_RE = /\b(bien|appartement|appart|studio|maison|villa|local|immeuble|f[2-5]\b|[eé]tat\s+des\s+lieux|locataire|logement)\b/i;
   if (imageBase64 && (INSPECTION_BEFORE_RE.test(userMessage) || INSPECTION_AFTER_RE.test(userMessage))) {
-    const isBefore = INSPECTION_BEFORE_RE.test(userMessage);
-    const clientM  = userMessage.match(/(?:de|pour|client)\s+([A-ZÀ-Öa-zà-öéèêëàâùûüîïœ]+(?:\s+[A-ZÀ-Öa-zà-öéèêëàâùûüîïœ]+)?)/i);
+    const isBefore = INSPECTION_BEFORE_RE.test(userMessage) && !INSPECTION_AFTER_RE.test(userMessage);
+    const isProperty = PROPERTY_RE.test(userMessage) &&
+      !/(?:Clio|Logan|Duster|Sandero|Polo|Peugeot|Symbol|M[eé]gane|Kangoo|Picasso|Golf|Berlingo|v[eé]hicule|voiture)/i.test(userMessage);
+    const clientM  = userMessage.match(/(?:de|pour|client|locataire)\s+([A-ZÀ-Öa-zà-öéèêëàâùûüîïœ]+(?:\s+[A-ZÀ-Öa-zà-öéèêëàâùûüîïœ]+)?)/i);
     const carM     = userMessage.match(/(?:Clio|Logan|Duster|Sandero|Polo|Peugeot|Symbol|Mégane|Megane|Kangoo|Picasso|Golf|Renault|Volkswagen|Dacia|Hyundai|Kia|Toyota|Citroën|Ford|Fiat|Seat|Skoda|Berlingo)[^\s,]*/i);
+    const propM    = userMessage.match(/(?:appartement|appart|studio|maison|villa|local|immeuble|logement|bien)[^,.]*/i);
     const clientName = clientM?.[1] ?? 'Inconnu';
-    const carName    = carM?.[0] ?? 'Véhicule';
+    const subject    = isProperty ? (propM?.[0]?.trim() ?? 'Bien') : (carM?.[0] ?? 'Véhicule');
     const ownerKey   = actor.ownerKey ?? 'kouider';
-    console.log(`[vehicle-inspection] type=${isBefore ? 'before' : 'after'} client=${clientName} car=${carName}`);
+    console.log(`[inspection] kind=${isProperty ? 'property' : 'vehicle'} type=${isBefore ? 'before' : 'after'} client=${clientName} subject=${subject}`);
     try {
-      const result = isBefore
-        ? await saveBeforeState(clientName, carName, imageBase64, imageMime, ownerKey)
-        : await saveAfterState(clientName, carName, imageBase64, imageMime, ownerKey);
+      const result = isProperty
+        ? (isBefore
+            ? await savePropertyBeforeState(clientName, subject, imageBase64, imageMime, ownerKey)
+            : await savePropertyAfterState(clientName, subject, imageBase64, imageMime, ownerKey))
+        : (isBefore
+            ? await saveBeforeState(clientName, subject, imageBase64, imageMime, ownerKey)
+            : await saveAfterState(clientName, subject, imageBase64, imageMime, ownerKey));
       _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: result.message });
       saveConversationTurn(sessionId, 'assistant', result.message).catch(() => {});
       if (!textOnly) {

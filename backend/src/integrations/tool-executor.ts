@@ -77,6 +77,7 @@ import { runCodeAgent } from '../agents/code-agent.js';
 import { executeImageToImage } from './image-to-image.js';
 import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.js';
 import { saveBeforeState, saveAfterState } from './vehicle-state.js';
+import { savePropertyBeforeState, savePropertyAfterState } from './property-state.js';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
@@ -342,6 +343,9 @@ async function _dispatch(
       case 'save_vehicle_state_before': return await saveVehicleStateBefore(input, undefined, 'image/jpeg', sessionId);
       case 'save_vehicle_state_after':  return await saveVehicleStateAfter(input, undefined, 'image/jpeg', sessionId);
       case 'get_vehicle_states':        return await getVehicleStatesTool(input, sessionId);
+      case 'save_property_state_before': return await savePropertyStateBefore(input, undefined, 'image/jpeg', sessionId);
+      case 'save_property_state_after':  return await savePropertyStateAfter(input, undefined, 'image/jpeg', sessionId);
+      case 'get_property_states':        return await getPropertyStatesTool(input, sessionId);
       // ─── HEALTH CHECK ───
       case 'health_check_all':         return await healthCheckAllTool();
       case 'get_late_returns':                   return await getLateReturns();
@@ -5950,6 +5954,63 @@ async function getVehicleStatesTool(input: Record<string, unknown>, sessionId?: 
   });
 
   return `🚗 **Historique inspections:**\n\n${lines.join('\n')}`;
+}
+
+// ─── INSPECTION IMMOBILIER ──────────────────────────────────────────────────
+
+async function getInspectionImage(
+  imageBase64: string | undefined, imageMime: string, sessionId?: string,
+): Promise<{ b64?: string; mime: string }> {
+  let b64 = imageBase64; let mime = imageMime;
+  if (!b64 && sessionId) {
+    try {
+      const cached = await redis.get(`session:image:${sessionId}`);
+      if (cached) { const p = JSON.parse(cached) as { base64: string; mime: string }; b64 = p.base64; mime = p.mime; }
+    } catch { /* ignore */ }
+  }
+  return { b64, mime };
+}
+
+async function savePropertyStateBefore(
+  input: Record<string, unknown>, imageBase64: string | undefined, imageMime: string, sessionId?: string,
+): Promise<string> {
+  const clientName   = (input['client_name']   as string | undefined)?.trim();
+  const propertyName = (input['property_name'] as string | undefined)?.trim() ?? (input['car_name'] as string | undefined)?.trim();
+  if (!clientName || !propertyName) return '❌ client_name et property_name requis';
+  const { b64, mime } = await getInspectionImage(imageBase64, imageMime, sessionId);
+  if (!b64) return '❌ Aucune image trouvée. Envoie une photo du bien avec ce message.';
+  const owner = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
+  const result = await savePropertyBeforeState(clientName, propertyName, b64, mime, owner);
+  return result.message;
+}
+
+async function savePropertyStateAfter(
+  input: Record<string, unknown>, imageBase64: string | undefined, imageMime: string, sessionId?: string,
+): Promise<string> {
+  const clientName   = (input['client_name']   as string | undefined)?.trim();
+  const propertyName = (input['property_name'] as string | undefined)?.trim() ?? (input['car_name'] as string | undefined)?.trim();
+  if (!clientName || !propertyName) return '❌ client_name et property_name requis';
+  const { b64, mime } = await getInspectionImage(imageBase64, imageMime, sessionId);
+  if (!b64) return '❌ Aucune image trouvée. Envoie une photo du bien avec ce message.';
+  const owner = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
+  const result = await savePropertyAfterState(clientName, propertyName, b64, mime, owner);
+  return result.message;
+}
+
+async function getPropertyStatesTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const clientName   = (input['client_name']   as string | undefined)?.trim() ?? '';
+  const propertyName = (input['property_name'] as string | undefined)?.trim() ?? '';
+  const ownerKey = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
+  const { getPropertyHistory } = await import('./property-state.js');
+  const states = await getPropertyHistory(clientName || '%', propertyName || '%', ownerKey);
+  if (!states.length) return `ℹ️ Aucune inspection bien trouvée${clientName ? ` pour ${clientName}` : ''}.`;
+  const lines = states.map(s => {
+    const date = new Date(s.created_at).toLocaleDateString('fr-FR');
+    const type = s.state_type === 'before' ? '🏠 AVANT' : '🔍 APRÈS';
+    const dmg  = s.damage_detected ? '⚠️ défauts' : '✅ OK';
+    return `• ${type} — ${s.property_name} / ${s.client_name} — ${date} — ${dmg}`;
+  });
+  return `🏠 **Historique inspections biens:**\n\n${lines.join('\n')}`;
 }
 
 // ── Smart Pricing Suggestions ─────────────────────────────────────────────────
