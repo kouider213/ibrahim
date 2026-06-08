@@ -152,11 +152,11 @@ export default function DemandesScreen() {
       {/* Header */}
       <div style={{
         padding: '12px 16px 8px',
-        borderBottom: '1px solid rgba(233,185,73,0.08)',
+        borderBottom: '1px solid rgba(99,102,241,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div>
-          <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(233,185,73,0.8)', letterSpacing: '0.2em' }}>
+          <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(99,102,241,0.8)', letterSpacing: '0.2em' }}>
             DEMANDES WHATSAPP
           </div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
@@ -166,9 +166,9 @@ export default function DemandesScreen() {
         <button
           onClick={() => { void load(); }}
           style={{
-            background: 'rgba(233,185,73,0.07)', border: '1px solid rgba(233,185,73,0.2)',
+            background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)',
             borderRadius: 10, padding: '7px 14px', cursor: 'pointer',
-            fontSize: 11, fontWeight: 600, color: 'rgba(233,185,73,0.8)',
+            fontSize: 11, fontWeight: 600, color: 'rgba(99,102,241,0.8)',
             fontFamily: 'Inter',
           }}
         >
@@ -201,7 +201,7 @@ export default function DemandesScreen() {
           return (
             <div key={r.id} style={{
               background: 'rgba(7,17,31,0.8)',
-              border: '1px solid rgba(233,185,73,0.1)',
+              border: '1px solid rgba(99,102,241,0.1)',
               borderRadius: 14,
               padding: '12px 14px',
               display: 'flex', flexDirection: 'column', gap: 8,
@@ -282,9 +282,9 @@ export default function DemandesScreen() {
       {toast && (
         <div style={{
           position: 'absolute', bottom: 70, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(233,185,73,0.15)', border: '1px solid rgba(233,185,73,0.3)',
+          background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)',
           borderRadius: 10, padding: '8px 16px',
-          fontSize: 12, fontWeight: 600, color: '#e9b949',
+          fontSize: 12, fontWeight: 600, color: '#6366f1',
           zIndex: 20, backdropFilter: 'blur(8px)',
           whiteSpace: 'nowrap',
         }}>
@@ -356,7 +356,7 @@ export default function DemandesScreen() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: 9, color: 'rgba(233,185,73,0.45)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 1 }}>{label}</div>
+      <div style={{ fontSize: 9, color: 'rgba(99,102,241,0.45)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 1 }}>{label}</div>
       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>{value}</div>
     </div>
   );
@@ -387,7 +387,7 @@ function ActionBtn({
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(233,185,73,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, marginTop: 10 }}>
+    <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(99,102,241,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, marginTop: 10 }}>
       {children}
     </div>
   );
@@ -400,7 +400,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
       style={{
         width: '100%', boxSizing: 'border-box',
         background: 'rgba(0,0,0,0.4)',
-        border: '1px solid rgba(233,185,73,0.18)',
+        border: '1px solid rgba(99,102,241,0.18)',
         borderRadius: 10, padding: '10px 12px',
         fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.85)',
         outline: 'none',
@@ -420,8 +420,8 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 31,
         background: '#030d1e',
-        border: '1px solid rgba(233,185,73,0.15)',
-        borderTop: '1px solid rgba(233,185,73,0.25)',
+        border: '1px solid rgba(99,102,241,0.15)',
+        borderTop: '1px solid rgba(99,102,241,0.25)',
         borderRadius: '18px 18px 0 0',
         padding: '20px 18px 32px',
       }}>
@@ -430,7 +430,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
           background: 'rgba(255,255,255,0.12)',
           margin: '0 auto 16px',
         }} />
-        <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(233,185,73,0.8)', letterSpacing: '0.15em', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(99,102,241,0.8)', letterSpacing: '0.15em', marginBottom: 14 }}>
           {title.toUpperCase()}
         </div>
         {children}

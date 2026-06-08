@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { business, type RevenueSummary, type FinancialReport } from '../../services/api.ts';
 
 const SCORE_COL: Record<string, string> = {
-  VIP: '#ffd700', FREQUENT: '#e9b949', FRÉQUENT: '#e9b949',
+  VIP: '#ffd700', FREQUENT: '#6366f1', FRÉQUENT: '#6366f1',
   REGULAR: '#00e676', RÉGULIER: '#00e676', NEW: '#ffffff66', NOUVEAU: '#ffffff66',
 };
 const MONTH_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
@@ -82,9 +82,9 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '8px 14px 6px', borderBottom: '1px solid #e9b94912', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+      <div style={{ padding: '8px 14px 6px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#e9b949', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #e9b94955' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             REVENUS
           </div>
           {msg && <span style={{ fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>}
@@ -94,12 +94,12 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <button onClick={prevMonth} style={navBtn}>‹</button>
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#e9b949', letterSpacing: '0.15em' }}>
+            <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#6366f1', letterSpacing: '0.15em' }}>
               {MONTH_FR[viewMonth - 1].toUpperCase()} {viewYear}
             </span>
             {!isAtNow && (
-              <button onClick={goToNow} style={{ marginLeft: 8, background: '#e9b94918', border: '1px solid #e9b94944', borderRadius: 4,
-                fontFamily: 'Orbitron', fontSize: 6, color: '#e9b949aa', cursor: 'pointer', padding: '2px 6px' }}>
+              <button onClick={goToNow} style={{ marginLeft: 8, background: '#6366f118', border: '1px solid #6366f144', borderRadius: 4,
+                fontFamily: 'Orbitron', fontSize: 6, color: '#6366f1aa', cursor: 'pointer', padding: '2px 6px' }}>
                 ↩ CE MOIS
               </button>
             )}
@@ -116,9 +116,9 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
           ] as const).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               flex: 1, padding: '5px', borderRadius: 6,
-              background: tab === t.id ? 'rgba(233,185,73,0.15)' : 'transparent',
-              border: `1px solid ${tab === t.id ? '#e9b94955' : '#ffffff0f'}`,
-              fontFamily: 'Orbitron', fontSize: 6, color: tab === t.id ? '#e9b949' : '#ffffff33',
+              background: tab === t.id ? 'rgba(99,102,241,0.15)' : 'transparent',
+              border: `1px solid ${tab === t.id ? '#6366f155' : '#ffffff0f'}`,
+              fontFamily: 'Orbitron', fontSize: 6, color: tab === t.id ? '#6366f1' : '#ffffff33',
               cursor: 'pointer', letterSpacing: '0.12em',
             }}>
               {t.label}
@@ -126,19 +126,19 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
           ))}
         </div>
 
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #e9b94944, transparent)' }} />
+        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)' }} />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {report?.dzd && (isHouari || report.dzd.bookings > 0) && (
-          <div style={{ borderRadius: 12, border: '1px solid #e9b94944', background: 'linear-gradient(135deg, rgba(233,185,73,0.10), rgba(2,8,16,0.6))', padding: '11px 13px' }}>
+          <div style={{ borderRadius: 12, border: '1px solid #6366f144', background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(2,8,16,0.6))', padding: '11px 13px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b949', letterSpacing: '0.15em' }}>💱 CA EN DINARS (HOUARI)</span>
-              <span style={{ fontSize: 7, color: '#e9b94999' }}>{report.dzd.bookings} location{report.dzd.bookings > 1 ? 's' : ''}</span>
+              <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f1', letterSpacing: '0.15em' }}>💱 CA EN DINARS (HOUARI)</span>
+              <span style={{ fontSize: 7, color: '#6366f199' }}>{report.dzd.bookings} location{report.dzd.bookings > 1 ? 's' : ''}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
               {[
-                { l: 'CA', v: report.dzd.ca, c: '#e9b949' },
+                { l: 'CA', v: report.dzd.ca, c: '#6366f1' },
                 { l: 'ENCAISSÉ', v: report.dzd.encaisse, c: '#00e676' },
                 { l: 'À ENCAISSER', v: report.dzd.aEncaisser, c: '#ffb347' },
               ].map(s => (
@@ -152,7 +152,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
           </div>
         )}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Orbitron', fontSize: 9, color: '#e9b94933', letterSpacing: '0.25em' }}>
+          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Orbitron', fontSize: 9, color: '#6366f133', letterSpacing: '0.25em' }}>
             CHARGEMENT…
           </div>
         ) : tab === 'overview' ? (
@@ -170,7 +170,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => void load()} style={{ ...aBtn('#e9b949'), flex: 1 }}>↻ ACTUALISER</button>
+          <button onClick={() => void load()} style={{ ...aBtn('#6366f1'), flex: 1 }}>↻ ACTUALISER</button>
           {isCurrentMonth && (
             <button onClick={() => void clearCache()} disabled={clearing} style={{ ...aBtn('#ff6b00'), flex: 1 }}>
               {clearing ? '…' : '⚡ CACHE'}
@@ -197,9 +197,9 @@ function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, enca
   return (
     <>
       {/* CA + variation */}
-      <div style={{ textAlign: 'center', background: 'rgba(233,185,73,0.05)', borderRadius: 12, padding: '14px', border: '1px solid #e9b9491a' }}>
-        <div style={{ fontSize: 7, color: '#e9b94955', letterSpacing: '0.25em', fontFamily: 'Orbitron', marginBottom: 4 }}>CA TOTAL</div>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 32, color: '#e9b949', textShadow: '0 0 20px #e9b94955' }}>
+      <div style={{ textAlign: 'center', background: 'rgba(99,102,241,0.05)', borderRadius: 12, padding: '14px', border: '1px solid #6366f11a' }}>
+        <div style={{ fontSize: 7, color: '#6366f155', letterSpacing: '0.25em', fontFamily: 'Orbitron', marginBottom: 4 }}>CA TOTAL</div>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 32, color: '#6366f1', textShadow: '0 0 20px #6366f155' }}>
           {fmt(caMonth)}
         </div>
         {isCurrentMonth && vsLast !== 0 && (
@@ -261,7 +261,7 @@ function OverviewTab({ rev, report, caMonth, profitK, caHouari, nbBookings, enca
 
       {/* Payment stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-        <StatMini label="RÉSAS" val={String(nbBookings)} col="#e9b949" />
+        <StatMini label="RÉSAS" val={String(nbBookings)} col="#6366f1" />
         <StatMini label="ENCAISSÉ" val={fmt(encaisse)} col="#00e676" />
         <StatMini label="À ENCAISSER" val={fmt(aEncaisser)} col="#ff3366" />
       </div>
@@ -311,7 +311,7 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: (n: n
   );
 
   const STATUS_COL: Record<string, string> = {
-    CONFIRMED: '#00e676', PENDING: '#ffb347', ACTIVE: '#e9b949',
+    CONFIRMED: '#00e676', PENDING: '#ffb347', ACTIVE: '#6366f1',
     COMPLETED: '#ffffff55', REJECTED: '#ff3366',
   };
   const PAID_COL: Record<string, string> = {
@@ -323,7 +323,7 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: (n: n
       {/* Summary row */}
       <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px', border: '1px solid #ffffff08',
         display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <InfoChip label="Résas" val={String(report.totalBookings)} col="#e9b949" />
+        <InfoChip label="Résas" val={String(report.totalBookings)} col="#6366f1" />
         <InfoChip label="CA brut" val={fmt(report.grossCA)} col="#00e676" />
         <InfoChip label="Profit K" val={fmt(report.kouiderProfit)} col="#ffd700" />
         <InfoChip label="À encaisser" val={fmt(report.aEncaisser)} col="#ff3366" />
@@ -355,7 +355,7 @@ function DetailTab({ report, fmt }: { report: FinancialReport | null; fmt: (n: n
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {b.client_price_per_day != null && (
-                  <span style={{ fontSize: 7, color: '#e9b94966' }}>{b.client_price_per_day}€/j</span>
+                  <span style={{ fontSize: 7, color: '#6366f166' }}>{b.client_price_per_day}€/j</span>
                 )}
                 {b.kouider_profit != null && (
                   <span style={{ fontSize: 7, color: '#ffd70088' }}>profit: {fmt(b.kouider_profit)}</span>
@@ -399,14 +399,14 @@ function AnnualTab({ report, year, fmt }: {
   return (
     <>
       {/* Year header */}
-      <div style={{ textAlign: 'center', fontFamily: 'Orbitron', fontSize: 9, color: '#e9b94955', letterSpacing: '0.3em', marginBottom: 2 }}>
+      <div style={{ textAlign: 'center', fontFamily: 'Orbitron', fontSize: 9, color: '#6366f155', letterSpacing: '0.3em', marginBottom: 2 }}>
         BILAN {year}
       </div>
 
       {/* Big annual CA */}
-      <div style={{ textAlign: 'center', background: 'rgba(233,185,73,0.05)', borderRadius: 12, padding: '14px', border: '1px solid #e9b9491a' }}>
-        <div style={{ fontSize: 7, color: '#e9b94944', letterSpacing: '0.25em', fontFamily: 'Orbitron', marginBottom: 4 }}>CA ANNUEL TOTAL</div>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 34, color: '#e9b949', textShadow: '0 0 20px #e9b94955', lineHeight: 1 }}>
+      <div style={{ textAlign: 'center', background: 'rgba(99,102,241,0.05)', borderRadius: 12, padding: '14px', border: '1px solid #6366f11a' }}>
+        <div style={{ fontSize: 7, color: '#6366f144', letterSpacing: '0.25em', fontFamily: 'Orbitron', marginBottom: 4 }}>CA ANNUEL TOTAL</div>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 34, color: '#6366f1', textShadow: '0 0 20px #6366f155', lineHeight: 1 }}>
           {fmt(report.grossCA)}
         </div>
         <div style={{ marginTop: 6, fontSize: 7, color: '#ffffff33' }}>
@@ -482,13 +482,13 @@ function AnnualTab({ report, year, fmt }: {
                 <span style={{ fontSize: 9, color: '#c8e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                   {name}
                 </span>
-                <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#e9b949', flexShrink: 0, marginLeft: 8 }}>
+                <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#6366f1', flexShrink: 0, marginLeft: 8 }}>
                   {fmt(stats.ca)}
                 </span>
               </div>
               <div style={{ height: 4, background: '#ffffff08', borderRadius: 2, overflow: 'hidden', marginBottom: 2 }}>
                 <div style={{ height: '100%', width: `${(stats.ca / maxCA) * 100}%`,
-                  background: 'linear-gradient(90deg, #e9b94955, #e9b949)', borderRadius: 2 }} />
+                  background: 'linear-gradient(90deg, #6366f155, #6366f1)', borderRadius: 2 }} />
               </div>
               <div style={{ display: 'flex', gap: 10, fontSize: 6, color: '#ffffff22' }}>
                 <span>{stats.count} résa(s)</span>
@@ -528,10 +528,10 @@ function VehicleBreakdown({ bookings, fmt }: { bookings: FinancialReport['bookin
         <div key={name} style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
             <span style={{ fontSize: 9, color: '#c8e8ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name}</span>
-            <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b949', flexShrink: 0, marginLeft: 8 }}>{fmt(stats.ca)}</span>
+            <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f1', flexShrink: 0, marginLeft: 8 }}>{fmt(stats.ca)}</span>
           </div>
           <div style={{ height: 3, background: '#ffffff0a', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${(stats.ca / maxCA) * 100}%`, background: 'linear-gradient(90deg, #e9b94988, #e9b949)', borderRadius: 2 }} />
+            <div style={{ height: '100%', width: `${(stats.ca / maxCA) * 100}%`, background: 'linear-gradient(90deg, #6366f188, #6366f1)', borderRadius: 2 }} />
           </div>
           <div style={{ fontSize: 6, color: '#ffffff22', marginTop: 1 }}>
             {stats.count} résa(s) · profit: {fmt(stats.profit)}
@@ -573,8 +573,8 @@ function WarningBar({ icon, text, col }: { icon: string; text: string; col: stri
 }
 
 const navBtn: React.CSSProperties = {
-  background: 'rgba(233,185,73,0.08)', border: '1px solid #e9b94922', borderRadius: 6,
-  width: 26, height: 26, cursor: 'pointer', color: '#e9b949aa',
+  background: 'rgba(99,102,241,0.08)', border: '1px solid #6366f122', borderRadius: 6,
+  width: 26, height: 26, cursor: 'pointer', color: '#6366f1aa',
   fontFamily: 'Orbitron', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 
@@ -587,7 +587,7 @@ function aBtn(col: string): React.CSSProperties {
 }
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#e9b949';
+  const s = 12, t = 1.5, col = '#6366f1';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';

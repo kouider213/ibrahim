@@ -8,12 +8,12 @@ const OPP_META: Record<string, { icon: string; label: string }> = {
   loi:      { icon: '📜', label: 'Loi' },
   modele:   { icon: '🆕', label: 'Nouveauté' },
 };
-const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#e9b949', info: '#9b9ba6' };
+const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#6366f1', info: '#9b9ba6' };
 const URG_LABEL: Record<string, string> = { urgent: 'URGENT', a_suivre: 'À suivre', info: 'Info' };
 
 const C = {
   bg: '#0b0b0d', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.07)',
-  gold: '#e9b949', goldSoft: '#f3d488', text: '#f5f5f7', muted: '#9b9ba6',
+  gold: '#6366f1', goldSoft: '#818cf8', text: '#f5f5f7', muted: '#9b9ba6',
   green: '#34d399', blue: '#60a5fa', red: '#fb7185', violet: '#a78bfa',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
@@ -144,7 +144,7 @@ export default function DealsScreen() {
       {/* Segments */}
       <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 3, margin: '0 18px 14px' }}>
         {([['voitures', 'Voitures'], ['immo', 'Immo'], ['opportunites', 'Opportunités']] as const).map(([id, lbl]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, background: tab === id ? C.gold : 'transparent', color: tab === id ? '#1a1300' : C.muted }}>{lbl}</button>
+          <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, background: tab === id ? C.gold : 'transparent', color: tab === id ? '#ffffff' : C.muted }}>{lbl}</button>
         ))}
       </div>
 
@@ -295,7 +295,7 @@ export default function DealsScreen() {
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button onClick={() => { setShow(false); setForm(EMPTY_V); setPhotos([]); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={() => void addVehicle()} disabled={saving} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#1a1300', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
+              <button onClick={() => void addVehicle()} disabled={saving} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#ffffff', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
             </div>
           </div>
         </div>

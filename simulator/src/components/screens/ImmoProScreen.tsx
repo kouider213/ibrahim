@@ -8,8 +8,8 @@ const C = {
   surface: '#16161c',
   surface2:'#1d1d25',
   border:  'rgba(255,255,255,0.07)',
-  gold:    '#e9b949',
-  goldSoft:'#f3d488',
+  gold:    '#6366f1',
+  goldSoft:'#818cf8',
   text:    '#f5f5f7',
   muted:   '#9b9ba6',
   green:   '#34d399',
@@ -170,12 +170,12 @@ export default function ImmoProScreen() {
       <div style={{ display: 'flex', gap: 8, padding: '0 18px 14px', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 3, flex: 1 }}>
           {(['tous', 'location', 'vente'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: '7px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, background: filter === f ? C.gold : 'transparent', color: filter === f ? '#1a1300' : C.muted, transition: 'all .2s' }}>
+            <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: '7px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, background: filter === f ? C.gold : 'transparent', color: filter === f ? '#ffffff' : C.muted, transition: 'all .2s' }}>
               {f === 'tous' ? 'Tous' : f === 'location' ? 'À louer' : 'À vendre'}
             </button>
           ))}
         </div>
-        <button onClick={() => setShow(true)} style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#1a1300', fontSize: 22, fontWeight: 700, boxShadow: `0 6px 18px ${C.gold}44` }}>+</button>
+        <button onClick={() => setShow(true)} style={{ width: 42, height: 42, borderRadius: 12, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#ffffff', fontSize: 22, fontWeight: 700, boxShadow: `0 6px 18px ${C.gold}44` }}>+</button>
       </div>
 
       {/* Liste */}
@@ -286,7 +286,7 @@ export default function ImmoProScreen() {
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button onClick={() => { setShow(false); setForm(EMPTY); setPhotos([]); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={() => void add()} disabled={saving || !form.title.trim()} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#1a1300', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving || !form.title.trim() ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
+              <button onClick={() => void add()} disabled={saving || !form.title.trim()} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#ffffff', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving || !form.title.trim() ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
             </div>
           </div>
         </div>

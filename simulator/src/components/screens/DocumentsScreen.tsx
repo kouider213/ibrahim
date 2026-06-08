@@ -60,8 +60,8 @@ export default function DocumentsScreen() {
           style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column' }}
           onClick={() => setViewDoc(null)}
         >
-          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e9b94922' }}>
-            <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#e9b949', letterSpacing: '0.2em' }}>
+          <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #6366f122' }}>
+            <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#6366f1', letterSpacing: '0.2em' }}>
               {viewDoc.type.toUpperCase()} — {viewDoc.client_name}
             </span>
             <button
@@ -75,7 +75,7 @@ export default function DocumentsScreen() {
             <img
               src={viewDoc.file_url}
               alt={viewDoc.type}
-              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8, border: '1px solid #e9b94922' }}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8, border: '1px solid #6366f122' }}
               onClick={e => e.stopPropagation()}
             />
           </div>
@@ -87,21 +87,21 @@ export default function DocumentsScreen() {
       )}
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #e9b94912', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#e9b949', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #e9b94955' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             DOCUMENTS
           </div>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#e9b94944', letterSpacing: '0.2em' }}>BASE CLIENTS</span>
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#6366f144', letterSpacing: '0.2em' }}>BASE CLIENTS</span>
         </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #e9b94944, transparent)' }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)' }} />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
         {/* Fetch document panel */}
-        <div style={{ background: 'rgba(233,185,73,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #e9b9491a' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b94977', letterSpacing: '0.25em', marginBottom: 10 }}>
+        <div style={{ background: 'rgba(99,102,241,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #6366f11a' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f177', letterSpacing: '0.25em', marginBottom: 10 }}>
             ▶ RÉCUPÉRER DOCUMENT CLIENT
           </div>
 
@@ -122,10 +122,10 @@ export default function DocumentsScreen() {
                   disabled={loading}
                   style={{
                     flex: 1,
-                    background: active ? 'rgba(233,185,73,0.15)' : loading ? 'rgba(233,185,73,0.03)' : 'rgba(233,185,73,0.08)',
-                    border: `1px solid #e9b949${active ? '88' : loading ? '18' : '44'}`,
+                    background: active ? 'rgba(99,102,241,0.15)' : loading ? 'rgba(99,102,241,0.03)' : 'rgba(99,102,241,0.08)',
+                    border: `1px solid #6366f1${active ? '88' : loading ? '18' : '44'}`,
                     borderRadius: 10, padding: '10px 6px',
-                    fontFamily: 'Orbitron', color: `#e9b949${loading ? '55' : 'cc'}`,
+                    fontFamily: 'Orbitron', color: `#6366f1${loading ? '55' : 'cc'}`,
                     cursor: loading ? 'default' : 'pointer', textAlign: 'center',
                     transition: 'all 0.2s',
                   }}
@@ -138,7 +138,7 @@ export default function DocumentsScreen() {
           </div>
 
           {loading && (
-            <div style={{ marginTop: 10, textAlign: 'center', fontSize: 8, color: '#e9b94955', letterSpacing: '0.2em', fontFamily: 'Orbitron' }}>
+            <div style={{ marginTop: 10, textAlign: 'center', fontSize: 8, color: '#6366f155', letterSpacing: '0.2em', fontFamily: 'Orbitron' }}>
               RÉCUPÉRATION EN COURS…
             </div>
           )}
@@ -152,7 +152,7 @@ export default function DocumentsScreen() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontSize: 7, color: '#e9b94944', letterSpacing: '0.15em', fontFamily: 'Orbitron' }}>
+                  <div style={{ fontSize: 7, color: '#6366f144', letterSpacing: '0.15em', fontFamily: 'Orbitron' }}>
                     {docs.length} DOCUMENT{docs.length > 1 ? 'S' : ''} TROUVÉ{docs.length > 1 ? 'S' : ''}
                   </div>
                   {docs.map(doc => (
@@ -161,15 +161,15 @@ export default function DocumentsScreen() {
                       onClick={() => setViewDoc(doc)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        background: 'rgba(233,185,73,0.05)', borderRadius: 10,
-                        border: '1px solid #e9b94922', padding: '8px 10px',
+                        background: 'rgba(99,102,241,0.05)', borderRadius: 10,
+                        border: '1px solid #6366f122', padding: '8px 10px',
                         cursor: 'pointer',
                       }}
                     >
                       <div style={{
                         width: 48, height: 48, borderRadius: 8, flexShrink: 0,
-                        overflow: 'hidden', border: '1px solid #e9b94922',
-                        background: '#e9b94908',
+                        overflow: 'hidden', border: '1px solid #6366f122',
+                        background: '#6366f108',
                       }}>
                         <img
                           src={doc.file_url}
@@ -178,7 +178,7 @@ export default function DocumentsScreen() {
                         />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b949cc', letterSpacing: '0.15em', marginBottom: 2 }}>
+                        <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f1cc', letterSpacing: '0.15em', marginBottom: 2 }}>
                           {doc.type.toUpperCase()}
                         </div>
                         <div style={{ fontSize: 8, color: '#c8e8ff', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -188,7 +188,7 @@ export default function DocumentsScreen() {
                           {new Date(doc.created_at).toLocaleDateString('fr-FR')}
                         </div>
                       </div>
-                      <div style={{ fontSize: 8, color: '#e9b94944' }}>▶</div>
+                      <div style={{ fontSize: 8, color: '#6366f144' }}>▶</div>
                     </div>
                   ))}
                 </div>
@@ -348,13 +348,13 @@ function ContractGenerator() {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(233,185,73,0.04)', border: '1px solid #e9b9491a',
+  background: 'rgba(99,102,241,0.04)', border: '1px solid #6366f11a',
   borderRadius: 8, padding: '8px 10px',
   fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#e9b949';
+  const s = 12, t = 1.5, col = '#6366f1';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';

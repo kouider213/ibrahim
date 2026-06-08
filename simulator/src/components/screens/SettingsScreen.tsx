@@ -17,7 +17,7 @@ const RULES = [
   { id: 1, rule: 'Acompte minimum 30% à la réservation pour les nouveaux clients', cat: 'BUSINESS',   priority: 9, col: '#ff3366' },
   { id: 2, rule: 'Vérifier disponibilité voiture avant de confirmer une résa',      cat: 'BUSINESS',   priority: 10, col: '#ff3366' },
   { id: 3, rule: 'Profit = (client_price - owner_price) × nb_jours. Jamais catalogue.', cat: 'PRICING', priority: 10, col: '#ffb347' },
-  { id: 4, rule: 'Kouider préfère les réponses courtes et directes',                cat: 'COMM',       priority: 7, col: '#e9b949' },
+  { id: 4, rule: 'Kouider préfère les réponses courtes et directes',                cat: 'COMM',       priority: 7, col: '#6366f1' },
   { id: 5, rule: 'Houari gère les opérations terrain à Oran directement',           cat: 'OPÉRATIONS', priority: 8, col: '#7c3aed' },
   { id: 6, rule: 'Houari préfère le darija oranais pour communiquer',               cat: 'COMM',       priority: 9, col: '#7c3aed' },
 ];
@@ -128,16 +128,16 @@ export default function SettingsScreen() {
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #e9b94912', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#e9b949', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #e9b94955' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             RÉGLAGES
           </div>
           {msg && (
             <span style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>
           )}
         </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #e9b94944, transparent)' }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)' }} />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -215,7 +215,7 @@ export default function SettingsScreen() {
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <StatusPill label="API" val={health?.status?.toUpperCase() ?? '…'} ok={apiOk} />
             <StatusPill label="NEXUS" val={nexusOk ? 'CONNECTÉ' : 'HORS LIGNE'} ok={nexusOk} />
-            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#e9b949" />
+            <StatusPill label="UPTIME" val={fmtUptime(health?.uptime)} ok={!!health} col="#6366f1" />
           </div>
           {nexusOk && nexus && (
             <div style={{
@@ -231,7 +231,7 @@ export default function SettingsScreen() {
               {nexus.os && <NexusRow k="OS" v={nexus.os.slice(0, 14)} />}
             </div>
           )}
-          <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#e9b949')}>
+          <button onClick={() => void checkHealth()} disabled={loadingH} style={actionBtn('#6366f1')}>
             {loadingH ? 'TEST EN COURS…' : '↻ TESTER LA CONNEXION'}
           </button>
         </Panel>
@@ -265,8 +265,8 @@ export default function SettingsScreen() {
                   onClick={() => void triggerJob(j.name)}
                   disabled={triggering === j.name}
                   style={{
-                    background: '#e9b94918', border: '1px solid #e9b94944', borderRadius: 6,
-                    width: 28, height: 28, cursor: 'pointer', color: '#e9b949',
+                    background: '#6366f118', border: '1px solid #6366f144', borderRadius: 6,
+                    width: 28, height: 28, cursor: 'pointer', color: '#6366f1',
                     fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0, opacity: triggering === j.name ? 0.5 : 1,
                   }}
@@ -283,7 +283,7 @@ export default function SettingsScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
             {RULES.map(r => (
               <div key={r.id} style={{
-                background: 'rgba(233,185,73,0.03)', borderRadius: 8,
+                background: 'rgba(99,102,241,0.03)', borderRadius: 8,
                 border: `1px solid ${r.col}22`, padding: '7px 10px',
                 display: 'flex', gap: 8, alignItems: 'flex-start',
               }}>
@@ -310,13 +310,13 @@ export default function SettingsScreen() {
         <Panel title="CAPACITÉS & AGENTS DZARYX">
           <button
             onClick={() => setShowCaps(s => !s)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(233,185,73,0.06)', border: '1px solid #e9b94922', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Share Tech Mono', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.06)', border: '1px solid #6366f122', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Share Tech Mono', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
             <span>🤖 14 agents · ce que Dzaryx sait faire</span>
-            <span style={{ color: '#e9b94988' }}>{showCaps ? '▲' : '▼'}</span>
+            <span style={{ color: '#6366f188' }}>{showCaps ? '▲' : '▼'}</span>
           </button>
           {showCaps && (
-            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #e9b94912' }}>
+            <div style={{ marginTop: 10, height: 520, borderRadius: 10, overflow: 'hidden', border: '1px solid #6366f112' }}>
               <CapacitesScreen />
             </div>
           )}
@@ -335,8 +335,8 @@ export default function SettingsScreen() {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: 'rgba(233,185,73,0.03)', borderRadius: 12, padding: '12px', border: '1px solid #e9b94912' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#e9b94955', letterSpacing: '0.3em', marginBottom: 10 }}>{title}</div>
+    <div style={{ background: 'rgba(99,102,241,0.03)', borderRadius: 12, padding: '12px', border: '1px solid #6366f112' }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#6366f155', letterSpacing: '0.3em', marginBottom: 10 }}>{title}</div>
       {children}
     </div>
   );
@@ -383,7 +383,7 @@ function NexusRow({ k, v }: { k: string; v: string }) {
 }
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#e9b949';
+  const s = 12, t = 1.5, col = '#6366f1';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';

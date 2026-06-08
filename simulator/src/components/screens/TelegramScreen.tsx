@@ -29,7 +29,7 @@ const MESSAGES: Record<string, TgMsg[]> = {
     {
       id: 'm1', from: 'system', type: 'text', time: '06:07',
       text: 'DZARYX ONLINE', subtext: 'Connecté depuis Railway · Socket.IO actif',
-      tag: 'SYSTÈME', tagCol: '#e9b949',
+      tag: 'SYSTÈME', tagCol: '#6366f1',
     },
     {
       id: 'm2', from: 'dzaryx', type: 'alert', time: '07:00',
@@ -79,7 +79,7 @@ const MESSAGES: Record<string, TgMsg[]> = {
     },
     {
       id: 'm11', from: 'dzaryx', type: 'alert', time: '14:05',
-      tag: '📊 RAPPORT MAI 2026', tagCol: '#e9b949',
+      tag: '📊 RAPPORT MAI 2026', tagCol: '#6366f1',
       text: 'CA BRUT: 2 847€\nProfit Kouider: 743€\nEncaissé: 2 503€\nÀ encaisser: 344€\n\nTop véhicule: Jumpy 9pl (812€)\nRéservations: 18 | Actives: 4\nOccupation moy: 64%\n\n📈 +12% vs avril 2026',
       actions: ['DÉTAIL PAR VOITURE', 'EXPORTER EXCEL'],
     },
@@ -103,7 +103,7 @@ const MESSAGES: Record<string, TgMsg[]> = {
     },
     {
       id: 'f4', from: 'dzaryx', type: 'alert', time: '18:30',
-      tag: '📊 BILAN JOURNÉE', tagCol: '#e9b949',
+      tag: '📊 BILAN JOURNÉE', tagCol: '#6366f1',
       text: 'Encaissé aujourd\'hui: 220€\nNouv. réservations: 1 (+180€)\nImpayés restants: 2 (344€)\nProfit estimé jour: 47€',
     },
     {
@@ -132,7 +132,7 @@ const MESSAGES: Record<string, TgMsg[]> = {
   resas: [
     {
       id: 'r1', from: 'dzaryx', type: 'alert', time: '07:00',
-      tag: '📋 ÉTAT DU PARC', tagCol: '#e9b949',
+      tag: '📋 ÉTAT DU PARC', tagCol: '#6366f1',
       text: 'Réservations actives: 4\n─────────────────\n🚗 Clio 5 Alpine → Karim B.\n🚗 Berlingo → Sofiane K.\n🚗 Jumpy 9pl → Famille Hadj\n🚗 Sandero → Riad T.\n─────────────────\nDisponibles: Jogger, Duster, i10',
     },
     {
@@ -160,7 +160,7 @@ const MESSAGES: Record<string, TgMsg[]> = {
     },
     {
       id: 'd2', from: 'dzaryx', type: 'file', time: '09:10',
-      tag: '🪪 PASSEPORT', tagCol: '#e9b949',
+      tag: '🪪 PASSEPORT', tagCol: '#6366f1',
       photo: '🪪',
       text: 'Karim Benali\nN°: AB7654321\nNé: 05/07/1990\nExp: 03/2029\n✅ Document valide',
       actions: ['VOIR ORIGINAL'],
@@ -236,7 +236,7 @@ const MESSAGES: Record<string, TgMsg[]> = {
     },
     {
       id: 'p4', from: 'dzaryx', type: 'alert', time: '14:00',
-      tag: '📊 VEILLE CONCURRENTS', tagCol: '#e9b949',
+      tag: '📊 VEILLE CONCURRENTS', tagCol: '#6366f1',
       text: 'Analyse location voiture Oran:\n\n• West Car Oran: dès 4500 DA/j\n• Location Confort Oran: 5000 DA/j\n• Karroussa: 4200 DA/j\n\n📈 Fik Conciergerie: compétitif\nSources: web_search (3 sites)' ,
       actions: ['VOIR ANALYSE COMPLÈTE'],
     },
@@ -262,8 +262,8 @@ export default function TelegramScreen() {
           {/* Bot avatar */}
           <div style={{
             width: 34, height: 34, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #e9b94922, #e9b94944)',
-            border: '1.5px solid #e9b94955',
+            background: 'linear-gradient(135deg, #6366f122, #6366f144)',
+            border: '1.5px solid #6366f155',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 16, flexShrink: 0,
           }}>🤖</div>
@@ -290,7 +290,7 @@ export default function TelegramScreen() {
                 onClick={() => setActiveChannel(ch.id)}
                 style={{
                   flexShrink: 0, background: active ? '#2b5278' : '#182533',
-                  border: active ? '1px solid #e9b94944' : '1px solid transparent',
+                  border: active ? '1px solid #6366f144' : '1px solid transparent',
                   borderRadius: 12, padding: '3px 8px',
                   display: 'flex', alignItems: 'center', gap: 4,
                   cursor: 'pointer', transition: 'all 0.15s',
@@ -370,7 +370,7 @@ function TgMessage({ msg }: { msg: TgMsg }) {
           background: '#182533', borderRadius: 12, padding: '4px 12px',
           fontSize: 8, color: '#ffffff44', fontFamily: 'Share Tech Mono', letterSpacing: '0.1em',
         }}>
-          {msg.tag && <span style={{ color: msg.tagCol ?? '#e9b949' }}>{msg.tag} · </span>}
+          {msg.tag && <span style={{ color: msg.tagCol ?? '#6366f1' }}>{msg.tag} · </span>}
           {msg.text}
           {msg.subtext && <span style={{ color: '#ffffff22' }}> · {msg.subtext}</span>}
         </span>
@@ -402,13 +402,13 @@ function TgMessage({ msg }: { msg: TgMsg }) {
       {/* Avatar */}
       <div style={{
         width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-        background: '#e9b94915', border: '1px solid #e9b94933',
+        background: '#6366f115', border: '1px solid #6366f133',
         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
       }}>🤖</div>
 
       <div style={{ maxWidth: '78%', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {/* Name */}
-        <div style={{ fontSize: 9, color: '#e9b949', fontWeight: 600, marginLeft: 1 }}>Dzaryx</div>
+        <div style={{ fontSize: 9, color: '#6366f1', fontWeight: 600, marginLeft: 1 }}>Dzaryx</div>
 
         <div style={{
           background: '#182533', borderRadius: '2px 12px 12px 12px',
@@ -417,9 +417,9 @@ function TgMessage({ msg }: { msg: TgMsg }) {
           {/* Tag */}
           {msg.tag && (
             <div style={{
-              fontFamily: 'Share Tech Mono', fontSize: 8, color: msg.tagCol ?? '#e9b949',
+              fontFamily: 'Share Tech Mono', fontSize: 8, color: msg.tagCol ?? '#6366f1',
               fontWeight: 700, letterSpacing: '0.08em', marginBottom: 5,
-              borderLeft: `2px solid ${msg.tagCol ?? '#e9b949'}`,
+              borderLeft: `2px solid ${msg.tagCol ?? '#6366f1'}`,
               paddingLeft: 6,
             }}>
               {msg.tag}
@@ -445,7 +445,7 @@ function TgMessage({ msg }: { msg: TgMsg }) {
                 </div>
               )}
               {msg.type === 'file' && (
-                <div style={{ fontSize: 8, color: '#e9b94944', marginTop: 4, fontFamily: 'Share Tech Mono' }}>
+                <div style={{ fontSize: 8, color: '#6366f144', marginTop: 4, fontFamily: 'Share Tech Mono' }}>
                   📎 DOCUMENT
                 </div>
               )}
@@ -470,7 +470,7 @@ function TgMessage({ msg }: { msg: TgMsg }) {
                   key={i}
                   style={{
                     background: i === 0 ? '#2b5278' : '#1a2d3e',
-                    border: '1px solid #e9b94933', borderRadius: 8,
+                    border: '1px solid #6366f133', borderRadius: 8,
                     padding: '4px 8px', fontSize: 8, color: '#a8d8f0',
                     cursor: 'pointer', fontFamily: 'Share Tech Mono', letterSpacing: '0.05em',
                     transition: 'background 0.15s',

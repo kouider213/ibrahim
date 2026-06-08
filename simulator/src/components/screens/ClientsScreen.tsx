@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType } from '../../services/api.ts';
 
 const TYPE_META: Record<ClientType, { label: string; col: string }> = {
-  loc_auto:   { label: 'LOC AUTO',   col: '#e9b949' },
+  loc_auto:   { label: 'LOC AUTO',   col: '#6366f1' },
   loc_immo:   { label: 'LOC IMMO',   col: '#b06bff' },
   achat_auto: { label: 'ACHAT AUTO', col: '#ff9f43' },
   achat_immo: { label: 'ACHAT IMMO', col: '#00e676' },
@@ -18,11 +18,11 @@ const OP_META: Record<string, { label: string; icon: string; col: string }> = {
 };
 
 const SCORE_COL: Record<string, string> = {
-  VIP: '#ffd700', FREQUENT: '#e9b949', FRÉQUENT: '#e9b949',
+  VIP: '#ffd700', FREQUENT: '#6366f1', FRÉQUENT: '#6366f1',
   REGULAR: '#00e676', RÉGULIER: '#00e676', NEW: '#ffffff66', NOUVEAU: '#ffffff66',
 };
 const SCORE_BG: Record<string, string> = {
-  VIP: '#ffd70018', FREQUENT: '#e9b94918', FRÉQUENT: '#e9b94918',
+  VIP: '#ffd70018', FREQUENT: '#6366f118', FRÉQUENT: '#6366f118',
   REGULAR: '#00e67618', RÉGULIER: '#00e67618', NEW: '#ffffff0a', NOUVEAU: '#ffffff0a',
 };
 
@@ -77,19 +77,19 @@ export default function ClientsScreen() {
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #e9b94912', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#e9b949', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #e9b94955' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             CLIENTS
           </div>
-          <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b94955', letterSpacing: '0.15em' }}>
+          <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f155', letterSpacing: '0.15em' }}>
             {clients.length} PROFILS
           </span>
         </div>
 
         {/* KPI row */}
         <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
-          <KpiCard label="TOTAL" val={String(clients.length)} col="#e9b949" />
+          <KpiCard label="TOTAL" val={String(clients.length)} col="#6366f1" />
           <KpiCard label="VIP" val={String(vipCount)} col="#ffd700" />
           <KpiCard label="CA TOTAL" val={fmt(totalSpent)} col="#00e676" />
         </div>
@@ -99,7 +99,7 @@ export default function ClientsScreen() {
           placeholder="Chercher nom / téléphone…"
           style={inputStyle}
         />
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #e9b94944, transparent)' }} />
+        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)' }} />
       </div>
 
       {/* Client list */}
@@ -184,7 +184,7 @@ export default function ClientsScreen() {
                     <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
                     <Row label="Dépenses total" val={fmt(ci.total_spent)} col="#ffd700" />
                     {ci.notes && (
-                      <div style={{ marginTop: 6, padding: '6px 8px', background: '#e9b94905', borderRadius: 6, border: '1px solid #e9b9490f', fontSize: 8, color: '#ffffff77', lineHeight: 1.6 }}>
+                      <div style={{ marginTop: 6, padding: '6px 8px', background: '#6366f105', borderRadius: 6, border: '1px solid #6366f10f', fontSize: 8, color: '#ffffff77', lineHeight: 1.6 }}>
                         {ci.notes}
                       </div>
                     )}
@@ -242,7 +242,7 @@ function Row({ label, val, col }: { label: string; val: string; col?: string }) 
 }
 
 function HudLoader() {
-  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#e9b94933', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>CHARGEMENT…</div>;
+  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>CHARGEMENT…</div>;
 }
 function HudEmpty({ text }: { text: string }) {
   return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#ffffff1a', letterSpacing: '0.1em' }}>{text}</div>;
@@ -250,13 +250,13 @@ function HudEmpty({ text }: { text: string }) {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(233,185,73,0.04)', border: '1px solid #e9b9491a',
+  background: 'rgba(99,102,241,0.04)', border: '1px solid #6366f11a',
   borderRadius: 8, padding: '6px 10px',
   fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = '#e9b949';
+  const s = 12, t = 1.5, col = '#6366f1';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';

@@ -138,24 +138,24 @@ export default function NexusScreen() {
 
       {/* Header */}
       <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#e9b949', letterSpacing: '0.3em', fontWeight: 700, textAlign: 'center', textShadow: '0 0 12px #e9b94955' }}>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textAlign: 'center', textShadow: '0 0 12px #6366f155' }}>
           NEXUS PC
         </div>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#e9b94944', letterSpacing: '0.25em', textAlign: 'center', marginBottom: 6 }}>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#6366f144', letterSpacing: '0.25em', textAlign: 'center', marginBottom: 6 }}>
           CONTRÔLE DISTANT SÉCURISÉ
         </div>
 
         {/* Status bar */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
           <StatusChip label="ÉTAT NEXUS" val={connTxt} col={connCol} icon="🤖" />
-          <StatusChip label="PC" val={hostname} col="#e9b949" icon="💻" />
+          <StatusChip label="PC" val={hostname} col="#6366f1" icon="💻" />
           <StatusChip label="LATENCE" val={latency !== null ? `${latency}ms` : '—'} col="#ffb347" icon="⚡" />
           <div
             onClick={() => { void checkStatus(); void capture(); }}
-            style={{ flexShrink: 0, background: 'rgba(233,185,73,0.08)', border: '1px solid #e9b94922', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+            style={{ flexShrink: 0, background: 'rgba(99,102,241,0.08)', border: '1px solid #6366f122', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
           >
             <span style={{ fontSize: 8 }}>{capturing ? '⏳' : '🔄'}</span>
-            <span style={{ fontFamily: 'Orbitron', fontSize: 4, color: '#e9b94955', letterSpacing: '0.1em' }}>ACTU</span>
+            <span style={{ fontFamily: 'Orbitron', fontSize: 4, color: '#6366f155', letterSpacing: '0.1em' }}>ACTU</span>
           </div>
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function NexusScreen() {
         {/* Live screen */}
         <div style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#e9b94966', letterSpacing: '0.2em' }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#6366f166', letterSpacing: '0.2em' }}>
               📺 ÉCRAN DU PC EN DIRECT
             </div>
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -174,13 +174,13 @@ export default function NexusScreen() {
               <span style={{ fontSize: 7, color: '#ffffff22' }}>{imgTs}</span>
               <button
                 onClick={() => setFullscreen(f => !f)}
-                style={{ ...miniBtn('#e9b949') }}
+                style={{ ...miniBtn('#6366f1') }}
               >{fullscreen ? '⊡' : '⊞'}</button>
               <button
                 onClick={() => setLiveMode(l => !l)}
                 style={{ ...miniBtn(liveMode ? '#00e676' : '#ffffff33'), fontSize: 6 }}
               >{liveMode ? '⏹ STOP' : '▶ LIVE'}</button>
-              <button onClick={() => void capture()} style={{ ...miniBtn('#e9b949') }}>📸</button>
+              <button onClick={() => void capture()} style={{ ...miniBtn('#6366f1') }}>📸</button>
             </div>
           </div>
 
@@ -189,7 +189,7 @@ export default function NexusScreen() {
             position: 'relative',
             background: '#000',
             borderRadius: 8,
-            border: `1px solid ${connected ? '#e9b94933' : '#ff336622'}`,
+            border: `1px solid ${connected ? '#6366f133' : '#ff336622'}`,
             overflow: 'hidden',
             height: fullscreen ? 220 : 150,
           }}>
@@ -207,18 +207,18 @@ export default function NexusScreen() {
               />
             ) : (
               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#e9b94922', letterSpacing: '0.2em' }}>
+                <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f122', letterSpacing: '0.2em' }}>
                   {connected ? '📸 CLIQUER POUR CAPTURER' : '🔴 NEXUS HORS LIGNE'}
                 </div>
                 {connected && (
-                  <button onClick={() => void capture()} style={{ ...btnStyle('#e9b949'), fontSize: 7, padding: '4px 10px' }}>
+                  <button onClick={() => void capture()} style={{ ...btnStyle('#6366f1'), fontSize: 7, padding: '4px 10px' }}>
                     CAPTURER L'ÉCRAN
                   </button>
                 )}
               </div>
             )}
             {capturing && (
-              <div style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(233,185,73,0.2)', borderRadius: 4, padding: '2px 5px', fontSize: 7, color: '#e9b949' }}>
+              <div style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(99,102,241,0.2)', borderRadius: 4, padding: '2px 5px', fontSize: 7, color: '#6366f1' }}>
                 ⏳
               </div>
             )}
@@ -234,9 +234,9 @@ export default function NexusScreen() {
             {(['left', 'right', 'double'] as const).map(m => (
               <button key={m} onClick={() => setClickMode(m)} style={{
                 flex: 1, padding: '4px 0', fontFamily: 'Orbitron', fontSize: 5, letterSpacing: '0.1em',
-                background: clickMode === m ? 'rgba(233,185,73,0.15)' : 'rgba(233,185,73,0.03)',
-                border: `1px solid ${clickMode === m ? '#e9b94988' : '#e9b94918'}`,
-                borderRadius: 6, color: clickMode === m ? '#e9b949' : '#ffffff44', cursor: 'pointer',
+                background: clickMode === m ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.03)',
+                border: `1px solid ${clickMode === m ? '#6366f188' : '#6366f118'}`,
+                borderRadius: 6, color: clickMode === m ? '#6366f1' : '#ffffff44', cursor: 'pointer',
               }}>
                 {m === 'left' ? '👆 CLIC' : m === 'right' ? '👆 DROIT' : '👆 DBL'}
               </button>
@@ -252,9 +252,9 @@ export default function NexusScreen() {
             { icon: '✌️', label: 'APPUI LONG', sub: '= CLIC DROIT' },
             { icon: '🖐️', label: 'GLISSER', sub: '= CURSEUR' },
           ].map(g => (
-            <div key={g.label} style={{ flex: '1 0 40%', background: 'rgba(233,185,73,0.03)', borderRadius: 6, padding: '4px 6px', border: '1px solid #e9b94910', textAlign: 'center' }}>
+            <div key={g.label} style={{ flex: '1 0 40%', background: 'rgba(99,102,241,0.03)', borderRadius: 6, padding: '4px 6px', border: '1px solid #6366f110', textAlign: 'center' }}>
               <div style={{ fontSize: 9 }}>{g.icon}</div>
-              <div style={{ fontFamily: 'Orbitron', fontSize: 5, color: '#e9b94966', letterSpacing: '0.1em' }}>{g.label}</div>
+              <div style={{ fontFamily: 'Orbitron', fontSize: 5, color: '#6366f166', letterSpacing: '0.1em' }}>{g.label}</div>
               <div style={{ fontSize: 5, color: '#ffffff33', marginTop: 1 }}>{g.sub}</div>
             </div>
           ))}
@@ -262,7 +262,7 @@ export default function NexusScreen() {
 
         {/* Quick actions */}
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#e9b94944', letterSpacing: '0.2em', marginBottom: 5 }}>ACTIONS RAPIDES</div>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#6366f144', letterSpacing: '0.2em', marginBottom: 5 }}>ACTIONS RAPIDES</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
             {[
               { icon: '🌐', label: 'CHROME',   fn: () => business.nexusRunCommand('start chrome') },
@@ -283,15 +283,15 @@ export default function NexusScreen() {
                 }}
                 disabled={!connected && a.label !== 'VERROU'}
                 style={{
-                  background: i === 6 ? 'rgba(255,136,0,0.08)' : i === 7 ? (secLock ? 'rgba(255,51,102,0.15)' : 'rgba(255,51,102,0.06)') : 'rgba(233,185,73,0.06)',
-                  border: `1px solid ${i === 6 ? '#ff880022' : i === 7 ? '#ff336633' : '#e9b94918'}`,
+                  background: i === 6 ? 'rgba(255,136,0,0.08)' : i === 7 ? (secLock ? 'rgba(255,51,102,0.15)' : 'rgba(255,51,102,0.06)') : 'rgba(99,102,241,0.06)',
+                  border: `1px solid ${i === 6 ? '#ff880022' : i === 7 ? '#ff336633' : '#6366f118'}`,
                   borderRadius: 8, padding: '6px 2px',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                   cursor: connected ? 'pointer' : 'default', opacity: connected ? 1 : 0.4,
                 }}
               >
                 <span style={{ fontSize: 14 }}>{a.label === 'VERROU' && secLock ? '🔓' : a.icon}</span>
-                <span style={{ fontFamily: 'Orbitron', fontSize: 4.5, color: i === 6 ? '#ff8800' : i === 7 ? '#ff3366' : '#e9b94977', letterSpacing: '0.05em' }}>
+                <span style={{ fontFamily: 'Orbitron', fontSize: 4.5, color: i === 6 ? '#ff8800' : i === 7 ? '#ff3366' : '#6366f177', letterSpacing: '0.05em' }}>
                   {a.label === 'NEXUS' ? 'RESTART' : a.label}
                 </span>
               </button>
@@ -300,8 +300,8 @@ export default function NexusScreen() {
         </div>
 
         {/* Command input */}
-        <div style={{ marginBottom: 8, background: 'rgba(233,185,73,0.02)', borderRadius: 10, padding: 10, border: '1px solid #e9b94912' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#e9b94955', letterSpacing: '0.2em', marginBottom: 6 }}>COMMANDE RAPIDE</div>
+        <div style={{ marginBottom: 8, background: 'rgba(99,102,241,0.02)', borderRadius: 10, padding: 10, border: '1px solid #6366f112' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#6366f155', letterSpacing: '0.2em', marginBottom: 6 }}>COMMANDE RAPIDE</div>
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={cmd}
@@ -311,7 +311,7 @@ export default function NexusScreen() {
               disabled={!connected || secLock}
               style={{ ...inputSt, flex: 1 }}
             />
-            <button onClick={() => void runCmd()} disabled={!connected || !cmd.trim() || cmdRunning || secLock} style={{ ...btnStyle('#e9b949'), padding: '4px 10px', fontSize: 10 }}>
+            <button onClick={() => void runCmd()} disabled={!connected || !cmd.trim() || cmdRunning || secLock} style={{ ...btnStyle('#6366f1'), padding: '4px 10px', fontSize: 10 }}>
               {cmdRunning ? '⏳' : '▶'}
             </button>
           </div>
@@ -319,8 +319,8 @@ export default function NexusScreen() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
             {['ouvre Chrome', 'lance Claude Code', 'fais une capture', 'ouvre VS Code', 'exécute npm run build'].map(q => (
               <button key={q} onClick={() => setCmd(q)} style={{
-                background: 'rgba(233,185,73,0.05)', border: '1px solid #e9b94918', borderRadius: 12,
-                padding: '3px 8px', fontSize: 7, color: '#e9b94955', cursor: 'pointer', fontFamily: 'Share Tech Mono',
+                background: 'rgba(99,102,241,0.05)', border: '1px solid #6366f118', borderRadius: 12,
+                padding: '3px 8px', fontSize: 7, color: '#6366f155', cursor: 'pointer', fontFamily: 'Share Tech Mono',
               }}>
                 {q}
               </button>
@@ -329,15 +329,15 @@ export default function NexusScreen() {
         </div>
 
         {/* Mouse directional pad */}
-        <div style={{ marginBottom: 8, background: 'rgba(233,185,73,0.02)', borderRadius: 10, padding: 10, border: '1px solid #e9b94912' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#e9b94955', letterSpacing: '0.2em', marginBottom: 6, textAlign: 'center' }}>CONTRÔLE SOURIS</div>
+        <div style={{ marginBottom: 8, background: 'rgba(99,102,241,0.02)', borderRadius: 10, padding: 10, border: '1px solid #6366f112' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#6366f155', letterSpacing: '0.2em', marginBottom: 6, textAlign: 'center' }}>CONTRÔLE SOURIS</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, maxWidth: 160, margin: '0 auto' }}>
             <div />
             <button onClick={() => business.nexusMouseScroll('up').then(r => addLog('Scroll ↑', r.result ?? '✅', r.ok))} style={padBtn}>↑</button>
             <div />
             <button onClick={() => {/* move left - would need position tracking */}} style={{ ...padBtn, opacity: 0.3 }}>←</button>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e9b94933', border: '1px solid #e9b94955' }} />
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f133', border: '1px solid #6366f155' }} />
             </div>
             <button onClick={() => {/* move right */}} style={{ ...padBtn, opacity: 0.3 }}>→</button>
             <div />
@@ -351,8 +351,8 @@ export default function NexusScreen() {
         </div>
 
         {/* Virtual keyboard — type text */}
-        <div style={{ marginBottom: 8, background: 'rgba(233,185,73,0.02)', borderRadius: 10, padding: 10, border: '1px solid #e9b94912' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#e9b94955', letterSpacing: '0.2em', marginBottom: 6 }}>CLAVIER VIRTUEL</div>
+        <div style={{ marginBottom: 8, background: 'rgba(99,102,241,0.02)', borderRadius: 10, padding: 10, border: '1px solid #6366f112' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#6366f155', letterSpacing: '0.2em', marginBottom: 6 }}>CLAVIER VIRTUEL</div>
 
           {/* Text input row */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
@@ -378,7 +378,7 @@ export default function NexusScreen() {
                 <button
                   key={k}
                   onClick={() => connected && !secLock && business.nexusKeyPress(k).then(r => addLog(`Key: ${k}`, r.result ?? '✅', r.ok)).catch(() => {})}
-                  style={{ width: 28, height: 24, background: 'rgba(233,185,73,0.06)', border: '1px solid #e9b94915', borderRadius: 5, color: '#c8e8ff', fontSize: 9, cursor: connected && !secLock ? 'pointer' : 'not-allowed', fontFamily: 'Share Tech Mono' }}
+                  style={{ width: 28, height: 24, background: 'rgba(99,102,241,0.06)', border: '1px solid #6366f115', borderRadius: 5, color: '#c8e8ff', fontSize: 9, cursor: connected && !secLock ? 'pointer' : 'not-allowed', fontFamily: 'Share Tech Mono' }}
                 >
                   {k}
                 </button>
@@ -397,7 +397,7 @@ export default function NexusScreen() {
               <button
                 key={k.label}
                 onClick={() => k.key && connected && !secLock && business.nexusKeyPress(k.key).then(r => addLog(`Key: ${k.label}`, r.result ?? '✅', r.ok)).catch(() => {})}
-                style={{ flex: k.label === 'ESPACE' ? 3 : 1, height: 24, background: 'rgba(233,185,73,0.04)', border: '1px solid #e9b94912', borderRadius: 5, color: '#ffffff55', fontSize: 8, cursor: k.key && connected && !secLock ? 'pointer' : 'default', fontFamily: 'Share Tech Mono' }}
+                style={{ flex: k.label === 'ESPACE' ? 3 : 1, height: 24, background: 'rgba(99,102,241,0.04)', border: '1px solid #6366f112', borderRadius: 5, color: '#ffffff55', fontSize: 8, cursor: k.key && connected && !secLock ? 'pointer' : 'default', fontFamily: 'Share Tech Mono' }}
               >
                 {k.label}
               </button>
@@ -428,14 +428,14 @@ export default function NexusScreen() {
         </div>
 
         {/* Action history */}
-        <div style={{ marginBottom: 8, background: 'rgba(233,185,73,0.02)', borderRadius: 10, padding: 10, border: '1px solid #e9b94912' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#e9b94955', letterSpacing: '0.2em', marginBottom: 6 }}>HISTORIQUE DES ACTIONS</div>
+        <div style={{ marginBottom: 8, background: 'rgba(99,102,241,0.02)', borderRadius: 10, padding: 10, border: '1px solid #6366f112' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#6366f155', letterSpacing: '0.2em', marginBottom: 6 }}>HISTORIQUE DES ACTIONS</div>
           {logs.length === 0 ? (
             <div style={{ textAlign: 'center', fontSize: 8, color: '#ffffff18', padding: 8 }}>Aucune action</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {logs.slice(0, 8).map((l, i) => (
-                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', padding: '3px 0', borderBottom: '1px solid #e9b94908' }}>
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', padding: '3px 0', borderBottom: '1px solid #6366f108' }}>
                   <span style={{ fontSize: 7, color: '#ffffff22', flexShrink: 0, minWidth: 40 }}>{l.time}</span>
                   <span style={{ fontSize: 7, color: '#c8e8ff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.cmd}</span>
                   <span style={{ fontSize: 7, color: l.ok ? '#00e676' : '#ff3366', flexShrink: 0 }}>{l.ok ? '✓' : '✗'}</span>
@@ -448,11 +448,11 @@ export default function NexusScreen() {
         {/* Options affichage + sécurité */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
           {/* Display options */}
-          <div style={{ background: 'rgba(233,185,73,0.02)', borderRadius: 10, padding: 8, border: '1px solid #e9b94912' }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#e9b94955', letterSpacing: '0.15em', marginBottom: 6 }}>OPTIONS AFFICHAGE</div>
+          <div style={{ background: 'rgba(99,102,241,0.02)', borderRadius: 10, padding: 8, border: '1px solid #6366f112' }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: '#6366f155', letterSpacing: '0.15em', marginBottom: 6 }}>OPTIONS AFFICHAGE</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <Row label="QUALITÉ" val={
-                <select value={quality} onChange={e => setQuality(Number(e.target.value))} style={{ background: '#020810', border: '1px solid #e9b94922', color: '#e9b949', borderRadius: 4, fontSize: 7, padding: '1px 3px', fontFamily: 'Share Tech Mono' }}>
+                <select value={quality} onChange={e => setQuality(Number(e.target.value))} style={{ background: '#020810', border: '1px solid #6366f122', color: '#6366f1', borderRadius: 4, fontSize: 7, padding: '1px 3px', fontFamily: 'Share Tech Mono' }}>
                   <option value={30}>Basse</option>
                   <option value={50}>Moy.</option>
                   <option value={70}>Haute</option>
@@ -460,7 +460,7 @@ export default function NexusScreen() {
                 </select>
               } />
               <Row label="ÉCHELLE" val={
-                <select value={scale} onChange={e => setScale(Number(e.target.value))} style={{ background: '#020810', border: '1px solid #e9b94922', color: '#e9b949', borderRadius: 4, fontSize: 7, padding: '1px 3px', fontFamily: 'Share Tech Mono' }}>
+                <select value={scale} onChange={e => setScale(Number(e.target.value))} style={{ background: '#020810', border: '1px solid #6366f122', color: '#6366f1', borderRadius: 4, fontSize: 7, padding: '1px 3px', fontFamily: 'Share Tech Mono' }}>
                   <option value={0.3}>30%</option>
                   <option value={0.5}>50%</option>
                   <option value={0.75}>75%</option>
@@ -472,8 +472,8 @@ export default function NexusScreen() {
           </div>
 
           {/* Security mode */}
-          <div style={{ background: secLock ? 'rgba(255,51,102,0.04)' : 'rgba(233,185,73,0.02)', borderRadius: 10, padding: 8, border: `1px solid ${secLock ? '#ff336622' : '#e9b94912'}` }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: secLock ? '#ff3366aa' : '#e9b94955', letterSpacing: '0.15em', marginBottom: 6 }}>MODE SÉCURITÉ</div>
+          <div style={{ background: secLock ? 'rgba(255,51,102,0.04)' : 'rgba(99,102,241,0.02)', borderRadius: 10, padding: 8, border: `1px solid ${secLock ? '#ff336622' : '#6366f112'}` }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: secLock ? '#ff3366aa' : '#6366f155', letterSpacing: '0.15em', marginBottom: 6 }}>MODE SÉCURITÉ</div>
             <div style={{ fontSize: 7, color: '#ffffff33', lineHeight: 1.6, marginBottom: 6 }}>
               • Confirmation avant actions<br />
               • Suppressions bloquées<br />
@@ -510,13 +510,13 @@ function Row({ label, val }: { label: string; val: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <span style={{ fontSize: 6, color: '#ffffff22', fontFamily: 'Orbitron', letterSpacing: '0.08em' }}>{label}</span>
-      <span style={{ fontSize: 7, color: '#e9b949cc' }}>{val}</span>
+      <span style={{ fontSize: 7, color: '#6366f1cc' }}>{val}</span>
     </div>
   );
 }
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 10, t = 1.5, col = '#e9b949';
+  const s = 10, t = 1.5, col = '#6366f1';
   const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
   const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
   const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
@@ -529,7 +529,7 @@ function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
 const inputSt: React.CSSProperties = {
-  background: 'rgba(233,185,73,0.04)', border: '1px solid #e9b9491a',
+  background: 'rgba(99,102,241,0.04)', border: '1px solid #6366f11a',
   borderRadius: 8, padding: '6px 8px', fontFamily: 'Share Tech Mono',
   fontSize: 9, color: '#c8e8ff', outline: 'none', boxSizing: 'border-box', width: '100%',
 };
@@ -550,9 +550,9 @@ function miniBtn(col: string): React.CSSProperties {
 }
 
 const padBtn: React.CSSProperties = {
-  background: 'rgba(233,185,73,0.08)', border: '1px solid #e9b94922',
+  background: 'rgba(99,102,241,0.08)', border: '1px solid #6366f122',
   borderRadius: 6, padding: '6px 0', fontFamily: 'Share Tech Mono',
-  fontSize: 12, color: '#e9b949', cursor: 'pointer', textAlign: 'center',
+  fontSize: 12, color: '#6366f1', cursor: 'pointer', textAlign: 'center',
 };
 
 // Extend business type for nexus run command
