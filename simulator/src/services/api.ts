@@ -492,6 +492,14 @@ export interface InspectionState {
   created_at: string;
 }
 
+// ── Opportunités marché auto (Dzaryx + web search) ─────────────────
+export interface Opportunity {
+  category: 'marche' | 'location' | 'import' | 'loi' | 'modele';
+  title: string; detail: string; action: string;
+  urgency: 'info' | 'a_suivre' | 'urgent';
+}
+export interface OpportunitiesReport { updated_at: string; summary: string; items: Opportunity[]; }
+
 export interface FleetStat { car_name: string; available_now: boolean; occupancy_pct: number; revenue_30d: number; }
 export interface FleetIntel { total_cars: number; available_now_count: number; occupancy_avg_pct: number; stats: FleetStat[]; }
 
@@ -663,6 +671,9 @@ export const business = {
     if (name)  p.set('name', name);
     return apiFetch<{ deals: ClientOperation[] }>(`/api/clients/deals?${p.toString()}`);
   },
+
+  fetchOpportunities: (force = false) =>
+    apiFetch<OpportunitiesReport>(`/api/deals/opportunities${force ? '?force=1' : ''}`),
 
   addressAutocomplete: (input: string) =>
     apiFetch<{ ok: boolean; predictions: Array<{ label: string; place_id: string }> }>(`/api/maps/autocomplete?input=${encodeURIComponent(input)}`),

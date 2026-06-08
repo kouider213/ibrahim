@@ -1,5 +1,15 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
-import { business, type SaleVehicle, type SiteProperty } from '../../services/api.ts';
+import { business, type SaleVehicle, type SiteProperty, type OpportunitiesReport } from '../../services/api.ts';
+
+const OPP_META: Record<string, { icon: string; label: string }> = {
+  marche:   { icon: '📊', label: 'Marché' },
+  location: { icon: '🔑', label: 'Location' },
+  import:   { icon: '⛴️', label: 'Import' },
+  loi:      { icon: '📜', label: 'Loi' },
+  modele:   { icon: '🆕', label: 'Nouveauté' },
+};
+const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#e9b949', info: '#9b9ba6' };
+const URG_LABEL: Record<string, string> = { urgent: 'URGENT', a_suivre: 'À suivre', info: 'Info' };
 
 const C = {
   bg: '#0b0b0d', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.07)',
@@ -55,6 +65,15 @@ export default function DealsScreen() {
   const [toast, setToast] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [opps, setOpps] = useState<OpportunitiesReport | null>(null);
+  const [oppLoading, setOppLoading] = useState(false);
+
+  const loadOpps = async (force = false) => {
+    setOppLoading(true);
+    try { setOpps(await business.fetchOpportunities(force)); }
+    catch { /* garde l'ancien */ } finally { setOppLoading(false); }
+  };
+  useEffect(() => { if (tab === 'opportunites' && !opps && !oppLoading) void loadOpps(false); }, [tab]);
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -182,23 +201,40 @@ export default function DealsScreen() {
         </div>
       )}
 
-      {/* OPPORTUNITÉS */}
+      {/* OPPORTUNITÉS — analyse marché auto Algérie (Dzaryx + web) */}
       {tab === 'opportunites' && (
         <div style={{ padding: '0 18px 20px' }}>
-          <div style={{ background: `linear-gradient(135deg, ${C.violet}1c, ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 14 }}>
-            <div style={{ fontSize: 15, fontWeight: 800 }}>🔍 Repérage d'opportunités</div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4, lineHeight: 1.45 }}>Demande à Dzaryx d'analyser une affaire avant d'acheter pour revendre. Donne-lui le prix, l'année, le kilométrage ou l'adresse.</div>
-          </div>
-          {[
-            { q: '"Cette Clio 4 2016 à 1500€, je peux la revendre combien à Oran ?"', a: 'Estimation revente + marge nette' },
-            { q: '"Trouve-moi un appart à acheter sous 2M DA à revendre avec marge"', a: 'Analyse marché + suggestions' },
-            { q: '"Compare ce Duster d\'occasion avec les prix actuels"', a: 'Bon plan ou pas' },
-          ].map((o, i) => (
-            <div key={i} style={{ ...card, padding: 14, marginBottom: 10 }}>
-              <div style={{ fontSize: 13.5, color: C.text, fontWeight: 600, lineHeight: 1.4 }}>{o.q}</div>
-              <div style={{ fontSize: 12, color: C.goldSoft, marginTop: 6 }}>→ {o.a}</div>
+          <div style={{ background: `linear-gradient(135deg, ${C.violet}1c, ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>🔍 Opportunités marché auto</div>
+              <button onClick={() => void loadOpps(true)} disabled={oppLoading} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '6px 12px', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>{oppLoading ? '…' : '↻ Actualiser'}</button>
             </div>
-          ))}
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
+              {opps?.summary || 'Dzaryx surveille le marché algérien : ventes, location, nouveautés, lois & import. Appuie sur Actualiser.'}
+            </div>
+            {opps?.updated_at && <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>Mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
+          </div>
+
+          {oppLoading && !opps ? (
+            <Empty t="Dzaryx analyse le marché… (≈15s)" />
+          ) : opps && opps.items.length === 0 ? (
+            <Empty t="Aucune opportunité trouvée. Réessaie." />
+          ) : (opps?.items ?? []).map((o, i) => {
+            const m = OPP_META[o.category] ?? OPP_META.marche;
+            const uc = URG_COL[o.urgency] ?? C.muted;
+            return (
+              <div key={i} style={{ ...card, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 17 }}>{m.icon}</span>
+                  <span style={{ fontSize: 14.5, fontWeight: 700, flex: 1 }}>{o.title}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: uc, background: `${uc}1f`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.45 }}>{o.detail}</div>
+                {o.action && <div style={{ fontSize: 12, color: C.goldSoft, marginTop: 8, lineHeight: 1.4 }}>👉 {o.action}</div>}
+                <div style={{ fontSize: 9.5, color: C.muted, marginTop: 8 }}>{m.label}</div>
+              </div>
+            );
+          })}
         </div>
       )}
 
