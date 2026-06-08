@@ -658,7 +658,7 @@ function RichText({ text, color }: { text: string; color: string }) {
 
 // Graphique (barres / camembert) — rendu maison, thème sombre + or
 type ChartSpec = { type?: 'bar' | 'pie' | 'line'; title?: string; data?: Array<{ label: string; value: number }>; unit?: string };
-const CHART_COLORS = ['#C9A96E', '#52E3A1', '#00d4ff', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
+const CHART_COLORS = ['#C9A96E', '#52E3A1', '#6366f1', '#E8C98A', '#ff8c5a', '#9b8cff', '#ff6b9d', '#7ad1c4'];
 
 function Chart({ spec }: { spec: ChartSpec }) {
   const data = (spec.data ?? []).filter(d => d && typeof d.value === 'number');
@@ -829,8 +829,8 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
             <button
               onClick={e => { e.stopPropagation(); downloadFile(lightbox); }}
               style={{
-                background: '#00d4ff22', border: '1px solid #00d4ff66', borderRadius: 10,
-                color: '#00d4ff', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
+                background: '#6366f122', border: '1px solid #6366f166', borderRadius: 10,
+                color: '#6366f1', fontFamily: 'Inter', fontSize: 12, fontWeight: 600,
                 padding: '8px 20px', cursor: 'pointer',
               }}
             >⬇ Enregistrer</button>
@@ -846,9 +846,16 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', alignItems: 'flex-start', animation: 'msg-in 0.22s ease' }}>
+      <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', alignItems: 'flex-start', gap: 9, animation: 'msg-in 0.22s ease' }}>
+        {!isUser && (
+          <img
+            src={`${((import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/'}logo.png`}
+            alt="Dzaryx"
+            style={{ width: 28, height: 28, borderRadius: 9, flexShrink: 0, marginTop: 1, objectFit: 'contain', border: '1px solid rgba(255,255,255,0.10)' }}
+          />
+        )}
         <div style={{
-          maxWidth: isUser ? '82%' : '95%',
+          maxWidth: isUser ? '82%' : '88%',
           background: isUser ? 'rgba(255,255,255,0.08)' : 'transparent',
           border: 'none',
           borderRadius: isUser ? '20px 20px 6px 20px' : 0,
@@ -907,15 +914,15 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
                       download={filename}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.25)',
+                        background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)',
                         borderRadius: 10, padding: '10px 14px', textDecoration: 'none',
-                        color: '#00d4ff',
+                        color: '#6366f1',
                       }}
                     >
                       <span style={{ fontSize: 22 }}>{icon}</span>
                       <div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#00d4ff' }}>{filename}</div>
-                        <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(0,212,255,0.55)', marginTop: 2 }}>
+                        <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#6366f1' }}>{filename}</div>
+                        <div style={{ fontFamily: 'Inter', fontSize: 9, color: 'rgba(99,102,241,0.55)', marginTop: 2 }}>
                           Appuyer pour télécharger
                         </div>
                       </div>

@@ -142,21 +142,24 @@ html, body, #root {
 @keyframes shimmer    { 0%,100% { opacity: 0.25; } 50% { opacity: 0.6; } }
 
 /* ── Markdown (réponses Dzaryx façon ChatGPT/Claude) ── */
-.dz-md { color: rgba(255,255,255,0.90); font-family: Inter, sans-serif; font-size: 14px; line-height: 1.6; }
-.dz-md p { margin: 0 0 8px; }
+.dz-md { color: rgba(255,255,255,0.88); font-family: Inter, -apple-system, "Segoe UI", sans-serif; font-size: 15px; line-height: 1.7; word-break: break-word; overflow-wrap: anywhere; }
+.dz-md p { margin: 0 0 10px; }
 .dz-md p:last-child { margin-bottom: 0; }
-.dz-md strong { color: #fff; font-weight: 600; }
+.dz-md strong { color: #fff; font-weight: 700; }
 .dz-md em { font-style: italic; }
-.dz-md h1, .dz-md h2, .dz-md h3, .dz-md h4 { color: #fff; font-weight: 600; margin: 12px 0 6px; line-height: 1.3; }
-.dz-md h1 { font-size: 20px; } .dz-md h2 { font-size: 17px; } .dz-md h3 { font-size: 15px; } .dz-md h4 { font-size: 14px; }
-.dz-md ul, .dz-md ol { margin: 4px 0 8px; padding-left: 20px; }
-.dz-md li { margin: 3px 0; }
-.dz-md a { color: #C9A96E; text-decoration: underline; word-break: break-all; }
-.dz-md code { background: rgba(255,255,255,0.10); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 13px; color: #E8C98A; }
-.dz-md pre { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.10); border-radius: 10px; padding: 12px; overflow-x: auto; margin: 8px 0; }
-.dz-md pre code { background: none; padding: 0; color: rgba(255,255,255,0.9); }
-.dz-md blockquote { border-left: 3px solid #C9A96E66; margin: 8px 0; padding: 2px 0 2px 12px; color: rgba(255,255,255,0.7); }
-.dz-md table { border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 13px; }
-.dz-md th, .dz-md td { border: 1px solid rgba(255,255,255,0.14); padding: 6px 10px; text-align: left; }
-.dz-md th { background: rgba(255,255,255,0.06); font-weight: 600; color: #fff; }
-.dz-md hr { border: none; border-top: 1px solid rgba(255,255,255,0.12); margin: 12px 0; }
+.dz-md h1, .dz-md h2, .dz-md h3, .dz-md h4 { color: #fff; font-weight: 700; margin: 16px 0 8px; line-height: 1.3; letter-spacing: -0.01em; }
+.dz-md h1 { font-size: 21px; } .dz-md h2 { font-size: 18px; } .dz-md h3 { font-size: 16px; } .dz-md h4 { font-size: 15px; }
+.dz-md h1:first-child, .dz-md h2:first-child, .dz-md h3:first-child { margin-top: 0; }
+.dz-md ul, .dz-md ol { margin: 6px 0 12px; padding-left: 22px; }
+.dz-md li { margin: 5px 0; padding-left: 2px; }
+.dz-md li::marker { color: #818cf8; }
+.dz-md a { color: #a5b4fc; text-decoration: none; border-bottom: 1px solid #818cf855; word-break: break-all; }
+.dz-md code { background: rgba(129,140,248,0.14); padding: 1.5px 6px; border-radius: 5px; font-family: ui-monospace, "SF Mono", monospace; font-size: 13px; color: #c7d2fe; }
+.dz-md pre { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 13px 14px; overflow-x: auto; margin: 10px 0; }
+.dz-md pre code { background: none; padding: 0; color: rgba(255,255,255,0.92); font-size: 13px; line-height: 1.55; }
+.dz-md blockquote { border-left: 3px solid #818cf8; margin: 10px 0; padding: 4px 0 4px 14px; color: rgba(255,255,255,0.66); }
+.dz-md table { border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 13.5px; display: block; overflow-x: auto; }
+.dz-md th, .dz-md td { border: 1px solid rgba(255,255,255,0.12); padding: 8px 11px; text-align: left; white-space: nowrap; }
+.dz-md th { background: rgba(129,140,248,0.10); font-weight: 700; color: #fff; }
+.dz-md tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+.dz-md hr { border: none; border-top: 1px solid rgba(255,255,255,0.10); margin: 14px 0; }
