@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { business, type SaleVehicle, type SiteProperty } from '../../services/api.ts';
 
 const C = {
@@ -18,16 +18,30 @@ const VSTATUS: Record<string, { label: string; col: string }> = {
   'vendue':   { label: 'Vendue',   col: C.blue },
 };
 
-const CAPS = [
-  { icon: '💰', title: 'Estimer un prix de revente', desc: 'Dzaryx propose un prix selon l\'année, le km et le marché Oran.', ex: '"estime la revente d\'un Golf 7 2018 90000 km"' },
-  { icon: '✍️', title: 'Créer une annonce de vente', desc: 'Décris le bien/voiture → annonce créée sur le site avec photos.', ex: '"ajoute une Clio 4 2017 à vendre 180 DA"' },
-  { icon: '📈', title: 'Suivre la marge', desc: 'Prix d\'achat vs prix de revente → marge calculée.', ex: '"quelle marge sur la Sandero ?"' },
-  { icon: '🏷️', title: 'Marquer vendu / réservé', desc: 'Statut synchronisé avec le site instantanément.', ex: '"marque le Duster comme vendu"' },
-  { icon: '🔍', title: 'Repérer des opportunités', desc: 'Donne un budget → Dzaryx propose quoi acheter pour revendre.', ex: '"trouve une voiture à acheter sous 2000€ à revendre"' },
+const HOWTO = [
+  '➕ « Ajouter une voiture à vendre » publie l\'annonce sur le site avec toutes les infos.',
+  '🖼️ Mets plusieurs photos — la 1ʳᵉ est la principale.',
+  '🏷️ « Changer le statut » : à vendre → réservée → vendue (synchro site).',
+  '🔎 Onglet Opportunités : demande à Dzaryx d\'analyser une affaire avant d\'acheter.',
 ];
 
-interface VForm { brand: string; model: string; year: string; price: string; currency: string; mileage: string }
-const EMPTY_V: VForm = { brand: '', model: '', year: '', price: '', currency: 'DZD', mileage: '' };
+interface VForm {
+  brand: string; model: string; year: string; price: string; currency: string;
+  mileage: string; fuel: string; transmission: string; city: string; condition: string; description: string;
+}
+const EMPTY_V: VForm = {
+  brand: '', model: '', year: '', price: '', currency: 'DZD', mileage: '',
+  fuel: 'essence', transmission: 'manuelle', city: 'Oran', condition: '', description: '',
+};
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onloadend = () => res(r.result as string);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
 
 export default function DealsScreen() {
   const [tab, setTab] = useState<Tab>('voitures');
@@ -39,6 +53,8 @@ export default function DealsScreen() {
   const [form, setForm] = useState<VForm>(EMPTY_V);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -55,6 +71,12 @@ export default function DealsScreen() {
   };
   useEffect(() => { void load(); }, []);
 
+  const addFiles = async (files: File[]) => {
+    if (!files.length) return;
+    try { const urls = await Promise.all(files.slice(0, 15).map(fileToDataUrl)); setPhotos(p => [...p, ...urls].slice(0, 15)); }
+    catch { flash('❌ Lecture photo'); }
+  };
+
   const addVehicle = async () => {
     if (!form.brand.trim() || !form.model.trim() || !form.price) { flash('❌ Marque + modèle + prix'); return; }
     setSaving(true);
@@ -62,9 +84,12 @@ export default function DealsScreen() {
       await business.addVehicleForSale({
         brand: form.brand.trim(), model: form.model.trim(),
         year: form.year ? Number(form.year) : null, price: Number(form.price),
-        currency: form.currency, mileage: form.mileage ? Number(form.mileage) : null, status: 'disponible',
+        currency: form.currency, mileage: form.mileage ? Number(form.mileage) : null,
+        fuel: form.fuel, transmission: form.transmission, city: form.city.trim() || null,
+        condition: form.condition.trim() || null, description: form.description.trim() || null,
+        status: 'disponible', photos,
       });
-      flash('✅ Annonce créée'); setShow(false); setForm(EMPTY_V); void load();
+      flash('✅ Annonce publiée'); setShow(false); setForm(EMPTY_V); setPhotos([]); void load();
     } catch { flash('❌ Échec'); } finally { setSaving(false); }
   };
 
@@ -177,20 +202,12 @@ export default function DealsScreen() {
         </div>
       )}
 
-      {/* Capacités */}
+      {/* Comment utiliser */}
       <div style={{ padding: '6px 18px 30px' }}>
-        <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Ce que Dzaryx fait pour l'achat/revente</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Parle-lui dans le chat ou en vocal.</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {CAPS.map(c => (
-            <div key={c.title} style={{ ...card, padding: 14, display: 'flex', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: `${C.gold}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{c.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700 }}>{c.title}</div>
-                <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{c.desc}</div>
-                <div style={{ fontSize: 12, color: C.goldSoft, marginTop: 6, fontStyle: 'italic' }}>{c.ex}</div>
-              </div>
-            </div>
+        <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Comment l'utiliser</div>
+        <div style={{ ...card, padding: '6px 14px' }}>
+          {HOWTO.map((s, i) => (
+            <div key={i} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, padding: '8px 0', borderBottom: i < HOWTO.length - 1 ? `1px solid ${C.border}` : 'none' }}>{s}</div>
           ))}
         </div>
       </div>
@@ -198,7 +215,7 @@ export default function DealsScreen() {
       {/* Modal ajouter voiture */}
       {showAdd && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-end' }}>
-          <div style={{ width: '100%', background: C.surface, borderRadius: '22px 22px 0 0', border: `1px solid ${C.border}`, padding: '20px 18px 26px' }}>
+          <div style={{ width: '100%', background: C.surface, borderRadius: '22px 22px 0 0', border: `1px solid ${C.border}`, padding: '20px 18px 26px', maxHeight: '90%', overflowY: 'auto' }}>
             <div style={{ width: 38, height: 4, borderRadius: 2, background: C.border, margin: '0 auto 16px' }} />
             <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>Voiture à vendre</div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -213,9 +230,36 @@ export default function DealsScreen() {
               <Field label="Prix" flex><input type="number" value={form.price} onChange={e => setForm(s => ({ ...s, price: e.target.value }))} style={inp} /></Field>
               <Field label="Devise"><select value={form.currency} onChange={e => setForm(s => ({ ...s, currency: e.target.value }))} style={{ ...inp, minWidth: 80 }}><option>DZD</option><option>EUR</option></select></Field>
             </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Field label="Carburant" flex><select value={form.fuel} onChange={e => setForm(s => ({ ...s, fuel: e.target.value }))} style={inp}>{['essence', 'diesel', 'GPL', 'hybride', 'électrique'].map(o => <option key={o}>{o}</option>)}</select></Field>
+              <Field label="Boîte" flex><select value={form.transmission} onChange={e => setForm(s => ({ ...s, transmission: e.target.value }))} style={inp}>{['manuelle', 'automatique'].map(o => <option key={o}>{o}</option>)}</select></Field>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Field label="Ville" flex><input value={form.city} onChange={e => setForm(s => ({ ...s, city: e.target.value }))} style={inp} /></Field>
+              <Field label="État" flex><input value={form.condition} onChange={e => setForm(s => ({ ...s, condition: e.target.value }))} placeholder="Très bon, 1ère main…" style={inp} /></Field>
+            </div>
+            <Field label="Description"><textarea value={form.description} onChange={e => setForm(s => ({ ...s, description: e.target.value }))} rows={3} placeholder="Détails, options, historique…" style={{ ...inp, resize: 'vertical' }} /></Field>
+
+            {/* Photos */}
+            <Field label={`Photos (${photos.length})`}>
+              {photos.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {photos.map((u, i) => (
+                    <div key={i} style={{ position: 'relative', width: 56, height: 56, borderRadius: 9, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                      <img src={u} alt={`p${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {i === 0 && <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: C.goldSoft, fontSize: 7, textAlign: 'center' }}>Principale</span>}
+                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(255,51,102,0.85)', color: '#fff', fontSize: 10, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
+              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed ${C.gold}55`, background: `${C.gold}10`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
+            </Field>
+
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-              <button onClick={() => { setShow(false); setForm(EMPTY_V); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={() => void addVehicle()} disabled={saving} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#1a1300', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Ajout…' : 'Créer l\'annonce'}</button>
+              <button onClick={() => { setShow(false); setForm(EMPTY_V); setPhotos([]); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
+              <button onClick={() => void addVehicle()} disabled={saving} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#1a1300', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
             </div>
           </div>
         </div>

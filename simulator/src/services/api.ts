@@ -664,6 +664,9 @@ export const business = {
     return apiFetch<{ deals: ClientOperation[] }>(`/api/clients/deals?${p.toString()}`);
   },
 
+  addressAutocomplete: (input: string) =>
+    apiFetch<{ ok: boolean; predictions: Array<{ label: string; place_id: string }> }>(`/api/maps/autocomplete?input=${encodeURIComponent(input)}`),
+
   toggleCar: (id: string, available: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),
 

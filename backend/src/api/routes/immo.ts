@@ -1,8 +1,33 @@
 import { Router } from 'express';
+import { v2 as cloudinary } from 'cloudinary';
 import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { env } from '../../config/env.js';
+
+cloudinary.config({
+  cloud_name: env.CLOUDINARY_CLOUD_NAME ?? '',
+  api_key:    env.CLOUDINARY_API_KEY    ?? '',
+  api_secret: env.CLOUDINARY_API_SECRET ?? '',
+});
 
 const router = Router();
+
+// Upload une liste de photos (base64 ou URL) vers Cloudinary → renvoie les URLs.
+async function uploadPhotos(list: unknown, folder: string): Promise<string[]> {
+  if (!Array.isArray(list)) return [];
+  const urls: string[] = [];
+  for (const raw of list.slice(0, 15)) {
+    const s = String(raw ?? '');
+    if (!s) continue;
+    try {
+      if (s.startsWith('http')) { urls.push(s); continue; }
+      const dataUri = s.startsWith('data:') ? s : `data:image/jpeg;base64,${s}`;
+      const up = await cloudinary.uploader.upload(dataUri, { folder });
+      urls.push(up.secure_url);
+    } catch { /* skip cette photo */ }
+  }
+  return urls;
+}
 
 // Schéma UNIFIÉ app + site : un seul stock de biens. Le site (fikconciergerie)
 // lit title/transaction/price/city/status='disponible'. L'app garde en plus
@@ -12,8 +37,9 @@ const router = Router();
 
 // Champs acceptés en écriture (whitelist — évite le mass-assignment sur id/created_at).
 const PROP_WRITABLE = new Set([
-  'title', 'type', 'transaction', 'status', 'price', 'price_type',
-  'city', 'district', 'surface', 'rooms', 'floor', 'image_url', 'description',
+  'title', 'type', 'transaction', 'status', 'price', 'price_type', 'currency',
+  'city', 'district', 'surface', 'rooms', 'bedrooms', 'bathrooms', 'floor',
+  'image_url', 'description', 'conditions', 'featured',
   'monthly_rent', 'tenant_name', 'address', 'notes',
 ]);
 
@@ -48,6 +74,7 @@ router.post('/properties', requireMobileAuth, async (req, res) => {
   const price = b.price != null ? Number(b.price)
               : b.monthly_rent != null ? Number(b.monthly_rent)
               : null;
+  const num = (v: unknown) => (v != null && v !== '' ? Number(v) : null);
   try {
     const { data, error } = await supabase.from('properties').insert({
       title,
@@ -57,17 +84,32 @@ router.post('/properties', requireMobileAuth, async (req, res) => {
       status:       normStatus(b.status) || 'disponible',
       price,
       price_type:   transaction === 'vente' ? 'total' : 'mois',
+      currency:     b.currency?.toString().trim() || 'DZD',
       city:         b.city?.toString().trim()     || 'Oran',
       district:     b.district?.toString().trim() || null,
-      surface:      b.surface != null ? Number(b.surface) : null,
-      rooms:        b.rooms   != null ? Number(b.rooms)   : null,
+      address:      b.address?.toString().trim()  || null,
+      surface:      num(b.surface),
+      rooms:        num(b.rooms),
+      bedrooms:     num(b.bedrooms),
+      bathrooms:    num(b.bathrooms),
+      floor:        num(b.floor),
+      description:  b.description?.toString().trim() || null,
+      conditions:   b.conditions?.toString().trim()  || null,
+      featured:     b.featured === true || b.featured === 'true',
       image_url:    b.image_url?.toString().trim() || null,
       monthly_rent: transaction === 'location' ? price : null,
       tenant_name:  b.tenant_name?.toString().trim() || null,
-      address:      b.address?.toString().trim()     || null,
       notes:        b.notes?.toString().trim()       || null,
     }).select().single();
     if (error) throw error;
+
+    // Photos jointes (base64/URL) → Cloudinary + property_photos + image_url principale
+    const urls = await uploadPhotos(b.photos, `properties/${data.id}`);
+    if (urls.length) {
+      await supabase.from('property_photos').insert(urls.map((url, i) => ({ property_id: data.id, url, position: i })));
+      await supabase.from('properties').update({ image_url: urls[0] }).eq('id', data.id);
+      data.image_url = urls[0];
+    }
     res.status(201).json({ property: data });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -142,9 +184,20 @@ router.post('/vehicles-for-sale', requireMobileAuth, async (req, res) => {
       mileage:      b['mileage']      ?? null,
       fuel:         b['fuel']         ?? null,
       transmission: b['transmission'] ?? null,
+      city:         b['city']         ?? null,
+      description:  b['description']  ?? null,
+      condition:    b['condition']    ?? null,
+      featured:     b['featured'] === true || b['featured'] === 'true',
       status:       b['status']       ?? 'disponible',
     }]).select().single();
     if (error) throw error;
+
+    const urls = await uploadPhotos(b['photos'], `vehicles_sale/${data.id}`);
+    if (urls.length) {
+      await supabase.from('vehicle_sale_photos').insert(urls.map((url, i) => ({ vehicle_id: data.id, url, position: i })));
+      await supabase.from('vehicles_for_sale').update({ image_url: urls[0] }).eq('id', data.id);
+      data.image_url = urls[0];
+    }
     res.status(201).json({ vehicle: data });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -153,7 +206,8 @@ router.post('/vehicles-for-sale', requireMobileAuth, async (req, res) => {
 
 // PATCH /api/immo/vehicles-for-sale/:id  (ex: marquer vendu)
 const VFS_WRITABLE = new Set([
-  'brand', 'model', 'year', 'price', 'currency', 'mileage', 'fuel', 'transmission', 'status', 'image_url',
+  'brand', 'model', 'year', 'price', 'currency', 'mileage', 'fuel', 'transmission',
+  'city', 'description', 'condition', 'featured', 'status', 'image_url',
 ]);
 router.patch('/vehicles-for-sale/:id', requireMobileAuth, async (req, res) => {
   const { id } = req.params as { id: string };

@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { business, getOrCreateSessionId, type SiteProperty } from '../../services/api.ts';
 import { InspectionModal } from './FleetScreen.tsx';
 
@@ -34,20 +34,33 @@ const TYPE_ICON: Record<string, string> = {
   commercial: '🏪', local: '🏬', terrain: '🌿', bureau: '🏢',
 };
 
-const CAPS = [
-  { icon: '✍️', title: 'Créer une annonce', desc: 'Décris un bien à Dzaryx → il l\'ajoute au site avec photos.', ex: '"ajoute un F3 à louer à Hay Badr, 50000 DA/mois"' },
-  { icon: '🖼️', title: 'Ajouter les photos', desc: 'Envoie plusieurs photos → rangées sur l\'annonce du bien.', ex: '"voilà les photos de la villa, enregistre-les"' },
-  { icon: '🔎', title: 'État des lieux IA', desc: 'Photo entrée/sortie → Claude détecte les défauts et compare.', ex: 'Bouton 📷 sur chaque bien' },
-  { icon: '🔄', title: 'Changer le statut', desc: 'Disponible / loué / vendu — synchro instantanée avec le site.', ex: '"marque la villa Canastel comme louée"' },
-  { icon: '💬', title: 'Répondre aux demandes', desc: 'Les demandes du site arrivent en Leads, Dzaryx les qualifie.', ex: '"montre les demandes immo en attente"' },
-  { icon: '📊', title: 'Estimer un loyer / prix', desc: 'Dzaryx propose un prix selon le marché Oran.', ex: '"estime le loyer d\'un F4 à Bir El Djir"' },
+const HOWTO = [
+  '➕ Appuie sur + pour publier un bien (location ou vente) directement sur le site.',
+  '🖼️ Ajoute plusieurs photos — la 1ʳᵉ est la photo principale.',
+  '📍 Tape l\'adresse → choisis la suggestion exacte → une carte s\'affiche sur l\'annonce.',
+  '🔄 « Statut » bascule disponible / loué / vendu. 📷 fait l\'état des lieux (IA).',
 ];
 
 interface AddForm {
   title: string; transaction: 'location' | 'vente'; type: string;
-  price: string; currency: string; city: string; district: string; rooms: string;
+  price: string; currency: string; city: string; district: string; address: string;
+  surface: string; rooms: string; bedrooms: string; bathrooms: string; floor: string;
+  description: string;
 }
-const EMPTY: AddForm = { title: '', transaction: 'location', type: 'appartement', price: '', currency: 'DZD', city: 'Oran', district: '', rooms: '' };
+const EMPTY: AddForm = {
+  title: '', transaction: 'location', type: 'appartement', price: '', currency: 'DZD',
+  city: 'Oran', district: '', address: '', surface: '', rooms: '', bedrooms: '', bathrooms: '', floor: '',
+  description: '',
+};
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onloadend = () => res(r.result as string);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
 
 const propTitle = (p: SiteProperty) => p.title || p.name || 'Sans titre';
 const statusKey = (p: SiteProperty) => (p.status || 'disponible').toLowerCase();
@@ -62,6 +75,8 @@ export default function ImmoProScreen() {
   const [busy, setBusy]     = useState<string | null>(null);
   const [toast, setToast]   = useState('');
   const [inspect, setInspect] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
   const sessionId = getOrCreateSessionId();
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
@@ -82,6 +97,12 @@ export default function ImmoProScreen() {
     dispo: items.filter(p => statusKey(p) === 'disponible').length,
   };
 
+  const addFiles = async (files: File[]) => {
+    if (!files.length) return;
+    try { const urls = await Promise.all(files.slice(0, 15).map(fileToDataUrl)); setPhotos(p => [...p, ...urls].slice(0, 15)); }
+    catch { flash('❌ Lecture photo'); }
+  };
+
   const add = async () => {
     if (!form.title.trim()) { flash('❌ Titre requis'); return; }
     setSaving(true);
@@ -92,9 +113,13 @@ export default function ImmoProScreen() {
         price: form.price ? Number(form.price) : null, currency: form.currency,
         price_type: form.transaction === 'location' ? 'mois' : 'total',
         city: form.city.trim() || 'Oran', district: form.district.trim() || null,
-        rooms: form.rooms ? Number(form.rooms) : null,
+        address: form.address.trim() || null,
+        surface: form.surface || null, rooms: form.rooms || null,
+        bedrooms: form.bedrooms || null, bathrooms: form.bathrooms || null, floor: form.floor || null,
+        description: form.description.trim() || null,
+        photos,
       });
-      flash('✅ Bien ajouté au site'); setShow(false); setForm(EMPTY); void load();
+      flash('✅ Bien ajouté au site'); setShow(false); setForm(EMPTY); setPhotos([]); void load();
     } catch { flash('❌ Échec ajout'); } finally { setSaving(false); }
   };
 
@@ -192,20 +217,12 @@ export default function ImmoProScreen() {
         })}
       </div>
 
-      {/* Capacités Dzaryx */}
-      <div style={{ padding: '24px 18px 30px' }}>
-        <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>Ce que Dzaryx fait pour l'immo</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14 }}>Parle-lui dans le chat ou en vocal.</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {CAPS.map(c => (
-            <div key={c.title} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, display: 'flex', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 11, background: `${C.gold}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{c.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14.5, fontWeight: 700 }}>{c.title}</div>
-                <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2, lineHeight: 1.4 }}>{c.desc}</div>
-                <div style={{ fontSize: 12, color: C.goldSoft, marginTop: 6, fontStyle: 'italic' }}>{c.ex}</div>
-              </div>
-            </div>
+      {/* Comment utiliser */}
+      <div style={{ padding: '20px 18px 30px' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>Comment l'utiliser</div>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: '6px 14px' }}>
+          {HOWTO.map((s, i) => (
+            <div key={i} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, padding: '8px 0', borderBottom: i < HOWTO.length - 1 ? `1px solid ${C.border}` : 'none' }}>{s}</div>
           ))}
         </div>
       </div>
@@ -232,11 +249,44 @@ export default function ImmoProScreen() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <Field label="Type" flex><select value={form.type} onChange={e => setForm(s => ({ ...s, type: e.target.value }))} style={inp}>{['appartement', 'villa', 'maison', 'studio', 'local', 'terrain', 'bureau'].map(o => <option key={o}>{o}</option>)}</select></Field>
-              <Field label="Pièces" flex><input type="number" value={form.rooms} onChange={e => setForm(s => ({ ...s, rooms: e.target.value }))} style={inp} /></Field>
+              <Field label="Surface (m²)" flex><input type="number" value={form.surface} onChange={e => setForm(s => ({ ...s, surface: e.target.value }))} style={inp} /></Field>
             </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Field label="Pièces" flex><input type="number" value={form.rooms} onChange={e => setForm(s => ({ ...s, rooms: e.target.value }))} style={inp} /></Field>
+              <Field label="Chambres" flex><input type="number" value={form.bedrooms} onChange={e => setForm(s => ({ ...s, bedrooms: e.target.value }))} style={inp} /></Field>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Field label="SDB" flex><input type="number" value={form.bathrooms} onChange={e => setForm(s => ({ ...s, bathrooms: e.target.value }))} style={inp} /></Field>
+              <Field label="Étage" flex><input type="number" value={form.floor} onChange={e => setForm(s => ({ ...s, floor: e.target.value }))} style={inp} /></Field>
+            </div>
+
+            {/* Adresse exacte (autocomplétion Google) → carte sur l'annonce */}
+            <Field label="Adresse exacte (pour la carte)">
+              <AddressInput value={form.address} onChange={v => setForm(s => ({ ...s, address: v }))} />
+            </Field>
+
+            <Field label="Description"><textarea value={form.description} onChange={e => setForm(s => ({ ...s, description: e.target.value }))} placeholder="Détails du bien…" rows={3} style={{ ...inp, resize: 'vertical' }} /></Field>
+
+            {/* Photos */}
+            <Field label={`Photos (${photos.length})`}>
+              {photos.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {photos.map((u, i) => (
+                    <div key={i} style={{ position: 'relative', width: 56, height: 56, borderRadius: 9, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                      <img src={u} alt={`p${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {i === 0 && <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: C.goldSoft, fontSize: 7, textAlign: 'center' }}>Principale</span>}
+                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(255,51,102,0.85)', color: '#fff', fontSize: 10, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
+              <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '10px 0', borderRadius: 11, border: `1px dashed ${C.gold}55`, background: `${C.gold}10`, color: C.goldSoft, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>🖼️ Ajouter des photos</button>
+            </Field>
+
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-              <button onClick={() => { setShow(false); setForm(EMPTY); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={() => void add()} disabled={saving || !form.title.trim()} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#1a1300', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving || !form.title.trim() ? 0.5 : 1 }}>{saving ? 'Ajout…' : 'Ajouter au site'}</button>
+              <button onClick={() => { setShow(false); setForm(EMPTY); setPhotos([]); }} style={{ flex: 1, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
+              <button onClick={() => void add()} disabled={saving || !form.title.trim()} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#1a1300', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving || !form.title.trim() ? 0.5 : 1 }}>{saving ? 'Publication…' : 'Publier sur le site'}</button>
             </div>
           </div>
         </div>
@@ -265,3 +315,32 @@ function Field({ label, children, flex }: { label: string; children: ReactNode; 
 }
 
 const inp: CSSProperties = { width: '100%', padding: '11px 12px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface2, color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none', boxSizing: 'border-box' };
+
+function AddressInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [sugs, setSugs] = useState<Array<{ label: string; place_id: string }>>([]);
+  const [open, setOpen] = useState(false);
+  const tRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const onType = (v: string) => {
+    onChange(v);
+    if (tRef.current) clearTimeout(tRef.current);
+    if (v.trim().length < 3) { setSugs([]); setOpen(false); return; }
+    tRef.current = setTimeout(async () => {
+      try { const r = await business.addressAutocomplete(v); setSugs(r.predictions ?? []); setOpen(true); }
+      catch { setSugs([]); }
+    }, 350);
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input value={value} onChange={e => onType(e.target.value)} placeholder="Ex: Rue Larbi Ben M'hidi, Oran" style={inp} />
+      {open && sugs.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 5, marginTop: 4, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 11, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+          {sugs.map(s => (
+            <button key={s.place_id} onClick={() => { onChange(s.label); setOpen(false); setSugs([]); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: `1px solid ${C.border}`, background: 'transparent', color: C.text, fontFamily: C.font, fontSize: 12.5, cursor: 'pointer' }}>📍 {s.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
