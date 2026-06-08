@@ -8,7 +8,6 @@ import ClientsScreen from './screens/ClientsScreen.tsx';
 import DocumentsScreen from './screens/DocumentsScreen.tsx';
 import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
-import CurrencyScreen from './screens/CurrencyScreen.tsx';
 import ImmoProScreen from './screens/ImmoProScreen.tsx';
 import DealsScreen from './screens/DealsScreen.tsx';
 import LeadsScreen from './screens/LeadsScreen.tsx';
@@ -17,7 +16,7 @@ import { setSimActor, registerWebPush } from '../services/api.ts';
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'settings' | 'currency' | 'immo' | 'deals' | 'leads';
+  | 'settings' | 'immo' | 'deals' | 'leads';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -32,7 +31,6 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'text',          icon: '💬', label: 'CHAT'    },
   { id: 'immo',          icon: '🏠', label: 'IMMO'    },
   { id: 'deals',         icon: '🔁', label: 'ACHAT'   },
-  { id: 'currency',      icon: '💱', label: 'SARF',    houariOnly: true },
   { id: 'bookings',      icon: '📋', label: 'RESAS'   },
   { id: 'fleet',         icon: '🚗', label: 'PARC'    },
   { id: 'revenue',       icon: '💰', label: 'CA'      },
@@ -136,7 +134,7 @@ export default function Phone() {
 
   const actor = loggedActor ?? 'kouider';
 
-  const houariOnlyPages: Page[] = ['currency'];
+  const houariOnlyPages: Page[] = [];
   const kouiderOnlyPages: Page[] = ['documents'];
 
   const safePage: Page = (() => {
@@ -157,7 +155,6 @@ export default function Phone() {
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;
-      case 'currency':      return <CurrencyScreen actor={actor} />;
       case 'immo':          return <ImmoProScreen />;
       case 'deals':         return <DealsScreen />;
     }
@@ -211,7 +208,7 @@ export default function Phone() {
           animation: 'fadeIn 0.3s ease',
         }}>
           <DzaryxIcon size={64} glow />
-          <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00d4ff44', letterSpacing: '0.3em' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#e9b94944', letterSpacing: '0.3em' }}>
             DÉCONNEXION…
           </div>
         </div>
@@ -222,11 +219,11 @@ export default function Phone() {
         <div style={{
           position: 'absolute', top: 38, left: 8, right: 8, zIndex: 30,
           background: 'rgba(2,8,20,0.97)',
-          border: '1px solid #00d4ff44',
+          border: '1px solid #e9b94944',
           borderRadius: 12,
           padding: '10px 12px',
           display: 'flex', alignItems: 'center', gap: 10,
-          boxShadow: '0 4px 24px rgba(0,212,255,0.2)',
+          boxShadow: '0 4px 24px rgba(233,185,73,0.2)',
           animation: 'fadeIn 0.25s ease',
           backdropFilter: 'blur(12px)',
         }}>
@@ -237,7 +234,7 @@ export default function Phone() {
               : '🔔'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00d4ff', letterSpacing: '0.15em', marginBottom: 2 }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#e9b949', letterSpacing: '0.15em', marginBottom: 2 }}>
               DZARYX
             </div>
             <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#c8e8ff', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
@@ -248,9 +245,9 @@ export default function Phone() {
             <button
               onClick={() => { setPage(notif.deepLink!); setNotif(null); }}
               style={{
-                background: 'rgba(0,212,255,0.12)', border: '1px solid #00d4ff55',
+                background: 'rgba(233,185,73,0.12)', border: '1px solid #e9b94955',
                 borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-                fontFamily: 'Orbitron', fontSize: 6, color: '#00d4ff', letterSpacing: '0.12em',
+                fontFamily: 'Orbitron', fontSize: 6, color: '#e9b949', letterSpacing: '0.12em',
                 flexShrink: 0,
               }}
             >
@@ -292,8 +289,8 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(0,212,255,0.035) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0,212,255,0.035) 1px, transparent 1px)
+          linear-gradient(rgba(233,185,73,0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(233,185,73,0.035) 1px, transparent 1px)
         `,
         backgroundSize: '44px 44px',
         maskImage: 'radial-gradient(ellipse 70% 70% at 50% 40%, black 20%, transparent 100%)',
@@ -303,7 +300,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         position: 'absolute', top: '28%', left: '50%',
         transform: 'translate(-50%, -50%)',
         width: 300, height: 300,
-        background: 'radial-gradient(circle, rgba(0,212,255,0.07) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(233,185,73,0.07) 0%, transparent 70%)',
         zIndex: 0,
       }} />
 
@@ -313,7 +310,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
           <div style={{
             fontFamily: 'Orbitron', fontSize: 72, fontWeight: 700,
             color: '#ffffff', letterSpacing: '-0.03em', lineHeight: 1,
-            textShadow: '0 0 40px rgba(0,212,255,0.25)',
+            textShadow: '0 0 40px rgba(233,185,73,0.25)',
           }}>
             {getTime()}
           </div>
@@ -329,14 +326,14 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{
             position: 'absolute', width: 140, height: 140, borderRadius: '50%',
-            border: '1px solid rgba(0,212,255,0.12)',
+            border: '1px solid rgba(233,185,73,0.12)',
             animation: 'halo-breathe 3s ease-in-out infinite',
             top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
           }} />
           <div style={{
             position: 'absolute', width: 110, height: 110, borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(233,185,73,0.08) 0%, transparent 70%)',
             top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
             animation: 'halo-breathe 3s ease-in-out infinite',
@@ -346,7 +343,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
 
         <div style={{
           fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
-          color: 'rgba(0,212,255,0.4)', letterSpacing: '0.3em',
+          color: 'rgba(233,185,73,0.4)', letterSpacing: '0.3em',
           textTransform: 'uppercase',
         }}>
           Appuyer pour continuer
@@ -375,8 +372,8 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)
+          linear-gradient(rgba(233,185,73,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(233,185,73,0.03) 1px, transparent 1px)
         `,
         backgroundSize: '48px 48px',
         maskImage: 'radial-gradient(ellipse 80% 60% at 50% 30%, black 10%, transparent 100%)',
@@ -384,7 +381,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
 
       {/* Top time */}
       <div style={{ textAlign: 'center', paddingTop: 24, zIndex: 1 }}>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 40, fontWeight: 700, color: '#fff', textShadow: '0 0 24px rgba(0,212,255,0.2)' }}>
+        <div style={{ fontFamily: 'Orbitron', fontSize: 40, fontWeight: 700, color: '#fff', textShadow: '0 0 24px rgba(233,185,73,0.2)' }}>
           {getTime()}
         </div>
         <div style={{ fontFamily: 'Inter', fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.3)', marginTop: 6, letterSpacing: '0.04em' }}>
@@ -402,13 +399,13 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
             <div style={{ position: 'relative' }}>
               <div style={{
                 position: 'absolute', inset: -16, borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(0,212,255,0.12) 0%, transparent 70%)',
+                background: 'radial-gradient(circle, rgba(233,185,73,0.12) 0%, transparent 70%)',
                 animation: 'halo-breathe 3s ease-in-out infinite',
               }} />
               <div style={{
                 borderRadius: 28, overflow: 'hidden',
-                boxShadow: '0 0 30px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1), 0 8px 32px rgba(0,0,0,0.6)',
-                border: '1px solid rgba(0,212,255,0.25)',
+                boxShadow: '0 0 30px rgba(233,185,73,0.3), 0 0 60px rgba(233,185,73,0.1), 0 8px 32px rgba(0,0,0,0.6)',
+                border: '1px solid rgba(233,185,73,0.25)',
               }}>
                 <DzaryxIcon size={108} />
               </div>
@@ -417,7 +414,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
               <div style={{ fontFamily: 'Orbitron', fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.3em' }}>
                 DZARYX
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(0,212,255,0.5)', marginTop: 3, letterSpacing: '0.08em' }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(233,185,73,0.5)', marginTop: 3, letterSpacing: '0.08em' }}>
                 Assistant IA · Fik Conciergerie
               </div>
             </div>
@@ -456,8 +453,8 @@ function LoginScreen({
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         backgroundImage: `
-          linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)
+          linear-gradient(rgba(233,185,73,0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(233,185,73,0.03) 1px, transparent 1px)
         `,
         backgroundSize: '40px 40px',
         maskImage: 'radial-gradient(ellipse 90% 90% at 50% 50%, black 20%, transparent 100%)',
@@ -467,7 +464,7 @@ function LoginScreen({
         position: 'absolute', top: '40%', left: '50%',
         transform: 'translate(-50%, -50%)',
         width: 320, height: 320,
-        background: 'radial-gradient(circle, rgba(0,212,255,0.06) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(233,185,73,0.06) 0%, transparent 70%)',
         zIndex: 0,
       }} />
 
@@ -477,13 +474,13 @@ function LoginScreen({
           <div style={{ position: 'relative' }}>
             <div style={{
               position: 'absolute', inset: -12, borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(0,212,255,0.1) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(233,185,73,0.1) 0%, transparent 70%)',
               animation: 'halo-breathe 3s ease-in-out infinite',
             }} />
             <DzaryxIcon size={80} glow />
           </div>
           <div>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 22, fontWeight: 900, color: '#00d4ff', letterSpacing: '0.4em', textShadow: '0 0 20px rgba(0,212,255,0.4)', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 22, fontWeight: 900, color: '#e9b949', letterSpacing: '0.4em', textShadow: '0 0 20px rgba(233,185,73,0.4)', textAlign: 'center' }}>
               DZARYX
             </div>
             <div style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 400, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', textAlign: 'center', marginTop: 4 }}>
@@ -496,14 +493,14 @@ function LoginScreen({
         <div style={{
           width: '100%',
           background: 'rgba(7,17,31,0.6)',
-          border: '1px solid rgba(0,212,255,0.12)',
+          border: '1px solid rgba(233,185,73,0.12)',
           borderRadius: 20,
           padding: '24px 20px',
           display: 'flex', flexDirection: 'column', gap: 16,
           backdropFilter: 'blur(20px)',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(0,212,255,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(233,185,73,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Identifiant
             </label>
             <input
@@ -516,7 +513,7 @@ function LoginScreen({
             />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(0,212,255,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(233,185,73,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Mot de passe
             </label>
             <input
@@ -542,13 +539,13 @@ function LoginScreen({
             disabled={loading || !user || !pass}
             style={{
               marginTop: 4, padding: '15px',
-              background: loading ? 'rgba(0,212,255,0.12)' : (!user || !pass ? 'rgba(0,212,255,0.06)' : 'linear-gradient(135deg, rgba(0,212,255,0.18) 0%, rgba(0,180,220,0.12) 100%)'),
-              border: `1.5px solid ${!user || !pass ? 'rgba(0,212,255,0.15)' : 'rgba(0,212,255,0.45)'}`,
+              background: loading ? 'rgba(233,185,73,0.12)' : (!user || !pass ? 'rgba(233,185,73,0.06)' : 'linear-gradient(135deg, rgba(233,185,73,0.18) 0%, rgba(0,180,220,0.12) 100%)'),
+              border: `1.5px solid ${!user || !pass ? 'rgba(233,185,73,0.15)' : 'rgba(233,185,73,0.45)'}`,
               borderRadius: 14,
-              fontFamily: 'Orbitron', fontSize: 11, fontWeight: 700, color: !user || !pass ? 'rgba(0,212,255,0.3)' : '#00d4ff',
+              fontFamily: 'Orbitron', fontSize: 11, fontWeight: 700, color: !user || !pass ? 'rgba(233,185,73,0.3)' : '#e9b949',
               cursor: loading || !user || !pass ? 'default' : 'pointer',
               letterSpacing: '0.2em',
-              boxShadow: !user || !pass ? 'none' : '0 0 20px rgba(0,212,255,0.2)',
+              boxShadow: !user || !pass ? 'none' : '0 0 20px rgba(233,185,73,0.2)',
               transition: 'all 0.2s ease',
             }}
           >
@@ -563,7 +560,7 @@ function LoginScreen({
 const loginInputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
   background: 'rgba(0,0,0,0.4)',
-  border: '1px solid rgba(0,212,255,0.18)',
+  border: '1px solid rgba(233,185,73,0.18)',
   borderRadius: 12, padding: '13px 16px',
   fontFamily: 'Inter', fontSize: 15, fontWeight: 400,
   color: 'rgba(255,255,255,0.88)', outline: 'none',
@@ -575,46 +572,46 @@ const loginInputStyle: React.CSSProperties = {
 function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"
-      style={glow ? { filter: 'drop-shadow(0 0 10px rgba(0,212,255,0.5)) drop-shadow(0 0 24px rgba(0,212,255,0.2))' } : undefined}>
+      style={glow ? { filter: 'drop-shadow(0 0 10px rgba(233,185,73,0.5)) drop-shadow(0 0 24px rgba(233,185,73,0.2))' } : undefined}>
       {/* Base */}
       <rect width="100" height="100" rx="24" fill="#030d1e" />
       <rect width="100" height="100" rx="24" fill="url(#iconGrad)" fillOpacity="0.4" />
       {/* Outer ring dashed */}
-      <circle cx="50" cy="50" r="42" fill="none" stroke="#00d4ff" strokeWidth="0.6" strokeOpacity="0.18" strokeDasharray="5 4" />
+      <circle cx="50" cy="50" r="42" fill="none" stroke="#e9b949" strokeWidth="0.6" strokeOpacity="0.18" strokeDasharray="5 4" />
       {/* Inner ring solid */}
-      <circle cx="50" cy="50" r="34" fill="none" stroke="#00d4ff" strokeWidth="1" strokeOpacity="0.5" />
+      <circle cx="50" cy="50" r="34" fill="none" stroke="#e9b949" strokeWidth="1" strokeOpacity="0.5" />
       {/* Corner brackets */}
-      <path d="M14 14 L22 14 M14 14 L14 22" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
-      <path d="M86 14 L78 14 M86 14 L86 22" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
-      <path d="M14 86 L22 86 M14 86 L14 78" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
-      <path d="M86 86 L78 86 M86 86 L86 78" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      <path d="M14 14 L22 14 M14 14 L14 22" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      <path d="M86 14 L78 14 M86 14 L86 22" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      <path d="M14 86 L22 86 M14 86 L14 78" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
+      <path d="M86 86 L78 86 M86 86 L86 78" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.7" strokeLinecap="round" />
       {/* Head body */}
-      <rect x="28" y="28" width="44" height="34" rx="9" fill="#00d4ff" fillOpacity="0.07" stroke="#00d4ff" strokeWidth="1.8" strokeOpacity="0.8" />
+      <rect x="28" y="28" width="44" height="34" rx="9" fill="#e9b949" fillOpacity="0.07" stroke="#e9b949" strokeWidth="1.8" strokeOpacity="0.8" />
       {/* Antenna */}
-      <line x1="50" y1="28" x2="50" y2="19" stroke="#00d4ff" strokeWidth="2" strokeOpacity="0.8" strokeLinecap="round" />
-      <circle cx="50" cy="17" r="3.5" fill="#00d4ff" fillOpacity="1" />
-      {glow && <circle cx="50" cy="17" r="6" fill="#00d4ff" fillOpacity="0.25" />}
+      <line x1="50" y1="28" x2="50" y2="19" stroke="#e9b949" strokeWidth="2" strokeOpacity="0.8" strokeLinecap="round" />
+      <circle cx="50" cy="17" r="3.5" fill="#e9b949" fillOpacity="1" />
+      {glow && <circle cx="50" cy="17" r="6" fill="#e9b949" fillOpacity="0.25" />}
       {/* Eyes */}
-      <rect x="33" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.95" />
-      <rect x="53" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.95" />
+      <rect x="33" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.95" />
+      <rect x="53" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.95" />
       {glow && <>
-        <rect x="33" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.3" />
-        <rect x="53" y="36" width="14" height="10" rx="4" fill="#00d4ff" fillOpacity="0.3" />
+        <rect x="33" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.3" />
+        <rect x="53" y="36" width="14" height="10" rx="4" fill="#e9b949" fillOpacity="0.3" />
       </>}
       {/* Mouth bar */}
-      <rect x="34" y="52" width="32" height="4" rx="2" fill="#00d4ff" fillOpacity="0.6" />
+      <rect x="34" y="52" width="32" height="4" rx="2" fill="#e9b949" fillOpacity="0.6" />
       {/* Neck */}
-      <rect x="44" y="62" width="12" height="6" rx="2" fill="#00d4ff" fillOpacity="0.35" />
+      <rect x="44" y="62" width="12" height="6" rx="2" fill="#e9b949" fillOpacity="0.35" />
       {/* Base/chin */}
-      <rect x="26" y="68" width="48" height="10" rx="5" fill="#00d4ff" fillOpacity="0.07" stroke="#00d4ff" strokeWidth="1.2" strokeOpacity="0.45" />
+      <rect x="26" y="68" width="48" height="10" rx="5" fill="#e9b949" fillOpacity="0.07" stroke="#e9b949" strokeWidth="1.2" strokeOpacity="0.45" />
       {/* Status dots */}
-      <circle cx="36" cy="73" r="2" fill="#00d4ff" fillOpacity="0.45" />
-      <circle cx="50" cy="73" r="2" fill="#00d4ff" fillOpacity="0.7" />
-      <circle cx="64" cy="73" r="2" fill="#00d4ff" fillOpacity="0.45" />
+      <circle cx="36" cy="73" r="2" fill="#e9b949" fillOpacity="0.45" />
+      <circle cx="50" cy="73" r="2" fill="#e9b949" fillOpacity="0.7" />
+      <circle cx="64" cy="73" r="2" fill="#e9b949" fillOpacity="0.45" />
       {/* Gradient def */}
       <defs>
         <radialGradient id="iconGrad" cx="50%" cy="30%" r="70%">
-          <stop offset="0%" stopColor="#00d4ff" />
+          <stop offset="0%" stopColor="#e9b949" />
           <stop offset="100%" stopColor="#000" />
         </radialGradient>
       </defs>
@@ -635,7 +632,7 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
     <div style={{
       width: '100%',
       background: 'rgba(2,5,14,0.97)',
-      borderBottom: '1px solid rgba(0,212,255,0.08)',
+      borderBottom: '1px solid rgba(233,185,73,0.08)',
       flexShrink: 0,
       position: 'relative',
     }}>
@@ -648,7 +645,7 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
         padding: '0 16px', height: 44,
       }}>
         {/* Brand */}
-        <span style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(0,212,255,0.55)', letterSpacing: '0.2em' }}>
+        <span style={{ fontFamily: 'Orbitron', fontSize: 10, fontWeight: 700, color: 'rgba(233,185,73,0.55)', letterSpacing: '0.2em' }}>
           DZARYX
         </span>
 
@@ -656,16 +653,16 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '4px 12px', borderRadius: 20,
-          background: wsOk ? 'rgba(0,212,255,0.06)' : 'rgba(255,51,102,0.06)',
-          border: `1px solid ${wsOk ? 'rgba(0,212,255,0.18)' : 'rgba(255,51,102,0.2)'}`,
+          background: wsOk ? 'rgba(233,185,73,0.06)' : 'rgba(255,51,102,0.06)',
+          border: `1px solid ${wsOk ? 'rgba(233,185,73,0.18)' : 'rgba(255,51,102,0.2)'}`,
         }}>
           <div style={{
             width: 5, height: 5, borderRadius: '50%',
-            background: wsOk ? '#00d4ff' : '#ff3366',
-            boxShadow: `0 0 6px ${wsOk ? '#00d4ff' : '#ff3366'}`,
+            background: wsOk ? '#e9b949' : '#ff3366',
+            boxShadow: `0 0 6px ${wsOk ? '#e9b949' : '#ff3366'}`,
             animation: 'statusPulse 2s ease infinite',
           }} />
-          <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: wsOk ? 'rgba(0,212,255,0.85)' : '#ff3366', letterSpacing: '0.06em' }}>
+          <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: wsOk ? 'rgba(233,185,73,0.85)' : '#ff3366', letterSpacing: '0.06em' }}>
             {tab?.label ?? page.toUpperCase()}
           </span>
         </div>
@@ -701,7 +698,7 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
           <div style={{
             position: 'absolute', top: '100%', right: 12, zIndex: 99,
             background: 'rgba(3,9,20,0.97)',
-            border: '1px solid rgba(0,212,255,0.15)',
+            border: '1px solid rgba(233,185,73,0.15)',
             borderRadius: 12,
             overflow: 'hidden',
             boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
@@ -709,7 +706,7 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
           }}>
             <div style={{
               padding: '8px 14px',
-              borderBottom: '1px solid rgba(0,212,255,0.08)',
+              borderBottom: '1px solid rgba(233,185,73,0.08)',
               fontFamily: 'Inter', fontSize: 10, fontWeight: 600,
               color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em', textTransform: 'uppercase',
             }}>
@@ -743,12 +740,12 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
     (!t.kouiderOnly || actor === 'kouider') &&
     (!t.houariOnly  || actor === 'houari')
   );
-  const actorAccent = actor === 'houari' ? '#7c3aed' : '#00d4ff';
+  const actorAccent = actor === 'houari' ? '#7c3aed' : '#e9b949';
   return (
     <div style={{
       width: '100%',
       background: 'rgba(2,5,14,0.98)',
-      borderTop: '1px solid rgba(0,212,255,0.07)',
+      borderTop: '1px solid rgba(233,185,73,0.07)',
       display: 'flex', alignItems: 'stretch',
       overflowX: 'auto',
       scrollbarWidth: 'none',
