@@ -41,6 +41,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   const [msg, setMsg]      = useState('');
   const [inspect, setInspect] = useState<InspectOpen | null>(null);
   const [editCar, setEditCar] = useState<Car | null>(null);
+  const [bookCar, setBookCar] = useState<Car | null>(null);
   const [photoBusy, setPhotoBusy] = useState<string | null>(null);
   const photoTarget = useRef<string>('');
   const carPhotoRef = useRef<HTMLInputElement>(null);
@@ -260,8 +261,18 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                 <span style={{ fontSize: 6, fontFamily: 'Inter, sans-serif', color: col, letterSpacing: '0.1em' }}>
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
                 </span>
-                {/* Actions : édition prix + photos + inspection */}
+                {/* Actions : réserver + édition prix + photos + inspection */}
                 <div style={{ display: 'flex', gap: 5 }}>
+                  <button
+                    onClick={() => setBookCar(car)}
+                    title="Créer une réservation (calendrier)"
+                    style={{
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #10b98166',
+                      background: 'rgba(16,185,129,0.12)', cursor: 'pointer',
+                      fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#10b981', transition: 'all 0.2s',
+                    }}
+                  >📅</button>
                   <button
                     onClick={() => setEditCar(car)}
                     title="Modifier prix & devise"
@@ -330,9 +341,190 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
           onSaved={(updated) => { setCars(cs => cs.map(c => c.id === updated.id ? updated : c)); setEditCar(null); setMsg('✅ Prix mis à jour'); setTimeout(() => setMsg(''), 2000); }}
         />
       )}
+
+      {bookCar && (
+        <BookingCalendarModal
+          car={bookCar}
+          isHouari={isHouari}
+          onClose={() => setBookCar(null)}
+          onCreated={(n) => { setBookCar(null); setMsg(`✅ ${n} réservation(s) créée(s)`); setTimeout(() => setMsg(''), 2800); void load(); }}
+        />
+      )}
     </div>
   );
 }
+
+// ── Création de réservation(s) via calendrier (1 ou plusieurs clients) ─────────
+interface BkEntry { client: string; phone: string; start: string; end: string }
+function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
+  car: Car; isHouari: boolean; onClose: () => void; onCreated: (n: number) => void;
+}) {
+  const cur = isHouari ? 'DA' : '€';
+  const defPrice = isHouari ? (car.houari_resale_price ?? null) : (car.resale_price ?? null);
+  const ownerPrice = isHouari ? null : (car.base_price ?? null);
+  const [month, setMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const [booked, setBooked] = useState<Set<string>>(new Set());
+  const [entries, setEntries] = useState<BkEntry[]>([]);
+  const [client, setClient] = useState(''); const [phone, setPhone] = useState('');
+  const [price, setPrice] = useState(defPrice != null ? String(defPrice) : '');
+  const [selStart, setSelStart] = useState<string | null>(null);
+  const [selEnd, setSelEnd] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  // Charger les dates déjà réservées de cette voiture
+  useEffect(() => {
+    business.fetchBookings().then(r => {
+      const s = new Set<string>();
+      (r.bookings ?? []).forEach(b => {
+        const cid = (b as unknown as { car_id?: string }).car_id;
+        if (cid !== car.id) return;
+        if (['cancelled', 'rejected', 'REJECTED', 'CANCELLED'].includes(b.status)) return;
+        eachDay(b.start_date, b.end_date).forEach(d => s.add(d));
+      });
+      setBooked(s);
+    }).catch(() => {});
+  }, [car.id]);
+
+  const iso = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const reservedSet = new Set<string>([...booked, ...entries.flatMap(e => eachDay(e.start, e.end))]);
+
+  const onDay = (d: string) => {
+    if (reservedSet.has(d)) return;
+    if (!selStart || (selStart && selEnd)) { setSelStart(d); setSelEnd(null); return; }
+    if (d < selStart) { setSelStart(d); return; }
+    // vérifie qu'aucune date réservée dans l'intervalle
+    const range = eachDay(selStart, d);
+    if (range.some(x => reservedSet.has(x))) { setErr('Intervalle chevauche une date déjà prise'); setTimeout(() => setErr(''), 2500); return; }
+    setSelEnd(d);
+  };
+
+  const addEntry = () => {
+    if (!client.trim() || !selStart || !selEnd) { setErr('Nom + dates requis'); setTimeout(() => setErr(''), 2000); return; }
+    setEntries(e => [...e, { client: client.trim(), phone: phone.trim(), start: selStart, end: selEnd }]);
+    setClient(''); setPhone(''); setSelStart(null); setSelEnd(null);
+  };
+
+  const createAll = async () => {
+    const list = [...entries];
+    if (client.trim() && selStart && selEnd) list.push({ client: client.trim(), phone: phone.trim(), start: selStart, end: selEnd });
+    if (!list.length) { setErr('Ajoute au moins un client + dates'); setTimeout(() => setErr(''), 2000); return; }
+    const ppd = price ? Number(price) : (defPrice ?? 0);
+    setSaving(true);
+    let ok = 0;
+    for (const e of list) {
+      const nb = Math.max(1, eachDay(e.start, e.end).length);
+      try {
+        await business.createBooking({
+          client_name: e.client, client_phone: (e.phone && e.phone.replace(/\D/g, '').length >= 6) ? e.phone : '000000',
+          car_id: car.id, start_date: e.start, end_date: e.end, nb_days: nb,
+          client_price_per_day: ppd || null,
+          owner_price_per_day: ownerPrice,
+          final_price: Math.round(ppd * nb * 100) / 100,
+          currency: isHouari ? 'DZD' : 'EUR',
+          rented_by: isHouari ? 'Houari' : 'Kouider',
+          initial_status: 'CONFIRMED',
+        });
+        ok++;
+      } catch { /* skip */ }
+    }
+    setSaving(false);
+    onCreated(ok);
+  };
+
+  const totalClients = entries.length + (client.trim() && selStart && selEnd ? 1 : 0);
+  const first = new Date(month.y, month.m, 1);
+  const startWeekday = (first.getDay() + 6) % 7; // lundi=0
+  const daysInMonth = new Date(month.y, month.m + 1, 0).getDate();
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const E = '#10b981';
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ width: '100%', maxHeight: '94%', overflowY: 'auto', background: '#15151b', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.08)', padding: '16px 16px 22px', fontFamily: 'Inter, sans-serif' }}>
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)', margin: '0 auto 14px' }} />
+        <div style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>Réserver — {car.name}</div>
+        <div style={{ fontSize: 12, color: '#9b9ba6', marginBottom: 12 }}>1 ou plusieurs clients · dates indispo en rouge</div>
+
+        {/* Calendrier */}
+        <div style={{ background: '#1d1d25', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 12, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <button onClick={() => setMonth(s => s.m === 0 ? { y: s.y - 1, m: 11 } : { y: s.y, m: s.m - 1 })} style={calNav}>‹</button>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{MONTHS[month.m]} {month.y}</span>
+            <button onClick={() => setMonth(s => s.m === 11 ? { y: s.y + 1, m: 0 } : { y: s.y, m: s.m + 1 })} style={calNav}>›</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3, marginBottom: 4 }}>
+            {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 9, color: '#6b7280' }}>{d}</div>)}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
+            {Array.from({ length: startWeekday }).map((_, i) => <div key={`e${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1; const d = iso(month.y, month.m, day);
+              const past = d < todayIso;
+              const isBooked = reservedSet.has(d);
+              const inSel = selStart && (d === selStart || (selEnd && d >= selStart && d <= selEnd) || (!selEnd && d === selStart));
+              const disabled = past || isBooked;
+              const bg = isBooked ? 'rgba(225,29,72,0.18)' : inSel ? E : past ? 'transparent' : 'rgba(255,255,255,0.04)';
+              const fg = isBooked ? '#fb7185' : inSel ? '#04140d' : past ? '#3a3a40' : '#e5e7eb';
+              return (
+                <button key={day} onClick={() => !disabled && onDay(d)} disabled={disabled}
+                  style={{ aspectRatio: '1', borderRadius: 8, border: 'none', background: bg, color: fg, fontSize: 12, fontWeight: inSel ? 700 : 500, cursor: disabled ? 'default' : 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: '#9b9ba6', marginTop: 8, textAlign: 'center' }}>
+            {selStart && !selEnd ? `Début ${selStart.slice(8)}/${selStart.slice(5, 7)} — choisis la fin` : selStart && selEnd ? `${selStart.slice(8)}/${selStart.slice(5, 7)} → ${selEnd.slice(8)}/${selEnd.slice(5, 7)} (${eachDay(selStart, selEnd).length}j)` : 'Choisis la date de début'}
+          </div>
+        </div>
+
+        {/* Client */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <input value={client} onChange={e => setClient(e.target.value)} placeholder="Nom du client" style={{ ...bkInp, flex: 1 }} />
+          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Téléphone" inputMode="tel" style={{ ...bkInp, flex: 1 }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+          <input value={price} onChange={e => setPrice(e.target.value)} type="number" placeholder={`Prix/jour (${cur})`} style={{ ...bkInp, flex: 1 }} />
+          <button onClick={addEntry} style={{ flex: '0 0 auto', padding: '11px 14px', borderRadius: 11, border: `1px solid ${E}66`, background: `${E}1a`, color: E, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>+ Client</button>
+        </div>
+
+        {/* Clients ajoutés */}
+        {entries.length > 0 && (
+          <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {entries.map((e, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1d1d25', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '8px 11px' }}>
+                <span style={{ flex: 1, fontSize: 13, color: '#fff' }}>{e.client}</span>
+                <span style={{ fontSize: 11, color: '#9b9ba6' }}>{e.start.slice(5)} → {e.end.slice(5)}</span>
+                <button onClick={() => setEntries(x => x.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', color: '#fb7185', fontSize: 14, cursor: 'pointer' }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {err && <div style={{ fontSize: 12, color: '#fb7185', marginBottom: 8, textAlign: 'center' }}>{err}</div>}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 13, borderRadius: 13, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#9b9ba6', fontSize: 14, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Annuler</button>
+          <button onClick={() => void createAll()} disabled={saving || totalClients === 0} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${E}, #34d399)`, color: '#04140d', fontSize: 14, fontWeight: 800, cursor: 'pointer', opacity: saving || totalClients === 0 ? 0.5 : 1, fontFamily: 'Inter, sans-serif' }}>
+            {saving ? 'Création…' : `Créer ${totalClients || ''} résa${totalClients > 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// liste des jours (ISO) entre start et end inclus
+function eachDay(start: string, end: string): string[] {
+  const out: string[] = [];
+  const s = new Date(start + 'T00:00:00'); const e = new Date(end + 'T00:00:00');
+  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) out.push(d.toISOString().slice(0, 10));
+  return out;
+}
+const calNav: CSSProperties = { width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#10b981', fontSize: 16, cursor: 'pointer' };
+const bkInp: CSSProperties = { padding: '11px 12px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.1)', background: '#1d1d25', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
 
 // ── Édition prix voiture (Kouider €, Houari DZD) ──────────────────────────────
 function CarEditModal({ car, isHouari, onClose, onSaved }: {
