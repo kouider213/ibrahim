@@ -114,16 +114,34 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  // Son d'activation micro (façon Gemini)
-  function playSound(file: string, vol: number) {
+  // Son d'activation micro — chime synthétisé doux et pro (façon Gemini), via WebAudio
+  function playChime(kind: 'open' | 'listen' = 'listen') {
     try {
-      const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
-      const a = new Audio(`${base}sounds/${file}`);
-      a.volume = vol;
-      void a.play().catch(() => {});
+      const Ctx = (window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext });
+      const AC = Ctx.AudioContext ?? Ctx.webkitAudioContext;
+      if (!AC) return;
+      const ctx = audioCtxRef.current && audioCtxRef.current.state !== 'closed' ? audioCtxRef.current : new AC();
+      audioCtxRef.current = ctx;
+      if (ctx.state === 'suspended') void ctx.resume();
+      const t0 = ctx.currentTime;
+      // 2 notes douces ascendantes (sine) avec enveloppe lente = son premium
+      const notes = kind === 'open' ? [523.25, 783.99] : [659.25, 987.77]; // C5→G5 / E5→B5
+      notes.forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = f;
+        const start = t0 + i * 0.085;
+        const peak = 0.13;
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(peak, start + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + 0.32);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(start); osc.stop(start + 0.34);
+      });
     } catch { /* ignore */ }
   }
-  function playActivationSound() { playSound('startup.wav', 0.5); }   // ouverture du mode vocal
+  function playActivationSound() { playChime('open'); }   // ouverture du mode vocal
 
   // Envoie un texte (dicté par SpeechRecognition) à Dzaryx + joue la réponse
   async function processUserText(text: string) {
@@ -630,6 +648,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       speechStartRef.current = Date.now();
       setStatus('listening');
       setHud('ENREGISTREMENT EN COURS...');
+      playChime('listen');   // joli son à l'activation du micro (tap-to-talk)
     }
     setTimeout(() => {
       if (!isRecordingRef.current) return;
@@ -878,7 +897,6 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
 
   return (
     <div
-      className="scanlines"
       style={{ width: '100%', height: '100%', background: '#000000', position: 'relative', overflow: 'hidden' }}
     >
       {/* Canvas background */}

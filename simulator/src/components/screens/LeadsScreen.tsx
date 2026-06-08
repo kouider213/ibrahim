@@ -18,7 +18,7 @@ const STATUS_FLOW = ['nouveau', 'en_cours', 'conclu', 'perdu'];
 const inp: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', background: 'rgba(99,102,241,0.04)',
   border: '1px solid #6366f11a', borderRadius: 7, padding: '7px 9px',
-  fontFamily: 'Share Tech Mono', fontSize: 11, color: '#c8e8ff', outline: 'none',
+  fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#c8e8ff', outline: 'none',
 };
 
 export default function LeadsScreen() {
@@ -62,13 +62,13 @@ export default function LeadsScreen() {
   const enCours = leads.filter(l => l.status === 'en_cours').length;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>DEMANDES</div>
-          <button onClick={() => setShow(s => !s)} style={{ background: '#6366f118', border: '1px solid #6366f155', borderRadius: 8, padding: '4px 10px', fontFamily: 'Orbitron', fontSize: 7, color: '#6366f1', cursor: 'pointer', letterSpacing: '0.12em' }}>{show ? '✕' : '+ DEMANDE'}</button>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>DEMANDES</div>
+          <button onClick={() => setShow(s => !s)} style={{ background: '#6366f118', border: '1px solid #6366f155', borderRadius: 8, padding: '4px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f1', cursor: 'pointer', letterSpacing: '0.12em' }}>{show ? '✕' : '+ DEMANDE'}</button>
         </div>
         <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
           <Kpi label="NOUVEAUX" val={String(nouveaux)} col="#6366f1" />
@@ -77,7 +77,7 @@ export default function LeadsScreen() {
         </div>
         <div style={{ display: 'flex', gap: 5 }}>
           {([['actifs', 'ACTIFS'], ['conclu', 'CONCLUS'], ['all', 'TOUT']] as [string, string][]).map(([k, lbl]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '5px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: filter === k ? 'rgba(99,102,241,0.15)' : 'transparent', border: `1px solid #6366f1${filter === k ? '88' : '22'}`, color: `#6366f1${filter === k ? '' : '66'}` }}>{lbl}</button>
+            <button key={k} onClick={() => setFilter(k)} style={{ flex: 1, padding: '5px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: filter === k ? 'rgba(99,102,241,0.15)' : 'transparent', border: `1px solid #6366f1${filter === k ? '88' : '22'}`, color: `#6366f1${filter === k ? '' : '66'}` }}>{lbl}</button>
           ))}
         </div>
       </div>
@@ -87,7 +87,7 @@ export default function LeadsScreen() {
           <div style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid #6366f122', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {Object.entries(CAT_META).map(([k, m]) => (
-                <button key={k} onClick={() => setF(s => ({ ...s, category: k }))} style={{ flex: '1 1 45%', padding: '5px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 6, cursor: 'pointer', background: f.category === k ? `${m.col}22` : 'transparent', border: `1px solid ${f.category === k ? m.col : '#ffffff22'}`, color: f.category === k ? m.col : '#ffffff44' }}>{m.icon} {m.label}</button>
+                <button key={k} onClick={() => setF(s => ({ ...s, category: k }))} style={{ flex: '1 1 45%', padding: '5px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6, cursor: 'pointer', background: f.category === k ? `${m.col}22` : 'transparent', border: `1px solid ${f.category === k ? m.col : '#ffffff22'}`, color: f.category === k ? m.col : '#ffffff44' }}>{m.icon} {m.label}</button>
               ))}
             </div>
             <div style={{ display: 'flex', gap: 5 }}>
@@ -100,7 +100,7 @@ export default function LeadsScreen() {
               <input value={f.budget_max} onChange={e => setF(s => ({ ...s, budget_max: e.target.value }))} type="number" placeholder="Budget max" style={inp} />
               <select value={f.currency} onChange={e => setF(s => ({ ...s, currency: e.target.value }))} style={{ ...inp, flex: '0 0 64px' }}><option>DZD</option><option>EUR</option></select>
             </div>
-            <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...inp, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ ENREGISTRER LA DEMANDE'}</button>
+            <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...inp, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ ENREGISTRER LA DEMANDE'}</button>
           </div>
         )}
 
@@ -115,13 +115,13 @@ export default function LeadsScreen() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 11, color: '#e8f4ff' }}>{l.client_name}</span>
-                    <span style={{ fontSize: 6, fontFamily: 'Orbitron', color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`, borderRadius: 4, padding: '2px 5px' }}>{m.label}</span>
+                    <span style={{ fontSize: 6, fontFamily: 'Inter, sans-serif', color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`, borderRadius: 4, padding: '2px 5px' }}>{m.label}</span>
                   </div>
                   <div style={{ fontSize: 8, color: '#ffffff66', marginTop: 2 }}>{l.criteria}</div>
                   <div style={{ fontSize: 7, color: '#ffffff33', marginTop: 1 }}>{[l.city, l.budget_max ? `≤ ${Number(l.budget_max).toLocaleString()} ${cur}` : null].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                  <button onClick={() => void cycle(l)} disabled={busy === l.id} style={{ fontSize: 6, fontFamily: 'Orbitron', color: st.col, background: `${st.col}14`, border: `1px solid ${st.col}44`, borderRadius: 5, padding: '3px 6px', cursor: 'pointer' }}>{st.label} ▸</button>
+                  <button onClick={() => void cycle(l)} disabled={busy === l.id} style={{ fontSize: 6, fontFamily: 'Inter, sans-serif', color: st.col, background: `${st.col}14`, border: `1px solid ${st.col}44`, borderRadius: 5, padding: '3px 6px', cursor: 'pointer' }}>{st.label} ▸</button>
                   {l.client_phone && <a href={`tel:${l.client_phone}`} style={{ fontSize: 13, textDecoration: 'none' }}>📞</a>}
                 </div>
               </div>
@@ -136,12 +136,12 @@ export default function LeadsScreen() {
 function Kpi({ label, val, col }: { label: string; val: string; col: string }) {
   return (
     <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
       <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.15em', marginTop: 2 }}>{label}</div>
     </div>
   );
 }
-function Loader() { return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>CHARGEMENT…</div>; }
+function Loader() { return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>; }
 function Empty({ text }: { text: string }) { return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#ffffff1a', letterSpacing: '0.1em' }}>{text}</div>; }
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
   const s = 12, t = 1.5, col = '#6366f1';

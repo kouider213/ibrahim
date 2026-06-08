@@ -92,17 +92,17 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   const occPct       = intel ? Math.round(intel.occupancy_avg_pct) : 0;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             {tab === 'cars' ? 'PARC VÉHICULES' : tab === 'immo' ? 'IMMOBILIER' : 'VENTE AUTO'}
           </div>
           {msg && (
-            <span style={{ fontSize: 8, color: '#00e676', fontFamily: 'Orbitron', letterSpacing: '0.1em' }}>{msg}</span>
+            <span style={{ fontSize: 8, color: '#00e676', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em' }}>{msg}</span>
           )}
         </div>
         {/* Segment switcher */}
@@ -112,7 +112,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
               flex: 1, padding: '6px 4px', borderRadius: 7,
               background: tab === k ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.04)',
               border: `1px solid #6366f1${tab === k ? '88' : '22'}`,
-              fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.08em',
+              fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.08em',
               color: `#6366f1${tab === k ? '' : '77'}`, cursor: 'pointer',
             }}>{lbl}</button>
           ))}
@@ -223,7 +223,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                     <div style={{ flex: 1, height: 3, background: '#ffffff09', borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}55, ${col})`, borderRadius: 2, transition: 'width 0.6s ease' }} />
                     </div>
-                    <span style={{ fontSize: 7, color: col, fontFamily: 'Orbitron', minWidth: 24, textAlign: 'right' }}>
+                    <span style={{ fontSize: 7, color: col, fontFamily: 'Inter, sans-serif', minWidth: 24, textAlign: 'right' }}>
                       {occ30d}%
                     </span>
                   </div>
@@ -257,7 +257,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                     left: avail ? 26 : 4,
                   }} />
                 </button>
-                <span style={{ fontSize: 6, fontFamily: 'Orbitron', color: col, letterSpacing: '0.1em' }}>
+                <span style={{ fontSize: 6, fontFamily: 'Inter, sans-serif', color: col, letterSpacing: '0.1em' }}>
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
                 </span>
                 {/* Actions : édition prix + photos + inspection */}
@@ -363,9 +363,9 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }}>
       <div style={{ width: '90%', maxWidth: 300, background: 'linear-gradient(135deg, #0a1628, #060e1c)', border: '1px solid #6366f133', borderRadius: 16, padding: 18 }}>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.15em', textAlign: 'center' }}>MODIFIER PRIX</div>
-        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#ffffff66', textAlign: 'center', marginBottom: 4 }}>{car.name.toUpperCase()}</div>
-        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: isHouari ? '#6366f1' : '#00e676', textAlign: 'center', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.15em', textAlign: 'center' }}>MODIFIER PRIX</div>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ffffff66', textAlign: 'center', marginBottom: 4 }}>{car.name.toUpperCase()}</div>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: isHouari ? '#6366f1' : '#00e676', textAlign: 'center', marginBottom: 14 }}>
           {isHouari ? '💱 Tarifs HOUARI — en dinars (DA)' : '💶 Tarifs KOUIDER — en euros (€)'}
         </div>
 
@@ -386,8 +386,8 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
         {err && <div style={{ fontSize: 9, color: '#ff6b8a', textAlign: 'center', marginBottom: 8 }}>{err}</div>}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid #ffffff18', background: 'transparent', color: '#ffffff66', fontFamily: 'Orbitron', fontSize: 8, cursor: 'pointer' }}>ANNULER</button>
-          <button onClick={() => void save()} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#ffffff', fontFamily: 'Orbitron', fontSize: 8, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? '…' : 'ENREGISTRER'}</button>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid #ffffff18', background: 'transparent', color: '#ffffff66', fontFamily: 'Inter, sans-serif', fontSize: 8, cursor: 'pointer' }}>ANNULER</button>
+          <button onClick={() => void save()} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: 8, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? '…' : 'ENREGISTRER'}</button>
         </div>
       </div>
     </div>
@@ -396,7 +396,7 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
 
 const editInp: CSSProperties = {
   width: '100%', padding: '10px 12px', borderRadius: 9, border: '1px solid #ffffff1e',
-  background: 'rgba(255,255,255,0.04)', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 13,
+  background: 'rgba(255,255,255,0.04)', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 13,
   outline: 'none', boxSizing: 'border-box',
 };
 
@@ -409,7 +409,7 @@ const IMMO_ST: Record<string, { label: string; col: string }> = {
 const paneInput: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box', background: 'rgba(99,102,241,0.04)',
   border: '1px solid #6366f11a', borderRadius: 7, padding: '6px 8px',
-  fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
+  fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 function ImmoPane({ onMsg, onInspect }: { onMsg: (m: string) => void; onInspect: (name: string) => void }) {
@@ -456,14 +456,14 @@ function ImmoPane({ onMsg, onInspect }: { onMsg: (m: string) => void; onInspect:
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <button onClick={() => setShow(s => !s)} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#b388ff', border: '1px solid #b388ff44', background: 'rgba(179,136,255,0.08)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>
+      <button onClick={() => setShow(s => !s)} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#b388ff', border: '1px solid #b388ff44', background: 'rgba(179,136,255,0.08)', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.15em' }}>
         {show ? '✕ FERMER' : '+ AJOUTER UN BIEN'}
       </button>
       {show && (
         <div style={{ background: 'rgba(179,136,255,0.05)', border: '1px solid #b388ff22', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', gap: 5 }}>
             {(['location', 'vente'] as const).map(t => (
-              <button key={t} onClick={() => setF(s => ({ ...s, transaction: t }))} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: f.transaction === t ? '#b388ff22' : 'transparent', border: `1px solid ${f.transaction === t ? '#b388ff' : '#ffffff22'}`, color: f.transaction === t ? '#b388ff' : '#ffffff44' }}>{t === 'location' ? 'À LOUER' : 'À VENDRE'}</button>
+              <button key={t} onClick={() => setF(s => ({ ...s, transaction: t }))} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: f.transaction === t ? '#b388ff22' : 'transparent', border: `1px solid ${f.transaction === t ? '#b388ff' : '#ffffff22'}`, color: f.transaction === t ? '#b388ff' : '#ffffff44' }}>{t === 'location' ? 'À LOUER' : 'À VENDRE'}</button>
             ))}
           </div>
           <input value={f.title} onChange={e => setF(s => ({ ...s, title: e.target.value }))} placeholder="Titre (ex: F3 Hay Badr)" style={paneInput} />
@@ -482,7 +482,7 @@ function ImmoPane({ onMsg, onInspect }: { onMsg: (m: string) => void; onInspect:
             </select>
             <input value={f.rooms} onChange={e => setF(s => ({ ...s, rooms: e.target.value }))} type="number" placeholder="Pièces" style={paneInput} />
           </div>
-          <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ AJOUTER AU SITE'}</button>
+          <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ AJOUTER AU SITE'}</button>
         </div>
       )}
       {loading ? <HudLoader /> : items.length === 0 ? <HudEmpty text="Aucun bien — ajoute le premier" /> : items.map(p => {
@@ -499,14 +499,14 @@ function ImmoPane({ onMsg, onInspect }: { onMsg: (m: string) => void; onInspect:
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#fff' }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#fff' }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
                 <div style={{ fontSize: 7, color: st.col, marginTop: 1 }}>{st.label}</div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
-              <button onClick={() => void cycle(p)} disabled={busy === p.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
-              <button onClick={() => onInspect(p.title || p.name || 'Bien')} title="État des lieux entrée/sortie" style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 9, cursor: 'pointer', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f144', color: '#6366f1' }}>📷</button>
-              <button onClick={() => void del(p)} disabled={busy === p.id} style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}>🗑</button>
+              <button onClick={() => void cycle(p)} disabled={busy === p.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
+              <button onClick={() => onInspect(p.title || p.name || 'Bien')} title="État des lieux entrée/sortie" style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 9, cursor: 'pointer', background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f144', color: '#6366f1' }}>📷</button>
+              <button onClick={() => void del(p)} disabled={busy === p.id} style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}>🗑</button>
             </div>
           </div>
         );
@@ -551,7 +551,7 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <button onClick={() => setShow(s => !s)} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#ffb347', border: '1px solid #ffb34744', background: 'rgba(255,179,71,0.08)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>
+      <button onClick={() => setShow(s => !s)} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#ffb347', border: '1px solid #ffb34744', background: 'rgba(255,179,71,0.08)', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.15em' }}>
         {show ? '✕ FERMER' : '+ AJOUTER UNE VOITURE À VENDRE'}
       </button>
       {show && (
@@ -568,7 +568,7 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
             <input value={f.price} onChange={e => setF(s => ({ ...s, price: e.target.value }))} type="number" placeholder="Prix vente" style={paneInput} />
             <select value={f.currency} onChange={e => setF(s => ({ ...s, currency: e.target.value }))} style={{ ...paneInput, flex: '0 0 70px' }}><option>DZD</option><option>EUR</option></select>
           </div>
-          <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ AJOUTER AU SITE'}</button>
+          <button onClick={() => void add()} disabled={busy === 'add'} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#00e676', border: '1px solid #00e67644', background: 'rgba(0,230,118,0.1)', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.15em' }}>{busy === 'add' ? '…' : '✅ AJOUTER AU SITE'}</button>
         </div>
       )}
       {loading ? <HudLoader /> : items.length === 0 ? <HudEmpty text="Aucune voiture à vendre — ajoute la première" /> : items.map(v => {
@@ -583,11 +583,11 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
                 <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>{[v.year, v.mileage ? `${Number(v.mileage).toLocaleString('fr-FR')} km` : null].filter(Boolean).join(' · ') || '—'}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#fff' }}>{v.price != null ? `${Number(v.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#fff' }}>{v.price != null ? `${Number(v.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
                 <div style={{ fontSize: 7, color: st.col, marginTop: 1 }}>{st.label}</div>
               </div>
             </div>
-            <button onClick={() => void cycle(v)} disabled={busy === v.id} style={{ width: '100%', marginTop: 8, padding: '6px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 CHANGER STATUT</button>
+            <button onClick={() => void cycle(v)} disabled={busy === v.id} style={{ width: '100%', marginTop: 8, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 CHANGER STATUT</button>
           </div>
         );
       })}
@@ -598,7 +598,7 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
 function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
   return (
     <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
       <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.15em', marginTop: 2 }}>{label}</div>
     </div>
   );
@@ -606,7 +606,7 @@ function KpiCard({ label, val, col }: { label: string; val: string; col: string 
 
 function HudLoader() {
   return (
-    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>
+    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
       CHARGEMENT…
     </div>
   );
@@ -618,7 +618,7 @@ function HudEmpty({ text }: { text: string }) {
 
 const refreshBtn: React.CSSProperties = {
   background: 'transparent', border: '1px solid #6366f122', borderRadius: 6,
-  padding: '5px 12px', fontFamily: 'Orbitron', fontSize: 7,
+  padding: '5px 12px', fontFamily: 'Inter, sans-serif', fontSize: 7,
   color: '#6366f155', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
 };
 
@@ -731,13 +731,13 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.94)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
       <div style={{ background: 'linear-gradient(135deg, #0a1628, #060e1c)', border: '1px solid #ffb34733', borderRadius: 18, padding: 18, width: '92%', maxWidth: 320, maxHeight: '92%', overflowY: 'auto', boxShadow: '0 0 40px rgba(255,179,71,0.12)' }}>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#ffb347', letterSpacing: '0.2em', textAlign: 'center' }}>{title}</div>
-        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#ffffff66', letterSpacing: '0.1em', marginBottom: 14, textAlign: 'center' }}>{subject.toUpperCase()}</div>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#ffb347', letterSpacing: '0.2em', textAlign: 'center' }}>{title}</div>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ffffff66', letterSpacing: '0.1em', marginBottom: 14, textAlign: 'center' }}>{subject.toUpperCase()}</div>
 
         {result ? (
           <>
             {result.analysis?.accident && (
-              <div style={{ background: 'rgba(255,51,102,0.15)', border: '1px solid #ff336655', borderRadius: 8, padding: '6px 8px', marginBottom: 8, color: '#ff6b8a', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.1em', textAlign: 'center' }}>🚨 ACCIDENT / CHOC DÉTECTÉ</div>
+              <div style={{ background: 'rgba(255,51,102,0.15)', border: '1px solid #ff336655', borderRadius: 8, padding: '6px 8px', marginBottom: 8, color: '#ff6b8a', fontFamily: 'Inter, sans-serif', fontSize: 9, letterSpacing: '0.1em', textAlign: 'center' }}>🚨 ACCIDENT / CHOC DÉTECTÉ</div>
             )}
 
             {/* Chaque photo + ses marqueurs (numéros globaux) */}
@@ -749,11 +749,11 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
                   return (
                     <div key={gi}>
                       <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%`, border: `2px solid ${col}`, borderRadius: 4, boxShadow: `0 0 8px ${col}88`, boxSizing: 'border-box' }} />
-                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 16, height: 16, padding: '0 3px', borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Orbitron', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gi + 1}</div>
+                      <div style={{ position: 'absolute', left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, transform: 'translate(-50%,-50%)', minWidth: 16, height: 16, padding: '0 3px', borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{gi + 1}</div>
                     </div>
                   );
                 })())}
-                {photos.length > 1 && <div style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 8, padding: '1px 5px', borderRadius: 5 }}>Photo {pi + 1}/{photos.length}</div>}
+                {photos.length > 1 && <div style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(0,0,0,0.6)', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 8, padding: '1px 5px', borderRadius: 5 }}>Photo {pi + 1}/{photos.length}</div>}
               </div>
             ))}
 
@@ -764,8 +764,8 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
                   const col = SEV_COL[d.severity] ?? '#ffb347';
                   return (
                     <div key={i} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', marginBottom: 5 }}>
-                      <span style={{ flex: '0 0 16px', height: 16, borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Orbitron', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
-                      <span style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#dfeaff', lineHeight: 1.35 }}>
+                      <span style={{ flex: '0 0 16px', height: 16, borderRadius: 8, background: col, color: '#04101f', fontFamily: 'Inter, sans-serif', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#dfeaff', lineHeight: 1.35 }}>
                         {d.label}{d.is_new ? <b style={{ color: '#ff6b8a' }}> · NOUVEAU</b> : ''}
                       </span>
                     </div>
@@ -773,11 +773,11 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
                 })}
               </div>
             ) : (
-              <div style={{ color: '#00e676', fontFamily: 'Share Tech Mono', fontSize: 10, textAlign: 'center', marginBottom: 10 }}>✅ Aucun {kind === 'vehicle' ? 'dégât' : 'défaut'} détecté</div>
+              <div style={{ color: '#00e676', fontFamily: 'Inter, sans-serif', fontSize: 10, textAlign: 'center', marginBottom: 10 }}>✅ Aucun {kind === 'vehicle' ? 'dégât' : 'défaut'} détecté</div>
             )}
 
             {/* Rapport texte */}
-            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8.5, color: '#ffffff88', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto', borderTop: '1px solid #ffffff10', paddingTop: 8, marginBottom: 12 }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8.5, color: '#ffffff88', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto', borderTop: '1px solid #ffffff10', paddingTop: 8, marginBottom: 12 }}>
               {result.analysis?.comparisonReport || result.analysis?.description || ''}
             </div>
 
@@ -787,20 +787,20 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
             </div>
           </>
         ) : busy ? (
-          <div style={{ textAlign: 'center', padding: '18px 0', fontFamily: 'Orbitron', fontSize: 10, color: '#ffb347', letterSpacing: '0.2em', animation: 'statusPulse 1s ease infinite' }}>ANALYSE CLAUDE EN COURS…<br /><span style={{ fontSize: 8, color: '#ffffff55' }}>{shots.length} photo{shots.length > 1 ? 's' : ''}</span></div>
+          <div style={{ textAlign: 'center', padding: '18px 0', fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#ffb347', letterSpacing: '0.2em', animation: 'statusPulse 1s ease infinite' }}>ANALYSE CLAUDE EN COURS…<br /><span style={{ fontSize: 8, color: '#ffffff55' }}>{shots.length} photo{shots.length > 1 ? 's' : ''}</span></div>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               {(['before', 'after'] as const).map(m => (
-                <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `1.5px solid ${mode === m ? '#ffb347' : '#ffffff18'}`, background: mode === m ? 'rgba(255,179,71,0.12)' : 'transparent', color: mode === m ? '#ffb347' : '#ffffff44', fontFamily: 'Orbitron', fontSize: 8, letterSpacing: '0.15em', cursor: 'pointer' }}>
+                <button key={m} onClick={() => setMode(m)} style={{ flex: 1, padding: '8px 0', borderRadius: 10, border: `1.5px solid ${mode === m ? '#ffb347' : '#ffffff18'}`, background: mode === m ? 'rgba(255,179,71,0.12)' : 'transparent', color: mode === m ? '#ffb347' : '#ffffff44', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.15em', cursor: 'pointer' }}>
                   {m === 'before' ? (kind === 'vehicle' ? 'AVANT' : 'ENTRÉE') : (kind === 'vehicle' ? 'APRÈS' : 'SORTIE')}
                 </button>
               ))}
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: '#ffffff44', letterSpacing: '0.1em', marginBottom: 6 }}>{kind === 'vehicle' ? 'NOM CLIENT' : 'NOM LOCATAIRE'}</div>
-              <input value={client} onChange={e => setClient(e.target.value)} placeholder="Ex: Benali Mohamed" style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #ffffff18', background: 'rgba(255,255,255,0.04)', color: '#fff', fontFamily: 'Share Tech Mono', fontSize: 10, outline: 'none', boxSizing: 'border-box' }} />
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff44', letterSpacing: '0.1em', marginBottom: 6 }}>{kind === 'vehicle' ? 'NOM CLIENT' : 'NOM LOCATAIRE'}</div>
+              <input value={client} onChange={e => setClient(e.target.value)} placeholder="Ex: Benali Mohamed" style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #ffffff18', background: 'rgba(255,255,255,0.04)', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 10, outline: 'none', boxSizing: 'border-box' }} />
             </div>
 
             {/* Miniatures des photos choisies */}
@@ -815,12 +815,12 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
               </div>
             )}
 
-            {err && <div style={{ color: '#ff6b8a', fontFamily: 'Share Tech Mono', fontSize: 8.5, marginBottom: 8, lineHeight: 1.4 }}>{err}</div>}
+            {err && <div style={{ color: '#ff6b8a', fontFamily: 'Inter, sans-serif', fontSize: 8.5, marginBottom: 8, lineHeight: 1.4 }}>{err}</div>}
 
             <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
-            <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1.5px dashed #ffb34755', background: 'rgba(255,179,71,0.06)', color: '#ffb347', fontFamily: 'Orbitron', fontSize: 8.5, letterSpacing: '0.15em', cursor: 'pointer', marginBottom: 8 }}>📷 {shots.length ? 'AJOUTER PHOTO' : 'PRENDRE / CHOISIR PHOTOS'}</button>
-            <button onClick={() => void submit()} disabled={!client.trim() || !shots.length} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #00e67666', background: (client.trim() && shots.length) ? 'rgba(0,230,118,0.12)' : 'rgba(255,255,255,0.03)', color: (client.trim() && shots.length) ? '#00e676' : '#ffffff33', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em', cursor: (client.trim() && shots.length) ? 'pointer' : 'not-allowed', marginBottom: 8 }}>🔍 ANALYSER {shots.length > 0 ? `(${shots.length})` : ''}</button>
-            <button onClick={onClose} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: '1px solid #ffffff12', background: 'transparent', color: '#ffffff33', fontFamily: 'Share Tech Mono', fontSize: 8, letterSpacing: '0.1em', cursor: 'pointer' }}>ANNULER</button>
+            <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1.5px dashed #ffb34755', background: 'rgba(255,179,71,0.06)', color: '#ffb347', fontFamily: 'Inter, sans-serif', fontSize: 8.5, letterSpacing: '0.15em', cursor: 'pointer', marginBottom: 8 }}>📷 {shots.length ? 'AJOUTER PHOTO' : 'PRENDRE / CHOISIR PHOTOS'}</button>
+            <button onClick={() => void submit()} disabled={!client.trim() || !shots.length} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #00e67666', background: (client.trim() && shots.length) ? 'rgba(0,230,118,0.12)' : 'rgba(255,255,255,0.03)', color: (client.trim() && shots.length) ? '#00e676' : '#ffffff33', fontFamily: 'Inter, sans-serif', fontSize: 9, letterSpacing: '0.2em', cursor: (client.trim() && shots.length) ? 'pointer' : 'not-allowed', marginBottom: 8 }}>🔍 ANALYSER {shots.length > 0 ? `(${shots.length})` : ''}</button>
+            <button onClick={onClose} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: '1px solid #ffffff12', background: 'transparent', color: '#ffffff33', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.1em', cursor: 'pointer' }}>ANNULER</button>
           </>
         )}
       </div>
@@ -829,5 +829,5 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
 }
 
 function inspBtn(col: string): CSSProperties {
-  return { flex: 1, padding: '9px 0', borderRadius: 10, border: `1.5px solid ${col}66`, background: `${col}1a`, color: col, fontFamily: 'Orbitron', fontSize: 8.5, letterSpacing: '0.12em', cursor: 'pointer' };
+  return { flex: 1, padding: '9px 0', borderRadius: 10, border: `1.5px solid ${col}66`, background: `${col}1a`, color: col, fontFamily: 'Inter, sans-serif', fontSize: 8.5, letterSpacing: '0.12em', cursor: 'pointer' };
 }

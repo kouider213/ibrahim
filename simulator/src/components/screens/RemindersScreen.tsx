@@ -39,20 +39,20 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             RAPPELS
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {byPri.HIGH.length > 0 && (
               <div style={{
                 background: '#ff336618', border: '1px solid #ff336655', borderRadius: 10,
-                padding: '3px 8px', fontSize: 7, color: '#ff3366', fontFamily: 'Orbitron',
+                padding: '3px 8px', fontSize: 7, color: '#ff3366', fontFamily: 'Inter, sans-serif',
                 letterSpacing: '0.1em', animation: 'statusPulse 1.5s ease infinite',
               }}>
                 {byPri.HIGH.length} URGENT
@@ -71,7 +71,7 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
               flex: 1, background: PRI_BG[pri], borderRadius: 7, padding: '4px 6px',
               border: `1px solid ${PRI_COL[pri]}2a`, textAlign: 'center',
             }}>
-              <div style={{ fontFamily: 'Orbitron', fontSize: 13, color: PRI_COL[pri], textShadow: `0 0 8px ${PRI_COL[pri]}44` }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: PRI_COL[pri], textShadow: `0 0 8px ${PRI_COL[pri]}44` }}>
                 {byPri[pri].length}
               </div>
               <div style={{ fontSize: 6, color: `${PRI_COL[pri]}66`, letterSpacing: '0.12em', marginTop: 1 }}>{PRI_LABEL[pri]}</div>
@@ -84,11 +84,11 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
+          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 28 }}>✅</div>
-            <div style={{ fontSize: 10, color: '#00e676', fontFamily: 'Orbitron', letterSpacing: '0.2em' }}>
+            <div style={{ fontSize: 10, color: '#00e676', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>
               AUCUN RAPPEL ACTIF
             </div>
           </div>
@@ -106,11 +106,11 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                   padding: '6px 8px 4px',
                 }}>
                   <span>{PRI_ICON[pri]}</span>
-                  <span style={{ fontFamily: 'Orbitron', fontSize: 7, color: col, letterSpacing: '0.2em' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: col, letterSpacing: '0.2em' }}>
                     {PRI_LABEL[pri]}
                   </span>
                   <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${col}33, transparent)` }} />
-                  <span style={{ fontFamily: 'Orbitron', fontSize: 7, color: `${col}55` }}>{items.length}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: `${col}55` }}>{items.length}</span>
                 </div>
 
                 {/* Items */}

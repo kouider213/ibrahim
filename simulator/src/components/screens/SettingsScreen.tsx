@@ -124,17 +124,17 @@ export default function SettingsScreen() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             RÉGLAGES
           </div>
           {msg && (
-            <span style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>
           )}
         </div>
         <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)' }} />
@@ -162,10 +162,10 @@ export default function SettingsScreen() {
                     border: `1.5px solid ${active ? a.col : '#ffffff15'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     margin: '0 auto 8px',
-                    fontFamily: 'Orbitron', fontSize: 14, color: active ? a.col : '#ffffff44',
+                    fontFamily: 'Inter, sans-serif', fontSize: 14, color: active ? a.col : '#ffffff44',
                     boxShadow: active ? `0 0 12px ${a.col}44` : 'none',
                   }}>{a.icon}</div>
-                  <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: active ? a.col : '#ffffff55', letterSpacing: '0.2em', textShadow: active ? `0 0 8px ${a.col}` : 'none' }}>
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: active ? a.col : '#ffffff55', letterSpacing: '0.2em', textShadow: active ? `0 0 8px ${a.col}` : 'none' }}>
                     {a.label}
                   </div>
                   <div style={{ fontSize: 7, color: active ? `${a.col}77` : '#ffffff33', marginTop: 3 }}>{a.role}</div>
@@ -185,7 +185,7 @@ export default function SettingsScreen() {
                   boxShadow: '0 0 8px #00e676', flexShrink: 0,
                   animation: 'statusPulse 2s ease infinite',
                 }} />
-                <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#00e676' }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#00e676' }}>
                   {locData.country === 'Algeria' ? '🇩🇿' : locData.country === 'Belgium' ? '🇧🇪' : locData.country === 'France' ? '🇫🇷' : '🌍'}{' '}
                   {locData.city ?? locData.country}
                 </div>
@@ -294,7 +294,7 @@ export default function SettingsScreen() {
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 8, color: '#c8e8ff', lineHeight: 1.5 }}>{r.rule}</div>
-                  <div style={{ fontSize: 6, color: r.col, marginTop: 2, letterSpacing: '0.1em', fontFamily: 'Orbitron' }}>
+                  <div style={{ fontSize: 6, color: r.col, marginTop: 2, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>
                     {r.cat} · PRIORITÉ {r.priority}
                   </div>
                 </div>
@@ -310,7 +310,7 @@ export default function SettingsScreen() {
         <Panel title="CAPACITÉS & AGENTS DZARYX">
           <button
             onClick={() => setShowCaps(s => !s)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.06)', border: '1px solid #6366f122', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Share Tech Mono', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(99,102,241,0.06)', border: '1px solid #6366f122', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Inter, sans-serif', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
             <span>🤖 14 agents · ce que Dzaryx sait faire</span>
             <span style={{ color: '#6366f188' }}>{showCaps ? '▲' : '▼'}</span>
@@ -324,7 +324,7 @@ export default function SettingsScreen() {
 
         {/* Version */}
         <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff15', letterSpacing: '0.3em' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff15', letterSpacing: '0.3em' }}>
             DZARYX SIMULATOR v1.3 · GPS BRAIN · FIK CONCIERGERIE ORAN
           </div>
         </div>
@@ -336,7 +336,7 @@ export default function SettingsScreen() {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: 'rgba(99,102,241,0.03)', borderRadius: 12, padding: '12px', border: '1px solid #6366f112' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#6366f155', letterSpacing: '0.3em', marginBottom: 10 }}>{title}</div>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f155', letterSpacing: '0.3em', marginBottom: 10 }}>{title}</div>
       {children}
     </div>
   );
@@ -348,7 +348,7 @@ function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: b
     <div style={{ flex: 1, textAlign: 'center', background: `${c}0a`, borderRadius: 8, padding: '6px 6px', border: `1px solid ${c}2a` }}>
       <div style={{ fontSize: 6, color: `${c}77`, letterSpacing: '0.15em', marginBottom: 2 }}>{label}</div>
       <div style={{
-        fontSize: 8, color: c, fontFamily: 'Orbitron',
+        fontSize: 8, color: c, fontFamily: 'Inter, sans-serif',
         textShadow: `0 0 6px ${c}66`,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
       }}>
@@ -367,7 +367,7 @@ function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: b
 function actionBtn(col: string): React.CSSProperties {
   return {
     background: `${col}0d`, border: `1px solid ${col}44`, borderRadius: 8,
-    padding: '8px 12px', fontFamily: 'Orbitron', fontSize: 7,
+    padding: '8px 12px', fontFamily: 'Inter, sans-serif', fontSize: 7,
     color: `${col}cc`, cursor: 'pointer', letterSpacing: '0.15em',
     width: '100%', textAlign: 'center',
   };
@@ -377,7 +377,7 @@ function NexusRow({ k, v }: { k: string; v: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
       <span style={{ fontSize: 6, color: '#00e67644', letterSpacing: '0.1em' }}>{k}</span>
-      <span style={{ fontSize: 7, color: '#00e676cc', fontFamily: 'Share Tech Mono' }}>{v}</span>
+      <span style={{ fontSize: 7, color: '#00e676cc', fontFamily: 'Inter, sans-serif' }}>{v}</span>
     </div>
   );
 }

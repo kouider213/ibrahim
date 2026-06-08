@@ -156,7 +156,7 @@ export default function DemandesScreen() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div>
-          <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(99,102,241,0.8)', letterSpacing: '0.2em' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(99,102,241,0.8)', letterSpacing: '0.2em' }}>
             DEMANDES WHATSAPP
           </div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
@@ -430,7 +430,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
           background: 'rgba(255,255,255,0.12)',
           margin: '0 auto 16px',
         }} />
-        <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(99,102,241,0.8)', letterSpacing: '0.15em', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Inter, sans-serif, monospace', fontSize: 11, fontWeight: 700, color: 'rgba(99,102,241,0.8)', letterSpacing: '0.15em', marginBottom: 14 }}>
           {title.toUpperCase()}
         </div>
         {children}

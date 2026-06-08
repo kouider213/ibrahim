@@ -51,7 +51,7 @@ export default function DocumentsScreen() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Full-screen doc viewer */}
@@ -61,12 +61,12 @@ export default function DocumentsScreen() {
           onClick={() => setViewDoc(null)}
         >
           <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #6366f122' }}>
-            <span style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#6366f1', letterSpacing: '0.2em' }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#6366f1', letterSpacing: '0.2em' }}>
               {viewDoc.type.toUpperCase()} — {viewDoc.client_name}
             </span>
             <button
               onClick={() => setViewDoc(null)}
-              style={{ background: 'none', border: '1px solid #ff336644', borderRadius: 6, color: '#ff3366', fontFamily: 'Orbitron', fontSize: 8, padding: '4px 10px', cursor: 'pointer' }}
+              style={{ background: 'none', border: '1px solid #ff336644', borderRadius: 6, color: '#ff3366', fontFamily: 'Inter, sans-serif', fontSize: 8, padding: '4px 10px', cursor: 'pointer' }}
             >
               ✕ FERMER
             </button>
@@ -89,10 +89,10 @@ export default function DocumentsScreen() {
       {/* Header */}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             DOCUMENTS
           </div>
-          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: '#6366f144', letterSpacing: '0.2em' }}>BASE CLIENTS</span>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f144', letterSpacing: '0.2em' }}>BASE CLIENTS</span>
         </div>
         <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #6366f144, transparent)' }} />
       </div>
@@ -101,7 +101,7 @@ export default function DocumentsScreen() {
 
         {/* Fetch document panel */}
         <div style={{ background: 'rgba(99,102,241,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #6366f11a' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f177', letterSpacing: '0.25em', marginBottom: 10 }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f177', letterSpacing: '0.25em', marginBottom: 10 }}>
             ▶ RÉCUPÉRER DOCUMENT CLIENT
           </div>
 
@@ -125,7 +125,7 @@ export default function DocumentsScreen() {
                     background: active ? 'rgba(99,102,241,0.15)' : loading ? 'rgba(99,102,241,0.03)' : 'rgba(99,102,241,0.08)',
                     border: `1px solid #6366f1${active ? '88' : loading ? '18' : '44'}`,
                     borderRadius: 10, padding: '10px 6px',
-                    fontFamily: 'Orbitron', color: `#6366f1${loading ? '55' : 'cc'}`,
+                    fontFamily: 'Inter, sans-serif', color: `#6366f1${loading ? '55' : 'cc'}`,
                     cursor: loading ? 'default' : 'pointer', textAlign: 'center',
                     transition: 'all 0.2s',
                   }}
@@ -138,7 +138,7 @@ export default function DocumentsScreen() {
           </div>
 
           {loading && (
-            <div style={{ marginTop: 10, textAlign: 'center', fontSize: 8, color: '#6366f155', letterSpacing: '0.2em', fontFamily: 'Orbitron' }}>
+            <div style={{ marginTop: 10, textAlign: 'center', fontSize: 8, color: '#6366f155', letterSpacing: '0.2em', fontFamily: 'Inter, sans-serif' }}>
               RÉCUPÉRATION EN COURS…
             </div>
           )}
@@ -152,7 +152,7 @@ export default function DocumentsScreen() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontSize: 7, color: '#6366f144', letterSpacing: '0.15em', fontFamily: 'Orbitron' }}>
+                  <div style={{ fontSize: 7, color: '#6366f144', letterSpacing: '0.15em', fontFamily: 'Inter, sans-serif' }}>
                     {docs.length} DOCUMENT{docs.length > 1 ? 'S' : ''} TROUVÉ{docs.length > 1 ? 'S' : ''}
                   </div>
                   {docs.map(doc => (
@@ -178,7 +178,7 @@ export default function DocumentsScreen() {
                         />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f1cc', letterSpacing: '0.15em', marginBottom: 2 }}>
+                        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f1cc', letterSpacing: '0.15em', marginBottom: 2 }}>
                           {doc.type.toUpperCase()}
                         </div>
                         <div style={{ fontSize: 8, color: '#c8e8ff', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -199,7 +199,7 @@ export default function DocumentsScreen() {
 
         {/* Contrat PDF panel */}
         <div style={{ background: 'rgba(124,58,237,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #7c3aed22' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#7c3aed99', letterSpacing: '0.25em', marginBottom: 10 }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#7c3aed99', letterSpacing: '0.25em', marginBottom: 10 }}>
             📝 GÉNÉRER CONTRAT PDF
           </div>
           <div style={{ fontSize: 8, color: '#ffffff44', marginBottom: 10, lineHeight: 1.6 }}>
@@ -210,7 +210,7 @@ export default function DocumentsScreen() {
 
         {/* OCR Scan panel */}
         <div style={{ background: 'rgba(255,107,0,0.04)', borderRadius: 12, padding: '12px', border: '1px solid #ff6b0022' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#ff6b0099', letterSpacing: '0.25em', marginBottom: 10 }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#ff6b0099', letterSpacing: '0.25em', marginBottom: 10 }}>
             ◉ SCAN OCR DOCUMENT
           </div>
 
@@ -228,7 +228,7 @@ export default function DocumentsScreen() {
                   boxShadow: '0 0 8px #ff6b0088',
                 }} />
               </div>
-              <div style={{ marginTop: 4, textAlign: 'center', fontSize: 7, color: '#ff6b0066', letterSpacing: '0.15em', fontFamily: 'Orbitron' }}>
+              <div style={{ marginTop: 4, textAlign: 'center', fontSize: 7, color: '#ff6b0066', letterSpacing: '0.15em', fontFamily: 'Inter, sans-serif' }}>
                 ANALYSE IA EN COURS… {scanProgress}%
               </div>
             </div>
@@ -246,7 +246,7 @@ export default function DocumentsScreen() {
               width: '100%', padding: '14px',
               background: scanning ? 'rgba(255,107,0,0.12)' : 'transparent',
               border: `1.5px dashed #ff6b00${scanning ? '66' : '44'}`,
-              borderRadius: 10, fontFamily: 'Orbitron', fontSize: 8,
+              borderRadius: 10, fontFamily: 'Inter, sans-serif', fontSize: 8,
               color: `#ff6b00${scanning ? '66' : 'cc'}`,
               cursor: scanning ? 'default' : 'pointer', letterSpacing: '0.18em',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -309,7 +309,7 @@ function ContractGenerator() {
                 flex: '1 1 45%', padding: '7px 4px', borderRadius: 7,
                 background: active ? 'rgba(124,58,237,0.18)' : 'rgba(124,58,237,0.05)',
                 border: `1px solid #7c3aed${active ? '88' : '33'}`,
-                fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.1em',
+                fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.1em',
                 color: `#b87fff${active ? '' : '88'}`, cursor: 'pointer',
               }}>
               {k.label}
@@ -326,7 +326,7 @@ function ContractGenerator() {
           width: '100%', padding: '10px',
           background: generating ? 'rgba(124,58,237,0.15)' : 'rgba(124,58,237,0.08)',
           border: `1.5px solid #7c3aed${generating ? '66' : '44'}`,
-          borderRadius: 8, fontFamily: 'Orbitron', fontSize: 8,
+          borderRadius: 8, fontFamily: 'Inter, sans-serif', fontSize: 8,
           color: `#7c3aed${generating || !client.trim() || !item.trim() ? '66' : 'cc'}`,
           cursor: generating ? 'default' : 'pointer', letterSpacing: '0.15em',
         }}
@@ -350,7 +350,7 @@ const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
   background: 'rgba(99,102,241,0.04)', border: '1px solid #6366f11a',
   borderRadius: 8, padding: '8px 10px',
-  fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
+  fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {

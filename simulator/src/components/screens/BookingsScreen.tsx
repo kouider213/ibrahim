@@ -196,17 +196,17 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   const totalProfit = bookings.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             RÉSERVATIONS
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f155', letterSpacing: '0.15em' }}>{mode === 'resa' ? bookings.length : operations.length}</span>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f155', letterSpacing: '0.15em' }}>{mode === 'resa' ? bookings.length : operations.length}</span>
             {mode === 'resa' && <button onClick={() => setCreate(c => !c)} style={createBtn}>+ CRÉER</button>}
           </div>
         </div>
@@ -218,7 +218,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
               flex: 1, padding: '6px 4px', borderRadius: 7,
               background: mode === k ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.04)',
               border: `1px solid #6366f1${mode === k ? '88' : '22'}`,
-              fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.1em',
+              fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.1em',
               color: `#6366f1${mode === k ? '' : '77'}`, cursor: 'pointer',
             }}>{lbl}</button>
           ))}
@@ -248,7 +248,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
       {mode === 'resa' && showCreate && (
         <div style={{ padding: '10px 14px', borderBottom: '1px solid #6366f118', flexShrink: 0, background: 'rgba(0,8,18,0.98)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#6366f177', letterSpacing: '0.3em' }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f177', letterSpacing: '0.3em' }}>
               NOUVELLE RÉSERVATION
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
@@ -257,7 +257,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   background: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed33' : '#6366f122') : 'transparent',
                   border: `1px solid ${form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#6366f1') : '#ffffff22'}`,
                   borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
-                  fontFamily: 'Orbitron', fontSize: 7,
+                  fontFamily: 'Inter, sans-serif', fontSize: 7,
                   color: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#6366f1') : '#ffffff33',
                   letterSpacing: '0.1em',
                 }}>{ccy}</button>
@@ -313,7 +313,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
 
           {/* Availability badge */}
           {dispo && (
-            <div style={{ marginBottom: 6, fontSize: 8, color: dispo === 'ok' ? '#00e676' : '#ff3366', fontFamily: 'Orbitron', letterSpacing: '0.1em' }}>
+            <div style={{ marginBottom: 6, fontSize: 8, color: dispo === 'ok' ? '#00e676' : '#ff3366', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em' }}>
               {dispo === 'ok' ? '✅ Disponible' : '❌ Déjà réservée sur ces dates'}
             </div>
           )}
@@ -370,14 +370,14 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.client_name}</span>
-                        <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Orbitron', letterSpacing: '0.08em', color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`, borderRadius: 4, padding: '2px 5px' }}>
+                        <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em', color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`, borderRadius: 4, padding: '2px 5px' }}>
                           {m.label}
                         </span>
                       </div>
                       {op.item_label ? <div style={{ fontSize: 8, color: '#ffffff55', marginTop: 1 }}>{op.item_label}</div> : null}
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#fff' }}>
+                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#fff' }}>
                         {op.amount != null ? `${Number(op.amount).toLocaleString('fr-FR')} ${cur}` : '—'}
                       </div>
                       <div style={{ fontSize: 7, color: '#ffffff33', marginTop: 1 }}>{String(op.created_at).slice(0, 10)}</div>
@@ -416,7 +416,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                     <span style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {b.client_name}
                     </span>
-                    <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Orbitron', letterSpacing: '0.08em', color: '#6366f1', background: '#6366f114', border: '1px solid #6366f144', borderRadius: 4, padding: '2px 5px' }}>
+                    <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em', color: '#6366f1', background: '#6366f114', border: '1px solid #6366f144', borderRadius: 4, padding: '2px 5px' }}>
                       LOC AUTO
                     </span>
                   </div>
@@ -425,7 +425,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: bkgCcy(b) === 'DZD' ? '#7c3aed' : '#6366f1' }}>
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: bkgCcy(b) === 'DZD' ? '#7c3aed' : '#6366f1' }}>
                     {fmtPrice(b.final_price, bkgCcy(b))}
                   </div>
                   <div style={{ fontSize: 7, color: pyCol, letterSpacing: '0.06em', marginTop: 1 }}>
@@ -442,8 +442,8 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   <Row label="Profit Kouider" val={b.profit_kouider != null ? `${b.profit_kouider}€` : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
                   <Row label="Statut" val={b.status} col={stCol} />
                   <div style={{ display: 'flex', gap: 6, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <button onClick={() => openEdit(b)} style={{ background: '#ffb347', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Orbitron', fontSize: 8, color: '#000', cursor: 'pointer' }}>✏️ MODIFIER</button>
-                    <button onClick={() => handleDelete(b.id)} style={{ background: '#ff3366', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Orbitron', fontSize: 8, color: '#fff', cursor: 'pointer' }}>🗑 SUPPR</button>
+                    <button onClick={() => openEdit(b)} style={{ background: '#ffb347', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#000', cursor: 'pointer' }}>✏️ MODIFIER</button>
+                    <button onClick={() => handleDelete(b.id)} style={{ background: '#ff3366', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#fff', cursor: 'pointer' }}>🗑 SUPPR</button>
                     {b.client_phone && (
                       <a href={`tel:${b.client_phone}`} style={{ ...aBtn('#6366f1') as React.CSSProperties, textDecoration: 'none' }}>📞 APPEL</a>
                     )}
@@ -461,7 +461,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
 function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
   return (
     <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
       <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.18em', marginTop: 2 }}>{label}</div>
     </div>
   );
@@ -478,7 +478,7 @@ function Row({ label, val, col }: { label: string; val: string; col?: string }) 
 
 function HudLoader() {
   return (
-    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>
+    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
       CHARGEMENT…
     </div>
   );
@@ -491,19 +491,19 @@ const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
   background: 'rgba(99,102,241,0.04)', border: '1px solid #6366f11a',
   borderRadius: 8, padding: '6px 10px',
-  fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
+  fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 const createBtn: React.CSSProperties = {
   background: '#6366f118', border: '1px solid #6366f155', borderRadius: 8,
-  padding: '4px 10px', fontFamily: 'Orbitron', fontSize: 7, color: '#6366f1',
+  padding: '4px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f1',
   cursor: 'pointer', letterSpacing: '0.12em',
 };
 
 function aBtn(col: string): React.CSSProperties {
   return {
     background: `${col}12`, border: `1px solid ${col}55`, borderRadius: 6,
-    padding: '5px 10px', fontFamily: 'Orbitron', fontSize: 7, color: col,
+    padding: '5px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: col,
     cursor: 'pointer', letterSpacing: '0.1em',
   };
 }
@@ -532,7 +532,7 @@ function EditModal({ editState, setEditState, editMsg, saving, handleEdit, input
 
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, background: 'rgba(0,5,15,0.97)', display: 'flex', flexDirection: 'column', padding: '14px', overflowY: 'auto' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#ffb347', letterSpacing: '0.3em', marginBottom: 10 }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ffb347', letterSpacing: '0.3em', marginBottom: 10 }}>
         ✏️ MODIFIER RÉSERVATION
       </div>
 
@@ -569,7 +569,7 @@ function EditModal({ editState, setEditState, editMsg, saving, handleEdit, input
           <div style={{ fontSize: 8, color: '#ffffff55', marginBottom: 4 }}>
             {daysDiff > 0 ? `+${daysDiff}j` : daysDiff < 0 ? `${daysDiff}j` : 'Même durée'} · {newNb}j total · Nouveau: {newTotal.toFixed(0)}€ · Payé: {paid}€
           </div>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: delta > 0 ? '#6366f1' : delta < 0 ? '#ff3366' : '#00e676' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: delta > 0 ? '#6366f1' : delta < 0 ? '#ff3366' : '#00e676' }}>
             {delta > 0 ? `💳 Client doit encore ${delta.toFixed(0)}€` : delta < 0 ? `↩ Rembourser ${Math.abs(delta).toFixed(0)}€ au client` : '✅ Aucun ajustement'}
           </div>
         </div>
@@ -578,10 +578,10 @@ function EditModal({ editState, setEditState, editMsg, saving, handleEdit, input
       {editMsg && <div style={{ fontSize: 8, color: editMsg.startsWith('✅') ? '#00e676' : '#ff3366', marginBottom: 8 }}>{editMsg}</div>}
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={handleEdit} disabled={saving} style={{ flex: 1, background: '#ffb347', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Orbitron', fontSize: 9, color: '#000', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
+        <button onClick={handleEdit} disabled={saving} style={{ flex: 1, background: '#ffb347', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#000', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
           {saving ? '…' : '✅ ENREGISTRER'}
         </button>
-        <button onClick={() => setEditState(null)} style={{ flex: 1, background: '#ff3366', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Orbitron', fontSize: 9, color: '#fff', cursor: 'pointer' }}>
+        <button onClick={() => setEditState(null)} style={{ flex: 1, background: '#ff3366', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#fff', cursor: 'pointer' }}>
           ✕ ANNULER
         </button>
       </div>
@@ -681,19 +681,19 @@ function GpsCalculator() {
 
   return (
     <div style={{ background: 'rgba(99,102,241,0.03)', borderRadius: 12, padding: 12, border: '1px solid #6366f112', marginBottom: 8 }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f177', letterSpacing: '0.25em', marginBottom: 4 }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f177', letterSpacing: '0.25em', marginBottom: 4 }}>
         🗺️ GPS LIVRAISON
       </div>
       {/* Toggle origine */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         <button onClick={() => setFromDepot(true)} style={{
-          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 6,
+          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6,
           background: fromDepot ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.04)',
           border: `1px solid ${fromDepot ? '#6366f155' : '#6366f118'}`,
           color: fromDepot ? '#6366f1' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
         }}>🏢 DÉPÔT</button>
         <button onClick={() => setFromDepot(false)} style={{
-          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Orbitron', fontSize: 6,
+          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6,
           background: !fromDepot ? 'rgba(0,230,118,0.15)' : 'rgba(99,102,241,0.04)',
           border: `1px solid ${!fromDepot ? '#00e67655' : '#6366f118'}`,
           color: !fromDepot ? '#00e676' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
@@ -750,7 +750,7 @@ function GpsCalculator() {
 
       {result && (
         <div style={{ marginTop: 10, background: 'rgba(99,102,241,0.06)', borderRadius: 10, border: '1px solid #6366f122', padding: '10px 12px' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f1cc', marginBottom: 8 }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f1cc', marginBottom: 8 }}>
             📍 {result.destination_label ?? address}
           </div>
 
@@ -763,13 +763,13 @@ function GpsCalculator() {
               {result.distance_km !== undefined && (
                 <div style={{ textAlign: 'center', background: 'rgba(99,102,241,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #6366f118' }}>
                   <div style={{ fontSize: 6, color: '#6366f155', letterSpacing: '0.1em', marginBottom: 3 }}>DISTANCE</div>
-                  <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1cc' }}>{result.distance_km} km</div>
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1cc' }}>{result.distance_km} km</div>
                 </div>
               )}
               {result.travel_time_minutes !== undefined && (
                 <div style={{ textAlign: 'center', background: 'rgba(99,102,241,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #6366f118' }}>
                   <div style={{ fontSize: 6, color: '#6366f155', letterSpacing: '0.1em', marginBottom: 3 }}>TRAJET</div>
-                  <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: trafficColor }}>{result.travel_time_minutes} min</div>
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: trafficColor }}>{result.travel_time_minutes} min</div>
                 </div>
               )}
             </div>
@@ -778,13 +778,13 @@ function GpsCalculator() {
           <div style={{ display: 'flex', gap: 6 }}>
             {result.waze_link && (
               <a href={result.waze_link} target="_blank" rel="noreferrer"
-                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(0,230,118,0.08)', border: '1px solid #00e67622', borderRadius: 8, fontFamily: 'Orbitron', fontSize: 7, color: '#00e676', textDecoration: 'none' }}>
+                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(0,230,118,0.08)', border: '1px solid #00e67622', borderRadius: 8, fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#00e676', textDecoration: 'none' }}>
                 🔵 WAZE
               </a>
             )}
             {result.maps_link && (
               <a href={result.maps_link} target="_blank" rel="noreferrer"
-                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(255,107,107,0.08)', border: '1px solid #ff6b6b22', borderRadius: 8, fontFamily: 'Orbitron', fontSize: 7, color: '#ff6b6b', textDecoration: 'none' }}>
+                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(255,107,107,0.08)', border: '1px solid #ff6b6b22', borderRadius: 8, fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ff6b6b', textDecoration: 'none' }}>
                 🔴 GMAPS
               </a>
             )}

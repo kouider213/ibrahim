@@ -73,16 +73,16 @@ export default function ClientsScreen() {
   const totalSpent = clients.reduce((s, c) => s + (intel.get(c.name)?.total_spent ?? 0), 0);
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             CLIENTS
           </div>
-          <span style={{ fontFamily: 'Orbitron', fontSize: 8, color: '#6366f155', letterSpacing: '0.15em' }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f155', letterSpacing: '0.15em' }}>
             {clients.length} PROFILS
           </span>
         </div>
@@ -126,7 +126,7 @@ export default function ClientsScreen() {
                   width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
                   background: scBg, border: `1.5px solid ${scCol}44`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'Orbitron', fontSize: 10, color: scCol,
+                  fontFamily: 'Inter, sans-serif', fontSize: 10, color: scCol,
                   boxShadow: `0 0 8px ${scCol}22`,
                 }}>
                   {initials || '?'}
@@ -146,7 +146,7 @@ export default function ClientsScreen() {
                         const m = TYPE_META[t]; if (!m) return null;
                         return (
                           <span key={t} style={{
-                            fontSize: 6, fontFamily: 'Orbitron', letterSpacing: '0.08em',
+                            fontSize: 6, fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em',
                             color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`,
                             borderRadius: 4, padding: '2px 5px',
                           }}>{m.label}</span>
@@ -161,7 +161,7 @@ export default function ClientsScreen() {
                   <div style={{
                     padding: '3px 7px', borderRadius: 6, fontSize: 7,
                     background: scBg, color: scCol,
-                    fontFamily: 'Orbitron', letterSpacing: '0.1em',
+                    fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
                     border: `1px solid ${scCol}44`,
                     boxShadow: score === 'VIP' ? `0 0 8px ${scCol}44` : 'none',
                   }}>
@@ -226,7 +226,7 @@ export default function ClientsScreen() {
 function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
   return (
     <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
       <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.15em', marginTop: 2 }}>{label}</div>
     </div>
   );
@@ -242,7 +242,7 @@ function Row({ label, val, col }: { label: string; val: string; col?: string }) 
 }
 
 function HudLoader() {
-  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Orbitron', letterSpacing: '0.25em' }}>CHARGEMENT…</div>;
+  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#6366f133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>;
 }
 function HudEmpty({ text }: { text: string }) {
   return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#ffffff1a', letterSpacing: '0.1em' }}>{text}</div>;
@@ -252,7 +252,7 @@ const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
   background: 'rgba(99,102,241,0.04)', border: '1px solid #6366f11a',
   borderRadius: 8, padding: '6px 10px',
-  fontFamily: 'Share Tech Mono', fontSize: 10, color: '#c8e8ff', outline: 'none',
+  fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {

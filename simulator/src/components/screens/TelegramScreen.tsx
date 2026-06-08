@@ -275,7 +275,7 @@ export default function TelegramScreen() {
               ● en ligne
             </div>
           </div>
-          <div style={{ fontSize: 9, color: '#ffffff33', fontFamily: 'Share Tech Mono', letterSpacing: '0.05em' }}>
+          <div style={{ fontSize: 9, color: '#ffffff33', fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>
             TELEGRAM DEMO
           </div>
         </div>
@@ -298,7 +298,7 @@ export default function TelegramScreen() {
                 }}
               >
                 <span style={{ fontSize: 10 }}>{ch.icon}</span>
-                <span style={{ fontSize: 7, color: active ? '#fff' : '#aaa', letterSpacing: '0.05em', fontFamily: 'Share Tech Mono' }}>
+                <span style={{ fontSize: 7, color: active ? '#fff' : '#aaa', letterSpacing: '0.05em', fontFamily: 'Inter, sans-serif' }}>
                   {ch.label}
                 </span>
                 {ch.unread > 0 && (
@@ -330,7 +330,7 @@ export default function TelegramScreen() {
         {/* Bottom hint */}
         <div style={{
           textAlign: 'center', padding: '16px 0 4px',
-          fontSize: 8, color: '#ffffff22', fontFamily: 'Share Tech Mono', letterSpacing: '0.1em',
+          fontSize: 8, color: '#ffffff22', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
         }}>
           — SIMULATION — LES MESSAGES RÉELS ARRIVENT EN TEMPS RÉEL VIA TELEGRAM BOT —
         </div>
@@ -368,7 +368,7 @@ function TgMessage({ msg }: { msg: TgMsg }) {
       <div style={{ textAlign: 'center', padding: '4px 0' }}>
         <span style={{
           background: '#182533', borderRadius: 12, padding: '4px 12px',
-          fontSize: 8, color: '#ffffff44', fontFamily: 'Share Tech Mono', letterSpacing: '0.1em',
+          fontSize: 8, color: '#ffffff44', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
         }}>
           {msg.tag && <span style={{ color: msg.tagCol ?? '#6366f1' }}>{msg.tag} · </span>}
           {msg.text}
@@ -417,7 +417,7 @@ function TgMessage({ msg }: { msg: TgMsg }) {
           {/* Tag */}
           {msg.tag && (
             <div style={{
-              fontFamily: 'Share Tech Mono', fontSize: 8, color: msg.tagCol ?? '#6366f1',
+              fontFamily: 'Inter, sans-serif', fontSize: 8, color: msg.tagCol ?? '#6366f1',
               fontWeight: 700, letterSpacing: '0.08em', marginBottom: 5,
               borderLeft: `2px solid ${msg.tagCol ?? '#6366f1'}`,
               paddingLeft: 6,
@@ -435,17 +435,17 @@ function TgMessage({ msg }: { msg: TgMsg }) {
             }}>
               {msg.photo}
               {msg.type === 'photo' && (
-                <div style={{ fontSize: 8, color: '#ffffff33', marginTop: 4, fontFamily: 'Share Tech Mono' }}>
+                <div style={{ fontSize: 8, color: '#ffffff33', marginTop: 4, fontFamily: 'Inter, sans-serif' }}>
                   [IMAGE]
                 </div>
               )}
               {msg.type === 'video' && (
-                <div style={{ fontSize: 8, color: '#ff6b6b44', marginTop: 4, fontFamily: 'Share Tech Mono' }}>
+                <div style={{ fontSize: 8, color: '#ff6b6b44', marginTop: 4, fontFamily: 'Inter, sans-serif' }}>
                   ▶ VIDÉO
                 </div>
               )}
               {msg.type === 'file' && (
-                <div style={{ fontSize: 8, color: '#6366f144', marginTop: 4, fontFamily: 'Share Tech Mono' }}>
+                <div style={{ fontSize: 8, color: '#6366f144', marginTop: 4, fontFamily: 'Inter, sans-serif' }}>
                   📎 DOCUMENT
                 </div>
               )}
@@ -456,7 +456,7 @@ function TgMessage({ msg }: { msg: TgMsg }) {
           {msg.text && (
             <div style={{
               fontSize: 10.5, color: '#d8eaff', lineHeight: 1.6, whiteSpace: 'pre-line',
-              fontFamily: msg.type === 'alert' ? 'Share Tech Mono' : 'inherit',
+              fontFamily: msg.type === 'alert' ? 'Inter, sans-serif' : 'inherit',
             }}>
               {msg.text}
             </div>
@@ -472,7 +472,7 @@ function TgMessage({ msg }: { msg: TgMsg }) {
                     background: i === 0 ? '#2b5278' : '#1a2d3e',
                     border: '1px solid #6366f133', borderRadius: 8,
                     padding: '4px 8px', fontSize: 8, color: '#a8d8f0',
-                    cursor: 'pointer', fontFamily: 'Share Tech Mono', letterSpacing: '0.05em',
+                    cursor: 'pointer', fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em',
                     transition: 'background 0.15s',
                   }}
                 >

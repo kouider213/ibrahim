@@ -185,14 +185,14 @@ export default function CapacitesScreen() {
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column',
-      background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono',
+      background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif',
       position: 'relative', overflow: 'hidden',
     }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
       <div style={{ padding: '10px 14px 0', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
-        <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155', marginBottom: 8 }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155', marginBottom: 8 }}>
           DZARYX — CAPACITÉS
         </div>
         <div style={{ display: 'flex', gap: 4, marginBottom: 0 }}>
@@ -200,7 +200,7 @@ export default function CapacitesScreen() {
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               flex: 1, background: activeTab === tab ? '#6366f10d' : 'transparent',
               border: 'none', borderBottom: activeTab === tab ? '2px solid #6366f1' : '2px solid transparent',
-              padding: '6px 4px', fontFamily: 'Orbitron', fontSize: 7,
+              padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 7,
               color: activeTab === tab ? '#6366f1' : '#ffffff33',
               letterSpacing: '0.15em', cursor: 'pointer',
             }}>
@@ -244,7 +244,7 @@ export default function CapacitesScreen() {
                         {agent.tags.map(t => (
                           <span key={t} style={{
                             fontSize: 6, background: `${agent.col}15`, color: `${agent.col}cc`,
-                            borderRadius: 4, padding: '1px 5px', fontFamily: 'Orbitron', letterSpacing: '0.08em',
+                            borderRadius: 4, padding: '1px 5px', fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em',
                           }}>{t}</span>
                         ))}
                       </div>
@@ -259,7 +259,7 @@ export default function CapacitesScreen() {
                       <div style={{ fontSize: 9, color: '#ffffff66', lineHeight: 1.6, marginBottom: 8 }}>
                         {agent.desc}
                       </div>
-                      <div style={{ fontFamily: 'Orbitron', fontSize: 6, color: `${agent.col}77`, letterSpacing: '0.15em', marginBottom: 5 }}>
+                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: `${agent.col}77`, letterSpacing: '0.15em', marginBottom: 5 }}>
                         EXEMPLES DE COMMANDES
                       </div>
                       {agent.examples.map((ex, i) => (
@@ -288,7 +288,7 @@ export default function CapacitesScreen() {
 
             {/* Timeline visual */}
             <div style={{ background: 'rgba(99,102,241,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #6366f10f', marginBottom: 4 }}>
-              <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#6366f166', letterSpacing: '0.2em', marginBottom: 10 }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f166', letterSpacing: '0.2em', marginBottom: 10 }}>
                 ◉ TIMELINE JOURNÉE TYPE — KOUIDER
               </div>
               {[
@@ -301,7 +301,7 @@ export default function CapacitesScreen() {
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <div style={{
-                    fontFamily: 'Orbitron', fontSize: 7, color: item.col, minWidth: 35,
+                    fontFamily: 'Inter, sans-serif', fontSize: 7, color: item.col, minWidth: 35,
                     textAlign: 'right', letterSpacing: '0.05em',
                   }}>{item.time}</div>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.col, flexShrink: 0 }} />
@@ -447,7 +447,7 @@ export default function CapacitesScreen() {
                 background: `linear-gradient(135deg, ${section.col}05, rgba(2,8,16,0.5))`,
                 padding: '10px 12px',
               }}>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 8, color: section.col, letterSpacing: '0.15em', marginBottom: 8 }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: section.col, letterSpacing: '0.15em', marginBottom: 8 }}>
                   {section.title}
                 </div>
                 {section.items.map((item, i) => (

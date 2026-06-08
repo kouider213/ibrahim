@@ -195,20 +195,20 @@ export default function CalendarScreen() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Share Tech Mono', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020810', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
       <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #6366f112', flexShrink: 0, background: 'rgba(2,8,16,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#6366f1', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #6366f155' }}>
             CALENDRIER
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button onClick={() => void load()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#6366f155' }}>↻</button>
             <button
               onClick={() => setShowAdd(true)}
-              style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f144', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Orbitron', fontSize: 7, color: '#6366f1', letterSpacing: '0.1em' }}
+              style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid #6366f144', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f1', letterSpacing: '0.1em' }}
             >
               + AJOUTER
             </button>
@@ -226,7 +226,7 @@ export default function CalendarScreen() {
                 background: filter === t.id ? `${t.col}18` : 'transparent',
                 border: `1px solid ${filter === t.id ? t.col + '66' : '#ffffff11'}`,
                 borderRadius: 6, cursor: 'pointer',
-                fontFamily: 'Orbitron', fontSize: 6, letterSpacing: '0.08em',
+                fontFamily: 'Inter, sans-serif', fontSize: 6, letterSpacing: '0.08em',
                 color: filter === t.id ? t.col : '#ffffff33',
               }}
             >
@@ -241,7 +241,7 @@ export default function CalendarScreen() {
         {/* Month navigation */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px' }}>
           <button onClick={prevMonth} style={navBtn}>‹</button>
-          <span style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#6366f1', letterSpacing: '0.2em' }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#6366f1', letterSpacing: '0.2em' }}>
             {MONTH_FR[month].toUpperCase()} {year}
           </span>
           <button onClick={nextMonth} style={navBtn}>›</button>
@@ -260,7 +260,7 @@ export default function CalendarScreen() {
         {/* Day labels */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
           {DAY_LABELS.map((l, i) => (
-            <div key={i} style={{ textAlign: 'center', fontSize: 7, color: '#6366f144', fontFamily: 'Orbitron', letterSpacing: '0.1em', padding: '2px 0' }}>
+            <div key={i} style={{ textAlign: 'center', fontSize: 7, color: '#6366f144', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', padding: '2px 0' }}>
               {l}
             </div>
           ))}
@@ -268,7 +268,7 @@ export default function CalendarScreen() {
 
         {/* Calendar grid */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#6366f133', fontFamily: 'Orbitron', letterSpacing: '0.2em' }}>CHARGEMENT…</div>
+          <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#6366f133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>CHARGEMENT…</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
             {cells.map((cell, i) => {
@@ -299,7 +299,7 @@ export default function CalendarScreen() {
                   <span style={{
                     fontSize: 9, lineHeight: 1,
                     color: isToday ? '#6366f1' : isSel ? '#e8f4ff' : hasAny ? '#c8e8ff' : '#ffffff33',
-                    fontFamily: isToday ? 'Orbitron' : undefined,
+                    fontFamily: isToday ? 'Inter, sans-serif' : undefined,
                     fontWeight: isToday ? 700 : undefined,
                   }}>
                     {cell.day}
@@ -323,7 +323,7 @@ export default function CalendarScreen() {
         {/* Selected day detail */}
         {selected && (selectedBookings.length > 0 || selectedGc.length > 0) && (
           <div style={{ background: 'rgba(99,102,241,0.04)', borderRadius: 12, padding: '10px', border: '1px solid #6366f11a' }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#6366f166', letterSpacing: '0.2em', marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#6366f166', letterSpacing: '0.2em', marginBottom: 8 }}>
               {fmtDate(selected)}
             </div>
 
@@ -337,7 +337,7 @@ export default function CalendarScreen() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     <span style={{
-                      fontSize: 5, color: col, fontFamily: 'Orbitron', letterSpacing: '0.1em',
+                      fontSize: 5, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
                       background: `${col}18`, padding: '1px 4px', borderRadius: 3,
                     }}>
                       {SOURCE_LABEL[e.source]}
@@ -364,13 +364,13 @@ export default function CalendarScreen() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     <span style={{
-                      fontSize: 5, color: SOURCE_COL.fik, fontFamily: 'Orbitron', letterSpacing: '0.1em',
+                      fontSize: 5, color: SOURCE_COL.fik, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
                       background: `${SOURCE_COL.fik}18`, padding: '1px 4px', borderRadius: 3,
                     }}>
                       RÉSA
                     </span>
                     <span style={{ fontSize: 9, color: '#e8f4ff', fontWeight: 600 }}>{b.client_name}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 6, color: col, fontFamily: 'Orbitron', letterSpacing: '0.1em',
+                    <span style={{ marginLeft: 'auto', fontSize: 6, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
                       background: `${col}18`, padding: '2px 5px', borderRadius: 4 }}>
                       {b.status}
                     </span>
@@ -393,7 +393,7 @@ export default function CalendarScreen() {
         {/* Monthly summary */}
         {!loading && (
           <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px 12px', border: '1px solid #ffffff08' }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#ffffff33', letterSpacing: '0.2em', marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff33', letterSpacing: '0.2em', marginBottom: 8 }}>
               MOIS EN COURS
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
@@ -404,13 +404,13 @@ export default function CalendarScreen() {
                 ).length;
                 return (
                   <div key={s} style={{ flex: 1, textAlign: 'center', background: `${STATUS_COL[s]}0a`, borderRadius: 8, padding: '6px 4px', border: `1px solid ${STATUS_COL[s]}22` }}>
-                    <div style={{ fontFamily: 'Orbitron', fontSize: 14, color: STATUS_COL[s] }}>{count}</div>
+                    <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: STATUS_COL[s] }}>{count}</div>
                     <div style={{ fontSize: 5, color: `${STATUS_COL[s]}66`, letterSpacing: '0.1em', marginTop: 1 }}>{s.slice(0,4)}</div>
                   </div>
                 );
               })}
               <div style={{ flex: 1, textAlign: 'center', background: '#b388ff0a', borderRadius: 8, padding: '6px 4px', border: '1px solid #b388ff22' }}>
-                <div style={{ fontFamily: 'Orbitron', fontSize: 14, color: '#b388ff' }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#b388ff' }}>
                   {calEvents.filter(e => eventDate(e).startsWith(`${year}-${String(month+1).padStart(2,'0')}`)).length}
                 </div>
                 <div style={{ fontSize: 5, color: '#b388ff66', letterSpacing: '0.1em', marginTop: 1 }}>GCAL</div>
@@ -426,7 +426,7 @@ export default function CalendarScreen() {
           position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(99,102,241,0.15)', border: '1px solid #6366f144',
           borderRadius: 20, padding: '8px 18px', fontSize: 9, color: '#6366f1',
-          fontFamily: 'Orbitron', letterSpacing: '0.1em', zIndex: 100,
+          fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', zIndex: 100,
           backdropFilter: 'blur(10px)',
         }}>
           {toast}
@@ -443,7 +443,7 @@ export default function CalendarScreen() {
             onClick={e => e.stopPropagation()}
             style={{ width: '100%', background: '#061220', borderTop: '1px solid #6366f133', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}
           >
-            <div style={{ fontFamily: 'Orbitron', fontSize: 9, color: '#6366f1', letterSpacing: '0.2em', marginBottom: 4 }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#6366f1', letterSpacing: '0.2em', marginBottom: 4 }}>
               + NOUVEL ÉVÉNEMENT
             </div>
 
@@ -460,7 +460,7 @@ export default function CalendarScreen() {
                       background: addForm.calendar === cal ? `${col}20` : 'transparent',
                       border: `1px solid ${addForm.calendar === cal ? col + '66' : '#ffffff11'}`,
                       borderRadius: 8, cursor: 'pointer',
-                      fontFamily: 'Orbitron', fontSize: 7, letterSpacing: '0.1em',
+                      fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.1em',
                       color: addForm.calendar === cal ? col : '#ffffff33',
                     }}
                   >
@@ -493,7 +493,7 @@ export default function CalendarScreen() {
                   padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
                   background: addForm.allDay ? 'rgba(99,102,241,0.15)' : 'transparent',
                   border: `1px solid ${addForm.allDay ? '#6366f166' : '#ffffff11'}`,
-                  fontFamily: 'Orbitron', fontSize: 6, color: addForm.allDay ? '#6366f1' : '#ffffff33',
+                  fontFamily: 'Inter, sans-serif', fontSize: 6, color: addForm.allDay ? '#6366f1' : '#ffffff33',
                   letterSpacing: '0.1em', whiteSpace: 'nowrap',
                 }}
               >
@@ -529,7 +529,7 @@ export default function CalendarScreen() {
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button
                 onClick={() => setShowAdd(false)}
-                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #ffffff11', borderRadius: 10, cursor: 'pointer', fontFamily: 'Orbitron', fontSize: 8, color: '#ffffff33' }}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid #ffffff11', borderRadius: 10, cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#ffffff33' }}
               >
                 ANNULER
               </button>
@@ -540,7 +540,7 @@ export default function CalendarScreen() {
                   flex: 2, padding: '10px', borderRadius: 10, cursor: addSaving ? 'default' : 'pointer',
                   background: addSaving ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.15)',
                   border: '1px solid #6366f144',
-                  fontFamily: 'Orbitron', fontSize: 8, color: '#6366f1', letterSpacing: '0.1em',
+                  fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#6366f1', letterSpacing: '0.1em',
                 }}
               >
                 {addSaving ? '...' : '✓ AJOUTER'}
@@ -556,13 +556,13 @@ export default function CalendarScreen() {
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.04)', border: '1px solid #ffffff11',
   borderRadius: 8, padding: '8px 10px', color: '#e8f4ff',
-  fontFamily: 'Share Tech Mono', fontSize: 10, outline: 'none', width: '100%', boxSizing: 'border-box',
+  fontFamily: 'Inter, sans-serif', fontSize: 10, outline: 'none', width: '100%', boxSizing: 'border-box',
 };
 
 const navBtn: React.CSSProperties = {
   background: 'rgba(99,102,241,0.08)', border: '1px solid #6366f122', borderRadius: 6,
   width: 28, height: 28, cursor: 'pointer', color: '#6366f1aa',
-  fontFamily: 'Orbitron', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontFamily: 'Inter, sans-serif', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
