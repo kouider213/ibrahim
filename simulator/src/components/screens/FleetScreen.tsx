@@ -160,8 +160,8 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
               border: `1px solid ${col}38`,
               background: 'linear-gradient(135deg, #161618 0%, #101012 100%)',
               boxShadow: `0 2px 14px ${col}0d`,
-              display: 'flex', alignItems: 'center',
-              overflow: 'hidden', minHeight: 88,
+              display: 'flex', alignItems: 'stretch',
+              minHeight: 92,
             }}>
               {/* Left accent bar */}
               <div style={{ width: 3, alignSelf: 'stretch', background: `linear-gradient(180deg, ${col}, ${col}22)`, flexShrink: 0 }} />
