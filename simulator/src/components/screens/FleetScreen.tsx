@@ -573,9 +573,14 @@ function InspectionModal({ kind, subject, sessionId, onClose }: {
 
   const title = kind === 'vehicle' ? 'INSPECTION VÉHICULE' : 'ÉTAT DES LIEUX';
 
-  const addFiles = async (files: FileList) => {
-    const urls = await Promise.all(Array.from(files).slice(0, 8).map(fileToDataUrl));
-    setShots(s => [...s, ...urls].slice(0, 8));
+  const addFiles = async (files: File[]) => {
+    if (!files.length) return;
+    try {
+      const urls = await Promise.all(files.slice(0, 8).map(fileToDataUrl));
+      setShots(s => [...s, ...urls].slice(0, 8));
+    } catch {
+      setErr('Lecture photo impossible. Réessaie.');
+    }
   };
 
   const submit = async () => {
@@ -686,7 +691,7 @@ function InspectionModal({ kind, subject, sessionId, onClose }: {
 
             {err && <div style={{ color: '#ff6b8a', fontFamily: 'Share Tech Mono', fontSize: 8.5, marginBottom: 8, lineHeight: 1.4 }}>{err}</div>}
 
-            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const fs = e.target.files; e.target.value = ''; if (fs && fs.length) void addFiles(fs); }} />
+            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void addFiles(arr); }} />
             <button onClick={() => fileRef.current?.click()} style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1.5px dashed #ffb34755', background: 'rgba(255,179,71,0.06)', color: '#ffb347', fontFamily: 'Orbitron', fontSize: 8.5, letterSpacing: '0.15em', cursor: 'pointer', marginBottom: 8 }}>📷 {shots.length ? 'AJOUTER PHOTO' : 'PRENDRE / CHOISIR PHOTOS'}</button>
             <button onClick={() => void submit()} disabled={!client.trim() || !shots.length} style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1.5px solid #00e67666', background: (client.trim() && shots.length) ? 'rgba(0,230,118,0.12)' : 'rgba(255,255,255,0.03)', color: (client.trim() && shots.length) ? '#00e676' : '#ffffff33', fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em', cursor: (client.trim() && shots.length) ? 'pointer' : 'not-allowed', marginBottom: 8 }}>🔍 ANALYSER {shots.length > 0 ? `(${shots.length})` : ''}</button>
             <button onClick={onClose} style={{ width: '100%', padding: '7px 0', borderRadius: 10, border: '1px solid #ffffff12', background: 'transparent', color: '#ffffff33', fontFamily: 'Share Tech Mono', fontSize: 8, letterSpacing: '0.1em', cursor: 'pointer' }}>ANNULER</button>
