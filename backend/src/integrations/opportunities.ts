@@ -45,7 +45,9 @@ Recherche sur le web (actualité récente, 2025-2026) et couvre :
 
 Sois CONCRET et orienté action pour Oran/Algérie. Pas de blabla générique. Si une info n'est pas sûre, dis-le.
 
-Réponds À LA FIN uniquement avec un objet JSON (rien après) :
+⛔ TRÈS IMPORTANT : ta réponse finale doit être UNIQUEMENT l'objet JSON ci-dessous. AUCUN texte avant, AUCUNE analyse en markdown, AUCUN commentaire après. Commence directement par { et termine par }. Garde les "detail" courts (1-2 phrases).
+
+Format EXACT :
 {
   "summary": "2-3 phrases de synthèse pour Kouider",
   "items": [
@@ -72,10 +74,10 @@ export async function getAutoOpportunities(force = false): Promise<Opportunities
   try {
     const msg = await anthropic.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: 3000,
+      max_tokens: 4500,
       system:     SYSTEM,
-      tools:      [{ type: 'web_search_20250305' as any, name: 'web_search', max_uses: 6 } as any],
-      messages:   [{ role: 'user', content: 'Donne-moi les opportunités auto du moment en Algérie (marché, location, import, lois). Recherche les infos récentes puis renvoie le JSON.' }],
+      tools:      [{ type: 'web_search_20250305' as any, name: 'web_search', max_uses: 5 } as any],
+      messages:   [{ role: 'user', content: 'Recherche les infos récentes (marché, location, nouveautés, lois & import auto Algérie) puis réponds UNIQUEMENT avec le JSON demandé — aucun texte avant ni après.' }],
     });
     text = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('\n');
   } catch (e) {
