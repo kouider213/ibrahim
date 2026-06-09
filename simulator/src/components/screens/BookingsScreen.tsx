@@ -203,9 +203,14 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   // Quand HOUARI loue, c'est lui le propriétaire → son CA est sa marge complète, rien à déduire.
   // Donc la couverture "prix proprio renseigné" ne concerne QUE les résas de Kouider.
   const isHouariBkg = (b: typeof bookings[number]) => (b.rented_by ?? '').toLowerCase().startsWith('houari');
-  const totalProfit = bookings.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
   const kouiderBkgs = bookings.filter(b => !isHouariBkg(b));
-  const profitCount = kouiderBkgs.filter(b => b.profit_kouider != null).length;
+  // Marge de Kouider séparée par devise : il peut louer en € OU en DZD → un bénéfice par devise.
+  const kEur = kouiderBkgs.filter(b => bkgCcy(b) === 'EUR');
+  const kDzd = kouiderBkgs.filter(b => bkgCcy(b) === 'DZD');
+  const marginEur = kEur.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
+  const marginDzd = kDzd.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
+  const covEur = kEur.filter(b => b.profit_kouider != null).length;
+  const covDzd = kDzd.filter(b => b.profit_kouider != null).length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
@@ -242,7 +247,8 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
           <KpiCard label="ACTIVES" val={String(activeCount)} col="#00e676" />
           {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#10b981" />}
           {totalRevDzd > 0 && <KpiCard label="CA DZD" val={totalRevDzd >= 100000 ? `${(totalRevDzd/1000).toFixed(0)}k` : String(Math.round(totalRevDzd))} col="#7c3aed" />}
-          {!isHouari && <KpiCard label="MARGE" val={fmtMoney(totalProfit)} col="#ffd700" sub={`${profitCount}/${kouiderBkgs.length} résas`} />}
+          {!isHouari && totalRevEur > 0 && <KpiCard label="MARGE €" val={fmtMoney(marginEur)} col="#ffd700" sub={`${covEur}/${kEur.length} résas`} />}
+          {!isHouari && kDzd.length > 0 && <KpiCard label="MARGE DZD" val={marginDzd >= 100000 ? `${(marginDzd/1000).toFixed(0)}k` : String(Math.round(marginDzd))} col="#ffd700" sub={`${covDzd}/${kDzd.length} résas`} />}
         </div>
         )}
 
@@ -268,7 +274,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                 <button key={ccy} onClick={() => {
                   setForm(f => ({ ...f, currency: ccy }));
                   const car = cars.find(c => c.id === form.car_id);
-                  setOwnerPpd((ccy === 'DZD' ? car?.houari_base_price : car?.base_price) ?? null);
+                  setOwnerPpd((ccy === 'DZD' ? car?.houari_resale_price : car?.base_price) ?? null);
                 }} style={{
                   background: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed33' : '#10b98122') : 'transparent',
                   border: `1px solid ${form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#10b981') : '#ffffff22'}`,
@@ -314,8 +320,8 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
               onChange={e => {
                 const car = cars.find(c => c.id === e.target.value);
                 setForm(f => ({ ...f, car_id: e.target.value }));
-                // Prix proprio selon la devise : € = base_price, DZD = houari_base_price
-                setOwnerPpd((form.currency === 'DZD' ? car?.houari_base_price : car?.base_price) ?? null);
+                // Prix proprio selon la devise : € = base_price, DZD = houari_resale_price (prix Houari en dinars)
+                setOwnerPpd((form.currency === 'DZD' ? car?.houari_resale_price : car?.base_price) ?? null);
               }}
               style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }}
             >
@@ -476,8 +482,8 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   <Row label="ID" val={b.id.slice(0, 8) + '…'} />
                   <Row label="Nb jours" val={String(b.nb_days ?? '?')} />
                   <Row label="Prix client/j" val={fmtPrice(b.client_price_per_day, bkgCcy(b))} />
-                  <Row label="Prix proprio/j" val={b.owner_price_per_day ? `${b.owner_price_per_day}€` : '—'} />
-                  <Row label="Profit Kouider" val={b.profit_kouider != null ? `${b.profit_kouider}€` : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
+                  <Row label="Prix proprio/j" val={fmtPrice(b.owner_price_per_day, bkgCcy(b))} />
+                  <Row label="Marge Kouider" val={b.profit_kouider != null ? fmtPrice(b.profit_kouider, bkgCcy(b)) : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
                   <Row label="Statut" val={b.status} col={stCol} />
                   <div style={{ display: 'flex', gap: 6, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' }}>
                     <button onClick={() => openEdit(b)} style={{ background: '#ffb347', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#000', cursor: 'pointer' }}>✏️ MODIFIER</button>
