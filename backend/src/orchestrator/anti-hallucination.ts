@@ -99,6 +99,55 @@ export function fastPathGuard(text: string, userMessage: string, requestId: stri
   return text;
 }
 
+// ── Localisation des messages de garde ──────────────────────────────────────
+// Quand une garde bloque (et que le retry forçant l'outil a aussi échoué), on
+// renvoie le message de refus dans la langue de l'interlocuteur (miroir Houari).
+export type GuardLang = 'fr' | 'darija' | 'es' | 'en';
+
+const GUARD_I18N: Record<string, Partial<Record<GuardLang, string>>> = {
+  financial_claim_no_data: {
+    darija: '⚠️ ما نجمش نعطيك أرقام بلا ما نشوف القاعدة. درك نحسبهملك من الداتا الحقيقية.',
+    es:     '⚠️ No puedo dar cifras sin haber consultado la base de datos. Pregúntamelo y la reviso ahora.',
+    en:     '⚠️ I can\'t give figures without checking the database. Ask me and I\'ll pull the real data now.',
+  },
+  system_state_claim: {
+    darija: '⚠️ ما نقدرش نقول بللي شفت الداتا تاعك بلا ما نديرها بالفعل. قولي واش تحب نشوف ونلانسي الأداة.',
+    es:     '⚠️ No puedo afirmar haber consultado tus datos sin ejecutar una consulta real. Dime qué verificar y lanzo la herramienta.',
+    en:     '⚠️ I can\'t claim to have checked your data without running a real query. Tell me what to check and I\'ll run the tool.',
+  },
+  booking_count_claim: {
+    darija: '⚠️ ما نجمش نعطيك عدد الحجوزات بلا ما نشوف القاعدة. قولي واش تحب ونلانسي list_bookings درك.',
+    es:     '⚠️ No puedo dar un número de reservas sin consultar la base de datos. Dime qué quieres y uso list_bookings ya.',
+    en:     '⚠️ I can\'t give a booking count without checking the database. Tell me what you need and I\'ll run list_bookings now.',
+  },
+  car_avail_claim: {
+    darija: '⚠️ ما نجمش نأكد ديسبونيبيليتي الطوموبيل بلا ما نشوف القاعدة. درك نلانسي check_car_availability.',
+    es:     '⚠️ No puedo confirmar la disponibilidad de un coche sin verificar la base de datos. Lanzo check_car_availability ahora.',
+    en:     '⚠️ I can\'t confirm a car\'s availability without checking the database. Running check_car_availability now.',
+  },
+  payment_claim: {
+    darija: '⚠️ ما نجمش نأكد حالة الخلاص بلا ما نشوف الداتا. درك نشوف بـ get_payment_status.',
+    es:     '⚠️ No puedo confirmar un estado de pago sin consultar los datos. Lo verifico con get_payment_status.',
+    en:     '⚠️ I can\'t confirm a payment status without checking the data. Verifying with get_payment_status.',
+  },
+  phantom_action: {
+    darija: '⚠️ ما درتش هاد الحاجة. حتى أداة حقيقية ما تلانسات — ما نجمش نأكد بللي درت شي حاجة.',
+    es:     '⚠️ No ejecuté esa acción. No se llamó ninguna herramienta real — no puedo confirmar haber hecho nada.',
+    en:     '⚠️ I didn\'t perform that action. No real tool was called — I can\'t confirm I did anything.',
+  },
+  fast_path: {
+    darija: '⚠️ ما عنديش الداتا فالوقت الحقيقي لهاد السؤال. قولهالي نيشان ونشوف القاعدة باش نجاوبك بالصح.',
+    es:     '⚠️ No tengo acceso a datos en tiempo real para esto. Pregúntamelo directamente y consulto la base de datos.',
+    en:     '⚠️ I don\'t have real-time data for this. Ask me directly and I\'ll check the database for a precise answer.',
+  },
+};
+
+/** Renvoie le message de garde traduit, ou null si pas de traduction (→ garder le FR d'origine). */
+export function localizeGuard(reason: string | null, lang: GuardLang): string | null {
+  if (!reason || lang === 'fr') return null;
+  return GUARD_I18N[reason]?.[lang] ?? null;
+}
+
 export interface HallucinationCheck {
   safe:    boolean;
   reason:  'phantom_action' | 'financial_claim_no_data' | 'system_state_claim' | 'booking_count_claim' | 'car_avail_claim' | 'payment_claim' | null;

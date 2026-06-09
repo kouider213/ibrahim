@@ -4,9 +4,34 @@ import { autoExtractMemory }                      from './auto-memory.js';
 import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
-import { checkAntiHallucination, fastPathGuard, type HallucinationCheck } from '../orchestrator/anti-hallucination.js';
+import { checkAntiHallucination, fastPathGuard, localizeGuard, FAST_PATH_REFUSAL, type HallucinationCheck, type GuardLang } from '../orchestrator/anti-hallucination.js';
+import { detectLanguage } from './language-detector.js';
 
 type HallucinationReason = HallucinationCheck['reason'];
+
+// Langue miroir pour les messages de garde : Houari = miroir total, Kouider = FR sauf es/en.
+function guardLangFor(userMessage: string, actor: { ownerKey?: string }): GuardLang {
+  const l = detectLanguage(userMessage).lang;
+  if (actor.ownerKey === 'houari') {
+    if (['ar', 'darija', 'fr+darija'].includes(l)) return 'darija';
+    if (l === 'es') return 'es';
+    if (l === 'en') return 'en';
+    return 'fr';
+  }
+  if (l === 'es') return 'es';
+  if (l === 'en') return 'en';
+  return 'fr';
+}
+
+// Traduit un message de garde (refus) dans la langue de l'interlocuteur.
+function localizeGuardMessage(text: string, reason: HallucinationReason, lang: GuardLang): string {
+  if (lang === 'fr') return text;
+  const byReason = localizeGuard(reason, lang);
+  if (byReason) return byReason;
+  if (text === PHANTOM_REFUSAL)   return localizeGuard('phantom_action', lang) ?? text;
+  if (text === FAST_PATH_REFUSAL) return localizeGuard('fast_path', lang) ?? text;
+  return text;
+}
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -115,6 +140,7 @@ export async function processMessage(
 
   const requestId     = nextRequestId();
   const source_channel = detectSourceChannel(sessionId);
+  const guardLang     = guardLangFor(userMessage, actor);
   console.log(
     `[orch:${requestId}] source_channel=${source_channel} session=${sessionId} msg="${userMessage.slice(0, 80)}"`,
   );
@@ -280,9 +306,9 @@ export async function processMessage(
         // Vision: la réponse décrit le contenu de l'IMAGE (pas une requête DB).
         // Les guards business (phantom/fastPath) feraient des faux positifs sur
         // une capture qui parle de dispo/dates/montants → on les saute pour la vision.
-        const safeText  = oranize(imageBase64
+        const safeText  = oranize(localizeGuardMessage(imageBase64
           ? guarded1
-          : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId), actor);
+          : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId), null, guardLang), actor);
         if (imageBase64) {
           console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
         }
@@ -380,7 +406,7 @@ export async function processMessage(
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
         // Fallback providers = aucun outil → phantom + fast-path business data guard
         const phantom1     = phantomGuard(guarded1, [], userMessage, requestId);
-        const safeText     = oranize(fastPathGuard(phantom1, userMessage, requestId), actor);
+        const safeText     = oranize(localizeGuardMessage(fastPathGuard(phantom1, userMessage, requestId), null, guardLang), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
         if (!textOnly && safeText.length > 0) {
@@ -466,7 +492,7 @@ export async function processMessage(
     }
   }
 
-  const safeText     = oranize(halluCheck.blocked ?? phantomText, actor);
+  const safeText     = oranize(localizeGuardMessage(halluCheck.blocked ?? phantomText, halluCheck.reason, guardLang), actor);
   // Log trace complète
   const phantomBlocked = phantomText === PHANTOM_REFUSAL;
   console.log(
