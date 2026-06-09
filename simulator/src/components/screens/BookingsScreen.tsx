@@ -193,10 +193,13 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   const activeCount = bookings.filter(b => b.status === 'active' || b.status === 'confirmed').length;
   const totalRevEur = bookings.filter(b => bkgCcy(b) === 'EUR').reduce((s, b) => s + (b.final_price ?? 0), 0);
   const totalRevDzd = bookings.filter(b => bkgCcy(b) === 'DZD').reduce((s, b) => s + (b.final_price ?? 0), 0);
+  // RÈGLE MARGE : seul KOUIDER déduit le prix proprio (il loue le véhicule d'un proprio).
+  // Quand HOUARI loue, c'est lui le propriétaire → son CA est sa marge complète, rien à déduire.
+  // Donc la couverture "prix proprio renseigné" ne concerne QUE les résas de Kouider.
+  const isHouariBkg = (b: typeof bookings[number]) => (b.rented_by ?? '').toLowerCase().startsWith('houari');
   const totalProfit = bookings.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
-  // La marge n'est calculable que sur les résas où le PRIX PROPRIO est renseigné.
-  // Sur les autres, owner_price = NULL → marge inconnue (jamais inventée). On affiche la couverture.
-  const profitCount = bookings.filter(b => b.profit_kouider != null).length;
+  const kouiderBkgs = bookings.filter(b => !isHouariBkg(b));
+  const profitCount = kouiderBkgs.filter(b => b.profit_kouider != null).length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
@@ -233,7 +236,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
           <KpiCard label="ACTIVES" val={String(activeCount)} col="#00e676" />
           {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#10b981" />}
           {totalRevDzd > 0 && <KpiCard label="CA DZD" val={totalRevDzd >= 100000 ? `${(totalRevDzd/1000).toFixed(0)}k` : String(Math.round(totalRevDzd))} col="#7c3aed" />}
-          {!isHouari && <KpiCard label="MARGE" val={fmtMoney(totalProfit)} col="#ffd700" sub={`${profitCount}/${bookings.length} résas`} />}
+          {!isHouari && <KpiCard label="MARGE" val={fmtMoney(totalProfit)} col="#ffd700" sub={`${profitCount}/${kouiderBkgs.length} résas`} />}
         </div>
         )}
 
@@ -321,20 +324,34 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
             </div>
           )}
 
-          {/* Prix client + proprio auto */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
-            <div>
-              <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
+          {/* Prix client + proprio.
+              Houari = propriétaire → CA complet, AUCUN prix proprio à saisir.
+              Kouider = loue le véhicule d'un proprio → doit saisir le prix proprio pour la marge. */}
+          {isHouari ? (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 6, color: '#7c3aed99', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
               <input type="number" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))}
                 placeholder={form.currency === 'DZD' ? 'ex: 8000' : 'ex: 55'} style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+              <div style={{ fontSize: 7, color: '#7c3aed', marginTop: 3 }}>👑 Propriétaire — le CA est ta marge complète (rien à déduire).</div>
             </div>
-            <div>
-              <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX PROPRIO €/j</div>
-              <div style={{ ...inputStyle, fontSize: 9, padding: '5px 6px', color: ownerPpd ? '#ffd700' : '#ffffff22', opacity: 0.7 }}>
-                {ownerPpd ? `${ownerPpd}€ (auto)` : '— sélectionner voiture'}
+          ) : (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                <div>
+                  <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
+                  <input type="number" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))}
+                    placeholder={form.currency === 'DZD' ? 'ex: 8000' : 'ex: 55'} style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 6, color: ownerPpd ? '#ffd70099' : '#ff336699', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX PROPRIO {form.currency}/j *</div>
+                  <input type="number" value={ownerPpd ?? ''} onChange={e => { const v = parseFloat(e.target.value); setOwnerPpd(Number.isFinite(v) ? v : null); }}
+                    placeholder={form.currency === 'DZD' ? 'ex: 5000' : 'ex: 40'}
+                    style={{ ...inputStyle, fontSize: 9, padding: '5px 6px', color: ownerPpd ? '#ffd700' : undefined, borderColor: ownerPpd ? undefined : '#ff336655' }} />
+                </div>
               </div>
+              {!ownerPpd && <div style={{ fontSize: 7, color: '#ff3366', marginTop: 3 }}>⚠️ Sans prix proprio, la marge ne sera pas calculée pour cette résa.</div>}
             </div>
-          </div>
+          )}
 
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={handleCreate} style={{ ...aBtn('#00e676'), flex: 1 }}>✅ ENREGISTRER</button>
