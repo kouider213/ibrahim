@@ -546,18 +546,18 @@ function VehicleBreakdown({ bookings, fmt }: { bookings: FinancialReport['bookin
 
 function StatMini({ label, val, col }: { label: string; val: string; col: string }) {
   return (
-    <div style={{ background: `${col}08`, borderRadius: 8, padding: '8px 6px', border: `1px solid ${col}1a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: col, textShadow: `0 0 8px ${col}44` }}>{val}</div>
-      <div style={{ fontSize: 5, color: `${col}55`, letterSpacing: '0.1em', marginTop: 2 }}>{label}</div>
+    <div style={{ background: '#16161c', borderRadius: 14, padding: '12px 6px', border: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 17, fontWeight: 800, color: col }}>{val}</div>
+      <div style={{ fontSize: 10, color: '#9b9ba6', marginTop: 3 }}>{label}</div>
     </div>
   );
 }
 
 function InfoChip({ label, val, col }: { label: string; val: string; col: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: col }}>{val}</div>
-      <div style={{ fontSize: 6, color: `${col}55`, letterSpacing: '0.1em' }}>{label}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, fontWeight: 700, color: col }}>{val}</div>
+      <div style={{ fontSize: 10, color: '#9b9ba6' }}>{label}</div>
     </div>
   );
 }

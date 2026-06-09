@@ -335,8 +335,8 @@ export default function SettingsScreen() {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: 'rgba(16,185,129,0.03)', borderRadius: 12, padding: '12px', border: '1px solid #10b98112' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b98155', letterSpacing: '0.3em', marginBottom: 10 }}>{title}</div>
+    <div style={{ background: '#16161c', borderRadius: 16, padding: '14px 16px', border: '1px solid rgba(255,255,255,0.07)' }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 700, color: '#9b9ba6', letterSpacing: '0.04em', marginBottom: 12, textTransform: 'uppercase' }}>{title}</div>
       {children}
     </div>
   );
@@ -345,12 +345,11 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: boolean; col?: string }) {
   const c = col ?? (ok ? '#00e676' : '#ff3366');
   return (
-    <div style={{ flex: 1, textAlign: 'center', background: `${c}0a`, borderRadius: 8, padding: '6px 6px', border: `1px solid ${c}2a` }}>
-      <div style={{ fontSize: 6, color: `${c}77`, letterSpacing: '0.15em', marginBottom: 2 }}>{label}</div>
+    <div style={{ flex: 1, textAlign: 'center', background: '#1d1d25', borderRadius: 12, padding: '10px 6px', border: `1px solid ${c}33` }}>
+      <div style={{ fontSize: 9, color: '#9b9ba6', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
       <div style={{
-        fontSize: 8, color: c, fontFamily: 'Inter, sans-serif',
-        textShadow: `0 0 6px ${c}66`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3,
+        fontSize: 12, fontWeight: 700, color: c, fontFamily: 'Inter, sans-serif',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
       }}>
         <div style={{
           width: 5, height: 5, borderRadius: '50%', background: c,
@@ -366,9 +365,9 @@ function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: b
 
 function actionBtn(col: string): React.CSSProperties {
   return {
-    background: `${col}0d`, border: `1px solid ${col}44`, borderRadius: 8,
-    padding: '8px 12px', fontFamily: 'Inter, sans-serif', fontSize: 7,
-    color: `${col}cc`, cursor: 'pointer', letterSpacing: '0.15em',
+    background: `${col}14`, border: `1px solid ${col}55`, borderRadius: 12,
+    padding: '12px', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600,
+    color: col, cursor: 'pointer', letterSpacing: '0.01em',
     width: '100%', textAlign: 'center',
   };
 }

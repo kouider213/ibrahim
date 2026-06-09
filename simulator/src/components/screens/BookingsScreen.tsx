@@ -467,9 +467,9 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
 
 function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
   return (
-    <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
-      <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.18em', marginTop: 2 }}>{label}</div>
+    <div style={{ flex: 1, background: '#16161c', borderRadius: 14, padding: '12px 8px', border: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 18, fontWeight: 800, color: col }}>{val}</div>
+      <div style={{ fontSize: 10, color: '#9b9ba6', marginTop: 3 }}>{label}</div>
     </div>
   );
 }
