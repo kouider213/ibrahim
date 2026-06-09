@@ -278,9 +278,9 @@ export async function processMessage(
         // Vision: la réponse décrit le contenu de l'IMAGE (pas une requête DB).
         // Les guards business (phantom/fastPath) feraient des faux positifs sur
         // une capture qui parle de dispo/dates/montants → on les saute pour la vision.
-        const safeText  = imageBase64
+        const safeText  = oranize(imageBase64
           ? guarded1
-          : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId);
+          : fastPathGuard(phantomGuard(guarded1, [], userMessage, requestId), userMessage, requestId), actor);
         if (imageBase64) {
           console.log(`[VISION_RUNTIME] ${fp.key}_status=success chars=${safeText.length}`);
         }
@@ -376,7 +376,7 @@ export async function processMessage(
         const guarded1     = guardResponse(fallbackText, userMessage, requestId);
         // Fallback providers = aucun outil → phantom + fast-path business data guard
         const phantom1     = phantomGuard(guarded1, [], userMessage, requestId);
-        const safeText     = fastPathGuard(phantom1, userMessage, requestId);
+        const safeText     = oranize(fastPathGuard(phantom1, userMessage, requestId), actor);
         _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
         saveConversationTurn(sessionId, 'assistant', safeText).catch(() => {});
         if (!textOnly && safeText.length > 0) {
@@ -420,7 +420,7 @@ export async function processMessage(
   const halluCheck   = imageBase64
     ? { blocked: null as string | null, reason: null as string | null }
     : checkAntiHallucination(phantomText, toolsForGate, userMessage, requestId);
-  const safeText     = halluCheck.blocked ?? phantomText;
+  const safeText     = oranize(halluCheck.blocked ?? phantomText, actor);
   // Log trace complète
   const phantomBlocked = phantomText === PHANTOM_REFUSAL;
   console.log(
@@ -494,4 +494,17 @@ async function streamAudioSentences(text: string, sessionId: string): Promise<vo
     // Signal client to flush+play this sentence immediately without waiting for all
     _io?.emit(SOCKET_EVENTS.AUDIO_SENTENCE_DONE, { sessionId });
   }
+}
+
+// Oranise le texte pour Houari : corrige les mots non-oranais (dima → toujours)
+// et les tournures marocaines courantes. Garde le mélange français/oranais naturel.
+function oranize(text: string, actor?: { ownerKey?: string }): string {
+  if (!text || actor?.ownerKey !== 'houari') return text;
+  return text
+    .replace(/\bdima\b/gi, 'toujours')
+    .replace(/\bda[iï]men\b/gi, 'toujours')
+    .replace(/\bghadi\b/gi, 'rayah')
+    .replace(/\bdaba\b/gi, 'derk')
+    .replace(/\bkhassek\b/gi, 'lazmek')
+    .replace(/\bwakha\b/gi, 'yesah');
 }
