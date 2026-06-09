@@ -86,15 +86,11 @@ export default function DocumentsScreen() {
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #10b98155' }}>
-            DOCUMENTS
-          </div>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b98144', letterSpacing: '0.2em' }}>BASE CLIENTS</span>
-        </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
+      {/* Hero */}
+      <div style={{ position: 'relative', padding: '22px 18px 12px', overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: 'radial-gradient(circle, #10b98122, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: '#10b981', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Dzaryx · Base clients</div>
+        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Documents</div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -348,9 +344,9 @@ function ContractGenerator() {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(16,185,129,0.04)', border: '1px solid #10b9811a',
-  borderRadius: 8, padding: '8px 10px',
-  fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
+  background: '#1d1d25', border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: 11, padding: '11px 13px',
+  fontFamily: 'Inter, sans-serif', fontSize: 14, color: '#f5f5f7', outline: 'none',
 };
 
 function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
