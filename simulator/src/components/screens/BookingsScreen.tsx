@@ -159,6 +159,12 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
     ));
     const cpp = parseFloat(form.client_ppd) || 0;
     const opp = ownerPpd ?? 0;
+    // Plancher : Kouider ne peut pas louer en dessous du prix proprio (ce qu'il paye à Houari).
+    // Ex DZD : Houari 7000 → Kouider min 7000. Houari (proprio) n'est pas concerné.
+    if (!isHouari && opp > 0 && cpp > 0 && cpp < opp) {
+      setMsg(`❌ Prix client ${cpp} ${form.currency} < prix proprio ${opp} ${form.currency}. Tu peux pas louer sous le prix de Houari.`);
+      setTimeout(() => setMsg(''), 4000); return;
+    }
     try {
       await business.createBooking({
         client_name: form.client_name.trim(),
@@ -259,7 +265,11 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
               {(['EUR', 'DZD'] as const).map(ccy => (
-                <button key={ccy} onClick={() => setForm(f => ({ ...f, currency: ccy }))} style={{
+                <button key={ccy} onClick={() => {
+                  setForm(f => ({ ...f, currency: ccy }));
+                  const car = cars.find(c => c.id === form.car_id);
+                  setOwnerPpd((ccy === 'DZD' ? car?.houari_base_price : car?.base_price) ?? null);
+                }} style={{
                   background: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed33' : '#10b98122') : 'transparent',
                   border: `1px solid ${form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#10b981') : '#ffffff22'}`,
                   borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
@@ -304,7 +314,8 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
               onChange={e => {
                 const car = cars.find(c => c.id === e.target.value);
                 setForm(f => ({ ...f, car_id: e.target.value }));
-                setOwnerPpd(car?.base_price ?? null);
+                // Prix proprio selon la devise : € = base_price, DZD = houari_base_price
+                setOwnerPpd((form.currency === 'DZD' ? car?.houari_base_price : car?.base_price) ?? null);
               }}
               style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }}
             >
