@@ -406,14 +406,12 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
   let langDetection = detectLanguage(userMessage);
   // Actor preferred language override
   if (actor.ownerKey === 'houari') {
-    // Houari = darija by default unless clearly French or English
-    if (langDetection.lang !== 'fr' && langDetection.lang !== 'en') {
-      langDetection = {
-        lang:       'darija',
-        label:      'Darija oranaise (défaut Houari)',
-        systemHint: 'LANGUE: darija ORANAISE — dialecte d\'Oran (غران), nord-ouest Algérie. PAS le marocain. Mots-clés oranais: wesh واش, kifach كيفاش, rak راك, bzaf بزاف, khoya خويا, labas لاباس, machi ماشي, haka هاكا, chhal شحال, derk درك, yezi يزي, yesah يصح. JAMAIS: ghadi غادي, daba دابا, khassek خاصك (marocain). Mélange naturel oranais/français.',
-      };
-    }
+    // Houari = TOUJOURS darija oranaise, même s'il écrit en français/arabe/anglais.
+    langDetection = {
+      lang:       'darija',
+      label:      'Darija oranaise (Houari — toujours)',
+      systemHint: 'LANGUE OBLIGATOIRE: réponds TOUJOURS en DARIJA ORANAISE (dialecte d\'Oran غران, nord-ouest Algérie) — MÊME si Houari écrit en français ou en arabe. Ne réponds JAMAIS en français standard. Écris en arabizi/arabe mélangé naturel comme un Oranais (ex: "wesh rak khoya", "koulech mliih", "3andna...", "rak temchi mlih"). Mots oranais: wesh واش, kifach كيفاش, rak راك, bzaf بزاف, khoya خويا, sahbi صاحبي, labas لاباس, machi ماشي, haka هاكا, chhal/gdach شحال/قداش, fin فين, 3lach علاش, derk دروك, yezi يزي, yesah يصح, mliih مليح, koulech كلش, tomobil/tonobil (voiture). INTERDIT (marocain): ghadi غادي, daba دابا, khassek خاصك, bzzaf-marocain, zwin, mzyan, dyal. Ton chaleureux, respectueux (Houari = patron PDG).',
+    };
   } else if (actor.ownerKey === 'kouider') {
     // Kouider = French by default unless clearly another language
     if (langDetection.lang === 'unknown' || userMessage.trim().length < 6) {
