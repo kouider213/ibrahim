@@ -80,6 +80,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   const isSpeechRef     = useRef(false);
   const isRecordingRef  = useRef(false);
   const bargeFramesRef  = useRef(0);   // frames consécutives de vraie voix pendant que Dzaryx parle → barge-in
+  const bargeRecordingRef = useRef(false); // l'enregistrement courant vient d'un barge-in/tap → auto-envoi au silence même en mode manuel
   const sessionId       = useRef(getOrCreateSessionId());
 
   const [status, setStatus]     = useState<DzaryxStatus>('idle');
@@ -597,7 +598,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           bargeFramesRef.current = 0;
           stopAudio();
           setStatus('idle');
-          if (!isRecordingRef.current) startRecording();   // capte tout de suite ce qu'il dit
+          if (!isRecordingRef.current) { bargeRecordingRef.current = true; startRecording(); }   // capte + auto-envoi au silence
         }
       } else if (bargeFramesRef.current > 0) {
         bargeFramesRef.current = 0;
@@ -606,7 +607,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       // VAD désactivé par DÉFAUT (handsFree off) : trop instable sur ce micro (flicker arm/désarm).
       // → push-to-talk (tap micro = démarre, re-tap = envoie). Le VAD continu ne tourne QUE si
       // l'utilisateur active "Mains libres". On garde le RMS (calculé au-dessus) pour l'orbe.
-      if (!handsFreeRef.current) { requestAnimationFrame(tick); return; }
+      // En mode manuel on saute le VAD continu SAUF si l'enregistrement vient d'un barge-in/tap :
+      // dans ce cas on veut l'auto-envoi au silence pour répondre à la nouvelle question.
+      if (!handsFreeRef.current && !bargeRecordingRef.current) { requestAnimationFrame(tick); return; }
       if (statusRef.current === 'idle' && !isRecordingRef.current) {
         const hint = handsFreeRef.current ? 'PARLE-MOI' : 'TAPE 🎤 POUR PARLER';
         setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | ${hint}`);
@@ -732,6 +735,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     isRecordingRef.current = false;
     isSpeechRef.current    = false;
     realSpeechRef.current  = false;
+    bargeRecordingRef.current = false;
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
     if (statusRef.current !== 'speaking' && statusRef.current !== 'thinking') setStatus('idle');
   }
@@ -828,8 +832,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         if (streamRef.current) { startRecording(); } else { setHud('Micro non activé'); }
       } else if (status === 'listening') {
         stopRecordingAndProcess();
-      } else if (status === 'speaking') {
-        stopAudio(); setStatus('idle');
+      } else if (status === 'speaking' || status === 'thinking') {
+        // Coupe Dzaryx ET se met à écouter ta nouvelle question (1 seul tap, façon Gemini)
+        stopAudio(); bargeFramesRef.current = 0; setStatus('idle');
+        setTimeout(() => { if (!isRecordingRef.current && streamRef.current) { bargeRecordingRef.current = true; startRecording(); } }, 60);
       }
     };
     const barText = !audioUnlocked
@@ -1067,7 +1073,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             } else if (status === 'listening') {
               stopRecordingAndProcess();
             } else if (status === 'speaking') {
-              stopAudio(); setStatus('idle');
+              // Coupe Dzaryx ET se met à écouter ta nouvelle question (1 seul tap, façon Gemini)
+              stopAudio(); bargeFramesRef.current = 0; setStatus('idle');
+              setTimeout(() => { if (!isRecordingRef.current && streamRef.current) { bargeRecordingRef.current = true; startRecording(); } }, 60);
             }
           }}
           disabled={isThinking}
