@@ -3976,9 +3976,41 @@ async function generateImageTool(input: Record<string, unknown>, _sessionId?: st
   const fullPrompt = `${prompt}, ${styleModifier[style] ?? styleModifier['photorealistic']}`;
 
   const { emitProactive: emitImgProactive } = await import('../notifications/mobile-push.js');
-
-  // ── DALL-E 3 (primary) ────────────────────────────────────────
   const openaiKey = env.OPENAI_API_KEY;
+
+  // ── gpt-image-1 (OpenAI — modèle image le PLUS performant, primary) ───────────
+  // Renvoie du b64 → on l'upload sur Supabase Storage pour avoir une URL publique.
+  // Si l'organisation OpenAI n'est pas vérifiée (403) ou autre erreur → on tombe sur DALL-E 3.
+  if (openaiKey) {
+    const sizeMapGpt: Record<string, string> = { '1:1': '1024x1024', '16:9': '1536x1024', '9:16': '1024x1536' };
+    const sizeG = sizeMapGpt[aspectRatio] ?? '1024x1024';
+    emitImgProactive('Génération image gpt-image-1…', 'info', `🎨 gpt-image-1 en cours pour "${prompt.slice(0, 80)}"…`);
+    try {
+      const res = await axios.post(
+        'https://api.openai.com/v1/images/generations',
+        { model: 'gpt-image-1', prompt: fullPrompt, n: 1, size: sizeG, quality: 'high' },
+        { headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' }, timeout: 120_000 },
+      );
+      const b64img = (res.data as { data: { b64_json?: string }[] }).data[0]?.b64_json;
+      if (b64img) {
+        const buf  = Buffer.from(b64img, 'base64');
+        const path = `generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+        await supabase.storage.createBucket('generated-images', { public: true }).catch(() => {});
+        await supabase.storage.from('generated-images').upload(path, buf, { contentType: 'image/png', upsert: false });
+        const url = supabase.storage.from('generated-images').getPublicUrl(path).data?.publicUrl;
+        if (url) {
+          emitImgProactive('Image gpt-image-1 prête', 'info', `🎨 Image prête\n📹 ${url}`);
+          return `✅ Image générée (gpt-image-1) et envoyée dans l'app\nURL: ${url}`;
+        }
+      }
+    } catch (err: unknown) {
+      const ax = err as { response?: { status?: number; data?: unknown } };
+      console.warn(`[generate-image] gpt-image-1 indispo (status=${ax?.response?.status}) → fallback DALL-E 3:`, JSON.stringify(ax?.response?.data ?? '').slice(0, 200));
+      // fall through to DALL-E 3
+    }
+  }
+
+  // ── DALL-E 3 (fallback si gpt-image-1 indispo) ────────────────────────────────
   if (openaiKey) {
     const sizeMap: Record<string, string> = {
       '1:1':   '1024x1024',
