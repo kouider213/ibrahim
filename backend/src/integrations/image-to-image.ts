@@ -18,6 +18,8 @@
 import axios from 'axios';
 import { env } from '../config/env.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { redis } from '../queue/queue.js';
+import { supabase } from './supabase.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -382,6 +384,26 @@ export async function executeImageToImage(
     }
   }
 
+  // App mobile : la photo envoyée dans le chat est mise en cache Redis par l'orchestrateur
+  // (session:image:<sessionId>). On la récupère, on l'upload en storage → URL publique.
+  if (!sourceImageUrl && _sessionId) {
+    try {
+      const cached = await redis.get(`session:image:${_sessionId}`);
+      if (cached) {
+        const { base64, mime } = JSON.parse(cached) as { base64: string; mime?: string };
+        const buf  = Buffer.from(base64, 'base64');
+        const ext  = (mime ?? 'image/jpeg').includes('png') ? 'png' : 'jpg';
+        const path = `edits/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        await supabase.storage.createBucket('generated-images', { public: true }).catch(() => {});
+        await supabase.storage.from('generated-images').upload(path, buf, { contentType: mime ?? 'image/jpeg', upsert: false });
+        sourceImageUrl = supabase.storage.from('generated-images').getPublicUrl(path).data?.publicUrl;
+        console.log(`[executeImageToImage] image récupérée du cache session → ${sourceImageUrl?.slice(0, 80)}`);
+      }
+    } catch (e) {
+      console.warn('[executeImageToImage] fallback image cache échoué:', e);
+    }
+  }
+
   if (!sourceImageUrl) {
     return '❌ image_url ou telegram_file_id requis — envoie une photo puis utilise cet outil.';
   }
@@ -389,6 +411,44 @@ export async function executeImageToImage(
   const userPrompt = (input['prompt'] as string | undefined) ?? '';
   if (!userPrompt) {
     return '❌ prompt requis — décris la transformation souhaitée (ex: "enfant dans une savane avec un lion, ambiance cinématique réaliste")';
+  }
+
+  // ── OpenAI gpt-image-1 EDIT (primary si clé dispo) ────────────────────────────
+  // Édite la photo envoyée en gardant le sujet (enlever lunettes, changer le fond, plage…).
+  if (env.OPENAI_API_KEY) {
+    try {
+      const imgResp = await fetch(sourceImageUrl);
+      const imgBuf  = Buffer.from(await imgResp.arrayBuffer());
+      const form = new FormData();
+      form.append('model', 'gpt-image-1');
+      form.append('image', new Blob([imgBuf], { type: 'image/png' }), 'source.png');
+      form.append('prompt', userPrompt);
+      form.append('size', '1024x1024');
+      const ed = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` },
+        body: form,
+      });
+      if (ed.ok) {
+        const j = await ed.json() as { data?: { b64_json?: string }[] };
+        const b64 = j?.data?.[0]?.b64_json;
+        if (b64) {
+          const buf  = Buffer.from(b64, 'base64');
+          const path = `edits/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+          await supabase.storage.createBucket('generated-images', { public: true }).catch(() => {});
+          await supabase.storage.from('generated-images').upload(path, buf, { contentType: 'image/png', upsert: false });
+          const url = supabase.storage.from('generated-images').getPublicUrl(path).data?.publicUrl;
+          if (url) {
+            emitProactive('Photo modifiée', 'info', `✅ Photo modifiée\n📹 ${url}`);
+            return `✅ Photo modifiée (gpt-image-1) et envoyée dans l'app\nURL: ${url}`;
+          }
+        }
+      } else {
+        console.warn(`[executeImageToImage] OpenAI edit status=${ed.status}:`, (await ed.text()).slice(0, 200), '→ fallback providers');
+      }
+    } catch (e) {
+      console.warn('[executeImageToImage] OpenAI edit échoué → fallback providers:', e);
+    }
   }
 
   const style    = (input['style']    as ImageToImageOptions['style']  | undefined);
