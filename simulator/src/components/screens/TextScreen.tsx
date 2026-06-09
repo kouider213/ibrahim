@@ -49,6 +49,27 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   const [showSearch, setShowSearch] = useState(false);
   const scrollRef              = useRef<HTMLDivElement>(null);
   const fileInputRef           = useRef<HTMLInputElement>(null);
+  const docInputRef            = useRef<HTMLInputElement>(null);
+
+  const analyzeDoc = async (file: File) => {
+    const b64 = await new Promise<string>((res, rej) => {
+      const r = new FileReader();
+      r.onloadend = () => res((r.result as string).split(',')[1] ?? '');
+      r.onerror = rej; r.readAsDataURL(file);
+    });
+    const uId = uid(); const aId = uid();
+    setMsgs(ms => [...ms,
+      { id: uId, role: 'user', text: `📎 ${file.name}`, ts: now(), status: 'done' },
+      { id: aId, role: 'ai', text: '', ts: now(), status: 'sending' },
+    ]);
+    try {
+      const r = await api.analyzeFile(b64, file.type || 'application/octet-stream', file.name, input.trim());
+      setMsgs(ms => ms.map(m => m.id === aId ? { ...m, text: r.text || r.error || '❌ Analyse impossible', status: 'done', fresh: true } : m));
+      setInput('');
+    } catch {
+      setMsgs(ms => ms.map(m => m.id === aId ? { ...m, text: '❌ Erreur analyse fichier', status: 'error' } : m));
+    }
+  };
   const sessionId              = useRef(getOrCreateSessionId());
   const streamingMsgId         = useRef<string | null>(null);
 
@@ -477,6 +498,8 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
 
         {/* Hidden file input (multiple) */}
         <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleImageSelect} />
+        {/* Hidden doc input (PDF / Excel / CSV) */}
+        <input ref={docInputRef} type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void analyzeDoc(f); }} />
 
         {/* Pill */}
         <div style={{
@@ -497,6 +520,17 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selectedImages.length ? col : 'rgba(255,255,255,0.55)'} strokeWidth="1.8" strokeLinecap="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+
+          {/* 📎 Joindre un PDF / Excel à analyser */}
+          <button
+            onClick={() => docInputRef.current?.click()}
+            aria-label="Joindre un document (PDF/Excel)"
+            style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, marginBottom: 1, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
             </svg>
           </button>
 

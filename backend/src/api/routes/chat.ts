@@ -88,4 +88,58 @@ router.get('/:sessionId/history', requireMobileAuth, async (req, res) => {
   }
 });
 
+// POST /api/chat/analyze-file — analyse un PDF (natif Claude) ou Excel/CSV (xlsx) joint au chat
+const fileSchema = z.object({
+  fileBase64: z.string().min(20).max(30_000_000),
+  mime:       z.string(),
+  fileName:   z.string().optional().default('document'),
+  message:    z.string().optional().default(''),
+});
+router.post('/analyze-file', requireMobileAuth, async (req, res) => {
+  const p = fileSchema.safeParse(req.body);
+  if (!p.success) { res.status(400).json({ error: 'Invalid request' }); return; }
+  const { fileBase64, mime, fileName, message } = p.data;
+  const b64 = fileBase64.includes('base64,') ? fileBase64.split('base64,')[1] : fileBase64;
+  const question = message.trim() || `Analyse ce document (${fileName}) et donne-moi un résumé clair, les infos clés et tout point important (montants, dates, clauses, anomalies).`;
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+
+    let content: unknown[];
+    const isPdf = mime === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
+    const isExcel = /sheet|excel|csv/i.test(mime) || /\.(xlsx?|csv)$/i.test(fileName);
+
+    if (isPdf) {
+      content = [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+        { type: 'text', text: question },
+      ];
+    } else if (isExcel) {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(Buffer.from(b64, 'base64'), { type: 'buffer' });
+      let txt = '';
+      for (const sheet of wb.SheetNames.slice(0, 8)) {
+        txt += `\n=== Feuille: ${sheet} ===\n` + XLSX.utils.sheet_to_csv(wb.Sheets[sheet]).slice(0, 8000);
+      }
+      content = [{ type: 'text', text: `${question}\n\nContenu du fichier ${fileName} :\n${txt.slice(0, 24000)}` }];
+    } else {
+      res.json({ text: '❌ Format non supporté. Envoie un PDF ou un Excel/CSV.' });
+      return;
+    }
+
+    const msg = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1800,
+      system: 'Tu es Dzaryx, assistant de Kouider (Fik Conciergerie, Oran). Analyse le document fourni de façon claire et concrète, en français. Mets en avant les montants, dates, parties, clauses et anomalies. Réponse structurée (markdown).',
+      messages: [{ role: 'user', content: content as never }],
+    });
+    const text = msg.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('\n');
+    res.json({ text: text || 'Analyse indisponible.' });
+  } catch (err) {
+    console.error('[analyze-file]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

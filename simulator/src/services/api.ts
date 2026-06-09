@@ -43,6 +43,12 @@ export interface ChatResponse {
 export interface TranscribeResponse { text: string; language?: string; }
 
 export const api = {
+  analyzeFile: (fileBase64: string, mime: string, fileName: string, message = '') =>
+    apiFetch<{ text?: string; error?: string }>('/api/chat/analyze-file', {
+      method: 'POST',
+      body: JSON.stringify({ fileBase64, mime, fileName, message }),
+    }),
+
   chat: (message: string, sessionId: string, imageBase64?: string, imageMime?: string, textOnly = false) =>
     apiFetch<ChatResponse>('/api/chat', {
       method: 'POST',
