@@ -79,6 +79,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   const realSpeechRef   = useRef(false);
   const isSpeechRef     = useRef(false);
   const isRecordingRef  = useRef(false);
+  const bargeFramesRef  = useRef(0);   // frames consécutives de vraie voix pendant que Dzaryx parle → barge-in
   const sessionId       = useRef(getOrCreateSessionId());
 
   const [status, setStatus]     = useState<DzaryxStatus>('idle');
@@ -585,6 +586,23 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       const rms = Math.sqrt(sq / timeBuf.length);
       rmsRef.current = rms;
       setRmsLevel(Math.min(rms * 80, 1));
+
+      // ── BARGE-IN TOUJOURS ACTIF (comme Gemini Live) ─────────────────────────
+      // Dès que l'utilisateur parle pendant que Dzaryx parle → on le COUPE net et on
+      // se met à écouter, même en mode manuel. Seuil élevé (×1.6) + 3 frames d'affilée
+      // pour ignorer l'écho de la voix de Dzaryx (echoCancellation actif sur le micro).
+      if ((statusRef.current === 'speaking' || isAudioPlaying()) && rms > SPEECH_RMS * 1.6) {
+        bargeFramesRef.current++;
+        if (bargeFramesRef.current >= 3) {
+          bargeFramesRef.current = 0;
+          stopAudio();
+          setStatus('idle');
+          if (!isRecordingRef.current) startRecording();   // capte tout de suite ce qu'il dit
+        }
+      } else if (bargeFramesRef.current > 0) {
+        bargeFramesRef.current = 0;
+      }
+
       // VAD désactivé par DÉFAUT (handsFree off) : trop instable sur ce micro (flicker arm/désarm).
       // → push-to-talk (tap micro = démarre, re-tap = envoie). Le VAD continu ne tourne QUE si
       // l'utilisateur active "Mains libres". On garde le RMS (calculé au-dessus) pour l'orbe.
