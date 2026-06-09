@@ -194,6 +194,9 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   const totalRevEur = bookings.filter(b => bkgCcy(b) === 'EUR').reduce((s, b) => s + (b.final_price ?? 0), 0);
   const totalRevDzd = bookings.filter(b => bkgCcy(b) === 'DZD').reduce((s, b) => s + (b.final_price ?? 0), 0);
   const totalProfit = bookings.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
+  // La marge n'est calculable que sur les résas où le PRIX PROPRIO est renseigné.
+  // Sur les autres, owner_price = NULL → marge inconnue (jamais inventée). On affiche la couverture.
+  const profitCount = bookings.filter(b => b.profit_kouider != null).length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
@@ -230,7 +233,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
           <KpiCard label="ACTIVES" val={String(activeCount)} col="#00e676" />
           {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#10b981" />}
           {totalRevDzd > 0 && <KpiCard label="CA DZD" val={totalRevDzd >= 100000 ? `${(totalRevDzd/1000).toFixed(0)}k` : String(Math.round(totalRevDzd))} col="#7c3aed" />}
-          {!isHouari && <KpiCard label="PROFIT" val={fmtMoney(totalProfit)} col="#ffd700" />}
+          {!isHouari && <KpiCard label="MARGE" val={fmtMoney(totalProfit)} col="#ffd700" sub={`${profitCount}/${bookings.length} résas`} />}
         </div>
         )}
 
@@ -465,11 +468,12 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   );
 }
 
-function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
+function KpiCard({ label, val, col, sub }: { label: string; val: string; col: string; sub?: string }) {
   return (
     <div style={{ flex: 1, background: '#16161c', borderRadius: 14, padding: '12px 8px', border: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
       <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 18, fontWeight: 800, color: col }}>{val}</div>
       <div style={{ fontSize: 10, color: '#9b9ba6', marginTop: 3 }}>{label}</div>
+      {sub && <div style={{ fontSize: 8, color: '#6b6b76', marginTop: 1 }}>{sub}</div>}
     </div>
   );
 }
