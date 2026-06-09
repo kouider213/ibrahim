@@ -10,14 +10,10 @@ import { detectLanguage } from './language-detector.js';
 type HallucinationReason = HallucinationCheck['reason'];
 
 // Langue miroir pour les messages de garde : Houari = miroir total, Kouider = FR sauf es/en.
-function guardLangFor(userMessage: string, actor: { ownerKey?: string }): GuardLang {
+function guardLangFor(userMessage: string, _actor: { ownerKey?: string }): GuardLang {
+  // Miroir pour les deux interlocuteurs (Houari ET Kouider).
   const l = detectLanguage(userMessage).lang;
-  if (actor.ownerKey === 'houari') {
-    if (['ar', 'darija', 'fr+darija'].includes(l)) return 'darija';
-    if (l === 'es') return 'es';
-    if (l === 'en') return 'en';
-    return 'fr';
-  }
+  if (['ar', 'darija', 'fr+darija'].includes(l)) return 'darija';
   if (l === 'es') return 'es';
   if (l === 'en') return 'en';
   return 'fr';

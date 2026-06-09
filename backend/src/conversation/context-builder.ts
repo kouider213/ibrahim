@@ -420,8 +420,19 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
       langDetection = { lang: 'fr', label: 'Français (Houari)', systemHint: 'LANGUE: Houari a écrit en français → réponds en FRANÇAIS, naturel et chaleureux.' };
     }
   } else if (actor.ownerKey === 'kouider') {
-    // Kouider = French by default unless clearly another language
-    if (langDetection.lang === 'unknown' || userMessage.trim().length < 6) {
+    // Kouider = MIROIR de langue aussi : il peut parler darija/arabe, espagnol, anglais ou français.
+    // Darija → réponds en darija algérienne/oranaise (il comprend l'algérien). Sinon français par défaut.
+    if (['ar', 'darija', 'fr+darija'].includes(langDetection.lang)) {
+      langDetection = {
+        lang:       'darija',
+        label:      'Darija algérienne/oranaise (Kouider)',
+        systemHint: 'LANGUE: Kouider a écrit en arabe/darija → COMPRENDS le darija ALGÉRIEN / ORANAIS et réponds en DARIJA ALGÉRIENNE (oranais), JAMAIS marocain. Mots: wesh واش, rak راك, khoya خويا, sahbi صاحبي, labas لاباس, bzaf بزاف, mliih مليح, koulech كلش, kifach كيفاش, chhal/gdach, fin فين, 3lach علاش, derk درك, yezi يزي, drahem, tomobil. ⛔ JAMAIS "dima" → "toujours". ⛔ INTERDIT marocain: ghadi, daba, khassek, zwin, mzyan, dyal, wakha, bghit. Mélange naturel français/darija. ⚠️ Tu PARLES À Kouider directement (2e personne) — ce n\'est PAS une conversation rapportée entre tiers.',
+      };
+    } else if (langDetection.lang === 'es') {
+      langDetection = { lang: 'es', label: 'Espagnol (Kouider)', systemHint: 'LANGUE: Kouider a écrit en espagnol → réponds en ESPAGNOL, naturel.' };
+    } else if (langDetection.lang === 'en') {
+      langDetection = { lang: 'en', label: 'Anglais (Kouider)', systemHint: 'LANGUE: Kouider a écrit en anglais → réponds en anglais.' };
+    } else if (langDetection.lang === 'unknown' || userMessage.trim().length < 6) {
       langDetection = {
         lang:       'fr',
         label:      'Français (défaut Kouider)',
@@ -429,15 +440,15 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
       };
     }
   }
-  // Bloc vocab darija oranais — UNIQUEMENT si Houari écrit réellement en arabe/darija.
+  // Bloc vocab darija oranais — chargé dès que l'interlocuteur (Houari OU Kouider) écrit en arabe/darija.
   // Sinon (français/espagnol/anglais) on ne charge PAS ce vocab → pas de fuite "Labas sahbi" en français.
-  const darijaGuide = (isHouari && langDetection.lang === 'darija')
+  const darijaGuide = (langDetection.lang === 'darija')
     ? `\nDIFFÉRENCES CRITIQUES (darija oranaise) à respecter:\n• ORANAIS utilise: "واش" (wesh), "كيفاش" (kifach), "راك" (rak), "بزاف" (bzaf), "خويا" (khoya), "صاحبي" (sahbi), "لاباس" (labas), "ماشي" (machi = non), "هاكا" (haka = comme ça), "شحال" (chhal = combien), "فين" (fin = où), "علاش" (alach = pourquoi), "درك" (derk = maintenant), "يصح" (yesah = ok/vrai), "نتا/نتي" (nta/nti), "روح" (roh = vas-y), "قداش" (gdach = combien ça coûte)\n• NE JAMAIS utiliser vocabulaire MAROCAIN: "غادي" (= je vais), "دابا" (= maintenant), "خاصك" → utiliser "لازمك" (oranais)\n• ⛔ JAMAIS "dima" → dis "toujours"\n• Mélange naturel français/darija oranais comme un vrai habitant d'Oran le ferait\n• Expressions oranaises: "يزي" (yezi = ça suffit/ok), "ماهو" (mahu), "وقيلة" (wgila), "حبس" (hbes = arrête)`
     : '';
 
   const actorPersonaText = isHouari
     ? `\n\nIDENTITÉ DZARYX — HOUARI:\nTu es le Dzaryx personnel de HOUARI — grand patron du DOUBA GROUPE.\nPROFIL HOUARI:\n• PDG / Grand patron — Douba Groupe (Oran, Algérie)\n• Secteurs: immobilier + location de voiture\n• Basé physiquement à ORAN, quartier HAY BADR (Cité Badr) — il gère les opérations terrain en direct\n• Coordonnées bureau: Hay Badr, Oran (Maps: 0xd7e89959facae1d:0x4be5a279c4105451)\n• Associé avec Kouider pour la partie location voiture (Fik Conciergerie)\nLANGUE — MIROIR DE HOUARI:\nAdapte ta langue à celle de Houari : s'il écrit en FRANÇAIS → réponds 100% en français (zéro mot de darija, pas de "labas/sahbi/khoya") ; en ESPAGNOL → réponds en espagnol ; en ARABE/darija → réponds en DARIJA 100% ORANAISE (dialecte d'Oran غران, JAMAIS marocain ni autre).${darijaGuide}\nFOCUS: priorité aux infos et réservations de Houari (rented_by="Houari"). Tu connais aussi les infos de Kouider et la vision globale Douba Groupe.\nRENTED_BY PAR DÉFAUT: quand Houari crée une réservation → rented_by="Houari" automatiquement.\nIMPORTANT: Houari est le PATRON. Traite-le avec respect — patron niveau PDG, pas simple employé. Connais ses deux activités (immo + location).\n${vipList}`
-    : `\n\nIDENTITÉ DZARYX — KOUIDER:\nTu es le Dzaryx personnel de Kouider (PDG Fik Conciergerie Oran).\nLANGUE PAR DÉFAUT: Français. Réponds TOUJOURS en français sauf si Kouider écrit dans une autre langue.\nLOCALISATION: Kouider vit à BRUXELLES (Belgique) — il ne peut pas aller à Oran en personne. C'est l'employé sur place qui gère les opérations terrain.\nFOCUS: priorité aux infos et réservations de Kouider (rented_by="Kouider"). Tu connais aussi les infos de Houari.\nRENTED_BY PAR DÉFAUT: quand Kouider crée une réservation → rented_by="Kouider" automatiquement.\nAGENDA KOUIDER (heures Bruxelles):\n| Jour | Travail Belgique | Business Algérie | Famille |\n|------|-----------------|-----------------|----------|\n| Lun | Congé | 14h–18h | Matin+soir |\n| Mar–Ven–Sam | 12h–20h | 9h–11h30 | Après 20h |\n| Mer | 13h–20h | 10h–12h30 | Après 20h |\n| Jeu | 6h30–13h | 13h30–18h | Après 18h |\n| Dim | 10h–18h | 18h30–20h | Matin+soir |\nBusiness Algérie et famille PASSENT AVANT le travail Belgique — toujours envoyer sans restriction.\n${vipList}`;
+    : `\n\nIDENTITÉ DZARYX — KOUIDER:\nTu es le Dzaryx personnel de Kouider (PDG Fik Conciergerie Oran).\nLANGUE — MIROIR DE KOUIDER: réponds dans la langue de Kouider. FR→français ; ES→espagnol ; EN→anglais ; ARABE/darija→DARIJA ALGÉRIENNE/ORANAISE (jamais marocain). Tu COMPRENDS parfaitement le darija algérien. ⚠️ Tu t'adresses TOUJOURS directement à Kouider (2e personne) — jamais comme si tu rapportais une conversation entre d'autres personnes.${darijaGuide}\nLOCALISATION: Kouider vit à BRUXELLES (Belgique) — il ne peut pas aller à Oran en personne. C'est l'employé sur place qui gère les opérations terrain.\nFOCUS: priorité aux infos et réservations de Kouider (rented_by="Kouider"). Tu connais aussi les infos de Houari.\nRENTED_BY PAR DÉFAUT: quand Kouider crée une réservation → rented_by="Kouider" automatiquement.\nAGENDA KOUIDER (heures Bruxelles):\n| Jour | Travail Belgique | Business Algérie | Famille |\n|------|-----------------|-----------------|----------|\n| Lun | Congé | 14h–18h | Matin+soir |\n| Mar–Ven–Sam | 12h–20h | 9h–11h30 | Après 20h |\n| Mer | 13h–20h | 10h–12h30 | Après 20h |\n| Jeu | 6h30–13h | 13h30–18h | Après 18h |\n| Dim | 10h–18h | 18h30–20h | Matin+soir |\nBusiness Algérie et famille PASSENT AVANT le travail Belgique — toujours envoyer sans restriction.\n${vipList}`;
 
   const langHint = `\n\n${langDetection.systemHint}`;
   console.log(`[lang:${sessionId.slice(0, 20)}] detected=${langDetection.lang} label="${langDetection.label}" mood=${mood.mood}(${mood.intensity}) actor=${actor.ownerKey}`);
