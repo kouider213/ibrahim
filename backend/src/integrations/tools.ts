@@ -511,7 +511,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_social_variants',
-    description: 'Créer automatiquement toutes les variantes réseaux sociaux d\'une image (TikTok 9:16, Instagram Post 1:1, Instagram Story 9:16, Facebook 1.91:1).',
+    description: 'Décliner une image EXISTANTE (la vraie photo) en variantes réseaux sociaux (TikTok 9:16, Instagram 1:1, Story 9:16, Facebook). ⚠️ NE PAS utiliser quand Kouider demande une "image IA" ou de "générer/créer une image" → c\'est generate_image. Utiliser uniquement pour adapter une photo réelle déjà existante aux formats réseaux.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1049,7 +1049,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ─── GÉNÉRATION IA (Replicate + fal.ai) ──────────────────────
   {
     name: 'generate_image',
-    description: 'Générer une image ultra-réaliste avec l\'IA Flux.1 (qualité Midjourney). Utiliser quand Kouider dit "génère une image", "crée une photo de...", "fais-moi une image...", "génère une photo de voiture". Envoie l\'image directement sur Telegram.',
+    description: 'GÉNÉRER une NOUVELLE image par IA (OpenAI gpt-image-1, sinon DALL-E 3 / Flux). À utiliser DÈS que Kouider dit "image IA", "génère/crée/fais une image", "crée une photo de...", "image générée par IA". ⚠️ IMPORTANT: même si une voiture de la FLOTTE est citée (ex "image IA du Clio 5 Alpine"), tu DOIS générer une nouvelle image IA avec CET outil — n\'utilise PAS create_social_variants / enhance_image / add_text_overlay (ceux-là RETOUCHENT la vraie photo existante). N\'utilise les outils de retouche QUE si Kouider dit explicitement "améliore/retouche MA photo". Décris la voiture dans le prompt (modèle, couleur, décor Oran). Envoie l\'image dans l\'app.',
     input_schema: {
       type: 'object' as const,
       properties: {
