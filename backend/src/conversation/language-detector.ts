@@ -18,7 +18,7 @@ const FR_TOKENS = /\b(?:le|la|les|de|du|des|je|tu|il|elle|nous|vous|ils|elles|un
 
 // Darija algérienne — romanisée (Latin script)
 // NOTE: "fin" intentionally excluded — it is a common French word and causes false positives.
-const DARIJA_TOKENS = /\b(?:wach|wesh|bghit|bgha|khoya|kho|khti|wlad|rani|raki|rak|wayed|bzzaf|bezzaf|nta|nti|ntuma|ana|hna|fhamt|tfhmt|barak|saha|mzyan|mzien|kima|kifah|kifash|mazal|mazel|sahbi|bsah|zwina|zwin|machi|shi|hadi|hada|hadak|hadik|bessah|deja|druk|daba|taah|seer|rouh|jib|dir(?:i)?|chof|chki|dyal|mta3|mte3|wakha|wakhha|bled|lblad|yallah|wallah|nshaAllah|hamdullah|tbarkallah|khlass|bach|ila|wila|kifkif|ghi|raho|rahi|howa|hiya|lazem|lazm|kh[ae]s|bghina|jina|ji|tjini|tji|ma?chi|maachi|zid|sah|3lash|3la|fe(?:in)?|hh+|salam|slam|kayna|kayn|labas|nkri|nakri)\b/gi;
+const DARIJA_TOKENS = /\b(?:wach|wesh|wache|bghit|bgha|khoya|kho|khti|wlad|rani|raki|rak|raho|rahi|wayed|bzzaf|bezzaf|bzaf|nta|nti|ntuma|ana|hna|fhamt|fhemt|tfhmt|barak|saha|mzyan|mzien|kima|kifah|kifash|kifch|kifech|mazal|mazel|sahbi|bsah|bessah|zwina|zwin|machi|machi|shi|hadi|hada|hadak|hadik|hadou|hadouk|haduk|hadok|deja|druk|dork|derk|daba|taah|seer|rouh|rou7|rohi|rwah|arwah|jib|jibli|aji|dir(?:i|o)?|ndir|ndiro|chof|chki|chouf|dyal|mta3|mte3|ta3|te3|wakha|wakhha|bled|lblad|yallah|wallah|wlh|nshaallah|nchallah|hamdullah|hamdoullah|tbarkallah|khlass|khlas|bach|bah|ila|wila|kifkif|ghi|howa|hiya|lazem|lazm|kh[ae]s|bghina|jina|ji|tjini|tji|maachi|zid|sah|s7i?t|sa7it|3lash|3lah|3la|3andi|3andek|3and|3la?h|m3a|b7al|ch7al|chhal|ch7el|gdach|win|wine|winrak|fhmt|hh+|salam|slam|kayna|kayn|kayen|labas|nkri|nakri|gouli|goul|goulili|gououli|guli|kuli|kach|kech|kayech|jdid|jdida|jadid|nhar|nhara|lyam|lyamat|lyamet|lyoum|lyum|lioum|lbareh|lbarah|sma3|sme3|sma7|sma7|mli7|mlih|mle7|n7eb|nheb|t7eb|7abit|7abbit|3jbni|makanch|makach|maranich|kaynach|3jbatni|wa3lah|saraha|sara7a)\b/gi;
 
 // Arabic darija markers written in Arabic script (common Algerian/Maghrebi dialectal words)
 const DARIJA_AR_TOKENS = /(?:راك|راكي|باغي|باغية|خويا|واش|بزاف|مزيان|كيما|كيفاه|دابا|درك|ماشي|هادي|هادا|صاحبي|بصح|والو|خلاص)/g;
@@ -76,9 +76,15 @@ export function detectLanguage(text: string): LanguageDetection {
     };
   }
 
+  // Arabizi : darija écrite avec des chiffres-lettres (3=ع, 7=ح, 9=ق, 5=خ, 2=ء).
+  // Ex: "3andi", "ch7al", "m3a", "9adach" → forte marque de darija.
+  const arabiziBonus = (t.split(/\s+/).filter(w =>
+    /[a-z]/i.test(w) && /[235679]/.test(w) && /[a-z][235679]|[235679][a-z]/i.test(w)
+  ) ?? []).length;
+
   // Score Latin-script languages
   const frScore     = (t.match(FR_TOKENS)     ?? []).length;
-  const darijaScore = (t.match(DARIJA_TOKENS) ?? []).length + darijaArScore;
+  const darijaScore = (t.match(DARIJA_TOKENS) ?? []).length + darijaArScore + arabiziBonus;
   const enScore     = (t.match(EN_TOKENS)     ?? []).length;
   const esScore     = (t.match(ES_TOKENS)     ?? []).length;
 
