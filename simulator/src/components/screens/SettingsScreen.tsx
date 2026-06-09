@@ -142,39 +142,6 @@ export default function SettingsScreen() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-        {/* Actor selector */}
-        <Panel title="ACTEUR SIMULÉ">
-          <div style={{ display: 'flex', gap: 8 }}>
-            {ACTORS.map(a => {
-              const active = actor === a.id;
-              return (
-                <button key={a.id} onClick={() => selectActor(a.id)} style={{
-                  flex: 1, padding: '14px 8px', borderRadius: 12,
-                  background: active ? `${a.col}18` : 'rgba(255,255,255,0.03)',
-                  border: `1.5px solid ${active ? a.col : '#ffffff10'}`,
-                  cursor: 'pointer', textAlign: 'center',
-                  boxShadow: active ? `0 0 14px ${a.col}22` : 'none',
-                  transition: 'all 0.2s',
-                }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: '50%',
-                    background: active ? `${a.col}22` : '#ffffff08',
-                    border: `1.5px solid ${active ? a.col : '#ffffff15'}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    margin: '0 auto 8px',
-                    fontFamily: 'Inter, sans-serif', fontSize: 14, color: active ? a.col : '#ffffff44',
-                    boxShadow: active ? `0 0 12px ${a.col}44` : 'none',
-                  }}>{a.icon}</div>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: active ? a.col : '#ffffff55', letterSpacing: '0.2em', textShadow: active ? `0 0 8px ${a.col}` : 'none' }}>
-                    {a.label}
-                  </div>
-                  <div style={{ fontSize: 7, color: active ? `${a.col}77` : '#ffffff33', marginTop: 3 }}>{a.role}</div>
-                </button>
-              );
-            })}
-          </div>
-        </Panel>
-
         {/* GPS Location */}
         <Panel title="LOCALISATION GPS">
           {locData ? (
