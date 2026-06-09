@@ -55,6 +55,8 @@ export interface ConversationContext {
   systemExtra:               string;
   sessionId:                 string;
   hasInjectedFinancialData:  boolean;
+  hasInjectedFleetData:      boolean;
+  hasInjectedBookingsData:   boolean;
   mood:                      MoodResult | null;
   actor:                     OrgMember;
 }
@@ -527,8 +529,14 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
       `\nCOMPRÉHENSION: Si message mal orthographié → déduis l'intention. JAMAIS signaler les fautes.`,
       `\nDATE: ${new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`,
     ].join('\n');
-    return { messages, systemExtra: saasExtra, sessionId, hasInjectedFinancialData: false, mood, actor };
+    return { messages, systemExtra: saasExtra, sessionId, hasInjectedFinancialData: false, hasInjectedFleetData: false, hasInjectedBookingsData: false, mood, actor };
   }
 
-  return { messages, systemExtra, sessionId, hasInjectedFinancialData: financeReport != null, mood, actor };
+  return {
+    messages, systemExtra, sessionId,
+    hasInjectedFinancialData: financeReport != null,
+    hasInjectedFleetData:     fleetText.trim() !== '',
+    hasInjectedBookingsData:  bookingsText.trim() !== '',
+    mood, actor,
+  };
 }

@@ -435,11 +435,18 @@ export async function processMessage(
     const g1 = guardResponse(resp.text, userMessage, requestId);
     const g2 = applyScopeGuard(g1, userMessage, requestId);
     const g3 = phantomGuard(g2, resp.toolsExecuted, userMessage, requestId);
-    // Quand le context-builder a pré-injecté les vraies données financières,
-    // on traite ça comme un appel d'outil réussi.
-    const toolsForGate = ctx.hasInjectedFinancialData && !resp.toolsExecuted.some(t => t.name === 'get_financial_report')
-      ? [...resp.toolsExecuted, { name: 'get_financial_report', success: true, result: 'context-injected' }]
-      : resp.toolsExecuted;
+    // Quand le context-builder a pré-injecté de VRAIES données (finance / flotte / résas),
+    // on les traite comme des appels d'outils réussis → pas de faux blocage anti-hallu
+    // sur un résumé qui cite la flotte ou les réservations déjà fournies dans le contexte.
+    const toolsForGate = [...resp.toolsExecuted];
+    const ensureTool = (name: string, when: boolean) => {
+      if (when && !toolsForGate.some(t => t.name === name)) {
+        toolsForGate.push({ name, success: true, result: 'context-injected' });
+      }
+    };
+    ensureTool('get_financial_report', ctx.hasInjectedFinancialData);
+    ensureTool('get_fleet_status',     ctx.hasInjectedFleetData);
+    ensureTool('list_bookings',        ctx.hasInjectedBookingsData);
     // Vision: la réponse décrit l'IMAGE → ne pas la traiter comme une affirmation DB.
     const hallu = imageBase64
       ? { blocked: null as string | null, reason: null as HallucinationReason }
