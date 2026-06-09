@@ -109,4 +109,25 @@ router.get('/autocomplete', requireMobileAuth, async (req, res) => {
   }
 });
 
+// GET /api/maps/autocomplete-public?input=<text>
+// Version PUBLIQUE (sans auth) pour le site fikconciergerie — autocomplétion d'adresse
+// dans l'admin. Min 3 caractères, biais Algérie, rate-limité (apiLimiter sur /api/maps).
+router.get('/autocomplete-public', async (req, res) => {
+  const input = String((req.query as Record<string, string>).input ?? '').trim();
+  if (input.length < 3) { res.json({ ok: true, predictions: [] }); return; }
+  const key = process.env['GOOGLE_MAPS_API_KEY'];
+  if (!key) { res.json({ ok: true, predictions: [] }); return; }
+  try {
+    const resp = await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+      params: { input, key, language: 'fr', components: 'country:dz', types: 'geocode|establishment' },
+      timeout: 5000,
+    });
+    const data = resp.data as { status: string; predictions: { description: string; place_id: string }[] };
+    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') { res.json({ ok: false, predictions: [] }); return; }
+    res.json({ ok: true, predictions: (data.predictions ?? []).slice(0, 5).map(p => ({ label: p.description, place_id: p.place_id })) });
+  } catch {
+    res.json({ ok: false, predictions: [] });
+  }
+});
+
 export default router;
