@@ -18,7 +18,25 @@ const FR_TOKENS = /\b(?:le|la|les|de|du|des|je|tu|il|elle|nous|vous|ils|elles|un
 
 // Darija algérienne — romanisée (Latin script)
 // NOTE: "fin" intentionally excluded — it is a common French word and causes false positives.
-const DARIJA_TOKENS = /\b(?:wach|wesh|wache|bghit|bgha|khoya|kho|khti|wlad|rani|raki|rak|raho|rahi|wayed|bzzaf|bezzaf|bzaf|nta|nti|ntuma|ana|hna|fhamt|fhemt|tfhmt|barak|saha|mzyan|mzien|kima|kifah|kifash|kifch|kifech|mazal|mazel|sahbi|bsah|bessah|zwina|zwin|machi|machi|shi|hadi|hada|hadak|hadik|hadou|hadouk|haduk|hadok|deja|druk|dork|derk|daba|taah|seer|rouh|rou7|rohi|rwah|arwah|jib|jibli|aji|dir(?:i|o)?|ndir|ndiro|chof|chki|chouf|dyal|mta3|mte3|ta3|te3|wakha|wakhha|bled|lblad|yallah|wallah|wlh|nshaallah|nchallah|hamdullah|hamdoullah|tbarkallah|khlass|khlas|bach|bah|ila|wila|kifkif|ghi|howa|hiya|lazem|lazm|kh[ae]s|bghina|jina|ji|tjini|tji|maachi|zid|sah|s7i?t|sa7it|3lash|3lah|3la|3andi|3andek|3and|3la?h|m3a|b7al|ch7al|chhal|ch7el|gdach|win|wine|winrak|fhmt|hh+|salam|slam|kayna|kayn|kayen|labas|nkri|nakri|gouli|goul|goulili|gououli|guli|kuli|kach|kech|kayech|jdid|jdida|jadid|nhar|nhara|lyam|lyamat|lyamet|lyoum|lyum|lioum|lbareh|lbarah|sma3|sme3|sma7|sma7|mli7|mlih|mle7|n7eb|nheb|t7eb|7abit|7abbit|3jbni|makanch|makach|maranich|kaynach|3jbatni|wa3lah|saraha|sara7a)\b/gi;
+// Darija algérienne romanisée (Latin / arabizi) — lexique large.
+// Regroupé par familles pour rester lisible. Évite les mots trop courts qui
+// collisionnent avec le français (pas de "ma", "w", "la", "de"…).
+const DARIJA_TOKENS = new RegExp('\\b(?:' + [
+  // pronoms / être (rani…)
+  'ana','nta','nti','ntuma','huma','houma','hna','7na','rani','rak','raki','rahi','raho','rahou','rahum','rahoum','rahna','rahmin','wahdi','wahdek',
+  // interrogatifs
+  'wach','wesh','wache','wechta','ch7al','chhal','ch7el','qadach','gdach','9adach','kifah','kifach','kifch','kifech','win','wine','winta','weqtach','waqtach','3lah','3lach','3la','chkun','chkoun','achmen','kach','kech','kayech','kayach','wa3lah','wa3lach','3lache',
+  // verbes courants
+  'gouli','goul','goulili','gououli','guli','kuli','dir','diri','diro','ndir','ndiro','dar','jib','jibli','jab','aji','arwah','rou7','rouh','rohi','rwah','rah','mcha','mchit','jit','klit','chrit','chra','bi3','ba3','7ab','7abit','7abbit','nheb','n7eb','t7eb','bgha','bghit','bghina','chaf','chouf','chof','chft','chki','sma3','sme3','sma3t','sma7','smah','samhli','smahli','fhamt','fhem','fhemt','fhmt','tfhmt','3raft','3ref','3arf','dert','khdmt','khdem','nakhdem','kteb','ktebt','qra','qrit','sken','sakn','gles','glest','qum','wsel','wselt','lqit','tlaqit','3tit','3ta','khllas','khlas','khlass','sali','saliti','zid','zidi','wlit','wliti','ji','tji','tjini','jina',
+  // adjectifs / états
+  'mli7','mlih','mle7','mzyan','mzien','zwin','zwina','khayb','khayba','kbir','kbira','sghir','sghira','jdid','jdida','jadid','qdim','bnin','s5oun','skhoun','bared','b3id','qrib','ghali','rkhis','sahel','s3ib','fer7an','ta3ban','3yan','mrid','mabrouk','mberkat',
+  // noms
+  'drahem','flous','swardet','tomobil','tonobil','karoussa','dar','blassa','khedma','khdma','sa3a','nhar','nhara','lyoum','lyum','lioum','lbareh','lbarah','ghedwa','weqt','triq','3icha','makla','weld','bent','mra','rajel','sahbi','sahab','khoya','kho','khti','wlad','3aila','3ami','khalti','3ami','jiran','3ers',
+  // connecteurs / divers
+  'bsah','bessah','sah','saraha','sara7a','ghir','ghi','hata','7ata','kamel','kaml','walou','walo','kayn','kayen','kayna','kaynin','makanch','makach','maranich','makayench','mazal','mazel','deja','daba','derk','dork','twa','taw','b3da','mba3d','qbel','b7al','kima','willa','wila','ila','ya3ni','nichan','bzaf','bzzaf','bezzaf','bzaf','chwiya','shwiya','ktir','qlil','nchallah','nshaallah','hamdoullah','hamdullah','tbarkallah','wallah','wlh','yallah','saha','sa7a','barakallah','slam','salam','labas','bikhir','b5ir','ma3lich','ma3lish','mouchkil','mochkil','machi','shi','hadi','hada','hadak','hadik','hadou','hadouk','haduk','hadok','dyal','mta3','mte3','ta3','te3','wakha',
+  // oranais spécifiques
+  'yezi','mahu','wgila','hbes','yesah','3jbni','3jbatni','nkri','nakri','kraw','wahran','ghaya',
+].join('|') + ')\\b', 'gi');
 
 // Arabic darija markers written in Arabic script (common Algerian/Maghrebi dialectal words)
 const DARIJA_AR_TOKENS = /(?:راك|راكي|باغي|باغية|خويا|واش|بزاف|مزيان|كيما|كيفاه|دابا|درك|ماشي|هادي|هادا|صاحبي|بصح|والو|خلاص)/g;
