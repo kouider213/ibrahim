@@ -84,7 +84,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
       {/* Header */}
       <div style={{ padding: '8px 14px 6px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #10b98155' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 23, color: '#fff', letterSpacing: '-0.01em', fontWeight: 800 }}>
             REVENUS
           </div>
           {msg && <span style={{ fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>}
