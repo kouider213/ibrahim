@@ -1,29 +1,33 @@
 import { useState, useEffect } from 'react';
 import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType } from '../../services/api.ts';
 
+// ── Palette premium (cartes sur obsidian + accent émeraude) ─────
+const C = {
+  bg: '#0b0b0d', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.07)',
+  accent: '#10b981', accentSoft: '#34d399', text: '#f5f5f7', muted: '#9b9ba6',
+  gold: '#fbbf24', blue: '#60a5fa', violet: '#a78bfa',
+  font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
+};
+
 const TYPE_META: Record<ClientType, { label: string; col: string }> = {
-  loc_auto:   { label: 'LOC AUTO',   col: '#10b981' },
-  loc_immo:   { label: 'LOC IMMO',   col: '#b06bff' },
-  achat_auto: { label: 'ACHAT AUTO', col: '#ff9f43' },
-  achat_immo: { label: 'ACHAT IMMO', col: '#00e676' },
-  demande:    { label: 'DEMANDE',    col: '#ff5fa2' },
+  loc_auto:   { label: 'Loc auto',   col: C.accent },
+  loc_immo:   { label: 'Loc immo',   col: C.violet },
+  achat_auto: { label: 'Achat auto', col: '#fb923c' },
+  achat_immo: { label: 'Achat immo', col: C.accentSoft },
+  demande:    { label: 'Demande',    col: '#f472b6' },
 };
 
 const OP_META: Record<string, { label: string; icon: string; col: string }> = {
-  location_immo:      { label: 'Location immo',  icon: '🏠', col: '#b06bff' },
-  vente_immo:         { label: 'Achat immo',     icon: '🏠', col: '#00e676' },
-  vente_voiture:      { label: 'Achat voiture',  icon: '🚗', col: '#ff9f43' },
-  demande_specifique: { label: 'Demande spéciale', icon: '✨', col: '#ff5fa2' },
-  demande:            { label: 'Demande spéciale', icon: '✨', col: '#ff5fa2' },
+  location_immo:      { label: 'Location immo',  icon: '🏠', col: C.violet },
+  vente_immo:         { label: 'Achat immo',     icon: '🏠', col: C.accentSoft },
+  vente_voiture:      { label: 'Achat voiture',  icon: '🚗', col: '#fb923c' },
+  demande_specifique: { label: 'Demande spéciale', icon: '✨', col: '#f472b6' },
+  demande:            { label: 'Demande spéciale', icon: '✨', col: '#f472b6' },
 };
 
 const SCORE_COL: Record<string, string> = {
-  VIP: '#ffd700', FREQUENT: '#10b981', FRÉQUENT: '#10b981',
-  REGULAR: '#00e676', RÉGULIER: '#00e676', NEW: '#ffffff66', NOUVEAU: '#ffffff66',
-};
-const SCORE_BG: Record<string, string> = {
-  VIP: '#ffd70018', FREQUENT: '#10b98118', FRÉQUENT: '#10b98118',
-  REGULAR: '#00e67618', RÉGULIER: '#00e67618', NEW: '#ffffff0a', NOUVEAU: '#ffffff0a',
+  VIP: C.gold, FREQUENT: C.accent, FRÉQUENT: C.accent,
+  REGULAR: C.accentSoft, RÉGULIER: C.accentSoft, NEW: C.muted, NOUVEAU: C.muted,
 };
 
 export default function ClientsScreen() {
@@ -54,159 +58,106 @@ export default function ClientsScreen() {
       setOps(opMap);
     } finally { setLoad(false); }
   };
-
   useEffect(() => { void load(); }, []);
 
   const filtered = clients.filter(c =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.phone?.includes(search) ?? false)
+    !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone?.includes(search) ?? false)
   );
-
-  const getScore = (name: string) => {
-    const ci = intel.get(name);
-    return ci?.score?.toUpperCase() ?? 'NOUVEAU';
-  };
-
+  const getScore = (name: string) => intel.get(name)?.score?.toUpperCase() ?? 'NOUVEAU';
   const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k€` : `${Math.round(n)}€`;
-
   const vipCount = clients.filter(c => getScore(c.name) === 'VIP').length;
   const totalSpent = clients.reduce((s, c) => s + (intel.get(c.name)?.total_spent ?? 0), 0);
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
-
-      {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #10b98155' }}>
-            CLIENTS
-          </div>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b98155', letterSpacing: '0.15em' }}>
-            {clients.length} PROFILS
-          </span>
-        </div>
-
-        {/* KPI row */}
-        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
-          <KpiCard label="TOTAL" val={String(clients.length)} col="#10b981" />
-          <KpiCard label="VIP" val={String(vipCount)} col="#ffd700" />
-          <KpiCard label="CA TOTAL" val={fmt(totalSpent)} col="#00e676" />
-        </div>
-
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Chercher nom / téléphone…"
-          style={inputStyle}
-        />
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
+    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
+      {/* Hero */}
+      <div style={{ position: 'relative', padding: '22px 18px 14px', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${C.accent}22, transparent 70%)`, pointerEvents: 'none' }} />
+        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Dzaryx · Clients</div>
+        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: `linear-gradient(120deg, #fff, ${C.accentSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Clients</div>
       </div>
 
-      {/* Client list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {loading ? <HudLoader /> : filtered.length === 0 ? <HudEmpty text="Aucun client" /> : filtered.map(c => {
-          const score  = getScore(c.name);
-          const scCol  = SCORE_COL[score] ?? '#ffffff55';
-          const scBg   = SCORE_BG[score] ?? '#ffffff08';
-          const ci     = intel.get(c.name);
-          const isExp  = expanded === c.name;
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, padding: '0 18px 12px' }}>
+        {[
+          { v: String(clients.length), l: 'Profils', c: C.text },
+          { v: String(vipCount), l: 'VIP', c: C.gold },
+          { v: fmt(totalSpent), l: 'CA total', c: C.accentSoft },
+        ].map(s => (
+          <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.c }}>{s.v}</div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recherche */}
+      <div style={{ padding: '0 18px 12px' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un nom ou téléphone…"
+          style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' }} />
+      </div>
+
+      {/* Liste */}
+      <div style={{ padding: '0 18px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {loading ? (
+          <Empty t="Chargement…" />
+        ) : filtered.length === 0 ? (
+          <Empty t="Aucun client" />
+        ) : filtered.map(c => {
+          const score = getScore(c.name);
+          const scCol = SCORE_COL[score] ?? C.muted;
+          const ci    = intel.get(c.name);
+          const isExp = expanded === c.name;
           const initials = c.name.split(' ').map(w => w[0] ?? '').slice(0, 2).join('').toUpperCase();
+          const cOps = ops.get(c.name) ?? [];
 
           return (
-            <div key={c.name} style={{
-              borderRadius: 10, overflow: 'hidden',
-              border: `1px solid ${scCol}22`,
-              background: `linear-gradient(135deg, ${scCol}06, rgba(10,10,12,0.5))`,
-              boxShadow: isExp ? `0 0 12px ${scCol}15` : 'none',
-            }}>
-              <div onClick={() => setExpanded(e => e === c.name ? null : c.name)}
-                style={{ padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-                {/* Avatar */}
-                <div style={{
-                  width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                  background: scBg, border: `1.5px solid ${scCol}44`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'Inter, sans-serif', fontSize: 10, color: scCol,
-                  boxShadow: `0 0 8px ${scCol}22`,
-                }}>
-                  {initials || '?'}
-                </div>
-
-                {/* Info */}
+            <div key={c.name} style={{ background: C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'border .2s' }}>
+              <div onClick={() => setExpanded(e => e === c.name ? null : c.name)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: `${scCol}1a`, border: `1.5px solid ${scCol}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: scCol }}>{initials || '?'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.name}
-                  </div>
-                  <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>
-                    {c.bookingCount} résa · {fmt(c.totalSpent)}
-                  </div>
+                  <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                  <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.bookingCount} résa · {fmt(c.totalSpent)}</div>
                   {c.types && c.types.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 3 }}>
-                      {c.types.map(t => {
-                        const m = TYPE_META[t]; if (!m) return null;
-                        return (
-                          <span key={t} style={{
-                            fontSize: 6, fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em',
-                            color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`,
-                            borderRadius: 4, padding: '2px 5px',
-                          }}>{m.label}</span>
-                        );
-                      })}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
+                      {c.types.map(t => { const m = TYPE_META[t]; if (!m) return null; return (
+                        <span key={t} style={{ fontSize: 10, fontWeight: 600, color: m.col, background: `${m.col}1a`, border: `1px solid ${m.col}40`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
+                      ); })}
                     </div>
                   )}
                 </div>
-
-                {/* Score + phone */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <div style={{
-                    padding: '3px 7px', borderRadius: 6, fontSize: 7,
-                    background: scBg, color: scCol,
-                    fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
-                    border: `1px solid ${scCol}44`,
-                    boxShadow: score === 'VIP' ? `0 0 8px ${scCol}44` : 'none',
-                  }}>
-                    {score.slice(0, 4)}
-                  </div>
-                  {c.phone && (
-                    <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()}
-                      style={{ fontSize: 15, textDecoration: 'none' }}>📞</a>
-                  )}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: scCol, background: `${scCol}1f`, border: `1px solid ${scCol}55`, borderRadius: 20, padding: '3px 10px' }}>{score}</span>
+                  {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} style={{ fontSize: 20, textDecoration: 'none' }}>📞</a>}
                 </div>
               </div>
 
-              {/* Intelligence + opérations detail */}
-              {isExp && (ci || (ops.get(c.name)?.length ?? 0) > 0) && (
-                <div style={{ padding: '6px 12px 10px 20px', background: 'rgba(0,5,15,0.96)', borderTop: `1px solid ${scCol}18` }}>
+              {isExp && (ci || cOps.length > 0) && (
+                <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${C.border}`, background: C.surface2 }}>
                   {ci && <>
                     <Row label="Voitures préférées" val={(ci.preferred_cars ?? []).join(', ') || '—'} />
-                    <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days}j` : '—'} />
-                    <Row label="Style négociation" val={ci.negotiation_style ?? '—'} />
+                    <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days} j` : '—'} />
+                    <Row label="Négociation" val={ci.negotiation_style ?? '—'} />
                     <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
-                    <Row label="Dépenses total" val={fmt(ci.total_spent)} col="#ffd700" />
-                    {ci.notes && (
-                      <div style={{ marginTop: 6, padding: '6px 8px', background: '#10b98105', borderRadius: 6, border: '1px solid #10b9810f', fontSize: 8, color: '#ffffff77', lineHeight: 1.6 }}>
-                        {ci.notes}
-                      </div>
-                    )}
+                    <Row label="Dépenses total" val={fmt(ci.total_spent)} col={C.gold} />
+                    {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `${C.accent}10`, borderRadius: 12, border: `1px solid ${C.accent}22`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
                   </>}
-
-                  {/* Ce que le client a pris (immo / vente / demandes) */}
-                  {(ops.get(c.name)?.length ?? 0) > 0 && (
-                    <div style={{ marginTop: ci ? 8 : 0 }}>
-                      <div style={{ fontSize: 7, color: '#ffffff33', letterSpacing: '0.2em', marginBottom: 4 }}>IMMO · VENTE · DEMANDES</div>
-                      {(ops.get(c.name) ?? []).map(op => {
-                        const m = OP_META[op.deal_type] ?? { label: op.deal_type, icon: '•', col: '#888' };
+                  {cOps.length > 0 && (
+                    <div style={{ marginTop: ci ? 14 : 0 }}>
+                      <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Immo · Vente · Demandes</div>
+                      {cOps.map(op => {
+                        const m = OP_META[op.deal_type] ?? { label: op.deal_type, icon: '•', col: C.muted };
                         const cur = op.currency === 'DZD' ? 'DA' : (op.currency || '€');
                         return (
-                          <div key={op.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', borderBottom: '1px solid #ffffff08' }}>
-                            <span style={{ fontSize: 11 }}>{m.icon}</span>
+                          <div key={op.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+                            <span style={{ fontSize: 16 }}>{m.icon}</span>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 8, color: m.col }}>{m.label}</div>
-                              {op.item_label && <div style={{ fontSize: 7, color: '#ffffff55', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.item_label}</div>}
+                              <div style={{ fontSize: 13, color: m.col, fontWeight: 600 }}>{m.label}</div>
+                              {op.item_label && <div style={{ fontSize: 12, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{op.item_label}</div>}
                             </div>
                             <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontSize: 8, color: '#fff' }}>{op.amount != null ? `${Number(op.amount).toLocaleString()} ${cur}` : '—'}</div>
-                              <div style={{ fontSize: 6, color: '#ffffff33' }}>{String(op.created_at).slice(0, 10)}</div>
+                              <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{op.amount != null ? `${Number(op.amount).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
+                              <div style={{ fontSize: 10, color: C.muted }}>{String(op.created_at).slice(0, 10)}</div>
                             </div>
                           </div>
                         );
@@ -223,45 +174,14 @@ export default function ClientsScreen() {
   );
 }
 
-function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
-  return (
-    <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
-      <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.15em', marginTop: 2 }}>{label}</div>
-    </div>
-  );
-}
-
 function Row({ label, val, col }: { label: string; val: string; col?: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-      <span style={{ fontSize: 8, color: '#ffffff2a' }}>{label}</span>
-      <span style={{ fontSize: 8, color: col ?? '#ffffff77', maxWidth: '55%', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 7 }}>
+      <span style={{ fontSize: 12.5, color: C.muted, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 12.5, color: col ?? C.text, fontWeight: 600, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
     </div>
   );
 }
-
-function HudLoader() {
-  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#10b98133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>;
-}
-function HudEmpty({ text }: { text: string }) {
-  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#ffffff1a', letterSpacing: '0.1em' }}>{text}</div>;
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box',
-  background: 'rgba(16,185,129,0.04)', border: '1px solid #10b9811a',
-  borderRadius: 8, padding: '6px 10px',
-  fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
-};
-
-function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = 'transparent';
-  const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
-  const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
-  const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
-  const bR = pos.endsWith('r')   ? `${t}px solid ${col}33` : 'none';
-  const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
-  const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
-  return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
+function Empty({ t }: { t: string }) {
+  return <div style={{ textAlign: 'center', padding: 36, color: C.muted, fontSize: 13 }}>{t}</div>;
 }
