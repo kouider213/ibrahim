@@ -4,7 +4,9 @@ import { autoExtractMemory }                      from './auto-memory.js';
 import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
-import { checkAntiHallucination, fastPathGuard } from '../orchestrator/anti-hallucination.js';
+import { checkAntiHallucination, fastPathGuard, type HallucinationCheck } from '../orchestrator/anti-hallucination.js';
+
+type HallucinationReason = HallucinationCheck['reason'];
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
@@ -327,6 +329,19 @@ export async function processMessage(
   const agentSystemExtra = buildAgentSystem(agentRoute, ctx.systemExtra);
   console.log(`[agent] ${agentRoute.label} — ${agentRoute.agentTools?.length ?? 'all'} tools — history_override=disabled`);
 
+  // Callbacks réutilisables (appel principal + retry anti-hallucination)
+  const onToolStart = (toolName: string, _toolInput: Record<string, unknown>) => {
+    const label = getToolLabel(toolName);
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: label });
+    console.log(`[tool-stream] ▶ ${label}`);
+  };
+  const onToolDone = (_toolName: string, _result: string) => {
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: null });
+  };
+  const onTextChunk = (chunk: string) => {
+    _io?.emit(SOCKET_EVENTS.TEXT_CHUNK, { sessionId, chunk });
+  };
+
   // 3. Claude répond avec Tool Streaming temps réel
   let response: Awaited<ReturnType<typeof chatWithTools>>;
   try {
@@ -334,20 +349,9 @@ export async function processMessage(
       ctx.messages,
       agentSystemExtra,
       sessionId,
-      // onToolStart → émettre "Dzaryx utilise l'outil X…"
-      (toolName: string, _toolInput: Record<string, unknown>) => {
-        const label = getToolLabel(toolName);
-        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: label });
-        console.log(`[tool-stream] ▶ ${label}`);
-      },
-      // onToolDone → retour au statut thinking normal
-      (_toolName: string, _result: string) => {
-        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: null });
-      },
-      // onTextChunk → streaming texte temps réel vers le frontend
-      (chunk: string) => {
-        _io?.emit(SOCKET_EVENTS.TEXT_CHUNK, { sessionId, chunk });
-      },
+      onToolStart,
+      onToolDone,
+      onTextChunk,
       imageBase64,
       imageMime,
       agentRoute.agentTools,   // Phase 3: scoped tool subset
@@ -404,22 +408,64 @@ export async function processMessage(
     console.log(`[orch:${requestId}] Extended Thinking: ${response.thinkingTokens} tokens`);
   }
 
-  // Guard pass 1: strip leaked old-confirmation prefixes
-  const guardedText  = guardResponse(response.text, userMessage, requestId);
-  // Guard pass 2: remove old video-task paragraphs from non-video responses
-  const scopedText   = applyScopeGuard(guardedText, userMessage, requestId);
-  // Guard pass 3: PHANTOM GUARD — bloque toute affirmation d'action sans outil write réel
-  const phantomText  = phantomGuard(scopedText, response.toolsExecuted, userMessage, requestId);
-  // Guard pass 4: anti-hallucination Gates 2&3 — financial claims + system state claims
-  // When context-builder pre-fetched real financial data, treat it as a successful tool call
-  const toolsForGate = ctx.hasInjectedFinancialData && !response.toolsExecuted.some(t => t.name === 'get_financial_report')
-    ? [...response.toolsExecuted, { name: 'get_financial_report', success: true, result: 'context-injected' }]
-    : response.toolsExecuted;
-  // Vision: la réponse décrit le contenu de l'IMAGE → ne pas la traiter comme une
-  // affirmation DB (sinon faux positif sur capture qui parle de dispo/montants).
-  const halluCheck   = imageBase64
-    ? { blocked: null as string | null, reason: null as string | null }
-    : checkAntiHallucination(phantomText, toolsForGate, userMessage, requestId);
+  // ── Pipeline de garde réutilisable (appel principal + retry) ──────────────
+  const runGuards = (resp: typeof response) => {
+    const g1 = guardResponse(resp.text, userMessage, requestId);
+    const g2 = applyScopeGuard(g1, userMessage, requestId);
+    const g3 = phantomGuard(g2, resp.toolsExecuted, userMessage, requestId);
+    // Quand le context-builder a pré-injecté les vraies données financières,
+    // on traite ça comme un appel d'outil réussi.
+    const toolsForGate = ctx.hasInjectedFinancialData && !resp.toolsExecuted.some(t => t.name === 'get_financial_report')
+      ? [...resp.toolsExecuted, { name: 'get_financial_report', success: true, result: 'context-injected' }]
+      : resp.toolsExecuted;
+    // Vision: la réponse décrit l'IMAGE → ne pas la traiter comme une affirmation DB.
+    const hallu = imageBase64
+      ? { blocked: null as string | null, reason: null as HallucinationReason }
+      : checkAntiHallucination(g3, toolsForGate, userMessage, requestId);
+    return { phantomText: g3, hallu };
+  };
+
+  let { phantomText, hallu: halluCheck } = runGuards(response);
+
+  // ── Auto-retry "vrai cerveau" ─────────────────────────────────────────────
+  // Si une garde bloque parce que Claude a affirmé sans appeler l'outil → on ne
+  // renvoie PAS un message mort. On relance Claude en l'OBLIGEANT à appeler le bon
+  // outil, puis on répond avec les vraies données. (1 seul retry, jamais en vision.)
+  if (!imageBase64 && halluCheck.blocked && halluCheck.reason) {
+    const FORCE_TOOL: Record<string, string> = {
+      car_avail_claim:        'check_car_availability (et au besoin list_bookings)',
+      booking_count_claim:    'list_bookings',
+      financial_claim_no_data:'get_financial_report',
+      payment_claim:          'get_payment_status ou get_unpaid_bookings',
+      system_state_claim:     "l'outil de données approprié (list_bookings, check_car_availability, get_financial_report…)",
+    };
+    const forceTool = FORCE_TOOL[halluCheck.reason];
+    if (forceTool) {
+      console.log(`[orch:${requestId}] anti-hallu retry → forcing tool: ${forceTool} (reason=${halluCheck.reason})`);
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '🔍 Vérification base de données…' });
+      const retrySystem = `${agentSystemExtra}\n\n⚠️ OBLIGATION ABSOLUE: pour répondre à ce message tu DOIS d'abord appeler l'outil ${forceTool}. N'affirme AUCUN chiffre, disponibilité, statut de paiement ni état système sans avoir exécuté cet outil et obtenu un résultat réel. Appelle l'outil MAINTENANT, puis réponds avec les vraies données.`;
+      try {
+        const retry = await chatWithTools(
+          ctx.messages, retrySystem, sessionId,
+          onToolStart, onToolDone, onTextChunk,
+          undefined, imageMime,
+          undefined,   // tous les outils dispo pour le retry
+        );
+        const retryGuards = runGuards(retry);
+        if (!retryGuards.hallu.blocked) {
+          console.log(`[orch:${requestId}] anti-hallu retry SUCCESS — real data fetched tools=[${retry.toolsExecuted.map(t => t.name).join(',')}]`);
+          response   = retry;
+          phantomText = retryGuards.phantomText;
+          halluCheck = retryGuards.hallu;
+        } else {
+          console.log(`[orch:${requestId}] anti-hallu retry still blocked (${retryGuards.hallu.reason})`);
+        }
+      } catch (retryErr) {
+        console.error(`[orch:${requestId}] anti-hallu retry failed:`, retryErr);
+      }
+    }
+  }
+
   const safeText     = oranize(halluCheck.blocked ?? phantomText, actor);
   // Log trace complète
   const phantomBlocked = phantomText === PHANTOM_REFUSAL;
@@ -435,7 +481,7 @@ export async function processMessage(
     `"hallucination_blocked":${halluCheck.reason ?? 'none'}` +
     `}`,
   );
-  console.log(`[orch:${requestId}] done len=${safeText.length} guard1=${guardedText !== response.text} guard2=${scopedText !== guardedText} guard3_phantom=${phantomBlocked} guard4_hallu=${halluCheck.reason ?? 'none'}`);
+  console.log(`[orch:${requestId}] done len=${safeText.length} guard3_phantom=${phantomBlocked} guard4_hallu=${halluCheck.reason ?? 'none'}`);
 
   // 4. Émettre le texte IMMÉDIATEMENT dès que Claude a répondu
   _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: safeText });
