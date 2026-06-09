@@ -133,7 +133,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
         {report?.dzd && (isHouari || report.dzd.bookings > 0) && (
           <div style={{ borderRadius: 12, border: '1px solid #10b98144', background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(10,10,12,0.6))', padding: '11px 13px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b981', letterSpacing: '0.15em' }}>💱 CA EN DINARS (HOUARI)</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b981', letterSpacing: '0.15em' }}>💱 EN DINARS (DA)</span>
               <span style={{ fontSize: 7, color: '#10b98199' }}>{report.dzd.bookings} location{report.dzd.bookings > 1 ? 's' : ''}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
@@ -148,7 +148,18 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: 6.5, color: '#ffffff33', textAlign: 'center', marginTop: 7 }}>Séparé du CA en euros · les locations de Houari en dinars</div>
+            {/* Détail par associé en dinars */}
+            <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 8, paddingTop: 7, borderTop: '1px solid #ffffff10' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#7c3aed' }}>{Math.round(report.dzd.houariCA).toLocaleString('fr-FR')}</div>
+                <div style={{ fontSize: 6, color: '#7c3aed88', letterSpacing: '0.08em' }}>HOUARI CA (DA)</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#00e5ff' }}>{Math.round(report.dzd.kouiderProfit ?? 0).toLocaleString('fr-FR')}</div>
+                <div style={{ fontSize: 6, color: '#00e5ff88', letterSpacing: '0.08em' }}>KOUIDER BÉNÉF. (DA)</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 6.5, color: '#ffffff33', textAlign: 'center', marginTop: 7 }}>Séparé du CA en euros · Houari = CA complet, Kouider = bénéfice net (CA − prix proprio)</div>
           </div>
         )}
         {loading ? (

@@ -40,7 +40,7 @@ export interface FinancialReport {
   missingClientPrice: number;         // nb bookings sans client_price_per_day (revenus non fiables)
   bookings:           FinancialBooking[];
   // CA en dinars (locations Houari en DZD) — séparé, n'affecte pas les totaux EUR ci-dessus
-  dzd:                { ca: number; houariCA: number; encaisse: number; aEncaisser: number; bookings: number };
+  dzd:                { ca: number; houariCA: number; kouiderCA: number; kouiderProfit: number; encaisse: number; aEncaisser: number; bookings: number };
 }
 
 // ── Seed pricing table ────────────────────────────────────────────────────────
@@ -233,11 +233,14 @@ export async function getFinancialReport(year: number, month?: number): Promise<
   const missingClientPrice = eur.filter(b => b.price_source === 'missing').length;
 
   const dzd = {
-    ca:         Math.round(dzdList.reduce((s, b) => s + (b.final_price ?? 0), 0) * 100) / 100,
-    houariCA:   Math.round(dzdList.filter(b => b.rented_by === 'Houari').reduce((s, b) => s + (b.final_price ?? 0), 0) * 100) / 100,
-    encaisse:   Math.round(dzdList.reduce((s, b) => s + b.paid_amount, 0) * 100) / 100,
-    aEncaisser: Math.round(dzdList.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0) * 100) / 100,
-    bookings:   dzdList.length,
+    ca:            Math.round(dzdList.reduce((s, b) => s + (b.final_price ?? 0), 0) * 100) / 100,
+    houariCA:      Math.round(dzdList.filter(b => b.rented_by === 'Houari').reduce((s, b) => s + (b.final_price ?? 0), 0) * 100) / 100,
+    // CA + bénéfice DZD de Kouider (locations Kouider en dinars — déduit le prix proprio)
+    kouiderCA:     Math.round(dzdList.filter(b => b.rented_by !== 'Houari').reduce((s, b) => s + (b.final_price ?? 0), 0) * 100) / 100,
+    kouiderProfit: Math.round(dzdList.reduce((s, b) => s + (b.kouider_profit ?? 0), 0) * 100) / 100,
+    encaisse:      Math.round(dzdList.reduce((s, b) => s + b.paid_amount, 0) * 100) / 100,
+    aEncaisser:    Math.round(dzdList.reduce((s, b) => s + Math.max(0, (b.final_price ?? 0) - b.paid_amount), 0) * 100) / 100,
+    bookings:      dzdList.length,
   };
 
   return {

@@ -588,17 +588,18 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       rmsRef.current = rms;
       setRmsLevel(Math.min(rms * 80, 1));
 
-      // ── BARGE-IN TOUJOURS ACTIF (comme Gemini Live) ─────────────────────────
-      // Dès que l'utilisateur parle pendant que Dzaryx parle → on le COUPE net et on
-      // se met à écouter, même en mode manuel. Seuil élevé (×1.6) + 3 frames d'affilée
-      // pour ignorer l'écho de la voix de Dzaryx (echoCancellation actif sur le micro).
-      if ((statusRef.current === 'speaking' || isAudioPlaying()) && rms > SPEECH_RMS * 1.6) {
+      // ── BARGE-IN VOCAL — UNIQUEMENT en MAINS-LIBRES ─────────────────────────
+      // En manuel, Dzaryx ne se coupe JAMAIS tout seul : il s'arrête seulement quand
+      // tu appuies sur le micro (évite les coupures parasites sur écho/bruit).
+      // En mains-libres, on garde le barge-in (seuil ×2 + 5 frames d'affilée = vraie voix,
+      // pas l'écho de Dzaryx) pour une vraie conversation continue.
+      if (handsFreeRef.current && (statusRef.current === 'speaking' || isAudioPlaying()) && rms > SPEECH_RMS * 2) {
         bargeFramesRef.current++;
-        if (bargeFramesRef.current >= 3) {
+        if (bargeFramesRef.current >= 5) {
           bargeFramesRef.current = 0;
           stopAudio();
           setStatus('idle');
-          if (!isRecordingRef.current) { bargeRecordingRef.current = true; startRecording(); }   // capte + auto-envoi au silence
+          if (!isRecordingRef.current) { bargeRecordingRef.current = true; startRecording(); }
         }
       } else if (bargeFramesRef.current > 0) {
         bargeFramesRef.current = 0;

@@ -561,7 +561,7 @@ export interface FinancialReport {
   missingOwnerPrice:  number;
   missingClientPrice: number;
   bookings:           FinancialBooking[];
-  dzd?:               { ca: number; houariCA: number; encaisse: number; aEncaisser: number; bookings: number };
+  dzd?:               { ca: number; houariCA: number; kouiderCA?: number; kouiderProfit?: number; encaisse: number; aEncaisser: number; bookings: number };
 }
 
 export interface ClientDocument {

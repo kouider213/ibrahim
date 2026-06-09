@@ -31,7 +31,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'text',          icon: '💬', label: 'CHAT'    },
   { id: 'immo',          icon: '🏠', label: 'IMMO'    },
   { id: 'deals',         icon: '🔁', label: 'ACHAT'   },
-  { id: 'bookings',      icon: '📋', label: 'RESAS'   },
+  { id: 'bookings',      icon: '📋', label: 'LOCATIONS' },
   { id: 'fleet',         icon: '🚗', label: 'PARC'    },
   { id: 'revenue',       icon: '💰', label: 'CA'      },
   { id: 'clients',       icon: '👥', label: 'CLIENTS' },
