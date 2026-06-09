@@ -31,7 +31,7 @@ function localizeGuardMessage(text: string, reason: HallucinationReason, lang: G
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
-import { classifyRequest, callGroq, callGroqVision, callClaudeVision, isGroqAvailable, isClaudeAvailable } from '../integrations/llm-router.js';
+import { classifyRequest, callGroq, callGroqVision, callClaudeVision, callOpenAI, callOpenAIVision, isGroqAvailable, isClaudeAvailable, isOpenAIAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
 import { needsMultiAgent, selectAgents, runMultiAgent }           from '../agents/multi-agent-orchestrator.js';
 import type { Namespace }                        from 'socket.io';
@@ -286,8 +286,9 @@ export async function processMessage(
       // Vision = CLAUDE uniquement (+ Groq vision en secours). JAMAIS Gemini/OpenAI (consigne Kouider).
       // Claude Haiku 4.5 = rapide + natif images.
       console.log(`[VISION_RUNTIME] source=mobile_scanner base64_length=${imageBase64.length} mime=${imageMime} claude=${isClaudeAvailable()} groq=${isGroqAvailable()}`);
-      if (isClaudeAvailable())   fpCascade.push({ key: 'claude',      fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
-      if (isGroqAvailable())     fpCascade.push({ key: 'groq-vision', fn: () => callGroqVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      if (isClaudeAvailable())   fpCascade.push({ key: 'claude',        fn: () => callClaudeVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      if (isGroqAvailable())     fpCascade.push({ key: 'groq-vision',   fn: () => callGroqVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
+      if (isOpenAIAvailable())   fpCascade.push({ key: 'openai-vision', fn: () => callOpenAIVision(userMessage, ctx.systemExtra, imageBase64, imageMime) });
     } else {
       // Texte rapide = Groq uniquement. Si échec → fallthrough vers Claude (boucle agentique). JAMAIS Gemini/OpenAI.
       if (isGroqAvailable()) fpCascade.push({ key: 'groq', fn: () => callGroq(userMessage, ctx.systemExtra) });
@@ -388,8 +389,9 @@ export async function processMessage(
     console.warn(`[provider-monitor] Claude failed — entering fallback chain. session=${sessionId}`);
 
     const fallbackProviders: Array<{ name: string; key: string; fn: () => Promise<string> }> = [];
-    // Fallback = Groq UNIQUEMENT (consigne Kouider: jamais Gemini/OpenAI). Claude a déjà échoué ici.
+    // Fallback en renfort : Groq d'abord (rapide), puis OpenAI GPT-4o si dispo. Claude a déjà échoué ici.
     if (isGroqAvailable())   fallbackProviders.push({ name: 'Groq LLaMA3', key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
+    if (isOpenAIAvailable()) fallbackProviders.push({ name: 'OpenAI GPT-4o', key: 'openai', fn: () => callOpenAI([{ role: 'user', content: userMessage }], ctx.systemExtra) });
 
     for (const fb of fallbackProviders) {
       console.warn(`[router] Attempting ${fb.name} fallback…`);
