@@ -16,30 +16,56 @@ router.post('/', requireMobileAuth, async (req, res) => {
     return;
   }
 
-  // Prefer Google STT if explicitly requested or if no Groq key
-  const useGoogle = (provider === 'google' || !env.GROQ_API_KEY) && !!env.GOOGLE_SERVICE_ACCOUNT_JSON;
-
-  try {
-    const raw = useGoogle
-      ? await transcribeWithGoogle(audio, mimeType)
-      : await transcribeWithGroq(audio, mimeType);
-    // Filtre anti-hallucination Whisper (sur silence/bruit il invente "Merci", "Sous-titres…")
-    const text = cleanTranscript(raw);
-    res.json({ text, provider: useGoogle ? 'google' : 'groq' });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[transcribe]', msg);
-    // Fallback: if Google failed, try Groq
-    if (useGoogle && env.GROQ_API_KEY) {
-      try {
-        const fallback = await transcribeWithGroq(audio, mimeType);
-        res.json({ text: fallback.trim(), provider: 'groq_fallback' });
-        return;
-      } catch { /* ignore fallback error */ }
-    }
-    res.status(500).json({ error: msg });
+  // Ordre STT : OpenAI gpt-4o-transcribe (meilleur sur darija/accents) → Groq Whisper → Google.
+  // 'provider' force un moteur si fourni.
+  const chain: Array<{ key: string; fn: () => Promise<string> }> = [];
+  if (provider === 'google' && env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    chain.push({ key: 'google', fn: () => transcribeWithGoogle(audio, mimeType) });
+  } else {
+    if (env.OPENAI_API_KEY)              chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
+    if (env.GROQ_API_KEY)               chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType) });
+    if (env.GOOGLE_SERVICE_ACCOUNT_JSON) chain.push({ key: 'google',    fn: () => transcribeWithGoogle(audio, mimeType) });
   }
+
+  let lastErr = 'no STT provider configured';
+  for (const stt of chain) {
+    try {
+      const text = cleanTranscript(await stt.fn());
+      res.json({ text, provider: stt.key });
+      return;
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err);
+      console.error(`[transcribe] ${stt.key} failed:`, lastErr, '→ next');
+    }
+  }
+  res.status(500).json({ error: lastErr });
 });
+
+// ── OpenAI gpt-4o-transcribe (meilleur STT, gère darija/accents/mix FR-arabe) ──
+async function transcribeWithOpenAI(audio: string, mimeType: string): Promise<string> {
+  const key = env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY not configured');
+  const buf = Buffer.from(audio, 'base64');
+  const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a'
+    : mimeType.includes('webm') ? 'webm'
+    : mimeType.includes('wav') ? 'wav'
+    : mimeType.includes('mpeg') || mimeType.includes('mp3') ? 'mp3'
+    : 'm4a';
+  const form = new FormData();
+  form.append('file', new Blob([buf], { type: mimeType }), `audio.${ext}`);
+  form.append('model', 'gpt-4o-transcribe');
+  // Pas de verrou de langue (FR + darija algérienne mélangés). Prompt = biais léger sur le contexte/dialecte.
+  form.append('prompt', 'Conversation à Oran en darija algérienne mélangée avec du français. Mots fréquents: wesh, rak, raki, kayen, makanch, bzaf, mli7, chhal, kifach, 3andi, drahem, tomobil, location voiture, réservation, dispo.');
+  form.append('response_format', 'json');
+  const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}` },
+    body: form,
+  });
+  if (!resp.ok) throw new Error(`OpenAI transcribe: HTTP ${resp.status} — ${(await resp.text()).slice(0, 200)}`);
+  const { text } = await resp.json() as { text: string };
+  return text;
+}
 
 // Phrases d'hallucination Whisper quand l'audio = silence/bruit (texte ENTIER = junk → on jette).
 const FULL_JUNK = [
