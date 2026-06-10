@@ -859,6 +859,22 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
     redis.set(`session:scanned_client:${sessionId}`, JSON.stringify({ nom, age, permisNo, expiration: data['date_expiration'] ?? null, isPermis }), 'EX', 3600).catch(() => {});
   }
 
+  // Persiste le document dans le DOSSIER CLIENT (image + données extraites), sous le nom scanné.
+  let savedToFile = false;
+  try {
+    const ext  = mimeHint.includes('png') ? 'png' : 'jpg';
+    const path = `ids/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
+    await supabase.storage.from('client-documents').upload(path, buffer, { contentType: mimeHint || 'image/jpeg', upsert: false });
+    const fileUrl = supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl;
+    const { error } = await supabase.from('client_documents').insert({
+      client_name: nom, type: docType, file_url: fileUrl ?? null, extracted_data: data,
+    });
+    if (!error) savedToFile = true;
+  } catch (e) {
+    console.warn('[scanIdentity] persist dossier client échoué:', e);
+  }
+
   const ageLine = age == null ? '• Âge: illisible ⚠️ (vérifie manuellement le minimum 35 ans)'
     : age >= MIN_AGE ? `• Âge: ${age} ans ✅ (assurance OK, min ${MIN_AGE})`
     : `• Âge: ${age} ans ⛔ REFUS — sous le minimum assurance (${MIN_AGE} ans). NE PAS louer.`;
@@ -871,6 +887,7 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
     ageLine + expLine,
     permisNo ? `• N° ${isPermis ? 'permis' : 'document'}: ${permisNo}` : '',
     data['nationalité'] || data['nationalite'] ? `• Nationalité: ${data['nationalité'] ?? data['nationalite']}` : '',
+    savedToFile ? `📁 Enregistré dans le dossier de ${nom} (DOCS).` : '',
     ``,
     age != null && age < MIN_AGE
       ? `⛔ Client trop jeune pour l'assurance — je ne crée pas de réservation.`
