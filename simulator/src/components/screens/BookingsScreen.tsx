@@ -207,10 +207,22 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   // Marge de Kouider séparée par devise : il peut louer en € OU en DZD → un bénéfice par devise.
   const kEur = kouiderBkgs.filter(b => bkgCcy(b) === 'EUR');
   const kDzd = kouiderBkgs.filter(b => bkgCcy(b) === 'DZD');
-  const marginEur = kEur.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
-  const marginDzd = kDzd.reduce((s, b) => s + (b.profit_kouider ?? 0), 0);
-  const covEur = kEur.filter(b => b.profit_kouider != null).length;
-  const covDzd = kDzd.filter(b => b.profit_kouider != null).length;
+  // Marge calculée À LA VOLÉE = (prix client − prix proprio) × jours. On ne dépend PAS
+  // du champ stocké profit_kouider (souvent vide sur les anciennes résas) → chiffre juste.
+  const bkgMargin = (b: typeof bookings[number]): number | null => {
+    const cpp = (b as { client_price_per_day?: number | null }).client_price_per_day;
+    const opp = (b as { owner_price_per_day?: number | null }).owner_price_per_day;
+    let nb = (b as { nb_days?: number | null }).nb_days ?? null;
+    const sd = (b as { start_date?: string }).start_date, ed = (b as { end_date?: string }).end_date;
+    if (!nb && sd && ed) nb = Math.max(1, Math.round((new Date(ed).getTime() - new Date(sd).getTime()) / 86400000));
+    if (cpp == null || opp == null || !nb) return null;
+    return Math.round((cpp - opp) * nb * 100) / 100;
+  };
+  const sumMargin = (arr: typeof bookings) => arr.reduce((s, b) => s + (bkgMargin(b) ?? 0), 0);
+  const marginEur = sumMargin(kEur);
+  const marginDzd = sumMargin(kDzd);
+  const covEur = kEur.filter(b => bkgMargin(b) != null).length;
+  const covDzd = kDzd.filter(b => bkgMargin(b) != null).length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
@@ -483,7 +495,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   <Row label="Nb jours" val={String(b.nb_days ?? '?')} />
                   <Row label="Prix client/j" val={fmtPrice(b.client_price_per_day, bkgCcy(b))} />
                   <Row label="Prix proprio/j" val={fmtPrice(b.owner_price_per_day, bkgCcy(b))} />
-                  <Row label="Marge Kouider" val={b.profit_kouider != null ? fmtPrice(b.profit_kouider, bkgCcy(b)) : '—'} col={b.profit_kouider != null ? '#00e676' : undefined} />
+                  <Row label="Marge Kouider" val={bkgMargin(b) != null ? fmtPrice(bkgMargin(b), bkgCcy(b)) : '—'} col={bkgMargin(b) != null ? '#00e676' : undefined} />
                   <Row label="Statut" val={b.status} col={stCol} />
                   <div style={{ display: 'flex', gap: 6, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' }}>
                     <button onClick={() => openEdit(b)} style={{ background: '#ffb347', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#000', cursor: 'pointer' }}>✏️ MODIFIER</button>
