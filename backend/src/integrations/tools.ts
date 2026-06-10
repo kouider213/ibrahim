@@ -1049,7 +1049,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ─── GÉNÉRATION IA (Replicate + fal.ai) ──────────────────────
   {
     name: 'generate_image',
-    description: 'GÉNÉRER une NOUVELLE image par IA (OpenAI gpt-image-1, sinon DALL-E 3 / Flux). À utiliser DÈS que Kouider dit "image IA", "génère/crée/fais une image", "crée une photo de...", "image générée par IA". ⚠️ IMPORTANT: même si une voiture de la FLOTTE est citée (ex "image IA du Clio 5 Alpine"), tu DOIS générer une nouvelle image IA avec CET outil — n\'utilise PAS create_social_variants / enhance_image / add_text_overlay (ceux-là RETOUCHENT la vraie photo existante). N\'utilise les outils de retouche QUE si Kouider dit explicitement "améliore/retouche MA photo". Décris la voiture dans le prompt (modèle, couleur, décor Oran). Envoie l\'image dans l\'app.',
+    description: 'GÉNÉRER une NOUVELLE image par IA à partir de RIEN (text-to-image, OpenAI gpt-image-1 sinon DALL-E 3 / Flux). Pour une image générique/imaginaire SANS référence à un véhicule réel précis. ⚠️ EXCEPTION IMPORTANTE: si Kouider parle de NOTRE/MA voiture de la flotte (ex "crée une image de NOTRE Clio 5 Alpine sur une plage") → NE PAS utiliser generate_image (ça inventerait une voiture générique fausse couleur/finition). Utilise transform_image avec car_name=... pour partir de la VRAIE photo Supabase et garder la voiture EXACTE. generate_image seulement pour "une voiture rouge imaginaire", "un paysage", "un logo", etc. — pas pour reproduire un véhicule réel. N\'utilise jamais create_social_variants/enhance_image (retouche) sauf si "améliore MA photo".',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1456,11 +1456,12 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ─── IMAGE-TO-IMAGE avec conservation du visage ──────────────────
   {
     name: 'transform_image',
-    description: 'Transformer une image en conservant le visage/identité de la personne. Utiliser quand Kouider envoie une photo et demande de changer le décor, appliquer un style (guerrier algérien, savane, anime...) ou modifier l\'arrière-plan tout en gardant le visage exact. Mode image-to-image réel — pas text-to-image. Providers: fal.ai IP-Adapter FaceID (conservation visage maximale) → Flux Dev I2I → Replicate PhotoMaker (fallback).',
+    description: 'Éditer/transformer une image RÉELLE en gardant le sujet exact (image-to-image, PAS text-to-image). 3 cas: (1) photo perso envoyée par Kouider → garde le VISAGE, change décor/style/lunettes ; (2) ⭐ VOITURE DE LA FLOTTE: quand Kouider dit "crée/fais une image de NOTRE/MA [voiture] sur une plage/en ville…", passe car_name="[voiture]" → on récupère la VRAIE photo Supabase et on génère depuis ELLE → MÊME couleur/finition que notre véhicule (ne JAMAIS inventer une voiture générique) ; (3) changer l\'arrière-plan. Providers: OpenAI gpt-image-1 edit (primary) → fal.ai → Flux → Replicate.',
     input_schema: {
       type: 'object' as const,
       properties: {
         image_url:        { type: 'string', description: 'URL publique de l\'image source (Supabase, Telegram, etc.)' },
+        car_name:         { type: 'string', description: 'Nom (exact ou partiel) d\'une voiture de la flotte (ex "Clio 5 Alpine", "Duster"). Si fourni → récupère automatiquement sa vraie photo Supabase comme base → l\'image garde la voiture EXACTE. À utiliser pour "image de NOTRE voiture sur une plage" etc.' },
         telegram_file_id: { type: 'string', description: 'File ID Telegram de l\'image envoyée dans le chat (alternatif à image_url)' },
         prompt:           { type: 'string', description: 'Description de la transformation en anglais. Ex: "child in African savanna with lion beside, cinematic realistic lighting" ou "Algerian warrior costume, desert background, dramatic lighting"' },
         style: {

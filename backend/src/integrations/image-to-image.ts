@@ -384,6 +384,27 @@ export async function executeImageToImage(
     }
   }
 
+  // Voiture de la flotte : si car_name fourni → on récupère la VRAIE photo Supabase
+  // comme base → l'image générée garde la couleur/finition EXACTE de notre véhicule.
+  const carName = input['car_name'] as string | undefined;
+  if (!sourceImageUrl && carName) {
+    try {
+      const { data: cars } = await supabase
+        .from('cars')
+        .select('name, image_url')
+        .ilike('name', `%${carName.trim()}%`)
+        .not('image_url', 'is', null)
+        .limit(1);
+      const url = (cars as { image_url?: string }[] | null)?.[0]?.image_url;
+      if (url) {
+        sourceImageUrl = url;
+        console.log(`[executeImageToImage] photo voiture flotte récupérée: ${carName} → ${url.slice(0, 80)}`);
+      }
+    } catch (e) {
+      console.warn('[executeImageToImage] lookup voiture échoué:', e);
+    }
+  }
+
   // App mobile : la photo envoyée dans le chat est mise en cache Redis par l'orchestrateur
   // (session:image:<sessionId>). On la récupère, on l'upload en storage → URL publique.
   if (!sourceImageUrl && _sessionId) {
