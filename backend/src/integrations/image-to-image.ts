@@ -434,48 +434,24 @@ export async function executeImageToImage(
     return '❌ prompt requis — décris la transformation souhaitée (ex: "enfant dans une savane avec un lion, ambiance cinématique réaliste")';
   }
 
-  // ── SUJET EXACT + NOUVEAU FOND (style background_only) ────────────────────────
-  // Détoure le sujet (pixels INTACTS) et le recompose sur un fond généré par IA.
-  // → la voiture/personne reste EXACTEMENT identique, seul le décor change.
   const styleInput = input['style'] as string | undefined;
-  if (styleInput === 'background_only' && env.OPENAI_API_KEY && env.CLOUDINARY_CLOUD_NAME) {
-    try {
-      const bgPrompt = `${userPrompt}, empty scenic background plate, no car, no vehicle, no people, wide photorealistic shot`;
-      const bgRes = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-image-1', prompt: bgPrompt, n: 1, size: '1024x1024', quality: 'high' }),
-      });
-      if (bgRes.ok) {
-        const bj = await bgRes.json() as { data?: { b64_json?: string }[] };
-        const bgB64 = bj?.data?.[0]?.b64_json;
-        if (bgB64) {
-          const { compositeOnBackground } = await import('./media-processing.js');
-          const finalUrl = await compositeOnBackground(sourceImageUrl, `data:image/png;base64,${bgB64}`);
-          if (finalUrl) {
-            emitProactive('Image composée', 'info', `✅ Sujet exact sur nouveau fond\n📹 ${finalUrl}`);
-            return `✅ Image créée — sujet EXACT (ta photo, inchangée) sur le nouveau décor\nURL: ${finalUrl}`;
-          }
-        }
-      } else {
-        console.warn(`[executeImageToImage] bg gen status=${bgRes.status} → fallback edit`);
-      }
-    } catch (e) {
-      console.warn('[executeImageToImage] composite background_only échoué → fallback gpt-image-1 edit:', e);
-    }
-  }
 
-  // ── OpenAI gpt-image-1 EDIT (primary si clé dispo) ────────────────────────────
-  // Édite la photo envoyée en gardant le sujet (enlever lunettes, changer le fond, plage…).
+  // ── OpenAI gpt-image-1 EDIT — PRIMARY (le système de retouche le + puissant) ───
+  // Édite la VRAIE photo en gardant le sujet et en l'intégrant à la scène (lumière,
+  // ombres, réalisme). Pour un changement de décor on insiste pour garder le sujet identique.
   if (env.OPENAI_API_KEY) {
     try {
       const imgResp = await fetch(sourceImageUrl);
       const imgBuf  = Buffer.from(await imgResp.arrayBuffer());
+      const editPrompt = styleInput === 'background_only'
+        ? `Keep the main subject (the car or person) EXACTLY identical — same model, exact same color, finish, license plate and every detail. Do NOT change the subject. Only replace the background/scene with: ${userPrompt}. Photorealistic, blend lighting, reflections and shadows naturally so it looks like a real photo.`
+        : userPrompt;
       const form = new FormData();
       form.append('model', 'gpt-image-1');
       form.append('image', new Blob([imgBuf], { type: 'image/png' }), 'source.png');
-      form.append('prompt', userPrompt);
+      form.append('prompt', editPrompt);
       form.append('size', '1024x1024');
+      form.append('quality', 'high');
       const ed = await fetch('https://api.openai.com/v1/images/edits', {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` },
@@ -500,6 +476,31 @@ export async function executeImageToImage(
       }
     } catch (e) {
       console.warn('[executeImageToImage] OpenAI edit échoué → fallback providers:', e);
+    }
+  }
+
+  // ── FALLBACK : compositing sujet exact (si gpt-image-1 edit a échoué) ──────────
+  // Détourage + recompose sur fond généré → sujet pixel-exact (rendu plus "collage").
+  if (styleInput === 'background_only' && env.OPENAI_API_KEY && env.CLOUDINARY_CLOUD_NAME) {
+    try {
+      const bgRes = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-image-1', prompt: `${userPrompt}, empty scenic background plate, no car, no people, wide photorealistic shot`, n: 1, size: '1024x1024', quality: 'high' }),
+      });
+      if (bgRes.ok) {
+        const bgB64 = (await bgRes.json() as { data?: { b64_json?: string }[] })?.data?.[0]?.b64_json;
+        if (bgB64) {
+          const { compositeOnBackground } = await import('./media-processing.js');
+          const finalUrl = await compositeOnBackground(sourceImageUrl, `data:image/png;base64,${bgB64}`);
+          if (finalUrl) {
+            emitProactive('Image composée', 'info', `✅ Sujet exact sur nouveau fond\n📹 ${finalUrl}`);
+            return `✅ Image créée — sujet EXACT sur le nouveau décor\nURL: ${finalUrl}`;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[executeImageToImage] composite fallback échoué:', e);
     }
   }
 
