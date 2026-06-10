@@ -259,8 +259,20 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   }, []);
 
 
+  const didInitialScroll = useRef(false);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (!el) return;
+    // 1er rendu (historique chargé) : saut INSTANTANÉ tout en bas + plusieurs passes
+    // (les images mettent du temps à prendre leur hauteur → on re-saute pour rester en bas).
+    if (!didInitialScroll.current && msgs.length > 1) {
+      didInitialScroll.current = true;
+      const jump = () => { const e = scrollRef.current; if (e) e.scrollTop = e.scrollHeight; };
+      jump();
+      [80, 250, 600, 1200].forEach(d => setTimeout(jump, d));
+      return;
+    }
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [msgs, streaming]);
 
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
