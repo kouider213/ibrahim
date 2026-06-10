@@ -818,6 +818,66 @@ async function ocrDocumentImage(fileUrl: string, docType: string): Promise<Recor
   }
 }
 
+// Parse une date FR/ISO tolérante (DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD) → Date|null
+function parseLooseDate(s?: string | null): Date | null {
+  if (!s) return null;
+  const t = String(s).trim();
+  let m = t.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);          // YYYY-MM-DD
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);            // DD/MM/YYYY
+  if (m) { const y = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return new Date(y, +m[2] - 1, +m[1]); }
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? null : d;
+}
+function yearsSince(d: Date | null): number | null {
+  if (!d) return null;
+  const now = new Date();
+  let a = now.getFullYear() - d.getFullYear();
+  if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) a--;
+  return a;
+}
+
+const MIN_AGE = 35;  // assurance Fik Conciergerie
+
+/**
+ * Scan d'une pièce (passeport/permis) → extraction + âge + contrôle assurance + validité.
+ * Renvoie un résumé lisible prêt à afficher, et met les infos en cache session pour la résa.
+ */
+export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: boolean, sessionId?: string): Promise<string> {
+  const docType = isPermis ? 'permis' : 'passeport';
+  const data = await ocrDocumentBuffer(buffer, docType, mimeHint.includes('png') ? '.png' : '.jpg');
+  if (!data) return '❌ Lecture du document impossible — reprends la photo bien nette, à plat, sans reflet.';
+
+  const nom    = [data['prénom'] ?? data['prenom'], data['nom']].filter(Boolean).join(' ').trim() || (data['nom'] ?? 'Inconnu');
+  const age    = yearsSince(parseLooseDate(data['date_naissance']));
+  const expD   = parseLooseDate(data['date_expiration']);
+  const expired = expD ? expD.getTime() < Date.now() : null;
+  const permisNo = data['numéro_permis'] ?? data['numero_permis'] ?? data['numéro_document'] ?? data['numero_document'] ?? null;
+
+  // Cache pour pré-remplir la résa ensuite
+  if (sessionId) {
+    redis.set(`session:scanned_client:${sessionId}`, JSON.stringify({ nom, age, permisNo, expiration: data['date_expiration'] ?? null, isPermis }), 'EX', 3600).catch(() => {});
+  }
+
+  const ageLine = age == null ? '• Âge: illisible ⚠️ (vérifie manuellement le minimum 35 ans)'
+    : age >= MIN_AGE ? `• Âge: ${age} ans ✅ (assurance OK, min ${MIN_AGE})`
+    : `• Âge: ${age} ans ⛔ REFUS — sous le minimum assurance (${MIN_AGE} ans). NE PAS louer.`;
+  const expLine = expired == null ? '' : expired
+    ? `\n• ${isPermis ? 'Permis' : 'Document'} EXPIRÉ (${data['date_expiration']}) ⛔`
+    : `\n• Valide jusqu'au ${data['date_expiration']} ✅`;
+
+  return [
+    `📋 ${isPermis ? 'Permis de conduire' : 'Pièce d\'identité'} scanné — **${nom}**`,
+    ageLine + expLine,
+    permisNo ? `• N° ${isPermis ? 'permis' : 'document'}: ${permisNo}` : '',
+    data['nationalité'] || data['nationalite'] ? `• Nationalité: ${data['nationalité'] ?? data['nationalite']}` : '',
+    ``,
+    age != null && age < MIN_AGE
+      ? `⛔ Client trop jeune pour l'assurance — je ne crée pas de réservation.`
+      : `✅ Données prêtes. Donne-moi la **voiture** et les **dates** et je crée la réservation pour ${nom}.`,
+  ].filter(Boolean).join('\n');
+}
+
 async function storeDocument(input: Record<string, unknown>): Promise<string> {
   const fileUrl = input['file_url'] as string | undefined;
   const docType = input['type']     as string ?? '';

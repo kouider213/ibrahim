@@ -39,6 +39,7 @@ import { SOCKET_EVENTS }                         from '../config/constants.js';
 import { redis }                                 from '../queue/queue.js';
 import { saveBeforeState, saveAfterState }        from '../integrations/vehicle-state.js';
 import { executeImageToImage }                    from '../integrations/image-to-image.js';
+import { scanIdentity }                            from '../integrations/tool-executor.js';
 import { savePropertyBeforeState, savePropertyAfterState } from '../integrations/property-state.js';
 
 let _io: Namespace | null = null;
@@ -236,6 +237,30 @@ export async function processMessage(
       return { text: result.message, status: 'done' };
     } catch (e) {
       console.error('[vehicle-inspection] error:', e);
+    }
+  }
+
+  // ── Garde-fou SCAN PIÈCE D'IDENTITÉ / PERMIS (photo + mot-clé) ────────────────
+  // Photo d'un permis/passeport → OCR + calcul âge + contrôle assurance (≥35) + validité.
+  const ID_SCAN_RE = /\b(scan|scanne|lis|lire|analyse)?\s*(le\s+|ce\s+|mon\s+|son\s+)?(permis|passeport|passport|carte\s+d['’ ]?identit[ée]|pi[èe]ce\s+d['’ ]?identit[ée]|cin)\b/i;
+  if (imageBase64 && ID_SCAN_RE.test(userMessage)) {
+    const isPermis = /permis|license|licence/i.test(userMessage);
+    console.log(`[orch:${requestId}] ID_SCAN pre-route isPermis=${isPermis}`);
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '📋 Lecture du document…' });
+    try {
+      const buf = Buffer.from(imageBase64, 'base64');
+      const scanRes = await scanIdentity(buf, imageMime, isPermis, sessionId);
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: scanRes });
+      saveConversationTurn(sessionId, 'assistant', scanRes).catch(() => {});
+      if (!textOnly && scanRes.length > 0) {
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+        await streamAudioSentences(scanRes, sessionId);
+        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      }
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: scanRes, status: 'done' };
+    } catch (e) {
+      console.error(`[orch:${requestId}] ID_SCAN pre-route failed:`, e);
     }
   }
 
