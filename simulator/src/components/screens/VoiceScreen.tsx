@@ -679,6 +679,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     }, MAX_REC_MS);
   }
 
+  // Tap micro robuste : si le flux est mort/absent (iOS l'a coupé) → réinit puis enregistre.
+  async function ensureMicThenRecord() {
+    unlockAudio();
+    if (isRecordingRef.current) return;
+    const live = !!streamRef.current && streamRef.current.getAudioTracks().some(t => t.readyState === 'live');
+    if (!live) { micInitRef.current = false; try { await initMic(); } catch { /* ignore */ } }
+    if (streamRef.current && !isRecordingRef.current) { startRecording(); setHud('Écoute…'); }
+    else { setMicErr(true); setHud('Micro inaccessible — autorise le micro dans les réglages'); }
+  }
+
   // Jette l'enregistrement en cours sans le transcrire (bruit, pas de vraie voix)
   function discardRecording() {
     const rec = recorderRef.current;
@@ -829,8 +839,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
     const micTap = () => {
       if (status === 'idle' && !isRecordingRef.current) {
-        unlockAudio();
-        if (streamRef.current) { startRecording(); } else { setHud('Micro non activé'); }
+        void ensureMicThenRecord();
       } else if (status === 'listening') {
         stopRecordingAndProcess();
       } else if (status === 'speaking' || status === 'thinking') {
@@ -1068,9 +1077,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         <button
           onClick={() => {
             if (status === 'idle' && !isRecordingRef.current) {
-              unlockAudio();
-              if (streamRef.current) { startRecording(); setHud('Écoute…'); }
-              else { setHud('Micro non activé'); }
+              void ensureMicThenRecord();
             } else if (status === 'listening') {
               stopRecordingAndProcess();
             } else if (status === 'speaking') {
