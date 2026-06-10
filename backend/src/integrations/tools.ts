@@ -1467,7 +1467,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
         style: {
           type: 'string',
           enum: ['realistic', 'anime', 'warrior', 'background_only', 'cinematic'],
-          description: 'Style prédéfini: realistic (photo naturelle), anime (dessin animé), warrior (guerrier algérien), background_only (changer seulement le fond), cinematic (style film).',
+          description: 'Style: realistic (édite le sujet, reste ressemblant), anime, warrior, cinematic. ⭐ background_only = GARDE LE SUJET EXACTEMENT IDENTIQUE (détourage pixels intacts) et change UNIQUEMENT le fond/décor — à utiliser pour "mets-moi/notre voiture sur une plage", "change le fond".',
         },
         strength: { type: 'number', description: 'Intensité transformation 0-1: 0.3 = très fidèle à la source, 0.7 = équilibré (défaut), 0.9 = très libre. Utiliser 0.5-0.7 pour conserver le visage.' },
         provider: {

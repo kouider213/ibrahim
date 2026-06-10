@@ -221,6 +221,29 @@ export async function enhanceImage(imageUrl: string): Promise<string> {
 
 // ─── IMAGE — Suppression fond ─────────────────────────────────────
 
+/**
+ * Compose le SUJET EXACT (détouré, pixels intacts) sur un nouveau fond.
+ * subjectSource : URL ou data-URI base64 de la photo originale (voiture/personne).
+ * backgroundSource : URL ou data-URI du fond (ex: plage générée par IA).
+ * Le sujet garde sa couleur/finition EXACTE — seul le fond change.
+ */
+export async function compositeOnBackground(subjectSource: string, backgroundSource: string): Promise<string> {
+  const bg   = await cloudinary.uploader.upload(backgroundSource, { resource_type: 'image' });
+  const subj = await cloudinary.uploader.upload(subjectSource,   { resource_type: 'image' });
+  return cloudinary.url(bg.public_id, {
+    transformation: [
+      { width: 1024, height: 1024, crop: 'fill', gravity: 'center' },   // fond
+      { overlay: subj.public_id },                                        // calque sujet
+      { effect: 'background_removal' },                                   // détoure le sujet (add-on Cloudinary)
+      { width: 880, crop: 'scale' },                                     // taille du sujet
+      { flags: 'layer_apply', gravity: 'center' },                       // composite
+    ],
+    format: 'png',
+    quality: 'auto:best',
+    secure: true,
+  });
+}
+
 export async function removeBackground(imageUrl: string): Promise<string> {
   try {
     const upload = await cloudinary.uploader.upload(imageUrl, {

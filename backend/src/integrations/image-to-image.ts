@@ -434,6 +434,37 @@ export async function executeImageToImage(
     return '❌ prompt requis — décris la transformation souhaitée (ex: "enfant dans une savane avec un lion, ambiance cinématique réaliste")';
   }
 
+  // ── SUJET EXACT + NOUVEAU FOND (style background_only) ────────────────────────
+  // Détoure le sujet (pixels INTACTS) et le recompose sur un fond généré par IA.
+  // → la voiture/personne reste EXACTEMENT identique, seul le décor change.
+  const styleInput = input['style'] as string | undefined;
+  if (styleInput === 'background_only' && env.OPENAI_API_KEY && env.CLOUDINARY_CLOUD_NAME) {
+    try {
+      const bgPrompt = `${userPrompt}, empty scenic background plate, no car, no vehicle, no people, wide photorealistic shot`;
+      const bgRes = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-image-1', prompt: bgPrompt, n: 1, size: '1024x1024', quality: 'high' }),
+      });
+      if (bgRes.ok) {
+        const bj = await bgRes.json() as { data?: { b64_json?: string }[] };
+        const bgB64 = bj?.data?.[0]?.b64_json;
+        if (bgB64) {
+          const { compositeOnBackground } = await import('./media-processing.js');
+          const finalUrl = await compositeOnBackground(sourceImageUrl, `data:image/png;base64,${bgB64}`);
+          if (finalUrl) {
+            emitProactive('Image composée', 'info', `✅ Sujet exact sur nouveau fond\n📹 ${finalUrl}`);
+            return `✅ Image créée — sujet EXACT (ta photo, inchangée) sur le nouveau décor\nURL: ${finalUrl}`;
+          }
+        }
+      } else {
+        console.warn(`[executeImageToImage] bg gen status=${bgRes.status} → fallback edit`);
+      }
+    } catch (e) {
+      console.warn('[executeImageToImage] composite background_only échoué → fallback gpt-image-1 edit:', e);
+    }
+  }
+
   // ── OpenAI gpt-image-1 EDIT (primary si clé dispo) ────────────────────────────
   // Édite la photo envoyée en gardant le sujet (enlever lunettes, changer le fond, plage…).
   if (env.OPENAI_API_KEY) {
