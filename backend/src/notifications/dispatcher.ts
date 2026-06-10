@@ -27,6 +27,12 @@ const CAR_PHONETICS: Array<[RegExp, string]> = [
 export function cleanTextForTTS(text: string): string {
   let t = text;
 
+  // 0. ARABIZI → son phonétique (darija écrite avec chiffres) AVANT lecture vocale.
+  //    3=ع→"aa", 7=ح→"h", 9=ق→"k", 5=خ→"kh", 2=ء→"". UNIQUEMENT quand le chiffre touche
+  //    une lettre (ex "3andek", "ch7al", "9adach") → on NE TOUCHE PAS aux vrais nombres (1200€, 150).
+  const ARABIZI: Record<string, string> = { '3': 'aa', '7': 'h', '9': 'k', '5': 'kh', '2': '' };
+  t = t.replace(/(?<=[a-zA-ZÀ-ÿ])[37952]|[37952](?=[a-zA-ZÀ-ÿ])/g, (m) => ARABIZI[m] ?? m);
+
   // 1a. Supprimer toutes les URLs (visuelles uniquement — jamais lues à voix haute)
   t = t.replace(/^📹\s+https?:\/\/\S+\s*$/gm, '');
   t = t.replace(/https?:\/\/[^\s\])"']+/g, '');
