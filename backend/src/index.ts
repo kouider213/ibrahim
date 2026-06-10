@@ -26,6 +26,7 @@ import siriRoutes          from './api/routes/siri.js';
 import githubRoutes        from './api/routes/github.js';
 import schedulerRoutes     from './api/routes/scheduler.js';
 import widgetRoutes        from './api/routes/widget.js';
+import signRoutes          from './api/routes/sign.js';
 import financeRoutes       from './api/routes/finance.js';
 import documentsRoutes     from './api/routes/documents.js';
 import ttsRoutes           from './api/routes/tts.js';
@@ -260,6 +261,7 @@ app.use('/api/siri',          apiLimiter, siriRoutes);
 app.use('/api/github',        apiLimiter, githubRoutes);
 app.use('/api/scheduler',     apiLimiter, schedulerRoutes);
 app.use('/api/widget',        apiLimiter, widgetRoutes);
+app.use('/sign',              apiLimiter, signRoutes);   // signature contrat (public, lien client)
 app.use('/api/finance',       apiLimiter, financeRoutes);
 app.use('/api/documents',     apiLimiter, documentsRoutes);
 app.use('/api/tts',           apiLimiter, ttsRoutes);
