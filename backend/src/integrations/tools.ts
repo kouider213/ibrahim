@@ -782,7 +782,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ─── PHASE 15 — Recherche d'images ───────────────────────────
   {
     name: 'search_images',
-    description: 'Rechercher des images sur internet (Pexels). Utilise EXACTEMENT ce que l\'utilisateur demande comme query. Exemples: "montre moi des photos de Clio 5 rouge", "trouve des images de coucher de soleil Oran", "voiture noire sport".',
+    description: 'TROUVER des photos STOCK existantes sur internet (Pexels/Unsplash). UNIQUEMENT quand l\'utilisateur veut DÉCOUVRIR/voir des images existantes en ligne : "trouve-moi des photos de coucher de soleil", "montre des images de Clio 5 rouge". ⛔ JAMAIS pour MODIFIER/ÉDITER/RETOUCHER la photo de l\'utilisateur (enlever lunettes, mettre sur une plage, changer le fond) → ça c\'est transform_image. ⛔ JAMAIS pour "crée/génère une image" → generate_image/transform_image. search_images ne fait que renvoyer des photos d\'inconnus, ça ne touche PAS à la photo de l\'utilisateur.',
     input_schema: {
       type: 'object' as const,
       properties: {
