@@ -173,14 +173,19 @@ const MARKETING_AGENT: AgentDefinition = {
 SPÉCIALITÉ: création et optimisation d'images/vidéos pour réseaux sociaux, suppression fond, sous-titres, montage.
 TOUJOURS: optimiser pour mobile (ratio 9:16 TikTok/Reels), qualité professionnelle.
 
-RÈGLE IMAGES PUB — SANS EXCEPTION:
-Pour UNE voiture du parc (Clio 5 Alpine, Jumpy, Sandero, Duster, Jogger, i10...):
-  ÉTAPE 1: appelle get_car_photo(car_name="...") → récupère la VRAIE photo du parc
-  ÉTAPE 2: appelle enhance_image(image_url=<url_étape1>) ou create_social_variants(image_url=<url_étape1>)
-  ÉTAPE 3: appelle add_text_overlay(image_url=<url_étape2>, text="Clio 5 Alpine — 45€/jour | Fik Conciergerie Oran")
+⭐ "CRÉE UNE IMAGE DE NOTRE [voiture] SUR/DANS [décor]" (ex "notre Clio 5 Alpine sur une plage") — SANS EXCEPTION:
+→ transform_image(car_name="Clio 5 Alpine", style="background_only", prompt="beach at sunset in Oran")
+  = récupère la VRAIE photo Supabase, DÉTOURE la voiture (pixels EXACTS) et la pose sur le nouveau décor.
+  → c'est EXACTEMENT notre voiture (même couleur/finition), seul le fond change.
+❌ JAMAIS generate_image pour notre voiture (invente une fausse voiture).
+❌ JAMAIS enhance_image/create_social_variants ici — ça ne change PAS le décor, ça garde le parking.
 
-❌ INTERDIT: utiliser generate_image pour une voiture du parc — génère des voitures IA fausses.
-✅ generate_image = uniquement pour fonds abstraits, ambiances, décors (sans voiture spécifique).
+PHOTO PERSO de Kouider (selfie) + "mets-moi sur une plage / change le fond" → transform_image(style="background_only", prompt="...").
+"Enlève mes lunettes / modifie le sujet" → transform_image(style="realistic").
+
+AFFICHE PUB avec texte (uniquement si on demande une "pub/affiche avec texte"):
+  get_car_photo(car_name) → add_text_overlay(image_url=..., text="Clio 5 Alpine — 45€/jour | Fik Conciergerie").
+generate_image = uniquement pour image générique/imaginaire SANS véhicule réel précis.
 
 RÉPONSE FINALE OBLIGATOIRE: après add_text_overlay, ta réponse DOIT contenir l'URL finale (https://res.cloudinary.com/...) sur une ligne seule — sinon l'image ne s'envoie pas sur Telegram.
 
@@ -195,7 +200,7 @@ ENVOI DE PHOTO EXISTANTE (≠ création pub) — "envoie/montre la photo de X" :
     'analyze_image','optimize_image','create_social_variants','enhance_image','remove_background',
     'add_text_overlay','analyze_video','cut_video','add_subtitles','optimize_for_platform',
     'extract_thumbnail','add_background_music','create_video_preview',
-    'generate_image','generate_ai_video','animate_car_photo','search_images',
+    'generate_image','transform_image','generate_ai_video','animate_car_photo','search_images',
     'create_marketing_video','edit_marketing_video','regenerate_voice','create_scenario_video',
     'generate_tiktok_video','merge_videos','publish_to_socials',
   ],
@@ -407,7 +412,8 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'add_car', 'update_car',
     'create_property', 'add_vehicle_for_sale', 'update_property', 'update_vehicle_details', 'set_site_hero',
     'list_packs', 'create_pack', 'set_pack_status',
-    'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report'],
+    'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
+    'generate_image', 'transform_image', 'remove_background', 'search_images'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
