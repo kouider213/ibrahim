@@ -96,8 +96,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'list_packs', 'create_pack', 'set_pack_status',
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
     // Phase extras
-    'add_car_expense', 'get_car_pnl', 'set_vehicle_documents', 'check_expirations',
-    'record_rental_meter', 'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
+    'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
   ],
   keywords:  /\b(réservations?|booking|louer|location|disponib|voitures?|retard|flotte|clients?|arrivée|départ|véhicules?|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartements?|immobilier|immo|biens?|maisons?|villas?|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,
   priority:  10,
@@ -115,7 +114,7 @@ TOUJOURS: donner des chiffres précis avec devise (€/DZD), indiquer la périod
     'get_financial_report','get_finance_dashboard','get_payment_status','record_payment',
     'get_revenue_report','get_unpaid_bookings','generate_receipt','check_anomalies',
     'list_bookings','get_late_returns','export_accounting',
-    'add_car_expense', 'get_car_pnl', 'apply_dynamic_pricing',
+    'apply_dynamic_pricing',
   ],
   keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|revenu|revenus|encaissé|dette|profit|gagné|gain|rapport\s+fi|compta|comptable|export)\b/i,
   priority:  9,
@@ -418,8 +417,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'list_packs', 'create_pack', 'set_pack_status',
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
     'generate_image', 'transform_image', 'remove_background', 'search_images',
-    'add_car_expense', 'get_car_pnl', 'set_vehicle_documents', 'check_expirations',
-    'record_rental_meter', 'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage'],
+    'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },

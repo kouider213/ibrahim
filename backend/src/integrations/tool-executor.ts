@@ -438,12 +438,7 @@ async function _dispatch(
       // ─── MAINTENANCE VÉHICULE ───
       case 'update_vehicle_maintenance':     return await updateVehicleMaintenanceTool(input);
       case 'get_vehicle_maintenance':        return await getVehicleMaintenanceTool(input);
-      // ─── PHASE EXTRAS ───
-      case 'add_car_expense':                return await addCarExpenseTool(input);
-      case 'get_car_pnl':                    return await getCarPnlTool(input);
-      case 'set_vehicle_documents':          return await setVehicleDocumentsTool(input);
-      case 'check_expirations':              return await checkExpirationsTool(input);
-      case 'record_rental_meter':            return await recordRentalMeterTool(input);
+      // ─── PHASE EXTRAS (dégât / signature / pricing) ───
       case 'estimate_damage':                return await estimateDamageTool(input, sessionId);
       case 'create_signature_link':          return await createSignatureLinkTool(input);
       case 'apply_dynamic_pricing':          return await applyDynamicPricingTool(input);
@@ -6261,125 +6256,7 @@ async function findCarRow(name?: string): Promise<{ id: string; name: string; ba
   const { data } = await supabase.from('cars').select('id, name, base_price, resale_price, houari_resale_price').ilike('name', `%${name.trim()}%`).limit(1);
   return (data as never[] | null)?.[0] ?? null;
 }
-const MIG_HINT = '(si erreur "table/colonne manquante" → exécute supabase/migration_phase_extras.sql dans Supabase)';
-
-// ── 1. CHARGES / DÉPENSES PAR VOITURE → PROFIT NET ──────────────────────────
-async function addCarExpenseTool(input: Record<string, unknown>): Promise<string> {
-  const amount = Number(input['amount'] ?? 0);
-  if (!amount) return '❌ Montant requis (ex: carburant 2000 DZD pour la Clio 5).';
-  const type     = String(input['expense_type'] ?? 'autre');
-  const currency = String(input['currency'] ?? 'DZD').toUpperCase();
-  const note     = input['note'] ? String(input['note']) : null;
-  const date     = input['date'] ? String(input['date']) : new Date().toISOString().slice(0, 10);
-  const car      = await findCarRow(input['car_name'] ? String(input['car_name']) : undefined);
-  const { error } = await supabase.from('car_expenses').insert({
-    car_id: car?.id ?? null, car_name: car?.name ?? (input['car_name'] ? String(input['car_name']) : null),
-    type, amount, currency, note, expense_date: date,
-  });
-  if (error) return `❌ Dépense non enregistrée. ${MIG_HINT} — ${error.message}`;
-  return `✅ Dépense enregistrée: **${amount} ${currency}** — ${type}${car ? ` (${car.name})` : ''}${note ? ` — ${note}` : ''} le ${date}.`;
-}
-
-async function getCarPnlTool(input: Record<string, unknown>): Promise<string> {
-  const carName = input['car_name'] ? String(input['car_name']) : undefined;
-  // Revenus + marge depuis bookings
-  let bq = supabase.from('bookings').select('car_id, cars(name), final_price, client_price_per_day, owner_price_per_day, nb_days, start_date, end_date, currency, rented_by');
-  const { data: bk } = await bq;
-  let ex = supabase.from('car_expenses').select('car_name, amount, currency');
-  const { data: exp, error: exErr } = await ex;
-  if (exErr) return `❌ Lecture charges impossible. ${MIG_HINT} — ${exErr.message}`;
-
-  type B = { cars?: { name?: string }; final_price?: number; client_price_per_day?: number; owner_price_per_day?: number; nb_days?: number; start_date?: string; end_date?: string; currency?: string; rented_by?: string };
-  const days = (b: B) => b.nb_days ?? (b.start_date && b.end_date ? Math.max(1, Math.round((+new Date(b.end_date) - +new Date(b.start_date)) / 86400000)) : 0);
-  const norm = (s?: string) => (s ?? '').toLowerCase();
-  const acc: Record<string, { ca: number; marge: number; charges: number; ccy: string }> = {};
-  for (const b of (bk as B[] ?? [])) {
-    const nm = b.cars?.name ?? 'Inconnu';
-    if (carName && !norm(nm).includes(norm(carName))) continue;
-    const ccy = (b.currency ?? 'EUR').toUpperCase();
-    acc[nm] ??= { ca: 0, marge: 0, charges: 0, ccy };
-    acc[nm].ca += b.final_price ?? 0;
-    const cpp = b.client_price_per_day, opp = b.owner_price_per_day, d = days(b);
-    if (cpp != null && opp != null && d) acc[nm].marge += (cpp - opp) * d;
-    else acc[nm].marge += b.final_price ?? 0; // Houari/propriétaire → CA = marge
-  }
-  for (const e of (exp as { car_name?: string; amount?: number }[] ?? [])) {
-    const nm = e.car_name ?? 'Général';
-    if (carName && !norm(nm).includes(norm(carName))) continue;
-    acc[nm] ??= { ca: 0, marge: 0, charges: 0, ccy: 'DZD' };
-    acc[nm].charges += e.amount ?? 0;
-  }
-  const names = Object.keys(acc);
-  if (!names.length) return 'Aucune donnée (ni résa ni charge) pour cette voiture.';
-  const lines = ['💰 PROFIT NET PAR VOITURE (CA − marge − charges)', ''];
-  let totNet = 0;
-  for (const nm of names.sort()) {
-    const a = acc[nm];
-    const net = Math.round((a.marge - a.charges) * 100) / 100;
-    totNet += net;
-    lines.push(`🚗 **${nm}** — CA ${Math.round(a.ca)} | marge ${Math.round(a.marge)} | charges ${Math.round(a.charges)} → **net ${net} ${a.ccy}**`);
-  }
-  lines.push('', `**TOTAL net ≈ ${Math.round(totNet)}**`);
-  return lines.join('\n');
-}
-
-// ── 2. ALERTES EXPIRATION (assurance/contrôle technique/vignette + permis client) ─
-async function setVehicleDocumentsTool(input: Record<string, unknown>): Promise<string> {
-  const car = await findCarRow(input['car_name'] ? String(input['car_name']) : undefined);
-  if (!car) return '❌ Voiture introuvable — précise le nom (ex: Clio 5 diesel).';
-  const payload: Record<string, string> = {};
-  if (input['insurance_expiry']) payload['insurance_expiry'] = String(input['insurance_expiry']);
-  if (input['technical_control_expiry']) payload['technical_control_expiry'] = String(input['technical_control_expiry']);
-  if (input['vignette_expiry']) payload['vignette_expiry'] = String(input['vignette_expiry']);
-  if (!Object.keys(payload).length) return '❌ Donne au moins une date (assurance, contrôle technique, vignette) au format AAAA-MM-JJ.';
-  const { error } = await supabase.from('cars').update(payload).eq('id', car.id);
-  if (error) return `❌ Mise à jour impossible. ${MIG_HINT} — ${error.message}`;
-  return `✅ Dates enregistrées pour ${car.name}: ${Object.entries(payload).map(([k, v]) => `${k}=${v}`).join(', ')}.`;
-}
-
-async function checkExpirationsTool(input: Record<string, unknown>): Promise<string> {
-  const ahead = Number(input['days_ahead'] ?? 30);
-  const now = new Date(); const limit = new Date(now.getTime() + ahead * 86400000);
-  const { data: cars, error } = await supabase.from('cars').select('name, insurance_expiry, technical_control_expiry, vignette_expiry');
-  if (error) return `❌ Lecture impossible. ${MIG_HINT} — ${error.message}`;
-  const lines: string[] = [];
-  const chk = (label: string, d?: string, nm?: string) => {
-    if (!d) return;
-    const dt = new Date(d); const diff = Math.ceil((+dt - +now) / 86400000);
-    if (dt <= limit) lines.push(`${diff < 0 ? '🔴 EXPIRÉ' : '🟡'} ${nm} — ${label} ${diff < 0 ? `depuis ${Math.abs(diff)}j` : `dans ${diff}j`} (${d})`);
-  };
-  for (const c of (cars as { name: string; insurance_expiry?: string; technical_control_expiry?: string; vignette_expiry?: string }[] ?? [])) {
-    chk('Assurance', c.insurance_expiry, c.name);
-    chk('Contrôle technique', c.technical_control_expiry, c.name);
-    chk('Vignette', c.vignette_expiry, c.name);
-  }
-  // Permis clients (depuis client_documents.extracted_data.date_expiration)
-  const { data: docs } = await supabase.from('client_documents').select('client_name, type, extracted_data').in('type', ['permis', 'passeport']);
-  for (const d of (docs as { client_name?: string; type?: string; extracted_data?: { date_expiration?: string } }[] ?? [])) {
-    const exp = d.extracted_data?.date_expiration; if (!exp) continue;
-    const dt = new Date(exp.split('/').reverse().join('-')); if (isNaN(+dt)) continue;
-    const diff = Math.ceil((+dt - +now) / 86400000);
-    if (dt <= limit) lines.push(`${diff < 0 ? '🔴 EXPIRÉ' : '🟡'} ${d.client_name} — ${d.type} ${diff < 0 ? 'expiré' : `dans ${diff}j`} (${exp})`);
-  }
-  if (!lines.length) return `✅ Rien n'expire dans les ${ahead} prochains jours (assurances, contrôles techniques, vignettes, permis).`;
-  return [`⚠️ EXPIRATIONS (≤ ${ahead}j):`, '', ...lines].join('\n');
-}
-
-// ── 3. CARBURANT + KM PAR LOCATION ──────────────────────────────────────────
-async function recordRentalMeterTool(input: Record<string, unknown>): Promise<string> {
-  const client = input['client_name'] ? String(input['client_name']) : undefined;
-  if (!client) return '❌ Donne le nom du client de la location.';
-  const { data: bk } = await supabase.from('bookings').select('id, client_name, cars(name)').ilike('client_name', `%${client}%`).order('created_at', { ascending: false }).limit(1);
-  const b = (bk as { id: string; client_name: string; cars?: { name?: string } }[] | null)?.[0];
-  if (!b) return `❌ Aucune location trouvée pour ${client}.`;
-  const payload: Record<string, number | string> = {};
-  for (const k of ['km_start', 'km_end', 'fuel_start', 'fuel_end']) if (input[k] != null) payload[k] = isNaN(Number(input[k])) ? String(input[k]) : Number(input[k]);
-  if (!Object.keys(payload).length) return '❌ Donne au moins km_start, km_end, fuel_start ou fuel_end.';
-  const { error } = await supabase.from('bookings').update(payload).eq('id', b.id);
-  if (error) return `❌ Enregistrement impossible. ${MIG_HINT} — ${error.message}`;
-  const kmDriven = (payload['km_end'] != null && payload['km_start'] != null) ? Number(payload['km_end']) - Number(payload['km_start']) : null;
-  return `✅ Relevé enregistré pour ${b.client_name} (${b.cars?.name ?? ''}).${kmDriven != null ? ` Km parcourus: **${kmDriven} km**.` : ''}${(payload['fuel_start'] != null && payload['fuel_end'] != null) ? ` Carburant: ${payload['fuel_start']} → ${payload['fuel_end']}.` : ''}`;
-}
+const MIG_HINT = '(si erreur "table manquante" → exécute supabase/migration_phase_extras.sql dans Supabase)';
 
 // ── 4. ESTIMATION COÛT DÉGÂT (vision) ───────────────────────────────────────
 async function estimateDamageTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {

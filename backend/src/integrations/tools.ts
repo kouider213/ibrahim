@@ -1928,54 +1928,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
-  // ─── PHASE EXTRAS : charges, expirations, compteur, dégât, signature, pricing ───
-  {
-    name: 'add_car_expense',
-    description: 'Enregistrer une DÉPENSE/charge sur une voiture (carburant, réparation, assurance, vignette, lavage, pièces…). Quand Kouider dit "j\'ai payé X pour la voiture Y", "carburant 2000 da pour la Clio", "réparation pneu Duster 5000 DA".',
-    input_schema: { type: 'object' as const, properties: {
-      car_name:     { type: 'string', description: 'Nom de la voiture (ex: Clio 5 diesel). Optionnel si charge générale.' },
-      amount:       { type: 'number', description: 'Montant de la dépense' },
-      currency:     { type: 'string', enum: ['DZD', 'EUR'], description: 'Devise (défaut DZD)' },
-      expense_type: { type: 'string', description: 'Type: carburant, reparation, assurance, vignette, controle_technique, lavage, pieces, autre' },
-      note:         { type: 'string', description: 'Détail optionnel' },
-      date:         { type: 'string', description: 'Date AAAA-MM-JJ (défaut aujourd\'hui)' },
-    }, required: ['amount'] },
-  },
-  {
-    name: 'get_car_pnl',
-    description: 'Profit NET par voiture = CA − marge − charges (carburant/réparations/etc). Quand Kouider demande "combien je gagne vraiment sur la Clio", "rentabilité nette par voiture", "profit réel après charges".',
-    input_schema: { type: 'object' as const, properties: {
-      car_name: { type: 'string', description: 'Voiture précise (optionnel = toutes)' },
-    }, required: [] },
-  },
-  {
-    name: 'set_vehicle_documents',
-    description: 'Enregistrer les dates d\'expiration des documents d\'une voiture: assurance, contrôle technique, vignette. Quand Kouider dit "l\'assurance de la Clio expire le 12/2026", "contrôle technique Duster fait jusqu\'à mars".',
-    input_schema: { type: 'object' as const, properties: {
-      car_name:                  { type: 'string', description: 'Voiture' },
-      insurance_expiry:          { type: 'string', description: 'Date expiration assurance AAAA-MM-JJ' },
-      technical_control_expiry:  { type: 'string', description: 'Date expiration contrôle technique AAAA-MM-JJ' },
-      vignette_expiry:           { type: 'string', description: 'Date expiration vignette AAAA-MM-JJ' },
-    }, required: ['car_name'] },
-  },
-  {
-    name: 'check_expirations',
-    description: 'Lister ce qui EXPIRE bientôt: assurances, contrôles techniques, vignettes des voitures + permis/passeports des clients. Quand Kouider demande "qu\'est-ce qui expire", "alertes documents", "assurances à renouveler".',
-    input_schema: { type: 'object' as const, properties: {
-      days_ahead: { type: 'number', description: 'Fenêtre en jours (défaut 30)' },
-    }, required: [] },
-  },
-  {
-    name: 'record_rental_meter',
-    description: 'Enregistrer le compteur d\'une location: km départ/retour + niveau carburant départ/retour. Quand Kouider dit "la Clio est partie à 45000 km", "retour 45600 km plein". Calcule les km parcourus.',
-    input_schema: { type: 'object' as const, properties: {
-      client_name: { type: 'string', description: 'Client de la location' },
-      km_start:    { type: 'number', description: 'Km au départ' },
-      km_end:      { type: 'number', description: 'Km au retour' },
-      fuel_start:  { type: 'string', description: 'Carburant départ (ex: plein, 1/2, 3/4)' },
-      fuel_end:    { type: 'string', description: 'Carburant retour' },
-    }, required: ['client_name'] },
-  },
+  // ─── PHASE EXTRAS : dégât, signature, pricing ───
   {
     name: 'estimate_damage',
     description: 'Analyser la PHOTO d\'un dégât/dommage sur un véhicule (rayure, choc, bosse) et estimer le coût de réparation en dinars. Quand Kouider envoie une photo et dit "constat dégât", "regarde ce choc", "estime la réparation", "rayure au retour".',
