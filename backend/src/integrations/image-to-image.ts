@@ -405,27 +405,31 @@ export async function executeImageToImage(
     }
   }
 
+  // Buffer brut de la photo source → envoyé DIRECTEMENT à OpenAI (évite tout souci d'URL publique).
+  let sourceBuffer: Buffer | null = null;
+  let sourceMime = 'image/jpeg';
+
   // App mobile : la photo envoyée dans le chat est mise en cache Redis par l'orchestrateur
-  // (session:image:<sessionId>). On la récupère, on l'upload en storage → URL publique.
+  // (session:image:<sessionId>). On garde le buffer brut + on upload pour les providers qui veulent une URL.
   if (!sourceImageUrl && _sessionId) {
     try {
       const cached = await redis.get(`session:image:${_sessionId}`);
       if (cached) {
         const { base64, mime } = JSON.parse(cached) as { base64: string; mime?: string };
-        const buf  = Buffer.from(base64, 'base64');
-        const ext  = (mime ?? 'image/jpeg').includes('png') ? 'png' : 'jpg';
-        const path = `edits/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        await supabase.storage.createBucket('generated-images', { public: true }).catch(() => {});
-        await supabase.storage.from('generated-images').upload(path, buf, { contentType: mime ?? 'image/jpeg', upsert: false });
-        sourceImageUrl = supabase.storage.from('generated-images').getPublicUrl(path).data?.publicUrl;
-        console.log(`[executeImageToImage] image récupérée du cache session → ${sourceImageUrl?.slice(0, 80)}`);
+        sourceBuffer = Buffer.from(base64, 'base64');
+        sourceMime   = mime ?? 'image/jpeg';
+        const ext  = sourceMime.includes('png') ? 'png' : 'jpg';
+        const path = `generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        await supabase.storage.from('car-images').upload(path, sourceBuffer, { contentType: sourceMime, upsert: false }).catch(() => {});
+        sourceImageUrl = supabase.storage.from('car-images').getPublicUrl(path).data?.publicUrl;
+        console.log(`[executeImageToImage] image récupérée du cache session (buffer ${sourceBuffer.length}o)`);
       }
     } catch (e) {
       console.warn('[executeImageToImage] fallback image cache échoué:', e);
     }
   }
 
-  if (!sourceImageUrl) {
+  if (!sourceImageUrl && !sourceBuffer) {
     return '❌ image_url ou telegram_file_id requis — envoie une photo puis utilise cet outil.';
   }
 
@@ -442,12 +446,17 @@ export async function executeImageToImage(
   // ombres, réalisme). Pour un changement de décor on insiste pour garder le sujet identique.
   if (env.OPENAI_API_KEY) {
     try {
-      const imgResp = await fetch(sourceImageUrl);
-      const imgBuf  = Buffer.from(await imgResp.arrayBuffer());
-      // Mime RÉEL de la photo (sinon OpenAI rejette un JPEG déclaré en PNG).
-      const ct  = (imgResp.headers.get('content-type') || '').toLowerCase();
-      const mt  = ct.includes('png') ? 'image/png' : ct.includes('webp') ? 'image/webp' : 'image/jpeg';
-      const ext = mt === 'image/png' ? 'png' : mt === 'image/webp' ? 'webp' : 'jpg';
+      // Buffer direct si on l'a (cache session) → sinon on télécharge l'URL.
+      let imgBuf: Buffer; let mt: string;
+      if (sourceBuffer) {
+        imgBuf = sourceBuffer; mt = sourceMime;
+      } else {
+        const imgResp = await fetch(sourceImageUrl!);
+        imgBuf = Buffer.from(await imgResp.arrayBuffer());
+        const ct = (imgResp.headers.get('content-type') || '').toLowerCase();
+        mt = ct.includes('png') ? 'image/png' : ct.includes('webp') ? 'image/webp' : 'image/jpeg';
+      }
+      const ext = mt.includes('png') ? 'png' : mt.includes('webp') ? 'webp' : 'jpg';
       const editPrompt = styleInput === 'background_only'
         ? `Keep the main subject (the car or person) EXACTLY identical — same model, exact same color, finish, license plate and every detail. Do NOT change the subject. Only replace the background/scene with: ${userPrompt}. Photorealistic, blend lighting, reflections and shadows naturally so it looks like a real photo.`
         : userPrompt;
@@ -466,10 +475,9 @@ export async function executeImageToImage(
         const b64 = j?.data?.[0]?.b64_json;
         if (b64) {
           const buf  = Buffer.from(b64, 'base64');
-          const path = `edits/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
-          await supabase.storage.createBucket('generated-images', { public: true }).catch(() => {});
-          await supabase.storage.from('generated-images').upload(path, buf, { contentType: 'image/png', upsert: false });
-          const url = supabase.storage.from('generated-images').getPublicUrl(path).data?.publicUrl;
+          const path = `generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+          await supabase.storage.from('car-images').upload(path, buf, { contentType: 'image/png', upsert: false });
+          const url = supabase.storage.from('car-images').getPublicUrl(path).data?.publicUrl;
           if (url) {
             emitProactive('Photo modifiée', 'info', `✅ Photo modifiée\n📹 ${url}`);
             return `✅ Photo modifiée (gpt-image-1) et envoyée dans l'app\nURL: ${url}`;
@@ -487,7 +495,7 @@ export async function executeImageToImage(
 
   // ── FALLBACK : compositing sujet exact (si gpt-image-1 edit a échoué) ──────────
   // Détourage + recompose sur fond généré → sujet pixel-exact (rendu plus "collage").
-  if (styleInput === 'background_only' && env.OPENAI_API_KEY && env.CLOUDINARY_CLOUD_NAME) {
+  if (styleInput === 'background_only' && sourceImageUrl && env.OPENAI_API_KEY && env.CLOUDINARY_CLOUD_NAME) {
     try {
       const bgRes = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
@@ -513,6 +521,11 @@ export async function executeImageToImage(
   const style    = (input['style']    as ImageToImageOptions['style']  | undefined);
   const strength = input['strength']  ? Number(input['strength'])        : undefined;
   const provider = (input['provider'] as ImageToImageOptions['provider'] | undefined) ?? 'auto';
+
+  // Si on arrive ici, gpt-image-1 a échoué. Sans URL source ni provider tiers configuré → erreur claire.
+  if (!sourceImageUrl) {
+    return `❌ La retouche a échoué.${openaiEditError ? ` (OpenAI: ${openaiEditError})` : ''}`;
+  }
 
   emitProactive(
     `🎨 Transformation image en cours…`,
