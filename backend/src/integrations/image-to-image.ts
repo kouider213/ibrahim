@@ -435,6 +435,7 @@ export async function executeImageToImage(
   }
 
   const styleInput = input['style'] as string | undefined;
+  let openaiEditError = '';
 
   // ── OpenAI gpt-image-1 EDIT — PRIMARY (le système de retouche le + puissant) ───
   // Édite la VRAIE photo en gardant le sujet et en l'intégrant à la scène (lumière,
@@ -443,15 +444,18 @@ export async function executeImageToImage(
     try {
       const imgResp = await fetch(sourceImageUrl);
       const imgBuf  = Buffer.from(await imgResp.arrayBuffer());
+      // Mime RÉEL de la photo (sinon OpenAI rejette un JPEG déclaré en PNG).
+      const ct  = (imgResp.headers.get('content-type') || '').toLowerCase();
+      const mt  = ct.includes('png') ? 'image/png' : ct.includes('webp') ? 'image/webp' : 'image/jpeg';
+      const ext = mt === 'image/png' ? 'png' : mt === 'image/webp' ? 'webp' : 'jpg';
       const editPrompt = styleInput === 'background_only'
         ? `Keep the main subject (the car or person) EXACTLY identical — same model, exact same color, finish, license plate and every detail. Do NOT change the subject. Only replace the background/scene with: ${userPrompt}. Photorealistic, blend lighting, reflections and shadows naturally so it looks like a real photo.`
         : userPrompt;
       const form = new FormData();
       form.append('model', 'gpt-image-1');
-      form.append('image', new Blob([imgBuf], { type: 'image/png' }), 'source.png');
+      form.append('image', new Blob([imgBuf], { type: mt }), `source.${ext}`);
       form.append('prompt', editPrompt);
       form.append('size', '1024x1024');
-      form.append('quality', 'high');
       const ed = await fetch('https://api.openai.com/v1/images/edits', {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` },
@@ -472,10 +476,12 @@ export async function executeImageToImage(
           }
         }
       } else {
-        console.warn(`[executeImageToImage] OpenAI edit status=${ed.status}:`, (await ed.text()).slice(0, 200), '→ fallback providers');
+        openaiEditError = (await ed.text()).slice(0, 300);
+        console.warn(`[executeImageToImage] OpenAI edit status=${ed.status}:`, openaiEditError, '→ fallback');
       }
     } catch (e) {
-      console.warn('[executeImageToImage] OpenAI edit échoué → fallback providers:', e);
+      openaiEditError = e instanceof Error ? e.message : String(e);
+      console.warn('[executeImageToImage] OpenAI edit échoué → fallback:', e);
     }
   }
 
@@ -528,7 +534,7 @@ export async function executeImageToImage(
   } catch (err: any) {
     const errMsg = err.message as string;
     console.error('[executeImageToImage] FAILED:', errMsg);
-    return `❌ Transformation image échouée: ${errMsg.slice(0, 300)}`;
+    return `❌ Transformation image échouée. ${openaiEditError ? `OpenAI: ${openaiEditError}` : errMsg.slice(0, 300)}`;
   }
 
   console.log(`[executeImageToImage] ✅ provider=${result.provider} mode=${result.mode} url=${result.url.slice(0, 80)}`);
