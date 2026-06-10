@@ -95,17 +95,29 @@ const EL_VOICE_SETTINGS = {
 
 // Always use multilingual_v2 — turbo_v2_5 produces Spanish-like phonetics with French voices
 const ARABIC_SCRIPT_RE = /[؀-ۿ]/;
+// Marqueurs darija latine (arabizi inclus) → réponse en darija même sans script arabe.
+const DARIJA_LATIN_RE = /\b(wesh|rak|raki|rani|kayen|makanch|bzaf|mli7|mlih|chhal|ch7al|kifach|3andek|3andi|khoya|sahbi|labas|nchallah|hamdoullah|gouli|nta|nti|darki|safi|wahda|tnin|jdid)\b|[a-z][37952][a-z]/i;
+function isArabicish(text: string): boolean {
+  return ARABIC_SCRIPT_RE.test(text) || DARIJA_LATIN_RE.test(text);
+}
 function pickTTSModel(text: string): { model_id: string; language_code: string } {
-  return ARABIC_SCRIPT_RE.test(text)
+  return isArabicish(text)
     ? { model_id: 'eleven_multilingual_v2', language_code: 'ar' }
     : { model_id: 'eleven_multilingual_v2', language_code: 'fr' };
+}
+// Voix : auto-switch → voix arabe dédiée (si configurée) quand la réponse est en
+// darija/arabe ; sinon voix de base (français/espagnol/anglais).
+function pickVoiceId(text: string): string {
+  if (env.ELEVENLABS_VOICE_ID_AR && isArabicish(text)) return env.ELEVENLABS_VOICE_ID_AR;
+  return env.ELEVENLABS_VOICE_ID;
 }
 
 export async function synthesizeVoice(text: string): Promise<Buffer | null> {
   const { model_id, language_code } = pickTTSModel(text);
+  const voiceId = pickVoiceId(text);
   try {
     const response = await axios.post<ArrayBuffer>(
-      `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       { text: cleanTextForTTS(text), model_id, language_code, voice_settings: EL_VOICE_SETTINGS },
       {
         headers: { 'xi-api-key': env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
@@ -126,10 +138,11 @@ export async function synthesizeVoiceStream(
   onChunk: (chunk: Buffer) => void,
 ): Promise<boolean> {
   const { model_id, language_code } = pickTTSModel(text);
+  const voiceId = pickVoiceId(text);
   try {
     const response = await axios.post(
       // optimize_streaming_latency=3 → premier chunk audio plus rapide (moins d'attente perçue)
-      `https://api.elevenlabs.io/v1/text-to-speech/${env.ELEVENLABS_VOICE_ID}/stream?optimize_streaming_latency=3`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?optimize_streaming_latency=3`,
       {
         text: cleanTextForTTS(text),
         model_id,

@@ -17,6 +17,7 @@ const envSchema = z.object({
   PUSHOVER_APP_TOKEN:   z.string().min(1),
   ELEVENLABS_API_KEY:   z.string().min(1),
   ELEVENLABS_VOICE_ID:  z.string().min(1),
+  ELEVENLABS_VOICE_ID_AR: z.string().optional(),   // voix dédiée darija/arabe (auto-switch)
   GITHUB_TOKEN:         z.string().optional(),
   GITHUB_OWNER:         z.string().optional(),
   GITHUB_DEFAULT_REPO:  z.string().default('ibrahim'),
