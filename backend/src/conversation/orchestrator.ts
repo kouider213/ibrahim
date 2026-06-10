@@ -38,6 +38,7 @@ import type { Namespace }                        from 'socket.io';
 import { SOCKET_EVENTS }                         from '../config/constants.js';
 import { redis }                                 from '../queue/queue.js';
 import { saveBeforeState, saveAfterState }        from '../integrations/vehicle-state.js';
+import { executeImageToImage }                    from '../integrations/image-to-image.js';
 import { savePropertyBeforeState, savePropertyAfterState } from '../integrations/property-state.js';
 
 let _io: Namespace | null = null;
@@ -235,6 +236,37 @@ export async function processMessage(
       return { text: result.message, status: 'done' };
     } catch (e) {
       console.error('[vehicle-inspection] error:', e);
+    }
+  }
+
+  // ── Garde-fou ÉDITION D'IMAGE (photo jointe + intention de retouche) ──────────
+  // Quand une photo est envoyée avec une demande de modification, on appelle
+  // DIRECTEMENT gpt-image-1 edit — Claude ne peut plus se tromper d'outil
+  // (avant: il piochait une photo stock via search_images).
+  const EDIT_IMG_RE    = /\b(modifie|modifier|[ée]dite|edite|retouche|retoucher|enl[èe]ve|enlever|transforme|remplace|mets?[- ]?(moi|nous|le|la|les)|change\s+(le\s+|mon\s+|ma\s+|mes\s+)?(fond|d[ée]cor|arri[èe]re|visage|couleur|t[êe]te|coiffure))\b/i;
+  const SUBJECT_EDIT_RE = /\b(enl[èe]ve|enlever|rends?[- ]?moi|rajeuni|vieilli|barbe|cheveux|coiffure|lunettes?|b[ée]ret|chapeau|casquette|maquillage|visage|peau|sourire|costume|habille)\b/i;
+  const SCENE_RE        = /\b(fond|d[ée]cor|arri[èe]re|plage|ville|nuit|coucher|paysage|montagne|d[ée]sert|neige|for[êe]t|studio|mur|piscine|bureau|rue|route)\b/i;
+  if (imageBase64 && EDIT_IMG_RE.test(userMessage)
+      && !INSPECTION_BEFORE_RE.test(userMessage) && !INSPECTION_AFTER_RE.test(userMessage)) {
+    // garantir que l'image est bien en cache (le set plus haut n'est pas attendu)
+    await redis.set(`session:image:${sessionId}`, JSON.stringify({ base64: imageBase64, mime: imageMime }), 'EX', 300).catch(() => {});
+    const styleEdit = (SUBJECT_EDIT_RE.test(userMessage) || !SCENE_RE.test(userMessage)) ? 'realistic' : 'background_only';
+    console.log(`[orch:${requestId}] IMAGE_EDIT pre-route style=${styleEdit} msg="${userMessage.slice(0, 60)}"`);
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '🎨 Retouche image (gpt-image-1)…' });
+    try {
+      const editRes = await executeImageToImage({ prompt: userMessage, style: styleEdit, strength: 0.5 }, sessionId);
+      _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: editRes });
+      saveConversationTurn(sessionId, 'assistant', editRes).catch(() => {});
+      if (!textOnly && editRes.length > 0) {
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+        await streamAudioSentences(editRes.replace(/https?:\/\/\S+/g, ''), sessionId);
+        _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+      }
+      _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+      return { text: editRes, status: 'done' };
+    } catch (e) {
+      console.error(`[orch:${requestId}] IMAGE_EDIT pre-route failed:`, e);
+      // continue vers le flux normal en cas d'échec inattendu
     }
   }
 
