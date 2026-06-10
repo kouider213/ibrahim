@@ -281,9 +281,10 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   const isCreateIntent = (t: string) => /\b(cr[ée]e?r?|cree|nouvelle?\s+annonce|publie|met(?:s)?\s+en\s+ligne)\b/i.test(t)
     || /\b(ajoute|rajoute)\b.*\b(voiture|v[ée]hicule|annonce|appartement|villa|maison|local|studio|bien|pack|à\s+louer|à\s+vendre|flotte|location|vente)\b/i.test(t);
 
-  const send = useCallback(async (forced?: string) => {
+  const send = useCallback(async (forced?: string, forcedImg?: { base64: string; preview: string } | null) => {
     const text = (forced ?? input).trim();
-    if ((!text && !selectedImages.length) || status === 'thinking') return;
+    const hasForcedImg = forcedImg !== undefined;
+    if ((!text && !selectedImages.length && !forcedImg) || status === 'thinking') return;
 
     // CAS SPÉCIAL — ranger plusieurs photos sur une voiture EXISTANTE (Supabase)
     if (selectedImages.length && isStoreIntent(text) && !isCreateIntent(text)) {
@@ -309,7 +310,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     const creatingWithPhotos = selectedImages.length > 0 && isCreateIntent(text);
     const firstPreview = selectedImages[0]?.preview;
     // En création-avec-photos on n'envoie PAS l'image en vision (elles sont cachées côté session).
-    const img = creatingWithPhotos ? null : (selectedImages[0] ?? null);
+    const img = creatingWithPhotos ? null : (hasForcedImg ? forcedImg : (selectedImages[0] ?? null));
     const photosToCache = creatingWithPhotos ? selectedImages.map(i => i.base64) : [];
 
     const userMsg: Message = {
@@ -367,11 +368,19 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     }
   }, [input, status, selectedImages]);
 
-  // Régénérer : renvoie le dernier message utilisateur
+  // Régénérer (façon ChatGPT) : supprime la dernière réponse + le dernier message
+  // utilisateur, puis le renvoie À L'IDENTIQUE (texte + image) pour une nouvelle réponse.
+  const cleanMsgText = (t: string) => t.replace(/\s*\(\d+\s*photos?\)\s*$/i, '').replace(/^📷 Photo$/, '').trim();
+  const imgFromMsg = (m: Message) => (m.imagePreview?.includes('base64,'))
+    ? { base64: m.imagePreview.split('base64,')[1]!, preview: m.imagePreview } : null;
   const regenerate = useCallback(() => {
     if (status === 'thinking') return;
-    const lastUser = [...msgs].reverse().find(m => m.role === 'user');
-    if (lastUser) void send(lastUser.text);
+    let idx = -1;
+    for (let i = msgs.length - 1; i >= 0; i--) { if (msgs[i].role === 'user') { idx = i; break; } }
+    if (idx < 0) return;
+    const lastUser = msgs[idx];
+    setMsgs(ms => ms.slice(0, idx));   // retire le dernier user + sa réponse
+    void send(cleanMsgText(lastUser.text) || '📷 Photo', imgFromMsg(lastUser));
   }, [msgs, status, send]);
 
   const col = STATUS_COLOR[status];
@@ -461,7 +470,12 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             msg={msg}
             actorCol={actorCol}
             onRegenerate={(!search.trim() && i === arr.length - 1 && msg.role === 'ai' && msg.status === 'done') ? regenerate : undefined}
-            onEdit={msg.role === 'user' ? () => { setInput(msg.text); setShowSearch(false); setSearch(''); } : undefined}
+            onEdit={msg.role === 'user' ? () => {
+              setInput(cleanMsgText(msg.text)); setShowSearch(false); setSearch('');
+              const im = imgFromMsg(msg);
+              setSelectedImages(im ? [im] : []);
+              setMsgs(ms => { const k = ms.findIndex(m => m.id === msg.id); return k >= 0 ? ms.slice(0, k) : ms; });
+            } : undefined}
           />
         ))}
         {search.trim() && !msgs.some(m => m.text.toLowerCase().includes(search.trim().toLowerCase())) && (
