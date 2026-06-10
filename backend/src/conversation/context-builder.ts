@@ -411,7 +411,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
       langDetection = {
         lang:       'darija',
         label:      'Darija 100% oranaise (Houari)',
-        systemHint: 'LANGUE: Houari a écrit en arabe/darija → réponds en DARIJA 100% ORANAISE (dialecte d\'Oran غران), JAMAIS marocain ni autre. Mots oranais: wesh واش, rak راك, khoya خويا, sahbi صاحبي, labas لاباس, bzaf بزاف, mliih مليح, koulech كلش, kifach كيفاش, chhal/gdach, fin فين, 3lach علاش, derk درك, yezi يزي, yesah يصح, drahem, tomobil/tonobil, nchallah, ghaya. ⛔ JAMAIS "dima" → "toujours". ⛔ INTERDIT marocain: ghadi, daba, khassek, zwin, mzyan, dyal, wakha, bghit. Tu peux mélanger un peu de français (naturel oranais). Ton chaleureux, respectueux (patron PDG).',
+        systemHint: 'LANGUE: Houari a parlé en DARIJA → réponds ENTIÈREMENT en DARIJA ORANAISE. ⛔ RÈGLE ABSOLUE: TOUTE la réponse en darija (structure de phrase darija) — JAMAIS des phrases en français. Tu gardes SEULEMENT les mots français qu\'un Oranais dit vraiment (cliene, réservation, acompte, dispo, tomobil/voiture) — c\'est le vrai oranais. Mais le reste = darija: wesh, rak, khoya, sahbi, labas, bzaf, mliih, koulech, kifach, chhal/gdach, fin, 3lach, derk, yezi, drahem, nchallah, ghaya, ndir, kayen, makanch. ⛔ JAMAIS "dima" → "toujours". ⛔ INTERDIT marocain: ghadi, daba, khassek, zwin, mzyan, dyal, wakha, bghit. Parle l\'oranais PARFAITEMENT, naturel, comme un vrai habitant d\'Oran. Ton chaleureux, respectueux (patron PDG).',
       };
     } else if (langDetection.lang === 'es') {
       langDetection = { lang: 'es', label: 'Espagnol (Houari)', systemHint: 'LANGUE: Houari a écrit en espagnol → réponds en ESPAGNOL, naturel et chaleureux.' };
@@ -428,7 +428,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
       langDetection = {
         lang:       'darija',
         label:      'Darija algérienne/oranaise (Kouider)',
-        systemHint: 'LANGUE: Kouider a écrit en arabe/darija → COMPRENDS le darija ALGÉRIEN / ORANAIS et réponds en DARIJA ALGÉRIENNE (oranais), JAMAIS marocain. Mots: wesh واش, rak راك, khoya خويا, sahbi صاحبي, labas لاباس, bzaf بزاف, mliih مليح, koulech كلش, kifach كيفاش, chhal/gdach, fin فين, 3lach علاش, derk درك, yezi يزي, drahem, tomobil. ⛔ JAMAIS "dima" → "toujours". ⛔ INTERDIT marocain: ghadi, daba, khassek, zwin, mzyan, dyal, wakha, bghit. Mélange naturel français/darija. ⚠️ Tu PARLES À Kouider directement (2e personne) — ce n\'est PAS une conversation rapportée entre tiers.',
+        systemHint: 'LANGUE: Kouider a parlé en DARIJA → COMPRENDS l\'algérien et réponds ENTIÈREMENT en DARIJA ORANAISE. ⛔ RÈGLE ABSOLUE: TOUTE la réponse en darija (structure de phrase darija) — JAMAIS des phrases en français. Tu gardes SEULEMENT les mots français qu\'un Oranais dit vraiment (cliene, réservation, acompte, dispo, tomobil/voiture). Le reste = darija: wesh, rak, khoya, sahbi, labas, bzaf, mliih, koulech, kifach, chhal/gdach, fin, 3lach, derk, yezi, drahem, nchallah, ndir, kayen, makanch. ⛔ JAMAIS "dima" → "toujours". ⛔ INTERDIT marocain: ghadi, daba, khassek, zwin, mzyan, dyal, wakha, bghit. Parle l\'oranais PARFAITEMENT et naturel. ⚠️ Tu PARLES À Kouider directement (2e personne) — PAS une conversation rapportée entre tiers.',
       };
     } else if (langDetection.lang === 'es') {
       langDetection = { lang: 'es', label: 'Espagnol (Kouider)', systemHint: 'LANGUE: Kouider a écrit en espagnol → réponds en ESPAGNOL, naturel.' };
