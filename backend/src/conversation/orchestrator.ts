@@ -242,7 +242,8 @@ export async function processMessage(
 
   // ── Garde-fou SCAN PIÈCE D'IDENTITÉ / PERMIS (photo + mot-clé) ────────────────
   // Photo d'un permis/passeport → OCR + calcul âge + contrôle assurance (≥35) + validité.
-  const ID_SCAN_RE = /\b(scan|scanne|lis|lire|analyse)?\s*(le\s+|ce\s+|mon\s+|son\s+)?(permis|passeport|passport|carte\s+d['’ ]?identit[ée]|pi[èe]ce\s+d['’ ]?identit[ée]|cin)\b/i;
+  // tolère les typos: passeport/passport/pasport/paseport, permis, carte/pièce d'identité, CIN
+  const ID_SCAN_RE = /\b(permis|pas+e?port|(carte|pi[èe]ce).{0,4}identit|cin)\b/i;
   if (imageBase64 && ID_SCAN_RE.test(userMessage)) {
     const isPermis = /permis|license|licence/i.test(userMessage);
     console.log(`[orch:${requestId}] ID_SCAN pre-route isPermis=${isPermis}`);
