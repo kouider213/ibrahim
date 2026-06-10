@@ -454,9 +454,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   useEffect(() => {
     const wd = setInterval(() => {
       if (!sessionAudioUnlocked) return; // pas encore activé une 1ère fois
-      // 1) "thinking" figé > 22s → débloque (sinon micro gelé)
-      if (statusRef.current === 'thinking' && thinkingSinceRef.current && Date.now() - thinkingSinceRef.current > 22_000) {
+      // 1) "thinking" figé > 12s → débloque (sinon micro gelé)
+      if (statusRef.current === 'thinking' && thinkingSinceRef.current && Date.now() - thinkingSinceRef.current > 12_000) {
         setStatus('idle'); setHud('PRÊT — PARLE-MOI'); thinkingSinceRef.current = 0;
+        isRecordingRef.current = false;  // débloque un enregistrement coincé
       }
       // 2) micro coupé (stream mort) alors qu'on est au repos → on relance
       const live = !!streamRef.current && streamRef.current.getAudioTracks().some(t => t.readyState === 'live');
@@ -679,14 +680,29 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     }, MAX_REC_MS);
   }
 
-  // Tap micro robuste : si le flux est mort/absent (iOS l'a coupé) → réinit puis enregistre.
+  // RESET DUR + écoute : débloque TOUT état coincé (recorder mort, statut figé,
+  // audio suspendu, flux iOS coupé) puis réécoute. → plus jamais besoin de fermer l'app.
   async function ensureMicThenRecord() {
     unlockAudio();
-    if (isRecordingRef.current) return;
+    // 1. tuer un enregistrement bloqué
+    try { const r = recorderRef.current; if (r && r.state !== 'inactive') { r.onstop = null; r.stop(); } } catch { /* ignore */ }
+    recorderRef.current = null;
+    isRecordingRef.current = false;
+    realSpeechRef.current  = false;
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    try { stopAudio(); } catch { /* ignore */ }
+    // 2. réveiller l'AudioContext s'il est suspendu
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') { try { await audioCtxRef.current.resume(); } catch { /* ignore */ } }
+    // 3. micro vivant ? sinon réinit complet
     const live = !!streamRef.current && streamRef.current.getAudioTracks().some(t => t.readyState === 'live');
-    if (!live) { micInitRef.current = false; try { await initMic(); } catch { /* ignore */ } }
-    if (streamRef.current && !isRecordingRef.current) { startRecording(); setHud('Écoute…'); }
-    else { setMicErr(true); setHud('Micro inaccessible — autorise le micro dans les réglages'); }
+    const ctxDead = !audioCtxRef.current || audioCtxRef.current.state === 'closed';
+    if (!live || ctxDead) { micInitRef.current = false; try { await initMic(); } catch { /* ignore */ } }
+    // 4. repartir propre
+    setStatus('idle');
+    setTimeout(() => {
+      if (streamRef.current && !isRecordingRef.current) { startRecording(); setHud('Écoute…'); }
+      else { setMicErr(true); setHud('Micro inaccessible — autorise le micro dans les réglages'); }
+    }, 80);
   }
 
   // Jette l'enregistrement en cours sans le transcrire (bruit, pas de vraie voix)
@@ -843,9 +859,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       } else if (status === 'listening') {
         stopRecordingAndProcess();
       } else if (status === 'speaking' || status === 'thinking') {
-        // Coupe Dzaryx ET se met à écouter ta nouvelle question (1 seul tap, façon Gemini)
-        stopAudio(); bargeFramesRef.current = 0; setStatus('idle');
-        setTimeout(() => { if (!isRecordingRef.current && streamRef.current) { bargeRecordingRef.current = true; startRecording(); } }, 60);
+        // Coupe Dzaryx + reset dur + réécoute (débloque tout état coincé)
+        void ensureMicThenRecord();
       }
     };
     const barText = !audioUnlocked
@@ -1084,9 +1099,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               // Coupe Dzaryx ET se met à écouter ta nouvelle question (1 seul tap, façon Gemini)
               stopAudio(); bargeFramesRef.current = 0; setStatus('idle');
               setTimeout(() => { if (!isRecordingRef.current && streamRef.current) { bargeRecordingRef.current = true; startRecording(); } }, 60);
+            } else {
+              // statut figé (thinking bloqué…) → reset dur + réécoute
+              void ensureMicThenRecord();
             }
           }}
-          disabled={isThinking}
           style={{
             position: 'relative',
             width: 118, height: 56, borderRadius: 28, padding: 0,
