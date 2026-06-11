@@ -6,6 +6,8 @@ import { redis } from '../../queue/queue.js';
 
 const router = Router();
 const GEMINI_KEY = process.env['GEMINI_API_KEY'];
+const GROQ_KEY   = process.env['GROQ_API_KEY'];
+const OPENAI_KEY = process.env['OPENAI_API_KEY'];
 const TTL = 60 * 60 * 24 * 30; // 30 jours
 
 const LANG_NAME: Record<string, string> = { ar: 'Arabic (Modern Standard)', en: 'English', fr: 'French' };
@@ -13,42 +15,78 @@ const key = (target: string, text: string) => `tr:${target}:${createHash('sha1')
 
 interface TransResult { result: string[]; ok: boolean; raw?: string; error?: string; }
 
-async function geminiTranslate(texts: string[], target: string): Promise<TransResult> {
-  if (!GEMINI_KEY) return { result: texts, ok: false, error: 'GEMINI_API_KEY manquant' };
-  const lang = LANG_NAME[target] ?? target;
-  const prompt = `Translate each item of this JSON array into ${lang}. ` +
-    `Keep proper nouns (brand/car/place names), prices, numbers and URLs unchanged. ` +
-    `Return ONLY a JSON array of strings, exactly the same length and order, no extra text, no markdown.\n` +
-    JSON.stringify(texts);
+function parseArray(out: string, n: number): string[] | null {
+  let s = out.replace(/^```json\s*/i, '').replace(/```$/g, '').trim();
+  const a = s.indexOf('['); const b = s.lastIndexOf(']');
+  if (a >= 0 && b > a) s = s.slice(a, b + 1);
+  try {
+    const arr = JSON.parse(s) as unknown;
+    if (Array.isArray(arr) && arr.length === n) return arr.map(v => String(v ?? ''));
+  } catch { /* ignore */ }
+  return null;
+}
+
+// Provider OpenAI-compatible (Groq / OpenAI) — renvoie le texte de la réponse
+async function chatJSON(url: string, model: string, apiKey: string, lang: string, texts: string[]): Promise<string> {
   const { default: axios } = await import('axios');
-  const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'];
+  const sys = `You are a professional translator. Translate each string of the user's JSON array into ${lang}. ` +
+    `Keep proper nouns (brand/car/place names), prices, numbers and URLs unchanged. ` +
+    `Return ONLY a JSON object {"t": [...]} where t is the array of translations, same length and order.`;
+  const { data } = await axios.post(url, {
+    model,
+    messages: [{ role: 'system', content: sys }, { role: 'user', content: JSON.stringify(texts) }],
+    temperature: 0.2,
+    response_format: { type: 'json_object' },
+  }, { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 30_000 });
+  return (data.choices?.[0]?.message?.content as string | undefined) ?? '';
+}
+
+async function translateTexts(texts: string[], target: string): Promise<TransResult> {
+  const lang = LANG_NAME[target] ?? target;
   let lastErr = '';
-  let lastRaw = '';
-  for (const model of models) {
+
+  // 1) Groq (gratuit, gros quota) puis 2) OpenAI — via objet JSON {"t":[...]}
+  const oai: Array<{ name: string; url: string; model: string; k?: string }> = [
+    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', k: GROQ_KEY },
+    { name: 'openai', url: 'https://api.openai.com/v1/chat/completions',      model: 'gpt-4o-mini',            k: OPENAI_KEY },
+  ];
+  for (const p of oai) {
+    if (!p.k) continue;
     try {
-      const { data } = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
-        { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json' } },
-        { timeout: 30_000 },
-      );
-      let out = (data.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined) ?? '';
-      lastRaw = out;
-      out = out.replace(/^```json\s*/i, '').replace(/```$/g, '').trim();
-      // Extraction robuste du tableau JSON
-      const s = out.indexOf('['); const e = out.lastIndexOf(']');
-      if (s >= 0 && e > s) out = out.slice(s, e + 1);
-      const arr = JSON.parse(out) as string[];
-      if (Array.isArray(arr) && arr.length === texts.length) {
-        return { result: arr.map((v, i) => String(v ?? texts[i])), ok: true };
-      }
-      lastErr = `longueur ${Array.isArray(arr) ? arr.length : 'NA'} ≠ ${texts.length}`;
+      const out = await chatJSON(p.url, p.model, p.k, lang, texts);
+      let parsed: string[] | null = null;
+      try { const o = JSON.parse(out) as { t?: unknown }; if (Array.isArray(o.t) && o.t.length === texts.length) parsed = o.t.map(v => String(v ?? '')); } catch { /* try array */ }
+      if (!parsed) parsed = parseArray(out, texts.length);
+      if (parsed) return { result: parsed, ok: true };
+      lastErr = `${p.name}: format inattendu`;
     } catch (err) {
-      lastErr = err instanceof Error ? err.message : String(err);
+      lastErr = `${p.name}: ` + (err instanceof Error ? err.message : String(err));
       const ax = err as { response?: { data?: unknown } };
-      if (ax.response?.data) lastErr += ' | ' + JSON.stringify(ax.response.data).slice(0, 200);
+      if (ax.response?.data) lastErr += ' | ' + JSON.stringify(ax.response.data).slice(0, 150);
     }
   }
-  return { result: texts, ok: false, raw: lastRaw.slice(0, 300), error: lastErr };
+
+  // 3) Gemini (free tier — peut être en quota 429)
+  if (GEMINI_KEY) {
+    const { default: axios } = await import('axios');
+    const prompt = `Translate each item of this JSON array into ${lang}. Keep proper nouns, prices, numbers, URLs unchanged. Return ONLY a JSON array of strings, same length and order.\n${JSON.stringify(texts)}`;
+    for (const model of ['gemini-2.0-flash', 'gemini-1.5-flash']) {
+      try {
+        const { data } = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
+          { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json' } },
+          { timeout: 30_000 },
+        );
+        const out = (data.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined) ?? '';
+        const parsed = parseArray(out, texts.length);
+        if (parsed) return { result: parsed, ok: true };
+      } catch (err) {
+        lastErr = 'gemini: ' + (err instanceof Error ? err.message : String(err));
+      }
+    }
+  }
+
+  return { result: texts, ok: false, error: lastErr };
 }
 
 // POST /api/translate { texts: string[], target: 'ar'|'en' }
@@ -72,7 +110,7 @@ router.post('/', async (req, res) => {
     let fresh: string[] = [];
     let dbg: TransResult | null = null;
     if (missingTxt.length > 0) {
-      dbg = await geminiTranslate(missingTxt, target);
+      dbg = await translateTexts(missingTxt, target);
       fresh = dbg.result;
       if (dbg.ok) {
         await Promise.all(fresh.map((tr, j) => redis.set(key(target, missingTxt[j]), tr, 'EX', TTL))).catch(() => {});
