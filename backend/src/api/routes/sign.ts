@@ -110,8 +110,8 @@ router.get('/:token', async (req, res) => {
   <h2>Pièces justificatives</h2>
   <p class="signlabel">Ajoutez une photo de votre passeport et de votre permis (obligatoire pour valider) :</p>
   <div class="docs">
-    <label class="doc" id="lblPass"><input type="file" id="pass" accept="image/*" capture="environment" hidden/><span class="ico">📷</span><span class="lbl">Passeport</span></label>
-    <label class="doc" id="lblPerm"><input type="file" id="perm" accept="image/*" capture="environment" hidden/><span class="ico">📷</span><span class="lbl">Permis</span></label>
+    <label class="doc" id="lblPass"><span class="chk">✓</span><input type="file" id="pass" accept="image/*" hidden/><img class="prev" id="prevPass" alt=""/><span class="ph"><span class="ico">📷</span><span class="lbl">Passeport</span></span></label>
+    <label class="doc" id="lblPerm"><span class="chk">✓</span><input type="file" id="perm" accept="image/*" hidden/><img class="prev" id="prevPerm" alt=""/><span class="ph"><span class="ico">📷</span><span class="lbl">Permis</span></span></label>
   </div>
 
   <div class="btns"><button type="button" class="ok" id="okBtn">Valider le contrat</button></div>
@@ -235,9 +235,15 @@ function page(inner: string, withScript = false): string {
   .accept input{width:20px;height:20px;margin-top:1px;flex-shrink:0}
   .signlabel{font-size:12px;color:#9b9ba6;margin:6px 0 0}
   .docs{display:flex;gap:12px;margin-top:12px}
-  .doc{flex:1;background:#0f0f14;border:2px dashed #ffffff1f;border-radius:14px;padding:18px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;transition:.15s}
-  .doc.ok{border-color:#10b981;background:#0e1a14}
+  .doc{flex:1;position:relative;min-height:96px;background:#0f0f14;border:2px dashed #ffffff1f;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:.15s;overflow:hidden}
+  .doc .ph{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 10px}
+  .doc.ok{border-color:#10b981;border-style:solid}
+  .doc.ok .ph{display:none}
+  .doc .prev{display:none;width:100%;height:120px;object-fit:cover}
+  .doc.ok .prev{display:block}
   .doc .ico{font-size:26px} .doc .lbl{font-size:13px;color:#cfcfd6;font-weight:600}
+  .doc .chk{display:none;position:absolute;top:6px;right:6px;background:#10b981;color:#04130c;font-size:11px;font-weight:800;padding:2px 7px;border-radius:8px}
+  .doc.ok .chk{display:block}
   .btns{display:flex;gap:10px;margin-top:18px} button{flex:1;padding:14px;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
   .ok{background:#e9b949;color:#1a1500} .ok:disabled{opacity:.4}
   .msg{text-align:center;margin-top:12px;font-size:14px;min-height:18px}
@@ -251,32 +257,42 @@ function script(): string {
 (function(){
   var m=document.getElementById('m');
   var passData=null, permData=null;
-  // Compresse l'image avant envoi (rapide + léger)
-  function readImg(file, cb){
+  // Lit le fichier, affiche un aperçu, et compresse pour l'envoi. Renvoie TOUJOURS quelque chose
+  // (même si la conversion canvas échoue sur HEIC iPhone : on envoie le dataURL brut).
+  function readImg(file, prevImg, cb){
     var fr=new FileReader();
     fr.onload=function(){
+      var raw=fr.result;
+      if(prevImg){ prevImg.src=raw; } // aperçu immédiat (Safari affiche le HEIC nativement)
       var img=new Image();
       img.onload=function(){
-        var max=1280, w=img.width, h=img.height;
-        if(w>max||h>max){ var r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
-        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-        cv.getContext('2d').drawImage(img,0,0,w,h);
-        cb(cv.toDataURL('image/jpeg',0.7));
+        try{
+          var max=1280, w=img.width||1280, h=img.height||960;
+          if(w>max||h>max){ var r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+          var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+          cv.getContext('2d').drawImage(img,0,0,w,h);
+          cb(cv.toDataURL('image/jpeg',0.7));
+        }catch(e){ cb(raw); }
       };
-      img.onerror=function(){ cb(fr.result); };
-      img.src=fr.result;
+      img.onerror=function(){ cb(raw); };
+      img.src=raw;
     };
+    fr.onerror=function(){ m.style.color='#ef4444'; m.textContent='Impossible de lire l image, reessayez.'; };
     fr.readAsDataURL(file);
   }
-  function hook(id, lblId, set){
+  function hook(id, lblId, prevId, set){
     document.getElementById(id).addEventListener('change',function(e){
       var f=e.target.files&&e.target.files[0]; if(!f)return;
-      m.textContent='Lecture de l image...';
-      readImg(f,function(d){ set(d); document.getElementById(lblId).classList.add('ok'); document.getElementById(lblId).querySelector('.lbl').textContent='✓ Ajouté'; m.textContent=''; });
+      m.style.color='#9b9ba6'; m.textContent='Chargement de la photo...';
+      readImg(f, document.getElementById(prevId), function(d){
+        set(d);
+        document.getElementById(lblId).classList.add('ok');
+        m.textContent='';
+      });
     });
   }
-  hook('pass','lblPass',function(d){passData=d;});
-  hook('perm','lblPerm',function(d){permData=d;});
+  hook('pass','lblPass','prevPass',function(d){passData=d;});
+  hook('perm','lblPerm','prevPerm',function(d){permData=d;});
   document.getElementById('okBtn').addEventListener('click',function(){
     var ok=document.getElementById('okBtn');
     if(!document.getElementById('acc').checked){m.style.color='#f59e0b';m.textContent='Cochez la case J accepte d abord.';return;}
