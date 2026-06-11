@@ -2,8 +2,40 @@ import { io, Socket } from 'socket.io-client';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _env = (import.meta as any).env as Record<string, string> ?? {};
-export const BACKEND_URL  = (_env['VITE_BACKEND_URL']  as string) ?? 'https://ibrahim-backend-production.up.railway.app';
-export const WS_URL       = (_env['VITE_WS_URL']       as string) ?? 'wss://ibrahim-backend-production.up.railway.app';
+
+// ── Failover backend : liste d'URLs, bascule auto si le primaire est mort ─────
+// Backups via VITE_BACKEND_BACKUPS="https://xxx.onrender.com,https://yyy" (build).
+// ES modules = live bindings → les imports de BACKEND_URL voient la bascule.
+const _PRIMARY  = (_env['VITE_BACKEND_URL'] as string) ?? 'https://ibrahim-backend-production.up.railway.app';
+const _BACKUPS  = ((_env['VITE_BACKEND_BACKUPS'] as string) ?? '').split(',').map(s => s.trim()).filter(Boolean);
+const _BACKENDS = [_PRIMARY, ..._BACKUPS];
+
+function _loadBackendIdx(): number {
+  try {
+    const i = parseInt(localStorage.getItem('dzaryx:backend:idx') ?? '0', 10);
+    return Number.isFinite(i) && i >= 0 && i < _BACKENDS.length ? i : 0;
+  } catch { return 0; }
+}
+let _backendIdx = _loadBackendIdx();
+
+export let BACKEND_URL = _BACKENDS[_backendIdx];
+export let WS_URL      = (_env['VITE_WS_URL'] as string) && _backendIdx === 0
+  ? (_env['VITE_WS_URL'] as string)
+  : BACKEND_URL.replace(/^http/, 'ws');
+
+export function switchToNextBackend(): boolean {
+  if (_BACKENDS.length < 2) return false;
+  _backendIdx = (_backendIdx + 1) % _BACKENDS.length;
+  BACKEND_URL = _BACKENDS[_backendIdx];
+  WS_URL      = BACKEND_URL.replace(/^http/, 'ws');
+  try { localStorage.setItem('dzaryx:backend:idx', String(_backendIdx)); } catch { /* ignore */ }
+  console.warn(`[failover] backend bascule → ${BACKEND_URL}`);
+  // Le socket doit se reconnecter sur la nouvelle URL
+  try { _socket?.disconnect(); } catch { /* ignore */ }
+  _socket = null;
+  return true;
+}
+
 export const ACCESS_TOKEN = (_env['VITE_ACCESS_TOKEN'] as string) ?? '';
 const HOUARI_TOKEN        = (_env['VITE_ACCESS_TOKEN_HOUARI'] as string) ?? '';
 
@@ -16,16 +48,29 @@ function getTimezone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'Europe/Paris'; }
 }
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getToken()}`,
-      'X-Timezone': getTimezone(),
-      ...(options.headers ?? {}),
-    },
-  });
+export async function apiFetch<T>(path: string, options: RequestInit = {}, _attempt = 0): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BACKEND_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}`,
+        'X-Timezone': getTimezone(),
+        ...(options.headers ?? {}),
+      },
+    });
+  } catch (netErr) {
+    // Backend injoignable (réseau/down) → bascule sur le backup et retente
+    if (_attempt < _BACKENDS.length - 1 && switchToNextBackend()) {
+      return apiFetch<T>(path, options, _attempt + 1);
+    }
+    throw netErr;
+  }
+  // 502/503/504 = backend mort derrière le proxy → même bascule
+  if ([502, 503, 504].includes(res.status) && _attempt < _BACKENDS.length - 1 && switchToNextBackend()) {
+    return apiFetch<T>(path, options, _attempt + 1);
+  }
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   return res.json() as Promise<T>;
 }
@@ -255,6 +300,7 @@ export interface SocketCbs {
 }
 
 let _socket: Socket | null = null;
+let _wsErrCount = 0;
 
 // ── Proactive message queue ───────────────────────────────────────────────────
 // Stores messages received when no CHAT subscriber is active (different tab open).
@@ -291,8 +337,16 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
       reconnectionDelay: 1000,
       timeout: 10000,
     });
-    _socket.on('connect',    () => console.log('[ws] connected'));
+    _socket.on('connect',    () => { _wsErrCount = 0; console.log('[ws] connected'); });
     _socket.on('disconnect', () => console.log('[ws] disconnected'));
+    // 4 échecs de connexion d'affilée → backend mort → bascule + reconnexion
+    _socket.on('connect_error', () => {
+      _wsErrCount += 1;
+      if (_wsErrCount >= 4 && switchToNextBackend()) {
+        _wsErrCount = 0;
+        setTimeout(() => connectSocket(sessionId, cbs), 500);
+      }
+    });
   }
 
   // Always re-register session-scoped listeners with current callbacks
@@ -311,6 +365,11 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
   });
   _socket.off('Dzaryx:audio_sentence_done').on('Dzaryx:audio_sentence_done', (d: { sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onAudioSentenceDone();
+  });
+  // TTS serveur mort (ElevenLabs + secours) → le device parle (gratuit, offline)
+  _socket.off('Dzaryx:tts_fallback').on('Dzaryx:tts_fallback', (d: { text: string; sessionId?: string }) => {
+    if (d.sessionId && d.sessionId !== sessionId) return;
+    speakOnDevice(d.text);
   });
   _socket.off('Dzaryx:text_chunk').on('Dzaryx:text_chunk', (d: { chunk: string; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onTextChunk(d.chunk);
@@ -334,6 +393,25 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
 
 export function disconnectSocket(): void { _socket?.disconnect(); _socket = null; }
 export function isSocketConnected(): boolean { return _socket?.connected ?? false; }
+
+// ── Voix device (dernier secours TTS — speechSynthesis, gratuit, offline) ────
+const ARABIC_RE = /[؀-ۿ]/;
+export function speakOnDevice(text: string): void {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    synth.cancel();
+    const clean = text.replace(/https?:\/\/\S+/g, '').replace(/[*#`_~]/g, '').trim();
+    if (!clean) return;
+    const u = new SpeechSynthesisUtterance(clean);
+    u.lang = ARABIC_RE.test(clean) ? 'ar' : 'fr-FR';
+    u.rate = 1.0;
+    const voices = synth.getVoices();
+    const match = voices.find(v => v.lang.toLowerCase().startsWith(u.lang.toLowerCase().slice(0, 2)));
+    if (match) u.voice = match;
+    synth.speak(u);
+  } catch { /* speechSynthesis indisponible → silencieux, le texte est affiché */ }
+}
 
 // ── Audio helpers ─────────────────────────────────────────────────────────────
 

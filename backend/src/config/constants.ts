@@ -490,6 +490,7 @@ export const SOCKET_EVENTS = {
   AUDIO_CHUNK:      'Dzaryx:audio_chunk',
   AUDIO_COMPLETE:        'Dzaryx:audio_complete',
   AUDIO_SENTENCE_DONE:   'Dzaryx:audio_sentence_done',
+  TTS_FALLBACK:          'Dzaryx:tts_fallback',   // tout TTS serveur mort → le device parle (speechSynthesis)
   TEXT_CHUNK:       'Dzaryx:text_chunk',
   TEXT_COMPLETE:    'Dzaryx:text_complete',
   STATUS:           'Dzaryx:status',

@@ -1,0 +1,37 @@
+# Backup hebdo de la base Supabase (gratuit — GitHub Actions).
+# Si Supabase meurt/compte perdu → restaurer le dump sur un nouveau projet free :
+#   psql "$NEW_DB_URL" < backup.sql
+#
+# ⚠️ Secret requis : SUPABASE_DB_URL (repo Settings → Secrets → Actions)
+#    Format : postgresql://postgres.<ref>:<MOT_DE_PASSE>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
+#    (Supabase Dashboard → Project Settings → Database → Connection string, mode Session)
+name: Backup Supabase
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'   # chaque dimanche 03:00 UTC
+  workflow_dispatch: {}    # lançable à la main (onglet Actions → Run workflow)
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    container: postgres:17-alpine
+    steps:
+      - name: Dump complet (schéma + données)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::Secret SUPABASE_DB_URL manquant — Settings > Secrets > Actions"
+            exit 1
+          fi
+          pg_dump "$DB_URL" --no-owner --no-privileges -f backup.sql
+          gzip -9 backup.sql
+          ls -lh backup.sql.gz
+
+      - name: Upload artefact (gardé 90 jours)
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ github.run_number }}
+          path: backup.sql.gz
+          retention-days: 90

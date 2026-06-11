@@ -460,8 +460,14 @@ async function initFikRealtimeListener(): Promise<void> {
 const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
-  initScheduler();
-  initReminderWorker();
-  void autoBackfillClientIntel();
-  void initFikRealtimeListener();
+  // JOBS_ENABLED=false sur l'instance BACKUP (failover) → pas de jobs en double
+  // (double notifs, double veille). L'API + chat + sockets restent complets.
+  if (process.env['JOBS_ENABLED'] === 'false') {
+    console.warn('⚠️ JOBS_ENABLED=false — instance backup : scheduler/workers désactivés');
+  } else {
+    initScheduler();
+    initReminderWorker();
+    void autoBackfillClientIntel();
+    void initFikRealtimeListener();
+  }
 });

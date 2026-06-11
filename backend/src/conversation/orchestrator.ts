@@ -446,6 +446,35 @@ export async function processMessage(
     redis.incr(`provider:fallback:${today}:claude`).catch(() => {});
     console.warn(`[provider-monitor] Claude failed — entering fallback chain. session=${sessionId}`);
 
+    // ── Fallback AGENTIQUE (priorité) : mêmes outils sur provider gratuit ──
+    // Crédits Claude morts → Dzaryx garde toute sa puissance (résas, finance, photos…)
+    try {
+      const { isAgenticFallbackAvailable, runAgenticFallback } = await import('../integrations/agentic-fallback.js');
+      if (isAgenticFallbackAvailable()) {
+        const agRes = await runAgenticFallback(
+          ctx.messages, agentSystemExtra, sessionId,
+          agentRoute.agentTools, onToolStart, onToolDone,
+        );
+        redis.incr(`provider:calls:${today}:agentic-${agRes.provider}`).catch(() => {});
+        redis.incr(`provider:fallback:${today}:agentic-${agRes.provider}:success`).catch(() => {});
+        console.warn(`[MOBILE_RUNTIME] channel=${source_channel} session=${sessionId} provider=agentic-${agRes.provider} fast_path=false fallback=true router_used=true legacy=false`);
+        const agGuarded = guardResponse(agRes.text, userMessage, requestId);
+        const agPhantom = phantomGuard(agGuarded, agRes.toolsExecuted, userMessage, requestId);
+        const agSafe    = oranize(localizeGuardMessage(fastPathGuard(agPhantom, userMessage, requestId), null, guardLang), actor);
+        _io?.emit(SOCKET_EVENTS.TEXT_COMPLETE, { sessionId, text: agSafe });
+        saveConversationTurn(sessionId, 'assistant', agSafe).catch(() => {});
+        if (!textOnly && agSafe.length > 0) {
+          _io?.emit(SOCKET_EVENTS.STATUS, { status: 'speaking', sessionId });
+          await streamAudioSentences(agSafe, sessionId);
+          _io?.emit(SOCKET_EVENTS.AUDIO_COMPLETE, { sessionId });
+        }
+        _io?.emit(SOCKET_EVENTS.STATUS, { status: 'idle', sessionId });
+        return { text: agSafe, status: 'done' };
+      }
+    } catch (agErr) {
+      console.error(`[agentic-fallback] FAILED — fallback texte simple. msg="${agErr instanceof Error ? agErr.message.slice(0, 150) : String(agErr)}" session=${sessionId}`);
+    }
+
     const fallbackProviders: Array<{ name: string; key: string; fn: () => Promise<string> }> = [];
     // Fallback en renfort : Groq d'abord (rapide), puis OpenAI GPT-4o si dispo. Claude a déjà échoué ici.
     if (isGroqAvailable())   fallbackProviders.push({ name: 'Groq LLaMA3', key: 'groq',   fn: () => callGroq(userMessage, ctx.systemExtra) });
@@ -618,16 +647,23 @@ async function streamAudioSentences(text: string, sessionId: string): Promise<vo
     if (remaining) sentences.push(remaining);
   }
 
+  let anyAudio = false;
   for (const sentence of sentences) {
-    await synthesizeVoiceStream(sentence, (chunk) => {
+    const ok = await synthesizeVoiceStream(sentence, (chunk) => {
       _io?.emit(SOCKET_EVENTS.AUDIO_CHUNK, {
         sessionId,
         chunk:    chunk.toString('base64'),
         mimeType: 'audio/mpeg',
       });
-    }).catch((err: unknown) => console.error('[orchestrator] audio error:', err));
+    }).catch((err: unknown) => { console.error('[orchestrator] audio error:', err); return false; });
+    if (ok) anyAudio = true;
     // Signal client to flush+play this sentence immediately without waiting for all
     _io?.emit(SOCKET_EVENTS.AUDIO_SENTENCE_DONE, { sessionId });
+  }
+  // Tout TTS serveur mort (ElevenLabs + Gemini) → le device parle lui-même
+  if (!anyAudio && text.trim().length > 0) {
+    console.warn('[orchestrator] TTS serveur indisponible → fallback voix device');
+    _io?.emit(SOCKET_EVENTS.TTS_FALLBACK, { sessionId, text });
   }
 }
 

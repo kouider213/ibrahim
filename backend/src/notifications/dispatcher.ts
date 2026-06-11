@@ -112,6 +112,53 @@ function pickVoiceId(text: string): string {
   return env.ELEVENLABS_VOICE_ID;
 }
 
+// ── Gemini TTS (free tier) — secours quand ElevenLabs est mort/quota fini ─────
+// Renvoie un WAV complet (PCM 24kHz wrappé) — decodeAudioData côté client le lit
+// comme le MP3, aucun changement frontend requis.
+function pcmToWav(pcm: Buffer, sampleRate = 24_000): Buffer {
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);          // fmt chunk size
+  header.writeUInt16LE(1, 20);           // PCM
+  header.writeUInt16LE(1, 22);           // mono
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28); // byte rate (16-bit mono)
+  header.writeUInt16LE(2, 32);           // block align
+  header.writeUInt16LE(16, 34);          // bits per sample
+  header.write('data', 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+export async function synthesizeVoiceGemini(text: string): Promise<Buffer | null> {
+  const geminiKey = process.env['GEMINI_API_KEY'];
+  if (!geminiKey) return null;
+  try {
+    const { data } = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${geminiKey}`,
+      {
+        contents: [{ parts: [{ text: cleanTextForTTS(text) }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+        },
+      },
+      { timeout: 25_000 },
+    );
+    const b64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data as string | undefined;
+    if (!b64) throw new Error('Gemini TTS empty audio');
+    const wav = pcmToWav(Buffer.from(b64, 'base64'));
+    console.log(`[gemini-tts] ✅ secours — ${wav.length} bytes WAV`);
+    return wav;
+  } catch (err) {
+    console.error('[gemini-tts] failed:', err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
 export async function synthesizeVoice(text: string): Promise<Buffer | null> {
   const { model_id, language_code } = pickTTSModel(text);
   const voiceId = pickVoiceId(text);
@@ -128,7 +175,8 @@ export async function synthesizeVoice(text: string): Promise<Buffer | null> {
     return Buffer.from(response.data);
   } catch (err) {
     console.error('[elevenlabs] TTS failed:', err instanceof Error ? err.message : String(err));
-    return null;
+    // Secours gratuit : quota/abonnement ElevenLabs fini → Gemini TTS (WAV)
+    return synthesizeVoiceGemini(text);
   }
 }
 
@@ -166,6 +214,9 @@ export async function synthesizeVoiceStream(
     return true;
   } catch (err) {
     console.error('[elevenlabs] streaming TTS failed:', err instanceof Error ? err.message : String(err));
+    // Secours gratuit : Gemini TTS → un seul chunk WAV (decodeAudioData le lit tel quel)
+    const wav = await synthesizeVoiceGemini(text);
+    if (wav) { onChunk(wav); return true; }
     return false;
   }
 }

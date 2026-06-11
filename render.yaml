@@ -1,0 +1,25 @@
+# Blueprint Render — backend BACKUP (failover gratuit quand Railway meurt).
+# Activation : render.com → New → Blueprint → connecter le repo ibrahim → ce fichier
+# est détecté. Puis copier les variables d'env de Railway (dashboard → Environment).
+# JOBS_ENABLED=false : l'instance backup ne lance PAS les jobs planifiés (pas de
+# doubles notifications) — API + chat + sockets restent 100% fonctionnels.
+# Free tier : s'endort après 15 min sans trafic (réveil ~50s au 1er appel) →
+# un monitor UptimeRobot sur /health le garde éveillé.
+services:
+  - type: web
+    name: dzaryx-backend-backup
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: JOBS_ENABLED
+        value: "false"
+      - key: NODE_VERSION
+        value: "20"
+      # ⚠️ Copier ici (ou via le dashboard Render) toutes les autres variables
+      # d'env de Railway : ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY,
+      # GROQ_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY, ELEVENLABS_API_KEY,
+      # ELEVENLABS_VOICE_ID, REDIS_URL (Upstash), MOBILE_TOKEN(S), etc.
