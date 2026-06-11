@@ -258,40 +258,45 @@ function script(): string {
 (function(){
   var m=document.getElementById('m');
   var passData=null, permData=null;
+  function say(t,c){ m.style.color=c||'#9b9ba6'; m.textContent=t; }
   function hook(id, lblId, prevId, set){
-    document.getElementById(id).addEventListener('change',function(e){
-      var f=e.target.files&&e.target.files[0]; if(!f)return;
+    var inp=document.getElementById(id);
+    inp.addEventListener('change',function(e){
+      var f=e.target.files&&e.target.files[0];
+      if(!f){ say('Aucun fichier recu','#f59e0b'); return; }
       var prev=document.getElementById(prevId), lbl=document.getElementById(lblId);
-      // 1) Aperçu instantané et fiable (blob URL — Safari affiche même le HEIC)
-      try{ prev.src=URL.createObjectURL(f); }catch(err){}
-      lbl.classList.add('ok');
-      m.style.color='#9b9ba6'; m.textContent='Photo ajoutee.';
-      // 2) Donnée pour l'envoi — dataURL brut, posé TOUT DE SUITE (aucune dépendance fragile)
+      say('Fichier: '+f.name+' ('+Math.round(f.size/1024)+' ko) - lecture...');
       var fr=new FileReader();
       fr.onload=function(){
-        var raw=fr.result; set(raw);
-        // 3) Compression best-effort en arrière-plan (remplace si ça marche, sinon on garde le brut)
+        var raw=fr.result;
+        set(raw);
+        try{ prev.src=raw; lbl.classList.add('ok'); }catch(er){}
+        say('Photo prete ('+Math.round(raw.length/1024)+' ko)', '#10b981');
+        // compression best-effort (remplace + ameliore l'apercu si ca marche)
         try{
           var img=new Image();
-          img.onload=function(){ try{ var max=1280,w=img.width,h=img.height; if(w>max||h>max){var r=Math.min(max/w,max/h);w=Math.round(w*r);h=Math.round(h*r);} var cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);set(cv.toDataURL('image/jpeg',0.72)); }catch(e2){} };
+          img.onload=function(){ try{ var max=1280,w=img.width,h=img.height; if(w>max||h>max){var r=Math.min(max/w,max/h);w=Math.round(w*r);h=Math.round(h*r);} var cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h); var c=cv.toDataURL('image/jpeg',0.72); set(c); prev.src=c; }catch(e2){} };
           img.src=raw;
         }catch(e3){}
       };
-      fr.onerror=function(){ m.style.color='#ef4444'; m.textContent='Erreur lecture de la photo, reessayez.'; };
-      fr.readAsDataURL(f);
+      fr.onerror=function(){ say('ERREUR lecture: '+(fr.error&&fr.error.name||'inconnue'),'#ef4444'); };
+      try{ fr.readAsDataURL(f); }catch(e4){ say('ERREUR readAsDataURL: '+e4.message,'#ef4444'); }
     });
   }
   hook('pass','lblPass','prevPass',function(d){passData=d;});
   hook('perm','lblPerm','prevPerm',function(d){permData=d;});
   document.getElementById('okBtn').addEventListener('click',function(){
     var ok=document.getElementById('okBtn');
-    if(!document.getElementById('acc').checked){m.style.color='#f59e0b';m.textContent='Cochez la case J accepte d abord.';return;}
-    if(!passData){m.style.color='#f59e0b';m.textContent='Ajoutez la photo du passeport.';return;}
-    if(!permData){m.style.color='#f59e0b';m.textContent='Ajoutez la photo du permis.';return;}
-    m.style.color='#9b9ba6';m.textContent='Validation en cours...';ok.disabled=true;
+    if(!document.getElementById('acc').checked){say('Cochez la case J accepte d abord.','#f59e0b');return;}
+    if(!passData){say('Photo du passeport manquante.','#f59e0b');return;}
+    if(!permData){say('Photo du permis manquante.','#f59e0b');return;}
+    say('Envoi du contrat...'); ok.disabled=true;
     fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accepted:true,passport:passData,permit:permData})})
-      .then(function(r){ if(r.ok){m.style.color='#10b981';m.textContent='Contrat valide, merci !';setTimeout(function(){location.reload();},1200);} else {return r.json().then(function(j){m.style.color='#ef4444';m.textContent=(j&&j.error)||'Erreur, reessayez.';ok.disabled=false;});} })
-      .catch(function(){m.style.color='#ef4444';m.textContent='Pas de connexion, reessayez.';ok.disabled=false;});
+      .then(function(r){
+        if(r.ok){ say('Contrat valide, merci !','#10b981'); setTimeout(function(){location.reload();},1300); return; }
+        return r.text().then(function(txt){ say('Erreur '+r.status+': '+txt.slice(0,120),'#ef4444'); ok.disabled=false; });
+      })
+      .catch(function(err){ say('Echec reseau: '+(err&&err.message||'?'),'#ef4444'); ok.disabled=false; });
   });
 })();
 </script>`;
