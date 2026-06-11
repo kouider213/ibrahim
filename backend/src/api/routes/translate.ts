@@ -11,29 +11,44 @@ const TTL = 60 * 60 * 24 * 30; // 30 jours
 const LANG_NAME: Record<string, string> = { ar: 'Arabic (Modern Standard)', en: 'English', fr: 'French' };
 const key = (target: string, text: string) => `tr:${target}:${createHash('sha1').update(text).digest('hex')}`;
 
-async function geminiTranslate(texts: string[], target: string): Promise<string[]> {
-  if (!GEMINI_KEY) return texts;
+interface TransResult { result: string[]; ok: boolean; raw?: string; error?: string; }
+
+async function geminiTranslate(texts: string[], target: string): Promise<TransResult> {
+  if (!GEMINI_KEY) return { result: texts, ok: false, error: 'GEMINI_API_KEY manquant' };
   const lang = LANG_NAME[target] ?? target;
   const prompt = `Translate each item of this JSON array into ${lang}. ` +
     `Keep proper nouns (brand/car/place names), prices, numbers and URLs unchanged. ` +
-    `Return ONLY a JSON array of strings, exactly the same length and order, no extra text.\n` +
+    `Return ONLY a JSON array of strings, exactly the same length and order, no extra text, no markdown.\n` +
     JSON.stringify(texts);
   const { default: axios } = await import('axios');
-  const models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'];
+  let lastErr = '';
+  let lastRaw = '';
   for (const model of models) {
     try {
       const { data } = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
-        { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 4096 } },
+        { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json' } },
         { timeout: 30_000 },
       );
       let out = (data.candidates?.[0]?.content?.parts?.[0]?.text as string | undefined) ?? '';
+      lastRaw = out;
       out = out.replace(/^```json\s*/i, '').replace(/```$/g, '').trim();
+      // Extraction robuste du tableau JSON
+      const s = out.indexOf('['); const e = out.lastIndexOf(']');
+      if (s >= 0 && e > s) out = out.slice(s, e + 1);
       const arr = JSON.parse(out) as string[];
-      if (Array.isArray(arr) && arr.length === texts.length) return arr.map((s, i) => String(s ?? texts[i]));
-    } catch { /* essaie le modèle suivant */ }
+      if (Array.isArray(arr) && arr.length === texts.length) {
+        return { result: arr.map((v, i) => String(v ?? texts[i])), ok: true };
+      }
+      lastErr = `longueur ${Array.isArray(arr) ? arr.length : 'NA'} ≠ ${texts.length}`;
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err);
+      const ax = err as { response?: { data?: unknown } };
+      if (ax.response?.data) lastErr += ' | ' + JSON.stringify(ax.response.data).slice(0, 200);
+    }
   }
-  return texts; // fallback : texte original (ne casse jamais l'affichage)
+  return { result: texts, ok: false, raw: lastRaw.slice(0, 300), error: lastErr };
 }
 
 // POST /api/translate { texts: string[], target: 'ar'|'en' }
@@ -53,11 +68,15 @@ router.post('/', async (req, res) => {
     const missingTxt: string[] = [];
     cached.forEach((v, i) => { if (v === null && clean[i].trim()) { missingIdx.push(i); missingTxt.push(clean[i]); } });
 
-    // 2) Traduire les manquants
+    // 2) Traduire les manquants (ne met en cache QUE les succès)
     let fresh: string[] = [];
+    let dbg: TransResult | null = null;
     if (missingTxt.length > 0) {
-      fresh = await geminiTranslate(missingTxt, target);
-      await Promise.all(fresh.map((tr, j) => redis.set(key(target, missingTxt[j]), tr, 'EX', TTL))).catch(() => {});
+      dbg = await geminiTranslate(missingTxt, target);
+      fresh = dbg.result;
+      if (dbg.ok) {
+        await Promise.all(fresh.map((tr, j) => redis.set(key(target, missingTxt[j]), tr, 'EX', TTL))).catch(() => {});
+      }
     }
 
     // 3) Recompose dans l'ordre
@@ -68,7 +87,9 @@ router.post('/', async (req, res) => {
       const j = missingIdx.indexOf(i);
       return j >= 0 ? fresh[j] : t;
     });
-    res.json({ translations: result });
+    const payload: Record<string, unknown> = { translations: result };
+    if ('debug' in req.query && dbg && !dbg.ok) { payload['_error'] = dbg.error; payload['_raw'] = dbg.raw; }
+    res.json(payload);
   } catch (e) {
     res.json({ translations: clean }); // jamais d'erreur visible côté site
   }
