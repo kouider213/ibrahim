@@ -217,20 +217,27 @@ function script(): string {
 (function(){
   var cv=document.getElementById('c'), x=cv.getContext('2d'), m=document.getElementById('m');
   var has=false, drawing=false, last=null;
-  function sizeCanvas(){
-    var r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
-    cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
-    x.setTransform(dpr,0,0,dpr,0,0); x.lineWidth=2.6; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#111';
+  // Dimensionne le canvas à sa taille réelle (sans DPR = robuste sur iOS). Renvoie false si pas encore prêt.
+  function fit(){
+    var r=cv.getBoundingClientRect();
+    if(r.width<10) return false;
+    if(cv.width!==Math.round(r.width)||cv.height!==Math.round(r.height)){ cv.width=Math.round(r.width); cv.height=Math.round(r.height); }
+    x.lineWidth=3; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#000'; x.fillStyle='#000';
+    return true;
   }
-  setTimeout(sizeCanvas,30);
-  function pt(e){var r=cv.getBoundingClientRect();var t=(e.touches&&e.touches[0])?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
-  function start(e){drawing=true;has=true;last=pt(e);if(e.cancelable)e.preventDefault();}
-  function draw(e){if(!drawing)return;var p=pt(e);x.beginPath();x.moveTo(last.x,last.y);x.lineTo(p.x,p.y);x.stroke();last=p;if(e.cancelable)e.preventDefault();}
-  function end(){drawing=false;last=null;}
-  cv.addEventListener('pointerdown',start); cv.addEventListener('pointermove',draw); window.addEventListener('pointerup',end);
-  cv.addEventListener('touchstart',start,{passive:false}); cv.addEventListener('touchmove',draw,{passive:false}); cv.addEventListener('touchend',end);
-  cv.addEventListener('mousedown',start); cv.addEventListener('mousemove',draw); window.addEventListener('mouseup',end);
-  document.getElementById('clrBtn').addEventListener('click',function(){x.clearRect(0,0,cv.width,cv.height);has=false;m.textContent='';});
+  if(typeof requestAnimationFrame==='function') requestAnimationFrame(fit); else setTimeout(fit,30);
+  window.addEventListener('load',fit);
+  function rel(e){var r=cv.getBoundingClientRect();var t=(e.touches&&e.touches[0])?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+  function start(e){ if(!fit()) fit(); drawing=true; has=true; last=rel(e); x.beginPath(); x.arc(last.x,last.y,1.6,0,7); x.fill(); if(e.cancelable)e.preventDefault(); }
+  function move(e){ if(!drawing)return; var p=rel(e); x.beginPath(); x.moveTo(last.x,last.y); x.lineTo(p.x,p.y); x.stroke(); last=p; if(e.cancelable)e.preventDefault(); }
+  function end(e){ drawing=false; last=null; if(e&&e.cancelable)e.preventDefault(); }
+  cv.addEventListener('touchstart',start,{passive:false});
+  cv.addEventListener('touchmove',move,{passive:false});
+  cv.addEventListener('touchend',end,{passive:false});
+  cv.addEventListener('mousedown',start);
+  window.addEventListener('mousemove',move);
+  window.addEventListener('mouseup',end);
+  document.getElementById('clrBtn').addEventListener('click',function(){ fit(); x.clearRect(0,0,cv.width,cv.height); has=false; m.textContent=''; });
   document.getElementById('okBtn').addEventListener('click',function(){
     var ok=document.getElementById('okBtn');
     if(!document.getElementById('acc').checked){m.style.color='#f59e0b';m.textContent='Cochez la case J accepte d abord.';return;}
