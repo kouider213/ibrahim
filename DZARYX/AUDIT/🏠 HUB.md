@@ -6,6 +6,9 @@
 
 ---
 
+## 🔴 EN COURS (2026-06-11) — à finir à la maison
+➡️ **[[TODO_RESILIENCE]]** — système "jamais mort" : reset mdp Supabase + secret backup, débug Render, UptimeRobot.
+
 ## ⚡ Tu reprends le projet ? Lis dans cet ordre
 
 1. [[01_DEMARRAGE_RAPIDE]] — c'est quoi, qui, comment lancer chaque morceau (5 min)
