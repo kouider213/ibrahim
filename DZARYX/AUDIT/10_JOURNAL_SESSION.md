@@ -81,6 +81,36 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-11 — Résilience "jamais mort" : crédits finis → bascule auto gratuit (commit `72af321`) ⭐
+- **Objectif Kouider** : payé ce mois-ci, mais quand les abonnements/crédits finissent, tout doit basculer
+  automatiquement sur du gratuit — jamais mort, puissance conservée.
+- **Fait** :
+  1. **Cerveau de secours AGENTIQUE** (`backend/src/integrations/agentic-fallback.ts`, nouveau) : Claude mort
+     (crédits 400/401/429) → les **MÊMES 151 outils** tournent sur **Groq llama-3.3** puis **Gemini 2.0 Flash**
+     (free tiers, API compatible OpenAI tool-calling) puis OpenAI. Branché en PREMIER fallback dans
+     `orchestrator.ts` → résas/finance/photos continuent vraiment (avant : fallback texte SANS outils).
+  2. **TTS jamais muet** (`dispatcher.ts`) : ElevenLabs échoue → **Gemini TTS** gratuit (PCM→WAV, lu tel quel
+     par decodeAudioData, zéro changement client) → sinon event **`Dzaryx:tts_fallback`** → le **device parle**
+     (speechSynthesis, `speakOnDevice()` dans `simulator/api.ts`, voix fr/ar auto).
+  3. **Failover backend multi-URL** (`simulator/api.ts`) : `VITE_BACKEND_BACKUPS` = liste d'URLs backup.
+     Erreur réseau / 502-504 / 4× connect_error socket → **bascule auto** + persistée localStorage.
+     `BACKEND_URL`/`WS_URL` = live bindings → tous les écrans suivent.
+  4. **`JOBS_ENABLED=false`** (`index.ts`) : l'instance backup ne lance pas scheduler/workers (pas de doubles
+     notifs) — API/chat/sockets complets.
+  5. **`render.yaml`** (racine) : blueprint Render free prêt pour déployer le backend backup en 1 clic.
+  6. **Backup DB** (`.github/workflows/supabase-backup.yml`) : pg_dump hebdo (dimanche 03:00 UTC) → artefact
+     GitHub 90 jours + déclenchement manuel.
+- **Déployé** : backend Railway (push `72af321`) + simulateur gh-pages **v84** (Published). tsc 0, build OK.
+- **🛑 ACTIONS REQUISES (Kouider, ~10 min)** :
+  1. Créer compte **render.com** (login GitHub) → New → Blueprint → repo ibrahim → copier les env vars Railway
+     → me donner l'URL Render pour la mettre dans `VITE_BACKEND_BACKUPS` + rebuild.
+  2. Secret GitHub **`SUPABASE_DB_URL`** (repo Settings → Secrets → Actions) = connection string Supabase
+     (Dashboard → Database) → le backup hebdo s'active.
+  3. (optionnel) Compte **UptimeRobot** → monitors /health Railway + Render + site → alerte Telegram + garde
+     Render éveillé.
+- **⏭️ Reste** : URL Render dans les backups une fois le compte créé ; même failover pour le site (api côté
+  Next.js) si souhaité.
+
 ### 2026-06-11 — Audit complet + migrations confirmées + journal rattrapé
 - **Quoi** : audit complet site+Dzaryx (docs vault + git des 2 repos). Kouider confirme : **toutes les migrations
   SQL sont lancées** (`car_currency`, `inspection_upgrade`, `phase_extras`). Journal mis à jour avec les sessions

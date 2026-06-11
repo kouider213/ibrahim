@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-06-11 — Résilience "jamais mort" (crédits finis → bascule auto gratuit)
+
+### backend/ + simulator/ + .github/ — Commit `72af321`
+- **`agentic-fallback.ts`** (nouveau) — Claude mort → mêmes 151 outils sur Groq/Gemini free (tool calling
+  compatible OpenAI), 1er fallback orchestrator. Puissance conservée (résas/finance/photos réelles).
+- **TTS chain** — ElevenLabs → Gemini TTS free (PCM→WAV) → voix device (`Dzaryx:tts_fallback` + `speakOnDevice`).
+- **Failover backend** — `VITE_BACKEND_BACKUPS`, bascule auto réseau/502-504/socket, localStorage.
+- **`JOBS_ENABLED=false`** — instance backup sans jobs doublés. **`render.yaml`** — blueprint Render free.
+- **`supabase-backup.yml`** — pg_dump hebdo → artefact 90j. ⚠️ Secret `SUPABASE_DB_URL` à créer.
+- Simulateur **v84**. tsc 0, builds OK. 🛑 Kouider : compte Render + secret GitHub + UptimeRobot (10 min).
+
 ## 2026-06-11 — Audit + migrations confirmées lancées
 - Toutes les migrations Supabase en attente sont **lancées** (confirmé Kouider) : `migration_car_currency.sql`,
   `migration_inspection_upgrade.sql`, `migration_phase_extras.sql`.
