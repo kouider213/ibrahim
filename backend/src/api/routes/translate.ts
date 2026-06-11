@@ -43,7 +43,7 @@ async function chatJSON(url: string, model: string, apiKey: string, lang: string
 
 async function translateTexts(texts: string[], target: string): Promise<TransResult> {
   const lang = LANG_NAME[target] ?? target;
-  let lastErr = '';
+  let lastErr = `[keys groq=${!!GROQ_KEY} openai=${!!OPENAI_KEY} gemini=${!!GEMINI_KEY}]`;
 
   // 1) Groq (gratuit, gros quota) puis 2) OpenAI — via objet JSON {"t":[...]}
   const oai: Array<{ name: string; url: string; model: string; k?: string }> = [
@@ -58,9 +58,9 @@ async function translateTexts(texts: string[], target: string): Promise<TransRes
       try { const o = JSON.parse(out) as { t?: unknown }; if (Array.isArray(o.t) && o.t.length === texts.length) parsed = o.t.map(v => String(v ?? '')); } catch { /* try array */ }
       if (!parsed) parsed = parseArray(out, texts.length);
       if (parsed) return { result: parsed, ok: true };
-      lastErr = `${p.name}: format inattendu`;
+      lastErr += ` || ${p.name}: format inattendu (${out.slice(0, 80)})`;
     } catch (err) {
-      lastErr = `${p.name}: ` + (err instanceof Error ? err.message : String(err));
+      lastErr += ` || ${p.name}: ` + (err instanceof Error ? err.message : String(err));
       const ax = err as { response?: { data?: unknown } };
       if (ax.response?.data) lastErr += ' | ' + JSON.stringify(ax.response.data).slice(0, 150);
     }
@@ -81,7 +81,7 @@ async function translateTexts(texts: string[], target: string): Promise<TransRes
         const parsed = parseArray(out, texts.length);
         if (parsed) return { result: parsed, ok: true };
       } catch (err) {
-        lastErr = 'gemini: ' + (err instanceof Error ? err.message : String(err));
+        lastErr += ' || gemini: ' + (err instanceof Error ? err.message : String(err));
       }
     }
   }
