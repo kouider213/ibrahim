@@ -76,6 +76,7 @@ function detailRows(c: Contract): [string, string][] {
 
 // GET /sign/:token — contrat + signature (ou état signé avec téléchargement PDF)
 router.get('/:token', async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); // évite que Safari serve une vieille page
   const token = String(req.params['token'] ?? '');
   const c = await loadContract(token);
   if (!c) { res.status(404).send(page('<h2 style="text-align:center">Lien invalide ou expiré.</h2>')); return; }
@@ -107,7 +108,7 @@ router.get('/:token', async (req, res) => {
   <label class="accept"><input type="checkbox" id="acc"/> <span>J'ai lu et j'accepte les conditions de location ci-dessus.</span></label>
 
   <p class="signlabel">Signature du locataire :</p>
-  <canvas id="c"></canvas>
+  <canvas id="c" width="500" height="200"></canvas>
   <div class="btns"><button type="button" class="clr" id="clrBtn">Effacer</button><button type="button" class="ok" id="okBtn">Valider</button></div>
   <div class="msg" id="m"></div>
   <p class="legal">En validant, vous reconnaissez avoir pris connaissance de l'état des lieux du véhicule et acceptez les conditions ci-dessus. Signature horodatée et conservée comme preuve.</p>`;
@@ -216,19 +217,11 @@ function script(): string {
   return `<script>
 (function(){
   var cv=document.getElementById('c'), x=cv.getContext('2d'), m=document.getElementById('m');
+  // Backing store fixe (500x200) défini dans le HTML → aucun problème de timing/layout iOS.
+  x.lineWidth=3; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#000'; x.fillStyle='#000';
   var has=false, drawing=false, last=null;
-  // Dimensionne le canvas à sa taille réelle (sans DPR = robuste sur iOS). Renvoie false si pas encore prêt.
-  function fit(){
-    var r=cv.getBoundingClientRect();
-    if(r.width<10) return false;
-    if(cv.width!==Math.round(r.width)||cv.height!==Math.round(r.height)){ cv.width=Math.round(r.width); cv.height=Math.round(r.height); }
-    x.lineWidth=3; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#000'; x.fillStyle='#000';
-    return true;
-  }
-  if(typeof requestAnimationFrame==='function') requestAnimationFrame(fit); else setTimeout(fit,30);
-  window.addEventListener('load',fit);
-  function rel(e){var r=cv.getBoundingClientRect();var t=(e.touches&&e.touches[0])?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
-  function start(e){ if(!fit()) fit(); drawing=true; has=true; last=rel(e); x.beginPath(); x.arc(last.x,last.y,1.6,0,7); x.fill(); if(e.cancelable)e.preventDefault(); }
+  function rel(e){ var r=cv.getBoundingClientRect(); var t=(e.touches&&e.touches[0])?e.touches[0]:e; return {x:(t.clientX-r.left)*(cv.width/r.width), y:(t.clientY-r.top)*(cv.height/r.height)}; }
+  function start(e){ drawing=true; has=true; last=rel(e); x.beginPath(); x.arc(last.x,last.y,2.5,0,7); x.fill(); if(e.cancelable)e.preventDefault(); }
   function move(e){ if(!drawing)return; var p=rel(e); x.beginPath(); x.moveTo(last.x,last.y); x.lineTo(p.x,p.y); x.stroke(); last=p; if(e.cancelable)e.preventDefault(); }
   function end(e){ drawing=false; last=null; if(e&&e.cancelable)e.preventDefault(); }
   cv.addEventListener('touchstart',start,{passive:false});
@@ -237,7 +230,7 @@ function script(): string {
   cv.addEventListener('mousedown',start);
   window.addEventListener('mousemove',move);
   window.addEventListener('mouseup',end);
-  document.getElementById('clrBtn').addEventListener('click',function(){ fit(); x.clearRect(0,0,cv.width,cv.height); has=false; m.textContent=''; });
+  document.getElementById('clrBtn').addEventListener('click',function(){ x.clearRect(0,0,cv.width,cv.height); has=false; m.textContent=''; });
   document.getElementById('okBtn').addEventListener('click',function(){
     var ok=document.getElementById('okBtn');
     if(!document.getElementById('acc').checked){m.style.color='#f59e0b';m.textContent='Cochez la case J accepte d abord.';return;}
