@@ -76,17 +76,20 @@ graph TD
 
 ---
 
-## 🚦 État du projet (2026-06-05)
+## 🚦 État du projet (2026-06-07)
 
 | Morceau | État | Hébergement | Note |
 |---------|------|-------------|------|
-| 🌐 Site | 🟢 LIVE | Vercel — fikconciergerie.com | Mode "dispo à confirmer" ON |
-| ⚙️ Backend | 🟢 LIVE | Railway | Bot WhatsApp client **désactivé** |
-| 📱 App native | 🟡 Dev | APK juin 2026 | Expo SDK 54 |
-| 🖥️ Simulateur | 🟢 LIVE | GitHub Pages | kouider213.github.io/ibrahim |
+| 🌐 Site | 🟢 LIVE | Vercel — fikconciergerie.com | Mode "dispo à confirmer" ON ; packs live |
+| ⚙️ Backend | 🟢 LIVE | Railway | WhatsApp client off ; création annonces+photos via chat ✅ |
+| 📱 App native | 🟡 Dev | APK juin 2026 (Expo SDK 54) | Redesign Gemini + overlay ✅ ; wake word "Zaria" 🟡 ne fire pas |
+| 🖥️ Simulateur | 🟢 LIVE | GitHub Pages | kouider213.github.io/ibrahim — **= l'UI réelle de l'app** (cache SW v43) |
 | 📲 PWA mobile | 🟢 LIVE | Netlify | |
 | 🤖 Nexus | 🟡 Manuel | PC Kouider | Démarrage manuel |
-| 🗄️ Supabase | 🟢 LIVE | projet febrrgqpyqqrewcohomx | |
+| 🗄️ Supabase | 🟢 LIVE | projet febrrgqpyqqrewcohomx | migrations 0015-0018 faites |
+
+> 🛑 **Où on s'est arrêté (2026-06-07)** : tout déployé + testé live. Reste optionnel = wake word (besoin logs
+> device), upload PDF/Excel chat, vérifs device. Play Store exclu pour l'instant. Détails → [[10_JOURNAL_SESSION]].
 
 ---
 

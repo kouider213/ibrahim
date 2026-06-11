@@ -7,6 +7,72 @@ Format : **Décision → Pourquoi → État**.
 
 ---
 
+## 🎙️ Wake word entraîné = "Zaria" (pas "Dzaryx") {#wakeword-zaria}
+
+**CHOISI AINSI** (2026-06-06, Picovoice Porcupine).
+
+- **C'était quoi le besoin** : "Hey Dzaryx" qui réveille l'app comme "Hey Google" / Gemini.
+- **Pourquoi "Zaria"** : Porcupine **refuse "Dzaryx"** (mot inventé, hors de son vocabulaire d'entraînement). Le
+  mot prononçable le plus proche accepté = **"Zaria"**. Modèle : `Zaria_en_android_v4_0_0.ppn` (en, Android, v4),
+  copié dans `dzaryx-native/assets/wakeword/Zaria_android.ppn`.
+- **Clé Picovoice** : **PAS dans le repo** (bloquée par le classifier de secrets, à raison). Stockée en **variable
+  d'env EAS** `PICOVOICE_ACCESS_KEY` (env production, sensible). Le plugin la lit via `process.env`. Révocable sur
+  console.picovoice.ai.
+- **État** : 🟡 le service Porcupine s'initialise mais **ne fire pas encore en vocal**. La **notif tap** + l'overlay
+  servent de substitut. À débugger avec les **logs device** (logcat). Pistes : version lib Porcupine vs `.ppn` v4,
+  sensibilité (0.85), micro déjà capté par l'app. Voir [[10_JOURNAL_SESSION]] "OÙ ON S'EST ARRÊTÉ".
+
+---
+
+## 🖐️ Tap-to-talk par défaut (VAD désactivé) {#tap-to-talk}
+
+**REMPLACÉ** (2026-06-07, commits `0e3103a`, `a94d671`).
+
+- **Le problème** : le **VAD** (détection de volume qui arme le micro tout seul) **flicke** sur le micro de Kouider
+  → coupe le micro instantanément (dans l'app ET l'overlay). Et **SpeechRecognition Google est cassé dans la
+  WebView** (gèle l'app si activé).
+- **Décision** : **SpeechRecognition désactivé partout** ; **tap-to-talk par défaut** (tap micro = enregistre,
+  re-tap = envoie). Le VAD "mains libres" ne tourne **que si activé manuellement** (opt-in). En overlay, on utilise
+  `MediaRecorder` (indépendant de l'`AudioContext` qui est suspendu en fenêtre overlay).
+- **Conséquence assumée** : Whisper-après-silence comprend un peu moins bien que le STT temps réel de Gemini. Le vrai
+  saut nécessiterait un **STT natif** (`@react-native-voice`) → autre build. Mais tap-to-talk = **fiable**, confirmé OK.
+- **État** : ✅ app vocal OK confirmé par Kouider.
+
+---
+
+## ⧉ Overlay flottant = plugin natif Expo (pas d'édition `android/`) {#overlay}
+
+**AJOUTÉ** (2026-06-06, commit `8221357`, validé sur OnePlus 5T).
+
+- **C'est quoi** : une fenêtre Dzaryx (voix compacte) qui flotte **par-dessus les autres apps** (comme Gemini),
+  via un **Service Kotlin** `DzaryxOverlayService` (WebView `?overlay=1` en `TYPE_APPLICATION_OVERLAY`) + une Activity
+  trampoline (deep link `dzaryxoverlay://go` → demande la permission overlay → démarre le service).
+- **⚠️ Règle d'or native** : `dzaryx-native/android/` est **gitignored** (projet Expo "managed") → EAS le **régénère**
+  au prebuild. Donc **TOUT le natif DOIT passer par un config plugin** (`plugins/withDzaryxOverlay.js`,
+  `plugins/withDzaryxWakeWord.js`) — **jamais** d'édition directe de `android/` (elle serait écrasée).
+- **Vision en overlay** : le file-chooser/micro natif est limité en fenêtre overlay → le bouton caméra fait
+  `window.location='dzaryx://vision'`, capté par le WebViewClient (`shouldOverrideUrlLoading`) → **ouvre l'app** +
+  `__triggerVision`.
+- **Install APK de test** : la signature EAS ≠ signature Play (Google re-signe) → **désinstaller l'app Play avant**
+  d'installer un APK de test, sinon conflit de signature.
+- **État** : ✅ overlay fonctionne. Service wake rendu **résilient** (ne se tue jamais, retry Porcupine, BootReceiver
+  auto-start, exemption batterie) — commit `7962f96`.
+
+---
+
+## 🔐 Tokens mobiles (Kouider/Houari) sortis du repo → env {#tokens-env}
+
+**REMPLACÉ** (2026-06-07, commit `5efb8e7`).
+
+- **Le problème** : `dzaryx-native/app/index.tsx` contenait les **tokens d'auth en dur** (`TOKEN_KOUIDER`,
+  `TOKEN_HOUARI`) → présents dans le bundle APK et dans le repo.
+- **Décision** : lus via **variables d'env** au build (plus en dur dans le code source).
+- **⚠️ Reste** : un token dans un bundle APK reste extractible par un attaquant déterminé (c'est du client). La vraie
+  parade serait une auth serveur par compte. Acceptable pour l'usage actuel (2 utilisateurs de confiance).
+- **État** : ✅ retiré du repo et poussé.
+
+---
+
 ## 🔴 Bot WhatsApp client (Dzaryx répond aux clients) {#whatsapp}
 
 **ENLEVÉ / DÉSACTIVÉ** (2026-06-05, commit `fbf2a3c`).

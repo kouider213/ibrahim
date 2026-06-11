@@ -25,7 +25,26 @@
 
 ---
 
-## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-07)
+## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-11)
+
+- **Migrations Supabase** : ✅ TOUTES LANCÉES (confirmé Kouider 2026-06-11) — `migration_car_currency.sql`,
+  `migration_inspection_upgrade.sql`, `migration_phase_extras.sql`. Plus aucune migration en attente.
+- **Darija (06-10)** : réponse 100% darija oranaise max-arabe (labels traduits, noms propres/montants gardés),
+  voix TTS arabe dédiée auto-switch (`ELEVENLABS_VOICE_ID_AR`), arabizi prononcé phonétique (3→ع etc., chiffres
+  réels intacts), STT primaire = **OpenAI gpt-4o-transcribe** (Groq Whisper → Google en fallback).
+- **Vocal (06-10)** : tap micro = hard reset (recorder bloqué, AudioContext, stream mort) — plus besoin de fermer
+  l'app. Watchdog thinking 12s. Auto-recover micro mort au tap.
+- **Features actives (06-10, décision Kouider — garder 3/6)** : `estimate_damage` (estimation dégâts par photo,
+  Vision Sonnet), `create_signature_link` + page publique `/sign/:token` (signature électronique contrat, table
+  `contract_signatures`), `apply_dynamic_pricing` (bloque sous prix proprio). **Retirés** : dépenses/P&L,
+  alertes expiration, compteur location (`0ef121b`).
+- **Scan ID (06-10)** : auto-archivage dans la fiche client (bucket `client-documents` + table `client_documents`),
+  regex tolérante aux fautes (paseport, carte/pièce d'identité, CIN).
+- **RESAS fix (06-10)** : MARGE calculée live = (client − proprio) × jours (champ `profit_kouider` stale ignoré).
+- **Docs (06-10)** : handoff A→Z créé → **`DZARYX/HANDOFF/`** (hub + H01-H15 interliées, reprise de zéro).
+- **Site (06-09, commit `eebc960`)** : autocomplétion adresse Google dans l'admin immo → carte précise sur l'annonce.
+
+### Rappel état antérieur (2026-06-07)
 
 - **Site** : LIVE, mode dispo "à confirmer" ON, chatbot retiré.
 - **Backend** : LIVE sur Railway. Bot WhatsApp client **désactivé** (commit `fbf2a3c`). Immo unifié (commit `c6c4fd3`).
@@ -61,6 +80,102 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 ---
 
 ## Entrées (plus récent en haut)
+
+### 2026-06-11 — Audit complet + migrations confirmées + journal rattrapé
+- **Quoi** : audit complet site+Dzaryx (docs vault + git des 2 repos). Kouider confirme : **toutes les migrations
+  SQL sont lancées** (`car_currency`, `inspection_upgrade`, `phase_extras`). Journal mis à jour avec les sessions
+  06-09/06-10 qui manquaient (le code était commité mais pas documenté ici).
+- **Reste ouvert** : B025 (révoquer token GitHub `ghp_d8Vch...`), B030 (wake word Zaria — logcat), restreindre clé
+  Google Maps, upload PDF/Excel chat (optionnel), vérifs device (darija vocal, signature, estimation dégâts, scan ID).
+- **État** : ✅ docs à jour.
+
+### 2026-06-10 — Estimation dégâts + signature électronique + pricing dynamique (3 features gardées sur 6)
+- **Quoi** : 6 features additives livrées (`1d088f1`) puis **réduites à 3 sur décision Kouider** (`0ef121b`) :
+  - `estimate_damage` — estimation coût dégâts depuis une photo (Claude Sonnet Vision).
+  - `create_signature_link` + route publique **`/sign/:token`** — le client signe le contrat en ligne, archivé
+    dans `contract_signatures` (migration `supabase/migration_phase_extras.sql` ✅ lancée).
+  - `apply_dynamic_pricing` — modifie le prix/jour d'une voiture, **bloque sous le prix proprio**.
+  - **Retirés** : add_car_expense/get_car_pnl, set_vehicle_documents/check_expirations, record_rental_meter.
+- **Fix routing signature** (`f0f1059`) : "envoie le contrat à signer à X" routait vers l'agent clients qui n'avait
+  pas `create_signature_link` → outil + keywords sign/signe/signer/signature ajoutés à l'agent clients.
+- **Fichiers** : `backend/src/agents/agent-registry.ts`, `backend/src/api/routes/sign.ts`, `backend/src/index.ts`,
+  `tool-executor.ts`, `tools.ts`, `supabase/migration_phase_extras.sql`.
+- **État** : ✅ déployé Railway, tsc 0 erreur.
+
+### 2026-06-10 — Darija oranaise à fond : réponse 100% arabe, voix TTS arabe, arabizi, STT gpt-4o-transcribe
+- **Problème** : darija parlée massacrée par Groq Whisper turbo ("larbiëulak iver"), réponses mi-FR mi-darija,
+  ElevenLabs lisait "3andek" → "trois-andek".
+- **Fait** :
+  - `225ebce` — **STT primaire = OpenAI gpt-4o-transcribe** (meilleur dialectes) + prompt biaisé darija,
+    fallback Groq Whisper → Google.
+  - `581bff2` + `8a6d51a` + `df8d434` — règle langue durcie (les 2 acteurs) : input darija → réponse **entièrement**
+    darija oranaise, même pour rapports data/news/recherche revenus en FR ; max écriture arabe, labels traduits
+    (acompte→التسبيق, payé→خلّص…), seuls noms propres/montants/emprunts authentiques restent en latin.
+  - `7c69a5e` — **voix ElevenLabs arabe dédiée** auto-choisie par langue de la réponse (env `ELEVENLABS_VOICE_ID_AR`,
+    fallback voix de base si absente).
+  - `60dd650` — **arabizi phonétique** avant TTS (3=ع, 7=ح, 9=ق, 5=خ, 2=ء) seulement quand le chiffre touche une
+    lettre → prix/dates (1200€, 27) intacts.
+- **Fichiers** : `backend/src/conversation/context-builder.ts`, `backend/src/api/routes/transcribe.ts` (chaîne STT),
+  TTS dispatcher.
+- **État** : ✅ déployé. ⏭️ valider accent/compréhension sur device réel.
+
+### 2026-06-10 — Vocal : hard reset micro au tap + auto-recover (plus besoin de fermer l'app)
+- **Problème** : "le micro marche pas parfois" — stream suspendu (iOS/WebView), état "thinking" gelé, il fallait
+  tuer l'app.
+- **Fait** : `d0ddce5` — tap micro ré-initialise si track mort puis enregistre. `8a6d51a` — **hard reset** au tap
+  (kill recorder bloqué, reset refs, resume/recreate AudioContext, re-init stream) + watchdog thinking 22s→**12s**
+  + clear flag recording bloqué. SW **v81→v83**.
+- **Fichiers** : `simulator/src/components/screens/VoiceScreen.tsx`, `simulator/public/sw.js`.
+- **État** : ✅ déployé gh-pages. ⏭️ valider sur device.
+
+### 2026-06-10 — RESAS : MARGE calculée live (fix 142€ faux)
+- **Problème** : MARGE affichait 142€ (2/6 résas) — somme du champ stocké `profit_kouider`, **null** sur les résas
+  créées sans le calcul (Sophia/Abdelkader/Omar avaient prix+jours mais pas de profit stocké).
+- **Fix** : `dc4fa40` — marge calculée à la volée = (prix client − prix proprio) × jours par résa (jours dérivés
+  des dates si absents). Auto-réparant. Ligne détail pareille. SW v82.
+- **Fichiers** : `simulator/src/components/screens/BookingsScreen.tsx`.
+- **État** : ✅ déployé.
+
+### 2026-06-10 — Scan ID : archivage auto fiche client + regex tolérante
+- **Fait** :
+  - `f66b96f` — `scanIdentity` upload l'image dans le bucket **`client-documents`** + insert `client_documents`
+    sous le nom extrait (données OCR incluses) → chaque scan archivé et retrouvable. Chaînage scan→résa déjà câblé.
+  - `4b5a63d` — `ID_SCAN_RE` élargie : passeport/passport/pasport/**paseport** (typo), permis, carte/pièce
+    d'identité, CIN → le verdict déterministe d'âge est utilisé (avant : Claude faisait son propre OCR contradictoire).
+- **État** : ✅ déployé.
+
+### 2026-06-10 — Handoff A→Z en notes Obsidian interliées
+- **Quoi** : `af94eac` — dossier **`DZARYX/HANDOFF/`** : hub `00 HANDOFF HUB` + 15 notes H01-H15 (vue d'ensemble,
+  stack, archi, agents/gardes, darija, outils, images, finance, écrans, DB, déploiement, env, démarrage local,
+  état/trous/roadmap, fichiers clés). Version HTML single-file (`0d7b667`) supprimée au profit des notes.
+- **But** : reprise du projet de zéro par n'importe quel dev/agent.
+- **État** : ✅ commité.
+
+### 2026-06-09 — Site : autocomplétion adresse admin immo → carte précise
+- **Quoi** : site `eebc960` — admin immo du site utilise l'autocomplétion Google (via API publique backend)
+  pour l'adresse → la carte de l'annonce immo est précise.
+- **État** : ✅ déployé Vercel.
+
+### 2026-06-08 — SARF retirée + reskin or + Houari loue en DZD (prix par voiture + CA dinars séparé)
+- **Demandes** : (1) supprimer la page SARF ; (2) design pro façon Gemini partout ; (3) Houari loue en **dinars**
+  avec SES prix (Kouider reste en € inchangé), avec un **CA en dinars en plus**, sans rien casser.
+- **Fait** :
+  - **SARF supprimée** de la nav + routage (CurrencyScreen plus utilisée). Backend rates.ts laissé tel quel (inutilisé).
+  - **Reskin or** (Kouider) : accent cyan → or `#e9b949` sur lock/login/home + barre de nav + icône (cohérent IMMO/ACHAT).
+    Houari garde le violet. (Les écrans internes cyan = reskin or à faire ensuite — décision Kouider.)
+  - **Prix Houari DZD par voiture** : colonnes `cars.houari_base_price` / `houari_resale_price` (migration
+    `migration_car_currency.sql`). PATCH `/api/cars/:id` accepte ces champs + `owner_price_per_day`.
+  - **PARC actor-aware** (`FleetScreen`) : Houari voit/édite ses prix en **DA** (bouton ✎ → modal prix proprio/client),
+    Kouider voit/édite en **€**. Badge devise par ligne.
+  - **CA dinars séparé** : `finance.ts` — les totaux EUR **excluent** les locations DZD (chiffres actuels inchangés) +
+    bloc `dzd` (ca, houariCA, encaissé, à encaisser). `RevenueScreen` affiche une carte "💱 CA en dinars (Houari)".
+  - **RESAS** gérait déjà le choix EUR/DZD à la réservation (devise auto = DZD pour Houari, KPIs CA €/CA DZD séparés).
+- **Commits** : `cdccf91` (SARF retiré + reskin or), `12a22fa` (Houari DZD + CA dinars). Simulateur **v51**. tsc backend EXIT 0.
+- **🛑 ACTION REQUISE (Kouider)** : lancer **`supabase/migration_car_currency.sql`** (colonnes prix Houari DZD).
+  Tant que pas fait, l'édition des prix DZD échoue (colonnes manquantes). Ensuite : me donner les prix DZD par voiture
+  (ou les saisir via ✎ sur le login Houari).
+- **⏭️ Reste** : reskin or des écrans internes (PARC/RESAS/CA/CLIENTS/CONFIG…) ; option : préremplir le prix DZD du
+  véhicule à la résa Houari.
 
 ### 2026-06-08 — IMMO/ACHAT : annonces complètes + photos + adresse + Opportunités (veille marché)
 - **Demandes Kouider** (suite refonte) : (1) remplacer "ce que Dzaryx sait faire" par un court "comment utiliser" ;

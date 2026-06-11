@@ -2,15 +2,51 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-06-01** (Session — Admin UI redesign WOW + multi-photos véhicules + gallery Dzaryx + protection GitHub)
+> Dernière mise à jour : **2026-06-11** (Audit + journal rattrapé. Sessions 06-08→06-10 : DZD Houari, inspections,
+> IMMO/ACHAT, opportunités, darija totale + voix arabe + STT gpt-4o-transcribe, signature électronique,
+> estimation dégâts, pricing dynamique, scan ID archivé, handoff A→Z.)
 
 ---
 
-## Où en est le projet (maintenant)
+## ⚡ Mise à jour 2026-06-11
 
-**Phase active : Phases 1-9 en cours. Site autolux v2 LIVE ✅. Admin complet redesigné WOW ✅. Multi-photos voitures ✅. Gallery photos Dzaryx avec WhatsApp share ✅. Repos GitHub → PRIVÉS ✅. Token exposé supprimé ✅.**
+- **Migrations Supabase : TOUTES LANCÉES ✅** (`car_currency`, `inspection_upgrade`, `phase_extras`). Rien en attente.
+- **2026-06-10** : darija 100% (réponse max-arabe, voix TTS arabe auto, arabizi phonétique, STT primaire
+  **OpenAI gpt-4o-transcribe**) ; vocal hard-reset micro au tap ; **signature électronique** (`/sign/:token` +
+  `contract_signatures`) ; **estimation dégâts** par photo (Sonnet Vision) ; **pricing dynamique** (bloque sous prix
+  proprio) ; scan ID auto-archivé fiche client ; MARGE RESAS calculée live ; **`DZARYX/HANDOFF/`** = handoff A→Z.
+- **2026-06-09 (site)** : autocomplétion adresse admin immo → carte précise (`eebc960`).
+- **Détail complet** : `DZARYX/AUDIT/10_JOURNAL_SESSION.md` + `DZARYX/CHANGELOG.md`.
+- **Reste ouvert** : B025 token GitHub à révoquer, B030 wake word Zaria (logcat), clé Maps à restreindre,
+  PDF/Excel chat (optionnel), vérifs device (darija vocal, signature, dégâts, scan).
 
-Session 2026-06-01 : Redesign complet de l'interface admin (`/admin`) du site autolux-location avec design premium dark/gold (gradient text, accent lines, ambient glows). Toutes les pages admin améliorées sans casser la logique. Multi-photos pour les véhicules (table `car_photos` + carousel). Gallery photos dans Dzaryx mobile avec WhatsApp share. Repos mis en privé + licences propriétaires.
+---
+
+## Où en est le projet (au 2026-06-07 — voir mise à jour ci-dessus)
+
+**Session 06-06 → 06-07 : transformer Dzaryx pour qu'il ressemble/agisse comme l'app Gemini, SANS rien casser.**
+
+**Fait + déployé + testé live ✅ :**
+- **UI redesign Gemini** (simulateur web = l'UI réelle, chargée en WebView par l'app) : vocal épuré, chat épuré, vision plein écran, or Dzaryx en accent.
+- **Vocal** : tap-to-talk fiable (VAD flickait → opt-in), barge-in (coupe Dzaryx quand on reparle), flip caméra avant/arrière, logo au centre, mode compact pour overlay.
+- **Overlay flottant** (par-dessus les autres apps, façon Gemini) — plugin natif `withDzaryxOverlay.js`, **testé OK OnePlus 5T**.
+- **Chat façon ChatGPT/Gemini** : copier, markdown, dictée vocale, régénérer, éditer, recherche historique, streaming typewriter, graphiques (barres/camembert/courbe), téléchargement photos+graphes.
+- **Création annonces via chat + photos jointes** : voiture loc/vente, immo loc/vente, pack → Dzaryx crée et attache les photos. `add_car` débloqué. Vision marche dans le chat. **Test end-to-end vert.**
+- **Réservations multi-acteurs** : attribution Kouider/Houari robuste + check dispo dit qui a bloqué.
+- **Sécurité** : tokens mobiles sortis du repo → env (`5efb8e7`).
+
+**🟡 Pas terminé (optionnel) :**
+- **Wake word "Zaria"** (Porcupine) branché mais **ne fire pas en vocal** → besoin des **logs device** (logcat). Notif tap + overlay = substitut.
+- **Upload/analyse PDF/Excel** dans le chat — pas fait (~1h).
+- **Play Store** — exclu pour l'instant (build prod AAB + clé Google).
+
+> ⭐ Détail complet "où on s'est arrêté" + tous les commits → **`DZARYX/AUDIT/10_JOURNAL_SESSION.md`** et **`DZARYX/CHANGELOG.md`**.
+
+---
+
+## Sessions précédentes (résumé)
+
+Session 2026-06-01 : Redesign complet de l'interface admin (`/admin`) du site autolux-location (design premium dark/gold). Multi-photos véhicules (`car_photos` + carousel). Gallery photos Dzaryx + WhatsApp share. Repos GitHub → privés + licences.
 
 ---
 

@@ -46,6 +46,35 @@ Toutes tapent `https://ibrahim-backend-production.up.railway.app` avec un **Bear
 - `lib/api.ts` — client API (REST + types `Property`, `VehicleForSale`, `ClientDeal`...). **Déjà sur le schéma immo unifié** (`title/transaction/price`).
 - Fonctionnalités natives ajoutées (2026-05-27) : **verrou biométrique**, **cache offline**, **app shortcuts**.
 
+### ⚠️ ARCHITECTURE RÉELLE — l'app native est une coquille WebView
+
+> 🔑 **À comprendre avant TOUT travail UI.** `_layout.tsx` ne déclare QUE la route `index`. Et `app/index.tsx` est
+> une **WebView** qui charge `https://kouider213.github.io/ibrahim/` = le **simulateur web**. Donc les écrans natifs
+> du tableau ci-dessus (`voice.tsx`, `chat.tsx`…) **ne sont PAS affichés** (quasi code mort, deep-link only).
+> **Tout ce que Kouider voit à l'écran se modifie dans `simulator/`, pas dans `app/*.tsx`.** Voir [[dzaryx_ui_architecture]].
+>
+> Le **vrai** rôle du natif = les **capacités hors-web** : permissions, services de fond, overlay, wake word, partage.
+
+### Plugins natifs (config plugins Expo — `dzaryx-native/plugins/`)
+
+> ⚠️ `dzaryx-native/android/` est **gitignored** (Expo managed) → EAS le régénère au prebuild. **Tout le natif
+> Android passe par des config plugins**, jamais d'édition directe de `android/`. Voir [[08_DECISIONS#overlay]].
+
+- **`withDzaryxOverlay.js`** (2026-06-06, `8221357`) — fenêtre flottante par-dessus les autres apps (façon Gemini).
+  Service Kotlin `DzaryxOverlayService` (WebView `?overlay=1` en `TYPE_APPLICATION_OVERLAY`) + Activity trampoline
+  (deep link `dzaryxoverlay://go`). Permissions `SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE_MICROPHONE`.
+  **✅ testé OnePlus 5T.** Vision overlay → `dzaryx://vision` rouvre l'app.
+- **`withDzaryxWakeWord.js`** (2026-06-06, `252c259` ; durci `7962f96`) — wake word **"Zaria"** via Picovoice
+  Porcupine, **Service de fond** `DzaryxWakeWordService` (onWake → démarre l'overlay). Service **résilient** (ne se
+  tue jamais), **retry** Porcupine, **BootReceiver** (auto-start après reboot), **exemption batterie** au lancement.
+  Clé Picovoice via env EAS `PICOVOICE_ACCESS_KEY`. **🟡 ne fire pas encore en vocal** (voir [[08_DECISIONS#wakeword-zaria]]).
+- **Déclenchement** : bouton overlay (web) → `index.tsx` → `Linking.openURL('dzaryxoverlay://go')` ; wake/notif → idem.
+
+### Sécurité (2026-06-07)
+- Tokens mobiles Kouider/Houari **sortis du repo** → lus via env au build (`5efb8e7`). Voir [[08_DECISIONS#tokens-env]].
+- EAS relié au compte Play officiel **`@fikdzaryx/dzaryx`** (`819a3e7`) pour les builds de prod.
+- ⚠️ Install d'un APK de test : **désinstaller l'app Play d'abord** (signature EAS ≠ signature Play).
+
 ---
 
 ## 🖥️ Simulateur (`simulator`)
@@ -59,8 +88,21 @@ Simule un téléphone (`components/Phone.tsx`) avec plusieurs onglets/écrans.
 `ClientsScreen`, `DocumentsScreen`, **`ImmoScreen`** (immobilier — refait 2026-06-05 schéma unifié),
 **`LeadsScreen`** (demandes clients). Service API : `src/services/api.ts` (`apiFetch`, gestion Socket.IO, callback `onProactive`).
 
-> 💡 Pour déployer le simulateur : `npm run build` puis push du build sur la branche `gh-pages`.
+#### Redesign Gemini + nouvelles capacités (2026-06-06/07)
+- **`VoiceScreen`** : refonte épurée style Gemini (or Dzaryx en accent), logo au centre, **barge-in** (coupe Dzaryx
+  quand on reparle), **flip caméra** avant/arrière, **mode compact** `?overlay=1` (voix seule, pour l'overlay),
+  **tap-to-talk** par défaut (VAD opt-in). Voir [[08_DECISIONS#tap-to-talk]].
+- **`TextScreen`** (chat) : **copier**, **rendu markdown** (gras/listes/tableaux/code), **dictée vocale**,
+  **régénérer**, **éditer** un message, **recherche** dans l'historique, **streaming typewriter**, **graphiques**
+  (barres/camembert/courbe via bloc `chart` JSON), **téléchargement** photos+graphes (`expo-media-library`).
+- **Création d'annonces depuis le chat** : joins des photos + *"crée une voiture/appart/pack…"* → Dzaryx crée
+  l'annonce et **attache les photos** (voiture loc/vente, immo, pack). Détection d'intention dans `TextScreen`
+  (`isCreateIntent`) : création vs store voiture existante vs vision. Upload via `api.uploadSessionPhotos`.
+
+> 💡 Pour déployer le simulateur : `npm run build` puis `npx gh-pages -d dist` (branche `gh-pages`).
 > ⚠️ Le simulateur n'est PAS redéployé automatiquement — c'est manuel.
+> ⚠️ **Cache SW** : bumper la version dans `public/sw.js` (ex `dzaryx-v43`) à chaque deploy, sinon l'ancienne UI est
+> servie. Côté Kouider : **fermer l'app à fond + rouvrir** une fois après un deploy.
 
 ---
 

@@ -7,6 +7,16 @@
 
 ## Bugs Ouverts 🔴
 
+### B030 — Wake word "Zaria" ne fire pas en vocal (Porcupine)
+- **Statut** : 🟡 EN COURS — besoin logs device (Kouider)
+- **Fichier(s)** : `dzaryx-native/plugins/withDzaryxWakeWord.js`, `dzaryx-native/assets/wakeword/Zaria_android.ppn`
+- **Description** : le service de fond Porcupine s'initialise (notif "Zaria active" visible) mais la détection
+  vocale ne déclenche pas l'overlay. La **notif tap** + l'overlay marchent comme substitut.
+- **Pistes** : version lib Porcupine vs `.ppn` **v4** (mismatch silencieux), sensibilité (0.85 actuel), micro déjà
+  capté par l'app. Clé Picovoice = env EAS `PICOVOICE_ACCESS_KEY`.
+- **Fix** : récupérer le **logcat** du OnePlus 5T pendant un essai, vérifier l'init PorcupineManager + onWake.
+  Voir [[AUDIT/08_DECISIONS#wakeword-zaria]] et [[AUDIT/10_JOURNAL_SESSION]].
+
 ### B025 — Token GitHub exposé dans git remote (SÉCURITÉ)
 - **Statut** : 🔴 OUVERT — action manuelle requise (Kouider)
 - **Fichier** : `.git/config` du repo ibrahim (local PC Kouider)

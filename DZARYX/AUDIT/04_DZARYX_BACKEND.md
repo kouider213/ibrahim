@@ -117,6 +117,38 @@ Le fichier le plus gros (~5000 lignes). ~150 outils. Catégories :
 
 ---
 
+## Nouveautés 2026-06-07 (création annonces + photos via chat, vision chat)
+
+### Photos jointes au chat → attachées à une nouvelle annonce {#session-photos}
+- **Endpoint** : `POST /api/cars/session-photos` (`cars.ts`) — upload des photos jointes vers **Cloudinary**, puis
+  cache **Redis** sous `session:photos:{sessionId}` (TTL **15 min**). Renvoie `{count}`.
+- **Consommation** : `attachSessionPhotos(sessionId, kind, id)` (dans `tool-executor.ts`) est appelée par les tools
+  de création pour lier les photos cachées à la nouvelle ligne **et** poser `image_url = photos[0].url` :
+  | Type | Tool | Table photos |
+  |---|---|---|
+  | Voiture location | `add_car` | `car_photos` |
+  | Immobilier (loc/vente) | `create_property` | `property_photos` |
+  | Voiture à vendre | `add_vehicle_for_sale` | `vehicle_sale_photos` |
+  | Pack | `create_pack` | (photo principale `image_url`) |
+- **Frontend** : `simulator/.../TextScreen.tsx` → `isCreateIntent` distingue **création** vs **store voiture existante**
+  vs **vision** ; upload via `api.uploadSessionPhotos`.
+- **Fix associé** : `add_car` était **hors scope** des agents → ajouté aux agents **Réservations + Général**
+  (`4856275`), sinon Dzaryx ne pouvait pas créer de voiture de location.
+
+### Vision dans le chat (bypass des guards business)
+- Quand `imageBase64` est présent, on **bypass** `fastPathGuard`/`checkAntiHallucination` (`e54811b`) : la réponse
+  décrit l'image (pas une requête DB) et était écrasée à tort par `FAST_PATH_REFUSAL`.
+
+### Matching véhicule par score de tokens
+- `/api/cars/photos` matche désormais par **score de tokens** (≥3 lettres) au lieu d'exiger tous les mots
+  (`d4aa670`) — un token "9" cassait "Jumpy 9 Places".
+
+### Réservations multi-acteurs
+- `create_booking` attribue au bon acteur (Kouider/Houari) ; le check de dispo dit **QUI** a bloqué (acteur+client+
+  dates) ; la liste filtre par acteur (`7283337`). Pour le cas "les deux connectés en même temps".
+
+---
+
 ## Pipeline conversationnel {#pipeline-conversation}
 
 Dossiers `src/conversation/` + `src/orchestrator/`. Étapes (simplifiées) :

@@ -5,6 +5,50 @@
 
 ---
 
+## 2026-06-11 — Audit + migrations confirmées lancées
+- Toutes les migrations Supabase en attente sont **lancées** (confirmé Kouider) : `migration_car_currency.sql`,
+  `migration_inspection_upgrade.sql`, `migration_phase_extras.sql`.
+- Journal de session rattrapé (entrées 06-09/06-10 ajoutées).
+
+## 2026-06-10 — Darija totale + STT gpt-4o + voix arabe + signature électronique + estimation dégâts + pricing dynamique
+
+### backend/ + simulator/
+- **`1d088f1`** + **`0ef121b`** — 3 features gardées (décision Kouider) : `estimate_damage` (photo → estimation coût,
+  Sonnet Vision), `create_signature_link` + page publique `/sign/:token` (signature contrat archivée dans
+  `contract_signatures`), `apply_dynamic_pricing` (bloque sous prix proprio). Retirés : dépenses/P&L, alertes
+  expiration, compteur location. Migration `supabase/migration_phase_extras.sql`.
+- **`f0f1059`** — agent clients reçoit `create_signature_link` (+ `generate_contract`) + keywords signer/signature.
+- **`225ebce`** — STT primaire = **OpenAI gpt-4o-transcribe** (darija), fallback Groq Whisper → Google.
+- **`581bff2`** / **`8a6d51a`** / **`df8d434`** — darija : réponse 100% darija oranaise max-arabe (labels traduits,
+  noms propres/montants en latin), y compris rapports data/news.
+- **`7c69a5e`** — TTS : voix ElevenLabs arabe dédiée auto-switch (`ELEVENLABS_VOICE_ID_AR`).
+- **`60dd650`** — TTS : arabizi phonétique (3=ع, 7=ح…) sans toucher aux vrais nombres.
+- **`d0ddce5`** / **`8a6d51a`** — vocal : hard reset micro au tap + auto-recover stream mort + watchdog 12s. SW v81→v83.
+- **`dc4fa40`** — RESAS : MARGE calculée live (client−proprio)×jours, champ `profit_kouider` stale ignoré.
+- **`f66b96f`** / **`4b5a63d`** — scan ID : archivage auto fiche client (`client_documents`) + regex tolérante typos.
+- **`af94eac`** — docs : handoff A→Z `DZARYX/HANDOFF/` (hub + H01-H15).
+
+## 2026-06-09 — Site : adresse autocomplétée admin immo
+- **site `eebc960`** — autocomplétion Google (API publique backend) dans l'admin immo → carte précise sur l'annonce.
+
+## 2026-06-08 — Inspection avant/après véhicule + immobilier (Vision Sonnet, marqueurs, lien réservation)
+
+### backend/ + simulator/ + supabase/
+- **`84583b4`** — Inspection complète. `inspection-core.ts` : Claude **Sonnet 4.6** → JSON structuré (dégâts en
+  boîtes `{x,y,w,h}` normalisées + sévérité + flag `accident`) + upload **Cloudinary**. `vehicle-state.ts` :
+  photo stockée + **lien réservation** (`booking_id` auto via client+voiture) + `damage_boxes`/`accident`/`severity`.
+  `property-state.ts` (nouveau) : même chose pour l'**immobilier** (table `property_states`, état des lieux
+  entrée/sortie). REST `POST/GET /api/inspections/{vehicle,property}`. Tools chat immo + fast-path orchestrator
+  étendu au bien. App `FleetScreen` : modal `InspectionModal` (véhicule + bien) avec **photo + marqueurs numérotés**
+  des dégâts + légende + bannière accident ; bouton 📷 sur chaque bien IMMO.
+- **⚠️ ACTION REQUISE** : lancer **`supabase/migration_inspection_upgrade.sql`** (colonnes `vehicle_states` +
+  table `property_states`). Sinon l'enregistrement échoue.
+- Build : tsc backend EXIT 0, build simulateur EXIT 0, gh-pages **v44**.
+
+## 2026-06-08 — Fix refresh catalogue site (toggle dispo)
+- **site `c247974`** — `pages/cars.js` : refetch client-side des véhicules (le catalogue était figé par
+  `getStaticProps revalidate:30` → un toggle dispo/indispo n'apparaissait qu'après ISR). Home + détail OK déjà.
+
 ## 2026-06-07 — Création annonces + photos via chat, vision chat, fixes matching
 
 ### backend/ + simulator/
