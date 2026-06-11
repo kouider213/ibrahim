@@ -74,9 +74,9 @@ function detailRows(c: Contract): [string, string][] {
   ].filter(Boolean) as [string, string][];
 }
 
-// GET /sign/:token — contrat + signature (ou état signé avec téléchargement PDF)
+// GET /sign/:token — contrat + validation par documents (passeport + permis)
 router.get('/:token', async (req, res) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); // évite que Safari serve une vieille page
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   const token = String(req.params['token'] ?? '');
   const c = await loadContract(token);
   if (!c) { res.status(404).send(page('<h2 style="text-align:center">Lien invalide ou expiré.</h2>')); return; }
@@ -85,9 +85,9 @@ router.get('/:token', async (req, res) => {
     res.send(page(`
       <div style="text-align:center">
         <div style="font-size:46px">✅</div>
-        <h1 style="color:#10b981">Contrat signé</h1>
+        <h1 style="color:#10b981">Contrat validé</h1>
         <p class="sub">Contrat n° ${c.refNum} — ${esc(c.row.client_name)}</p>
-        <p class="sub">Signé le ${fmtDate(c.row.signed_at)}. Merci de votre confiance !</p>
+        <p class="sub">Validé le ${fmtDate(c.row.signed_at)} (conditions acceptées + documents reçus). Merci de votre confiance !</p>
         <a class="dl" href="/sign/${esc(token)}/contrat" target="_blank">📄 Télécharger le contrat (PDF)</a>
       </div>`));
     return;
@@ -107,20 +107,30 @@ router.get('/:token', async (req, res) => {
 
   <label class="accept"><input type="checkbox" id="acc"/> <span>J'ai lu et j'accepte les conditions de location ci-dessus.</span></label>
 
-  <p class="signlabel">Signature du locataire :</p>
-  <canvas id="c" width="500" height="200"></canvas>
-  <div class="btns"><button type="button" class="clr" id="clrBtn">Effacer</button><button type="button" class="ok" id="okBtn">Valider</button></div>
+  <h2>Pièces justificatives</h2>
+  <p class="signlabel">Ajoutez une photo de votre passeport et de votre permis (obligatoire pour valider) :</p>
+  <div class="docs">
+    <label class="doc" id="lblPass"><input type="file" id="pass" accept="image/*" capture="environment" hidden/><span class="ico">📷</span><span class="lbl">Passeport</span></label>
+    <label class="doc" id="lblPerm"><input type="file" id="perm" accept="image/*" capture="environment" hidden/><span class="ico">📷</span><span class="lbl">Permis</span></label>
+  </div>
+
+  <div class="btns"><button type="button" class="ok" id="okBtn">Valider le contrat</button></div>
   <div class="msg" id="m"></div>
-  <p class="legal">En validant, vous reconnaissez avoir pris connaissance de l'état des lieux du véhicule et acceptez les conditions ci-dessus. Signature horodatée et conservée comme preuve.</p>`;
+  <p class="legal">En validant, vous acceptez les conditions ci-dessus et confirmez l'envoi de vos pièces. Validation horodatée et conservée comme preuve.</p>`;
 
   res.send(page(body, true));
 });
 
-// GET /sign/:token/contrat — contrat PDF (impression / enregistrer en PDF), signé uniquement
+// GET /sign/:token/contrat — contrat PDF (impression / enregistrer en PDF)
 router.get('/:token/contrat', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const token = String(req.params['token'] ?? '');
   const c = await loadContract(token);
   if (!c) { res.status(404).send('<h2>Lien invalide.</h2>'); return; }
+  const d = c.row.details ?? {};
+  const passUrl = String(d['passport_url'] ?? '');
+  const permUrl = String(d['permit_url'] ?? '');
+  const signed  = c.row.status === 'signed';
 
   const rows = [['Locataire', c.row.client_name ?? '—'], ...detailRows(c)];
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"/>
@@ -136,9 +146,12 @@ router.get('/:token/contrat', async (req, res) => {
   table{width:100%;border-collapse:collapse} td{padding:8px 0;border-bottom:1px solid #eee;font-size:14px}
   td.l{color:#666;width:45%} td.v{text-align:right;font-weight:600}
   ol{padding-left:18px} ol li{font-size:12.5px;color:#333;margin-bottom:6px;line-height:1.5}
-  .sign{margin-top:26px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px}
-  .sign .box{flex:1} .sign .lbl{font-size:11px;color:#666;margin-bottom:6px} .sign img{max-height:90px;border-bottom:1px solid #111}
-  .meta{font-size:11px;color:#888;margin-top:6px}
+  .valid{margin-top:22px;background:#f6fbf7;border:1px solid #cde9d6;border-radius:10px;padding:14px}
+  .valid .ok{color:#127a3e;font-weight:700;font-size:13px;margin:2px 0}
+  .docs{display:flex;gap:12px;margin-top:12px} .docs figure{margin:0;flex:1} .docs img{width:100%;border:1px solid #ddd;border-radius:6px;max-height:160px;object-fit:cover}
+  .docs figcaption{font-size:11px;color:#666;margin-top:3px;text-align:center}
+  .sign{margin-top:22px} .sign .lbl{font-size:11px;color:#666} .sign .line{height:70px;border-bottom:1px solid #111;margin-top:6px;max-width:260px}
+  .meta{font-size:11px;color:#888;margin-top:10px}
   .foot{margin-top:28px;border-top:1px solid #eee;padding-top:12px;font-size:11px;color:#999;text-align:center}
   .print{position:fixed;bottom:16px;right:16px;background:#e9b949;color:#1a1500;border:0;border-radius:10px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer}
   @media print{.print{display:none}}
@@ -151,37 +164,54 @@ router.get('/:token/contrat', async (req, res) => {
   <table>${rows.map(([l, v]) => `<tr><td class="l">${esc(l)}</td><td class="v">${esc(v)}</td></tr>`).join('')}</table>
   <h2>Conditions de location</h2>
   <ol>${CONDITIONS.map(x => `<li>${x}</li>`).join('')}</ol>
-  <div class="sign">
-    <div class="box"><div class="lbl">Le loueur — Fik Conciergerie</div><div style="height:90px;border-bottom:1px solid #111"></div></div>
-    <div class="box"><div class="lbl">Le locataire — ${esc(c.row.client_name)}</div>${c.row.signature_url ? `<img src="${esc(c.row.signature_url)}" alt="signature"/>` : '<div style="height:90px;border-bottom:1px solid #111"></div>'}</div>
-  </div>
-  <div class="meta">Signé électroniquement le ${fmtDate(c.row.signed_at)}. Signature horodatée et conservée comme preuve.</div>
+  ${signed ? `
+  <h2>Validation du locataire</h2>
+  <div class="valid">
+    <div class="ok">☑ Conditions de location acceptées</div>
+    <div class="ok">☑ Passeport reçu${permUrl ? ' &nbsp; ☑ Permis reçu' : ''}</div>
+    <div class="meta">Validé électroniquement le ${fmtDate(c.row.signed_at)} par ${esc(c.row.client_name)}. Horodaté et conservé comme preuve.</div>
+    <div class="docs">
+      ${passUrl ? `<figure><img src="${esc(passUrl)}" alt="passeport"/><figcaption>Passeport</figcaption></figure>` : ''}
+      ${permUrl ? `<figure><img src="${esc(permUrl)}" alt="permis"/><figcaption>Permis</figcaption></figure>` : ''}
+    </div>
+  </div>` : `
+  <div class="sign"><div class="lbl">Signature / validation du locataire</div><div class="line"></div></div>`}
   <div class="foot">Fik Conciergerie — Oran, Algérie · Document généré automatiquement</div>
 </div>
 <button class="print" onclick="window.print()">📄 Enregistrer en PDF</button>
-<script>window.addEventListener('load',function(){setTimeout(function(){try{window.print();}catch(e){}},600);});</script>
+<script>window.addEventListener('load',function(){setTimeout(function(){try{window.print();}catch(e){}},700);});</script>
 </body></html>`;
   res.send(html);
 });
 
-// POST /sign/:token — enregistre la signature (image PNG base64)
+// POST /sign/:token — valide le contrat : accord + photos passeport & permis
 router.post('/:token', async (req, res) => {
   const token = String(req.params['token'] ?? '');
-  const sig = (req.body as { signature?: string }).signature;
-  if (!sig?.startsWith('data:image')) { res.status(400).json({ error: 'signature invalide' }); return; }
-  const { data } = await supabase.from('contract_signatures').select('id, status').eq('token', token).maybeSingle();
-  const row = data as { id: string; status?: string } | null;
+  const body = req.body as { accepted?: boolean; passport?: string; permit?: string };
+  if (!body.accepted) { res.status(400).json({ error: 'conditions non acceptées' }); return; }
+  if (!body.passport?.startsWith('data:image') || !body.permit?.startsWith('data:image')) {
+    res.status(400).json({ error: 'passeport et permis requis' }); return;
+  }
+  const { data } = await supabase.from('contract_signatures').select('id, status, details').eq('token', token).maybeSingle();
+  const row = data as { id: string; status?: string; details?: Record<string, unknown> } | null;
   if (!row) { res.status(404).json({ error: 'introuvable' }); return; }
   if (row.status === 'signed') { res.json({ ok: true, already: true }); return; }
 
   try {
-    const b64 = sig.split('base64,')[1];
-    const buf = Buffer.from(b64 ?? '', 'base64');
-    const path = `signatures/${token}.png`;
     await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
-    await supabase.storage.from('client-documents').upload(path, buf, { contentType: 'image/png', upsert: true });
-    const url = supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl;
-    await supabase.from('contract_signatures').update({ status: 'signed', signature_url: url ?? null, signed_at: new Date().toISOString() }).eq('id', row.id);
+    const up = async (kind: string, dataUrl: string): Promise<string | null> => {
+      const b64 = dataUrl.split('base64,')[1] ?? '';
+      const buf = Buffer.from(b64, 'base64');
+      const path = `contracts/${token}-${kind}.jpg`;
+      await supabase.storage.from('client-documents').upload(path, buf, { contentType: 'image/jpeg', upsert: true });
+      return supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl ?? null;
+    };
+    const passport_url = await up('passport', body.passport);
+    const permit_url   = await up('permit', body.permit);
+    const details = { ...(row.details ?? {}), passport_url, permit_url, validated_by: 'documents' };
+    await supabase.from('contract_signatures')
+      .update({ status: 'signed', signed_at: new Date().toISOString(), details })
+      .eq('id', row.id);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
@@ -203,10 +233,13 @@ function page(inner: string, withScript = false): string {
   ul.cond{margin:0;padding-left:18px} ul.cond li{font-size:13px;color:#c9c9d2;margin-bottom:7px;line-height:1.45}
   .accept{display:flex;gap:10px;align-items:flex-start;margin:18px 0 6px;font-size:13.5px;color:#e8e8ee;cursor:pointer}
   .accept input{width:20px;height:20px;margin-top:1px;flex-shrink:0}
-  .signlabel{font-size:12px;color:#9b9ba6;margin:14px 0 0}
-  canvas{width:100%;height:200px;background:#fff;border-radius:12px;margin-top:8px;touch-action:none;display:block}
-  .btns{display:flex;gap:10px;margin-top:12px} button{flex:1;padding:14px;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
-  .clr{background:#2a2a31;color:#bbb} .ok{background:#e9b949;color:#1a1500} .ok:disabled{opacity:.4}
+  .signlabel{font-size:12px;color:#9b9ba6;margin:6px 0 0}
+  .docs{display:flex;gap:12px;margin-top:12px}
+  .doc{flex:1;background:#0f0f14;border:2px dashed #ffffff1f;border-radius:14px;padding:18px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;transition:.15s}
+  .doc.ok{border-color:#10b981;background:#0e1a14}
+  .doc .ico{font-size:26px} .doc .lbl{font-size:13px;color:#cfcfd6;font-weight:600}
+  .btns{display:flex;gap:10px;margin-top:18px} button{flex:1;padding:14px;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
+  .ok{background:#e9b949;color:#1a1500} .ok:disabled{opacity:.4}
   .msg{text-align:center;margin-top:12px;font-size:14px;min-height:18px}
   .legal{font-size:11px;color:#6b6b76;margin-top:14px;line-height:1.5}
   .dl{display:inline-block;margin-top:16px;color:#e9b949;text-decoration:none;border:1px solid #e9b94955;padding:12px 20px;border-radius:10px;font-weight:700}
@@ -216,28 +249,42 @@ function page(inner: string, withScript = false): string {
 function script(): string {
   return `<script>
 (function(){
-  var cv=document.getElementById('c'), x=cv.getContext('2d'), m=document.getElementById('m');
-  // Backing store fixe (500x200) défini dans le HTML → aucun problème de timing/layout iOS.
-  x.lineWidth=3; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#000'; x.fillStyle='#000';
-  var has=false, drawing=false, last=null;
-  function rel(e){ var r=cv.getBoundingClientRect(); var t=(e.touches&&e.touches[0])?e.touches[0]:e; return {x:(t.clientX-r.left)*(cv.width/r.width), y:(t.clientY-r.top)*(cv.height/r.height)}; }
-  function start(e){ drawing=true; has=true; last=rel(e); x.beginPath(); x.arc(last.x,last.y,2.5,0,7); x.fill(); if(e.cancelable)e.preventDefault(); }
-  function move(e){ if(!drawing)return; var p=rel(e); x.beginPath(); x.moveTo(last.x,last.y); x.lineTo(p.x,p.y); x.stroke(); last=p; if(e.cancelable)e.preventDefault(); }
-  function end(e){ drawing=false; last=null; if(e&&e.cancelable)e.preventDefault(); }
-  cv.addEventListener('touchstart',start,{passive:false});
-  cv.addEventListener('touchmove',move,{passive:false});
-  cv.addEventListener('touchend',end,{passive:false});
-  cv.addEventListener('mousedown',start);
-  window.addEventListener('mousemove',move);
-  window.addEventListener('mouseup',end);
-  document.getElementById('clrBtn').addEventListener('click',function(){ x.clearRect(0,0,cv.width,cv.height); has=false; m.textContent=''; });
+  var m=document.getElementById('m');
+  var passData=null, permData=null;
+  // Compresse l'image avant envoi (rapide + léger)
+  function readImg(file, cb){
+    var fr=new FileReader();
+    fr.onload=function(){
+      var img=new Image();
+      img.onload=function(){
+        var max=1280, w=img.width, h=img.height;
+        if(w>max||h>max){ var r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        cb(cv.toDataURL('image/jpeg',0.7));
+      };
+      img.onerror=function(){ cb(fr.result); };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+  function hook(id, lblId, set){
+    document.getElementById(id).addEventListener('change',function(e){
+      var f=e.target.files&&e.target.files[0]; if(!f)return;
+      m.textContent='Lecture de l image...';
+      readImg(f,function(d){ set(d); document.getElementById(lblId).classList.add('ok'); document.getElementById(lblId).querySelector('.lbl').textContent='✓ Ajouté'; m.textContent=''; });
+    });
+  }
+  hook('pass','lblPass',function(d){passData=d;});
+  hook('perm','lblPerm',function(d){permData=d;});
   document.getElementById('okBtn').addEventListener('click',function(){
     var ok=document.getElementById('okBtn');
     if(!document.getElementById('acc').checked){m.style.color='#f59e0b';m.textContent='Cochez la case J accepte d abord.';return;}
-    if(!has){m.style.color='#f59e0b';m.textContent='Signez dans le cadre blanc d abord.';return;}
-    m.style.color='#9b9ba6';m.textContent='Validation...';ok.disabled=true;
-    fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature:cv.toDataURL('image/png')})})
-      .then(function(r){ if(r.ok){m.style.color='#10b981';m.textContent='Contrat valide, merci !';setTimeout(function(){location.reload();},1200);} else {m.style.color='#ef4444';m.textContent='Erreur, reessayez.';ok.disabled=false;} })
+    if(!passData){m.style.color='#f59e0b';m.textContent='Ajoutez la photo du passeport.';return;}
+    if(!permData){m.style.color='#f59e0b';m.textContent='Ajoutez la photo du permis.';return;}
+    m.style.color='#9b9ba6';m.textContent='Validation en cours...';ok.disabled=true;
+    fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accepted:true,passport:passData,permit:permData})})
+      .then(function(r){ if(r.ok){m.style.color='#10b981';m.textContent='Contrat valide, merci !';setTimeout(function(){location.reload();},1200);} else {return r.json().then(function(j){m.style.color='#ef4444';m.textContent=(j&&j.error)||'Erreur, reessayez.';ok.disabled=false;});} })
       .catch(function(){m.style.color='#ef4444';m.textContent='Pas de connexion, reessayez.';ok.disabled=false;});
   });
 })();
