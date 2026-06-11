@@ -111,6 +111,24 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 - **⏭️ Reste** : URL Render dans les backups une fois le compte créé ; même failover pour le site (api côté
   Next.js) si souhaité.
 
+### 2026-06-11 (soir) — Contrat pro + gestion admin complète + état des lieux manuel ⭐
+- **Contexte** : test live de la page suivi → 3 manques identifiés par Kouider (contrat vide, admin lecture seule, marquage dégâts manuel).
+- **1. Contrat pro** (backend `sign.ts`, commit `7bfcf8d`) : la page `/sign/:token` affiche un VRAI contrat —
+  n° contrat, locataire, véhicule, période, durée, prix/jour, total, **acompte 3j**, reste ; **vraies conditions
+  Fik** (35 ans, **aucune caution**, passeport conservé, km illimité, assurance, accident, sous-location interdite) ;
+  case obligatoire "J'accepte" + signature horodatée. Tire les détails réels via `booking_id`.
+- **2. Gestion admin réservation** (site `9a077ca`) : le modal `/admin/bookings` est désormais **gérable à tout
+  statut** (plus lecture seule après confirmation) — changer statut, éditer dates+prix, **paiements acompte/solde**
+  (→ maj `paid_amount`/`payment_status` + table `payments`), **générer le contrat à signer** (`/api/generate-contract-link`,
+  service-role) + envoi WhatsApp au client.
+- **3. État des lieux manuel** (site `21011e5`) : `components/InspectionTool.js` + `/api/inspection` — depuis le
+  modal réservation : choisir départ/retour, **multi-photos** (appareil/galerie), **TAP sur la photo** pour placer
+  un marqueur de défaut, gravité (légère/moyenne/grave) + libellé (ex "rayure jante avant droite"), flag accident,
+  notes. Sauvé dans `vehicle_states` lié au `booking_id` → **visible côté client sur `/suivi`**. Liste les états déjà faits.
+- **Build site 0, tsc backend 0.** Déployé Vercel + Railway.
+- **⏭️ Demandé ensuite par Kouider** : audit pro de TOUT le site (immo, vente voitures, packs, perf, confiance), pas
+  que la location → exécuter les améliorations.
+
 ### 2026-06-11 — 3 chantiers PRO gratuits (audit site/app → exécution) ⭐
 - **Contexte** : audit complet site+app demandé → 3 améliorations à **0 € fixe**, branchées sur le vrai code.
 - **1. Docs client sur `/suivi/[id]`** (site, commit `f633265`) : nouvelle route service-role
