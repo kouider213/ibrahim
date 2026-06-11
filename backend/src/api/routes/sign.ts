@@ -7,7 +7,6 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&am
 const fmtDate = (d?: string) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }); } catch { return String(d); } };
 const cur = (c?: string) => (c === 'DZD' || c === 'DA' ? 'DA' : '€');
 
-// Conditions réelles Fik Conciergerie (alignées sur lib/conditions du site)
 const CONDITIONS = [
   'Âge minimum : 35 ans (exigence de nos assurances).',
   'Aucune caution exigée — zéro dépôt de garantie.',
@@ -21,15 +20,16 @@ const CONDITIONS = [
 ];
 
 interface SigRow { id?: string; client_name?: string; status?: string; signature_url?: string; signed_at?: string; booking_id?: string; details?: Record<string, unknown>; }
+interface Contract {
+  row: SigRow; carName: string; start: string; end: string; total: number; currency: string;
+  paid: number; nbDays: number; perDay: number; acompte: number; reste: number; cs: string; refNum: string;
+}
 
-// GET /sign/:token — contrat complet + signature (public, le client ouvre sur son tel)
-router.get('/:token', async (req, res) => {
-  const token = String(req.params['token'] ?? '');
+async function loadContract(token: string): Promise<Contract | null> {
   const { data } = await supabase.from('contract_signatures').select('*').eq('token', token).maybeSingle();
   const row = data as SigRow | null;
-  if (!row) { res.status(404).send(page('<h2 style="text-align:center">Lien invalide ou expiré.</h2>')); return; }
+  if (!row) return null;
 
-  // Détails : on privilégie la réservation réelle (booking_id), sinon details stockés
   const d = row.details ?? {};
   let carName = String(d['car'] ?? '');
   let start = String(d['start'] ?? '');
@@ -57,54 +57,110 @@ router.get('/:token', async (req, res) => {
   }
   if (!nbDays && start && end) nbDays = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86_400_000));
   const perDay  = nbDays > 0 && total > 0 ? Math.round(total / nbDays) : 0;
-  const acompte = paid > 0 ? paid : (perDay > 0 ? perDay * 3 : 0);   // règle : acompte = 3 jours
+  const acompte = paid > 0 ? paid : (perDay > 0 ? perDay * 3 : 0);
   const reste   = Math.max(0, total - acompte);
-  const cs      = cur(currency);
-  const refNum  = (row.booking_id ?? token).slice(0, 8).toUpperCase();
+  return { row, carName, start, end, total, currency, paid, nbDays, perDay, acompte, reste, cs: cur(currency), refNum: (row.booking_id ?? token).slice(0, 8).toUpperCase() };
+}
 
-  if (row.status === 'signed') {
+function detailRows(c: Contract): [string, string][] {
+  return [
+    ['Véhicule', c.carName || '—'],
+    ['Période', `du ${fmtDate(c.start)} au ${fmtDate(c.end)}`],
+    ['Durée', c.nbDays ? `${c.nbDays} jour${c.nbDays > 1 ? 's' : ''}` : '—'],
+    c.perDay ? ['Tarif / jour', `${c.perDay.toLocaleString('fr-FR')} ${c.cs}`] : null,
+    c.total ? ['Total location', `${c.total.toLocaleString('fr-FR')} ${c.cs}`] : null,
+    c.acompte ? ['Acompte (3 j)', `${c.acompte.toLocaleString('fr-FR')} ${c.cs}`] : null,
+    (c.total && c.acompte) ? ['Reste à régler', `${c.reste.toLocaleString('fr-FR')} ${c.cs}`] : null,
+  ].filter(Boolean) as [string, string][];
+}
+
+// GET /sign/:token — contrat + signature (ou état signé avec téléchargement PDF)
+router.get('/:token', async (req, res) => {
+  const token = String(req.params['token'] ?? '');
+  const c = await loadContract(token);
+  if (!c) { res.status(404).send(page('<h2 style="text-align:center">Lien invalide ou expiré.</h2>')); return; }
+
+  if (c.row.status === 'signed') {
     res.send(page(`
       <div style="text-align:center">
         <div style="font-size:46px">✅</div>
         <h1 style="color:#10b981">Contrat signé</h1>
-        <p class="sub">Contrat n° ${refNum} — ${esc(row.client_name)}</p>
-        <p class="sub">Signé le ${fmtDate(row.signed_at)}. Merci de votre confiance !</p>
-        ${row.signature_url ? `<a class="dl" href="${esc(row.signature_url)}" target="_blank">Voir ma signature</a>` : ''}
+        <p class="sub">Contrat n° ${c.refNum} — ${esc(c.row.client_name)}</p>
+        <p class="sub">Signé le ${fmtDate(c.row.signed_at)}. Merci de votre confiance !</p>
+        <a class="dl" href="/sign/${esc(token)}/contrat" target="_blank">📄 Télécharger le contrat (PDF)</a>
       </div>`));
     return;
   }
 
-  const detailRows = [
-    ['Véhicule', carName || '—'],
-    ['Période', `du ${fmtDate(start)} au ${fmtDate(end)}`],
-    ['Durée', nbDays ? `${nbDays} jour${nbDays > 1 ? 's' : ''}` : '—'],
-    perDay ? ['Tarif / jour', `${perDay.toLocaleString('fr-FR')} ${cs}`] : null,
-    total ? ['Total location', `${total.toLocaleString('fr-FR')} ${cs}`] : null,
-    acompte ? ['Acompte (3 j)', `${acompte.toLocaleString('fr-FR')} ${cs}`] : null,
-    (total && acompte) ? ['Reste à régler', `${reste.toLocaleString('fr-FR')} ${cs}`] : null,
-  ].filter(Boolean) as [string, string][];
-
   const body = `
   <h1>Contrat de location</h1>
-  <div class="sub">Fik Conciergerie — Oran, Algérie · Contrat n° ${refNum}</div>
+  <div class="sub">Fik Conciergerie — Oran, Algérie · Contrat n° ${c.refNum}</div>
 
   <div class="box">
-    <div class="row"><span>Locataire</span><b>${esc(row.client_name) || '—'}</b></div>
-    ${detailRows.map(([l, v]) => `<div class="row"><span>${l}</span><b>${esc(v)}</b></div>`).join('')}
+    <div class="row"><span>Locataire</span><b>${esc(c.row.client_name) || '—'}</b></div>
+    ${detailRows(c).map(([l, v]) => `<div class="row"><span>${l}</span><b>${esc(v)}</b></div>`).join('')}
   </div>
 
   <h2>Conditions de location</h2>
-  <ul class="cond">${CONDITIONS.map(c => `<li>${c}</li>`).join('')}</ul>
+  <ul class="cond">${CONDITIONS.map(x => `<li>${x}</li>`).join('')}</ul>
 
   <label class="accept"><input type="checkbox" id="acc"/> <span>J'ai lu et j'accepte les conditions de location ci-dessus.</span></label>
 
   <p class="signlabel">Signature du locataire :</p>
-  <canvas id="c" width="480" height="200"></canvas>
-  <div class="btns"><button class="clr" onclick="clr()">Effacer</button><button class="ok" id="okBtn" onclick="send()">Signer le contrat</button></div>
+  <canvas id="c"></canvas>
+  <div class="btns"><button type="button" class="clr" id="clrBtn">Effacer</button><button type="button" class="ok" id="okBtn">Valider</button></div>
   <div class="msg" id="m"></div>
-  <p class="legal">En signant, vous reconnaissez avoir pris connaissance de l'état des lieux du véhicule et acceptez les conditions ci-dessus. Signature horodatée et conservée comme preuve.</p>`;
+  <p class="legal">En validant, vous reconnaissez avoir pris connaissance de l'état des lieux du véhicule et acceptez les conditions ci-dessus. Signature horodatée et conservée comme preuve.</p>`;
 
   res.send(page(body, true));
+});
+
+// GET /sign/:token/contrat — contrat PDF (impression / enregistrer en PDF), signé uniquement
+router.get('/:token/contrat', async (req, res) => {
+  const token = String(req.params['token'] ?? '');
+  const c = await loadContract(token);
+  if (!c) { res.status(404).send('<h2>Lien invalide.</h2>'); return; }
+
+  const rows = [['Locataire', c.row.client_name ?? '—'], ...detailRows(c)];
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Contrat ${esc(c.refNum)} — Fik Conciergerie</title>
+<style>
+  *{box-sizing:border-box} body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#fff;color:#111;padding:28px}
+  .wrap{max-width:720px;margin:0 auto}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #e9b949;padding-bottom:14px;margin-bottom:18px}
+  .head h1{font-size:22px;margin:0;color:#1a1a1a} .head .b{color:#b8860b;font-weight:700}
+  .ref{text-align:right;font-size:12px;color:#666}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#b8860b;margin:22px 0 8px}
+  table{width:100%;border-collapse:collapse} td{padding:8px 0;border-bottom:1px solid #eee;font-size:14px}
+  td.l{color:#666;width:45%} td.v{text-align:right;font-weight:600}
+  ol{padding-left:18px} ol li{font-size:12.5px;color:#333;margin-bottom:6px;line-height:1.5}
+  .sign{margin-top:26px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px}
+  .sign .box{flex:1} .sign .lbl{font-size:11px;color:#666;margin-bottom:6px} .sign img{max-height:90px;border-bottom:1px solid #111}
+  .meta{font-size:11px;color:#888;margin-top:6px}
+  .foot{margin-top:28px;border-top:1px solid #eee;padding-top:12px;font-size:11px;color:#999;text-align:center}
+  .print{position:fixed;bottom:16px;right:16px;background:#e9b949;color:#1a1500;border:0;border-radius:10px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer}
+  @media print{.print{display:none}}
+</style></head><body><div class="wrap">
+  <div class="head">
+    <div><h1>Contrat de <span class="b">location</span></h1><div style="font-size:12px;color:#666">Fik Conciergerie — Oran, Algérie</div></div>
+    <div class="ref">Contrat n°<br/><b>${esc(c.refNum)}</b></div>
+  </div>
+  <h2>Détails de la location</h2>
+  <table>${rows.map(([l, v]) => `<tr><td class="l">${esc(l)}</td><td class="v">${esc(v)}</td></tr>`).join('')}</table>
+  <h2>Conditions de location</h2>
+  <ol>${CONDITIONS.map(x => `<li>${x}</li>`).join('')}</ol>
+  <div class="sign">
+    <div class="box"><div class="lbl">Le loueur — Fik Conciergerie</div><div style="height:90px;border-bottom:1px solid #111"></div></div>
+    <div class="box"><div class="lbl">Le locataire — ${esc(c.row.client_name)}</div>${c.row.signature_url ? `<img src="${esc(c.row.signature_url)}" alt="signature"/>` : '<div style="height:90px;border-bottom:1px solid #111"></div>'}</div>
+  </div>
+  <div class="meta">Signé électroniquement le ${fmtDate(c.row.signed_at)}. Signature horodatée et conservée comme preuve.</div>
+  <div class="foot">Fik Conciergerie — Oran, Algérie · Document généré automatiquement</div>
+</div>
+<button class="print" onclick="window.print()">📄 Enregistrer en PDF</button>
+<script>window.addEventListener('load',function(){setTimeout(function(){try{window.print();}catch(e){}},600);});</script>
+</body></html>`;
+  res.send(html);
 });
 
 // POST /sign/:token — enregistre la signature (image PNG base64)
@@ -131,7 +187,6 @@ router.post('/:token', async (req, res) => {
   }
 });
 
-// Gabarit HTML commun
 function page(inner: string, withScript = false): string {
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
@@ -148,37 +203,44 @@ function page(inner: string, withScript = false): string {
   .accept{display:flex;gap:10px;align-items:flex-start;margin:18px 0 6px;font-size:13.5px;color:#e8e8ee;cursor:pointer}
   .accept input{width:20px;height:20px;margin-top:1px;flex-shrink:0}
   .signlabel{font-size:12px;color:#9b9ba6;margin:14px 0 0}
-  canvas{width:100%;height:200px;background:#fff;border-radius:12px;margin-top:8px;touch-action:none;border:2px dashed #00000020}
+  canvas{width:100%;height:200px;background:#fff;border-radius:12px;margin-top:8px;touch-action:none;display:block}
   .btns{display:flex;gap:10px;margin-top:12px} button{flex:1;padding:14px;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
   .clr{background:#2a2a31;color:#bbb} .ok{background:#e9b949;color:#1a1500} .ok:disabled{opacity:.4}
   .msg{text-align:center;margin-top:12px;font-size:14px;min-height:18px}
   .legal{font-size:11px;color:#6b6b76;margin-top:14px;line-height:1.5}
-  .dl{display:inline-block;margin-top:14px;color:#e9b949;text-decoration:none;border:1px solid #e9b94955;padding:10px 18px;border-radius:10px}
+  .dl{display:inline-block;margin-top:16px;color:#e9b949;text-decoration:none;border:1px solid #e9b94955;padding:12px 20px;border-radius:10px;font-weight:700}
 </style></head><body><div class="card">${inner}</div>${withScript ? script() : ''}</body></html>`;
 }
 
 function script(): string {
   return `<script>
-  const cv=document.getElementById('c'),x=cv.getContext('2d');x.lineWidth=2.5;x.lineCap='round';x.strokeStyle='#111';
-  let drawing=false,has=false;
-  function pos(e){const r=cv.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*(cv.width/r.width),y:(t.clientY-r.top)*(cv.height/r.height)};}
-  function down(e){drawing=true;has=true;const p=pos(e);x.beginPath();x.moveTo(p.x,p.y);e.preventDefault();}
-  function move(e){if(!drawing)return;const p=pos(e);x.lineTo(p.x,p.y);x.stroke();e.preventDefault();}
-  function up(){drawing=false;}
-  cv.addEventListener('mousedown',down);cv.addEventListener('mousemove',move);window.addEventListener('mouseup',up);
-  cv.addEventListener('touchstart',down,{passive:false});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',up);
-  function clr(){x.clearRect(0,0,cv.width,cv.height);has=false;}
-  async function send(){
-    const m=document.getElementById('m');
-    if(!document.getElementById('acc').checked){m.style.color='#f59e0b';m.textContent='Veuillez cocher « J\\'accepte » d\\'abord.';return;}
-    if(!has){m.style.color='#f59e0b';m.textContent='✍️ Signez dans le cadre blanc d\\'abord.';return;}
-    m.style.color='#9b9ba6';m.textContent='Envoi…';document.getElementById('okBtn').disabled=true;
-    try{
-      const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature:cv.toDataURL('image/png')})});
-      if(r.ok){m.style.color='#10b981';m.textContent='✅ Contrat signé, merci ! Vous pouvez fermer cette page.';setTimeout(()=>location.reload(),1500);}
-      else{m.style.color='#ef4444';m.textContent='❌ Erreur, réessayez.';document.getElementById('okBtn').disabled=false;}
-    }catch(e){m.style.color='#ef4444';m.textContent='❌ Pas de connexion, réessayez.';document.getElementById('okBtn').disabled=false;}
+(function(){
+  var cv=document.getElementById('c'), x=cv.getContext('2d'), m=document.getElementById('m');
+  var has=false, drawing=false, last=null;
+  function sizeCanvas(){
+    var r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+    x.setTransform(dpr,0,0,dpr,0,0); x.lineWidth=2.6; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#111';
   }
+  setTimeout(sizeCanvas,30);
+  function pt(e){var r=cv.getBoundingClientRect();var t=(e.touches&&e.touches[0])?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top};}
+  function start(e){drawing=true;has=true;last=pt(e);if(e.cancelable)e.preventDefault();}
+  function draw(e){if(!drawing)return;var p=pt(e);x.beginPath();x.moveTo(last.x,last.y);x.lineTo(p.x,p.y);x.stroke();last=p;if(e.cancelable)e.preventDefault();}
+  function end(){drawing=false;last=null;}
+  cv.addEventListener('pointerdown',start); cv.addEventListener('pointermove',draw); window.addEventListener('pointerup',end);
+  cv.addEventListener('touchstart',start,{passive:false}); cv.addEventListener('touchmove',draw,{passive:false}); cv.addEventListener('touchend',end);
+  cv.addEventListener('mousedown',start); cv.addEventListener('mousemove',draw); window.addEventListener('mouseup',end);
+  document.getElementById('clrBtn').addEventListener('click',function(){x.clearRect(0,0,cv.width,cv.height);has=false;m.textContent='';});
+  document.getElementById('okBtn').addEventListener('click',function(){
+    var ok=document.getElementById('okBtn');
+    if(!document.getElementById('acc').checked){m.style.color='#f59e0b';m.textContent='Cochez la case J accepte d abord.';return;}
+    if(!has){m.style.color='#f59e0b';m.textContent='Signez dans le cadre blanc d abord.';return;}
+    m.style.color='#9b9ba6';m.textContent='Validation...';ok.disabled=true;
+    fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature:cv.toDataURL('image/png')})})
+      .then(function(r){ if(r.ok){m.style.color='#10b981';m.textContent='Contrat valide, merci !';setTimeout(function(){location.reload();},1200);} else {m.style.color='#ef4444';m.textContent='Erreur, reessayez.';ok.disabled=false;} })
+      .catch(function(){m.style.color='#ef4444';m.textContent='Pas de connexion, reessayez.';ok.disabled=false;});
+  });
+})();
 </script>`;
 }
 
