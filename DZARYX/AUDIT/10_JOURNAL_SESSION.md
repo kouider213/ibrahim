@@ -111,6 +111,27 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 - **⏭️ Reste** : URL Render dans les backups une fois le compte créé ; même failover pour le site (api côté
   Next.js) si souhaité.
 
+### 2026-06-11 — 3 chantiers PRO gratuits (audit site/app → exécution) ⭐
+- **Contexte** : audit complet site+app demandé → 3 améliorations à **0 € fixe**, branchées sur le vrai code.
+- **1. Docs client sur `/suivi/[id]`** (site, commit `f633265`) : nouvelle route service-role
+  `pages/api/booking-documents.js` → la page suivi affiche **paiement** (acompte/reste, multi-devise),
+  **contrat** (statut signature + bouton "Signer" si pending → `/sign/:token` backend), **état des lieux
+  avant/après** (photos Cloudinary + marqueurs dégâts colorés par sévérité + bannière accident + lightbox).
+  Branché sur `payments`, `vehicle_states`, `contract_signatures`. Transparence anti-litige = pro.
+- **2. Planning flotte admin** (site) : nouvelle page `pages/admin/planning.js` + entrée nav "Planning flotte" :
+  **timeline Gantt** (voitures × 30j, fenêtre navigable, barres par statut, week-ends, today, lien résa) +
+  **détection double-booking** + **dashboard relances** (départs/retours auj.+demain, soldes impayés avec
+  **relance WhatsApp 1-clic**). Source impayés = `bookings.paid_amount`/`payment_status`.
+- **3. Briefing matin = centre de commande + recouvrement** (backend, commit `f778d8c`) :
+  `jobMorningBriefing` enrichi → bloc **"À encaisser"** (soldes dus) + bloc **"Documents à vérifier"**
+  (passeport/permis qui expirent ≤7j). `getUnpaidBookings` génère par client une **relance WhatsApp en
+  darija oranaise prête** (lien wa.me pré-rempli, multi-devise). Tool `get_unpaid_bookings` : dire
+  *"relance les impayés"* / *"recouvrement"* → messages prêts. tsc 0, build site 0.
+- **Déployé** : site → Vercel (push `f633265`), backend → Railway (push `f778d8c`).
+- **Note** : `/api/booking-documents` utilise `SUPABASE_SERVICE_ROLE_KEY` (déjà présent sur Vercel via `booking.js`).
+- **⏭️ Suite proposée (non faite, validée plus tard)** : acompte en ligne **Chargily** (0 € fixe, commission
+  par transaction) — le seul qui demande un compte marchand. + compte client OTP + avis vérifiés post-location.
+
 ### 2026-06-11 — Audit complet + migrations confirmées + journal rattrapé
 - **Quoi** : audit complet site+Dzaryx (docs vault + git des 2 repos). Kouider confirme : **toutes les migrations
   SQL sont lancées** (`car_currency`, `inspection_upgrade`, `phase_extras`). Journal mis à jour avec les sessions
