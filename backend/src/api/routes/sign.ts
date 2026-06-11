@@ -110,8 +110,8 @@ router.get('/:token', async (req, res) => {
   <h2>Pièces justificatives</h2>
   <p class="signlabel">Ajoutez une photo de votre passeport et de votre permis (obligatoire pour valider) :</p>
   <div class="docs">
-    <label class="doc" id="lblPass"><span class="chk">✓</span><input type="file" id="pass" accept="image/*" hidden/><img class="prev" id="prevPass" alt=""/><span class="ph"><span class="ico">📷</span><span class="lbl">Passeport</span></span></label>
-    <label class="doc" id="lblPerm"><span class="chk">✓</span><input type="file" id="perm" accept="image/*" hidden/><img class="prev" id="prevPerm" alt=""/><span class="ph"><span class="ico">📷</span><span class="lbl">Permis</span></span></label>
+    <label class="doc" id="lblPass"><span class="chk">✓</span><img class="prev" id="prevPass" alt=""/><span class="ph"><span class="ico">📷</span><span class="lbl">Passeport</span></span><input type="file" id="pass" accept="image/*" class="fileabs"/></label>
+    <label class="doc" id="lblPerm"><span class="chk">✓</span><img class="prev" id="prevPerm" alt=""/><span class="ph"><span class="ico">📷</span><span class="lbl">Permis</span></span><input type="file" id="perm" accept="image/*" class="fileabs"/></label>
   </div>
 
   <div class="btns"><button type="button" class="ok" id="okBtn">Valider le contrat</button></div>
@@ -242,8 +242,9 @@ function page(inner: string, withScript = false): string {
   .doc .prev{display:none;width:100%;height:120px;object-fit:cover}
   .doc.ok .prev{display:block}
   .doc .ico{font-size:26px} .doc .lbl{font-size:13px;color:#cfcfd6;font-weight:600}
-  .doc .chk{display:none;position:absolute;top:6px;right:6px;background:#10b981;color:#04130c;font-size:11px;font-weight:800;padding:2px 7px;border-radius:8px}
+  .doc .chk{display:none;position:absolute;top:6px;right:6px;z-index:3;background:#10b981;color:#04130c;font-size:11px;font-weight:800;padding:2px 7px;border-radius:8px}
   .doc.ok .chk{display:block}
+  .fileabs{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2}
   .btns{display:flex;gap:10px;margin-top:18px} button{flex:1;padding:14px;border:0;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
   .ok{background:#e9b949;color:#1a1500} .ok:disabled{opacity:.4}
   .msg{text-align:center;margin-top:12px;font-size:14px;min-height:18px}
