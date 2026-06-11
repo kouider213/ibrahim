@@ -276,7 +276,7 @@ export async function getUnpaidBookings(): Promise<string> {
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, client_name, client_phone, final_price, paid_amount, payment_status, start_date, end_date, created_at, cars(name)')
+    .select('id, client_name, client_phone, final_price, paid_amount, payment_status, currency, start_date, end_date, created_at, cars(name)')
     .in('payment_status', ['PENDING', 'PARTIAL'])
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED'])
     .order('start_date', { ascending: false });
@@ -284,26 +284,43 @@ export async function getUnpaidBookings(): Promise<string> {
   if (error) return `Erreur: ${error.message}`;
   if (!data?.length) return '✅ Aucun impayé — tout est à jour!';
 
-  const rows = (data as any[]).map(b => {
+  const rows: string[]   = [];
+  const drafts: string[] = [];
+
+  for (const b of data as any[]) {
     const paid      = b.paid_amount ?? 0;
     const total     = b.final_price ?? 0;
     const remaining = total - paid;
+    if (remaining <= 0) continue;
     const created   = new Date(b.created_at);
     const hoursAgo  = Math.floor((now.getTime() - created.getTime()) / 3_600_000);
     const daysAgo   = Math.floor(hoursAgo / 24);
     const urgence   = hoursAgo >= 72 ? '🔴' : hoursAgo >= 48 ? '🟡' : '🟢';
-    const car       = (b as any).cars?.name ?? '?';
+    const car       = b.cars?.name ?? '?';
+    const cur       = b.currency === 'DZD' ? 'DA' : '€';
 
-    return `${urgence} ${b.client_name} | ${car} | Reste: ${remaining}€ | Depuis: ${daysAgo}j ${hoursAgo % 24}h | 📱 ${b.client_phone ?? 'N/A'}`;
-  });
+    rows.push(`${urgence} ${b.client_name} | ${car} | Reste: ${remaining} ${cur} | Depuis: ${daysAgo}j ${hoursAgo % 24}h | 📱 ${b.client_phone ?? 'N/A'}`);
+
+    // Brouillon de relance WhatsApp en darija oranaise — prêt à envoyer (lien wa.me)
+    const waText = `Sslam ${b.client_name} 👋 kaynin ${remaining} ${cur} li baqyin 3la kra ta3 ${car}. Ki tqder kemmel lkhlas, choukran bzaf 🙏 — Fik Conciergerie`;
+    const phone  = String(b.client_phone ?? '').replace(/[^0-9]/g, '');
+    if (phone) {
+      drafts.push(`• *${b.client_name}* (${remaining} ${cur}) → https://wa.me/${phone}?text=${encodeURIComponent(waText)}`);
+    } else {
+      drafts.push(`• *${b.client_name}* (${remaining} ${cur}) — pas de numéro :\n  "${waText}"`);
+    }
+  }
+
+  if (rows.length === 0) return '✅ Aucun impayé — tout est à jour!';
 
   const urgent = (data as any[]).filter(b => {
     const hoursAgo = Math.floor((now.getTime() - new Date(b.created_at).getTime()) / 3_600_000);
-    return hoursAgo >= 48;
+    return hoursAgo >= 48 && ((b.final_price ?? 0) - (b.paid_amount ?? 0)) > 0;
   }).length;
 
-  return `⚠️ IMPAYÉS (${data.length} clients | ${urgent} urgents):\n${rows.join('\n')}\n\n` +
-    `🔴 = +72h (relance urgente) | 🟡 = +48h (relance normale) | 🟢 = récent`;
+  return `⚠️ IMPAYÉS (${rows.length} clients | ${urgent} urgents):\n${rows.join('\n')}\n\n` +
+    `🔴 = +72h (relance urgente) | 🟡 = +48h | 🟢 = récent\n\n` +
+    `📲 *Relances WhatsApp prêtes (clic = message pré-rempli en darija):*\n${drafts.join('\n')}`;
 }
 
 // Message de relance WhatsApp

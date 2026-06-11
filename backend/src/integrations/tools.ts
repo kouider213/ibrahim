@@ -402,7 +402,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_unpaid_bookings',
-    description: 'Lister toutes les réservations impayées ou partiellement payées, avec urgence et délai.',
+    description: 'Lister les réservations impayées/partielles avec urgence, ET générer pour chaque client une relance WhatsApp en darija prête à envoyer (lien wa.me). Utiliser quand Kouider dit "relance les impayés", "qui doit de l\'argent", "soldes à encaisser", "recouvrement".',
     input_schema: {
       type: 'object' as const,
       properties: {},

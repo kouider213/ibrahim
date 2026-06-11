@@ -35,6 +35,8 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
+  const in7Str = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+
   const [
     activeBookings,
     returningToday,
@@ -43,6 +45,8 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     weather,
     calendarEvents,
     financeThisMonth,
+    unpaidSoldes,
+    expiringDocs,
   ] = await Promise.all([
     supabase.from('bookings').select('*, cars(name)')
       .in('status', ['CONFIRMED', 'ACTIVE'])
@@ -60,6 +64,15 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     getOranWeather().catch(() => null),
     listUpcomingEvents(5).catch(() => []),
     getFinancialReport(new Date().getFullYear(), new Date().getMonth() + 1).catch(() => null),
+    // Soldes à encaisser : voiture déjà remise (start passé), encore dû. Même règle que jobUnpaidReminder.
+    supabase.from('bookings').select('client_name, final_price, paid_amount, currency, cars(name)')
+      .in('payment_status', ['PENDING', 'PARTIAL'])
+      .in('status', ['ACTIVE', 'COMPLETED'])
+      .lte('start_date', today),
+    // Docs clients qui expirent ≤7j (passeport / permis)
+    supabase.from('bookings').select('client_name, passport_expiry, license_expiry')
+      .or(`passport_expiry.lte.${in7Str},license_expiry.lte.${in7Str}`)
+      .gte('end_date', today),
   ]);
 
   const now = new Date();
@@ -140,6 +153,42 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
         : (e.start as unknown as { date?: string }).date ?? '';
       lines.push(`  • ${e.summary} — ${start}`);
     }
+    lines.push(``);
+  }
+
+  // 💵 À encaisser (soldes dus — voiture déjà remise)
+  const soldes = (unpaidSoldes.data ?? []) as unknown as Array<{
+    client_name: string; final_price?: number; paid_amount?: number; currency?: string; cars?: { name: string };
+  }>;
+  const dus = soldes
+    .map(b => ({ ...b, remaining: Number(b.final_price ?? 0) - Number(b.paid_amount ?? 0) }))
+    .filter(b => b.remaining > 0);
+  if (dus.length > 0) {
+    lines.push(`💵 *À encaisser (${dus.length}):*`);
+    for (const b of dus.slice(0, 6)) {
+      const cur = b.currency === 'DZD' ? 'DA' : '€';
+      lines.push(`  • ${b.client_name} — ${b.cars?.name ?? '?'} : ${Math.round(b.remaining)} ${cur}`);
+    }
+    lines.push(`  ➜ dis *"relance les impayés"* pour les messages prêts.`);
+    lines.push(``);
+  }
+
+  // 📋 Docs clients qui expirent (≤7j)
+  const docs = (expiringDocs.data ?? []) as Array<{ client_name: string; passport_expiry?: string; license_expiry?: string }>;
+  const docAlerts: string[] = [];
+  const todayMs = Date.now();
+  for (const d of docs) {
+    const chk = (label: string, exp?: string) => {
+      if (!exp) return;
+      const diff = Math.ceil((new Date(exp).getTime() - todayMs) / 86_400_000);
+      if (diff <= 7) docAlerts.push(`  • ${d.client_name} — ${label} ${diff < 0 ? `EXPIRÉ` : `expire dans ${diff}j`}`);
+    };
+    chk('passeport', d.passport_expiry);
+    chk('permis', d.license_expiry);
+  }
+  if (docAlerts.length > 0) {
+    lines.push(`📋 *Documents à vérifier:*`);
+    lines.push(...docAlerts.slice(0, 6));
     lines.push(``);
   }
 
