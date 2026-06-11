@@ -257,38 +257,27 @@ function script(): string {
 (function(){
   var m=document.getElementById('m');
   var passData=null, permData=null;
-  // Lit le fichier, affiche un aperçu, et compresse pour l'envoi. Renvoie TOUJOURS quelque chose
-  // (même si la conversion canvas échoue sur HEIC iPhone : on envoie le dataURL brut).
-  function readImg(file, prevImg, cb){
-    var fr=new FileReader();
-    fr.onload=function(){
-      var raw=fr.result;
-      if(prevImg){ prevImg.src=raw; } // aperçu immédiat (Safari affiche le HEIC nativement)
-      var img=new Image();
-      img.onload=function(){
-        try{
-          var max=1280, w=img.width||1280, h=img.height||960;
-          if(w>max||h>max){ var r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
-          var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-          cv.getContext('2d').drawImage(img,0,0,w,h);
-          cb(cv.toDataURL('image/jpeg',0.7));
-        }catch(e){ cb(raw); }
-      };
-      img.onerror=function(){ cb(raw); };
-      img.src=raw;
-    };
-    fr.onerror=function(){ m.style.color='#ef4444'; m.textContent='Impossible de lire l image, reessayez.'; };
-    fr.readAsDataURL(file);
-  }
   function hook(id, lblId, prevId, set){
     document.getElementById(id).addEventListener('change',function(e){
       var f=e.target.files&&e.target.files[0]; if(!f)return;
-      m.style.color='#9b9ba6'; m.textContent='Chargement de la photo...';
-      readImg(f, document.getElementById(prevId), function(d){
-        set(d);
-        document.getElementById(lblId).classList.add('ok');
-        m.textContent='';
-      });
+      var prev=document.getElementById(prevId), lbl=document.getElementById(lblId);
+      // 1) Aperçu instantané et fiable (blob URL — Safari affiche même le HEIC)
+      try{ prev.src=URL.createObjectURL(f); }catch(err){}
+      lbl.classList.add('ok');
+      m.style.color='#9b9ba6'; m.textContent='Photo ajoutee.';
+      // 2) Donnée pour l'envoi — dataURL brut, posé TOUT DE SUITE (aucune dépendance fragile)
+      var fr=new FileReader();
+      fr.onload=function(){
+        var raw=fr.result; set(raw);
+        // 3) Compression best-effort en arrière-plan (remplace si ça marche, sinon on garde le brut)
+        try{
+          var img=new Image();
+          img.onload=function(){ try{ var max=1280,w=img.width,h=img.height; if(w>max||h>max){var r=Math.min(max/w,max/h);w=Math.round(w*r);h=Math.round(h*r);} var cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);set(cv.toDataURL('image/jpeg',0.72)); }catch(e2){} };
+          img.src=raw;
+        }catch(e3){}
+      };
+      fr.onerror=function(){ m.style.color='#ef4444'; m.textContent='Erreur lecture de la photo, reessayez.'; };
+      fr.readAsDataURL(f);
     });
   }
   hook('pass','lblPass','prevPass',function(d){passData=d;});
