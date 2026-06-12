@@ -111,6 +111,41 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 - **⏭️ Reste** : URL Render dans les backups une fois le compte créé ; même failover pour le site (api côté
   Next.js) si souhaité.
 
+### 2026-06-12 — Contrat doc-validation + traduction auto + gros pack admin/site pro ⭐⭐
+> Session marathon. Site `rental-system` (Vercel) + backend `sign.ts` (Railway).
+
+**Contrat de location (refonte totale)** — `backend/src/api/routes/sign.ts` :
+- **Cause racine de TOUS les bugs JS de la page contrat** : la **CSP globale helmet** (`script-src 'self'`)
+  bloquait tout `<script>` inline → ni signature ni upload ne tournaient. Fix : middleware CSP relâchée sur `/sign`
+  (`unsafe-inline` + img data/blob/https). Voir [[../../memory|csp_inline_script]]. **À retenir : vérifier les headers AVANT de débugger la logique.**
+- Signature dessinée **abandonnée** → validation par **case "J'accepte" + photo passeport + photo permis**
+  (inputs natifs, compression canvas, bucket `client-documents` passé **PUBLIC**).
+- **Vrai PDF téléchargeable** `GET /sign/:token/pdf` (pdfkit) : design pro (bande or, **logo** chargé depuis URL site,
+  sections, encadré tarifs, **lieux récupération/restitution**, conditions, validation + photos passeport/permis).
+- Admin : `/api/generate-contract-link` accepte pickup/return ; modal affiche statut + photos + bouton PDF.
+
+**Traduction automatique du site (FR→AR/EN)** :
+- Moteur `backend/.../translate.ts` `POST /api/translate` — **Groq d'abord** (gratuit ; Gemini était en 429 quota),
+  cache Redis 30j (succès only). Site `lib/autoTranslate.js` (`useTranslated`, cache localStorage). Branché :
+  FAQ, conditions, descriptions voiture/immo/pack. Valeurs fixes (carburant/boîte/catégorie) : `localizeValue()` i18n.
+- **Anglais complet** : dictionnaire EN (~320 clés) + sélecteur **FR/ع/EN** Navbar. Specs voitures + boutons
+  "Vérifier la dispo"/"Sur demande"/"/day" localisés. **"Douba Groupe" retiré** (badge immo, 3 langues).
+
+**Pack admin pro (le tout gérable sans coder)** :
+- **Gestion réservation réparée** : l'update direct était bloqué par la RLS → passe par `/api/update-booking` (clé service).
+- **Avis vérifiés** : page `/avis/[id]` post-location → `/api/submit-review` (verified=true) + badge "Vérifié" + bouton admin "Demander un avis".
+- **Pages légales éditables** : `/admin/pages` (éditeur 3 langues, auto-traduction) + `legal_pages` table ; pages CGV/mentions/confidentialité/à-propos lisent la DB (fallback défaut). API `/api/save-legal`.
+- **Maintenance véhicules** : champs assurance/CT/vignette/révision/note sur `/admin/cars` + **alertes** dans Planning flotte (≤30j/expiré). Retry gracieux avant migration.
+- **Blog** : ajouté au menu + **4 images** (Unsplash) sur les articles.
+- Accueil déjà éditable via **Paramètres** (hero, annonce, stats, contacts, réseaux, mode dispo).
+- **État des lieux manuel** (multi-photos + tap-to-mark) déjà fait la veille.
+
+**🛑 ACTION REQUISE (Kouider)** : lancer **`rental-system/supabase/0019_admin_pack.sql`** dans Supabase > SQL Editor
+(avis vérifiés `reviews.verified`/`booking_id`, table `legal_pages`, colonnes maintenance `cars`). Tout dégrade
+proprement sans, mais ces 3 features ne s'activent qu'après.
+
+**Reste (proposé, non fait)** : acompte en ligne Chargily (**exclu par Kouider**), emails auto (besoin SMTP), compte client, SEO/perf (accueil 57 Ko à découper).
+
 ### 2026-06-11 (soir) — Contrat pro + gestion admin complète + état des lieux manuel ⭐
 - **Contexte** : test live de la page suivi → 3 manques identifiés par Kouider (contrat vide, admin lecture seule, marquage dégâts manuel).
 - **1. Contrat pro** (backend `sign.ts`, commit `7bfcf8d`) : la page `/sign/:token` affiche un VRAI contrat —
