@@ -5,13 +5,20 @@ import { supabase } from '../../integrations/supabase.js';
 
 const router = Router();
 
-// Logo Fik Conciergerie (pour le PDF). Chargé une fois, plusieurs chemins tentés.
-const LOGO: Buffer | null = (() => {
-  for (const p of [join(process.cwd(), 'assets/logo.png'), join(process.cwd(), 'backend/assets/logo.png'), join(process.cwd(), 'dist/assets/logo.png')]) {
-    try { return readFileSync(p); } catch { /* essai suivant */ }
+// Logo Fik Conciergerie (pour le PDF). Fichier local sinon URL publique du site. Mis en cache.
+let LOGO_CACHE: Buffer | null | undefined;
+async function getLogo(): Promise<Buffer | null> {
+  if (LOGO_CACHE !== undefined) return LOGO_CACHE;
+  for (const p of [join(process.cwd(), 'assets/logo.png'), join(process.cwd(), 'backend/assets/logo.png')]) {
+    try { LOGO_CACHE = readFileSync(p); return LOGO_CACHE; } catch { /* essai suivant */ }
   }
-  return null;
-})();
+  const { default: axios } = await import('axios');
+  for (const u of ['https://autolux-location.vercel.app/logo.png', 'https://fikconciergerie.com/logo.png']) {
+    try { const r = await axios.get(u, { responseType: 'arraybuffer', timeout: 10_000 }); LOGO_CACHE = Buffer.from(r.data as ArrayBuffer); return LOGO_CACHE; } catch { /* essai suivant */ }
+  }
+  LOGO_CACHE = null;
+  return LOGO_CACHE;
+}
 
 // La page contrat est une page HTML complète avec JS inline (signature/upload).
 // La CSP globale (helmet) bloque les scripts inline → on la relâche UNIQUEMENT ici.
@@ -225,7 +232,7 @@ router.get('/:token/pdf', async (req, res) => {
     if (!u) return null;
     try { const r = await axios.get(u, { responseType: 'arraybuffer', timeout: 15_000 }); return Buffer.from(r.data as ArrayBuffer); } catch { return null; }
   };
-  const [passImg, permImg] = await Promise.all([fetchImg(String(d['passport_url'] ?? '')), fetchImg(String(d['permit_url'] ?? ''))]);
+  const [passImg, permImg, logoImg] = await Promise.all([fetchImg(String(d['passport_url'] ?? '')), fetchImg(String(d['permit_url'] ?? '')), getLogo()]);
 
   const { default: PDFDocument } = await import('pdfkit');
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -254,7 +261,7 @@ router.get('/:token/pdf', async (req, res) => {
   // ── En-tête ──
   doc.rect(0, 0, 595, 6).fill(GOLD);
   let hx = M;
-  if (LOGO) { try { doc.image(LOGO, M, 32, { fit: [46, 46] }); hx = M + 56; } catch { /* logo illisible */ } }
+  if (logoImg) { try { doc.image(logoImg, M, 30, { fit: [48, 48] }); hx = M + 58; } catch { /* logo illisible */ } }
   doc.fillColor(DARK).font('Helvetica-Bold').fontSize(21).text('FIK CONCIERGERIE', hx, 40);
   doc.fillColor(GREY).font('Helvetica').fontSize(9).text('Location de véhicules — Oran, Algérie', hx, 66);
   doc.roundedRect(410, 38, 135, 42, 6).fillAndStroke(SOFT, LINE);
