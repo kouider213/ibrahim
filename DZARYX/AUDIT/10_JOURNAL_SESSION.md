@@ -144,7 +144,13 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 (avis vérifiés `reviews.verified`/`booking_id`, table `legal_pages`, colonnes maintenance `cars`). Tout dégrade
 proprement sans, mais ces 3 features ne s'activent qu'après.
 
-**Reste (proposé, non fait)** : acompte en ligne Chargily (**exclu par Kouider**), emails auto (besoin SMTP), compte client, SEO/perf (accueil 57 Ko à découper).
+**Suite (faite ensuite, même journée)** :
+- **Espace client** `/mes-reservations` : recherche par téléphone (8 derniers chiffres), liste résas + suivi/avis/re-réserver. Sans compte. API `/api/my-bookings`. Lien menu.
+- **Emails auto** : `lib/email.js` (Resend HTTP, gratuit, graceful sans clé). Email "réservation reçue" (à la création) + "confirmée" (à l'acceptation). 🛑 Kouider : créer compte Resend + `RESEND_API_KEY` + `RESEND_FROM` (domaine vérifié) sur Vercel pour activer l'envoi.
+- **SEO** : sitemap complété (packs/légal/mes-reservations + hreflang EN), **JSON-LD AutoRental/LocalBusiness** global (`_document.js`), robots no-index `/suivi /avis /sign`.
+- **Migration 0019 lancée par Kouider ✅** (avis vérifiés + legal_pages + maintenance cars actifs).
+
+**Reste (exclu/plus tard)** : acompte en ligne Chargily (**exclu Kouider**), SEO perf accueil 57 Ko (découpage risqué), rappel J-1 par email (scheduler à brancher).
 
 ### 2026-06-11 (soir) — Contrat pro + gestion admin complète + état des lieux manuel ⭐
 - **Contexte** : test live de la page suivi → 3 manques identifiés par Kouider (contrat vide, admin lecture seule, marquage dégâts manuel).
