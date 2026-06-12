@@ -25,9 +25,12 @@
 
 ---
 
-## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-11)
+## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-12)
 
-- **Migrations Supabase** : ✅ TOUTES LANCÉES (confirmé Kouider 2026-06-11) — `migration_car_currency.sql`,
+- **⭐ SITE FIK (12-06)** : grosse session, voir l'entrée détaillée `### 2026-06-12 — SESSION SITE FIK COMPLÈTE`
+  plus bas. Tout déployé+testé live. **DEMAIN = construire le SUIVI D'IMPORTATION VÉHICULE** (spec complète dans
+  l'entrée). SQL site lancés par Kouider : `0020_newsletter_reminders.sql`, `0021_cash_register.sql`.
+- **Migrations Supabase (app/backend)** : ✅ TOUTES LANCÉES (confirmé Kouider 2026-06-11) — `migration_car_currency.sql`,
   `migration_inspection_upgrade.sql`, `migration_phase_extras.sql`. Plus aucune migration en attente.
 - **Darija (06-10)** : réponse 100% darija oranaise max-arabe (labels traduits, noms propres/montants gardés),
   voix TTS arabe dédiée auto-switch (`ELEVENLABS_VOICE_ID_AR`), arabizi prononcé phonétique (3→ع etc., chiffres
@@ -80,6 +83,129 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 ---
 
 ## Entrées (plus récent en haut)
+
+### 2026-06-12 — SESSION SITE FIK COMPLÈTE (favoris, PWA, newsletter, caisse, blog IA, SEO, Google, trad 100%) ⭐⭐⭐
+
+> **Pour le prochain Claude : ceci est LE récap complet de la journée du 12/06 sur le SITE `rental-system`
+> (= Fik Conciergerie, le site public, repo GitHub `kouider213/autolux-location`, hébergé Vercel,
+> domaine `fikconciergerie.com`). PAS l'app Dzaryx. Lis tout, tu sauras exactement où on en est.**
+
+#### CONTEXTE / QUI / QUOI
+- **Kouider** (proprio Fik Conciergerie, Oran). Active **caveman mode** (réponses télégraphiques, mais code/commits normaux).
+- Le site vend : **location voiture** (pipeline complet) + **vente voiture** + **immobilier** + **packs séjour**. Clientèle = **diaspora algérienne** (FR/AR/EN).
+- Objectif global Kouider : **"le meilleur site d'Algérie"**, gérable A→Z depuis l'admin sans coder, **$0 de coût fixe**, traduit 100%.
+- **2 repos distincts** :
+  - SITE : `C:\Users\douba\OneDrive\Bureau\rental-system` → GitHub `kouider213/autolux-location` → Vercel. Next.js 14 (pages router), Tailwind, lucide-react, Supabase.
+  - BACKEND Dzaryx : `C:\Users\douba\OneDrive\Bureau\ibrahim\ibrahim\backend` → GitHub `kouider213/ibrahim` → Railway. Express/TS. Sert `/api/translate` (Groq), `/api/blog-generate` (nouveau), `/sign/:token` (contrats).
+- Workflow : build (`npm run build`) → `git add -A` → commit → push → Vercel auto-deploy. Backend = push sur son repo → Railway auto-deploy. **Toujours `npx tsc --noEmit` à 0 avant de commit le backend.**
+
+#### CE QU'ON A CONSTRUIT AUJOURD'HUI (tout déployé + vérifié live, dans l'ordre)
+
+1. **Favoris ❤️ universels** (sans compte, localStorage)
+   - `lib/favorites.js` : hook `useFavorites()`. Clé localStorage `fik:favorites` = tableau de strings `"type:id"` (ex `car:uuid`, `immo:uuid`, `vente:uuid`, `pack:uuid`). Rétro-compat : anciens ids nus → préfixés `car:`. API : `toggle(id, type='car')`, `isFav(id, type)`, `byType()`, `count`. Event custom `fik:favchange` pour sync multi-composants.
+   - Boutons cœur sur cartes : `pages/cars.js`, `pages/immo.js`, `pages/vente-voitures.js`, `pages/packs.js` (toujours `e.preventDefault()+stopPropagation()` car dans un `<Link>`, position `absolute bottom-3 right-3 z-20`).
+   - Page `pages/favoris.js` : sections par type (voitures/immo/vente/packs), fetch chaque table par `.in('id', ids)`, 3 langues + RTL. Lien navbar avec compteur (`components/Navbar.js`, icône Heart desktop + mobile).
+   - **Pourquoi localStorage et pas de compte** : Kouider veut "pas de création de compte" (friction diaspora). Décision validée.
+
+2. **PWA → AJOUTÉE PUIS RETIRÉE (la pop-up)**
+   - Créé : `public/sw.js` (service worker offline), `public/offline.html`, icônes via `sharp` (`public/icons/icon-192/512/maskable-512.png`), `public/manifest.json` enrichi (shortcuts), `components/PWAInstall.js` (bouton installer Android + astuce iOS).
+   - **Kouider a demandé de RETIRER la pop-up "installer l'app"** → `<PWAInstall />` retiré de `pages/_app.js` (commit `aa6b954`). Les fichiers SW/manifest/icônes **restent** (inoffensifs, manifest toujours lié). Si la pop-up réapparaît chez lui = vieux SW en cache, fermer/rouvrir le navigateur.
+
+3. **Newsletter diaspora + rappel J-1**
+   - SQL `supabase/0020_newsletter_reminders.sql` : table `newsletter_subscribers` (email unique lower, lang, status active/unsubscribed) + colonne `bookings.reminder_sent_at`. **✅ LANCÉ par Kouider.**
+   - Inscription : `components/NewsletterSignup.js` dans le footer. API `pages/api/newsletter-subscribe.js` (upsert + email bienvenue). `pages/api/newsletter-unsubscribe.js` (GET lien email).
+   - Admin : `pages/admin/newsletter.js` (campagne : objet+message HTML, test à soi, envoi à tous, export CSV, liste). API `pages/api/newsletter-send.js` (vérifie token session Supabase admin, boucle ~8/s pour limite Resend).
+   - **Rappel J-1** : `pages/api/cron/reminders.js` (résas qui démarrent DEMAIN, statut confirmé, `reminder_sent_at` null → email → marque). Protégé par `CRON_SECRET` (Vercel, optionnel). Cron dans `vercel.json` (`0 8 * * *`). **Testé live `{ok:true,candidates:0,sent:0}`.**
+   - **BUG corrigé** : le cron sélectionnait `pickup_location` → colonne **inexistante** sur `bookings` (elle vit dans `contract_signatures.details` JSON). Retiré du select (commit `02abe8f`).
+   - Templates email dans `lib/email.js` : `bookingReminderEmail`, `newsletterWelcomeEmail`, `newsletterCampaignEmail`. (Resend HTTP, `RESEND_API_KEY` + `RESEND_FROM` sur **VERCEL pas Render**, domaine `fikconciergerie.com` vérifié.)
+
+4. **Caisse + Export comptable** (admin)
+   - SQL `supabase/0021_cash_register.sql` : table `cash_entries` (kind income/expense, category, label, amount, currency, entry_date, booking_id). RLS = `auth.role()='authenticated'`. **✅ LANCÉ par Kouider.**
+   - `pages/admin/comptabilite.js` (lien navbar admin "Comptabilité") : KPI mois (entrées/sorties/solde), ajout mouvement, liste, **export CSV comptable** (résas du mois) + **export caisse**. Client-side via supabase (RLS authentifié).
+
+5. **Devise auto → AJOUTÉE PUIS RETIRÉE**
+   - Créé `lib/currency.js` (détection pays, taux live `open.er-api.com`) + `components/ApproxPrice.js` + sélecteur navbar.
+   - **Kouider : "on en a pas besoin, ça bloque la navigation"** → retiré du navbar + des cartes (commit `44bb10f`). Fichiers `lib/currency.js` + `ApproxPrice.js` restent mais **plus utilisés**. Raison : le `<select>` dans la navbar gênait le menu mobile.
+
+6. **Blog auto IA (Dzaryx)**
+   - BACKEND (repo ibrahim) : `backend/src/api/routes/blog-generate.ts`, monté `/api/blog-generate` dans `index.ts`. Réutilise les clés LLM déjà sur Railway → **Groq llama-3.3-70b** puis **OpenAI** fallback. Prompt = rédacteur SEO FR, sortie JSON `{title, excerpt, body}` (body HTML). `tsc` à 0, commit `191ed74`. **Testé live : article complet.**
+   - SITE : `pages/admin/blog.js` → bouton "Rédiger avec l'IA". Appelle le backend, remplit FR, puis **traduit AR auto** via `translateMany([...], 'ar')`. L'admin relit + image + publie.
+   - Rendu : `pages/blog/[slug].js` détecte HTML (`isHtml`) → `dangerouslySetInnerHTML` (contenu admin). Styles `.blog-content` dans `styles/globals.css`.
+
+7. **SEO — pages métier + schema**
+   - `components/SeoLanding.js` : composant réutilisable (hero, bullets, why, FAQ accordéon, CTA, JSON-LD `@graph` Service/RealEstateAgent + BreadcrumbList + FAQPage). Contenu FR en props, auto-traduit via `<T>`.
+   - 4 pages : `pages/conciergerie-oran.js`, `location-voiture-oran.js`, `vente-voiture-oran.js`, `immobilier-oran.js`. Ajoutées au `sitemap.xml.js` (prio 0.9) + liens footer. **Testées 200 + schema présent.**
+   - **AggregateRating accueil** : `pages/index.js` getStaticProps calcule `reviewStats` (count+moyenne avis approuvés réels) → JSON-LD LocalBusiness étoiles. **Vérifié.**
+   - **FAQPage** sur `pages/faq.js`.
+
+8. **Google Business branché** (Kouider a donné ses 2 liens)
+   - `lib/google.js` : `GOOGLE_REVIEW_URL = https://g.page/r/CSluTI58e1CwEBM/review`, `GOOGLE_MAPS_URL = https://share.google/N4itFBIAR9Z1JX8Aw`.
+   - Bouton "Laisser un avis Google" (logo Google SVG, 3 langues) sur `pages/reviews.js` + écran remerciement `pages/avis/[id].js`.
+   - Email avis (`lib/email.js reviewRequestEmail`) → CTA principal = avis Google.
+   - Lien "Voir sur Google Maps" footer (adresse cliquable → NAP/SEO local).
+
+9. **Traduction 100% FR/AR/EN** (demande récurrente forte — "chaque détail compte")
+   - Moteur `lib/autoTranslate.js`. Ajouté composant **`<T>texte FR</T>`** (auto-traduit l'enfant via `useTranslated` → backend `/api/translate` Groq, cache localStorage). `translateMany(texts, target)`. FR inchangé, arabe déjà saisi non re-traduit.
+   - Pages réparées : **`investir.js`** (`<T>` + RTL), **`blog/[slug].js`** (titre/corps/extrait via `useTranslated`, le blog n'a que FR+AR en base → EN tombait en FR), **`mes-reservations.js`** (helper `L(fr,ar,en)` + statuts + barre + RTL), **`suivi/[id].js`** (statuts/étapes maps `{fr,ar,en}`, paiement, contrat, état des lieux, RTL), **`avis/[id].js`** (formulaire + RTL).
+   - Barre recherche mes-reservations : icône à droite en arabe, input RTL, bouton `min-w-[52px]`.
+   - **Scan final** : plus aucune page publique non traduite.
+   - Voir mémoire `i18n_full_coverage`.
+
+#### COMMITS SITE (ordre chrono ce jour)
+`f142dec` favoris · `c3dd94a` PWA · `942c057` newsletter+J-1 · `883fd8c` devise+caisse · `238dfda` blog IA+perf · `02abe8f` fix cron · `44bb10f` retrait devise · `aa6b954` retrait pop-up PWA · `3307815` trad+favoris universels · `b113f6f` SEO+schema · `4cbc3c3` Google links · `9791c19` trad suivi+avis.
+BACKEND : `191ed74` route blog-generate.
+
+#### PERF ACCUEIL (partiel)
+`pages/_app.js` preconnect Supabase/Unsplash + dns-prefetch Cloudinary. `pages/index.js` hero `fetchPriority="high" decoding="async"`. Reste optimisable (framer-motion, 32 usages) — **pas fait, gain modéré, risqué**.
+
+#### CE QUI RESTE (optionnel)
+1. **Capture lead immo/vente/packs** — ces 3 passent QUE par WhatsApp (aucune trace si pas de message). Proposé : mini-formulaire qui enregistre en base. **Kouider pas encore tranché.**
+2. **Perf accueil** (framer-motion) — optionnel.
+
+#### CÔTÉ KOUIDER (SEO local, pas du code)
+- Search Console : fait (balise déjà dans `_app.js`). Doit **re-soumettre `sitemap.xml`** pour les 4 pages neuves.
+- Google Business : 20+ photos, post 1×/sem, envoyer le lien d'avis à chaque client (viser 50+), Ouedkniss même NAP.
+
+#### ⏭️ PROCHAINE ÉTAPE = DEMAIN : **SUIVI D'IMPORTATION VÉHICULE A→Z** (voir spec ci-dessous)
+
+---
+
+### 📋 SPEC DEMAIN — Suivi d'importation véhicule (À CONSTRUIRE, demande Kouider 12/06 soir)
+
+**Besoin Kouider (résumé verbatim)** : pour les clients qui **commandent un véhicule à importer**, un suivi A→Z.
+Depuis l'admin, quand Kouider cherche/trouve/achète le véhicule, il change les **statuts** (recherche → achat →
+importation → dédouanement → etc.). Le **client suit avec son numéro de commande**. Kouider gère tout depuis
+l'admin, et **quand il achète le véhicule il peut ajouter des photos + infos**, visibles/enregistrables par lui
+ET le client.
+
+**Existant à réutiliser** :
+- `pages/commande-vehicule.js` (formulaire → WhatsApp ; champs nom/prenom/whatsapp/ville…). Point d'entrée de la commande d'import → à faire **créer un enregistrement en base** (pas juste WhatsApp).
+- Pattern suivi : `pages/suivi/[id].js` (résa, timeline + realtime) + `pages/mes-reservations.js` (recherche par n°).
+- Pattern admin : `pages/admin/bookings.js` (statuts + photos).
+- Upload photos : `pages/api/upload-car-image.js` (base64 → bucket Supabase → url).
+
+**Plan proposé (à valider/affiner demain)** :
+1. **SQL `0022_import_orders.sql`** : table `import_orders` (id, `order_ref` court unique type `IMP-XXXX`,
+   client_name, client_phone, client_email, lang, **status**, vehicle_brand, vehicle_model, vehicle_year,
+   vehicle_specs JSON/text, budget, country_origin, notes_admin, notes_client, created_at, updated_at) +
+   `import_order_photos` (order_id, url, position) OU colonne `photos` JSON. RLS : insert public, lecture par ref
+   via API service-key (comme `my-bookings`), écriture admin service-key.
+2. **Statuts** (proposition) : `REQUESTED` → `SEARCHING` → `FOUND` (photos+infos) → `PURCHASED` → `SHIPPING`
+   (transport maritime) → `CUSTOMS` (dédouanement) → `READY` → `DELIVERED` + `CANCELLED`. Labels FR/AR/EN
+   (pattern maps `{fr,ar,en}` de `suivi/[id].js`).
+3. **Page publique `pages/suivi-import/[ref].js`** (ou réutiliser `/suivi`) : timeline verticale, photos véhicule,
+   infos, live realtime Supabase, WhatsApp. 3 langues + RTL.
+4. **Recherche** : dans `pages/mes-reservations.js` (ou page dédiée) recherche par n° commande d'import. API
+   `pages/api/import-order.js` (lookup ref/email/phone, service-key).
+5. **Admin `pages/admin/import.js`** (lien navbar admin) : liste, changer statut (dropdown), éditer infos véhicule,
+   **uploader photos**, notes. API service-key `pages/api/update-import-order.js` (whitelist champs).
+6. **Email auto** à chaque changement de statut (`lib/email.js` + Resend) : "Votre import passe à l'étape X".
+7. **commande-vehicule.js** : après WhatsApp, créer aussi la ligne `import_orders` (REQUESTED) + donner au client
+   son **numéro de commande** + lien de suivi.
+
+**Style à garder** : pas de compte (suivi par n°), 3 langues + RTL, service-key pour écritures admin, realtime live.
+
+---
 
 ### 2026-06-11 — Résilience "jamais mort" : crédits finis → bascule auto gratuit (commit `72af321`) ⭐
 - **Objectif Kouider** : payé ce mois-ci, mais quand les abonnements/crédits finissent, tout doit basculer
