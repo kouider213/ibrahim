@@ -35,7 +35,10 @@ interface SigRow { id?: string; client_name?: string; status?: string; signature
 interface Contract {
   row: SigRow; carName: string; start: string; end: string; total: number; currency: string;
   paid: number; nbDays: number; perDay: number; acompte: number; reste: number; cs: string; refNum: string;
+  pickup: string; dropoff: string;
 }
+
+const DEFAULT_PLACE = 'Agence Fik Conciergerie — Hay Badr, Oran';
 
 async function loadContract(token: string): Promise<Contract | null> {
   const { data } = await supabase.from('contract_signatures').select('*').eq('token', token).maybeSingle();
@@ -71,7 +74,9 @@ async function loadContract(token: string): Promise<Contract | null> {
   const perDay  = nbDays > 0 && total > 0 ? Math.round(total / nbDays) : 0;
   const acompte = paid > 0 ? paid : (perDay > 0 ? perDay * 3 : 0);
   const reste   = Math.max(0, total - acompte);
-  return { row, carName, start, end, total, currency, paid, nbDays, perDay, acompte, reste, cs: cur(currency), refNum: (row.booking_id ?? token).slice(0, 8).toUpperCase() };
+  const pickup  = String(d['pickup_location'] ?? '').trim() || DEFAULT_PLACE;
+  const dropoff = String(d['return_location'] ?? '').trim() || pickup;
+  return { row, carName, start, end, total, currency, paid, nbDays, perDay, acompte, reste, cs: cur(currency), refNum: (row.booking_id ?? token).slice(0, 8).toUpperCase(), pickup, dropoff };
 }
 
 function detailRows(c: Contract): [string, string][] {
@@ -79,6 +84,8 @@ function detailRows(c: Contract): [string, string][] {
     ['Véhicule', c.carName || '—'],
     ['Période', `du ${fmtDate(c.start)} au ${fmtDate(c.end)}`],
     ['Durée', c.nbDays ? `${c.nbDays} jour${c.nbDays > 1 ? 's' : ''}` : '—'],
+    ['Lieu de prise en charge', c.pickup],
+    ['Lieu de restitution', c.dropoff],
     c.perDay ? ['Tarif / jour', `${c.perDay.toLocaleString('fr-FR')} ${c.cs}`] : null,
     c.total ? ['Total location', `${c.total.toLocaleString('fr-FR')} ${c.cs}`] : null,
     c.acompte ? ['Acompte (3 j)', `${c.acompte.toLocaleString('fr-FR')} ${c.cs}`] : null,
@@ -216,41 +223,95 @@ router.get('/:token/pdf', async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="contrat-${c.refNum}.pdf"`);
   doc.pipe(res);
 
-  const GOLD = '#b8860b';
-  doc.fontSize(20).fillColor('#111').text('Contrat de location');
-  doc.fontSize(10).fillColor('#666').text('Fik Conciergerie — Oran, Algerie');
-  doc.text('Contrat n° ' + c.refNum);
-  doc.moveDown(0.4);
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor(GOLD).lineWidth(2).stroke();
-  doc.moveDown(0.6);
+  const GOLD = '#b8860b', DARK = '#1d1d1d', GREY = '#717171', LINE = '#e6e6e6', SOFT = '#f7f4ec', GREEN = '#1a7f3c';
+  const M = 50, RIGHT = 545, CW = RIGHT - M;
+  let y = 0;
 
-  doc.fontSize(12).fillColor(GOLD).text('DETAILS DE LA LOCATION');
-  doc.moveDown(0.3);
-  const rows: [string, string][] = [['Locataire', c.row.client_name ?? '—'], ...detailRows(c)];
-  rows.forEach(([l, v]) => {
-    const y = doc.y;
-    doc.fontSize(11).fillColor('#666').text(l, 50, y, { width: 200 });
-    doc.fillColor('#111').text(String(v), 250, y, { width: 295, align: 'right' });
-    doc.moveDown(0.35);
+  const section = (title: string) => {
+    doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(10).text(title.toUpperCase(), M, y);
+    y = doc.y + 4;
+    doc.moveTo(M, y).lineTo(RIGHT, y).lineWidth(0.5).strokeColor(LINE).stroke();
+    y += 8;
+  };
+  const kv = (label: string, value: string) => {
+    const vw = CW - 175;
+    const vh = doc.font('Helvetica-Bold').fontSize(9.5).heightOfString(String(value), { width: vw });
+    doc.fillColor(GREY).font('Helvetica').fontSize(9.5).text(label, M, y, { width: 170 });
+    doc.fillColor(DARK).font('Helvetica-Bold').fontSize(9.5).text(String(value), M + 175, y, { width: vw });
+    y += Math.max(vh, 12) + 5;
+  };
+
+  // ── En-tête ──
+  doc.rect(0, 0, 595, 6).fill(GOLD);
+  doc.fillColor(DARK).font('Helvetica-Bold').fontSize(21).text('FIK CONCIERGERIE', M, 40);
+  doc.fillColor(GREY).font('Helvetica').fontSize(9).text('Location de véhicules — Oran, Algérie', M, 66);
+  doc.roundedRect(410, 38, 135, 42, 6).fillAndStroke(SOFT, LINE);
+  doc.fillColor(GREY).font('Helvetica').fontSize(7).text('CONTRAT N°', 422, 46);
+  doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(15).text(c.refNum, 422, 56);
+  doc.moveTo(M, 94).lineTo(RIGHT, 94).lineWidth(2).strokeColor(GOLD).stroke();
+  doc.fillColor(DARK).font('Helvetica-Bold').fontSize(16).text('CONTRAT DE LOCATION', M, 106);
+  doc.fillColor(GREY).font('Helvetica').fontSize(9).text('Établi entre Fik Conciergerie (le loueur) et le locataire désigné ci-dessous.', M, 127, { width: CW });
+  y = 152;
+
+  // ── Locataire & véhicule ──
+  section('Locataire & véhicule');
+  kv('Locataire', c.row.client_name ?? '—');
+  kv('Véhicule', c.carName || '—');
+  y += 4;
+
+  // ── Période & lieux ──
+  section('Période & lieux');
+  kv('Date de départ', fmtDate(c.start));
+  kv('Date de retour', fmtDate(c.end));
+  kv('Durée', c.nbDays ? `${c.nbDays} jour${c.nbDays > 1 ? 's' : ''}` : '—');
+  kv('Lieu de prise en charge', c.pickup);
+  kv('Lieu de restitution', c.dropoff);
+  y += 4;
+
+  // ── Tarifs (encadré) ──
+  section('Tarifs');
+  const rowsT: Array<[string, string, boolean]> = [];
+  if (c.perDay) rowsT.push(['Tarif / jour', `${c.perDay.toLocaleString('fr-FR')} ${c.cs}`, false]);
+  if (c.total) rowsT.push(['Total location', `${c.total.toLocaleString('fr-FR')} ${c.cs}`, false]);
+  if (c.acompte) rowsT.push(['Acompte (3 jours, déduit)', `${c.acompte.toLocaleString('fr-FR')} ${c.cs}`, false]);
+  rowsT.push(['Reste à régler', `${c.reste.toLocaleString('fr-FR')} ${c.cs}`, true]);
+  const boxH = rowsT.length * 18 + 14;
+  doc.roundedRect(M, y, CW, boxH, 6).fillAndStroke(SOFT, LINE);
+  let ty = y + 10;
+  rowsT.forEach(([l, v, hl]) => {
+    doc.fillColor(GREY).font('Helvetica').fontSize(9.5).text(l, M + 14, ty, { width: 250 });
+    doc.fillColor(hl ? GOLD : DARK).font('Helvetica-Bold').fontSize(hl ? 12 : 10).text(v, M + 14, ty - (hl ? 1 : 0), { width: CW - 28, align: 'right' });
+    ty += 18;
   });
-  doc.moveDown(0.6);
+  y += boxH + 14;
 
-  doc.fontSize(12).fillColor(GOLD).text('CONDITIONS DE LOCATION');
-  doc.moveDown(0.3);
-  CONDITIONS.forEach((x, i) => { doc.fontSize(9.5).fillColor('#333').text((i + 1) + '. ' + x); doc.moveDown(0.12); });
-  doc.moveDown(0.5);
+  // ── Conditions ──
+  section('Conditions de location');
+  CONDITIONS.forEach((x, i) => {
+    doc.fillColor('#333').font('Helvetica').fontSize(8.7).text(`${i + 1}.  ${x}`, M, y, { width: CW });
+    y = doc.y + 3;
+  });
+  y += 6;
 
+  // ── Validation ──
   if (c.row.status === 'signed') {
-    doc.fontSize(12).fillColor(GOLD).text('VALIDATION DU LOCATAIRE');
-    doc.moveDown(0.3);
-    doc.fontSize(10).fillColor('#127a3e').text('[x] Conditions de location acceptees');
-    doc.fillColor('#127a3e').text('[x] Passeport recu' + (permImg ? '     [x] Permis recu' : ''));
-    doc.fontSize(9).fillColor('#888').text('Valide electroniquement le ' + fmtDate(c.row.signed_at) + ' par ' + (c.row.client_name ?? '') + '. Horodate et conserve comme preuve.');
-    doc.moveDown(0.6);
-    const imgY = doc.y;
-    if (passImg) { try { doc.image(passImg, 50, imgY, { fit: [230, 160] }); doc.fontSize(8).fillColor('#666').text('Passeport', 50, imgY + 163); } catch { /* format non supporte */ } }
-    if (permImg) { try { doc.image(permImg, 300, imgY, { fit: [230, 160] }); doc.fontSize(8).fillColor('#666').text('Permis', 300, imgY + 163); } catch { /* ignore */ } }
+    if (y > 600) { doc.addPage(); doc.rect(0, 0, 595, 6).fill(GOLD); y = 50; }
+    section('Validation du locataire');
+    doc.fillColor(GREEN).font('Helvetica-Bold').fontSize(9.5);
+    doc.text('•  Conditions de location acceptées', M, y); y = doc.y + 3;
+    doc.text('•  Passeport reçu' + (permImg ? '          •  Permis reçu' : ''), M, y); y = doc.y + 5;
+    doc.fillColor(GREY).font('Helvetica').fontSize(8).text(`Validé électroniquement le ${fmtDate(c.row.signed_at)} par ${c.row.client_name ?? ''}. Horodaté et conservé comme preuve.`, M, y, { width: CW }); y = doc.y + 12;
+    if (passImg || permImg) {
+      if (y > 640) { doc.addPage(); doc.rect(0, 0, 595, 6).fill(GOLD); y = 50; }
+      const iy = y;
+      if (passImg) { try { doc.image(passImg, M, iy, { fit: [235, 150] }); doc.fillColor(GREY).font('Helvetica').fontSize(8).text('Passeport', M, iy + 153); } catch { /* format */ } }
+      if (permImg) { try { doc.image(permImg, M + 250, iy, { fit: [235, 150] }); doc.fillColor(GREY).font('Helvetica').fontSize(8).text('Permis', M + 250, iy + 153); } catch { /* ignore */ } }
+      y = iy + 172;
+    }
   }
+
+  // ── Pied de page ──
+  doc.fillColor(GREY).font('Helvetica').fontSize(7.5).text('Fik Conciergerie — Hay Badr, Oran, Algérie — Document généré automatiquement et horodaté.', M, Math.max(y + 10, 800), { width: CW, align: 'center' });
 
   doc.end();
 });
