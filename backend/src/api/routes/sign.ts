@@ -178,8 +178,7 @@ router.get('/:token/contrat', async (req, res) => {
   <div class="sign"><div class="lbl">Signature / validation du locataire</div><div class="line"></div></div>`}
   <div class="foot">Fik Conciergerie — Oran, Algérie · Document généré automatiquement</div>
 </div>
-<button class="print" onclick="window.print()">📄 Enregistrer en PDF</button>
-<script>window.addEventListener('load',function(){setTimeout(function(){try{window.print();}catch(e){}},700);});</script>
+<button class="print" onclick="window.print()">🖨️ Imprimer / PDF</button>
 </body></html>`;
   res.send(html);
 });
