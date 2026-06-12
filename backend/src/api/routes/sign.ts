@@ -100,7 +100,7 @@ router.get('/:token', async (req, res) => {
         <h1 style="color:#10b981">Contrat validé</h1>
         <p class="sub">Contrat n° ${c.refNum} — ${esc(c.row.client_name)}</p>
         <p class="sub">Validé le ${fmtDate(c.row.signed_at)} (conditions acceptées + documents reçus). Merci de votre confiance !</p>
-        <a class="dl" href="/sign/${esc(token)}/contrat" target="_blank">📄 Télécharger le contrat (PDF)</a>
+        <a class="dl" href="/sign/${esc(token)}/pdf">📄 Télécharger le contrat (PDF)</a>
       </div>`));
     return;
   }
@@ -190,9 +190,69 @@ router.get('/:token/contrat', async (req, res) => {
   <div class="sign"><div class="lbl">Signature / validation du locataire</div><div class="line"></div></div>`}
   <div class="foot">Fik Conciergerie — Oran, Algérie · Document généré automatiquement</div>
 </div>
-<button class="print" onclick="window.print()">🖨️ Imprimer / PDF</button>
+<a class="print" href="/sign/${esc(token)}/pdf" style="text-decoration:none;left:16px;right:auto">⬇️ Télécharger PDF</a>
+<button class="print" onclick="window.print()">🖨️ Imprimer</button>
 </body></html>`;
   res.send(html);
+});
+
+// GET /sign/:token/pdf — VRAI fichier PDF téléchargeable (pdfkit) avec photos
+router.get('/:token/pdf', async (req, res) => {
+  const token = String(req.params['token'] ?? '');
+  const c = await loadContract(token);
+  if (!c) { res.status(404).send('Lien invalide.'); return; }
+  const d = c.row.details ?? {};
+
+  const { default: axios } = await import('axios');
+  const fetchImg = async (u: string): Promise<Buffer | null> => {
+    if (!u) return null;
+    try { const r = await axios.get(u, { responseType: 'arraybuffer', timeout: 15_000 }); return Buffer.from(r.data as ArrayBuffer); } catch { return null; }
+  };
+  const [passImg, permImg] = await Promise.all([fetchImg(String(d['passport_url'] ?? '')), fetchImg(String(d['permit_url'] ?? ''))]);
+
+  const { default: PDFDocument } = await import('pdfkit');
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="contrat-${c.refNum}.pdf"`);
+  doc.pipe(res);
+
+  const GOLD = '#b8860b';
+  doc.fontSize(20).fillColor('#111').text('Contrat de location');
+  doc.fontSize(10).fillColor('#666').text('Fik Conciergerie — Oran, Algerie');
+  doc.text('Contrat n° ' + c.refNum);
+  doc.moveDown(0.4);
+  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor(GOLD).lineWidth(2).stroke();
+  doc.moveDown(0.6);
+
+  doc.fontSize(12).fillColor(GOLD).text('DETAILS DE LA LOCATION');
+  doc.moveDown(0.3);
+  const rows: [string, string][] = [['Locataire', c.row.client_name ?? '—'], ...detailRows(c)];
+  rows.forEach(([l, v]) => {
+    const y = doc.y;
+    doc.fontSize(11).fillColor('#666').text(l, 50, y, { width: 200 });
+    doc.fillColor('#111').text(String(v), 250, y, { width: 295, align: 'right' });
+    doc.moveDown(0.35);
+  });
+  doc.moveDown(0.6);
+
+  doc.fontSize(12).fillColor(GOLD).text('CONDITIONS DE LOCATION');
+  doc.moveDown(0.3);
+  CONDITIONS.forEach((x, i) => { doc.fontSize(9.5).fillColor('#333').text((i + 1) + '. ' + x); doc.moveDown(0.12); });
+  doc.moveDown(0.5);
+
+  if (c.row.status === 'signed') {
+    doc.fontSize(12).fillColor(GOLD).text('VALIDATION DU LOCATAIRE');
+    doc.moveDown(0.3);
+    doc.fontSize(10).fillColor('#127a3e').text('[x] Conditions de location acceptees');
+    doc.fillColor('#127a3e').text('[x] Passeport recu' + (permImg ? '     [x] Permis recu' : ''));
+    doc.fontSize(9).fillColor('#888').text('Valide electroniquement le ' + fmtDate(c.row.signed_at) + ' par ' + (c.row.client_name ?? '') + '. Horodate et conserve comme preuve.');
+    doc.moveDown(0.6);
+    const imgY = doc.y;
+    if (passImg) { try { doc.image(passImg, 50, imgY, { fit: [230, 160] }); doc.fontSize(8).fillColor('#666').text('Passeport', 50, imgY + 163); } catch { /* format non supporte */ } }
+    if (permImg) { try { doc.image(permImg, 300, imgY, { fit: [230, 160] }); doc.fontSize(8).fillColor('#666').text('Permis', 300, imgY + 163); } catch { /* ignore */ } }
+  }
+
+  doc.end();
 });
 
 // POST /sign/:token — valide le contrat : accord + photos passeport & permis
@@ -269,7 +329,6 @@ function script(): string {
     var inp=document.getElementById(id);
     inp.addEventListener('change',function(e){
       var f=e.target.files&&e.target.files[0];
-      alert('Photo recue: '+(f?(f.name+' '+Math.round(f.size/1024)+'ko'):'AUCUNE'));
       if(!f){ say('Aucun fichier','#f59e0b'); return; }
       say('Lecture de '+f.name+'...');
       var prev=document.getElementById(prevId);
