@@ -3,6 +3,18 @@ import { supabase } from '../../integrations/supabase.js';
 
 const router = Router();
 
+// La page contrat est une page HTML complète avec JS inline (signature/upload).
+// La CSP globale (helmet) bloque les scripts inline → on la relâche UNIQUEMENT ici.
+router.use((_req, res, next) => {
+  res.set('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; script-src-attr 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: blob: https:; " +
+    "connect-src 'self'; form-action 'self'");
+  next();
+});
+
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 const fmtDate = (d?: string) => { if (!d) return '—'; try { return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }); } catch { return String(d); } };
 const cur = (c?: string) => (c === 'DZD' || c === 'DA' ? 'DA' : '€');
