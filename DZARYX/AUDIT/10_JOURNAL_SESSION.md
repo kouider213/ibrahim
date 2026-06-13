@@ -25,11 +25,12 @@
 
 ---
 
-## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-12)
+## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-13)
 
-- **⭐ SITE FIK (12-06)** : grosse session, voir l'entrée détaillée `### 2026-06-12 — SESSION SITE FIK COMPLÈTE`
-  plus bas. Tout déployé+testé live. **DEMAIN = construire le SUIVI D'IMPORTATION VÉHICULE** (spec complète dans
-  l'entrée). SQL site lancés par Kouider : `0020_newsletter_reminders.sql`, `0021_cash_register.sql`.
+- **⭐ SUIVI IMPORTATION (13-06)** : construit + déployé (commit `66bdb7f`), voir `### 2026-06-13`. **🛑 Kouider doit
+  lancer `rental-system/supabase/0022_import_orders.sql`** sinon la feature échoue (table manquante).
+- **SITE FIK (12-06)** : grosse session, voir `### 2026-06-12 — SESSION SITE FIK COMPLÈTE`. Tout déployé+testé live.
+  SQL site lancés par Kouider : `0020_newsletter_reminders.sql`, `0021_cash_register.sql`.
 - **Migrations Supabase (app/backend)** : ✅ TOUTES LANCÉES (confirmé Kouider 2026-06-11) — `migration_car_currency.sql`,
   `migration_inspection_upgrade.sql`, `migration_phase_extras.sql`. Plus aucune migration en attente.
 - **Darija (06-10)** : réponse 100% darija oranaise max-arabe (labels traduits, noms propres/montants gardés),
@@ -83,6 +84,238 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 ---
 
 ## Entrées (plus récent en haut)
+
+### 2026-06-13 (nuit 5) — Audit Dzaryx A→Z + survie €0 PROUVÉE + WhatsApp centralisé ⭐⭐
+> Backend `ibrahim` (Dzaryx) + site `rental-system`. Commit Dzaryx `85daa12` (health résilience), site `6a1f701` (WhatsApp).
+
+**Audit Dzaryx A→Z** : backend 50 512 lignes TS / 193 fichiers, **tsc 0 erreur**, **live** (Railway /health 200). 40 routes API,
+**151 outils**, 6 agents, orchestrateur (gates anti-hallucination 1-4, mémoire, mood, focus…), résilience multi-LLM.
+Risques : token GitHub `ghp_d8Vch…` jamais révoqué, clé Maps non restreinte, routes debug `/test_*` en prod, PWA Netlify morte.
+
+**Survie €0 PROUVÉE par test réel** (clés Groq+Gemini fournies par Kouider, à régénérer) :
+- ✅ Chat + appel d'outils + **vraies données Supabase** (15 voitures listées) via **Groq** gratuit.
+- ✅ **Vision** : "Fiat 500 grise" sur vraie photo via **Groq llama-4-scout** (déjà dans la cascade vision, ligne 348 orchestrator).
+- ✅ **TTS** (voix) via Gemini · ✅ **STT** via **Groq Whisper** (retranscrit "Bonjour bienvenue chez Fik Conciergerie").
+- Bascule auto quand Claude meurt (agentic-fallback, mêmes outils). TTS→device, STT→Groq. **Tout le quotidien tourne à €0.**
+- `/health` enrichi : `resilience.survives_zero_cost: true`. Confirmé live `groq 🟢 gemini 🟢`.
+- **Seule limite €0** : l'hébergement. Railway payant (~5€/mois) = 24/7. Render gratuit (render.yaml prêt) **dort** → proactif 24/7 KO.
+  Marketing vidéo payant (Kling/fal/Apify) s'arrête. Kouider GARDE Railway.
+
+**WhatsApp centralisé (site)** (`6a1f701`) : le n° WhatsApp vient de `site_settings.whatsapp` → changer dans Admin→Paramètres
+le remplace PARTOUT (29 pages client + emails via `refreshBrand()`). **Modif réservée au super admin** (is_super, champs verrouillés
+sinon, exclus du payload). 3 numéros (principal + 2 associés sur Contact). **Limite dite** : wa.me = 1 destinataire (pas de broadcast
+3 numéros) ; les formulaires arrivent sur Telegram quoi qu'il arrive ; le WhatsApp direct (client tape lui-même) = WhatsApp only (normal,
+le site ne voit pas les messages WhatsApp privés sans l'API Business). Téléphone schema SEO = champ à part (maj manuelle si changement définitif).
+
+### 2026-06-13 (nuit 4) — Système de comptes admin complet + relance auto leads + notifs newsletter/avis ⭐⭐
+> Site `rental-system`. Commits `8176199` (notifs newsletter/avis) · `3d9f7d6` (relance leads) · `275fd70`/`3313f9a`/`9ff87b6` (auth admin). SQL `0026`, `0027` lancés ✅.
+
+**Relance auto leads** (`3d9f7d6`, SQL `0026`) : `client_leads.client_email` + `relance_sent_at`. Champ email optionnel
+dans LeadCapture. Cron `/api/cron/lead-followup` (quotidien 9h) : email de relance trilingue aux leads nouveau/en_cours
+avec email, créés >2j (`LEAD_FOLLOWUP_DAYS`), jamais relancés. `leadFollowUpEmail`. (keep-alive cron retiré, redondant avec reminders.)
+
+**Notifs Telegram étendues** (`8176199`) : aussi nouvel abonné newsletter + nouvel avis (en plus de résa/lead/import/dossier).
+
+**Système de comptes admin** (`275fd70` → `9ff87b6`, SQL `0027`) :
+- `profiles.username` (unique) + `is_super`. **⚠️ Kouider ET Houari ont role='admin'** (pas 'kouider'/'houari') →
+  l'`UPDATE where role='kouider'` n'a rien mis ; Kouider défini super via `update profiles set is_super=true where name='Kouider'`.
+- **Login** par username OU email (`/api/resolve-login` mappe username→email) + **"mot de passe oublié"** (reset email → `/reset-password`).
+- **`/admin/compte`** : changer son email/mot de passe (confirme avec mot de passe actuel = re-auth).
+- **`/admin/equipe`** (super admin) : créer/lister/supprimer admins, **réinitialiser mot de passe** (jamais lisible — chiffré),
+  changer email/rôle/username. `/api/admin-users` (clé service, vérif super-admin via token).
+- **PIÈGE WebView re-confirmé** : `window.prompt`/`confirm` bloqués → boutons "Mot de passe/Email/Suppr" remplacés par
+  panneaux intégrés (`9ff87b6`). Cf [[site_pwa_sw_trap]].
+- Fix loupe barre suivi : `input-dark` force `px-4` qui écrasait `pl-11` → padding **inline** (priorité). À retenir.
+
+**🛑 Actions Kouider** : Supabase → Auth → URL Configuration : Site URL + Redirect URL `…/reset-password` (sinon reset KO).
+Changer emails login (Kouider→doubakouider@gmail.com via /admin/equipe) + mettre usernames. Nettoyer données test.
+**Vérité dite** : mots de passe chiffrés, non lisibles même par super admin (réinit possible). Login username = mapping interne.
+
+### 2026-06-13 (nuit 3) — Packs dans le suivi + re-réservation pré-remplie + notifs Telegram autonomes ⭐⭐
+> Site `rental-system`. Commits `c150f12` (packs+rebook) · `74994f7` (note docs) · `3f3462f` (notifs Telegram). Live ✅.
+
+**Packs ajoutés au suivi de dossiers** : 3e kind `pack` (ref `PCK-XXXX`) stages Demande→Confirmé→Acompte→Préparé→
+En cours→Terminé. `StartDossier` sur détail pack ; admin filtre/création/icône pack ; emails trilingues. Testé `PCK-57UL`.
+
+**Re-réservation pré-remplie** : `my-bookings` renvoie `car_id` + infos client ; bouton "Re-réserver" (mes-reservations)
+→ `/reservation?car=&name=&phone=&email=&age=&passport=` → form pré-rempli (voiture + client). `reservation.js` lit la query.
+Bandeau "infos modifiables" + note sous passeport (photos passeport/permis = à l'étape contrat, toujours fraîches/non périmées).
+
+**Notifications Telegram DIRECTES du site** (`3f3462f`) — indépendant de Railway :
+- `lib/telegramNotify` (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` sur Vercel). Notif à chaque **réservation, lead,
+  commande import, dossier** (nom, tél, objet, langue, lien admin). `booking-received` appelé systématiquement (notif même sans email).
+- **Nouveau bot Telegram dédié** créé par Kouider (`@Fiknotifsbot`, distinct du bot Dzaryx pour la sécu). Chat ID `809747124`.
+  Variables mises sur Vercel + redeploy. **Testé live : Kouider reçoit bien les notifs.**
+- ⚠️ L'ancien token Dzaryx (`@Ibrahimfikbot`) a été collé en clair dans le chat 2026-06-13 — partagé avec Railway,
+  non révoqué (révoquer casserait Dzaryx). Le site utilise le NOUVEAU bot, pas celui-là.
+
+🛑 Kouider : supprimer les tests (lead "TEST Notif", dossiers `VTE-C77V` `PCK-57UL`, import `IMP-YXK7W`).
+
+### 2026-06-13 (nuit 2) — Résilience €0 + traduction autonome + suivi de dossiers achat/immo ⭐⭐⭐
+> Site `rental-system`. Commits `4cd72a6` (résilience) · `ab1349a` (traduction autonome) · `e381518` (dossiers). SQL `0025` lancé ✅.
+
+**Résilience "jamais down" à €0** (`4cd72a6`) :
+- `/api/health` (200/503) pour monitoring · `/api/cron/keep-alive` (quotidien, vercel.json) → **empêche la pause
+  Supabase free** (7j inactivité = la vraie cause de panne) · workflow GitHub `supabase-backup.yml` (pg_dump hebdo,
+  90j, **secret `SUPABASE_DB_URL` requis** côté Kouider). Pages ISR servent même si DB blip. Dégradation propre partout.
+- **Vérité dite à Kouider** : à €0 le site tourne (Vercel+Supabase+Resend gratuits) ; seul **le domaine ~12€/an est
+  obligatoire**. Multi-hébergement failover = possible mais overkill, déconseillé. Actions Kouider : UptimeRobot + secret backup.
+
+**Traduction AUTONOME** (`ab1349a`) : `/api/translate` hébergé SUR le site (Vercel) + `lib/groqTranslate` :
+**Groq (gratuit, `GROQ_API_KEY` Vercel) → repli Railway → texte original**. `autoTranslate`+`serverTranslate` pointent
+sur l'endpoint local. **Kouider a ajouté `GROQ_API_KEY` sur Vercel** → traduction 100% gratuite, ne dépend plus de Railway.
+
+**Suivi de DOSSIERS achat véhicule + immobilier** (`e381518`, SQL `0025_dossiers.sql` lancé) — comme l'import/résa :
+- Table `dossiers` (kind voiture/immo, ref `VTE-XXXX`/`IMM-XXXX`, RLS insert public + R/W admin).
+- `lib/dossierStatus` (stages par kind, FR/AR/EN) : voiture = Demande→Réservé→Documents→Paiement→Prêt→Livré ;
+  immo = Demande→Visite→Dossier→Contrat→Finalisé (+CANCELLED). `dossierStatusEmail` trilingue.
+- APIs `create-dossier`/`dossier`/`update-dossier` (clé service, **email auto au statut dans la langue client**).
+- Page publique `/suivi-dossier/[ref]` (timeline, photos, 3 langues+RTL, refresh 25s).
+- Admin `/admin/dossiers` (nav "Dossiers achat/immo") : créer, statuts, photos, **WhatsApp statut+suivi multilingue**,
+  badge langue, traduire notes (TranslateToFr), supprimer.
+- `StartDossier` (bouton public "Suivre mon dossier" sur détail vente + immo) → n° + lien. `mes-reservations` retrouve aussi les dossiers.
+- **Testé live** : create VTE-C77V, lookup sanitisé, changement statut, page 200. 🛑 Kouider : supprimer le test VTE-C77V.
+
+**Messages WhatsApp client EN** (`65e0118`) : l'anglais manquait dans les constructeurs WhatsApp (réservation,
+commande/import, détail voiture/immo/vente/pack) → tombait en FR. Corrigé : FR/AR/EN partout.
+
+**+ 2 bonus** (`df370a7`) : 3 pages SEO (aéroport-oran, importation-algerie, occasion-oran) + sitemap/footer ;
+perf polices Google via `<link>`+preconnect (au lieu de `@import` render-blocking) ; newsletter manuelle auto-traduite
+par langue d'abonné (serverTranslate préserve img/boutons).
+
+### 2026-06-13 (nuit) — Multilingue communications + audit i18n + traduction texte libre ⭐⭐
+> Site `rental-system`. Commits `f8ff640` (langue client) · `1c2b73e` (audit i18n + trad admin). SQL `0024` lancé ✅.
+
+**Langue du client mémorisée + réponses dans SA langue** (demande forte Kouider — "client arabe → réponse arabe") :
+- SQL `0024_client_lang.sql` : `bookings.client_lang`, `client_leads.lang` (import_orders.lang existait). **Lancé ✅.**
+- Capture : `reservation.js` (client_lang=lang), `LeadCapture` (lang), commande-import (lang déjà).
+- **Emails 100% trilingues FR/AR/EN + RTL arabe** : `lib/email.js` refait avec helper `T(lang,{fr,ar,en})` + `wrap(lang)`
+  (chrome, libellés, sujets, boutons traduits). Touche : demande reçue, confirmée, tous statuts, rappel J-1, import, avis, bienvenue.
+- **WhatsApp admin dans la langue du client** : réservations (`sendStatusWA`+`handleWhatsApp`), import, relance leads.
+- **Badge "Langue du client"** 🇫🇷/🇩🇿/🇬🇧 visible admin (réservations/import/leads) → Kouider sait quelle langue parler.
+- Email réservation : seulement si client_email rempli. **Piège trouvé** : les résas test avaient `Kouider@autolux.dz`
+  (login bidon) → mails rebondissaient. Ajout **édition email client** dans le modal admin (`client_email` whitelisté).
+
+**Audit i18n (fuites FR corrigées)** : filtres prix/tri/villes/reset (immo+vente), options carburant/boîte + placeholders
+(commande-vehicule), placeholder avis. Clés `common.*` réutilisables ajoutées (3 langues). Toasts client : aucun FR en dur (vérifié).
+
+**Traduction texte libre client → FR pour l'admin** : `translateToFR()` (moteur Groq backend) + composant `TranslateToFr`
+(bouton "Traduire en français") sur notes réservation, critères/notes leads, specs import. Kouider comprend un message arabe/anglais.
+
+**Copy pro** (`a512af9`) : tous les messages emails+WhatsApp réécrits polis/chaleureux (avant : trop secs).
+
+**Confirmation réservation** (`1d8a2dd`) : bouton "Suivre ma demande" + email "demande reçue" + encart explicatif (suivi mes-réservations).
+
+**Fix** : barre recherche mes-reservations (loupe chevauchait le texte).
+
+**⏭️ Reste** : audit i18n = fuites visibles corrigées, mais pas un balayage exhaustif de CHAQUE chaîne (le site utilise
+t()/L() partout). Si Kouider repère un détail FR résiduel → corriger au cas par cas. Perf framer-motion : toujours laissé.
+
+### 2026-06-13 (soir) — Newsletter médias + SEO/NAP + cookies RGPD + capture leads ⭐⭐
+> Site `rental-system`. Suite de la session. Commits `e9e7a84` → `9344500`.
+
+**Newsletter — éditeur riche** (`e9e7a84`, `4752834`) : barre d'outils Photo (upload→img responsive), **Vidéo galerie**
+(upload direct navigateur→bucket `videos`, contourne limite Vercel, miniature 1ère image auto via canvas), Vidéo (lien
+YouTube, miniature auto), Bouton CTA, Gras, **Aperçu live**. Email : vidéo = miniature cliquable + bouton ▶ (les emails
+ne lisent pas `<video>`). Sauts de ligne → `<br>`.
+
+**Emails PRO** (`1f2f1b0`) : `lib/email.js wrap()` refait — logo, header marque, bandeau contact (WhatsApp+site
+cliquables), footer numéro lisible + adresse→Maps + avis Google + preheader. Touche TOUS les emails.
+
+**Capture leads** (`730f595`) : `LeadCapture` (bouton "Être rappelé" + mini-form, 3 langues) sur immo/vente/packs détail
+→ `/api/lead` (insert public clé-service dans `client_leads`). Admin `/admin/leads` (KPI, filtres, relance WhatsApp,
+suppr). Bouton WhatsApp direct conservé.
+
+**SEO / identité (être #1 Oran)** :
+- **Favicon** = déjà le logo Fik (liens dans `_app.js`). Le "globe" = Google pas re-crawlé + cache. Rien à coder.
+- **NAP unifié** (`fab8305`) : adresse officielle (= fiche Google) `Rue Derbouz Draoua, Houari, Oran 31300` mise
+  PARTOUT (footer, schema `_document`+`_app`+`index`, emails, i18n FR/AR/EN). **Avant : incohérence Hay Badr vs Google
+  → nuit au SEO local.** Kouider a aussi mis l'adresse dans Admin→Paramètres (la DB écrase le code sur le footer).
+- **Schema enrichi** (`5cfe4de`, `9344500`) : Organization/LocalBusiness, `makesOffer` (location/vente/import/immo/packs),
+  `sameAs` réels (Instagram/Facebook/TikTok/Maps), email, alternateName, langues. Aide Google à montrer NOTRE fiche
+  (le concurrent "Privilege Concierge" sortait à cause d'une fiche GBP plus complète + NAP incohérent).
+- **Cookies RGPD** (`fab8305`) : `CookieBanner` Accepter/Refuser + lien confidentialité ; **Microsoft Clarity chargé
+  UNIQUEMENT après consentement** (sorti du `_document`) = RGPD + perf (plus de script tiers au 1er rendu).
+
+**🛑 Actions Kouider (hors-code, pour être #1)** : optimiser fiche Google Business (catégories, 20+ photos, NAP
+identique, posts) ; **avis** (lien à chaque client, viser 50+) ; re-soumettre sitemap Search Console ; même NAP
+Ouedkniss/réseaux. Le ranking = GBP + avis + NAP + temps, PAS du code. Chargily (paiement en ligne) : **exclu** par Kouider.
+
+**⏭️ Reste** : perf framer-motion (laissé, risqué). **Prochaine étape = TEST COMPLET client + admin** (checklist 1→24 fournie).
+
+### 2026-06-13 (PM) — Newsletter réparée + emails pro + pièges PWA/Resend ⭐⭐
+> Site `rental-system`. Debug live avec Kouider. Plusieurs causes racines trouvées.
+
+**Bugs newsletter (tous corrigés) :**
+1. **Inscription n'écrivait rien** (`380c82e`) : `upsert(onConflict:'email')` mais l'index unique est sur
+   `lower(email)` (expression) → Postgres "no unique constraint matching" → message contient "unique" → avalé à
+   tort comme doublon → réponse `ok` SANS insertion. Fix : `insert` simple + réactivation idempotente sur vrai doublon.
+2. **Admin voyait 0 abonné** (SQL `0023_newsletter_rls_fix.sql`, lancé par Kouider) : `0020` n'avait créé qu'une
+   policy INSERT → pas de SELECT → RLS refuse la lecture même à l'admin. Ajouté select/update/delete `authenticated`.
+3. **"Envoyer à tous" ne faisait rien** (`1ce3151`) : `window.confirm()` est **bloqué dans le WebView mobile** →
+   renvoie false → sortait sans envoyer. Remplacé par confirmation intégrée Confirmer/Annuler. + champ "email de test"
+   (défaut `doubakouider@gmail.com`, l'email de login `kouider@autolux.dz` est bidon).
+4. **Diagnostic** (`b3dfa58`, `be91a2d`) : `sendEmail` remonte la vraie cause (Resend/domaine), bandeau résultat
+   permanent à l'écran (le toast disparaissait trop vite sur mobile).
+
+**🛑 PIÈGE SW PWA (`da26d1c`) — à retenir** : `public/sw.js` mettait `/_next/*.js` en **cache-first** → en PWA la nav
+est côté-client, les nouveaux bundles ne chargeaient JAMAIS → Kouider testait l'ancien code pendant des heures.
+Fix : `/admin` + `/api` jamais cachés ; JS/CSS en **réseau d'abord** ; images cache-first ; bump `fik-v1→fik-v2`.
+**Règle : après un deploy, si un changement n'apparaît pas, suspecter le SW (fermer/rouvrir à fond).** Cf simulateur.
+
+**Emails PRO (`1f2f1b0`)** : `lib/email.js wrap()` refait — logo image, header marque, bandeau contact (boutons
+WhatsApp `wa.me/32466311469` + site cliquables), footer numéro lisible `+32 466 31 14 69`, adresse→Google Maps,
+lien avis Google, preheader. S'applique à TOUS les emails (newsletter, résa reçue/confirmée, rappel J-1, suivi import,
+avis). Constantes marque centralisées (SITE/LOGO/WA_NUM/ADDRESS/MAPS/REVIEW).
+
+**Resend** : confirmé configuré sur Vercel (welcome + test reçus). Domaine OK.
+
+### 2026-06-13 — SUIVI D'IMPORTATION VÉHICULE A→Z (construit + déployé) ⭐⭐⭐
+> Site `rental-system` (Vercel). La feature planifiée la veille. Commit `66bdb7f`. Build OK.
+
+**Ce qui a été construit (la spec du 12/06 réalisée intégralement) :**
+1. **SQL `supabase/0022_import_orders.sql`** : table `import_orders` (`order_ref` unique type `IMP-XXXXX`,
+   client, véhicule demandé, budget, photos JSONB, notes_admin/notes_client, statut, `updated_at` auto via trigger).
+   RLS : **insert public** (formulaire), **lecture/écriture admin authentifié**. Le suivi public passe par API clé-service.
+2. **Module partagé `lib/importStatus.js`** : source unique des statuts FR/AR/EN + icônes + hints :
+   `REQUESTED → SEARCHING → FOUND → PURCHASED → SHIPPING → CUSTOMS → READY → DELIVERED` (+ `CANCELLED`).
+3. **APIs** (clé service) : `create-import-order.js` (insert public, génère le ref, retourne n°+id),
+   `import-order.js` (lookup par n°/email/tél, **payload sanitisé** : pas de notes_admin, téléphone masqué),
+   `update-import-order.js` (whitelist + photos + **email auto au client si le statut change**).
+4. **Page publique `pages/suivi-import/[ref].js`** : timeline verticale, photos+lightbox, infos véhicule,
+   message équipe, WhatsApp, 3 langues + RTL, `noindex`, **refresh auto 25s** (pas de realtime → RLS protège les données).
+5. **Admin `pages/admin/import.js`** (lien nav "Importation", icône Ship) : liste + recherche, cartes dépliables,
+   **boutons statut** (déclenche l'email), **upload multi-photos** (réutilise `/api/upload-car-image`), édition infos
+   véhicule + client, notes client/privées, **copier le lien de suivi** + voir page client.
+6. **`commande-vehicule.js`** : à l'envoi, crée aussi la commande en base (best-effort, ne bloque jamais WhatsApp),
+   ajoute le **n° de commande** au message WhatsApp, affiche un **écran de confirmation** (n° + copier + lien suivi).
+7. **`mes-reservations.js`** : recherche désormais **aussi les imports** (par n°/email/tél) → carte import + lien suivi.
+8. **Email** `lib/email.js importStatusEmail` : template "nouvelle étape" (label 3 langues + CTA suivi).
+
+**Pattern respecté** : pas de compte (suivi par n°), 3 langues + RTL, écritures admin clé-service, dégrade proprement.
+
+**🛑 ACTION REQUISE (Kouider, ~1 min)** : lancer **`rental-system/supabase/0022_import_orders.sql`** dans
+Supabase → SQL Editor. **Tant que pas fait** : la création de commande et l'admin import échouent (table manquante).
+Les emails ne partent que si `RESEND_API_KEY`/`RESEND_FROM` sont sur Vercel (déjà le cas).
+
+**Vérifié LIVE** : create/lookup/update/suppression OK, page suivi 200. Bouton supprimer admin ajouté (commit `a8cfcfe`).
+SQL 0022 **lancé par Kouider ✅**.
+
+### 2026-06-13 — CAPTURE LEADS immo/vente/packs (déployé) ⭐
+> Site `rental-system`. Commit `730f595`. Build OK, vérifié live (`/api/lead` 405, `/admin/leads` 200).
+
+**But** : immo/vente/packs ne passaient QUE par WhatsApp → contact perdu si le client n'envoie pas le message.
+- **`components/LeadCapture.js`** : bouton "Être rappelé" + mini-modal (nom+tél, 3 langues + RTL) → POST `/api/lead`
+  → écran succès + raccourci WhatsApp. Le **bouton WhatsApp direct reste intact** (aucune friction ajoutée au flux existant).
+- **`pages/api/lead.js`** : insert public clé-service dans `client_leads` (RLS write=authenticated, donc service-key).
+- Branché sur pages **détail** : `immo/[id]` (immo_vente/immo_location), `vente-voitures/[id]` (voiture_vente), `packs/[id]` (pack).
+- **`pages/admin/leads.js`** (lien nav "Leads / Demandes", icône UserPlus) : KPI par statut, filtres, recherche,
+  changement statut (nouveau/en_cours/conclu/perdu), **relance WhatsApp 1-clic**, suppression.
+- **Aucun nouveau SQL** : réutilise `client_leads` (0016, déjà en prod). `category='pack'` ajouté (champ texte libre).
+
+**⏭️ Reste (optionnel)** :
+- **Perf accueil** (framer-motion, gain modéré, découpage risqué) — non fait volontairement.
+- 🛑 Kouider : supprimer les lignes de **test** (`IMP-YXK7W` dans /admin/import) via le bouton Supprimer.
 
 ### 2026-06-12 — SESSION SITE FIK COMPLÈTE (favoris, PWA, newsletter, caisse, blog IA, SEO, Google, trad 100%) ⭐⭐⭐
 
