@@ -31,6 +31,16 @@ async function apiFetch<T>(path: string): Promise<T> {
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<T>;
 }
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BACKEND_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<T>;
+}
+const rawId = (id: string) => id.replace(/^(booking|dossier|import|lead)-/, '');
 
 export default function DemandesScreen() {
   const [demandes, setDemandes] = useState<Demande[]>([]);
@@ -38,6 +48,9 @@ export default function DemandesScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | Demande['source']>('all');
+  const [busy, setBusy] = useState('');
+  const [toast, setToast] = useState('');
+  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
   const load = useCallback(async () => {
     try {
@@ -66,6 +79,16 @@ export default function DemandesScreen() {
       ? `Hello ${d.client_name || ''}, this is Fik Conciergerie 👋 Regarding: ${obj}. How can we help?`
       : `Bonjour ${d.client_name || ''}, c'est Fik Conciergerie 👋 Concernant : ${obj}. Comment pouvons-nous vous aider ?`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const act = async (d: Demande, status: string, okMsg: string) => {
+    setBusy(d.id);
+    try {
+      await postJson('/api/demandes/update', { source: d.source, id: rawId(d.id), status });
+      showToast(okMsg);
+      await load();
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(''); }
   };
 
   const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -128,9 +151,19 @@ export default function DemandesScreen() {
                   <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 3 }}>{fmt(d.created_at)}{d.status ? ` · ${d.status}` : ''}</div>
                 </div>
               </div>
+              {/* Action rapide : accepter/refuser une réservation depuis l'app */}
+              {d.source === 'booking' && d.status === 'PENDING' && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button disabled={!!busy} onClick={() => act(d, 'ACCEPTED', 'Réservation acceptée ✅')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(34,197,94,0.18)', border: '1px solid rgba(34,197,94,0.5)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#22c55e', fontFamily: 'Inter' }}>✅ ACCEPTER</button>
+                  <button disabled={!!busy} onClick={() => act(d, 'REJECTED', 'Réservation refusée')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.45)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#ef4444', fontFamily: 'Inter' }}>❌ REFUSER</button>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 {d.client_phone && (
                   <button onClick={() => waRelance(d)} style={{ flex: 1, padding: '8px 6px', background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.4)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#25D366', fontFamily: 'Inter' }}>💬 WhatsApp</button>
+                )}
+                {d.source === 'lead' && d.status !== 'conclu' && (
+                  <button disabled={!!busy} onClick={() => act(d, 'conclu', 'Lead marqué conclu ✅')} style={{ flex: 1, padding: '8px 6px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#22c55e', fontFamily: 'Inter' }}>✓ Conclu</button>
                 )}
                 <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '8px 6px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>⚙️ Gérer</a>
               </div>
@@ -138,6 +171,10 @@ export default function DemandesScreen() {
           );
         })}
       </div>
+
+      {toast && (
+        <div style={{ position: 'absolute', bottom: 70, left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#10b981', zIndex: 20, backdropFilter: 'blur(8px)', whiteSpace: 'nowrap' }}>{toast}</div>
+      )}
     </div>
   );
 }
