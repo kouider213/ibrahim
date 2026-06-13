@@ -101,19 +101,30 @@ app.use(requestLogger);
 app.get('/health', (_req, res) => {
   const falKey         = process.env.FAL_KEY || process.env.FAL_API_KEY;
   const replicateToken = process.env.REPLICATE_API_TOKEN;
+  const hasClaude = !!process.env.ANTHROPIC_API_KEY;
+  const hasFreeBrain = !!process.env.GROQ_API_KEY || !!process.env.GEMINI_API_KEY; // LLM gratuits (mêmes outils)
   res.json({
     status:  'ok',
     service: 'Dzaryx',
     version: '2.0-chatWithTools',
     time:    new Date().toISOString(),
     apis: {
-      anthropic:   !!process.env.ANTHROPIC_API_KEY  ? '🟢' : '🔴',
+      anthropic:   hasClaude ? '🟢' : '🔴',
       elevenlabs:  !!process.env.ELEVENLABS_API_KEY ? '🟢' : '🔴',
       supabase:    !!process.env.SUPABASE_URL        ? '🟢' : '🔴',
       pexels:      !!process.env.PEXELS_API_KEY      ? '🟢' : '🔴',
       cloudinary:  !!process.env.CLOUDINARY_API_KEY  ? '🟢' : '🔴',
       'fal.ai':    !!falKey          ? '🟢' : '🔴',
       replicate:   !!replicateToken  ? '🟢' : '🔴',
+    },
+    // Survie €0 : si les crédits payants meurent, le cerveau bascule sur le gratuit (mêmes outils)
+    resilience: {
+      mode:        hasClaude ? 'payant (Claude) + repli gratuit' : (hasFreeBrain ? 'GRATUIT (Groq/Gemini)' : '⚠️ aucun cerveau'),
+      free_brain:  hasFreeBrain ? '🟢 Groq/Gemini prêts' : '🔴 ajouter GROQ_API_KEY/GEMINI_API_KEY',
+      groq:        !!process.env.GROQ_API_KEY   ? '🟢' : '🔴',
+      gemini:      !!process.env.GEMINI_API_KEY ? '🟢' : '🔴',
+      tts_fallback: 'device (gratuit) si ElevenLabs coupé',
+      survives_zero_cost: hasFreeBrain,
     },
   });
 });
