@@ -84,4 +84,43 @@ router.get('/', requireMobileAuth, async (_req, res) => {
   res.json({ demandes: out, counts });
 });
 
+// POST /api/demandes/update — change le statut d'une demande DEPUIS l'app.
+// Proxy serveur→serveur vers les APIs du site (déclenche email/WhatsApp auto) — pas de CORS.
+const SITE = process.env['FIK_SITE_URL'] || 'https://fikconciergerie.com';
+
+router.post('/update', requireMobileAuth, async (req, res) => {
+  const { source, id, status } = (req.body ?? {}) as { source?: string; id?: string; status?: string };
+  if (!source || !id || !status) { res.status(400).json({ error: 'source + id + status requis' }); return; }
+
+  try {
+    if (source === 'booking') {
+      const r = await fetch(`${SITE}/api/update-booking`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: id, patch: { status } }),
+      });
+      if (!r.ok) throw new Error(`site update-booking ${r.status}`);
+    } else if (source === 'dossier') {
+      const r = await fetch(`${SITE}/api/update-dossier`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, patch: { status } }),
+      });
+      if (!r.ok) throw new Error(`site update-dossier ${r.status}`);
+    } else if (source === 'import') {
+      const r = await fetch(`${SITE}/api/update-import-order`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, patch: { status } }),
+      });
+      if (!r.ok) throw new Error(`site update-import-order ${r.status}`);
+    } else if (source === 'lead') {
+      const { error } = await supabase.from('client_leads').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw new Error(error.message);
+    } else {
+      res.status(400).json({ error: 'source inconnue' }); return;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 export default router;
