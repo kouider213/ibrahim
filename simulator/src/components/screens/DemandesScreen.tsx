@@ -89,6 +89,30 @@ export default function DemandesScreen() {
   const [toast, setToast] = useState('');
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
+  // Formulaire de création (dossier / import)
+  const [showNew, setShowNew] = useState(false);
+  const emptyForm = { type: 'dossier', kind: 'voiture', client_name: '', client_phone: '', client_email: '', subject: '', vehicle: '', budget: '', currency: 'DZD', lang: 'fr' };
+  const [form, setForm] = useState(emptyForm);
+  const setF = (k: keyof typeof emptyForm, v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const submitNew = async () => {
+    if (!form.client_name && !form.client_phone) { showToast('Nom ou téléphone requis'); return; }
+    setBusy('new');
+    try {
+      const payload: Record<string, unknown> = {
+        type: form.type, client_name: form.client_name, client_phone: form.client_phone,
+        client_email: form.client_email, budget: form.budget, currency: form.currency, lang: form.lang,
+      };
+      if (form.type === 'dossier') { payload.kind = form.kind; payload.subject = form.subject; }
+      else { const [vb, ...vm] = form.vehicle.trim().split(' '); payload.vehicle_brand = vb || null; payload.vehicle_model = vm.join(' ') || null; payload.country_origin = form.subject || null; }
+      const out = await postJson<{ ref?: string }>('/api/demandes/create', payload);
+      showToast(`Créé ✅ ${out.ref || ''}`);
+      setShowNew(false); setForm(emptyForm);
+      await load();
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Erreur création'); }
+    finally { setBusy(''); }
+  };
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -165,7 +189,10 @@ export default function DemandesScreen() {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(16,185,129,0.8)', letterSpacing: '0.2em' }}>DEMANDES DU SITE</div>
           <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{counts.total} demande{counts.total !== 1 ? 's' : ''}</div>
         </div>
-        <button onClick={() => { void load(); }} style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'rgba(16,185,129,0.8)' }}>↺</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowNew(true)} style={{ background: 'rgba(16,185,129,0.16)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#10b981' }}>＋ Nouveau</button>
+          <button onClick={() => { void load(); }} style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'rgba(16,185,129,0.8)' }}>↺</button>
+        </div>
       </div>
 
       {/* Filtres */}
@@ -248,6 +275,63 @@ export default function DemandesScreen() {
           );
         })}
       </div>
+
+      {showNew && (
+        <div onClick={() => setShowNew(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 30, display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '88%', overflowY: 'auto', background: '#0e0e12', borderTopLeftRadius: 20, borderTopRightRadius: 20, border: '1px solid rgba(16,185,129,0.2)', padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 2 }}>Nouvelle demande</div>
+
+            {/* Type */}
+            <div style={{ display: 'flex', gap: 7 }}>
+              {(['dossier', 'import'] as const).map(t => (
+                <button key={t} onClick={() => setF('type', t)} style={{ flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'Inter', background: form.type === t ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.04)', color: form.type === t ? '#06210f' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.type === t ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.1)'}` }}>{t === 'dossier' ? '📁 Dossier' : '🛳️ Import'}</button>
+              ))}
+            </div>
+
+            {/* Kind (dossier seulement) */}
+            {form.type === 'dossier' && (
+              <div style={{ display: 'flex', gap: 7 }}>
+                {([['voiture', '🚗 Achat'], ['immo', '🏠 Immo'], ['pack', '🎫 Pack']] as const).map(([k, lbl]) => (
+                  <button key={k} onClick={() => setF('kind', k)} style={{ flex: 1, padding: '7px', borderRadius: 9, cursor: 'pointer', fontSize: 10.5, fontWeight: 700, fontFamily: 'Inter', background: form.kind === k ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.04)', color: form.kind === k ? '#fff' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.kind === k ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.1)'}` }}>{lbl}</button>
+                ))}
+              </div>
+            )}
+
+            {(() => {
+              const inp = { width: '100%', boxSizing: 'border-box' as const, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '11px 13px', color: '#fff', fontFamily: 'Inter', fontSize: 14, outline: 'none' };
+              return (
+                <>
+                  <input value={form.client_name} onChange={e => setF('client_name', e.target.value)} placeholder="Nom du client" style={inp} />
+                  <input value={form.client_phone} onChange={e => setF('client_phone', e.target.value)} placeholder="Téléphone (WhatsApp)" style={inp} />
+                  <input value={form.client_email} onChange={e => setF('client_email', e.target.value)} placeholder="Email (optionnel)" style={inp} />
+                  {form.type === 'dossier'
+                    ? <input value={form.subject} onChange={e => setF('subject', e.target.value)} placeholder="Objet (ex: Clio 2020, Appart 3 pièces…)" style={inp} />
+                    : <>
+                        <input value={form.vehicle} onChange={e => setF('vehicle', e.target.value)} placeholder="Véhicule (marque modèle année)" style={inp} />
+                        <input value={form.subject} onChange={e => setF('subject', e.target.value)} placeholder="Pays d'origine (ex: France)" style={inp} />
+                      </>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input value={form.budget} onChange={e => setF('budget', e.target.value)} placeholder="Budget" inputMode="numeric" style={{ ...inp, flex: 2 }} />
+                    <select value={form.currency} onChange={e => setF('currency', e.target.value)} style={{ ...inp, flex: 1 }}>
+                      <option value="DZD">DZD</option><option value="EUR">EUR</option><option value="USD">USD</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: 7 }}>
+                    {(['fr', 'ar', 'en'] as const).map(l => (
+                      <button key={l} onClick={() => setF('lang', l)} style={{ flex: 1, padding: '7px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, background: form.lang === l ? 'rgba(96,165,250,0.8)' : 'rgba(255,255,255,0.04)', color: form.lang === l ? '#06210f' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.lang === l ? 'rgba(96,165,250,0.8)' : 'rgba(255,255,255,0.1)'}` }}>{LANG_FLAG[l]}</button>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={() => setShowNew(false)} style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter' }}>Annuler</button>
+              <button disabled={busy === 'new'} onClick={() => void submitNew()} style={{ flex: 2, padding: '12px', background: 'rgba(16,185,129,0.9)', border: 'none', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#06210f', fontFamily: 'Inter' }}>{busy === 'new' ? 'Création…' : 'Créer la demande'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div style={{ position: 'absolute', bottom: 70, left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#10b981', zIndex: 20, backdropFilter: 'blur(8px)', whiteSpace: 'nowrap' }}>{toast}</div>

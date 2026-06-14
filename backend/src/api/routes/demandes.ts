@@ -123,6 +123,36 @@ router.post('/update', requireMobileAuth, async (req, res) => {
   }
 });
 
+// POST /api/demandes/create — crée un dossier (achat/immo/pack) ou un import DEPUIS l'app.
+// Proxy vers les APIs du site (génère le ref, notifie Telegram). Retourne ref + id.
+router.post('/create', requireMobileAuth, async (req, res) => {
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  const type = b['type'] as string | undefined; // 'dossier' | 'import'
+  if (!b['client_name'] && !b['client_phone']) { res.status(400).json({ error: 'nom ou téléphone requis' }); return; }
+
+  try {
+    if (type === 'import') {
+      const r = await fetch(`${SITE}/api/create-import-order`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+      });
+      const j = (await r.json()) as { ref?: string; id?: string; error?: string };
+      if (!r.ok) throw new Error(j.error || `site create-import-order ${r.status}`);
+      res.json({ ok: true, source: 'import', ref: j.ref, id: j.id });
+    } else if (type === 'dossier') {
+      const r = await fetch(`${SITE}/api/create-dossier`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b),
+      });
+      const j = (await r.json()) as { ref?: string; id?: string; error?: string };
+      if (!r.ok) throw new Error(j.error || `site create-dossier ${r.status}`);
+      res.json({ ok: true, source: 'dossier', ref: j.ref, id: j.id });
+    } else {
+      res.status(400).json({ error: 'type doit être dossier ou import' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 // POST /api/demandes/photos — ajoute une photo à un dossier/import DEPUIS l'app.
 // 1) upload via le site (bucket) → url  2) append à photos[] existant  3) patch via le site.
 const PHOTO_TARGET: Record<string, { table: string; update: string }> = {
