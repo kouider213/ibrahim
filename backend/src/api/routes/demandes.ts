@@ -10,7 +10,7 @@ type Demande = {
   id: string; source: 'lead' | 'dossier' | 'import' | 'booking';
   ref?: string; title: string; client_name?: string; client_phone?: string;
   client_email?: string; status?: string; lang?: string; created_at?: string;
-  meta?: string; admin_path: string;
+  meta?: string; admin_path: string; kind?: string;
 };
 
 router.get('/', requireMobileAuth, async (_req, res) => {
@@ -36,7 +36,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
         .select('id, ref, kind, status, client_name, client_phone, client_email, subject, budget, currency, lang, created_at')
         .order('created_at', { ascending: false }).limit(120);
       for (const d of data ?? []) out.push({
-        id: 'dossier-' + d.id, source: 'dossier', ref: d.ref, title: d.subject || d.kind,
+        id: 'dossier-' + d.id, source: 'dossier', ref: d.ref, title: d.subject || d.kind, kind: d.kind,
         client_name: d.client_name, client_phone: d.client_phone, client_email: d.client_email,
         status: d.status, lang: d.lang, created_at: d.created_at,
         meta: [d.kind, d.budget ? `${d.budget} ${d.currency || ''}` : ''].filter(Boolean).join(' · '),

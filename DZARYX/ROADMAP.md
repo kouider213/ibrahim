@@ -1,6 +1,6 @@
 # DZARYX — Feuille de Route
 
-> Mise à jour : **2026-06-01**
+> Mise à jour : **2026-06-14** (audit code : push natif + wake word + briefing + PDF chat = TOUS faits & live)
 > Légende : ✅ Terminé | 🔄 En cours | 🔵 Planifié | ❌ Bloqué | ⚪ Won't Fix
 
 ---
@@ -177,7 +177,7 @@
 - ✅ Railway : `GOOGLE_MAPS_API_KEY` ajouté 2026-05-21
 - [ ] Tester APK android sur téléphone Kouider + Houari
 - [ ] Valider voix → Whisper → Claude → TTS end-to-end
-- [ ] Valider push notifications (app fermée)
+- ✅ Push notifications app fermée (FCM natif live sur Railway — 2026-06-14)
 - [ ] Valider scan OCR passeport
 - [ ] Google Maps API restreindre à Distance Matrix only (Google Cloud Console)
 - [ ] Révoquer EAS token `G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6` après build
@@ -234,10 +234,10 @@
 - ✅ Simulateur : panel GPS LIVRAISON interactif dans RESAS
 - 🔵 Suivi flotte GPS live → nécessite hardware trackers (~25-50€/voiture + SIM 4G)
 
-### 8.7 — Firebase FCM Natif (🔵 Attendre APK juin 2026)
-- ✅ `fcm.ts` : Firebase Admin SDK, dual push Expo/FCM
-- ❌ `FIREBASE_SERVICE_ACCOUNT_JSON` pas encore ajouté Railway — attendre APK
-- 🔵 Après APK : Google Cloud → Service Account → JSON → Railway
+### 8.7 — Firebase FCM Natif (✅ Terminé — 2026-06-14)
+- ✅ `fcm.ts` : Firebase Admin SDK, triple push Expo/FCM/WebPush, ciblage acteur
+- ✅ `FIREBASE_SERVICE_ACCOUNT_JSON` configuré sur Railway → push natif 100% live
+- ✅ Register natif (`getDevicePushTokenAsync`/`getExpoPushTokenAsync`), route `/api/push-token` (+`/test`)
 
 ### 8.8 — Google STT (✅ Terminé — 2026-05-21)
 - ✅ `/api/transcribe` : Google STT provider + fallback Groq Whisper automatique

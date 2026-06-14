@@ -85,6 +85,17 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-14 — Audit code A→Z + avancement étapes dossier/import DEPUIS l'app ⭐⭐
+> Backend `ibrahim` (Dzaryx) + simulateur (UI réelle). Push natif/wake word/briefing/PDF = confirmés FAITS (docs périmées rattrapées : CURRENT_STATE + ROADMAP).
+
+**Audit** : vérif code réel. Push natif (FCM+Expo+WebPush, `FIREBASE_SERVICE_ACCOUNT_JSON` sur Railway = live), wake word Zaria (plugins), briefing matin (`jobMorningBriefing`), PDF chat (`api/routes/pdf.ts`) — TOUS déjà faits + buildés. Docs disaient "à faire" → corrigées.
+
+**Actions in-app dossier/import (nouveau)** : avant, avancer un dossier achat/immo/pack ou une importation = bouton "Gérer" → renvoyait au site. Maintenant pilotable depuis l'app.
+- Backend `api/routes/demandes.ts` : `/api/demandes/update` proxyait DÉJÀ dossier+import vers le site (`update-dossier`/`update-import-order`). Ajouté `kind` au payload dossier (pour choisir le bon parcours).
+- Simulateur `DemandesScreen.tsx` : parcours d'étapes (codes identiques `lib/importStatus`+`lib/dossierStatus` du site) : import 8 étapes, dossier voiture/immo/pack. Bouton **"→ ÉTAPE SUIVANTE"** (déclenche email/WhatsApp auto client via le site) + "Annuler" + label étape courante. "✓ Terminé" à la dernière.
+- tsc backend 0 + simulateur 0. Déployé : push main (Railway) + `npm run deploy` (gh-pages).
+- **⏭️ Reste** : upload photos étape FOUND/READY depuis l'app (actuellement via "Gérer"→site). Distribution Play Store. Machine à avis Google (levier #1 ranking).
+
 ### 2026-06-13 (nuit 5) — Audit Dzaryx A→Z + survie €0 PROUVÉE + WhatsApp centralisé ⭐⭐
 > Backend `ibrahim` (Dzaryx) + site `rental-system`. Commit Dzaryx `85daa12` (health résilience), site `6a1f701` (WhatsApp).
 

@@ -14,8 +14,45 @@ interface Demande {
   created_at?: string;
   meta?: string;
   admin_path: string;
+  kind?: string;
 }
 interface Counts { total: number; lead: number; dossier: number; import: number; booking: number; }
+
+// Parcours d'étapes — codes identiques au site (lib/importStatus.js + lib/dossierStatus.js)
+type Stage = { key: string; fr: string };
+const IMPORT_FLOW: Stage[] = [
+  { key: 'REQUESTED', fr: 'Demande reçue' }, { key: 'SEARCHING', fr: 'Recherche en cours' },
+  { key: 'FOUND', fr: 'Véhicule trouvé' }, { key: 'PURCHASED', fr: 'Acheté' },
+  { key: 'SHIPPING', fr: 'En transport' }, { key: 'CUSTOMS', fr: 'Dédouanement' },
+  { key: 'READY', fr: 'Prêt à récupérer' }, { key: 'DELIVERED', fr: 'Livré' },
+];
+const DOSSIER_FLOWS: Record<string, Stage[]> = {
+  voiture: [
+    { key: 'REQUESTED', fr: 'Demande reçue' }, { key: 'RESERVED', fr: 'Véhicule réservé' },
+    { key: 'DOCUMENTS', fr: 'Dossier & documents' }, { key: 'PAYMENT', fr: 'Paiement' },
+    { key: 'READY', fr: 'Prêt à récupérer' }, { key: 'DELIVERED', fr: 'Livré' },
+  ],
+  immo: [
+    { key: 'REQUESTED', fr: 'Demande reçue' }, { key: 'VISIT', fr: 'Visite programmée' },
+    { key: 'REVIEW', fr: 'Dossier en cours' }, { key: 'CONTRACT', fr: 'Contrat' },
+    { key: 'FINALIZED', fr: 'Finalisé' },
+  ],
+  pack: [
+    { key: 'REQUESTED', fr: 'Demande reçue' }, { key: 'CONFIRMED', fr: 'Pack confirmé' },
+    { key: 'DEPOSIT', fr: 'Acompte versé' }, { key: 'PREPARED', fr: 'Séjour préparé' },
+    { key: 'ONGOING', fr: 'Séjour en cours' }, { key: 'COMPLETED', fr: 'Terminé' },
+  ],
+};
+const flowFor = (d: Demande): Stage[] =>
+  d.source === 'import' ? IMPORT_FLOW : DOSSIER_FLOWS[d.kind || 'voiture'] || DOSSIER_FLOWS.voiture;
+const stageLabel = (d: Demande, key?: string): string =>
+  flowFor(d).find(s => s.key === key)?.fr || key || '—';
+const nextStage = (d: Demande): Stage | null => {
+  const flow = flowFor(d);
+  const i = flow.findIndex(s => s.key === d.status);
+  if (i < 0) return flow[0];                    // statut inconnu → 1ère étape
+  return i < flow.length - 1 ? flow[i + 1] : null; // déjà à la dernière → rien
+};
 
 const SRC: Record<Demande['source'], { label: string; color: string; icon: string }> = {
   lead:    { label: 'Lead',        color: '#f59e0b', icon: '🔔' },
@@ -158,6 +195,25 @@ export default function DemandesScreen() {
                   <button disabled={!!busy} onClick={() => act(d, 'REJECTED', 'Réservation refusée')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.45)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#ef4444', fontFamily: 'Inter' }}>❌ REFUSER</button>
                 </div>
               )}
+              {/* Avancement d'étape in-app : dossier (achat/immo/pack) + importation */}
+              {(d.source === 'dossier' || d.source === 'import') && d.status !== 'CANCELLED' && (() => {
+                const next = nextStage(d);
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>
+                      Étape : <span style={{ color: s.color, fontWeight: 700 }}>{stageLabel(d, d.status)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {next ? (
+                        <button disabled={!!busy} onClick={() => act(d, next.key, `Étape → ${next.fr} ✅`)} style={{ flex: 2, padding: '9px 6px', background: `${s.color}22`, border: `1px solid ${s.color}66`, borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: s.color, fontFamily: 'Inter' }}>→ {next.fr.toUpperCase()}</button>
+                      ) : (
+                        <div style={{ flex: 2, padding: '9px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'rgba(34,197,94,0.7)' }}>✓ Terminé</div>
+                      )}
+                      <button disabled={!!busy} onClick={() => act(d, 'CANCELLED', 'Demande annulée')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#ef4444', fontFamily: 'Inter' }}>Annuler</button>
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ display: 'flex', gap: 8 }}>
                 {d.client_phone && (
                   <button onClick={() => waRelance(d)} style={{ flex: 1, padding: '8px 6px', background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.4)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#25D366', fontFamily: 'Inter' }}>💬 WhatsApp</button>

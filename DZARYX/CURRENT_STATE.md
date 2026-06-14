@@ -2,9 +2,28 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-06-11** (Audit + journal rattrapé. Sessions 06-08→06-10 : DZD Houari, inspections,
-> IMMO/ACHAT, opportunités, darija totale + voix arabe + STT gpt-4o-transcribe, signature électronique,
-> estimation dégâts, pricing dynamique, scan ID archivé, handoff A→Z.)
+> Dernière mise à jour : **2026-06-14** (Audit code A→Z : push natif, wake word, briefing matin, PDF chat = TOUS FAITS.
+> Voir bloc ci-dessous. Sessions 06-08→06-13 : DZD Houari, darija totale, signature, suivi import/dossiers site,
+> résilience €0 prouvée, WhatsApp centralisé, comptes admin.)
+
+---
+
+## ⚡ Mise à jour 2026-06-14 — AUDIT CODE (vérité terrain)
+
+> Audit du **code réel** (pas des docs). Plusieurs features marquées "à faire" dans les vieilles notes
+> sont **déjà implémentées et buildées**. `tsc --noEmit` = **0 erreur**. Corrigé ici pour stopper les
+> fausses alertes "refais X".
+
+- **✅ PUSH NATIF — FAIT** (triple canal). `backend/src/notifications/fcm.ts` (FCM natif `firebase-admin`),
+  `mobile-push.ts` (Expo + ciblage kouider/houari/all), `web-push-service.ts` (PWA VAPID),
+  `api/routes/push-token.ts` (+ `/test`, `/debug`, `/web`). Native register : `dzaryx-native/app/index.tsx`
+  (`getDevicePushTokenAsync` = FCM brut) + `chat.tsx` (`getExpoPushTokenAsync` fallback). `google-services.json` présent.
+  **`FIREBASE_SERVICE_ACCOUNT_JSON` déjà configuré sur Railway** ✅ → push natif 100% live, AUCUN verrou restant. Tester via `POST /api/push-token/test`.
+- **✅ WAKE WORD "Zaria" — FAIT**. Plugins `dzaryx-native/plugins/withDzaryxWakeWord.js` + `withWakeScreen.js`, branché `index.tsx`/`app.json`.
+- **✅ BRIEFING MATIN — FAIT**. Backend `jobMorningBriefing` (`queue/jobs/proactive-jobs.ts`) + écrans natifs `notifications.tsx`/`settings.tsx`/`chat.tsx`.
+- **✅ UPLOAD/ANALYSE PDF (chat) — FAIT**. Backend `api/routes/pdf.ts` + `utils/pdf-store.ts` + `integrations/document-reader.ts` ; native `app/documents.tsx`/`text.tsx` ; simulator `DocumentsScreen.tsx`.
+- **🛑 Sécurité ENCORE OUVERT** : token GitHub `ghp_d8Vch…` **toujours pas révoqué** (en clair plus bas ligne ~266 — à nettoyer aussi) ; clés Groq/Gemini partagées en chat 06-13 à régénérer ; clé Google Maps à restreindre.
+- **Détail sessions site 06-13** : `DZARYX/AUDIT/RECAP_2026-06-13.md` + `10_JOURNAL_SESSION.md`.
 
 ---
 
@@ -17,8 +36,8 @@
   proprio) ; scan ID auto-archivé fiche client ; MARGE RESAS calculée live ; **`DZARYX/HANDOFF/`** = handoff A→Z.
 - **2026-06-09 (site)** : autocomplétion adresse admin immo → carte précise (`eebc960`).
 - **Détail complet** : `DZARYX/AUDIT/10_JOURNAL_SESSION.md` + `DZARYX/CHANGELOG.md`.
-- **Reste ouvert** : B025 token GitHub à révoquer, B030 wake word Zaria (logcat), clé Maps à restreindre,
-  PDF/Excel chat (optionnel), vérifs device (darija vocal, signature, dégâts, scan).
+- **Reste ouvert** : B025 token GitHub à révoquer, clé Maps à restreindre, vérifs device (darija vocal, signature, dégâts, scan).
+  (⚠️ wake word Zaria + PDF/Excel chat = **FAITS depuis** — voir bloc 2026-06-14.)
 
 ---
 
@@ -270,9 +289,9 @@ Commit : `fd6352b` (ibrahim)
 - ❌ `SMTP_USER` + `SMTP_PASS` + `SMTP_FROM` pas encore configurés
 - Emails registration/welcome SaaS ne fonctionnent pas
 
-### Firebase FCM natif
-- ❌ `FIREBASE_SERVICE_ACCOUNT_JSON` pas encore configuré Railway
-- Attendre APK juin 2026
+### Firebase FCM natif — ✅ COMPLET (code + config)
+- Code : `fcm.ts` + `mobile-push.ts` + route + register natif.
+- `FIREBASE_SERVICE_ACCOUNT_JSON` déjà sur Railway ✅. Push natif 100% live, rien à faire.
 
 ### WhatsApp bot client
 - ❌ Prévu août 2026
