@@ -582,19 +582,33 @@ const loginInputStyle: React.CSSProperties = {
 // ─── Dzaryx SVG Icon ──────────────────────────────────────────────────────────
 
 function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean }) {
-  const src = `${((import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/'}logo.png`;
+  // Orbe IA (identique à l'icône d'app) — rendu vectoriel, net à toute taille.
+  const uid = `dz${Math.round(size)}`;
   return (
-    <img
-      src={src}
-      alt="Dzaryx"
-      width={size}
-      height={size}
-      style={{
-        width: size, height: size, objectFit: 'contain',
-        borderRadius: size * 0.22,
-        filter: glow ? 'drop-shadow(0 0 14px rgba(16,185,129,0.45)) drop-shadow(0 0 30px rgba(16,185,129,0.18))' : undefined,
-      }}
-    />
+    <svg width={size} height={size} viewBox="0 0 512 512" style={{ display: 'block', filter: glow ? 'drop-shadow(0 0 14px rgba(52,245,224,0.45)) drop-shadow(0 0 30px rgba(16,182,200,0.18))' : undefined }}>
+      <defs>
+        <radialGradient id={`${uid}bg`} cx="50%" cy="42%" r="75%">
+          <stop offset="0%" stopColor="#0e1417" /><stop offset="100%" stopColor="#050608" />
+        </radialGradient>
+        <radialGradient id={`${uid}glow`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#34f5e0" stopOpacity="0.55" />
+          <stop offset="55%" stopColor="#10b6c8" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#10b6c8" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={`${uid}orb`} cx="42%" cy="38%" r="70%">
+          <stop offset="0%" stopColor="#eafffb" /><stop offset="32%" stopColor="#5ef0df" />
+          <stop offset="70%" stopColor="#13b9c9" /><stop offset="100%" stopColor="#0a6f86" />
+        </radialGradient>
+        <linearGradient id={`${uid}ring`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#ffd76a" /><stop offset="100%" stopColor="#f0a93a" />
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" rx="112" fill={`url(#${uid}bg)`} />
+      <circle cx="256" cy="256" r="200" fill={`url(#${uid}glow)`} />
+      <circle cx="256" cy="256" r="132" fill="none" stroke={`url(#${uid}ring)`} strokeWidth="6" opacity="0.85" />
+      <circle cx="256" cy="256" r="104" fill={`url(#${uid}orb)`} />
+      <ellipse cx="224" cy="216" rx="40" ry="26" fill="#ffffff" opacity="0.45" />
+    </svg>
   );
 }
 
