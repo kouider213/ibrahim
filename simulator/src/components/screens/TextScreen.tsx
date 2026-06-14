@@ -907,16 +907,17 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', alignItems: 'flex-start', gap: 9, animation: 'msg-in 0.22s ease' }}>
+      <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', alignItems: 'flex-start', gap: 9, marginBottom: 12, animation: 'msg-in 0.22s ease' }}>
         {!isUser && (
-          <div style={{ flexShrink: 0, marginTop: 1 }}><OrbIcon size={28} /></div>
+          <div style={{ flexShrink: 0, marginTop: 2 }}><OrbIcon size={28} /></div>
         )}
         <div style={{
-          maxWidth: isUser ? '82%' : '88%',
-          background: isUser ? 'rgba(255,255,255,0.08)' : 'transparent',
-          border: 'none',
-          borderRadius: isUser ? '20px 20px 6px 20px' : 0,
-          padding: isUser ? '10px 14px' : '2px 0',
+          maxWidth: isUser ? '82%' : '86%',
+          background: isUser ? 'rgba(16,185,129,0.16)' : '#16161c',
+          border: isUser ? '1px solid rgba(16,185,129,0.32)' : '1px solid rgba(255,255,255,0.07)',
+          borderRadius: isUser ? '20px 20px 6px 20px' : '6px 18px 18px 18px',
+          padding: '12px 14px',
+          boxShadow: isUser ? 'none' : '0 2px 10px rgba(0,0,0,0.25)',
         }}>
           {msg.status === 'sending' && !msg.text ? (
             <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 0' }}>
