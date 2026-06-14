@@ -111,11 +111,11 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
         <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
           {([['cars', '🚗 LOCATION'], ['immo', '🏠 IMMO'], ['vente', '💰 VENTE']] as [ParcTab, string][]).map(([k, lbl]) => (
             <button key={k} onClick={() => setTab(k)} style={{
-              flex: 1, padding: '6px 4px', borderRadius: 7,
-              background: tab === k ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.04)',
-              border: `1px solid #10b981${tab === k ? '88' : '22'}`,
-              fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.08em',
-              color: `#10b981${tab === k ? '' : '77'}`, cursor: 'pointer',
+              flex: 1, padding: '9px 4px', borderRadius: 10,
+              background: tab === k ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${tab === k ? '#10b98188' : 'rgba(255,255,255,0.08)'}`,
+              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+              color: tab === k ? '#10b981' : 'rgba(255,255,255,0.55)', cursor: 'pointer',
             }}>{lbl}</button>
           ))}
         </div>
@@ -157,12 +157,12 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
 
           return (
             <div key={car.id} style={{
-              borderRadius: 14,
-              border: `1px solid ${col}38`,
-              background: 'linear-gradient(135deg, #161618 0%, #101012 100%)',
-              boxShadow: `0 2px 14px ${col}0d`,
+              borderRadius: 16,
+              border: '1px solid rgba(255,255,255,0.07)',
+              background: '#16161c',
+              overflow: 'hidden',
               display: 'flex', alignItems: 'stretch',
-              minHeight: 92,
+              minHeight: 96,
             }}>
               {/* Left accent bar */}
               <div style={{ width: 3, alignSelf: 'stretch', background: `linear-gradient(180deg, ${col}, ${col}22)`, flexShrink: 0 }} />
@@ -181,40 +181,40 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
               <div style={{ flex: 1, minWidth: 0, padding: '9px 6px 9px 8px' }}>
                 {/* Name */}
                 <div style={{
-                  fontSize: 13, color: '#ffffff', fontWeight: 700,
-                  letterSpacing: '0.02em', marginBottom: 4,
+                  fontSize: 15.5, color: '#ffffff', fontWeight: 700,
+                  letterSpacing: '0.01em', marginBottom: 3,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
                   {car.name}
                 </div>
                 {/* Category */}
-                <div style={{ fontSize: 7, color: '#ffffff44', letterSpacing: '0.08em', marginBottom: 5 }}>
+                <div style={{ fontSize: 10.5, color: '#9b9ba6', marginBottom: 6 }}>
                   {car.category ?? 'Standard'}
                 </div>
                 {/* Prices — Houari / Kouider / profit */}
                 <div style={{ display: 'flex', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
                   {hPrice !== null && (
-                    <span style={{ fontSize: 7.5, background: '#ffffff0a', border: '1px solid #ffffff18', borderRadius: 5, padding: '2px 6px', color: '#ff3366cc' }}>
+                    <span style={{ fontSize: 10.5, background: '#ffffff0a', border: '1px solid #ffffff18', borderRadius: 5, padding: '2px 6px', color: '#ff3366cc' }}>
                       H: {hPrice} {cur}/j
                     </span>
                   )}
                   {kPrice !== null && (
-                    <span style={{ fontSize: 7.5, background: '#00e6760a', border: '1px solid #00e67622', borderRadius: 5, padding: '2px 6px', color: '#00e676cc' }}>
+                    <span style={{ fontSize: 10.5, background: '#00e6760a', border: '1px solid #00e67622', borderRadius: 5, padding: '2px 6px', color: '#00e676cc' }}>
                       K: {kPrice} {cur}/j
                     </span>
                   )}
                   {profit !== null && (
-                    <span style={{ fontSize: 7.5, background: '#ffb3470a', border: '1px solid #ffb34722', borderRadius: 5, padding: '2px 6px', color: '#ffb347cc' }}>
+                    <span style={{ fontSize: 10.5, background: '#ffb3470a', border: '1px solid #ffb34722', borderRadius: 5, padding: '2px 6px', color: '#ffb347cc' }}>
                       +{profit} {cur}/j
                     </span>
                   )}
-                  <span style={{ fontSize: 7.5, background: isHouari ? '#10b9811a' : '#ffffff08', border: `1px solid ${isHouari ? '#10b98144' : '#ffffff14'}`, borderRadius: 5, padding: '2px 6px', color: isHouari ? '#10b981' : '#ffffff55' }}>
+                  <span style={{ fontSize: 10.5, background: isHouari ? '#10b9811a' : '#ffffff08', border: `1px solid ${isHouari ? '#10b98144' : '#ffffff14'}`, borderRadius: 5, padding: '2px 6px', color: isHouari ? '#10b981' : '#ffffff55' }}>
                     {cur}
                   </span>
                 </div>
                 {/* Rev 30j + occupation — affichés seulement s'il y a de l'activité */}
                 {rev30d !== null && rev30d > 0 && (
-                  <div style={{ fontSize: 8, color: '#9b9ba6', marginBottom: 4 }}>
+                  <div style={{ fontSize: 11, color: '#9b9ba6', marginBottom: 4 }}>
                     REV. 30J <span style={{ color: '#e5e7eb', fontWeight: 700 }}>
                       {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
                     </span>
@@ -225,7 +225,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                     <div style={{ flex: 1, height: 3, background: '#ffffff09', borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}55, ${col})`, borderRadius: 2, transition: 'width 0.6s ease' }} />
                     </div>
-                    <span style={{ fontSize: 7, color: col, fontFamily: 'Inter, sans-serif', minWidth: 24, textAlign: 'right' }}>
+                    <span style={{ fontSize: 10, color: col, fontFamily: 'Inter, sans-serif', minWidth: 28, textAlign: 'right' }}>
                       {occ30d}%
                     </span>
                   </div>
@@ -259,7 +259,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                     left: avail ? 26 : 4,
                   }} />
                 </button>
-                <span style={{ fontSize: 6, fontFamily: 'Inter, sans-serif', color: col, letterSpacing: '0.1em' }}>
+                <span style={{ fontSize: 9, fontFamily: 'Inter, sans-serif', fontWeight: 700, color: col, letterSpacing: '0.08em' }}>
                   {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
                 </span>
                 {/* Actions : réserver + édition prix + photos + inspection */}
@@ -807,9 +807,9 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
 
 function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
   return (
-    <div style={{ flex: 1, background: `${col}0a`, borderRadius: 8, padding: '6px 8px', border: `1px solid ${col}2a`, textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 14, color: col, textShadow: `0 0 10px ${col}44` }}>{val}</div>
-      <div style={{ fontSize: 6, color: `${col}66`, letterSpacing: '0.15em', marginTop: 2 }}>{label}</div>
+    <div style={{ flex: 1, background: '#16161c', borderRadius: 14, padding: '12px 6px', border: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 20, fontWeight: 800, color: col }}>{val}</div>
+      <div style={{ fontSize: 9.5, color: '#9b9ba6', letterSpacing: '0.04em', marginTop: 3 }}>{label}</div>
     </div>
   );
 }
