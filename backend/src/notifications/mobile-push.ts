@@ -166,15 +166,36 @@ export function emitProactive(
               : type === 'reminder' ? '🔔 Dzaryx — Rappel'
               : '📱 Dzaryx';
 
-  sendExpoPush(title, text, { text, type }, targetActor).catch(err =>
-    console.error('[mobile-push] push error:', err instanceof Error ? err.message : String(err)),
-  );
-
-  sendTargetedWebPush(title, text, { text, type }, targetActor).catch(err =>
-    console.error('[mobile-push] web-push error:', err instanceof Error ? err.message : String(err)),
-  );
+  // Respecte les préférences de notif (par type) avant de pousser
+  void pushTypeEnabled(targetActor, type).then(enabled => {
+    if (!enabled) { console.log(`[mobile-push] type ${type} désactivé pour ${targetActor} — push sauté`); return; }
+    sendExpoPush(title, text, { text, type }, targetActor).catch(err =>
+      console.error('[mobile-push] push error:', err instanceof Error ? err.message : String(err)));
+    sendTargetedWebPush(title, text, { text, type }, targetActor).catch(err =>
+      console.error('[mobile-push] web-push error:', err instanceof Error ? err.message : String(err)));
+  });
 
   console.log(`[mobile-push] Proactive (${type}) → ${targetActor}: ${text.slice(0, 60)}…`);
+}
+
+// ── Préférences de notification (par type, par acteur) ──────────────────────
+const PREFS_KEY = (actor: string) => `push:prefs:${actor}`;
+export type PushPrefs = Record<ProactiveType, boolean>;
+const DEFAULT_PREFS: PushPrefs = { morning: true, alert: true, reminder: true, info: true };
+
+export async function getPushPrefs(actorId = 'kouider'): Promise<PushPrefs> {
+  try { const raw = await redis.get(PREFS_KEY(actorId)); return raw ? { ...DEFAULT_PREFS, ...JSON.parse(raw) as Partial<PushPrefs> } : { ...DEFAULT_PREFS }; }
+  catch { return { ...DEFAULT_PREFS }; }
+}
+export async function setPushPrefs(actorId: string, prefs: Partial<PushPrefs>): Promise<PushPrefs> {
+  const merged = { ...(await getPushPrefs(actorId)), ...prefs };
+  try { await redis.set(PREFS_KEY(actorId), JSON.stringify(merged)); } catch { /* ignore */ }
+  return merged;
+}
+async function pushTypeEnabled(target: ProactiveActor, type: ProactiveType): Promise<boolean> {
+  const actors = target === 'all' ? ['kouider', 'houari'] : [target];
+  for (const a of actors) { const p = await getPushPrefs(a); if (p[type]) return true; }
+  return false;
 }
 
 /**

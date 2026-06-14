@@ -141,6 +141,9 @@ export default function SettingsScreen() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
+        {/* Notifications */}
+        <NotifPrefs />
+
         {/* GPS Location */}
         <Panel title="LOCALISATION GPS">
           {locData ? (
@@ -296,6 +299,37 @@ export default function SettingsScreen() {
         </div>
       </div>
     </div>
+  );
+}
+
+function NotifPrefs() {
+  const TYPES: Array<{ k: string; label: string; icon: string }> = [
+    { k: 'morning', label: 'Briefing du matin', icon: '☀️' },
+    { k: 'alert', label: 'Alertes', icon: '🚨' },
+    { k: 'reminder', label: 'Rappels', icon: '🔔' },
+    { k: 'info', label: 'Infos / proactif', icon: '📱' },
+  ];
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({ morning: true, alert: true, reminder: true, info: true });
+  useEffect(() => { business.pushPrefsGet().then(r => setPrefs(r.prefs)).catch(() => {}); }, []);
+  const toggle = (k: string) => {
+    const next = { ...prefs, [k]: !prefs[k] };
+    setPrefs(next);
+    business.pushPrefsSet({ [k]: next[k] }).catch(() => {});
+  };
+  return (
+    <Panel title="NOTIFICATIONS">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {TYPES.map(t => (
+          <div key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#e8e8ee' }}>{t.icon} {t.label}</span>
+            <button onClick={() => toggle(t.k)} style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: prefs[t.k] ? '#10b981' : 'rgba(255,255,255,0.12)', transition: 'background .2s' }}>
+              <div style={{ position: 'absolute', top: 3, left: prefs[t.k] ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 9.5, color: '#ffffff33', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
+    </Panel>
   );
 }
 

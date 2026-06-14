@@ -25,6 +25,7 @@ const L = {
     en: 'Valid for 7 days. To confirm, reply to this message 🙏',
   },
   devis: { fr: 'Devis', ar: 'عرض سعر', en: 'Quote' },
+  pdfLabel: { fr: 'Devis PDF', ar: 'عرض السعر PDF', en: 'Quote PDF' },
 };
 const t = (k: keyof typeof L, lang: string) => L[k][(lang as 'fr' | 'ar' | 'en')] ?? L[k].fr;
 
@@ -70,15 +71,21 @@ export default function DevisScreen() {
     return `${t('hello', lang)} ${name || ''},\n${t('intro', lang)}\n\n${itemLines}\n\n${totalLines}\n\n${t('valid', lang)}`;
   };
 
-  const sendWhatsApp = () => {
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const sendWhatsApp = async () => {
     const valid = lines.filter(l => l.label.trim() && Number(l.amount) > 0);
     if (valid.length === 0) { flash('Ajoute au moins une ligne'); return; }
+    // Génère le PDF et joint son lien au message WhatsApp
+    setPdfBusy(true);
+    let pdfUrl = '';
+    try { const out = await business.quotePdf({ client_name: name, lines: valid.map(l => ({ label: l.label.trim(), amount: Number(l.amount), currency: l.currency })) }); pdfUrl = out.url; loadHistory(); }
+    catch { /* on envoie quand même le texte */ }
+    setPdfBusy(false);
     const ph = phone.replace(/\D/g, '');
-    const txt = encodeURIComponent(buildText());
-    window.open(ph ? `https://wa.me/${ph}?text=${txt}` : `https://wa.me/?text=${txt}`, '_blank');
+    const text = buildText() + (pdfUrl ? `\n\n📄 ${t('pdfLabel', lang)} : ${pdfUrl}` : '');
+    window.open(ph ? `https://wa.me/${ph}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  const [pdfBusy, setPdfBusy] = useState(false);
   const makePdf = async () => {
     const valid = lines.filter(l => l.label.trim() && Number(l.amount) > 0).map(l => ({ label: l.label.trim(), amount: Number(l.amount), currency: l.currency }));
     if (valid.length === 0) { flash('Ajoute au moins une ligne'); return; }
@@ -140,7 +147,7 @@ export default function DevisScreen() {
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button onClick={() => void makePdf()} disabled={pdfBusy} style={{ flex: 1, padding: '14px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{pdfBusy ? '…' : '📄 PDF'}</button>
-        <button onClick={sendWhatsApp} style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>💬 Envoyer WhatsApp</button>
+        <button onClick={() => void sendWhatsApp()} disabled={pdfBusy} style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>{pdfBusy ? 'Préparation…' : '💬 Envoyer WhatsApp (+PDF)'}</button>
       </div>
 
       {/* Historique des devis */}

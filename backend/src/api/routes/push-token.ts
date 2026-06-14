@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { storePushToken, getPushToken, emitProactive } from '../../notifications/mobile-push.js';
+import { storePushToken, getPushToken, emitProactive, getPushPrefs, setPushPrefs } from '../../notifications/mobile-push.js';
 import { isFcmToken } from '../../notifications/fcm.js';
 import { storeWebSub, getVapidPublicKey, isWebPushConfigured } from '../../notifications/web-push-service.js';
 import type { PushSubscription } from 'web-push';
@@ -58,6 +58,19 @@ router.get('/vapid-public-key', (_req, res) => {
 router.post('/test', requireMobileAuth, (_req, res) => {
   emitProactive('🔔 Test push FCM — tu reçois ça ?', 'info', undefined, 'kouider');
   res.json({ ok: true });
+});
+
+// GET /api/push-token/prefs — préférences de notif (par type)
+router.get('/prefs', requireMobileAuth, async (req, res) => {
+  const actorId = req.mobileActor?.ownerKey ?? 'kouider';
+  res.json({ prefs: await getPushPrefs(actorId) });
+});
+
+// POST /api/push-token/prefs — { morning?, alert?, reminder?, info? }
+router.post('/prefs', requireMobileAuth, async (req, res) => {
+  const actorId = req.mobileActor?.ownerKey ?? 'kouider';
+  const prefs = await setPushPrefs(actorId, (req.body ?? {}) as Record<string, boolean>);
+  res.json({ prefs });
 });
 
 // GET /api/push-token — debug

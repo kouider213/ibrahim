@@ -816,6 +816,12 @@ export const business = {
   whatsappDraft: (data: { clientMessage?: string; context?: string; lang?: string; tone?: string }) =>
     apiFetch<{ reply?: string; error?: string }>('/api/whatsapp/draft', { method: 'POST', body: JSON.stringify(data) }),
 
+  // Préférences notifications (par type)
+  pushPrefsGet: () =>
+    apiFetch<{ prefs: Record<string, boolean> }>('/api/push-token/prefs'),
+  pushPrefsSet: (prefs: Record<string, boolean>) =>
+    apiFetch<{ prefs: Record<string, boolean> }>('/api/push-token/prefs', { method: 'POST', body: JSON.stringify(prefs) }),
+
   // Insights
   insightsToday: () =>
     apiFetch<{ date: string; departures: TodayItem[]; returns: TodayItem[]; toCollect: Array<TodayItem & { due: number }>; newDemands: number; pendingBookings: number }>('/api/insights/today'),
