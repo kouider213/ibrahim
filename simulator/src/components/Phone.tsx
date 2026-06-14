@@ -30,7 +30,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -40,32 +40,34 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
   houari:  { password: 'houari31',  actor: 'houari'  },
 };
 
-const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean; houariOnly?: boolean }> = [
+const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean; houariOnly?: boolean; group?: 'tool' }> = [
+  // ── Barre du bas (essentiels) ──
   { id: 'aujourdhui',    icon: '☀️', label: "AUJOURD'HUI", kouiderOnly: true },
   { id: 'voice',         icon: '🎙️', label: 'VOIX'    },
   { id: 'text',          icon: '💬', label: 'CHAT'    },
-  { id: 'search',        icon: '🔍', label: 'CHERCHER' },
-  { id: 'immo',          icon: '🏠', label: 'IMMO'    },
-  { id: 'deals',         icon: '🔁', label: 'ACHAT'   },
-  { id: 'bookings',      icon: '📋', label: 'LOCATIONS' },
+  { id: 'leads',         icon: '📥', label: 'DEMANDES' },
   { id: 'fleet',         icon: '🚗', label: 'PARC'    },
   { id: 'revenue',       icon: '💰', label: 'CA'      },
-  { id: 'caisse',        icon: '🧾', label: 'CAISSE',  kouiderOnly: true },
   { id: 'clients',       icon: '👥', label: 'CLIENTS' },
-  { id: 'reviews',       icon: '⭐', label: 'AVIS',    kouiderOnly: true },
-  { id: 'leads',         icon: '📥', label: 'DEMANDES' },
-  { id: 'devis',         icon: '🧮', label: 'DEVIS',   kouiderOnly: true },
-  { id: 'reponse',       icon: '🗨️', label: 'RÉPONSE', kouiderOnly: true },
-  { id: 'social',        icon: '📱', label: 'SOCIAL',  kouiderOnly: true },
-  { id: 'forecast',      icon: '📈', label: 'PRÉVISION', kouiderOnly: true },
-  { id: 'reengage',      icon: '🔁', label: 'RELANCE', kouiderOnly: true },
-  { id: 'parrainage',    icon: '🎁', label: 'PARRAINAGE', kouiderOnly: true },
-  { id: 'pricing',       icon: '🏷️', label: 'PRIX',    kouiderOnly: true },
-  { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
-  { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
-  { id: 'newsletter',    icon: '📣', label: 'NEWS',    kouiderOnly: true },
-  { id: 'blog',          icon: '✍️', label: 'BLOG',    kouiderOnly: true },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
+  // ── Menu "⋯ Plus" (outils) ──
+  { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
+  { id: 'devis',         icon: '🧮', label: 'DEVIS',   kouiderOnly: true, group: 'tool' },
+  { id: 'reponse',       icon: '🗨️', label: 'RÉPONSE', kouiderOnly: true, group: 'tool' },
+  { id: 'bookings',      icon: '📋', label: 'LOCATIONS', group: 'tool' },
+  { id: 'immo',          icon: '🏠', label: 'IMMO',    group: 'tool' },
+  { id: 'deals',         icon: '🔁', label: 'ACHAT',   group: 'tool' },
+  { id: 'calendar',      icon: '📅', label: 'AGENDA',  group: 'tool' },
+  { id: 'caisse',        icon: '🧾', label: 'CAISSE',  kouiderOnly: true, group: 'tool' },
+  { id: 'reviews',       icon: '⭐', label: 'AVIS',    kouiderOnly: true, group: 'tool' },
+  { id: 'reengage',      icon: '🔁', label: 'RELANCE', kouiderOnly: true, group: 'tool' },
+  { id: 'parrainage',    icon: '🎁', label: 'PARRAINAGE', kouiderOnly: true, group: 'tool' },
+  { id: 'social',        icon: '📱', label: 'SOCIAL',  kouiderOnly: true, group: 'tool' },
+  { id: 'forecast',      icon: '📈', label: 'PRÉVISION', kouiderOnly: true, group: 'tool' },
+  { id: 'pricing',       icon: '🏷️', label: 'PRIX',    kouiderOnly: true, group: 'tool' },
+  { id: 'newsletter',    icon: '📣', label: 'NEWS',    kouiderOnly: true, group: 'tool' },
+  { id: 'blog',          icon: '✍️', label: 'BLOG',    kouiderOnly: true, group: 'tool' },
+  { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true, group: 'tool' },
 ];
 
 function getSavedSession(): { actor: Actor; user: string } | null {
@@ -192,6 +194,7 @@ export default function Phone() {
       case 'search':        return <SearchScreen />;
       case 'parrainage':    return <ParrainageScreen />;
       case 'pricing':       return <PricingScreen />;
+      case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;
@@ -783,10 +786,23 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
 
 function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void; actor: string }) {
   const visibleTabs = TABS.filter(t =>
+    t.group !== 'tool' &&
     (!t.kouiderOnly || actor === 'kouider') &&
     (!t.houariOnly  || actor === 'houari')
   );
   const actorAccent = actor === 'houari' ? '#7c3aed' : '#10b981';
+  const onToolPage = TABS.some(t => t.group === 'tool' && t.id === page);
+  const tabBtn = (id: Page, icon: string, label: string, active: boolean) => (
+    <button key={id} onClick={() => onPage(id)} style={{
+      minWidth: 58, flex: '0 0 auto', height: 58,
+      background: active ? `${actorAccent}0c` : 'transparent', border: 'none',
+      borderTop: active ? `2px solid ${actorAccent}` : '2px solid transparent',
+      cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+    }}>
+      <span style={{ fontSize: 16, lineHeight: 1, filter: active ? `drop-shadow(0 0 6px ${actorAccent}88)` : 'none' }}>{icon}</span>
+      <span style={{ fontFamily: 'Inter', fontSize: 7, fontWeight: active ? 700 : 400, color: active ? actorAccent : 'rgba(255,255,255,0.3)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
+    </button>
+  );
   return (
     <div style={{
       width: '100%',
@@ -798,36 +814,35 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
       flexShrink: 0,
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
-      {visibleTabs.map(tab => {
-        const active = page === tab.id;
-        return (
-          <button
-            key={tab.id}
-            onClick={() => onPage(tab.id)}
-            style={{
-              minWidth: 58, flex: '0 0 auto',
-              height: 58,
-              background: active ? `${actorAccent}0c` : 'transparent',
-              border: 'none',
-              borderTop: active ? `2px solid ${actorAccent}` : '2px solid transparent',
-              cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-              transition: 'background 0.15s ease',
-              position: 'relative',
-            }}
-          >
-            <span style={{ fontSize: 16, lineHeight: 1, filter: active ? `drop-shadow(0 0 6px ${actorAccent}88)` : 'none', transition: 'filter 0.2s' }}>{tab.icon}</span>
-            <span style={{
-              fontFamily: 'Inter', fontSize: 7, fontWeight: active ? 700 : 400,
-              color: active ? actorAccent : 'rgba(255,255,255,0.3)',
-              letterSpacing: '0.06em', textTransform: 'uppercase',
-              transition: 'color 0.15s',
-            }}>
-              {tab.label}
-            </span>
+      {visibleTabs.map(tab => tabBtn(tab.id, tab.icon, tab.label, page === tab.id))}
+      {tabBtn('plus', '⋯', 'PLUS', page === 'plus' || onToolPage)}
+    </div>
+  );
+}
+
+// ─── Tools Grid (menu "Plus") ─────────────────────────────────────────────────
+function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string }) {
+  const tools = TABS.filter(t =>
+    t.group === 'tool' &&
+    (!t.kouiderOnly || actor === 'kouider') &&
+    (!t.houariOnly  || actor === 'houari')
+  );
+  const accent = actor === 'houari' ? '#7c3aed' : '#10b981';
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', background: '#0a0a0c', color: '#f5f5f7', fontFamily: '-apple-system, "Segoe UI", Roboto, sans-serif', padding: '20px 16px 30px' }}>
+      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Outils</div>
+      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Plus d'outils</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        {tools.map(t => (
+          <button key={t.id} onClick={() => onOpen(t.id)} style={{
+            background: '#16161c', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16,
+            padding: '16px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ fontSize: 26, lineHeight: 1 }}>{t.icon}</span>
+            <span style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.75)', textAlign: 'center', letterSpacing: '0.02em' }}>{t.label}</span>
           </button>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
