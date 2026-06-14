@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { business, type SaleVehicle, type SiteProperty, type OpportunitiesReport } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const OPP_META: Record<string, { icon: string; label: string }> = {
   marche:   { icon: '📊', label: 'Marché' },
@@ -131,15 +132,7 @@ export default function DealsScreen() {
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
       {/* Hero */}
-      <div style={{ position: 'relative', padding: '22px 18px 16px', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${C.violet}22, transparent 70%)`, pointerEvents: 'none' }} />
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.gold, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Dzaryx · Trading</div>
-        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: `linear-gradient(120deg, #fff, ${C.goldSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Achat & Revente</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}` }} />
-          Voitures & biens · synchro fikconciergerie.com
-        </div>
-      </div>
+      <Hero eyebrow="Dzaryx · Trading" title="Achat & Revente" accent={C.gold} subtitle="Voitures & biens · synchro fikconciergerie.com" />
 
       {/* Segments */}
       <div style={{ display: 'flex', gap: 4, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 3, margin: '0 18px 14px' }}>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { Hero, StatCard } from '../ui/Premium.tsx';
 import { business, getOrCreateSessionId, type SiteProperty } from '../../services/api.ts';
 import { InspectionModal } from './FleetScreen.tsx';
 
@@ -156,29 +157,16 @@ export default function ImmoProScreen() {
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
       <input ref={existPhotoRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addExistingPhotos(Array.from(e.target.files)); e.currentTarget.value = ''; }} />
       {/* Hero */}
-      <div style={{ position: 'relative', padding: '22px 18px 18px', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${C.gold}22, transparent 70%)`, pointerEvents: 'none' }} />
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.gold, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Dzaryx · Immobilier</div>
-        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: `linear-gradient(120deg, #fff, ${C.goldSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Immobilier</div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, boxShadow: `0 0 8px ${C.green}` }} />
-          Synchronisé avec fikconciergerie.com
-        </div>
-      </div>
+      <Hero eyebrow="Dzaryx · Immobilier" title="Immobilier" accent={C.gold} subtitle="Synchronisé avec fikconciergerie.com" />
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, padding: '0 18px 14px' }}>
         {[
-          { v: stats.total, l: 'Biens', c: C.text },
+          { v: stats.total, l: 'Biens', c: C.goldSoft },
           { v: stats.louer, l: 'À louer', c: C.gold },
           { v: stats.vendre, l: 'À vendre', c: C.blue },
           { v: stats.dispo, l: 'Dispo', c: C.green },
-        ].map(s => (
-          <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div>
-            <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{s.l}</div>
-          </div>
-        ))}
+        ].map(s => <StatCard key={s.l} value={String(s.v)} label={s.l} color={s.c} />)}
       </div>
 
       {/* Filtres + ajouter */}
