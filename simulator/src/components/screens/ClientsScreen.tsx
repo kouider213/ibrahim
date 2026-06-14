@@ -82,30 +82,38 @@ export default function ClientsScreen() {
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
       {/* Hero */}
-      <div style={{ position: 'relative', padding: '22px 18px 14px', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${C.accent}22, transparent 70%)`, pointerEvents: 'none' }} />
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Dzaryx · Clients</div>
-        <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: `linear-gradient(120deg, #fff, ${C.accentSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Clients</div>
+      <div style={{ position: 'relative', padding: '24px 18px 16px', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -80, right: -50, width: 240, height: 240, background: `radial-gradient(circle, ${C.accent}26, transparent 70%)`, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: -40, left: -60, width: 180, height: 180, background: `radial-gradient(circle, ${C.gold}12, transparent 70%)`, pointerEvents: 'none' }} />
+        <div style={{ fontSize: 11, letterSpacing: '0.22em', color: C.accent, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8 }}>Dzaryx · Clients</div>
+        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, background: `linear-gradient(120deg, #fff 30%, ${C.accentSoft})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Clients</div>
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>{clients.length} profil{clients.length !== 1 ? 's' : ''} · ton fichier clients vivant</div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, padding: '0 18px 12px' }}>
+      {/* Stats premium */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, padding: '0 18px 14px' }}>
         {[
-          { v: String(clients.length), l: 'Profils', c: C.text },
-          { v: String(vipCount), l: 'VIP', c: C.gold },
-          { v: fmt(totalSpent), l: 'CA total', c: C.accentSoft },
+          { v: String(clients.length), l: 'Profils', c: C.accentSoft, icon: '👥' },
+          { v: String(vipCount), l: 'VIP', c: C.gold, icon: '👑' },
+          { v: fmt(totalSpent), l: 'CA total', c: C.accent, icon: '💰' },
         ].map(s => (
-          <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: s.c }}>{s.v}</div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{s.l}</div>
+          <div key={s.l} style={{ position: 'relative', background: 'linear-gradient(160deg, #18181f, #121217)', border: `1px solid ${C.border}`, borderRadius: 18, padding: '14px 6px 12px', textAlign: 'center', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', insetInline: 0, top: 0, height: 2, background: `linear-gradient(90deg, transparent, ${s.c}, transparent)` }} />
+            <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: `${s.c}14`, filter: 'blur(8px)' }} />
+            <div style={{ fontSize: 16, marginBottom: 3 }}>{s.icon}</div>
+            <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', background: `linear-gradient(120deg, #fff, ${s.c})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{s.v}</div>
+            <div style={{ fontSize: 9.5, color: C.muted, marginTop: 3, letterSpacing: '0.04em' }}>{s.l}</div>
           </div>
         ))}
       </div>
 
-      {/* Recherche */}
-      <div style={{ padding: '0 18px 12px' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un nom ou téléphone…"
-          style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' }} />
+      {/* Recherche (pilule) */}
+      <div style={{ padding: '0 18px 14px' }}>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 14, opacity: 0.5 }}>🔍</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un nom ou téléphone…"
+            style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 999, padding: '13px 16px 13px 42px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' }} />
+        </div>
       </div>
 
       {/* Liste */}
@@ -123,9 +131,9 @@ export default function ClientsScreen() {
           const cOps = ops.get(c.name) ?? [];
 
           return (
-            <div key={c.name} style={{ background: C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'border .2s' }}>
-              <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: `${scCol}1a`, border: `1.5px solid ${scCol}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: scCol }}>{initials || '?'}</div>
+            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #18181f, #131318)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px ${scCol}18` : '0 1px 0 rgba(255,255,255,0.02)' }}>
+              <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 14px', cursor: 'pointer' }}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(145deg, ${scCol}33, ${scCol}10)`, border: `1.5px solid ${scCol}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: scCol, boxShadow: `0 0 14px ${scCol}22` }}>{initials || '?'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                   <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.bookingCount} résa · {fmt(c.totalSpent)}</div>
