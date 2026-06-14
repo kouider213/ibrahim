@@ -11,12 +11,13 @@ import CalendarScreen from './screens/CalendarScreen.tsx';
 import ImmoProScreen from './screens/ImmoProScreen.tsx';
 import DealsScreen from './screens/DealsScreen.tsx';
 import DemandesScreen from './screens/DemandesScreen.tsx';
+import NewsletterScreen from './screens/NewsletterScreen.tsx';
 import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'settings' | 'immo' | 'deals' | 'leads';
+  | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -38,6 +39,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'leads',         icon: '📥', label: 'DEMANDES' },
   { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
   { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
+  { id: 'newsletter',    icon: '📣', label: 'NEWS',    kouiderOnly: true },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
 ];
 
@@ -152,6 +154,7 @@ export default function Phone() {
       case 'revenue':       return <RevenueScreen actor={actor} />;
       case 'clients':       return <ClientsScreen />;
       case 'leads':         return <DemandesScreen />;
+      case 'newsletter':    return <NewsletterScreen />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;

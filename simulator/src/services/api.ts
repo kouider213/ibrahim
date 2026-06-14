@@ -745,6 +745,13 @@ export const business = {
   fetchClientDetail: (phone: string) =>
     apiFetch<ClientDetail>(`/api/clients/${encodeURIComponent(phone)}`),
 
+  // Newsletter (envoi via le site / Resend)
+  newsletterStats: () =>
+    apiFetch<{ active: number }>('/api/newsletter/stats'),
+  newsletterSend: (data: { title: string; body: string; test?: boolean; testEmail?: string }) =>
+    apiFetch<{ ok?: boolean; total?: number; sent?: number; test?: boolean; dest?: string; error?: string }>(
+      '/api/newsletter/send', { method: 'POST', body: JSON.stringify(data) }),
+
   fetchOperations: () =>
     apiFetch<{ operations: ClientOperation[] }>('/api/clients/operations'),
 
