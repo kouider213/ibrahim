@@ -15,6 +15,7 @@ export default function ParrainageScreen() {
   const [phone, setPhone] = useState('');
   const [reward, setReward] = useState('10% de réduction');
   const [busy, setBusy] = useState('');
+  const [confirmDel, setConfirmDel] = useState('');
   const [toast, setToast] = useState('');
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -90,7 +91,7 @@ export default function ParrainageScreen() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <button onClick={() => share(r)} style={{ flex: 2, padding: '8px', borderRadius: 9, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>💬 Partager le code</button>
-                <button onClick={() => { if (confirm('Supprimer ce code ?')) void del(r); }} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.red}44`, background: `${C.red}12`, color: C.red, fontFamily: C.font, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>Suppr.</button>
+                <button onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.red}${confirmDel === r.id ? '' : '44'}`, background: confirmDel === r.id ? C.red : `${C.red}12`, color: confirmDel === r.id ? '#fff' : C.red, fontFamily: C.font, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{confirmDel === r.id ? 'Confirmer ?' : 'Suppr.'}</button>
               </div>
             </div>
           ))}

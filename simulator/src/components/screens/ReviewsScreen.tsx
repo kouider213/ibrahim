@@ -13,6 +13,7 @@ export default function ReviewsScreen() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter]   = useState<'all' | 'pending' | 'approved'>('all');
   const [busy, setBusy]       = useState('');
+  const [confirmDel, setConfirmDel] = useState('');
   const [toast, setToast]     = useState('');
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -78,7 +79,7 @@ export default function ReviewsScreen() {
                   {!r.approved
                     ? <button disabled={busy === r.id} onClick={() => void setApproved(r, true)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.green}55`, background: `${C.green}18`, color: C.green, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓ Publier</button>
                     : <button disabled={busy === r.id} onClick={() => void setApproved(r, false)} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>🔒 Masquer</button>}
-                  <button disabled={busy === r.id} onClick={() => { if (confirm('Supprimer cet avis ?')) void del(r); }} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.red}44`, background: `${C.red}12`, color: C.red, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Supprimer</button>
+                  <button disabled={busy === r.id} onClick={() => { if (confirmDel === r.id) { void del(r); setConfirmDel(''); } else { setConfirmDel(r.id); setTimeout(() => setConfirmDel(c => c === r.id ? '' : c), 3000); } }} style={{ flex: 1, padding: '8px', borderRadius: 9, border: `1px solid ${C.red}${confirmDel === r.id ? '' : '44'}`, background: confirmDel === r.id ? C.red : `${C.red}12`, color: confirmDel === r.id ? '#fff' : C.red, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{confirmDel === r.id ? 'Confirmer ?' : 'Supprimer'}</button>
                 </div>
               </div>
             ))}

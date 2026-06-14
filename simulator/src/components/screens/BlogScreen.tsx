@@ -17,6 +17,7 @@ export default function BlogScreen() {
   const [body, setBody]     = useState('');
   const [cover, setCover]   = useState('');
   const [busy, setBusy]     = useState('');
+  const [confirmDel, setConfirmDel] = useState('');
   const [toast, setToast]   = useState('');
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2800); };
 
@@ -113,7 +114,7 @@ export default function BlogScreen() {
                 <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{(p.created_at ?? '').slice(0, 10)} · {p.published ? '🟢 publié' : '⚪ brouillon'}</div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
                   <button disabled={busy === p.id} onClick={() => void toggle(p)} style={{ flex: 1, padding: '7px', borderRadius: 9, border: `1px solid ${p.published ? C.border : C.green + '55'}`, background: p.published ? 'transparent' : `${C.green}18`, color: p.published ? C.muted : C.green, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{p.published ? 'Dépublier' : 'Publier'}</button>
-                  <button disabled={busy === p.id} onClick={() => { if (confirm('Supprimer cet article ?')) void del(p); }} style={{ flex: 1, padding: '7px', borderRadius: 9, border: `1px solid ${C.red}44`, background: `${C.red}12`, color: C.red, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Supprimer</button>
+                  <button disabled={busy === p.id} onClick={() => { if (confirmDel === p.id) { void del(p); setConfirmDel(''); } else { setConfirmDel(p.id); setTimeout(() => setConfirmDel(c => c === p.id ? '' : c), 3000); } }} style={{ flex: 1, padding: '7px', borderRadius: 9, border: `1px solid ${C.red}${confirmDel === p.id ? '' : '44'}`, background: confirmDel === p.id ? C.red : `${C.red}12`, color: confirmDel === p.id ? '#fff' : C.red, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{confirmDel === p.id ? 'Confirmer ?' : 'Supprimer'}</button>
                 </div>
               </div>
             ))}

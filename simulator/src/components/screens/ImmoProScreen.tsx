@@ -73,6 +73,7 @@ export default function ImmoProScreen() {
   const [form, setForm]     = useState<AddForm>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy]     = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [toast, setToast]   = useState('');
   const [inspect, setInspect] = useState<string | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -132,7 +133,6 @@ export default function ImmoProScreen() {
   };
 
   const del = async (p: SiteProperty) => {
-    if (!confirm(`Supprimer "${propTitle(p)}" du site ?`)) return;
     setBusy(p.id);
     try { await business.deleteProperty(p.id); setItems(xs => xs.filter(x => x.id !== p.id)); flash('🗑 Supprimé'); }
     catch { flash('❌ Échec'); } finally { setBusy(null); }
@@ -226,7 +226,7 @@ export default function ImmoProScreen() {
                 <ActBtn label="Statut" onClick={() => void cycleStatus(p)} disabled={busy === p.id} />
                 <ActBtn label="📷 Photos" onClick={() => { photoTargetRef.current = p.id; existPhotoRef.current?.click(); }} disabled={busy === p.id} accent />
                 <ActBtn label="État lieux" onClick={() => setInspect(propTitle(p))} />
-                <ActBtn label="Suppr." onClick={() => void del(p)} disabled={busy === p.id} danger />
+                <ActBtn label={confirmDel === p.id ? 'Confirmer ?' : 'Suppr.'} onClick={() => { if (confirmDel === p.id) { void del(p); setConfirmDel(null); } else { setConfirmDel(p.id); setTimeout(() => setConfirmDel(c => c === p.id ? null : c), 3000); } }} disabled={busy === p.id} danger />
               </div>
             </div>
           );
