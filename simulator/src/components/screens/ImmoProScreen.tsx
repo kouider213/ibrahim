@@ -138,8 +138,23 @@ export default function ImmoProScreen() {
     catch { flash('❌ Échec'); } finally { setBusy(null); }
   };
 
+  // Ajout de photos à un bien EXISTANT (→ site)
+  const existPhotoRef = useRef<HTMLInputElement>(null);
+  const photoTargetRef = useRef<string>('');
+  const addExistingPhotos = async (files: File[]) => {
+    const id = photoTargetRef.current;
+    if (!id || !files.length) return;
+    setBusy(id);
+    try {
+      const urls = await Promise.all(files.slice(0, 10).map(fileToDataUrl));
+      const out = await business.addPropertyPhotos(id, urls);
+      flash(`✅ ${out.count} photo(s) — visible sur le site`); void load();
+    } catch { flash('❌ Échec photos'); } finally { setBusy(null); }
+  };
+
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
+      <input ref={existPhotoRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addExistingPhotos(Array.from(e.target.files)); e.currentTarget.value = ''; }} />
       {/* Hero */}
       <div style={{ position: 'relative', padding: '22px 18px 18px', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, background: `radial-gradient(circle, ${C.gold}22, transparent 70%)`, pointerEvents: 'none' }} />
@@ -209,7 +224,8 @@ export default function ImmoProScreen() {
               </div>
               <div style={{ display: 'flex', gap: 1, borderTop: `1px solid ${C.border}` }}>
                 <ActBtn label="Statut" onClick={() => void cycleStatus(p)} disabled={busy === p.id} />
-                <ActBtn label="📷 État des lieux" onClick={() => setInspect(propTitle(p))} accent />
+                <ActBtn label="📷 Photos" onClick={() => { photoTargetRef.current = p.id; existPhotoRef.current?.click(); }} disabled={busy === p.id} accent />
+                <ActBtn label="État lieux" onClick={() => setInspect(propTitle(p))} />
                 <ActBtn label="Suppr." onClick={() => void del(p)} disabled={busy === p.id} danger />
               </div>
             </div>

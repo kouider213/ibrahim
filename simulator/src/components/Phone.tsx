@@ -10,7 +10,7 @@ import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
 import ImmoProScreen from './screens/ImmoProScreen.tsx';
 import DealsScreen from './screens/DealsScreen.tsx';
-import LeadsScreen from './screens/LeadsScreen.tsx';
+import DemandesScreen from './screens/DemandesScreen.tsx';
 import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
@@ -151,7 +151,7 @@ export default function Phone() {
       case 'fleet':         return <FleetScreen actor={actor} />;
       case 'revenue':       return <RevenueScreen actor={actor} />;
       case 'clients':       return <ClientsScreen />;
-      case 'leads':         return <LeadsScreen />;
+      case 'leads':         return <DemandesScreen />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;
