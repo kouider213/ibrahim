@@ -16,12 +16,13 @@ import CaisseScreen from './screens/CaisseScreen.tsx';
 import ReviewsScreen from './screens/ReviewsScreen.tsx';
 import BlogScreen from './screens/BlogScreen.tsx';
 import DevisScreen from './screens/DevisScreen.tsx';
+import ReponseScreen from './screens/ReponseScreen.tsx';
 import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis';
+  | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -44,6 +45,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'reviews',       icon: '⭐', label: 'AVIS',    kouiderOnly: true },
   { id: 'leads',         icon: '📥', label: 'DEMANDES' },
   { id: 'devis',         icon: '🧮', label: 'DEVIS',   kouiderOnly: true },
+  { id: 'reponse',       icon: '🗨️', label: 'RÉPONSE', kouiderOnly: true },
   { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
   { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
   { id: 'newsletter',    icon: '📣', label: 'NEWS',    kouiderOnly: true },
@@ -167,6 +169,7 @@ export default function Phone() {
       case 'reviews':       return <ReviewsScreen />;
       case 'blog':          return <BlogScreen />;
       case 'devis':         return <DevisScreen />;
+      case 'reponse':       return <ReponseScreen />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;

@@ -805,6 +805,10 @@ export const business = {
   blogDelete: (id: string) =>
     apiFetch<{ ok: boolean }>(`/api/blog/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
+  // Assistant WhatsApp rédactionnel
+  whatsappDraft: (data: { clientMessage?: string; context?: string; lang?: string; tone?: string }) =>
+    apiFetch<{ reply?: string; error?: string }>('/api/whatsapp/draft', { method: 'POST', body: JSON.stringify(data) }),
+
   // Avis clients
   reviewsList: () =>
     apiFetch<{ reviews: SiteReview[]; counts: { total: number; approved: number; pending: number; avg: number } }>('/api/reviews'),
