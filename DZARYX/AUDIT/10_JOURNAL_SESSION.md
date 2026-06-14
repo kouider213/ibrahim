@@ -105,7 +105,13 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 1. **Fiche client complète** (`6d4e1b6`) : `/api/clients` ajoute dernière voiture+date ; `/api/clients/:phone` enrichit historique avec nom véhicule ; ClientsScreen affiche "Dernière: <voiture>·date" + au dépli historique résas complet + documents (passeport/permis/contrat cliquables).
 2. **Créer dossier/import depuis l'app** (`1d6a62e`) : `POST /api/demandes/create` proxy vers create-dossier/create-import-order ; bouton "+ Nouveau" + formulaire DemandesScreen.
 3. **Photos sur annonce existante** (`8e5956e`) : `/api/immo/properties/:id/photos` + `/vehicles-for-sale/:id/photos` (append Cloudinary) ; boutons ImmoScreen + VentePane. (Voitures location avaient déjà le bouton.)
-- **⏭️ Reste** : modules site-only (newsletter/caisse/blog) depuis l'app ; distribution Play Store ; suppression clients test Kouider+Mousse (SQL fourni à Kouider).
+**Gestion site complète depuis l'app (soir)** — combler les derniers modules site-only :
+- **Newsletter** (`85f76ec`/`e2e661a`) : onglet NEWS, envoi test + à tous via site/Resend (token interne `INTERNAL_API_TOKEN` Railway=Vercel), liste abonnés. ⚠️ écran DEMANDES était branché sur LeadsScreen (mort) → corrigé vers DemandesScreen (`7a856b4`).
+- **Caisse & Compta** (`6e0ebf3`) : onglet CAISSE, `/api/cash` (cash_entries), totaux mois + ajout/suppr mouvements.
+- **Avis** (`34167df`) : onglet AVIS, `/api/reviews`, publier/masquer/supprimer + note moyenne.
+- **Blog** (`838f197`) : onglet BLOG, rédaction IA (`/api/blog-generate`) + publication (`/api/blog`, blog_posts), site auto-traduit.
+- ⚠️ PIÈGE écrans morts : nav = `Phone.tsx renderScreen` (IMMO=ImmoProScreen pas ImmoScreen ; DEMANDES=DemandesScreen). Voir [[simulator_dead_screens]].
+- **⏭️ Reste** : équipe/comptes admin (sensible, garder site), pages légales/FAQ (rare), analytics (lecture) = site-only volontaire ; distribution Play Store.
 
 ### 2026-06-13 (nuit 5) — Audit Dzaryx A→Z + survie €0 PROUVÉE + WhatsApp centralisé ⭐⭐
 > Backend `ibrahim` (Dzaryx) + site `rental-system`. Commit Dzaryx `85daa12` (health résilience), site `6a1f701` (WhatsApp).
