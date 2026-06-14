@@ -98,7 +98,14 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 **Upload photos in-app (suite, même jour)** : bouton "📷 Ajouter une photo" sur cartes dossier/import.
 - Backend `POST /api/demandes/photos` : upload via site `/api/upload-car-image` (bucket) → url ; lit `photos[]` existant (Supabase direct) ; append ; patch via site `update-import-order`/`update-dossier`. Visible aussitôt sur page suivi publique client.
 - Simulateur `DemandesScreen` : `<input type=file>` → base64 → POST. Toast compteur photos.
-- **⏭️ Reste** : Distribution Play Store. Machine à avis Google (levier #1 ranking local Oran).
+
+**Machine à avis Google** (repo autolux). Cron lendemain fin location → email avis Google langue client, 1×, flag `review_request_sent_at` (SQL `0028`). ⚠️ Vercel Hobby = 2 crons max → fusionné dans cron `reminders` (commit `dce6ade`). Levier #1 ranking Oran.
+
+**Audit app↔site + 3 features (après-midi)** — l'app gère ~80% du site, manques comblés :
+1. **Fiche client complète** (`6d4e1b6`) : `/api/clients` ajoute dernière voiture+date ; `/api/clients/:phone` enrichit historique avec nom véhicule ; ClientsScreen affiche "Dernière: <voiture>·date" + au dépli historique résas complet + documents (passeport/permis/contrat cliquables).
+2. **Créer dossier/import depuis l'app** (`1d6a62e`) : `POST /api/demandes/create` proxy vers create-dossier/create-import-order ; bouton "+ Nouveau" + formulaire DemandesScreen.
+3. **Photos sur annonce existante** (`8e5956e`) : `/api/immo/properties/:id/photos` + `/vehicles-for-sale/:id/photos` (append Cloudinary) ; boutons ImmoScreen + VentePane. (Voitures location avaient déjà le bouton.)
+- **⏭️ Reste** : modules site-only (newsletter/caisse/blog) depuis l'app ; distribution Play Store ; suppression clients test Kouider+Mousse (SQL fourni à Kouider).
 
 ### 2026-06-13 (nuit 5) — Audit Dzaryx A→Z + survie €0 PROUVÉE + WhatsApp centralisé ⭐⭐
 > Backend `ibrahim` (Dzaryx) + site `rental-system`. Commit Dzaryx `85daa12` (health résilience), site `6a1f701` (WhatsApp).
