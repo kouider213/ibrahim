@@ -81,13 +81,14 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
-      {/* Header */}
-      <div style={{ padding: '8px 14px 6px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 23, color: '#fff', letterSpacing: '-0.01em', fontWeight: 800 }}>
-            REVENUS
+      {/* Header premium (cohérent avec les autres écrans) */}
+      <div style={{ padding: '16px 16px 6px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 11, letterSpacing: '0.18em', color: '#10b981', fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Finances</div>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Revenus</div>
           </div>
-          {msg && <span style={{ fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>}
+          {msg && <span style={{ fontSize: 10, color: '#00e676', fontWeight: 600 }}>{msg}</span>}
         </div>
 
         {/* Month navigator */}

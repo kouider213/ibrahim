@@ -94,16 +94,17 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
-
-      {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #10b98155' }}>
-            {tab === 'cars' ? 'PARC VÉHICULES' : tab === 'immo' ? 'IMMOBILIER' : 'VENTE AUTO'}
+      {/* Header premium (cohérent avec les autres écrans) */}
+      <div style={{ padding: '18px 18px 10px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 11, letterSpacing: '0.18em', color: '#10b981', fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Parc</div>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {tab === 'cars' ? 'Véhicules' : tab === 'immo' ? 'Immobilier' : 'Vente auto'}
+            </div>
           </div>
           {msg && (
-            <span style={{ fontSize: 8, color: '#00e676', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em' }}>{msg}</span>
+            <span style={{ fontSize: 10, color: '#00e676', fontWeight: 600 }}>{msg}</span>
           )}
         </div>
         {/* Segment switcher */}
@@ -870,17 +871,6 @@ function CarPlaceholder({ col }: { col: string }) {
       <rect x="36" y="14" width="2" height="3" rx="1" fill={col} fillOpacity="0.7"/>
     </svg>
   );
-}
-
-function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = 'transparent';
-  const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
-  const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
-  const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
-  const bR = pos.endsWith('r')   ? `${t}px solid ${col}33` : 'none';
-  const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
-  const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
-  return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
 }
 
 // ── INSPECTION MODAL (véhicule + bien) ───────────────────────────────────────
