@@ -85,6 +85,14 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-14 (soir 3) — Finitions + vault Obsidian interactif ⭐
+- **Design "wow"** : écran Clients validé → style premium propagé PARTOUT (`ui/Premium.tsx` : Hero, StatCard, SearchPill, OrbIcon, SkeletonCards). Voix/Chat : logo doré → orbe. Bulles chat distinctes.
+- **Petits +** : devis PDF joint au WhatsApp ; réglages notifications par type (Redis `push:prefs`, route `/api/push-token/prefs`) ; **gérer photos** (voir/ajouter/supprimer) sur annonces immo (`ImmoProScreen`) ET vente (`VentePane`) — endpoints `/api/immo/.../photos` GET+DELETE.
+- **Recherche cliquable** + **skeletons** + **onboarding 3 écrans** (commit `bc639fb`).
+- **Vault Obsidian refait** (`ec0f101`) : ACCUEIL/ARCHITECTURE/ECOSYSTEME/BASE_DONNEES/ROADMAP/canvas + SITE/ + APP/ + GUIDE/ + DECISIONS + FAQ + Nexus. Mermaid + callouts + liens.
+- Houari : reste kouiderOnly (décision). Sécurité clean. Tous SQL lancés (0028/0029/0030).
+- Commits clés : `71cf350` (PDF WA + notif prefs), `4f502e8` (photos immo), `41d6984` (photos vente + docs).
+
 ### 2026-06-14 (après-midi 2) — App "pro €0" : icône, offline, + 9 features business ⭐⭐⭐
 > Simulateur + backend. Tout €0 (Groq/Supabase/wa.me), seul Railway payant.
 
