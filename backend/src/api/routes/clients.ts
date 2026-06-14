@@ -14,7 +14,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('bookings')
-      .select('client_name, client_phone, client_email, status, final_price, created_at')
+      .select('client_name, client_phone, client_email, status, final_price, created_at, cars(name)')
       .eq('rented_by', actorName)
       .order('created_at', { ascending: false });
 
@@ -25,11 +25,12 @@ router.get('/', requireMobileAuth, async (req, res) => {
     const clientMap = new Map<string, {
       name: string; phone: string; email: string; bookingCount: number;
       totalSpent: number; lastBooking: string; types: Set<ClientType>;
+      lastCarName: string | null; lastBookingDate: string | null;
     }>();
 
     for (const b of (data ?? []) as Array<{
       client_name: string; client_phone: string; client_email: string;
-      status: string; final_price: number; created_at: string;
+      status: string; final_price: number; created_at: string; cars?: { name?: string } | null;
     }>) {
       const key = b.client_phone ?? b.client_email ?? b.client_name;
       const existing = clientMap.get(key);
@@ -39,6 +40,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
         if (b.status === 'CONFIRMED' || b.status === 'COMPLETED') existing.totalSpent += b.final_price ?? 0;
         if (b.created_at > existing.lastBooking) existing.lastBooking = b.created_at;
       } else {
+        // 1er vu = résa la plus récente (données triées created_at DESC) → dernière voiture louée
         clientMap.set(key, {
           name:         b.client_name,
           phone:        b.client_phone,
@@ -47,6 +49,8 @@ router.get('/', requireMobileAuth, async (req, res) => {
           totalSpent:   b.status === 'CONFIRMED' ? (b.final_price ?? 0) : 0,
           lastBooking:  b.created_at,
           types:        new Set<ClientType>(['loc_auto']),
+          lastCarName:     b.cars?.name ?? null,
+          lastBookingDate: b.created_at,
         });
       }
     }
@@ -80,6 +84,8 @@ router.get('/', requireMobileAuth, async (req, res) => {
           totalSpent:   0,
           lastBooking:  d.created_at,
           types:        new Set<ClientType>([t]),
+          lastCarName:     null,
+          lastBookingDate: d.created_at,
         });
       }
     }
@@ -297,7 +303,17 @@ router.get('/:phone', requireMobileAuth, async (req, res) => {
   try {
     const history = await getClientHistory(phone);
     const documents = await getClientDocuments(phone);
-    res.json({ phone, ...history, documents });
+    // Enrichit chaque résa avec le nom du véhicule (car_id → name)
+    const carIds = [...new Set(history.bookings.map(b => (b as { car_id?: string }).car_id).filter(Boolean))] as string[];
+    let carMap = new Map<string, string>();
+    if (carIds.length > 0) {
+      const { data: cars } = await supabase.from('cars').select('id, name').in('id', carIds);
+      carMap = new Map((cars ?? []).map((c: { id: string; name: string }) => [c.id, c.name]));
+    }
+    const bookings = history.bookings.map(b => ({
+      ...b, car_name: carMap.get((b as { car_id?: string }).car_id ?? '') ?? null,
+    }));
+    res.json({ phone, ...history, bookings, documents });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

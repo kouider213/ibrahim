@@ -660,6 +660,16 @@ export type ClientType = 'loc_auto' | 'loc_immo' | 'achat_auto' | 'achat_immo' |
 export interface ClientSummary {
   name: string; phone: string | null; bookingCount: number; totalSpent: number; lastBooking: string;
   types?: ClientType[];
+  lastCarName?: string | null; lastBookingDate?: string | null;
+}
+
+export interface ClientBookingHistory {
+  id: string; car_name?: string | null; start_date?: string; end_date?: string;
+  status?: string; final_price?: number | null; nb_days?: number | null; created_at?: string;
+}
+export interface ClientDetail {
+  phone: string; bookings: ClientBookingHistory[]; documents: ClientDocument[];
+  totalSpent: number; bookingCount: number; isVip: boolean;
 }
 
 export interface ClientOperation {
@@ -731,6 +741,9 @@ export const business = {
 
   fetchClientIntel: () =>
     apiFetch<{ clients: ClientIntelligence[] }>(`/api/clients/intelligence?owner=${_actor}`),
+
+  fetchClientDetail: (phone: string) =>
+    apiFetch<ClientDetail>(`/api/clients/${encodeURIComponent(phone)}`),
 
   fetchOperations: () =>
     apiFetch<{ operations: ClientOperation[] }>('/api/clients/operations'),

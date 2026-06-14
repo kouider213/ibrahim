@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType } from '../../services/api.ts';
+import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail } from '../../services/api.ts';
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
 const C = {
@@ -37,6 +37,17 @@ export default function ClientsScreen() {
   const [loading, setLoad]      = useState(true);
   const [search, setSearch]     = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [details, setDetails]   = useState<Map<string, ClientDetail | 'loading'>>(new Map());
+
+  const toggle = (c: ClientSummary) => {
+    setExpanded(prev => prev === c.name ? null : c.name);
+    if (expanded !== c.name && c.phone && !details.has(c.phone)) {
+      setDetails(m => new Map(m).set(c.phone!, 'loading'));
+      business.fetchClientDetail(c.phone)
+        .then(d => setDetails(m => new Map(m).set(c.phone!, d)))
+        .catch(() => setDetails(m => { const n = new Map(m); n.delete(c.phone!); return n; }));
+    }
+  };
 
   const load = async () => {
     setLoad(true);
@@ -113,11 +124,16 @@ export default function ClientsScreen() {
 
           return (
             <div key={c.name} style={{ background: C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'border .2s' }}>
-              <div onClick={() => setExpanded(e => e === c.name ? null : c.name)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}>
+              <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: `${scCol}1a`, border: `1.5px solid ${scCol}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: scCol }}>{initials || '?'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                   <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.bookingCount} résa · {fmt(c.totalSpent)}</div>
+                  {c.lastCarName && (
+                    <div style={{ fontSize: 11.5, color: C.accentSoft, marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      🚗 Dernière : {c.lastCarName}{c.lastBookingDate ? ` · ${String(c.lastBookingDate).slice(0, 10)}` : ''}
+                    </div>
+                  )}
                   {c.types && c.types.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 7 }}>
                       {c.types.map(t => { const m = TYPE_META[t]; if (!m) return null; return (
@@ -166,6 +182,54 @@ export default function ClientsScreen() {
                   )}
                 </div>
               )}
+
+              {isExp && c.phone && (() => {
+                const det = details.get(c.phone);
+                if (det === 'loading' || det === undefined) return (
+                  <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, background: C.surface2, fontSize: 12, color: C.muted }}>Chargement de la fiche…</div>
+                );
+                return (
+                  <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${C.border}`, background: C.surface2 }}>
+                    {/* Historique des réservations */}
+                    <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Historique réservations ({det.bookings.length})</div>
+                    {det.bookings.length === 0 ? (
+                      <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Aucune réservation enregistrée.</div>
+                    ) : det.bookings.map(bk => {
+                      const stCol = bk.status === 'CONFIRMED' || bk.status === 'COMPLETED' ? C.accent
+                        : bk.status === 'PENDING' ? C.gold
+                        : bk.status === 'REJECTED' || bk.status === 'CANCELLED' ? '#ef4444' : C.muted;
+                      return (
+                        <div key={bk.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+                          <span style={{ fontSize: 15 }}>🚗</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bk.car_name || 'Véhicule'}</div>
+                            <div style={{ fontSize: 11, color: C.muted }}>{(bk.start_date ?? '').slice(0, 10)}{bk.end_date ? ` → ${bk.end_date.slice(0, 10)}` : ''}{bk.nb_days ? ` · ${bk.nb_days}j` : ''}</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{bk.final_price != null ? fmt(bk.final_price) : '—'}</div>
+                            <span style={{ fontSize: 9, fontWeight: 700, color: stCol }}>{bk.status ?? ''}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Documents */}
+                    {det.documents.length > 0 && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', marginBottom: 8, textTransform: 'uppercase' }}>Documents ({det.documents.length})</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {det.documents.map(doc => {
+                            const lbl = doc.type === 'passport' ? '🪪 Passeport' : doc.type === 'license' ? '🚘 Permis' : doc.type === 'contract' ? '📄 Contrat' : '📎 Document';
+                            return (
+                              <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' }}>{lbl}</a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
