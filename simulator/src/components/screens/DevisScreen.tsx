@@ -40,7 +40,10 @@ export default function DevisScreen() {
   const [toast, setToast]     = useState('');
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
-  useEffect(() => { business.fetchCars().then(r => setCars(r.cars ?? [])).catch(() => setCars([])); }, []);
+  const [history, setHistory] = useState<Array<{ id: string; ref: string; client_name?: string; total?: number; currency?: string; url: string; created_at?: string }>>([]);
+  const [showHist, setShowHist] = useState(false);
+  const loadHistory = () => business.quotesList().then(r => setHistory(r.quotes ?? [])).catch(() => {});
+  useEffect(() => { business.fetchCars().then(r => setCars(r.cars ?? [])).catch(() => setCars([])); loadHistory(); }, []);
 
   const addLine = () => setLines(ls => [...ls, { id: uid(), label: '', amount: '', currency: 'DZD' }]);
   const setLine = (id: string, k: keyof Line, v: string) => setLines(ls => ls.map(l => l.id === id ? { ...l, [k]: v } : l));
@@ -83,7 +86,7 @@ export default function DevisScreen() {
     try {
       const out = await business.quotePdf({ client_name: name, lines: valid });
       window.open(out.url, '_blank');
-      flash('📄 PDF généré');
+      flash('📄 PDF généré'); loadHistory();
     } catch (e) { flash(e instanceof Error ? e.message : 'Erreur PDF'); }
     finally { setPdfBusy(false); }
   };
@@ -139,6 +142,29 @@ export default function DevisScreen() {
         <button onClick={() => void makePdf()} disabled={pdfBusy} style={{ flex: 1, padding: '14px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{pdfBusy ? '…' : '📄 PDF'}</button>
         <button onClick={sendWhatsApp} style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>💬 Envoyer WhatsApp</button>
       </div>
+
+      {/* Historique des devis */}
+      {history.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <button onClick={() => setShowHist(v => !v)} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
+            {showHist ? '▾' : '▸'} Devis récents ({history.length})
+          </button>
+          {showHist && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {history.map(q => (
+                <a key={q.id} href={q.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 13px', textDecoration: 'none' }}>
+                  <span style={{ fontSize: 15 }}>📄</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{q.client_name || 'Client'} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>· {q.ref}</span></div>
+                    <div style={{ fontSize: 11, color: C.muted }}>{q.total ? `${Math.round(q.total).toLocaleString('fr-FR')} ${q.currency === 'EUR' ? '€' : 'DA'} · ` : ''}{(q.created_at || '').slice(0, 10)}</div>
+                  </div>
+                  <span style={{ color: C.gold, fontSize: 16 }}>›</span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal voiture */}
       {showCar && (

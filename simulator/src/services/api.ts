@@ -832,6 +832,8 @@ export const business = {
   // Devis PDF
   quotePdf: (data: { client_name?: string; lines: Array<{ label: string; amount: number; currency: string }> }) =>
     apiFetch<{ url: string; ref: string }>('/api/quote/pdf', { method: 'POST', body: JSON.stringify(data) }),
+  quotesList: () =>
+    apiFetch<{ quotes: Array<{ id: string; ref: string; client_name?: string; total?: number; currency?: string; url: string; created_at?: string }> }>('/api/quote/list'),
 
   // Parrainage
   referralsList: () =>

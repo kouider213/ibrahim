@@ -72,7 +72,21 @@ router.post('/pdf', requireMobileAuth, async (req, res) => {
     const up = await supabase.storage.from('client-documents').upload(path, buffer, { contentType: 'application/pdf', upsert: true });
     if (up.error) throw new Error(up.error.message);
     const { data } = supabase.storage.from('client-documents').getPublicUrl(path);
+    // Historique (best-effort, ne bloque pas si la table n'existe pas encore)
+    const byCur: Record<string, number> = {};
+    for (const l of valid) byCur[l.currency] = (byCur[l.currency] || 0) + l.amount;
+    const mainCur = Object.keys(byCur)[0] || 'DZD';
+    supabase.from('quotes').insert({ ref, client_name: client_name || null, total: byCur[mainCur] || 0, currency: mainCur, url: data.publicUrl, lines: valid }).then(() => {}, () => {});
     res.json({ url: data.publicUrl, ref });
+  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+});
+
+// GET /api/quote/list — historique des devis
+router.get('/list', requireMobileAuth, async (_req, res) => {
+  try {
+    const { data, error } = await supabase.from('quotes').select('id, ref, client_name, total, currency, url, created_at').order('created_at', { ascending: false }).limit(100);
+    if (error) throw new Error(error.message);
+    res.json({ quotes: data ?? [] });
   } catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
 
