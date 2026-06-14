@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { business, getOrCreateSessionId, type Car, type FleetIntel, type SiteProperty, type SaleVehicle, type InspectionResult, type DamageBox } from '../../services/api.ts';
+import { Hero, StatCard } from '../ui/Premium.tsx';
 
 type ParcTab = 'cars' | 'immo' | 'vente';
 
@@ -95,39 +96,30 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       {/* Header premium (cohérent avec les autres écrans) */}
-      <div style={{ padding: '18px 18px 10px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 11, letterSpacing: '0.18em', color: '#10b981', fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Parc</div>
-            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {tab === 'cars' ? 'Véhicules' : tab === 'immo' ? 'Immobilier' : 'Vente auto'}
-            </div>
+      <div style={{ flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+        <Hero eyebrow="Dzaryx · Parc" title={tab === 'cars' ? 'Véhicules' : tab === 'immo' ? 'Immobilier' : 'Vente auto'} subtitle={msg || undefined} />
+        <div style={{ padding: '0 16px 10px' }}>
+          {/* Segment switcher */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {([['cars', '🚗 LOCATION'], ['immo', '🏠 IMMO'], ['vente', '💰 VENTE']] as [ParcTab, string][]).map(([k, lbl]) => (
+              <button key={k} onClick={() => setTab(k)} style={{
+                flex: 1, padding: '9px 4px', borderRadius: 10,
+                background: tab === k ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${tab === k ? '#10b98188' : 'rgba(255,255,255,0.08)'}`,
+                fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+                color: tab === k ? '#10b981' : 'rgba(255,255,255,0.55)', cursor: 'pointer',
+              }}>{lbl}</button>
+            ))}
           </div>
-          {msg && (
-            <span style={{ fontSize: 10, color: '#00e676', fontWeight: 600 }}>{msg}</span>
+          {tab === 'cars' && (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <StatCard value={String(cars.length)} label="TOTAL" color="#10b981" />
+            <StatCard value={String(availCount)} label="DISPO" color="#00e676" />
+            <StatCard value={`${occPct}%`} label="OCCUP" color="#ffb347" />
+            <StatCard value={String(unavailCount)} label="INDISPO" color="#ff3366" />
+          </div>
           )}
         </div>
-        {/* Segment switcher */}
-        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
-          {([['cars', '🚗 LOCATION'], ['immo', '🏠 IMMO'], ['vente', '💰 VENTE']] as [ParcTab, string][]).map(([k, lbl]) => (
-            <button key={k} onClick={() => setTab(k)} style={{
-              flex: 1, padding: '9px 4px', borderRadius: 10,
-              background: tab === k ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${tab === k ? '#10b98188' : 'rgba(255,255,255,0.08)'}`,
-              fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-              color: tab === k ? '#10b981' : 'rgba(255,255,255,0.55)', cursor: 'pointer',
-            }}>{lbl}</button>
-          ))}
-        </div>
-        {tab === 'cars' && (
-        <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
-          <KpiCard label="TOTAL"   val={String(cars.length)}  col="#10b981" />
-          <KpiCard label="DISPO"   val={String(availCount)}   col="#00e676" />
-          <KpiCard label="OCCUP"   val={`${occPct}%`}         col="#ffb347" />
-          <KpiCard label="INDISPO" val={String(unavailCount)} col="#ff3366" />
-        </div>
-        )}
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
       </div>
 
       {/* Immo / Vente panes */}
@@ -796,15 +788,6 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function KpiCard({ label, val, col }: { label: string; val: string; col: string }) {
-  return (
-    <div style={{ flex: 1, background: '#16161c', borderRadius: 14, padding: '12px 6px', border: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 20, fontWeight: 800, color: col }}>{val}</div>
-      <div style={{ fontSize: 9.5, color: '#9b9ba6', letterSpacing: '0.04em', marginTop: 3 }}>{label}</div>
     </div>
   );
 }

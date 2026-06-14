@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { business, type RevenueSummary, type FinancialReport } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const SCORE_COL: Record<string, string> = {
   VIP: '#ffd700', FREQUENT: '#10b981', FRÉQUENT: '#10b981',
@@ -82,14 +83,9 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header premium (cohérent avec les autres écrans) */}
-      <div style={{ padding: '16px 16px 6px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 11, letterSpacing: '0.18em', color: '#10b981', fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Finances</div>
-            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Revenus</div>
-          </div>
-          {msg && <span style={{ fontSize: 10, color: '#00e676', fontWeight: 600 }}>{msg}</span>}
-        </div>
+      <div style={{ flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+        <Hero eyebrow="Dzaryx · Finances" title="Revenus" subtitle={msg || undefined} />
+        <div style={{ padding: '0 16px 6px' }}>
 
         {/* Month navigator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -128,6 +124,7 @@ export default function RevenueScreen({ actor = 'kouider' }: { actor?: string })
         </div>
 
         <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
