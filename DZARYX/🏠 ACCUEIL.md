@@ -49,8 +49,11 @@ mindmap
 | [[APP/01 - Écrans]] | Tous | Chaque onglet expliqué |
 | [[APP/02 - IA & Outils]] | Dev | Le cerveau, les 151 outils, la résilience €0 |
 | [[APP/03 - Design system]] | Dev | Composants Premium, couleurs, règles UI |
+| [[APP/04 - Nexus & agent PC]] | Dev | Agents PC (terminal, écran, vision) |
+| [[🧠 DECISIONS]] | Dev + métier | Pourquoi chaque choix (et pas un autre) |
 | [[GUIDE/Guide Développeur]] | Dev | Reprendre le projet de zéro |
 | [[GUIDE/Guide Utilisateur]] | Kouider | Faire tourner le business avec l'app |
+| [[🩺 FAQ - Dépannage]] | Tous | Problèmes courants + solutions |
 | [[🗺️ ROADMAP]] | Pilotage | Fait / à venir (timeline) |
 | `système.canvas` | Visuel | Carte interactive de tout l'écosystème |
 

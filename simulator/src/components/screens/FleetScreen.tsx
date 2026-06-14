@@ -737,7 +737,20 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
       })));
       const out = await business.addVehicleSalePhotos(id, photos);
       onMsg(`✅ ${out.count} photo(s) — visible sur le site`); void load();
+      if (manage && manage.id === id) { try { const r = await business.vehiclePhotos(id); setMPhotos(r.photos.map(x => x.url)); } catch { /* ignore */ } }
     } catch { onMsg('❌ Échec photos'); } finally { setBusy(null); }
+  };
+
+  const [manage, setManage] = useState<{ id: string; name: string } | null>(null);
+  const [mPhotos, setMPhotos] = useState<string[]>([]);
+  const openMgr = async (v: SaleVehicle) => {
+    setManage({ id: v.id, name: `${v.brand} ${v.model}` }); setMPhotos([]);
+    try { const r = await business.vehiclePhotos(v.id); setMPhotos(r.photos.map(x => x.url)); } catch { /* vide */ }
+  };
+  const delPhoto = async (url: string) => {
+    if (!manage) return;
+    try { await business.vehiclePhotoDelete(manage.id, url); setMPhotos(ps => ps.filter(u => u !== url)); void load(); }
+    catch { onMsg('❌ Échec suppression'); }
   };
 
   return (
@@ -780,14 +793,36 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
               <button onClick={() => void cycle(v)} disabled={busy === v.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
-              <label style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: busy === v.id ? 'wait' : 'pointer', background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44', color: '#00d4ff', textAlign: 'center' }}>
-                📷 PHOTOS
-                <input type="file" accept="image/*" multiple disabled={busy === v.id} style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addPhotos(v.id, e.target.files); e.currentTarget.value = ''; }} />
-              </label>
+              <button onClick={() => void openMgr(v)} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44', color: '#00d4ff' }}>📷 PHOTOS</button>
             </div>
           </div>
         );
       })}
+
+      {/* Gestion photos vente */}
+      {manage && (
+        <div onClick={() => setManage(null)} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: '#16161c', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.1)', padding: '18px 16px 24px', maxHeight: '85%', overflowY: 'auto', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Photos — {manage.name}</div>
+            <div style={{ fontSize: 11, color: '#9b9ba6', marginBottom: 14 }}>{mPhotos.length} photo(s) · ✕ pour supprimer</div>
+            {mPhotos.length === 0 ? (
+              <div style={{ fontSize: 12, color: '#9b9ba6', marginBottom: 14 }}>Aucune photo.</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+                {mPhotos.map(url => (
+                  <div key={url} style={{ position: 'relative', paddingTop: '75%', borderRadius: 10, overflow: 'hidden', background: `#0e0e12 url(${url}) center/cover` }}>
+                    <button onClick={() => void delPhoto(url)} style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(239,68,68,0.92)', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label style={{ display: 'block', textAlign: 'center', padding: '12px', borderRadius: 11, border: '1px dashed #00e67655', background: 'rgba(0,230,118,0.1)', color: '#00e676', fontSize: 13, fontWeight: 700, cursor: busy === manage.id ? 'wait' : 'pointer' }}>
+              ＋ Ajouter des photos
+              <input type="file" accept="image/*" multiple disabled={busy === manage.id} style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addPhotos(manage.id, e.target.files); e.currentTarget.value = ''; }} />
+            </label>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
