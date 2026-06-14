@@ -154,6 +154,24 @@ router.delete('/properties/:id', requireMobileAuth, async (req, res) => {
   }
 });
 
+// POST /api/immo/properties/:id/photos — ajoute des photos à un bien EXISTANT
+router.post('/properties/:id/photos', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const photos = (req.body as { photos?: unknown }).photos;
+  try {
+    const urls = await uploadPhotos(photos, `properties/${id}`);
+    if (!urls.length) { res.status(400).json({ error: 'aucune photo valide' }); return; }
+    const { count } = await supabase.from('property_photos').select('*', { count: 'exact', head: true }).eq('property_id', id);
+    const base = count ?? 0;
+    await supabase.from('property_photos').insert(urls.map((url, i) => ({ property_id: id, url, position: base + i })));
+    const { data: prop } = await supabase.from('properties').select('image_url').eq('id', id).single();
+    if (!(prop as { image_url?: string } | null)?.image_url) await supabase.from('properties').update({ image_url: urls[0] }).eq('id', id);
+    res.json({ ok: true, added: urls.length, count: base + urls.length });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── VENTE VÉHICULES (vehicles_for_sale) ──────────────────────────────────────
 
 // GET /api/immo/vehicles-for-sale
@@ -222,6 +240,24 @@ router.patch('/vehicles-for-sale/:id', requireMobileAuth, async (req, res) => {
       .select().single();
     if (error) throw error;
     res.json({ vehicle: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/immo/vehicles-for-sale/:id/photos — ajoute des photos à un véhicule EXISTANT
+router.post('/vehicles-for-sale/:id/photos', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const photos = (req.body as { photos?: unknown }).photos;
+  try {
+    const urls = await uploadPhotos(photos, `vehicles_sale/${id}`);
+    if (!urls.length) { res.status(400).json({ error: 'aucune photo valide' }); return; }
+    const { count } = await supabase.from('vehicle_sale_photos').select('*', { count: 'exact', head: true }).eq('vehicle_id', id);
+    const base = count ?? 0;
+    await supabase.from('vehicle_sale_photos').insert(urls.map((url, i) => ({ vehicle_id: id, url, position: base + i })));
+    const { data: v } = await supabase.from('vehicles_for_sale').select('image_url').eq('id', id).single();
+    if (!(v as { image_url?: string } | null)?.image_url) await supabase.from('vehicles_for_sale').update({ image_url: urls[0] }).eq('id', id);
+    res.json({ ok: true, added: urls.length, count: base + urls.length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

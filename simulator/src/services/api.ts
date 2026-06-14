@@ -763,6 +763,8 @@ export const business = {
     apiFetch<{ property: SiteProperty }>('/api/immo/properties', { method: 'POST', body: JSON.stringify(data) }),
   updateProperty: (id: string, data: Record<string, unknown>) =>
     apiFetch<{ property: SiteProperty }>(`/api/immo/properties/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  addPropertyPhotos: (id: string, photos: string[]) =>
+    apiFetch<{ ok: boolean; count: number }>(`/api/immo/properties/${encodeURIComponent(id)}/photos`, { method: 'POST', body: JSON.stringify({ photos }) }),
   deleteProperty: (id: string) =>
     apiFetch<{ ok: boolean }>(`/api/immo/properties/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
@@ -773,6 +775,8 @@ export const business = {
     apiFetch<{ vehicle: SaleVehicle }>('/api/immo/vehicles-for-sale', { method: 'POST', body: JSON.stringify(data) }),
   updateVehicleSale: (id: string, data: Record<string, unknown>) =>
     apiFetch<{ vehicle: SaleVehicle }>(`/api/immo/vehicles-for-sale/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  addVehicleSalePhotos: (id: string, photos: string[]) =>
+    apiFetch<{ ok: boolean; count: number }>(`/api/immo/vehicles-for-sale/${encodeURIComponent(id)}/photos`, { method: 'POST', body: JSON.stringify({ photos }) }),
 
   fetchClientDeals: (name?: string, phone?: string) => {
     const p = new URLSearchParams();

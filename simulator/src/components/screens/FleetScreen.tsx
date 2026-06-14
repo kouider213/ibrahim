@@ -741,6 +741,17 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
     catch { onMsg('❌ Échec MAJ'); } finally { setBusy(null); }
   };
 
+  const addPhotos = async (id: string, files: FileList) => {
+    setBusy(id);
+    try {
+      const photos = await Promise.all(Array.from(files).slice(0, 10).map(fl => new Promise<string>((res, rej) => {
+        const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('read')); r.readAsDataURL(fl);
+      })));
+      const out = await business.addVehicleSalePhotos(id, photos);
+      onMsg(`✅ ${out.count} photo(s) — visible sur le site`); void load();
+    } catch { onMsg('❌ Échec photos'); } finally { setBusy(null); }
+  };
+
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <button onClick={() => setShow(s => !s)} style={{ ...paneInput, cursor: 'pointer', textAlign: 'center', color: '#ffb347', border: '1px solid #ffb34744', background: 'rgba(255,179,71,0.08)', fontFamily: 'Inter, sans-serif', fontSize: 8, letterSpacing: '0.15em' }}>
@@ -779,7 +790,13 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
                 <div style={{ fontSize: 7, color: st.col, marginTop: 1 }}>{st.label}</div>
               </div>
             </div>
-            <button onClick={() => void cycle(v)} disabled={busy === v.id} style={{ width: '100%', marginTop: 8, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 CHANGER STATUT</button>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              <button onClick={() => void cycle(v)} disabled={busy === v.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
+              <label style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: busy === v.id ? 'wait' : 'pointer', background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44', color: '#00d4ff', textAlign: 'center' }}>
+                📷 PHOTOS
+                <input type="file" accept="image/*" multiple disabled={busy === v.id} style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addPhotos(v.id, e.target.files); e.currentTarget.value = ''; }} />
+              </label>
+            </div>
           </div>
         );
       })}

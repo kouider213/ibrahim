@@ -61,8 +61,25 @@ export default function ImmoScreen() {
   const [saving, setSaving]          = useState(false);
   const [toast, setToast]            = useState<string | null>(null);
   const [selected, setSelected]      = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy]    = useState<string | null>(null);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const addPropPhotos = async (id: string, files: FileList) => {
+    setPhotoBusy(id);
+    try {
+      const photos = await Promise.all(Array.from(files).slice(0, 10).map(f => new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result));
+        r.onerror = () => rej(new Error('read'));
+        r.readAsDataURL(f);
+      })));
+      const out = await apiFetch<{ count: number }>(`/api/immo/properties/${id}/photos`, { method: 'POST', body: JSON.stringify({ photos }) });
+      showToast(`✅ ${out.count} photo(s) — visible sur le site`);
+      await load();
+    } catch { showToast('❌ Échec photos'); }
+    finally { setPhotoBusy(null); }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -228,6 +245,13 @@ export default function ImmoScreen() {
                         {p.status === 'loué' ? '→ DISPONIBLE' : '→ LOUÉ'}
                       </button>
                     )}
+                    <label
+                      onClick={e => e.stopPropagation()}
+                      style={{ padding: '4px 10px', borderRadius: 6, cursor: photoBusy === p.id ? 'wait' : 'pointer', fontFamily: 'Orbitron', fontSize: 6, letterSpacing: '0.1em', background: 'rgba(0,212,255,0.1)', border: '1px solid #00d4ff44', color: '#00d4ff' }}
+                    >
+                      {photoBusy === p.id ? '…' : '+ PHOTOS'}
+                      <input type="file" accept="image/*" multiple disabled={photoBusy === p.id} style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addPropPhotos(p.id, e.target.files); e.currentTarget.value = ''; }} />
+                    </label>
                     <button
                       onClick={e => { e.stopPropagation(); if (confirm(`Supprimer ${propTitle(p)} ?`)) void deleteProp(p.id); }}
                       style={{ padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontFamily: 'Orbitron', fontSize: 6, letterSpacing: '0.1em', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}
