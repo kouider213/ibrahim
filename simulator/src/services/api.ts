@@ -672,6 +672,11 @@ export interface ClientDetail {
   totalSpent: number; bookingCount: number; isVip: boolean;
 }
 
+export interface SiteReview {
+  id: string; client_name?: string | null; rating: number; comment?: string | null;
+  approved: boolean; verified?: boolean | null; created_at?: string;
+}
+
 export interface CashEntry {
   id: string; kind: 'income' | 'expense'; category?: string | null; label?: string | null;
   amount: number; currency?: string | null; entry_date?: string; created_at?: string;
@@ -755,6 +760,14 @@ export const business = {
     apiFetch<{ active: number }>('/api/newsletter/stats'),
   newsletterList: () =>
     apiFetch<{ subscribers: Array<{ email: string; lang?: string; created_at?: string }> }>('/api/newsletter/list'),
+
+  // Avis clients
+  reviewsList: () =>
+    apiFetch<{ reviews: SiteReview[]; counts: { total: number; approved: number; pending: number; avg: number } }>('/api/reviews'),
+  reviewSetApproved: (id: string, approved: boolean) =>
+    apiFetch<{ review: SiteReview }>(`/api/reviews/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
+  reviewDelete: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/reviews/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // Caisse / comptabilité
   cashList: () =>
