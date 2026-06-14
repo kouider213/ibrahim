@@ -672,6 +672,11 @@ export interface ClientDetail {
   totalSpent: number; bookingCount: number; isVip: boolean;
 }
 
+export interface BlogPost {
+  id: string; slug?: string; title_fr?: string; excerpt_fr?: string;
+  cover_url?: string | null; published?: boolean; created_at?: string;
+}
+
 export interface SiteReview {
   id: string; client_name?: string | null; rating: number; comment?: string | null;
   approved: boolean; verified?: boolean | null; created_at?: string;
@@ -760,6 +765,18 @@ export const business = {
     apiFetch<{ active: number }>('/api/newsletter/stats'),
   newsletterList: () =>
     apiFetch<{ subscribers: Array<{ email: string; lang?: string; created_at?: string }> }>('/api/newsletter/list'),
+
+  // Blog
+  blogList: () =>
+    apiFetch<{ posts: BlogPost[] }>('/api/blog'),
+  blogGenerate: (topic: string) =>
+    apiFetch<{ article: { title: string; excerpt: string; body: string } }>('/api/blog-generate', { method: 'POST', body: JSON.stringify({ topic }) }),
+  blogCreate: (data: { title: string; excerpt?: string; body: string; cover_url?: string; published?: boolean }) =>
+    apiFetch<{ post: BlogPost }>('/api/blog', { method: 'POST', body: JSON.stringify(data) }),
+  blogToggle: (id: string, published: boolean) =>
+    apiFetch<{ post: BlogPost }>(`/api/blog/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ published }) }),
+  blogDelete: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/blog/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // Avis clients
   reviewsList: () =>

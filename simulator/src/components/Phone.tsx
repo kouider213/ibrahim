@@ -14,12 +14,13 @@ import DemandesScreen from './screens/DemandesScreen.tsx';
 import NewsletterScreen from './screens/NewsletterScreen.tsx';
 import CaisseScreen from './screens/CaisseScreen.tsx';
 import ReviewsScreen from './screens/ReviewsScreen.tsx';
+import BlogScreen from './screens/BlogScreen.tsx';
 import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews';
+  | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -44,6 +45,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
   { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
   { id: 'newsletter',    icon: '📣', label: 'NEWS',    kouiderOnly: true },
+  { id: 'blog',          icon: '✍️', label: 'BLOG',    kouiderOnly: true },
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
 ];
 
@@ -161,6 +163,7 @@ export default function Phone() {
       case 'newsletter':    return <NewsletterScreen />;
       case 'caisse':        return <CaisseScreen />;
       case 'reviews':       return <ReviewsScreen />;
+      case 'blog':          return <BlogScreen />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;
