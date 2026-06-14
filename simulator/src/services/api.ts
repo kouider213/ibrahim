@@ -49,7 +49,22 @@ function getTimezone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'Europe/Paris'; }
 }
 
+// ── Cache hors-ligne (lecture) ────────────────────────────────────────────────
+// Les GET réussis sont mis en cache (localStorage). Hors-ligne / backend mort,
+// on resert la DERNIÈRE donnée connue + on signale le mode hors-ligne (bannière).
+const OFFLINE_PREFIX = 'dz:cache:';
+function writeOfflineCache(path: string, data: unknown) {
+  try { localStorage.setItem(OFFLINE_PREFIX + path, JSON.stringify({ t: Date.now(), data })); } catch { /* quota — ignore */ }
+}
+function readOfflineCache<T>(path: string): { data: T; t: number } | null {
+  try { const raw = localStorage.getItem(OFFLINE_PREFIX + path); return raw ? JSON.parse(raw) as { data: T; t: number } : null; } catch { return null; }
+}
+export function setOffline(on: boolean) {
+  try { window.dispatchEvent(new CustomEvent('dz:offline', { detail: on })); } catch { /* SSR */ }
+}
+
 export async function apiFetch<T>(path: string, options: RequestInit = {}, _attempt = 0): Promise<T> {
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
   let res: Response;
   try {
     res = await fetch(`${BACKEND_URL}${path}`, {
@@ -66,14 +81,24 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _atte
     if (_attempt < _BACKENDS.length - 1 && switchToNextBackend()) {
       return apiFetch<T>(path, options, _attempt + 1);
     }
+    // Hors-ligne : resert la dernière donnée connue pour les lectures
+    if (isGet) {
+      const cached = readOfflineCache<T>(path);
+      if (cached) { setOffline(true); return cached.data; }
+    }
     throw netErr;
   }
   // 502/503/504 = backend mort derrière le proxy → même bascule
   if ([502, 503, 504].includes(res.status) && _attempt < _BACKENDS.length - 1 && switchToNextBackend()) {
     return apiFetch<T>(path, options, _attempt + 1);
   }
-  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
-  return res.json() as Promise<T>;
+  if (!res.ok) {
+    if (isGet) { const cached = readOfflineCache<T>(path); if (cached) { setOffline(true); return cached.data; } }
+    throw new Error(`API ${res.status}: ${await res.text()}`);
+  }
+  const data = (await res.json()) as T;
+  if (isGet) { writeOfflineCache(path, data); setOffline(false); }
+  return data;
 }
 
 export interface ChatResponse {

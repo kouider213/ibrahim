@@ -204,6 +204,7 @@ export default function Phone() {
       {simState === 'app' && (
         <>
           <StatusBar wsOk={wsOk} page={safePage} actorCol={actorCol} actorInit={actorInit} onLogout={logout} />
+          <OfflineBanner />
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {renderScreen()}
           </div>
@@ -609,6 +610,30 @@ function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean
       <circle cx="256" cy="256" r="104" fill={`url(#${uid}orb)`} />
       <ellipse cx="224" cy="216" rx="40" ry="26" fill="#ffffff" opacity="0.45" />
     </svg>
+  );
+}
+
+// ─── Offline Banner ───────────────────────────────────────────────────────────
+function OfflineBanner() {
+  const [offline, setOff] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  useEffect(() => {
+    const goOff = () => setOff(true);
+    const goOn = () => setOff(false);
+    const custom = (e: Event) => setOff(!!(e as CustomEvent).detail);
+    window.addEventListener('offline', goOff);
+    window.addEventListener('online', goOn);
+    window.addEventListener('dz:offline', custom as EventListener);
+    return () => {
+      window.removeEventListener('offline', goOff);
+      window.removeEventListener('online', goOn);
+      window.removeEventListener('dz:offline', custom as EventListener);
+    };
+  }, []);
+  if (!offline) return null;
+  return (
+    <div style={{ background: 'rgba(255,179,71,0.16)', borderBottom: '1px solid rgba(255,179,71,0.3)', color: '#ffb347', fontSize: 11, fontWeight: 700, fontFamily: 'Inter, sans-serif', textAlign: 'center', padding: '5px 8px', flexShrink: 0 }}>
+      ⚠️ Hors ligne — données de la dernière synchro
+    </div>
   );
 }
 
