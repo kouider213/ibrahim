@@ -23,6 +23,22 @@ router.get('/stats', requireMobileAuth, async (_req, res) => {
   }
 });
 
+// GET /api/newsletter/list — liste des abonnés actifs (email + langue) pour affichage
+router.get('/list', requireMobileAuth, async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('newsletter_subscribers')
+      .select('email, lang, status, created_at')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw new Error(error.message);
+    res.json({ subscribers: data ?? [] });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 // POST /api/newsletter/send — envoie une campagne (test:true → email de test ; sinon à tous)
 router.post('/send', requireMobileAuth, async (req, res) => {
   const { title, body, test, testEmail } = (req.body ?? {}) as

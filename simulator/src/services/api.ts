@@ -748,6 +748,8 @@ export const business = {
   // Newsletter (envoi via le site / Resend)
   newsletterStats: () =>
     apiFetch<{ active: number }>('/api/newsletter/stats'),
+  newsletterList: () =>
+    apiFetch<{ subscribers: Array<{ email: string; lang?: string; created_at?: string }> }>('/api/newsletter/list'),
   newsletterSend: (data: { title: string; body: string; test?: boolean; testEmail?: string }) =>
     apiFetch<{ ok?: boolean; total?: number; sent?: number; test?: boolean; dest?: string; error?: string }>(
       '/api/newsletter/send', { method: 'POST', body: JSON.stringify(data) }),
