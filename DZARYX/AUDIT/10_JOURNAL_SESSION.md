@@ -85,6 +85,25 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-14 (après-midi 2) — App "pro €0" : icône, offline, + 9 features business ⭐⭐⭐
+> Simulateur + backend. Tout €0 (Groq/Supabase/wa.me), seul Railway payant.
+
+**Design** : icône d'app = Orbe IA (turquoise+or, ni robot ni logo Fik) — `simulator/public/icons` + `DzaryxIcon` SVG. PARC/CA headers premium + prix PARC "Proprio/Client/Marge" (clip retiré). ⚠️ NE PAS redessiner à l'aveugle (échecs cartes, revert) — voir [[app_design_and_offline]].
+
+**Mode hors-ligne** (`d856298`) : apiFetch cache GET (localStorage) → resert dernière donnée + bannière offline. SW v89.
+
+**9 features business livrées** (onglets, tous kouiderOnly sauf indiqué) :
+- **Devis instantané** multi-service → WhatsApp langue client (`8988846`).
+- **Assistant WhatsApp rédactionnel** `/api/whatsapp/draft` Groq (`aff1855`).
+- **Accepter résa depuis l'app → Google Agenda** (`060859e`, demandes.ts createCalendarEvent).
+- **Aujourd'hui** (command center), **Prévision** saison, **Relance** CRM : backend `insights.ts` (`3fe984c`).
+- **Social** (captions+hashtags Groq `social.ts`), **Recherche globale** (`search.ts`).
+- **Parrainage** (`referrals.ts`, SQL `0029_referrals.sql` À LANCER), **Prix conseillés** (occupation+saison).
+
+**🛑 Action Kouider** : lancer `rental-system/supabase/0029_referrals.sql` (sinon onglet Parrainage échoue).
+**Reste** : design "wow" (perfectionner 1 écran labo avec feedback) ; PDF devis ; tracking auto parrainage (intégration site) ; nav chargée (~26 onglets → à regrouper).
+
+
 ### 2026-06-14 — Audit code A→Z + avancement étapes dossier/import DEPUIS l'app ⭐⭐
 > Backend `ibrahim` (Dzaryx) + simulateur (UI réelle). Push natif/wake word/briefing/PDF = confirmés FAITS (docs périmées rattrapées : CURRENT_STATE + ROADMAP).
 
