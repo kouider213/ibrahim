@@ -423,6 +423,13 @@ function AnnualTab({ report, year, fmt }: {
         <div style={{ marginTop: 6, fontSize: 7, color: '#ffffff33' }}>
           {report.totalBookings} réservations · {report.encaisse > 0 ? `${fmt(report.encaisse)} encaissé` : ''}
         </div>
+        {report.aEncaisser > 0 && (
+          <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,179,71,0.12)', border: '1px solid #ffb34744', borderRadius: 9, padding: '6px 12px' }}>
+            <span style={{ fontSize: 11 }}>💸</span>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#ffb347' }}>Reste à encaisser :</span>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#ffb347', fontWeight: 700 }}>{fmt(report.aEncaisser)}</span>
+          </div>
+        )}
       </div>
 
       {/* K / H annual split */}

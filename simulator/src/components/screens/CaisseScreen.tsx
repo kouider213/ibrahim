@@ -45,7 +45,7 @@ export default function CaisseScreen() {
     catch { flash('Erreur suppression'); } finally { setBusy(''); }
   };
 
-  const fmt = (n: number, cur = 'DZD') => `${Math.round(n).toLocaleString('fr-FR')} ${cur === 'EUR' ? '€' : 'DA'}`;
+  const fmt = (n: number, cur = 'DZD') => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} ${cur === 'EUR' ? '€' : 'DA'}`;
   const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
 
   return (
