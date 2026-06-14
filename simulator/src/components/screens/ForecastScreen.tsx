@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { business } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -15,8 +16,7 @@ export default function ForecastScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Prévision</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Saison diaspora</div>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Prévision" title="Saison diaspora" /></div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Quand prévoir la flotte, anticiper les pics</div>
 
       {loading ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Chargement…</div> : !f ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Indisponible</div> : (

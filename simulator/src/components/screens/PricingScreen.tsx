@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { business, type Car, type FleetStat } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -38,8 +39,7 @@ export default function PricingScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.gold, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Tarification</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Prix conseillés</div>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Tarification" title="Prix conseillés" accent={C.gold} /></div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Selon l'occupation et la saison — à toi de décider</div>
 
       {summer && <div style={{ background: `${C.gold}14`, border: `1px solid ${C.gold}44`, borderRadius: 12, padding: 12, marginBottom: 14, fontSize: 12.5, color: C.gold }}>☀️ Période forte (été/diaspora) — hausses conseillées sur les véhicules demandés.</div>}

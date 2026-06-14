@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type CashEntry } from '../../services/api.ts';
+import { Hero, StatCard } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.08)',
@@ -50,8 +51,7 @@ export default function CaisseScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.green, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Caisse</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>Caisse & Compta</div>
+      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Caisse" title="Caisse & Compta" /></div>
 
       {/* Totaux du mois — séparés par devise (jamais mélangés) */}
       {(() => {
@@ -68,10 +68,7 @@ export default function CaisseScreen() {
                   { l: 'Sorties', v: m.expense, c: C.red },
                   { l: 'Solde', v: m.balance, c: m.balance >= 0 ? C.gold : C.red },
                 ].map(s => (
-                  <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: s.c }}>{fmt(s.v, cur)}</div>
-                    <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{s.l} (mois)</div>
-                  </div>
+                  <StatCard key={s.l} value={fmt(s.v, cur)} label={`${s.l} (mois)`} color={s.c} />
                 ))}
               </div>
             </div>

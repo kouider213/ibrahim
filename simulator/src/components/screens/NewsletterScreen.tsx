@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { business } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -40,8 +41,7 @@ export default function NewsletterScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Marketing</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Newsletter</div>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Marketing" title="Newsletter" /></div>
       <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>
         {active == null ? 'Chargement…' : `${active} abonné${active !== 1 ? 's' : ''} actif${active !== 1 ? 's' : ''}`} · envoyé dans la langue de chaque abonné
       </div>

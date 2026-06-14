@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type Referral } from '../../services/api.ts';
+import { Hero, StatCard } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -48,19 +49,11 @@ export default function ParrainageScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.gold, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Croissance</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Parrainage</div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>La famille ramène la famille — codes parrain partageables</div>
+      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Croissance" title="Parrainage" accent={C.gold} subtitle="La famille ramène la famille — codes parrain partageables" /></div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 14 }}>
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, textAlign: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: C.gold }}>{list.length}</div>
-          <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>CODES</div>
-        </div>
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, textAlign: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: C.accent }}>{totalUses}</div>
-          <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>PARRAINAGES</div>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 14 }}>
+        <StatCard icon="🎁" value={String(list.length)} label="CODES" color={C.gold} />
+        <StatCard icon="🤝" value={String(totalUses)} label="PARRAINAGES" color={C.accent} />
       </div>
 
       <button onClick={() => setShow(s => !s)} style={{ width: '100%', marginBottom: 12, padding: '12px', borderRadius: 12, border: 'none', background: C.gold, color: '#1a1300', fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{show ? '✕ Fermer' : '＋ Nouveau code parrain'}</button>

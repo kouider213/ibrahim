@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { business, type Car } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.08)',
@@ -91,8 +92,7 @@ export default function DevisScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Conciergerie</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Devis instantané</div>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Conciergerie" title="Devis instantané" /></div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Voiture + logement + extras → total → WhatsApp en 1 tap</div>
 
       {/* Client */}

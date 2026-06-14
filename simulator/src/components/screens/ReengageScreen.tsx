@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -28,8 +29,7 @@ export default function ReengageScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Fidélisation</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Relancer les clients</div>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Fidélisation" title="Relancer les clients" /></div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Clients qui ne sont pas revenus — réactive-les en 1 tap</div>
 
       <div style={{ display: 'flex', gap: 7, marginBottom: 16 }}>

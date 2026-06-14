@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type SiteReview } from '../../services/api.ts';
+import { Hero, StatCard } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -41,20 +42,14 @@ export default function ReviewsScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.gold, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Réputation</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>Avis clients</div>
+      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Réputation" title="Avis clients" accent={C.gold} /></div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 14 }}>
         {[
           { l: 'Note moyenne', v: counts.avg ? `${counts.avg}★` : '—', c: C.gold },
           { l: 'En attente', v: String(counts.pending), c: counts.pending ? C.red : C.muted },
           { l: 'Publiés', v: String(counts.approved), c: C.green },
-        ].map(s => (
-          <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: s.c }}>{s.v}</div>
-            <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{s.l}</div>
-          </div>
-        ))}
+        ].map(s => <StatCard key={s.l} value={s.v} label={s.l} color={s.c} />)}
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>

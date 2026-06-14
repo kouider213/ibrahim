@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { business } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -47,8 +48,7 @@ export default function ReponseScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Assistant</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Réponse client</div>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Assistant" title="Réponse client" /></div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Dzaryx rédige la réponse dans la langue du client → tu valides → WhatsApp</div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>

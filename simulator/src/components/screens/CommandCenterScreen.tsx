@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type TodayItem } from '../../services/api.ts';
+import { StatCard } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -52,15 +53,9 @@ export default function CommandCenterScreen() {
 
       {loading ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Chargement…</div> : !d ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Indisponible</div> : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: 18 }}>
-            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: C.gold }}>{d.toCollect.reduce((s, x) => s + x.due, 0).toLocaleString('fr-FR')}</div>
-              <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>À ENCAISSER</div>
-            </div>
-            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: C.blue }}>{d.newDemands}</div>
-              <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>DEMANDES (24h)</div>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 18 }}>
+            <StatCard icon="💰" value={d.toCollect.reduce((s, x) => s + x.due, 0).toLocaleString('fr-FR')} label="À ENCAISSER" color={C.gold} />
+            <StatCard icon="📥" value={String(d.newDemands)} label="DEMANDES (24h)" color={C.blue} />
           </div>
           <Section title="Départs aujourd'hui" items={d.departures} col={C.accent} icon="🚗" empty="Aucun départ" />
           <Section title="Retours aujourd'hui" items={d.returns} col={C.blue} icon="↩️" empty="Aucun retour" />

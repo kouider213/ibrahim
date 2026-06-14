@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { business } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -30,8 +31,7 @@ export default function SearchScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Recherche</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>Tout chercher</div>
+      <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Recherche" title="Tout chercher" /></div>
 
       <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Nom client, voiture, réf dossier/import, bien…"
         style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 15px', color: C.text, fontFamily: C.font, fontSize: 15, outline: 'none', marginBottom: 16 }} />

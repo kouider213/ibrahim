@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type BlogPost } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -75,8 +76,7 @@ export default function BlogScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Contenu</div>
-      <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Blog</div>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Contenu" title="Blog" accent={C.accent} /></div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Rédige avec l'IA → publie sur le site (traduit auto à l'affichage)</div>
 
       <button onClick={() => setShow(s => !s)} style={{ width: '100%', marginBottom: 12, padding: '12px', borderRadius: 12, border: 'none', background: C.accent, color: '#06182e', fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
