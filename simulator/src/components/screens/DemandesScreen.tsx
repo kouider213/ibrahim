@@ -128,6 +128,23 @@ export default function DemandesScreen() {
     finally { setBusy(''); }
   };
 
+  const addPhoto = async (d: Demande, file: File) => {
+    setBusy(d.id);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] || '');
+        r.onerror = () => reject(new Error('lecture fichier'));
+        r.readAsDataURL(file);
+      });
+      const out = await postJson<{ count: number }>('/api/demandes/photos', {
+        source: d.source, id: rawId(d.id), base64, fileName: file.name, mimeType: file.type,
+      });
+      showToast(`Photo ajoutée 📷 (${out.count})`);
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Erreur photo'); }
+    finally { setBusy(''); }
+  };
+
   const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 
   const chip = (key: 'all' | Demande['source'], label: string, n: number) => (
@@ -211,6 +228,10 @@ export default function DemandesScreen() {
                       )}
                       <button disabled={!!busy} onClick={() => act(d, 'CANCELLED', 'Demande annulée')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#ef4444', fontFamily: 'Inter' }}>Annuler</button>
                     </div>
+                    <label style={{ display: 'block', textAlign: 'center', padding: '8px 6px', background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: 10, cursor: busy ? 'wait' : 'pointer', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter' }}>
+                      📷 Ajouter une photo
+                      <input type="file" accept="image/*" disabled={!!busy} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void addPhoto(d, f); e.currentTarget.value = ''; }} />
+                    </label>
                   </div>
                 );
               })()}

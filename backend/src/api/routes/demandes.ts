@@ -123,4 +123,45 @@ router.post('/update', requireMobileAuth, async (req, res) => {
   }
 });
 
+// POST /api/demandes/photos — ajoute une photo à un dossier/import DEPUIS l'app.
+// 1) upload via le site (bucket) → url  2) append à photos[] existant  3) patch via le site.
+const PHOTO_TARGET: Record<string, { table: string; update: string }> = {
+  import:  { table: 'import_orders', update: '/api/update-import-order' },
+  dossier: { table: 'dossiers',      update: '/api/update-dossier' },
+};
+
+router.post('/photos', requireMobileAuth, async (req, res) => {
+  const { source, id, base64, fileName, mimeType } = (req.body ?? {}) as
+    { source?: string; id?: string; base64?: string; fileName?: string; mimeType?: string };
+  const target = source ? PHOTO_TARGET[source] : undefined;
+  if (!target || !id || !base64) { res.status(400).json({ error: 'source(import|dossier) + id + base64 requis' }); return; }
+
+  try {
+    // 1) upload → url publique
+    const up = await fetch(`${SITE}/api/upload-car-image`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64, fileName: fileName || `app-${Date.now()}.jpg`, mimeType: mimeType || 'image/jpeg' }),
+    });
+    if (!up.ok) throw new Error(`upload ${up.status}`);
+    const { url } = (await up.json()) as { url?: string };
+    if (!url) throw new Error('upload sans url');
+
+    // 2) photos existantes (lecture directe, même base Supabase)
+    const { data: row } = await supabase.from(target.table).select('photos').eq('id', id).single();
+    const existing: string[] = Array.isArray((row as { photos?: unknown })?.photos) ? (row as { photos: string[] }).photos : [];
+    const photos = [...existing, url];
+
+    // 3) patch via le site (write path unique)
+    const r = await fetch(`${SITE}${target.update}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, patch: { photos } }),
+    });
+    if (!r.ok) throw new Error(`site ${target.update} ${r.status}`);
+
+    res.json({ ok: true, url, count: photos.length });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 export default router;

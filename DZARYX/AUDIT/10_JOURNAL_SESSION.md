@@ -94,7 +94,11 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 - Backend `api/routes/demandes.ts` : `/api/demandes/update` proxyait DÉJÀ dossier+import vers le site (`update-dossier`/`update-import-order`). Ajouté `kind` au payload dossier (pour choisir le bon parcours).
 - Simulateur `DemandesScreen.tsx` : parcours d'étapes (codes identiques `lib/importStatus`+`lib/dossierStatus` du site) : import 8 étapes, dossier voiture/immo/pack. Bouton **"→ ÉTAPE SUIVANTE"** (déclenche email/WhatsApp auto client via le site) + "Annuler" + label étape courante. "✓ Terminé" à la dernière.
 - tsc backend 0 + simulateur 0. Déployé : push main (Railway) + `npm run deploy` (gh-pages).
-- **⏭️ Reste** : upload photos étape FOUND/READY depuis l'app (actuellement via "Gérer"→site). Distribution Play Store. Machine à avis Google (levier #1 ranking).
+
+**Upload photos in-app (suite, même jour)** : bouton "📷 Ajouter une photo" sur cartes dossier/import.
+- Backend `POST /api/demandes/photos` : upload via site `/api/upload-car-image` (bucket) → url ; lit `photos[]` existant (Supabase direct) ; append ; patch via site `update-import-order`/`update-dossier`. Visible aussitôt sur page suivi publique client.
+- Simulateur `DemandesScreen` : `<input type=file>` → base64 → POST. Toast compteur photos.
+- **⏭️ Reste** : Distribution Play Store. Machine à avis Google (levier #1 ranking local Oran).
 
 ### 2026-06-13 (nuit 5) — Audit Dzaryx A→Z + survie €0 PROUVÉE + WhatsApp centralisé ⭐⭐
 > Backend `ibrahim` (Dzaryx) + site `rental-system`. Commit Dzaryx `85daa12` (health résilience), site `6a1f701` (WhatsApp).
