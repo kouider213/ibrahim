@@ -1,0 +1,33 @@
+{
+  "nodes": [
+    { "id": "title", "type": "text", "text": "# 🗺️ Écosystème Dzaryx × Fik\nCarte interactive — clique les cartes 📄", "x": -240, "y": -460, "width": 520, "height": 90, "color": "6" },
+
+    { "id": "clients", "type": "text", "text": "## 👥 Clients (diaspora)\nNavigateur web · WhatsApp\nFR / AR / EN", "x": -720, "y": -200, "width": 280, "height": 130, "color": "5" },
+    { "id": "patron", "type": "text", "text": "## 👑 Patron\nKouider / Houari\nApp Dzaryx (téléphone)", "x": 460, "y": -200, "width": 280, "height": 130, "color": "4" },
+
+    { "id": "site", "type": "text", "text": "## 🌐 SITE Fik\nNext.js · Vercel\nVitrine + réservation\n€0", "x": -720, "y": 40, "width": 280, "height": 150, "color": "5" },
+    { "id": "app", "type": "text", "text": "## 📱 APP Dzaryx\nSimulateur React (WebView)\n+ backend Express (Railway)\n151 outils IA", "x": 460, "y": 40, "width": 280, "height": 150, "color": "4" },
+
+    { "id": "db", "type": "text", "text": "## 🗄️ SUPABASE\n(base partagée)\nbookings · cars · dossiers ·\nimport_orders · leads · reviews ·\nproperties · cash · referrals · quotes", "x": -150, "y": 60, "width": 340, "height": 180, "color": "3" },
+
+    { "id": "llm", "type": "text", "text": "## 🤖 IA\nClaude → Groq → Gemini → OpenAI\n(cascade résilience €0)", "x": 460, "y": 280, "width": 280, "height": 110, "color": "2" },
+    { "id": "ext", "type": "text", "text": "## 🔌 Services\nResend · Telegram · Google Agenda · Cloudinary", "x": -720, "y": 280, "width": 280, "height": 110, "color": "1" },
+
+    { "id": "doc_accueil", "type": "file", "file": "DZARYX/🏠 ACCUEIL.md", "x": -150, "y": -300, "width": 340, "height": 120 },
+    { "id": "doc_archi", "type": "file", "file": "DZARYX/📐 ARCHITECTURE.md", "x": -720, "y": 460, "width": 280, "height": 110 },
+    { "id": "doc_eco", "type": "file", "file": "DZARYX/🧩 ECOSYSTEME.md", "x": -150, "y": 460, "width": 340, "height": 110 },
+    { "id": "doc_db", "type": "file", "file": "DZARYX/🗄️ BASE_DONNEES.md", "x": -150, "y": 300, "width": 340, "height": 110 },
+    { "id": "doc_app", "type": "file", "file": "DZARYX/APP/01 - Écrans.md", "x": 460, "y": 460, "width": 280, "height": 110 },
+    { "id": "doc_road", "type": "file", "file": "DZARYX/🗺️ ROADMAP.md", "x": 820, "y": 60, "width": 240, "height": 110 }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "clients", "toNode": "site", "fromSide": "bottom", "toSide": "top", "label": "réserve, lead, suivi" },
+    { "id": "e2", "fromNode": "patron", "toNode": "app", "fromSide": "bottom", "toSide": "top", "label": "pilote" },
+    { "id": "e3", "fromNode": "site", "toNode": "db", "fromSide": "right", "toSide": "left", "label": "lit/écrit" },
+    { "id": "e4", "fromNode": "app", "toNode": "db", "fromSide": "left", "toSide": "right", "label": "lit/écrit" },
+    { "id": "e5", "fromNode": "app", "toNode": "site", "fromSide": "top", "toSide": "right", "label": "proxy (email/WhatsApp/agenda)" },
+    { "id": "e6", "fromNode": "app", "toNode": "llm", "fromSide": "bottom", "toSide": "top" },
+    { "id": "e7", "fromNode": "site", "toNode": "ext", "fromSide": "bottom", "toSide": "top" },
+    { "id": "e8", "fromNode": "db", "toNode": "doc_db", "fromSide": "bottom", "toSide": "top" }
+  ]
+}
