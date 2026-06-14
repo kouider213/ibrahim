@@ -49,6 +49,22 @@ export function StatCard({ icon, value, label, color = '#10b981' }: { icon?: str
   );
 }
 
+// Skeletons de chargement (shimmer) — remplace les "Chargement…"
+export function SkeletonCards({ count = 4, height = 64 }: { count?: number; height?: number }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <style>{`@keyframes dzShimmer{0%{background-position:-200px 0}100%{background-position:calc(200px + 100%) 0}}`}</style>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} style={{
+          height, borderRadius: 16, border: '1px solid rgba(255,255,255,0.06)',
+          background: 'linear-gradient(90deg, #141419 25%, #1c1c24 50%, #141419 75%)',
+          backgroundSize: '200px 100%', animation: 'dzShimmer 1.3s linear infinite',
+        }} />
+      ))}
+    </div>
+  );
+}
+
 // Champ recherche en pilule (avec loupe)
 export function SearchPill({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (

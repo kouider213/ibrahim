@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business } from '../../services/api.ts';
-import { Hero } from '../ui/Premium.tsx';
+import { Hero, SkeletonCards } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -38,7 +38,7 @@ export default function ReengageScreen() {
         ))}
       </div>
 
-      {loading ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Chargement…</div> : list.length === 0 ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Aucun client dormant 🎉</div> : (
+      {loading ? <SkeletonCards count={5} /> : list.length === 0 ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Aucun client dormant 🎉</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {list.map((d, i) => (
             <div key={d.phone || d.name + i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: '11px 13px' }}>

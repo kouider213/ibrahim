@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail } from '../../services/api.ts';
+import { SkeletonCards } from '../ui/Premium.tsx';
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
 const C = {
@@ -119,7 +120,7 @@ export default function ClientsScreen() {
       {/* Liste */}
       <div style={{ padding: '0 18px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading ? (
-          <Empty t="Chargement…" />
+          <SkeletonCards count={5} height={78} />
         ) : filtered.length === 0 ? (
           <Empty t="Aucun client" />
         ) : filtered.map(c => {

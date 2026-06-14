@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type CashEntry } from '../../services/api.ts';
-import { Hero, StatCard } from '../ui/Premium.tsx';
+import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.08)',
@@ -99,7 +99,7 @@ export default function CaisseScreen() {
       )}
 
       {/* Liste */}
-      {loading ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Chargement…</div>
+      {loading ? <SkeletonCards count={5} />
         : entries.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun mouvement</div>
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

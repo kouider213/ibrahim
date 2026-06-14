@@ -81,6 +81,7 @@ interface Notif { text: string; deepLink?: Page }
 
 export default function Phone() {
   const [page, setPage]       = useState<Page>('voice');
+  const [showOnboard, setShowOnboard] = useState<boolean>(() => { try { return !localStorage.getItem('dz:onboarded'); } catch { return false; } });
   const [wsOk, setWsOk]       = useState(false);
   const [notif, setNotif]     = useState<Notif | null>(null);
   const notifTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -191,7 +192,7 @@ export default function Phone() {
       case 'forecast':      return <ForecastScreen />;
       case 'reengage':      return <ReengageScreen />;
       case 'social':        return <SocialScreen />;
-      case 'search':        return <SearchScreen />;
+      case 'search':        return <SearchScreen onOpen={(p) => setPage(p as Page)} />;
       case 'parrainage':    return <ParrainageScreen />;
       case 'pricing':       return <PricingScreen />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
@@ -240,6 +241,7 @@ export default function Phone() {
             {renderScreen()}
           </div>
           <NavBar page={safePage} onPage={setPage} actor={loggedActor ?? 'kouider'} />
+          {showOnboard && <Onboarding onDone={() => { try { localStorage.setItem('dz:onboarded', '1'); } catch { /* ignore */ } setShowOnboard(false); }} />}
         </>
       )}
 
@@ -843,6 +845,33 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── Onboarding (1ère ouverture) ──────────────────────────────────────────────
+function Onboarding({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  const slides = [
+    { icon: '🔮', title: 'Bienvenue sur Dzaryx', text: "Ton assistant IA qui gère toute ta conciergerie : voitures, immo, demandes, finances — depuis ton téléphone." },
+    { icon: '💬', title: 'Parle, écris, demande', text: 'Vocal ou chat : crée une résa, un devis, une réponse client dans sa langue. Dzaryx fait le reste.' },
+    { icon: '⚡', title: 'Tout est synchronisé', text: 'Ton site et l\'app partagent les mêmes données. Réservations, agenda Google, avis, newsletter — automatique.' },
+  ];
+  const s = slides[step];
+  const last = step === slides.length - 1;
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'radial-gradient(120% 100% at 50% 0%, #0e1417, #050608)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 28px', textAlign: 'center' }}>
+      <div style={{ marginBottom: 24 }}><DzaryxIcon size={96} glow /></div>
+      <div style={{ fontSize: 40, marginBottom: 14 }}>{s.icon}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 12, letterSpacing: '-0.02em' }}>{s.title}</div>
+      <div style={{ fontSize: 14.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, maxWidth: 320, marginBottom: 30 }}>{s.text}</div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 26 }}>
+        {slides.map((_, i) => (
+          <div key={i} style={{ width: i === step ? 22 : 7, height: 7, borderRadius: 4, background: i === step ? '#34f5e0' : 'rgba(255,255,255,0.2)', transition: 'all .2s' }} />
+        ))}
+      </div>
+      <button onClick={() => last ? onDone() : setStep(step + 1)} style={{ width: '100%', maxWidth: 320, padding: '15px', borderRadius: 14, border: 'none', background: 'linear-gradient(120deg, #13b9c9, #34f5e0)', color: '#04201f', fontFamily: 'Inter', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>{last ? 'Commencer 🚀' : 'Suivant'}</button>
+      {!last && <button onClick={onDone} style={{ marginTop: 12, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter', fontSize: 13, cursor: 'pointer' }}>Passer</button>}
     </div>
   );
 }

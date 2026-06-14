@@ -12,7 +12,12 @@ const TYPE_COL: Record<string, string> = {
 };
 type R = { type: string; label: string; sub?: string; ref?: string };
 
-export default function SearchScreen() {
+const TYPE_PAGE: Record<string, string> = {
+  'Véhicule': 'fleet', 'Client/Résa': 'clients', 'Bien': 'immo',
+  'Dossier': 'leads', 'Import': 'leads', 'Lead': 'leads',
+};
+
+export default function SearchScreen({ onOpen }: { onOpen?: (p: string) => void }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<R[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,13 +48,15 @@ export default function SearchScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {results.map((r, i) => {
               const col = TYPE_COL[r.type] ?? C.muted;
+              const dest = TYPE_PAGE[r.type];
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 13px' }}>
+                <div key={i} onClick={() => dest && onOpen?.(dest)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 13px', cursor: dest ? 'pointer' : 'default' }}>
                   <span style={{ fontSize: 9, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}44`, borderRadius: 7, padding: '3px 8px', flexShrink: 0 }}>{r.type}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</div>
                     {(r.sub || r.ref) && <div style={{ fontSize: 11, color: C.muted }}>{r.ref ? `${r.ref} · ` : ''}{r.sub}</div>}
                   </div>
+                  {dest && <span style={{ color: C.muted, fontSize: 16 }}>›</span>}
                 </div>
               );
             })}

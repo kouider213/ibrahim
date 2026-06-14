@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type TodayItem } from '../../services/api.ts';
-import { StatCard } from '../ui/Premium.tsx';
+import { StatCard, SkeletonCards } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -51,7 +51,7 @@ export default function CommandCenterScreen() {
         <button onClick={() => void load()} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer', color: C.accent, fontWeight: 700 }}>↻</button>
       </div>
 
-      {loading ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Chargement…</div> : !d ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Indisponible</div> : (
+      {loading ? <SkeletonCards count={4} /> : !d ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Indisponible</div> : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 18 }}>
             <StatCard icon="💰" value={d.toCollect.reduce((s, x) => s + x.due, 0).toLocaleString('fr-FR')} label="À ENCAISSER" color={C.gold} />

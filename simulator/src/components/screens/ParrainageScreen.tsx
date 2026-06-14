@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type Referral } from '../../services/api.ts';
-import { Hero, StatCard } from '../ui/Premium.tsx';
+import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -67,7 +67,7 @@ export default function ParrainageScreen() {
         </div>
       )}
 
-      {loading ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Chargement…</div> : list.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun code. Crée le premier ☝️</div> : (
+      {loading ? <SkeletonCards count={4} height={92} /> : list.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun code. Crée le premier ☝️</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {list.map(r => (
             <div key={r.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12 }}>

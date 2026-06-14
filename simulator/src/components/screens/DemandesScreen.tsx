@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BACKEND_URL, ACCESS_TOKEN } from '../../services/api.ts';
+import { SkeletonCards } from '../ui/Premium.tsx';
 
 interface Demande {
   id: string;
@@ -207,7 +208,7 @@ export default function DemandesScreen() {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading && <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 12, paddingTop: 40 }}>Chargement…</div>}
+        {loading && <SkeletonCards count={5} height={120} />}
         {error && !loading && <div style={{ textAlign: 'center', color: '#ef4444', fontSize: 12, paddingTop: 40 }}>{error}</div>}
         {!loading && !error && shown.length === 0 && (
           <div style={{ textAlign: 'center', paddingTop: 40 }}>

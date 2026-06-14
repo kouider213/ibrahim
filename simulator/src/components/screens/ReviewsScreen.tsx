@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type SiteReview } from '../../services/api.ts';
-import { Hero, StatCard } from '../ui/Premium.tsx';
+import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -58,7 +58,7 @@ export default function ReviewsScreen() {
         ))}
       </div>
 
-      {loading ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Chargement…</div>
+      {loading ? <SkeletonCards count={5} height={92} />
         : shown.length === 0 ? <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>Aucun avis</div>
         : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
