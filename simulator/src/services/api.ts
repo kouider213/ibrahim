@@ -672,6 +672,11 @@ export interface ClientDetail {
   totalSpent: number; bookingCount: number; isVip: boolean;
 }
 
+export interface CashEntry {
+  id: string; kind: 'income' | 'expense'; category?: string | null; label?: string | null;
+  amount: number; currency?: string | null; entry_date?: string; created_at?: string;
+}
+
 export interface ClientOperation {
   id: string; client_name: string; client_phone: string | null;
   deal_type: string; item_label: string | null; amount: number | null;
@@ -750,6 +755,14 @@ export const business = {
     apiFetch<{ active: number }>('/api/newsletter/stats'),
   newsletterList: () =>
     apiFetch<{ subscribers: Array<{ email: string; lang?: string; created_at?: string }> }>('/api/newsletter/list'),
+
+  // Caisse / comptabilité
+  cashList: () =>
+    apiFetch<{ entries: CashEntry[]; month: { ym: string; income: number; expense: number; balance: number } }>('/api/cash'),
+  cashAdd: (data: { kind: string; category?: string; label?: string; amount: number; currency?: string; entry_date?: string }) =>
+    apiFetch<{ entry: CashEntry }>('/api/cash', { method: 'POST', body: JSON.stringify(data) }),
+  cashDelete: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/cash/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   newsletterSend: (data: { title: string; body: string; test?: boolean; testEmail?: string }) =>
     apiFetch<{ ok?: boolean; total?: number; sent?: number; test?: boolean; dest?: string; error?: string }>(
       '/api/newsletter/send', { method: 'POST', body: JSON.stringify(data) }),
