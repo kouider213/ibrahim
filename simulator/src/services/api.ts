@@ -790,7 +790,7 @@ export const business = {
 
   // Caisse / comptabilité
   cashList: () =>
-    apiFetch<{ entries: CashEntry[]; month: { ym: string; income: number; expense: number; balance: number } }>('/api/cash'),
+    apiFetch<{ entries: CashEntry[]; ym: string; month: Record<string, { income: number; expense: number; balance: number }> }>('/api/cash'),
   cashAdd: (data: { kind: string; category?: string; label?: string; amount: number; currency?: string; entry_date?: string }) =>
     apiFetch<{ entry: CashEntry }>('/api/cash', { method: 'POST', body: JSON.stringify(data) }),
   cashDelete: (id: string) =>

@@ -10,7 +10,7 @@ const CATS = ['location', 'vente', 'immo', 'import', 'carburant', 'entretien', '
 
 export default function CaisseScreen() {
   const [entries, setEntries] = useState<CashEntry[]>([]);
-  const [month, setMonth]     = useState({ income: 0, expense: 0, balance: 0 });
+  const [month, setMonth]     = useState<Record<string, { income: number; expense: number; balance: number }>>({});
   const [loading, setLoading] = useState(true);
   const [show, setShow]       = useState(false);
   const [busy, setBusy]       = useState('');
@@ -22,7 +22,7 @@ export default function CaisseScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { const r = await business.cashList(); setEntries(r.entries ?? []); setMonth(r.month ?? { income: 0, expense: 0, balance: 0 }); }
+    try { const r = await business.cashList(); setEntries(r.entries ?? []); setMonth(r.month ?? {}); }
     catch { setEntries([]); }
     finally { setLoading(false); }
   }, []);
@@ -53,19 +53,32 @@ export default function CaisseScreen() {
       <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.green, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Caisse</div>
       <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 14 }}>Caisse & Compta</div>
 
-      {/* Totaux du mois */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
-        {[
-          { l: 'Entrées', v: month.income, c: C.green },
-          { l: 'Sorties', v: month.expense, c: C.red },
-          { l: 'Solde', v: month.balance, c: month.balance >= 0 ? C.gold : C.red },
-        ].map(s => (
-          <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: s.c }}>{fmt(s.v)}</div>
-            <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{s.l} (mois)</div>
-          </div>
-        ))}
-      </div>
+      {/* Totaux du mois — séparés par devise (jamais mélangés) */}
+      {(() => {
+        const curs = Object.keys(month);
+        if (curs.length === 0) curs.push('DZD');
+        return curs.map(cur => {
+          const m = month[cur] || { income: 0, expense: 0, balance: 0 };
+          return (
+            <div key={cur} style={{ marginBottom: 10 }}>
+              {curs.length > 1 && <div style={{ fontSize: 10, color: C.muted, marginBottom: 5, fontWeight: 700 }}>{cur === 'EUR' ? 'EUROS' : 'DINARS'}</div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                {[
+                  { l: 'Entrées', v: m.income, c: C.green },
+                  { l: 'Sorties', v: m.expense, c: C.red },
+                  { l: 'Solde', v: m.balance, c: m.balance >= 0 ? C.gold : C.red },
+                ].map(s => (
+                  <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: s.c }}>{fmt(s.v, cur)}</div>
+                    <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{s.l} (mois)</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        });
+      })()}
+      <div style={{ marginBottom: 4 }} />
 
       <button onClick={() => setShow(s => !s)} style={{ width: '100%', marginBottom: 12, padding: '12px', borderRadius: 12, border: 'none', background: C.green, color: '#06210f', fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
         {show ? '✕ Fermer' : '＋ Ajouter un mouvement'}

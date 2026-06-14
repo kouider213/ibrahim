@@ -17,13 +17,17 @@ router.get('/', requireMobileAuth, async (_req, res) => {
     const rows = data ?? [];
 
     const ym = new Date().toISOString().slice(0, 7); // YYYY-MM
-    let income = 0, expense = 0;
-    for (const r of rows as Array<{ kind: string; amount: number; entry_date: string }>) {
+    // Totaux du mois SÉPARÉS par devise (on ne mélange jamais DZD et EUR).
+    const byCur: Record<string, { income: number; expense: number; balance: number }> = {};
+    for (const r of rows as Array<{ kind: string; amount: number; entry_date: string; currency?: string }>) {
       if (!String(r.entry_date).startsWith(ym)) continue;
-      if (r.kind === 'expense') expense += Number(r.amount) || 0;
-      else income += Number(r.amount) || 0;
+      const cur = (r.currency || 'DZD').toUpperCase();
+      byCur[cur] ??= { income: 0, expense: 0, balance: 0 };
+      if (r.kind === 'expense') byCur[cur].expense += Number(r.amount) || 0;
+      else byCur[cur].income += Number(r.amount) || 0;
+      byCur[cur].balance = byCur[cur].income - byCur[cur].expense;
     }
-    res.json({ entries: rows, month: { ym, income, expense, balance: income - expense } });
+    res.json({ entries: rows, ym, month: byCur });
   } catch (e) {
     res.status(500).json({ error: (e as Error).message });
   }
