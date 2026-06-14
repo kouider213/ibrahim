@@ -157,70 +157,154 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
 
           return (
             <div key={car.id} style={{
-              borderRadius: 18,
+              borderRadius: 16,
               border: '1px solid rgba(255,255,255,0.07)',
               background: '#16161c',
               overflow: 'hidden',
-              padding: 12,
-              display: 'flex', flexDirection: 'column', gap: 10,
+              display: 'flex', alignItems: 'stretch',
+              minHeight: 96,
             }}>
-              {/* Top : photo + nom/catégorie + statut & toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 64, height: 64, flexShrink: 0, borderRadius: 13, overflow: 'hidden', background: '#0e0e12', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
+              {/* Left accent bar */}
+              <div style={{ width: 3, alignSelf: 'stretch', background: `linear-gradient(180deg, ${col}, ${col}22)`, flexShrink: 0 }} />
+
+              {/* Photo — left square */}
+              <div style={{
+                width: 86, height: 72, flexShrink: 0,
+                background: `radial-gradient(ellipse at 50% 60%, ${col}0d, #030912)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', margin: '0 2px',
+              }}>
+                <CarPhoto url={car.image_url ?? null} name={car.name} col={col} />
+              </div>
+
+              {/* Middle — name + prices + stats */}
+              <div style={{ flex: 1, minWidth: 0, padding: '9px 6px 9px 8px' }}>
+                {/* Name */}
+                <div style={{
+                  fontSize: 15.5, color: '#ffffff', fontWeight: 700,
+                  letterSpacing: '0.01em', marginBottom: 3,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {car.name}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, color: '#fff', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{car.name}</div>
-                  <div style={{ fontSize: 11.5, color: '#9b9ba6', marginTop: 2 }}>{car.category ?? 'Standard'}</div>
+                {/* Category */}
+                <div style={{ fontSize: 10.5, color: '#9b9ba6', marginBottom: 6 }}>
+                  {car.category ?? 'Standard'}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 7 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}55`, borderRadius: 20, padding: '3px 10px', letterSpacing: '0.05em' }}>
-                    {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
+                {/* Prices — Houari / Kouider / profit */}
+                <div style={{ display: 'flex', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
+                  {hPrice !== null && (
+                    <span style={{ fontSize: 10.5, background: '#ffffff0a', border: '1px solid #ffffff18', borderRadius: 5, padding: '2px 6px', color: '#ff3366cc' }}>
+                      H: {hPrice} {cur}/j
+                    </span>
+                  )}
+                  {kPrice !== null && (
+                    <span style={{ fontSize: 10.5, background: '#00e6760a', border: '1px solid #00e67622', borderRadius: 5, padding: '2px 6px', color: '#00e676cc' }}>
+                      K: {kPrice} {cur}/j
+                    </span>
+                  )}
+                  {profit !== null && (
+                    <span style={{ fontSize: 10.5, background: '#ffb3470a', border: '1px solid #ffb34722', borderRadius: 5, padding: '2px 6px', color: '#ffb347cc' }}>
+                      +{profit} {cur}/j
+                    </span>
+                  )}
+                  <span style={{ fontSize: 10.5, background: isHouari ? '#10b9811a' : '#ffffff08', border: `1px solid ${isHouari ? '#10b98144' : '#ffffff14'}`, borderRadius: 5, padding: '2px 6px', color: isHouari ? '#10b981' : '#ffffff55' }}>
+                    {cur}
                   </span>
+                </div>
+                {/* Rev 30j + occupation — affichés seulement s'il y a de l'activité */}
+                {rev30d !== null && rev30d > 0 && (
+                  <div style={{ fontSize: 11, color: '#9b9ba6', marginBottom: 4 }}>
+                    REV. 30J <span style={{ color: '#e5e7eb', fontWeight: 700 }}>
+                      {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
+                    </span>
+                  </div>
+                )}
+                {occ30d !== null && occ30d > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ flex: 1, height: 3, background: '#ffffff09', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}55, ${col})`, borderRadius: 2, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <span style={{ fontSize: 10, color: col, fontFamily: 'Inter, sans-serif', minWidth: 28, textAlign: 'right' }}>
+                      {occ30d}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right — toggle + label + inspection */}
+              <div style={{ flexShrink: 0, padding: '0 10px 0 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <button
+                  onClick={() => void toggle(car)}
+                  disabled={isTog}
+                  title={avail ? 'Mettre indisponible' : 'Mettre disponible'}
+                  style={{
+                    width: 50, height: 28, borderRadius: 14, border: 'none',
+                    background: avail
+                      ? 'linear-gradient(90deg, #00b85a, #00e676)'
+                      : 'linear-gradient(90deg, #cc1133, #ff3366)',
+                    cursor: isTog ? 'default' : 'pointer',
+                    opacity: isTog ? 0.55 : 1,
+                    position: 'relative',
+                    transition: 'all 0.25s',
+                    boxShadow: `0 0 10px ${col}40`,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 4,
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: isTog ? '#ffffff88' : '#fff',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                    transition: 'left 0.25s cubic-bezier(0.34,1.56,0.64,1)',
+                    left: avail ? 26 : 4,
+                  }} />
+                </button>
+                <span style={{ fontSize: 9, fontFamily: 'Inter, sans-serif', fontWeight: 700, color: col, letterSpacing: '0.08em' }}>
+                  {isTog ? '…' : avail ? 'DISPO' : 'INDISPO'}
+                </span>
+                {/* Actions : réserver + édition prix + photos + inspection */}
+                <div style={{ display: 'flex', gap: 5 }}>
                   <button
-                    onClick={() => void toggle(car)} disabled={isTog}
-                    title={avail ? 'Mettre indisponible' : 'Mettre disponible'}
-                    style={{ width: 50, height: 28, borderRadius: 14, border: 'none', flexShrink: 0,
-                      background: avail ? 'linear-gradient(90deg, #00b85a, #00e676)' : 'linear-gradient(90deg, #cc1133, #ff3366)',
-                      cursor: isTog ? 'default' : 'pointer', opacity: isTog ? 0.55 : 1, position: 'relative', transition: 'all 0.25s' }}
-                  >
-                    <div style={{ position: 'absolute', top: 4, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', transition: 'left 0.25s cubic-bezier(0.34,1.56,0.64,1)', left: avail ? 26 : 4 }} />
-                  </button>
+                    onClick={() => setBookCar(car)}
+                    title="Créer une réservation (calendrier)"
+                    style={{
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #10b98166',
+                      background: 'rgba(16,185,129,0.12)', cursor: 'pointer',
+                      fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#10b981', transition: 'all 0.2s',
+                    }}
+                  >📅</button>
+                  <button
+                    onClick={() => setEditCar(car)}
+                    title="Modifier prix & devise"
+                    style={{
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #10b98144',
+                      background: 'rgba(16,185,129,0.06)', cursor: 'pointer',
+                      fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#10b981', transition: 'all 0.2s',
+                    }}
+                  >✎</button>
+                  <button
+                    onClick={() => { photoTarget.current = car.name; carPhotoRef.current?.click(); }}
+                    title="Ajouter des photos du véhicule"
+                    style={{
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #00e67644',
+                      background: 'rgba(0,230,118,0.06)', cursor: 'pointer',
+                      fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#00e676', transition: 'all 0.2s',
+                    }}
+                  >{photoBusy === car.name ? '…' : '🖼️'}</button>
+                  <button
+                    onClick={() => setInspect({ kind: 'vehicle', name: car.name })}
+                    title="Photo inspection avant/après"
+                    style={{
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #ffb34744',
+                      background: 'rgba(255,179,71,0.06)', cursor: 'pointer',
+                      fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#ffb347aa', transition: 'all 0.2s',
+                    }}
+                  >📷</button>
                 </div>
-              </div>
-
-              {/* Prix : Houari / Kouider / marge */}
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                {hPrice !== null && <Chip col="#ff5a7a" label={`Proprio ${hPrice} ${cur}/j`} />}
-                {kPrice !== null && <Chip col="#00e676" label={`Client ${kPrice} ${cur}/j`} />}
-                {profit !== null && <Chip col="#ffb347" label={`Marge +${profit} ${cur}/j`} />}
-              </div>
-
-              {/* Rev 30j + occupation */}
-              {((rev30d !== null && rev30d > 0) || (occ30d !== null && occ30d > 0)) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {rev30d !== null && rev30d > 0 && (
-                    <div style={{ fontSize: 11, color: '#9b9ba6', whiteSpace: 'nowrap' }}>
-                      30j&nbsp;: <span style={{ color: '#e5e7eb', fontWeight: 700 }}>{rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}</span>
-                    </div>
-                  )}
-                  {occ30d !== null && occ30d > 0 && (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <div style={{ flex: 1, height: 5, background: '#ffffff0d', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${occ30d}%`, background: `linear-gradient(90deg, ${col}66, ${col})`, borderRadius: 3 }} />
-                      </div>
-                      <span style={{ fontSize: 10.5, color: col, minWidth: 34, textAlign: 'right' }}>{occ30d}%</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 7 }}>
-                <ActionBtn col="#10b981" icon="📅" label="Réserver" onClick={() => setBookCar(car)} />
-                <ActionBtn col="#60a5fa" icon="✎" label="Prix" onClick={() => setEditCar(car)} />
-                <ActionBtn col="#00e676" icon={photoBusy === car.name ? '…' : '🖼️'} label="Photos" onClick={() => { photoTarget.current = car.name; carPhotoRef.current?.click(); }} />
-                <ActionBtn col="#ffb347" icon="📷" label="État" onClick={() => setInspect({ kind: 'vehicle', name: car.name })} />
               </div>
             </div>
           );
@@ -727,21 +811,6 @@ function KpiCard({ label, val, col }: { label: string; val: string; col: string 
       <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 20, fontWeight: 800, color: col }}>{val}</div>
       <div style={{ fontSize: 9.5, color: '#9b9ba6', letterSpacing: '0.04em', marginTop: 3 }}>{label}</div>
     </div>
-  );
-}
-
-function Chip({ col, label }: { col: string; label: string }) {
-  return (
-    <span style={{ fontSize: 11, fontWeight: 600, background: `${col}14`, border: `1px solid ${col}3a`, borderRadius: 8, padding: '4px 9px', color: col }}>{label}</span>
-  );
-}
-
-function ActionBtn({ col, icon, label, onClick }: { col: string; icon: string; label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{ flex: 1, padding: '8px 4px', borderRadius: 11, border: `1px solid ${col}3a`, background: `${col}12`, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, color: col, fontFamily: 'Inter, sans-serif' }}>
-      <span style={{ fontSize: 15 }}>{icon}</span>
-      <span style={{ fontSize: 9.5, fontWeight: 700 }}>{label}</span>
-    </button>
   );
 }
 
