@@ -160,12 +160,10 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
               borderRadius: 16,
               border: '1px solid rgba(255,255,255,0.07)',
               background: '#16161c',
-              overflow: 'hidden',
               display: 'flex', alignItems: 'stretch',
-              minHeight: 96,
             }}>
               {/* Left accent bar */}
-              <div style={{ width: 3, alignSelf: 'stretch', background: `linear-gradient(180deg, ${col}, ${col}22)`, flexShrink: 0 }} />
+              <div style={{ width: 3, alignSelf: 'stretch', background: `linear-gradient(180deg, ${col}, ${col}22)`, flexShrink: 0, borderTopLeftRadius: 16, borderBottomLeftRadius: 16 }} />
 
               {/* Photo — left square */}
               <div style={{
@@ -191,26 +189,23 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                 <div style={{ fontSize: 10.5, color: '#9b9ba6', marginBottom: 6 }}>
                   {car.category ?? 'Standard'}
                 </div>
-                {/* Prices — Houari / Kouider / profit */}
-                <div style={{ display: 'flex', gap: 5, marginBottom: 5, flexWrap: 'wrap' }}>
+                {/* Prices — Proprio / Client / marge */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 5, flexWrap: 'wrap' }}>
                   {hPrice !== null && (
-                    <span style={{ fontSize: 10.5, background: '#ffffff0a', border: '1px solid #ffffff18', borderRadius: 5, padding: '2px 6px', color: '#ff3366cc' }}>
-                      H: {hPrice} {cur}/j
+                    <span style={{ fontSize: 11, fontWeight: 600, background: '#ff5a7a14', border: '1px solid #ff5a7a3a', borderRadius: 8, padding: '3px 8px', color: '#ff7a93' }}>
+                      Proprio {hPrice} {cur}/j
                     </span>
                   )}
                   {kPrice !== null && (
-                    <span style={{ fontSize: 10.5, background: '#00e6760a', border: '1px solid #00e67622', borderRadius: 5, padding: '2px 6px', color: '#00e676cc' }}>
-                      K: {kPrice} {cur}/j
+                    <span style={{ fontSize: 11, fontWeight: 600, background: '#00e67614', border: '1px solid #00e6763a', borderRadius: 8, padding: '3px 8px', color: '#00e676' }}>
+                      Client {kPrice} {cur}/j
                     </span>
                   )}
                   {profit !== null && (
-                    <span style={{ fontSize: 10.5, background: '#ffb3470a', border: '1px solid #ffb34722', borderRadius: 5, padding: '2px 6px', color: '#ffb347cc' }}>
-                      +{profit} {cur}/j
+                    <span style={{ fontSize: 11, fontWeight: 600, background: '#ffb34714', border: '1px solid #ffb3473a', borderRadius: 8, padding: '3px 8px', color: '#ffb347' }}>
+                      Marge +{profit} {cur}/j
                     </span>
                   )}
-                  <span style={{ fontSize: 10.5, background: isHouari ? '#10b9811a' : '#ffffff08', border: `1px solid ${isHouari ? '#10b98144' : '#ffffff14'}`, borderRadius: 5, padding: '2px 6px', color: isHouari ? '#10b981' : '#ffffff55' }}>
-                    {cur}
-                  </span>
                 </div>
                 {/* Rev 30j + occupation — affichés seulement s'il y a de l'activité */}
                 {rev30d !== null && rev30d > 0 && (
