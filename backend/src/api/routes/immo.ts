@@ -172,6 +172,28 @@ router.post('/properties/:id/photos', requireMobileAuth, async (req, res) => {
   }
 });
 
+// GET /api/immo/properties/:id/photos — liste les photos d'un bien
+router.get('/properties/:id/photos', requireMobileAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('property_photos').select('url, position').eq('property_id', req.params['id']).order('position', { ascending: true });
+    if (error) throw error;
+    res.json({ photos: data ?? [] });
+  } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// DELETE /api/immo/properties/:id/photos  body { url }
+router.delete('/properties/:id/photos', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const url = (req.body as { url?: string }).url;
+  if (!url) { res.status(400).json({ error: 'url requise' }); return; }
+  try {
+    await supabase.from('property_photos').delete().eq('property_id', id).eq('url', url);
+    const { data: rest } = await supabase.from('property_photos').select('url').eq('property_id', id).order('position', { ascending: true }).limit(1);
+    await supabase.from('properties').update({ image_url: (rest as { url?: string }[] | null)?.[0]?.url ?? null }).eq('id', id);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
 // ── VENTE VÉHICULES (vehicles_for_sale) ──────────────────────────────────────
 
 // GET /api/immo/vehicles-for-sale
@@ -261,6 +283,28 @@ router.post('/vehicles-for-sale/:id/photos', requireMobileAuth, async (req, res)
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// GET /api/immo/vehicles-for-sale/:id/photos
+router.get('/vehicles-for-sale/:id/photos', requireMobileAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('vehicle_sale_photos').select('url, position').eq('vehicle_id', req.params['id']).order('position', { ascending: true });
+    if (error) throw error;
+    res.json({ photos: data ?? [] });
+  } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// DELETE /api/immo/vehicles-for-sale/:id/photos  body { url }
+router.delete('/vehicles-for-sale/:id/photos', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const url = (req.body as { url?: string }).url;
+  if (!url) { res.status(400).json({ error: 'url requise' }); return; }
+  try {
+    await supabase.from('vehicle_sale_photos').delete().eq('vehicle_id', id).eq('url', url);
+    const { data: rest } = await supabase.from('vehicle_sale_photos').select('url').eq('vehicle_id', id).order('position', { ascending: true }).limit(1);
+    await supabase.from('vehicles_for_sale').update({ image_url: (rest as { url?: string }[] | null)?.[0]?.url ?? null }).eq('id', id);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 
 export default router;

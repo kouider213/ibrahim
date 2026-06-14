@@ -890,6 +890,14 @@ export const business = {
     apiFetch<{ property: SiteProperty }>(`/api/immo/properties/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   addPropertyPhotos: (id: string, photos: string[]) =>
     apiFetch<{ ok: boolean; count: number }>(`/api/immo/properties/${encodeURIComponent(id)}/photos`, { method: 'POST', body: JSON.stringify({ photos }) }),
+  propertyPhotos: (id: string) =>
+    apiFetch<{ photos: Array<{ url: string; position: number }> }>(`/api/immo/properties/${encodeURIComponent(id)}/photos`),
+  propertyPhotoDelete: (id: string, url: string) =>
+    apiFetch<{ ok: boolean }>(`/api/immo/properties/${encodeURIComponent(id)}/photos`, { method: 'DELETE', body: JSON.stringify({ url }) }),
+  vehiclePhotos: (id: string) =>
+    apiFetch<{ photos: Array<{ url: string; position: number }> }>(`/api/immo/vehicles-for-sale/${encodeURIComponent(id)}/photos`),
+  vehiclePhotoDelete: (id: string, url: string) =>
+    apiFetch<{ ok: boolean }>(`/api/immo/vehicles-for-sale/${encodeURIComponent(id)}/photos`, { method: 'DELETE', body: JSON.stringify({ url }) }),
   deleteProperty: (id: string) =>
     apiFetch<{ ok: boolean }>(`/api/immo/properties/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
