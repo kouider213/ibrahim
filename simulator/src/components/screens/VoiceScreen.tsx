@@ -5,6 +5,7 @@ import {
   sendNativeAction, tryParseNativeAction,
   type DzaryxStatus,
 } from '../../services/api.ts';
+import { OrbIcon } from '../ui/Premium.tsx';
 
 interface Props {
   onNavigateText: () => void;
@@ -852,7 +853,6 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
 
   // ── BARRE FINE (overlay façon Gemini) ─────────────────────────────────────
   if (compact) {
-    const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
     const micTap = () => {
       if (status === 'idle' && !isRecordingRef.current) {
         void ensureMicThenRecord();
@@ -880,10 +880,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 140% at 50% 130%, ${col}1f, transparent 60%)`, pointerEvents: 'none' }} />
 
         {/* logo */}
-        <img src={`${base}logo.png`} alt="Dzaryx"
-          style={{ width: 34, height: 34, objectFit: 'contain', flexShrink: 0,
-            filter: `drop-shadow(0 0 8px ${col}66)`,
-            animation: orbActive ? 'corePulse 1.4s ease-in-out infinite' : 'none' }} />
+        <div style={{ flexShrink: 0, animation: orbActive ? 'corePulse 1.4s ease-in-out infinite' : 'none' }}><OrbIcon size={32} /></div>
 
         {/* texte (live / réponse / état) */}
         <div
@@ -1445,20 +1442,12 @@ function DzaryxRobot({
 }
 
 // ── Logo Dzaryx au centre (remplace l'étoile) ────────────────────────────────
-function Sparkle({ col, active }: { col: string; active: boolean }) {
-  const size = active ? 96 : 80;
-  const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/ibrahim/';
+function Sparkle({ active }: { col: string; active: boolean }) {
+  const size = active ? 100 : 84;
   return (
-    <img
-      src={`${base}logo.png`}
-      alt="Dzaryx"
-      style={{
-        width: size, height: size, objectFit: 'contain',
-        filter: `drop-shadow(0 0 18px ${col}77) drop-shadow(0 0 40px ${col}33)`,
-        transition: 'all 0.3s ease',
-        animation: active ? 'corePulse 1.6s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite',
-      }}
-    />
+    <div style={{ animation: active ? 'corePulse 1.6s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite', transition: 'all 0.3s ease' }}>
+      <OrbIcon size={size} glow />
+    </div>
   );
 }
 

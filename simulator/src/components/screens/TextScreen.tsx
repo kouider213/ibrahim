@@ -9,6 +9,7 @@ import {
   sendNativeAction, tryParseNativeAction,
   type DzaryxStatus,
 } from '../../services/api.ts';
+import { OrbIcon } from '../ui/Premium.tsx';
 
 interface Props { onNavigateVoice: () => void; actor?: 'kouider' | 'houari'; }
 
@@ -908,11 +909,7 @@ function MessageBubble({ msg, actorCol, onRegenerate, onEdit }: { msg: Message; 
 
       <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start', alignItems: 'flex-start', gap: 9, animation: 'msg-in 0.22s ease' }}>
         {!isUser && (
-          <img
-            src={`${((import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/'}logo.png`}
-            alt="Dzaryx"
-            style={{ width: 28, height: 28, borderRadius: 9, flexShrink: 0, marginTop: 1, objectFit: 'contain', border: '1px solid rgba(255,255,255,0.10)' }}
-          />
+          <div style={{ flexShrink: 0, marginTop: 1 }}><OrbIcon size={28} /></div>
         )}
         <div style={{
           maxWidth: isUser ? '82%' : '88%',

@@ -3,6 +3,28 @@ import type { ReactNode } from 'react';
 
 const MUTED = '#9b9ba6';
 
+// Orbe IA (identique à l'icône d'app) — rendu vectoriel net à toute taille.
+export function OrbIcon({ size = 64, glow = false }: { size?: number; glow?: boolean }) {
+  const uid = `orb${Math.round(size)}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 512 512" style={{ display: 'block', filter: glow ? 'drop-shadow(0 0 16px rgba(52,245,224,0.5))' : undefined }}>
+      <defs>
+        <radialGradient id={`${uid}g`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#34f5e0" stopOpacity="0.5" /><stop offset="60%" stopColor="#10b6c8" stopOpacity="0.15" /><stop offset="100%" stopColor="#10b6c8" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={`${uid}o`} cx="42%" cy="38%" r="70%">
+          <stop offset="0%" stopColor="#eafffb" /><stop offset="32%" stopColor="#5ef0df" /><stop offset="70%" stopColor="#13b9c9" /><stop offset="100%" stopColor="#0a6f86" />
+        </radialGradient>
+        <linearGradient id={`${uid}r`} x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#ffd76a" /><stop offset="100%" stopColor="#f0a93a" /></linearGradient>
+      </defs>
+      <circle cx="256" cy="256" r="220" fill={`url(#${uid}g)`} />
+      <circle cx="256" cy="256" r="140" fill="none" stroke={`url(#${uid}r)`} strokeWidth="7" opacity="0.85" />
+      <circle cx="256" cy="256" r="110" fill={`url(#${uid}o)`} />
+      <ellipse cx="222" cy="214" rx="42" ry="27" fill="#ffffff" opacity="0.45" />
+    </svg>
+  );
+}
+
 export function Hero({ eyebrow, title, subtitle, accent = '#10b981' }: { eyebrow: string; title: string; subtitle?: ReactNode; accent?: string }) {
   return (
     <div style={{ position: 'relative', padding: '24px 18px 16px', overflow: 'hidden' }}>

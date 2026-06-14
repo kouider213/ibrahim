@@ -186,8 +186,9 @@ export default function DemandesScreen() {
       {/* Header */}
       <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid rgba(16,185,129,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(16,185,129,0.8)', letterSpacing: '0.2em' }}>DEMANDES DU SITE</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{counts.total} demande{counts.total !== 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Demandes</div>
+          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Demandes du site</div>
+          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{counts.total} demande{counts.total !== 1 ? 's' : ''}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={() => setShowNew(true)} style={{ background: 'rgba(16,185,129,0.16)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#10b981' }}>＋ Nouveau</button>

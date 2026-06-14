@@ -125,16 +125,15 @@ export default function SettingsScreen() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
-
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 23, color: '#fff', letterSpacing: '-0.01em', fontWeight: 800 }}>
-            RÉGLAGES
+      <div style={{ padding: '16px 16px 8px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Réglages</div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 26, color: '#fff', letterSpacing: '-0.02em', fontWeight: 800, lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Réglages</div>
           </div>
           {msg && (
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#00e676', letterSpacing: '0.1em' }}>{msg}</span>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#00e676', fontWeight: 600 }}>{msg}</span>
           )}
         </div>
         <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
@@ -348,13 +347,3 @@ function NexusRow({ k, v }: { k: string; v: string }) {
   );
 }
 
-function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 12, t = 1.5, col = 'transparent';
-  const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
-  const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
-  const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
-  const bR = pos.endsWith('r')   ? `${t}px solid ${col}33` : 'none';
-  const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
-  const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
-  return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
-}
