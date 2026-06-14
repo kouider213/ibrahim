@@ -699,6 +699,11 @@ export interface ClientDetail {
 
 export interface TodayItem { id: string; client: string; phone: string | null; car: string; }
 
+export interface Referral {
+  id: string; code: string; referrer_name?: string | null; referrer_phone?: string | null;
+  reward?: string | null; uses: number; note?: string | null; created_at?: string;
+}
+
 export interface BlogPost {
   id: string; slug?: string; title_fr?: string; excerpt_fr?: string;
   cover_url?: string | null; published?: boolean; created_at?: string;
@@ -824,6 +829,15 @@ export const business = {
   // Recherche globale
   globalSearch: (q: string) =>
     apiFetch<{ results: Array<{ type: string; label: string; sub?: string; ref?: string }> }>(`/api/search?q=${encodeURIComponent(q)}`),
+  // Parrainage
+  referralsList: () =>
+    apiFetch<{ referrals: Referral[] }>('/api/referrals'),
+  referralCreate: (data: { referrer_name?: string; referrer_phone?: string; reward?: string }) =>
+    apiFetch<{ referral: Referral }>('/api/referrals', { method: 'POST', body: JSON.stringify(data) }),
+  referralUpdate: (id: string, data: { uses?: number; note?: string }) =>
+    apiFetch<{ referral: Referral }>(`/api/referrals/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  referralDelete: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/referrals/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // Avis clients
   reviewsList: () =>

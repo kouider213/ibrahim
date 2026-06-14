@@ -22,13 +22,15 @@ import ForecastScreen from './screens/ForecastScreen.tsx';
 import ReengageScreen from './screens/ReengageScreen.tsx';
 import SocialScreen from './screens/SocialScreen.tsx';
 import SearchScreen from './screens/SearchScreen.tsx';
+import ParrainageScreen from './screens/ParrainageScreen.tsx';
+import PricingScreen from './screens/PricingScreen.tsx';
 import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -57,6 +59,8 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'social',        icon: '📱', label: 'SOCIAL',  kouiderOnly: true },
   { id: 'forecast',      icon: '📈', label: 'PRÉVISION', kouiderOnly: true },
   { id: 'reengage',      icon: '🔁', label: 'RELANCE', kouiderOnly: true },
+  { id: 'parrainage',    icon: '🎁', label: 'PARRAINAGE', kouiderOnly: true },
+  { id: 'pricing',       icon: '🏷️', label: 'PRIX',    kouiderOnly: true },
   { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
   { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
   { id: 'newsletter',    icon: '📣', label: 'NEWS',    kouiderOnly: true },
@@ -186,6 +190,8 @@ export default function Phone() {
       case 'reengage':      return <ReengageScreen />;
       case 'social':        return <SocialScreen />;
       case 'search':        return <SearchScreen />;
+      case 'parrainage':    return <ParrainageScreen />;
+      case 'pricing':       return <PricingScreen />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;
