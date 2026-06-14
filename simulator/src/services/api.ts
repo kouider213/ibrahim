@@ -697,6 +697,8 @@ export interface ClientDetail {
   totalSpent: number; bookingCount: number; isVip: boolean;
 }
 
+export interface TodayItem { id: string; client: string; phone: string | null; car: string; }
+
 export interface BlogPost {
   id: string; slug?: string; title_fr?: string; excerpt_fr?: string;
   cover_url?: string | null; published?: boolean; created_at?: string;
@@ -808,6 +810,20 @@ export const business = {
   // Assistant WhatsApp rédactionnel
   whatsappDraft: (data: { clientMessage?: string; context?: string; lang?: string; tone?: string }) =>
     apiFetch<{ reply?: string; error?: string }>('/api/whatsapp/draft', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Insights
+  insightsToday: () =>
+    apiFetch<{ date: string; departures: TodayItem[]; returns: TodayItem[]; toCollect: Array<TodayItem & { due: number }>; newDemands: number; pendingBookings: number }>('/api/insights/today'),
+  insightsForecast: () =>
+    apiFetch<{ byMonth: Array<{ month: string; count: number; pct: number }>; peaks: string[]; next3: string[]; summerSoon: boolean; total: number }>('/api/insights/forecast'),
+  insightsReengage: (months = 4) =>
+    apiFetch<{ months: number; dormant: Array<{ name: string; phone: string | null; date: string; car: string; count: number }> }>(`/api/insights/reengage?months=${months}`),
+  // Contenu social
+  socialGenerate: (data: { topic: string; platform?: string; lang?: string }) =>
+    apiFetch<{ caption?: string; hashtags?: string; error?: string }>('/api/social/generate', { method: 'POST', body: JSON.stringify(data) }),
+  // Recherche globale
+  globalSearch: (q: string) =>
+    apiFetch<{ results: Array<{ type: string; label: string; sub?: string; ref?: string }> }>(`/api/search?q=${encodeURIComponent(q)}`),
 
   // Avis clients
   reviewsList: () =>

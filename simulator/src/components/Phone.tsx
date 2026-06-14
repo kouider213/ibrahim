@@ -17,12 +17,18 @@ import ReviewsScreen from './screens/ReviewsScreen.tsx';
 import BlogScreen from './screens/BlogScreen.tsx';
 import DevisScreen from './screens/DevisScreen.tsx';
 import ReponseScreen from './screens/ReponseScreen.tsx';
+import CommandCenterScreen from './screens/CommandCenterScreen.tsx';
+import ForecastScreen from './screens/ForecastScreen.tsx';
+import ReengageScreen from './screens/ReengageScreen.tsx';
+import SocialScreen from './screens/SocialScreen.tsx';
+import SearchScreen from './screens/SearchScreen.tsx';
 import { setSimActor, registerWebPush } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
-  | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse';
+  | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -33,8 +39,10 @@ const CREDS: Record<string, { password: string; actor: Actor }> = {
 };
 
 const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean; houariOnly?: boolean }> = [
+  { id: 'aujourdhui',    icon: '☀️', label: "AUJOURD'HUI", kouiderOnly: true },
   { id: 'voice',         icon: '🎙️', label: 'VOIX'    },
   { id: 'text',          icon: '💬', label: 'CHAT'    },
+  { id: 'search',        icon: '🔍', label: 'CHERCHER' },
   { id: 'immo',          icon: '🏠', label: 'IMMO'    },
   { id: 'deals',         icon: '🔁', label: 'ACHAT'   },
   { id: 'bookings',      icon: '📋', label: 'LOCATIONS' },
@@ -46,6 +54,9 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'leads',         icon: '📥', label: 'DEMANDES' },
   { id: 'devis',         icon: '🧮', label: 'DEVIS',   kouiderOnly: true },
   { id: 'reponse',       icon: '🗨️', label: 'RÉPONSE', kouiderOnly: true },
+  { id: 'social',        icon: '📱', label: 'SOCIAL',  kouiderOnly: true },
+  { id: 'forecast',      icon: '📈', label: 'PRÉVISION', kouiderOnly: true },
+  { id: 'reengage',      icon: '🔁', label: 'RELANCE', kouiderOnly: true },
   { id: 'calendar',      icon: '📅', label: 'AGENDA'  },
   { id: 'documents',     icon: '📄', label: 'DOCS',    kouiderOnly: true },
   { id: 'newsletter',    icon: '📣', label: 'NEWS',    kouiderOnly: true },
@@ -170,6 +181,11 @@ export default function Phone() {
       case 'blog':          return <BlogScreen />;
       case 'devis':         return <DevisScreen />;
       case 'reponse':       return <ReponseScreen />;
+      case 'aujourdhui':    return <CommandCenterScreen />;
+      case 'forecast':      return <ForecastScreen />;
+      case 'reengage':      return <ReengageScreen />;
+      case 'social':        return <SocialScreen />;
+      case 'search':        return <SearchScreen />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;
       case 'settings':      return <SettingsScreen />;
