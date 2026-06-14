@@ -771,6 +771,8 @@ export const business = {
     apiFetch<{ posts: BlogPost[] }>('/api/blog'),
   blogGenerate: (topic: string) =>
     apiFetch<{ article: { title: string; excerpt: string; body: string } }>('/api/blog-generate', { method: 'POST', body: JSON.stringify({ topic }) }),
+  blogCover: (data: { base64: string; fileName?: string; mimeType?: string }) =>
+    apiFetch<{ url: string }>('/api/blog/cover', { method: 'POST', body: JSON.stringify(data) }),
   blogCreate: (data: { title: string; excerpt?: string; body: string; cover_url?: string; published?: boolean }) =>
     apiFetch<{ post: BlogPost }>('/api/blog', { method: 'POST', body: JSON.stringify(data) }),
   blogToggle: (id: string, published: boolean) =>

@@ -15,6 +15,7 @@ export default function BlogScreen() {
   const [title, setTitle]   = useState('');
   const [excerpt, setExcerpt] = useState('');
   const [body, setBody]     = useState('');
+  const [cover, setCover]   = useState('');
   const [busy, setBusy]     = useState('');
   const [toast, setToast]   = useState('');
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2800); };
@@ -37,12 +38,23 @@ export default function BlogScreen() {
     finally { setBusy(''); }
   };
 
+  const uploadCover = async (file: File) => {
+    setBusy('cover');
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('read')); r.readAsDataURL(file); });
+      const base64 = dataUrl.split(',')[1] || '';
+      const out = await business.blogCover({ base64, fileName: file.name, mimeType: file.type });
+      setCover(out.url); flash('✅ Affiche ajoutée');
+    } catch (e) { flash(e instanceof Error ? e.message : 'Erreur image'); }
+    finally { setBusy(''); }
+  };
+
   const publish = async () => {
     if (!title.trim() || !body.trim()) { flash('Titre + contenu requis'); return; }
     setBusy('pub');
     try {
-      await business.blogCreate({ title: title.trim(), excerpt: excerpt.trim(), body: body.trim(), published: true });
-      flash('✅ Publié sur le site'); setShow(false); setTopic(''); setTitle(''); setExcerpt(''); setBody(''); await load();
+      await business.blogCreate({ title: title.trim(), excerpt: excerpt.trim(), body: body.trim(), cover_url: cover || undefined, published: true });
+      flash('✅ Publié sur le site'); setShow(false); setTopic(''); setTitle(''); setExcerpt(''); setBody(''); setCover(''); await load();
     } catch (e) { flash(e instanceof Error ? e.message : 'Erreur'); }
     finally { setBusy(''); }
   };
@@ -79,6 +91,14 @@ export default function BlogScreen() {
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titre" style={inp} />
           <input value={excerpt} onChange={e => setExcerpt(e.target.value)} placeholder="Accroche" style={inp} />
           <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Contenu (HTML accepté)" rows={8} style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />
+
+          {/* Photo d'affiche (cover) */}
+          {cover && <div style={{ width: '100%', height: 120, borderRadius: 11, background: `url(${cover}) center/cover`, border: `1px solid ${C.border}` }} />}
+          <label style={{ display: 'block', textAlign: 'center', padding: '11px', borderRadius: 11, border: `1px dashed ${C.accent}55`, background: `${C.accent}10`, color: C.accent, fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: busy === 'cover' ? 'wait' : 'pointer' }}>
+            {busy === 'cover' ? 'Envoi…' : cover ? '🖼️ Changer la photo d’affiche' : '🖼️ Ajouter une photo d’affiche'}
+            <input type="file" accept="image/*" disabled={busy === 'cover'} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.currentTarget.value = ''; }} />
+          </label>
+
           <button disabled={busy === 'pub'} onClick={() => void publish()} style={{ padding: '12px', borderRadius: 11, border: 'none', background: C.green, color: '#06210f', fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy === 'pub' ? 'Publication…' : '📤 Publier sur le site'}</button>
         </div>
       )}

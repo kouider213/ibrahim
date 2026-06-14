@@ -5,6 +5,24 @@ import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 
 const router = Router();
+const SITE = process.env['FIK_SITE_URL'] || 'https://fikconciergerie.com';
+
+// POST /api/blog/cover — upload l'image d'affiche → url (via le site, bucket)
+router.post('/cover', requireMobileAuth, async (req, res) => {
+  const { base64, fileName, mimeType } = (req.body ?? {}) as { base64?: string; fileName?: string; mimeType?: string };
+  if (!base64) { res.status(400).json({ error: 'base64 requis' }); return; }
+  try {
+    const r = await fetch(`${SITE}/api/upload-car-image`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64, fileName: fileName || `blog-${Date.now()}.jpg`, mimeType: mimeType || 'image/jpeg' }),
+    });
+    const j = (await r.json()) as { url?: string; error?: string };
+    if (!r.ok || !j.url) throw new Error(j.error || `upload ${r.status}`);
+    res.json({ url: j.url });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
 
 function slugify(s: string): string {
   const base = (s || 'article')
