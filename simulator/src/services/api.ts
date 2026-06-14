@@ -829,6 +829,10 @@ export const business = {
   // Recherche globale
   globalSearch: (q: string) =>
     apiFetch<{ results: Array<{ type: string; label: string; sub?: string; ref?: string }> }>(`/api/search?q=${encodeURIComponent(q)}`),
+  // Devis PDF
+  quotePdf: (data: { client_name?: string; lines: Array<{ label: string; amount: number; currency: string }> }) =>
+    apiFetch<{ url: string; ref: string }>('/api/quote/pdf', { method: 'POST', body: JSON.stringify(data) }),
+
   // Parrainage
   referralsList: () =>
     apiFetch<{ referrals: Referral[] }>('/api/referrals'),

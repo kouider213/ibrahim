@@ -74,6 +74,19 @@ export default function DevisScreen() {
     window.open(ph ? `https://wa.me/${ph}?text=${txt}` : `https://wa.me/?text=${txt}`, '_blank');
   };
 
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const makePdf = async () => {
+    const valid = lines.filter(l => l.label.trim() && Number(l.amount) > 0).map(l => ({ label: l.label.trim(), amount: Number(l.amount), currency: l.currency }));
+    if (valid.length === 0) { flash('Ajoute au moins une ligne'); return; }
+    setPdfBusy(true);
+    try {
+      const out = await business.quotePdf({ client_name: name, lines: valid });
+      window.open(out.url, '_blank');
+      flash('📄 PDF généré');
+    } catch (e) { flash(e instanceof Error ? e.message : 'Erreur PDF'); }
+    finally { setPdfBusy(false); }
+  };
+
   const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
 
   return (
@@ -122,7 +135,10 @@ export default function DevisScreen() {
         </div>
       )}
 
-      <button onClick={sendWhatsApp} style={{ width: '100%', padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>💬 Envoyer le devis par WhatsApp</button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button onClick={() => void makePdf()} disabled={pdfBusy} style={{ flex: 1, padding: '14px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{pdfBusy ? '…' : '📄 PDF'}</button>
+        <button onClick={sendWhatsApp} style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>💬 Envoyer WhatsApp</button>
+      </div>
 
       {/* Modal voiture */}
       {showCar && (
