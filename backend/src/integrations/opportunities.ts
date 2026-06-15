@@ -22,7 +22,7 @@ export interface OpportunitiesReport {
 }
 
 const CACHE_KEY = 'deals:opportunities:v1';
-const CACHE_TTL = 60 * 60 * 12; // 12h
+const CACHE_TTL = 60 * 60 * 25; // 25h (refresh quotidien par le cron 7h, reste dispo si le cron saute un jour)
 
 function extractJson(text: string): any | null {
   let t = text.trim();
@@ -45,7 +45,7 @@ Recherche sur le web (actualité récente, 2025-2026) et couvre :
 
 Sois CONCRET et orienté action pour Oran/Algérie. Pas de blabla générique. Si une info n'est pas sûre, dis-le.
 
-⛔ TRÈS IMPORTANT : ta réponse finale doit être UNIQUEMENT l'objet JSON ci-dessous. AUCUN texte avant, AUCUNE analyse en markdown, AUCUN commentaire après. Commence directement par { et termine par }. Garde les "detail" courts (1-2 phrases).
+⛔ TRÈS IMPORTANT : ta réponse finale doit être UNIQUEMENT l'objet JSON ci-dessous. AUCUN texte avant, AUCUNE analyse en markdown, AUCUN commentaire après. Commence directement par { et termine par }. Le "detail" est lu en entier par Kouider dans une fiche dédiée : sois complet et concret (3 à 6 phrases : chiffres, modèles, prix, dates, sources si possible).
 
 Format EXACT :
 {

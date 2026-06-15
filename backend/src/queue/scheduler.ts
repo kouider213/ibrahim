@@ -109,7 +109,7 @@ const JOBS = [
   },
   {
     name:  'opportunities-watch',
-    cron:  '0 9 * * 6',       // 9h chaque samedi — veille marché auto Algérie (1×/semaine)
+    cron:  '0 7 * * *',       // 7h chaque jour — veille marché auto Algérie (quotidienne, cache prêt le matin)
     tz:    'Africa/Algiers',
   },
   {
