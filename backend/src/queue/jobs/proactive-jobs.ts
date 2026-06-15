@@ -2038,7 +2038,19 @@ export async function jobMonthlyExcel(_job: Job): Promise<void> {
   }
 }
 
-// ── Veille opportunités marché auto — 1×/semaine (samedi) ─────────────────────
+// ── Refresh quotidien SILENCIEUX du cache (7h/jour) ───────────────────────────
+// Garde l'onglet Opportunités frais chaque jour SANS notifier (pas de spam).
+export async function jobOpportunitiesRefresh(_job: Job): Promise<void> {
+  try {
+    const report = await getAutoOpportunities(true); // force refresh → remplit le cache
+    console.log(`[job:opportunities-refresh] ✅ cache prêt (${report.items.length} items, aucune notif)`);
+  } catch (err) {
+    console.error('[job:opportunities-refresh] ❌', err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ── Digest hebdo dans le chat — 1×/semaine (samedi) ───────────────────────────
+// Envoie sur le chat l'important de la semaine (urgents en priorité, sinon top items).
 export async function jobOpportunitiesWatch(_job: Job): Promise<void> {
   try {
     const report = await getAutoOpportunities(true); // force refresh
@@ -2047,17 +2059,14 @@ export async function jobOpportunitiesWatch(_job: Job): Promise<void> {
       return;
     }
     const urgent = report.items.filter(i => i.urgency === 'urgent');
-    // Refresh quotidien : le cache est prêt pour l'app. On ne NOTIFIE que s'il y a de l'urgent
-    // (sinon spam quotidien). Le reste se consulte dans l'onglet Opportunités.
-    if (!urgent.length) {
-      console.log(`[job:opportunities-watch] ✅ cache prêt (${report.items.length} items, aucun urgent → pas de notif)`);
-      return;
-    }
-    const lines = urgent.slice(0, 5).map(o => `• ${o.title}${o.action ? ` — ${o.action}` : (o.detail ? ` — ${o.detail}` : '')}`);
-    const full = `🔎 *Opportunités marché auto*\n\n${report.summary}\n\n${lines.join('\n')}`;
-    const tts = `Kouider, ${urgent.length} opportunité${urgent.length > 1 ? 's' : ''} importante${urgent.length > 1 ? 's' : ''} à voir. ${urgent[0].title}.`;
-    emitProactive(tts, 'alert', stripTgMd(full), 'kouider', 'deals');
-    console.log(`[job:opportunities-watch] ✅ ${report.items.length} items (${urgent.length} urgents notifiés)`);
+    const top = (urgent.length ? urgent : report.items).slice(0, 5);
+    const lines = top.map(o => `• ${o.title}${o.action ? ` — ${o.action}` : (o.detail ? ` — ${o.detail}` : '')}`);
+    const full = `🔎 *Opportunités marché auto — l'important de la semaine*\n\n${report.summary}\n\n${lines.join('\n')}\n\n_Détail complet dans l'onglet Opportunités._`;
+    const tts = urgent.length
+      ? `Kouider, ${urgent.length} opportunité${urgent.length > 1 ? 's' : ''} importante${urgent.length > 1 ? 's' : ''} cette semaine. ${urgent[0].title}.`
+      : `Veille marché auto de la semaine prête : ${report.items.length} opportunités.`;
+    emitProactive(tts, urgent.length ? 'alert' : 'info', stripTgMd(full), 'kouider', 'deals');
+    console.log(`[job:opportunities-watch] ✅ digest hebdo envoyé (${report.items.length} items, ${urgent.length} urgents)`);
   } catch (err) {
     console.error('[job:opportunities-watch] ❌', err instanceof Error ? err.message : String(err));
   }

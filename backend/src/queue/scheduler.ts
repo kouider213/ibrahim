@@ -32,6 +32,7 @@ import {
   jobSmartAlarm,
   jobMonthlyExcel,
   jobOpportunitiesWatch,
+  jobOpportunitiesRefresh,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -108,8 +109,13 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'opportunities-refresh',
+    cron:  '0 7 * * *',       // 7h chaque jour — refresh SILENCIEUX du cache (onglet frais, pas de notif)
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'opportunities-watch',
-    cron:  '0 7 * * *',       // 7h chaque jour — veille marché auto Algérie (quotidienne, cache prêt le matin)
+    cron:  '0 9 * * 6',       // 9h samedi — DIGEST hebdo sur le chat (l'important de la semaine)
     tz:    'Africa/Algiers',
   },
   {
@@ -220,6 +226,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'anthropic-watch':          jobAnthropicWatch,
   'competitor-watch':         jobCompetitorWatch,
   'opportunities-watch':      jobOpportunitiesWatch,
+  'opportunities-refresh':    jobOpportunitiesRefresh,
   'proactive-engine':         async (job: Job) => { await runProactiveEngine(job); },
   'bi-daily':                 jobBIDaily,
   'bi-reminders':             jobBIReminders,
