@@ -85,6 +85,13 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-15 (fix) — Opportunités : endpoint non-bloquant (écran gelé) ⭐
+> Commit `634ad79`. Cause racine trouvée + corrigée + vérifiée live.
+- **Symptôme** : écran bloqué sur "Dzaryx analyse le marché…". **Cause** : `GET /api/deals/opportunities` faisait le web search Claude EN SYNCHRONE (≥90s, `curl` timeout HTTP 000). Front sans timeout → gel infini.
+- **Fix** : endpoint NON-BLOQUANT. `getAutoOpportunities()` sert le cache direct + lance la génération en arrière-plan (fire-and-forget, dédup via `_inFlight`). 1ʳᵉ fois sans cache → `{pending:true}` immédiat. `generateOpportunities()` (bloquant) extrait pour les crons.
+- **Front** : état "analyse en cours, reste ici" + **auto-poll toutes les 12s** (8 essais) jusqu'à remplissage. Plus jamais de spinner infini.
+- **Vérifié live** : endpoint répond ~0.1s, **14 items, 9 axes** (import/loi/change/location/immo/vente/invest/aide/business). Élargi aux ajouts du jour (devises euro-dinar +70% parallèle, IDE, ANADE/ANGEM, tourisme médical, agro…). SW v92.
+
 ### 2026-06-15 (suite) — Opportunités : onglet dédié + analyse multi-axes ⭐
 > Commit `cbdc749`. Déployé Railway + gh-pages (SW v89→v90).
 - **Tuile OPPORTUNITÉS** ajoutée dans "Plus d'outils" (`Phone.tsx` TABS + Page + route) → `OpportunitiesScreen.tsx` dédié (avant : caché dans 3e onglet d'ACHAT, dur à trouver).
