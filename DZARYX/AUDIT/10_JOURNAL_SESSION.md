@@ -85,6 +85,13 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-15 (suite) — Opportunités : onglet dédié + analyse multi-axes ⭐
+> Commit `cbdc749`. Déployé Railway + gh-pages (SW v89→v90).
+- **Tuile OPPORTUNITÉS** ajoutée dans "Plus d'outils" (`Phone.tsx` TABS + Page + route) → `OpportunitiesScreen.tsx` dédié (avant : caché dans 3e onglet d'ACHAT, dur à trouver).
+- Écran : Hero, synthèse + Actualiser, **filtres par axe** (Tout/Location/Achat-Revente/Immo/Import/Business/Lois) avec compteurs, cartes cliquables → modal lecture complète.
+- **Analyse élargie** (`opportunities.ts`) : plus seulement l'auto. Prompt couvre location, achat/revente, **immobilier**, import, lois, **autre potentiel business** Oran. 8-12 items multi-axes. Catégories `location|vente|import|immo|business|loi|marche`, cache `v1→v2`.
+- DealsScreen onglet Opportunités gardé (OPP_META synchro nouvelles catégories).
+
 ### 2026-06-15 — Opportunités : quotidien dans l'app + digest hebdo sur le chat ⭐
 > Backend `ibrahim` (commits `4b14406`, `e2fed74`) + simulateur (gh-pages). Demande Kouider : voir les opportunités TOUS LES JOURS dans l'onglet, mais notif chat 1×/semaine avec l'important.
 - **Bug ressenti "marche pas"** : 1ʳᵉ ouverture sans cache → web search Claude ~30-40s, spinner infini si lent/échec, aucun feedback. Fix : états erreur/vide explicites + bouton **Réessayer** (`DealsScreen.tsx`).
