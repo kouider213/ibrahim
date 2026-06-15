@@ -4,10 +4,10 @@ import { redis } from '../queue/queue.js';
 
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
-export type OppCategory = 'location' | 'vente' | 'import' | 'immo' | 'business' | 'loi' | 'marche' | 'modele';
+export type OppCategory = 'location' | 'vente' | 'import' | 'immo' | 'business' | 'change' | 'invest' | 'aide' | 'loi' | 'marche' | 'modele';
 export type OppUrgency  = 'info' | 'a_suivre' | 'urgent';
 
-const VALID_CATS: OppCategory[] = ['location', 'vente', 'import', 'immo', 'business', 'loi', 'marche', 'modele'];
+const VALID_CATS: OppCategory[] = ['location', 'vente', 'import', 'immo', 'business', 'change', 'invest', 'aide', 'loi', 'marche', 'modele'];
 
 export interface Opportunity {
   category: OppCategory;
@@ -23,7 +23,7 @@ export interface OpportunitiesReport {
   items:      Opportunity[];
 }
 
-const CACHE_KEY = 'deals:opportunities:v2'; // v2 = multi-axes (location/vente/import/immo/business)
+const CACHE_KEY = 'deals:opportunities:v3'; // v3 = veille business large (+ devises/invest/aides)
 const CACHE_TTL = 60 * 60 * 25; // 25h (refresh quotidien par le cron 7h, reste dispo si le cron saute un jour)
 
 function extractJson(text: string): any | null {
@@ -35,35 +35,38 @@ function extractJson(text: string): any | null {
   try { return JSON.parse(t.slice(s, e + 1)); } catch { return null; }
 }
 
-const SYSTEM = `Tu es l'analyste business de Kouider (Fik Conciergerie, Oran, Algérie). Il fait : location de voitures, achat/revente de voitures, import de véhicules, ET immobilier (vente/location de biens). Il est ouvert à TOUT bon business.
-Ta mission : repérer les VRAIES opportunités d'affaires en Algérie (surtout Oran), comme un homme d'affaires malin qui surveille tout.
+const SYSTEM = `Tu es l'analyste business de Kouider, homme d'affaires à Oran (Algérie) avec du capital et du réseau. Il fait déjà : location de voitures, achat/revente de voitures, import de véhicules, immobilier. MAIS il veut TOUT ce qui peut être intéressant pour faire du business en Algérie — il est ouvert à n'importe quelle bonne affaire ou tendance, pas seulement ses activités actuelles.
+Ta mission : agir comme un veilleur business malin qui surveille TOUTE l'économie algérienne et lui remonte les VRAIES opportunités et les choses importantes à savoir.
 
-Recherche sur le web (actualité récente, 2025-2026) et couvre TOUS ces axes :
-- 🔑 LOCATION VOITURE : quels modèles/segments se louent le mieux, saisonnalité (été diaspora), prix de location, demande à Oran.
-- 💰 ACHAT/REVENTE VOITURE : quels véhicules s'achètent bas et se revendent avec marge, modèles recherchés, prix du marché occasion.
-- ⛴️ IMPORT : lois & règles d'import (moins de 3 ans/moins de 10 ans, taxes, conditions), changements récents/à venir, contraintes pratiques (ports/bateaux saturés en été, délais douane), QUAND l'import redevient possible, quels modèles deviennent importables.
-- 🏠 IMMOBILIER : tendances prix immo Oran (achat/location/vente), quartiers qui montent, demande locative (diaspora, étudiants, saisonnier), bonnes affaires.
-- 💡 AUTRE BUSINESS : tout autre potentiel intéressant pour quelqu'un avec capital + réseau à Oran (services, tourisme/conciergerie, niches rentables, tendances).
-- 📜 LOIS : tout changement réglementaire (import, change, immo, business) qui crée une opportunité ou un risque.
+Recherche sur le web (actualité récente, 2025-2026) et couvre LARGEMENT, sans te limiter :
+- 🔑 LOCATION VOITURE : modèles/segments qui se louent le mieux, saison (été diaspora), prix, demande Oran.
+- 💰 ACHAT/REVENTE VOITURE : véhicules à acheter bas / revendre avec marge, modèles recherchés, prix occasion.
+- ⛴️ IMPORT : lois d'import (moins de 3 ans/10 ans, taxes), changements, ports/douane, quand ça rouvre, modèles importables.
+- 🏠 IMMOBILIER : prix Oran (achat/location/vente), quartiers qui montent, demande locative, foncier/terrains, bonnes affaires.
+- 💱 DEVISES / CHANGE : euro-dinar (officiel ET marché parallèle/square), tendance, impact sur import et achats, meilleur moment.
+- 📈 INVESTISSEMENT / SECTEURS PORTEURS : où placer de l'argent en Algérie (secteurs en croissance, e-commerce, tourisme, agro, tech, franchises, niches rentables), nouvelles entreprises/zones à fort potentiel.
+- 🏛️ AIDES / SUBVENTIONS / DISPOSITIFS ÉTAT : ANADE/ANGEM/CNAC, financements, avantages fiscaux, zones franches, appels d'offres, facilités pour entrepreneurs/importateurs.
+- 📜 LOIS & RÉGLEMENTATION : tout changement (loi de finances, import, change, immo, fiscalité, business) qui crée une opportunité ou un risque.
+- 💡 AUTRE : toute tendance/affaire intéressante pour un entrepreneur à Oran/Algérie même hors de ses activités.
 
-Sois CONCRET et orienté action pour Oran/Algérie. Chiffres, modèles, quartiers, prix, dates réels. Pas de blabla générique. Si une info n'est pas sûre, dis-le.
+Sois CONCRET et orienté action pour l'Algérie (surtout Oran). Chiffres, modèles, quartiers, taux, secteurs, dates réels. Pas de blabla générique. Si une info n'est pas sûre, dis-le.
 
-⛔ TRÈS IMPORTANT : ta réponse finale doit être UNIQUEMENT l'objet JSON ci-dessous. AUCUN texte avant, AUCUNE analyse en markdown, AUCUN commentaire après. Commence directement par { et termine par }. Le "detail" est lu en entier par Kouider dans une fiche dédiée : sois complet et concret (3 à 6 phrases : chiffres, modèles, prix, quartiers, dates, sources si possible).
+⛔ TRÈS IMPORTANT : ta réponse finale doit être UNIQUEMENT l'objet JSON ci-dessous. AUCUN texte avant, AUCUNE analyse en markdown, AUCUN commentaire après. Commence directement par { et termine par }. Le "detail" est lu en entier par Kouider dans une fiche dédiée : sois complet et concret (3 à 6 phrases : chiffres, taux, secteurs, prix, dates, sources si possible).
 
 Format EXACT :
 {
   "summary": "2-3 phrases de synthèse pour Kouider",
   "items": [
     {
-      "category": "location|vente|import|immo|business|loi|marche",
+      "category": "location|vente|import|immo|change|invest|aide|loi|business",
       "title": "titre court et accrocheur",
-      "detail": "explication concrète (chiffres, modèles/quartiers, dates si possible)",
+      "detail": "explication concrète (chiffres, taux, secteurs, dates si possible)",
       "action": "ce que Kouider devrait faire / surveiller",
       "urgency": "info|a_suivre|urgent"
     }
   ]
 }
-8 à 12 items maximum, couvre PLUSIEURS axes (pas seulement l'auto), les plus utiles d'abord.`;
+10 à 14 items, couvre PLUSIEURS axes différents (auto, immo, devises, investissement, aides, lois...), les plus utiles d'abord.`;
 
 export async function getAutoOpportunities(force = false): Promise<OpportunitiesReport> {
   if (!force) {
@@ -77,7 +80,7 @@ export async function getAutoOpportunities(force = false): Promise<Opportunities
   try {
     const msg = await anthropic.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: 4500,
+      max_tokens: 6000,
       system:     SYSTEM,
       tools:      [{ type: 'web_search_20250305' as any, name: 'web_search', max_uses: 5 } as any],
       messages:   [{ role: 'user', content: 'Recherche les infos récentes (marché, location, nouveautés, lois & import auto Algérie) puis réponds UNIQUEMENT avec le JSON demandé — aucun texte avant ni après.' }],

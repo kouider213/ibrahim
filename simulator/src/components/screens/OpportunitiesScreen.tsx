@@ -14,6 +14,9 @@ const OPP_META: Record<string, { icon: string; label: string }> = {
   vente:    { icon: '💰', label: 'Achat/Revente' },
   import:   { icon: '⛴️', label: 'Import' },
   immo:     { icon: '🏠', label: 'Immobilier' },
+  change:   { icon: '💱', label: 'Devises' },
+  invest:   { icon: '📈', label: 'Investissement' },
+  aide:     { icon: '🏛️', label: 'Aides État' },
   business: { icon: '💡', label: 'Business' },
   loi:      { icon: '📜', label: 'Loi' },
   marche:   { icon: '📊', label: 'Marché' },
@@ -29,6 +32,9 @@ const FILTERS: Array<{ id: string; label: string }> = [
   { id: 'vente',    label: '💰 Achat/Revente' },
   { id: 'immo',     label: '🏠 Immo' },
   { id: 'import',   label: '⛴️ Import' },
+  { id: 'change',   label: '💱 Devises' },
+  { id: 'invest',   label: '📈 Investir' },
+  { id: 'aide',     label: '🏛️ Aides' },
   { id: 'business', label: '💡 Business' },
   { id: 'loi',      label: '📜 Lois' },
 ];
@@ -52,7 +58,7 @@ export default function OpportunitiesScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
-      <Hero eyebrow="Dzaryx · Veille" title="Opportunités" accent={C.gold} subtitle="Location · achat/revente · immo · import · business — Oran/Algérie" />
+      <Hero eyebrow="Dzaryx · Veille" title="Opportunités" accent={C.gold} subtitle="Tout le business algérien : auto · immo · devises · investissement · aides · lois" />
 
       {/* Carte synthèse + actualiser */}
       <div style={{ margin: '0 18px 12px', background: `linear-gradient(135deg, ${C.gold}1c, ${C.surface})`, border: `1px solid ${C.border}`, borderRadius: 18, padding: 16 }}>
@@ -61,7 +67,7 @@ export default function OpportunitiesScreen() {
           <button onClick={() => void load(true)} disabled={loading} style={{ border: `1px solid ${C.border}`, background: C.surface2, color: C.goldSoft, borderRadius: 10, padding: '6px 12px', fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>{loading ? '…' : '↻ Actualiser'}</button>
         </div>
         <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
-          {opps?.summary || 'Dzaryx surveille chaque jour le marché algérien : location, achat/revente, immobilier, import, lois & autres affaires. Touche une opportunité pour la lire en entier.'}
+          {opps?.summary || 'Dzaryx surveille chaque jour TOUT le business algérien : auto, immobilier, devises (euro/dinar), investissement, aides de l\'État, lois & toute affaire intéressante. Touche une opportunité pour la lire en entier.'}
         </div>
         {opps?.updated_at && <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
       </div>
