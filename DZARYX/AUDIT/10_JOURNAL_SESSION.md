@@ -85,6 +85,11 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-15 (+2) — Opportunités : notif urgentes + "Demander à Dzaryx" ⭐
+> Commit `1566b6c`. Déployé Railway + gh-pages (SW v93).
+- **Notif push urgentes** : `jobOpportunitiesRefresh` (quotidien) notifie SEULEMENT les NOUVELLES urgentes (dédup redis `deals:opp:notified:v1`, pas de spam). Deep-link → écran `opportunities`. Digest hebdo aussi re-pointé sur `opportunities`.
+- **Bouton "🤖 Demander à Dzaryx d'approfondir"** sur chaque opportunité (modal) → stash `localStorage dz:ask_prompt` + nav vers chat ; `TextScreen` consomme au montage + auto-envoie un prompt d'analyse (titre+detail+action+contexte business Kouider).
+
 ### 2026-06-15 (fix) — Opportunités : endpoint non-bloquant (écran gelé) ⭐
 > Commit `634ad79`. Cause racine trouvée + corrigée + vérifiée live.
 - **Symptôme** : écran bloqué sur "Dzaryx analyse le marché…". **Cause** : `GET /api/deals/opportunities` faisait le web search Claude EN SYNCHRONE (≥90s, `curl` timeout HTTP 000). Front sans timeout → gel infini.
