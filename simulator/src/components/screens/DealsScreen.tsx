@@ -216,8 +216,8 @@ export default function DealsScreen() {
             {opps?.updated_at && <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
           </div>
 
-          {oppLoading && !opps ? (
-            <Empty t="Dzaryx analyse le marché… (jusqu'à ~40s la 1ʳᵉ fois)" />
+          {(oppLoading && !opps) || opps?.pending ? (
+            <Empty t="Dzaryx analyse le marché… (~1 min la 1ʳᵉ fois, reviens via Actualiser)" />
           ) : oppErr && !opps ? (
             <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>
               <div style={{ marginBottom: 12 }}>⚠️ Analyse indisponible (réseau ou serveur lent).</div>

@@ -21,6 +21,7 @@ export interface OpportunitiesReport {
   updated_at: string;
   summary:    string;
   items:      Opportunity[];
+  pending?:   boolean; // true = analyse en cours en arrière-plan, rien encore en cache
 }
 
 const CACHE_KEY = 'deals:opportunities:v3'; // v3 = veille business large (+ devises/invest/aides)
@@ -68,45 +69,74 @@ Format EXACT :
 }
 10 à 14 items, couvre PLUSIEURS axes différents (auto, immo, devises, investissement, aides, lois...), les plus utiles d'abord.`;
 
-export async function getAutoOpportunities(force = false): Promise<OpportunitiesReport> {
-  if (!force) {
-    try {
-      const cached = await redis.get(CACHE_KEY);
-      if (cached) return JSON.parse(cached) as OpportunitiesReport;
-    } catch { /* ignore */ }
-  }
-
-  let text = '';
+async function readCache(): Promise<OpportunitiesReport | null> {
   try {
-    const msg = await anthropic.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 6000,
-      system:     SYSTEM,
-      tools:      [{ type: 'web_search_20250305' as any, name: 'web_search', max_uses: 5 } as any],
-      messages:   [{ role: 'user', content: 'Recherche les infos récentes (marché, location, nouveautés, lois & import auto Algérie) puis réponds UNIQUEMENT avec le JSON demandé — aucun texte avant ni après.' }],
-    });
-    text = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('\n');
-  } catch (e) {
-    console.error('[opportunities] anthropic error:', e);
-  }
+    const cached = await redis.get(CACHE_KEY);
+    if (cached) return JSON.parse(cached) as OpportunitiesReport;
+  } catch { /* ignore */ }
+  return null;
+}
 
-  const parsed = extractJson(text);
-  const items: Opportunity[] = Array.isArray(parsed?.items) ? parsed.items.map((o: any) => ({
-    category: VALID_CATS.includes(o?.category) ? o.category : 'marche',
-    title:    String(o?.title ?? 'Opportunité'),
-    detail:   String(o?.detail ?? ''),
-    action:   String(o?.action ?? ''),
-    urgency:  ['info', 'a_suivre', 'urgent'].includes(o?.urgency) ? o.urgency : 'info',
-  })) : [];
+let _inFlight: Promise<OpportunitiesReport> | null = null;
 
-  const report: OpportunitiesReport = {
+// Génération RÉELLE (lente : web search ~30-90s). Écrit le cache. Awaitée par les crons.
+export async function generateOpportunities(): Promise<OpportunitiesReport> {
+  if (_inFlight) return _inFlight;
+  _inFlight = (async () => {
+    let text = '';
+    try {
+      const msg = await anthropic.messages.create({
+        model:      'claude-sonnet-4-6',
+        max_tokens: 6000,
+        system:     SYSTEM,
+        tools:      [{ type: 'web_search_20250305' as any, name: 'web_search', max_uses: 5 } as any],
+        messages:   [{ role: 'user', content: 'Recherche les infos récentes (auto, immo, devises euro/dinar, investissement, aides État, lois — business Algérie/Oran) puis réponds UNIQUEMENT avec le JSON demandé — aucun texte avant ni après.' }],
+      });
+      text = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('\n');
+    } catch (e) {
+      console.error('[opportunities] anthropic error:', e);
+    }
+
+    const parsed = extractJson(text);
+    const items: Opportunity[] = Array.isArray(parsed?.items) ? parsed.items.map((o: any) => ({
+      category: VALID_CATS.includes(o?.category) ? o.category : 'marche',
+      title:    String(o?.title ?? 'Opportunité'),
+      detail:   String(o?.detail ?? ''),
+      action:   String(o?.action ?? ''),
+      urgency:  ['info', 'a_suivre', 'urgent'].includes(o?.urgency) ? o.urgency : 'info',
+    })) : [];
+
+    const report: OpportunitiesReport = {
+      updated_at: new Date().toISOString(),
+      summary:    String(parsed?.summary ?? (items.length ? '' : 'Analyse indisponible pour le moment, réessaie.')),
+      items,
+    };
+
+    if (items.length) {
+      try { await redis.set(CACHE_KEY, JSON.stringify(report), 'EX', CACHE_TTL); } catch { /* ignore */ }
+    }
+    return report;
+  })();
+  try { return await _inFlight; } finally { _inFlight = null; }
+}
+
+// Pour l'API : NON-BLOQUANT. Sert le cache tout de suite ; lance la génération en arrière-plan
+// si besoin (force, ou cache vide) sans faire attendre l'utilisateur.
+export async function getAutoOpportunities(force = false): Promise<OpportunitiesReport> {
+  const cached = await readCache();
+  if (cached && !force) return cached;
+
+  // Déclenche la génération en arrière-plan (fire-and-forget, dédupliquée par _inFlight)
+  if (!_inFlight) { void generateOpportunities().catch(() => { /* loggé dedans */ }); }
+
+  // Cache présent (même périmé) → on le renvoie pendant que ça rafraîchit
+  if (cached) return cached;
+
+  // Rien en cache → réponse "en cours" immédiate (l'app re-tentera)
+  return {
     updated_at: new Date().toISOString(),
-    summary:    String(parsed?.summary ?? (items.length ? '' : 'Analyse indisponible pour le moment, réessaie.')),
-    items,
+    summary:    'Dzaryx analyse le marché algérien en ce moment… reviens dans environ 1 minute (Actualiser).',
+    items:      [],
+    pending:    true,
   };
-
-  if (items.length) {
-    try { await redis.set(CACHE_KEY, JSON.stringify(report), 'EX', CACHE_TTL); } catch { /* ignore */ }
-  }
-  return report;
 }

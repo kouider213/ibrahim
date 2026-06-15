@@ -16,7 +16,7 @@ import { getOranWeather } from '../../integrations/web-search.js';
 import { chat } from '../../integrations/claude-api.js';
 import axios from 'axios';
 import { runTikTokMarketResearch } from '../../marketing/market-research.js';
-import { getAutoOpportunities } from '../../integrations/opportunities.js';
+import { generateOpportunities } from '../../integrations/opportunities.js';
 import { createMarketingVideo } from '../../marketing/video-creator.js';
 import { savePendingVideo } from '../../marketing/approval-store.js';
 import type { Car } from '../../integrations/supabase.js';
@@ -2042,7 +2042,7 @@ export async function jobMonthlyExcel(_job: Job): Promise<void> {
 // Garde l'onglet Opportunités frais chaque jour SANS notifier (pas de spam).
 export async function jobOpportunitiesRefresh(_job: Job): Promise<void> {
   try {
-    const report = await getAutoOpportunities(true); // force refresh → remplit le cache
+    const report = await generateOpportunities(); // bloquant → remplit le cache
     console.log(`[job:opportunities-refresh] ✅ cache prêt (${report.items.length} items, aucune notif)`);
   } catch (err) {
     console.error('[job:opportunities-refresh] ❌', err instanceof Error ? err.message : String(err));
@@ -2053,7 +2053,7 @@ export async function jobOpportunitiesRefresh(_job: Job): Promise<void> {
 // Envoie sur le chat l'important de la semaine (urgents en priorité, sinon top items).
 export async function jobOpportunitiesWatch(_job: Job): Promise<void> {
   try {
-    const report = await getAutoOpportunities(true); // force refresh
+    const report = await generateOpportunities(); // bloquant → digest
     if (!report.items.length) {
       console.log('[job:opportunities-watch] aucun item');
       return;

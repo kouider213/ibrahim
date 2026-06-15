@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { business, type OpportunitiesReport, type Opportunity } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 
@@ -45,13 +45,28 @@ export default function OpportunitiesScreen() {
   const [err, setErr] = useState(false);
   const [filter, setFilter] = useState('all');
   const [sel, setSel] = useState<Opportunity | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tries = useRef(0);
 
   const load = async (force = false) => {
     setLoading(true); setErr(false);
-    try { setOpps(await business.fetchOpportunities(force)); }
-    catch { setErr(true); } finally { setLoading(false); }
+    try {
+      const r = await business.fetchOpportunities(force);
+      setOpps(r);
+      // Analyse en cours côté serveur (1ʳᵉ fois, pas de cache) → re-tente automatiquement
+      if (pollRef.current) clearTimeout(pollRef.current);
+      if (r.pending && tries.current < 8) {
+        tries.current += 1;
+        pollRef.current = setTimeout(() => void load(false), 12000);
+      } else {
+        tries.current = 0;
+      }
+    } catch { setErr(true); } finally { setLoading(false); }
   };
-  useEffect(() => { void load(false); }, []);
+  useEffect(() => {
+    void load(false);
+    return () => { if (pollRef.current) clearTimeout(pollRef.current); };
+  }, []);
 
   const items = opps?.items ?? [];
   const shown = filter === 'all' ? items : items.filter(o => o.category === filter);
@@ -87,8 +102,12 @@ export default function OpportunitiesScreen() {
 
       {/* Liste */}
       <div style={{ padding: '0 18px 24px' }}>
-        {loading && !opps ? (
-          <Empty t="Dzaryx analyse le marché… (jusqu'à ~40s la 1ʳᵉ fois)" />
+        {(loading && !opps) || opps?.pending ? (
+          <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 30, marginBottom: 10 }}>🔎</div>
+            <div style={{ fontWeight: 600, color: C.text, marginBottom: 4 }}>Dzaryx analyse le marché algérien…</div>
+            <div>La 1ʳᵉ analyse prend ~1 minute. La page se remplit toute seule, reste ici.</div>
+          </div>
         ) : err && !opps ? (
           <div style={{ textAlign: 'center', padding: 24, color: C.muted, fontSize: 13 }}>
             <div style={{ marginBottom: 12 }}>⚠️ Analyse indisponible (réseau ou serveur lent).</div>

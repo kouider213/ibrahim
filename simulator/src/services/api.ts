@@ -618,7 +618,7 @@ export interface Opportunity {
   title: string; detail: string; action: string;
   urgency: 'info' | 'a_suivre' | 'urgent';
 }
-export interface OpportunitiesReport { updated_at: string; summary: string; items: Opportunity[]; }
+export interface OpportunitiesReport { updated_at: string; summary: string; items: Opportunity[]; pending?: boolean; }
 
 export interface FleetStat { car_name: string; available_now: boolean; occupancy_pct: number; revenue_30d: number; }
 export interface FleetIntel { total_cars: number; available_now_count: number; occupancy_avg_pct: number; stats: FleetStat[]; }
