@@ -85,6 +85,15 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-15 (+3) — SEO conciergerie + décisions Kouider ⭐
+> Site `rental-system` commit `cc3a8fe` (Vercel). + clarifs.
+- **SEO positionnement conciergerie** : title/description accueil + `_app.js` (og/twitter) + `/api/og` (image partage) + JSON-LD `@type AutoRental → [LocalBusiness, AutoRental, RealEstateAgent]`. Avant : tout criait "location de voiture". Contenu accueil déjà OK (hero + 6 pôles rendus). Reste Kouider (optionnel, auto sinon) : re-crawl Search Console + FB sharing debugger + catégories Google Business.
+- **Décisions Kouider 2026-06-15** :
+  - ❌ **Pas de paiement/acompte en ligne** (Stripe/PayPal/Chargily) — frais cassent le €0. Résa WhatsApp, paiement sur place. NE PLUS reproposer. Voir [[no_online_payment]].
+  - ❌ **Chatbot site retiré DÉFINITIF** — dérangeait/chevauchait le bouton WhatsApp. NE PLUS reproposer.
+  - ✅ **Token GitHub `ghp_d8Vch…` RÉVOQUÉ** (confirmé Kouider). Plus une action en attente.
+  - 🟡 **App Play Store** : Kouider le fera ce soir (PC éteint maintenant).
+
 ### 2026-06-15 (+2) — Opportunités : notif urgentes + "Demander à Dzaryx" ⭐
 > Commit `1566b6c`. Déployé Railway + gh-pages (SW v93).
 - **Notif push urgentes** : `jobOpportunitiesRefresh` (quotidien) notifie SEULEMENT les NOUVELLES urgentes (dédup redis `deals:opp:notified:v1`, pas de spam). Deep-link → écran `opportunities`. Digest hebdo aussi re-pointé sur `opportunities`.
