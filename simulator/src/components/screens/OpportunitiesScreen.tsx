@@ -39,7 +39,7 @@ const FILTERS: Array<{ id: string; label: string }> = [
   { id: 'loi',      label: '📜 Lois' },
 ];
 
-export default function OpportunitiesScreen() {
+export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string) => void } = {}) {
   const [opps, setOpps] = useState<OpportunitiesReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(false);
@@ -155,7 +155,10 @@ export default function OpportunitiesScreen() {
                 <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{sel.action}</div>
               </div>
             )}
-            <button onClick={() => setSel(null)} style={{ width: '100%', marginTop: 20, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Fermer</button>
+            {onAsk && (
+              <button onClick={() => { onAsk(buildAskPrompt(sel)); setSel(null); }} style={{ width: '100%', marginTop: 18, padding: 14, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${C.gold}, ${C.goldSoft})`, color: '#fff', fontFamily: C.font, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>🤖 Demander à Dzaryx d'approfondir</button>
+            )}
+            <button onClick={() => setSel(null)} style={{ width: '100%', marginTop: 10, padding: 13, borderRadius: 13, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 14, cursor: 'pointer' }}>Fermer</button>
           </div>
         </div>
       )}
@@ -165,6 +168,11 @@ export default function OpportunitiesScreen() {
 
 function Empty({ t }: { t: string }) {
   return <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>{t}</div>;
+}
+
+function buildAskPrompt(o: Opportunity): string {
+  const cat = OPP_META[o.category]?.label ?? o.category;
+  return `Analyse en profondeur cette opportunité (${cat}) pour mon business à Oran et dis-moi concrètement quoi faire, les chiffres, les risques et les étapes :\n\n"${o.title}"\n${o.detail}${o.action ? `\n\nPiste : ${o.action}` : ''}\n\nContexte : je fais location + achat/revente de voitures, import, et immobilier à Oran, j'ai du capital et du réseau.`;
 }
 
 const card: CSSProperties = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' };

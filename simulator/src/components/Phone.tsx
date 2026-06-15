@@ -203,7 +203,7 @@ export default function Phone() {
       case 'settings':      return <SettingsScreen />;
       case 'immo':          return <ImmoProScreen />;
       case 'deals':         return <DealsScreen />;
-      case 'opportunities': return <OpportunitiesScreen />;
+      case 'opportunities': return <OpportunitiesScreen onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
     }
   };
 

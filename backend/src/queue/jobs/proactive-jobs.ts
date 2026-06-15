@@ -2038,12 +2038,34 @@ export async function jobMonthlyExcel(_job: Job): Promise<void> {
   }
 }
 
-// ── Refresh quotidien SILENCIEUX du cache (7h/jour) ───────────────────────────
-// Garde l'onglet Opportunités frais chaque jour SANS notifier (pas de spam).
+// ── Refresh quotidien du cache (7h/jour) ──────────────────────────────────────
+// Garde l'onglet Opportunités frais chaque jour. Ne notifie QUE pour les NOUVELLES
+// opportunités urgentes (jamais vues) → pas de spam, mais Kouider ne rate rien d'important.
+const OPP_SEEN_KEY = 'deals:opp:notified:v1';
 export async function jobOpportunitiesRefresh(_job: Job): Promise<void> {
   try {
     const report = await generateOpportunities(); // bloquant → remplit le cache
-    console.log(`[job:opportunities-refresh] ✅ cache prêt (${report.items.length} items, aucune notif)`);
+    const urgent = report.items.filter(i => i.urgency === 'urgent');
+
+    // Quelles urgentes ont déjà été notifiées ?
+    let seen: string[] = [];
+    try { const raw = await redis.get(OPP_SEEN_KEY); if (raw) seen = JSON.parse(raw) as string[]; } catch { /* ignore */ }
+    const fresh = urgent.filter(u => !seen.includes(u.title));
+
+    if (fresh.length) {
+      const lines = fresh.slice(0, 4).map(o => `• ${o.title}${o.action ? ` — ${o.action}` : ''}`);
+      const full = `🚨 *Nouvelle${fresh.length > 1 ? 's' : ''} opportunité${fresh.length > 1 ? 's' : ''} urgente${fresh.length > 1 ? 's' : ''}*\n\n${lines.join('\n')}\n\n_Détail dans l'onglet Opportunités._`;
+      const tts = `Kouider, ${fresh.length} nouvelle${fresh.length > 1 ? 's' : ''} opportunité${fresh.length > 1 ? 's' : ''} urgente${fresh.length > 1 ? 's' : ''}. ${fresh[0].title}.`;
+      emitProactive(tts, 'alert', stripTgMd(full), 'kouider', 'opportunities');
+    }
+
+    // Mémorise les urgentes du jour (garde 60 derniers titres pour borner)
+    try {
+      const merged = Array.from(new Set([...urgent.map(u => u.title), ...seen])).slice(0, 60);
+      await redis.set(OPP_SEEN_KEY, JSON.stringify(merged), 'EX', 60 * 60 * 24 * 30);
+    } catch { /* ignore */ }
+
+    console.log(`[job:opportunities-refresh] ✅ cache prêt (${report.items.length} items, ${urgent.length} urgents, ${fresh.length} notifiés)`);
   } catch (err) {
     console.error('[job:opportunities-refresh] ❌', err instanceof Error ? err.message : String(err));
   }
@@ -2061,11 +2083,11 @@ export async function jobOpportunitiesWatch(_job: Job): Promise<void> {
     const urgent = report.items.filter(i => i.urgency === 'urgent');
     const top = (urgent.length ? urgent : report.items).slice(0, 5);
     const lines = top.map(o => `• ${o.title}${o.action ? ` — ${o.action}` : (o.detail ? ` — ${o.detail}` : '')}`);
-    const full = `🔎 *Opportunités marché auto — l'important de la semaine*\n\n${report.summary}\n\n${lines.join('\n')}\n\n_Détail complet dans l'onglet Opportunités._`;
+    const full = `🔎 *Opportunités business — l'important de la semaine*\n\n${report.summary}\n\n${lines.join('\n')}\n\n_Détail complet dans l'onglet Opportunités._`;
     const tts = urgent.length
       ? `Kouider, ${urgent.length} opportunité${urgent.length > 1 ? 's' : ''} importante${urgent.length > 1 ? 's' : ''} cette semaine. ${urgent[0].title}.`
-      : `Veille marché auto de la semaine prête : ${report.items.length} opportunités.`;
-    emitProactive(tts, urgent.length ? 'alert' : 'info', stripTgMd(full), 'kouider', 'deals');
+      : `Veille business de la semaine prête : ${report.items.length} opportunités.`;
+    emitProactive(tts, urgent.length ? 'alert' : 'info', stripTgMd(full), 'kouider', 'opportunities');
     console.log(`[job:opportunities-watch] ✅ digest hebdo envoyé (${report.items.length} items, ${urgent.length} urgents)`);
   } catch (err) {
     console.error('[job:opportunities-watch] ❌', err instanceof Error ? err.message : String(err));

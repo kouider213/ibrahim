@@ -396,6 +396,20 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     void send(cleanMsgText(lastUser.text) || '📷 Photo', imgFromMsg(lastUser));
   }, [msgs, status, send]);
 
+  // Prompt seedé depuis l'onglet Opportunités ("Demander à Dzaryx") → auto-envoi
+  const askConsumed = useRef(false);
+  useEffect(() => {
+    if (askConsumed.current) return;
+    let p: string | null = null;
+    try { p = localStorage.getItem('dz:ask_prompt'); } catch { /* ignore */ }
+    if (p) {
+      askConsumed.current = true;
+      try { localStorage.removeItem('dz:ask_prompt'); } catch { /* ignore */ }
+      const t = setTimeout(() => void send(p as string), 500);
+      return () => clearTimeout(t);
+    }
+  }, [send]);
+
   const col = STATUS_COLOR[status];
 
   return (
