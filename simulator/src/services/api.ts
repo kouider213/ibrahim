@@ -614,7 +614,7 @@ export interface InspectionState {
 
 // ── Opportunités marché auto (Dzaryx + web search) ─────────────────
 export interface Opportunity {
-  category: 'marche' | 'location' | 'import' | 'loi' | 'modele';
+  category: 'location' | 'vente' | 'import' | 'immo' | 'business' | 'loi' | 'marche' | 'modele';
   title: string; detail: string; action: string;
   urgency: 'info' | 'a_suivre' | 'urgent';
 }

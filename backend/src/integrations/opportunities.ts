@@ -4,8 +4,10 @@ import { redis } from '../queue/queue.js';
 
 const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
-export type OppCategory = 'marche' | 'location' | 'import' | 'loi' | 'modele';
+export type OppCategory = 'location' | 'vente' | 'import' | 'immo' | 'business' | 'loi' | 'marche' | 'modele';
 export type OppUrgency  = 'info' | 'a_suivre' | 'urgent';
+
+const VALID_CATS: OppCategory[] = ['location', 'vente', 'import', 'immo', 'business', 'loi', 'marche', 'modele'];
 
 export interface Opportunity {
   category: OppCategory;
@@ -21,7 +23,7 @@ export interface OpportunitiesReport {
   items:      Opportunity[];
 }
 
-const CACHE_KEY = 'deals:opportunities:v1';
+const CACHE_KEY = 'deals:opportunities:v2'; // v2 = multi-axes (location/vente/import/immo/business)
 const CACHE_TTL = 60 * 60 * 25; // 25h (refresh quotidien par le cron 7h, reste dispo si le cron saute un jour)
 
 function extractJson(text: string): any | null {
@@ -33,34 +35,35 @@ function extractJson(text: string): any | null {
   try { return JSON.parse(t.slice(s, e + 1)); } catch { return null; }
 }
 
-const SYSTEM = `Tu es l'analyste business automobile de Kouider (Fik Conciergerie, Oran, Algérie) — location ET achat/revente de voitures + import.
-Ta mission : repérer les VRAIES opportunités du marché auto algérien, comme un homme d'affaires malin qui surveille tout.
+const SYSTEM = `Tu es l'analyste business de Kouider (Fik Conciergerie, Oran, Algérie). Il fait : location de voitures, achat/revente de voitures, import de véhicules, ET immobilier (vente/location de biens). Il est ouvert à TOUT bon business.
+Ta mission : repérer les VRAIES opportunités d'affaires en Algérie (surtout Oran), comme un homme d'affaires malin qui surveille tout.
 
-Recherche sur le web (actualité récente, 2025-2026) et couvre :
-- 🚗 Quels véhicules se vendent/se louent le MIEUX en Algérie en ce moment (modèles, segments, prix).
-- 🆕 Nouveautés / nouveaux modèles qui arrivent, et lesquels sont intéressants pour la location ou la revente.
-- 📜 Lois & règles d'import de véhicules en Algérie (ex: véhicules de moins de 3 ans / moins de 10 ans, taxes, conditions) — et tout CHANGEMENT récent ou à venir.
-- ⛴️ Contraintes pratiques d'import (ex: blocage/saturation des ports/bateaux en été, délais douane) — et à partir de QUAND l'import redevient possible.
-- 💡 Opportunités concrètes : "tel modèle va devenir importable", "bon moment pour acheter X et revendre", etc.
+Recherche sur le web (actualité récente, 2025-2026) et couvre TOUS ces axes :
+- 🔑 LOCATION VOITURE : quels modèles/segments se louent le mieux, saisonnalité (été diaspora), prix de location, demande à Oran.
+- 💰 ACHAT/REVENTE VOITURE : quels véhicules s'achètent bas et se revendent avec marge, modèles recherchés, prix du marché occasion.
+- ⛴️ IMPORT : lois & règles d'import (moins de 3 ans/moins de 10 ans, taxes, conditions), changements récents/à venir, contraintes pratiques (ports/bateaux saturés en été, délais douane), QUAND l'import redevient possible, quels modèles deviennent importables.
+- 🏠 IMMOBILIER : tendances prix immo Oran (achat/location/vente), quartiers qui montent, demande locative (diaspora, étudiants, saisonnier), bonnes affaires.
+- 💡 AUTRE BUSINESS : tout autre potentiel intéressant pour quelqu'un avec capital + réseau à Oran (services, tourisme/conciergerie, niches rentables, tendances).
+- 📜 LOIS : tout changement réglementaire (import, change, immo, business) qui crée une opportunité ou un risque.
 
-Sois CONCRET et orienté action pour Oran/Algérie. Pas de blabla générique. Si une info n'est pas sûre, dis-le.
+Sois CONCRET et orienté action pour Oran/Algérie. Chiffres, modèles, quartiers, prix, dates réels. Pas de blabla générique. Si une info n'est pas sûre, dis-le.
 
-⛔ TRÈS IMPORTANT : ta réponse finale doit être UNIQUEMENT l'objet JSON ci-dessous. AUCUN texte avant, AUCUNE analyse en markdown, AUCUN commentaire après. Commence directement par { et termine par }. Le "detail" est lu en entier par Kouider dans une fiche dédiée : sois complet et concret (3 à 6 phrases : chiffres, modèles, prix, dates, sources si possible).
+⛔ TRÈS IMPORTANT : ta réponse finale doit être UNIQUEMENT l'objet JSON ci-dessous. AUCUN texte avant, AUCUNE analyse en markdown, AUCUN commentaire après. Commence directement par { et termine par }. Le "detail" est lu en entier par Kouider dans une fiche dédiée : sois complet et concret (3 à 6 phrases : chiffres, modèles, prix, quartiers, dates, sources si possible).
 
 Format EXACT :
 {
   "summary": "2-3 phrases de synthèse pour Kouider",
   "items": [
     {
-      "category": "marche|location|import|loi|modele",
+      "category": "location|vente|import|immo|business|loi|marche",
       "title": "titre court et accrocheur",
-      "detail": "explication concrète (chiffres, modèles, dates si possible)",
+      "detail": "explication concrète (chiffres, modèles/quartiers, dates si possible)",
       "action": "ce que Kouider devrait faire / surveiller",
       "urgency": "info|a_suivre|urgent"
     }
   ]
 }
-6 à 9 items maximum, les plus utiles d'abord.`;
+8 à 12 items maximum, couvre PLUSIEURS axes (pas seulement l'auto), les plus utiles d'abord.`;
 
 export async function getAutoOpportunities(force = false): Promise<OpportunitiesReport> {
   if (!force) {
@@ -86,7 +89,7 @@ export async function getAutoOpportunities(force = false): Promise<Opportunities
 
   const parsed = extractJson(text);
   const items: Opportunity[] = Array.isArray(parsed?.items) ? parsed.items.map((o: any) => ({
-    category: ['marche', 'location', 'import', 'loi', 'modele'].includes(o?.category) ? o.category : 'marche',
+    category: VALID_CATS.includes(o?.category) ? o.category : 'marche',
     title:    String(o?.title ?? 'Opportunité'),
     detail:   String(o?.detail ?? ''),
     action:   String(o?.action ?? ''),

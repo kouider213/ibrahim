@@ -3,10 +3,13 @@ import { business, type SaleVehicle, type SiteProperty, type OpportunitiesReport
 import { Hero } from '../ui/Premium.tsx';
 
 const OPP_META: Record<string, { icon: string; label: string }> = {
-  marche:   { icon: '📊', label: 'Marché' },
   location: { icon: '🔑', label: 'Location' },
+  vente:    { icon: '💰', label: 'Achat/Revente' },
   import:   { icon: '⛴️', label: 'Import' },
+  immo:     { icon: '🏠', label: 'Immobilier' },
+  business: { icon: '💡', label: 'Business' },
   loi:      { icon: '📜', label: 'Loi' },
+  marche:   { icon: '📊', label: 'Marché' },
   modele:   { icon: '🆕', label: 'Nouveauté' },
 };
 const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#10b981', info: '#9b9ba6' };

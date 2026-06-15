@@ -10,6 +10,7 @@ import SettingsScreen from './screens/SettingsScreen.tsx';
 import CalendarScreen from './screens/CalendarScreen.tsx';
 import ImmoProScreen from './screens/ImmoProScreen.tsx';
 import DealsScreen from './screens/DealsScreen.tsx';
+import OpportunitiesScreen from './screens/OpportunitiesScreen.tsx';
 import DemandesScreen from './screens/DemandesScreen.tsx';
 import NewsletterScreen from './screens/NewsletterScreen.tsx';
 import CaisseScreen from './screens/CaisseScreen.tsx';
@@ -30,7 +31,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -57,6 +58,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'bookings',      icon: '📋', label: 'LOCATIONS', group: 'tool' },
   { id: 'immo',          icon: '🏠', label: 'IMMO',    group: 'tool' },
   { id: 'deals',         icon: '🔁', label: 'ACHAT',   group: 'tool' },
+  { id: 'opportunities', icon: '💡', label: 'OPPORTUNITÉS', kouiderOnly: true, group: 'tool' },
   { id: 'calendar',      icon: '📅', label: 'AGENDA',  group: 'tool' },
   { id: 'caisse',        icon: '🧾', label: 'CAISSE',  kouiderOnly: true, group: 'tool' },
   { id: 'reviews',       icon: '⭐', label: 'AVIS',    kouiderOnly: true, group: 'tool' },
@@ -201,6 +203,7 @@ export default function Phone() {
       case 'settings':      return <SettingsScreen />;
       case 'immo':          return <ImmoProScreen />;
       case 'deals':         return <DealsScreen />;
+      case 'opportunities': return <OpportunitiesScreen />;
     }
   };
 
