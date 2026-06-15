@@ -85,6 +85,14 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-15 — Opportunités : quotidien dans l'app + digest hebdo sur le chat ⭐
+> Backend `ibrahim` (commits `4b14406`, `e2fed74`) + simulateur (gh-pages). Demande Kouider : voir les opportunités TOUS LES JOURS dans l'onglet, mais notif chat 1×/semaine avec l'important.
+- **Bug ressenti "marche pas"** : 1ʳᵉ ouverture sans cache → web search Claude ~30-40s, spinner infini si lent/échec, aucun feedback. Fix : états erreur/vide explicites + bouton **Réessayer** (`DealsScreen.tsx`).
+- **Lecture complète** : cartes opportunités cliquables → **modal** (detail complet + bloc "À FAIRE"). Carte tronquée 2 lignes + "Lire →". Prompt backend assoupli (detail 3-6 phrases).
+- **Quotidien vs hebdo** (séparé) : cron `opportunities-refresh` 7h/jour = **refresh SILENCIEUX du cache** (onglet frais chaque jour, pas de notif) ; cron `opportunities-watch` samedi 9h = **digest "important de la semaine" sur le chat** (`emitProactive`). Cache TTL 12h→25h. `jobOpportunitiesRefresh` ajouté.
+- tsc backend 0 + simulateur 0. Déployé Railway + gh-pages.
+- **⏭️ Kouider** : fermer/rouvrir l'app à fond (SW v89) pour voir l'onglet maj. La 1ʳᵉ analyse peut prendre ~40s puis c'est instantané (cache).
+
 ### 2026-06-14 (soir 3) — Finitions + vault Obsidian interactif ⭐
 - **Design "wow"** : écran Clients validé → style premium propagé PARTOUT (`ui/Premium.tsx` : Hero, StatCard, SearchPill, OrbIcon, SkeletonCards). Voix/Chat : logo doré → orbe. Bulles chat distinctes.
 - **Petits +** : devis PDF joint au WhatsApp ; réglages notifications par type (Redis `push:prefs`, route `/api/push-token/prefs`) ; **gérer photos** (voir/ajouter/supprimer) sur annonces immo (`ImmoProScreen`) ET vente (`VentePane`) — endpoints `/api/immo/.../photos` GET+DELETE.
