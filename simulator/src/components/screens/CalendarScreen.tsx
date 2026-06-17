@@ -427,6 +427,37 @@ export default function CalendarScreen() {
             </div>
           </div>
         )}
+
+        {/* Réservations du mois (vue mois, aucun jour sélectionné) */}
+        {!loading && !selected && (() => {
+          const pfx = `${year}-${String(month + 1).padStart(2, '0')}`;
+          const monthBks = bookings
+            .filter(b => b.status !== 'REJECTED' && (b.start_date.slice(0, 7) === pfx || b.end_date.slice(0, 7) === pfx || (b.start_date <= `${pfx}-31` && b.end_date >= `${pfx}-01`)))
+            .sort((a, b) => a.start_date.localeCompare(b.start_date));
+          if (monthBks.length === 0) return null;
+          return (
+            <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '10px 12px', border: '1px solid #ffffff08' }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff33', letterSpacing: '0.2em', marginBottom: 8 }}>
+                RÉSERVATIONS DU MOIS ({monthBks.length})
+              </div>
+              {monthBks.map(b => {
+                const col = STATUS_COL[b.status] ?? '#ffffff44';
+                return (
+                  <div key={b.id} onClick={() => setSelected(b.start_date.slice(0, 10))} style={{ padding: '7px 9px', borderRadius: 8, marginBottom: 5, background: `${col}08`, border: `1px solid ${col}22`, cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <span style={{ fontSize: 5, color: SOURCE_COL.fik, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', background: `${SOURCE_COL.fik}18`, padding: '1px 4px', borderRadius: 3 }}>RÉSA</span>
+                      <span style={{ fontSize: 9, color: '#e8f4ff', fontWeight: 600 }}>{b.client_name}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 6, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', background: `${col}18`, padding: '2px 5px', borderRadius: 4 }}>{b.status}</span>
+                    </div>
+                    <div style={{ fontSize: 7, color: '#ffffff44' }}>
+                      {b.cars?.name ?? '—'} · {b.start_date.slice(5)} → {b.end_date.slice(5)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Toast */}
