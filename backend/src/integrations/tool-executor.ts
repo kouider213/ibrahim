@@ -894,11 +894,41 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
     await supabase.storage.from('client-documents').upload(path, buffer, { contentType: mimeHint || 'image/jpeg', upsert: false });
     const fileUrl = supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl;
     const { error } = await supabase.from('client_documents').insert({
-      client_name: nom, type: docType, file_url: fileUrl ?? null, extracted_data: data,
+      // type en ANGLAIS ('passport'/'license') pour rester cohérent avec le reste + la récup.
+      client_name: nom, type: isPermis ? 'license' : 'passport', file_url: fileUrl ?? null, extracted_data: data,
     });
     if (!error) savedToFile = true;
   } catch (e) {
     console.warn('[scanIdentity] persist dossier client échoué:', e);
+  }
+
+  // Lie le passeport à la RÉSERVATION du client (n° + expiration) — best-effort.
+  // Gère l'ordre prénom/nom inversé (ex: scan "MORALD BOUFRAINE" vs résa "Boufraine Morald").
+  let linkedToBooking = false;
+  if (!isPermis && permisNo) {
+    try {
+      const words = String(nom).split(/\s+/).filter(w => w.length >= 3);
+      if (words.length) {
+        const orFilter = words.map(w => `client_name.ilike.*${w}*`).join(',');
+        const expIso = expD ? `${expD.getFullYear()}-${String(expD.getMonth() + 1).padStart(2, '0')}-${String(expD.getDate()).padStart(2, '0')}` : null;
+        const { data: matches } = await supabase
+          .from('bookings')
+          .select('id, client_name, start_date')
+          .or(orFilter)
+          .order('start_date', { ascending: false })
+          .limit(1);
+        const bkId = (matches as { id: string }[] | null)?.[0]?.id;
+        if (bkId) {
+          const { error: upErr } = await supabase
+            .from('bookings')
+            .update({ client_passport: permisNo, passport_expiry: expIso })
+            .eq('id', bkId);
+          if (!upErr) linkedToBooking = true;
+        }
+      }
+    } catch (e) {
+      console.warn('[scanIdentity] lien résa échoué:', e);
+    }
   }
 
   const ageLine = age == null ? '• Âge: illisible ⚠️ (vérifie manuellement le minimum 35 ans)'
@@ -914,6 +944,7 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
     permisNo ? `• N° ${isPermis ? 'permis' : 'document'}: ${permisNo}` : '',
     data['nationalité'] || data['nationalite'] ? `• Nationalité: ${data['nationalité'] ?? data['nationalite']}` : '',
     savedToFile ? `📁 Enregistré dans le dossier de ${nom} (DOCS).` : '',
+    linkedToBooking ? `🔗 Passeport rattaché à la réservation de ${nom}.` : '',
     ``,
     age != null && age < MIN_AGE
       ? `⛔ Client trop jeune pour l'assurance — je ne crée pas de réservation.`
