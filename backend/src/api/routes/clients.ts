@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { supabase, getClientHistory, getClientDocuments, saveClientDocument } from '../../integrations/supabase.js';
+import { scanIdentity } from '../../integrations/tool-executor.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { updateClientIntelFromBooking } from '../../orchestrator/client-intelligence.js';
 
@@ -349,6 +350,34 @@ router.post('/documents', requireMobileAuth, async (req, res) => {
       notes:        parsed.data.notes,
     });
     res.json({ doc });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/clients/scan-document — scanne une pièce (OCR) + l'enregistre dans le
+// dossier du client ET la rattache à sa réservation (n° passeport sur la résa).
+// Permet d'ajouter un passeport DIRECTEMENT depuis la fiche client, sans le chat.
+const scanDocSchema = z.object({
+  base64:      z.string().min(100),
+  mime:        z.string().optional(),
+  isPermis:    z.boolean().optional(),
+  clientName:  z.string().optional(),
+  clientPhone: z.string().optional(),
+});
+router.post('/scan-document', requireMobileAuth, async (req, res) => {
+  const parsed = scanDocSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    return;
+  }
+  try {
+    const buf = Buffer.from(parsed.data.base64, 'base64');
+    const text = await scanIdentity(
+      buf, parsed.data.mime ?? 'image/jpeg', !!parsed.data.isPermis, undefined,
+      { clientName: parsed.data.clientName, clientPhone: parsed.data.clientPhone },
+    );
+    res.json({ text });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

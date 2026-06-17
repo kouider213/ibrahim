@@ -869,7 +869,10 @@ const MIN_AGE = 35;  // assurance Fik Conciergerie
  * Scan d'une pièce (passeport/permis) → extraction + âge + contrôle assurance + validité.
  * Renvoie un résumé lisible prêt à afficher, et met les infos en cache session pour la résa.
  */
-export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: boolean, sessionId?: string): Promise<string> {
+export async function scanIdentity(
+  buffer: Buffer, mimeHint: string, isPermis: boolean, sessionId?: string,
+  opts: { clientName?: string; clientPhone?: string } = {},
+): Promise<string> {
   const docType = isPermis ? 'permis' : 'passeport';
   const data = await ocrDocumentBuffer(buffer, docType, mimeHint.includes('png') ? '.png' : '.jpg');
   if (!data) return '❌ Lecture du document impossible — reprends la photo bien nette, à plat, sans reflet.';
@@ -900,10 +903,14 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
   } catch (e) {
     console.warn('[scanIdentity] upload photo exception:', e);
   }
+  // Si scan lancé depuis une fiche client précise, on stocke sous SON nom + téléphone
+  // (sinon la fiche /api/clients/:phone ne retrouve pas le doc, qui n'a pas de phone).
+  const docClientName = opts.clientName?.trim() || nom;
   try {
     const { error } = await supabase.from('client_documents').insert({
       // type en ANGLAIS ('passport'/'license') pour rester cohérent avec le reste + la récup.
-      client_name: nom, type: isPermis ? 'license' : 'passport', file_url: fileUrl, extracted_data: data,
+      client_name: docClientName, client_phone: opts.clientPhone ?? null,
+      type: isPermis ? 'license' : 'passport', file_url: fileUrl, extracted_data: data,
     });
     if (error) console.warn('[scanIdentity] insert client_documents échoué:', error.message);
     else savedToFile = true;
@@ -916,16 +923,18 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
   let linkedToBooking = false;
   if (!isPermis && permisNo) {
     try {
-      const words = String(nom).split(/\s+/).filter(w => w.length >= 3);
-      if (words.length) {
-        const orFilter = words.map(w => `client_name.ilike.*${w}*`).join(',');
-        const expIso = expD ? `${expD.getFullYear()}-${String(expD.getMonth() + 1).padStart(2, '0')}-${String(expD.getDate()).padStart(2, '0')}` : null;
-        const { data: matches } = await supabase
-          .from('bookings')
-          .select('id, client_name, start_date')
-          .or(orFilter)
-          .order('start_date', { ascending: false })
-          .limit(1);
+      const expIso = expD ? `${expD.getFullYear()}-${String(expD.getMonth() + 1).padStart(2, '0')}-${String(expD.getDate()).padStart(2, '0')}` : null;
+      // Priorité : téléphone exact > nom du client de la fiche > nom OCR (mots ≥3).
+      let q = supabase.from('bookings').select('id, client_name, start_date');
+      if (opts.clientPhone) {
+        q = q.eq('client_phone', opts.clientPhone);
+      } else {
+        const words = String(opts.clientName?.trim() || nom).split(/\s+/).filter(w => w.length >= 3);
+        if (!words.length) throw new Error('no name words');
+        q = q.or(words.map(w => `client_name.ilike.*${w}*`).join(','));
+      }
+      const { data: matches } = await q.order('start_date', { ascending: false }).limit(1);
+      {
         const bkId = (matches as { id: string }[] | null)?.[0]?.id;
         if (bkId) {
           const { error: upErr } = await supabase

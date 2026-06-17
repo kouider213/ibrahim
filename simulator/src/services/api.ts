@@ -792,6 +792,13 @@ export const business = {
   fetchClientDetail: (phone: string) =>
     apiFetch<ClientDetail>(`/api/clients/${encodeURIComponent(phone)}`),
 
+  // Scanne une pièce (passeport/permis) + l'enregistre sur le client ET sa réservation.
+  scanClientDocument: (base64: string, opts: { mime?: string; isPermis?: boolean; clientName?: string; clientPhone?: string } = {}) =>
+    apiFetch<{ text: string }>('/api/clients/scan-document', {
+      method: 'POST',
+      body: JSON.stringify({ base64, ...opts }),
+    }),
+
   // Newsletter (envoi via le site / Resend)
   newsletterStats: () =>
     apiFetch<{ active: number }>('/api/newsletter/stats'),

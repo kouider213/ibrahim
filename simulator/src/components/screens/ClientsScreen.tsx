@@ -72,6 +72,36 @@ export default function ClientsScreen() {
   };
   useEffect(() => { void load(); }, []);
 
+  const [scanning, setScanning] = useState<string | null>(null);
+  const [toast, setToast]       = useState<string | null>(null);
+
+  // Scan d'une pièce depuis la fiche client (sans passer par le chat).
+  const handleScan = async (c: ClientSummary, file: File, isPermis = false) => {
+    setScanning(c.name);
+    try {
+      const dataUrl: string = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result)); r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const b64 = dataUrl.split('base64,')[1] ?? '';
+      const r = await business.scanClientDocument(b64, {
+        mime: file.type || 'image/jpeg', isPermis,
+        clientName: c.name, clientPhone: c.phone ?? undefined,
+      });
+      setToast(r.text.split('\n').slice(0, 2).join(' · ') || 'Document enregistré');
+      if (c.phone) {
+        const d = await business.fetchClientDetail(c.phone);
+        setDetails(m => new Map(m).set(c.phone!, d));
+      }
+    } catch {
+      setToast('❌ Erreur lors du scan');
+    } finally {
+      setScanning(null);
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
   const filtered = clients.filter(c =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone?.includes(search) ?? false)
   );
@@ -82,6 +112,9 @@ export default function ClientsScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, position: 'relative' }}>
+      {toast && (
+        <div style={{ position: 'fixed', left: '50%', bottom: 90, transform: 'translateX(-50%)', zIndex: 200, maxWidth: '90%', background: C.surface2, border: `1px solid ${C.accent}55`, color: C.text, fontSize: 12, padding: '10px 14px', borderRadius: 12, boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>{toast}</div>
+      )}
       {/* Hero */}
       <div style={{ position: 'relative', padding: '24px 18px 16px', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -80, right: -50, width: 240, height: 240, background: `radial-gradient(circle, ${C.accent}26, transparent 70%)`, pointerEvents: 'none' }} />
@@ -236,6 +269,20 @@ export default function ClientsScreen() {
                         </div>
                       </div>
                     )}
+
+                    {/* Ajouter une pièce directement (sans le chat) → scan + rattache à la résa */}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.accent, background: `${C.accent}15`, border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
+                        {scanning === c.name ? '⏳ Lecture…' : '🪪 Ajouter passeport'}
+                        <input type="file" accept="image/*" style={{ display: 'none' }} disabled={scanning === c.name}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) void handleScan(c, f, false); e.currentTarget.value = ''; }} />
+                      </label>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '8px 12px', cursor: scanning === c.name ? 'wait' : 'pointer', opacity: scanning === c.name ? 0.6 : 1 }}>
+                        {scanning === c.name ? '⏳ Lecture…' : '🚘 Ajouter permis'}
+                        <input type="file" accept="image/*" style={{ display: 'none' }} disabled={scanning === c.name}
+                          onChange={e => { const f = e.target.files?.[0]; if (f) void handleScan(c, f, true); e.currentTarget.value = ''; }} />
+                      </label>
+                    </div>
                   </div>
                 );
               })()}
