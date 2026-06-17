@@ -87,6 +87,7 @@ export default function DemandesScreen() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | Demande['source']>('all');
   const [busy, setBusy] = useState('');
+  const [confirmDel, setConfirmDel] = useState('');
   const [toast, setToast] = useState('');
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -150,6 +151,18 @@ export default function DemandesScreen() {
       showToast(okMsg);
       await load();
     } catch (e) { showToast(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(''); }
+  };
+
+  // Suppression depuis l'app — 2 taps (window.confirm bloqué en WebView).
+  const del = async (d: Demande) => {
+    if (confirmDel !== d.id) { setConfirmDel(d.id); setTimeout(() => setConfirmDel(c => c === d.id ? '' : c), 3000); return; }
+    setConfirmDel(''); setBusy(d.id);
+    try {
+      await postJson('/api/demandes/delete', { source: d.source, id: rawId(d.id) });
+      showToast('Supprimé 🗑️');
+      await load();
+    } catch (e) { showToast(e instanceof Error ? e.message : 'Erreur suppression'); }
     finally { setBusy(''); }
   };
 
@@ -272,6 +285,7 @@ export default function DemandesScreen() {
                   <button disabled={!!busy} onClick={() => act(d, 'conclu', 'Lead marqué conclu ✅')} style={{ flex: 1, padding: '8px 6px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#22c55e', fontFamily: 'Inter' }}>✓ Conclu</button>
                 )}
                 <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '8px 6px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>⚙️ Gérer</a>
+                <button disabled={busy === d.id} onClick={() => del(d)} style={{ flex: confirmDel === d.id ? 1.4 : 1, padding: '8px 6px', background: confirmDel === d.id ? 'rgba(239,68,68,0.9)' : 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: confirmDel === d.id ? '#fff' : '#ef4444', fontFamily: 'Inter' }}>{confirmDel === d.id ? '⚠️ Confirmer' : '🗑️ Suppr'}</button>
               </div>
             </div>
           );

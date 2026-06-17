@@ -144,6 +144,21 @@ router.post('/update', requireMobileAuth, async (req, res) => {
   }
 });
 
+// POST /api/demandes/delete — supprimer une demande (lead/dossier/import/réservation) DEPUIS l'app.
+router.post('/delete', requireMobileAuth, async (req, res) => {
+  const { source, id } = (req.body ?? {}) as { source?: string; id?: string };
+  const TABLE: Record<string, string> = { lead: 'client_leads', dossier: 'dossiers', import: 'import_orders', booking: 'bookings' };
+  const table = source ? TABLE[source] : undefined;
+  if (!table || !id) { res.status(400).json({ error: 'source valide + id requis' }); return; }
+  try {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 // POST /api/demandes/create — crée un dossier (achat/immo/pack) ou un import DEPUIS l'app.
 // Proxy vers les APIs du site (génère le ref, notifie Telegram). Retourne ref + id.
 router.post('/create', requireMobileAuth, async (req, res) => {
