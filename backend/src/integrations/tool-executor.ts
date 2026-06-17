@@ -886,20 +886,29 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
   }
 
   // Persiste le document dans le DOSSIER CLIENT (image + données extraites), sous le nom scanné.
+  // Upload et insert SÉPARÉS : si l'upload échoue, on enregistre quand même la fiche
+  // (données OCR + nom) pour que la récup la retrouve, photo ajoutée si dispo.
   let savedToFile = false;
+  let fileUrl: string | null = null;
   try {
     const ext  = mimeHint.includes('png') ? 'png' : 'jpg';
     const path = `ids/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
-    await supabase.storage.from('client-documents').upload(path, buffer, { contentType: mimeHint || 'image/jpeg', upsert: false });
-    const fileUrl = supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl;
+    const { error: upErr } = await supabase.storage.from('client-documents').upload(path, buffer, { contentType: mimeHint || 'image/jpeg', upsert: false });
+    if (upErr) console.warn('[scanIdentity] upload photo échoué:', upErr.message);
+    else fileUrl = supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl ?? null;
+  } catch (e) {
+    console.warn('[scanIdentity] upload photo exception:', e);
+  }
+  try {
     const { error } = await supabase.from('client_documents').insert({
       // type en ANGLAIS ('passport'/'license') pour rester cohérent avec le reste + la récup.
-      client_name: nom, type: isPermis ? 'license' : 'passport', file_url: fileUrl ?? null, extracted_data: data,
+      client_name: nom, type: isPermis ? 'license' : 'passport', file_url: fileUrl, extracted_data: data,
     });
-    if (!error) savedToFile = true;
+    if (error) console.warn('[scanIdentity] insert client_documents échoué:', error.message);
+    else savedToFile = true;
   } catch (e) {
-    console.warn('[scanIdentity] persist dossier client échoué:', e);
+    console.warn('[scanIdentity] insert client_documents exception:', e);
   }
 
   // Lie le passeport à la RÉSERVATION du client (n° + expiration) — best-effort.
@@ -948,7 +957,9 @@ export async function scanIdentity(buffer: Buffer, mimeHint: string, isPermis: b
     ``,
     age != null && age < MIN_AGE
       ? `⛔ Client trop jeune pour l'assurance — je ne crée pas de réservation.`
-      : `✅ Données prêtes. Donne-moi la **voiture** et les **dates** et je crée la réservation pour ${nom}.`,
+      : linkedToBooking
+        ? `✅ Passeport enregistré sur la réservation existante de ${nom}. Rien d'autre à faire.`
+        : `✅ Données prêtes. Donne-moi la **voiture** et les **dates** et je crée la réservation pour ${nom}.`,
   ].filter(Boolean).join('\n');
 }
 
