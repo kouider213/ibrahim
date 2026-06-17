@@ -909,8 +909,9 @@ export async function scanIdentity(
   try {
     const { error } = await supabase.from('client_documents').insert({
       // type en ANGLAIS ('passport'/'license') pour rester cohérent avec le reste + la récup.
+      // file_url est NOT NULL en base → jamais null (chaîne vide si l'upload a échoué).
       client_name: docClientName, client_phone: opts.clientPhone ?? null,
-      type: isPermis ? 'license' : 'passport', file_url: fileUrl, extracted_data: data,
+      type: isPermis ? 'license' : 'passport', file_url: fileUrl ?? '', extracted_data: data,
     });
     if (error) console.warn('[scanIdentity] insert client_documents échoué:', error.message);
     else savedToFile = true;

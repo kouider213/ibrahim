@@ -262,9 +262,11 @@ export default function ClientsScreen() {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {det.documents.map(doc => {
                             const lbl = doc.type === 'passport' ? '🪪 Passeport' : doc.type === 'license' ? '🚘 Permis' : doc.type === 'contract' ? '📄 Contrat' : '📎 Document';
-                            return (
-                              <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' }}>{lbl}</a>
-                            );
+                            const hasUrl = !!doc.file_url && doc.file_url.length > 4;
+                            const st = { fontSize: 11, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' } as const;
+                            return hasUrl
+                              ? <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer" style={st}>{lbl}</a>
+                              : <span key={doc.id} style={{ ...st, color: C.muted, border: `1px solid ${C.border}`, background: C.surface }}>{lbl} (sans photo)</span>;
                           })}
                         </div>
                       </div>
