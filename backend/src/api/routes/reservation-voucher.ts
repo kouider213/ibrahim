@@ -134,7 +134,8 @@ function buildVoucherPDF(d: VoucherData, ref: string, logo: Buffer | null): Prom
     y += 2;
     doc.font('Helvetica').fontSize(9).fillColor('#555').text(
       'Ce bon confirme la réservation du véhicule ci-dessus avec l\'acompte indiqué. Le solde est réglé à la prise du véhicule. '
-      + 'Passeport et permis valides requis. Sans caution. Acompte non remboursable en cas d\'annulation tardive (voir conditions).',
+      + 'Passeport et permis valides requis. Le passeport est conservé en lieu sûr pendant toute la durée de la location et restitué au retour du véhicule. '
+      + 'Sans caution. Acompte non remboursable en cas d\'annulation tardive (voir conditions).',
       X, y, { width: W, align: 'left', lineGap: 2 });
 
     // ── Pied de page ──
