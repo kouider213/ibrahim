@@ -137,9 +137,10 @@ router.post('/scan', async (req, res) => {
 
     if (['PASSPORT', 'LICENSE'].includes(detectedType)) {
       prompt = `Extrais TOUTES les informations de ce document d'identité en français.
+Sépare bien le prénom (given name) et le nom de famille (surname). "name" = nom complet.
 Format JSON STRICT dans ta réponse (entouré de backticks):
 \`\`\`json
-{"type":"passport","name":"","document_number":"","birth_date":"","expiry_date":"","nationality":"","readable":true}
+{"type":"passport","name":"","first_name":"","last_name":"","document_number":"","birth_date":"","expiry_date":"","nationality":"","readable":true}
 \`\`\`
 Puis une phrase naturelle résumant le document pour être lue à voix haute.`;
       maxTokens = 400;

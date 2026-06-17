@@ -1,6 +1,16 @@
-import { useState, useEffect, type CSSProperties } from 'react';
-import { business, type Car } from '../../services/api.ts';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { business, api, type Car } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
+
+// Lit un fichier image → base64 brut (sans le préfixe data:)
+function fileToRawBase64(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onloadend = () => res(((r.result as string) || '').split(',')[1] ?? '');
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.08)',
@@ -44,7 +54,35 @@ export default function ReservationVoucherScreen() {
   const [lang, setLang]       = useState('fr');
   const [toast, setToast]     = useState('');
   const [busy, setBusy]       = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const scanRef = useRef<HTMLInputElement>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
+
+  // Scan passeport / pièce d'identité → remplit nom, prénom, n° passeport
+  const scanDoc = async (file: File) => {
+    setScanBusy(true);
+    try {
+      const b64 = await fileToRawBase64(file);
+      if (!b64) { flash('❌ Photo illisible'); return; }
+      const r = await api.scan(b64, file.type || 'image/jpeg');
+      const d = (r.extractedData ?? {}) as Record<string, unknown>;
+      const fn = String(d.first_name ?? '').trim();
+      const ln = String(d.last_name ?? '').trim();
+      const name = String(d.name ?? '').trim();
+      const num = String(d.document_number ?? '').trim();
+      if (fn) setFirst(fn);
+      if (ln) setLast(ln);
+      if (!fn && !ln && name) {
+        const parts = name.split(/\s+/);
+        setFirst(parts[0] ?? '');
+        setLast(parts.slice(1).join(' '));
+      }
+      if (num) setPass(num);
+      const ok = (r.type === 'passport' || r.type === 'license') && (fn || ln || name || num);
+      flash(ok ? '✅ Document lu' : '⚠️ Document peu lisible — vérifie');
+    } catch { flash('❌ Lecture échouée'); }
+    finally { setScanBusy(false); }
+  };
 
   const [history, setHistory] = useState<Array<{ id: string; ref: string; client_name?: string; vehicle?: string; deposit?: number; total?: number; currency?: string; url: string; created_at?: string }>>([]);
   const [showHist, setShowHist] = useState(false);
@@ -116,6 +154,15 @@ export default function ReservationVoucherScreen() {
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
       <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Conciergerie" title="Bon de réservation" /></div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Confirme la réservation d'un véhicule + l'acompte → PDF + WhatsApp</div>
+
+      {/* Scan passeport → remplit le client */}
+      <input ref={scanRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void scanDoc(f); }} />
+      <button onClick={() => scanRef.current?.click()} disabled={scanBusy}
+        style={{ width: '100%', marginTop: 14, padding: '13px', borderRadius: 12, border: `1px solid ${C.blue}55`, background: `${C.blue}14`, color: C.blue, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+        {scanBusy ? '🔍 Lecture du document…' : '📷 Scanner passeport / pièce → remplir auto'}
+      </button>
+      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Photo du passeport/permis → nom, prénom et n° remplis tout seuls. Ou remplis à la main ci-dessous.</div>
 
       {/* Client */}
       <div style={lbl}>Client</div>
