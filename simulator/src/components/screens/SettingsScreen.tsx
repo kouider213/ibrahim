@@ -60,26 +60,38 @@ export default function SettingsScreen() {
     } catch { setLocData(null); }
   };
 
-  const shareLocation = () => {
-    if (!navigator.geolocation) { setMsg('❌ Géolocalisation non supportée'); return; }
-    setLocL(true);
+  // silent = détection auto en arrière-plan (pas de toast ni spinner).
+  const shareLocation = (silent = false) => {
+    if (!navigator.geolocation) { if (!silent) setMsg('❌ Géolocalisation non supportée'); return; }
+    if (!silent) setLocL(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
           const r = await business.shareLocation(pos.coords.latitude, pos.coords.longitude);
           setLocData(r.location);
-          const city = r.location.city ?? r.location.country;
-          setMsg(`✅ Position partagée — ${city}`);
-        } catch { setMsg('❌ Erreur partage position'); }
+          if (!silent) { const city = r.location.city ?? r.location.country; setMsg(`✅ Position partagée — ${city}`); }
+        } catch { if (!silent) setMsg('❌ Erreur partage position'); }
         setLocL(false);
-        setTimeout(() => setMsg(''), 3000);
+        if (!silent) setTimeout(() => setMsg(''), 3000);
       },
-      () => { setMsg('❌ Permission refusée ou timeout'); setLocL(false); setTimeout(() => setMsg(''), 3000); },
+      () => { if (!silent) { setMsg('❌ Permission refusée ou timeout'); setTimeout(() => setMsg(''), 3000); } setLocL(false); },
       { timeout: 10000, enableHighAccuracy: false },
     );
   };
 
   useEffect(() => { void checkHealth(); void loadJobs(); void loadLocation(); }, []);
+
+  // Détection GPS AUTOMATIQUE : si la permission est déjà accordée, on rafraîchit
+  // la position en silence à l'ouverture (plus besoin de cliquer à chaque fois).
+  // Le fuseau horaire des rappels suit déjà le device via l'en-tête X-Timezone.
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const np = navigator.permissions;
+    if (!np?.query) { shareLocation(true); return; } // pas d'API permissions → tente quand même
+    np.query({ name: 'geolocation' as PermissionName })
+      .then(p => { if (p.state === 'granted') shareLocation(true); })
+      .catch(() => {});
+  }, []);
 
   const selectActor = (id: 'kouider' | 'houari') => {
     setActorLocal(id); setSimActor(id);
@@ -171,7 +183,7 @@ export default function SettingsScreen() {
               Position non partagée — Dzaryx ne peut pas calculer tes trajets.
             </div>
           )}
-          <button onClick={shareLocation} disabled={locLoading} style={actionBtn('#00e676')}>
+          <button onClick={() => shareLocation()} disabled={locLoading} style={actionBtn('#00e676')}>
             {locLoading ? 'LOCALISATION EN COURS…' : '📍 PARTAGER MA POSITION'}
           </button>
           <div style={{ fontSize: 6, color: '#ffffff22', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
