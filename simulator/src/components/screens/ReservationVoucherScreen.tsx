@@ -1,6 +1,9 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type RefObject, type ReactNode } from 'react';
+import html2canvas from 'html2canvas';
 import { business, api, type Car } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
+
+const LOGO_URL = `${((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/'}logo.png`;
 
 // Lit un fichier image → base64 brut (sans le préfixe data:)
 function fileToRawBase64(file: File): Promise<string> {
@@ -84,6 +87,9 @@ export default function ReservationVoucherScreen() {
     finally { setScanBusy(false); }
   };
 
+  const [ref, setRef]         = useState('');
+  const cardRef = useRef<HTMLDivElement>(null);
+
   const [history, setHistory] = useState<Array<{ id: string; ref: string; client_name?: string; vehicle?: string; deposit?: number; total?: number; currency?: string; url: string; created_at?: string }>>([]);
   const [showHist, setShowHist] = useState(false);
   const loadHistory = () => business.vouchersList().then(r => setHistory(r.vouchers ?? [])).catch(() => {});
@@ -120,24 +126,73 @@ export default function ReservationVoucherScreen() {
       + `${t('thanks', lang)}`;
   };
 
+  // Sauve le bon (PDF + historique) et fixe le N° pour le visuel image. Renvoie {url, ref}.
+  const ensureSaved = async (): Promise<{ url: string; ref: string } | null> => {
+    try {
+      const out = await business.voucherPdf(payload());
+      setRef(out.ref); loadHistory();
+      // laisse le visuel se re-render avec le N°
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      return out;
+    } catch (e) { flash(e instanceof Error ? e.message : 'Erreur'); return null; }
+  };
+
+  const captureBlob = async (): Promise<Blob | null> => {
+    const node = cardRef.current;
+    if (!node) return null;
+    const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+    return await new Promise<Blob | null>(res => canvas.toBlob(b => res(b), 'image/png', 0.95));
+  };
+
+  // PDF = fichier
   const makePdf = async () => {
     if (!valid()) return;
     setBusy(true);
-    try { const out = await business.voucherPdf(payload()); window.open(out.url, '_blank'); flash('📄 Bon généré'); loadHistory(); }
-    catch (e) { flash(e instanceof Error ? e.message : 'Erreur PDF'); }
+    try { const out = await ensureSaved(); if (out) { window.open(out.url, '_blank'); flash('📄 PDF prêt'); } }
     finally { setBusy(false); }
   };
 
+  // Image = télécharger une photo (PNG)
+  const downloadImage = async () => {
+    if (!valid()) return;
+    setBusy(true);
+    try {
+      const out = await ensureSaved(); if (!out) return;
+      const blob = await captureBlob(); if (!blob) { flash('❌ Image échouée'); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${out.ref}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      flash('🖼️ Image téléchargée');
+    } finally { setBusy(false); }
+  };
+
+  // WhatsApp = partage la PHOTO via la feuille native (arrive comme image). Repli: texte + lien.
   const sendWhatsApp = async () => {
     if (!valid()) return;
     setBusy(true);
-    let url = '';
-    try { const out = await business.voucherPdf(payload()); url = out.url; loadHistory(); }
-    catch { /* on envoie le texte quand même */ }
-    setBusy(false);
-    const ph = phone.replace(/\D/g, '');
-    const text = buildText() + (url ? `\n\n📄 ${t('pdfLabel', lang)} : ${url}` : '');
-    window.open(ph ? `https://wa.me/${ph}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    try {
+      const out = await ensureSaved();
+      const blob = await captureBlob();
+      const ph = phone.replace(/\D/g, '');
+      const text = buildText();
+      if (blob && typeof navigator !== 'undefined' && 'canShare' in navigator) {
+        const file = new File([blob], `${out?.ref || 'bon-reservation'}.png`, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], text }); flash('✅ Partagé'); return; }
+          catch { /* annulé ou échec → repli */ }
+        }
+      }
+      // Repli : télécharge l'image + ouvre WhatsApp avec le texte (+ lien PDF)
+      if (blob) {
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${out?.ref || 'bon'}.png`;
+        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+      const full = text + (out?.url ? `\n\n📄 ${t('pdfLabel', lang)} : ${out.url}` : '');
+      window.open(ph ? `https://wa.me/${ph}?text=${encodeURIComponent(full)}` : `https://wa.me/?text=${encodeURIComponent(full)}`, '_blank');
+      flash('Image téléchargée — joins-la dans WhatsApp');
+    } finally { setBusy(false); }
   };
 
   const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
@@ -217,9 +272,10 @@ export default function ReservationVoucherScreen() {
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-        <button onClick={() => void makePdf()} disabled={busy} style={{ flex: 1, padding: '14px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{busy ? '…' : '📄 PDF'}</button>
-        <button onClick={() => void sendWhatsApp()} disabled={busy} style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>{busy ? 'Préparation…' : '💬 Envoyer WhatsApp (+PDF)'}</button>
+        <button onClick={() => void makePdf()} disabled={busy} style={{ flex: 1, padding: '13px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy ? '…' : '📄 PDF (fichier)'}</button>
+        <button onClick={() => void downloadImage()} disabled={busy} style={{ flex: 1, padding: '13px', borderRadius: 12, border: `1px solid ${C.blue}55`, background: `${C.blue}14`, color: C.blue, fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy ? '…' : '🖼️ Image'}</button>
       </div>
+      <button onClick={() => void sendWhatsApp()} disabled={busy} style={{ width: '100%', marginTop: 8, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>{busy ? 'Préparation…' : '💬 Envoyer WhatsApp (en photo)'}</button>
 
       {/* Historique */}
       {history.length > 0 && (
@@ -244,7 +300,93 @@ export default function ReservationVoucherScreen() {
         </div>
       )}
 
+      {/* ── Visuel caché capturé en PHOTO (html2canvas) ── */}
+      <div style={{ position: 'fixed', left: -10000, top: 0, pointerEvents: 'none', opacity: 0 }} aria-hidden>
+        <VoucherCard
+          cardRef={cardRef}
+          ref_={ref}
+          firstName={firstName} lastName={lastName} passport={passport} phone={phone}
+          vehicle={vehicle} start={start} end={end} pickup={pickup} dropoff={dropoff}
+          total={totalN} deposit={depositN} reste={resteN} fmt={fmt}
+        />
+      </div>
+
       {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.15)', border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.accent, whiteSpace: 'nowrap' }}>{toast}</div>}
+    </div>
+  );
+}
+
+// ── Visuel "bon de réservation" pro (rendu en image PNG) ──
+function VoucherCard(p: {
+  cardRef: RefObject<HTMLDivElement>; ref_: string;
+  firstName: string; lastName: string; passport: string; phone: string;
+  vehicle: string; start: string; end: string; pickup: string; dropoff: string;
+  total: number; deposit: number; reste: number | null; fmt: (n: number) => string;
+}) {
+  const GOLD = '#b8902f', INK = '#1a1a1a', SUB = '#7a7a82', BOX = '#f7f7f9', GREEN = '#1f8b4c';
+  const name = [p.firstName, p.lastName].filter(Boolean).join(' ') || '—';
+  const date = new Date().toLocaleDateString('fr-FR');
+  const f: CSSProperties = { fontFamily: 'Arial, Helvetica, sans-serif' };
+  const Row = ({ l, v, c }: { l: string; v: string; c?: string }) => (
+    <div style={{ display: 'flex', padding: '5px 0' }}>
+      <div style={{ width: 200, color: SUB, fontSize: 13 }}>{l}</div>
+      <div style={{ flex: 1, color: c || INK, fontSize: 14, fontWeight: 700 }}>{v || '—'}</div>
+    </div>
+  );
+  const Section = ({ title, children }: { title: string; children: ReactNode }) => (
+    <div style={{ background: BOX, borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
+      <div style={{ color: GOLD, fontSize: 12, fontWeight: 800, letterSpacing: 1, marginBottom: 6 }}>{title}</div>
+      {children}
+    </div>
+  );
+  return (
+    <div ref={p.cardRef} style={{ ...f, width: 720, background: '#fff', color: INK, padding: '0 0 24px' }}>
+      <div style={{ height: 8, background: GOLD }} />
+      <div style={{ padding: '24px 36px 0' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <img src={LOGO_URL} alt="" crossOrigin="anonymous" style={{ width: 58, height: 58, objectFit: 'contain' }} />
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 800 }}>FIK CONCIERGERIE</div>
+            <div style={{ fontSize: 11.5, color: SUB }}>Conciergerie premium · Location · Vente · Immobilier · Import — Oran, Algérie</div>
+            <div style={{ fontSize: 11.5, color: SUB }}>WhatsApp +32 466 31 14 69 · fikconciergerie.com</div>
+          </div>
+        </div>
+        {/* Titre + badge */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 22 }}>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>BON DE RÉSERVATION</div>
+          <div style={{ background: GREEN, color: '#fff', fontSize: 12, fontWeight: 800, padding: '5px 14px', borderRadius: 20 }}>✓ CONFIRMÉ</div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: SUB, fontSize: 12.5, marginTop: 6 }}>
+          <span>N° {p.ref_ || '—'}</span><span>Émis le {date}</span>
+        </div>
+        <div style={{ height: 2, background: GOLD, margin: '12px 0 18px' }} />
+
+        <Section title="CLIENT">
+          <Row l="Nom et prénom" v={name} />
+          {p.passport ? <Row l="N° de passeport" v={p.passport} /> : null}
+          {p.phone ? <Row l="Téléphone" v={p.phone} /> : null}
+        </Section>
+        <Section title="RÉSERVATION">
+          <Row l="Véhicule" v={p.vehicle} />
+          {(p.start || p.end) ? <Row l="Période" v={`${p.start || '—'}  →  ${p.end || '—'}`} /> : null}
+          <Row l="Lieu de récupération" v={p.pickup} />
+          <Row l="Lieu de dépôt" v={p.dropoff} />
+        </Section>
+        <Section title="PAIEMENT">
+          {p.total > 0 ? <Row l="Montant total" v={p.fmt(p.total)} /> : null}
+          <Row l="Acompte versé" v={p.fmt(p.deposit)} c={GREEN} />
+          {p.reste != null ? <Row l="Reste à payer (à la prise du véhicule)" v={p.fmt(p.reste)} c="#b3261e" /> : null}
+        </Section>
+
+        <div style={{ fontSize: 11.5, color: '#555', lineHeight: 1.5, marginTop: 4 }}>
+          Ce bon confirme la réservation du véhicule ci-dessus avec l'acompte indiqué. Le solde est réglé à la prise du véhicule.
+          Passeport et permis valides requis. Sans caution.
+        </div>
+        <div style={{ borderTop: '1px solid #ececef', marginTop: 18, paddingTop: 10, fontSize: 11, color: SUB }}>
+          <b style={{ color: '#15151b' }}>FIK CONCIERGERIE</b> — Rue Derbouz Draoua, Houari, Oran 31300, Algérie · Merci de votre confiance
+        </div>
+      </div>
     </div>
   );
 }

@@ -10,6 +10,25 @@ const router = Router();
 const sym = (c: string) => (c === 'EUR' ? 'EUR' : c === 'USD' ? 'USD' : 'DA');
 const money = (n: number, c: string) => `${Math.round(n).toLocaleString('fr-FR')} ${sym(c)}`;
 
+// Récupère le logo (PNG/JPEG uniquement — pdfkit ne gère pas SVG/WebP). Best-effort.
+async function fetchLogoBuffer(): Promise<Buffer | null> {
+  let url = 'https://fikconciergerie.com/logo.png';
+  try {
+    const { data } = await supabase.from('site_settings').select('logo_url').eq('id', 1).single();
+    if (data?.logo_url && /^https?:\/\/.+\.(png|jpe?g)(\?|$)/i.test(data.logo_url)) url = data.logo_url;
+  } catch { /* ignore */ }
+  try {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(to);
+    if (!r.ok) return null;
+    const ct = r.headers.get('content-type') || '';
+    if (!/png|jpe?g/i.test(ct)) return null;
+    return Buffer.from(await r.arrayBuffer());
+  } catch { return null; }
+}
+
 interface VoucherData {
   first_name?: string;
   last_name?: string;
@@ -25,13 +44,20 @@ interface VoucherData {
   currency?: string;
 }
 
-function buildVoucherPDF(d: VoucherData, ref: string): Promise<Buffer> {
+type Row = [string, string] | [string, string, string];
+
+function buildVoucherPDF(d: VoucherData, ref: string, logo: Buffer | null): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margins: { top: 50, bottom: 50, left: 50, right: 50 } });
+    const doc = new PDFDocument({ size: 'A4', margins: { top: 0, bottom: 50, left: 50, right: 50 } });
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
+
+    // Palette
+    const GOLD = '#b8902f', DARK = '#15151b', GREEN = '#1f8b4c';
+    const INK = '#1a1a1a', SUB = '#7a7a82', LINE = '#ececef', BOX = '#f7f7f9';
+    const X = 50, W = 495, R = X + W; // 545
 
     const cur = d.currency || 'DZD';
     const fullName = [d.first_name, d.last_name].filter(Boolean).join(' ') || '—';
@@ -39,61 +65,88 @@ function buildVoucherPDF(d: VoucherData, ref: string): Promise<Buffer> {
     const deposit = Number(d.deposit) || 0;
     const reste = total > 0 ? Math.max(0, total - deposit) : null;
 
-    // En-tête marque
-    doc.font('Helvetica-Bold').fontSize(20).fillColor('#111').text('FIK CONCIERGERIE', { align: 'center' });
-    doc.font('Helvetica').fontSize(9).fillColor('#888').text('Location · Vente · Immobilier · Packs séjour — Oran, Algérie', { align: 'center' });
-    doc.moveDown(0.4);
-    doc.rect(50, doc.y, 495, 2).fill('#caa53d'); doc.moveDown(0.6);
+    // ── Accent supérieur ──
+    doc.rect(0, 0, doc.page.width, 6).fill(GOLD);
 
-    doc.font('Helvetica-Bold').fontSize(15).fillColor('#111').text('BON DE RÉSERVATION', { align: 'center' });
-    doc.font('Helvetica').fontSize(9).fillColor('#555')
-      .text(`N° ${ref}`, { continued: true }).text(`Date : ${new Date().toLocaleDateString('fr-FR')}`, { align: 'right' });
-    doc.moveDown(0.8);
+    // ── En-tête marque ──
+    let headY = 34;
+    if (logo) {
+      try { doc.image(logo, X, headY, { fit: [56, 56] }); } catch { /* ignore */ }
+    }
+    const tx = logo ? X + 70 : X;
+    doc.font('Helvetica-Bold').fontSize(19).fillColor(INK).text('FIK CONCIERGERIE', tx, headY + 4);
+    doc.font('Helvetica').fontSize(8.5).fillColor(SUB)
+      .text('Conciergerie premium · Location · Vente · Immobilier · Import — Oran, Algérie', tx, headY + 28, { width: R - tx });
+    doc.font('Helvetica').fontSize(8.5).fillColor(SUB)
+      .text('WhatsApp +32 466 31 14 69   ·   fikconciergerie.com', tx, headY + 41, { width: R - tx });
 
-    // Bloc infos client
-    const row = (label: string, value: string) => {
-      const y = doc.y;
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#555').text(label, 50, y, { width: 160 });
-      doc.font('Helvetica').fontSize(11).fillColor('#111').text(value || '—', 215, y, { width: 330 });
-      doc.moveDown(0.55);
+    // ── Titre + bloc référence ──
+    let y = 108;
+    doc.font('Helvetica-Bold').fontSize(17).fillColor(INK).text('BON DE RÉSERVATION', X, y);
+    // Badge "CONFIRMÉ"
+    const badgeW = 92, badgeX = R - badgeW;
+    doc.roundedRect(badgeX, y - 2, badgeW, 22, 11).fill(GREEN);
+    doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#ffffff').text('✓ CONFIRMÉ', badgeX, y + 4, { width: badgeW, align: 'center' });
+    y += 28;
+    doc.font('Helvetica').fontSize(9.5).fillColor(SUB)
+      .text(`N° ${ref}`, X, y, { continued: true })
+      .text(`Émis le ${new Date().toLocaleDateString('fr-FR')}`, { align: 'right' });
+    y += 20;
+    doc.rect(X, y, W, 1.5).fill(GOLD);
+    y += 16;
+
+    // ── Helper section en carte ──
+    const section = (title: string, rows: Row[]): void => {
+      const headerH = 26, rowH = 21, padB = 12;
+      const visible = rows.filter(r => r[1]);
+      const h = headerH + visible.length * rowH + padB;
+      doc.roundedRect(X, y, W, h, 8).fill(BOX);
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor(GOLD).text(title.toUpperCase(), X + 16, y + 9, { characterSpacing: 0.8 });
+      let ry = y + headerH;
+      for (const r of visible) {
+        doc.font('Helvetica').fontSize(9.5).fillColor(SUB).text(r[0], X + 16, ry + 1, { width: 150 });
+        doc.font('Helvetica-Bold').fontSize(10.5).fillColor(r[2] ?? INK).text(r[1] || '—', X + 172, ry, { width: W - 172 - 16 });
+        ry += rowH;
+      }
+      y += h + 12;
     };
 
-    doc.font('Helvetica-Bold').fontSize(11).fillColor('#caa53d').text('CLIENT'); doc.moveDown(0.3);
-    row('Nom et prénom', fullName);
-    row('N° de passeport', d.passport || '—');
-    if (d.phone) row('Téléphone', d.phone);
+    section('Client', [
+      ['Nom et prénom', fullName],
+      ['N° de passeport', d.passport || ''],
+      ['Téléphone', d.phone || ''],
+    ]);
 
-    doc.moveDown(0.3);
-    doc.font('Helvetica-Bold').fontSize(11).fillColor('#caa53d').text('RÉSERVATION'); doc.moveDown(0.3);
-    row('Véhicule', d.vehicle || '—');
-    if (d.start_date || d.end_date) row('Période', `${d.start_date || '—'}  →  ${d.end_date || '—'}`);
-    row('Lieu de récupération', d.pickup || '—');
-    row('Lieu de dépôt', d.dropoff || '—');
+    section('Réservation', [
+      ['Véhicule', d.vehicle || ''],
+      ['Période', (d.start_date || d.end_date) ? `${d.start_date || '—'}   →   ${d.end_date || '—'}` : ''],
+      ['Lieu de récupération', d.pickup || ''],
+      ['Lieu de dépôt', d.dropoff || ''],
+    ]);
 
-    doc.moveDown(0.3);
-    doc.font('Helvetica-Bold').fontSize(11).fillColor('#caa53d').text('PAIEMENT'); doc.moveDown(0.3);
-    if (total > 0) row('Montant total', money(total, cur));
-    row('Acompte versé', money(deposit, cur));
-    if (reste != null) row('Reste à payer', money(reste, cur));
+    section('Paiement', [
+      ...(total > 0 ? [['Montant total', money(total, cur)] as Row] : []),
+      ['Acompte versé', money(deposit, cur), GREEN],
+      ...(reste != null ? [['Reste à payer (à la prise du véhicule)', money(reste, cur), '#b3261e'] as Row] : []),
+    ]);
 
-    doc.moveDown(0.8);
-    doc.rect(50, doc.y, 495, 1).fill('#ddd'); doc.moveDown(0.6);
-    doc.font('Helvetica').fontSize(9.5).fillColor('#444')
-      .text('Ce bon confirme la réservation du véhicule ci-dessus avec l\'acompte indiqué. '
-        + 'Le solde est réglé à la prise du véhicule. Passeport et permis valides requis. Sans caution.', { align: 'left' });
-    doc.moveDown(1.2);
+    // ── Mention légale ──
+    y += 2;
+    doc.font('Helvetica').fontSize(9).fillColor('#555').text(
+      'Ce bon confirme la réservation du véhicule ci-dessus avec l\'acompte indiqué. Le solde est réglé à la prise du véhicule. '
+      + 'Passeport et permis valides requis. Sans caution. Acompte non remboursable en cas d\'annulation tardive (voir conditions).',
+      X, y, { width: W, align: 'left', lineGap: 2 });
 
-    // Signatures
-    const yS = doc.y;
-    doc.font('Helvetica').fontSize(9).fillColor('#888');
-    doc.text('Signature client', 60, yS + 28);
-    doc.text('Fik Conciergerie', 360, yS + 28);
-    doc.rect(60, yS + 24, 150, 0.8).fill('#bbb');
-    doc.rect(360, yS + 24, 150, 0.8).fill('#bbb');
+    // ── Pied de page ──
+    const footY = doc.page.height - 60;
+    doc.rect(X, footY, W, 1).fill(LINE);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(DARK)
+      .text('FIK CONCIERGERIE', X, footY + 10, { continued: true })
+      .font('Helvetica').fillColor(SUB)
+      .text('  —  Rue Derbouz Draoua, Houari, Oran 31300, Algérie');
+    doc.font('Helvetica').fontSize(8.5).fillColor(SUB)
+      .text('WhatsApp +32 466 31 14 69   ·   fikconciergerie.com   ·   Merci de votre confiance', X, footY + 23);
 
-    doc.moveDown(4);
-    doc.font('Helvetica').fontSize(8.5).fillColor('#999')
-      .text('Fik Conciergerie — Rue Derbouz Draoua, Houari, Oran 31300 · WhatsApp +32 466 31 14 69', 50, doc.y, { align: 'center' });
     doc.end();
   });
 }
@@ -106,7 +159,8 @@ router.post('/pdf', requireMobileAuth, async (req, res) => {
   try {
     const ref = 'BON-' + Date.now().toString(36).toUpperCase().slice(-6);
     const data: VoucherData = { ...b, currency: b.currency || 'DZD' };
-    const buffer = await buildVoucherPDF(data, ref);
+    const logo = await fetchLogoBuffer();
+    const buffer = await buildVoucherPDF(data, ref, logo);
     const path = `vouchers/${ref}.pdf`;
     await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
     const up = await supabase.storage.from('client-documents').upload(path, buffer, { contentType: 'application/pdf', upsert: true });
