@@ -41,7 +41,7 @@ const COMPETITOR_TOOLS: Anthropic.Tool[] = [
       properties: {
         query: {
           type: 'string',
-          description: 'La requête de recherche. Exemples: "location voiture oran prix 2025", "didanolocation tiktok", "hertz oran algerie tarifs"',
+          description: 'La requête de recherche. Exemples: "location voiture oran prix 2025", "agences location voiture oran tiktok", "hertz oran algerie tarifs"',
         },
       },
       required: ['query'],
@@ -91,7 +91,7 @@ N'invente AUCUN chiffre, compte TikTok, abonné, vue, hashtag ou prix.
 Si web_search retourne peu de données, dis-le explicitement section par section.
 
 SÉQUENCE OBLIGATOIRE — lance ces 8 recherches dans cet ordre :
-1. "didanolocation oran location voiture algerie 2025" → concurrent principal
+1. "meilleures agences location voiture oran algerie avis 2025" → identifier les vrais concurrents
 2. "agence location voiture oran algerie tarifs prix 2025" → prix marché réels
 3. "location voiture oran google maps avis clients" → réputation concurrents
 4. "tiktok #locationoran #locationvoitureoran location voiture oran algerie" → hashtags TikTok réels
@@ -101,7 +101,7 @@ SÉQUENCE OBLIGATOIRE — lance ces 8 recherches dans cet ordre :
 8. "hertz sixt europcar avis enterprise oran algerie" → grandes enseignes
 
 APRÈS COLLECTE — produis uniquement ce que les données confirment :
-  - Concurrents identifiés avec source (ex: "trouvé sur Google Maps : didanolocation")
+  - Concurrents identifiés avec source (ex: "trouvé sur Google Maps : [nom réel de l'agence]")
   - Prix réels trouvés (€/DZD — sinon "non disponible dans les données")
   - Hashtags réels trouvés dans les données (ex: #locationoran)
   - Présence digitale concrète (YouTube, Facebook, TikTok — si trouvée)
@@ -114,7 +114,6 @@ JAMAIS : inventer des concurrents, des prix, des abonnés, des vues ou des hasht
 
 function extractCompetitorNames(text: string): string[] {
   const patterns = [
-    /\b(didano\w*location|didano\w*)\b/gi,
     /\b(location\s+oran\w*)\b/gi,
     /\b(oran\s*car\w*)\b/gi,
     /\b(auto\s*location\s*oran\w*)\b/gi,

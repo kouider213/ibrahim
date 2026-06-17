@@ -36,7 +36,7 @@ const SOCIAL_TOOLS: Anthropic.Tool[] = [
     description: [
       'Scrape les données TikTok du marché location voiture Oran via APIFY.',
       'Hashtags scrapés: #locationoran #locationvoitureoran #voitureoran #locationvoiture.',
-      'Profils concurrents: @didanolocation @locationoranalgerie @orancar @autolocationoran.',
+      'Profils concurrents (à confirmer par recherche réelle): @locationoranalgerie @orancar @autolocationoran.',
       'Retourne: vues réelles, likes, engagement moyen, top hashtags, top comptes.',
       'DONNÉES RÉELLES UNIQUEMENT — si APIFY bloqué, résultat le dira.',
     ].join(' '),
@@ -55,7 +55,7 @@ const SOCIAL_TOOLS: Anthropic.Tool[] = [
       properties: {
         username: {
           type: 'string',
-          description: 'Handle TikTok SANS @ (ex: fikconciergerie, didanolocation)',
+          description: 'Handle TikTok SANS @ (ex: fikconciergerie, locationoranalgerie)',
         },
       },
       required: ['username'],
@@ -149,7 +149,7 @@ APRÈS COLLECTE — produis uniquement ce que les données confirment :
   C) Analyse concurrents : qui domine TikTok localement et comment
   D) 3 recommandations actionnables basées sur les données réelles (pas des suppositions)
 
-FORMAT : cite la source pour chaque chiffre (ex: "selon get_tiktok_market : @didanolocation 26K abonnés").
+FORMAT : cite la source pour chaque chiffre (ex: "selon get_tiktok_market : @[compte réel] 26K abonnés").
 JAMAIS : inventer des followers, des vues, des hashtags ou des tendances.`;
 
 // Strip lone surrogates before sending to Claude (defensive — already done in parseVideo)

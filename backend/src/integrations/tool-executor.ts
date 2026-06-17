@@ -3219,7 +3219,7 @@ async function analyzeCompetitors(input: Record<string, unknown>, sessionId: str
   // ── Sources à scraper ──────────────────────────────────────
   const COMPETITOR_HANDLES = competitor
     ? [competitor.replace('@', '').trim()]
-    : ['didanolocation', 'locationoranalgerie', 'orancar', 'autolocationoran'];
+    : ['locationoranalgerie', 'orancar', 'autolocationoran'];
 
   let tiktokData = '';
 
@@ -3265,7 +3265,7 @@ async function analyzeCompetitors(input: Record<string, unknown>, sessionId: str
           `agence location voiture oran algerie avis google maps`,
         ]
       : [
-          'didanolocation oran location voiture algerie 2025',
+          'meilleures agences location voiture oran algerie avis 2025',
           `tiktok ${hashtagStr} location voiture oran algerie`,
           'location voiture oran facebook instagram promo tarifs 2025',
           'youtube location voiture oran algerie 2025',

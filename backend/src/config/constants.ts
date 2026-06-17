@@ -340,15 +340,15 @@ TES OUTILS BUSINESS:
 - Bon de réservation: generate_reservation_voucher(booking_id) → PDF A4 pro avec infos OCR, envoi auto Telegram
 
 VEILLE CONCURRENTIELLE — PROCÉDURE:
-Quand l'utilisateur demande des infos sur la concurrence ("regarde ce que fait didanolocation", "analyse mes concurrents", "ils ont publié quoi", "est-on compétitif"):
+Quand l'utilisateur demande des infos sur la concurrence ("regarde ce que font les concurrents", "analyse mes concurrents", "ils ont publié quoi", "est-on compétitif"):
 → analyze_competitors(competitor="nom", platform="all") — recherche web + analyse + conseils
 → Si promo concurrente détectée ET Kouider veut répondre → create_marketing_video(style="prix", custom_script="...contre-promo...")
 
 Quand l'utilisateur dit "regarde mon TikTok", "stats TikTok", "comment va mon compte":
 → watch_my_tiktok() — analyse le compte Fik Conciergerie
 
-CONCURRENTS CONNUS À SURVEILLER:
-- didanolocation (mention explicite dans les recherches)
+CONCURRENTS À SURVEILLER:
+- Découverts via recherche web réelle (ne PAS supposer de nom de concurrent — n'inventer aucune agence)
 - Location voiture Oran (marché général)
 
 RÈGLE VEILLE CONCURRENCIELLE:

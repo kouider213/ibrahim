@@ -162,7 +162,7 @@ const HASHTAGS  = [
   'oranalgerie', 'algerie', 'locationaeroport', 'mre2025', 'oranete2025',
   'voitureoranalgerie', 'mreoran', 'locationalgerie', 'fikconcierge',
 ];
-const PROFILES  = ['didanolocation', 'locationoranalgerie', 'orancar', 'autolocationoran'];
+const PROFILES  = ['locationoranalgerie', 'orancar', 'autolocationoran'];
 
 export async function scrapeTikTokForOranCars(carFocus?: string, extraHashtags?: string[]): Promise<TikTokRealData> {
   // Build contextual hashtag list

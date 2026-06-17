@@ -982,11 +982,11 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   // ── VEILLE CONCURRENTIELLE ────────────────────────────────────
   {
     name: 'analyze_competitors',
-    description: 'Analyser la concurrence location voiture à Oran sur TikTok, YouTube, Facebook, web et Google Maps. Effectue de vraies recherches web (DuckDuckGo, Bing) sur les concurrents, les hashtags pertinents, et les tendances du marché. Utiliser quand Kouider dit "regarde ce que font les concurrents", "didanolocation a publié quoi", "est-on compétitif", "analyse la concurrence", "que font mes concurrents", "recherche sur TikTok".',
+    description: 'Analyser la concurrence location voiture à Oran sur TikTok, YouTube, Facebook, web et Google Maps. Effectue de vraies recherches web (DuckDuckGo, Bing) sur les concurrents, les hashtags pertinents, et les tendances du marché. Utiliser quand Kouider dit "regarde ce que font les concurrents", "est-on compétitif", "analyse la concurrence", "que font mes concurrents", "recherche sur TikTok".',
     input_schema: {
       type: 'object' as const,
       properties: {
-        competitor:  { type: 'string', description: 'Nom ou handle du concurrent (ex: "didanolocation", "auto location oran"). Si vide, cherche tous les concurrents connus.' },
+        competitor:  { type: 'string', description: 'Nom ou handle du concurrent (ex: "auto location oran"). Si vide, le bot découvre les vrais concurrents via recherche web.' },
         car_focus:   { type: 'string', description: 'Voiture ou segment à cibler dans la recherche (ex: "clio4", "duster", "jumpy"). Génère des hashtags contextuels comme #clio4oran, #dusteroran.' },
         hashtags:    { type: 'array', items: { type: 'string' }, description: 'Hashtags supplémentaires à inclure dans la recherche (ex: ["locationaeroport", "mre2025"]). Sans le #.' },
         platform:    { type: 'string', enum: ['tiktok', 'telegram', 'all'], description: 'Plateforme à surveiller (défaut: all)' },

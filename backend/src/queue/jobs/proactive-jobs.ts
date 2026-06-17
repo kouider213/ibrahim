@@ -924,8 +924,8 @@ export async function jobCompetitorWatch(_job: Job): Promise<void> {
 
     // 10 recherches parallèles — sources diversifiées (DDG + Bing + Google API)
     const SEARCH_QUERIES = [
-      // Concurrents identifiés — présence réelle web
-      'didanolocation oran location voiture algerie 2025',
+      // Concurrents — découverte via recherche réelle
+      'meilleures agences location voiture oran algerie avis 2025',
       'agence location voiture oran algerie avis google maps tarifs',
       // TikTok — pages indexées par moteurs de recherche
       'tiktok #locationoran #locationvoitureoran location voiture algerie',
@@ -1003,7 +1003,7 @@ Rapport pour Telegram (markdown, 12 lignes max):
       ``,
       analysis.text,
       ``,
-      `💡 _Dis "analyse didanolocation" ou "vidéo concurrence" pour aller plus loin._`,
+      `💡 _Dis "analyse la concurrence" ou "vidéo concurrence" pour aller plus loin._`,
     ].join('\n');
 
     emitProactive(`Veille concurrence — ${new Date().toLocaleDateString('fr-FR')}.`, 'info', stripTgMd(msg), 'kouider');
