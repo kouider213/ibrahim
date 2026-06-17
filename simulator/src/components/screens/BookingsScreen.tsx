@@ -201,13 +201,16 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   const fmtMoney = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k€` : `${Math.round(n)}€`;
 
   const activeCount = bookings.filter(b => b.status === 'active' || b.status === 'confirmed').length;
-  const totalRevEur = bookings.filter(b => bkgCcy(b) === 'EUR').reduce((s, b) => s + (b.final_price ?? 0), 0);
-  const totalRevDzd = bookings.filter(b => bkgCcy(b) === 'DZD').reduce((s, b) => s + (b.final_price ?? 0), 0);
+  // CA/marge = résas RÉELLES : on exclut les REJETÉES (comme l'écran Finances) pour
+  // que le CA soit identique partout. Sinon une résa refusée gonfle le total.
+  const counted     = bookings.filter(b => (b.status ?? '').toUpperCase() !== 'REJECTED');
+  const totalRevEur = counted.filter(b => bkgCcy(b) === 'EUR').reduce((s, b) => s + (b.final_price ?? 0), 0);
+  const totalRevDzd = counted.filter(b => bkgCcy(b) === 'DZD').reduce((s, b) => s + (b.final_price ?? 0), 0);
   // RÈGLE MARGE : seul KOUIDER déduit le prix proprio (il loue le véhicule d'un proprio).
   // Quand HOUARI loue, c'est lui le propriétaire → son CA est sa marge complète, rien à déduire.
   // Donc la couverture "prix proprio renseigné" ne concerne QUE les résas de Kouider.
   const isHouariBkg = (b: typeof bookings[number]) => (b.rented_by ?? '').toLowerCase().startsWith('houari');
-  const kouiderBkgs = bookings.filter(b => !isHouariBkg(b));
+  const kouiderBkgs = counted.filter(b => !isHouariBkg(b));
   // Marge de Kouider séparée par devise : il peut louer en € OU en DZD → un bénéfice par devise.
   const kEur = kouiderBkgs.filter(b => bkgCcy(b) === 'EUR');
   const kDzd = kouiderBkgs.filter(b => bkgCcy(b) === 'DZD');
