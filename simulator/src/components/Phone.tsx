@@ -26,7 +26,7 @@ import SocialScreen from './screens/SocialScreen.tsx';
 import SearchScreen from './screens/SearchScreen.tsx';
 import ParrainageScreen from './screens/ParrainageScreen.tsx';
 import PricingScreen from './screens/PricingScreen.tsx';
-import { setSimActor, registerWebPush } from '../services/api.ts';
+import { setSimActor, registerWebPush, business } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
@@ -104,6 +104,17 @@ export default function Phone() {
     if (loggedActor) {
       setSimActor(loggedActor);
       void registerWebPush();
+      // Détection GPS AUTO au démarrage de l'app (silencieux) : rafraîchit la position
+      // si la permission est déjà accordée → le fuseau/les trajets suivent où tu es.
+      if (navigator.geolocation) {
+        const auto = () => navigator.geolocation.getCurrentPosition(
+          pos => { void business.shareLocation(pos.coords.latitude, pos.coords.longitude).catch(() => {}); },
+          () => {}, { timeout: 10000, enableHighAccuracy: false },
+        );
+        const np = navigator.permissions;
+        if (np?.query) np.query({ name: 'geolocation' as PermissionName }).then(p => { if (p.state === 'granted') auto(); }).catch(() => {});
+        else auto();
+      }
     }
   }, [loggedActor]);
 
