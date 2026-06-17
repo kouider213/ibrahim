@@ -288,6 +288,9 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     }
   }, []);
 
+  // Détecte une pièce d'identité (passeport/permis/CIN) → doit aller au SCAN (chat),
+  // PAS au rangement photos-voiture. Tolère les typos (paseport, pasport…).
+  const isIdDocIntent = (t: string) => /\b(pas+e?port|passport|permis|licen[cs]e|(carte|pi[èe]ce).{0,5}identit|cin)\b/i.test(t);
   // Détecte "enregistre ces photos pour la voiture X" (voiture EXISTANTE)
   const isStoreIntent = (t: string) => /\b(enregistre|range|sauvegarde|stocke|ajoute(?:r)?\s+(?:ces|les|la|au)?)\b/i.test(t) || /voici.*photo|photos?\s+(du|de|des|pour)/i.test(t);
   // Détecte "crée/ajoute une NOUVELLE annonce" (voiture location/vente, immo, pack)
@@ -300,7 +303,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     if ((!text && !selectedImages.length && !forcedImg) || status === 'thinking') return;
 
     // CAS SPÉCIAL — ranger plusieurs photos sur une voiture EXISTANTE (Supabase)
-    if (selectedImages.length && isStoreIntent(text) && !isCreateIntent(text)) {
+    if (selectedImages.length && isStoreIntent(text) && !isCreateIntent(text) && !isIdDocIntent(text)) {
       const imgs = selectedImages;
       setMsgs(ms => [...ms,
         { id: uid(), role: 'user', text: `${text}  (${imgs.length} photo${imgs.length > 1 ? 's' : ''})`, ts: now(), status: 'done', imagePreview: imgs[0].preview },
