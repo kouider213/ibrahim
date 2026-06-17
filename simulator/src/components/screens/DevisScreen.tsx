@@ -59,6 +59,15 @@ export default function DevisScreen() {
     setShowCar(false); setCarId(''); setDays('1');
   };
 
+  // Packs entreprise (B2B) — pré-remplit une ligne, prix à négocier/saisir.
+  const PACKS_B2B = [
+    { name: 'Platinium', desc: 'voiture de location + appartement' },
+    { name: 'Gold', desc: 'voiture luxe/van + appartement ou maison' },
+    { name: 'Diamant', desc: 'voiture luxe + chauffeur + maison + guide & négociations' },
+  ];
+  const addPack = (p: { name: string; desc: string }) =>
+    setLines(ls => [...ls, { id: uid(), label: `Pack ${p.name} entreprise — ${p.desc}`, amount: '', currency: 'EUR' }]);
+
   // Totaux par devise
   const totals: Record<string, number> = {};
   for (const l of lines) { const a = Number(l.amount) || 0; const cur = l.currency || 'DZD'; totals[cur] = (totals[cur] || 0) + a; }
@@ -128,9 +137,20 @@ export default function DevisScreen() {
           </div>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <button onClick={addLine} style={{ flex: 1, padding: '10px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>＋ Ligne</button>
         <button onClick={() => setShowCar(true)} style={{ flex: 1, padding: '10px', borderRadius: 11, border: `1px solid ${C.accent}55`, background: `${C.accent}14`, color: C.accent, fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>🚗 Voiture</button>
+      </div>
+
+      {/* Packs entreprise (B2B) — devis société */}
+      <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>🏢 Packs entreprise</div>
+      <div style={{ display: 'flex', gap: 7, marginBottom: 16, flexWrap: 'wrap' }}>
+        {PACKS_B2B.map(p => (
+          <button key={p.name} onClick={() => addPack(p)} title={p.desc}
+            style={{ flex: 1, minWidth: 90, padding: '9px 8px', borderRadius: 11, border: `1px solid ${C.gold}44`, background: `${C.gold}12`, color: C.gold, fontFamily: C.font, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            ＋ {p.name}
+          </button>
+        ))}
       </div>
 
       {/* Totaux */}
