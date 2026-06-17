@@ -1,4 +1,4 @@
-const CACHE = 'dzaryx-v100';
+const CACHE = 'dzaryx-v101';
 const APP_URL = 'https://kouider213.github.io/ibrahim/';
 const STATIC = [
   '/ibrahim/',
