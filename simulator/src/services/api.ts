@@ -689,8 +689,11 @@ export interface ClientSummary {
 }
 
 export interface ClientBookingHistory {
-  id: string; car_name?: string | null; start_date?: string; end_date?: string;
+  id: string; car_id?: string | null; car_name?: string | null; start_date?: string; end_date?: string;
   status?: string; final_price?: number | null; nb_days?: number | null; created_at?: string;
+  client_price_per_day?: number | null; owner_price_per_day?: number | null;
+  paid_amount?: number | null; payment_status?: string | null;
+  client_passport?: string | null; passport_expiry?: string | null;
 }
 export interface ClientDetail {
   phone: string; bookings: ClientBookingHistory[]; documents: ClientDocument[];
@@ -797,6 +800,13 @@ export const business = {
     apiFetch<{ text: string }>('/api/clients/scan-document', {
       method: 'POST',
       body: JSON.stringify({ base64, ...opts }),
+    }),
+
+  // Modifier le profil intelligence d'un client (négociation, fiabilité, durée typique, notes).
+  updateClientIntel: (clientName: string, fields: Record<string, unknown>) =>
+    apiFetch<{ client: ClientIntelligence }>('/api/clients/intelligence', {
+      method: 'PATCH',
+      body: JSON.stringify({ client_name: clientName, owner: _actor, ...fields }),
     }),
 
   // Newsletter (envoi via le site / Resend)

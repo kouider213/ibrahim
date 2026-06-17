@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail } from '../../services/api.ts';
+import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail, type ClientBookingHistory } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
@@ -102,6 +102,76 @@ export default function ClientsScreen() {
     }
   };
 
+  // ── Édition profil intelligence (négociation, fiabilité, durée) ──
+  const [intelEdit, setIntelEdit] = useState<string | null>(null);
+  const [intelForm, setIntelForm] = useState<{ negotiation_style: string; payment_reliability: string; typical_duration_days: string; notes: string }>({ negotiation_style: '', payment_reliability: '', typical_duration_days: '', notes: '' });
+  const [saving, setSaving]       = useState(false);
+
+  const startIntelEdit = (name: string, ci: ClientIntelligence | undefined) => {
+    setIntelForm({
+      negotiation_style:     ci?.negotiation_style ?? '',
+      payment_reliability:   ci?.payment_reliability ?? '',
+      typical_duration_days: ci?.typical_duration_days != null ? String(ci.typical_duration_days) : '',
+      notes:                 ci?.notes ?? '',
+    });
+    setIntelEdit(name);
+  };
+  const saveIntel = async (name: string) => {
+    setSaving(true);
+    try {
+      const fields: Record<string, unknown> = {
+        negotiation_style:   intelForm.negotiation_style.trim() || null,
+        payment_reliability: intelForm.payment_reliability.trim() || null,
+        notes:               intelForm.notes.trim() || null,
+      };
+      const dur = parseInt(intelForm.typical_duration_days, 10);
+      if (!isNaN(dur)) fields.typical_duration_days = dur;
+      const r = await business.updateClientIntel(name, fields);
+      setIntel(m => new Map(m).set(name, r.client));
+      setToast('✅ Profil mis à jour'); setIntelEdit(null);
+    } catch { setToast('❌ Erreur mise à jour profil'); }
+    finally { setSaving(false); setTimeout(() => setToast(null), 4000); }
+  };
+
+  // ── Édition d'une réservation depuis la fiche client ──
+  const [bkEdit, setBkEdit] = useState<string | null>(null);
+  const [bkForm, setBkForm] = useState<Record<string, string>>({});
+  const daysIncl = (s: string, e: string) => Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86400000) + 1);
+
+  const startBkEdit = (bk: ClientBookingHistory) => {
+    setBkForm({
+      start_date: (bk.start_date ?? '').slice(0, 10), end_date: (bk.end_date ?? '').slice(0, 10),
+      client_price_per_day: bk.client_price_per_day != null ? String(bk.client_price_per_day) : '',
+      owner_price_per_day:  bk.owner_price_per_day  != null ? String(bk.owner_price_per_day)  : '',
+      paid_amount:          bk.paid_amount          != null ? String(bk.paid_amount)          : '',
+      status: bk.status ?? 'CONFIRMED', payment_status: bk.payment_status ?? 'UNPAID',
+      client_passport: bk.client_passport ?? '', passport_expiry: (bk.passport_expiry ?? '').slice(0, 10),
+    });
+    setBkEdit(bk.id);
+  };
+  const saveBk = async (c: ClientSummary, bkId: string) => {
+    setSaving(true);
+    try {
+      const cppd = parseFloat(bkForm.client_price_per_day) || null;
+      const oppd = parseFloat(bkForm.owner_price_per_day) || null;
+      const nb   = bkForm.start_date && bkForm.end_date ? daysIncl(bkForm.start_date, bkForm.end_date) : null;
+      const payload: Record<string, unknown> = {
+        start_date: bkForm.start_date, end_date: bkForm.end_date,
+        status: bkForm.status, payment_status: bkForm.payment_status,
+        client_passport: bkForm.client_passport.trim() || null,
+        passport_expiry: bkForm.passport_expiry || null,
+      };
+      if (cppd != null) payload.client_price_per_day = cppd;
+      if (oppd != null) payload.owner_price_per_day = oppd;
+      if (bkForm.paid_amount !== '') payload.paid_amount = parseFloat(bkForm.paid_amount) || 0;
+      if (nb != null) { payload.nb_days = nb; if (cppd != null) payload.final_price = Math.round(cppd * nb); if (cppd != null && oppd != null) payload.profit_kouider = Math.round((cppd - oppd) * nb); }
+      await business.updateBooking(bkId, payload);
+      setToast('✅ Réservation mise à jour'); setBkEdit(null);
+      if (c.phone) { const d = await business.fetchClientDetail(c.phone); setDetails(m => new Map(m).set(c.phone!, d)); }
+    } catch { setToast('❌ Erreur mise à jour résa'); }
+    finally { setSaving(false); setTimeout(() => setToast(null), 4000); }
+  };
+
   const filtered = clients.filter(c =>
     !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone?.includes(search) ?? false)
   );
@@ -194,11 +264,25 @@ export default function ClientsScreen() {
                 <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${C.border}`, background: C.surface2 }}>
                   {ci && <>
                     <Row label="Voitures préférées" val={(ci.preferred_cars ?? []).join(', ') || '—'} />
-                    <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days} j` : '—'} />
-                    <Row label="Négociation" val={ci.negotiation_style ?? '—'} />
-                    <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
-                    <Row label="Dépenses total" val={fmt(ci.total_spent)} col={C.gold} />
-                    {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `${C.accent}10`, borderRadius: 12, border: `1px solid ${C.accent}22`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
+                    {intelEdit === c.name ? (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <EditField label="Durée typique (jours)" value={intelForm.typical_duration_days} onChange={v => setIntelForm(f => ({ ...f, typical_duration_days: v }))} type="number" />
+                        <EditField label="Négociation" value={intelForm.negotiation_style} onChange={v => setIntelForm(f => ({ ...f, negotiation_style: v }))} placeholder="ex: négocie souvent / jamais" />
+                        <EditField label="Fiabilité paiement" value={intelForm.payment_reliability} onChange={v => setIntelForm(f => ({ ...f, payment_reliability: v }))} placeholder="ex: fiable / à surveiller" />
+                        <EditField label="Notes" value={intelForm.notes} onChange={v => setIntelForm(f => ({ ...f, notes: v }))} placeholder="Notes libres" />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button disabled={saving} onClick={() => void saveIntel(c.name)} style={miniBtn(C.accent)}>{saving ? '…' : '✓ Enregistrer'}</button>
+                          <button onClick={() => setIntelEdit(null)} style={miniBtn(C.muted)}>Annuler</button>
+                        </div>
+                      </div>
+                    ) : (<>
+                      <Row label="Durée typique" val={ci.typical_duration_days ? `${ci.typical_duration_days} j` : '—'} />
+                      <Row label="Négociation" val={ci.negotiation_style ?? '—'} />
+                      <Row label="Fiabilité paiement" val={ci.payment_reliability ?? '—'} />
+                      <Row label="Dépenses total" val={fmt(ci.total_spent)} col={C.gold} />
+                      {ci.notes && <div style={{ marginTop: 10, padding: '10px 12px', background: `${C.accent}10`, borderRadius: 12, border: `1px solid ${C.accent}22`, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{ci.notes}</div>}
+                      <button onClick={() => startIntelEdit(c.name, ci)} style={{ ...miniBtn(C.blue), marginTop: 10 }}>✏️ Modifier le profil</button>
+                    </>)}
                   </>}
                   {cOps.length > 0 && (
                     <div style={{ marginTop: ci ? 14 : 0 }}>
@@ -240,17 +324,57 @@ export default function ClientsScreen() {
                       const stCol = bk.status === 'CONFIRMED' || bk.status === 'COMPLETED' ? C.accent
                         : bk.status === 'PENDING' ? C.gold
                         : bk.status === 'REJECTED' || bk.status === 'CANCELLED' ? '#ef4444' : C.muted;
+                      const reste = (bk.final_price ?? 0) - (bk.paid_amount ?? 0);
+                      const marge = bk.client_price_per_day != null && bk.owner_price_per_day != null && bk.nb_days
+                        ? Math.round((bk.client_price_per_day - bk.owner_price_per_day) * bk.nb_days) : null;
                       return (
-                        <div key={bk.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
-                          <span style={{ fontSize: 15 }}>🚗</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bk.car_name || 'Véhicule'}</div>
-                            <div style={{ fontSize: 11, color: C.muted }}>{(bk.start_date ?? '').slice(0, 10)}{bk.end_date ? ` → ${bk.end_date.slice(0, 10)}` : ''}{bk.nb_days ? ` · ${bk.nb_days}j` : ''}</div>
+                        <div key={bk.id} style={{ padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 15 }}>🚗</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, color: C.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bk.car_name || 'Véhicule'}</div>
+                              <div style={{ fontSize: 11, color: C.muted }}>{(bk.start_date ?? '').slice(0, 10)}{bk.end_date ? ` → ${bk.end_date.slice(0, 10)}` : ''}{bk.nb_days ? ` · ${bk.nb_days}j` : ''}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{bk.final_price != null ? fmt(bk.final_price) : '—'}</div>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: stCol }}>{bk.status ?? ''}</span>
+                            </div>
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{bk.final_price != null ? fmt(bk.final_price) : '—'}</div>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: stCol }}>{bk.status ?? ''}</span>
-                          </div>
+
+                          {bkEdit === bk.id ? (
+                            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: C.bg, borderRadius: 12, border: `1px solid ${C.border}` }}>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <EditField label="Début" value={bkForm.start_date} onChange={v => setBkForm(f => ({ ...f, start_date: v }))} type="date" />
+                                <EditField label="Fin" value={bkForm.end_date} onChange={v => setBkForm(f => ({ ...f, end_date: v }))} type="date" />
+                              </div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <EditField label="Prix client/j" value={bkForm.client_price_per_day} onChange={v => setBkForm(f => ({ ...f, client_price_per_day: v }))} type="number" />
+                                <EditField label="Prix proprio/j" value={bkForm.owner_price_per_day} onChange={v => setBkForm(f => ({ ...f, owner_price_per_day: v }))} type="number" />
+                              </div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <EditField label="Payé (€)" value={bkForm.paid_amount} onChange={v => setBkForm(f => ({ ...f, paid_amount: v }))} type="number" />
+                                <EditSelect label="Statut" value={bkForm.status} onChange={v => setBkForm(f => ({ ...f, status: v }))} options={['CONFIRMED', 'PENDING', 'ACTIVE', 'COMPLETED', 'REJECTED']} />
+                              </div>
+                              <EditSelect label="Paiement" value={bkForm.payment_status} onChange={v => setBkForm(f => ({ ...f, payment_status: v }))} options={['UNPAID', 'PARTIAL', 'PAID']} />
+                              <EditField label="N° passeport" value={bkForm.client_passport} onChange={v => setBkForm(f => ({ ...f, client_passport: v }))} placeholder="N° pièce" />
+                              <EditField label="Expiration passeport" value={bkForm.passport_expiry} onChange={v => setBkForm(f => ({ ...f, passport_expiry: v }))} type="date" />
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button disabled={saving} onClick={() => void saveBk(c, bk.id)} style={miniBtn(C.accent)}>{saving ? '…' : '✓ Enregistrer'}</button>
+                                <button onClick={() => setBkEdit(null)} style={miniBtn(C.muted)}>Annuler</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 6, paddingLeft: 25 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, color: C.muted }}>
+                                {bk.client_price_per_day != null && <span>Client {bk.client_price_per_day}€/j</span>}
+                                {bk.owner_price_per_day != null && <span>Proprio {bk.owner_price_per_day}€/j</span>}
+                                {marge != null && <span style={{ color: C.gold }}>Marge {marge}€</span>}
+                                {bk.payment_status && <span>{bk.payment_status}{reste > 0 ? ` · reste ${Math.round(reste)}€` : ''}</span>}
+                                {bk.client_passport && <span style={{ color: C.blue }}>🪪 {bk.client_passport}{bk.passport_expiry ? ` (exp ${bk.passport_expiry.slice(0, 10)})` : ''}</span>}
+                              </div>
+                              <button onClick={() => startBkEdit(bk)} style={{ ...miniBtn(C.blue), marginTop: 6 }}>✏️ Modifier la réservation</button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -293,6 +417,32 @@ export default function ClientsScreen() {
         })}
       </div>
     </div>
+  );
+}
+
+function miniBtn(col: string): React.CSSProperties {
+  return { fontSize: 11, fontWeight: 700, color: col, background: `${col}15`, border: `1px solid ${col}40`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer' };
+}
+
+function EditField({ label, value, onChange, type = 'text', placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+  return (
+    <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ fontSize: 10, color: C.muted }}>{label}</span>
+      <input type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+    </label>
+  );
+}
+
+function EditSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+  return (
+    <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ fontSize: 10, color: C.muted }}>{label}</span>
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%' }}>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
   );
 }
 

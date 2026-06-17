@@ -118,6 +118,43 @@ router.get('/intelligence', requireMobileAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/clients/intelligence — modifier le profil d'un client (négociation, fiabilité…)
+const intelPatchSchema = z.object({
+  client_name:           z.string().min(1),
+  owner:                 z.string().optional(),
+  negotiation_style:     z.string().optional(),
+  payment_reliability:   z.string().optional(),
+  typical_duration_days: z.number().optional(),
+  notes:                 z.string().nullable().optional(),
+  preferred_cars:        z.array(z.string()).optional(),
+});
+router.patch('/intelligence', requireMobileAuth, async (req, res) => {
+  const parsed = intelPatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.errors });
+    return;
+  }
+  const { client_name, owner, ...fields } = parsed.data;
+  const ownerId = owner ?? req.mobileActor?.ownerKey ?? 'kouider';
+  const update: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) if (v !== undefined) update[k] = v;
+  if (Object.keys(update).length === 0) { res.status(400).json({ error: 'Aucun champ à modifier' }); return; }
+  try {
+    const { data, error } = await supabase
+      .from('client_intelligence')
+      .update(update)
+      .eq('owner_id', ownerId)
+      .eq('client_name', client_name)
+      .select()
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) { res.status(404).json({ error: `Client "${client_name}" introuvable` }); return; }
+    res.json({ client: data });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/clients/backfill — rebuild client_intelligence from all historical bookings
 router.post('/backfill', requireMobileAuth, async (_req, res) => {
   const ownerId = 'kouider';
