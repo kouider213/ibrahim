@@ -202,7 +202,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                 {/* Rev 30j + occupation — affichés seulement s'il y a de l'activité */}
                 {rev30d !== null && rev30d > 0 && (
                   <div style={{ fontSize: 11, color: '#9b9ba6', marginBottom: 4 }}>
-                    REV. 30J <span style={{ color: '#e5e7eb', fontWeight: 700 }}>
+                    CA RÉSAS <span style={{ color: '#e5e7eb', fontWeight: 700 }}>
                       {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
                     </span>
                   </div>
