@@ -177,8 +177,19 @@
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
+        // Auto-reload quand une nouvelle version du SW prend le contrôle → plus besoin
+        // de fermer/rouvrir l'app à la main pour voir les mises à jour.
+        let _swReloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (_swReloaded) return; _swReloaded = true;
+          window.location.reload();
+        });
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/ibrahim/sw.js', { scope: '/ibrahim/' })
+            .then(reg => {
+              // Vérifie les mises à jour périodiquement (app longtemps ouverte).
+              setInterval(() => { reg.update().catch(() => {}); }, 60000);
+            })
             .catch(() => { /* SW optional — app still works offline via manifest cache */ });
         });
       }
