@@ -156,13 +156,13 @@ export default function ReservationVoucherScreen() {
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Confirme la réservation d'un véhicule + l'acompte → PDF + WhatsApp</div>
 
       {/* Scan passeport → remplit le client */}
-      <input ref={scanRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+      <input ref={scanRef} type="file" accept="image/*" style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void scanDoc(f); }} />
       <button onClick={() => scanRef.current?.click()} disabled={scanBusy}
         style={{ width: '100%', marginTop: 14, padding: '13px', borderRadius: 12, border: `1px solid ${C.blue}55`, background: `${C.blue}14`, color: C.blue, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
         {scanBusy ? '🔍 Lecture du document…' : '📷 Scanner passeport / pièce → remplir auto'}
       </button>
-      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Photo du passeport/permis → nom, prénom et n° remplis tout seuls. Ou remplis à la main ci-dessous.</div>
+      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Prends une photo, ou importe depuis ta galerie / tes fichiers → nom, prénom et n° remplis tout seuls. Ou remplis à la main ci-dessous.</div>
 
       {/* Client */}
       <div style={lbl}>Client</div>
