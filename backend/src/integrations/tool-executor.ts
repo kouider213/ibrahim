@@ -1468,6 +1468,21 @@ async function getClientDocument(input: Record<string, unknown>): Promise<string
   }
 
   if (docs.length === 0) {
+    // Fallback : pas de document scanné, mais le n° passeport peut être stocké sur la RÉSA
+    // (saisi au moment de la réservation). On le renvoie au moins en texte.
+    if (clientName) {
+      try {
+        const { data: bk } = await axiosModule.get<{ client_name: string; client_passport: string | null; passport_expiry: string | null }[]>(
+          `${SUPA_URL}/rest/v1/bookings?select=client_name,client_passport,passport_expiry&client_passport=not.is.null&client_name=ilike.*${clientName}*&limit=1`,
+          { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }, timeout: 8_000 },
+        );
+        const row = bk?.[0];
+        if (row?.client_passport) {
+          const exp = row.passport_expiry ? ` (expire le ${row.passport_expiry})` : '';
+          return `📋 Passeport de ${row.client_name} : ${row.client_passport}${exp}\n⚠️ Numéro enregistré sur la réservation — aucune photo/scan en base. Pour la photo, demande à Kouider de scanner la pièce.`;
+        }
+      } catch { /* on continue vers le diagnostic */ }
+    }
     // Dump all names for diagnosis
     try {
       const { data: all } = await axiosModule.get<{client_name:string;type:string}[]>(
