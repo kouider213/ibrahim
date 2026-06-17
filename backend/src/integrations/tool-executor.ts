@@ -517,7 +517,17 @@ async function updateBooking(input: Record<string, unknown>): Promise<string> {
   if (input['paid_amount'] !== undefined) fields['paid_amount'] = Number(input['paid_amount']);
   if (input['currency'])     fields['currency']     = input['currency'];
   if (input['rented_by'])    fields['rented_by']    = input['rented_by'];
+  if (input['client_passport']) fields['client_passport'] = input['client_passport'];
+  if (input['passport_expiry']) fields['passport_expiry'] = input['passport_expiry'];
   if (input['notes'])        fields['notes']        = input['notes'];
+
+  // Si on met à jour l'acompte sans préciser le statut, le déduire auto.
+  if (input['paid_amount'] !== undefined && !input['payment_status']) {
+    const { data: cur } = await supabase.from('bookings').select('final_price').eq('id', id).single();
+    const fp = cur ? Number((cur as any).final_price) || 0 : 0;
+    const pa = Number(input['paid_amount']);
+    fields['payment_status'] = pa <= 0 ? 'UNPAID' : (fp > 0 && pa >= fp ? 'PAID' : 'PARTIAL');
+  }
 
   // Fetch car_id before update if we need to free the car
   let carIdToFree: string | null = null;
@@ -593,10 +603,10 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     ? '\n📅 RAMADAN: Dates en période de Ramadan — tarifs spéciaux Ramadan peuvent s\'appliquer. Vérifie si une remise Ramadan a été accordée au client.'
     : '';
 
-  // Calcul nb_days (variable locale, pas de colonne DB)
-  const nb_days = Math.max(1, Math.ceil(
+  // Calcul nb_days = JOURS INCLUS (départ + retour comptent). 24/07→08/08 = 16j.
+  const nb_days = Math.max(1, Math.round(
     (new Date(input['end_date'] as string).getTime() - new Date(input['start_date'] as string).getTime()) / 86_400_000,
-  ));
+  ) + 1);
 
   // Vérification prix Houari — refuse si prix client < coût Houari
   try {
@@ -618,6 +628,15 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
   const client_ppd = input['client_price_per_day'] != null ? Number(input['client_price_per_day']) : null;
   const owner_ppd  = input['owner_price_per_day']  != null ? Number(input['owner_price_per_day'])  : null;
 
+  // Acompte + statut paiement : on RESPECTE l'acompte donné (était ignoré avant → bug).
+  // Le statut se déduit de paid_amount vs final_price si non fourni explicitement.
+  const paidAmount  = input['paid_amount'] != null ? Number(input['paid_amount']) : 0;
+  const finalPrice  = Number(input['final_price']) || 0;
+  const psMap: Record<string, string> = { pending: 'UNPAID', unpaid: 'UNPAID', partial: 'PARTIAL', paid: 'PAID' };
+  const payment_status = input['payment_status']
+    ? (psMap[String(input['payment_status']).toLowerCase()] ?? 'UNPAID')
+    : (paidAmount <= 0 ? 'UNPAID' : (finalPrice > 0 && paidAmount >= finalPrice ? 'PAID' : 'PARTIAL'));
+
   // Automotolux payment_status values: 'UNPAID' | 'PARTIAL' | 'PAID' (DEFAULT 'UNPAID')
   // nb_days, notes NOT in automotolux schema → excluded
   // client_age: column exists, make nullable via: ALTER TABLE bookings ALTER COLUMN client_age DROP NOT NULL
@@ -637,7 +656,8 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
     start_date:           input['start_date'],
     end_date:             input['end_date'],
     final_price:          input['final_price'],
-    payment_status:       'UNPAID',
+    payment_status,
+    paid_amount:          paidAmount,
     rented_by:            rentedBy,
     currency,
     status,
@@ -648,6 +668,8 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
                             ? Math.round((client_ppd - owner_ppd) * nb_days * 100) / 100
                             : null,
     discount_applied:     input['discount_applied']  != null ? Number(input['discount_applied']) : 0,
+    client_passport:      input['client_passport'] ?? null,
+    passport_expiry:      input['passport_expiry']  ?? null,
   };
 
   const { data, error } = await supabase
@@ -687,8 +709,8 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
         final_price:          Number(input['final_price']) || null,
         discount_applied:     input['discount_applied'] != null ? Number(input['discount_applied']) : 0,
         status,
-        payment_status:       'UNPAID',
-        paid_amount:          0,
+        payment_status,
+        paid_amount:          paidAmount,
       }).catch(() => {});
     }).catch(() => {});
 

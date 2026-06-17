@@ -31,6 +31,8 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         paid_amount:    { type: 'number', description: 'Montant déjà encaissé' },
         currency:       { type: 'string', enum: ['EUR','DZD'], description: 'Devise: EUR ou DZD' },
         rented_by:      { type: 'string', enum: ['Kouider','Houari'] },
+        client_passport:{ type: 'string', description: 'N° de passeport/pièce d\'identité du client (si donné dans le message)' },
+        passport_expiry:{ type: 'string', description: 'Date d\'expiration du passeport YYYY-MM-DD (optionnel)' },
         notes:          { type: 'string' },
       },
       required: ['id'],
@@ -38,7 +40,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'create_booking',
-    description: 'Créer une nouvelle réservation dans Supabase. Utiliser car_name (ex: "Clio 5 Alpine") OU car_id (UUID). Si seul le nom est connu, utiliser car_name — la recherche UUID est automatique. IMPORTANT: toujours fournir client_price_per_day ET owner_price_per_day pour le calcul du profit réel. Si le client est "Kouider" sans nom de locataire, mettre client_name="Kouider". La réservation est automatiquement ajoutée à Google Agenda.',
+    description: 'Créer une nouvelle réservation dans Supabase. Utiliser car_name (ex: "Clio 5 Alpine") OU car_id (UUID). Si seul le nom est connu, utiliser car_name — la recherche UUID est automatique. IMPORTANT: toujours fournir client_price_per_day ET owner_price_per_day pour le calcul du profit réel. ⚠️ Si un ACOMPTE/paiement est mentionné, TOUJOURS renseigner paid_amount (le payment_status se déduit automatiquement). Si un n° de PASSEPORT/pièce d\'identité est donné, renseigner client_passport. Si le client est "Kouider" sans nom de locataire, mettre client_name="Kouider". La réservation est automatiquement ajoutée à Google Agenda.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -56,8 +58,10 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
         notes:       { type: 'string' },
         rented_by:      { type: 'string', enum: ['Kouider','Houari'], description: 'Défaut: Kouider' },
         status:         { type: 'string', enum: ['PENDING','CONFIRMED','ACTIVE','COMPLETED','REJECTED'], description: 'Défaut: CONFIRMED. Utiliser COMPLETED pour les anciennes réservations terminées.' },
-        payment_status: { type: 'string', enum: ['UNPAID','PARTIAL','PAID'], description: 'Statut paiement. Défaut: UNPAID. PAID si payé, PARTIAL si acompte.' },
-        paid_amount:    { type: 'number', description: 'Montant déjà payé (défaut: 0)' },
+        payment_status: { type: 'string', enum: ['UNPAID','PARTIAL','PAID'], description: 'Statut paiement. Optionnel — déduit auto de paid_amount vs final_price si absent.' },
+        paid_amount:    { type: 'number', description: 'Montant déjà payé / acompte versé (défaut: 0). À RENSEIGNER dès qu\'un acompte est mentionné.' },
+        client_passport:{ type: 'string', description: 'N° de passeport/pièce d\'identité du client (si donné dans le message)' },
+        passport_expiry:{ type: 'string', description: 'Date d\'expiration du passeport YYYY-MM-DD (optionnel)' },
         currency:       { type: 'string', enum: ['EUR','DZD'], description: 'Devise. Défaut: DZD si Houari, EUR si Kouider.' },
       },
       required: ['client_name','start_date','end_date','final_price'],
