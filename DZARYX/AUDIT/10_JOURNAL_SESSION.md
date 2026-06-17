@@ -85,6 +85,12 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-17 — Bon de réservation + concurrence sans "didano" ⭐
+> Backend `ibrahim` (`99a8952`) + site SQL (`a4db0ca`). Déployé Railway + gh-pages (SW v94).
+- **Bon de réservation** (comme le devis) : tuile **BON RÉSA** dans Plus d'outils → `ReservationVoucherScreen`. Confirme résa véhicule + acompte. Champs : prénom/nom, n° passeport, véhicule (datalist voitures), période, lieu récupération + dépôt (chips Aéroport/Bureau), total/acompte/reste, langue. → PDF pro (`/api/reservation-voucher/pdf`, pdfkit→bucket, signatures) + WhatsApp 3 langues + historique. **Testé live HTTP 200** (BON-HRGNHA.pdf).
+- ⚠️ Kouider : lancer `rental-system/supabase/0031_reservation_vouchers.sql` pour l'historique "Bons récents" (le PDF marche déjà sans).
+- **Concurrence** (`795513d`) : retiré "didanolocation" codé en dur (n'existe pas) de 7 fichiers → Dzaryx découvre les vrais concurrents par recherche web réelle. Analyse confirmée RÉELLE (web_search, verdict VERIFIED/PARTIAL/FAKE).
+
 ### 2026-06-15 (+3) — SEO conciergerie + décisions Kouider ⭐
 > Site `rental-system` commit `cc3a8fe` (Vercel). + clarifs.
 - **SEO positionnement conciergerie** : title/description accueil + `_app.js` (og/twitter) + `/api/og` (image partage) + JSON-LD `@type AutoRental → [LocalBusiness, AutoRental, RealEstateAgent]`. Avant : tout criait "location de voiture". Contenu accueil déjà OK (hero + 6 pôles rendus). Reste Kouider (optionnel, auto sinon) : re-crawl Search Console + FB sharing debugger + catégories Google Business.
