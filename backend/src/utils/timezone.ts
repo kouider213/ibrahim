@@ -75,6 +75,28 @@ export function parseLocalHHMM(HHmm: string, tz: string): Date | null {
   return targetUTC <= now ? new Date(targetUTC.getTime() + 86_400_000) : targetUTC;
 }
 
+// Parse une DATE précise (YYYY-MM-DD) + heure (HH:MM, défaut 09:00) dans la timezone → UTC.
+// Pour les rappels à une date future ("le 29 juillet"). Retourne null si format invalide,
+// ou si la date+heure est déjà passée (un rappel ne peut pas être dans le passé).
+export function parseLocalDateTime(dateYMD: string, HHmm: string | undefined, tz: string): Date | null {
+  const dMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYMD.trim());
+  if (!dMatch) return null;
+  let h = 9, m = 0;
+  if (HHmm) {
+    const tMatch = /^(\d{1,2}):(\d{2})$/.exec(HHmm.trim());
+    if (!tMatch) return null;
+    h = Number(tMatch[1]); m = Number(tMatch[2]);
+    if (h > 23 || m > 59) return null;
+  }
+  const [, y, mo, d] = dMatch;
+  const localISO  = `${y}-${mo}-${d}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+  // Offset à la date cible (gère l'heure d'été/hiver à cette date précise).
+  const approx    = new Date(localISO + 'Z');
+  const offsetMs  = getUTCOffsetMs(tz, approx);
+  const targetUTC = new Date(approx.getTime() - offsetMs);
+  return targetUTC.getTime() <= Date.now() ? null : targetUTC;
+}
+
 // ── Priority-chain timezone resolver ─────────────────────────────────────────
 export interface ResolvedTimezone {
   timezone: string;

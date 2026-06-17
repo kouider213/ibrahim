@@ -760,6 +760,10 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   {
     name: 'schedule_reminder',
     description: `Programmer un rappel réel avec persistance DB + BullMQ.
+Supporte 3 modes : delay_minutes (dans X min), at_time (heure aujourd'hui/demain),
+ou at_date (DATE FUTURE PRÉCISE YYYY-MM-DD, ex "le 29 juillet" → at_date="2026-07-29").
+Un rappel à at_date est UNIQUE (déclenché une seule fois ce jour-là, jamais répété).
+Tu PEUX donc programmer une date future précise — ne dis JAMAIS le contraire.
 
 RÈGLES ABSOLUES:
 1. Tu ne peux JAMAIS dire "rappel programmé" sans recevoir status=created + db_id + job_id dans la réponse.
@@ -776,7 +780,8 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
       properties: {
         message:       { type: 'string', description: 'Texte du rappel' },
         delay_minutes: { type: 'number', description: 'Délai en minutes (ex: 30 pour "dans 30 minutes")' },
-        at_time:       { type: 'string', description: 'Heure exacte HH:MM (ex: "18:00") — timezone par défaut Europe/Brussels' },
+        at_time:       { type: 'string', description: 'Heure exacte HH:MM (ex: "18:00"). Avec at_date = heure ce jour-là (défaut 09:00).' },
+        at_date:       { type: 'string', description: 'Date PRÉCISE future YYYY-MM-DD (ex: "2026-07-29" pour "le 29 juillet"). Rappel UNIQUE ce jour-là (pas répété). Combine avec at_time pour l\'heure.' },
         timezone:      { type: 'string', description: 'Timezone IANA optionnelle (défaut: Europe/Brussels, ex: Africa/Algiers si Oran)' },
       },
       required: ['message'],

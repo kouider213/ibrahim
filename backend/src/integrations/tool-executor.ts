@@ -9,6 +9,7 @@ import { insertReminder, findByDedupKey } from '../db/reminders.js';
 import {
   resolveTimezone,
   parseLocalHHMM,
+  parseLocalDateTime,
   getUTCOffsetString,
   toLocalISO,
   isValidTimezone,
@@ -1692,6 +1693,7 @@ async function scheduleReminder(
   const message      = input['message']       as string | undefined;
   const delayMinutes = input['delay_minutes'] as number | undefined;
   const atTime       = input['at_time']       as string | undefined;
+  const atDate       = input['at_date']       as string | undefined;
   const tzInput      = input['timezone']      as string | undefined;
 
   if (!message) return JSON.stringify({ error: '❌ message requis', source_channel: 'unknown', request_id: 'none', message: '' });
@@ -1738,7 +1740,15 @@ async function scheduleReminder(
   let delayMs  = 0;
   let remindAt = new Date();
 
-  if (delayMinutes !== undefined && Number(delayMinutes) > 0) {
+  if (atDate) {
+    // Rappel à une DATE précise (ex: "le 29 juillet") + heure optionnelle (défaut 09:00).
+    const parsed = parseLocalDateTime(atDate, atTime, timezone);
+    if (!parsed) {
+      return JSON.stringify({ error: '❌ at_date invalide ou déjà passée — format YYYY-MM-DD (date future requise)', source_channel, request_id, message });
+    }
+    remindAt = parsed;
+    delayMs  = remindAt.getTime() - Date.now();
+  } else if (delayMinutes !== undefined && Number(delayMinutes) > 0) {
     delayMs  = Number(delayMinutes) * 60 * 1000;
     remindAt = new Date(Date.now() + delayMs);
   } else if (atTime) {
@@ -1749,7 +1759,7 @@ async function scheduleReminder(
     remindAt = parsed;
     delayMs  = remindAt.getTime() - Date.now();
   } else {
-    return JSON.stringify({ error: '❌ Spécifie delay_minutes ou at_time', source_channel, request_id, message });
+    return JSON.stringify({ error: '❌ Spécifie delay_minutes, at_time ou at_date', source_channel, request_id, message });
   }
 
   // ── 3. Timezone enrichment ───────────────────────────────────────────
