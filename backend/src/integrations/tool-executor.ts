@@ -892,14 +892,16 @@ export async function scanIdentity(
   // Upload et insert SÉPARÉS : si l'upload échoue, on enregistre quand même la fiche
   // (données OCR + nom) pour que la récup la retrouve, photo ajoutée si dispo.
   let savedToFile = false;
-  let fileUrl: string | null = null;
+  let fileUrl = '';
+  let storagePath = '';
   try {
     const ext  = mimeHint.includes('png') ? 'png' : 'jpg';
     const path = `ids/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    storagePath = path; // storage_path est NOT NULL en base
     await supabase.storage.createBucket('client-documents', { public: true }).catch(() => {});
     const { error: upErr } = await supabase.storage.from('client-documents').upload(path, buffer, { contentType: mimeHint || 'image/jpeg', upsert: false });
-    if (upErr) console.warn('[scanIdentity] upload photo échoué:', upErr.message);
-    else fileUrl = supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl ?? null;
+    if (upErr) { console.warn('[scanIdentity] upload photo échoué:', upErr.message); storagePath = ''; }
+    else fileUrl = supabase.storage.from('client-documents').getPublicUrl(path).data?.publicUrl ?? '';
   } catch (e) {
     console.warn('[scanIdentity] upload photo exception:', e);
   }
@@ -909,9 +911,9 @@ export async function scanIdentity(
   try {
     const { error } = await supabase.from('client_documents').insert({
       // type en ANGLAIS ('passport'/'license') pour rester cohérent avec le reste + la récup.
-      // file_url est NOT NULL en base → jamais null (chaîne vide si l'upload a échoué).
+      // file_url ET storage_path sont NOT NULL en base → jamais null (chaîne vide si pas d'upload).
       client_name: docClientName, client_phone: opts.clientPhone ?? null,
-      type: isPermis ? 'license' : 'passport', file_url: fileUrl ?? '', extracted_data: data,
+      type: isPermis ? 'license' : 'passport', file_url: fileUrl, storage_path: storagePath, extracted_data: data,
     });
     if (error) console.warn('[scanIdentity] insert client_documents échoué:', error.message);
     else savedToFile = true;
