@@ -87,7 +87,7 @@ async function loadContract(token: string): Promise<Contract | null> {
       nbDays   = Number(b.nb_days ?? 0);
     }
   }
-  if (!nbDays && start && end) nbDays = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86_400_000));
+  if (!nbDays && start && end) nbDays = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86_400_000) + 1); // jours inclus
   const perDay  = nbDays > 0 && total > 0 ? Math.round(total / nbDays) : 0;
   const acompte = paid > 0 ? paid : (perDay > 0 ? perDay * 3 : 0);
   const reste   = Math.max(0, total - acompte);

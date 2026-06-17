@@ -50,8 +50,8 @@ async function createReservation(params: Record<string, unknown>): Promise<Actio
   const start = new Date(data.start_date);
   const end   = new Date(data.end_date);
 
-  // Business rule: minimum 2 days
-  const days = Math.ceil((end.getTime() - start.getTime()) / 86_400_000);
+  // Business rule: minimum 2 days. Jours = JOURS INCLUS (départ + retour). 24/07→08/08 = 16j.
+  const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1);
   if (days < BUSINESS_RULES.MIN_RENTAL_DAYS) {
     return { success: false, error: 'min_duration', message: `La durée minimale est de ${BUSINESS_RULES.MIN_RENTAL_DAYS} jours.` };
   }

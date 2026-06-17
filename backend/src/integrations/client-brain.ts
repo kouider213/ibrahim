@@ -294,7 +294,7 @@ export async function analyzeAllClients(ownerId = 'kouider'): Promise<number> {
 
         const start = new Date(b.start_date).getTime();
         const end   = new Date(b.end_date).getTime();
-        totalDays  += Math.max(1, Math.ceil((end - start) / 86_400_000));
+        totalDays  += Math.max(1, Math.round((end - start) / 86_400_000) + 1); // jours inclus
         totalSpent += Number(b.final_price ?? 0);
 
         if (b.payment_status === 'PAID' || b.paid_amount >= (b.final_price ?? 0) * 0.99) paidOnTime++;

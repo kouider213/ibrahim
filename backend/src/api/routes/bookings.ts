@@ -67,9 +67,10 @@ router.post('/', requireMobileAuth, async (req, res) => {
   }
 
   const { syncCalendar, client_price_per_day, owner_price_per_day, payment_status, paid_amount, initial_status, currency, ...bookingData } = parsed.data;
-  const nb_days = Math.max(1, Math.ceil(
+  // Jours = JOURS INCLUS (départ + retour). Ex 24/07→08/08 = 16j.
+  const nb_days = Math.max(1, Math.round(
     (new Date(bookingData.end_date).getTime() - new Date(bookingData.start_date).getTime()) / 86_400_000,
-  ));
+  ) + 1);
   const profit_kouider = client_price_per_day != null && owner_price_per_day != null
     ? Math.round((client_price_per_day - owner_price_per_day) * nb_days * 100) / 100
     : null;

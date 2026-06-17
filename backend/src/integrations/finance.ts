@@ -88,8 +88,9 @@ export function computeBookingFinancials(b: {
   price_source:         'explicit' | 'computed' | 'missing';
   data_complete:        boolean;
 } {
+  // Jours = JOURS INCLUS (départ + retour comptent). 24/07→08/08 = 16j. Fallback si nb_days absent.
   const nb_days = b.nb_days ?? Math.max(1,
-    Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000),
+    Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000) + 1,
   );
   const paid_amount     = b.paid_amount     ?? 0;
   const discount_applied = b.discount_applied ?? 0;

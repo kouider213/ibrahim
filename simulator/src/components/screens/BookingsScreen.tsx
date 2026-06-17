@@ -3,6 +3,12 @@ import { business, type Booking, type Car, type ClientOperation } from '../../se
 
 type ResaMode = 'resa' | 'ops';
 
+// Jours de location = JOURS INCLUS (le jour de départ ET le jour de retour comptent).
+// Ex : 24/07 → 08/08 = 16 jours. Convention Kouider. Une ristourne se fait en éditant nb_days.
+function daysInclusive(start: string, end: string): number {
+  return Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1);
+}
+
 const OP_META: Record<string, { label: string; icon: string; col: string }> = {
   location_immo:      { label: 'LOCATION IMMO',  icon: '🏠', col: '#b06bff' },
   vente_immo:         { label: 'ACHAT IMMO',     icon: '🏠', col: '#00e676' },
@@ -107,7 +113,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
       setEditMsg('❌ Dates invalides'); return;
     }
     setSaving(true);
-    const newNb  = Math.max(1, Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / 86400000));
+    const newNb  = daysInclusive(start_date, end_date);
     const cpp    = parseFloat(client_ppd) || (booking.client_price_per_day ?? 0);
     const opp    = booking.owner_price_per_day ?? 0;
     const newTotal = cpp * newNb;
@@ -154,9 +160,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
     if (new Date(form.end_date) <= new Date(form.start_date)) {
       setMsg('❌ Date de fin doit être après la date de début'); setTimeout(() => setMsg(''), 3000); return;
     }
-    const nb = Math.max(1, Math.round(
-      (new Date(form.end_date).getTime() - new Date(form.start_date).getTime()) / 86400000
-    ));
+    const nb = daysInclusive(form.start_date, form.end_date);
     const cpp = parseFloat(form.client_ppd) || 0;
     const opp = ownerPpd ?? 0;
     // Plancher : Kouider ne peut pas louer en dessous du prix proprio (ce qu'il paye à Houari).
@@ -214,7 +218,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
     const opp = (b as { owner_price_per_day?: number | null }).owner_price_per_day;
     let nb = (b as { nb_days?: number | null }).nb_days ?? null;
     const sd = (b as { start_date?: string }).start_date, ed = (b as { end_date?: string }).end_date;
-    if (!nb && sd && ed) nb = Math.max(1, Math.round((new Date(ed).getTime() - new Date(sd).getTime()) / 86400000));
+    if (!nb && sd && ed) nb = daysInclusive(sd, ed);
     if (cpp == null || opp == null || !nb) return null;
     return Math.round((cpp - opp) * nb * 100) / 100;
   };
@@ -576,7 +580,7 @@ interface EditModalProps {
 function EditModal({ editState, setEditState, editMsg, saving, handleEdit, inputStyle }: EditModalProps) {
   const b = editState.booking;
   const newNb = editState.start_date && editState.end_date && new Date(editState.end_date) > new Date(editState.start_date)
-    ? Math.max(1, Math.round((new Date(editState.end_date).getTime() - new Date(editState.start_date).getTime()) / 86400000))
+    ? daysInclusive(editState.start_date, editState.end_date)
     : (b.nb_days ?? 0);
   const cpp      = parseFloat(editState.client_ppd) || (b.client_price_per_day ?? 0);
   const newTotal = cpp * newNb;

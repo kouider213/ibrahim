@@ -48,7 +48,7 @@ export async function exportBookingsToExcel(year?: number, month?: number): Prom
   for (const b of rows) {
     const start = new Date(b.start_date);
     const end   = new Date(b.end_date);
-    const days  = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86_400_000));
+    const days  = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1); // jours inclus
     const total = b.final_price ?? 0;
     const paid  = b.paid_amount ?? 0;
     const reste = total - paid;

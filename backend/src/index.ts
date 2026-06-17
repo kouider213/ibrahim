@@ -424,9 +424,9 @@ async function autoBackfillClientIntel(): Promise<void> {
       payment_status: string | null; paid_amount: number | null;
     }>) {
       const carName = carMap.get(b.car_id) ?? 'Véhicule';
-      const nbDays  = b.nb_days ?? Math.max(1, Math.ceil(
+      const nbDays  = b.nb_days ?? Math.max(1, Math.round(
         (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
-      ));
+      ) + 1); // jours inclus
       await updateClientIntelFromBooking({
         client_name:          b.client_name,
         client_phone:         b.client_phone ?? undefined,
