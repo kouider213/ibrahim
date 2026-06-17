@@ -11,6 +11,7 @@ import CalendarScreen from './screens/CalendarScreen.tsx';
 import ImmoProScreen from './screens/ImmoProScreen.tsx';
 import DealsScreen from './screens/DealsScreen.tsx';
 import OpportunitiesScreen from './screens/OpportunitiesScreen.tsx';
+import ReservationVoucherScreen from './screens/ReservationVoucherScreen.tsx';
 import DemandesScreen from './screens/DemandesScreen.tsx';
 import NewsletterScreen from './screens/NewsletterScreen.tsx';
 import CaisseScreen from './screens/CaisseScreen.tsx';
@@ -31,7 +32,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -54,6 +55,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   // ── Menu "⋯ Plus" (outils) ──
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
   { id: 'devis',         icon: '🧮', label: 'DEVIS',   kouiderOnly: true, group: 'tool' },
+  { id: 'voucher',       icon: '🧾', label: 'BON RÉSA', kouiderOnly: true, group: 'tool' },
   { id: 'reponse',       icon: '🗨️', label: 'RÉPONSE', kouiderOnly: true, group: 'tool' },
   { id: 'bookings',      icon: '📋', label: 'LOCATIONS', group: 'tool' },
   { id: 'immo',          icon: '🏠', label: 'IMMO',    group: 'tool' },
@@ -189,6 +191,7 @@ export default function Phone() {
       case 'reviews':       return <ReviewsScreen />;
       case 'blog':          return <BlogScreen />;
       case 'devis':         return <DevisScreen />;
+      case 'voucher':       return <ReservationVoucherScreen />;
       case 'reponse':       return <ReponseScreen />;
       case 'aujourdhui':    return <CommandCenterScreen />;
       case 'forecast':      return <ForecastScreen />;

@@ -840,6 +840,11 @@ export const business = {
     apiFetch<{ url: string; ref: string }>('/api/quote/pdf', { method: 'POST', body: JSON.stringify(data) }),
   quotesList: () =>
     apiFetch<{ quotes: Array<{ id: string; ref: string; client_name?: string; total?: number; currency?: string; url: string; created_at?: string }> }>('/api/quote/list'),
+  // Bon de réservation PDF
+  voucherPdf: (data: { first_name?: string; last_name?: string; passport?: string; phone?: string; vehicle?: string; start_date?: string; end_date?: string; pickup?: string; dropoff?: string; total?: number; deposit?: number; currency?: string }) =>
+    apiFetch<{ url: string; ref: string }>('/api/reservation-voucher/pdf', { method: 'POST', body: JSON.stringify(data) }),
+  vouchersList: () =>
+    apiFetch<{ vouchers: Array<{ id: string; ref: string; client_name?: string; vehicle?: string; deposit?: number; total?: number; currency?: string; url: string; created_at?: string }> }>('/api/reservation-voucher/list'),
 
   // Parrainage
   referralsList: () =>
