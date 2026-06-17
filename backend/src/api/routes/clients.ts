@@ -14,7 +14,7 @@ router.get('/', requireMobileAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('bookings')
-      .select('client_name, client_phone, client_email, status, final_price, created_at, cars(name)')
+      .select('client_name, client_phone, client_email, status, final_price, created_at, start_date, end_date, cars(name)')
       .eq('rented_by', actorName)
       .order('created_at', { ascending: false });
 
@@ -30,7 +30,8 @@ router.get('/', requireMobileAuth, async (req, res) => {
 
     for (const b of (data ?? []) as Array<{
       client_name: string; client_phone: string; client_email: string;
-      status: string; final_price: number; created_at: string; cars?: { name?: string } | null;
+      status: string; final_price: number; created_at: string;
+      start_date: string | null; end_date: string | null; cars?: { name?: string } | null;
     }>) {
       const key = b.client_phone ?? b.client_email ?? b.client_name;
       const existing = clientMap.get(key);
@@ -50,7 +51,8 @@ router.get('/', requireMobileAuth, async (req, res) => {
           lastBooking:  b.created_at,
           types:        new Set<ClientType>(['loc_auto']),
           lastCarName:     b.cars?.name ?? null,
-          lastBookingDate: b.created_at,
+          // Date de LOCATION (début), pas created_at, pour cohérence avec l'historique affiché.
+          lastBookingDate: b.start_date ?? b.created_at,
         });
       }
     }

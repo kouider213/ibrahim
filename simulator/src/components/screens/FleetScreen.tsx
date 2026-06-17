@@ -424,7 +424,8 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
   const first = new Date(month.y, month.m, 1);
   const startWeekday = (first.getDay() + 6) % 7; // lundi=0
   const daysInMonth = new Date(month.y, month.m + 1, 0).getDate();
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const _t = new Date();
+  const todayIso = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, '0')}-${String(_t.getDate()).padStart(2, '0')}`;
   const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
   const E = '#10b981';
 
@@ -504,11 +505,14 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
   );
 }
 
-// liste des jours (ISO) entre start et end inclus
+// liste des jours (ISO local) entre start et end inclus.
+// Format LOCAL (pas toISOString = UTC, qui décale d'un jour en UTC+1).
 function eachDay(start: string, end: string): string[] {
   const out: string[] = [];
-  const s = new Date(start + 'T00:00:00'); const e = new Date(end + 'T00:00:00');
-  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) out.push(d.toISOString().slice(0, 10));
+  const s = new Date(start.slice(0, 10) + 'T00:00:00'); const e = new Date(end.slice(0, 10) + 'T00:00:00');
+  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+  }
   return out;
 }
 const calNav: CSSProperties = { width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#10b981', fontSize: 16, cursor: 'pointer' };

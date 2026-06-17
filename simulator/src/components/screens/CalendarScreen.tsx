@@ -36,7 +36,17 @@ const STATUS_COL: Record<string, string> = {
 const DAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const MONTH_FR   = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'];
 
-function isoDate(d: Date): string { return d.toISOString().slice(0, 10); }
+// Format une Date en YYYY-MM-DD dans le fuseau LOCAL (jamais toISOString = UTC,
+// qui décale d'un jour en Algérie UTC+1). Source unique de vérité des jours.
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Parse une date-only "YYYY-MM-DD" en minuit LOCAL (new Date(str) la lirait en UTC).
+function parseYmd(s: string): Date {
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
 
 function eventDate(e: CalEvent): string {
   return (e.start.dateTime ?? e.start.date ?? '').slice(0, 10);
@@ -108,8 +118,8 @@ export default function CalendarScreen() {
     const map: Record<string, Booking[]> = {};
     for (const b of bookings) {
       if (b.status === 'REJECTED') continue;
-      const cur = new Date(b.start_date);
-      const end = new Date(b.end_date);
+      const cur = parseYmd(b.start_date);
+      const end = parseYmd(b.end_date);
       while (cur <= end) {
         const k = isoDate(cur);
         (map[k] ??= []).push(b);
