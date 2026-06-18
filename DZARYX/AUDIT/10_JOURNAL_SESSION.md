@@ -25,7 +25,10 @@
 
 ---
 
-## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-13)
+## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-17)
+
+> **Session 2026-06-17 (grosse) — clôturée proprement, tout déployé + testé.** Voir les entrées `### 2026-06-17` ci-dessous (plus récent en haut). Résumé : widget chatbot tué ; **dates "jours inclus" partout** + CA cohérent + scan passeport→résa (file_url/storage_path NOT NULL) ; rappels à date précise ; fuseau + GPS auto ; **résilience €0 re-prouvée live** (Groq/Gemini, sauf Railway ~5€/mois + domaine ~12€/an) ; **page B2B `/entreprises`** (3 packs, 100% FR/AR/EN, hero S580) + devis entreprise depuis l'app ; **notifs site `await`** (Telegram réparé) + lead→push app ; fiche client éditable + suppr demandes in-app ; **CMS Admin→Contenu** (textes/photos, SQL `0032` lancé ✅) ; photos hero compressées ; hero accueil S580 ; agenda = liste résas du mois. **SW simulateur = v112.** Tous SQL du jour lancés ✅ (0031, nb_days/paid fixes, 0032). Devise reste par-annonce (€/DA) — option taux global discutée, NON faite (choix Kouider : laisser tel quel).
+
 
 - **⭐ SUIVI IMPORTATION (13-06)** : construit + déployé (commit `66bdb7f`), voir `### 2026-06-13`. **🛑 Kouider doit
   lancer `rental-system/supabase/0022_import_orders.sql`** sinon la feature échoue (table manquante).
@@ -85,10 +88,116 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-17 (feat) — CMS contenu site + devis entreprise app + compression photos ⭐⭐
+> Site `rental-system` (`ca15ebb`, `2b37137`) + simulateur (`711215c`, SW v111).
+- **CMS contenu** : `site_settings.content` (JSONB, SQL `0032_site_content.sql` 🛑 à lancer) + `lib/content.js` (`cText`/`cImg` + schéma `CONTENT_FIELDS`) + **Admin → Contenu (textes/photos)** (`/admin/contenu`, FR/AR/EN + upload). Câblé : page entreprises (hero photo/titre/sous-titre, 3 packs nom+desc) + accueil (titres sections services/pourquoi). Vide = valeur par défaut (zéro risque). Extensible : ajouter une entrée à `CONTENT_FIELDS`. Hero accueil + contact déjà éditables via Admin→Paramètres.
+- **Devis entreprise depuis l'app** : DevisScreen → boutons packs Platinium/Gold/Diamant → PDF+WhatsApp.
+- **Perf** : photos hero compressées (2.5Mo→257Ko, 2.4Mo→244Ko). Bandeau réassurance /reservation.
+
+### 2026-06-17 — Vérif résilience €0 (re-test live) + page B2B + hero + traductions ⭐⭐⭐
+> Session longue. Récap des travaux du jour (tout déployé) :
+- **Résilience €0 re-prouvée LIVE** (sans toucher prod) : `/health` `survives_zero_cost:true` groq+gemini 🟢 ; test-fallback (provider forcé HS → relais auto + vraies données, 0 crash) ; **Groq site** /api/translate FR→EN ✅ ; **Groq backend** /api/translate FR→AR ✅ (= clé du `agentic-fallback`). Cascade confirmée code : chat+151 outils Claude→Groq/Gemini agentic→Groq→OpenAI ; vision Claude→Groq→OpenAI ; STT OpenAI→Groq Whisper→Google ; TTS ElevenLabs→Gemini→device ; site translate/blog Groq. Limite : endpoint test-fallback câblé Claude (ne montre pas Groq) ; preuve ultime = couper clé Claude prod (pas fait, "rien casser"). Conclusion : **app+site tournent à €0 sauf Railway (~5€/mois, 24/7) + domaine (~12€/an, site).**
+- **Page B2B `/entreprises`** créée (3 packs Platinium/Gold/Diamant sur devis, formulaire→lead `entreprise`→Telegram+push app+WhatsApp), hero photo S580 chauffeur, 100% trilingue FR/AR/EN en dur. Voir [[b2b_entreprises_page]].
+- **Notifs site** : `notifyTelegram` passé en `await` partout (serverless tuait l'envoi → Telegram perdu) ; lead notifie aussi push app. Voir [[serverless_await_notif]].
+- **App** : fiche client éditable (résa: passeport/prix/dates/statut + profil négo) ; supprimer demandes depuis DEMANDES ; rappel à date précise (`at_date`) ; GPS auto au démarrage ; fuseau auto (X-Timezone). Scan passeport→résa (file_url/storage_path NOT NULL fixés). Dates "jours inclus". CA cohérent partout. Auto-reload app sur nouvelle version (SW). SW v110.
+- **Accueil** : nouvelle photo hero S580 + label véhicule retiré.
+
+### 2026-06-17 (fix+feat) — Notifs site await + supprimer demandes depuis l'app ⭐⭐
+> Site `rental-system` + backend/sim Dzaryx.
+- **Notifs Telegram perdues** (`5160811`) : `notifyTelegram` non-`await` en serverless → tué quand la réponse part (app push marchait car await). Tous les envois (lead/dossier/import/avis/newsletter/résa) passés en await. + lead notifie maintenant AUSSI le push app (`26a0341` via webhook `/api/fik-site/notify`). Voir [[serverless_await_notif]]. Vérifié : env Vercel TELEGRAM_*/IBRAHIM_WEBHOOK_SECRET présentes ; webhook backend testé `{ok:true}`.
+- **Supprimer demandes depuis l'app** (`d4b1bca`, SW v110) : backend `POST /api/demandes/delete` (lead/dossier/import/booking, direct Supabase) + bouton 🗑️ Suppr (2 taps confirmer) dans DemandesScreen.
+
+### 2026-06-17 (feat) — Fiche client : voir + modifier toute la résa + profil ⭐⭐
+> Backend (`8331677`) + simulateur (SW v108).
+- **Demande Kouider** : depuis CLIENTS, voir toutes les infos résa (passeport/permis/dates/modèle) + tout modifier (négociation, etc.).
+- `getClientHistory` fait déjà `select('*')` → résa contient passeport/prix/payé. Étendu type `ClientBookingHistory`.
+- **Affichage** par résa : prix client/proprio/j, marge, payé+reste, statut, N° passeport+expiration.
+- **Édition résa** : bouton "Modifier la réservation" → dates (jours inclus), prix/j, payé, statut, paiement, passeport ; recalc nb_days/final_price/profit ; PATCH `/api/bookings/:id` (accepte déjà tous champs).
+- **Édition profil** : "Modifier le profil" → négociation, fiabilité, durée typique, notes → nouveau `PATCH /api/clients/intelligence` (par owner_id + client_name).
+
+### 2026-06-17 (feat) — Fuseau auto (déjà OK) + détection GPS auto ⭐
+> Simulateur (`806e83d`, SW v106).
+- **Fuseau horaire rappels** : DÉJÀ automatique. L'app envoie `X-Timezone` (= `Intl…timeZone` du device) à chaque message ; chat route le stocke (Redis `user:tz:session`) ; `schedule_reminder` l'utilise (priorité device > Bruxelles). Bascule Algérie/Belgique selon le réglage auto du tél. Rien à coder.
+- **GPS position (Réglages)** : était manuel (clic "Partager ma position" à chaque fois). Rendu AUTO : si permission accordée, refresh silencieux au montage (`permissions.query` + `shareLocation(true)`). Fix bug : `onClick={shareLocation}` passait l'event comme arg `silent`.
+- **GPS auto APP-WIDE** (`9ab670b`, SW v107) : détection aussi au login dans `Phone.tsx` → position rafraîchie en silence à chaque ouverture de l'app (pas que l'écran Réglages). 1ʳᵉ fois = autoriser, ensuite auto.
+
+### 2026-06-17 (feat) — Rappel à une DATE future précise ⭐⭐
+> Backend (`54869e9`, Railway).
+- **Bug Kouider** : "fais le rappel pour le 29 juillet" → Dzaryx "impossible, met toujours demain" + rappel répété chaque jour.
+- **Cause** : `schedule_reminder` n'avait que `delay_minutes` + `at_time` (HH:MM, retombe sur demain). Aucune date.
+- **Fix** : param `at_date` (YYYY-MM-DD) + helper `parseLocalDateTime` (date+heure en timezone→UTC, refuse le passé). Rappel UNIQUE ce jour-là. Description outil corrigée (Dzaryx sait qu'une date future est possible).
+
+### 2026-06-17 (fix) — Persist scan : storage_path AUSSI NOT NULL (2e colonne) ⭐⭐⭐
+> Backend (`8bcce41`, Railway). `client_documents` a DEUX colonnes NOT NULL que scanIdentity ne fournissait pas : `file_url` ET `storage_path`. Donc scanIdentity n'a JAMAIS persisté (les docs avril/mai venaient de `/api/documents/upload` qui les remplit). Fix : fournir `storage_path` (chemin uploadé, '' si échec). Insert vérifié OK (201). 🛑 Kouider : refaire un NOUVEAU scan (envoyer la photo) pour tester — la récup seule ne crée rien.
+
+### 2026-06-17 (fix) — CAUSE RACINE persist scan : file_url NOT NULL ⭐⭐⭐
+> Backend (`470e5ec`, Railway) + sim SW v104. Pourquoi les scans ne s'enregistraient jamais (table `client_documents` vide pour Morald malgré scans répétés).
+- **Test direct (curl service key)** : insert `client_documents` avec `file_url:null` → **erreur 23502 "null value in column file_url violates not-null constraint"**. L'upload bucket lui marche (HTTP 200). Donc quand l'upload photo échouait, `file_url` null → insert rejeté → AUCUN doc enregistré (même pas les données OCR).
+- **Fix** : `file_url: fileUrl ?? ''` (jamais null) → la fiche + données OCR se sauvent toujours, photo si dispo. ClientsScreen affiche "(sans photo)" si pas d'URL. Retrieval fallback (n° sur la résa) couvre déjà le cas "pas de photo".
+- ⚠️ Kouider : re-scanner Morald via le bouton CLIENTS → doit persister cette fois.
+
+### 2026-06-17 (feat) — Ajouter passeport/permis depuis la fiche client (sans chat) ⭐⭐
+> Backend (`c197cc3`, `547933b`) + simulateur (SW v103). Demande Kouider : pouvoir ajouter le passeport directement depuis l'écran CLIENTS, enregistré auto avec la résa.
+- **Scan via chat amélioré** (`c197cc3`) : message final adapté si la pièce est rattachée à une résa existante (ne propose plus de "créer la réservation") ; upload photo et insert `client_documents` SÉPARÉS (la fiche s'enregistre même si l'upload échoue) + logs d'erreur explicites.
+- **Nouveau** (`547933b`) : `POST /api/clients/scan-document` → `scanIdentity` avec override `{clientName, clientPhone}` (stocke sous le bon client AVEC téléphone → visible dans la fiche, et rattache le n° à la résa par téléphone exact). Boutons "🪪 Ajouter passeport" / "🚘 Ajouter permis" dans le détail client (ClientsScreen) → photo → scan → recharge fiche + toast.
+
+### 2026-06-17 (fix) — Passeport photo détourné vers "photos-voiture" (vraie cause) ⭐⭐⭐
+> Simulateur (`a22907c`, SW v102). LE bug que Kouider voyait ("il enregistre pas").
+- **Symptôme** : photo passeport + "Enregistre le passeport de Morald avec sa réservation" → réponse "❌ Je n'ai pas reconnu la voiture".
+- **Cause (FRONTEND, pas backend)** : `TextScreen.send` ligne 303 — `isStoreIntent` capte "Enregistre" → route vers `api.uploadCarPhotos` (ranger photo sur une VOITURE existante) → aucune voiture → erreur. L'image n'atteignait JAMAIS le pré-route scan ID backend.
+- **Fix** : ajout `isIdDocIntent` (passeport/permis/CIN, typos tolérées) qui exclut les pièces d'identité du rangement photo-voiture → l'image part au chat normal → pré-route `scanIdentity` backend s'exécute (puis rattache à la résa, cf entrée précédente).
+
+### 2026-06-17 (feat) — Scan passeport rattaché auto à la réservation ⭐⭐
+> Backend `ibrahim` (`257ad3d`, Railway).
+- `scanIdentity` : après OCR d'une pièce, écrit `client_passport` + `passport_expiry` sur la résa du client (match nom flexible, gère ordre prénom/nom inversé "MORALD BOUFRAINE" vs "Boufraine Morald"). Message "🔗 Passeport rattaché à la réservation".
+- Bug latent corrigé : `scanIdentity` stockait `type` en FRANÇAIS ('passeport'/'permis') alors que tout le reste + la récup attendent l'ANGLAIS ('passport'/'license') → normalisé. (Cause probable d'échecs de récup par type.)
+
+### 2026-06-17 (fix) — Récup passeport : fallback sur le n° de la résa ⭐
+> Backend `ibrahim` (`3ba7df9`, Railway). `client_documents` marche (10 docs) mais le scan de Morald (aujourd'hui) n'a PAS persisté (dernier save 12/05) — cause non reproduite (OCR/upload ?). À surveiller si ça se répète.
+- `get_client_document` ne lisait QUE `client_documents` → "donne-moi le passeport de X" échouait si pas de photo scannée, même si le n° est sur la résa (`client_passport`). Ajouté fallback : cherche `bookings.client_passport` et renvoie le numéro en texte.
+- Boufraine corrigé en base (acompte 150 PARTIAL + passeport 308542744 / exp 2033-01-24 sur la résa).
+
+### 2026-06-17 (fix) — create_booking via chat : acompte + passeport étaient PERDUS ⭐⭐⭐
+> Backend `ibrahim` (`8493e92`, Railway).
+- **Symptôme Kouider** : donne passeport + acompte + total + dates dans le chat → Dzaryx n'enregistre que l'acompte et les dates (en fait même l'acompte était perdu).
+- **Bugs trouvés dans `createBooking` (tool-executor)** : `payment_status` CODÉ EN DUR à `'UNPAID'` + `paid_amount` JAMAIS inséré → acompte jeté même si extrait. `client_passport`/`passport_expiry` absents du schéma ET de l'insert (les colonnes EXISTENT pourtant sur `bookings`) → passeport perdu. `nb_days` encore en exclusif (raté au passage inclus).
+- **Fix** : paid_amount inséré + payment_status déduit (payé vs total) ; client_passport/passport_expiry ajoutés à `create_booking` ET `update_booking` (+ déduction auto statut sur update d'acompte) ; nb_days inclus. Descriptions outils renforcées (toujours remplir acompte/passeport). tsc 0.
+- 🛑 SQL Kouider pour Boufraine (acompte 150 réel + passeport scanné) — voir réponse.
+
+### 2026-06-17 (fix) — CA identique entre écrans + Mohamed nb_days + tests ⭐⭐
+> Simulateur (`5c06086`, SW v101). Suite vérif chiffres Kouider.
+- **Incohérence vue** : écran CA (Finances) = 4.4k€ vs écran Réservations = 6.2k€. **Cause** : BookingsScreen sommait `final_price` de TOUTES les résas (REJECTED + tests inclus) ; Finances ne compte que CONFIRMED/COMPLETED/ACTIVE. **Fix** : BookingsScreen exclut les REJETÉES du CA + marge → même définition partout.
+- **Bug introduit par le passage "jours inclus"** : Mohamed Bendaoud a `nb_days=null` → fallback inclus = 10j×50 = 500€ au lieu des 450€ facturés (9j). 🛑 SQL Kouider : `update bookings set nb_days=9 where client_name='Mohamed Bendaoud' and start_date='2026-05-08'`.
+- **3 résas test REJECTED** (client "Kouider" : i10 50€, Clio4 70€, Jumpy 1705€) → polluent la liste. 🛑 SQL Kouider (optionnel) : `delete from bookings where status='REJECTED' and client_name ilike 'Kouider%'`.
+- Après ces 2 SQL : CA = 4.35k identique sur Finances ET Réservations ; marge ≈ 486€ = profit annuel.
+
+### 2026-06-17 (fix) — Jours de location = JOURS INCLUS partout + correction data ⭐⭐⭐
+> Backend `ibrahim` (`f01466c`) + simulateur (SW v100) + site `rental-system` (`c3af9ab`). Déployé Railway + gh-pages + Vercel.
+- **Demande Kouider** : vérifier que les chiffres CA sont corrects + identiques sur chaque page. Audit data réelle (7 résas 2026 via Supabase REST).
+- **Diagnostic** : totaux cohérents entre eux MAIS plusieurs prix individuels faux car `nb_days` stocké ≠ plage de dates, et l'app recalcule `prix/jour × nb_days`. Omar (nb_days 15→16), Sophia (24→25), Boufraine (null→16), Taoufik payé 240 au lieu de 210.
+- **Convention décidée (Kouider)** : location = **JOURS INCLUS** (jour départ + jour retour comptent). 24/07→08/08 = 16j. Ristourne = éditer nb_days. Prix = prix/jour × jours (recalcul).
+- **Fix data** : SQL UPDATE donné à Kouider (nb_days Omar/Sophia/Boufraine + paid_amount Taoufik=210). 🛑 À lancer par Kouider dans Supabase.
+- **Fix code** : `+1` jour inclus à TOUTES les créations (app BookingsScreen helper `daysInclusive`, backend bookings.ts + reservation.ts) + cœur `computeBookingFinancials` + tous fallbacks d'affichage (clients, revenue-intelligence, index, sign, excel, client-brain) + site (reservation, admin/bookings, calcNbDays, pdf). `daysBetween` générique site (dispo/overlap) INCHANGÉ. tsc 0 backend+sim, build site OK.
+- ⚠️ Effet : le total client sur le site compte désormais le jour de retour aussi (+1 jour de prix). Voir [[day_count_inclusive]].
+
+### 2026-06-17 (fix) — Dates cohérentes partout (fin décalage fuseau UTC) ⭐⭐
+> Backend `ibrahim` + simulateur. Commits `53cda26` (fix) + `0fb1cad` (SW v98→v99). Déployé Railway + gh-pages.
+- **Symptôme Kouider** : résa notée 24/07→08/08 affichée incorrecte ET différente selon la page (agenda vs clients).
+- **Cause racine = mélange UTC/local** : `CalendarScreen.isoDate` et `FleetScreen.eachDay/todayIso` formataient les jours via `toISOString()` (UTC) alors que les cellules/dates sont construites en LOCAL → décalage d'1 jour en Algérie (UTC+1) → pastilles de résa et jours indispo sur le mauvais jour.
+- **Cause 2** : backend `/api/clients` renvoyait `lastBookingDate = created_at` (date de création = aujourd'hui) au lieu de `start_date` (date de location) → "Dernière : 2026-06-17" au lieu de 07-24, incohérent avec l'historique.
+- **Fix** : `isoDate` format LOCAL + `parseYmd` (lit date-only sans bascule UTC) dans CalendarScreen ; `eachDay`/`todayIso` en local dans FleetScreen ; `/api/clients` ajoute `start_date` au select → `lastBookingDate = start_date`. tsc 0 backend+simulateur.
+- ⚠️ RÈGLE : pour les dates-only ("YYYY-MM-DD"), JAMAIS `new Date(str)` ni `toISOString()` (=UTC) ; formater/parser en LOCAL. Voir [[date_handling_local]].
+
+### 2026-06-17 (fix) — Widget chatbot résiduel tué pour de bon ⭐
+> Site `rental-system` commit `c84411c` (Vercel). SQL 0031 lancé ✅.
+- **Symptôme Kouider** : le vieux widget chatbot réapparaissait parfois (au-dessus du bouton WhatsApp) puis disparaissait au refresh, même après vidage historique.
+- **Cause racine** : `_document.js` chargeait ENCORE `<script src="/widget.js" async />` → injecté à chaque page (flash), puis retiré tardivement par le cleanup `_app.js` (qui cherchait un id inexistant `ibr-widget-script` + ne retirait qu'UN élément). Le widget (`ibr-btn`/`ibr-win`) partage la position du bouton WhatsApp.
+- **Fix** : retiré le `<script>` de `_document.js`, supprimé `public/widget.js`, renforcé le cleanup `_app.js` (tue TOUS les `[id^="ibr-"]` + scripts `widget.js`, re-tente à 800ms pour le HTML servi par un SW en cache). Build OK.
+
 ### 2026-06-17 — Bon de réservation + concurrence sans "didano" ⭐
 > Backend `ibrahim` (`99a8952`) + site SQL (`a4db0ca`). Déployé Railway + gh-pages (SW v94).
 - **Bon de réservation** (comme le devis) : tuile **BON RÉSA** dans Plus d'outils → `ReservationVoucherScreen`. Confirme résa véhicule + acompte. Champs : prénom/nom, n° passeport, véhicule (datalist voitures), période, lieu récupération + dépôt (chips Aéroport/Bureau), total/acompte/reste, langue. → PDF pro (`/api/reservation-voucher/pdf`, pdfkit→bucket, signatures) + WhatsApp 3 langues + historique. **Testé live HTTP 200** (BON-HRGNHA.pdf).
-- ⚠️ Kouider : lancer `rental-system/supabase/0031_reservation_vouchers.sql` pour l'historique "Bons récents" (le PDF marche déjà sans).
+- ✅ SQL `rental-system/supabase/0031_reservation_vouchers.sql` lancé par Kouider (2026-06-17) → historique "Bons récents" actif.
 - **Concurrence** (`795513d`) : retiré "didanolocation" codé en dur (n'existe pas) de 7 fichiers → Dzaryx découvre les vrais concurrents par recherche web réelle. Analyse confirmée RÉELLE (web_search, verdict VERIFIED/PARTIAL/FAKE).
 
 ### 2026-06-15 (+3) — SEO conciergerie + décisions Kouider ⭐

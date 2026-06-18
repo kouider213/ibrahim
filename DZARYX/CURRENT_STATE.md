@@ -2,9 +2,20 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-06-14** (Audit code A→Z : push natif, wake word, briefing matin, PDF chat = TOUS FAITS.
-> Voir bloc ci-dessous. Sessions 06-08→06-13 : DZD Houari, darija totale, signature, suivi import/dossiers site,
-> résilience €0 prouvée, WhatsApp centralisé, comptes admin.)
+> Dernière mise à jour : **2026-06-17**.
+
+---
+
+## ⚡ Session 2026-06-17 (détail complet : `AUDIT/10_JOURNAL_SESSION.md`)
+
+Tout déployé + testé. Points clés :
+- **Dates "jours inclus" partout** (24/07→08/08 = 16j ; prix = prix/jour × jours) — fix UTC/local + nb_days. CA cohérent sur tous les écrans.
+- **Scan passeport → rattaché à la résa** + récup ; bug racine : `client_documents.file_url` ET `storage_path` NOT NULL bloquaient l'insert.
+- **Résilience €0 RE-PROUVÉE live** : tout tourne sur Groq/Gemini gratuits sans Claude/OpenAI. Seuls coûts : Railway (~5€/mois, 24/7) + domaine (~12€/an, site).
+- **Site** : page B2B `/entreprises` (3 packs Platinium/Gold/Diamant sur devis, 100% FR/AR/EN, hero S580) ; notifs `notifyTelegram` passées en `await` (serverless tuait l'envoi) + lead→push app ; **CMS Admin→Contenu** (textes/photos éditables, `site_settings.content`, SQL `0032` lancé) ; hero accueil = photo S580 ; photos compressées ; /reservation SEO+bandeau.
+- **App (SW v112)** : fiche client éditable (résa+profil) ; supprimer demandes ; rappel à date précise (`at_date`) ; fuseau + GPS auto ; auto-reload sur nouvelle version ; devis entreprise (packs) ; agenda = liste résas du mois.
+- **Décisions Kouider** : devise reste par-annonce (€/DA), pas de taux global pour l'instant. Wake word Zaria = considéré FAIT.
+- **SQL lancés ✅** : 0031 (vouchers), corrections nb_days/paid, 0032 (site content).
 
 ---
 
