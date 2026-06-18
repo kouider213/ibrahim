@@ -249,15 +249,26 @@ export async function buildContext(
     : '';
 
   const pendingBookings = allBookings.filter((b: any) => b.status === 'PENDING');
+  // Chiffres EXACTS de la résa (prix négocié, jours inclus, total, payé, bénéfice) — pour que le modèle
+  // n'utilise JAMAIS le prix catalogue de la voiture ni ne recompte les jours lui-même.
+  const bookingFin = (b: any) => {
+    const parts: string[] = [];
+    if (b.nb_days != null)              parts.push(`${b.nb_days}j inclus`);
+    if (b.client_price_per_day != null) parts.push(`prix client ${b.client_price_per_day}€/j`);
+    if (b.final_price != null)          parts.push(`total ${b.final_price}€`);
+    if (b.paid_amount != null)          parts.push(`payé ${b.paid_amount}€`);
+    if (b.profit_kouider != null)       parts.push(`bénéfice Kouider ${b.profit_kouider}€`);
+    return parts.length ? ` — ${parts.join(' · ')}` : '';
+  };
   const bookingsText = [
     activeRentals.length > 0
-      ? `\n\nLOCATIONS EN COURS (${activeRentals.length}):\n${activeRentals.map((b: any) =>
-          `- ${b.client_name} (${b.client_phone}) — ${b.cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date} — ${b.status}`
+      ? `\n\nLOCATIONS EN COURS (${activeRentals.length}) — utilise CES chiffres exacts, JAMAIS le prix catalogue de la voiture, JAMAIS recalculer les jours:\n${activeRentals.map((b: any) =>
+          `- ${b.client_name} (${b.client_phone}) — ${b.cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date}${bookingFin(b)} — ${b.status}`
         ).join('\n')}`
       : '',
     upcomingRentals.length > 0
-      ? `\n\nRÉSERVATIONS EN ATTENTE (${upcomingRentals.length + pendingBookings.length}):\n${[...upcomingRentals, ...pendingBookings].map((b: any) =>
-          `- ${b.client_name} (${b.client_phone}) — ${b.cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date}`
+      ? `\n\nRÉSERVATIONS EN ATTENTE (${upcomingRentals.length + pendingBookings.length}) — utilise CES chiffres exacts, JAMAIS le prix catalogue, JAMAIS recalculer les jours:\n${[...upcomingRentals, ...pendingBookings].map((b: any) =>
+          `- ${b.client_name} (${b.client_phone}) — ${b.cars?.name ?? b.car_id} — du ${b.start_date} au ${b.end_date}${bookingFin(b)} — ${b.status}`
         ).join('\n')}`
       : '',
   ].join('');
