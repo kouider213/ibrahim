@@ -387,6 +387,23 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     ? `\n\n${brainCtx.context}`
     : '';
 
+  // Pièces (passeport/permis) en dossier pour le client mentionné → le modèle SAIT qu'une photo existe
+  // et peut l'envoyer via get_client_document (sinon il répond à tort "je n'ai pas le passeport").
+  let clientDocsText = '';
+  if (mentionedClient) {
+    try {
+      const { data: docRows } = await supabase
+        .from('client_documents')
+        .select('type')
+        .ilike('client_name', `%${mentionedClient}%`)
+        .limit(5);
+      if (docRows && docRows.length > 0) {
+        const types = [...new Set((docRows as Array<{ type: string }>).map(d => d.type === 'passport' ? 'passeport' : d.type === 'license' ? 'permis' : d.type))];
+        clientDocsText = `\n\n📎 PIÈCES EN DOSSIER pour ${mentionedClient}: ${types.join(', ')} (photo disponible en base). Pour l'ENVOYER → appelle get_client_document(client_name="${mentionedClient}") et copie la ligne 📹. ⛔ NE JAMAIS dire que tu n'as pas la pièce : elle EST en dossier.`;
+      }
+    } catch { /* best-effort */ }
+  }
+
   // Cerveau acteur (patterns communication Kouider/Houari appris)
   const actorBrainText = (actorBrainCtx as string) || '';
 
@@ -501,6 +518,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     styleText,
     clientIntelText,
     clientBrainText,
+    clientDocsText,
     actorBrainText,
     episodesText,
     remindersText,
