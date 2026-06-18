@@ -5653,6 +5653,8 @@ async function getClientProfileTool(clientName: string): Promise<string> {
     p.cancellation_count > 0 ? `⚠️ Annulations: ${p.cancellation_count}` : '',
     p.notes ? `\n📝 Notes: ${p.notes}` : '',
   ].filter(Boolean);
+  // Envoie aussi la/les photo(s) de pièce(s) à l'app — sinon "toutes les infos" renvoie le texte sans la photo.
+  try { await getClientDocument({ client_name: p.client_name }); } catch { /* photo best-effort */ }
   return lines.join('\n');
 }
 
@@ -5665,6 +5667,9 @@ async function getClientBrainTool(nameOrPhone: string, sessionId?: string): Prom
   if (!result.found) {
     return `❌ Aucun client trouvé pour "${nameOrPhone}". Vérifie le nom ou le numéro.`;
   }
+  // Envoie aussi la/les photo(s) de pièce(s) — "toutes les infos" doit inclure la photo, pas juste le texte.
+  const isPhone = /[0-9]{5,}/.test(nameOrPhone);
+  try { await getClientDocument(isPhone ? { client_phone: nameOrPhone } : { client_name: nameOrPhone }); } catch { /* photo best-effort */ }
   return result.context;
 }
 
