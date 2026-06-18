@@ -388,8 +388,16 @@ export default function ClientsScreen() {
                             const lbl = doc.type === 'passport' ? '🪪 Passeport' : doc.type === 'license' ? '🚘 Permis' : doc.type === 'contract' ? '📄 Contrat' : '📎 Document';
                             const hasUrl = !!doc.file_url && doc.file_url.length > 4;
                             const st = { fontSize: 11, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' } as const;
+                            // Photo dispo → vignette cliquable (ouvre la pièce en grand). Sinon label "(sans photo)".
                             return hasUrl
-                              ? <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer" style={st}>{lbl}</a>
+                              ? (
+                                <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                                   style={{ display: 'inline-block', textDecoration: 'none' }}>
+                                  <img src={doc.file_url} alt={lbl}
+                                       style={{ width: 104, height: 70, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.blue}55`, display: 'block' }} />
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: C.blue, display: 'block', marginTop: 3, textAlign: 'center' }}>{lbl}</span>
+                                </a>
+                              )
                               : <span key={doc.id} style={{ ...st, color: C.muted, border: `1px solid ${C.border}`, background: C.surface }}>{lbl} (sans photo)</span>;
                           })}
                         </div>
