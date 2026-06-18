@@ -342,7 +342,8 @@ router.get('/:phone', requireMobileAuth, async (req, res) => {
   const phone = decodeURIComponent(req.params['phone'] as string);
   try {
     const history = await getClientHistory(phone);
-    const documents = await getClientDocuments(phone);
+    const clientName = (history.bookings[0] as { client_name?: string } | undefined)?.client_name;
+    const documents = await getClientDocuments(phone, clientName);
     // Enrichit chaque résa avec le nom du véhicule (car_id → name)
     const carIds = [...new Set(history.bookings.map(b => (b as { car_id?: string }).car_id).filter(Boolean))] as string[];
     let carMap = new Map<string, string>();

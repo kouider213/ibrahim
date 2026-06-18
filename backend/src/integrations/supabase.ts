@@ -370,14 +370,29 @@ export async function saveClientDocument(doc: Omit<ClientDocument, 'id' | 'creat
   return data as ClientDocument;
 }
 
-export async function getClientDocuments(clientPhone: string): Promise<ClientDocument[]> {
+export async function getClientDocuments(clientPhone: string, clientName?: string): Promise<ClientDocument[]> {
+  // Récupère par téléphone ET par nom : beaucoup de pièces scannées n'ont pas de
+  // téléphone (scan via chat) → sans le nom, la fiche client ne les voyait pas.
   const { data, error } = await supabase
     .from('client_documents')
     .select('*')
     .eq('client_phone', clientPhone)
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Documents fetch failed: ${error.message}`);
-  return (data ?? []) as ClientDocument[];
+  const rows = (data ?? []) as ClientDocument[];
+  if (clientName && clientName.trim().length > 1) {
+    const { data: byName } = await supabase
+      .from('client_documents')
+      .select('*')
+      .ilike('client_name', `%${clientName.trim()}%`)
+      .order('created_at', { ascending: false });
+    const seen = new Set(rows.map(d => (d as { id: string }).id));
+    for (const d of (byName ?? []) as ClientDocument[]) {
+      const did = (d as { id: string }).id;
+      if (!seen.has(did)) { rows.push(d); seen.add(did); }
+    }
+  }
+  return rows;
 }
 
 // Legacy compatibility
