@@ -102,6 +102,17 @@ export default function ClientsScreen() {
     }
   };
 
+  // Supprimer une pièce (passeport/permis ajouté par erreur) du dossier client.
+  const handleDeleteDoc = async (c: ClientSummary, docId: string) => {
+    if (!window.confirm('Supprimer cette pièce du dossier ?')) return;
+    try {
+      await business.deleteClientDocument(docId);
+      setToast('🗑️ Pièce supprimée');
+      if (c.phone) { const d = await business.fetchClientDetail(c.phone); setDetails(m => new Map(m).set(c.phone!, d)); }
+    } catch { setToast('❌ Suppression échouée'); }
+    finally { setTimeout(() => setToast(null), 4000); }
+  };
+
   // ── Édition profil intelligence (négociation, fiabilité, durée) ──
   const [intelEdit, setIntelEdit] = useState<string | null>(null);
   const [intelForm, setIntelForm] = useState<{ negotiation_style: string; payment_reliability: string; typical_duration_days: string; notes: string }>({ negotiation_style: '', payment_reliability: '', typical_duration_days: '', notes: '' });
@@ -389,16 +400,23 @@ export default function ClientsScreen() {
                             const hasUrl = !!doc.file_url && doc.file_url.length > 4;
                             const st = { fontSize: 11, fontWeight: 600, color: C.blue, background: `${C.blue}15`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '6px 11px', textDecoration: 'none' } as const;
                             // Photo dispo → vignette cliquable (ouvre la pièce en grand). Sinon label "(sans photo)".
-                            return hasUrl
-                              ? (
-                                <a key={doc.id} href={doc.file_url} target="_blank" rel="noopener noreferrer"
-                                   style={{ display: 'inline-block', textDecoration: 'none' }}>
-                                  <img src={doc.file_url} alt={lbl}
-                                       style={{ width: 104, height: 70, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.blue}55`, display: 'block' }} />
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: C.blue, display: 'block', marginTop: 3, textAlign: 'center' }}>{lbl}</span>
-                                </a>
-                              )
-                              : <span key={doc.id} style={{ ...st, color: C.muted, border: `1px solid ${C.border}`, background: C.surface }}>{lbl} (sans photo)</span>;
+                            // 🗑 en coin → supprimer la pièce (ex: passeport ajouté par erreur, à re-scanner).
+                            return (
+                              <div key={doc.id} style={{ position: 'relative', display: 'inline-block' }}>
+                                {hasUrl
+                                  ? (
+                                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                                       style={{ display: 'inline-block', textDecoration: 'none' }}>
+                                      <img src={doc.file_url} alt={lbl}
+                                           style={{ width: 104, height: 70, objectFit: 'cover', borderRadius: 10, border: `1px solid ${C.blue}55`, display: 'block' }} />
+                                      <span style={{ fontSize: 10, fontWeight: 700, color: C.blue, display: 'block', marginTop: 3, textAlign: 'center' }}>{lbl}</span>
+                                    </a>
+                                  )
+                                  : <span style={{ ...st, color: C.muted, border: `1px solid ${C.border}`, background: C.surface }}>{lbl} (sans photo)</span>}
+                                <button onClick={() => void handleDeleteDoc(c, doc.id)} title="Supprimer la pièce"
+                                        style={{ position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, border: 'none', background: '#ef4444', color: '#fff', fontSize: 11, lineHeight: '22px', padding: 0, cursor: 'pointer' }}>🗑</button>
+                              </div>
+                            );
                           })}
                         </div>
                       </div>

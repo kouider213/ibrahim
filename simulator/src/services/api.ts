@@ -802,6 +802,10 @@ export const business = {
       body: JSON.stringify({ base64, ...opts }),
     }),
 
+  // Supprime une pièce du dossier client (ex: passeport ajouté par erreur).
+  deleteClientDocument: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/clients/documents/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
   // Modifier le profil intelligence d'un client (négociation, fiabilité, durée typique, notes).
   updateClientIntel: (clientName: string, fields: Record<string, unknown>) =>
     apiFetch<{ client: ClientIntelligence }>('/api/clients/intelligence', {
