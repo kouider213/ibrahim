@@ -420,4 +420,26 @@ router.post('/scan-document', requireMobileAuth, async (req, res) => {
   }
 });
 
+// DELETE /api/clients/documents/:id — supprime une pièce du dossier client
+// (ex: passeport ajouté par erreur). Retire la ligne + le fichier du bucket (best-effort).
+router.delete('/documents/:id', requireMobileAuth, async (req, res) => {
+  const id = req.params.id;
+  if (!id) { res.status(400).json({ error: 'id requis' }); return; }
+  try {
+    const { data: doc } = await supabase
+      .from('client_documents')
+      .select('storage_path')
+      .eq('id', id)
+      .single();
+    if (doc?.storage_path) {
+      await supabase.storage.from('client-documents').remove([doc.storage_path as string]).catch(() => {});
+    }
+    const { error } = await supabase.from('client_documents').delete().eq('id', id);
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 export default router;

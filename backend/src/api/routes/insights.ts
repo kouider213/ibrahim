@@ -35,7 +35,7 @@ router.get('/today', requireMobileAuth, async (_req, res) => {
     const returns    = conf.filter(b => b.end_date === today).map(b => ({ id: b.id, client: b.client_name, phone: b.client_phone, car: b.cars?.name ?? '—' }));
     const toCollect  = conf
       .map(b => ({ b, due: (b.final_price ?? 0) - (b.paid_amount ?? 0) }))
-      .filter(x => x.due > 0 && (x.b.payment_status ?? '') !== 'paid')
+      .filter(x => x.due > 0 && (x.b.payment_status ?? '').toLowerCase() !== 'paid')
       .map(x => ({ id: x.b.id, client: x.b.client_name, phone: x.b.client_phone, car: x.b.cars?.name ?? '—', due: Math.round(x.due) }));
     const pendingBookings = rows.filter(b => b.status === 'PENDING').length;
 
