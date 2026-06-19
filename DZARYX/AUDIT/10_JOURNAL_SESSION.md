@@ -88,6 +88,14 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-19 (fix) — Notifs push iOS réparées + hero "U" lisible ⭐⭐⭐
+> Simulateur (`83621e8`, SW v114→v115) + site `rental-system` (`9c0d843`,`300470d`,`3cc0506`).
+- **Push iOS cassé (cause racine)** : `registerWebPush()` (qui appelle `Notification.requestPermission()`) était lancé au **montage** (`Phone.tsx` useEffect) ET dans un **`setTimeout(600)`** après login → JAMAIS dans un geste utilisateur. iOS Safari/PWA **ignore en silence** la demande de permission hors tap → plus de prompt, plus de notifs, pire après réinstall (permission iOS reset). Voir [[B031]].
+- **Fix** : `api.ts` split → `registerWebPush()` = geste seul (prompt) ; `resumeWebPush()` = silencieux (re-souscrit si `permission==='granted'`, jamais de prompt) ; `subscribePush()` réutilise `getSubscription()` existante + re-POST `/api/push-token/web` (re-lie le device) ; `notifStatus()`. `Phone.tsx` montage+login → `resumeWebPush()`. Réglages→NOTIFICATIONS : bouton tap **🔔 ACTIVER** + guide install iOS (standalone requis). tsc 0. Déployé gh-pages.
+- **Vérifié backend** : `/api/push-token/vapid-public-key` 200 (web push configuré), token natif FCM présent, `POST /api/push-token/test` → `{ok:true}` envoyé.
+- **Hero site "Sous Une Clé"** : glyphe italique "U"/accent é coupé puis trop fin. Fix en 3 temps : `py/pr-[0.1em]` + `-mt` wrapper (headroom dans overflow-hidden), drop-shadow net superposé + dégradé doré plus profond (contraste), `-webkit-text-stroke 0.6px` (épaissit up-strokes). Validé Kouider.
+- **⏭️ Kouider** : sur iPhone, réinstaller la PWA depuis l'écran d'accueil → ouvrir depuis l'icône → Réglages → 🔔 ACTIVER → Autoriser. SW v115 (fermer/rouvrir l'app à fond).
+
 ### 2026-06-17 (feat) — CMS contenu site + devis entreprise app + compression photos ⭐⭐
 > Site `rental-system` (`ca15ebb`, `2b37137`) + simulateur (`711215c`, SW v111).
 - **CMS contenu** : `site_settings.content` (JSONB, SQL `0032_site_content.sql` 🛑 à lancer) + `lib/content.js` (`cText`/`cImg` + schéma `CONTENT_FIELDS`) + **Admin → Contenu (textes/photos)** (`/admin/contenu`, FR/AR/EN + upload). Câblé : page entreprises (hero photo/titre/sous-titre, 3 packs nom+desc) + accueil (titres sections services/pourquoi). Vide = valeur par défaut (zéro risque). Extensible : ajouter une entrée à `CONTENT_FIELDS`. Hero accueil + contact déjà éditables via Admin→Paramètres.

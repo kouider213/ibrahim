@@ -7,6 +7,13 @@
 
 ## Bugs Ouverts 🔴
 
+### B031 — Notifs push iOS jamais demandées (prompt hors geste utilisateur) ✅
+- **Statut** : ✅ FIXÉ — 2026-06-19 (commit `83621e8`, SW v115)
+- **Fichier(s)** : `simulator/src/services/api.ts`, `simulator/src/components/Phone.tsx`, `simulator/src/components/screens/SettingsScreen.tsx`
+- **Description** : `registerWebPush()` (→ `Notification.requestPermission()`) appelé au montage (`Phone.tsx` useEffect) + dans `setTimeout(600)` après login → hors geste utilisateur. iOS Safari/PWA ignore en silence la demande hors tap → plus de prompt ni de notifs (pire après réinstall : permission iOS remise à zéro).
+- **Fix** : split `api.ts` — `registerWebPush()` geste seul (prompt) ; `resumeWebPush()` silencieux (re-souscrit si déjà `granted`) ; `subscribePush()` réutilise `getSubscription()` + re-POST backend ; `notifStatus()`. Montage/login → `resumeWebPush()`. Bouton tap **🔔 ACTIVER** dans Réglages + guide install PWA iOS.
+- **⏭️ Kouider** : réinstaller la PWA depuis l'écran d'accueil, l'ouvrir depuis l'icône, Réglages → 🔔 ACTIVER → Autoriser.
+
 ### B030 — Wake word "Zaria" ne fire pas en vocal (Porcupine)
 - **Statut** : 🟡 EN COURS — besoin logs device (Kouider)
 - **Fichier(s)** : `dzaryx-native/plugins/withDzaryxWakeWord.js`, `dzaryx-native/assets/wakeword/Zaria_android.ppn`
