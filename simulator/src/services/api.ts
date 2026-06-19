@@ -269,29 +269,28 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
 
 let _webPushRegistered = false;
 
-export async function registerWebPush(): Promise<void> {
-  if (_webPushRegistered) return;
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-
+// Crée/récupère la souscription push et l'envoie au backend.
+// NE demande PAS la permission — l'appelant garantit qu'elle est déjà 'granted'.
+async function subscribePush(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
   try {
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') return;
-
     const reg = await navigator.serviceWorker.ready;
 
     // Fetch VAPID public key from backend
     const res = await fetch(`${BACKEND_URL}/api/push-token/vapid-public-key`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
-    if (!res.ok) return;
+    if (!res.ok) return false;
     const { key } = await res.json() as { key: string };
 
-    const sub = await reg.pushManager.subscribe({
+    // Réutilise la souscription existante (après réinstall le SW peut déjà l'avoir) ;
+    // sinon en crée une. On re-POST toujours au backend pour re-lier le device.
+    const existing = await reg.pushManager.getSubscription();
+    const sub = existing ?? await reg.pushManager.subscribe({
       userVisibleOnly:      true,
       applicationServerKey: urlBase64ToUint8Array(key),
     });
 
-    // Send subscription to backend
     await fetch(`${BACKEND_URL}/api/push-token/web`, {
       method:  'POST',
       headers: {
@@ -304,9 +303,37 @@ export async function registerWebPush(): Promise<void> {
 
     _webPushRegistered = true;
     console.log('[webpush] subscribed for actor:', _actor);
+    return true;
   } catch (err) {
     console.warn('[webpush] registration failed:', err instanceof Error ? err.message : String(err));
+    return false;
   }
+}
+
+// GESTE UTILISATEUR UNIQUEMENT — doit être appelé directement depuis un tap (exigence
+// iOS Safari/PWA : requestPermission hors gesture est silencieusement ignoré).
+// Demande la permission PUIS souscrit. Retourne l'état final de la permission.
+export async function registerWebPush(): Promise<NotificationPermission | 'unsupported'> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined')
+    return 'unsupported';
+  const perm = await Notification.requestPermission(); // 1ʳᵉ instruction async = conserve l'activation utilisateur
+  if (perm === 'granted') await subscribePush();
+  return perm;
+}
+
+// SILENCIEUX — ré-attache la souscription si la permission est DÉJÀ accordée.
+// Ne demande JAMAIS la permission → sûr à appeler au montage / après login.
+export async function resumeWebPush(): Promise<void> {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'granted') await subscribePush();
+}
+
+// État des notifications pour l'UI (Réglages).
+export function notifStatus(): { supported: boolean; permission: NotificationPermission | 'unsupported'; standalone: boolean } {
+  const supported = ('serviceWorker' in navigator) && ('PushManager' in window) && typeof Notification !== 'undefined';
+  const standalone = (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)')?.matches)
+    || ((navigator as unknown as { standalone?: boolean }).standalone === true);
+  return { supported, permission: supported ? Notification.permission : 'unsupported', standalone };
 }
 
 // ── Socket.IO ─────────────────────────────────────────────────────────────────

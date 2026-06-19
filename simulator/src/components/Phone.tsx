@@ -26,7 +26,7 @@ import SocialScreen from './screens/SocialScreen.tsx';
 import SearchScreen from './screens/SearchScreen.tsx';
 import ParrainageScreen from './screens/ParrainageScreen.tsx';
 import PricingScreen from './screens/PricingScreen.tsx';
-import { setSimActor, registerWebPush, business } from '../services/api.ts';
+import { setSimActor, resumeWebPush, business } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
@@ -103,7 +103,7 @@ export default function Phone() {
   useEffect(() => {
     if (loggedActor) {
       setSimActor(loggedActor);
-      void registerWebPush();
+      void resumeWebPush(); // silencieux : re-souscrit si déjà autorisé (jamais de prompt hors gesture)
       // Détection GPS AUTO au démarrage de l'app (silencieux) : rafraîchit la position
       // si la permission est déjà accordée → le fuseau/les trajets suivent où tu es.
       if (navigator.geolocation) {
@@ -173,7 +173,7 @@ export default function Phone() {
       localStorage.setItem('dzaryx_session', JSON.stringify({ actor: cred.actor, user: loginUser.toLowerCase().trim() }));
       setSimState('app');
       setLoginLoading(false);
-      void registerWebPush();
+      void resumeWebPush(); // silencieux ; le prompt se fait via le bouton Réglages (geste iOS)
     }, 600);
   };
 

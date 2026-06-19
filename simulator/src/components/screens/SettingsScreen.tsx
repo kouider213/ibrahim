@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { business, setSimActor, getSimActor } from '../../services/api.ts';
+import { business, setSimActor, getSimActor, registerWebPush, notifStatus } from '../../services/api.ts';
 import CapacitesScreen from './CapacitesScreen.tsx';
 
 interface StoredLocation { lat: number; lng: number; city?: string; country: string; updated_at: string; }
@@ -322,14 +322,51 @@ function NotifPrefs() {
     { k: 'info', label: 'Infos / proactif', icon: '📱' },
   ];
   const [prefs, setPrefs] = useState<Record<string, boolean>>({ morning: true, alert: true, reminder: true, info: true });
+  const [st, setSt] = useState(notifStatus());
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState('');
   useEffect(() => { business.pushPrefsGet().then(r => setPrefs(r.prefs)).catch(() => {}); }, []);
   const toggle = (k: string) => {
     const next = { ...prefs, [k]: !prefs[k] };
     setPrefs(next);
     business.pushPrefsSet({ [k]: next[k] }).catch(() => {});
   };
+
+  // iOS : la demande de permission DOIT partir d'un tap direct (ce handler).
+  const enableNotifs = async () => {
+    setBusy(true); setHint('');
+    const perm = await registerWebPush();
+    setSt(notifStatus());
+    if (perm === 'granted')      setHint('✅ Notifications activées');
+    else if (perm === 'denied')  setHint('❌ Refusé — autorise les notifs dans Réglages iOS pour ce site/app');
+    else if (perm === 'unsupported') setHint('⚠️ Non supporté ici — ouvre l\'app depuis l\'écran d\'accueil');
+    else                          setHint('Demande fermée — réessaie');
+    setBusy(false);
+    setTimeout(() => setHint(''), 6000);
+  };
+
+  const granted = st.permission === 'granted';
+  // iOS web push n'existe qu'en PWA installée (écran d'accueil). Si pas standalone → guider.
+  const needsInstall = !st.standalone && !granted && st.permission !== 'unsupported';
+
   return (
     <Panel title="NOTIFICATIONS">
+      {!granted && (
+        <div style={{ marginBottom: 12 }}>
+          <button onClick={() => void enableNotifs()} disabled={busy} style={actionBtn('#10b981')}>
+            {busy ? 'ACTIVATION…' : '🔔 ACTIVER LES NOTIFICATIONS'}
+          </button>
+          {needsInstall && (
+            <div style={{ fontSize: 9, color: '#ffb347', marginTop: 8, lineHeight: 1.5 }}>
+              📲 Sur iPhone : ouvre d'abord l'app depuis l'écran d'accueil (Partager → « Sur l'écran d'accueil »), puis touche ce bouton.
+            </div>
+          )}
+          {hint && <div style={{ fontSize: 10, color: '#cfefff', marginTop: 8 }}>{hint}</div>}
+        </div>
+      )}
+      {granted && (
+        <div style={{ fontSize: 10, color: '#00e676', marginBottom: 12 }}>● Notifications activées sur cet appareil</div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {TYPES.map(t => (
           <div key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
