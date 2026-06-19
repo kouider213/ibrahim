@@ -75,8 +75,10 @@ async function processReminder(row: ReminderRow): Promise<void> {
 // ── Main scan cycle ───────────────────────────────────────────────────────────
 async function scan(): Promise<void> {
   try {
-    // 1. PENDING reminders due within next 90s
-    const pending = await getPendingDue(90);
+    // 1. PENDING reminders dus bientôt. Buffer = un peu plus que l'intervalle de scan
+    //    (30s) → jamais en retard entre deux scans, mais évite de tirer trop tôt
+    //    (avant : 90s d'avance → un rappel "dans 1 min" partait en ~12s).
+    const pending = await getPendingDue(35);
     if (pending.length > 0) {
       console.log(`[reminder-worker] scan: ${pending.length} pending due`);
       await Promise.allSettled(pending.map(r => processReminder(r)));
