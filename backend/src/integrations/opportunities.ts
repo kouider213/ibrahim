@@ -18,10 +18,11 @@ export interface Opportunity {
 }
 
 export interface OpportunitiesReport {
-  updated_at: string;
-  summary:    string;
-  items:      Opportunity[];
-  pending?:   boolean; // true = analyse en cours en arrière-plan, rien encore en cache
+  updated_at:  string;
+  summary:     string;
+  items:       Opportunity[];
+  pending?:    boolean; // true = analyse en cours en arrière-plan, rien encore en cache
+  refreshing?: boolean; // true = on sert l'ancien cache MAIS une nouvelle analyse tourne (force) → l'app doit re-poll
 }
 
 const CACHE_KEY = 'deals:opportunities:v3'; // v3 = veille business large (+ devises/invest/aides)
@@ -129,8 +130,10 @@ export async function getAutoOpportunities(force = false): Promise<Opportunities
   // Déclenche la génération en arrière-plan (fire-and-forget, dédupliquée par _inFlight)
   if (!_inFlight) { void generateOpportunities().catch(() => { /* loggé dedans */ }); }
 
-  // Cache présent (même périmé) → on le renvoie pendant que ça rafraîchit
-  if (cached) return cached;
+  // Cache présent (même périmé) → on le renvoie pendant que ça rafraîchit.
+  // force=true ici (sinon on aurait retourné plus haut) → signale `refreshing` pour que l'app re-poll
+  // jusqu'à ce que `updated_at` change (sinon Actualiser semblait ne rien faire).
+  if (cached) return { ...cached, refreshing: true };
 
   // Rien en cache → réponse "en cours" immédiate (l'app re-tentera)
   return {

@@ -88,6 +88,32 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 
 ## Entrées (plus récent en haut)
 
+### 2026-06-29 (fix) — Actualiser Opportunités ne ramenait rien ⭐⭐
+> Simulateur (`OpportunitiesScreen.tsx`, `api.ts`, SW v121→**v122**, déployé gh-pages "Published") + backend (`opportunities.ts`, **non poussé Railway, staged**). tsc 0 erreur (sim + backend).
+- **Bug** : `getAutoOpportunities(force=true)` renvoie l'ancien cache immédiatement (ligne ~133) + lance la régen en fond, MAIS sans signal. Le front ne pollait que si `pending` (absent quand cache présent) → l'UI ne re-fetchait jamais → on voyait toujours l'ancien (figé 08:02).
+- **Fix front (suffit seul)** : `load` mémorise `baseline = updated_at` au moment du force, puis poll toutes les 10s (max 12) tant que `r.updated_at === baseline` (ou `pending`/`refreshing`). Quand la régen finit → cache a un nouveau `updated_at` → stop, affiche le neuf. Bouton "🔎 Analyse…" pendant. Marche MÊME sans redéployer le backend.
+- **Fix backend (bonus, staged)** : `OpportunitiesReport.refreshing?` + `getAutoOpportunities` renvoie `{ ...cached, refreshing: true }` sur force → signal explicite. ⏭️ à pousser sur Railway (git push main) au prochain deploy backend.
+- **État** : ✅ sim déployé. ⏭️ Kouider : fermer/rouvrir app (SW v122), Opportunités → ↻ Actualiser → "🔎 Analyse…" ~1 min → nouvelles opportunités (favoris gardés).
+
+### 2026-06-29 (feat) — Favoris sur Opportunités (épinglés, survivent à Actualiser) ⭐⭐
+> Simulateur (`OpportunitiesScreen.tsx`, SW v120→**v121**, déployé gh-pages "Published"). tsc 0 erreur.
+- **Demande Kouider** : pouvoir mettre des opportunités en favori, et que "↻ Actualiser" régénère tout SAUF les favoris.
+- **Vérifié** : Opportunités = vraie recherche web profonde via **web_search natif Anthropic** (`web_search_20250305`, max 5 uses) dans `backend/src/integrations/opportunities.ts`. Le chat utilise sa propre cascade web (8 providers). Les 2 = réelles.
+- **Ajouté (frontend seul, localStorage `dz:opp_favs`)** : étoile ☆/★ sur chaque carte + bouton favori dans la modale. Favoris épinglés en haut, surbrillance dorée + badge "★ Favori". Liste = `[...favs, ...items hors favoris]` → `Actualiser` (`load(true)`) régénère `items` mais les favoris (locaux) restent intacts. Compteurs filtres + état vide basés sur `merged`. Aucun changement backend.
+- **État** : ✅ déployé. ⏭️ Kouider : fermer/rouvrir app (SW v121), Opportunités → ☆ pour épingler → Actualiser → les favoris restent.
+
+### 2026-06-29 (feat) — Créer une nouvelle réservation depuis la page CLIENTS ⭐⭐
+> Simulateur (`ClientsScreen.tsx`, SW v115→**v120**, déployé gh-pages "Published"). tsc 0 erreur.
+- **v120** : champ **Prix TOTAL** ajouté AUSSI au form "Modifier la réservation" (mêmes handlers liés `bkSetPerDay`/`bkSetTotal`/`bkSetDate`, init `total = bk.final_price`). `saveBk` : `final_price = total` (sinon prix/jour×jours). → "vrai prix partout" : création ET édition. Corriger les anciennes résas en tapant le total direct.
+- **v119 (bug prix)** : Kouider a mis 260€ total, le system affichait 280€ (i10 140/j × 2j inclus) → à encaisser 20€ fantôme. Ajout champ **Prix TOTAL** éditable, lié bidirectionnel au prix/jour (modifier l'un recalcule l'autre via `setPerDay`/`setTotal`/`setDate`). Le TOTAL = vérité = ce que le client paie. `createBookingFor` : `final_price = total` (sinon prix/jour×jours), `client_price_per_day = total/jours`. Payement→PAID auto-remplit Payé=total. Anciennes résas fausses : corriger via "Modifier la réservation" (changer prix/jour).
+- **v118** : choix voiture → **prix proprio pré-rempli** (avant souvent vide). Cause : `cars.owner_price_per_day` souvent NULL, le prix proprio catalogue est dans `houari_base_price`. Fix `pickCar` : `owner_price_per_day ?? houari_base_price`, et écrase client+proprio à chaque changement de voiture (reste éditable).
+- **v117 (3 ajouts)** : form extrait en composant `NewBookingForm` (DRY) → 1) **sélecteur client global** : bouton "➕ Nouvelle réservation" en haut de CLIENTS → choisir n'importe quel client dans une liste déroulante (sans ouvrir la fiche) ; 2) **devise €/DA** (EditSelect EUR/DZD, auto-DZD si la voiture est en dinars, label des prix/total suit la devise) ; 3) **dates par défaut** aujourd'hui→demain. Voitures chargées dans `load()` (Promise.all). `createBookingFor(client, vals)` partagé fiche+global ; `void load()` après création (rafraîchit liste/CA). Backend `currency` enum EUR/DZD déjà accepté.
+- **Demande Kouider** : depuis la fiche d'un ancien client, voir toutes ses infos (déjà OK : historique résas + docs + intel + édition) ET **créer une nouvelle réservation pour lui** (pré-rempli nom + téléphone).
+- **Constat audit** : le backend était DÉJÀ prêt — `POST /api/bookings` (schéma zod complet : anti-doublon, nb_days jours inclus, profit_kouider, calendar sync, update client intelligence). `business.createBooking` + `business.fetchCars` existaient dans `api.ts`. Manquait UNIQUEMENT le bouton UI dans `ClientsScreen`.
+- **Ajouté** : bouton "➕ Nouvelle réservation" dans le panneau détail client → formulaire (voiture via `fetchCars`, dates jours inclus, prix client/proprio par jour pré-remplis depuis le catalogue à la sélection voiture, payé, statut CONFIRMED/PENDING, paiement). `client_name`/`client_phone` pris du client (fallback phone '0000000000' si absent → respecte min 6 du schéma). `final_price = client_price/j × nb_days`. POST `/api/bookings` → recharge la fiche. Profit calculé backend = (client−proprio)×jours.
+- **État** : ✅ déployé. Le chat récupérait déjà l'historique (`getClientHistory`/`getClientProfileTool`) — rien à faire côté chat.
+- **⏭️ Kouider** : fermer/rouvrir l'app à fond (SW v116), ouvrir CLIENTS → un client → ➕ Nouvelle réservation → tester. Vérifier que la résa apparaît dans RESAS + CA.
+
 ### 2026-06-19 (fix) — Notifs push iOS réparées + hero "U" lisible ⭐⭐⭐
 > Simulateur (`83621e8`, SW v114→v115) + site `rental-system` (`9c0d843`,`300470d`,`3cc0506`).
 - **Push iOS cassé (cause racine)** : `registerWebPush()` (qui appelle `Notification.requestPermission()`) était lancé au **montage** (`Phone.tsx` useEffect) ET dans un **`setTimeout(600)`** après login → JAMAIS dans un geste utilisateur. iOS Safari/PWA **ignore en silence** la demande de permission hors tap → plus de prompt, plus de notifs, pire après réinstall (permission iOS reset). Voir [[B031]].

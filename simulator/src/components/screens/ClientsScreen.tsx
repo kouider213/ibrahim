@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail, type ClientBookingHistory } from '../../services/api.ts';
+import { business, type ClientSummary, type ClientIntelligence, type ClientOperation, type ClientType, type ClientDetail, type ClientBookingHistory, type Car } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
@@ -53,12 +53,14 @@ export default function ClientsScreen() {
   const load = async () => {
     setLoad(true);
     try {
-      const [clientRes, intelRes, opsRes] = await Promise.all([
+      const [clientRes, intelRes, opsRes, carsRes] = await Promise.all([
         business.fetchClients().catch(() => ({ clients: [] as ClientSummary[] })),
         business.fetchClientIntel().catch(() => ({ clients: [] as ClientIntelligence[] })),
         business.fetchOperations().catch(() => ({ operations: [] as ClientOperation[] })),
+        business.fetchCars().catch(() => ({ cars: [] as Car[] })),
       ]);
       setClients(clientRes.clients ?? []);
+      setCars(carsRes.cars ?? []);
       const map = new Map<string, ClientIntelligence>();
       (intelRes.clients ?? []).forEach(c => map.set(c.client_name, c));
       setIntel(map);
@@ -153,6 +155,7 @@ export default function ClientsScreen() {
     setBkForm({
       start_date: (bk.start_date ?? '').slice(0, 10), end_date: (bk.end_date ?? '').slice(0, 10),
       client_price_per_day: bk.client_price_per_day != null ? String(bk.client_price_per_day) : '',
+      total:                bk.final_price          != null ? String(bk.final_price)          : '',
       owner_price_per_day:  bk.owner_price_per_day  != null ? String(bk.owner_price_per_day)  : '',
       paid_amount:          bk.paid_amount          != null ? String(bk.paid_amount)          : '',
       status: bk.status ?? 'CONFIRMED', payment_status: bk.payment_status ?? 'UNPAID',
@@ -160,12 +163,33 @@ export default function ClientsScreen() {
     });
     setBkEdit(bk.id);
   };
+  // Prix/jour ↔ Prix TOTAL liés (jours inclus) dans le form édition. Total = ce que le client paie.
+  const bkSetPerDay = (x: string) => {
+    const n = parseFloat(x);
+    setBkForm(f => { const d = f.start_date && f.end_date ? daysIncl(f.start_date, f.end_date) : 1;
+      return { ...f, client_price_per_day: x, total: !isNaN(n) ? String(Math.round(n * d)) : f.total }; });
+  };
+  const bkSetTotal = (x: string) => {
+    const n = parseFloat(x);
+    setBkForm(f => { const d = f.start_date && f.end_date ? daysIncl(f.start_date, f.end_date) : 1;
+      return { ...f, total: x, client_price_per_day: !isNaN(n) && d > 0 ? String(Math.round((n / d) * 100) / 100) : f.client_price_per_day }; });
+  };
+  const bkSetDate = (which: 'start_date' | 'end_date', x: string) => {
+    setBkForm(f => {
+      const sd = which === 'start_date' ? x : f.start_date; const ed = which === 'end_date' ? x : f.end_date;
+      const d = sd && ed ? daysIncl(sd, ed) : 1; const cppd = parseFloat(f.client_price_per_day);
+      return { ...f, start_date: sd, end_date: ed, total: !isNaN(cppd) ? String(Math.round(cppd * d)) : f.total };
+    });
+  };
   const saveBk = async (c: ClientSummary, bkId: string) => {
     setSaving(true);
     try {
-      const cppd = parseFloat(bkForm.client_price_per_day) || null;
       const oppd = parseFloat(bkForm.owner_price_per_day) || null;
       const nb   = bkForm.start_date && bkForm.end_date ? daysIncl(bkForm.start_date, bkForm.end_date) : null;
+      const cppdInput = parseFloat(bkForm.client_price_per_day) || null;
+      // Prix TOTAL = vérité. À défaut, total = prix/jour × jours.
+      const total = parseFloat(bkForm.total) || (cppdInput != null && nb != null ? Math.round(cppdInput * nb) : null);
+      const cppd  = cppdInput ?? (total != null && nb ? Math.round((total / nb) * 100) / 100 : null);
       const payload: Record<string, unknown> = {
         start_date: bkForm.start_date, end_date: bkForm.end_date,
         status: bkForm.status, payment_status: bkForm.payment_status,
@@ -175,12 +199,55 @@ export default function ClientsScreen() {
       if (cppd != null) payload.client_price_per_day = cppd;
       if (oppd != null) payload.owner_price_per_day = oppd;
       if (bkForm.paid_amount !== '') payload.paid_amount = parseFloat(bkForm.paid_amount) || 0;
-      if (nb != null) { payload.nb_days = nb; if (cppd != null) payload.final_price = Math.round(cppd * nb); if (cppd != null && oppd != null) payload.profit_kouider = Math.round((cppd - oppd) * nb); }
+      if (nb != null) { payload.nb_days = nb; if (total != null) payload.final_price = total; if (cppd != null && oppd != null) payload.profit_kouider = Math.round((cppd - oppd) * nb); }
       await business.updateBooking(bkId, payload);
       setToast('✅ Réservation mise à jour'); setBkEdit(null);
       if (c.phone) { const d = await business.fetchClientDetail(c.phone); setDetails(m => new Map(m).set(c.phone!, d)); }
     } catch { setToast('❌ Erreur mise à jour résa'); }
     finally { setSaving(false); setTimeout(() => setToast(null), 4000); }
+  };
+
+  // ── Créer une NOUVELLE réservation (fiche client OU sélecteur global) ──
+  const [cars, setCars]           = useState<Car[]>([]);
+  const [newBk, setNewBk]         = useState<string | null>(null); // clé client → form dans la fiche
+  const [newGlobal, setNewGlobal] = useState(false);               // form global → on choisit le client
+
+  // Logique partagée : crée la résa pour le client donné depuis les valeurs du form.
+  const createBookingFor = async (
+    client: { name: string; phone: string | null },
+    v: NewBkValues,
+  ) => {
+    const nb        = daysIncl(v.start_date, v.end_date);
+    const cppdInput = parseFloat(v.client_price_per_day) || 0;
+    // Prix TOTAL = vérité (ce que le client paie). À défaut, total = prix/jour × jours.
+    const total     = parseFloat(v.total) || (cppdInput ? Math.round(cppdInput * nb) : 0);
+    const cppd      = cppdInput || (total ? Math.round((total / nb) * 100) / 100 : 0);
+    if (!v.car_id || !v.start_date || !v.end_date || !total) {
+      setToast('❌ Voiture, dates et prix requis'); setTimeout(() => setToast(null), 4000); return;
+    }
+    setSaving(true);
+    try {
+      const oppd = parseFloat(v.owner_price_per_day) || null;
+      const payload: Record<string, unknown> = {
+        car_id:               v.car_id,
+        client_name:          client.name,
+        client_phone:         client.phone || '0000000000',
+        start_date:           v.start_date,
+        end_date:             v.end_date,
+        final_price:          total,
+        client_price_per_day: cppd,
+        initial_status:       v.status === 'PENDING' ? 'PENDING' : 'CONFIRMED',
+        payment_status:       v.payment_status,
+        currency:             v.currency === 'DZD' ? 'DZD' : 'EUR',
+      };
+      if (oppd != null) payload.owner_price_per_day = oppd;
+      if (v.paid_amount !== '') payload.paid_amount = parseFloat(v.paid_amount) || 0;
+      await business.createBooking(payload);
+      setToast('✅ Réservation créée'); setNewBk(null); setNewGlobal(false);
+      if (client.phone) { const d = await business.fetchClientDetail(client.phone); setDetails(m => new Map(m).set(client.phone!, d)); }
+      void load(); // rafraîchit liste + intel (nouveau client/CA reflétés)
+    } catch (e) { setToast(`❌ ${e instanceof Error ? e.message : 'Erreur création résa'}`); }
+    finally { setSaving(false); setTimeout(() => setToast(null), 5000); }
   };
 
   const filtered = clients.filter(c =>
@@ -229,6 +296,19 @@ export default function ClientsScreen() {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un nom ou téléphone…"
             style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 999, padding: '13px 16px 13px 42px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' }} />
         </div>
+      </div>
+
+      {/* ➕ Nouvelle réservation GLOBALE (choisir le client dans la liste) */}
+      <div style={{ padding: '0 18px 14px' }}>
+        {newGlobal ? (
+          <NewBookingForm cars={cars} clients={clients} saving={saving}
+            onCancel={() => setNewGlobal(false)} onCreate={createBookingFor} />
+        ) : (
+          <button onClick={() => setNewGlobal(true)}
+            style={{ width: '100%', boxSizing: 'border-box', fontSize: 13, fontWeight: 700, color: '#06281c', background: `linear-gradient(120deg, ${C.accentSoft}, ${C.accent})`, border: 'none', borderRadius: 14, padding: '13px', cursor: 'pointer' }}>
+            ➕ Nouvelle réservation
+          </button>
+        )}
       </div>
 
       {/* Liste */}
@@ -355,17 +435,20 @@ export default function ClientsScreen() {
                           {bkEdit === bk.id ? (
                             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: C.bg, borderRadius: 12, border: `1px solid ${C.border}` }}>
                               <div style={{ display: 'flex', gap: 8 }}>
-                                <EditField label="Début" value={bkForm.start_date} onChange={v => setBkForm(f => ({ ...f, start_date: v }))} type="date" />
-                                <EditField label="Fin" value={bkForm.end_date} onChange={v => setBkForm(f => ({ ...f, end_date: v }))} type="date" />
+                                <EditField label="Début" value={bkForm.start_date} onChange={v => bkSetDate('start_date', v)} type="date" />
+                                <EditField label="Fin" value={bkForm.end_date} onChange={v => bkSetDate('end_date', v)} type="date" />
                               </div>
+                              <div style={{ fontSize: 11, color: C.muted }}>{bkForm.start_date && bkForm.end_date ? `${daysIncl(bkForm.start_date, bkForm.end_date)} jours (inclus)` : ''}</div>
                               <div style={{ display: 'flex', gap: 8 }}>
-                                <EditField label="Prix client/j" value={bkForm.client_price_per_day} onChange={v => setBkForm(f => ({ ...f, client_price_per_day: v }))} type="number" />
+                                <EditField label="Prix client/j" value={bkForm.client_price_per_day} onChange={bkSetPerDay} type="number" />
+                                <EditField label="Prix TOTAL" value={bkForm.total ?? ''} onChange={bkSetTotal} type="number" />
+                              </div>
+                              <div style={{ fontSize: 10, color: C.muted }}>↳ Le TOTAL = ce que le client paie réellement.</div>
+                              <div style={{ display: 'flex', gap: 8 }}>
                                 <EditField label="Prix proprio/j" value={bkForm.owner_price_per_day} onChange={v => setBkForm(f => ({ ...f, owner_price_per_day: v }))} type="number" />
-                              </div>
-                              <div style={{ display: 'flex', gap: 8 }}>
                                 <EditField label="Payé (€)" value={bkForm.paid_amount} onChange={v => setBkForm(f => ({ ...f, paid_amount: v }))} type="number" />
-                                <EditSelect label="Statut" value={bkForm.status} onChange={v => setBkForm(f => ({ ...f, status: v }))} options={['CONFIRMED', 'PENDING', 'ACTIVE', 'COMPLETED', 'REJECTED']} />
                               </div>
+                              <EditSelect label="Statut" value={bkForm.status} onChange={v => setBkForm(f => ({ ...f, status: v }))} options={['CONFIRMED', 'PENDING', 'ACTIVE', 'COMPLETED', 'REJECTED']} />
                               <EditSelect label="Paiement" value={bkForm.payment_status} onChange={v => setBkForm(f => ({ ...f, payment_status: v }))} options={['UNPAID', 'PARTIAL', 'PAID']} />
                               <EditField label="N° passeport" value={bkForm.client_passport} onChange={v => setBkForm(f => ({ ...f, client_passport: v }))} placeholder="N° pièce" />
                               <EditField label="Expiration passeport" value={bkForm.passport_expiry} onChange={v => setBkForm(f => ({ ...f, passport_expiry: v }))} type="date" />
@@ -389,6 +472,14 @@ export default function ClientsScreen() {
                         </div>
                       );
                     })}
+
+                    {/* ➕ Nouvelle réservation pour CE client (pré-rempli nom + téléphone) */}
+                    {newBk === (c.phone ?? c.name) ? (
+                      <NewBookingForm cars={cars} fixedClient={{ name: c.name, phone: c.phone ?? null }} saving={saving}
+                        onCancel={() => setNewBk(null)} onCreate={createBookingFor} />
+                    ) : (
+                      <button onClick={() => setNewBk(c.phone ?? c.name)} style={{ ...miniBtn(C.accent), marginTop: 12 }}>➕ Nouvelle réservation</button>
+                    )}
 
                     {/* Documents */}
                     {det.documents.length > 0 && (
@@ -448,6 +539,126 @@ export default function ClientsScreen() {
 
 function miniBtn(col: string): React.CSSProperties {
   return { fontSize: 11, fontWeight: 700, color: col, background: `${col}15`, border: `1px solid ${col}40`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer' };
+}
+
+// ── Formulaire "Nouvelle réservation" — réutilisé fiche client (fixedClient) + global (clients picker) ──
+export interface NewBkValues {
+  car_id: string; start_date: string; end_date: string;
+  client_price_per_day: string; total: string; owner_price_per_day: string;
+  paid_amount: string; status: string; payment_status: string; currency: string;
+}
+function isoDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function NewBookingForm({ cars, clients, fixedClient, saving, onCancel, onCreate }: {
+  cars: Car[];
+  clients?: ClientSummary[];
+  fixedClient?: { name: string; phone: string | null };
+  saving: boolean;
+  onCancel: () => void;
+  onCreate: (client: { name: string; phone: string | null }, v: NewBkValues) => void;
+}) {
+  // Dates par défaut : aujourd'hui → demain (jours inclus = 2j).
+  const [v, setV] = useState<NewBkValues>({
+    car_id: '', start_date: isoDay(new Date()), end_date: isoDay(new Date(Date.now() + 86_400_000)),
+    client_price_per_day: '', total: '', owner_price_per_day: '', paid_amount: '', status: 'CONFIRMED', payment_status: 'UNPAID', currency: 'EUR',
+  });
+  const [clientKey, setClientKey] = useState(''); // "name|phone" quand on choisit dans la liste
+  const nbDays = (s: string, e: string) => Math.max(1, Math.round((new Date(e).getTime() - new Date(s).getTime()) / 86_400_000) + 1);
+  const days = nbDays(v.start_date, v.end_date);
+  const cur  = v.currency === 'DZD' ? 'DA' : '€';
+
+  // Prix/jour ↔ Prix TOTAL liés (jours inclus). Le TOTAL est la vérité (= ce que le client paie).
+  const setPerDay = (x: string) => {
+    const n = parseFloat(x);
+    setV(f => ({ ...f, client_price_per_day: x, total: !isNaN(n) ? String(Math.round(n * days)) : f.total }));
+  };
+  const setTotal = (x: string) => {
+    const n = parseFloat(x);
+    setV(f => ({ ...f, total: x, client_price_per_day: !isNaN(n) && days > 0 ? String(Math.round((n / days) * 100) / 100) : f.client_price_per_day }));
+  };
+  const setDate = (which: 'start_date' | 'end_date', x: string) => {
+    setV(f => {
+      const sd = which === 'start_date' ? x : f.start_date;
+      const ed = which === 'end_date'   ? x : f.end_date;
+      const d  = nbDays(sd, ed); const cppd = parseFloat(f.client_price_per_day);
+      // garde le prix/jour stable → recalcule le total selon les nouveaux jours
+      return { ...f, start_date: sd, end_date: ed, total: !isNaN(cppd) ? String(Math.round(cppd * d)) : f.total };
+    });
+  };
+  const setPayment = (x: string) => {
+    setV(f => ({ ...f, payment_status: x, paid_amount: x === 'PAID' ? (f.total || f.paid_amount) : f.paid_amount }));
+  };
+  // Choix voiture → remplit prix client/jour + total + proprio + devise depuis le catalogue (modifiables).
+  // Prix proprio = owner_price_per_day si défini, sinon houari_base_price (prix catalogue Houari).
+  const pickCar = (carId: string) => {
+    const car = cars.find(x => x.id === carId);
+    const ownerCat = car?.owner_price_per_day ?? car?.houari_base_price ?? null;
+    const base = car?.base_price ?? null;
+    setV(f => ({
+      ...f, car_id: carId,
+      client_price_per_day: base != null ? String(base) : f.client_price_per_day,
+      total:                base != null ? String(Math.round(base * days)) : f.total,
+      owner_price_per_day:  ownerCat != null ? String(ownerCat) : f.owner_price_per_day,
+      currency: car?.currency === 'DZD' ? 'DZD' : f.currency,
+    }));
+  };
+  const submit = () => {
+    let client = fixedClient;
+    if (!client) {
+      const c = clients?.find(x => `${x.name}|${x.phone ?? ''}` === clientKey);
+      if (!c) return;
+      client = { name: c.name, phone: c.phone ?? null };
+    }
+    onCreate(client, v);
+  };
+
+  return (
+    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: C.bg, borderRadius: 12, border: `1px solid ${C.accent}55` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.accent }}>Nouvelle réservation{fixedClient ? ` — ${fixedClient.name}` : ''}</div>
+      {!fixedClient && (
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <span style={{ fontSize: 10, color: C.muted }}>Client</span>
+          <select value={clientKey} onChange={e => setClientKey(e.target.value)}
+            style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%' }}>
+            <option value="">— choisir un client —</option>
+            {(clients ?? []).map(cl => <option key={`${cl.name}|${cl.phone ?? ''}`} value={`${cl.name}|${cl.phone ?? ''}`}>{cl.name}{cl.phone ? ` · ${cl.phone}` : ''}</option>)}
+          </select>
+        </label>
+      )}
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <span style={{ fontSize: 10, color: C.muted }}>Voiture</span>
+        <select value={v.car_id} onChange={e => pickCar(e.target.value)}
+          style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', color: C.text, fontSize: 13, fontFamily: C.font, outline: 'none', width: '100%' }}>
+          <option value="">— choisir une voiture —</option>
+          {cars.map(car => <option key={car.id} value={car.id}>{car.name}{car.available ? '' : ' (occupée)'}</option>)}
+        </select>
+      </label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <EditField label="Début" value={v.start_date} onChange={x => setDate('start_date', x)} type="date" />
+        <EditField label="Fin" value={v.end_date} onChange={x => setDate('end_date', x)} type="date" />
+      </div>
+      <div style={{ fontSize: 11, color: C.muted }}>{days} jours (inclus)</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <EditField label={`Prix client/j (${cur})`} value={v.client_price_per_day} onChange={setPerDay} type="number" />
+        <EditField label={`Prix TOTAL (${cur})`} value={v.total} onChange={setTotal} type="number" />
+      </div>
+      <div style={{ fontSize: 10, color: C.muted }}>↳ Modifie l'un ou l'autre — le total = ce que le client paie réellement.</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <EditField label={`Prix proprio/j (${cur})`} value={v.owner_price_per_day} onChange={x => setV(f => ({ ...f, owner_price_per_day: x }))} type="number" />
+        <EditField label={`Payé (${cur})`} value={v.paid_amount} onChange={x => setV(f => ({ ...f, paid_amount: x }))} type="number" />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <EditSelect label="Devise" value={v.currency} onChange={x => setV(f => ({ ...f, currency: x }))} options={['EUR', 'DZD']} />
+        <EditSelect label="Statut" value={v.status} onChange={x => setV(f => ({ ...f, status: x }))} options={['CONFIRMED', 'PENDING']} />
+      </div>
+      <EditSelect label="Paiement" value={v.payment_status} onChange={setPayment} options={['UNPAID', 'PARTIAL', 'PAID']} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button disabled={saving} onClick={submit} style={miniBtn(C.accent)}>{saving ? '…' : '✓ Créer la réservation'}</button>
+        <button onClick={onCancel} style={miniBtn(C.muted)}>Annuler</button>
+      </div>
+    </div>
+  );
 }
 
 function EditField({ label, value, onChange, type = 'text', placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
