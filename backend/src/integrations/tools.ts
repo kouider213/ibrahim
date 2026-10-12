@@ -251,6 +251,36 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'convert_currency',
+    description: 'Convertir un montant entre EUR, USD et DZD (dinar algérien) au taux officiel ET au taux du marché parallèle (square). Ex : "combien font 500 € en dinars", "30 000 DA en euros".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        amount: { type: 'number', description: 'Montant à convertir' },
+        from:   { type: 'string', enum: ['EUR', 'USD', 'DZD'], description: 'Devise de départ' },
+        to:     { type: 'string', enum: ['EUR', 'USD', 'DZD'], description: 'Devise d\'arrivée' },
+      },
+      required: ['amount', 'from', 'to'],
+    },
+  },
+  {
+    name: 'get_weather_alerts',
+    description: 'Alertes météo sur 3 jours pour une ville (orage, neige, fortes pluies, vent fort, canicule). Utile avant une livraison de voiture ou une arrivée client. Défaut : Oran.',
+    input_schema: {
+      type: 'object' as const,
+      properties: { city: { type: 'string', description: 'Ville (défaut Oran)' } },
+    },
+  },
+  {
+    name: 'get_football',
+    description: 'Dernier résultat et prochain match d\'une équipe de foot (ex : MC Oran / MCO, Algérie, PSG, Real Madrid).',
+    input_schema: {
+      type: 'object' as const,
+      properties: { team: { type: 'string', description: 'Nom de l\'équipe' } },
+      required: ['team'],
+    },
+  },
+  {
     name: 'get_news',
     description: 'Obtenir les actualités récentes d\'Algérie ou du monde.',
     input_schema: {
@@ -909,7 +939,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
       type: 'object' as const,
       properties: {
         company:      { type: 'string', description: 'Nom de l\'entreprise ou du propriétaire' },
-        segment:      { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'autre'], description: 'Type de prospect' },
+        segment:      { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'autre'], description: 'Type de prospect' },
         email:        { type: 'string', description: 'Email public (optionnel si téléphone)' },
         phone:        { type: 'string', description: 'Téléphone/WhatsApp public (optionnel)' },
         contact_name: { type: 'string', description: 'Nom du contact (optionnel)' },
@@ -926,7 +956,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     input_schema: {
       type: 'object' as const,
       properties: {
-        segment: { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'autre'] },
+        segment: { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'autre'] },
         status:  { type: 'string', enum: ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] },
         limit:   { type: 'number', description: 'Défaut 20' },
       },

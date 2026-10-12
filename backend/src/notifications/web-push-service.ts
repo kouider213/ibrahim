@@ -1,9 +1,8 @@
 import webpush from 'web-push';
 import { env } from '../config/env.js';
-import { redis } from '../queue/queue.js';
+import { kvGet, kvSet, kvDel } from '../integrations/app-store.js';
 
 const WEB_SUB_PREFIX = 'mobile:web_push_sub:';
-const WEB_SUB_TTL    = 90 * 24 * 60 * 60; // 90 days
 
 let _configured = false;
 
@@ -27,20 +26,20 @@ export function getVapidPublicKey(): string {
 }
 
 export async function storeWebSub(sub: webpush.PushSubscription, actorId = 'kouider'): Promise<void> {
-  await redis.set(`${WEB_SUB_PREFIX}${actorId}`, JSON.stringify(sub), 'EX', WEB_SUB_TTL);
+  await kvSet(`${WEB_SUB_PREFIX}${actorId}`, JSON.stringify(sub));
   console.log(`[web-push] Subscription stored for ${actorId}: ${sub.endpoint.slice(0, 60)}…`);
 }
 
 export async function getWebSub(actorId: string): Promise<webpush.PushSubscription | null> {
-  const raw = await redis.get(`${WEB_SUB_PREFIX}${actorId}`);
+  const raw = await kvGet(`${WEB_SUB_PREFIX}${actorId}`);
   if (!raw) return null;
   try { return JSON.parse(raw) as webpush.PushSubscription; } catch { return null; }
 }
 
 export async function getAllWebSubs(): Promise<webpush.PushSubscription[]> {
   const [k, h] = await Promise.all([
-    redis.get(`${WEB_SUB_PREFIX}kouider`),
-    redis.get(`${WEB_SUB_PREFIX}houari`),
+    kvGet(`${WEB_SUB_PREFIX}kouider`),
+    kvGet(`${WEB_SUB_PREFIX}houari`),
   ]);
   const subs: webpush.PushSubscription[] = [];
   for (const raw of [k, h]) {
@@ -68,7 +67,7 @@ export async function sendWebPush(
       for (const actor of actors) {
         const stored = await getWebSub(actor);
         if (stored?.endpoint === sub.endpoint) {
-          await redis.del(`${WEB_SUB_PREFIX}${actor}`);
+          await kvDel(`${WEB_SUB_PREFIX}${actor}`);
           console.log(`[web-push] Removed expired sub for ${actor}`);
         }
       }

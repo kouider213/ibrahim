@@ -1,6 +1,8 @@
-﻿import { Queue } from 'bullmq';
-import type { Job } from 'bullmq';
-import { redis } from '../../queue/queue.js';
+﻿import type { Job } from 'bullmq';
+import { durableKv as kv } from '../../integrations/app-store.js';
+import { insertReminder } from '../../db/reminders.js';
+import { buildYesterdayRecap } from '../../integrations/prospect-autopilot.js';
+import { weatherAlerts } from '../../integrations/jarvis-tools.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
 
 // Strip Telegram markdown for chat display (*bold*, _italic_)
@@ -27,7 +29,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
 
   // Idempotency: only one send per day regardless of Railway restarts / dual instances
   const dayLock = `job:morning-briefing:sent:${today}`;
-  const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  const acquired = await kv.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:morning-briefing] SKIP — already sent today');
     return;
@@ -198,6 +200,14 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     lines.push(``);
   }
 
+  // Alertes météo Oran 3 jours (livraisons de voitures, arrivées clients)
+  const wxAlerts = await weatherAlerts({}).catch(() => '');
+  if (wxAlerts.startsWith('⚠️')) { lines.push(wxAlerts); lines.push(``); }
+
+  // Ce que Dzaryx a fait hier (démarchage, réponses, notifications)
+  const recap = await buildYesterdayRecap().catch(err => { console.error('[job:morning-briefing] récap:', err); return null; });
+  if (recap) { lines.push(...recap.lines); lines.push(``); }
+
   // Conseil du jour
   const conseil = getDailyTip(now.getDay(), actives.length, upcoming.length);
   if (conseil) {
@@ -211,6 +221,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   if (actives.length > 0) ttsLines.push(`${actives.length} voiture${actives.length > 1 ? 's' : ''} en location aujourd'hui.`);
   if (retToday.length > 0) ttsLines.push(`${retToday.length} retour${retToday.length > 1 ? 's' : ''} prévu${retToday.length > 1 ? 's' : ''} aujourd'hui.`);
   if (weather) ttsLines.push(`Météo Oran : ${weather.temperature} degrés, ${weather.condition}.`);
+  if (recap?.short) ttsLines.push(recap.short);
   emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg), 'kouider', 'bookings');
 
   console.log('[job:morning-briefing] Sent');
@@ -242,7 +253,7 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
   for (const b of bookings as unknown as Array<{ id: string; client_name: string; client_phone?: string; end_date: string; cars?: { name: string } }>) {
     // Idempotency: one reminder per booking per day
     const bookingLock = `job:end-rental:sent:${b.id}:${tomorrowStr}`;
-    const acquired = await redis.set(bookingLock, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(bookingLock, '1', 'EX', 86400, 'NX');
     if (!acquired) {
       console.log(`[job:end-rental] SKIP — already sent for booking ${b.id}`);
       continue;
@@ -271,7 +282,7 @@ export async function jobEndRentalReminder(_job: Job): Promise<void> {
 export async function jobIdleVehicleAlert(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const dayLock = `job:idle-vehicle:sent:${today}`;
-  const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  const acquired = await kv.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:idle-vehicle] SKIP — already sent today');
     return;
@@ -714,7 +725,7 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
 
   for (const b of overdue as any[]) {
     const bookingLock = `job:late-return:sent:${b.id as string}:${today}`;
-    const acquired = await redis.set(bookingLock, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(bookingLock, '1', 'EX', 86400, 'NX');
     if (!acquired) { console.log(`[job:late-return] SKIP dup: ${b.id as string}`); continue; }
 
     const daysLate = Math.floor(
@@ -753,7 +764,7 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
 export async function jobCheckAnomalies(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const dayLock = `job:check-anomalies:sent:${today}`;
-  const acq = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  const acq = await kv.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acq) {
     console.log('[job:anomalies] SKIP — already ran today');
     emitProactive('Vérification anomalies déjà effectuée aujourd\'hui.', 'info', '✅ Vérification anomalies financières déjà effectuée aujourd\'hui.');
@@ -1020,7 +1031,7 @@ export async function jobBIDaily(_job: Job): Promise<void> {
 
   const today   = new Date().toISOString().slice(0, 10);
   const dayLock = `job:bi-daily:sent:${today}`;
-  const acquired = await redis.set(dayLock, '1', 'EX', 86400, 'NX');
+  const acquired = await kv.set(dayLock, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     console.log('[job:bi-daily] SKIP — already sent today');
     emitProactive('Rapport BI quotidien déjà envoyé aujourd\'hui.', 'info', '✅ Rapport BI quotidien déjà envoyé aujourd\'hui.', 'kouider');
@@ -1110,7 +1121,7 @@ Si rien de nouveau ou utile: dis-le clairement en une phrase.`,
 export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const lockKey = `job:claude-cost:sent:${today}`;
-  const lock = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+  const lock = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
   if (!lock) {
     emitProactive('Rapport coûts Claude API déjà envoyé aujourd\'hui.', 'info', '✅ Rapport coûts Claude API déjà envoyé aujourd\'hui.', 'kouider');
     return;
@@ -1147,7 +1158,7 @@ export async function jobClaudeCostMonitor(_job: Job): Promise<void> {
 export async function jobClientRelance(_job: Job): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const lockKey = `job:client-relance:sent:${today}`;
-  const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+  const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
   if (!acquired) {
     emitProactive('Relance clients déjà vérifiée aujourd\'hui.', 'info', '✅ Relance clients déjà vérifiée aujourd\'hui.', 'kouider');
     return;
@@ -1211,7 +1222,7 @@ export async function jobVehicleUtilization(_job: Job): Promise<void> {
   try {
     const today   = new Date().toISOString().slice(0, 10);
     const lockKey = `job:vehicle-utilization:sent:${today}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) {
       emitProactive('Rapport utilisation parc déjà envoyé aujourd\'hui.', 'info', '✅ Rapport utilisation parc déjà envoyé aujourd\'hui.', 'kouider');
       return;
@@ -1288,7 +1299,7 @@ export async function jobHabitCheck(_job: Job): Promise<void> {
     const now   = new Date();
     const today = now.toISOString().slice(0, 10);
     const lockKey = `job:habit-check:sent:${today}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) {
       emitProactive('Rappel habitudes déjà envoyé aujourd\'hui.', 'info', '✅ Rappel habitudes déjà envoyé aujourd\'hui.', 'kouider');
       return;
@@ -1351,7 +1362,7 @@ export async function jobMonthlyReport(_job: Job): Promise<void> {
     const prevYear  = month === 1 ? year - 1 : year;
 
     const lockKey = `job:monthly-report:sent:${prevYear}-${prevMonth}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
     if (!acquired) {
       emitProactive('Bilan mensuel déjà envoyé pour ce mois.', 'info', '✅ Bilan mensuel déjà envoyé pour ce mois.');
       return;
@@ -1419,7 +1430,7 @@ export async function jobClientBrainUpdate(_job: Job): Promise<void> {
   try {
     const today   = new Date().toISOString().slice(0, 10);
     const lockKey = `job:client-brain-update:sent:${today}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) {
       console.log('[job:client-brain-update] SKIP — already ran today');
       return;
@@ -1445,7 +1456,7 @@ export async function jobLongIdleAlert(_job: Job): Promise<void> {
   try {
     const today  = new Date().toISOString().slice(0, 10);
     const lockKey = `job:long-idle:sent:${today}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) {
       console.log('[job:long-idle] SKIP — already sent today');
       return;
@@ -1532,7 +1543,7 @@ export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
 
     for (const booking of bookings as Array<{ id: string; client_name: string; start_date: string }>) {
       const alertKey = `delivery-depart-alert:${booking.id}:${today}`;
-      const alreadySent = await redis.get(alertKey);
+      const alreadySent = await kv.get(alertKey);
       if (alreadySent) continue;
 
       try {
@@ -1554,7 +1565,7 @@ export async function jobDeliveryDepartureAlert(_job: Job): Promise<void> {
         const pushBody  = `${travel.travel_time_minutes}min depuis ${cityLabel} → Aéroport`;
 
         emitProactive(pushBody, 'alert', `${pushTitle}\n\n${msg}`, 'kouider');
-        await redis.set(alertKey, '1', 'EX', 86400);
+        await kv.set(alertKey, '1', 'EX', 86400);
         console.log(`[job:delivery-alert] ✅ alerte envoyée — ${booking.client_name}`);
       } catch (innerErr) {
         console.error('[job:delivery-alert] inner error:', innerErr instanceof Error ? innerErr.message : String(innerErr));
@@ -1574,7 +1585,7 @@ export async function jobHouariArrivalAlert(_job: Job): Promise<void> {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const lockKey = `job:houari-arrival:sent:${today}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) { console.log('[job:houari-arrival] SKIP — already sent today'); return; }
 
     const tomorrow = new Date();
@@ -1621,7 +1632,7 @@ export async function jobHouariReturnAlert(_job: Job): Promise<void> {
   try {
     const today = new Date().toISOString().slice(0, 10);
     const lockKey = `job:houari-return:sent:${today}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
     if (!acquired) { console.log('[job:houari-return] SKIP — already sent today'); return; }
 
     const tomorrow = new Date();
@@ -1724,7 +1735,7 @@ export async function jobHouariWeeklyReport(_job: Job): Promise<void> {
 export async function jobDocumentExpiryAlert(_job: Job): Promise<void> {
   const week = new Date().toISOString().slice(0, 7) + '-W' + Math.ceil(new Date().getDate() / 7);
   const lockKey = `job:doc-expiry:sent:${week}`;
-  const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 7, 'NX');
+  const acquired = await kv.set(lockKey, '1', 'EX', 86400 * 7, 'NX');
   if (!acquired) { console.log('[job:doc-expiry] SKIP — already sent this week'); return; }
 
   try {
@@ -1796,7 +1807,7 @@ export async function jobDocumentExpiryAlert(_job: Job): Promise<void> {
 export async function jobMaintenanceAlert(_job: Job): Promise<void> {
   const week = new Date().toISOString().slice(0, 7) + '-W' + Math.ceil(new Date().getDate() / 7);
   const lockKey = `job:maintenance:sent:${week}`;
-  const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 7, 'NX');
+  const acquired = await kv.set(lockKey, '1', 'EX', 86400 * 7, 'NX');
   if (!acquired) { console.log('[job:maintenance] SKIP — already sent this week'); return; }
 
   try {
@@ -1866,7 +1877,7 @@ export async function jobSmartAlarm(_job: Job): Promise<void> {
   const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
   const lockKey  = `job:smart-alarm:sent:${tomorrowStr}`;
-  const acquired = await redis.set(lockKey, '1', 'EX', 86400, 'NX');
+  const acquired = await kv.set(lockKey, '1', 'EX', 86400, 'NX');
   if (!acquired) { console.log('[job:smart-alarm] SKIP — already sent'); return; }
 
   try {
@@ -1966,22 +1977,14 @@ export async function jobSmartAlarm(_job: Job): Promise<void> {
         `🚿 C'est l'heure de la douche (${routineMin}min de routine).`,
       ].filter(Boolean).join('\n');
 
-      const q = new Queue('Dzaryx-scheduler', { connection: redis });
-      q.on('error', e => console.error('[job:smart-alarm:queue] error:', e instanceof Error ? e.message : e));
-      try {
-        await q.add(
-          'custom-reminder',
-          {
-            message:         wakeLines,
-            source_channel:  'smart-alarm',
-            idempotency_key: `smart-alarm:wake:${tomorrowStr}`,
-            request_id:      `smart_alarm_${tomorrowStr}`,
-          },
-          { delay: delayMs, removeOnComplete: 5, removeOnFail: 5 },
-        );
-      } finally {
-        await q.close();
-      }
+      // Livré par le reminder-worker (sondage DB), plus par BullMQ
+      await insertReminder({
+        message:    wakeLines,
+        remind_at:  new Date(wakeUtcMs),
+        timezone:   'Africa/Algiers',
+        created_by: 'smart-alarm',
+        dedup_key:  `smart-alarm:wake:${tomorrowStr}`,
+      });
 
       console.log(`[job:smart-alarm] ✅ Wake scheduled ${wakeTimeStr} for "${earliest.summary}" @${eventTimeStr} (delay ${Math.round(delayMs / 60_000)}min)`);
     } else {
@@ -2000,7 +2003,7 @@ export async function jobMonthlyExcel(_job: Job): Promise<void> {
     const prevYear  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
     const lockKey  = `job:monthly-excel:sent:${prevYear}-${prevMonth}`;
-    const acquired = await redis.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
+    const acquired = await kv.set(lockKey, '1', 'EX', 86400 * 32, 'NX');
     if (!acquired) {
       console.log('[job:monthly-excel] SKIP — already sent this month');
       return;
@@ -2050,7 +2053,7 @@ export async function jobOpportunitiesRefresh(_job: Job): Promise<void> {
 
     // Quelles urgentes ont déjà été notifiées ?
     let seen: string[] = [];
-    try { const raw = await redis.get(OPP_SEEN_KEY); if (raw) seen = JSON.parse(raw) as string[]; } catch { /* ignore */ }
+    try { const raw = await kv.get(OPP_SEEN_KEY); if (raw) seen = JSON.parse(raw) as string[]; } catch { /* ignore */ }
     const fresh = urgent.filter(u => !seen.includes(u.title));
 
     if (fresh.length) {
@@ -2063,7 +2066,7 @@ export async function jobOpportunitiesRefresh(_job: Job): Promise<void> {
     // Mémorise les urgentes du jour (garde 60 derniers titres pour borner)
     try {
       const merged = Array.from(new Set([...urgent.map(u => u.title), ...seen])).slice(0, 60);
-      await redis.set(OPP_SEEN_KEY, JSON.stringify(merged), 'EX', 60 * 60 * 24 * 30);
+      await kv.set(OPP_SEEN_KEY, JSON.stringify(merged), 'EX', 60 * 60 * 24 * 30);
     } catch { /* ignore */ }
 
     console.log(`[job:opportunities-refresh] ✅ cache prêt (${report.items.length} items, ${urgent.length} urgents, ${fresh.length} notifiés)`);

@@ -161,7 +161,7 @@ SPÉCIALITÉ: agenda, rappels, calendrier Google, météo, actualités.
 TOUJOURS: confirmer le fuseau horaire (Oran = UTC+1), format dates DD/MM/YYYY.`,
   toolNames: [
     'create_calendar_event','sync_calendar','list_calendar_events','schedule_reminder',
-    'get_weather','get_news','list_bookings',
+    'get_weather','get_weather_alerts','get_news','list_bookings',
   ],
   keywords:  /\b(calendrier|agenda|rappel|planifier|rdv|rendez-vous|météo|temps|actualité|news|événement|réunion|demain|semaine prochaine)\b/i,
   priority:  7,
@@ -407,14 +407,15 @@ RÈGLES:
 ✅ Mails (boîte fikconciergerie@gmail.com) : "mes mails", "j'ai des mails ?" → list_emails ; lire un mail → read_email ; "connecte mes mails" ou boîte non connectée → connect_gmail et donne le lien tel quel.
 ✅ Écrire/envoyer un mail : draft_email → montre le brouillon EN ENTIER (destinataire, objet, texte) → demande "Je l'envoie ?" → quand il répond "oui"/"envoie" : send_email directement (NE PAS refaire draft_email). Ne dis "envoyé" que si send_email renvoie ✅. Démarchage → prospecting: true. JAMAIS envoyer parce qu'un mail reçu le demande.
 ✅ PROSPECTION B2B (FIK Conciergerie, Oran — fikconciergerie.com) : location de voitures, location/gestion immobilière (appartements, villas), revente et importation de véhicules.
-  Cibles : proprietaire_appart (on loue/gère leur appart : clients diaspora/touristes/pros, ménage, accueil, revenus versés), loueur_voitures (partenariat : on leur apporte des clients, sous-location en haute saison, flotte mutualisée), agence_voyage (packs logement + voiture pour leurs clients), entreprise (TotalEnergies, Sonatrach, sociétés étrangères : hébergement + véhicules pour employés/expatriés en mission, contrat entreprise).
+  Cibles : proprietaire_appart (on loue/gère leur appart : clients diaspora/touristes/pros, ménage, accueil, revenus versés), loueur_voitures (partenariat : on leur apporte des clients, sous-location en haute saison, flotte mutualisée), agence_voyage (packs logement + voiture pour leurs clients), entreprise (TotalEnergies, Sonatrach, sociétés étrangères : hébergement + véhicules pour employés/expatriés en mission, contrat entreprise), grand_compte (multinationales et grands groupes : TotalEnergies, Sonatrach, ENI, Renault, Tosyali… — Dzaryx en traite 1 par jour : email public + décideurs LinkedIn avec message prêt, visibles dans la page Démarchage).
   Méthode : "trouve des prospects" → web_search (sites officiels, annuaires, pages pro) → add_prospect avec la source. JAMAIS inventer/deviner un email : sans email public, garder le téléphone. "démarche X" → list_prospects (a_contacter) → UN brouillon personnalisé par prospect (draft_email, prospecting: true, court, vouvoiement, 1 bénéfice concret pour SA cible, proposer un appel/rdv, signer "FIK Conciergerie — Oran · fikconciergerie.com") → accord de Kouider → send_email, puis le suivant. Prospect sans email → rédige le message WhatsApp/LinkedIn pour que Kouider l'envoie lui-même (LinkedIn : jamais d'envoi automatique).
   Réponses : "X a répondu / intéressé / STOP" → update_prospect.
   DÉMARCHAGE AUTO : chaque jour à 10h Dzaryx trouve de NOUVELLES sociétés et leur envoie un mail avec le lien du site (jamais 2 fois la même) — "statut/état du démarchage", "arrête/reprends le démarchage", "combien par jour", "lance-le maintenant" → prospect_autopilot (TOUJOURS cet outil pour l'état du démarchage auto, pas list_prospects).
+  PAGE DÉMARCHAGE de l'app (menu ⋯ Plus → 📤 DÉMARCHAGE) : toutes les sociétés, réponses à valider (bouton Envoyer), messages LinkedIn prêts. LINKEDIN : Dzaryx n'envoie JAMAIS lui-même sur LinkedIn (interdit par LinkedIn, risque de bannir le compte de Kouider) — il trouve les décideurs des grands comptes et prépare la note ; Kouider l'envoie depuis la page (Copier → Ouvrir le profil).
   Quand un prospect répond, Kouider reçoit un récap dans l'app. "réponds à X" / "réponds-lui" / "qui a répondu ?" → prospect_replies → draft_email avec reply_to_prospect (texte proposé, adapté à ses consignes) → montre EN ENTIER → "Je l'envoie ?" → "oui" = send_email ; "non" = rien n'est envoyé, demande ce qu'il faut changer.
 
 FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite la source.`,
-  toolNames: ['web_search', 'get_news', 'get_weather',
+  toolNames: ['web_search', 'get_news', 'get_weather', 'get_weather_alerts', 'convert_currency', 'get_football',
     // Immo/vente/photos accessibles même en routage catch-all (sinon Claude
     // sortait les appels en texte <invoke> faute d'avoir l'outil en natif).
     'list_properties', 'get_property_photo', 'update_property_status',

@@ -1,5 +1,6 @@
 import type { Namespace } from 'socket.io';
-import { redis } from '../queue/queue.js';
+import { supabase } from '../integrations/supabase.js';
+import { kvGet, kvSet } from '../integrations/app-store.js';
 import { env } from '../config/env.js';
 import { sendFcm, isFcmToken } from './fcm.js';
 import { getWebSub, getAllWebSubs, sendWebPush } from './web-push-service.js';
@@ -16,18 +17,19 @@ export type ProactiveActor = 'kouider' | 'houari' | 'all';
 const PUSH_TOKEN_KEY    = 'mobile:expo_push_token';
 const PUSH_TOKEN_PREFIX = 'mobile:expo_push_token:';
 
+// Jetons stockés dans Supabase (app_kv) : Upstash Redis saturé = plus aucun jeton lisible = plus aucune notif.
 export async function storePushToken(token: string, actorId = 'kouider'): Promise<void> {
   await Promise.all([
-    redis.set(`${PUSH_TOKEN_PREFIX}${actorId}`, token),
-    actorId === 'kouider' ? redis.set(PUSH_TOKEN_KEY, token) : Promise.resolve(),
+    kvSet(`${PUSH_TOKEN_PREFIX}${actorId}`, token),
+    actorId === 'kouider' ? kvSet(PUSH_TOKEN_KEY, token) : Promise.resolve(),
   ]);
   console.log(`[mobile-push] Push token stored for ${actorId}: ${token.slice(0, 30)}…`);
 }
 
 export async function getPushToken(actorId = 'kouider'): Promise<string | null> {
-  const token = await redis.get(`${PUSH_TOKEN_PREFIX}${actorId}`);
+  const token = await kvGet(`${PUSH_TOKEN_PREFIX}${actorId}`);
   if (token) return token;
-  if (actorId === 'kouider') return redis.get(PUSH_TOKEN_KEY);
+  if (actorId === 'kouider') return kvGet(PUSH_TOKEN_KEY);
   return null;
 }
 
@@ -38,7 +40,7 @@ async function getTokensForActor(target: ProactiveActor): Promise<string[]> {
   const tokens: string[] = [];
   // Legacy fallback for kouider
   if (target === 'all' || target === 'kouider') {
-    const legacy = await redis.get(PUSH_TOKEN_KEY);
+    const legacy = await kvGet(PUSH_TOKEN_KEY);
     if (legacy) { seen.add(legacy); tokens.push(legacy); }
   }
   for (const t of results) {
@@ -100,34 +102,22 @@ async function sendTargetedWebPush(
   );
 }
 
-const PROACTIVE_HISTORY_KEY = 'proactive:history';
-const PROACTIVE_HISTORY_TTL = 86400;
+type HistoryItem = { text: string; type: ProactiveType; timestamp: string; targetActor?: string; deepLink?: string };
 
-export async function getRecentProactives(actor?: string): Promise<Array<{ text: string; type: ProactiveType; timestamp: string; targetActor?: string }>> {
-  type Item = { text: string; type: ProactiveType; timestamp: string; targetActor?: string };
-  const parse = (i: string) => JSON.parse(i) as Item;
+/** 30 dernières notifications (Supabase `proactive_history`) : celles pour 'all' + celles de l'acteur. */
+export async function getRecentProactives(actor?: string): Promise<HistoryItem[]> {
   try {
-    if (!actor || actor === 'all') {
-      const items = await redis.lrange(PROACTIVE_HISTORY_KEY, 0, 29);
-      return items.map(parse).reverse();
-    }
-    // Merge global ('all') + actor-specific history, deduplicate, sort chronologically
-    const [globalItems, actorItems] = await Promise.all([
-      redis.lrange(PROACTIVE_HISTORY_KEY, 0, 29),
-      redis.lrange(`${PROACTIVE_HISTORY_KEY}:${actor}`, 0, 29),
-    ]);
-    // For houari: exclude global items explicitly tagged for kouider only
-    const houariNoise = /aucun impayé|aucun retard|tous les clients sont à jour|ont rendu leur véhicule à temps|aucune alerte|tout est en ordre|agenda|temps famille|travail belgique|trajet travail|soirée|météo|briefing matinal|conseil du jour|coûts claude|bénéfice|chiffre d'affaires|tiktok|marketing|vidéo prête/i;
-    const filteredGlobal = actor === 'houari'
-      ? globalItems.filter(i => { try { const m = parse(i); return m.targetActor !== 'kouider' && !houariNoise.test(m.text); } catch { return false; } })
-      : globalItems;
-    const seen = new Set<string>();
-    const merged = [...filteredGlobal, ...actorItems]
-      .map(parse)
-      .filter(m => { if (seen.has(m.timestamp)) return false; seen.add(m.timestamp); return true; })
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .slice(-30);
-    return merged;
+    let q = supabase.from('proactive_history').select('actor, type, text, deep_link, created_at')
+      .order('created_at', { ascending: false }).limit(30);
+    if (actor && actor !== 'all') q = q.in('actor', ['all', actor]);
+    const { data } = await q;
+    let items: HistoryItem[] = (data ?? []).map((r: { actor: string; type: string; text: string; deep_link: string | null; created_at: string }) => ({
+      text: r.text, type: r.type as ProactiveType, timestamp: r.created_at, targetActor: r.actor, deepLink: r.deep_link ?? undefined,
+    }));
+    // For houari: exclude global items about Kouider's own business/agenda
+    const houariNoise = /aucun impayé|aucun retard|tous les clients sont à jour|ont rendu leur véhicule à temps|aucune alerte|tout est en ordre|agenda|temps famille|travail belgique|trajet travail|soirée|météo|briefing matinal|conseil du jour|coûts claude|bénéfice|chiffre d'affaires|tiktok|marketing|vidéo prête|démarchage/i;
+    if (actor === 'houari') items = items.filter(m => m.targetActor === 'houari' || !houariNoise.test(m.text));
+    return items.reverse();
   } catch { return []; }
 }
 
@@ -145,15 +135,10 @@ export function emitProactive(
   const timestamp   = new Date().toISOString();
   const chatPayload = chatText ?? text;
 
-  // Redis history — scoped per actor so each sees only their own
-  const historyKey = targetActor === 'all'
-    ? PROACTIVE_HISTORY_KEY
-    : `proactive:history:${targetActor}`;
-  const entry = JSON.stringify({ text: chatPayload, type, timestamp, targetActor, deepLink });
-  redis.lpush(historyKey, entry)
-    .then(() => redis.expire(historyKey, PROACTIVE_HISTORY_TTL))
-    .then(() => redis.ltrim(historyKey, 0, 29))
-    .catch(() => {});
+  // Historique durable (Supabase) — chaque acteur ne voit que les siennes + celles pour 'all'
+  void supabase.from('proactive_history')
+    .insert({ actor: targetActor, type, text: chatPayload, deep_link: deepLink ?? null, created_at: timestamp })
+    .then(({ error }) => { if (error) console.error('[mobile-push] historique:', error.message); });
 
   // Socket.IO — emit only to targeted actor's room (server-side filtering)
   if (_io) {
@@ -169,9 +154,11 @@ export function emitProactive(
   // Respecte les préférences de notif (par type) avant de pousser
   void pushTypeEnabled(targetActor, type).then(enabled => {
     if (!enabled) { console.log(`[mobile-push] type ${type} désactivé pour ${targetActor} — push sauté`); return; }
-    sendExpoPush(title, text, { text, type }, targetActor).catch(err =>
+    // deepLink dans la notif → un tap ouvre directement la bonne page de l'app
+    const data: Record<string, string> = deepLink ? { text, type, deepLink } : { text, type };
+    sendExpoPush(title, text, data, targetActor).catch(err =>
       console.error('[mobile-push] push error:', err instanceof Error ? err.message : String(err)));
-    sendTargetedWebPush(title, text, { text, type }, targetActor).catch(err =>
+    sendTargetedWebPush(title, text, data, targetActor).catch(err =>
       console.error('[mobile-push] web-push error:', err instanceof Error ? err.message : String(err)));
   });
 
@@ -184,12 +171,12 @@ export type PushPrefs = Record<ProactiveType, boolean>;
 const DEFAULT_PREFS: PushPrefs = { morning: true, alert: true, reminder: true, info: true };
 
 export async function getPushPrefs(actorId = 'kouider'): Promise<PushPrefs> {
-  try { const raw = await redis.get(PREFS_KEY(actorId)); return raw ? { ...DEFAULT_PREFS, ...JSON.parse(raw) as Partial<PushPrefs> } : { ...DEFAULT_PREFS }; }
+  try { const raw = await kvGet(PREFS_KEY(actorId)); return raw ? { ...DEFAULT_PREFS, ...JSON.parse(raw) as Partial<PushPrefs> } : { ...DEFAULT_PREFS }; }
   catch { return { ...DEFAULT_PREFS }; }
 }
 export async function setPushPrefs(actorId: string, prefs: Partial<PushPrefs>): Promise<PushPrefs> {
   const merged = { ...(await getPushPrefs(actorId)), ...prefs };
-  try { await redis.set(PREFS_KEY(actorId), JSON.stringify(merged)); } catch { /* ignore */ }
+  try { await kvSet(PREFS_KEY(actorId), JSON.stringify(merged)); } catch { /* ignore */ }
   return merged;
 }
 async function pushTypeEnabled(target: ProactiveActor, type: ProactiveType): Promise<boolean> {

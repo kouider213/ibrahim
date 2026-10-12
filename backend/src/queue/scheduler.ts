@@ -1,4 +1,6 @@
-﻿import { Queue, Worker, type Job } from 'bullmq';
+﻿import { Queue, type Job } from 'bullmq';
+import { Cron } from 'croner';
+import { ensureAppStoreTables, claimJobRun } from '../integrations/app-store.js';
 import { redis } from './queue.js';
 import {
   jobMorningBriefing,
@@ -37,7 +39,6 @@ import {
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { runDailyOutreach, checkProspectReplies } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
-import { supabase } from '../integrations/supabase.js';
 
 const SCHEDULER_QUEUE = 'Dzaryx-scheduler';
 
@@ -262,176 +263,69 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'prospect-replies':        async () => { await checkProspectReplies(); },
 };
 
-export async function initScheduler(): Promise<void> {
-  // Remove all existing repeatable jobs first — évite les doublons après redéploiement Railway
-  const existing = await schedulerQueue.getRepeatableJobs();
-  for (const rj of existing) {
-    await schedulerQueue.removeRepeatableByKey(rj.key);
-    console.log(`[scheduler] Cleaned: ${rj.name}`);
-  }
+// Les tâches planifiées tournent dans le process (croner) et non plus via BullMQ : le worker BullMQ
+// interrogeait Upstash en continu, saturait le quota, et quand Redis est bloqué AUCUN job ne partait
+// (plus de briefing, plus de démarchage, plus de notifs). Verrou anti-doublon = Supabase `job_runs`.
+const crons: Cron[] = [];
 
-  // Register all repeatable jobs (ardoise propre)
+async function runJob(name: string, slot: string): Promise<void> {
+  const handler = handlers[name];
+  if (!handler) return;
+  if (!(await claimJobRun(name, slot).catch(() => true))) {
+    console.log(`[scheduler] SKIP (déjà exécuté par une autre instance): ${name}`);
+    return;
+  }
+  console.log(`[scheduler] Running: ${name}`);
+  try {
+    await handler({ name, id: `${name}:${slot}`, data: {} } as unknown as Job);
+    console.log(`[scheduler] ✅ ${name} done`);
+  } catch (err) {
+    console.error(`[scheduler] ❌ ${name} failed:`, err instanceof Error ? err.message : err);
+  }
+}
+
+export async function initScheduler(): Promise<void> {
+  await ensureAppStoreTables();
+  // Ancienne config BullMQ : on retire les jobs répétés restés dans Redis (sinon un vieux worker les relancerait)
+  void schedulerQueue.getRepeatableJobs()
+    .then(rjs => Promise.all(rjs.map(rj => schedulerQueue.removeRepeatableByKey(rj.key))))
+    .catch(() => {});
+
   for (const job of JOBS) {
-    await schedulerQueue.add(
-      job.name,
-      {},
-      {
-        jobId:  `repeatable:${job.name}`,   // stable jobId prevents queue duplicates
-        repeat: { pattern: job.cron, tz: job.tz },
-        removeOnComplete: { count: 10 },
-        removeOnFail:     { count: 5 },
-      },
-    );
+    crons.push(new Cron(job.cron, { timezone: job.tz, protect: true, name: job.name }, (self: Cron) => {
+      // Créneau = minute prévue (identique sur toutes les instances)
+      const slot = (self.currentRun() ?? new Date()).toISOString().slice(0, 16);
+      return runJob(job.name, slot);
+    }));
     console.log(`[scheduler] Registered: ${job.name} (${job.cron})`);
   }
-
-  // Worker that processes all scheduled jobs
-  const worker = new Worker(
-    SCHEDULER_QUEUE,
-    async (job: Job) => {
-      if (job.name === 'custom-reminder') {
-        // BullMQ custom-reminder is now a SAFE FALLBACK only.
-        // Primary delivery = reminder-worker DB polling (single source of truth).
-        // This handler guards against double-send using the same Redis lock key as the worker.
-        const data = job.data as {
-          message:          string;
-          request_id?:      string;
-          source_channel?:  string;
-          idempotency_key?: string;
-        };
-        const msg             = data.message;
-        const idempotency_key = data.idempotency_key;
-        const request_id      = data.request_id ?? 'n/a';
-
-        // Shared lock key — same prefix/key used by reminder-worker
-        const lockKey = `reminder:sending:${idempotency_key ?? request_id}`;
-        const acquired = await redis.set(lockKey, `bullmq:${job.id ?? 'unknown'}`, 'EX', 300, 'NX');
-        if (!acquired) {
-          console.log(`[scheduler] custom-reminder SKIP — lock held (worker already delivered): idem=${idempotency_key}`);
-          return;
-        }
-
-        // Check DB — if worker already marked SENT, skip
-        if (idempotency_key) {
-          const { data: dbRow } = await supabase
-            .from('reminders')
-            .select('id, status')
-            .eq('dedup_key', idempotency_key)
-            .maybeSingle();
-          if (dbRow?.status === 'SENT') {
-            console.log(`[scheduler] custom-reminder SKIP — DB status=SENT: id=${dbRow.id}`);
-            await redis.del(lockKey);
-            return;
-          }
-        }
-
-        console.log(`[scheduler] custom-reminder DELIVERING — request_id=${request_id} idem=${idempotency_key} job_id=${job.id}`);
-
-        try {
-          // Deliver to app (Socket.IO + Expo Push)
-          emitProactive(msg, 'reminder', `⏰ Rappel\n\n${msg}`);
-          // Update DB status if we have a dedup_key
-          if (idempotency_key) {
-            await supabase
-              .from('reminders')
-              .update({ status: 'SENT', sent_at: new Date().toISOString(), provider_response: `bullmq:${job.id ?? 'unknown'}` })
-              .eq('dedup_key', idempotency_key)
-              .eq('status', 'PENDING');
-          }
-          console.log(`[scheduler] custom-reminder ✅ SENT: idem=${idempotency_key}`);
-        } catch (sendErr) {
-          const reason = sendErr instanceof Error ? sendErr.message : String(sendErr);
-          console.error(`[scheduler] custom-reminder ❌ SEND FAILED: ${reason}`);
-          // Release lock so reminder-worker can retry
-          await redis.del(lockKey);
-          // Update DB to FAILED if we have a key
-          if (idempotency_key) {
-            await supabase
-              .from('reminders')
-              .update({ status: 'FAILED', failed_reason: `bullmq_send_failed: ${reason}` })
-              .eq('dedup_key', idempotency_key)
-              .eq('status', 'PENDING');
-          }
-        }
-        return;
-      }
-
-      // ── Verrou anti-doublon Redis ─────────────────────────────
-      // Évite qu'une 2ème instance Railway (overlap de déploiement) exécute
-      // le même job cron dans les 30 minutes qui suivent la 1ère exécution.
-      const lockKey = `scheduler:lock:${job.name}:${Math.floor(Date.now() / (30 * 60 * 1000))}`;
-      const acquired = await redis.set(lockKey, '1', 'EX', 1800, 'NX');
-      if (!acquired) {
-        console.log(`[scheduler] SKIP (déjà exécuté par une autre instance): ${job.name}`);
-        return;
-      }
-
-      const handler = handlers[job.name];
-      if (handler) {
-        console.log(`[scheduler] Running: ${job.name}`);
-        await handler(job);
-      }
-    },
-    { connection: redis, concurrency: 1 },
-  );
-
-  worker.on('completed', job => console.log(`[scheduler] ✅ ${job.name} done`));
-  worker.on('failed',    (job, err) => console.error(`[scheduler] ❌ ${job?.name} failed:`, err.message));
-  // Erreur interne BullMQ/Redis (rate-limited Upstash) — log sans tuer le process.
-  worker.on('error',     err => console.error('[scheduler:worker] error:', err instanceof Error ? err.message : err));
-
-  console.log('[scheduler] All proactive jobs registered');
+  console.log('[scheduler] All proactive jobs registered (cron in-process)');
 }
 
 // Manual trigger (for testing/admin)
 export async function triggerJob(jobName: string): Promise<boolean> {
   const valid = JOBS.map(j => j.name) as string[];
   if (!valid.includes(jobName)) return false;
-  await schedulerQueue.add(jobName, {}, { priority: 1 });
+  void runJob(jobName, `manual:${new Date().toISOString()}`);
   return true;
 }
 
-// Trigger a one-shot custom-reminder (sends text to Telegram/Pushover)
+// One-shot custom-reminder (test) — livré tout de suite dans l'app (Socket.IO + push)
 export async function triggerCustomReminder(message: string, idempotencyKey: string): Promise<string> {
-  const job = await schedulerQueue.add(
-    'custom-reminder',
-    { message, source_channel: 'api-test', idempotency_key: idempotencyKey, request_id: `test_${Date.now()}` },
-    { priority: 1, removeOnComplete: 5, removeOnFail: 5 },
-  );
-  return job.id ?? 'unknown';
+  emitProactive(message, 'reminder', `⏰ Rappel\n\n${message}`);
+  return `direct:${idempotencyKey}`;
 }
 
-// Queue health snapshot
+// Health snapshot (le scheduler ne dépend plus de Redis)
 export async function getSchedulerStatus(): Promise<{
   queue: string;
-  waiting: number;
-  active: number;
-  completed: number;
-  failed: number;
-  delayed: number;
   repeatable: number;
-  redis_ping_ms: number;
+  jobs: Array<{ name: string; next: string | null; running: boolean }>;
 }> {
-  const [waiting, active, completed, failed, delayed, repeatable] = await Promise.all([
-    schedulerQueue.getWaitingCount(),
-    schedulerQueue.getActiveCount(),
-    schedulerQueue.getCompletedCount(),
-    schedulerQueue.getFailedCount(),
-    schedulerQueue.getDelayedCount(),
-    schedulerQueue.getRepeatableJobs(),
-  ]);
-  const t0 = Date.now();
-  await redis.ping();
-  const redis_ping_ms = Date.now() - t0;
   return {
-    queue:         SCHEDULER_QUEUE,
-    waiting,
-    active,
-    completed,
-    failed,
-    delayed,
-    repeatable:    repeatable.length,
-    redis_ping_ms,
+    queue:      'in-process (croner)',
+    repeatable: crons.length,
+    jobs:       crons.map(c => ({ name: c.name ?? '?', next: c.nextRun()?.toISOString() ?? null, running: c.isBusy() })),
   };
 }
 

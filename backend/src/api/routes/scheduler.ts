@@ -6,6 +6,7 @@ import { runProactiveEngine } from '../../conversation/proactive-engine.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
 import { env } from '../../config/env.js';
 import { redis } from '../../queue/queue.js';
+import { durableKv } from '../../integrations/app-store.js';
 import { insertReminder, listReminders, getPendingDue, getRetryEligible } from '../../db/reminders.js';
 import { triggerScanNow } from '../../workers/reminder-worker.js';
 import {
@@ -21,8 +22,8 @@ const router = Router();
 // GET /api/scheduler/jobs — list repeatable jobs with next fire time
 router.get('/jobs', requireMobileAuth, async (_req, res) => {
   try {
-    const repeatable = await schedulerQueue.getRepeatableJobs();
-    res.json({ jobs: repeatable.map(j => ({ name: j.name, cron: j.pattern, next: j.next })) });
+    const { jobs } = await getSchedulerStatus();
+    res.json({ jobs });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -47,14 +48,14 @@ router.post('/trigger/:name', requireMobileAuth, async (req, res) => {
   if (force) {
     const today = new Date().toISOString().slice(0, 10);
     // Clear today's day lock (pattern: job:<name>:sent:<date>)
-    await redis.del(`job:${name}:sent:${today}`).catch(() => {});
+    await durableKv.del(`job:${name}:sent:${today}`).catch(() => {});
     // monthly-report uses prev-month key
     if (name === 'monthly-report') {
       const now = new Date();
       const m = now.getMonth(); // 0-based current month
       const prevMonth = m === 0 ? 12 : m;
       const prevYear  = m === 0 ? now.getFullYear() - 1 : now.getFullYear();
-      await redis.del(`job:monthly-report:sent:${prevYear}-${prevMonth}`).catch(() => {});
+      await durableKv.del(`job:monthly-report:sent:${prevYear}-${prevMonth}`).catch(() => {});
     }
   }
 

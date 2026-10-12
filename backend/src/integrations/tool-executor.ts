@@ -5,6 +5,7 @@
  * Signature: DZX-FK-OAN-2024-K7X9M2Q1
  */
 import { supabase } from './supabase.js';
+import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
 import { insertReminder, findByDedupKey } from '../db/reminders.js';
 import {
   resolveTimezone,
@@ -266,6 +267,9 @@ async function _dispatch(
       case 'remember_info':         return await rememberInfo(input, sessionId);
       case 'recall_memory':         return await recallMemory(input, sessionId);
       case 'get_weather':           return await getWeather(input);
+      case 'convert_currency':      return await convertCurrency(input);
+      case 'get_weather_alerts':    return await weatherAlerts(input);
+      case 'get_football':          return await footballScores(input);
       case 'get_news':              return await getNews(input);
       case 'github_read_file':      return await githubReadFile(input);
       case 'github_write_file':     return await githubWriteFile(input);
@@ -2093,7 +2097,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
 // ── Prospection B2B ──
 const SEGMENT_LABEL: Record<ProspectSegment, string> = {
   proprietaire_appart: '🏠 Proprio appart', loueur_voitures: '🚗 Loueur voitures',
-  agence_voyage: '✈️ Agence de voyage', entreprise: '🏢 Entreprise', autre: '• Autre',
+  agence_voyage: '✈️ Agence de voyage', entreprise: '🏢 Entreprise', grand_compte: '🏭 Grand compte', autre: '• Autre',
 };
 
 async function addProspectTool(input: Record<string, unknown>): Promise<string> {

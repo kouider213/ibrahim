@@ -7,6 +7,7 @@ import { Server as SocketServer } from 'socket.io';
 
 import { env } from './config/env.js';
 import { ensureProspectsTable } from './integrations/prospects.js';
+import { ensureAppStoreTables } from './integrations/app-store.js';
 import { SOCKET_EVENTS } from './config/constants.js';
 import { validateToken, identifyMobileActor } from './auth/tokens.js';
 
@@ -29,6 +30,7 @@ import reviewsRoutes       from './api/routes/reviews.js';
 import blogRoutes          from './api/routes/blog.js';
 import whatsappDraftRoutes from './api/routes/whatsapp-draft.js';
 import insightsRoutes      from './api/routes/insights.js';
+import prospectsRoutes     from './api/routes/prospects.js';
 import socialRoutes        from './api/routes/social.js';
 import searchRoutes        from './api/routes/search.js';
 import referralsRoutes     from './api/routes/referrals.js';
@@ -300,6 +302,7 @@ app.use('/api/reviews',       apiLimiter, reviewsRoutes);
 app.use('/api/blog',          apiLimiter, blogRoutes);
 app.use('/api/whatsapp',      apiLimiter, whatsappDraftRoutes);
 app.use('/api/insights',      apiLimiter, insightsRoutes);
+app.use('/api/prospects',     apiLimiter, prospectsRoutes);
 app.use('/api/social',        apiLimiter, socialRoutes);
 app.use('/api/search',        apiLimiter, searchRoutes);
 app.use('/api/referrals',     apiLimiter, referralsRoutes);
@@ -513,6 +516,7 @@ const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
   void ensureProspectsTable();
+  void ensureAppStoreTables();
   // JOBS_ENABLED=false sur l'instance BACKUP (failover) → pas de jobs en double
   // (double notifs, double veille). L'API + chat + sockets restent complets.
   if (process.env['JOBS_ENABLED'] === 'false') {

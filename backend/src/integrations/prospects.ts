@@ -1,11 +1,10 @@
-import axios from 'axios';
 import { supabase } from './supabase.js';
-import { env } from '../config/env.js';
+import { runSql } from './app-store.js';
 
 // Prospection B2B de FIK Conciergerie (Oran) : propriétaires d'appartements, loueurs de voitures,
 // agences de voyage, entreprises (TotalEnergies…). Distinct de client_leads (clients qui CHERCHENT un bien).
 
-export const PROSPECT_SEGMENTS = ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'autre'] as const;
+export const PROSPECT_SEGMENTS = ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'autre'] as const;
 export const PROSPECT_STATUSES = ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] as const;
 export type ProspectSegment = typeof PROSPECT_SEGMENTS[number];
 export type ProspectStatus  = typeof PROSPECT_STATUSES[number];
@@ -17,7 +16,11 @@ export interface Prospect {
   // Suivi Gmail (démarchage auto) : conversation, dernier mail reçu, réponse proposée par Dzaryx
   gmail_thread_id: string | null; last_subject: string | null; reply_message_id: string | null;
   reply_seen_id: string | null; last_reply_text: string | null; suggested_reply: string | null;
+  // Grands comptes : décideurs trouvés sur LinkedIn + message préparé (Kouider l'envoie lui-même)
+  website: string | null; linkedin_contacts: LinkedinContact[];
 }
+
+export interface LinkedinContact { name: string; title: string; url: string; message: string; sent_at: string | null }
 
 const CREATE_SQL = `
 CREATE TABLE IF NOT EXISTS prospects (
@@ -54,16 +57,9 @@ CREATE TABLE IF NOT EXISTS prospect_autopilot (
 INSERT INTO prospect_autopilot (id) VALUES (1) ON CONFLICT DO NOTHING;
 ALTER TABLE prospect_autopilot ENABLE ROW LEVEL SECURITY;`;
 
-async function runSql(query: string): Promise<boolean> {
-  const ref = env.SUPABASE_URL.match(/https:\/\/([^.]+)\./)?.[1];
-  if (!env.SUPABASE_ACCESS_TOKEN || !ref) return false;
-  const post = (q: string) => axios.post(`https://api.supabase.com/v1/projects/${ref}/database/query`, { query: q },
-    { headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` }, timeout: 20_000 });
-  await post(query);
-  // Recharge le cache de schéma PostgREST pour que les changements soient visibles tout de suite
-  await post("NOTIFY pgrst, 'reload schema';");
-  return true;
-}
+const LINKEDIN_SQL = `
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website           TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS linkedin_contacts JSONB NOT NULL DEFAULT '[]'::jsonb;`;
 
 /** Crée la table (et les colonnes du démarchage auto) au démarrage si absentes (via l'API Management Supabase — le service key ne peut pas faire de DDL). */
 export async function ensureProspectsTable(): Promise<void> {
@@ -74,6 +70,8 @@ export async function ensureProspectsTable(): Promise<void> {
     const { error: apErr }  = await supabase.from('prospect_autopilot').select('id').limit(1);
     if ((colErr || apErr) && await runSql(AUTOPILOT_SQL)) console.log('[prospects] ✅ colonnes démarchage auto créées');
     else if (colErr || apErr) console.warn('[prospects] colonnes absentes et SUPABASE_ACCESS_TOKEN manquant — création impossible');
+    const { error: liErr } = await supabase.from('prospects').select('linkedin_contacts').limit(1);
+    if (liErr && await runSql(LINKEDIN_SQL)) console.log('[prospects] ✅ colonnes grands comptes / LinkedIn créées');
   } catch (err) {
     console.error('[prospects] migration échouée:', err instanceof Error ? err.message : err);
   }
@@ -81,21 +79,54 @@ export async function ensureProspectsTable(): Promise<void> {
 
 const norm = (s: string) => s.trim().toLowerCase();
 
+const FREE_MAIL = /^(gmail|googlemail|yahoo|ymail|hotmail|outlook|live|msn|icloud|aol|gmx|proton(mail)?|laposte|orange|free|sfr|wanadoo)\./;
+
+/** Nom de société comparable : sans accents, parenthèses (« (bureau) »), formes juridiques ni ponctuation. */
+export function companyKey(name: string): string {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\b(sarl|eurl|spa|sas|snc|sa|ltd|inc|group|groupe|algerie|algeria|dz|oran)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+/** Domaine d'entreprise de l'email (null pour gmail, yahoo… qui ne disent rien de la société). */
+function companyDomain(email?: string): string | null {
+  const d = email?.split('@')[1]?.trim().toLowerCase();
+  return d && !FREE_MAIL.test(d) ? d : null;
+}
+
+/** Société déjà dans le fichier ? (même email, même domaine d'entreprise, ou même nom une fois nettoyé) */
+async function findDuplicate(p: { company: string; email?: string }): Promise<Prospect | null> {
+  if (p.email) {
+    const { data } = await supabase.from('prospects').select('*').ilike('email', norm(p.email)).limit(1).maybeSingle();
+    if (data) return data as Prospect;
+  }
+  const domain = companyDomain(p.email);
+  if (domain) {
+    const { data } = await supabase.from('prospects').select('*').ilike('email', `%@${domain.replace(/[%_]/g, '')}`).limit(1).maybeSingle();
+    if (data) return data as Prospect;
+  }
+  const key = companyKey(p.company);
+  if (key.length < 3) return null;
+  const { data } = await supabase.from('prospects').select('*').limit(2000);
+  return ((data ?? []) as Prospect[]).find(r => companyKey(r.company) === key) ?? null;
+}
+
 export async function addProspect(p: {
   company: string; segment: ProspectSegment; email?: string; phone?: string;
   contact_name?: string; city?: string; source?: string; notes?: string;
+  website?: string; linkedin_contacts?: LinkedinContact[];
 }): Promise<{ prospect: Prospect; duplicate: boolean }> {
-  // Doublon : même email, ou même nom d'entreprise dans la même ville
-  const dupQuery = p.email
-    ? supabase.from('prospects').select('*').ilike('email', norm(p.email))
-    : supabase.from('prospects').select('*').ilike('company', p.company.trim()).eq('city', p.city ?? 'Oran');
-  const { data: dup } = await dupQuery.limit(1).maybeSingle();
-  if (dup) return { prospect: dup as Prospect, duplicate: true };
+  // Une société = un seul contact (jamais 2 mails à la même société via 2 adresses)
+  const dup = await findDuplicate(p);
+  if (dup) return { prospect: dup, duplicate: true };
 
   const { data, error } = await supabase.from('prospects').insert({
     company: p.company.trim(), segment: p.segment, email: p.email ? norm(p.email) : null,
     phone: p.phone?.trim() || null, contact_name: p.contact_name?.trim() || null,
     city: p.city?.trim() || 'Oran', source: p.source?.trim() || null, notes: p.notes?.trim() || null,
+    ...(p.website ? { website: p.website.trim() } : {}),
+    ...(p.linkedin_contacts?.length ? { linkedin_contacts: p.linkedin_contacts } : {}),
   }).select('*').single();
   if (error) throw new Error(`Ajout prospect: ${error.message}`);
   return { prospect: data as Prospect, duplicate: false };

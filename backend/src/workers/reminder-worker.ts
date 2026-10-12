@@ -1,4 +1,4 @@
-import { redis } from '../queue/queue.js';
+import { durableKv as redis } from '../integrations/app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import {
   getPendingDue,
