@@ -244,9 +244,12 @@ export async function sendEmail(
   if (!(await canSendEmail(account))) throw new GmailSendNotAllowedError(address);
   const token = await getGmailToken(address);
   if (!token) throw new GmailNotConnectedError(address);
-  const from = account === 'pro' ? `${SENDER_NAME} <${await proSenderAddress()}>` : address;
+  const sender = account === 'pro' ? await proSenderAddress() : address;
+  const from = account === 'pro' ? `${SENDER_NAME} <${sender}>` : address;
   const raw = [
     `From: ${from}`,
+    // Envoi depuis contact@ (Zoho, sans transfert) : les réponses reviennent dans la boîte Gmail que Dzaryx surveille
+    ...(sender !== address ? [`Reply-To: ${SENDER_NAME} <${address}>`] : []),
     `To: ${mail.to}`,
     `Subject: ${encodeHeader(mail.subject)}`,
     // Réponse : ces en-têtes + threadId → le mail reste dans la même conversation chez le destinataire
