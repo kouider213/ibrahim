@@ -9,7 +9,8 @@
 ## ⚡ Session 2026-10-12 soir — Démarchage v2 (`14bd2bc`, SW v126)
 - Relance J+5 (1 seule) · lien `?ref=` + alerte visite · alias contact@ auto (sendAs) · WhatsApp partenaires · créneaux agenda + devis pré-rempli si intéressé · bilan lundi 9h.
 - Colonnes `prospects` : followup_at, ref_code, site_visit_at, site_visits, replied_at, whatsapp_message, whatsapp_sent_at, quote_draft, proposed_slots (créées par Railway au démarrage).
-- ⏳ **À faire par Kouider** : (1) site `pages/_app.js` → `trackPageView(window.location.pathname + window.location.search)` (sinon les visites ?ref= ne sont pas vues) ; (2) relier contact@fikconciergerie.com dans Gmail « Envoyer en tant que » (SMTP Zoho smtp.zoho.eu:465 + mot de passe d'application) + transfert Zoho → fikconciergerie@gmail.com ; (3) DNS Vercel : DKIM Zoho + DMARC.
+- ✅ Site : suivi `?ref=` en ligne (push via clé `github-site`, deploy key en écriture sur autolux-location). ✅ Alias contact@ validé dans Gmail (sendAs) → expéditeur `FIK Conciergerie <contact@fikconciergerie.com>` + `Reply-To: fikconciergerie@gmail.com` (Zoho gratuit = pas de transfert ; réponses suivies dans Gmail). `fff6c9f`
+- ⏳ Reste : DNS Vercel → DKIM Zoho + DMARC (`_dmarc` TXT `v=DMARC1; p=none; rua=mailto:contact@fikconciergerie.com`). Option : Zoho Mail Lite (~1 €/mois) pour transférer les mails écrits directement à contact@.
 
 ## ⚡ Session 2026-10-12 (détail : `SESSION_2026-10-11.md` + `AUDIT/10_JOURNAL_SESSION.md`)
 
