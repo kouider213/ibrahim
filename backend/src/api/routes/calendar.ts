@@ -33,7 +33,7 @@ router.get('/callback', async (req, res) => {
   if (state?.startsWith(GMAIL_STATE_PREFIX)) {
     const address = await exchangeGmailCode(code);
     if (address) {
-      res.send(`<html><body><h2>✅ Gmail connecté pour ${address.replace(/[<>&"]/g, '')} !</h2><p>Dzaryx peut maintenant lire tes mails (lecture seule). Tu peux fermer cette page.</p></body></html>`);
+      res.send(`<html><body><h2>✅ Gmail connecté pour ${address.replace(/[<>&"]/g, '')} !</h2><p>Dzaryx peut maintenant lire tes mails et en envoyer (toujours après ton accord). Tu peux fermer cette page.</p></body></html>`);
     } else {
       res.status(500).send('Connexion Gmail échouée');
     }
