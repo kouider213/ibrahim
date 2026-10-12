@@ -12,6 +12,7 @@
 - Outils `add_prospect`, `list_prospects`, `update_prospect` (Agent Général). Après `send_email` → prospect marqué « contacte ». `draft_email` refuse une adresse en STOP/refus.
 - `agents/agent-registry.ts` — contexte FIK Conciergerie Oran + argumentaire par cible + méthode (web_search → add_prospect avec source, jamais d'email inventé ; un brouillon validé par prospect ; LinkedIn = rédaction seulement).
 - Routage : « prospect », « démarche » → Claude + outils.
+- **Fix** `web-search-provider.ts` — pages anti-bot DuckDuckGo / erreur Yahoo ne sont plus prises pour des résultats ; nouveau provider **Tavily** en tête (actif si `TAVILY_API_KEY`).
 
 ## 2026-10-12 — Envoi de mails depuis fikconciergerie@gmail.com (avec accord)
 

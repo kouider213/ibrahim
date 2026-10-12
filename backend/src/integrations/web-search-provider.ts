@@ -23,7 +23,7 @@ import { env } from '../config/env.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type SearchProvider = 'apify' | 'searxng' | 'jina_proxy' | 'duckduckgo' | 'bing' | 'google_api' | 'jina';
+export type SearchProvider = 'tavily' | 'apify' | 'searxng' | 'jina_proxy' | 'duckduckgo' | 'bing' | 'google_api' | 'jina';
 export type SearchConfidence = 'high' | 'medium' | 'low';
 
 export interface WebSearchResult {
@@ -37,6 +37,25 @@ export interface WebSearchResult {
 
 // ── Provider 1: APIFY Google Search Scraper ───────────────────────────────────
 // Uses apify/google-search-scraper actor with 30s polling deadline.
+
+// ── Provider 0: Tavily (API de recherche pour IA — 1000 req/mois gratuites, TAVILY_API_KEY) ──
+async function searchWithTavily(query: string): Promise<WebSearchResult | null> {
+  if (!env.TAVILY_API_KEY) return null;
+  const t0 = Date.now();
+  const { data } = await axios.post<{ answer?: string; results?: Array<{ title: string; url: string; content: string }> }>(
+    'https://api.tavily.com/search',
+    { query, max_results: 8, include_answer: true, search_depth: 'basic' },
+    { headers: { Authorization: `Bearer ${env.TAVILY_API_KEY}` }, timeout: 20_000 },
+  );
+  const results = data.results ?? [];
+  if (!results.length) return null;
+  const text = (data.answer ? `Résumé : ${data.answer}\n\n` : '') +
+    results.map(r => `• ${r.title}\n  ${r.url}\n  ${r.content.slice(0, 500)}`).join('\n\n');
+  return {
+    text: text.slice(0, 6000), source: 'tavily', confidence: 'high',
+    results_count: results.length, duration_ms: Date.now() - t0, attempted_providers: [],
+  };
+}
 
 async function searchWithApify(query: string): Promise<WebSearchResult | null> {
   if (!env.APIFY_API_KEY) return null;
@@ -205,6 +224,9 @@ async function searchWithJinaProxy(query: string): Promise<WebSearchResult | nul
   ].filter(Boolean).join('\n\n');
 
   if (combined.length < 80) return null;
+  // Pages de blocage anti-bot / erreur → pas des résultats (sinon le LLM reçoit du vide « réussi »)
+  if (/bots use DuckDuckGo|complete the following challenge|temporary problems searching/i.test(combined)
+      && !/https?:\/\/(?!([a-z]+\.)?(duckduckgo|yahoo|bing)\.com)/i.test(combined.replace(/https?:\/\/r\.search\.yahoo\.com\S*/g, ''))) return null;
 
   return {
     text:               combined.slice(0, 4000),
@@ -459,6 +481,7 @@ async function searchWithJinaReader(query: string): Promise<WebSearchResult | nu
 // ── Main export ───────────────────────────────────────────────────────────────
 
 const PROVIDERS: Array<{ name: SearchProvider; fn: (q: string) => Promise<WebSearchResult | null> }> = [
+  { name: 'tavily',     fn: searchWithTavily },      // fiable, requires TAVILY_API_KEY
   { name: 'apify',      fn: searchWithApify },       // best quality, requires APIFY_API_KEY
   { name: 'searxng',    fn: searchWithSearxNG },     // free public instances, JSON API
   { name: 'jina_proxy', fn: searchWithJinaProxy },   // Jina fetches DDG Lite + Yahoo (bypasses bot-detection)

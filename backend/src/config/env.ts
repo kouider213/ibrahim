@@ -72,6 +72,7 @@ const envSchema = z.object({
   // ── Google Custom Search API — alternative web search ──
   GOOGLE_MAPS_API_KEY:       z.string().optional(),
   GOOGLE_SEARCH_API_KEY:    z.string().optional(),
+  TAVILY_API_KEY:           z.string().optional(),
   GOOGLE_SEARCH_ENGINE_ID:  z.string().optional(),
   // ── Phase 2: Multi-LLM Router ────────────────────────────────────────────
   GROQ_API_KEY:        z.string().optional(),   // LLaMA 3.3 70B — fast path (gratuit)
