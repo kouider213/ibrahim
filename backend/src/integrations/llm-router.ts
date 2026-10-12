@@ -45,6 +45,12 @@ function classifyRequest(text: string, hasImage: boolean, messageCount: number):
     return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'long message' };
   }
 
+  // "oui"/"ok" en pleine conversation = souvent la confirmation d'une action proposée
+  // (ex: "Je l'envoie ?") → Claude avec outils, sinon l'action validée ne s'exécute jamais
+  if (messageCount > 2 && /^(ok|okay|oui|ouais|yes|d'?accord|parfait|vas[- ]y|go)[\s!?.]*$/i.test(text.trim())) {
+    return { provider: 'claude', fallback: 'groq', fastPath: false, reason: 'confirmation in conversation' };
+  }
+
   // Pure greetings/ack → Groq (ni connaissance ni outils, ultra-rapide)
   // Check BEFORE the short-message block so greetings never fall through to Claude
   if (GROQ_KEY && (SIMPLE_GREET.test(text) || SIMPLE_QUERY.test(text) || SIMPLE_WHOAMI.test(text))) {

@@ -2,12 +2,14 @@ import axios from 'axios';
 import { supabase } from './supabase.js';
 import { env } from '../config/env.js';
 
-// Lecture seule des boîtes Gmail de Kouider via OAuth (le compte de service ne peut pas lire un @gmail.com).
+// Lecture + envoi (après accord de Kouider) des boîtes Gmail de Kouider via OAuth (le compte de service ne peut pas lire un @gmail.com).
 // Tokens stockés dans google_oauth_tokens sous la clé "gmail:<adresse>" pour ne pas écraser ceux de l'agenda.
 
 const GMAIL_BASE       = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
-const GMAIL_SCOPE      = 'https://www.googleapis.com/auth/gmail.readonly';
+const SCOPE_READ       = 'https://www.googleapis.com/auth/gmail.readonly';
+const SCOPE_SEND       = 'https://www.googleapis.com/auth/gmail.send';
+const GMAIL_SCOPE      = `${SCOPE_READ} ${SCOPE_SEND}`;
 // Même callback que l'agenda → aucune nouvelle URI à déclarer dans Google Cloud
 const REDIRECT_URI     = () => env.GOOGLE_REDIRECT_URI ?? 'https://ibrahim-backend-production.up.railway.app/api/calendar/callback';
 export const GMAIL_STATE_PREFIX = 'gmail:';
@@ -183,4 +185,42 @@ export async function readEmail(account: GmailAccount, id: string, maxChars = 60
     date: header(m.payload?.headers, 'Date'),
     body, truncated,
   };
+}
+
+// ── Envoi ─────────────────────────────────────────────────────
+
+export class GmailSendNotAllowedError extends Error {}
+
+/** Vrai si le jeton stocké inclut la permission d'envoi (sinon il faut reconnecter). */
+export async function canSendEmail(account: GmailAccount): Promise<boolean> {
+  const { data } = await supabase
+    .from('google_oauth_tokens').select('scope')
+    .eq('email', tokenKey(gmailAddress(account))).maybeSingle();
+  return Boolean((data as { scope?: string } | null)?.scope?.includes(SCOPE_SEND));
+}
+
+const encodeHeader = (v: string) =>
+  /^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, 'utf-8').toString('base64')}?=`;
+
+export async function sendEmail(
+  account: GmailAccount, mail: { to: string; subject: string; body: string },
+): Promise<string> {
+  const address = gmailAddress(account);
+  if (!(await canSendEmail(account))) throw new GmailSendNotAllowedError(address);
+  const token = await getGmailToken(address);
+  if (!token) throw new GmailNotConnectedError(address);
+  const raw = [
+    `From: ${address}`,
+    `To: ${mail.to}`,
+    `Subject: ${encodeHeader(mail.subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(mail.body, 'utf-8').toString('base64').replace(/.{76}/g, '$&\r\n'),
+  ].join('\r\n');
+  const { data } = await axios.post<{ id: string }>(`${GMAIL_BASE}/messages/send`,
+    { raw: Buffer.from(raw, 'utf-8').toString('base64url') },
+    { headers: { Authorization: `Bearer ${token}` }, timeout: 15_000 });
+  return data.id;
 }

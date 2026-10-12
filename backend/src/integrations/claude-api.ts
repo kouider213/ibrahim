@@ -63,6 +63,12 @@ function isFastModeEligible(messages: Message[]): boolean {
   const content = lastUser.content;
   const text = (typeof content === 'string' ? content : '').toLowerCase().trim();
 
+  // "oui"/"envoie" en réponse à une question de Dzaryx (ex: "Je l'envoie ?") = confirmation
+  // d'action → il faut les outils (sinon le mail/WhatsApp validé ne part jamais)
+  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+  const prevText = typeof lastAssistant?.content === 'string' ? lastAssistant.content : JSON.stringify(lastAssistant?.content ?? '');
+  if (/\?\s*\W*$/.test(prevText.trim()) && /^\W*(oui|ok|okay|ouais|go|vas[- ]y|envoie|envoi|confirme|valide|c'est bon|parfait|yes)\b/i.test(text)) return false;
+
   // Jamais fast mode pour les questions — nécessite contexte business + outils
   if (/^(qui|quel|quoi|comment|combien|où|quand|est-ce|pourquoi|lequel|laquelle|which|who|what|how|when|where|why|كم|من|ما|كيف|متى|أين)/i.test(text)) return false;
 

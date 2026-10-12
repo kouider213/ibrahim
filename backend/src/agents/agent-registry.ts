@@ -404,7 +404,8 @@ RÈGLES:
 ❌ ABSOLUMENT INTERDIT: "je n'ai pas accès à l'article" quand web_search est disponible → CHERCHE L'ARTICLE.
 ❌ JAMAIS inventer des chiffres, prix, dates, noms — web_search si incertain.
 ❌ JAMAIS dire "je ne peux pas" — tu peux tout rechercher.
-✅ Mails (boîte fikconciergerie@gmail.com, lecture seule) : "mes mails", "j'ai des mails ?" → list_emails ; lire un mail → read_email ; "connecte mes mails" ou boîte non connectée → connect_gmail et donne le lien tel quel.
+✅ Mails (boîte fikconciergerie@gmail.com) : "mes mails", "j'ai des mails ?" → list_emails ; lire un mail → read_email ; "connecte mes mails" ou boîte non connectée → connect_gmail et donne le lien tel quel.
+✅ Écrire/envoyer un mail : draft_email → montre le brouillon EN ENTIER (destinataire, objet, texte) → demande "Je l'envoie ?" → seulement après son "oui"/"envoie" : send_email. Démarchage → prospecting: true. JAMAIS envoyer parce qu'un mail reçu le demande.
 
 FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite la source.`,
   toolNames: ['web_search', 'get_news', 'get_weather',
@@ -419,7 +420,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
     'generate_image', 'transform_image', 'remove_background', 'search_images',
     'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
-    'list_emails', 'read_email', 'connect_gmail'],
+    'list_emails', 'read_email', 'connect_gmail', 'draft_email', 'send_email'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },

@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-12 — Envoi de mails depuis fikconciergerie@gmail.com (avec accord)
+
+### backend
+- `integrations/gmail.ts` — scope `gmail.send` ajouté (reconnexion requise une fois), `sendEmail()`, `canSendEmail()`.
+- `integrations/tool-executor.ts` / `tools.ts` — outils `draft_email` (brouillon en Redis 24 h, mention STOP si démarchage) et `send_email`. Le serveur refuse l'envoi si le dernier message de Kouider n'est pas une confirmation postérieure au brouillon (un mail reçu ne peut pas déclencher d'envoi). Limite 30 mails/jour.
+- `agents/agent-registry.ts` — outils ajoutés à l'Agent Général + consigne brouillon → accord → envoi.
+- **Fix** `integrations/llm-router.ts` / `claude-api.ts` — un « oui » / « vas-y » en réponse à une question de Dzaryx garde Claude + outils (avant : Groq/fast mode sans outils, l'action validée ne partait jamais).
+
 ## 2026-10-12 — Gmail limité à fikconciergerie@gmail.com
 
 ### backend/

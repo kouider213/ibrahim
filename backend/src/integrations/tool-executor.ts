@@ -16,7 +16,8 @@ import {
 } from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
-import { listEmails, readEmail, getGmailConnectLink, gmailAddress, GmailNotConnectedError, type GmailAccount } from './gmail.js';
+import { listEmails, readEmail, sendEmail, canSendEmail, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
+import { getConversationHistory } from './supabase.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
@@ -329,6 +330,8 @@ async function _dispatch(
       case 'list_emails':               return await listEmailsTool(input);
       case 'read_email':                return await readEmailTool(input);
       case 'connect_gmail':             return connectGmailTool(input);
+      case 'draft_email':               return await draftEmailTool(input, sessionId);
+      case 'send_email':                return await sendEmailTool(input, sessionId);
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
       // ─── OBSIDIAN BRAIN ───
@@ -1984,7 +1987,70 @@ async function readEmailTool(input: Record<string, unknown>): Promise<string> {
 
 function connectGmailTool(input: Record<string, unknown>): string {
   const account = gmailAccount(input);
-  return `🔗 Pour connecter ${gmailAddress(account)} (lecture seule), ouvre ce lien et accepte : ${getGmailConnectLink()}\n(Recopie ce lien en entier, en texte brut.)`;
+  return `🔗 Pour connecter ${gmailAddress(account)} (lecture + envoi après ton accord), ouvre ce lien et accepte : ${getGmailConnectLink()}\n(Recopie ce lien en entier, en texte brut.)`;
+}
+
+// ── Envoi de mails : brouillon → accord explicite de Kouider → envoi ──
+// Le contrôle est fait ici (pas par le LLM) : un mail reçu ne peut pas déclencher un envoi.
+const EMAIL_DAILY_CAP = 30;  // au-delà, Gmail risque de classer la boîte en spam
+const EMAIL_RE        = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[a-z]{2,}$/i;
+const SEND_CONFIRM_RE = /^\W*(oui|ok|okay|go|vas[- ]y|envoie|envoi|envoies|envoyer?|confirme|valide|c'est bon|parfait|yes)\b/i;
+const PROSPECT_FOOTER = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
+
+interface EmailDraft { to: string; subject: string; body: string; createdAt: number }
+const draftKey = (sessionId: string, id: string) => `email:draft:${sessionId}:${id}`;
+
+async function draftEmailTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  if (!sessionId) return '❌ Session inconnue — impossible de préparer un mail.';
+  const to      = String(input['to'] ?? '').trim();
+  const subject = String(input['subject'] ?? '').trim();
+  let   body    = String(input['body'] ?? '').trim();
+  if (!EMAIL_RE.test(to))               return `❌ Adresse invalide : "${to}". Une seule adresse, sans nom ni crochets.`;
+  if (!subject || /[\r\n]/.test(subject)) return '❌ Objet manquant ou invalide (une seule ligne).';
+  if (!body)                            return '❌ Texte du mail vide.';
+  if (input['prospecting'] && !/STOP/.test(body)) body += PROSPECT_FOOTER;
+  if (!(await canSendEmail(gmailAccount(input)))) {
+    return `❌ Dzaryx n'a pas encore la permission d'ENVOYER depuis ${gmailAddress('pro')}. Lien à donner tel quel à Kouider pour reconnecter la boîte (une seule fois) : ${getGmailConnectLink()}`;
+  }
+  const id = Math.random().toString(36).slice(2, 8);
+  const draft: EmailDraft = { to, subject, body, createdAt: Date.now() };
+  await redis.set(draftKey(sessionId, id), JSON.stringify(draft), 'EX', 24 * 3600);
+  return `📝 Brouillon prêt (draft_id: ${id}) — PAS ENCORE ENVOYÉ.\nDe: ${gmailAddress('pro')}\nÀ: ${to}\nObjet: ${subject}\n\n${body}\n\n` +
+    `→ Montre ce brouillon EN ENTIER à Kouider et demande "Je l'envoie ?". N'appelle send_email qu'après son "oui"/"envoie" dans son PROCHAIN message.`;
+}
+
+async function sendEmailTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  if (!sessionId) return '❌ Session inconnue.';
+  const id  = String(input['draft_id'] ?? '').trim();
+  const raw = await redis.get(draftKey(sessionId, id));
+  if (!raw) return `❌ Brouillon "${id}" introuvable ou expiré — refais draft_email.`;
+  const draft = JSON.parse(raw) as EmailDraft;
+
+  // Accord exigé : le dernier message de Kouider est postérieur au brouillon ET c'est une confirmation
+  const history  = await getConversationHistory(sessionId, 6);
+  const lastUser = [...history].reverse().find(m => m.role === 'user');
+  const lastAt   = lastUser ? new Date(lastUser.created_at as string).getTime() : 0;
+  if (!lastUser || lastAt <= draft.createdAt || !SEND_CONFIRM_RE.test(String(lastUser.content))) {
+    return '⛔ Envoi refusé : Kouider doit d\'abord voir le brouillon puis répondre "oui" / "envoie" dans un nouveau message. Montre-lui le brouillon et attends sa réponse.';
+  }
+
+  const dayKey = `email:sent:${new Date().toISOString().slice(0, 10)}`;
+  const sentToday = Number(await redis.get(dayKey) ?? 0);
+  if (sentToday >= EMAIL_DAILY_CAP) {
+    return `⛔ Limite de ${EMAIL_DAILY_CAP} mails/jour atteinte (protection anti-spam de la boîte). Le brouillon reste valable 24 h : réessaie demain.`;
+  }
+
+  try {
+    await sendEmail(gmailAccount(input), draft);
+  } catch (err) {
+    if (err instanceof GmailSendNotAllowedError || err instanceof GmailNotConnectedError) {
+      return `❌ Permission d'envoi manquante ou expirée. Lien à donner tel quel à Kouider : ${getGmailConnectLink()}`;
+    }
+    throw err;
+  }
+  await redis.del(draftKey(sessionId, id));
+  await redis.multi().incr(dayKey).expire(dayKey, 2 * 86400).exec();
+  return `✅ Mail envoyé à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;
 }
 
 async function deletePersonalEventTool(input: Record<string, unknown>): Promise<string> {
