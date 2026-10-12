@@ -46,6 +46,19 @@ export default function DevisScreen() {
   const loadHistory = () => business.quotesList().then(r => setHistory(r.quotes ?? [])).catch(() => {});
   useEffect(() => { business.fetchCars().then(r => setCars(r.cars ?? [])).catch(() => setCars([])); loadHistory(); }, []);
 
+  // Ouvert depuis la page Démarchage : société + lignes proposées par Dzaryx (montants à saisir)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('devis_prefill');
+      if (!raw) return;
+      sessionStorage.removeItem('devis_prefill');
+      const pre = JSON.parse(raw) as { client_name?: string; lang?: string; lines?: Array<{ label: string; currency: string }> };
+      if (pre.client_name) setName(pre.client_name);
+      if (pre.lang) setLang(pre.lang);
+      if (pre.lines?.length) setLines(pre.lines.map(l => ({ id: uid(), label: l.label, amount: '', currency: l.currency || 'EUR' })));
+    } catch { /* pré-remplissage illisible : page vide */ }
+  }, []);
+
   const addLine = () => setLines(ls => [...ls, { id: uid(), label: '', amount: '', currency: 'DZD' }]);
   const setLine = (id: string, k: keyof Line, v: string) => setLines(ls => ls.map(l => l.id === id ? { ...l, [k]: v } : l));
   const delLine = (id: string) => setLines(ls => ls.filter(l => l.id !== id));

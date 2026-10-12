@@ -213,7 +213,7 @@ export default function Phone() {
       case 'search':        return <SearchScreen onOpen={(p) => setPage(p as Page)} />;
       case 'parrainage':    return <ParrainageScreen />;
       case 'pricing':       return <PricingScreen />;
-      case 'demarchage':    return <DemarchageScreen />;
+      case 'demarchage':    return <DemarchageScreen onOpen={(p) => setPage(p as Page)} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;

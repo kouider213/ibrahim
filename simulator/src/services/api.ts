@@ -792,10 +792,14 @@ export interface ProspectRow {
   last_reply_text: string | null; suggested_reply: string | null;
   linkedin_contacts: Array<{ name: string; title: string; url: string; message: string; sent_at: string | null }>;
   lang: string | null; last_sent_text: string | null;
+  followup_at: string | null; site_visit_at: string | null; site_visits: number;
+  whatsapp_message: string | null; whatsapp_sent_at: string | null; whatsapp_number: string | null;
+  quote_draft: Array<{ label: string; currency: string }> | null; proposed_slots: string[] | null;
 }
 export interface ProspectsOverview {
   autopilot: { enabled: boolean; per_day: number };
-  stats: { total: number; sent: number; sent_today: number; replies: number; linkedin_todo: number; by_status: Record<string, number> };
+  sender: string; sender_pro: boolean;
+  stats: { total: number; sent: number; sent_today: number; replies: number; linkedin_todo: number; whatsapp_todo: number; followups: number; visits: number; by_status: Record<string, number> };
   prospects: ProspectRow[];
 }
 
@@ -903,6 +907,9 @@ export const business = {
     apiFetch<{ ok: boolean }>(`/api/prospects/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
   prospectLinkedinSent: (id: string, idx: number, sent: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/prospects/${id}/linkedin/${idx}`, { method: 'POST', body: JSON.stringify({ sent }) }),
+  prospectWhatsappSent: (id: string, sent: boolean) =>
+    apiFetch<{ ok: boolean }>(`/api/prospects/${id}/whatsapp`, { method: 'POST', body: JSON.stringify({ sent }) }),
+  prospectsWeekly: () => apiFetch<{ report: string }>('/api/prospects/weekly'),
   // Contenu social
   socialGenerate: (data: { topic: string; platform?: string; lang?: string }) =>
     apiFetch<{ caption?: string; hashtags?: string; error?: string }>('/api/social/generate', { method: 'POST', body: JSON.stringify(data) }),

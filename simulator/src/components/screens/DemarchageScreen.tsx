@@ -4,7 +4,7 @@ import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', gold: '#fbbf24', blue: '#0a66c2', red: '#f87171', text: '#f5f5f7', muted: '#9b9ba6',
+  accent: '#10b981', gold: '#fbbf24', blue: '#0a66c2', wa: '#25d366', red: '#f87171', text: '#f5f5f7', muted: '#9b9ba6',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
@@ -23,23 +23,37 @@ const STATUS: Record<string, { label: string; color: string }> = {
   refus:       { label: 'Pas intéressé', color: C.red },
   stop:        { label: 'STOP',        color: C.red },
 };
-type Filter = 'all' | 'clients' | 'partners' | 'replies' | 'linkedin' | 'grand_compte' | 'contacte' | 'a_contacter' | 'closed';
+type Filter = 'all' | 'clients' | 'partners' | 'replies' | 'visits' | 'linkedin' | 'whatsapp' | 'grand_compte' | 'contacte' | 'a_contacter' | 'closed';
 const FILTERS: Array<{ id: Filter; label: string }> = [
-  { id: 'all', label: 'Tout' }, { id: 'clients', label: '🎯 Clients' }, { id: 'partners', label: '🤝 Partenaires' }, { id: 'replies', label: '📩 Réponses' }, { id: 'linkedin', label: '🔗 LinkedIn' },
+  { id: 'all', label: 'Tout' }, { id: 'clients', label: '🎯 Clients' }, { id: 'partners', label: '🤝 Partenaires' }, { id: 'replies', label: '📩 Réponses' },
+  { id: 'visits', label: '👀 Visites' }, { id: 'linkedin', label: '🔗 LinkedIn' }, { id: 'whatsapp', label: '💬 WhatsApp' },
   { id: 'grand_compte', label: '🏭 Grands comptes' }, { id: 'contacte', label: 'Contactés' },
   { id: 'a_contacter', label: 'À contacter' }, { id: 'closed', label: 'Refus / STOP' },
 ];
 
 const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—';
+const fmtSlot = (iso: string) => new Date(iso).toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const DEVIS_LANG = (l: string | null) => (l === 'ar' || l === 'en' ? l : 'fr');
+
+/** Ouvre la page Devis pré-remplie (client + lignes proposées par Dzaryx, montants à saisir). */
+function openDevis(p: ProspectRow, onOpen?: (page: string) => void) {
+  try {
+    sessionStorage.setItem('devis_prefill', JSON.stringify({
+      client_name: p.contact_name ? `${p.contact_name} — ${p.company}` : p.company, lang: DEVIS_LANG(p.lang), lines: p.quote_draft ?? [],
+    }));
+  } catch { /* stockage indisponible : la page Devis s'ouvre vide */ }
+  onOpen?.('devis');
+}
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 9, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' } as const);
 
-export default function DemarchageScreen() {
+export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) => void }) {
   const [data, setData] = useState<ProspectsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [toast, setToast] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [weekly, setWeekly] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { setData(await business.prospectsOverview()); } catch { /* garde l'ancien affichage */ }
@@ -55,6 +69,8 @@ export default function DemarchageScreen() {
   const rows = data?.prospects ?? [];
   const replies = rows.filter(r => r.suggested_reply);
   const liTodo = rows.filter(r => r.linkedin_contacts.some(c => !c.sent_at));
+  const waTodo = rows.filter(r => r.whatsapp_message && r.whatsapp_number && !r.whatsapp_sent_at && r.status === 'a_contacter');
+  const visits = rows.filter(r => r.site_visit_at).sort((a, b) => (b.site_visit_at ?? '').localeCompare(a.site_visit_at ?? ''));
   const ql = q.trim().toLowerCase();
   const list = rows.filter(r => {
     if (ql && !`${r.company} ${r.email ?? ''} ${r.notes ?? ''}`.toLowerCase().includes(ql)) return false;
@@ -62,7 +78,9 @@ export default function DemarchageScreen() {
       case 'clients':      return !PARTNER.includes(r.segment);
       case 'partners':     return PARTNER.includes(r.segment);
       case 'replies':      return !!r.last_reply_text || !!r.suggested_reply;
+      case 'visits':       return !!r.site_visit_at;
       case 'linkedin':     return r.linkedin_contacts.length > 0;
+      case 'whatsapp':     return !!r.whatsapp_message;
       case 'grand_compte': return r.segment === 'grand_compte';
       case 'contacte':     return r.status === 'contacte';
       case 'a_contacter':  return r.status === 'a_contacter';
@@ -89,6 +107,11 @@ export default function DemarchageScreen() {
           <StatCard icon="📩" value={String(st?.replies ?? 0)} label="RÉPONSES" color={C.gold} />
           <StatCard icon="🔗" value={String(st?.linkedin_todo ?? 0)} label="LINKEDIN" color={C.blue} />
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginTop: -7, marginBottom: 14 }}>
+          <StatCard icon="👀" value={String(st?.visits ?? 0)} label="ONT VISITÉ LE SITE" color={C.accent} />
+          <StatCard icon="🔁" value={String(st?.followups ?? 0)} label="RELANCES" color="#a78bfa" />
+          <StatCard icon="💬" value={String(st?.whatsapp_todo ?? 0)} label="WHATSAPP" color={C.wa} />
+        </div>
 
         {/* Pilote automatique */}
         {ap && (
@@ -109,13 +132,37 @@ export default function DemarchageScreen() {
               <div style={{ flex: 1 }} />
               <button onClick={() => act(() => business.prospectsRun(), '🚀 Lancé — récap en notification dans quelques minutes')} style={btn(C.accent, '#06210f')}>🚀 Lancer maintenant</button>
             </div>
+            <div style={{ fontSize: 11.5, color: data.sender_pro ? C.accent : C.gold, marginTop: 10, lineHeight: 1.4 }}>
+              {data.sender_pro
+                ? `✉️ Envoi depuis ${data.sender}`
+                : `✉️ Envoi depuis ${data.sender} — contact@fikconciergerie.com pas encore relié à Gmail (« Envoyer en tant que »)`}
+            </div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>🔁 Relance automatique après 5 jours sans réponse (une seule fois)</div>
+            <button onClick={() => { if (weekly) { setWeekly(null); return; } business.prospectsWeekly().then(r => setWeekly(r.report), () => say('❌ Bilan indisponible')); }}
+              style={{ ...btn('rgba(255,255,255,0.06)', C.text), marginTop: 10, width: '100%' }}>{weekly ? 'Fermer le bilan' : '📊 Bilan de la semaine'}</button>
+            {weekly && <div style={{ marginTop: 9, fontSize: 12, lineHeight: 1.5, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 10 }}>{weekly.replace(/\*/g, '')}</div>}
           </div>
+        )}
+
+        {/* Visites du site via le lien des mails */}
+        {visits.length > 0 && (
+          <Section title={`👀 Ont visité ton site (${visits.length})`} hint="Ils ont cliqué sur le lien de ton mail : c'est le bon moment pour les appeler.">
+            {visits.slice(0, 5).map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 9, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 7 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.company}</div>
+                  <div style={{ fontSize: 11.5, color: C.muted }}>{r.site_visits > 1 ? `${r.site_visits} visites · ` : ''}dernière le {r.site_visit_at ? fmtSlot(r.site_visit_at) : '—'}</div>
+                </div>
+                {r.phone && <a href={`tel:${r.phone}`} style={{ ...btn('rgba(16,185,129,0.18)', C.accent), textDecoration: 'none' }}>📞 Appeler</a>}
+              </div>
+            ))}
+          </Section>
         )}
 
         {/* Réponses à valider */}
         {replies.length > 0 && (
           <Section title={`📩 Réponses à valider (${replies.length})`}>
-            {replies.map(r => <ReplyCard key={r.id} p={r} onSend={(t) => act(() => business.prospectReply(r.id, t), `✅ Réponse envoyée à ${r.company}`)}
+            {replies.map(r => <ReplyCard key={r.id} p={r} onDevis={() => openDevis(r, onOpen)} onSend={(t) => act(() => business.prospectReply(r.id, t), `✅ Réponse envoyée à ${r.company}`)}
               onDismiss={() => act(() => business.prospectDismissReply(r.id), 'Réponse ignorée')} />)}
           </Section>
         )}
@@ -136,6 +183,24 @@ export default function DemarchageScreen() {
                 </div>
               </div>
             )))}
+          </Section>
+        )}
+
+        {/* WhatsApp à envoyer (partenaires d'Oran sans email) */}
+        {waTodo.length > 0 && (
+          <Section title={`💬 Messages WhatsApp à envoyer (${waTodo.length})`}
+            hint="Partenaires d'Oran sans email : « Ouvrir WhatsApp » ouvre la conversation avec le message déjà écrit, tu n'as qu'à appuyer sur Envoyer.">
+            {waTodo.map(r => (
+              <div key={r.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12, marginBottom: 8 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.company} <span style={{ color: C.muted, fontWeight: 500 }}>· {SEGMENT[r.segment] ?? r.segment}</span></div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 7 }}>{r.phone}</div>
+                <div style={{ fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 9, marginBottom: 9 }}>{r.whatsapp_message}</div>
+                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                  <button onClick={() => window.open(`https://wa.me/${r.whatsapp_number}?text=${encodeURIComponent(r.whatsapp_message ?? '')}`, '_blank')} style={btn('rgba(37,211,102,0.2)', C.wa)}>Ouvrir WhatsApp</button>
+                  <button onClick={() => act(() => business.prospectWhatsappSent(r.id, true), `Noté : message envoyé à ${r.company}`)} style={btn('rgba(16,185,129,0.18)', C.accent)}>✓ Envoyé</button>
+                </div>
+              </div>
+            ))}
           </Section>
         )}
 
@@ -169,7 +234,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
-function ReplyCard({ p, onSend, onDismiss }: { p: ProspectRow; onSend: (text: string) => void; onDismiss: () => void }) {
+function ReplyCard({ p, onSend, onDismiss, onDevis }: { p: ProspectRow; onSend: (text: string) => void; onDismiss: () => void; onDevis: () => void }) {
   const [text, setText] = useState(p.suggested_reply ?? '');
   const [showMail, setShowMail] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -179,6 +244,7 @@ function ReplyCard({ p, onSend, onDismiss }: { p: ProspectRow; onSend: (text: st
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 8 }}>{p.email}</div>
       <button onClick={() => setShowMail(!showMail)} style={{ ...btn('transparent', C.gold), padding: 0, marginBottom: 8 }}>{showMail ? '▾ Cacher son mail' : '▸ Lire son mail'}</button>
       {showMail && <div style={{ fontSize: 12, lineHeight: 1.45, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 9, marginBottom: 9, maxHeight: 220, overflowY: 'auto' }}>{p.last_reply_text}</div>}
+      {!!p.proposed_slots?.length && <div style={{ fontSize: 11.5, color: C.accent, marginBottom: 6 }}>📅 Créneaux libres proposés : {p.proposed_slots.map(fmtSlot).join(' · ')}</div>}
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>Réponse préparée par Dzaryx (tu peux la modifier) :</div>
       <textarea value={text} onChange={e => { setText(e.target.value); setConfirm(false); }} rows={7}
         style={{ width: '100%', boxSizing: 'border-box', background: '#0f0f14', color: C.text, border: `1px solid ${C.border}`, borderRadius: 9, padding: 9, fontSize: 12.5, fontFamily: C.font, lineHeight: 1.45, resize: 'vertical' }} />
@@ -188,6 +254,11 @@ function ReplyCard({ p, onSend, onDismiss }: { p: ProspectRow; onSend: (text: st
           : <button onClick={() => setConfirm(true)} style={btn('rgba(16,185,129,0.18)', C.accent)}>📤 Envoyer</button>}
         <button onClick={onDismiss} style={btn('rgba(255,255,255,0.06)', C.muted)}>Ne pas répondre</button>
       </div>
+      {(p.status === 'interesse' || !!p.quote_draft?.length) && (
+        <button onClick={onDevis} style={{ ...btn('rgba(251,191,36,0.15)', C.gold), marginTop: 8, width: '100%' }}>
+          🧾 Préparer le devis{p.quote_draft?.length ? ` (${p.quote_draft.length} ligne${p.quote_draft.length > 1 ? 's' : ''} prête${p.quote_draft.length > 1 ? 's' : ''})` : ''}
+        </button>
+      )}
     </div>
   );
 }
@@ -202,6 +273,7 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
           <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {SEGMENT[p.segment] ?? p.segment}{p.lang && p.lang !== 'fr' ? ` · ${(LANG[p.lang] ?? p.lang).toLowerCase()}` : ''} · {p.last_contacted_at ? `contacté le ${fmtDate(p.last_contacted_at)}` : `trouvé le ${fmtDate(p.created_at)}`}
             {p.linkedin_contacts.length ? ` · 🔗 ${p.linkedin_contacts.length}` : ''}
+            {p.site_visit_at ? ` · 👀 ${p.site_visits || 1}` : ''}{p.followup_at ? ' · 🔁' : ''}
           </div>
         </div>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: s.color, border: `1px solid ${s.color}55`, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' }}>{s.label}</span>
@@ -213,6 +285,9 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
           {p.website && <div>🌐 {p.website}</div>}
           {p.lang && <div>🌐 Mail écrit en {LANG[p.lang] ?? p.lang}</div>}
           {p.last_subject && <div>📨 Objet : {p.last_subject}</div>}
+          {p.followup_at && <div>🔁 Relancé le {fmtDate(p.followup_at)}</div>}
+          {p.site_visit_at && <div style={{ color: C.accent }}>👀 A visité le site via ton mail{p.site_visits > 1 ? ` (${p.site_visits} fois)` : ''} — dernière fois le {fmtSlot(p.site_visit_at)}</div>}
+          {p.whatsapp_sent_at && <div>💬 Message WhatsApp envoyé le {fmtDate(p.whatsapp_sent_at)}</div>}
           {p.last_sent_text && <details style={{ marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.gold }}>Voir le mail envoyé</summary>
             <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 260, overflowY: 'auto' }}>{p.last_sent_text}</div></details>}
           {p.source && <div style={{ color: C.muted, wordBreak: 'break-all' }}>Source : {/^https?:/.test(p.source) ? <a href={p.source} target="_blank" rel="noreferrer" style={{ color: C.muted }}>{p.source}</a> : p.source}</div>}
