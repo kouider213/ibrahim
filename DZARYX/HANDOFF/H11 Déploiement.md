@@ -15,7 +15,10 @@ git push origin main      # Railway redéploie (~2 min)
 ```bash
 # 1. bumper le cache Service Worker : simulator/public/sw.js → const CACHE = 'dzaryx-vNN'
 cd simulator
-npm run build
+# ⚠️ OBLIGATOIRE : sans ces 3 variables le build envoie un jeton vide → 401 + bannière « Hors ligne »
+T=$(grep -E "^MOBILE_ACCESS_TOKEN=" ../.env | cut -d= -f2- | tr -d '"')
+VITE_ACCESS_TOKEN="$T" VITE_BACKEND_URL=https://ibrahim-backend-production.up.railway.app \
+  VITE_WS_URL=wss://ibrahim-backend-production.up.railway.app npm run build
 npx gh-pages -d dist
 git add ... && git commit && git push
 ```
