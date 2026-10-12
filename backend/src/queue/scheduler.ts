@@ -41,6 +41,8 @@ import { supabase } from '../integrations/supabase.js';
 const SCHEDULER_QUEUE = 'Dzaryx-scheduler';
 
 export const schedulerQueue = new Queue(SCHEDULER_QUEUE, { connection: redis });
+// Redis saturé (Upstash quota) → BullMQ émet 'error' ; sans listener = crash process.
+schedulerQueue.on('error', err => console.error('[scheduler:queue] error:', err instanceof Error ? err.message : err));
 
 const JOBS = [
   {
@@ -362,6 +364,8 @@ export async function initScheduler(): Promise<void> {
 
   worker.on('completed', job => console.log(`[scheduler] ✅ ${job.name} done`));
   worker.on('failed',    (job, err) => console.error(`[scheduler] ❌ ${job?.name} failed:`, err.message));
+  // Erreur interne BullMQ/Redis (rate-limited Upstash) — log sans tuer le process.
+  worker.on('error',     err => console.error('[scheduler:worker] error:', err instanceof Error ? err.message : err));
 
   console.log('[scheduler] All proactive jobs registered');
 }

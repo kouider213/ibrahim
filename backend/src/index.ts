@@ -79,6 +79,18 @@ import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
 import { initNexusRelay, initLauncherRelay } from './actions/handlers/nexus-relay.js';
 
+// ── Garde-fou global : le backend ne doit JAMAIS mourir ───────
+// Cause historique du crash loop (502) : Upstash Redis quota explosé →
+// BullMQ émet un event 'error' (ReplyError rate-limited) non catché →
+// uncaughtException → Node meurt → restart boucle. On log et on CONTINUE
+// de servir l'API/chat/sockets au lieu de tuer le process.
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] uncaughtException (process maintenu en vie):', err instanceof Error ? err.stack ?? err.message : err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] unhandledRejection (process maintenu en vie):', reason instanceof Error ? reason.stack ?? reason.message : reason);
+});
+
 // ── Simple in-memory rate limiter ─────────────────────────────
 function makeRateLimiter(maxReqs: number, windowMs: number) {
   const hits = new Map<string, { count: number; reset: number }>();

@@ -30,6 +30,10 @@ actionsWorker.on('failed', (job, err) => {
   console.error(`[worker] ❌ ${job?.name} failed (${job?.id}):`, err.message);
 });
 
+actionsWorker.on('error', err => {
+  console.error('[worker] error (Redis/BullMQ):', err instanceof Error ? err.message : err);
+});
+
 // Voice worker
 const voiceWorker = new Worker(
   QUEUES.VOICE,
@@ -44,6 +48,10 @@ const voiceWorker = new Worker(
 
 voiceWorker.on('failed', (job, err) => {
   console.error(`[voice-worker] ❌ ${job?.name} failed:`, err.message);
+});
+
+voiceWorker.on('error', err => {
+  console.error('[voice-worker] error (Redis/BullMQ):', err instanceof Error ? err.message : err);
 });
 
 console.log('[workers] Actions + Voice workers started');

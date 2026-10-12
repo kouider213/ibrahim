@@ -1967,6 +1967,7 @@ export async function jobSmartAlarm(_job: Job): Promise<void> {
       ].filter(Boolean).join('\n');
 
       const q = new Queue('Dzaryx-scheduler', { connection: redis });
+      q.on('error', e => console.error('[job:smart-alarm:queue] error:', e instanceof Error ? e.message : e));
       try {
         await q.add(
           'custom-reminder',

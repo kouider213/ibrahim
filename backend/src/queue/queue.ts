@@ -17,6 +17,12 @@ export const actionsQueue  = new Queue(QUEUES.ACTIONS, queueOptions);
 export const voiceQueue    = new Queue(QUEUES.VOICE,   queueOptions);
 export const notifyQueue   = new Queue(QUEUES.NOTIFY,  queueOptions);
 
+// Un Queue BullMQ émet 'error' quand Redis est HS/saturé (Upstash quota).
+// Sans listener, EventEmitter throw → uncaughtException → crash. On log seulement.
+for (const q of [actionsQueue, voiceQueue, notifyQueue]) {
+  q.on('error', err => console.error(`[queue:${q.name}] error:`, err instanceof Error ? err.message : err));
+}
+
 export interface ExecuteActionJob {
   action:    string;
   params:    Record<string, unknown>;
