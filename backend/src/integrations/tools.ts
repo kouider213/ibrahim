@@ -894,13 +894,10 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
   },
   {
     name: 'send_email',
-    description: 'Envoyer un brouillon préparé avec draft_email. Utiliser UNIQUEMENT quand Kouider vient de confirmer explicitement ("oui", "envoie", "vas-y") après avoir vu le brouillon. Le serveur refuse sinon.',
+    description: 'Envoyer le dernier brouillon montré à Kouider (draft_email). Quand Kouider répond "oui"/"envoie"/"vas-y" au brouillon : appeler send_email DIRECTEMENT, sans refaire draft_email. Le serveur choisit le brouillon et refuse sans confirmation. Si le résultat n\'est pas ✅, le mail N\'EST PAS parti.',
     input_schema: {
       type: 'object' as const,
-      properties: {
-        draft_id: { type: 'string', description: 'ID renvoyé par draft_email' },
-      },
-      required: ['draft_id'],
+      properties: {},
     },
   },
   {

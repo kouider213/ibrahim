@@ -11,6 +11,7 @@
 - `integrations/gmail.ts` — scope `gmail.send` ajouté (reconnexion requise une fois), `sendEmail()`, `canSendEmail()`.
 - `integrations/tool-executor.ts` / `tools.ts` — outils `draft_email` (brouillon 24 h, mention STOP si démarchage) et `send_email`. Le serveur refuse l'envoi si le dernier message de Kouider n'est pas une confirmation postérieure au brouillon (un mail reçu ne peut pas déclencher d'envoi). Limite 30 mails/jour.
 - **Fix** brouillons gardés en mémoire du serveur et limite/jour comptée dans Gmail (`countSentToday`) — Redis Upstash était en rate-limit (« Erreur technique côté serveur »).
+- **Fix** `send_email` envoie le dernier brouillon montré AVANT le « oui » (le LLM perdait le draft_id et refaisait un brouillon → refus). Refus en `❌` (comptés comme échecs), pas de relance automatique (évite double envoi), `send_email` ajouté aux WRITE_TOOLS du phantom-guard.
 - `agents/agent-registry.ts` — outils ajoutés à l'Agent Général + consigne brouillon → accord → envoi.
 - **Fix** `integrations/llm-router.ts` / `claude-api.ts` — un « oui » / « vas-y » en réponse à une question de Dzaryx garde Claude + outils (avant : Groq/fast mode sans outils, l'action validée ne partait jamais).
 

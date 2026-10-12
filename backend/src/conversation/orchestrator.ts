@@ -95,6 +95,7 @@ const TOOL_LABELS: Record<string, string> = {
   railway_get_logs:     '📋 Récupération logs Railway…',
   supabase_execute:     '🗄️ Requête base de données…',
   send_whatsapp_to_client: '📱 Envoi WhatsApp…',
+  send_email:           '📧 Envoi du mail…',
   store_document:       '📄 Stockage document…',
   get_client_document:  '📄 Récupération document…',
   send_telegram_message:'📱 Envoi sur Telegram…',

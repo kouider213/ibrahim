@@ -8,7 +8,7 @@ const WRITE_TOOLS = new Set([
   'create_booking', 'update_booking', 'cancel_booking', 'delete_booking',
   'record_payment', 'store_document',
   'github_write_file', 'github_patch_file', 'update_site_file',
-  'send_telegram_message', 'send_whatsapp_to_client',
+  'send_telegram_message', 'send_whatsapp_to_client', 'send_email',
   'create_calendar_event', 'update_calendar_event', 'sync_calendar', 'delete_calendar_event',
   'remember_info', 'learn_rule', 'record_feedback', 'rate_client',
   'netlify_deploy', 'railway_wait_deploy',

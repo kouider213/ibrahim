@@ -2025,32 +2025,43 @@ async function draftEmailTool(input: Record<string, unknown>, sessionId?: string
 
 async function sendEmailTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (!sessionId) return '❌ Session inconnue.';
-  const id  = String(input['draft_id'] ?? '').trim();
-  const draft = emailDrafts.get(draftKey(sessionId, id));
-  if (!draft || Date.now() - draft.createdAt > DRAFT_TTL_MS) return `❌ Brouillon "${id}" introuvable ou expiré — refais draft_email puis remontre-le à Kouider.`;
+  const NOT_SENT = ' NE DIS PAS que le mail est envoyé.';
 
-  // Accord exigé : le dernier message de Kouider est postérieur au brouillon ET c'est une confirmation
+  // Accord exigé : le dernier message de Kouider est une confirmation…
   const history  = await getConversationHistory(sessionId, 6);
   const lastUser = [...history].reverse().find(m => m.role === 'user');
   const lastAt   = lastUser ? new Date(lastUser.created_at as string).getTime() : 0;
-  if (!lastUser || lastAt <= draft.createdAt || !SEND_CONFIRM_RE.test(String(lastUser.content))) {
-    return '⛔ Envoi refusé : Kouider doit d\'abord voir le brouillon puis répondre "oui" / "envoie" dans un nouveau message. Montre-lui le brouillon et attends sa réponse.';
+  if (!lastUser || !SEND_CONFIRM_RE.test(String(lastUser.content))) {
+    return '❌ Envoi refusé : Kouider doit d\'abord voir le brouillon puis répondre "oui" / "envoie" dans un nouveau message.' + NOT_SENT;
+  }
+  // …et on envoie le brouillon qu'il a VU : le plus récent créé AVANT sa confirmation
+  // (le draft_id n'est pas dans l'historique → le LLM le perd ; un brouillon refait ce tour-ci n'a pas été vu)
+  const prefix = `${sessionId}:`;
+  let key: string | null = null; let draft: EmailDraft | undefined;
+  for (const [k, d] of emailDrafts) {
+    if (!k.startsWith(prefix) || d.createdAt >= lastAt || Date.now() - d.createdAt > DRAFT_TTL_MS) continue;
+    if (!draft || d.createdAt > draft.createdAt) { key = k; draft = d; }
+  }
+  if (!draft || !key) {
+    return '❌ Aucun brouillon montré à Kouider avant son "oui" (ou expiré). Refais draft_email, montre-le et attends sa réponse.' + NOT_SENT;
   }
 
   let sentToday = 0;
   try {
     sentToday = await countSentToday(gmailAccount(input));
     if (sentToday >= EMAIL_DAILY_CAP) {
-      return `⛔ Limite de ${EMAIL_DAILY_CAP} mails/jour atteinte (protection anti-spam de la boîte). Le brouillon reste valable 24 h : réessaie demain.`;
+      return `❌ Limite de ${EMAIL_DAILY_CAP} mails/jour atteinte (protection anti-spam de la boîte). Le brouillon reste valable 24 h : réessaie demain.`;
     }
     await sendEmail(gmailAccount(input), draft);
   } catch (err) {
     if (err instanceof GmailSendNotAllowedError || err instanceof GmailNotConnectedError) {
       return `❌ Permission d'envoi manquante ou expirée. Lien à donner tel quel à Kouider : ${getGmailConnectLink()}`;
     }
-    throw err;
+    // Pas de throw : l'appelant relance les outils qui lèvent → risque de double envoi
+    console.error('[gmail] send failed:', err instanceof Error ? err.message : err);
+    return `❌ Échec de l'envoi Gmail (${err instanceof Error ? err.message.slice(0, 120) : 'erreur'}). Vérifie dans "Messages envoyés" avant de réessayer.` + NOT_SENT;
   }
-  emailDrafts.delete(draftKey(sessionId, id));
+  for (const k of [...emailDrafts.keys()]) if (k.startsWith(prefix)) emailDrafts.delete(k);  // évite un double envoi
   return `✅ Mail envoyé à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;
 }
 
