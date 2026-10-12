@@ -8,6 +8,8 @@
 ## 2026-10-12 — Gmail limité à fikconciergerie@gmail.com
 
 ### backend/
+- **Fix** `agents/agent-registry.ts` — `list_emails`, `read_email`, `connect_gmail` ajoutés à l'Agent Général (catch-all) :
+  ils n'étaient dans aucun agent, donc jamais proposés à Claude (« connecte mes mails » répondait « je peux pas »).
 - `integrations/tool-executor.ts` / `tools.ts` — les outils `list_emails`, `read_email`, `connect_gmail` lisent
   uniquement `fikconciergerie@gmail.com` (paramètre `account` retiré, demande Kouider). La boîte perso n'est plus proposée.
 
