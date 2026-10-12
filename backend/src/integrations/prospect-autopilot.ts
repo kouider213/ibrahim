@@ -154,6 +154,23 @@ const KEY_ACCOUNTS = [
   'COSIDER', 'Sonelgaz', 'Naftal', 'Air Algérie', 'Groupe Cevital',
 ];
 
+/** Profils LinkedIn publics via Tavily (include_domains) — '' si Tavily absent ou sans résultat. */
+async function searchLinkedin(query: string): Promise<string> {
+  if (!env.TAVILY_API_KEY) return '';
+  try {
+    const { data } = await axios.post<{ results?: Array<{ title: string; url: string; content: string }> }>(
+      'https://api.tavily.com/search',
+      { query, max_results: 10, search_depth: 'basic', include_domains: ['linkedin.com'] },
+      { headers: { Authorization: `Bearer ${env.TAVILY_API_KEY}` }, timeout: 20_000 },
+    );
+    return (data.results ?? []).filter(r => /linkedin\.com\/in\//.test(r.url))
+      .map(r => `• ${r.title}\n  ${r.url}\n  ${r.content.slice(0, 400)}`).join('\n\n');
+  } catch (err) {
+    console.error('[prospect-auto] tavily linkedin:', err instanceof Error ? err.message : err);
+    return '';
+  }
+}
+
 async function nextKeyAccount(): Promise<string | null> {
   const { data } = await supabase.from('prospects').select('company').eq('segment', 'grand_compte').limit(500);
   const done = new Set((data ?? []).map((r: { company: string }) => companyKey(r.company)));
@@ -179,9 +196,10 @@ export async function discoverKeyAccount(): Promise<string | null> {
   const emailOk = !!email && !!email.match(EMAIL_RE) && contactRes.text.toLowerCase().includes(email) && !/noreply|no-reply|example/.test(email);
 
   // b) Décideurs sur LinkedIn (profils publics vus dans les résultats de recherche)
-  // Requête simple (les moteurs/Tavily gèrent mal les OR) ; 2e essai plus large si rien
-  let liRes = await multiProviderWebSearch(`${company} Algérie LinkedIn responsable services généraux logistique achats`, 'prospect-auto');
-  if (!/linkedin\.com\/in\//.test(liRes.text)) liRes = await multiProviderWebSearch(`${company} Oran Arzew LinkedIn manager`, 'prospect-auto');
+  // Tavily limité à linkedin.com (bien plus précis) ; sinon recherche web classique
+  let liRes = { text: await searchLinkedin(`${company} Algérie responsable services généraux logistique achats mobilité`) };
+  if (!/linkedin\.com\/in\//.test(liRes.text)) liRes = { text: await searchLinkedin(`${company} Oran Arzew manager`) };
+  if (!/linkedin\.com\/in\//.test(liRes.text)) liRes = await multiProviderWebSearch(`${company} Algérie LinkedIn responsable services généraux logistique achats`, 'prospect-auto');
   const people = (parseJson<Array<{ name: string; title: string; url: string }>>(await ask(
     'Tu extrais des profils LinkedIn depuis des résultats de recherche. Réponds UNIQUEMENT par un tableau JSON. ' +
     'Garde seulement les personnes qui travaillent ACTUELLEMENT pour cette entreprise en Algérie, avec un rôle qui décide ' +
