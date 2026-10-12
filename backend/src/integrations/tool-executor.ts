@@ -16,7 +16,7 @@ import {
 } from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
-import { listEmails, readEmail, sendEmail, canSendEmail, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
+import { listEmails, readEmail, sendEmail, canSendEmail, countSentToday, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
 import { getConversationHistory } from './supabase.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
@@ -1998,7 +1998,10 @@ const SEND_CONFIRM_RE = /^\W*(oui|ok|okay|go|vas[- ]y|envoie|envoi|envoies|envoy
 const PROSPECT_FOOTER = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
 
 interface EmailDraft { to: string; subject: string; body: string; createdAt: number }
-const draftKey = (sessionId: string, id: string) => `email:draft:${sessionId}:${id}`;
+// En mémoire (pas Redis : quota Upstash) — perdu au redémarrage, Dzaryx refait alors le brouillon
+const emailDrafts = new Map<string, EmailDraft>();
+const DRAFT_TTL_MS = 24 * 3600_000;
+const draftKey = (sessionId: string, id: string) => `${sessionId}:${id}`;
 
 async function draftEmailTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (!sessionId) return '❌ Session inconnue — impossible de préparer un mail.';
@@ -2014,7 +2017,8 @@ async function draftEmailTool(input: Record<string, unknown>, sessionId?: string
   }
   const id = Math.random().toString(36).slice(2, 8);
   const draft: EmailDraft = { to, subject, body, createdAt: Date.now() };
-  await redis.set(draftKey(sessionId, id), JSON.stringify(draft), 'EX', 24 * 3600);
+  for (const [k, d] of emailDrafts) if (Date.now() - d.createdAt > DRAFT_TTL_MS) emailDrafts.delete(k);
+  emailDrafts.set(draftKey(sessionId, id), draft);
   return `📝 Brouillon prêt (draft_id: ${id}) — PAS ENCORE ENVOYÉ.\nDe: ${gmailAddress('pro')}\nÀ: ${to}\nObjet: ${subject}\n\n${body}\n\n` +
     `→ Montre ce brouillon EN ENTIER à Kouider et demande "Je l'envoie ?". N'appelle send_email qu'après son "oui"/"envoie" dans son PROCHAIN message.`;
 }
@@ -2022,9 +2026,8 @@ async function draftEmailTool(input: Record<string, unknown>, sessionId?: string
 async function sendEmailTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (!sessionId) return '❌ Session inconnue.';
   const id  = String(input['draft_id'] ?? '').trim();
-  const raw = await redis.get(draftKey(sessionId, id));
-  if (!raw) return `❌ Brouillon "${id}" introuvable ou expiré — refais draft_email.`;
-  const draft = JSON.parse(raw) as EmailDraft;
+  const draft = emailDrafts.get(draftKey(sessionId, id));
+  if (!draft || Date.now() - draft.createdAt > DRAFT_TTL_MS) return `❌ Brouillon "${id}" introuvable ou expiré — refais draft_email puis remontre-le à Kouider.`;
 
   // Accord exigé : le dernier message de Kouider est postérieur au brouillon ET c'est une confirmation
   const history  = await getConversationHistory(sessionId, 6);
@@ -2034,13 +2037,12 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
     return '⛔ Envoi refusé : Kouider doit d\'abord voir le brouillon puis répondre "oui" / "envoie" dans un nouveau message. Montre-lui le brouillon et attends sa réponse.';
   }
 
-  const dayKey = `email:sent:${new Date().toISOString().slice(0, 10)}`;
-  const sentToday = Number(await redis.get(dayKey) ?? 0);
-  if (sentToday >= EMAIL_DAILY_CAP) {
-    return `⛔ Limite de ${EMAIL_DAILY_CAP} mails/jour atteinte (protection anti-spam de la boîte). Le brouillon reste valable 24 h : réessaie demain.`;
-  }
-
+  let sentToday = 0;
   try {
+    sentToday = await countSentToday(gmailAccount(input));
+    if (sentToday >= EMAIL_DAILY_CAP) {
+      return `⛔ Limite de ${EMAIL_DAILY_CAP} mails/jour atteinte (protection anti-spam de la boîte). Le brouillon reste valable 24 h : réessaie demain.`;
+    }
     await sendEmail(gmailAccount(input), draft);
   } catch (err) {
     if (err instanceof GmailSendNotAllowedError || err instanceof GmailNotConnectedError) {
@@ -2048,8 +2050,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
     }
     throw err;
   }
-  await redis.del(draftKey(sessionId, id));
-  await redis.multi().incr(dayKey).expire(dayKey, 2 * 86400).exec();
+  emailDrafts.delete(draftKey(sessionId, id));
   return `✅ Mail envoyé à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;
 }
 

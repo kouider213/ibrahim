@@ -202,6 +202,15 @@ export async function canSendEmail(account: GmailAccount): Promise<boolean> {
 const encodeHeader = (v: string) =>
   /^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, 'utf-8').toString('base64')}?=`;
 
+/** Nombre de mails envoyés aujourd'hui depuis la boîte (compté dans Gmail → exact même après redémarrage). */
+export async function countSentToday(account: GmailAccount): Promise<number> {
+  const address = gmailAddress(account);
+  const d = new Date();
+  const after = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  const r = await gmailGet<{ messages?: unknown[] }>(address, '/messages', { q: `in:sent after:${after}`, maxResults: 100 });
+  return r.messages?.length ?? 0;
+}
+
 export async function sendEmail(
   account: GmailAccount, mail: { to: string; subject: string; body: string },
 ): Promise<string> {
