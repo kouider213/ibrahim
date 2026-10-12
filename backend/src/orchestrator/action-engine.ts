@@ -45,7 +45,7 @@ function channelFromSession(sessionId: string): string {
 // Read-only tools — no dedup needed
 const IDEMPOTENT_TOOLS = new Set([
   'list_bookings', 'check_car_availability', 'get_financial_report',
-  'get_revenue_report', 'get_finance_dashboard', 'get_weather', 'get_news',
+  'get_revenue_report', 'get_finance_dashboard', 'get_weather', 'get_news', 'get_weather_alerts', 'convert_currency', 'get_football',
   'recall_memory', 'get_payment_status', 'get_late_returns',
   'get_unpaid_bookings', 'check_anomalies', 'fetch_url', 'web_search',
   'github_read_file', 'github_list_files', 'github_search_code',
