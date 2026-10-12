@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { supabase } from '../../integrations/supabase.js';
 import { getAutopilot, setAutopilot, updateProspect, PROSPECT_STATUSES, type Prospect, type ProspectStatus } from '../../integrations/prospects.js';
-import { runDailyOutreach, sendProspectReply } from '../../integrations/prospect-autopilot.js';
+import { runDailyOutreach, sendProspectReply, algerianMobile, buildWeeklyReport } from '../../integrations/prospect-autopilot.js';
+import { proAliasReady, PRO_ALIAS, gmailAddress } from '../../integrations/gmail.js';
 
 // Page « Démarchage » de l'app : tout le fichier prospects, les réponses à valider, les messages LinkedIn.
 const router = Router();
@@ -10,8 +11,8 @@ const router = Router();
 // GET /api/prospects/overview
 router.get('/overview', requireMobileAuth, async (_req, res) => {
   try {
-    const [settings, { data, error }] = await Promise.all([
-      getAutopilot(),
+    const [settings, aliasOk, { data, error }] = await Promise.all([
+      getAutopilot(), proAliasReady(),
       supabase.from('prospects').select('*').order('created_at', { ascending: false }).limit(500),
     ]);
     if (error) throw new Error(error.message);
@@ -20,6 +21,7 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
     const byStatus = Object.fromEntries(PROSPECT_STATUSES.map(s => [s, rows.filter(r => r.status === s).length]));
     res.json({
       autopilot: settings,
+      sender: aliasOk ? PRO_ALIAS : gmailAddress('pro'), sender_pro: aliasOk,
       stats: {
         total:      rows.length,
         sent:       rows.filter(r => r.gmail_thread_id).length,
@@ -27,6 +29,9 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
           && new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date(r.last_contacted_at)) === day).length,
         replies:    rows.filter(r => ['a_repondu', 'interesse', 'client', 'refus'].includes(r.status)).length,
         linkedin_todo: rows.reduce((n, r) => n + (r.linkedin_contacts ?? []).filter(c => !c.sent_at).length, 0),
+        whatsapp_todo: rows.filter(r => r.whatsapp_message && !r.whatsapp_sent_at && r.status === 'a_contacter').length,
+        followups:  rows.filter(r => r.followup_at).length,
+        visits:     rows.filter(r => r.site_visit_at).length,
         by_status:  byStatus,
       },
       prospects: rows.map(r => ({
@@ -35,11 +40,20 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
         website: r.website ?? null, created_at: r.created_at, last_contacted_at: r.last_contacted_at,
         last_subject: r.last_subject, last_reply_text: r.last_reply_text, suggested_reply: r.suggested_reply,
         linkedin_contacts: r.linkedin_contacts ?? [], lang: r.lang ?? null, last_sent_text: r.last_sent_text ?? null,
+        followup_at: r.followup_at ?? null, site_visit_at: r.site_visit_at ?? null, site_visits: r.site_visits ?? 0,
+        whatsapp_message: r.whatsapp_message ?? null, whatsapp_sent_at: r.whatsapp_sent_at ?? null, whatsapp_number: algerianMobile(r.phone),
+        quote_draft: r.quote_draft ?? null, proposed_slots: r.proposed_slots ?? null,
       })),
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// GET /api/prospects/weekly — le bilan de la semaine (même texte que la notification du lundi)
+router.get('/weekly', requireMobileAuth, async (_req, res) => {
+  try { res.json({ report: await buildWeeklyReport() }); }
+  catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 
 // POST /api/prospects/autopilot { enabled?, per_day? }
@@ -100,6 +114,19 @@ router.post('/:id/linkedin/:idx', requireMobileAuth, async (req, res) => {
       ...(sent && row?.status === 'a_contacter' && !row.email ? { status: 'contacte' as const } : {}),
     });
     res.json({ ok: true, contacts });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/prospects/:id/whatsapp { sent } — Kouider a envoyé (ou pas) le message WhatsApp préparé
+router.post('/:id/whatsapp', requireMobileAuth, async (req, res) => {
+  const sent = (req.body as { sent?: boolean }).sent !== false;
+  try {
+    await updateProspect(String(req.params['id']), sent
+      ? { whatsapp_sent_at: new Date().toISOString(), status: 'contacte', last_contacted_at: new Date().toISOString() }
+      : { whatsapp_sent_at: null });
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

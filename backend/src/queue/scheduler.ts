@@ -36,7 +36,7 @@ import {
   jobOpportunitiesRefresh,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
-import { runDailyOutreach, checkProspectReplies } from '../integrations/prospect-autopilot.js';
+import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
 const SCHEDULER_QUEUE = 'in-process';
@@ -210,7 +210,12 @@ const JOBS = [
   },
   {
     name:  'prospect-replies',
-    cron:  '*/30 7-22 * * *',       // toutes les 30 min 7h-22h — réponses des prospects → récap dans l'app
+    cron:  '*/30 7-22 * * *',       // toutes les 30 min 7h-22h — réponses des prospects + visites du site via le lien des mails
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'prospect-weekly',
+    cron:  '0 9 * * 1',             // 9h chaque lundi — bilan démarchage (envois, réponses, RDV, ce qui marche)
     tz:    'Africa/Algiers',
   },
   {
@@ -255,7 +260,11 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
-  'prospect-replies':        async () => { await checkProspectReplies(); },
+  'prospect-replies':        async () => {
+    await checkProspectReplies();
+    await checkProspectVisits().catch(err => console.error('[prospect-auto] visites:', err instanceof Error ? err.message : err));
+  },
+  'prospect-weekly':         async () => { await sendWeeklyReport(); },
 };
 
 // Les tâches planifiées tournent dans le process (croner) et non plus via BullMQ : le worker BullMQ

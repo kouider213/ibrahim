@@ -20,7 +20,15 @@ export interface Prospect {
   website: string | null; linkedin_contacts: LinkedinContact[];
   // Langue du mail envoyé (fr, en, ar…) + son texte, pour que Kouider le relise dans la page
   lang: string | null; last_sent_text: string | null;
+  // Relance (une seule, 5 jours sans réponse), lien de suivi du site (?ref=), date de la réponse reçue
+  followup_at: string | null; ref_code: string | null; site_visit_at: string | null; site_visits: number; replied_at: string | null;
+  // Partenaires sans email : message WhatsApp préparé (Kouider l'envoie en un clic depuis la page)
+  whatsapp_message: string | null; whatsapp_sent_at: string | null;
+  // Société intéressée : lignes de devis proposées (montants à saisir par Kouider) + créneaux libres proposés
+  quote_draft: QuoteDraftLine[] | null; proposed_slots: string[] | null;
 }
+
+export interface QuoteDraftLine { label: string; currency: string }
 
 export interface LinkedinContact { name: string; title: string; url: string; message: string; sent_at: string | null }
 
@@ -67,6 +75,18 @@ const LANG_SQL = `
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS lang           TEXT;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_sent_text TEXT;`;
 
+const GROWTH_SQL = `
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS followup_at      TIMESTAMPTZ;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ref_code         TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS site_visit_at    TIMESTAMPTZ;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS site_visits      INT NOT NULL DEFAULT 0;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS replied_at       TIMESTAMPTZ;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS whatsapp_message TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS whatsapp_sent_at TIMESTAMPTZ;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS quote_draft      JSONB;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS proposed_slots   JSONB;
+CREATE UNIQUE INDEX IF NOT EXISTS prospects_ref_uniq ON prospects (ref_code) WHERE ref_code IS NOT NULL;`;
+
 /** Crée la table (et les colonnes du démarchage auto) au démarrage si absentes (via l'API Management Supabase — le service key ne peut pas faire de DDL). */
 export async function ensureProspectsTable(): Promise<void> {
   try {
@@ -80,6 +100,8 @@ export async function ensureProspectsTable(): Promise<void> {
     if (liErr && await runSql(LINKEDIN_SQL)) console.log('[prospects] ✅ colonnes grands comptes / LinkedIn créées');
     const { error: langErr } = await supabase.from('prospects').select('last_sent_text').limit(1);
     if (langErr && await runSql(LANG_SQL)) console.log('[prospects] ✅ colonnes langue / texte envoyé créées');
+    const { error: grErr } = await supabase.from('prospects').select('proposed_slots').limit(1);
+    if (grErr && await runSql(GROWTH_SQL)) console.log('[prospects] ✅ colonnes relance / suivi site / WhatsApp / devis créées');
   } catch (err) {
     console.error('[prospects] migration échouée:', err instanceof Error ? err.message : err);
   }

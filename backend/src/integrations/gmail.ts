@@ -213,6 +213,30 @@ export async function countSentToday(account: GmailAccount): Promise<number> {
 
 export interface ThreadRef { threadId: string; inReplyTo: string }
 
+// Adresse pro au nom du site (hébergée chez Zoho). Utilisée comme expéditeur dès qu'elle est ajoutée et
+// validée dans Gmail (Paramètres → Comptes → « Envoyer des e-mails en tant que ») ; sinon l'adresse Gmail.
+export const PRO_ALIAS = 'contact@fikconciergerie.com';
+const SENDER_NAME = 'FIK Conciergerie';
+let aliasCache: { ok: boolean; at: number } | null = null;
+
+/** Vrai si contact@fikconciergerie.com est validée comme adresse d'envoi dans la boîte pro (vérifié toutes les heures). */
+export async function proAliasReady(): Promise<boolean> {
+  if (aliasCache && Date.now() - aliasCache.at < 3600_000) return aliasCache.ok;
+  try {
+    const r = await gmailGet<{ sendAs?: Array<{ sendAsEmail: string; verificationStatus?: string }> }>(gmailAddress('pro'), '/settings/sendAs');
+    const ok = (r.sendAs ?? []).some(a => a.sendAsEmail.toLowerCase() === PRO_ALIAS && a.verificationStatus === 'accepted');
+    aliasCache = { ok, at: Date.now() };
+  } catch {
+    aliasCache = { ok: false, at: Date.now() };
+  }
+  return aliasCache.ok;
+}
+
+/** Adresse qui apparaît chez le destinataire pour les mails de la boîte pro. */
+export async function proSenderAddress(): Promise<string> {
+  return (await proAliasReady()) ? PRO_ALIAS : gmailAddress('pro');
+}
+
 export async function sendEmail(
   account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef },
 ): Promise<{ id: string; threadId: string }> {
@@ -220,8 +244,9 @@ export async function sendEmail(
   if (!(await canSendEmail(account))) throw new GmailSendNotAllowedError(address);
   const token = await getGmailToken(address);
   if (!token) throw new GmailNotConnectedError(address);
+  const from = account === 'pro' ? `${SENDER_NAME} <${await proSenderAddress()}>` : address;
   const raw = [
-    `From: ${address}`,
+    `From: ${from}`,
     `To: ${mail.to}`,
     `Subject: ${encodeHeader(mail.subject)}`,
     // Réponse : ces en-têtes + threadId → le mail reste dans la même conversation chez le destinataire
@@ -269,4 +294,11 @@ export async function getMessageIdHeader(account: GmailAccount, id: string): Pro
   const m = await gmailGet<{ payload?: { headers?: Header[] } }>(
     gmailAddress(account), `/messages/${encodeURIComponent(id)}`, { format: 'metadata', metadataHeaders: ['Message-ID'] });
   return header(m.payload?.headers, 'Message-ID');
+}
+
+/** Message-ID du dernier mail d'une conversation (le nôtre pour une relance) — pour rester dans le même fil. */
+export async function getThreadLastMessageId(account: GmailAccount, threadId: string): Promise<string> {
+  const t = await gmailGet<{ messages?: Array<{ payload?: { headers?: Header[] } }> }>(
+    gmailAddress(account), `/threads/${encodeURIComponent(threadId)}`, { format: 'metadata', metadataHeaders: ['Message-ID'] });
+  return header(t.messages?.at(-1)?.payload?.headers, 'Message-ID');
 }
