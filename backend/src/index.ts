@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import { Server as SocketServer } from 'socket.io';
 
 import { env } from './config/env.js';
+import { ensureProspectsTable } from './integrations/prospects.js';
 import { SOCKET_EVENTS } from './config/constants.js';
 import { validateToken, identifyMobileActor } from './auth/tokens.js';
 
@@ -511,6 +512,7 @@ async function initFikRealtimeListener(): Promise<void> {
 const PORT = env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
+  void ensureProspectsTable();
   // JOBS_ENABLED=false sur l'instance BACKUP (failover) → pas de jobs en double
   // (double notifs, double veille). L'API + chat + sockets restent complets.
   if (process.env['JOBS_ENABLED'] === 'false') {

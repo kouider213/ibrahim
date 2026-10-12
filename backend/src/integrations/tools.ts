@@ -900,6 +900,50 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
       properties: {},
     },
   },
+  // ─── PROSPECTION B2B ─────────────────────────────────────────
+  {
+    name: 'add_prospect',
+    description: 'Ajouter une entreprise/personne à démarcher (fichier de prospection FIK Conciergerie). Uniquement des coordonnées PUBLIQUES trouvées (site officiel, annuaire, page pro) ou données par Kouider — JAMAIS inventer ou deviner un email. Doublons détectés automatiquement.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        company:      { type: 'string', description: 'Nom de l\'entreprise ou du propriétaire' },
+        segment:      { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'autre'], description: 'Type de prospect' },
+        email:        { type: 'string', description: 'Email public (optionnel si téléphone)' },
+        phone:        { type: 'string', description: 'Téléphone/WhatsApp public (optionnel)' },
+        contact_name: { type: 'string', description: 'Nom du contact (optionnel)' },
+        city:         { type: 'string', description: 'Ville (défaut Oran)' },
+        source:       { type: 'string', description: 'URL où l\'info a été trouvée, ou "Kouider"' },
+        notes:        { type: 'string', description: 'Infos utiles pour personnaliser le message' },
+      },
+      required: ['company', 'segment', 'source'],
+    },
+  },
+  {
+    name: 'list_prospects',
+    description: 'Lister le fichier de prospection (qui démarcher, qui a été contacté, qui a répondu). Ex: "mes prospects", "qui reste à contacter", "les agences de voyage".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        segment: { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'autre'] },
+        status:  { type: 'string', enum: ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] },
+        limit:   { type: 'number', description: 'Défaut 20' },
+      },
+    },
+  },
+  {
+    name: 'update_prospect',
+    description: 'Changer le statut ou ajouter une note à un prospect. Ex: "X a répondu", "X est intéressé", "X ne veut plus de mails" (→ stop).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query:  { type: 'string', description: 'Email ou nom de l\'entreprise' },
+        status: { type: 'string', enum: ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] },
+        notes:  { type: 'string', description: 'Note à ajouter' },
+      },
+      required: ['query'],
+    },
+  },
   {
     name: 'delete_personal_event',
     description: 'Supprimer un événement de l\'agenda PERSONNEL de Kouider. Appeler list_personal_events d\'abord pour obtenir l\'ID.',

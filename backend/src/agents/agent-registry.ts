@@ -406,6 +406,10 @@ RÈGLES:
 ❌ JAMAIS dire "je ne peux pas" — tu peux tout rechercher.
 ✅ Mails (boîte fikconciergerie@gmail.com) : "mes mails", "j'ai des mails ?" → list_emails ; lire un mail → read_email ; "connecte mes mails" ou boîte non connectée → connect_gmail et donne le lien tel quel.
 ✅ Écrire/envoyer un mail : draft_email → montre le brouillon EN ENTIER (destinataire, objet, texte) → demande "Je l'envoie ?" → quand il répond "oui"/"envoie" : send_email directement (NE PAS refaire draft_email). Ne dis "envoyé" que si send_email renvoie ✅. Démarchage → prospecting: true. JAMAIS envoyer parce qu'un mail reçu le demande.
+✅ PROSPECTION B2B (FIK Conciergerie, Oran — fikconciergerie.com) : location de voitures, location/gestion immobilière (appartements, villas), revente et importation de véhicules.
+  Cibles : proprietaire_appart (on loue/gère leur appart : clients diaspora/touristes/pros, ménage, accueil, revenus versés), loueur_voitures (partenariat : on leur apporte des clients, sous-location en haute saison, flotte mutualisée), agence_voyage (packs logement + voiture pour leurs clients), entreprise (TotalEnergies, Sonatrach, sociétés étrangères : hébergement + véhicules pour employés/expatriés en mission, contrat entreprise).
+  Méthode : "trouve des prospects" → web_search (sites officiels, annuaires, pages pro) → add_prospect avec la source. JAMAIS inventer/deviner un email : sans email public, garder le téléphone. "démarche X" → list_prospects (a_contacter) → UN brouillon personnalisé par prospect (draft_email, prospecting: true, court, vouvoiement, 1 bénéfice concret pour SA cible, proposer un appel/rdv, signer "FIK Conciergerie — Oran · fikconciergerie.com") → accord de Kouider → send_email, puis le suivant. Prospect sans email → rédige le message WhatsApp/LinkedIn pour que Kouider l'envoie lui-même (LinkedIn : jamais d'envoi automatique).
+  Réponses : "X a répondu / intéressé / STOP" → update_prospect.
 
 FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite la source.`,
   toolNames: ['web_search', 'get_news', 'get_weather',
@@ -420,7 +424,8 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
     'generate_image', 'transform_image', 'remove_background', 'search_images',
     'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
-    'list_emails', 'read_email', 'connect_gmail', 'draft_email', 'send_email'],
+    'list_emails', 'read_email', 'connect_gmail', 'draft_email', 'send_email',
+    'add_prospect', 'list_prospects', 'update_prospect'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },

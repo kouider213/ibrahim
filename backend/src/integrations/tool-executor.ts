@@ -18,6 +18,7 @@ import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCal
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { listEmails, readEmail, sendEmail, canSendEmail, countSentToday, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
 import { getConversationHistory } from './supabase.js';
+import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
@@ -332,6 +333,9 @@ async function _dispatch(
       case 'connect_gmail':             return connectGmailTool(input);
       case 'draft_email':               return await draftEmailTool(input, sessionId);
       case 'send_email':                return await sendEmailTool(input, sessionId);
+      case 'add_prospect':              return await addProspectTool(input);
+      case 'list_prospects':            return await listProspectsTool(input);
+      case 'update_prospect':           return await updateProspectTool(input);
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
       // ─── OBSIDIAN BRAIN ───
@@ -2011,6 +2015,7 @@ async function draftEmailTool(input: Record<string, unknown>, sessionId?: string
   if (!EMAIL_RE.test(to))               return `❌ Adresse invalide : "${to}". Une seule adresse, sans nom ni crochets.`;
   if (!subject || /[\r\n]/.test(subject)) return '❌ Objet manquant ou invalide (une seule ligne).';
   if (!body)                            return '❌ Texte du mail vide.';
+  if (await isOptedOut(to).catch(() => false)) return `❌ ${to} a demandé à ne plus être contacté (STOP/refus). Ne pas lui écrire.`;
   if (input['prospecting'] && !/STOP/.test(body)) body += PROSPECT_FOOTER;
   if (!(await canSendEmail(gmailAccount(input)))) {
     return `❌ Dzaryx n'a pas encore la permission d'ENVOYER depuis ${gmailAddress('pro')}. Lien à donner tel quel à Kouider pour reconnecter la boîte (une seule fois) : ${getGmailConnectLink()}`;
@@ -2062,7 +2067,61 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
     return `❌ Échec de l'envoi Gmail (${err instanceof Error ? err.message.slice(0, 120) : 'erreur'}). Vérifie dans "Messages envoyés" avant de réessayer.` + NOT_SENT;
   }
   for (const k of [...emailDrafts.keys()]) if (k.startsWith(prefix)) emailDrafts.delete(k);  // évite un double envoi
+  void markProspectContacted(draft.to).catch(() => {});
   return `✅ Mail envoyé à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;
+}
+
+// ── Prospection B2B ──
+const SEGMENT_LABEL: Record<ProspectSegment, string> = {
+  proprietaire_appart: '🏠 Proprio appart', loueur_voitures: '🚗 Loueur voitures',
+  agence_voyage: '✈️ Agence de voyage', entreprise: '🏢 Entreprise', autre: '• Autre',
+};
+
+async function addProspectTool(input: Record<string, unknown>): Promise<string> {
+  const company = String(input['company'] ?? '').trim();
+  const segment = String(input['segment'] ?? 'autre') as ProspectSegment;
+  const email   = String(input['email'] ?? '').trim() || undefined;
+  const phone   = String(input['phone'] ?? '').trim() || undefined;
+  if (!company)                             return '❌ Nom de l\'entreprise requis.';
+  if (!PROSPECT_SEGMENTS.includes(segment)) return `❌ Segment invalide (${PROSPECT_SEGMENTS.join(', ')}).`;
+  if (email && !EMAIL_RE.test(email))       return `❌ Email invalide : ${email}`;
+  if (!email && !phone)                     return '❌ Il faut au moins un email ou un téléphone public.';
+  const { prospect, duplicate } = await addProspect({
+    company, segment, email, phone,
+    contact_name: input['contact_name'] as string | undefined, city: input['city'] as string | undefined,
+    source: input['source'] as string | undefined, notes: input['notes'] as string | undefined,
+  });
+  return duplicate
+    ? `ℹ️ Déjà dans le fichier : ${prospect.company} (${prospect.email ?? prospect.phone}) — statut ${prospect.status}.`
+    : `✅ Prospect ajouté : ${SEGMENT_LABEL[segment]} ${prospect.company} — ${prospect.email ?? ''} ${prospect.phone ?? ''}`.trim();
+}
+
+async function listProspectsTool(input: Record<string, unknown>): Promise<string> {
+  const rows = await listProspects({
+    segment: input['segment'] as string | undefined, status: input['status'] as string | undefined,
+    limit: input['limit'] ? Number(input['limit']) : undefined,
+  });
+  if (!rows.length) return '📭 Aucun prospect pour ces critères.';
+  return `📋 ${rows.length} prospect(s) :\n` + rows.map(p =>
+    `- ${SEGMENT_LABEL[p.segment] ?? p.segment} **${p.company}**${p.contact_name ? ` (${p.contact_name})` : ''} — ${p.email ?? '—'} ${p.phone ? `| ${p.phone}` : ''} | ${p.status}` +
+    `${p.last_contacted_at ? ` | contacté le ${p.last_contacted_at.slice(0, 10)}` : ''}${p.notes ? `\n  ${p.notes.slice(0, 120)}` : ''}`).join('\n');
+}
+
+async function updateProspectTool(input: Record<string, unknown>): Promise<string> {
+  const query  = String(input['query'] ?? '').trim();
+  const status = input['status'] as ProspectStatus | undefined;
+  const notes  = input['notes'] as string | undefined;
+  if (status && !PROSPECT_STATUSES.includes(status)) return `❌ Statut invalide (${PROSPECT_STATUSES.join(', ')}).`;
+  const found = await findProspect(query);
+  if (!found.length)     return `❌ Aucun prospect trouvé pour "${query}".`;
+  if (found.length > 1)  return `❓ Plusieurs prospects correspondent : ${found.map(p => `${p.company} (${p.email ?? p.phone})`).join(', ')}. Précise lequel.`;
+  const p = found[0]!;
+  const stamp = new Date().toISOString().slice(0, 10);
+  await updateProspect(p.id, {
+    ...(status ? { status } : {}),
+    ...(notes ? { notes: [p.notes, `[${stamp}] ${notes}`].filter(Boolean).join('\n') } : {}),
+  });
+  return `✅ ${p.company} mis à jour${status ? ` → ${status}` : ''}${notes ? ' (note ajoutée)' : ''}.`;
 }
 
 async function deletePersonalEventTool(input: Record<string, unknown>): Promise<string> {
