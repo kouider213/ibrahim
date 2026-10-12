@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { supabase } from './supabase.js';
 import { env } from '../config/env.js';
+import { redis } from '../queue/queue.js';
 
 // Petit stockage durable dans Supabase pour ce qui DOIT survivre quand Upstash Redis est saturé :
 // jetons de notification, préférences, historique des notifications, verrous des tâches planifiées.
@@ -68,17 +69,6 @@ export async function kvSet(key: string, value: string, ttlSeconds?: number): Pr
   if (error) throw new Error(`app_kv ${key}: ${error.message}`);
 }
 
-/** Pose la clé seulement si elle n'existe pas (ou a expiré). Vrai si posée. */
-export async function kvSetNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
-  await supabase.from('app_kv').delete().eq('key', key).lt('expires_at', new Date().toISOString());
-  const { error } = await supabase.from('app_kv').insert({
-    key, value, expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
-  });
-  if (!error) return true;
-  if (error.code === '23505') return false;
-  throw new Error(`app_kv ${key}: ${error.message}`);
-}
-
 export async function kvDel(key: string): Promise<void> {
   await supabase.from('app_kv').delete().eq('key', key);
 }
@@ -94,18 +84,9 @@ export async function claimJobRun(job: string, slot: string): Promise<boolean> {
   return error.code !== '23505';  // 23505 = déjà pris par une autre instance
 }
 
-/**
- * Remplaçant des appels Redis simples (verrous du jour, marqueurs « déjà envoyé ») : mêmes signatures
- * que ioredis pour `set(k, v, 'EX', ttl[, 'NX'])`, `get`, `del`, mais stocké dans Supabase.
- */
+/** Verrous du jour, marqueurs « déjà envoyé »… : même stockage que `redis` (mémoire + Supabase app_kv). */
 export const durableKv = {
-  get: kvGet,
-  async set(key: string, value: string, ...args: Array<string | number>): Promise<'OK' | null> {
-    const exIdx = args.findIndex(a => String(a).toUpperCase() === 'EX');
-    const ttl = exIdx >= 0 ? Number(args[exIdx + 1]) : undefined;
-    if (args.some(a => String(a).toUpperCase() === 'NX')) return (await kvSetNx(key, value, ttl ?? 86400)) ? 'OK' : null;
-    await kvSet(key, value, ttl);
-    return 'OK';
-  },
-  async del(key: string): Promise<number> { await kvDel(key); return 1; },
+  get: (key: string) => redis.get(key),
+  set: (key: string, value: string, ...args: Array<string | number>) => redis.set(key, value, ...args),
+  del: (key: string) => redis.del(key),
 };

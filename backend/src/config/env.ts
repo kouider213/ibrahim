@@ -4,7 +4,7 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY:    z.string().min(1),
   SUPABASE_URL:         z.string().url(),
   SUPABASE_SERVICE_KEY: z.string().min(1),
-  REDIS_URL:            z.string().min(1),
+  REDIS_URL:            z.string().optional(),   // plus utilisé (Upstash remplacé par Supabase app_kv)
   MOBILE_ACCESS_TOKEN:  z.string().min(16),
   MOBILE_TOKEN_HOUARI:  z.string().min(16).optional(), // Accès Houari — associé Fik Conciergerie
   OWNER_NAME:           z.string().default('Kouider'),

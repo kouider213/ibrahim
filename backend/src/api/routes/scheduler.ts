@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { schedulerQueue, triggerJob, triggerCustomReminder, getSchedulerStatus } from '../../queue/scheduler.js';
+import { triggerJob, triggerCustomReminder, getSchedulerStatus } from '../../queue/scheduler.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { buildMemoryContext } from '../../conversation/memory-selector.js';
 import { runProactiveEngine } from '../../conversation/proactive-engine.js';
@@ -308,18 +308,13 @@ router.post('/reminder-test', requireMobileAuth, async (req, res) => {
       return;
     }
 
-    // 2. BullMQ job
-    const job = await schedulerQueue.add(
-      'custom-reminder',
-      { message, request_id: dedup, source_channel: 'reminder-test-api', idempotency_key: dedup },
-      { delay: delayMs, removeOnComplete: { count: 5 }, removeOnFail: { count: 3 } },
-    );
+    // 2. Livraison : reminder-worker (sondage DB) — plus de BullMQ
 
     res.json({
       ok:             true,
       proof: {
         db_id:           dbRow.id,
-        job_id:          job.id ?? 'unknown',
+        job_id:          'db_only',
         remind_at_utc:   remindAt.toISOString(),
         local_time:      localTimeISO,
         timezone_used:   resolved.timezone,

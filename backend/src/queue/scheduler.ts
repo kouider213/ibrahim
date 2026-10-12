@@ -1,7 +1,6 @@
-﻿import { Queue, type Job } from 'bullmq';
+﻿import type { Job } from 'bullmq';
 import { Cron } from 'croner';
 import { ensureAppStoreTables, claimJobRun } from '../integrations/app-store.js';
-import { redis } from './queue.js';
 import {
   jobMorningBriefing,
   jobEndRentalReminder,
@@ -40,11 +39,7 @@ import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { runDailyOutreach, checkProspectReplies } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 
-const SCHEDULER_QUEUE = 'Dzaryx-scheduler';
-
-export const schedulerQueue = new Queue(SCHEDULER_QUEUE, { connection: redis });
-// Redis saturé (Upstash quota) → BullMQ émet 'error' ; sans listener = crash process.
-schedulerQueue.on('error', err => console.error('[scheduler:queue] error:', err instanceof Error ? err.message : err));
+const SCHEDULER_QUEUE = 'in-process';
 
 const JOBS = [
   {
@@ -286,10 +281,6 @@ async function runJob(name: string, slot: string): Promise<void> {
 
 export async function initScheduler(): Promise<void> {
   await ensureAppStoreTables();
-  // Ancienne config BullMQ : on retire les jobs répétés restés dans Redis (sinon un vieux worker les relancerait)
-  void schedulerQueue.getRepeatableJobs()
-    .then(rjs => Promise.all(rjs.map(rj => schedulerQueue.removeRepeatableByKey(rj.key))))
-    .catch(() => {});
 
   for (const job of JOBS) {
     crons.push(new Cron(job.cron, { timezone: job.tz, protect: true, name: job.name }, (self: Cron) => {

@@ -1,26 +1,13 @@
-import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
-import { env } from '../config/env.js';
-import { QUEUES } from '../config/constants.js';
+import { KvRedis } from './kv-redis.js';
 
-export const redis = new IORedis(env.REDIS_URL, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck:     false,
-});
+// Ancien client Upstash Redis remplacé : Upstash était rate-limité et faisait tomber notifs, jobs,
+// verrous, compteurs… `redis` garde la même interface (get/set/incr/lpush/…) mais stocke en mémoire
+// + Supabase `app_kv`. Les files BullMQ (actions/voice/notify) n'avaient plus de worker : supprimées.
+export const redis = new KvRedis();
 
-redis.on('error', err => console.error('[redis] Connection error:', err.message));
-redis.on('connect', () => console.log('[redis] Connected'));
-
-const queueOptions = { connection: redis };
-
-export const actionsQueue  = new Queue(QUEUES.ACTIONS, queueOptions);
-export const voiceQueue    = new Queue(QUEUES.VOICE,   queueOptions);
-export const notifyQueue   = new Queue(QUEUES.NOTIFY,  queueOptions);
-
-// Un Queue BullMQ émet 'error' quand Redis est HS/saturé (Upstash quota).
-// Sans listener, EventEmitter throw → uncaughtException → crash. On log seulement.
-for (const q of [actionsQueue, voiceQueue, notifyQueue]) {
-  q.on('error', err => console.error(`[queue:${q.name}] error:`, err instanceof Error ? err.message : err));
+// Sauvegarde les dernières écritures avant l'arrêt (redéploiement Railway)
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(sig, () => { void redis.flush().finally(() => process.exit(0)); });
 }
 
 export interface ExecuteActionJob {
@@ -28,24 +15,4 @@ export interface ExecuteActionJob {
   params:    Record<string, unknown>;
   taskId?:   string;
   sessionId: string;
-}
-
-export async function enqueueAction(job: ExecuteActionJob, priority = 5): Promise<string> {
-  const added = await actionsQueue.add('execute-action', job, {
-    priority,
-    attempts:   3,
-    backoff:    { type: 'exponential', delay: 2000 },
-    removeOnComplete: { count: 100 },
-    removeOnFail:     { count: 50 },
-  });
-  return added.id ?? '';
-}
-
-export async function enqueueVoice(text: string, sessionId: string): Promise<string> {
-  const added = await voiceQueue.add('synthesize', { text, sessionId }, {
-    priority: 1,
-    attempts: 2,
-    removeOnComplete: { count: 50 },
-  });
-  return added.id ?? '';
 }
