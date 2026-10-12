@@ -26,13 +26,14 @@ import SocialScreen from './screens/SocialScreen.tsx';
 import SearchScreen from './screens/SearchScreen.tsx';
 import ParrainageScreen from './screens/ParrainageScreen.tsx';
 import PricingScreen from './screens/PricingScreen.tsx';
+import DemarchageScreen from './screens/DemarchageScreen.tsx';
 import { setSimActor, resumeWebPush, business } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -54,6 +55,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
   // ── Menu "⋯ Plus" (outils) ──
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
+  { id: 'demarchage',    icon: '📤', label: 'DÉMARCHAGE', kouiderOnly: true, group: 'tool' },
   { id: 'devis',         icon: '🧮', label: 'DEVIS',   kouiderOnly: true, group: 'tool' },
   { id: 'voucher',       icon: '🧾', label: 'BON RÉSA', kouiderOnly: true, group: 'tool' },
   { id: 'reponse',       icon: '🗨️', label: 'RÉPONSE', kouiderOnly: true, group: 'tool' },
@@ -180,7 +182,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['documents'];
+  const kouiderOnlyPages: Page[] = ['documents', 'demarchage'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -211,6 +213,7 @@ export default function Phone() {
       case 'search':        return <SearchScreen onOpen={(p) => setPage(p as Page)} />;
       case 'parrainage':    return <ParrainageScreen />;
       case 'pricing':       return <PricingScreen />;
+      case 'demarchage':    return <DemarchageScreen />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;

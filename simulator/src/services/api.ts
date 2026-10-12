@@ -785,6 +785,19 @@ export interface ClientIntelligence {
 
 // ── Business API ──────────────────────────────────────────────────────────────
 
+export interface ProspectRow {
+  id: string; company: string; contact_name: string | null; email: string | null; phone: string | null;
+  segment: string; city: string; source: string | null; status: string; notes: string | null; website: string | null;
+  created_at: string; last_contacted_at: string | null; last_subject: string | null;
+  last_reply_text: string | null; suggested_reply: string | null;
+  linkedin_contacts: Array<{ name: string; title: string; url: string; message: string; sent_at: string | null }>;
+}
+export interface ProspectsOverview {
+  autopilot: { enabled: boolean; per_day: number };
+  stats: { total: number; sent: number; sent_today: number; replies: number; linkedin_todo: number; by_status: Record<string, number> };
+  prospects: ProspectRow[];
+}
+
 export const business = {
   fetchBookings: (q?: string, rentedBy?: string) => {
     const p = new URLSearchParams({ limit: '40' });
@@ -877,6 +890,18 @@ export const business = {
     apiFetch<{ byMonth: Array<{ month: string; count: number; pct: number }>; peaks: string[]; next3: string[]; summerSoon: boolean; total: number }>('/api/insights/forecast'),
   insightsReengage: (months = 4) =>
     apiFetch<{ months: number; dormant: Array<{ name: string; phone: string | null; date: string; car: string; count: number }> }>(`/api/insights/reengage?months=${months}`),
+  // Démarchage (prospection B2B)
+  prospectsOverview: () => apiFetch<ProspectsOverview>('/api/prospects/overview'),
+  prospectsAutopilot: (patch: { enabled?: boolean; per_day?: number }) =>
+    apiFetch<{ autopilot: ProspectsOverview['autopilot'] }>('/api/prospects/autopilot', { method: 'POST', body: JSON.stringify(patch) }),
+  prospectsRun: () => apiFetch<{ ok: boolean; message: string }>('/api/prospects/run', { method: 'POST' }),
+  prospectReply: (id: string, text: string) =>
+    apiFetch<{ ok: boolean; message: string }>(`/api/prospects/${id}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
+  prospectDismissReply: (id: string) => apiFetch<{ ok: boolean }>(`/api/prospects/${id}/dismiss-reply`, { method: 'POST' }),
+  prospectStatus: (id: string, status: string) =>
+    apiFetch<{ ok: boolean }>(`/api/prospects/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+  prospectLinkedinSent: (id: string, idx: number, sent: boolean) =>
+    apiFetch<{ ok: boolean }>(`/api/prospects/${id}/linkedin/${idx}`, { method: 'POST', body: JSON.stringify({ sent }) }),
   // Contenu social
   socialGenerate: (data: { topic: string; platform?: string; lang?: string }) =>
     apiFetch<{ caption?: string; hashtags?: string; error?: string }>('/api/social/generate', { method: 'POST', body: JSON.stringify(data) }),
