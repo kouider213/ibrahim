@@ -8,6 +8,8 @@
 ## 2026-10-12 — Gmail limité à fikconciergerie@gmail.com
 
 ### backend/
+- **Fix** `integrations/claude-api.ts` / `llm-router.ts` — « mail/gmail/connect » ne partent plus en FAST MODE (Haiku sans
+  outils) : Dzaryx inventait un faux lien OAuth au lieu d'appeler `connect_gmail`.
 - `api/routes/calendar.ts` — `GET /api/calendar/gmail-connect` : lien court fixe qui redirige vers le consentement Google
   (fikconciergerie@gmail.com). `connect_gmail` donne ce lien (Claude abîmait la longue URL OAuth).
 - **Fix** `agents/agent-registry.ts` — `list_emails`, `read_email`, `connect_gmail` ajoutés à l'Agent Général (catch-all) :
