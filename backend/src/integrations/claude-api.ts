@@ -453,15 +453,8 @@ export async function chatWithTools(
 
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (block) => {
-        if (block.name === 'web_search') {
-          console.log(`[tools] Server tool web_search exécuté par Anthropic`);
-          return {
-            type:        'tool_result' as const,
-            tool_use_id: block.id,
-            content:     'Recherche web effectuée par le serveur Anthropic.',
-          };
-        }
-
+        // Le web_search natif Anthropic arrive en bloc `server_tool_use` (filtré plus haut) :
+        // un bloc `tool_use` nommé web_search est notre outil local (Tavily & co) → on l'exécute.
         console.log(`[tools] Executing: ${block.name}`, block.input);
         let raw: string;
         let toolSuccess = false;

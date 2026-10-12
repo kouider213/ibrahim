@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-12 — Fix : web_search jamais exécuté (Tavily ignoré)
+
+### backend
+- **Fix** `integrations/claude-api.ts` — la boucle d'outils répondait « Recherche web effectuée par le serveur Anthropic » à tout bloc `tool_use` nommé `web_search`, sans rien exécuter. Or le web_search natif Anthropic arrive en `server_tool_use` : ce court-circuit bloquait notre outil local (Tavily → Apify → SearxNG…). Dzaryx recevait un résultat vide et inventait des agences. Branche supprimée.
+
 ## 2026-10-12 — Prospection B2B (fichier prospects + démarchage par mail)
 
 ### backend
