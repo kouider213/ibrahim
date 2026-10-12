@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api, connectSocket, getOrCreateSessionId, type IbrahimStatus } from '../../../services/api.js';
+import ParticleOrb, { type OrbPhase } from './ParticleOrb.js';
 
-type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
+type Phase = OrbPhase;
 
 const PHASE_COLORS: Record<Phase, string> = {
   idle:      '#06b6d4',
@@ -17,68 +18,6 @@ const PHASE_LABELS: Record<Phase, string> = {
   thinking:  'RÉFLEXION…',
   speaking:  'PAROLE…',
 };
-
-function OrbParticles({ phase }: { phase: Phase }) {
-  const count = 24;
-  const color = PHASE_COLORS[phase];
-
-  return (
-    <div className="relative w-40 h-40">
-      {Array.from({ length: count }).map((_, i) => {
-        const angle  = (i / count) * 360;
-        const radius = phase === 'idle' ? 56 : phase === 'listening' ? 64 : 72;
-        const delay  = i * 0.04;
-        const x = Math.cos((angle * Math.PI) / 180) * radius;
-        const y = Math.sin((angle * Math.PI) / 180) * radius;
-        return (
-          <motion.div
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              width: phase === 'speaking' ? 4 : 3,
-              height: phase === 'speaking' ? 4 : 3,
-              background: color,
-              left: '50%',
-              top: '50%',
-              marginLeft: -1.5,
-              marginTop: -1.5,
-              boxShadow: `0 0 6px ${color}`,
-            }}
-            animate={{
-              x,
-              y,
-              opacity:  [0.4, 1, 0.4],
-              scale:    phase === 'speaking' ? [1, 1.4, 1] : [1, 1.1, 1],
-            }}
-            transition={{
-              duration: phase === 'thinking' ? 1.2 : 2,
-              delay,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-          />
-        );
-      })}
-      {/* Core */}
-      <motion.div
-        className="absolute inset-0 flex items-center justify-center"
-        animate={{ scale: phase !== 'idle' ? [1, 1.05, 1] : 1 }}
-        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center"
-          style={{
-            background: `radial-gradient(circle, ${color}22 0%, transparent 70%)`,
-            border: `1px solid ${color}44`,
-            boxShadow: `0 0 30px ${color}33`,
-          }}
-        >
-          <span style={{ color }} className="text-2xl">◎</span>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
 
 const SpeechRecognitionAPI =
   typeof window !== 'undefined'
@@ -177,7 +116,7 @@ export default function VoiceMode() {
 
       {/* Jarvis orb */}
       <div className="flex flex-col items-center gap-4 py-4">
-        <OrbParticles phase={phase} />
+        <ParticleOrb phase={phase} />
         <motion.div
           className="font-mono text-sm uppercase tracking-[0.3em]"
           style={{ color }}

@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-10-12 — Nexus : idées reprises de JARVIS (TechEnClair)
+
+Comparaison faite avec JARVIS v10.3 ; seules les fonctions absentes ou moins bien faites dans Dzaryx
+ont été ajoutées (réécrites dans le style Nexus, pas copiées). Non testé sur le PC Windows.
+
+### nexus/ — commit « feat: orbe Voice Mode + Nexus »
+- `modules/voice.py` — **voix de secours edge-tts** (`fr-FR-HenriNeural`, gratuite) entre ElevenLabs et
+  pyttsx3 ; lecture via pygame → **parole interruptible** (`voice.stop()`). Env : `EDGE_TTS_VOICE`.
+- `modules/wake_word.py` — **mode conversation** : « Nexus, ouvre Chrome » exécute directement ; session
+  de `NEXUS_SESSION_TIMEOUT` s (30 par défaut) sans redire « Nexus » ; « merci Nexus » / « c'est tout »
+  → veille ; « tais-toi » / « stop » coupe la parole. Plus de conflit micro avec le bouton micro du GUI.
+- `modules/file_manager.py` — **rangement** : « range le bureau » (par type), « … par date » (AAAA-MM),
+  « crée un dossier X », « renomme X en Y », « déplace X dans Y », « annule le rangement ».
+  Raccourcis `.lnk`/`.url`/`desktop.ini` jamais déplacés. Dossiers sans accents reconnus.
+- `modules/vision_click.py` (nouveau) — **clic guidé par la vision** : « clique sur le bouton Envoyer »,
+  « écris bonjour dans la barre de recherche » → capture → Claude Opus 5.5 localise → clic pyautogui.
+  Env : `NEXUS_VISION_CLICK_MODEL`.
+- `nexus.py` — branchement des deux derniers dans le routeur (sections 5c0 et 5d).
+- `requirements.txt` — + edge-tts, pygame, pyperclip.
+
+### Non repris (Dzaryx fait déjà mieux ou inutile)
+Orchestration IA (JSON regex vs tool use Claude), mémoire JSON (Supabase), musique, caméra/écran,
+météo, recherche web, agenda, mobile (ChatInterface > app Compagnon), multi-LLM, serveur WebSocket
+sans auth. Domotique Home Assistant + double clap : seulement si Kouider a un Home Assistant.
+
+---
+
+## 2026-10-12 — Orbe de particules Voice Mode
+
+### mobile/ — commit « feat: orbe Voice Mode + Nexus »
+- **Nouveau** `components/dashboard/panels/ParticleOrb.tsx` — sphère de 420 particules en Canvas 2D
+  (sans dépendance), 4 états idle/listening/thinking/speaking avec transitions douces, prop `volume`
+  optionnelle (pulsation simulée en phase speaking), respecte `prefers-reduced-motion`. ~60 fps.
+- `VoiceMode.tsx` — remplace l'ancien `OrbParticles` (24 points framer-motion) par `ParticleOrb`.
+- Inspiré de l'orbe de JARVIS (TechEnClair) mais **code écrit de zéro** : l'orbe d'origine dérive de
+  `ethanplusai/jarvis`, licence non commerciale → incompatible avec Fik Conciergerie.
+- tsc 0 erreur, build OK.
+
+---
+
 ## 2026-10-12 — Fin du crash loop Redis + VPS Claude opérationnel + jobs réactivés
 
 ### backend/ — Commit `9c81ace`

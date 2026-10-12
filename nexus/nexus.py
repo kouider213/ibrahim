@@ -45,6 +45,7 @@ from modules.input_control    import InputControl
 from modules.app_installer    import AppInstaller
 from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
+from modules                  import vision_click
 
 logging.basicConfig(
     level=logging.INFO,
@@ -391,6 +392,12 @@ class NexusApp:
             await self.journal('🖥️ Analyse écran')
             return
 
+        # ── 5c0. Rangement : trier par type/date, créer, renommer, déplacer, annuler ──
+        organize_result = self.files.try_organize(t)
+        if organize_result:
+            await self._reply(organize_result, source)
+            return
+
         # ── 5c. Phase 4: File Manager ────────────────────────────────────────
         if _FILE_SEND_RE.search(tl):
             m2 = _FILE_SEND_RE.search(tl)
@@ -444,7 +451,18 @@ class NexusApp:
 
         # ── 5d. Phase 4: Input Control ───────────────────────────────────────
         if any(r.search(tl) for r in (_INPUT_CLICK_RE, _INPUT_TYPE_RE, _INPUT_KEY_RE, _INPUT_SCROLL_RE)):
-            result = self.input.try_handle(t)
+            loop = asyncio.get_running_loop()
+            # « écris X dans <champ> » → clic guidé par la vision puis saisie
+            result = None
+            if vision_click.TYPE_IN_RE.search(t):
+                result = await loop.run_in_executor(None, vision_click.try_handle, t)
+            # Coordonnées, touches, scroll, saisie simple
+            result = result or self.input.try_handle(t)
+            # « clique sur le bouton Envoyer » → Claude localise l'élément à l'écran
+            if not result and _INPUT_CLICK_RE.search(tl):
+                await self.gui_send({'type': 'thinking', 'active': True})
+                result = await loop.run_in_executor(None, vision_click.try_handle, t)
+                await self.gui_send({'type': 'thinking', 'active': False})
             if result:
                 if source == 'nexus':
                     await self.speak(result)
