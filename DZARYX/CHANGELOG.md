@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-10-12 — Fin du crash loop Redis + VPS Claude opérationnel + jobs réactivés
+
+### backend/ — Commit `9c81ace`
+- **Garde-fou global** `index.ts` — `process.on('uncaughtException'/'unhandledRejection')` : log sans tuer
+  le process. Cause historique du 502 : Upstash saturé → BullMQ émet event `'error'` non écouté →
+  `uncaughtException` → Node meurt → crash loop.
+- **Listeners `.on('error')`** sur toutes les Queue/Worker BullMQ : `queue.ts` (actions/voice/notify),
+  `scheduler.ts` (queue + worker), `worker.ts` (actions + voice), `proactive-jobs.ts` (smart-alarm).
+- Backend survit maintenant à un Redis HS/saturé (API/chat/sockets restent up). tsc 0 erreur.
+
+### Infra
+- **Jobs réactivés** : `JOBS_ENABLED=true` remis sur Railway prod + redeploy. Logs prod confirment
+  scheduler + reminder-worker actifs, erreur Upstash catchée, health 200. Rappels/briefing de retour.
+- **VPS Hostinger opérationnel** (`45.9.190.54`, Ubuntu 24.04) : repo cloné `/root/dzaryx` (sync `9c81ace`),
+  `.env` transféré, Node v22 + Claude Code 2.1.296, Claude loggé. Permet de bosser PC éteint (tmux).
+  Détail : `DZARYX/SESSION_2026-10-11.md`.
+
 ## 2026-06-11 — Résilience "jamais mort" (crédits finis → bascule auto gratuit)
 
 ### backend/ + simulator/ + .github/ — Commit `72af321`

@@ -2,7 +2,15 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-06-17**.
+> Dernière mise à jour : **2026-10-12**.
+
+---
+
+## ⚡ Session 2026-10-12 (détail : `SESSION_2026-10-11.md` + `AUDIT/10_JOURNAL_SESSION.md`)
+
+- **Crash loop Redis TUÉ** (commit `9c81ace`) : garde-fou global `process.on(uncaughtException/unhandledRejection)` + listeners `.on('error')` sur toutes les Queue/Worker BullMQ. Upstash saturé ne tue plus le backend. Validé en prod (health 200, erreur Upstash catchée).
+- **Jobs réactivés** : `JOBS_ENABLED=true` sur Railway prod (rappels/scheduler/briefing de retour).
+- **VPS Hostinger opérationnel** (`45.9.190.54`, Ubuntu 24.04) : repo `/root/dzaryx` sync `9c81ace`, `.env` transféré, Node v22 + Claude Code loggé → bosser PC éteint (tmux). ⚠️ Backend prod tourne toujours sur **Railway**, pas le VPS ; le VPS a le CODE, pas les services live (DB=Supabase, site=Vercel, app=GitHub Pages, Redis=Upstash).
 
 ---
 

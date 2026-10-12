@@ -25,7 +25,19 @@
 
 ---
 
-## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-06-17)
+## 🟢 ÉTAT ACTUEL (dernière mise à jour : 2026-10-12)
+
+### 2026-10-12 — Fin crash loop Redis + VPS Claude + jobs ON
+- **Quoi** : (1) fix durable backend — garde-fou `process.on(uncaughtException/unhandledRejection)` + listeners `.on('error')` sur toutes les Queue/Worker BullMQ ; (2) `JOBS_ENABLED=true` réactivé sur Railway prod + redeploy ; (3) VPS Hostinger `45.9.190.54` opérationnel (repo `/root/dzaryx` sync `9c81ace`, `.env` transféré, Claude Code loggé — bosser PC éteint via tmux).
+- **Pourquoi** : Upstash saturé émettait un event BullMQ `'error'` non écouté → `uncaughtException` → Node mort → crash loop 502. Les garde-fous empêchent le process de mourir.
+- **Fichiers** : `backend/src/index.ts`, `queue/queue.ts`, `queue/scheduler.ts`, `queue/worker.ts`, `queue/jobs/proactive-jobs.ts`.
+- **Commit** : `9c81ace` (pushé main, Railway redéployé, VPS pullé).
+- **État** : ✅ déployé + validé en prod (logs : scheduler + reminder-worker actifs, erreur Upstash catchée `[fatal] ... process maintenu en vie`, health 200).
+- **⏭️ Prochaine étape** : optionnel — alléger reminder-worker scan /30s→/120s OU upgrade Upstash si logs trop bruyants. Config durable VPS tmux pour claude persistant. Détail complet : `DZARYX/SESSION_2026-10-11.md`.
+
+---
+
+## 🟢 ÉTAT ANTÉRIEUR (2026-06-17)
 
 > **Session 2026-06-17 (grosse) — clôturée proprement, tout déployé + testé.** Voir les entrées `### 2026-06-17` ci-dessous (plus récent en haut). Résumé : widget chatbot tué ; **dates "jours inclus" partout** + CA cohérent + scan passeport→résa (file_url/storage_path NOT NULL) ; rappels à date précise ; fuseau + GPS auto ; **résilience €0 re-prouvée live** (Groq/Gemini, sauf Railway ~5€/mois + domaine ~12€/an) ; **page B2B `/entreprises`** (3 packs, 100% FR/AR/EN, hero S580) + devis entreprise depuis l'app ; **notifs site `await`** (Telegram réparé) + lead→push app ; fiche client éditable + suppr demandes in-app ; **CMS Admin→Contenu** (textes/photos, SQL `0032` lancé ✅) ; photos hero compressées ; hero accueil S580 ; agenda = liste résas du mois. **SW simulateur = v112.** Tous SQL du jour lancés ✅ (0031, nb_days/paid fixes, 0032). Devise reste par-annonce (€/DA) — option taux global discutée, NON faite (choix Kouider : laisser tel quel).
 
@@ -92,7 +104,7 @@ tous OPTIONNELS** (Kouider a explicitement exclu le Play Store pour l'instant) :
 > Simulateur (`OpportunitiesScreen.tsx`, `api.ts`, SW v121→**v122**, déployé gh-pages "Published") + backend (`opportunities.ts`, **non poussé Railway, staged**). tsc 0 erreur (sim + backend).
 - **Bug** : `getAutoOpportunities(force=true)` renvoie l'ancien cache immédiatement (ligne ~133) + lance la régen en fond, MAIS sans signal. Le front ne pollait que si `pending` (absent quand cache présent) → l'UI ne re-fetchait jamais → on voyait toujours l'ancien (figé 08:02).
 - **Fix front (suffit seul)** : `load` mémorise `baseline = updated_at` au moment du force, puis poll toutes les 10s (max 12) tant que `r.updated_at === baseline` (ou `pending`/`refreshing`). Quand la régen finit → cache a un nouveau `updated_at` → stop, affiche le neuf. Bouton "🔎 Analyse…" pendant. Marche MÊME sans redéployer le backend.
-- **Fix backend (bonus, staged)** : `OpportunitiesReport.refreshing?` + `getAutoOpportunities` renvoie `{ ...cached, refreshing: true }` sur force → signal explicite. ⏭️ à pousser sur Railway (git push main) au prochain deploy backend.
+- **Fix backend (bonus)** : `OpportunitiesReport.refreshing?` + `getAutoOpportunities` renvoie `{ ...cached, refreshing: true }` sur force → signal explicite. ✅ Poussé Railway (commit `bc7b56e`, push `b0b3538..bc7b56e main`) — toute la session committée (backend + sources simulateur + journal).
 - **État** : ✅ sim déployé. ⏭️ Kouider : fermer/rouvrir app (SW v122), Opportunités → ↻ Actualiser → "🔎 Analyse…" ~1 min → nouvelles opportunités (favoris gardés).
 
 ### 2026-06-29 (feat) — Favoris sur Opportunités (épinglés, survivent à Actualiser) ⭐⭐
