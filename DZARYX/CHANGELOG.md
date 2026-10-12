@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-12 — Démarchage automatique quotidien + suivi des réponses
+
+### backend
+- `integrations/prospect-autopilot.ts` — job **`prospect-outreach`** (10h Oran, chaque jour) : cherche de NOUVELLES sociétés (agences de voyage, entreprises en mission à Oran, loueurs, immobilier ; requêtes web + LinkedIn en rotation, via Tavily), garde seulement les emails écrits tels quels dans les pages (anti-invention), écrit un mail personnalisé (Sonnet) à partir du site fikconciergerie.com (relu chaque jour) avec le lien du site + mention STOP, envoie 5/jour par défaut (max 15, plafond boîte 30/jour). Jamais 2 fois la même société (doublons email/nom + seuls les `a_contacter` jamais contactés). Récap dans l'app.
+- Job **`prospect-replies`** (toutes les 30 min, 7h-22h) : repère les réponses (même conversation Gmail ou même adresse), STOP → statut stop, rebond → stop, réponse auto ignorée ; sinon résumé + réponse proposée stockée (`suggested_reply`) + notif dans l'app « dis « réponds à X » ».
+- Outils `prospect_replies` (voir la réponse + le texte proposé) et `prospect_autopilot` (état / on / off / nb par jour / lancer maintenant). `draft_email` accepte `reply_to_prospect` → réponse dans la même conversation (In-Reply-To + threadId). L'envoi reste soumis au « oui » de Kouider (`send_email`).
+- `gmail.ts` — `sendEmail` gère les réponses en fil + renvoie `threadId` ; `listInboxMessages`, `getMessageIdHeader`.
+- `prospects.ts` — colonnes de suivi Gmail + table `prospect_autopilot` (créées au boot).
+- Routage : « réponds… » → Claude + outils (plus de fast mode).
+
 ## 2026-10-12 — Fix : web_search jamais exécuté (Tavily ignoré)
 
 ### backend

@@ -35,6 +35,7 @@ import {
   jobOpportunitiesRefresh,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
+import { runDailyOutreach, checkProspectReplies } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { supabase } from '../integrations/supabase.js';
 
@@ -207,6 +208,16 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'prospect-outreach',
+    cron:  '0 10 * * *',            // 10h chaque jour — démarchage auto (nouvelles sociétés, jamais 2 fois la même)
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'prospect-replies',
+    cron:  '*/30 7-22 * * *',       // toutes les 30 min 7h-22h — réponses des prospects → récap dans l'app
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'monthly-excel',
     cron:  '30 9 1 * *',            // 9h30 le 1er du mois — export Excel comptable auto
     tz:    'Africa/Algiers',
@@ -247,6 +258,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'maintenance-alert':       jobMaintenanceAlert,
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
+  'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
+  'prospect-replies':        async () => { await checkProspectReplies(); },
 };
 
 export async function initScheduler(): Promise<void> {

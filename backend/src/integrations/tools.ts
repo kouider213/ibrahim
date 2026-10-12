@@ -888,6 +888,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
         subject:     { type: 'string', description: 'Objet du mail' },
         body:        { type: 'string', description: 'Texte du mail (texte brut, signé "FIK Conciergerie" sauf autre demande)' },
         prospecting: { type: 'boolean', description: 'true si c\'est du démarchage (premier contact commercial) : ajoute la mention de désinscription obligatoire' },
+        reply_to_prospect: { type: 'string', description: 'Pour RÉPONDRE à un prospect qui a écrit (nom de l\'entreprise ou email) : le mail part dans la même conversation, "to" et "subject" sont remplis automatiquement' },
       },
       required: ['to', 'subject', 'body'],
     },
@@ -942,6 +943,26 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
         notes:  { type: 'string', description: 'Note à ajouter' },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'prospect_replies',
+    description: 'Voir les réponses des prospects au démarchage + la réponse que Dzaryx a préparée. Quand Kouider dit "réponds à X", "réponds-lui", "qui a répondu ?" → appeler ceci, puis draft_email avec reply_to_prospect et le texte proposé (adapté à ses consignes éventuelles), puis demander "Je l\'envoie ?".',
+    input_schema: {
+      type: 'object' as const,
+      properties: { query: { type: 'string', description: 'Nom de l\'entreprise ou email (vide = toutes les réponses en attente)' } },
+    },
+  },
+  {
+    name: 'prospect_autopilot',
+    description: 'Démarchage automatique quotidien (10h : nouvelles sociétés trouvées sur le web/LinkedIn, mail avec le lien du site, jamais 2 fois la même). Voir l\'état, l\'activer/le mettre en pause, changer le nombre de mails par jour, ou le lancer tout de suite.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action:  { type: 'string', enum: ['status', 'on', 'off', 'set_per_day', 'run_now'] },
+        per_day: { type: 'number', description: 'Mails de démarchage par jour (1 à 15) pour set_per_day' },
+      },
+      required: ['action'],
     },
   },
   {

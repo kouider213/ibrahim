@@ -211,9 +211,11 @@ export async function countSentToday(account: GmailAccount): Promise<number> {
   return r.messages?.length ?? 0;
 }
 
+export interface ThreadRef { threadId: string; inReplyTo: string }
+
 export async function sendEmail(
-  account: GmailAccount, mail: { to: string; subject: string; body: string },
-): Promise<string> {
+  account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef },
+): Promise<{ id: string; threadId: string }> {
   const address = gmailAddress(account);
   if (!(await canSendEmail(account))) throw new GmailSendNotAllowedError(address);
   const token = await getGmailToken(address);
@@ -222,14 +224,49 @@ export async function sendEmail(
     `From: ${address}`,
     `To: ${mail.to}`,
     `Subject: ${encodeHeader(mail.subject)}`,
+    // Réponse : ces en-têtes + threadId → le mail reste dans la même conversation chez le destinataire
+    ...(mail.reply ? [`In-Reply-To: ${mail.reply.inReplyTo}`, `References: ${mail.reply.inReplyTo}`] : []),
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
     'Content-Transfer-Encoding: base64',
     '',
     Buffer.from(mail.body, 'utf-8').toString('base64').replace(/.{76}/g, '$&\r\n'),
   ].join('\r\n');
-  const { data } = await axios.post<{ id: string }>(`${GMAIL_BASE}/messages/send`,
-    { raw: Buffer.from(raw, 'utf-8').toString('base64url') },
+  const { data } = await axios.post<{ id: string; threadId: string }>(`${GMAIL_BASE}/messages/send`,
+    { raw: Buffer.from(raw, 'utf-8').toString('base64url'), ...(mail.reply ? { threadId: mail.reply.threadId } : {}) },
     { headers: { Authorization: `Bearer ${token}` }, timeout: 15_000 });
-  return data.id;
+  return { id: data.id, threadId: data.threadId };
+}
+
+// ── Suivi des réponses (prospection) ──────────────────────────
+
+export interface InboxMessage {
+  id: string; threadId: string; from: string; fromEmail: string; subject: string; messageId: string; date: number;
+}
+
+/** Messages reçus (pas ceux envoyés par la boîte), avec leur conversation et leur Message-ID. */
+export async function listInboxMessages(account: GmailAccount, query: string, max = 50): Promise<InboxMessage[]> {
+  const address = gmailAddress(account);
+  const list = await gmailGet<{ messages?: { id: string }[] }>(address, '/messages', {
+    q: `${query} -from:me`, maxResults: Math.min(Math.max(max, 1), 100),
+  });
+  return Promise.all((list.messages ?? []).map(async ({ id }) => {
+    const m = await gmailGet<{ id: string; threadId: string; internalDate?: string; payload?: { headers?: Header[] } }>(
+      address, `/messages/${id}`, { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Message-ID'] });
+    const from = header(m.payload?.headers, 'From');
+    return {
+      id: m.id, threadId: m.threadId, from,
+      fromEmail: (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase(),
+      subject: header(m.payload?.headers, 'Subject'),
+      messageId: header(m.payload?.headers, 'Message-ID'),
+      date: Number(m.internalDate ?? 0),
+    };
+  }));
+}
+
+/** Message-ID (en-tête RFC) d'un mail de la boîte — pour y répondre dans la même conversation. */
+export async function getMessageIdHeader(account: GmailAccount, id: string): Promise<string> {
+  const m = await gmailGet<{ payload?: { headers?: Header[] } }>(
+    gmailAddress(account), `/messages/${encodeURIComponent(id)}`, { format: 'metadata', metadataHeaders: ['Message-ID'] });
+  return header(m.payload?.headers, 'Message-ID');
 }

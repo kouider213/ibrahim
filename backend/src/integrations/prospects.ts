@@ -14,6 +14,9 @@ export interface Prospect {
   id: string; company: string; contact_name: string | null; email: string | null; phone: string | null;
   segment: ProspectSegment; city: string; source: string | null; status: ProspectStatus;
   notes: string | null; last_contacted_at: string | null; created_at: string;
+  // Suivi Gmail (démarchage auto) : conversation, dernier mail reçu, réponse proposée par Dzaryx
+  gmail_thread_id: string | null; last_subject: string | null; reply_message_id: string | null;
+  reply_seen_id: string | null; last_reply_text: string | null; suggested_reply: string | null;
 }
 
 const CREATE_SQL = `
@@ -34,24 +37,45 @@ CREATE TABLE IF NOT EXISTS prospects (
 CREATE UNIQUE INDEX IF NOT EXISTS prospects_email_uniq ON prospects (lower(email)) WHERE email IS NOT NULL;
 ALTER TABLE prospects ENABLE ROW LEVEL SECURITY;`;
 
-/** Crée la table au démarrage si absente (via l'API Management Supabase — le service key ne peut pas faire de DDL). */
-export async function ensureProspectsTable(): Promise<void> {
-  const { error } = await supabase.from('prospects').select('id').limit(1);
-  if (!error) return;
+const AUTOPILOT_SQL = `
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS gmail_thread_id  TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_subject     TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS reply_message_id TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS reply_seen_id    TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_reply_text  TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS suggested_reply  TEXT;
+CREATE INDEX IF NOT EXISTS prospects_thread_idx ON prospects (gmail_thread_id);
+CREATE TABLE IF NOT EXISTS prospect_autopilot (
+  id         INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  enabled    BOOLEAN NOT NULL DEFAULT true,
+  per_day    INT NOT NULL DEFAULT 5,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO prospect_autopilot (id) VALUES (1) ON CONFLICT DO NOTHING;
+ALTER TABLE prospect_autopilot ENABLE ROW LEVEL SECURITY;`;
+
+async function runSql(query: string): Promise<boolean> {
   const ref = env.SUPABASE_URL.match(/https:\/\/([^.]+)\./)?.[1];
-  if (!env.SUPABASE_ACCESS_TOKEN || !ref) {
-    console.warn('[prospects] table absente et SUPABASE_ACCESS_TOKEN manquant — création impossible');
-    return;
-  }
+  if (!env.SUPABASE_ACCESS_TOKEN || !ref) return false;
+  const post = (q: string) => axios.post(`https://api.supabase.com/v1/projects/${ref}/database/query`, { query: q },
+    { headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` }, timeout: 20_000 });
+  await post(query);
+  // Recharge le cache de schéma PostgREST pour que les changements soient visibles tout de suite
+  await post("NOTIFY pgrst, 'reload schema';");
+  return true;
+}
+
+/** Crée la table (et les colonnes du démarchage auto) au démarrage si absentes (via l'API Management Supabase — le service key ne peut pas faire de DDL). */
+export async function ensureProspectsTable(): Promise<void> {
   try {
-    await axios.post(`https://api.supabase.com/v1/projects/${ref}/database/query`, { query: CREATE_SQL },
-      { headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` }, timeout: 20_000 });
-    // Recharge le cache de schéma PostgREST pour que la table soit visible tout de suite
-    await axios.post(`https://api.supabase.com/v1/projects/${ref}/database/query`, { query: "NOTIFY pgrst, 'reload schema';" },
-      { headers: { Authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` }, timeout: 20_000 });
-    console.log('[prospects] ✅ table créée');
+    const { error } = await supabase.from('prospects').select('id').limit(1);
+    if (error && await runSql(CREATE_SQL)) console.log('[prospects] ✅ table créée');
+    const { error: colErr } = await supabase.from('prospects').select('suggested_reply').limit(1);
+    const { error: apErr }  = await supabase.from('prospect_autopilot').select('id').limit(1);
+    if ((colErr || apErr) && await runSql(AUTOPILOT_SQL)) console.log('[prospects] ✅ colonnes démarchage auto créées');
+    else if (colErr || apErr) console.warn('[prospects] colonnes absentes et SUPABASE_ACCESS_TOKEN manquant — création impossible');
   } catch (err) {
-    console.error('[prospects] création échouée:', err instanceof Error ? err.message : err);
+    console.error('[prospects] migration échouée:', err instanceof Error ? err.message : err);
   }
 }
 
@@ -96,7 +120,7 @@ export async function findProspect(query: string): Promise<Prospect[]> {
   return (byEmail.data ?? []) as Prospect[];
 }
 
-export async function updateProspect(id: string, patch: Partial<Pick<Prospect, 'status' | 'notes' | 'last_contacted_at' | 'email' | 'phone' | 'contact_name'>>): Promise<void> {
+export async function updateProspect(id: string, patch: Partial<Omit<Prospect, 'id' | 'created_at'>>): Promise<void> {
   const { error } = await supabase.from('prospects').update(patch).eq('id', id);
   if (error) throw new Error(`Mise à jour prospect: ${error.message}`);
 }
@@ -117,4 +141,32 @@ export async function isOptedOut(email: string): Promise<boolean> {
   const { data } = await supabase.from('prospects').select('status').ilike('email', norm(email)).limit(1).maybeSingle();
   const status = (data as { status?: string } | null)?.status;
   return status === 'stop' || status === 'refus';
+}
+
+// ── Démarchage automatique : réglages (une seule ligne) ──
+export interface AutopilotSettings { enabled: boolean; per_day: number }
+
+export async function getAutopilot(): Promise<AutopilotSettings> {
+  const { data } = await supabase.from('prospect_autopilot').select('enabled, per_day').eq('id', 1).maybeSingle();
+  return (data as AutopilotSettings | null) ?? { enabled: false, per_day: 0 };  // table absente → rien n'est envoyé
+}
+
+export async function setAutopilot(patch: Partial<AutopilotSettings>): Promise<AutopilotSettings> {
+  const { data, error } = await supabase.from('prospect_autopilot')
+    .upsert({ id: 1, ...patch, updated_at: new Date().toISOString() }).select('enabled, per_day').single();
+  if (error) throw new Error(`Réglage démarchage: ${error.message}`);
+  return data as AutopilotSettings;
+}
+
+/** Prospects ayant répondu, avec une réponse proposée par Dzaryx en attente de l'accord de Kouider. */
+export async function listPendingReplies(query?: string): Promise<Prospect[]> {
+  let q = supabase.from('prospects').select('*').not('suggested_reply', 'is', null)
+    .order('last_contacted_at', { ascending: false }).limit(10);
+  if (query?.trim()) {
+    const t = query.trim().replace(/[%_,()]/g, '');
+    q = t.includes('@') ? q.ilike('email', norm(t)) : q.ilike('company', `%${t}%`);
+  }
+  const { data, error } = await q;
+  if (error) throw new Error(`Réponses prospects: ${error.message}`);
+  return (data ?? []) as Prospect[];
 }

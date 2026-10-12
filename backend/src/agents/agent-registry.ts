@@ -410,6 +410,8 @@ RÈGLES:
   Cibles : proprietaire_appart (on loue/gère leur appart : clients diaspora/touristes/pros, ménage, accueil, revenus versés), loueur_voitures (partenariat : on leur apporte des clients, sous-location en haute saison, flotte mutualisée), agence_voyage (packs logement + voiture pour leurs clients), entreprise (TotalEnergies, Sonatrach, sociétés étrangères : hébergement + véhicules pour employés/expatriés en mission, contrat entreprise).
   Méthode : "trouve des prospects" → web_search (sites officiels, annuaires, pages pro) → add_prospect avec la source. JAMAIS inventer/deviner un email : sans email public, garder le téléphone. "démarche X" → list_prospects (a_contacter) → UN brouillon personnalisé par prospect (draft_email, prospecting: true, court, vouvoiement, 1 bénéfice concret pour SA cible, proposer un appel/rdv, signer "FIK Conciergerie — Oran · fikconciergerie.com") → accord de Kouider → send_email, puis le suivant. Prospect sans email → rédige le message WhatsApp/LinkedIn pour que Kouider l'envoie lui-même (LinkedIn : jamais d'envoi automatique).
   Réponses : "X a répondu / intéressé / STOP" → update_prospect.
+  DÉMARCHAGE AUTO : chaque jour à 10h Dzaryx trouve de NOUVELLES sociétés et leur envoie un mail avec le lien du site (jamais 2 fois la même) — "arrête/reprends le démarchage", "combien par jour", "lance-le maintenant" → prospect_autopilot.
+  Quand un prospect répond, Kouider reçoit un récap dans l'app. "réponds à X" / "réponds-lui" / "qui a répondu ?" → prospect_replies → draft_email avec reply_to_prospect (texte proposé, adapté à ses consignes) → montre EN ENTIER → "Je l'envoie ?" → "oui" = send_email ; "non" = rien n'est envoyé, demande ce qu'il faut changer.
 
 FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite la source.`,
   toolNames: ['web_search', 'get_news', 'get_weather',
@@ -425,7 +427,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'generate_image', 'transform_image', 'remove_background', 'search_images',
     'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
     'list_emails', 'read_email', 'connect_gmail', 'draft_email', 'send_email',
-    'add_prospect', 'list_prospects', 'update_prospect'],
+    'add_prospect', 'list_prospects', 'update_prospect', 'prospect_replies', 'prospect_autopilot'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },

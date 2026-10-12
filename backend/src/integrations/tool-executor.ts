@@ -16,9 +16,10 @@ import {
 } from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
-import { listEmails, readEmail, sendEmail, canSendEmail, countSentToday, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
+import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
 import { getConversationHistory } from './supabase.js';
-import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type ProspectSegment, type ProspectStatus } from './prospects.js';
+import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
+import { runDailyOutreach } from './prospect-autopilot.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
@@ -336,6 +337,8 @@ async function _dispatch(
       case 'add_prospect':              return await addProspectTool(input);
       case 'list_prospects':            return await listProspectsTool(input);
       case 'update_prospect':           return await updateProspectTool(input);
+      case 'prospect_replies':          return await prospectRepliesTool(input);
+      case 'prospect_autopilot':        return await prospectAutopilotTool(input);
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
       // ─── OBSIDIAN BRAIN ───
@@ -2001,7 +2004,7 @@ const EMAIL_RE        = /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[a-z]{2,}$/i;
 const SEND_CONFIRM_RE = /^\W*(oui|ok|okay|go|vas[- ]y|envoie|envoi|envoies|envoyer?|confirme|valide|c'est bon|parfait|yes)\b/i;
 const PROSPECT_FOOTER = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
 
-interface EmailDraft { to: string; subject: string; body: string; createdAt: number }
+interface EmailDraft { to: string; subject: string; body: string; createdAt: number; reply?: ThreadRef; prospectId?: string }
 // En mémoire (pas Redis : quota Upstash) — perdu au redémarrage, Dzaryx refait alors le brouillon
 const emailDrafts = new Map<string, EmailDraft>();
 const DRAFT_TTL_MS = 24 * 3600_000;
@@ -2009,9 +2012,24 @@ const draftKey = (sessionId: string, id: string) => `${sessionId}:${id}`;
 
 async function draftEmailTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (!sessionId) return '❌ Session inconnue — impossible de préparer un mail.';
-  const to      = String(input['to'] ?? '').trim();
-  const subject = String(input['subject'] ?? '').trim();
+  let   to      = String(input['to'] ?? '').trim();
+  let   subject = String(input['subject'] ?? '').trim();
   let   body    = String(input['body'] ?? '').trim();
+  // Réponse à un prospect : même conversation Gmail, destinataire et objet repris de son mail
+  let reply: ThreadRef | undefined; let prospect: Prospect | undefined;
+  const replyTo = String(input['reply_to_prospect'] ?? '').trim();
+  if (replyTo) {
+    const found = (await listPendingReplies(replyTo)).filter(p => p.email);
+    const candidates = found.length ? found : (await findProspect(replyTo)).filter(p => p.email && p.gmail_thread_id && p.reply_message_id);
+    if (!candidates.length)    return `❌ Aucun prospect "${replyTo}" avec une réponse à laquelle répondre.`;
+    if (candidates.length > 1) return `❓ Plusieurs prospects correspondent : ${candidates.map(p => p.company).join(', ')}. Précise lequel.`;
+    prospect = candidates[0]!;
+    if (!prospect.gmail_thread_id || !prospect.reply_message_id) return `❌ Pas de conversation Gmail connue avec ${prospect.company}.`;
+    reply   = { threadId: prospect.gmail_thread_id, inReplyTo: prospect.reply_message_id };
+    to      = prospect.email!;
+    const base = prospect.last_subject || subject || 'FIK Conciergerie';
+    subject = /^re\s*:/i.test(base) ? base : `Re: ${base}`;
+  }
   if (!EMAIL_RE.test(to))               return `❌ Adresse invalide : "${to}". Une seule adresse, sans nom ni crochets.`;
   if (!subject || /[\r\n]/.test(subject)) return '❌ Objet manquant ou invalide (une seule ligne).';
   if (!body)                            return '❌ Texte du mail vide.';
@@ -2021,10 +2039,10 @@ async function draftEmailTool(input: Record<string, unknown>, sessionId?: string
     return `❌ Dzaryx n'a pas encore la permission d'ENVOYER depuis ${gmailAddress('pro')}. Lien à donner tel quel à Kouider pour reconnecter la boîte (une seule fois) : ${getGmailConnectLink()}`;
   }
   const id = Math.random().toString(36).slice(2, 8);
-  const draft: EmailDraft = { to, subject, body, createdAt: Date.now() };
+  const draft: EmailDraft = { to, subject, body, createdAt: Date.now(), reply, prospectId: prospect?.id };
   for (const [k, d] of emailDrafts) if (Date.now() - d.createdAt > DRAFT_TTL_MS) emailDrafts.delete(k);
   emailDrafts.set(draftKey(sessionId, id), draft);
-  return `📝 Brouillon prêt (draft_id: ${id}) — PAS ENCORE ENVOYÉ.\nDe: ${gmailAddress('pro')}\nÀ: ${to}\nObjet: ${subject}\n\n${body}\n\n` +
+  return `📝 Brouillon prêt (draft_id: ${id}) — PAS ENCORE ENVOYÉ.${prospect ? ` Réponse à ${prospect.company} (même conversation).` : ''}\nDe: ${gmailAddress('pro')}\nÀ: ${to}\nObjet: ${subject}\n\n${body}\n\n` +
     `→ Montre ce brouillon EN ENTIER à Kouider et demande "Je l'envoie ?". N'appelle send_email qu'après son "oui"/"envoie" dans son PROCHAIN message.`;
 }
 
@@ -2068,6 +2086,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
   }
   for (const k of [...emailDrafts.keys()]) if (k.startsWith(prefix)) emailDrafts.delete(k);  // évite un double envoi
   void markProspectContacted(draft.to).catch(() => {});
+  if (draft.prospectId) void updateProspect(draft.prospectId, { suggested_reply: null, last_contacted_at: new Date().toISOString() }).catch(() => {});
   return `✅ Mail envoyé à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;
 }
 
@@ -2105,6 +2124,37 @@ async function listProspectsTool(input: Record<string, unknown>): Promise<string
   return `📋 ${rows.length} prospect(s) :\n` + rows.map(p =>
     `- ${SEGMENT_LABEL[p.segment] ?? p.segment} **${p.company}**${p.contact_name ? ` (${p.contact_name})` : ''} — ${p.email ?? '—'} ${p.phone ? `| ${p.phone}` : ''} | ${p.status}` +
     `${p.last_contacted_at ? ` | contacté le ${p.last_contacted_at.slice(0, 10)}` : ''}${p.notes ? `\n  ${p.notes.slice(0, 120)}` : ''}`).join('\n');
+}
+
+async function prospectRepliesTool(input: Record<string, unknown>): Promise<string> {
+  const rows = await listPendingReplies(input['query'] as string | undefined);
+  if (!rows.length) return '📭 Aucune réponse de prospect en attente.';
+  return rows.map(p =>
+    `📩 **${p.company}** (${p.email}) — statut ${p.status}\n` +
+    `Son mail :\n${(p.last_reply_text ?? '').slice(0, 1500)}\n\n` +
+    `Réponse proposée par Dzaryx :\n${p.suggested_reply}`).join('\n\n———\n\n') +
+    '\n\n→ Pour répondre : draft_email avec reply_to_prospect = le nom de l\'entreprise et body = la réponse proposée (modifiée si Kouider a donné des consignes), puis montre-la EN ENTIER et demande "Je l\'envoie ?".';
+}
+
+async function prospectAutopilotTool(input: Record<string, unknown>): Promise<string> {
+  const action = String(input['action'] ?? 'status');
+  if (action === 'on')  await setAutopilot({ enabled: true });
+  if (action === 'off') await setAutopilot({ enabled: false });
+  if (action === 'set_per_day') {
+    const n = Math.round(Number(input['per_day']));
+    if (!(n >= 1 && n <= 15)) return '❌ Nombre de mails par jour entre 1 et 15.';
+    await setAutopilot({ per_day: n });
+  }
+  if (action === 'run_now') {
+    // Plusieurs minutes (recherche + 20 s entre chaque mail) → en arrière-plan, le récap arrive dans l'app
+    void runDailyOutreach({ force: true }).then(r => console.log(`[prospect-auto] ${r}`))
+      .catch(err => console.error('[prospect-auto] run_now:', err instanceof Error ? err.message : err));
+    return '🚀 Démarchage lancé : je cherche de nouvelles sociétés et j\'envoie les mails. Le récap arrive dans l\'app dans quelques minutes.';
+  }
+  const s = await getAutopilot();
+  const { count } = await supabase.from('prospects').select('id', { count: 'exact', head: true }).not('gmail_thread_id', 'is', null);
+  return `${s.enabled ? '✅ Démarchage auto ACTIF' : '⏸️ Démarchage auto EN PAUSE'} — ${s.per_day} mail(s)/jour à 10h (heure d\'Oran), ` +
+    `nouvelles sociétés uniquement. ${count ?? 0} société(s) démarchée(s) au total.`;
 }
 
 async function updateProspectTool(input: Record<string, unknown>): Promise<string> {
