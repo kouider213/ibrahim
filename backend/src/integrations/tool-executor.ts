@@ -16,7 +16,7 @@ import {
 } from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
-import { listEmails, readEmail, getGmailAuthUrl, gmailAddress, GmailNotConnectedError, type GmailAccount } from './gmail.js';
+import { listEmails, readEmail, getGmailConnectLink, gmailAddress, GmailNotConnectedError, type GmailAccount } from './gmail.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
@@ -1947,7 +1947,7 @@ async function listPersonalEventsTool(input: Record<string, unknown>): Promise<s
 const gmailAccount = (_input: Record<string, unknown>): GmailAccount => 'pro';
 
 function gmailNotConnected(account: GmailAccount): string {
-  return `❌ Gmail ${gmailAddress(account)} pas connecté (ou accès expiré). Lien à ouvrir par Kouider pour connecter : ${getGmailAuthUrl(account)}`;
+  return `❌ Gmail ${gmailAddress(account)} pas connecté (ou accès expiré). Lien à donner tel quel à Kouider pour connecter : ${getGmailConnectLink()}`;
 }
 
 async function listEmailsTool(input: Record<string, unknown>): Promise<string> {
@@ -1984,7 +1984,7 @@ async function readEmailTool(input: Record<string, unknown>): Promise<string> {
 
 function connectGmailTool(input: Record<string, unknown>): string {
   const account = gmailAccount(input);
-  return `🔗 Pour connecter ${gmailAddress(account)} (lecture seule), ouvre ce lien et accepte : ${getGmailAuthUrl(account)}`;
+  return `🔗 Pour connecter ${gmailAddress(account)} (lecture seule), ouvre ce lien et accepte : ${getGmailConnectLink()}\n(Recopie ce lien en entier, en texte brut.)`;
 }
 
 async function deletePersonalEventTool(input: Record<string, unknown>): Promise<string> {

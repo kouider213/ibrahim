@@ -5,7 +5,7 @@ import {
   listPersonalEvents, listHouariEvents,
   createPersonalCalendarEvent, createHouariCalendarEvent,
 } from '../../integrations/google-calendar.js';
-import { exchangeGmailCode, GMAIL_STATE_PREFIX } from '../../integrations/gmail.js';
+import { exchangeGmailCode, getGmailAuthUrl, GMAIL_STATE_PREFIX } from '../../integrations/gmail.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -13,6 +13,12 @@ const router = Router();
 // GET /api/calendar/auth — returns Google OAuth2 URL
 router.get('/auth', requireMobileAuth, (_req, res) => {
   res.json({ url: getAuthUrl() });
+});
+
+// GET /api/calendar/gmail-connect — redirige vers le consentement Google pour fikconciergerie@gmail.com
+// Sans auth : n'ouvre que l'écran Google ; le token est rangé sous l'adresse réellement connectée.
+router.get('/gmail-connect', (_req, res) => {
+  res.redirect(getGmailAuthUrl('pro'));
 });
 
 // GET /api/calendar/callback — OAuth2 callback

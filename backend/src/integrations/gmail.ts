@@ -33,6 +33,11 @@ export function getGmailAuthUrl(account: GmailAccount): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
+/** Lien court et fixe (redirige vers Google) — les LLM recopient mal la longue URL OAuth. */
+export function getGmailConnectLink(): string {
+  return REDIRECT_URI().replace(/\/callback$/, '/gmail-connect');
+}
+
 /** Échange le code OAuth ; retourne l'adresse réellement connectée, ou null. */
 export async function exchangeGmailCode(code: string): Promise<string | null> {
   try {
