@@ -5,6 +5,13 @@
 
 ---
 
+
+## 2026-10-12 — Notifs réparées, page Démarchage, grands comptes, outils Jarvis
+- fix : notifications et tâches planifiées ne dépendent plus d'Upstash Redis (Supabase + croner)
+- fix : une société = un seul mail (doublon Nad Car)
+- feat : page Démarchage dans l'app ; grands comptes + décideurs LinkedIn ; récap du matin
+- feat : convert_currency, get_weather_alerts, get_football
+
 ## 2026-10-12 — Démarchage automatique quotidien + suivi des réponses
 
 ### backend

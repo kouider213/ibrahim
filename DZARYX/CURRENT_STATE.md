@@ -8,6 +8,11 @@
 
 ## ⚡ Session 2026-10-12 (détail : `SESSION_2026-10-11.md` + `AUDIT/10_JOURNAL_SESSION.md`)
 
+- **Notifs + jobs SANS Redis** (`9b5f3fa`) : Upstash était rate-limité → jetons push illisibles (0 notif) + worker BullMQ bloqué (0 briefing, 0 démarchage). Jetons/prefs/abos web/historique → Supabase (`app_kv`, `proactive_history`) ; 35 jobs en process (croner) + verrou `job_runs` ; verrous du jour + rappels via `durableKv`. ⚠️ Kouider doit rouvrir l'app 1 fois pour réenregistrer son jeton push.
+- **Page Démarchage** (app, menu Plus → 📤, SW v123) : stats, pilote auto (pause / mails par jour / lancer), réponses à valider (bouton Envoyer), messages LinkedIn (Copier / Ouvrir / Envoyé), toutes les sociétés. API `/api/prospects/*`.
+- **Grands comptes** : 1/jour (TotalEnergies, Sonatrach, ENI… liste `KEY_ACCOUNTS`) → email public si trouvé + décideurs LinkedIn (Tavily `include_domains`) avec note prête. Dzaryx n'envoie JAMAIS sur LinkedIn. Dédoublonnage par société (nom nettoyé + domaine email).
+- **Briefing 7h30** : + « Ce que j'ai fait hier » (démarchage, réponses, notifs) + alertes météo Oran.
+- **Outils repris de Jarvis** (`72e0dfd`) : `convert_currency` (EUR/USD↔DZD officiel + parallèle), `get_weather_alerts`, `get_football`. Le reste de Jarvis (Spotify, fichiers PC, Home Assistant, clap) = déjà couvert par Nexus ou inutile.
 - **Démarchage auto LIVE** (`4b17e89`, `91d26b6`) : 10h Oran chaque jour, 5 nouvelles sociétés/jour (réglable 1-15, `prospect_autopilot`), mail Sonnet basé sur fikconciergerie.com + lien + STOP. Réponses vérifiées toutes les 30 min → récap app → « réponds à X » → brouillon → oui/non. 1er envoi réel : 13/10 10h. ⚠️ Recherche = Tavily (1000 req/mois gratuites, ~5-8/jour utilisées par le démarchage).
 - **Crash loop Redis TUÉ** (commit `9c81ace`) : garde-fou global `process.on(uncaughtException/unhandledRejection)` + listeners `.on('error')` sur toutes les Queue/Worker BullMQ. Upstash saturé ne tue plus le backend. Validé en prod (health 200, erreur Upstash catchée).
 - **Jobs réactivés** : `JOBS_ENABLED=true` sur Railway prod (rappels/scheduler/briefing de retour).
