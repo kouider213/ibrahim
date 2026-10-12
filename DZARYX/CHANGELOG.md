@@ -6,6 +6,15 @@
 ---
 
 
+## 2026-10-12 (soir) — Démarchage : relance, suivi des visites, contact@, WhatsApp, RDV, bilan | `14bd2bc` + app SW v126
+- feat : relance unique après 5 jours sans réponse, dans la même conversation et la langue du 1er mail (`runFollowUps`)
+- feat : lien de suivi `?ref=` par société (clients → /entreprises) ; job 30 min lit `page_views` → notif « 👀 X vient de visiter ton site »
+- feat : expéditeur `FIK Conciergerie <contact@fikconciergerie.com>` automatique dès que l'alias est validé dans Gmail (sendAs), sinon Gmail
+- feat : partenaires d'Oran sans email mais avec mobile → message WhatsApp préparé (bouton wa.me dans la page)
+- feat : réponse « intéressé » → 3 créneaux libres de l'agenda (freeBusy) dans la réponse + lignes de devis → bouton « Préparer le devis » (page Devis pré-remplie)
+- feat : bilan démarchage chaque lundi 9h (envois, relances, réponses, visites, RDV, taux par type de société et par langue)
+- ⏳ site (`autolux-location`) : `pages/_app.js` doit enregistrer `pathname + search` à la 1re page (commit prêt, push refusé : clé en lecture seule)
+
 ## 2026-10-12 — Notifs réparées, page Démarchage, grands comptes, outils Jarvis
 - fix : notifications et tâches planifiées ne dépendent plus d'Upstash Redis (Supabase + croner)
 - fix : une société = un seul mail (doublon Nad Car)
