@@ -8,6 +8,9 @@
 
 ## ⚡ Session 2026-10-12 (détail : `SESSION_2026-10-11.md` + `AUDIT/10_JOURNAL_SESSION.md`)
 
+- **Upstash supprimé partout** (`499108d`) : `redis` = `KvRedis` (mémoire + Supabase `app_kv`, flush 2 s / SIGTERM). Files BullMQ supprimées. REDIS_URL optionnel.
+- **Démarchage clients + partenaires** (`b3c9fcc`) : ~2/3 clients (entreprises en mission, agences voyage DZ/FR/BE, organismes), ≥1 partenaire/jour (loueurs, résidences, immo) avec mail collaboration. Mail pro dans la langue du destinataire (lit son site) ; colonnes `lang`, `last_sent_text`.
+- ⚠️ **Build app** : TOUJOURS avec `VITE_ACCESS_TOKEN` (sinon 401 / « Hors ligne ») — cf. `HANDOFF/H11`.
 - **Notifs + jobs SANS Redis** (`9b5f3fa`) : Upstash était rate-limité → jetons push illisibles (0 notif) + worker BullMQ bloqué (0 briefing, 0 démarchage). Jetons/prefs/abos web/historique → Supabase (`app_kv`, `proactive_history`) ; 35 jobs en process (croner) + verrou `job_runs` ; verrous du jour + rappels via `durableKv`. ⚠️ Kouider doit rouvrir l'app 1 fois pour réenregistrer son jeton push.
 - **Page Démarchage** (app, menu Plus → 📤, SW v123) : stats, pilote auto (pause / mails par jour / lancer), réponses à valider (bouton Envoyer), messages LinkedIn (Copier / Ouvrir / Envoyé), toutes les sociétés. API `/api/prospects/*`.
 - **Grands comptes** : 1/jour (TotalEnergies, Sonatrach, ENI… liste `KEY_ACCOUNTS`) → email public si trouvé + décideurs LinkedIn (Tavily `include_domains`) avec note prête. Dzaryx n'envoie JAMAIS sur LinkedIn. Dédoublonnage par société (nom nettoyé + domaine email).
