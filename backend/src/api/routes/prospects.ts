@@ -34,7 +34,7 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
         segment: r.segment, city: r.city, source: r.source, status: r.status, notes: r.notes,
         website: r.website ?? null, created_at: r.created_at, last_contacted_at: r.last_contacted_at,
         last_subject: r.last_subject, last_reply_text: r.last_reply_text, suggested_reply: r.suggested_reply,
-        linkedin_contacts: r.linkedin_contacts ?? [],
+        linkedin_contacts: r.linkedin_contacts ?? [], lang: r.lang ?? null, last_sent_text: r.last_sent_text ?? null,
       })),
     });
   } catch (err) {

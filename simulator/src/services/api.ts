@@ -791,6 +791,7 @@ export interface ProspectRow {
   created_at: string; last_contacted_at: string | null; last_subject: string | null;
   last_reply_text: string | null; suggested_reply: string | null;
   linkedin_contacts: Array<{ name: string; title: string; url: string; message: string; sent_at: string | null }>;
+  lang: string | null; last_sent_text: string | null;
 }
 export interface ProspectsOverview {
   autopilot: { enabled: boolean; per_day: number };

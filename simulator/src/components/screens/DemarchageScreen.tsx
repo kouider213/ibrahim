@@ -9,9 +9,11 @@ const C = {
 };
 
 const SEGMENT: Record<string, string> = {
-  grand_compte: '🏭 Grand compte', entreprise: '🏢 Entreprise', agence_voyage: '✈️ Agence de voyage',
-  loueur_voitures: '🚗 Loueur voitures', proprietaire_appart: '🏠 Proprio appart', autre: '• Autre',
+  grand_compte: '🏭 Grand compte', entreprise: '🏢 Entreprise', agence_voyage: '✈️ Agence de voyage', organisme: '🎓 Organisme',
+  loueur_voitures: '🤝 Loueur voitures', proprietaire_appart: '🤝 Proprio appart', autre: '🤝 Résidence / immo',
 };
+const PARTNER = ['loueur_voitures', 'proprietaire_appart', 'autre'];
+const LANG: Record<string, string> = { fr: 'Français', en: 'Anglais', ar: 'Arabe', es: 'Espagnol', it: 'Italien', de: 'Allemand', tr: 'Turc', pt: 'Portugais', nl: 'Néerlandais', zh: 'Chinois', ko: 'Coréen', ja: 'Japonais', ru: 'Russe' };
 const STATUS: Record<string, { label: string; color: string }> = {
   a_contacter: { label: 'À contacter', color: C.muted },
   contacte:    { label: 'Contacté',    color: '#60a5fa' },
@@ -21,9 +23,9 @@ const STATUS: Record<string, { label: string; color: string }> = {
   refus:       { label: 'Pas intéressé', color: C.red },
   stop:        { label: 'STOP',        color: C.red },
 };
-type Filter = 'all' | 'replies' | 'linkedin' | 'grand_compte' | 'contacte' | 'a_contacter' | 'closed';
+type Filter = 'all' | 'clients' | 'partners' | 'replies' | 'linkedin' | 'grand_compte' | 'contacte' | 'a_contacter' | 'closed';
 const FILTERS: Array<{ id: Filter; label: string }> = [
-  { id: 'all', label: 'Tout' }, { id: 'replies', label: '📩 Réponses' }, { id: 'linkedin', label: '🔗 LinkedIn' },
+  { id: 'all', label: 'Tout' }, { id: 'clients', label: '🎯 Clients' }, { id: 'partners', label: '🤝 Partenaires' }, { id: 'replies', label: '📩 Réponses' }, { id: 'linkedin', label: '🔗 LinkedIn' },
   { id: 'grand_compte', label: '🏭 Grands comptes' }, { id: 'contacte', label: 'Contactés' },
   { id: 'a_contacter', label: 'À contacter' }, { id: 'closed', label: 'Refus / STOP' },
 ];
@@ -57,6 +59,8 @@ export default function DemarchageScreen() {
   const list = rows.filter(r => {
     if (ql && !`${r.company} ${r.email ?? ''} ${r.notes ?? ''}`.toLowerCase().includes(ql)) return false;
     switch (filter) {
+      case 'clients':      return !PARTNER.includes(r.segment);
+      case 'partners':     return PARTNER.includes(r.segment);
       case 'replies':      return !!r.last_reply_text || !!r.suggested_reply;
       case 'linkedin':     return r.linkedin_contacts.length > 0;
       case 'grand_compte': return r.segment === 'grand_compte';
@@ -196,7 +200,7 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.company}</div>
           <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {SEGMENT[p.segment] ?? p.segment} · {p.last_contacted_at ? `contacté le ${fmtDate(p.last_contacted_at)}` : `trouvé le ${fmtDate(p.created_at)}`}
+            {SEGMENT[p.segment] ?? p.segment}{p.lang && p.lang !== 'fr' ? ` · ${(LANG[p.lang] ?? p.lang).toLowerCase()}` : ''} · {p.last_contacted_at ? `contacté le ${fmtDate(p.last_contacted_at)}` : `trouvé le ${fmtDate(p.created_at)}`}
             {p.linkedin_contacts.length ? ` · 🔗 ${p.linkedin_contacts.length}` : ''}
           </div>
         </div>
@@ -207,7 +211,10 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
           {p.email && <div>✉️ <a href={`mailto:${p.email}`} style={{ color: '#7fb5ff' }}>{p.email}</a></div>}
           {p.phone && <div>📞 <a href={`tel:${p.phone}`} style={{ color: '#7fb5ff' }}>{p.phone}</a></div>}
           {p.website && <div>🌐 {p.website}</div>}
+          {p.lang && <div>🌐 Mail écrit en {LANG[p.lang] ?? p.lang}</div>}
           {p.last_subject && <div>📨 Objet : {p.last_subject}</div>}
+          {p.last_sent_text && <details style={{ marginTop: 4 }}><summary style={{ cursor: 'pointer', color: C.gold }}>Voir le mail envoyé</summary>
+            <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 260, overflowY: 'auto' }}>{p.last_sent_text}</div></details>}
           {p.source && <div style={{ color: C.muted, wordBreak: 'break-all' }}>Source : {/^https?:/.test(p.source) ? <a href={p.source} target="_blank" rel="noreferrer" style={{ color: C.muted }}>{p.source}</a> : p.source}</div>}
           {p.linkedin_contacts.map((c, i) => (
             <div key={i} style={{ marginTop: 4 }}>🔗 <a href={c.url} target="_blank" rel="noreferrer" style={{ color: '#7fb5ff' }}>{c.name}</a> — {c.title} {c.sent_at ? <span style={{ color: C.accent }}>· envoyé</span> : ''}</div>

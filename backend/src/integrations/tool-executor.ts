@@ -2097,7 +2097,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
 // ── Prospection B2B ──
 const SEGMENT_LABEL: Record<ProspectSegment, string> = {
   proprietaire_appart: '🏠 Proprio appart', loueur_voitures: '🚗 Loueur voitures',
-  agence_voyage: '✈️ Agence de voyage', entreprise: '🏢 Entreprise', grand_compte: '🏭 Grand compte', autre: '• Autre',
+  agence_voyage: '✈️ Agence de voyage', entreprise: '🏢 Entreprise', grand_compte: '🏭 Grand compte', organisme: '🎓 Organisme', autre: '• Autre',
 };
 
 async function addProspectTool(input: Record<string, unknown>): Promise<string> {

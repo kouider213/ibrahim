@@ -4,7 +4,7 @@ import { runSql } from './app-store.js';
 // Prospection B2B de FIK Conciergerie (Oran) : propriétaires d'appartements, loueurs de voitures,
 // agences de voyage, entreprises (TotalEnergies…). Distinct de client_leads (clients qui CHERCHENT un bien).
 
-export const PROSPECT_SEGMENTS = ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'autre'] as const;
+export const PROSPECT_SEGMENTS = ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'organisme', 'autre'] as const;
 export const PROSPECT_STATUSES = ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] as const;
 export type ProspectSegment = typeof PROSPECT_SEGMENTS[number];
 export type ProspectStatus  = typeof PROSPECT_STATUSES[number];
@@ -18,6 +18,8 @@ export interface Prospect {
   reply_seen_id: string | null; last_reply_text: string | null; suggested_reply: string | null;
   // Grands comptes : décideurs trouvés sur LinkedIn + message préparé (Kouider l'envoie lui-même)
   website: string | null; linkedin_contacts: LinkedinContact[];
+  // Langue du mail envoyé (fr, en, ar…) + son texte, pour que Kouider le relise dans la page
+  lang: string | null; last_sent_text: string | null;
 }
 
 export interface LinkedinContact { name: string; title: string; url: string; message: string; sent_at: string | null }
@@ -61,6 +63,10 @@ const LINKEDIN_SQL = `
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS website           TEXT;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS linkedin_contacts JSONB NOT NULL DEFAULT '[]'::jsonb;`;
 
+const LANG_SQL = `
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS lang           TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_sent_text TEXT;`;
+
 /** Crée la table (et les colonnes du démarchage auto) au démarrage si absentes (via l'API Management Supabase — le service key ne peut pas faire de DDL). */
 export async function ensureProspectsTable(): Promise<void> {
   try {
@@ -72,6 +78,8 @@ export async function ensureProspectsTable(): Promise<void> {
     else if (colErr || apErr) console.warn('[prospects] colonnes absentes et SUPABASE_ACCESS_TOKEN manquant — création impossible');
     const { error: liErr } = await supabase.from('prospects').select('linkedin_contacts').limit(1);
     if (liErr && await runSql(LINKEDIN_SQL)) console.log('[prospects] ✅ colonnes grands comptes / LinkedIn créées');
+    const { error: langErr } = await supabase.from('prospects').select('last_sent_text').limit(1);
+    if (langErr && await runSql(LANG_SQL)) console.log('[prospects] ✅ colonnes langue / texte envoyé créées');
   } catch (err) {
     console.error('[prospects] migration échouée:', err instanceof Error ? err.message : err);
   }

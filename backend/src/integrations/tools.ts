@@ -939,7 +939,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
       type: 'object' as const,
       properties: {
         company:      { type: 'string', description: 'Nom de l\'entreprise ou du propriétaire' },
-        segment:      { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'autre'], description: 'Type de prospect' },
+        segment:      { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'organisme', 'autre'], description: 'Type de prospect' },
         email:        { type: 'string', description: 'Email public (optionnel si téléphone)' },
         phone:        { type: 'string', description: 'Téléphone/WhatsApp public (optionnel)' },
         contact_name: { type: 'string', description: 'Nom du contact (optionnel)' },
@@ -956,7 +956,7 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     input_schema: {
       type: 'object' as const,
       properties: {
-        segment: { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'autre'] },
+        segment: { type: 'string', enum: ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'organisme', 'autre'] },
         status:  { type: 'string', enum: ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] },
         limit:   { type: 'number', description: 'Défaut 20' },
       },
