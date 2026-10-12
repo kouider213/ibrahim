@@ -1943,7 +1943,8 @@ async function listPersonalEventsTool(input: Record<string, unknown>): Promise<s
   }).join('\n')}`;
 }
 
-const gmailAccount = (input: Record<string, unknown>): GmailAccount => input['account'] === 'pro' ? 'pro' : 'perso';
+// Seule la boîte fikconciergerie@gmail.com est lue (demande Kouider 2026-10-12)
+const gmailAccount = (_input: Record<string, unknown>): GmailAccount => 'pro';
 
 function gmailNotConnected(account: GmailAccount): string {
   return `❌ Gmail ${gmailAddress(account)} pas connecté (ou accès expiré). Lien à ouvrir par Kouider pour connecter : ${getGmailAuthUrl(account)}`;

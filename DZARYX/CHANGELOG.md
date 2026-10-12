@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-12 — Gmail limité à fikconciergerie@gmail.com
+
+### backend/
+- `integrations/tool-executor.ts` / `tools.ts` — les outils `list_emails`, `read_email`, `connect_gmail` lisent
+  uniquement `fikconciergerie@gmail.com` (paramètre `account` retiré, demande Kouider). La boîte perso n'est plus proposée.
+
+---
+
 ## 2026-10-12 — Lecture Gmail (lecture seule)
 
 ### backend/
