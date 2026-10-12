@@ -8,6 +8,7 @@
 
 ## ⚡ Session 2026-10-12 (détail : `SESSION_2026-10-11.md` + `AUDIT/10_JOURNAL_SESSION.md`)
 
+- **Démarchage auto LIVE** (`4b17e89`, `91d26b6`) : 10h Oran chaque jour, 5 nouvelles sociétés/jour (réglable 1-15, `prospect_autopilot`), mail Sonnet basé sur fikconciergerie.com + lien + STOP. Réponses vérifiées toutes les 30 min → récap app → « réponds à X » → brouillon → oui/non. 1er envoi réel : 13/10 10h. ⚠️ Recherche = Tavily (1000 req/mois gratuites, ~5-8/jour utilisées par le démarchage).
 - **Crash loop Redis TUÉ** (commit `9c81ace`) : garde-fou global `process.on(uncaughtException/unhandledRejection)` + listeners `.on('error')` sur toutes les Queue/Worker BullMQ. Upstash saturé ne tue plus le backend. Validé en prod (health 200, erreur Upstash catchée).
 - **Jobs réactivés** : `JOBS_ENABLED=true` sur Railway prod (rappels/scheduler/briefing de retour).
 - **VPS Hostinger opérationnel** (`45.9.190.54`, Ubuntu 24.04) : repo `/root/dzaryx` sync `9c81ace`, `.env` transféré, Node v22 + Claude Code loggé → bosser PC éteint (tmux). ⚠️ Backend prod tourne toujours sur **Railway**, pas le VPS ; le VPS a le CODE, pas les services live (DB=Supabase, site=Vercel, app=GitHub Pages, Redis=Upstash).
