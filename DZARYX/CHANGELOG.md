@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-10-12 — Lecture Gmail (lecture seule)
+
+### backend/
+- **Nouveau** `integrations/gmail.ts` — OAuth Gmail (`gmail.readonly`) pour `kouiderpablo@gmail.com` (perso, défaut)
+  et `fikconciergerie@gmail.com` (pro). Tokens dans `google_oauth_tokens` sous `gmail:<adresse>` (n'écrase pas
+  le token agenda). Refresh auto ; si révoqué → l'outil renvoie le lien de reconnexion.
+- Outils Claude : `list_emails` (recherche Gmail, non lus, max 25), `read_email` (texte, HTML converti, 6000 car.),
+  `connect_gmail` (donne le lien de connexion). Contenu des mails balisé comme externe (anti prompt-injection).
+- `api/routes/calendar.ts` — le callback OAuth existant gère aussi Gmail via `state=gmail:…`
+  → aucune nouvelle URI de redirection à déclarer dans Google Cloud.
+- **À faire par Kouider** : activer l'API Gmail dans le projet Google Cloud, puis demander « connecte mes mails »
+  et ouvrir le lien.
+
+---
+
 ## 2026-10-12 — Nexus : idées reprises de JARVIS (TechEnClair)
 
 Comparaison faite avec JARVIS v10.3 ; seules les fonctions absentes ou moins bien faites dans Dzaryx

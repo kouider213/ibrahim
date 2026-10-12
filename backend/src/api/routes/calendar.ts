@@ -5,6 +5,7 @@ import {
   listPersonalEvents, listHouariEvents,
   createPersonalCalendarEvent, createHouariCalendarEvent,
 } from '../../integrations/google-calendar.js';
+import { exchangeGmailCode, GMAIL_STATE_PREFIX } from '../../integrations/gmail.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -19,6 +20,17 @@ router.get('/callback', async (req, res) => {
   const code = req.query['code'] as string | undefined;
   if (!code) {
     res.status(400).send('Missing code');
+    return;
+  }
+  // Connexion Gmail : même URI de callback, distinguée par le paramètre state
+  const state = req.query['state'] as string | undefined;
+  if (state?.startsWith(GMAIL_STATE_PREFIX)) {
+    const address = await exchangeGmailCode(code);
+    if (address) {
+      res.send(`<html><body><h2>✅ Gmail connecté pour ${address.replace(/[<>&"]/g, '')} !</h2><p>Dzaryx peut maintenant lire tes mails (lecture seule). Tu peux fermer cette page.</p></body></html>`);
+    } else {
+      res.status(500).send('Connexion Gmail échouée');
+    }
     return;
   }
   const ok = await exchangeCodeForTokens(code);
