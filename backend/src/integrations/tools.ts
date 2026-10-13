@@ -2049,6 +2049,72 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
 
+  {
+    name: 'forget_learned_rule',
+    description: 'Oublier (désactiver) une règle apprise par Dzaryx, y compris celles apprises automatiquement après une conversation. Utiliser quand l\'utilisateur dit "oublie la règle …", "c\'est faux ce que tu as retenu", "efface ce que tu as appris sur …".',
+    input_schema: {
+      type: 'object' as const,
+      properties: { rule: { type: 'string', description: 'Quelques mots de la règle à oublier (ex: "Clio 35")' } },
+      required: ['rule'],
+    },
+  },
+  {
+    name: 'create_mission',
+    description: 'Créer une MISSION PERMANENTE : une tâche que Dzaryx fait seul, régulièrement, et dont il rapporte le résultat (notif, appel si important). Ex : "chaque lundi à 9h regarde les prix des loueurs concurrents à Oran et dis-moi si je suis trop cher", "tous les matins vérifie si un client n\'a pas payé depuis 3 jours", "chaque vendredi fais-moi le point des réservations du week-end". Dzaryx n\'y fait QUE lire/chercher : il ne modifie et n\'envoie rien, il propose. Pour un simple rappel ponctuel, utiliser schedule_reminder.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title:       { type: 'string', description: 'Nom court (ex: "Prix concurrents")' },
+        instruction: { type: 'string', description: 'Ce que Dzaryx doit faire à chaque fois, précis et autonome' },
+        cron:        { type: 'string', description: 'Horaire cron 5 champs, heure de Bruxelles (ex: "0 9 * * 1" = lundi 9h, "30 8 * * *" = chaque jour 8h30, "0 18 * * 5" = vendredi 18h). Max une fois par heure.' },
+        when:        { type: 'string', description: 'Le même horaire en clair (ex: "chaque lundi à 9h")' },
+        delivery:    { type: 'string', enum: ['notif', 'call', 'call_if_important'], description: 'notif = notification seulement ; call = appel à chaque fois ; call_if_important (défaut) = appel seulement si Kouider doit agir' },
+        always_report: { type: 'boolean', description: 'true = rapport même quand il n\'y a rien à signaler (défaut false = silence)' },
+      },
+      required: ['instruction', 'cron', 'when'],
+    },
+  },
+  {
+    name: 'list_missions',
+    description: 'Lister les missions permanentes de Dzaryx (actives / en pause, prochaine exécution, dernier résultat). "quelles sont tes missions", "qu\'est-ce que tu surveilles".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'update_mission',
+    description: 'Modifier, mettre en pause, reprendre ou supprimer une mission permanente ("arrête la mission prix concurrents", "passe-la au mardi", "supprime-la").',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        mission:     { type: 'string', description: 'Nom (ou mots) de la mission' },
+        active:      { type: 'boolean', description: 'false = pause, true = reprendre' },
+        delete:      { type: 'boolean', description: 'true = supprimer' },
+        cron:        { type: 'string', description: 'Nouvel horaire cron (heure de Bruxelles)' },
+        when:        { type: 'string', description: 'Nouvel horaire en clair' },
+        instruction: { type: 'string', description: 'Nouvelle consigne' },
+        delivery:    { type: 'string', enum: ['notif', 'call', 'call_if_important'] },
+        always_report: { type: 'boolean' },
+      },
+      required: ['mission'],
+    },
+  },
+  {
+    name: 'run_mission_now',
+    description: 'Exécuter une mission permanente tout de suite et donner le résultat ("fais la mission prix concurrents maintenant").',
+    input_schema: {
+      type: 'object' as const,
+      properties: { mission: { type: 'string', description: 'Nom (ou mots) de la mission' } },
+      required: ['mission'],
+    },
+  },
+  {
+    name: 'prepare_meeting',
+    description: 'Préparer un rendez-vous de l\'agenda : fiche sur la personne/société (prospect, mails échangés, client connu, locations passées, quoi proposer). Ex : "prépare-moi mon RDV de 15h", "prépare le RDV avec Sonatrach". Sans précision = le prochain RDV. (Dzaryx le fait aussi tout seul ~1 h avant chaque RDV.)',
+    input_schema: {
+      type: 'object' as const,
+      properties: { query: { type: 'string', description: 'Heure ("15h") ou mots du RDV (nom, société). Vide = prochain RDV' } },
+    },
+  },
+
   // ─── CONTRAT PDF (Phase 8.2) ──────────────────────────────────────
   {
     name: 'generate_contract',

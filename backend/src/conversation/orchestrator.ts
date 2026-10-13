@@ -1,6 +1,7 @@
 ﻿import { buildContext }                          from './context-builder.js';
 import { preprocessMessage, setPendingAction }    from './engine-v2.js';
 import { autoExtractMemory }                      from './auto-memory.js';
+import { noteOwnerTurn }                          from './self-learning.js';
 import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
@@ -162,6 +163,8 @@ export async function processMessage(
     // Auto-extract memory facts from user message (non-blocking, background)
     autoExtractMemory(userMessage, actorUserId).catch(() => {}),
   ]);
+  // Apprentissage automatique : relecture de la conversation 10 min après le dernier message
+  noteOwnerTurn(sessionId, actorUserId);
 
   // Inject V2 pending-action context into system extra if present
   if (v2ContextAddition) {

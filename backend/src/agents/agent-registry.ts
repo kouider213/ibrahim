@@ -242,7 +242,7 @@ const MEMORY_AGENT: AgentDefinition = {
 SPÉCIALITÉ: mémoriser, retrouver, apprendre des règles, préférences Kouider, rapports d'évolution.
 TOUJOURS: confirmer ce qui a été mémorisé, citer la source si rappel.`,
   toolNames: [
-    'remember_info','recall_memory','learn_rule','get_kouider_preferences',
+    'remember_info','recall_memory','learn_rule','get_kouider_preferences','list_learned_rules','forget_learned_rule',
     'get_monthly_improvement_report','get_learning_evolution','record_feedback','track_habit',
   ],
   keywords:  /\b(souviens|rappelle|mémorise|retiens|oublie|préférence|habitude|apprentissage|évolution|amélioration|feedback|règle|routine|tracker|suivi|prends?\s+l.habitude)\b/i,
@@ -436,14 +436,33 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'list_emails', 'read_email', 'connect_gmail', 'draft_email', 'send_email',
     'create_google_doc', 'create_google_sheet',
     'add_prospect', 'list_prospects', 'update_prospect', 'prospect_replies', 'prospect_autopilot',
-    'call_me'],
+    'call_me', 'create_mission', 'list_missions', 'update_mission', 'run_mission_now', 'prepare_meeting'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
 };
 
+// ── Agent Missions & RDV : missions permanentes (idée OpenClaw) + préparation de RDV ─────────────
+const MISSION_AGENT: AgentDefinition = {
+  id:   'missions',
+  name: '🎯 Agent Missions',
+  systemExtra: `Tu es l'Agent Missions de Dzaryx.
+MISSIONS PERMANENTES : quand Kouider confie une tâche RÉGULIÈRE (« chaque lundi… », « tous les matins vérifie… »,
+« surveille… et préviens-moi »), crée-la avec create_mission : instruction précise et autonome, cron 5 champs en heure
+de Bruxelles, horaire en clair. Relis-lui : quoi, quand, comment il sera prévenu. Une mission ne fait que LIRE et
+PROPOSER (jamais d'envoi ni de modification automatique) — dis-le s'il demande une action automatique.
+Rappel ponctuel (« rappelle-moi demain à 9h ») → schedule_reminder, pas une mission.
+RDV : « prépare-moi mon RDV de 15h » → prepare_meeting. Dzaryx prépare aussi seul chaque RDV ~1 h avant (notif + appel).`,
+  toolNames: ['create_mission', 'list_missions', 'update_mission', 'run_mission_now', 'prepare_meeting',
+    'schedule_reminder', 'list_calendar_events', 'list_personal_events', 'list_prospects', 'web_search'],
+  keywords: /\bmissions?\b|pr[eé]pare[\s-](?:moi\s+)?(?:mon|le|ce|mes)\s+(?:rdv|rendez[\s-]vous|r[eé]union)|\b(?:chaque|tous\s+les|toutes\s+les)\s+(?:jours?|matins?|soirs?|semaines?|mois|lundis?|mardis?|mercredis?|jeudis?|vendredis?|samedis?|dimanches?|heures?)\b[^.?!]*\b(?:v[eé]rifie|surveille|regarde|cherche|fais[\s-]moi|dis[\s-]moi|pr[eé]viens|analyse|compare|contr[oô]le)/i,
+  priority:  11,
+  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.3, maxTokens: 1200, fallback: 'openai' },
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 export const AGENT_REGISTRY: AgentDefinition[] = [
+  MISSION_AGENT,
   BOOKING_AGENT,
   FINANCE_AGENT,
   CODE_AGENT,

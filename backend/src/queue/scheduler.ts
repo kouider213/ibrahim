@@ -43,6 +43,8 @@ import { flushAutoCalls } from '../notifications/auto-call.js';
 import { jobDailyRecapCall, jobMailReplyCall, jobRentalEveCall } from './jobs/call-jobs.js';
 import { jobCarPapersCall } from '../integrations/car-papers.js';
 import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
+import { jobMissions } from '../integrations/missions.js';
+import { jobMeetingPrep } from '../integrations/meeting-prep.js';
 import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
 
 const SCHEDULER_QUEUE = 'in-process';
@@ -270,6 +272,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'missions',
+    cron:  '*/5 * * * *',           // toutes les 5 min — missions permanentes confiées par Kouider (create_mission)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'meeting-prep',
+    cron:  '*/10 * * * *',          // toutes les 10 min — fiche + appel ~1 h avant chaque RDV de l'agenda
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'mail-reply-call',
     cron:  '*/15 * * * *',          // toutes les 15 min — quelqu'un a répondu à un mail de Kouider → appel (la nuit : mis en file pour 8h)
     tz:    'Europe/Brussels',
@@ -319,6 +331,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'mail-reply-call':         async () => { await jobMailReplyCall(); },
   'car-papers-call':         async () => { await jobCarPapersCall(); },
   'rental-eve-call':         async () => { await jobRentalEveCall(); },
+  'missions':                async () => { await jobMissions(); },
+  'meeting-prep':            async () => { await jobMeetingPrep(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
   'prospect-replies':        async () => {
     await checkProspectReplies();

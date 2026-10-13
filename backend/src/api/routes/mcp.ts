@@ -2,26 +2,14 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { extractBearerToken, validateToken, identifyMobileActor } from '../../auth/tokens.js';
 import { executeTool } from '../../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../../integrations/tools.js';
+import { READ_TOOLS } from '../../integrations/readonly-agent.js';
 
 // Outils Dzaryx pour d'autres IA (Claude Code, Cursor, Claude Desktop…) via le serveur MCP de Nexus
 // (nexus/mcp_server.py). Idée reprise de bertrandmbanwi/Jarvis (MCP serveur).
 // LECTURE SEULE : aucune écriture, aucun envoi, aucune exécution par cette porte. Les actions passent
 // toujours par Dzaryx (app, Telegram, appel) avec ses confirmations.
 
-const READ_TOOLS = new Set([
-  'list_bookings', 'get_financial_report', 'get_client_profile', 'get_client_brain', 'read_site_file',
-  'recall_memory', 'get_weather', 'convert_currency', 'get_weather_alerts', 'get_football', 'get_news',
-  'github_read_file', 'github_list_files', 'github_search_code', 'get_payment_status',
-  'get_revenue_report', 'get_late_returns', 'get_unpaid_bookings', 'get_finance_dashboard', 'check_anomalies',
-  'get_monthly_improvement_report', 'get_learning_evolution', 'get_kouider_preferences', 'check_car_availability',
-  'web_search', 'search_images', 'list_personal_events', 'list_emails', 'read_email', 'list_prospects',
-  'prospect_replies', 'list_calendar_events', 'get_fleet_status', 'get_car_photo', 'list_properties',
-  'get_property_photo', 'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'list_packs', 'list_leads',
-  'get_daily_report', 'get_client_history', 'obsidian_read_client', 'obsidian_list_clients', 'obsidian_read_note',
-  'health_check_all', 'get_site_analytics', 'list_reviews', 'get_travel_time', 'calculate_delivery_fee',
-  'get_vehicle_states', 'get_property_states', 'list_learned_rules', 'suggest_smart_pricing', 'get_car_papers',
-  'check_client', 'get_expenses', 'get_vehicle_maintenance',
-]);
+// Liste blanche partagée avec les missions et la préparation de RDV : integrations/readonly-agent.ts
 
 // Kouider seulement : token mobile de Kouider ou token de l'agent PC (Nexus)
 function requireOwner(req: Request, res: Response, next: NextFunction): void {

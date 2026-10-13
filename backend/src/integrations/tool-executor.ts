@@ -72,7 +72,9 @@ import {
 } from './improvement-report.js';
 import { sendWhatsApp } from './whatsapp.js';
 import { generateReservationVoucher } from './generate-voucher.js';
-import { getLearnedRules, saveLearnedRule, formatRulesForContext } from './learned-rules.js';
+import { getLearnedRules, saveLearnedRule, formatRulesForContext, deactivateRule } from './learned-rules.js';
+import { createMissionTool, listMissionsTool, updateMissionTool, runMissionNowTool } from './missions.js';
+import { prepareMeetingTool } from './meeting-prep.js';
 import { generateRentalContract } from './generate-contract.js';
 import { exportBookingsToExcel } from './excel-export.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
@@ -462,6 +464,12 @@ async function _dispatch(
       // ─── RÈGLES APPRISES (Phase 8) ───
       case 'save_learned_rule':          return await saveLearnedRuleTool(input, sessionId);
       case 'list_learned_rules':         return await listLearnedRulesTool(input, sessionId);
+      case 'forget_learned_rule':        return await forgetLearnedRuleTool(input, sessionId);
+      case 'create_mission':             return await createMissionTool(input, sessionId);
+      case 'list_missions':              return await listMissionsTool();
+      case 'update_mission':             return await updateMissionTool(input);
+      case 'run_mission_now':            return await runMissionNowTool(input);
+      case 'prepare_meeting':            return await prepareMeetingTool(input);
       // ─── CONTRAT PDF (Phase 8.2) ───
       case 'generate_contract':          return await generateContractTool(input, sessionId);
       // ─── EXPORT EXCEL (Phase 8.5) ───
@@ -2367,6 +2375,25 @@ async function listLearnedRulesTool(input: Record<string, unknown>, sessionId?: 
   const filtered  = category ? rules.filter(r => r.category === category) : rules;
   if (!filtered.length) return 'ℹ️ Aucune règle apprise pour le moment.';
   return `📚 ${filtered.length} règle(s) apprise(s) pour ${ownerKey}:\n\n${formatRulesForContext(filtered)}`;
+}
+
+async function forgetLearnedRuleTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const ownerKey = sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider';
+  const words = String(input['rule'] ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9€]+/).filter(w => w.length > 1);
+  if (!words.length) return '❌ Dis-moi quelques mots de la règle à oublier.';
+  const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const scored = (await getLearnedRules(ownerKey, 100))
+    .filter(r => r.owner_key === ownerKey)
+    .map(r => ({ r, score: words.filter(w => norm(r.rule).includes(w)).length }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (!scored.length) return `❌ Aucune règle ne correspond à « ${input['rule']} ». Dis « quelles règles tu connais » pour la liste.`;
+  if (scored.length > 1 && scored[0]!.score === scored[1]!.score) {
+    return `Plusieurs règles correspondent, laquelle ?\n${scored.slice(0, 4).map(x => `• ${x.r.rule}`).join('\n')}`;
+  }
+  const best = scored[0]!.r;
+  return (await deactivateRule(best.id)) ? `🗑️ J'ai oublié : « ${best.rule} »` : '❌ Erreur, la règle n\'a pas pu être effacée.';
 }
 
 async function generateContractTool(input: Record<string, unknown>, _sessionId?: string): Promise<string> {
