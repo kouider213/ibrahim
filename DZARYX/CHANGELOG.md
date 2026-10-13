@@ -22,8 +22,7 @@
   Bundesliga, Serie A ; saison en cours auto). Base gratuite TheSportsDB = top 5.
 - `integrations/google-docs.ts` (nouveau) — outils **`create_google_doc`** et **`create_google_sheet`** (Drive de
   fikconciergerie@gmail.com, renvoient le lien). Permission `drive.file` ajoutée à la connexion Gmail (Dzaryx ne
-  voit que les fichiers qu'il crée). **À faire par Kouider** : reconnecter Gmail (connect_gmail) + activer
-  Google Docs API et Google Sheets API dans le projet Google Cloud.
+  voit que les fichiers qu'il crée). Gmail reconnecté + API Docs/Sheets activées le 13/10 → **testé OK par Kouider**.
 
 ## 2026-10-13 — Dzaryx sur Telegram : vrais appels vocaux sans Twilio (en attente du compte)
 - `tgcall/` : service Python (pyrofork + py-tgcalls) sur le VPS, connecté à un compte Telegram « Dzaryx » (pas de pièce d'identité, juste un numéro)
