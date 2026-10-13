@@ -1,6 +1,10 @@
 import { Router, type Request } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { answerCall, declineCall, getPendingCall, callOwner, type CallActor } from '../../notifications/voice-call.js';
+import { processMessage } from '../../conversation/orchestrator.js';
+import { synthesizeVoice } from '../../notifications/dispatcher.js';
+import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
+import { env } from '../../config/env.js';
 
 const router = Router();
 
@@ -39,6 +43,26 @@ router.post('/decline', requireMobileAuth, async (req, res) => {
 router.post('/test', requireMobileAuth, async (req, res) => {
   const { id } = await callOwner('Ceci est un appel de test. Tu m\'entends bien ?', callActor(req));
   res.json({ ok: true, id });
+});
+
+// POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
+// réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
+router.post('/turn', requireMobileAuth, async (req, res) => {
+  const { message, textOnly } = req.body as { message?: string; textOnly?: boolean };
+  if (!message?.trim()) { res.status(400).json({ error: 'message required' }); return; }
+  const who = callActor(req);
+  const actor: OrgMember = who === 'houari'
+    ? { orgId: '', ownerKey: 'houari', role: 'admin', displayName: env.PARTNER_NAME }
+    : DEFAULT_MEMBER;
+  try {
+    const out = await processMessage(message.trim().slice(0, 2000), `voice_${who}`, true, undefined, 'image/jpeg', actor);
+    const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
+    const buf = textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900));
+    res.json({ text, audio: buf ? buf.toString('base64') : null });
+  } catch (err) {
+    console.error('[call] turn:', err instanceof Error ? err.message : String(err));
+    res.status(500).json({ error: 'turn failed' });
+  }
 });
 
 export default router;

@@ -6,6 +6,18 @@
 ---
 
 
+## 2026-10-13 — Dzaryx sur Telegram : vrais appels vocaux sans Twilio (en attente du compte)
+- `tgcall/` : service Python (pyrofork + py-tgcalls) sur le VPS, connecté à un compte Telegram « Dzaryx » (pas de pièce d'identité, juste un numéro)
+  - appel sortant : sonde `/api/call/pending` → appelle Kouider/Houari sur Telegram, phrase d'accueil, puis conversation (détection fin de phrase → `/api/transcribe` → `/api/call/turn` → voix ElevenLabs dans l'appel)
+  - appel entrant : Kouider appelle le compte Dzaryx → il décroche et converse
+  - messages privés : texte → texte, vocal → vocal
+- backend : `POST /api/call/turn` (réponse synchrone texte + mp3, session `voice_<actor>`)
+- connexion : `tgcall/login.py send <numéro>` puis `login.py code <code>` ; config `tgcall/.env` (TG_API_ID/HASH, KOUIDER_TG)
+
+## 2026-10-13 — Fix : Dzaryx répondait en arabe à Kouider qui parle français
+- STT : prompt neutre FR-first (l'ancien lexique darija faisait inventer « wesh rak » et recopier le prompt) + filtre d'écho du prompt
+- Kouider : darija latine / mélange → réponse en français ; écriture arabe seulement si le message est en arabe
+
 ## 2026-10-13 — Fix : Dzaryx n'entend pas toujours (micro « sourd ») | app SW v128
 - fix VAD : une ré-init du micro (watchdog) laissait l'ancienne boucle VAD tourner sur un micro mort → elle lisait du silence et JETAIT tes phrases au bout de 0,4 s. Chaque boucle a maintenant un numéro de génération ; l'ancienne s'arrête
 - fix : `initMic` attendait `audioCtx.resume()` → sans geste utilisateur la promesse pouvait ne jamais se résoudre → VAD jamais démarré. Resume non bloquant + ancien AudioContext fermé + plus de `sampleRate: 44100` forcé
