@@ -17,7 +17,9 @@
 2. **Serveur MCP** `mcp_server.py` : les outils de Dzaryx **en lecture seule** (≈60 : réservations, clients, finances,
    flotte, mails pro, agenda, prospects…) dans Claude Code / Claude Desktop / Cursor :
    `claude mcp add dzaryx -- python C:\…\nexus\mcp_server.py`. Backend : `GET /api/mcp/tools`, `POST /api/mcp/call`
-   (token PC ou mobile Kouider, liste blanche lecture seule — aucune écriture par cette porte).
+   (token PC ou mobile Kouider, liste blanche lecture seule — aucune écriture par cette porte). Testé de bout en bout
+   (SDK mcp 1.30 et 2.3) : 58 outils, get_fleet_status OK ; supabase_execute / create_booking refusés, sans token 401.
+   Note : le 1er déploiement (9ed717f) a échoué (apostrophes dans tools.ts, tsc ne l'a pas vu) → corrigé f218f82.
 3. **Mode hors ligne** `modules/offline_brain.py` : sans internet (ou Claude en panne) → cerveau local Ollama
    (`NEXUS_OLLAMA_MODEL`, défaut qwen3:4b-instruct — qwen3:4b « pense à voix haute », écarté) ; reconnaissance vocale
    Google → faster-whisper local si pas de réseau. « installe le mode hors ligne » = winget Ollama + modèle + whisper.
