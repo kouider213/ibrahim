@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-10-13 — Apprentissage automatique, missions permanentes, préparation des RDV | `b104752`
+
+### backend/
+- `integrations/readonly-agent.ts` (nouveau) — Dzaryx qui travaille SEUL avec ~58 outils de **lecture** (liste blanche
+  partagée avec `/api/mcp`) ; la boucle refuse tout autre outil même si le modèle le demande (claude-sonnet-5-5).
+- `conversation/self-learning.ts` (nouveau) — **apprentissage automatique** (idée OpenClaw) : 10 min après le dernier
+  message de Kouider/Houari, relecture de la conversation (claude-haiku-5-5) → corrections et consignes durables
+  enregistrées dans `learned_rules` (déjà injectées à chaque réponse), seulement si la citation vient vraiment de
+  l'humain ; notif « 📚 J'ai retenu … ». Outil `forget_learned_rule` (« oublie la règle … »). Off : app_kv `selflearn:off`.
+  Test réel : « Clio 35 €/jour » + « jamais la Jumpy < 3 jours » retenus, la résa ponctuelle ignorée.
+- `integrations/missions.ts` (nouveau) — **missions permanentes** (idée OpenClaw « standing orders ») : outils
+  `create_mission` / `list_missions` / `update_mission` / `run_mission_now` ; job `missions` toutes les 5 min (Bruxelles),
+  max 1×/heure, 15 missions ; lecture seule → rapport + propositions ; notif, appel si `call` ou si IMPORTANT.
+  Silence si « rien à signaler » (sauf `always_report`). Stockage app_kv `missions`.
+- `integrations/meeting-prep.ts` (nouveau) — **préparation des RDV** : job `meeting-prep` toutes les 10 min, RDV dans
+  45–80 min (agendas perso + business, hors réservations/anniversaires) → fiche (prospect, mails, client, quoi proposer)
+  en notif + appel auto. Outil `prepare_meeting` (« prépare-moi mon RDV de 15h »). Off : app_kv `meetprep:off`.
+  Test réel (faux RDV Sonatrach) : prospect contacté le 13/10 retrouvé, aucune réponse, 3 SUV proposés.
+- `agents/agent-registry.ts` — nouvel Agent Missions (priorité 11) ; outils ajoutés au Général et à l'Agent Mémoire.
+- ⛔ Extension Chrome (Nexus dans le Chrome de Kouider) : création bloquée par le garde-fou de sécurité de Claude Code
+  (contrôle du navigateur connecté à tous ses comptes) — en attente de la décision de Kouider.
+
 ## 2026-10-13 — Nexus : les 5 idées des autres « Jarvis » (bertrandmbanwi/Jarvis, OpenClaw, Open.Jarvis)
 
 ### nexus/
