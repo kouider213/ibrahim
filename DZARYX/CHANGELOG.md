@@ -6,6 +6,14 @@
 ---
 
 
+## 2026-10-13 — Appels : lectures rapides, même voix pour les vocaux, choix de la voix
+
+### backend/ + tgcall/
+- `POST /api/call/tool` : outils lecture seule (list_bookings, get_fleet_status, check_car_availability,
+  get_unpaid_bookings, get_finance_dashboard, list_emails, read_email) appelés directement par la voix temps réel (0,2–0,6 s).
+- Vocaux Telegram : réponse dite par la voix temps réel (`realtime.speak`), repli ElevenLabs.
+- Message « voix » → 6 échantillons ; « voix N » → choix (app_kv `call:voice`, `POST /api/call/voice`).
+
 ## 2026-10-13 — Mémoire des appels + actions avec accord oral (3e12b43)
 
 ### backend/ + tgcall/
