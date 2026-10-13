@@ -2,9 +2,16 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-10-12**.
+> Dernière mise à jour : **2026-10-13**.
 
 ---
+
+## ⚡ Session 2026-10-13 — Appels Telegram + appels automatiques
+- **Appels réels via Telegram** : userbot `tgcall/` (pm2 `dzaryx-tg`, compte Dzaryx +32467662323) ↔ Kouider @lebsnus, 2 sens OK. Tour ≈ 3-4 s (STT Groq fr, `/api/call/turn` en flux). Darija abandonnée, Houari pas concerné.
+- **Appels automatiques** (`notifications/auto-call.ts`, `queue/jobs/call-jobs.ts`) — UNIQUEMENT : récap 10h Bruxelles chaque jour, réponse à un mail (boîte PRO fikconciergerie@ seulement — JAMAIS la perso kouiderpablo@, envois via contact@), nouvelle réservation site/WhatsApp, acompte annoncé, retard de retour, impayé urgent. 8h-22h Bruxelles (nuit → groupé à 8h), 10 min mini entre appels, max 8/jour, `app_kv autocall:off`=1 coupe tout, `AUTOCALL_DRY_RUN=1` pour tester.
+- Secours IA réparés + `/api/health-ai` teste vraiment Claude/Groq/Gemini/OpenAI, alerte 9h30 si secours KO. Mails pendant un appel → agent Général.
+- B025 fermé (token GitHub révoqué par Kouider), B031 OK, B030 (wake word) abandonné.
+- ⏳ À tester en vrai : premier récap 10h (2026-10-14), un appel sur réponse mail, une question mails pendant un appel ; Nexus PC (« appelle Houari sur WhatsApp », réponses instantanées).
 
 ## ⚡ Session 2026-10-12 soir — Démarchage v2 (`14bd2bc`, SW v126)
 - Relance J+5 (1 seule) · lien `?ref=` + alerte visite · alias contact@ auto (sendAs) · WhatsApp partenaires · créneaux agenda + devis pré-rempli si intéressé · bilan lundi 9h.
