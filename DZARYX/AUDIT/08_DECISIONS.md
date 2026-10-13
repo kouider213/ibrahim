@@ -191,7 +191,7 @@ Format : **Décision → Pourquoi → État**.
 - **Pourquoi** : protection du code propriétaire. `autolux-location` et `ibrahim` étaient publics.
 - **Comment** : repos → privés (API GitHub). `LICENSE` propriétaire ajouté. Watermark `DZX-FK-OAN-2024-K7X9M2Q1`
   dans `tool-executor.ts`.
-- ⚠️ **Reste à faire** : révoquer l'ancien token GitHub exposé (`ghp_d8Vch6X9...`) sur github.com/settings/tokens.
+- ⚠️ **Reste à faire** : révoquer l'ancien token GitHub exposé (`ghp_d8Vch… (révoqué 2026-10-13)...`) sur github.com/settings/tokens.
 
 ---
 

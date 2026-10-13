@@ -293,7 +293,7 @@ Commit : `fd6352b` (ibrahim)
 
 - ✅ `autolux-location` : PUBLIC → **PRIVÉ** (API GitHub PATCH)
 - ✅ `ibrahim` : PUBLIC → **PRIVÉ** (API GitHub PATCH)
-- ✅ Token exposé `ghp_d8Vch6X9qk4Y...` supprimé de l'URL git remote ibrahim
+- ✅ Token exposé `ghp_d8Vch… (révoqué 2026-10-13)...` supprimé de l'URL git remote ibrahim
 - ✅ `LICENSE` ajouté dans les deux repos : "All Rights Reserved — Fik Conciergerie — Oran, Algeria — kouiderpablo@gmail.com"
 - ✅ Watermark `DZX-FK-OAN-2024-K7X9M2Q1` dans `tool-executor.ts` (preuve antériorité)
 - ⚠️ **À FAIRE** : Révoquer token sur github.com/settings/tokens
@@ -316,7 +316,7 @@ Commit : `fd6352b` (ibrahim)
 ## Ce qui ne fonctionne pas / incomplet ❌
 
 ### Token GitHub à révoquer
-- ⚠️ `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` — était dans l'URL git remote ibrahim
+- ⚠️ `ghp_d8Vch… (révoqué 2026-10-13)` — était dans l'URL git remote ibrahim
 - **Action requise** : github.com/settings/tokens → Delete → nouveau token
 
 ### SMTP emails Railway
@@ -339,7 +339,7 @@ Commit : `fd6352b` (ibrahim)
 
 ### IMMÉDIAT — Révoquer le token GitHub exposé
 1. Va sur **github.com/settings/tokens**
-2. Trouve `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`
+2. Trouve `ghp_d8Vch… (révoqué 2026-10-13)`
 3. **Delete**
 4. Génère un nouveau token si nécessaire pour push
 

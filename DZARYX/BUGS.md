@@ -14,11 +14,11 @@
 - **Fix** : split `api.ts` — `registerWebPush()` geste seul (prompt) ; `resumeWebPush()` silencieux (re-souscrit si déjà `granted`) ; `subscribePush()` réutilise `getSubscription()` + re-POST backend ; `notifStatus()`. Montage/login → `resumeWebPush()`. Bouton tap **🔔 ACTIVER** dans Réglages + guide install PWA iOS.
 - **Confirmé par Kouider le 2026-10-13** : les notifications marchent.
 
-### B025 — Token GitHub exposé dans git remote (SÉCURITÉ)
-- **Statut** : 🔴 OUVERT — action manuelle requise (Kouider)
+### B025 — Token GitHub exposé dans git remote (SÉCURITÉ) ✅
+- **Statut** : ✅ FIXÉ — 2026-10-13 (token supprimé sur GitHub par Kouider)
 - **Fichier** : `.git/config` du repo ibrahim (local PC Kouider)
-- **Description** : `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` était dans l'URL git remote. Supprimé de l'URL, mais le token lui-même doit être révoqué sur GitHub.
-- **Fix** : Aller sur github.com/settings/tokens → Delete ce token → Générer nouveau si besoin
+- **Description** : un token `ghp_d8Vch…` était dans l'URL git remote, puis écrit en clair ici (repo public). Supprimé de l'URL.
+- **Fix** : token révoqué sur github.com/settings/tokens par Kouider le 2026-10-13 ; valeur retirée de ce fichier (elle reste dans l'historique git mais ne sert plus à rien).
 
 ---
 

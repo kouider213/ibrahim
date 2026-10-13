@@ -120,7 +120,7 @@ ibrahim/simulator/.env.local
 
 ## ⚠️ À faire / dette technique
 
-- [ ] Révoquer l'ancien token GitHub exposé (`ghp_d8Vch6X9...`) — github.com/settings/tokens
+- [ ] Révoquer l'ancien token GitHub exposé (`ghp_d8Vch… (révoqué 2026-10-13)...`) — github.com/settings/tokens
 - [ ] SMTP Railway non configuré (`SMTP_USER/PASS/FROM`) → emails registration KO
 - [ ] Firebase FCM natif non configuré → attendre APK
 - [ ] Resserrer le CORS backend
