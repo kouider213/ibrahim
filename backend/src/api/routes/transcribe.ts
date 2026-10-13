@@ -23,7 +23,7 @@ router.post('/', requireMobileAuth, async (req, res) => {
     chain.push({ key: 'google', fn: () => transcribeWithGoogle(audio, mimeType) });
   } else if (provider === 'fast') {
     // Vrais appels : Groq Whisper turbo (~0,3 s) d'abord — chaque seconde compte, la darija n'est plus utilisée.
-    if (env.GROQ_API_KEY)                chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType) });
+    if (env.GROQ_API_KEY)                chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType, 'fr') });
     if (env.OPENAI_API_KEY)              chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
   } else {
     if (env.OPENAI_API_KEY)              chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
@@ -104,7 +104,7 @@ function cleanTranscript(t: string): string {
   return s;
 }
 
-async function transcribeWithGroq(audio: string, mimeType: string): Promise<string> {
+async function transcribeWithGroq(audio: string, mimeType: string, language?: string): Promise<string> {
   const groqKey = env.GROQ_API_KEY;
   if (!groqKey) throw new Error('GROQ_API_KEY not configured');
 
@@ -117,6 +117,7 @@ async function transcribeWithGroq(audio: string, mimeType: string): Promise<stri
   const form = new FormData();
   form.append('file', new Blob([buf], { type: mimeType }), `audio.${ext}`);
   form.append('model', 'whisper-large-v3-turbo');
+  if (language) form.append('language', language);   // appels : français seul → moins d'erreurs
   // Pas de verrou de langue (français + darija oranaise mélangés).
   // Prompt COURT = contexte léger sans forcer des mots (un long lexique biaise Whisper → "comprend de travers").
   form.append('prompt', 'Kouider parle surtout en français, parfois en arabe algérien. Transcris exactement ce qui est dit.');
