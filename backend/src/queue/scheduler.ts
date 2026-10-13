@@ -40,7 +40,7 @@ import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
-import { jobDailyRecapCall, jobMailReplyCall } from './jobs/call-jobs.js';
+import { jobDailyRecapCall, jobMailReplyCall, jobRentalEveCall } from './jobs/call-jobs.js';
 import { jobCarPapersCall } from '../integrations/car-papers.js';
 import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
 import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
@@ -260,6 +260,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'rental-eve-call',
+    cron:  '0 18 * * *',            // 18h (Bruxelles) — Dzaryx appelle la veille de chaque départ et fin de location
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'car-papers-call',
     cron:  '30 9 * * *',            // 9h30 (Bruxelles) chaque jour — assurance / CT / vignette : appel 7 j avant et à l'échéance
     tz:    'Europe/Brussels',
@@ -313,6 +318,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'daily-recap-call':        async () => { await jobDailyRecapCall(); },
   'mail-reply-call':         async () => { await jobMailReplyCall(); },
   'car-papers-call':         async () => { await jobCarPapersCall(); },
+  'rental-eve-call':         async () => { await jobRentalEveCall(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
   'prospect-replies':        async () => {
     await checkProspectReplies();

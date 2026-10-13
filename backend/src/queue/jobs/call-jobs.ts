@@ -2,6 +2,7 @@ import { supabase } from '../../integrations/supabase.js';
 import { listInboxMessages, isReplyToUs, type GmailAccount } from '../../integrations/gmail.js';
 import { buildYesterdayRecap } from '../../integrations/prospect-autopilot.js';
 import { autoCall } from '../../notifications/auto-call.js';
+import { paperWarning } from '../../integrations/car-papers.js';
 
 // Appels automatiques planifiés (choix de Kouider) :
 // - 10h (Bruxelles) chaque jour : récapitulatif à l'oral
@@ -66,4 +67,45 @@ export async function jobMailReplyCall(): Promise<void> {
       await autoCall(`mail-reply:${m.id}`, `${name} a répondu à ton mail${subject ? ` « ${subject} »` : ''}. Tu veux que je te le lise ?`);
     }
   }
+}
+
+/**
+ * 18h (Bruxelles) : la veille de chaque DÉPART et de chaque FIN de location → APPEL (demande de Kouider 2026-10-13).
+ * Un seul appel pour tout demain. Départ : reste à payer, contrat signé ou pas, papiers de la voiture.
+ * Retour : reste à encaisser, prochain départ de la voiture.
+ */
+export async function jobRentalEveCall(): Promise<void> {
+  const tomorrow = oranDate(1);
+  type B = { id: string; car_id: string; client_name: string; final_price: number | null; paid_amount: number | null; currency: string | null; cars?: { name?: string } | null };
+  const cols = 'id, car_id, client_name, final_price, paid_amount, currency, cars(name)';
+  const [{ data: dep }, { data: ret }] = await Promise.all([
+    supabase.from('bookings').select(cols).eq('start_date', tomorrow).in('status', ['PENDING', 'CONFIRMED']),
+    supabase.from('bookings').select(cols).eq('end_date', tomorrow).in('status', ['PENDING', 'CONFIRMED', 'ACTIVE']),
+  ]);
+  const departs = (dep ?? []) as unknown as B[], returns = (ret ?? []) as unknown as B[];
+  if (!departs.length && !returns.length) return;
+
+  const leftToPay = (b: B) => {
+    const left = (Number(b.final_price) || 0) - (Number(b.paid_amount) || 0);
+    return left > 0 ? ` Il reste ${Math.round(left)} ${b.currency === 'DZD' ? 'dinars' : 'euros'} à encaisser.` : '';
+  };
+  const parts: string[] = [];
+  for (const b of departs) {
+    const { data: sig } = await supabase.from('contract_signatures').select('status').eq('booking_id', b.id).eq('status', 'signed').limit(1);
+    const contract = sig?.length ? '' : ' Le contrat n\'est pas encore signé.';
+    const papers = (await paperWarning(b.car_id, tomorrow).catch(() => '')).replace(/^⚠️ PAPIERS : /, ' Attention, ').replace(', avant la fin de la location.', ' !');
+    parts.push(`Départ : ${b.client_name} prend la ${carOf(b)} demain.${leftToPay(b)}${contract}${papers}`);
+  }
+  for (const b of returns) {
+    const { data: next } = await supabase.from('bookings').select('client_name, start_date')
+      .eq('car_id', b.car_id).neq('id', b.id).in('status', ['PENDING', 'CONFIRMED'])
+      .gte('start_date', tomorrow).order('start_date').limit(1);
+    const n = (next as { client_name: string; start_date: string }[] | null)?.[0];
+    const after = n
+      ? ` Elle repart ${n.start_date === tomorrow ? 'le jour même' : `le ${new Date(`${n.start_date}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })}`} avec ${n.client_name}.`
+      : '';
+    parts.push(`Retour : ${b.client_name} rend la ${carOf(b)} demain.${leftToPay(b)}${after}`);
+  }
+  const intro = [departs.length ? plural(departs.length, 'départ') : '', returns.length ? plural(returns.length, 'retour') : ''].filter(Boolean).join(' et ');
+  await autoCall(`rental-eve:${tomorrow}`, `Pour demain, ${intro}. ${parts.join(' ')} Tu veux que je prépare un message pour un client, le contrat à signer, ou une proposition de prolongation ?`);
 }

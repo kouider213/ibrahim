@@ -3,7 +3,7 @@ import { callOwner, getPendingCall } from './voice-call.js';
 
 // Appels AUTOMATIQUES de Dzaryx à Kouider (sans qu'il demande) — UNIQUEMENT les moments importants
 // (choix de Kouider) : récap quotidien de 10h, quelqu'un répond à un de ses mails, nouvelle réservation
-// (site / WhatsApp), client qui dit avoir payé l'acompte, retard de retour, impayé urgent.
+// (site / WhatsApp), client qui dit avoir payé l'acompte, retard de retour, impayé urgent, veille de chaque départ et fin de location (18h).
 // Pas de visites de site par les prospects : ça reste en notif.
 // La notif texte part toujours en plus (emitProactive) — l'appel s'ajoute, il ne remplace rien.
 //

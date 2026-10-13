@@ -6,6 +6,9 @@
 ---
 
 
+## 2026-10-13 — Appel la veille de chaque départ et de chaque retour
+- (`queue/jobs/call-jobs.ts`, `queue/scheduler.ts`) : job `rental-eve-call` 18h Bruxelles → un seul appel pour tout le lendemain. Départ : reste à payer, contrat pas signé (`contract_signatures`), papiers qui expirent. Retour : reste à encaisser, prochain départ de la voiture. Propose un message client / contrat / prolongation. Demande de Kouider. Testé à blanc (`AUTOCALL_DRY_RUN`) sur la résa Motam (départ 21/10, retour 23/10).
+
 ## 2026-10-13 — Modifier/annuler, répondre aux mails, contrat, papiers des voitures (appel)
 - (`integrations/call-quick.ts`, `integrations/car-papers.ts`, `api/routes/call.ts`, `tgcall/dzaryx_tg.py`, `queue/scheduler.ts`) :
   - `quick_modify_booking` : décaler dates / changer de voiture / prix / annuler en 1-2 s. Dispo vérifiée hors la résa elle-même, prix/jour gardé, bénéfice recalculé (`owner_price_per_day` de la résa, ou `base_price` de la nouvelle voiture), `owner_total`/`profit_kouider`/`payment_status` recalculés, voiture libérée/occupée, événement Google Agenda modifié ou supprimé. Alerte trop-perçu si déjà payé > nouveau prix.
