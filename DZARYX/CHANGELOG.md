@@ -6,6 +6,10 @@
 ---
 
 
+## 2026-10-13 — Dépenses à la voix / photo de ticket + alerte panne appels Telegram
+- `235c653` : outils `record_expense` / `get_expenses` / `delete_expense` (agent Finance, `integrations/expenses.ts`). Dépense dictée (« 3000 DA d'essence dans la Clio ») ou photo de ticket → `cash_entries` (même caisse que l'app/site), reliée à la voiture (`car_id` ajoutée au démarrage via runSql ; repli : voiture dans le libellé). `get_expenses` : total, par catégorie, **bénéfice réel par voiture** = bénéfice Kouider des locations du mois − dépenses, devise par devise (jamais mélangées, prix proprio manquant signalé). Testé sur la vraie base (ligne test créée puis supprimée).
+- `e9a961e` : tgcall envoie `POST /api/call/heartbeat` chaque minute (`connected` = Telegram connecté) ; job `tgcall-watch` (*/5) → alerte « Appels Telegram en panne » après 5 min sans signe de vie (une fois), puis « rétablis » au retour. Clés `app_kv` `tgcall:heartbeat` / `tgcall:down`.
+
 ## 2026-10-13 — Démarchage : alerte réserve de prospects vide
 - `584d598` : si la recherche du jour ne trouve pas assez de sociétés avec email → alerte « plus assez de sociétés à contacter » (1er, 3e, 7e jour puis hebdo, compteur `app_kv prospect:dry_days`), avec pistes (nouveau secteur, noms donnés par Kouider). Récap du jour : ligne « 📦 Réserve : plus que N » sous 2 jours de stock. Avant : arrêt silencieux.
 - Vérifié : relances J+5 (`runFollowUps`) et bilan du lundi 9h (`prospect-weekly`) existaient déjà — 1res relances le 17/10.
