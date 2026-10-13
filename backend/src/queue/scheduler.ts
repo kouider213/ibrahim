@@ -45,6 +45,9 @@ import { jobCarPapersCall } from '../integrations/car-papers.js';
 import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
 import { jobMissions } from '../integrations/missions.js';
 import { jobMeetingPrep } from '../integrations/meeting-prep.js';
+import { jobIntentions } from '../integrations/intentions.js';
+import { jobMemoryConsolidation } from '../integrations/memory-consolidation.js';
+import { jobPrivacyExpire } from '../integrations/privacy.js';
 import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
 
 const SCHEDULER_QUEUE = 'in-process';
@@ -277,6 +280,21 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'intentions',
+    cron:  '*/5 * * * *',           // toutes les 5 min — rappels déclenchés par un événement (résa, mail pro, WhatsApp)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'memory-consolidation',
+    cron:  '0 3 * * *',             // 3h (Bruxelles) — ménage des règles apprises (doublons, contradictions)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'privacy-expire',
+    cron:  '*/10 * * * *',          // toutes les 10 min — fin des modes privés expirés (et effacement)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'meeting-prep',
     cron:  '*/10 * * * *',          // toutes les 10 min — fiche + appel ~1 h avant chaque RDV de l'agenda
     tz:    'Europe/Brussels',
@@ -333,6 +351,9 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'rental-eve-call':         async () => { await jobRentalEveCall(); },
   'missions':                async () => { await jobMissions(); },
   'meeting-prep':            async () => { await jobMeetingPrep(); },
+  'intentions':              async () => { await jobIntentions(); },
+  'memory-consolidation':    async () => { await jobMemoryConsolidation(); },
+  'privacy-expire':          async () => { await jobPrivacyExpire(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
   'prospect-replies':        async () => {
     await checkProspectReplies();

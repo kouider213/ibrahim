@@ -75,6 +75,10 @@ import { generateReservationVoucher } from './generate-voucher.js';
 import { getLearnedRules, saveLearnedRule, formatRulesForContext, deactivateRule } from './learned-rules.js';
 import { createMissionTool, listMissionsTool, updateMissionTool, runMissionNowTool } from './missions.js';
 import { prepareMeetingTool } from './meeting-prep.js';
+import { createIntentionTool, listIntentionsTool, cancelIntentionTool } from './intentions.js';
+import { searchConversationsTool } from './conversation-search.js';
+import { undoMemoryCleanupTool } from './memory-consolidation.js';
+import { setPrivateModeTool, showMyMemoryTool, forgetMemoryFactTool } from './privacy.js';
 import { generateRentalContract } from './generate-contract.js';
 import { exportBookingsToExcel } from './excel-export.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
@@ -470,6 +474,14 @@ async function _dispatch(
       case 'update_mission':             return await updateMissionTool(input);
       case 'run_mission_now':            return await runMissionNowTool(input);
       case 'prepare_meeting':            return await prepareMeetingTool(input);
+      case 'create_intention':           return await createIntentionTool(input, sessionId);
+      case 'list_intentions':            return await listIntentionsTool();
+      case 'cancel_intention':           return await cancelIntentionTool(input);
+      case 'search_conversations':       return await searchConversationsTool(input, sessionId);
+      case 'undo_memory_cleanup':        return await undoMemoryCleanupTool(input, sessionId);
+      case 'set_private_mode':           return await setPrivateModeTool(input, sessionId);
+      case 'show_my_memory':             return await showMyMemoryTool(input, sessionId);
+      case 'forget_memory_fact':         return await forgetMemoryFactTool(input);
       // ─── CONTRAT PDF (Phase 8.2) ───
       case 'generate_contract':          return await generateContractTool(input, sessionId);
       // ─── EXPORT EXCEL (Phase 8.5) ───

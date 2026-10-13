@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-10-13 — Rappels d'événement, recherche dans les conversations, ménage mémoire, réveil local, mode privé
+
+### backend/
+- `integrations/intentions.ts` — **rappels déclenchés par un événement** (OpenClaw « standing intents ») : outils
+  `create_intention` / `list_intentions` / `cancel_intention`. Événements : nouvelle réservation (tous canaux), mail
+  reçu (boîte pro), WhatsApp client, ou Kouider/Houari qui en parle à Dzaryx (glissé dans le contexte de la réponse).
+  Job `intentions` toutes les 5 min. Notif ou appel. Testé : « Jumpy → pneu » déclenché une seule fois.
+- `integrations/conversation-search.ts` — outil `search_conversations` (« qu'est-ce que je t'avais dit sur… ») :
+  toutes les conversations (app, Telegram, appels), sans accents, extraits datés + canal ; Houari ne voit que les siennes.
+- `integrations/memory-consolidation.ts` — **ménage de la mémoire** chaque nuit à 3h : doublons / contradictions dans
+  les règles apprises → garde la plus récente, désactive les autres (rien supprimé) ; notif ; `undo_memory_cleanup`.
+- `integrations/privacy.ts` — **mode privé** (`set_private_mode`) : pas de mémoire auto, pas d'apprentissage, pas de
+  résumé d'appel ; à la fin (« fin du mode privé » ou durée écoulée, job 10 min) les messages de la période sont
+  effacés. `show_my_memory` (« montre tout ce que tu sais sur moi ») et `forget_memory_fact`.
+- `agents/core-router.ts` — outils toujours disponibles quel que soit l'agent : search_conversations, create_intention,
+  list_intentions, set_private_mode, show_my_memory.
+
+### nexus/
+- `modules/wake_word.py` — **réveil local** : Vosk (modèle fr 41 Mo, téléchargé au 1er démarrage) avec grammaire
+  restreinte → hors session, le son ne part chez Google que si « Nexus » est entendu ; « tais-toi / stop » reconnu en
+  local pendant que Nexus parle. Test voix de synthèse : 8/8 détectés, 0 faux déclenchement / 6. `NEXUS_LOCAL_WAKE=0`.
+- `requirements.txt` : + vosk.
+
 ## 2026-10-13 — Apprentissage automatique, missions permanentes, préparation des RDV | `b104752`
 
 ### backend/

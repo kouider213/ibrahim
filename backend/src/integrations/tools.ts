@@ -2115,6 +2115,71 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
 
+  {
+    name: 'create_intention',
+    description: 'Rappel déclenché par un ÉVÉNEMENT (pas une heure) : "la prochaine fois que Karim réserve, rappelle-moi de demander la caution", "si Sonatrach répond, appelle-moi tout de suite", "quand Houari me parle de la Clio, rappelle-moi le pneu", "si le client du 0555… écrit sur WhatsApp, préviens-moi". Événements : booking (nouvelle réservation, tous canaux), email (mail reçu, boîte pro), whatsapp (message d\'un client), mention (Kouider/Houari en parle à Dzaryx), any (n\'importe lequel). Pour une HEURE précise → schedule_reminder ; pour une tâche régulière → create_mission.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        event:    { type: 'string', enum: ['booking', 'email', 'whatsapp', 'mention', 'any'], description: 'Type d\'événement déclencheur' },
+        match:    { type: 'string', description: 'Qui / quoi doit apparaître : nom du client, société, voiture, email (ex: "Karim", "Sonatrach", "Clio")' },
+        reminder: { type: 'string', description: 'Ce qu\'il faut rappeler / faire quand ça arrive' },
+        urgency:  { type: 'string', enum: ['notif', 'call'], description: 'call = Dzaryx appelle ; notif (défaut) = notification' },
+        repeat:   { type: 'boolean', description: 'true = à chaque fois ; false (défaut) = une seule fois' },
+      },
+      required: ['event', 'match', 'reminder'],
+    },
+  },
+  {
+    name: 'list_intentions',
+    description: 'Lister les rappels d\'événement en attente ("mes rappels d\'événement", "qu\'est-ce que tu surveilles pour moi").',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'cancel_intention',
+    description: 'Annuler un rappel d\'événement ("annule le rappel sur Karim").',
+    input_schema: { type: 'object' as const, properties: { intention: { type: 'string', description: 'Mots du rappel (nom, sujet)' } }, required: ['intention'] },
+  },
+  {
+    name: 'search_conversations',
+    description: 'Chercher dans TOUTES nos conversations passées (app, Telegram, appels) : "qu\'est-ce que je t\'avais dit sur Sonatrach la semaine dernière ?", "quel prix j\'avais donné à Karim au téléphone ?", "on avait parlé de quoi pour la Jumpy ?". Renvoie les passages avec date et canal.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Mots-clés : nom, société, voiture, sujet (ex: "Karim prix", "Sonatrach")' },
+        days:  { type: 'number', description: 'Combien de jours en arrière (défaut 60, max 365)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'undo_memory_cleanup',
+    description: 'Annuler le dernier ménage automatique de la mémoire (remet les règles écartées cette nuit). "annule le ménage de la mémoire".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'set_private_mode',
+    description: 'Mode privé : "mode privé", "ne retiens rien", "on parle en privé" → on:true (Dzaryx ne retient rien et EFFACE nos messages à la fin). "fin du mode privé" → on:false.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        on:    { type: 'boolean', description: 'true = activer, false = terminer (et effacer)' },
+        hours: { type: 'number', description: 'Durée en heures (défaut 2, max 24)' },
+      },
+      required: ['on'],
+    },
+  },
+  {
+    name: 'show_my_memory',
+    description: 'Montrer TOUT ce que Dzaryx sait/retient sur l\'utilisateur : règles apprises, souvenirs, derniers appels, rappels d\'événement, missions. "montre tout ce que tu sais sur moi", "qu\'est-ce que tu retiens de moi".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'forget_memory_fact',
+    description: 'Oublier un souvenir enregistré (mémoire, pas une règle) : "oublie le souvenir sur mon frère", "efface que j\'habite à …".',
+    input_schema: { type: 'object' as const, properties: { text: { type: 'string', description: 'Mots du souvenir' } }, required: ['text'] },
+  },
+
   // ─── CONTRAT PDF (Phase 8.2) ──────────────────────────────────────
   {
     name: 'generate_contract',

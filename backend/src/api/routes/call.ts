@@ -9,6 +9,7 @@ import { executeTool } from '../../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../../integrations/tools.js';
 import { kvGet, kvSet } from '../../integrations/app-store.js';
 import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
+import { isPrivate } from '../../integrations/privacy.js';
 import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
 import { clientWhatsappLink } from '../../notifications/client-care.js';
@@ -371,6 +372,7 @@ router.post('/summary', requireMobileAuth, async (req, res) => {
   const { lines, durationS } = req.body as { lines?: CallLine[]; durationS?: number };
   if (!Array.isArray(lines)) { res.status(400).json({ error: 'lines required' }); return; }
   try {
+    if (await isPrivate(callActor(req)).catch(() => false)) { res.json({ memory: null, private: true }); return; }
     const mem = await summarizeCall(callActor(req), lines.slice(-200), Number(durationS) || 0);
     res.json({ memory: mem });
   } catch (err) {

@@ -2,6 +2,8 @@
 import { preprocessMessage, setPendingAction }    from './engine-v2.js';
 import { autoExtractMemory }                      from './auto-memory.js';
 import { noteOwnerTurn }                          from './self-learning.js';
+import { checkMentionIntentions }                 from '../integrations/intentions.js';
+import { isPrivate }                              from '../integrations/privacy.js';
 import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
@@ -155,16 +157,23 @@ export async function processMessage(
 
   // 2. Construire le contexte + sauvegarder le message user en parallèle
   const actorUserId = actor.ownerKey === 'houari' || sessionId.toLowerCase().includes('houari') ? 'houari' : 'kouider';
+  // Mode privé : rien n'est retenu (mémoire auto, apprentissage) et les messages seront effacés à la fin du mode
+  const privateMode = await isPrivate(actorUserId, sessionId).catch(() => false);
   const [ctx] = await Promise.all([
     buildContext(sessionId, effectiveMessage, actor, textOnly),
     saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
       console.error('[orchestrator] user save error:', err),
     ),
     // Auto-extract memory facts from user message (non-blocking, background)
-    autoExtractMemory(userMessage, actorUserId).catch(() => {}),
+    privateMode ? Promise.resolve() : autoExtractMemory(userMessage, actorUserId).catch(() => {}),
   ]);
   // Apprentissage automatique : relecture de la conversation 10 min après le dernier message
-  noteOwnerTurn(sessionId, actorUserId);
+  if (!privateMode) noteOwnerTurn(sessionId, actorUserId);
+  else ctx.systemExtra = `MODE PRIVÉ ACTIF : n'enregistre RIEN en mémoire (remember_info, learn_rule…) sauf si l'utilisateur le demande explicitement dans ce message.\n\n${ctx.systemExtra ?? ''}`.trim();
+
+  // Rappels déclenchés par ce que dit Kouider/Houari (« quand je parle de la Clio, rappelle-moi le pneu »)
+  const intentNote = await checkMentionIntentions(userMessage, actorUserId).catch(() => '');
+  if (intentNote) ctx.systemExtra = `${intentNote}\n\n${ctx.systemExtra ?? ''}`.trim();
 
   // Inject V2 pending-action context into system extra if present
   if (v2ContextAddition) {

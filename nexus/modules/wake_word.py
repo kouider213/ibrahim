@@ -7,6 +7,12 @@ NEXUS Wake Word Detection + mode conversation
 - « merci Nexus », « c'est tout », « repos »… → fin de session
 - « tais-toi », « stop », « chut » pendant que Nexus parle → coupe la parole
 Runs in background thread — does not block the event loop.
+
+Détection LOCALE du mot « Nexus » (idée reprise de bertrandmbanwi/Jarvis, avec Vosk au lieu d'OpenWakeWord qui n'a
+pas de modèle « nexus ») : hors session, le son n'est envoyé à Google QUE si le PC a entendu « Nexus » ; pendant que
+Nexus parle, « tais-toi / stop / chut » est reconnu localement aussi. Modèle vosk-model-small-fr-0.22 (~41 Mo),
+téléchargé tout seul au 1er démarrage dans nexus/data/. NEXUS_LOCAL_WAKE=0 pour revenir à l'ancien mode.
+Testé sur voix de synthèse : 8/8 « Nexus » détectés, 0 faux déclenchement sur 6 phrases ordinaires.
 """
 import asyncio
 import logging
@@ -14,6 +20,7 @@ import os
 import re
 import threading
 import time
+from pathlib import Path
 
 log = logging.getLogger('nexus.wake_word')
 
@@ -23,6 +30,52 @@ WAKE_PHRASES = [
     'hey nexus', 'nexus debout', 'nexus allume', 'active nexus',
 ]
 SESSION_TIMEOUT = float(os.environ.get('NEXUS_SESSION_TIMEOUT', '30'))
+
+# ── Détection locale (Vosk, grammaire restreinte) ────────────────────────────
+_VOSK_NAME = 'vosk-model-small-fr-0.22'
+_VOSK_DIR = Path(__file__).resolve().parent.parent / 'data' / _VOSK_NAME
+_VOSK_URL = f'https://alphacephei.com/vosk/models/{_VOSK_NAME}.zip'
+_GRAMMAR = '["nexus", "hey nexus", "ok nexus", "tais toi", "stop", "chut", "silence", "[unk]"]'
+_vosk_model = None
+_vosk_state = 'off'   # off | loading | ready | failed
+
+
+def _load_vosk() -> None:
+    """Charge (et télécharge au besoin) le modèle Vosk, dans un thread à part."""
+    global _vosk_model, _vosk_state
+    try:
+        from vosk import Model, SetLogLevel
+        SetLogLevel(-1)
+        if not (_VOSK_DIR / 'am').exists():
+            import io
+            import urllib.request
+            import zipfile
+            log.info('Téléchargement du modèle de réveil local (%s, ~41 Mo)…', _VOSK_NAME)
+            with urllib.request.urlopen(_VOSK_URL, timeout=300) as r:
+                zipfile.ZipFile(io.BytesIO(r.read())).extractall(_VOSK_DIR.parent)
+        _vosk_model = Model(str(_VOSK_DIR))
+        _vosk_state = 'ready'
+        log.info('Réveil local prêt : « Nexus » est détecté sur le PC, sans envoyer le son à Google')
+    except Exception as e:
+        _vosk_state = 'failed'
+        log.warning('Réveil local indisponible (%s) — ancien mode (Google)', e)
+
+
+def local_keywords(audio) -> set[str] | None:
+    """Mots-clés entendus localement dans un speech_recognition.AudioData, ou None si Vosk n'est pas prêt."""
+    if _vosk_state != 'ready':
+        return None
+    import json
+    from vosk import KaldiRecognizer
+    rec = KaldiRecognizer(_vosk_model, 16000, _GRAMMAR)
+    rec.AcceptWaveform(audio.get_raw_data(convert_rate=16000, convert_width=2))
+    text = json.loads(rec.FinalResult()).get('text', '')
+    found = set()
+    if 'nexus' in text:
+        found.add('nexus')
+    if any(w in text for w in ('tais toi', 'stop', 'chut', 'silence')):
+        found.add('stop')
+    return found
 
 # Phrase qui commence par « nexus » → la suite est une commande
 _LEADING_WAKE_RE = re.compile(r'^\s*(?:hey\s+|ok\s+|dis\s+)?nexus\b[\s,.!?:-]*', re.I)
@@ -82,6 +135,10 @@ class WakeWordDetector:
             log.warning('Wake word disabled — SpeechRecognition not available')
             return
         self._active = True
+        global _vosk_state
+        if os.environ.get('NEXUS_LOCAL_WAKE', '1') != '0' and _vosk_state == 'off':
+            _vosk_state = 'loading'
+            threading.Thread(target=_load_vosk, daemon=True, name='nexus-vosk').start()
         self._thread = threading.Thread(target=self._listen_loop, daemon=True)
         self._thread.start()
         log.info('Wake word detector started (say "Nexus réveille-toi" ou "Nexus, <commande>")')
@@ -124,10 +181,22 @@ class WakeWordDetector:
                         audio = rec.listen(source, timeout=4, phrase_time_limit=10 if self.in_session else 6)
                     except sr.WaitTimeoutError:
                         continue
+                # Filtre local : hors session, rien ne part chez Google tant que « Nexus » n'est pas entendu
+                kw = local_keywords(audio) if not self.in_session or self.app.voice.is_speaking else None
+                if kw is not None:
+                    if self.app.voice.is_speaking:
+                        if 'stop' in kw:
+                            self.app.voice.stop()
+                        continue
+                    if 'nexus' not in kw:
+                        continue
                 from modules.offline_brain import recognize
                 text = recognize(rec, audio)
                 if not text:
-                    continue
+                    if kw and 'nexus' in kw:      # « Nexus » entendu mais la phrase n'a pas pu être transcrite
+                        text = 'nexus'
+                    else:
+                        continue
                 log.debug('Heard: %s', text)
 
                 action, command = parse_utterance(text, self.in_session, self.app.voice.is_speaking)
