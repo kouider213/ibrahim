@@ -6,6 +6,14 @@
 ---
 
 
+## 2026-10-13 — Client à risque, km → vidange, anniversaires, avis WhatsApp, + d'appels
+- `b609905` (`notifications/client-care.ts`) :
+  - `clientRisk` : historique (locations, notes `[NOTE CLIENT]`, impayés terminés, dégâts `vehicle_states`) ajouté au résultat de `create_booking`, aux notifs nouvelle résa site + demande WhatsApp, et dit dans l'appel auto. Outil `check_client`.
+  - Km : `km` sur `save_vehicle_state_before/after` (Dzaryx le demande sinon), outil `record_car_km` → prochaine vidange (`next_service_km` ou dernière + intervalle) ; ≤ 1000 km ou dépassée → alerte + appel. Compteur qui baisse refusé. `update_vehicle_maintenance` : vidange faite → `next_service_km` recalculé. ⚠️ Aucune voiture n'a encore de km/dernière vidange en base.
+  - Job `client-birthdays` 9h15 : date de naissance OCR passeport/permis → message WhatsApp prêt (-10% prochaine location, `BIRTHDAY_DISCOUNT`) + appel groupé.
+  - Job `review-whatsapp` 10h30 : locations finies hier, client SANS email → lien wa.me avec demande d'avis Google, marque `review_request_sent_at` (les clients avec email l'ont déjà via le cron reminders du site).
+  - Appels auto : quota 8 → 12/jour ; appel aussi sur réserve prospects vide.
+
 ## 2026-10-13 — Dépenses à la voix / photo de ticket + alerte panne appels Telegram
 - `235c653` : outils `record_expense` / `get_expenses` / `delete_expense` (agent Finance, `integrations/expenses.ts`). Dépense dictée (« 3000 DA d'essence dans la Clio ») ou photo de ticket → `cash_entries` (même caisse que l'app/site), reliée à la voiture (`car_id` ajoutée au démarrage via runSql ; repli : voiture dans le libellé). `get_expenses` : total, par catégorie, **bénéfice réel par voiture** = bénéfice Kouider des locations du mois − dépenses, devise par devise (jamais mélangées, prix proprio manquant signalé). Testé sur la vraie base (ligne test créée puis supprimée).
 - `e9a961e` : tgcall envoie `POST /api/call/heartbeat` chaque minute (`connected` = Telegram connecté) ; job `tgcall-watch` (*/5) → alerte « Appels Telegram en panne » après 5 min sans signe de vie (une fois), puis « rétablis » au retour. Clés `app_kv` `tgcall:heartbeat` / `tgcall:down`.
