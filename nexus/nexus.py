@@ -47,6 +47,7 @@ from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
 from modules                  import vision_click
 from modules                  import quick_answers, whatsapp_call
+from modules.extras           import Extras
 
 logging.basicConfig(
     level=logging.INFO,
@@ -141,6 +142,7 @@ class NexusApp:
         self.installer= AppInstaller()
         self.git_mgr  = GitManager()
         self.pc_agent = PCAgent()
+        self.extras   = Extras(notify=self._notify_from_thread)
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -182,6 +184,14 @@ class NexusApp:
         await self.voice.speak(text)
         await self.gui_send({'type': 'waveform', 'active': False})
 
+    def _notify_from_thread(self, text: str) -> None:
+        """Minuteur qui sonne (thread) : parle sur le PC + message Telegram."""
+        if self.loop and self.loop.is_running():
+            async def _both() -> None:
+                await self.speak(text)
+                await self.journal(text)
+            asyncio.run_coroutine_threadsafe(_both(), self.loop)
+
     async def _reply(self, text: str, source: str) -> None:
         """Speak if local, send journal to Telegram if remote."""
         if source == 'nexus':
@@ -207,6 +217,12 @@ class NexusApp:
         quick = quick_answers.try_answer(t)
         if quick:
             await self._reply(quick, source)
+            return
+
+        # ── 0b2. Extras locaux : minuteurs, notes, courses, to-do, volume, luminosité, arrêt… ──
+        extra = self.extras.try_handle(t)
+        if extra:
+            await self._reply(extra, source)
             return
 
         # ── 0c. Appel WhatsApp (avant la musique : « lance un appel… » contient « lance ») ──

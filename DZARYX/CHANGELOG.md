@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-10-13 — 3e passe JARVIS (TechEnClair v10.3, version Mac) : extras locaux Nexus
+
+### nexus/
+- `modules/extras.py` (nouveau) — commandes **sans IA, sur le PC** (phrase entière, sinon ça part vers Dzaryx) :
+  - **minuteurs** : « minuteur de 10 minutes pour les pâtes », « préviens-moi dans une demi-heure », « il reste
+    combien », « annule les minuteurs » → bip + Nexus parle + message Telegram quand ça sonne ;
+  - **notes / courses / to-do** (fichier `nexus/data/extras.json`) : « note que… », « lis mes notes »,
+    « ajoute du lait et du pain à la liste de courses », « enlève lait de… », « montre ma to-do » ;
+    « note pour le client X » reste pour Dzaryx (fiche client) ;
+  - **système** : volume (monte/baisse/à 40/coupe/remets, via pycaw), luminosité (écran portable), « éteins le PC
+    (dans 10 minutes) » toujours avec 60 s minimum + « annule l'arrêt », redémarrage, verrouillage, vider la corbeille ;
+  - **petits outils** : mot de passe (copié, jamais dit à voix haute), pile ou face, dés, heure à Oran/Bruxelles/Dubaï… ;
+  - **mode boulot** : ouvre `NEXUS_WORK_APPS` (défaut Chrome + Téléchargements + Documents) + playlist `NEXUS_WORK_PLAYLIST`.
+- `nexus.py` — route 0b2 (après les réponses instantanées). `requirements.txt` — + pycaw, comtypes, tzdata.
+- Phrases testées sur le VPS (actions Windows simulées) ; **pas encore testé sur le PC Windows**.
+- Repos de comparaison téléchargés dans `downloads/ext/` (non suivis par git) : bertrandmbanwi/Jarvis (MIT),
+  dmrr35/Open.Jarvis (MIT), openclaw/openclaw (MIT).
+
 
 ## 2026-10-13 — Appel la veille de chaque départ et de chaque retour
 - (`queue/jobs/call-jobs.ts`, `queue/scheduler.ts`) : job `rental-eve-call` 18h Bruxelles → un seul appel pour tout le lendemain. Départ : reste à payer, contrat pas signé (`contract_signatures`), papiers qui expirent. Retour : reste à encaisser, prochain départ de la voiture. Propose un message client / contrat / prolongation. Demande de Kouider. Testé à blanc (`AUTOCALL_DRY_RUN`) sur la résa Motam (départ 21/10, retour 23/10).
