@@ -62,6 +62,7 @@ class RealtimeCall:
         self.video_sent = 0.0
         self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
         self.started = time.monotonic()
+        self.interpreter = ''             # langue du client en mode interprète ('' = normal)
 
     # ── Connexion ────────────────────────────────────────────────────────────
     async def connect(self) -> None:
@@ -232,6 +233,27 @@ class RealtimeCall:
             'type': 'function_call_output', 'call_id': call_id, 'output': result}})
         if follow_up:
             await self._send({'type': 'response.create'})
+
+    async def set_interpreter(self, on: bool, language: str = '') -> str:
+        """Mode interprète : transcription toutes langues + on laisse finir les phrases ; règles renvoyées au modèle."""
+        self.interpreter = (language.strip() or 'la langue du client') if on else ''
+        transcription = {'model': 'gpt-4o-mini-transcribe'} if on else {'model': 'gpt-4o-mini-transcribe', 'language': 'fr'}
+        await self._send({'type': 'session.update', 'session': {'type': 'realtime', 'audio': {'input': {
+            'transcription': transcription,
+            'turn_detection': {'type': 'semantic_vad', 'eagerness': 'low' if on else 'high',
+                               'create_response': True, 'interrupt_response': True}}}}})
+        if not on:
+            return ('Mode interprète arrêté. Redeviens l\'assistant de Kouider en français, comme avant. '
+                    'Dis-lui juste « ok, j\'arrête de traduire ».')
+        lang = self.interpreter
+        return (f'MODE INTERPRÈTE ACTIVÉ ({lang}). Règles jusqu\'à « stop traduction » : '
+                f'1) Annonce-toi au client en {lang} en une phrase (« Bonjour, je suis Dzaryx, je traduis pour Kouider »). '
+                f'2) Kouider parle français → répète EXACTEMENT sa phrase en {lang}, à la 1re personne, rien d\'autre. '
+                f'3) Le client parle {lang} (ou une autre langue) → répète sa phrase en français pour Kouider, à la 1re personne. '
+                '4) Pas de commentaire, pas de réponse de ta part, pas d\'outil : tu es seulement la voix qui traduit. '
+                'Montants, dates, heures, noms et numéros traduits fidèlement. '
+                '5) Exception : si Kouider dit « Dzaryx, … » il te parle à toi (réponds en français), '
+                'et « stop traduction » / « arrête de traduire » → appelle interpreter avec on:false.')
 
     async def wait_silent(self, max_s: float = 15) -> None:
         """Attend que Dzaryx ait fini de parler (réponse terminée + voix jouée)."""

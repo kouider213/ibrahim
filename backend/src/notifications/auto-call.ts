@@ -12,6 +12,9 @@ import { callOwner, getPendingCall } from './voice-call.js';
 // - Pas plus d'un appel auto toutes les 10 min : sinon mis en file, appel groupé ensuite.
 // - Max 12 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
 // - Interrupteur : app_kv `autocall:off` = '1' → plus aucun appel auto (les notifs restent).
+//
+// « J'ai des choses pour toi » : ce qui n'a pas pu être dit par appel (quota, appels coupés, appel manqué)
+// ou qui attend dans la file est gardé dans `autocall:inbox`. Quand Kouider appelle Dzaryx, il commence par ça.
 
 const TZ          = 'Europe/Brussels';
 const START_HOUR  = 8;
@@ -22,6 +25,8 @@ const MAX_PER_DAY = 12;  // 8 → 12 le 2026-10-13 : Kouider veut que Dzaryx app
 const QUEUE_KEY = 'autocall:queue';
 const LAST_KEY  = 'autocall:last';
 const OFF_KEY   = 'autocall:off';
+const INBOX_KEY = 'autocall:inbox';
+const INBOX_MAX_AGE_MS = 36 * 3_600_000;
 
 function localNow(): { hour: number; day: string } {
   const parts = new Intl.DateTimeFormat('fr-BE', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -32,6 +37,45 @@ function localNow(): { hour: number; day: string } {
 
 async function readQueue(): Promise<string[]> {
   try { return JSON.parse((await kvGet(QUEUE_KEY)) ?? '[]') as string[]; } catch { return []; }
+}
+
+type InboxItem = { at: number; text: string };
+const sameInfo = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+async function readInbox(): Promise<InboxItem[]> {
+  try {
+    const items = JSON.parse((await kvGet(INBOX_KEY)) ?? '[]') as InboxItem[];
+    return items.filter(i => i?.text && Date.now() - i.at < INBOX_MAX_AGE_MS);
+  } catch { return []; }
+}
+
+/** Garde une info pour le prochain appel de Kouider (« avant tout, j'ai des choses pour toi »). */
+export async function addToCallInbox(text: string): Promise<void> {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (!clean) return;
+  const items = (await readInbox()).filter(i => !sameInfo(i.text, clean));
+  items.push({ at: Date.now(), text: clean });
+  await kvSet(INBOX_KEY, JSON.stringify(items.slice(-10)), 2 * 86_400);
+}
+
+/** L'info va être dite autrement (2e essai d'appel) → on la retire de la boîte. */
+export async function removeFromCallInbox(text: string): Promise<void> {
+  const items = await readInbox();
+  const left = items.filter(i => !sameInfo(i.text, text));
+  if (left.length !== items.length) await kvSet(INBOX_KEY, JSON.stringify(left), 2 * 86_400);
+}
+
+/**
+ * Kouider appelle Dzaryx : tout ce qui l'attend (boîte + file d'appels pas encore passés), dans l'ordre,
+ * puis vidé — c'est dit dans cet appel, la file ne fera donc plus sonner pour ça.
+ */
+export async function takeCallInbox(): Promise<string[]> {
+  const [inbox, queue] = await Promise.all([readInbox(), readQueue()]);
+  const all: string[] = [];
+  for (const t of [...inbox.map(i => i.text), ...queue]) if (!all.some(a => sameInfo(a, t))) all.push(t);
+  if (inbox.length) await kvSet(INBOX_KEY, '[]', 60);
+  if (queue.length) await kvSet(QUEUE_KEY, '[]', 60);
+  return all.slice(-6);
 }
 
 /** Peut-on faire sonner maintenant ? (heure, écart entre appels, quota, appel déjà en cours) */
@@ -65,16 +109,21 @@ export async function autoCall(key: string, spoken: string): Promise<void> {
     const dedupe = `autocall:done:${key}`;
     if (await kvGet(dedupe)) return;
     await kvSet(dedupe, '1', 86_400);
-    if ((await kvGet(OFF_KEY)) === '1') return;
-
     const clean = spoken.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}*_`]/gu, '').replace(/\s+/g, ' ').trim();
+    // Appels coupés : rien ne sonne, mais il l'entendra quand il appellera
+    if ((await kvGet(OFF_KEY)) === '1') { await addToCallInbox(clean); return; }
+
     const check = await canRingNow();
     if (check.ok) {
       await ring(clean);
       console.log(`[auto-call] RING ${key}`);
       return;
     }
-    if (check.why === 'quota') { console.log(`[auto-call] quota atteint — ${key} reste en notif`); return; }
+    if (check.why === 'quota') {
+      await addToCallInbox(clean);
+      console.log(`[auto-call] quota atteint — ${key} reste en notif + boîte du prochain appel`);
+      return;
+    }
     const queue = await readQueue();
     queue.push(clean);
     await kvSet(QUEUE_KEY, JSON.stringify(queue.slice(-10)), 2 * 86_400);

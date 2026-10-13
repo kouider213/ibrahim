@@ -10,6 +10,8 @@ import { Dzaryx_TOOLS } from '../../integrations/tools.js';
 import { kvGet, kvSet } from '../../integrations/app-store.js';
 import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
 import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
+import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
+import { clientWhatsappLink } from '../../notifications/client-care.js';
 
 const router = Router();
 
@@ -37,7 +39,12 @@ router.post('/heartbeat', requireMobileAuth, async (req, res) => {
 router.post('/answer', requireMobileAuth, async (req, res) => {
   try {
     const { callId, noAudio } = req.body as { callId?: string; noAudio?: boolean };
-    res.json(await answerCall(callActor(req), callId, !!noAudio));
+    const who = callActor(req);
+    // C'est Kouider qui appelle (rien ne sonnait) → il entend d'abord ce qui l'attendait
+    const pending = await getPendingCall(who);
+    const ringing = !!pending && (!callId || pending.id === callId);
+    const waiting = !ringing && who === 'kouider' ? await takeCallInbox().catch(() => []) : [];
+    res.json(await answerCall(who, callId, !!noAudio, waiting));
   } catch (err) {
     console.error('[call] answer:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'answer failed' });
@@ -61,8 +68,16 @@ router.post('/test', requireMobileAuth, async (req, res) => {
 router.post('/retry', requireMobileAuth, async (req, res) => {
   const reason = String((req.body as { reason?: string }).reason ?? '').trim();
   if (!reason) { res.status(400).json({ error: 'reason required' }); return; }
+  await removeFromCallInbox(reason).catch(() => {});   // dit dans ce 2e essai
   const { id } = await callOwner(`Je te rappelle, tu n'avais pas décroché. ${reason}`, callActor(req));
   res.json({ ok: true, id });
+});
+
+// POST /api/call/missed { reason } — appel de Dzaryx pas décroché : l'info est gardée pour le prochain appel de Kouider
+router.post('/missed', requireMobileAuth, async (req, res) => {
+  const reason = String((req.body as { reason?: string }).reason ?? '').trim();
+  if (reason && callActor(req) === 'kouider') await addToCallInbox(reason.slice(0, 600)).catch(() => {});
+  res.json({ ok: true });
 });
 
 // POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
@@ -122,10 +137,25 @@ async function realtimeVoice(): Promise<string> {
 // Lectures RAPIDES pendant l'appel : outils en lecture seule exécutés directement (sans le cerveau complet,
 // qui prend 5 à 15 s). Toute action / tout le reste passe toujours par ask_dzaryx.
 const QUICK_TOOLS = ['list_bookings', 'get_fleet_status', 'check_car_availability', 'get_unpaid_bookings',
-  'get_finance_dashboard', 'list_emails', 'read_email'] as const;
+  'get_finance_dashboard', 'list_emails', 'read_email',
+  'check_client', 'get_expenses', 'get_vehicle_maintenance'] as const;
 const quickToolDefs = Dzaryx_TOOLS
   .filter(t => (QUICK_TOOLS as readonly string[]).includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: `Lecture rapide. ${t.description ?? ''}`.slice(0, 1000), parameters: t.input_schema }));
+
+// Écritures RAPIDES dictées au téléphone (dépense, km, vidange faite) : en 2 s au lieu du cerveau complet.
+// Exécutées seulement avec confirmed:true, c.-à-d. APRÈS relecture à l'oral et un « oui » de Kouider.
+const QUICK_WRITE_TOOLS = ['record_expense', 'record_car_km', 'update_vehicle_maintenance'] as const;
+const CONFIRMED_PARAM = { type: 'boolean', description: 'true SEULEMENT après avoir relu l\'action à l\'oral et reçu un « oui » clair de Kouider' };
+const quickWriteDefs = Dzaryx_TOOLS
+  .filter(t => (QUICK_WRITE_TOOLS as readonly string[]).includes(t.name))
+  .map(t => {
+    const schema = t.input_schema as { properties?: Record<string, unknown>; required?: string[] };
+    return { type: 'function', name: t.name,
+      description: `Écriture rapide, APRÈS son oui (relis d'abord : montant, devise, voiture, km). ${t.description ?? ''}`.slice(0, 1000),
+      parameters: { ...schema, properties: { ...(schema.properties ?? {}), confirmed: CONFIRMED_PARAM },
+        required: [...(schema.required ?? []), 'confirmed'] } };
+  });
 
 // Outils propres à l'appel : exécutés par tgcall (send_text_to_me, end_call) ou programmés (call_me).
 const CALL_TOOLS = [
@@ -139,6 +169,17 @@ const CALL_TOOLS = [
   { type: 'function', name: 'look',
     description: 'Regarder MAINTENANT la caméra de Kouider (appel vidéo) : « regarde », « tu vois ça ? », « et là ? ». Renvoie une image fraîche. Si la caméra est coupée, dis-lui de l\'allumer (bouton vidéo de Telegram).',
     parameters: { type: 'object', properties: {} } },
+  { type: 'function', name: 'whatsapp_link',
+    description: 'Préparer un message WhatsApp pour un CLIENT (« envoie à Karim que la voiture est prête à 14h ») : Dzaryx retrouve son numéro et envoie à Kouider sur Telegram le lien WhatsApp avec le message déjà écrit ; Kouider n\'a plus qu\'à appuyer. Rien ne part au client sans lui. Écris le message complet, poli, au nom de FIK Conciergerie, dans la langue du client.',
+    parameters: { type: 'object', properties: {
+      client: { type: 'string', description: 'Nom du client tel que Kouider le dit' },
+      message: { type: 'string', description: 'Le message exact pour le client' },
+      phone: { type: 'string', description: 'Numéro, seulement si Kouider le donne' } }, required: ['client', 'message'] } },
+  { type: 'function', name: 'interpreter',
+    description: 'Mode INTERPRÈTE (« traduis », « sois mon interprète », « mode traduction en anglais/arabe ») : Kouider met le haut-parleur avec un client, tu traduis chaque phrase dans les deux sens. on:false quand il dit « stop traduction », « c\'est bon, arrête de traduire ».',
+    parameters: { type: 'object', properties: {
+      on: { type: 'boolean' },
+      language: { type: 'string', description: 'Langue du client (anglais, arabe, espagnol, italien, allemand…)' } }, required: ['on'] } },
   { type: 'function', name: 'end_call',
     description: 'Raccrocher. Seulement APRÈS avoir dit au revoir, quand Kouider a fini ou demande à raccrocher (« c\'est bon », « rappelle-moi plus tard », « salut »).',
     parameters: { type: 'object', properties: {} } },
@@ -154,7 +195,10 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `Maintenant : ${fmt('Europe/Brussels')} en Belgique (${fmt('Africa/Algiers')} à Oran).`,
     `Parle en français, tutoiement, comme un vrai assistant au téléphone : chaleureux, naturel, phrases courtes, 1 à 3 phrases par réponse. Pas de listes, pas de markdown.`,
     `Si on te coupe la parole, arrête-toi et écoute.`,
-    `RAPIDE : pour juste LIRE des réservations, la flotte, une dispo, les impayés, les finances ou les mails, utilise directement l'outil correspondant (list_bookings, get_fleet_status, check_car_availability, get_unpaid_bookings, get_finance_dashboard, list_emails puis read_email) : c'est instantané. ask_dzaryx pour tout le reste (clients, agenda, rappels, prospects, web, mails envoyés…) et pour TOUTE action.`,
+    `RAPIDE : pour juste LIRE des réservations, la flotte, une dispo, les impayés, les finances, les mails, si un client est fiable (« Karim c'est un bon client ? » → check_client), les dépenses ou le bénéfice réel d'une voiture (get_expenses) ou l'entretien / la vidange (get_vehicle_maintenance), utilise directement l'outil correspondant : c'est instantané. ask_dzaryx pour tout le reste (agenda, rappels, prospects, web, mails envoyés…) et pour toute autre action.`,
+    `DICTÉE RAPIDE : dépense (« 3000 DA d'essence sur la Sandero » → record_expense), kilométrage (« la Clio est à 85 000 » → record_car_km), vidange faite (« vidange faite sur le Jogger à 80 000 » → update_vehicle_maintenance avec car_name, last_service_km et last_service_date d'aujourd'hui). Relis en UNE phrase (« 3000 dinars d'essence sur la Sandero, je note ? »), puis après son oui appelle l'outil avec confirmed:true. Sans devise dite, c'est des dinars. Si l'outil demande quelle voiture, pose-lui la question puis rappelle l'outil (son oui reste valable).`,
+    `WHATSAPP CLIENT : « envoie à Karim que… », « préviens le client que… » → rédige un message court et poli, dis-lui en une phrase ce que tu vas écrire, puis outil whatsapp_link : il reçoit le lien sur Telegram et l'envoie lui-même en un clic. Dis « je t'ai envoyé le lien, tu n'as plus qu'à appuyer ».`,
+    `INTERPRÈTE : « traduis », « sois mon interprète », « il parle anglais » → outil interpreter (on:true, langue) puis suis les règles qu'il te renvoie, jusqu'à « stop traduction » (interpreter on:false).`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
     `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
     `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin).`,
@@ -197,7 +241,7 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
             name: 'ask_dzaryx',
             description: 'Le cerveau de Dzaryx (accès réel aux réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
             parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
-          }, ...quickToolDefs, ...CALL_TOOLS],
+          }, ...quickToolDefs, ...quickWriteDefs, ...CALL_TOOLS],
           tool_choice: 'auto',
         },
       }),
@@ -220,9 +264,21 @@ router.post('/tool', requireMobileAuth, async (req, res) => {
   const { name, input } = req.body as { name?: string; input?: Record<string, unknown> };
   // call_me : seulement un rappel PROGRAMMÉ (« rappelle-moi dans 1 heure »), jamais tout de suite pendant l'appel
   const later = name === 'call_me' && !!(input?.['delay_minutes'] || input?.['at_time'] || input?.['at_date']);
-  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later)) { res.status(400).json({ error: 'tool not allowed' }); return; }
+  const write = (QUICK_WRITE_TOOLS as readonly string[]).includes(name ?? '');
+  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && name !== 'whatsapp_link')) {
+    res.status(400).json({ error: 'tool not allowed' }); return;
+  }
   try {
-    const out = await executeTool(name, input ?? {}, `voice_${callActor(req)}`);
+    if (name === 'whatsapp_link') {
+      const r = await clientWhatsappLink(String(input?.['client'] ?? ''), String(input?.['message'] ?? ''), input?.['phone'] as string | undefined);
+      res.json(r); return;
+    }
+    const { confirmed, ...args } = input ?? {};
+    if (write && confirmed !== true) {
+      res.json({ text: 'Pas encore enregistré : relis-lui l\'action à l\'oral, attends son oui, puis rappelle l\'outil avec confirmed:true.' });
+      return;
+    }
+    const out = await executeTool(name, args, `voice_${callActor(req)}`);
     res.json({ text: out.slice(0, 6000) });
   } catch (err) {
     console.error('[call] tool:', err instanceof Error ? err.message : String(err));

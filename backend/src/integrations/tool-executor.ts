@@ -22,7 +22,7 @@ import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSe
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { runDailyOutreach } from './prospect-autopilot.js';
-import { recordExpense, getExpenses, deleteExpense } from './expenses.js';
+import { recordExpense, getExpenses, deleteExpense, findCar } from './expenses.js';
 import { clientRisk, recordCarKm } from '../notifications/client-care.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
@@ -6618,11 +6618,16 @@ async function updateVehicleMaintenanceTool(input: Record<string, unknown>): Pro
 
   if (!Object.keys(updates).length) return '❌ Aucune donnée à mettre à jour.';
 
-  let query = supabase.from('cars').update(updates);
-  if (carId)   query = query.eq('id', carId);
-  if (carName) query = query.ilike('name', `%${carName}%`);
-
-  const { error } = await query;
+  // Une seule voiture : « Clio » ne doit pas modifier les 3 Clio du parc
+  let targetId = carId;
+  let targetName = carName;
+  if (!targetId) {
+    const found = await findCar(carName);
+    if (!found) return `❌ Aucune voiture « ${carName} » dans le parc.`;
+    if (Array.isArray(found)) return `❌ Plusieurs voitures correspondent à « ${carName} » : ${found.map(c => c.name).join(', ')}. Laquelle ?`;
+    targetId = found.id; targetName = found.name;
+  }
+  const { error } = await supabase.from('cars').update(updates).eq('id', targetId);
   if (error) return `❌ Erreur mise à jour: ${error.message}`;
 
   const parts: string[] = [];
@@ -6632,8 +6637,8 @@ async function updateVehicleMaintenanceTool(input: Record<string, unknown>): Pro
   if (serviceNotes)            parts.push(`notes: ${serviceNotes}`);
 
   const kmNow   = currentKm ?? lastServiceKm;
-  const kmLine  = carName && kmNow != null ? await recordCarKm(carName, kmNow).catch(() => '') : '';
-  return `✅ Entretien mis à jour pour ${carName || carId}: ${parts.join(', ')}${kmLine ? `\n${kmLine}` : ''}`;
+  const kmLine  = targetName && kmNow != null ? await recordCarKm(targetName, kmNow).catch(() => '') : '';
+  return `✅ Entretien mis à jour pour ${targetName || targetId}: ${parts.join(', ')}${kmLine ? `\n${kmLine}` : ''}`;
 }
 
 // ── Vehicle Maintenance Status ────────────────────────────────────────────────

@@ -90,6 +90,34 @@ export async function clientRisk(name: string, phone?: string | null): Promise<C
     spoken: past.length > 1 ? `C'est un client fidèle, ${past.length} locations sans problème.` : `Il a déjà loué une fois chez toi, sans problème.` };
 }
 
+/**
+ * Lien WhatsApp prêt à envoyer à un client (pendant un appel : « envoie à Karim que la voiture est prête »).
+ * Le numéro vient de ses réservations. Plusieurs clients du même nom → on demande lequel.
+ */
+export async function clientWhatsappLink(name: string, text: string, phone?: string | null): Promise<{ ok: boolean; text: string; link?: string; client?: string }> {
+  const msg = text.trim();
+  if (!msg) return { ok: false, text: 'Message vide : que faut-il lui écrire ?' };
+  if (phone && waLink(phone, msg)) return { ok: true, text: `Lien prêt pour ${name || phone}.`, link: waLink(phone, msg), client: name || phone };
+  const clean = name.replace(/[,()"%*]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!clean) return { ok: false, text: 'Quel client ?' };
+  const { data } = await supabase.from('bookings').select('client_name, client_phone, start_date')
+    .ilike('client_name', `%${clean}%`).not('client_phone', 'is', null)
+    .order('start_date', { ascending: false }).limit(40);
+  const byPhone = new Map<string, { name: string; phone: string }>();
+  for (const b of (data ?? []) as { client_name: string; client_phone: string }[]) {
+    const k = phoneKey(b.client_phone);
+    if (k && !byPhone.has(k)) byPhone.set(k, { name: b.client_name, phone: b.client_phone });
+  }
+  const found = [...byPhone.values()];
+  if (!found.length) return { ok: false, text: `Je n'ai pas de numéro pour « ${clean} » dans les réservations. Demande-lui le numéro.` };
+  const exact = found.filter(f => f.name.trim().toLowerCase() === clean.toLowerCase());
+  const pick = exact.length === 1 ? exact[0]! : found.length === 1 ? found[0]! : null;
+  if (!pick) return { ok: false, text: `Plusieurs clients « ${clean} » : ${found.slice(0, 5).map(f => `${f.name} (…${phoneKey(f.phone).slice(-3)})`).join(', ')}. Lequel ?` };
+  const link = waLink(pick.phone, msg);
+  if (!link) return { ok: false, text: `Le numéro de ${pick.name} n'est pas valide (${pick.phone}).` };
+  return { ok: true, text: `Lien prêt pour ${pick.name}.`, link, client: pick.name };
+}
+
 // ── 2. Kilométrage → prochaine vidange ───────────────────────────────────────
 
 type CarKm = { id: string; name: string; current_km: number | null; last_service_km: number | null; next_service_km: number | null; service_interval_km: number | null };

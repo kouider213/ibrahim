@@ -22,7 +22,7 @@ export function ensureExpenseColumns(): Promise<boolean> {
   return carColumn;
 }
 
-async function findCar(name: string): Promise<Car | Car[] | null> {
+export async function findCar(name: string): Promise<Car | Car[] | null> {
   const { data } = await supabase.from('cars').select('id, name').ilike('name', `%${name.trim()}%`).limit(5);
   const cars = (data ?? []) as Car[];
   if (!cars.length) return null;

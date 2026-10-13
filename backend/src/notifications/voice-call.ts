@@ -62,14 +62,28 @@ export async function getPendingCall(actor: CallActor): Promise<PendingCall | nu
 }
 
 /** Kouider décroche (appel de Dzaryx) ou lance l'appel lui-même → phrase d'accueil + audio. */
-export async function answerCall(actor: CallActor, callId?: string, noAudio = false): Promise<{ text: string; audio: string | null; incoming: boolean }> {
+/** Accueil quand c'est Kouider qui appelle et que des infos l'attendent (« avant tout, j'ai des choses pour toi »). */
+export function waitingGreeting(actor: CallActor, waiting: string[]): string {
+  const hi = `Oui ${firstName(actor)}, je t'écoute.`;
+  if (!waiting.length) return hi;
+  const items = waiting.map(w => w.replace(/\s+/g, ' ').trim().replace(/[^.!?…]$/, m => `${m}.`));
+  const body = items.length === 1
+    ? `Avant tout, j'ai une chose pour toi : ${items[0]}`
+    : `Avant tout, j'ai ${items.length} choses pour toi. ${items.map((t, i) => `${i === 0 ? 'Un' : i === items.length - 1 ? 'Et enfin' : 'Ensuite'} : ${t}`).join(' ')}`;
+  return `${hi} ${body} Voilà, dis-moi.`;
+}
+
+/**
+ * @param waiting  infos qui attendaient Kouider (boîte des appels) : dites en premier quand c'est LUI qui appelle
+ */
+export async function answerCall(actor: CallActor, callId?: string, noAudio = false, waiting: string[] = []): Promise<{ text: string; audio: string | null; incoming: boolean }> {
   const pending = await getPendingCall(actor);
   const incoming = !!pending && (!callId || pending.id === callId);
-  const text = incoming ? pending!.greeting : `Oui ${firstName(actor)}, je t'écoute.`;
+  const text = incoming ? pending!.greeting : waitingGreeting(actor, waiting);
   if (pending) await kvDel(PENDING_KEY(actor));   // décroché, ou remplacé par l'appel de Kouider
 
-  if (incoming) {
-    saveConversationTurn(`voice_${actor}`, 'assistant', text, { call: true, call_id: pending!.id })
+  if (incoming || waiting.length) {
+    saveConversationTurn(`voice_${actor}`, 'assistant', text, { call: true, ...(incoming ? { call_id: pending!.id } : {}) })
       .catch(err => console.error('[voice-call] contexte:', err instanceof Error ? err.message : String(err)));
   }
   const buf = noAudio ? null : await synthesizeVoice(text);   // noAudio : la voix temps réel dit l'accueil elle-même

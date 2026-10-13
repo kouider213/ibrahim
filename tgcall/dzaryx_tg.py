@@ -435,8 +435,19 @@ async def missed_call(actor: str, user_id: int, reason: str, err: Exception) -> 
         log.info('appel manqué → message envoyé')
     except Exception as e:
         log.error('message appel manqué: %s', e)
+    try:   # gardé pour son prochain appel (« avant tout, j'ai des choses pour toi »), retiré si le 2e essai passe
+        await api('/api/call/missed', {'reason': strip_greeting(reason)}, actor, 15)
+    except Exception as e:
+        log.warning('boîte des appels: %s', e)
     if retry:
         asyncio.create_task(retry_call(actor, user_id, reason))
+
+
+def strip_greeting(greeting: str) -> str:
+    """« Allô Kouider, c'est Dzaryx. Je te rappelle, tu n'avais pas décroché. X » → « X »."""
+    s = re.sub(r"^Allô [^,]+, c'est Dzaryx\.\s*", '', greeting).strip()
+    s = re.sub(r"^Je te rappelle, tu n'avais pas décroché\.\s*", '', s).strip()
+    return s or greeting
 
 
 async def retry_call(actor: str, user_id: int, greeting: str) -> None:
@@ -446,7 +457,7 @@ async def retry_call(actor: str, user_id: int, greeting: str) -> None:
     if user_id in active or last_call.get(user_id, 0) > missed_at:
         log.info("2e essai annulé : on s'est parlé entre-temps")
         return
-    reason = re.sub(r"^Allô [^,]+, c'est Dzaryx\.\s*", '', greeting).strip() or greeting
+    reason = strip_greeting(greeting)
     try:
         await api('/api/call/retry', {'reason': reason}, actor)
         log.info('2e essai lancé pour %s', actor)
@@ -473,7 +484,26 @@ def call_tools(user_id: int) -> dict:
             return 'Image de la caméra ajoutée : décris ce que tu vois.', True
         return 'Caméra coupée : aucune image. Demande-lui d\'activer la vidéo dans Telegram.', True
 
-    return {'send_text_to_me': send_text_to_me, 'end_call': end_call, 'look': look}
+    async def whatsapp_link(args: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        actor = st.actor if st else 'kouider'
+        res = await api('/api/call/tool', {'name': 'whatsapp_link', 'input': args}, actor, 20)
+        if not res.get('ok') or not res.get('link'):
+            return res.get('text') or 'Lien impossible.', True
+        await app.send_message(user_id, f"💬 WhatsApp pour {res.get('client')} — appuie pour envoyer :\n\n"
+                                        f"{args.get('message', '').strip()}\n\n👉 {res['link']}",
+                               disable_web_page_preview=True)
+        return f"✅ Lien WhatsApp pour {res.get('client')} envoyé à Kouider sur Telegram. Il n'a plus qu'à appuyer.", True
+
+    async def interpreter(args: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        if not st or not st.rt:
+            return 'Mode interprète indisponible.', True
+        log.info('interprète %s (%s)', 'ON' if args.get('on') else 'OFF', args.get('language', ''))
+        return await st.rt.set_interpreter(bool(args.get('on')), str(args.get('language') or '')), True
+
+    return {'send_text_to_me': send_text_to_me, 'end_call': end_call, 'look': look,
+            'whatsapp_link': whatsapp_link, 'interpreter': interpreter}
 
 
 async def hang_up(user_id: int) -> None:
