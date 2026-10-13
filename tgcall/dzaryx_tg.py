@@ -522,6 +522,8 @@ async def poll_pending() -> None:
 @app.on_message(pfilters.private & pfilters.incoming)
 async def on_message(_, msg: Message) -> None:
     uid = msg.from_user.id if msg.from_user else 0
+    if app.me and uid == app.me.id:                        # ses propres messages (notes, résumés) : rien à faire
+        return
     actor = peer_actor.get(uid)
     if actor is None:
         log.info('message de %s (@%s) ignoré — ajoute son id dans .env', uid,

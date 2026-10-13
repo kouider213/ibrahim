@@ -94,10 +94,10 @@
 - ✅ Vision (capture écran)
 - ✅ Wake on LAN
 - ✅ Morning briefing proactif (KOUIDER_SCHEDULE embarqué, notifications per-day)
-- 🔵 Voice (wake word "Dzaryx" → commande vocale)
-- 🔵 Auto-unlock (déverrouillage PC automatique)
-- 🔵 TikTok automation (posting automatique)
-- 🔵 Music control (Spotify)
+- ⚪ Voice wake word — Kouider n'en a pas besoin (B030, 2026-10-13)
+- ⚪ Auto-unlock PC — retiré 2026-10-13 (décision Kouider)
+- ⚪ TikTok automation — ⚪ Retiré 2026-10-13 (payant — décision Kouider)
+- ⚪ Music control (Spotify) — retiré 2026-10-13 (décision Kouider)
 
 ---
 
@@ -167,7 +167,7 @@
 - ❌ **APK Android** — EAS Free plan épuisé ce mois → reset 1er juin 2026
   - Commande : `EXPO_TOKEN=G7nmf_7VE1RreEeM3E5orMQJiVvGhLYt7Ze1jCN6 npx eas build --platform android --profile preview --non-interactive`
   - Résultat : fichier `.apk` à installer sur les téléphones Kouider + Houari
-- 🔵 **App Store iOS** — EAS Submit après APK android validé
+- ⚪ **App Store iOS** — ⚪ Retiré 2026-10-13 (payant — décision Kouider)
   - Nécessite compte Apple Developer (99$/an) + provisioning profile
   - Alternative : distribution via TestFlight pour test interne
 - ✅ Code `dzaryx-native/` prêt — 9 écrans, voix, push notifs, OCR, multi-acteur
@@ -197,23 +197,23 @@
 - ✅ Tables `user_behavior` + `conversation_patterns`
 - ✅ Migration Phase 8 SQL appliquée Supabase (7 tables)
 
-### 8.1 — WhatsApp Bot Vitrine (🔵 Août 2026 — décision Kouider)
-- 🔵 Bot vitrine SEULEMENT : liste véhicules dispo + tarifs + promotions
-- 🔵 PAS de réservation automatique (info uniquement)
-- 🔵 Twilio WhatsApp Cloud API
-- 🔵 Variables Railway à ajouter : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
-- 🔵 Table `whatsapp_messages` déjà créée (Phase 8 migration)
+### 8.1 — WhatsApp Bot Vitrine (⚪ Retiré 2026-10-13 (payant — décision Kouider))
+- ⚪ Bot vitrine SEULEMENT : liste véhicules dispo + tarifs + promotions
+- ⚪ PAS de réservation automatique (info uniquement)
+- ⚪ Twilio WhatsApp Cloud API
+- ⚪ Variables Railway à ajouter : `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
+- ⚪ Table `whatsapp_messages` déjà créée (Phase 8 migration)
 
 ### 8.2 — Contrats PDF Automatiques (✅ Terminé — 2026-05-21)
 - ✅ `generate_contract` tool : contrat PDF signable avec CGV + zones signature
 - ✅ `backend/src/integrations/generate-contract.ts`
 - ✅ Table `contracts` créée (Phase 8 migration)
 - ✅ Simulateur : panel "GÉNÉRER CONTRAT PDF" dans DOCS
-- 🔵 Upload Supabase bucket + envoi WhatsApp automatique (attendre WhatsApp août 2026)
+- ⚪ Envoi WhatsApp automatique — ⚪ Retiré 2026-10-13 (payant — décision Kouider)
 
-### 8.3 — Signature Électronique (🔵 Planifié)
-- 🔵 Client signe via lien (canvas HTML → image PNG → stocké Supabase)
-- 🔵 Dépend de WhatsApp (août 2026)
+### 8.3 — Signature Électronique (✅ Terminé — déjà en place, roadmap mise à jour 2026-10-13)
+- ✅ Outil `create_signature_link` → page publique `/sign/<token>` (`backend/src/api/routes/sign.ts`) : le client signe au doigt, PDF signé
+- ✅ Lien envoyé à la main par Kouider (WhatsApp perso / SMS) — pas d'API payante
 
 ### 8.4 — Paiement Chargily (⚪ Won't Fix — décision Kouider)
 - ⚪ Chargily Pay API — Kouider a décidé de ne pas faire pour l'instant
@@ -232,7 +232,7 @@
 - ✅ 8 landmarks Oran préchargés (aéroport, centre, port, Bir El Djir, Ain Turk, Arzew...)
 - ✅ `GOOGLE_MAPS_API_KEY` configuré Railway
 - ✅ Simulateur : panel GPS LIVRAISON interactif dans RESAS
-- 🔵 Suivi flotte GPS live → nécessite hardware trackers (~25-50€/voiture + SIM 4G)
+- ⚪ Suivi flotte GPS live (trackers ~25-50€/voiture) — ⚪ Retiré 2026-10-13 (payant — décision Kouider)
 
 ### 8.7 — Firebase FCM Natif (✅ Terminé — 2026-06-14)
 - ✅ `fcm.ts` : Firebase Admin SDK, triple push Expo/FCM/WebPush, ciblage acteur
@@ -242,37 +242,37 @@
 ### 8.8 — Google STT (✅ Terminé — 2026-05-21)
 - ✅ `/api/transcribe` : Google STT provider + fallback Groq Whisper automatique
 
-### 8.9 — TikTok Auto-post (🔵 Planifié — Phase 4 restant)
-- 🔵 Publication automatique vidéos TikTok (via Apify ou TikTok Business API)
-- 🔵 Nexus PC peut lancer script Python de post automatique
-- 🔵 Calendrier : 1 vidéo/semaine, timing optimal (17h-19h vendredi)
+### 8.9 — TikTok Auto-post (⚪ Retiré 2026-10-13 (payant — décision Kouider))
+- ⚪ Publication automatique vidéos TikTok (via Apify ou TikTok Business API)
+- ⚪ Nexus PC peut lancer script Python de post automatique
+- ⚪ Calendrier : 1 vidéo/semaine, timing optimal (17h-19h vendredi)
 
 ---
 
 ---
 
-## Phase 9 — Ultimate IoT (🔵 Planifié — Q3 2026)
+## Phase 9 — Ultimate IoT (⚪ Retiré 2026-10-13 — matériel payant, pas de domotique)
 
 > Plan 19 900 DA/mois = Enterprise + contrôle maison + voiture
 
-### 9.1 — Maison connectée (🔵 Planifié)
-- 🔵 Raspberry Pi 4 + Zigbee dongle (CC2531 ou ConBee II)
-- 🔵 Home Assistant OS sur le Pi (open source, local)
-- 🔵 Agent Python `nexus-iot/` → API Home Assistant → relais Dzaryx
-- 🔵 Commandes vocales : "Dzaryx éteins les lumières du salon", "quelle est la température ?"
-- 🔵 Capteurs : température, humidité, présence, fenêtres, prises intelligentes
-- 🔵 Tableau de bord IoT temps réel dans SaasPortal
+### 9.1 — Maison connectée (⚪ Retiré)
+- ⚪ Raspberry Pi 4 + Zigbee dongle (CC2531 ou ConBee II)
+- ⚪ Home Assistant OS sur le Pi (open source, local)
+- ⚪ Agent Python `nexus-iot/` → API Home Assistant → relais Dzaryx
+- ⚪ Commandes vocales : "Dzaryx éteins les lumières du salon", "quelle est la température ?"
+- ⚪ Capteurs : température, humidité, présence, fenêtres, prises intelligentes
+- ⚪ Tableau de bord IoT temps réel dans SaasPortal
 
-### 9.2 — Voiture connectée (🔵 Planifié)
-- 🔵 Dongle OBD-II Bluetooth/WiFi (ELM327, ~20-50€)
-- 🔵 App mobile → Bluetooth → lecture données CAN bus
-- 🔵 Stats : carburant, vitesse, RPM, codes erreurs DTC, kilométrage
-- 🔵 Alertes : niveau carburant bas, entretien à prévoir, codes pannes
+### 9.2 — Voiture connectée (⚪ Retiré)
+- ⚪ Dongle OBD-II Bluetooth/WiFi (ELM327, ~20-50€)
+- ⚪ App mobile → Bluetooth → lecture données CAN bus
+- ⚪ Stats : carburant, vitesse, RPM, codes erreurs DTC, kilométrage
+- ⚪ Alertes : niveau carburant bas, entretien à prévoir, codes pannes
 
-### 9.3 — Hardware bundle (🔵 Planifié)
-- 🔵 Matériel vendu séparément à l'inscription Ultimate (~150-300€ one-time)
-- 🔵 Guide d'installation automatique envoyé par email
-- 🔵 Support téléphonique pour installation (SLA Ultimate)
+### 9.3 — Hardware bundle (⚪ Retiré)
+- ⚪ Matériel vendu séparément à l'inscription Ultimate (~150-300€ one-time)
+- ⚪ Guide d'installation automatique envoyé par email
+- ⚪ Support téléphonique pour installation (SLA Ultimate)
 
 ---
 
