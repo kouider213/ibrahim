@@ -40,6 +40,8 @@ class RealtimeCall:
         self.tasks: list[asyncio.Task] = []
         self.closed = False
         self.playing = False              # l'appel Telegram est établi → on peut envoyer des tranches
+        self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
+        self.started = time.monotonic()
 
     # ── Connexion ────────────────────────────────────────────────────────────
     async def connect(self) -> None:
@@ -125,9 +127,15 @@ class RealtimeCall:
                     self.out.clear()          # Kouider parle par-dessus → Dzaryx se tait tout de suite
                     log.info('interrompu par %s', self.actor)
             elif t == 'conversation.item.input_audio_transcription.completed':
-                log.info('%s a dit: %r', self.actor, (ev.get('transcript') or '').strip())
+                said = (ev.get('transcript') or '').strip()
+                log.info('%s a dit: %r', self.actor, said)
+                if said:
+                    self.lines.append({'role': 'user', 'text': said})
             elif t in ('response.output_audio_transcript.done', 'response.audio_transcript.done'):
-                log.info('Dzaryx: %r', (ev.get('transcript') or '')[:200])
+                said = (ev.get('transcript') or '').strip()
+                log.info('Dzaryx: %r', said[:200])
+                if said:
+                    self.lines.append({'role': 'dzaryx', 'text': said})
             elif t == 'response.function_call_arguments.done':
                 asyncio.create_task(self._tool(ev))
             elif t == 'error':

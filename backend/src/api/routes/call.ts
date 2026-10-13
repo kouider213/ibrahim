@@ -5,6 +5,7 @@ import { processMessage } from '../../conversation/orchestrator.js';
 import { synthesizeVoice } from '../../notifications/dispatcher.js';
 import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
 import { env } from '../../config/env.js';
+import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
 
 const router = Router();
 
@@ -56,7 +57,7 @@ router.post('/turn', requireMobileAuth, async (req, res) => {
     : DEFAULT_MEMBER;
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
-    const inCall = `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne.]\n${message.trim().slice(0, 2000)}`;
+    const inCall = `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter.]\n${message.trim().slice(0, 2000)}`;
     const out = await processMessage(inCall, `voice_${who}`, true, undefined, 'image/jpeg', actor);
     const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
     if (stream && !textOnly) { await streamTurn(res, text); return; }
@@ -90,7 +91,7 @@ async function streamTurn(res: import('express').Response, text: string): Promis
 const REALTIME_MODEL = 'gpt-realtime';
 const REALTIME_VOICE = 'cedar';
 
-function realtimeInstructions(who: CallActor): string {
+function realtimeInstructions(who: CallActor, calls: string): string {
   const name = who === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
   const now = new Date();
   const fmt = (tz: string) => now.toLocaleString('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -103,6 +104,11 @@ function realtimeInstructions(who: CallActor): string {
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
     `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
     `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin).`,
+    `ACTIONS (envoyer un mail/message/WhatsApp, créer/modifier/annuler une réservation, enregistrer un paiement, programmer un rappel, appeler ou relancer quelqu'un…) : TOUJOURS en deux temps.`,
+    `1) Prépare : si un texte est à envoyer, demande à ask_dzaryx de le rédiger SANS l'envoyer. Puis relis-lui à l'oral précisément ce que tu vas faire (à qui, quoi, quand) et demande « Je le fais ? ».`,
+    `2) Seulement après un oui clair de sa part (« oui », « vas-y », « envoie »), appelle ask_dzaryx avec une demande qui commence par « CONFIRMÉ AU TÉLÉPHONE : » suivie de l'action complète (destinataire, texte exact, date…). S'il hésite ou change quelque chose, corrige et relis à nouveau. Puis dis-lui que c'est fait seulement si l'outil le confirme.`,
+    `Un rappel qu'il demande pour lui-même (« rappelle-moi demain à 9h ») : redis l'heure et le sujet, puis fais-le après son oui.`,
+    ...(calls ? [calls, `Si c'est utile, tu peux rappeler ce qui reste à faire de ces appels.`] : []),
   ].join('\n');
 }
 
@@ -118,7 +124,7 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
         session: {
           type: 'realtime',
           model: REALTIME_MODEL,
-          instructions: realtimeInstructions(who),
+          instructions: realtimeInstructions(who, await recentCallsText(who).catch(() => '')),
           audio: {
             input: {
               format: { type: 'audio/pcm', rate: 24000 },
@@ -148,6 +154,20 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
   } catch (err) {
     console.error('[call] realtime:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'realtime failed' });
+  }
+});
+
+// POST /api/call/summary { lines: [{role, text}], durationS } — fin d'un appel Telegram : résumé + choses à faire
+// retenus (mémoire des appels). Renvoie le résumé, que tgcall envoie à Kouider en message.
+router.post('/summary', requireMobileAuth, async (req, res) => {
+  const { lines, durationS } = req.body as { lines?: CallLine[]; durationS?: number };
+  if (!Array.isArray(lines)) { res.status(400).json({ error: 'lines required' }); return; }
+  try {
+    const mem = await summarizeCall(callActor(req), lines.slice(-200), Number(durationS) || 0);
+    res.json({ memory: mem });
+  } catch (err) {
+    console.error('[call] summary:', err instanceof Error ? err.message : String(err));
+    res.status(500).json({ error: 'summary failed' });
   }
 });
 

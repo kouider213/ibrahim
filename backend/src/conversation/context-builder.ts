@@ -14,6 +14,7 @@ import { type OrgMember, DEFAULT_MEMBER } from '../orchestrator/org-resolver.js'
 import { getSmartReminders } from '../bi/smart-reminders.js';
 import { getLearnedRules, formatRulesForContext } from '../integrations/learned-rules.js';
 import { redis } from '../queue/queue.js';
+import { recentCallsText } from '../notifications/call-memory.js';
 
 // Cache météo 5 minutes
 let weatherCache: { data: WeatherData; ts: number } | null = null;
@@ -149,7 +150,7 @@ export async function buildContext(
 
   const isKouider = actor.ownerKey === 'kouider';
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx, personalCalendarEvents] = await Promise.all([
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx, personalCalendarEvents, callsMemText] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -191,6 +192,7 @@ export async function buildContext(
     mentionedClient ? getClientBrain(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
     getActorBrainContext(actor.ownerKey).catch(() => ''),
     isKouider ? listPersonalEvents(10).catch(() => []) : Promise.resolve([]),
+    recentCallsText(actor.ownerKey === 'houari' ? 'houari' : 'kouider').catch(() => ''),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -530,6 +532,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     episodesText,
     remindersText,
     learnedRulesText,
+    callsMemText ? `\n\n${callsMemText}` : '',
   ].join('');
 
   // Filter old confirmation-only messages from non-recent history to prevent context contamination.

@@ -354,7 +354,27 @@ async def on_left(_, update: ChatUpdate) -> None:
     if st:
         if st.rt:
             await st.rt.close()
+            asyncio.create_task(remember_call(update.chat_id, st.actor, st.rt))
         log.info('appel terminé avec %s', update.chat_id)
+
+
+async def remember_call(user_id: int, actor: str, rt: RealtimeCall) -> None:
+    """Mémoire des appels : résumé + choses à faire gardés par Dzaryx, et envoyés en message Telegram."""
+    if not rt.lines:
+        return
+    try:
+        res = await api('/api/call/summary', {'lines': rt.lines, 'durationS': time.monotonic() - rt.started}, actor, 60)
+        mem = res.get('memory')
+        if not mem:
+            log.info('appel sans rien à retenir')
+            return
+        text = f"📞 Résumé de l'appel\n{mem['summary']}"
+        if mem.get('todos'):
+            text += '\n\nÀ faire :\n' + '\n'.join(f'• {t}' for t in mem['todos'])
+        await app.send_message(user_id, text)
+        log.info('appel retenu : %r', mem['summary'][:120])
+    except Exception as e:
+        log.error('mémoire de l\'appel: %s', e)
 
 
 @calls.on_update(cfilters.stream_end())
