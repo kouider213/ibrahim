@@ -6,6 +6,14 @@
 ---
 
 
+## 2026-10-13 — Appel vidéo Telegram : Dzaryx voit la caméra (comme l'app)
+
+### backend/ + tgcall/
+- `tgcall` : `RecordStream(camera=True)`, dernière image caméra gardée (I420 → JPEG, rotation), envoyée à la voix
+  temps réel quand Kouider parle (max 1 / 3 s) ; outil `look` (image fraîche) ; image jointe à `ask_dzaryx`.
+- Consignes voix : décrire sans inventer, état des lieux / dégâts via ask_dzaryx avec accord oral.
+- Testé hors appel (le modèle lit une image). Réception vidéo Telegram P2P pas encore testée en vrai.
+
 ## 2026-10-13 — Appels : par écrit, rappel plus tard, raccrocher, appel manqué, photos Telegram
 
 ### backend/ + tgcall/
