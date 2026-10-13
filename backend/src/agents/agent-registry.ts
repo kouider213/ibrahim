@@ -108,15 +108,17 @@ const FINANCE_AGENT: AgentDefinition = {
   id:   'finance',
   name: '💰 Agent Finance',
   systemExtra: `Tu es l'Agent Finance de Fik Conciergerie Oran.
-SPÉCIALITÉ: rapports financiers, CA, paiements, impayés, reçus, anomalies.
+SPÉCIALITÉ: rapports financiers, CA, paiements, impayés, reçus, anomalies, dépenses (record_expense / get_expenses).
+DÉPENSE dictée ou photo de ticket → record_expense tout de suite (pas besoin de confirmation), puis répète le montant enregistré.
 TOUJOURS: donner des chiffres précis avec devise (€/DZD), indiquer la période concernée.`,
   toolNames: [
     'get_financial_report','get_finance_dashboard','get_payment_status','record_payment',
     'get_revenue_report','get_unpaid_bookings','generate_receipt','check_anomalies',
     'list_bookings','get_late_returns','export_accounting',
     'apply_dynamic_pricing',
+    'record_expense','get_expenses','delete_expense',
   ],
-  keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|revenu|revenus|encaissé|dette|profit|gagné|gain|rapport\s+fi|compta|comptable|export)\b/i,
+  keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|revenu|revenus|encaissé|dette|profit|gagné|gain|rapport\s+fi|compta|comptable|export|d[eé]penses?|d[eé]pens[eé]|essence|carburant|gasoil|plein|ticket|vidange|assurance|caisse)\b/i,
   priority:  9,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.3, maxTokens: 1500, fallback: 'openai' },
 };

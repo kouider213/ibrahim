@@ -22,6 +22,7 @@ import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSe
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { runDailyOutreach } from './prospect-autopilot.js';
+import { recordExpense, getExpenses, deleteExpense } from './expenses.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
@@ -463,6 +464,9 @@ async function _dispatch(
       // ─── MAINTENANCE VÉHICULE ───
       case 'update_vehicle_maintenance':     return await updateVehicleMaintenanceTool(input);
       case 'get_vehicle_maintenance':        return await getVehicleMaintenanceTool(input);
+      case 'record_expense':                 return await recordExpense(input);
+      case 'get_expenses':                   return await getExpenses(input);
+      case 'delete_expense':                 return await deleteExpense(input);
       // ─── PHASE EXTRAS (dégât / signature / pricing) ───
       case 'estimate_damage':                return await estimateDamageTool(input, sessionId);
       case 'create_signature_link':          return await createSignatureLinkTool(input);

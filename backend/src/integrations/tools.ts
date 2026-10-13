@@ -2108,6 +2108,44 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'record_expense',
+    description: 'Enregistre une DÉPENSE dans la caisse (même caisse que l\'app et le site), reliée à une voiture si précisée. Utiliser quand Kouider dit "j\'ai mis 3000 DA d\'essence dans la Clio", "vidange 8000 DA sur le Duster", "j\'ai payé l\'assurance", "note une dépense", ou envoie la PHOTO d\'un ticket/facture : lis toi-même le montant, la devise, la date et le type sur l\'image (n\'invente rien ; si le montant est illisible, demande-le). Devise par défaut DZD (dinars). Une dépense = un appel.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        amount:   { type: 'number', description: 'Montant payé (> 0)' },
+        currency: { type: 'string', enum: ['DZD', 'EUR'], description: 'Devise (défaut DZD)' },
+        category: { type: 'string', enum: ['carburant', 'entretien', 'reparation', 'assurance', 'controle_technique', 'lavage', 'parking_peage', 'amende', 'pieces', 'autre'] },
+        car_name: { type: 'string', description: 'Voiture concernée (ex: "Clio"), vide si dépense générale' },
+        label:    { type: 'string', description: 'Détail court (ex: "plein station Naftal Es Sénia")' },
+        date:     { type: 'string', description: 'Date YYYY-MM-DD (défaut aujourd\'hui ; date du ticket si photo)' },
+      },
+      required: ['amount', 'category'],
+    },
+  },
+  {
+    name: 'get_expenses',
+    description: 'Dépenses du mois (total, par catégorie, par voiture) + BÉNÉFICE RÉEL PAR VOITURE = bénéfice des locations de Kouider − dépenses de la voiture. Utiliser pour "mes dépenses", "combien j\'ai dépensé en essence", "combien me rapporte vraiment la Clio", "bénéfice réel par voiture".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        month:    { type: 'string', description: 'Mois YYYY-MM (défaut mois en cours)' },
+        car_name: { type: 'string', description: 'Limiter à une voiture (optionnel)' },
+        details:  { type: 'boolean', description: 'true = liste ligne par ligne avec les id (pour corriger/supprimer)' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'delete_expense',
+    description: 'Supprime une dépense enregistrée par erreur. Récupérer l\'id avec get_expenses (details:true) et demander confirmation à Kouider avant.',
+    input_schema: {
+      type: 'object' as const,
+      properties: { expense_id: { type: 'string', description: 'id de la dépense' } },
+      required: ['expense_id'],
+    },
+  },
+  {
     name: 'get_vehicle_maintenance',
     description: 'Consulte l\'état d\'entretien du parc: kilométrage, derniers entretiens, prochains entretiens. Utiliser quand demande "état entretien", "vidange de X", "prochain service", "km du Duster".',
     input_schema: {

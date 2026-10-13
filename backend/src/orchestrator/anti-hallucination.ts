@@ -8,7 +8,7 @@ const DATA_TOOLS = new Set([
   'get_unpaid_bookings', 'get_late_returns', 'check_anomalies',
   'supabase_execute',
   'create_booking', 'update_booking', 'cancel_booking',
-  'get_fleet_status', 'get_client_document',
+  'get_fleet_status', 'get_client_document', 'get_expenses', 'record_expense',
 ]);
 
 // Financial report patterns — both formal reports AND casual amount claims
