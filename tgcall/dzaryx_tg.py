@@ -14,6 +14,7 @@ import base64
 import io
 import logging
 import os
+import random
 import subprocess
 import tempfile
 import time
@@ -55,7 +56,7 @@ POLL_S = float(os.environ.get('POLL_S', '4'))
 
 SAMPLE_RATE = 16000
 SPEECH_RMS = int(os.environ.get('SPEECH_RMS', '600'))   # seuil de voix (PCM 16 bits)
-END_SILENCE_S = 0.9                                     # silence qui termine une phrase
+END_SILENCE_S = 0.7                                     # silence qui termine une phrase
 MIN_SPEECH_S = 0.35
 MAX_UTTERANCE_S = 30
 
@@ -97,6 +98,36 @@ async def api(path: str, body: dict, actor: str, timeout: float = 90) -> dict:
         if r.status >= 400:
             raise RuntimeError(f'{path} HTTP {r.status}: {(await r.text())[:200]}')
         return await r.json()
+
+
+# Petits « Mmh… » joués dès la fin de ta phrase : on sait tout de suite qu'il a entendu,
+# pendant qu'il transcrit / réfléchit / génère la voix (4 à 8 s). Générés une fois via /api/tts.
+FILLERS = ['Mmh…', 'Je regarde.', 'Ok, attends.', 'Deux secondes.']
+FILLER_DIR = HERE / 'fillers'
+
+
+async def ensure_fillers() -> None:
+    FILLER_DIR.mkdir(exist_ok=True)
+    for i, text in enumerate(FILLERS):
+        f = FILLER_DIR / f'{i}.mp3'
+        if f.exists():
+            continue
+        try:
+            res = await api('/api/tts', {'text': text}, 'kouider', 30)
+            f.write_bytes(base64.b64decode(res['audio']))
+        except Exception as e:
+            log.warning('filler %r: %s', text, e)
+
+
+async def play_filler(user_id: int) -> None:
+    files = list(FILLER_DIR.glob('*.mp3'))
+    if not files:
+        return
+    try:
+        await calls.play(user_id, MediaStream(str(random.choice(files)), AudioParameters(48000, 1),
+                                              video_flags=MediaStream.Flags.IGNORE))
+    except Exception as e:
+        log.warning('filler: %s', e)
 
 
 def pcm_to_wav(pcm: bytes) -> bytes:
@@ -150,15 +181,19 @@ async def handle_utterance(user_id: int, pcm: bytes) -> None:
     if st is None:
         return
     st.busy = True
+    t0 = time.monotonic()
     try:
+        await play_filler(user_id)
         wav_b64 = base64.b64encode(pcm_to_wav(pcm)).decode()
         tr = await api('/api/transcribe', {'audio': wav_b64, 'mimeType': 'audio/wav'}, st.actor, 40)
         text = (tr.get('text') or '').strip()
         log.info('%s a dit: %r', st.actor, text)
         if not text:
             return
+        t1 = time.monotonic()
         out = await api('/api/call/turn', {'message': text}, st.actor)
-        log.info('Dzaryx: %r', (out.get('text') or '')[:120])
+        log.info('Dzaryx (stt %.1fs, réponse %.1fs): %r', t1 - t0, time.monotonic() - t1,
+                 (out.get('text') or '')[:120])
         await say(user_id, out.get('audio'))
     except Exception as e:
         log.error('tour échoué: %s', e)
@@ -305,6 +340,7 @@ async def main() -> None:
             log.info('%s = %s (id %s)', actor, u.first_name, u.id)
         except Exception as e:
             log.error('%s introuvable (%s): %s — il doit d\'abord écrire au compte Dzaryx', actor, ref, e)
+    await ensure_fillers()
     asyncio.create_task(poll_pending())
     await asyncio.Event().wait()
 

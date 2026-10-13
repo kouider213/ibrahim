@@ -59,7 +59,7 @@ router.post('/turn', requireMobileAuth, async (req, res) => {
     const inCall = `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne.]\n${message.trim().slice(0, 2000)}`;
     const out = await processMessage(inCall, `voice_${who}`, true, undefined, 'image/jpeg', actor);
     const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
-    const buf = textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900));
+    const buf = textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900), true);
     res.json({ text, audio: buf ? buf.toString('base64') : null });
   } catch (err) {
     console.error('[call] turn:', err instanceof Error ? err.message : String(err));

@@ -159,8 +159,11 @@ export async function synthesizeVoiceGemini(text: string): Promise<Buffer | null
   }
 }
 
-export async function synthesizeVoice(text: string): Promise<Buffer | null> {
-  const { model_id, language_code } = pickTTSModel(text);
+// fast = modèle flash (latence ~75 ms) : pour les vrais appels, où chaque seconde compte.
+export async function synthesizeVoice(text: string, fast = false): Promise<Buffer | null> {
+  const picked = pickTTSModel(text);
+  const model_id = fast ? 'eleven_flash_v2_5' : picked.model_id;
+  const { language_code } = picked;
   const voiceId = pickVoiceId(text);
   try {
     const response = await axios.post<ArrayBuffer>(
