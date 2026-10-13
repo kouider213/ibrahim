@@ -75,9 +75,37 @@ const TEAM_ALIASES: Record<string, string> = {
   psg: 'Paris SG', 'paris': 'Paris SG', om: 'Marseille', real: 'Real Madrid', barca: 'Barcelona',
 };
 
+// Championnats pour le classement (ids TheSportsDB)
+const LEAGUES: Record<string, { id: string; name: string }> = {
+  'ligue 1': { id: '4334', name: 'Ligue 1' }, france: { id: '4334', name: 'Ligue 1' },
+  'algerie': { id: '4753', name: 'Ligue 1 algérienne' }, 'algérie': { id: '4753', name: 'Ligue 1 algérienne' },
+  'ligue 1 algerie': { id: '4753', name: 'Ligue 1 algérienne' }, 'ligue 1 algérienne': { id: '4753', name: 'Ligue 1 algérienne' },
+  'premier league': { id: '4328', name: 'Premier League' }, angleterre: { id: '4328', name: 'Premier League' },
+  liga: { id: '4335', name: 'Liga' }, espagne: { id: '4335', name: 'Liga' },
+  bundesliga: { id: '4331', name: 'Bundesliga' }, allemagne: { id: '4331', name: 'Bundesliga' },
+  'serie a': { id: '4332', name: 'Serie A' }, italie: { id: '4332', name: 'Serie A' },
+};
+
+async function leagueStandings(raw: string): Promise<string> {
+  const lg = LEAGUES[raw.toLowerCase()];
+  if (!lg) return `❌ Championnat non géré : ${raw}. Gérés : Ligue 1, Ligue 1 algérienne, Premier League, Liga, Bundesliga, Serie A.`;
+  const { data: info } = await axios.get(`${SPORTSDB}/lookupleague.php`, { params: { id: lg.id }, timeout: 8_000 });
+  const season = (info as { leagues?: Array<{ strCurrentSeason?: string }> }).leagues?.[0]?.strCurrentSeason;
+  if (!season) return `❌ Saison en cours introuvable pour ${lg.name}.`;
+  const { data } = await axios.get(`${SPORTSDB}/lookuptable.php`, { params: { l: lg.id, s: season }, timeout: 8_000 });
+  type Row = { intRank: string; strTeam: string; intPoints: string; intPlayed: string; intGoalDifference: string };
+  const table = (data as { table?: Row[] | null }).table ?? [];
+  if (!table.length) return `Classement ${lg.name} ${season} pas encore disponible — utilise web_search.`;
+  return [`🏆 Classement ${lg.name} ${season}${table.length <= 5 ? ' (top 5, base gratuite — web_search pour la suite)' : ''}`,
+    ...table.slice(0, 10).map(r => `${r.intRank}. ${r.strTeam} — ${r.intPoints} pts (${r.intPlayed} J, diff ${Number(r.intGoalDifference) > 0 ? '+' : ''}${r.intGoalDifference})`),
+  ].join('\n');
+}
+
 export async function footballScores(input: Record<string, unknown>): Promise<string> {
+  const league = String(input['league'] ?? '').trim();
   const raw = String(input['team'] ?? '').trim();
-  if (!raw) return '❌ Nom de l\'équipe requis.';
+  if (league && !raw) return leagueStandings(league);
+  if (!raw) return '❌ Nom de l\'équipe ou du championnat requis.';
   const team = TEAM_ALIASES[raw.toLowerCase()] ?? raw;
   const { data } = await axios.get(`${SPORTSDB}/searchteams.php`, { params: { t: team }, timeout: 8_000 });
   const t = (data as { teams?: Array<{ idTeam: string; strTeam: string }> | null }).teams?.[0];

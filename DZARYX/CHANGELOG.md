@@ -6,6 +6,25 @@
 ---
 
 
+## 2026-10-13 — 2e passe JARVIS (TechEnClair) : WhatsApp, réponses instantanées, Google Docs/Sheets, classement foot
+
+### nexus/
+- `modules/quick_answers.py` (nouveau) — **réponses sans IA** : heure, date, calculs (« combien font 12 fois 8 »,
+  « 15 pourcent de 4000 », « racine carrée de 144 »), batterie, CPU/RAM. Phrase entière seulement (« à quelle
+  heure arrive Ahmed ? » part toujours vers Dzaryx). Instantané, gratuit, marche sans internet.
+- `modules/whatsapp_call.py` (nouveau) — **« appelle Houari sur WhatsApp »** (+ « en vidéo ») : ouvre WhatsApp
+  Desktop, cherche le contact, **vérifie par la vision que c'est la bonne conversation** (sinon n'appelle
+  personne), Ctrl+Maj+C / V, clic vision en secours. « whatsapp » obligatoire dans la phrase.
+- `nexus.py` — routes 0b et 0c (avant la musique). Non testé sur le PC Windows.
+
+### backend/
+- `get_football` : paramètre `league` → **classement** (Ligue 1, Ligue 1 algérienne, Premier League, Liga,
+  Bundesliga, Serie A ; saison en cours auto). Base gratuite TheSportsDB = top 5.
+- `integrations/google-docs.ts` (nouveau) — outils **`create_google_doc`** et **`create_google_sheet`** (Drive de
+  fikconciergerie@gmail.com, renvoient le lien). Permission `drive.file` ajoutée à la connexion Gmail (Dzaryx ne
+  voit que les fichiers qu'il crée). **À faire par Kouider** : reconnecter Gmail (connect_gmail) + activer
+  Google Docs API et Google Sheets API dans le projet Google Cloud.
+
 ## 2026-10-13 — Dzaryx sur Telegram : vrais appels vocaux sans Twilio (en attente du compte)
 - `tgcall/` : service Python (pyrofork + py-tgcalls) sur le VPS, connecté à un compte Telegram « Dzaryx » (pas de pièce d'identité, juste un numéro)
   - appel sortant : sonde `/api/call/pending` → appelle Kouider/Houari sur Telegram, phrase d'accueil, puis conversation (détection fin de phrase → `/api/transcribe` → `/api/call/turn` → voix ElevenLabs dans l'appel)

@@ -273,11 +273,13 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'get_football',
-    description: 'Dernier résultat et prochain match d\'une équipe de foot (ex : MC Oran / MCO, Algérie, PSG, Real Madrid).',
+    description: 'Foot : dernier résultat et prochain match d\'une équipe (team, ex : MC Oran / MCO, Algérie, PSG, Real Madrid), OU classement d\'un championnat (league seul, ex : "classement de la Ligue 1", "classement championnat d\'Algérie").',
     input_schema: {
       type: 'object' as const,
-      properties: { team: { type: 'string', description: 'Nom de l\'équipe' } },
-      required: ['team'],
+      properties: {
+        team:   { type: 'string', description: 'Nom de l\'équipe' },
+        league: { type: 'string', enum: ['ligue 1', 'algerie', 'premier league', 'liga', 'bundesliga', 'serie a'], description: 'Championnat pour le classement (sans team)' },
+      },
     },
   },
   {
@@ -927,6 +929,30 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: {
       type: 'object' as const,
       properties: {},
+    },
+  },
+  {
+    name: 'create_google_doc',
+    description: 'Créer un Google Doc dans le Drive de fikconciergerie@gmail.com (compte-rendu, devis, note, contrat brouillon…) et renvoyer son lien. Ex : "fais-moi un Google Doc avec…", "mets ça dans un doc".',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title:   { type: 'string', description: 'Titre du document' },
+        content: { type: 'string', description: 'Texte du document (sauts de ligne autorisés)' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'create_google_sheet',
+    description: 'Créer un Google Sheet (tableur en ligne, partageable) dans le Drive de fikconciergerie@gmail.com et renvoyer son lien. Ex : "fais un tableau des réservations de novembre dans Sheets". Remplir rows avec les VRAIES données obtenues par les autres outils (jamais inventées). Pour un fichier Excel envoyé sur Telegram → export_excel.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Titre du tableur' },
+        rows:  { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Lignes du tableau ; la première = en-têtes (nombres écrits en texte, Sheets les reconnaît)' },
+      },
+      required: ['title'],
     },
   },
   {

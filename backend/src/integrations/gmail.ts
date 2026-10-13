@@ -9,7 +9,9 @@ const GMAIL_BASE       = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SCOPE_READ       = 'https://www.googleapis.com/auth/gmail.readonly';
 const SCOPE_SEND       = 'https://www.googleapis.com/auth/gmail.send';
-const GMAIL_SCOPE      = `${SCOPE_READ} ${SCOPE_SEND}`;
+// drive.file : seulement les Docs/Sheets créés par Dzaryx (pas d'accès au reste du Drive)
+export const SCOPE_DRIVE_FILE = 'https://www.googleapis.com/auth/drive.file';
+const GMAIL_SCOPE      = `${SCOPE_READ} ${SCOPE_SEND} ${SCOPE_DRIVE_FILE}`;
 // Même callback que l'agenda → aucune nouvelle URI à déclarer dans Google Cloud
 const REDIRECT_URI     = () => env.GOOGLE_REDIRECT_URI ?? 'https://ibrahim-backend-production.up.railway.app/api/calendar/callback';
 export const GMAIL_STATE_PREFIX = 'gmail:';
@@ -188,6 +190,15 @@ export async function readEmail(account: GmailAccount, id: string, maxChars = 60
 }
 
 // ── Envoi ─────────────────────────────────────────────────────
+
+/** Jeton du compte Google pour une permission donnée (Docs/Sheets…) ; null si absent ou permission non accordée. */
+export async function getGoogleUserToken(account: GmailAccount, scope: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('google_oauth_tokens').select('scope')
+    .eq('email', tokenKey(gmailAddress(account))).maybeSingle();
+  if (!(data as { scope?: string } | null)?.scope?.includes(scope)) return null;
+  return getGmailToken(gmailAddress(account));
+}
 
 export class GmailSendNotAllowedError extends Error {}
 

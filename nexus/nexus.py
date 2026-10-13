@@ -46,6 +46,7 @@ from modules.app_installer    import AppInstaller
 from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
 from modules                  import vision_click
+from modules                  import quick_answers, whatsapp_call
 
 logging.basicConfig(
     level=logging.INFO,
@@ -200,6 +201,22 @@ class NexusApp:
         # ── 0. Briefing ──────────────────────────────────────────────────────
         if _BRIEFING_RE.search(tl):
             await self.briefing.run_now()
+            return
+
+        # ── 0b. Réponses instantanées sans IA : heure, date, calcul, batterie, CPU/RAM ──
+        quick = quick_answers.try_answer(t)
+        if quick:
+            await self._reply(quick, source)
+            return
+
+        # ── 0c. Appel WhatsApp (avant la musique : « lance un appel… » contient « lance ») ──
+        if whatsapp_call.wants_call(t):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, whatsapp_call.call, t)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            await self._reply(result, source)
+            await self.journal(f'📞 {result}')
             return
 
         # ── 1. Déverrouillage / mot de passe ────────────────────────────────

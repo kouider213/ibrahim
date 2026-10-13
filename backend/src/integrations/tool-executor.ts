@@ -6,6 +6,7 @@
  */
 import { supabase } from './supabase.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
+import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
 import { insertReminder, findByDedupKey } from '../db/reminders.js';
 import {
   resolveTimezone,
@@ -338,6 +339,8 @@ async function _dispatch(
       case 'list_emails':               return await listEmailsTool(input);
       case 'read_email':                return await readEmailTool(input);
       case 'connect_gmail':             return connectGmailTool(input);
+      case 'create_google_doc':         return await createGoogleDoc(input);
+      case 'create_google_sheet':       return await createGoogleSheet(input);
       case 'draft_email':               return await draftEmailTool(input, sessionId);
       case 'send_email':                return await sendEmailTool(input, sessionId);
       case 'add_prospect':              return await addProspectTool(input);
@@ -2020,7 +2023,7 @@ async function readEmailTool(input: Record<string, unknown>): Promise<string> {
 
 function connectGmailTool(input: Record<string, unknown>): string {
   const account = gmailAccount(input);
-  return `🔗 Pour connecter ${gmailAddress(account)} (lecture + envoi après ton accord), ouvre ce lien et accepte : ${getGmailConnectLink()}\n(Recopie ce lien en entier, en texte brut.)`;
+  return `🔗 Pour connecter ${gmailAddress(account)} (lecture + envoi après ton accord + création de Google Docs/Sheets), ouvre ce lien et accepte : ${getGmailConnectLink()}\n(Recopie ce lien en entier, en texte brut.)`;
 }
 
 // ── Envoi de mails : brouillon → accord explicite de Kouider → envoi ──
