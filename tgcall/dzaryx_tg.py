@@ -12,6 +12,7 @@ import asyncio
 import audioop
 import base64
 import io
+import json
 import logging
 import os
 import random
@@ -100,8 +101,23 @@ async def api(path: str, body: dict, actor: str, timeout: float = 90) -> dict:
         return await r.json()
 
 
+async def api_stream(path: str, body: dict, actor: str, timeout: float = 90):
+    """NDJSON : rend chaque ligne dès qu'elle arrive (1re phrase de Dzaryx avant la suite)."""
+    assert http is not None
+    async with http.post(
+        f'{BACKEND}{path}', json={**body, 'actor': actor},
+        headers={'Authorization': f'Bearer {TOKEN}'},
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as r:
+        if r.status >= 400:
+            raise RuntimeError(f'{path} HTTP {r.status}: {(await r.text())[:200]}')
+        async for line in r.content:
+            if line.strip():
+                yield json.loads(line)
+
+
 # Petits « Mmh… » joués dès la fin de ta phrase : on sait tout de suite qu'il a entendu,
-# pendant qu'il transcrit / réfléchit / génère la voix (4 à 8 s). Générés une fois via /api/tts.
+# pendant qu'il transcrit / réfléchit / génère la voix. Générés une fois via /api/tts.
 FILLERS = ['Mmh…', 'Je regarde.', 'Ok, attends.', 'Deux secondes.']
 FILLER_DIR = HERE / 'fillers'
 
@@ -185,16 +201,27 @@ async def handle_utterance(user_id: int, pcm: bytes) -> None:
     try:
         await play_filler(user_id)
         wav_b64 = base64.b64encode(pcm_to_wav(pcm)).decode()
-        tr = await api('/api/transcribe', {'audio': wav_b64, 'mimeType': 'audio/wav'}, st.actor, 40)
+        tr = await api('/api/transcribe', {'audio': wav_b64, 'mimeType': 'audio/wav', 'provider': 'fast'},
+                       st.actor, 40)
         text = (tr.get('text') or '').strip()
         log.info('%s a dit: %r', st.actor, text)
         if not text:
             return
         t1 = time.monotonic()
-        out = await api('/api/call/turn', {'message': text}, st.actor)
-        log.info('Dzaryx (stt %.1fs, réponse %.1fs): %r', t1 - t0, time.monotonic() - t1,
-                 (out.get('text') or '')[:120])
-        await say(user_id, out.get('audio'))
+        first = True
+        async for part in api_stream('/api/call/turn', {'message': text, 'stream': True}, st.actor):
+            if first:
+                log.info('Dzaryx (stt %.1fs, 1re phrase %.1fs): %r', t1 - t0, time.monotonic() - t1,
+                         (part.get('text') or '')[:120])
+                first = False
+            else:
+                # on attend la fin de la phrase en cours avant d'enchaîner
+                wait = st.speaking_until - 0.4 - time.monotonic()
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                if active.get(user_id) is not st:
+                    return
+            await say(user_id, part.get('audio'))
     except Exception as e:
         log.error('tour échoué: %s', e)
     finally:

@@ -5,7 +5,7 @@ import { env } from '../../config/env.js';
 const router = Router();
 
 // POST /api/transcribe — base64 audio → text
-// provider: 'groq' (default) | 'google' (requires GOOGLE_SERVICE_ACCOUNT_JSON)
+// provider: 'fast' (Groq d'abord, pour les appels) | 'google' (requires GOOGLE_SERVICE_ACCOUNT_JSON)
 router.post('/', requireMobileAuth, async (req, res) => {
   const { audio, mimeType = 'audio/m4a', provider } = req.body as {
     audio?: string; mimeType?: string; provider?: string;
@@ -21,6 +21,10 @@ router.post('/', requireMobileAuth, async (req, res) => {
   const chain: Array<{ key: string; fn: () => Promise<string> }> = [];
   if (provider === 'google' && env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     chain.push({ key: 'google', fn: () => transcribeWithGoogle(audio, mimeType) });
+  } else if (provider === 'fast') {
+    // Vrais appels : Groq Whisper turbo (~0,3 s) d'abord — chaque seconde compte, la darija n'est plus utilisée.
+    if (env.GROQ_API_KEY)                chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType) });
+    if (env.OPENAI_API_KEY)              chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
   } else {
     if (env.OPENAI_API_KEY)              chain.push({ key: 'openai-4o', fn: () => transcribeWithOpenAI(audio, mimeType) });
     if (env.GROQ_API_KEY)               chain.push({ key: 'groq',      fn: () => transcribeWithGroq(audio, mimeType) });

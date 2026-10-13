@@ -48,7 +48,7 @@ router.post('/test', requireMobileAuth, async (req, res) => {
 // POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
 // réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
 router.post('/turn', requireMobileAuth, async (req, res) => {
-  const { message, textOnly } = req.body as { message?: string; textOnly?: boolean };
+  const { message, textOnly, stream } = req.body as { message?: string; textOnly?: boolean; stream?: boolean };
   if (!message?.trim()) { res.status(400).json({ error: 'message required' }); return; }
   const who = callActor(req);
   const actor: OrgMember = who === 'houari'
@@ -59,12 +59,30 @@ router.post('/turn', requireMobileAuth, async (req, res) => {
     const inCall = `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne.]\n${message.trim().slice(0, 2000)}`;
     const out = await processMessage(inCall, `voice_${who}`, true, undefined, 'image/jpeg', actor);
     const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
-    const buf = textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900), true);
+    if (stream && !textOnly) { await streamTurn(res, text); return; }
+    const buf =textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900), true);
     res.json({ text, audio: buf ? buf.toString('base64') : null });
   } catch (err) {
     console.error('[call] turn:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'turn failed' });
   }
 });
+
+// stream:true → NDJSON, une ligne { text, audio } par morceau : la 1re phrase seule (voix prête en ~0,5 s,
+// lue pendant que la suite se fabrique), puis le reste. Les voix sont générées en parallèle.
+async function streamTurn(res: import('express').Response, text: string): Promise<void> {
+  const clean = text.replace(/[*_#`>|]/g, '').slice(0, 900);
+  const m = clean.match(/^.{12,}?[.!?…](?=\s|$)/s);
+  const parts = m && m[0].length < clean.length
+    ? [m[0].trim(), clean.slice(m[0].length).trim()]
+    : [clean.trim()];
+  const voices = parts.map(p => synthesizeVoice(p, true).catch(() => null));
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  for (let i = 0; i < parts.length; i++) {
+    const buf = await voices[i];
+    res.write(JSON.stringify({ text: i === 0 ? text : '', part: parts[i], audio: buf ? buf.toString('base64') : null }) + '\n');
+  }
+  res.end();
+}
 
 export default router;
