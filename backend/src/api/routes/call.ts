@@ -12,7 +12,7 @@ import { summarizeCall, recentCallsText, type CallLine } from '../../notificatio
 import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
 import { clientWhatsappLink } from '../../notifications/client-care.js';
-import { quickBooking, quickPayment, quickQuote, quickAgenda } from '../../integrations/call-quick.js';
+import { quickBooking, quickPayment, quickQuote, quickAgenda, quickModifyBooking, quickEmailReply, quickContract } from '../../integrations/call-quick.js';
 
 const router = Router();
 
@@ -139,14 +139,14 @@ async function realtimeVoice(): Promise<string> {
 // qui prend 5 à 15 s). Toute action / tout le reste passe toujours par ask_dzaryx.
 const QUICK_TOOLS = ['list_bookings', 'get_fleet_status', 'check_car_availability', 'get_unpaid_bookings',
   'get_finance_dashboard', 'list_emails', 'read_email',
-  'check_client', 'get_expenses', 'get_vehicle_maintenance'] as const;
+  'check_client', 'get_expenses', 'get_vehicle_maintenance', 'get_car_papers'] as const;
 const quickToolDefs = Dzaryx_TOOLS
   .filter(t => (QUICK_TOOLS as readonly string[]).includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: `Lecture rapide. ${t.description ?? ''}`.slice(0, 1000), parameters: t.input_schema }));
 
 // Écritures RAPIDES dictées au téléphone (dépense, km, vidange faite) : en 2 s au lieu du cerveau complet.
 // Exécutées seulement avec confirmed:true, c.-à-d. APRÈS relecture à l'oral et un « oui » de Kouider.
-const QUICK_WRITE_TOOLS = ['record_expense', 'record_car_km', 'update_vehicle_maintenance', 'schedule_reminder'] as const;
+const QUICK_WRITE_TOOLS = ['record_expense', 'record_car_km', 'update_vehicle_maintenance', 'schedule_reminder', 'set_car_papers'] as const;
 const CONFIRMED_PARAM = { type: 'boolean', description: 'true SEULEMENT après avoir relu l\'action à l\'oral et reçu un « oui » clair de Kouider' };
 const quickWriteDefs = Dzaryx_TOOLS
   .filter(t => (QUICK_WRITE_TOOLS as readonly string[]).includes(t.name))
@@ -165,6 +165,8 @@ const CALL_QUICK = {
   quick_payment: (i: Record<string, unknown>, who: CallActor) => quickPayment(i, `voice_${who}`),
   quick_quote:   (i: Record<string, unknown>, who: CallActor) => quickQuote(i, `voice_${who}`),
   quick_agenda:  (i: Record<string, unknown>, who: CallActor) => quickAgenda(i, who),
+  quick_modify_booking: (i: Record<string, unknown>, who: CallActor) => quickModifyBooking(i, `voice_${who}`),
+  quick_email_reply:    (i: Record<string, unknown>, who: CallActor) => quickEmailReply(i, who),
 } as const;
 const CALL_QUICK_DEFS = [
   { type: 'function', name: 'quick_booking',
@@ -192,6 +194,25 @@ const CALL_QUICK_DEFS = [
   { type: 'function', name: 'quick_agenda',
     description: 'AGENDA D\'UN JOUR (« qu\'est-ce que j\'ai demain ? », « mon programme vendredi ») : départs et retours de voitures, rendez-vous (agenda FIK + perso), rappels prévus. date YYYY-MM-DD (défaut aujourd\'hui). Lecture seule.',
     parameters: { type: 'object', properties: { date: { type: 'string' } } } },
+  { type: 'function', name: 'quick_modify_booking',
+    description: 'MODIFIER ou ANNULER une réservation (« décale le retour de Karim au 10 », « mets Fatima sur le Jogger », « annule la réservation de Fatima »). Vérifie que la voiture reste libre et recalcule prix et bénéfice. 1er appel SANS confirmed → relecture (ancien → nouveau) : lis-la et demande « je modifie ? » / « j\'annule ? ». Après son oui → confirmed:true. Prix par jour gardé si rien n\'est dit. Si plusieurs réservations : demande laquelle et rappelle avec car_name ou start_date.',
+    parameters: { type: 'object', properties: {
+      client_name: { type: 'string' }, car_name: { type: 'string', description: 'Voiture ACTUELLE, pour choisir la bonne réservation' },
+      start_date: { type: 'string', description: 'Départ ACTUEL, pour choisir la bonne réservation' },
+      new_start_date: { type: 'string' }, new_end_date: { type: 'string' }, new_car_name: { type: 'string' },
+      new_price_per_day: { type: 'number' }, new_total_price: { type: 'number' },
+      cancel: { type: 'boolean', description: 'true pour ANNULER la réservation' },
+      confirmed: CONFIRMED_PARAM }, required: ['client_name'] } },
+  { type: 'function', name: 'quick_email_reply',
+    description: 'RÉPONDRE À UN MAIL en parlant (« réponds à Mohammed que je suis d\'accord pour jeudi 14h »). Répond au dernier mail reçu de cette personne, dans la même conversation, depuis contact@. Sans body → te renvoie ce qu\'elle a écrit (pour le lui lire). Avec body SANS confirmed → relecture du mail complet : lis-le et demande « je l\'envoie ? ». Après son oui → même appel avec confirmed:true.',
+    parameters: { type: 'object', properties: {
+      from: { type: 'string', description: 'Nom ou adresse de la personne qui a écrit' },
+      body: { type: 'string', description: 'Le texte de la réponse, rédigé proprement en vouvoiement (sans signature, ajoutée seule)' },
+      confirmed: CONFIRMED_PARAM }, required: ['from'] } },
+  { type: 'function', name: 'send_contract',
+    description: 'CONTRAT À SIGNER en une phrase (« envoie le contrat à Karim », « fais signer Fatima ») : crée le lien de signature de sa dernière réservation et envoie à Kouider sur Telegram le lien WhatsApp avec le message prêt. Il n\'a plus qu\'à appuyer, le client signe sur son téléphone. Pas besoin de confirmation : rien ne part sans lui.',
+    parameters: { type: 'object', properties: {
+      client_name: { type: 'string' }, phone: { type: 'string', description: 'Numéro, seulement si Kouider le donne' } }, required: ['client_name'] } },
 ];
 
 // Outils propres à l'appel : exécutés par tgcall (send_text_to_me, end_call) ou programmés (call_me).
@@ -236,13 +257,17 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `DICTÉE RAPIDE : dépense (« 3000 DA d'essence sur la Sandero » → record_expense), kilométrage (« la Clio est à 85 000 » → record_car_km), vidange faite (« vidange faite sur le Jogger à 80 000 » → update_vehicle_maintenance avec car_name, last_service_km et last_service_date d'aujourd'hui). Relis en UNE phrase (« 3000 dinars d'essence sur la Sandero, je note ? »), puis après son oui appelle l'outil avec confirmed:true. Sans devise dite, c'est des dinars. Si l'outil demande quelle voiture, pose-lui la question puis rappelle l'outil (son oui reste valable).`,
     `RÉSERVATION / PAIEMENT dictés : « réserve la … pour … du … au … » → quick_booking ; « X m'a payé … » → quick_payment. D'abord SANS confirmed : l'outil renvoie la relecture, lis-la simplement (voiture, client, dates, prix, bénéfice, et l'alerte si client à risque) et demande « je crée ? » / « je note ? ». Après son oui → même outil avec confirmed:true. Convertis « du 3 au 8 novembre » en dates YYYY-MM-DD (année en cours ou suivante si passée).`,
     `DEVIS : « combien pour… », « qu'est-ce qui est libre… » → quick_quote. S'il veut l'envoyer au client → whatsapp_link avec le texte du devis (ou send_text_to_me s'il veut juste le texte).`,
+    `MODIFIER / ANNULER une réservation (« décale Karim au 10 », « annule Fatima ») → quick_modify_booking : d'abord SANS confirmed, lis la relecture (ancien → nouveau, prix, bénéfice, ce qu'il a déjà payé) et demande « je modifie ? » / « j'annule ? ». Après son oui → confirmed:true.`,
+    `MAIL : « réponds à Mohammed que… » → quick_email_reply avec un texte poli rédigé par toi. D'abord SANS confirmed : lis-lui le mail EN ENTIER et demande « je l'envoie ? ». Après son oui → confirmed:true. « Qu'est-ce qu'il m'a écrit ? » → quick_email_reply sans body.`,
+    `CONTRAT : « envoie le contrat à Karim », « fais-le signer » → send_contract (pas besoin de oui : il reçoit le lien et l'envoie lui-même).`,
+    `PAPIERS DES VOITURES : « l'assurance de la Sandero expire le 15 mars » → relis, puis après son oui set_car_papers avec confirmed:true. « Les papiers sont à jour ? » → get_car_papers.`,
     `AGENDA : « qu'est-ce que j'ai demain / vendredi ? » → quick_agenda. RAPPEL pour lui (« rappelle-moi d'appeler le garage à 15h ») → redis l'heure, puis après son oui schedule_reminder avec confirmed:true (heure de Bruxelles). Un rappel PAR APPEL → call_me.`,
     `WHATSAPP CLIENT : « envoie à Karim que… », « dis au client que… », « préviens-le sur WhatsApp » → TOUJOURS l'outil whatsapp_link, JAMAIS ask_dzaryx (rien ne part sans lui, il appuie lui-même). Rédige un message court et poli, dis-lui en une phrase ce que tu vas écrire, puis outil whatsapp_link : il reçoit le lien sur Telegram et l'envoie lui-même en un clic. Dis « je t'ai envoyé le lien, tu n'as plus qu'à appuyer ».`,
     `INTERPRÈTE : « traduis », « sois mon interprète », « il parle anglais » → outil interpreter (on:true, langue) puis suis les règles qu'il te renvoie, jusqu'à « stop traduction » (interpreter on:false).`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
     `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
     `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin). Ne lis jamais d'identifiant technique (db_id, job_id, UUID, fuseau, utc_offset), et n'ajoute rien que l'outil n'a pas dit.`,
-    `ACTIONS (envoyer un mail, modifier/annuler une réservation, relancer quelqu'un…) : TOUJOURS en deux temps via ask_dzaryx. Outils directs (eux aussi après relecture + oui) : quick_booking, quick_payment, dictée rapide (dépense, km, vidange), schedule_reminder ; whatsapp_link pour un message à un client.`,
+    `AUTRES ACTIONS (nouveau mail, relancer quelqu'un…) : TOUJOURS en deux temps via ask_dzaryx. Outils directs (eux aussi après relecture + oui) : quick_booking, quick_payment, quick_modify_booking, quick_email_reply, dictée rapide (dépense, km, vidange, papiers), schedule_reminder ; whatsapp_link et send_contract pour un client.`,
     `1) Prépare : si un texte est à envoyer, demande à ask_dzaryx de le rédiger SANS l'envoyer. Puis relis-lui à l'oral précisément ce que tu vas faire (à qui, quoi, quand) et demande « Je le fais ? ».`,
     `2) Seulement après un oui clair de sa part (« oui », « vas-y », « envoie »), appelle ask_dzaryx avec une demande qui commence par « CONFIRMÉ AU TÉLÉPHONE : » suivie de l'action complète (destinataire, texte exact, date…). S'il hésite ou change quelque chose, corrige et relis à nouveau. Puis dis-lui que c'est fait seulement si l'outil le confirme.`,
     `ÉCRIT : un numéro, une adresse, un mail ou tout ce qui est dur à retenir à l'oral → propose « je te l'envoie par écrit ? » ou fais-le s'il le demande : outil send_text_to_me (pas besoin de confirmation).`,
@@ -305,10 +330,13 @@ router.post('/tool', requireMobileAuth, async (req, res) => {
   const later = name === 'call_me' && !!(input?.['delay_minutes'] || input?.['at_time'] || input?.['at_date']);
   const write = (QUICK_WRITE_TOOLS as readonly string[]).includes(name ?? '');
   const own = name && Object.hasOwn(CALL_QUICK, name) ? CALL_QUICK[name as keyof typeof CALL_QUICK] : null;
-  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && name !== 'whatsapp_link')) {
+  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && name !== 'whatsapp_link' && name !== 'send_contract')) {
     res.status(400).json({ error: 'tool not allowed' }); return;
   }
   try {
+    if (name === 'send_contract') {
+      res.json(callActor(req) === 'kouider' ? await quickContract(input ?? {}) : { ok: false, text: 'Contrats réservés à Kouider.' }); return;
+    }
     if (name === 'whatsapp_link') {
       const r = await clientWhatsappLink(String(input?.['client'] ?? ''), String(input?.['message'] ?? ''), input?.['phone'] as string | undefined);
       res.json(r); return;

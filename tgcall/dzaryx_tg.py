@@ -495,6 +495,17 @@ def call_tools(user_id: int) -> dict:
                                disable_web_page_preview=True)
         return f"✅ Lien WhatsApp pour {res.get('client')} envoyé à Kouider sur Telegram. Il n'a plus qu'à appuyer.", True
 
+    async def send_contract(args: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        actor = st.actor if st else 'kouider'
+        res = await api('/api/call/tool', {'name': 'send_contract', 'input': args}, actor, 30)
+        if not res.get('ok') or not res.get('link'):
+            return res.get('text') or 'Contrat impossible.', True
+        await app.send_message(user_id, f"✍️ Contrat à signer pour {res.get('client')} — appuie pour l'envoyer sur WhatsApp :\n\n"
+                                        f"{res.get('message', '')}\n\n👉 {res['link']}",
+                               disable_web_page_preview=True)
+        return f"✅ Lien WhatsApp du contrat pour {res.get('client')} envoyé à Kouider sur Telegram. Il n'a plus qu'à appuyer.", True
+
     async def interpreter(args: dict) -> tuple[str, bool]:
         st = active.get(user_id)
         if not st or not st.rt:
@@ -503,7 +514,7 @@ def call_tools(user_id: int) -> dict:
         return await st.rt.set_interpreter(bool(args.get('on')), str(args.get('language') or '')), True
 
     return {'send_text_to_me': send_text_to_me, 'end_call': end_call, 'look': look,
-            'whatsapp_link': whatsapp_link, 'interpreter': interpreter}
+            'whatsapp_link': whatsapp_link, 'send_contract': send_contract, 'interpreter': interpreter}
 
 
 async def hang_up(user_id: int) -> None:

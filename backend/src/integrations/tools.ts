@@ -2089,6 +2089,29 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       required: [],
     },
   },
+  // ─── PAPIERS DES VOITURES ─────────────────────────────────────────
+  {
+    name: 'set_car_papers',
+    description: 'Enregistrer les dates d\'échéance des PAPIERS d\'une voiture : assurance, contrôle technique, vignette (« l\'assurance de la Sandero expire le 15 mars », « contrôle technique du Jogger jusqu\'au 2027-02-01 »). Dzaryx appelle Kouider 7 jours avant chaque échéance.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name:         { type: 'string', description: 'Nom de la voiture' },
+        insurance_expiry: { type: 'string', description: 'Fin de l\'assurance YYYY-MM-DD' },
+        technical_expiry: { type: 'string', description: 'Fin du contrôle technique YYYY-MM-DD' },
+        vignette_expiry:  { type: 'string', description: 'Fin de la vignette YYYY-MM-DD' },
+      },
+      required: ['car_name'],
+    },
+  },
+  {
+    name: 'get_car_papers',
+    description: 'État des PAPIERS des voitures (assurance, contrôle technique, vignette) : dates de fin, ce qui expire bientôt, ce qui manque. « Les papiers sont à jour ? », « l\'assurance du Duster expire quand ? ».',
+    input_schema: {
+      type: 'object' as const,
+      properties: { car_name: { type: 'string', description: 'Une voiture (optionnel, sinon tout le parc)' } },
+    },
+  },
   // ─── MAINTENANCE VÉHICULE ─────────────────────────────────────────
   {
     name: 'update_vehicle_maintenance',

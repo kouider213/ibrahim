@@ -18,6 +18,7 @@ import {
 } from '../utils/timezone.js';
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
+import { setCarPapers, getCarPapers } from './car-papers.js';
 import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
@@ -469,6 +470,8 @@ async function _dispatch(
       case 'suggest_smart_pricing':          return await suggestSmartPricingTool(input, sessionId);
       // ─── MAINTENANCE VÉHICULE ───
       case 'update_vehicle_maintenance':     return await updateVehicleMaintenanceTool(input);
+      case 'set_car_papers':                 return await setCarPapers(input);
+      case 'get_car_papers':                 return await getCarPapers(input);
       case 'get_vehicle_maintenance':        return await getVehicleMaintenanceTool(input);
       case 'record_expense':                 return await recordExpense(input);
       case 'record_car_km':                  return (await recordCarKm(String(input['car_name'] ?? ''), Number(input['km']))) || '❌ Kilométrage invalide.';

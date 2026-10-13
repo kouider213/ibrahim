@@ -6,6 +6,14 @@
 ---
 
 
+## 2026-10-13 — Modifier/annuler, répondre aux mails, contrat, papiers des voitures (appel)
+- (`integrations/call-quick.ts`, `integrations/car-papers.ts`, `api/routes/call.ts`, `tgcall/dzaryx_tg.py`, `queue/scheduler.ts`) :
+  - `quick_modify_booking` : décaler dates / changer de voiture / prix / annuler en 1-2 s. Dispo vérifiée hors la résa elle-même, prix/jour gardé, bénéfice recalculé (`owner_price_per_day` de la résa, ou `base_price` de la nouvelle voiture), `owner_total`/`profit_kouider`/`payment_status` recalculés, voiture libérée/occupée, événement Google Agenda modifié ou supprimé. Alerte trop-perçu si déjà payé > nouveau prix.
+  - `quick_email_reply` : répond au dernier mail reçu d'une personne (boîte PRO seulement, même conversation, depuis contact@). Sans `body` → lit le mail ; relecture complète puis `confirmed:true`. Opt-out, permission d'envoi et plafond 30/jour vérifiés.
+  - `send_contract` : `create_signature_link` + lien WhatsApp avec le message de signature → envoyé à Kouider sur Telegram (outil local tgcall).
+  - Papiers : outils `set_car_papers` / `get_car_papers` (chat + appel) sur `cars.insurance_expiry/technical_expiry/vignette_expiry` (colonnes existantes, jamais utilisées, toutes vides). Job `car-papers-call` 9h30 Bruxelles : notif à 30 j, **appel** à 7 j et à l'échéance (signale si la voiture est en location). Relecture de `quick_booking`/`quick_modify_booking` : alerte si un papier expire avant la fin.
+  - Testé sur la vraie base en relecture (rien écrit/envoyé) ; papiers testés sur la Sandero puis remis à vide. Pas encore en vrai appel.
+
 ## 2026-10-13 — Réservation, paiement, devis, agenda rapides dans l'appel
 - `63f9638` (`integrations/call-quick.ts`, `api/routes/call.ts`) : `quick_booking` (dispo, prix catalogue `resale_price` ou dit, coût Houari `base_price`, bénéfice, client à risque ; relecture sans `confirmed`, `create_booking` après oui), `quick_payment` (retrouve la résa pas soldée du client, « laquelle ? » si plusieurs, reste à payer), `quick_quote` (dispo + prix client + livraison + devis prêt à envoyer), `quick_agenda` (départs/retours, agenda FIK + perso, rappels du jour), `schedule_reminder` en écriture rapide confirmée.
 - Fix `create_booking` : car_name « Clio » prenait une Clio au hasard → « laquelle ? ».

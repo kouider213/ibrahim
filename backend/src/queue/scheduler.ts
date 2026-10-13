@@ -41,6 +41,7 @@ import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeekly
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
 import { jobDailyRecapCall, jobMailReplyCall } from './jobs/call-jobs.js';
+import { jobCarPapersCall } from '../integrations/car-papers.js';
 import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
 import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
 
@@ -259,6 +260,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'car-papers-call',
+    cron:  '30 9 * * *',            // 9h30 (Bruxelles) chaque jour — assurance / CT / vignette : appel 7 j avant et à l'échéance
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'mail-reply-call',
     cron:  '*/15 * * * *',          // toutes les 15 min — quelqu'un a répondu à un mail de Kouider → appel (la nuit : mis en file pour 8h)
     tz:    'Europe/Brussels',
@@ -306,6 +312,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'review-whatsapp':         async () => { await jobReviewWhatsapp(); },
   'daily-recap-call':        async () => { await jobDailyRecapCall(); },
   'mail-reply-call':         async () => { await jobMailReplyCall(); },
+  'car-papers-call':         async () => { await jobCarPapersCall(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
   'prospect-replies':        async () => {
     await checkProspectReplies();
