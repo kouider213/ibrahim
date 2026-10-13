@@ -6,6 +6,19 @@
 
 ---
 
+## ⚡ Session 2026-10-13 (soir) — Comparaison avec les autres « Jarvis » → voir `DZARYX/SESSIONS/2026-10-13/`
+- **Nexus** (PAS encore testé sur le PC Windows) : extras JARVIS (minuteurs, notes, courses, volume, arrêt…), pilote de
+  navigateur Playwright (pause avant action irréversible), serveur MCP lecture seule (`nexus/mcp_server.py` ↔
+  `/api/mcp`), mode hors ligne Ollama + whisper, bulle flottante + Ctrl+Alt+N/B, réveil local Vosk, anti-boucle.
+- **Backend (en ligne)** : apprentissage auto (`self-learning.ts`) + ménage mémoire 3h, missions permanentes, objectifs,
+  rappels d'événement, préparation des RDV, tâches Houari avec suivi, procédures apprises, recherche dans les
+  conversations, mode privé + `show_my_memory`, mémoire/extras côté clients, garde-fou anti-boucle dans `claude-api.ts`.
+  Tous les agents « seuls » passent par `readonly-agent.ts` (lecture seule).
+- **Bloqué par le garde-fou de Claude Code** : extension Chrome, navigateur sur le serveur (`browser-worker/`, non
+  déployé), MCP en écriture. Refusé par Kouider : tableau des coûts.
+- **Leçon** : `tsc` ne voit pas tout — avant chaque push backend, lancer aussi esbuild sur `src/` et vérifier le statut
+  Railway (api.github.com/repos/kouider213/ibrahim/commits/<sha>/status).
+
 ## ⚡ Session 2026-10-13 — Appels Telegram + appels automatiques
 - **Appels réels via Telegram** : userbot `tgcall/` (pm2 `dzaryx-tg`, compte Dzaryx +32467662323) ↔ Kouider @lebsnus, 2 sens OK. Tour ≈ 3-4 s (STT Groq fr, `/api/call/turn` en flux). Darija abandonnée, Houari pas concerné.
 - **Appels automatiques** (`notifications/auto-call.ts`, `queue/jobs/call-jobs.ts`) — UNIQUEMENT : récap 10h Bruxelles chaque jour, réponse à un mail (boîte PRO fikconciergerie@ seulement — JAMAIS la perso kouiderpablo@, envois via contact@), nouvelle réservation site/WhatsApp, acompte annoncé, retard de retour, impayé urgent. 8h-22h Bruxelles (nuit → groupé à 8h), 10 min mini entre appels, max 8/jour, `app_kv autocall:off`=1 coupe tout, `AUTOCALL_DRY_RUN=1` pour tester.

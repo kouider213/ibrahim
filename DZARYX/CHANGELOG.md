@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-10-13 — Objectifs, tâches Houari avec suivi, procédures apprises, mémoire côté clients | `ce4e3fa`
+
+### backend/
+- `integrations/goals.ts` — **objectifs** (Hermes « /goal ») : `create_goal` / `list_goals` / `update_goal` ; job `goals`
+  9h (Bruxelles) : point mesuré (lecture seule), 1 à 3 actions du jour, arrêt quand atteint ou à l'échéance ; appel si
+  échéance ≤ 2 jours. Test réel : « Jumpy ce week-end » → libre 17-18/10, relancer 3 anciens clients Jumpy, story.
+- `integrations/team-tasks.ts` — **tâches pour Houari** (Hermes « kanban ») : `assign_task` / `complete_task` /
+  `list_team_tasks` ; notif app de Houari, rappel 1 h avant + à l'heure, alerte au créateur si pas confirmé 1 h après,
+  Kouider prévenu quand c'est fait ; tâches ouvertes injectées dans le contexte de Houari. Job `team-tasks` 15 min.
+- `integrations/procedures.ts` — **procédures apprises** (Hermes « skills » + « curator ») : `save_procedure` /
+  `list_procedures` / `delete_procedure` ; aussi extraites par la relecture auto (self-learning) ; injectées seulement
+  quand le message parle du sujet (racines de 5 lettres) ; archivées après 60 j sans usage (ménage de nuit).
+- `conversation/client-responder.ts` — réponse WhatsApp client : **mémoire de la conversation** (avant : seul le
+  dernier message) + propositions d'extras RÉELS (livraison gratuite aéroport Es-Sénia, 7-9 places, logement du
+  catalogue, prolongation). Même consigne dans le chat du site (`widget.ts`). NB : canal WhatsApp client non branché
+  en prod (0 conversation) — prêt pour le jour où il l'est.
+- ⛔ Navigateur sur le serveur (Hermes « bot screen ») : code écrit (`browser-worker/`, non suivi par git) mais
+  **déploiement bloqué** par le garde-fou de sécurité de Claude Code (agent qui navigue seul sans surveillance).
+
 ## 2026-10-13 — Rappels d'événement, recherche dans les conversations, ménage mémoire, réveil local, mode privé
 
 ### backend/
