@@ -301,6 +301,10 @@ export async function chatWithTools(
   const isCodingTask = /code|fichier|github|modifier|écrire|lire|debug|railway|deploy|typescript|push|commit|programme|script/i.test(lastText);
   const maxRounds = isCodingTask ? 30 : 15;
   const loopDeadline = Date.now() + 5 * 60_000; // 5 min wall-clock max
+  // Garde-fou anti-boucle (idée OpenClaw) : même outil + mêmes arguments → 3 erreurs identiques d'affilée
+  // ou 4 appels identiques = on prévient le modèle ; s'il insiste, on arrête la boucle.
+  const loopSeen = new Map<string, { calls: number; lastErr: string; streak: number; warned: boolean }>();
+  let loopStop = '';
 
   for (let round = 0; round < maxRounds; round++) {
     if (Date.now() > loopDeadline) {
@@ -469,7 +473,24 @@ export async function chatWithTools(
             await new Promise(r => setTimeout(r, 1_000 * 2 ** t));
           }
         }
-        const content = typeof raw === 'string' ? raw : JSON.stringify(raw);
+        let content = typeof raw === 'string' ? raw : JSON.stringify(raw);
+
+        const loopKey = `${block.name}:${JSON.stringify(block.input ?? {})}`;
+        const ls = loopSeen.get(loopKey) ?? { calls: 0, lastErr: '', streak: 0, warned: false };
+        ls.calls++;
+        if (toolSuccess) { ls.streak = 0; ls.lastErr = ''; }
+        else { const e = content.slice(0, 200); ls.streak = e === ls.lastErr ? ls.streak + 1 : 1; ls.lastErr = e; }
+        loopSeen.set(loopKey, ls);
+        if (ls.streak >= 3 || ls.calls >= 4) {
+          if (ls.warned) {
+            loopStop = `⚠️ J'ai arrêté : l'outil ${block.name} tournait en rond (${ls.streak >= 3 ? 'même erreur répétée' : 'même appel répété'}). Dernier résultat : ${content.slice(0, 200)}`;
+          } else {
+            ls.warned = true;
+            console.warn(`[loop-guard] ${block.name} répété (calls=${ls.calls}, streak=${ls.streak})`);
+            content += `\n\n[GARDE-FOU] Tu as déjà appelé ${block.name} avec exactement ces arguments ${ls.calls} fois`
+              + `${ls.streak >= 3 ? ` (même erreur ${ls.streak} fois)` : ''}. Ne le rappelle plus ainsi : change d'approche ou explique le problème à Kouider.`;
+          }
+        }
 
         // ── Execution trace obligatoire ─────────────────────────────────
         toolsExecuted.push({ name: block.name, success: toolSuccess, result: content.slice(0, 300) });
@@ -491,6 +512,7 @@ export async function chatWithTools(
     );
 
     apiMessages = [...apiMessages, { role: 'user', content: toolResults }];
+    if (loopStop) { console.warn(`[loop-guard] boucle arrêtée : ${loopStop.slice(0, 120)}`); finalText = loopStop; break; }
   }
 
   const mode = useThinking ? 'thinking' : 'normal';

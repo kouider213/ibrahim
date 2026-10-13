@@ -124,9 +124,9 @@ class WakeWordDetector:
                         audio = rec.listen(source, timeout=4, phrase_time_limit=10 if self.in_session else 6)
                     except sr.WaitTimeoutError:
                         continue
-                try:
-                    text = rec.recognize_google(audio, language='fr-FR')
-                except Exception:
+                from modules.offline_brain import recognize
+                text = recognize(rec, audio)
+                if not text:
                     continue
                 log.debug('Heard: %s', text)
 

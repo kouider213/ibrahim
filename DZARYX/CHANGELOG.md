@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-10-13 — Nexus : les 5 idées des autres « Jarvis » (bertrandmbanwi/Jarvis, OpenClaw, Open.Jarvis)
+
+### nexus/
+1. **Pilote de navigateur** `modules/browser_agent.py` (Playwright + Claude `NEXUS_BROWSER_MODEL`, défaut claude-sonnet-5-5) :
+   « va sur le site X et remplis le formulaire / cherche / télécharge… ». Chromium visible, profil gardé
+   (`nexus/data/browser-profile`, les connexions restent), page lue en éléments numérotés (pas de clic « à l'œil »),
+   téléchargements → Téléchargements. Jamais de mot de passe/carte : Kouider se connecte lui-même. **Pause avant
+   toute action irréversible** (payer, envoyer, réserver, publier…) → « oui continue » reprend. « ferme le navigateur ».
+   Testé sur le VPS (headless) : population d'Oran sur Wikipédia OK ; formulaire httpbin rempli → pause → envoyé après « oui continue ».
+2. **Serveur MCP** `mcp_server.py` : les outils de Dzaryx **en lecture seule** (≈60 : réservations, clients, finances,
+   flotte, mails pro, agenda, prospects…) dans Claude Code / Claude Desktop / Cursor :
+   `claude mcp add dzaryx -- python C:\…\nexus\mcp_server.py`. Backend : `GET /api/mcp/tools`, `POST /api/mcp/call`
+   (token PC ou mobile Kouider, liste blanche lecture seule — aucune écriture par cette porte).
+3. **Mode hors ligne** `modules/offline_brain.py` : sans internet (ou Claude en panne) → cerveau local Ollama
+   (`NEXUS_OLLAMA_MODEL`, défaut qwen3:4b-instruct — qwen3:4b « pense à voix haute », écarté) ; reconnaissance vocale
+   Google → faster-whisper local si pas de réseau. « installe le mode hors ligne » = winget Ollama + modèle + whisper.
+   Testé sur le VPS avec Ollama : réponses FR courtes, ~5 s.
+4. **Bulle flottante** `modules/overlay.py` (tkinter) : orbe en bas à droite (veille/écoute/réfléchit/parle) + dernière
+   phrase ; clic = micro, glisser = déplacer, clic droit = menu. Raccourcis globaux **ctrl+alt+n** (micro) et
+   **ctrl+alt+b** (afficher/masquer). `NEXUS_OVERLAY=0` pour couper. Testé sous Xvfb.
+5. **Garde-fou anti-boucle** `modules/loop_guard.py` (idée OpenClaw) : 3 erreurs identiques d'affilée ou 4 appels
+   identiques → stop. Dans l'agent PC et le pilote de navigateur.
+
+### backend/
+- `integrations/claude-api.ts` : même garde-fou dans la boucle d'outils de Dzaryx (1er déclenchement = avertissement
+  au modèle, 2e = boucle arrêtée avec message clair).
+- `api/routes/mcp.ts` (nouveau) + description de `send_nexus_command` (navigateur, minuteurs, volume…).
+- `nexus/requirements.txt` : + playwright, mcp, httpx, keyboard. Sur le PC : `python -m playwright install chromium`.
+
 ## 2026-10-13 — 3e passe JARVIS (TechEnClair v10.3, version Mac) : extras locaux Nexus
 
 ### nexus/

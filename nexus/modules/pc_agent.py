@@ -14,6 +14,8 @@ from pathlib import Path
 
 import anthropic
 
+from modules.loop_guard import LoopGuard
+
 log = logging.getLogger('nexus.pc_agent')
 
 DESKTOP   = Path.home() / 'OneDrive' / 'Bureau'
@@ -374,6 +376,7 @@ class PCAgent:
 
     def _agentic_loop(self, messages: list) -> str:
         max_rounds = 6
+        guard = LoopGuard()
         for _ in range(max_rounds):
             response = self.client.messages.create(
                 model='claude-haiku-4-5-20251001',
@@ -402,6 +405,10 @@ class PCAgent:
                 log.info('PC Agent tool: %s %s', block.name, str(block.input)[:80])
                 result = _run_tool(block.name, block.input)
                 log.info('PC Agent result: %s', result[:100])
+                stop = guard.check(block.name, block.input, result)
+                if stop:
+                    log.warning('PC Agent loop guard: %s', stop)
+                    return stop
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,

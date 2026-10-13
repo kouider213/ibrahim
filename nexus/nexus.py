@@ -48,6 +48,9 @@ from modules.pc_agent         import PCAgent
 from modules                  import vision_click
 from modules                  import quick_answers, whatsapp_call
 from modules.extras           import Extras
+from modules.browser_agent    import BrowserAgent
+from modules                  import offline_brain
+from modules.overlay          import Overlay
 
 logging.basicConfig(
     level=logging.INFO,
@@ -143,6 +146,8 @@ class NexusApp:
         self.git_mgr  = GitManager()
         self.pc_agent = PCAgent()
         self.extras   = Extras(notify=self._notify_from_thread)
+        self.browser  = BrowserAgent()
+        self.overlay  = Overlay(self)
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -152,6 +157,7 @@ class NexusApp:
 
     # ── GUI broadcast ────────────────────────────────────────────────────────
     async def gui_send(self, data: dict) -> None:
+        self.overlay.on_event(data)
         if not self.gui_connections:
             return
         msg  = json.dumps(data, ensure_ascii=False)
@@ -223,6 +229,35 @@ class NexusApp:
         extra = self.extras.try_handle(t)
         if extra:
             await self._reply(extra, source)
+            return
+
+        # ── 0b2b. Installer le mode hors ligne (Ollama + modèle + whisper local) ──
+        if offline_brain.wants_install(t):
+            await self._reply("J'installe le mode hors ligne. Ça prend plusieurs minutes, je te préviens à la fin.", source)
+            result = await asyncio.get_running_loop().run_in_executor(None, offline_brain.install)
+            await self._reply(result, source)
+            await self.journal(f'📴 {result}')
+            return
+
+        # ── 0b3. Pilote de navigateur (Playwright) : « va sur le site X et… », reprise après une question ──
+        if self.browser.wants_close(t):
+            await self._reply(await self.browser.close(), source)
+            return
+        if self.browser.has_pending() and (self.browser.is_continue(t) or re.match(r"^(?:non|plut[oô]t|annule|attends)\b", tl)):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            result = await self.browser.resume(t)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            await self._reply(result, source)
+            await self.journal(f'🌐 {result[:300]}')
+            return
+        if self.browser.wants(t):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            if source == 'nexus':
+                await self.speak("Je m'en occupe sur le navigateur.")
+            result = await self.browser.run(t)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            await self._reply(result, source)
+            await self.journal(f'🌐 {result[:300]}')
             return
 
         # ── 0c. Appel WhatsApp (avant la musique : « lance un appel… » contient « lance ») ──
@@ -685,10 +720,19 @@ class NexusApp:
 
         # ── 9. PC Agent (fallback — Claude AI local avec outils PC) ─────────────
         await self.gui_send({'type': 'thinking', 'active': True})
-        if self.pc_agent.available:
-            response = await self.pc_agent.run(t)
+        loop = asyncio.get_running_loop()
+        if not await loop.run_in_executor(None, offline_brain.internet_ok):
+            # ── 9b. Hors ligne : cerveau local Ollama ──
+            response = await loop.run_in_executor(None, offline_brain.ask, t)
         else:
-            response = await self.ws.send_to_dzaryx(t, source)
+            if self.pc_agent.available:
+                response = await self.pc_agent.run(t)
+            else:
+                response = await self.ws.send_to_dzaryx(t, source)
+            # Claude en panne / quota épuisé → cerveau local s'il est installé
+            if (not response or response.startswith('❌ PC Agent erreur')) and \
+                    await loop.run_in_executor(None, offline_brain.ollama_ok):
+                response = await loop.run_in_executor(None, offline_brain.ask, t)
         await self.gui_send({'type': 'thinking', 'active': False})
         if response:
             await self._reply(response, source)
@@ -851,6 +895,7 @@ class NexusApp:
         threading.Thread(target=self._start_http, daemon=True).start()
         await asyncio.sleep(0.4)
         threading.Thread(target=self._open_browser, daemon=True).start()
+        self.overlay.start()
         await asyncio.gather(
             self._gui_ws(),
             self.ws.run(),

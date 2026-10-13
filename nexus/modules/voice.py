@@ -132,8 +132,10 @@ class VoiceModule:
             with sr.Microphone() as source:
                 self._sr.adjust_for_ambient_noise(source, duration=0.3)
                 audio = self._sr.listen(source, timeout=10, phrase_time_limit=20)
-            text = self._sr.recognize_google(audio, language='fr-FR')
-            log.info('STT: %s', text)
+            from modules.offline_brain import recognize
+            text = recognize(self._sr, audio)
+            if text:
+                log.info('STT: %s', text)
             return text
         except Exception:
             return None
