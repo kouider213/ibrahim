@@ -691,6 +691,36 @@ async def voice_command(msg: Message, actor: str, choice: str | None) -> None:
             log.error('échantillon %s: %s', v, e)
 
 
+# ── Boîte d'envoi : messages à Kouider déposés par d'autres scripts du VPS (récap de session…) ──
+OUTBOX = HERE / 'outbox'
+
+
+async def outbox_loop() -> None:
+    """Toutes les 3 s : envoie à Kouider, dans l'ordre des noms, les fichiers tgcall/outbox/*.txt
+    (avec la photo <même nom>.jpg si elle existe), puis les supprime."""
+    OUTBOX.mkdir(exist_ok=True)
+    while True:
+        await asyncio.sleep(3)
+        uid = actor_peer.get('kouider')
+        if not uid:
+            continue
+        for txt in sorted(OUTBOX.glob('*.txt')):
+            img = txt.with_suffix('.jpg')
+            try:
+                text = txt.read_text(encoding='utf-8').strip()
+                if img.exists():
+                    await app.send_photo(uid, str(img), caption=text[:1000])
+                elif text:
+                    await app.send_message(uid, text[:4000])
+                log.info('outbox → kouider : %s', txt.name)
+                await asyncio.sleep(1.5)
+            except Exception as e:
+                log.error('outbox %s: %s', txt.name, e)
+            finally:
+                txt.unlink(missing_ok=True)
+                img.unlink(missing_ok=True)
+
+
 # ── Démarrage ────────────────────────────────────────────────────────────────
 
 async def main() -> None:
@@ -710,6 +740,7 @@ async def main() -> None:
     await ensure_fillers()
     asyncio.create_task(poll_pending())
     asyncio.create_task(heartbeat())
+    asyncio.create_task(outbox_loop())
     await asyncio.Event().wait()
 
 
