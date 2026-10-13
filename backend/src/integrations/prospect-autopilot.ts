@@ -9,6 +9,7 @@ import { addProspect, getAutopilot, updateProspect, companyKey, type Prospect, t
 import { findFreeSlots } from './google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
+import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 
 // Démarchage automatique FIK Conciergerie : chaque jour Dzaryx trouve de nouvelles sociétés (web, LinkedIn,
@@ -415,9 +416,15 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
   // Partenaires sans email : message WhatsApp prêt dans la page
   const waReady = await prepareWhatsappMessages().catch(err => { console.error('[prospect-auto] whatsapp:', err); return 0; });
 
+  // Réserve vide et recherche infructueuse → alerte (sinon le démarchage s'arrête sans bruit)
+  const stock = await prospectStock().catch(() => null);
+  const dryAlert = await checkDryStock(toSend, batch.length, stock).catch(err => { console.error('[prospect-auto] réserve:', err); return null; });
+  const stockLine = !dryAlert && stock !== null && stock < perDay * 2
+    ? `📦 Réserve : plus que ${stock} société(s) à contacter. J'en cherche de nouvelles chaque jour.` : '';
+
   if (!sent.length && !followed.length) {
     const why = toSend <= 0 ? `${doneToday ?? 0} mail(s) de démarchage déjà envoyés aujourd'hui` : 'aucune nouvelle société avec un email public trouvée';
-    const extra = [keyLine, waReady ? `💬 ${waReady} message(s) WhatsApp prêt(s) pour des partenaires (page Démarchage)` : ''].filter(Boolean).join('\n');
+    const extra = [keyLine, stockLine, waReady ? `💬 ${waReady} message(s) WhatsApp prêt(s) pour des partenaires (page Démarchage)` : ''].filter(Boolean).join('\n');
     if (extra || failed.length) emitProactive(`Démarchage du jour : aucun mail envoyé (${why}).`, 'info',
       [`Démarchage du jour : aucun mail envoyé (${why}).`, failed.length ? `⚠️ Non envoyés : ${failed.join(', ')}` : '', extra].filter(Boolean).join('\n'), 'kouider', 'demarchage');
     return `Rien envoyé : ${why}.${extra ? `\n${extra}` : ''}`;
@@ -429,11 +436,39 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
     failed.length ? `⚠️ Non envoyés : ${failed.join(', ')}` : '',
     followed.length ? `🔁 ${followed.length} relance(s) (pas de réponse depuis ${FOLLOWUP_DAYS} jours) :\n${followed.join('\n')}` : '',
     keyLine ?? '',
+    stockLine,
     waReady ? `💬 ${waReady} message(s) WhatsApp prêt(s) pour des partenaires d'Oran` : '',
     'Je te préviens dès que quelqu\'un répond ou visite le site. Tout est dans la page Démarchage.',
   ].filter(Boolean).join('\n');
   emitProactive(`Démarchage du jour : ${sent.length} mail(s)${followed.length ? ` + ${followed.length} relance(s)` : ''}.`, 'info', recap, 'kouider', 'demarchage');
   return recap;
+}
+
+/** Sociétés jamais contactées avec un email = réserve des prochains jours. */
+async function prospectStock(): Promise<number> {
+  const { count } = await supabase.from('prospects').select('id', { count: 'exact', head: true })
+    .eq('status', 'a_contacter').not('email', 'is', null).is('last_contacted_at', null);
+  return count ?? 0;
+}
+
+const DRY_KEY = 'prospect:dry_days';
+/** Jours d'affilée où la recherche n'a pas trouvé assez de sociétés. Alerte au 1er, 3e, 7e jour puis chaque semaine. */
+async function checkDryStock(wanted: number, found: number, stock: number | null): Promise<string | null> {
+  if (wanted <= 0) return null;
+  if (found >= wanted) { await kvDel(DRY_KEY); return null; }
+  const days = Number(await kvGet(DRY_KEY) ?? 0) + 1;
+  await kvSet(DRY_KEY, String(days));
+  if (![1, 3, 7].includes(days) && days % 7 !== 0) return null;
+  const since = days > 1 ? ` (${days} jours d'affilée)` : '';
+  const text = [
+    `⚠️ Démarchage : je n'ai trouvé que ${found} société(s) avec un email sur les ${wanted} prévues aujourd'hui${since}.`,
+    `Réserve restante : ${stock ?? '?'} société(s) à contacter.`,
+    'Pour relancer la machine, tu peux :',
+    '• me donner un nouveau secteur ou une ville à cibler (ex. « cherche des sociétés de BTP à Arzew ») ;',
+    '• m\'envoyer des noms de sociétés : je les ajoute et je leur écris.',
+  ].join('\n');
+  emitProactive(`Démarchage : plus assez de sociétés à contacter${since}.`, 'alert', text, 'kouider', 'demarchage');
+  return text;
 }
 
 // ── 2 bis. Relance unique après 5 jours sans réponse (même conversation, même langue) ──
