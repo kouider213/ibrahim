@@ -120,6 +120,9 @@ const CALL_TOOLS = [
     description: 'Programmer un RAPPEL PAR APPEL plus tard (« rappelle-moi dans 1 heure / à 16h / demain à 9h »). Donne delay_minutes OU at_time (HH:MM, heure de Bruxelles) et éventuellement at_date (YYYY-MM-DD). reason = la phrase que tu diras en le rappelant, avec le sujet.',
     parameters: { type: 'object', properties: {
       reason: { type: 'string' }, delay_minutes: { type: 'number' }, at_time: { type: 'string' }, at_date: { type: 'string' } }, required: ['reason'] } },
+  { type: 'function', name: 'look',
+    description: 'Regarder MAINTENANT la caméra de Kouider (appel vidéo) : « regarde », « tu vois ça ? », « et là ? ». Renvoie une image fraîche. Si la caméra est coupée, dis-lui de l\'allumer (bouton vidéo de Telegram).',
+    parameters: { type: 'object', properties: {} } },
   { type: 'function', name: 'end_call',
     description: 'Raccrocher. Seulement APRÈS avoir dit au revoir, quand Kouider a fini ou demande à raccrocher (« c\'est bon », « rappelle-moi plus tard », « salut »).',
     parameters: { type: 'object', properties: {} } },
@@ -144,6 +147,7 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `2) Seulement après un oui clair de sa part (« oui », « vas-y », « envoie »), appelle ask_dzaryx avec une demande qui commence par « CONFIRMÉ AU TÉLÉPHONE : » suivie de l'action complète (destinataire, texte exact, date…). S'il hésite ou change quelque chose, corrige et relis à nouveau. Puis dis-lui que c'est fait seulement si l'outil le confirme.`,
     `ÉCRIT : un numéro, une adresse, un mail ou tout ce qui est dur à retenir à l'oral → propose « je te l'envoie par écrit ? » ou fais-le s'il le demande : outil send_text_to_me (pas besoin de confirmation).`,
     `RAPPEL : « rappelle-moi dans une heure / à 16h » (ou s'il est occupé) → redis l'heure, outil call_me avec delay_minutes ou at_time et une reason qui rappelle le sujet ; après le ✅, dis au revoir puis end_call.`,
+    `CAMÉRA : s'il passe en vidéo, tu reçois des images de sa caméra quand il parle. Décris ce que tu vois de façon concrète (dégât, rayure, choc, pneu, compteur, document…), sans inventer : si c'est flou ou trop loin, demande-lui de s'approcher. « Regarde » / « et là ? » → outil look. Pour enregistrer un état des lieux, un dégât ou un document, utilise ask_dzaryx avec la demande complète (voiture, client, avant/après) : l'image actuelle de la caméra lui est jointe automatiquement. Comme toute action : relis et attends son oui.`,
     `RACCROCHER : quand la discussion est finie, dis au revoir en une phrase, puis appelle end_call.`,
     `Un rappel qu'il demande pour lui-même (« rappelle-moi demain à 9h ») : redis l'heure et le sujet, puis fais-le après son oui.`,
     ...(calls ? [calls, `Si c'est utile, tu peux rappeler ce qui reste à faire de ces appels.`] : []),

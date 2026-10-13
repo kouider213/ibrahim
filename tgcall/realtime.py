@@ -11,6 +11,7 @@ import audioop
 import base64
 import json
 import logging
+import subprocess
 import time
 from typing import Awaitable, Callable
 
@@ -25,6 +26,18 @@ OUT_RATE = 48000                   # voix jouée dans l'appel
 FRAME_10MS = OUT_RATE // 100 * 2   # 960 octets = 10 ms mono 16 bits
 SILENCE = b'\x00' * FRAME_10MS
 SEND_EVERY_S = 0.1                 # voix de Kouider envoyée à OpenAI par paquets de 100 ms
+VIDEO_FRESH_S = 2.0                # image caméra considérée « en direct » si reçue il y a moins de 2 s
+VIDEO_EVERY_S = 3.0                # au plus une image caméra envoyée à OpenAI toutes les 3 s
+ROTATE = {90: 'transpose=1', 180: 'transpose=1,transpose=1', 270: 'transpose=2'}
+
+
+def frame_to_jpeg(raw: bytes, w: int, h: int, rotation: int = 0, max_w: int = 768) -> bytes:
+    """Image caméra brute de l'appel (I420 / yuv420p) → JPEG, redressée et réduite."""
+    vf = ','.join(f for f in (ROTATE.get(rotation), f"scale='min({max_w},iw)':-2") if f)
+    out = subprocess.run(['ffmpeg', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'yuv420p', '-s', f'{w}x{h}',
+                          '-i', '-', '-frames:v', '1', '-vf', vf, '-q:v', '4', '-f', 'mjpeg', '-'],
+                         input=raw, capture_output=True, timeout=10, check=True)
+    return out.stdout
 
 ApiFn = Callable[[str, dict, str, float], Awaitable[dict]]
 # Outils exécutés ici (pas au backend) : nom → fonction(args) → (résultat, relancer la parole ?)
@@ -45,6 +58,8 @@ class RealtimeCall:
         self.tasks: list[asyncio.Task] = []
         self.closed = False
         self.playing = False              # l'appel Telegram est établi → on peut envoyer des tranches
+        self.video: tuple[bytes, int, int, int, float] | None = None   # dernière image caméra (brute, l, h, rotation, quand)
+        self.video_sent = 0.0
         self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
         self.started = time.monotonic()
 
@@ -91,6 +106,36 @@ class RealtimeCall:
                 chunk = bytes(self.inp); self.inp.clear()
                 await self._send({'type': 'input_audio_buffer.append', 'audio': base64.b64encode(chunk).decode()})
 
+    # ── Caméra de Kouider (appel vidéo) ──────────────────────────────────────
+    def feed_video(self, raw: bytes, w: int, h: int, rotation: int) -> None:
+        if w > 0 and h > 0 and len(raw) >= w * h * 3 // 2:
+            if self.video is None:
+                log.info('caméra de %s reçue (%dx%d, rotation %d)', self.actor, w, h, rotation)
+            self.video = (raw, w, h, rotation, time.monotonic())
+
+    def snapshot(self) -> str | None:
+        """Image caméra en direct → JPEG base64 (None si la caméra est coupée)."""
+        if not self.video or time.monotonic() - self.video[4] > VIDEO_FRESH_S:
+            return None
+        raw, w, h, rot, _ = self.video
+        try:
+            return base64.b64encode(frame_to_jpeg(raw, w, h, rot)).decode()
+        except Exception as e:
+            log.warning('image caméra: %s', e)
+            return None
+
+    async def show_camera(self, force: bool = False) -> bool:
+        """Comme l'app : l'image de la caméra accompagne ce que Kouider dit → OpenAI la voit."""
+        if not force and time.monotonic() - self.video_sent < VIDEO_EVERY_S:
+            return False
+        jpg = await asyncio.to_thread(self.snapshot)
+        if not jpg:
+            return False
+        self.video_sent = time.monotonic()
+        await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'user', 'content': [
+            {'type': 'input_image', 'image_url': f'data:image/jpeg;base64,{jpg}'}]}})
+        return True
+
     # ── Voix de Dzaryx → appel (tranches de 10 ms au rythme réel) ────────────
     async def _pacer(self) -> None:
         nxt = time.monotonic()
@@ -132,6 +177,7 @@ class RealtimeCall:
             elif t == 'response.done':
                 self.responding = False
             elif t == 'input_audio_buffer.speech_started':
+                asyncio.create_task(self.show_camera())
                 if self.out:
                     self.out.clear()          # Kouider parle par-dessus → Dzaryx se tait tout de suite
                     log.info('interrompu par %s', self.actor)
@@ -167,7 +213,11 @@ class RealtimeCall:
                 result = f'Échec : {e}'
         elif name == 'ask_dzaryx':
             try:
-                out = await self.api('/api/call/turn', {'message': args.get('request', ''), 'textOnly': True}, self.actor, 60)
+                body = {'message': args.get('request', ''), 'textOnly': True}
+                jpg = await asyncio.to_thread(self.snapshot)
+                if jpg:   # caméra allumée → le vrai Dzaryx reçoit l'image (état des lieux, documents…), comme dans l'app
+                    body.update(image=jpg, imageMime='image/jpeg')
+                out = await self.api('/api/call/turn', body, self.actor, 90)
                 result = out.get('text') or 'Pas de réponse.'
             except Exception as e:
                 result = f'Erreur technique : {e}. Dis-lui que tu n\'arrives pas à vérifier pour le moment.'

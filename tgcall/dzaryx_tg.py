@@ -29,10 +29,11 @@ from pyrogram.types import Message
 from pytgcalls import PyTgCalls, filters as cfilters
 from pytgcalls.types.raw import AudioParameters
 from pytgcalls.types import (
-    CallConfig, ChatUpdate, Direction, ExternalMedia, MediaStream, RecordStream,
+    CallConfig, ChatUpdate, Device, Direction, ExternalMedia, MediaStream, RecordStream,
     StreamEnded, StreamFrames,
 )
 
+from ntgcalls import VideoRotation
 from realtime import IN_RATE, OUT_RATE, RealtimeCall, speak
 
 HERE = Path(__file__).parent
@@ -95,6 +96,8 @@ class CallState:
 
 
 active: dict[int, CallState] = {}
+ROTATION = {VideoRotation.VIDEO_ROTATION_0: 0, VideoRotation.VIDEO_ROTATION_90: 90,
+            VideoRotation.VIDEO_ROTATION_180: 180, VideoRotation.VIDEO_ROTATION_270: 270}
 
 
 # ── Backend ──────────────────────────────────────────────────────────────────
@@ -306,6 +309,13 @@ def start_turn(user_id: int, pcm: bytes) -> None:
 @calls.on_update(cfilters.stream_frame(Direction.INCOMING))
 async def on_frames(_, update: StreamFrames) -> None:
     st = active.get(update.chat_id)
+    if update.device == Device.CAMERA:       # appel vidéo : on garde la dernière image
+        if st is not None and st.rt is not None and update.frames:
+            fr = update.frames[-1]
+            st.rt.feed_video(fr.frame, fr.info.width, fr.info.height, ROTATION.get(fr.info.rotation, 0))
+        return
+    if update.device == Device.SCREEN:
+        return
     if st is not None and st.rt is not None:
         for fr in update.frames:
             st.rt.feed(fr.frame)
@@ -433,7 +443,13 @@ def call_tools(user_id: int) -> dict:
         asyncio.create_task(hang_up(user_id))
         return 'Raccroché.', False
 
-    return {'send_text_to_me': send_text_to_me, 'end_call': end_call}
+    async def look(_: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        if st and st.rt and await st.rt.show_camera(force=True):
+            return 'Image de la caméra ajoutée : décris ce que tu vois.', True
+        return 'Caméra coupée : aucune image. Demande-lui d\'activer la vidéo dans Telegram.', True
+
+    return {'send_text_to_me': send_text_to_me, 'end_call': end_call, 'look': look}
 
 
 async def hang_up(user_id: int) -> None:
@@ -470,7 +486,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
     try:
         await calls.play(user_id, MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1),
                                               video_flags=MediaStream.Flags.IGNORE), CallConfig(timeout=45))
-        await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1)))
+        await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1), camera=True))
         rt.start_audio()
         await rt.greet(greeting)
     except Exception as e:
