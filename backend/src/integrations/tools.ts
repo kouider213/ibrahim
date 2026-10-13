@@ -2180,6 +2180,92 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: { type: 'object' as const, properties: { text: { type: 'string', description: 'Mots du souvenir' } }, required: ['text'] },
   },
 
+  {
+    name: 'create_goal',
+    description: 'Créer un OBJECTIF avec une ligne d\'arrivée : "objectif : louer la Jumpy ce week-end", "3 nouveaux clients entreprises ce mois-ci", "zéro impayé d\'ici vendredi". Chaque matin Dzaryx mesure où on en est et propose 1 à 3 actions, jusqu\'à ce que ce soit atteint (ou l\'échéance). Différent d\'une mission (create_mission), qui se répète sans fin.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        objective: { type: 'string', description: 'L\'objectif, mesurable si possible' },
+        deadline:  { type: 'string', description: 'Échéance AAAA-MM-JJ (optionnel ; "ce week-end" → le dimanche)' },
+      },
+      required: ['objective'],
+    },
+  },
+  {
+    name: 'list_goals',
+    description: 'Lister les objectifs (en cours, atteints, expirés) et le dernier point de chacun. "où on en est de mes objectifs".',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'update_goal',
+    description: 'Marquer un objectif atteint / abandonné, ou changer son échéance.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        goal:     { type: 'string', description: 'Mots de l\'objectif' },
+        status:   { type: 'string', enum: ['done', 'abandoned'] },
+        deadline: { type: 'string', description: 'Nouvelle échéance AAAA-MM-JJ' },
+      },
+      required: ['goal'],
+    },
+  },
+  {
+    name: 'assign_task',
+    description: 'Donner une TÂCHE à Houari (ou à Kouider) avec suivi : "dis à Houari de préparer la Clio pour 10h demain", "demande à Houari de récupérer les clés chez Karim ce soir". Houari reçoit une notification, un rappel 1 h avant et à l\'heure ; si rien n\'est confirmé 1 h après, le créateur est prévenu. Quand c\'est fait, Kouider est prévenu.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title:    { type: 'string', description: 'La tâche, courte et claire' },
+        details:  { type: 'string', description: 'Détails utiles (adresse, client, voiture…)' },
+        due:      { type: 'string', description: 'Pour quand : date-heure ISO AVEC fuseau. Tâches de Houari = heure d\'Oran (+01:00), ex 2026-10-14T10:00:00+01:00' },
+        assignee: { type: 'string', enum: ['houari', 'kouider'], description: 'Par défaut : l\'autre associé' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'complete_task',
+    description: 'Marquer une tâche comme FAITE (ou annulée) : "c\'est fait pour la Clio", "j\'ai récupéré les clés", "annule la tâche du lavage". Prévient automatiquement celui qui l\'a demandée.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        task:   { type: 'string', description: 'Mots de la tâche (ou son code)' },
+        note:   { type: 'string', description: 'Remarque éventuelle (ex: "réservoir à moitié")' },
+        cancel: { type: 'boolean', description: 'true = annuler au lieu de terminer' },
+      },
+      required: ['task'],
+    },
+  },
+  {
+    name: 'list_team_tasks',
+    description: 'Lister les tâches en cours de l\'équipe (Houari / Kouider) : "qu\'est-ce que Houari doit faire", "mes tâches".',
+    input_schema: { type: 'object' as const, properties: { all: { type: 'boolean', description: 'true = toutes les tâches de l\'équipe' } } },
+  },
+  {
+    name: 'save_procedure',
+    description: 'Retenir une PROCÉDURE en plusieurs étapes à suivre à chaque fois : "quand je valide une location, fais toujours : vérifier le client, contrat, lien de signature, agenda, WhatsApp au client". Dzaryx la suivra quand le sujet revient.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name:    { type: 'string', description: 'Nom court (ex: "Validation d\'une location")' },
+        trigger: { type: 'string', description: 'Quand l\'utiliser, en mots-clés (ex: "valider confirmer location réservation")' },
+        steps:   { type: 'array', items: { type: 'string' }, description: 'Les étapes dans l\'ordre' },
+      },
+      required: ['name', 'trigger', 'steps'],
+    },
+  },
+  {
+    name: 'list_procedures',
+    description: 'Lister les procédures apprises ("quelles procédures tu connais").',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'delete_procedure',
+    description: 'Oublier une procédure ("oublie la procédure de validation").',
+    input_schema: { type: 'object' as const, properties: { procedure: { type: 'string' } }, required: ['procedure'] },
+  },
+
   // ─── CONTRAT PDF (Phase 8.2) ──────────────────────────────────────
   {
     name: 'generate_contract',

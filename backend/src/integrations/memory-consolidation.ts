@@ -4,6 +4,7 @@ import { supabase } from './supabase.js';
 import { getLearnedRules, deactivateRule, type LearnedRule } from './learned-rules.js';
 import { kvGet, kvSet } from './app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { archiveUnusedProcedures } from './procedures.js';
 
 // Ménage de la mémoire la nuit (idée reprise d'OpenClaw « dreaming ») : maintenant que Dzaryx apprend tout seul,
 // les règles peuvent se répéter ou se contredire (« Clio 35 € » en octobre, « Clio 40 € » en décembre).
@@ -55,6 +56,9 @@ export async function consolidateRules(owner: 'kouider' | 'houari', dryRun = fal
 
 /** Job chaque nuit (3h Bruxelles). */
 export async function jobMemoryConsolidation(): Promise<void> {
+  const archived = await archiveUnusedProcedures().catch(() => [] as string[]);
+  if (archived.length) emitProactive(`🗄️ ${archived.length} procédure(s) archivée(s)`, 'info',
+    `🗄️ Procédures pas utilisées depuis 60 jours, mises de côté : ${archived.join(', ')}.`);
   for (const owner of ['kouider', 'houari'] as const) {
     try {
       const changes = await consolidateRules(owner);

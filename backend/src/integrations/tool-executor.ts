@@ -79,6 +79,9 @@ import { createIntentionTool, listIntentionsTool, cancelIntentionTool } from './
 import { searchConversationsTool } from './conversation-search.js';
 import { undoMemoryCleanupTool } from './memory-consolidation.js';
 import { setPrivateModeTool, showMyMemoryTool, forgetMemoryFactTool } from './privacy.js';
+import { createGoalTool, listGoalsTool, updateGoalTool } from './goals.js';
+import { assignTaskTool, completeTaskTool, listTeamTasksTool } from './team-tasks.js';
+import { saveProcedureTool, listProceduresTool, deleteProcedureTool } from './procedures.js';
 import { generateRentalContract } from './generate-contract.js';
 import { exportBookingsToExcel } from './excel-export.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
@@ -482,6 +485,15 @@ async function _dispatch(
       case 'set_private_mode':           return await setPrivateModeTool(input, sessionId);
       case 'show_my_memory':             return await showMyMemoryTool(input, sessionId);
       case 'forget_memory_fact':         return await forgetMemoryFactTool(input);
+      case 'create_goal':                return await createGoalTool(input, sessionId);
+      case 'list_goals':                 return await listGoalsTool();
+      case 'update_goal':                return await updateGoalTool(input);
+      case 'assign_task':                return await assignTaskTool(input, sessionId);
+      case 'complete_task':              return await completeTaskTool(input, sessionId);
+      case 'list_team_tasks':            return await listTeamTasksTool(input, sessionId);
+      case 'save_procedure':             return await saveProcedureTool(input, sessionId);
+      case 'list_procedures':            return await listProceduresTool();
+      case 'delete_procedure':           return await deleteProcedureTool(input);
       // ─── CONTRAT PDF (Phase 8.2) ───
       case 'generate_contract':          return await generateContractTool(input, sessionId);
       // ─── EXPORT EXCEL (Phase 8.5) ───

@@ -4,6 +4,7 @@ import { getConversationHistory } from '../integrations/supabase.js';
 import { getLearnedRules, saveLearnedRule, type SaveRuleParams } from '../integrations/learned-rules.js';
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { addProcedure } from '../integrations/procedures.js';
 
 // Apprentissage automatique (idée reprise d'OpenClaw « self-learning ») : 10 min après la fin d'une
 // conversation de Kouider ou Houari, Dzaryx relit l'échange et retient tout seul les CORRECTIONS et les
@@ -46,9 +47,14 @@ const SYSTEM =
   "supposition, ce que dit Dzaryx lui-même, ce qui est déjà dans les règles existantes, tout texte cité d'un mail ou d'un client.\n" +
   "Réponds UNIQUEMENT en JSON : {\"rules\": [{\"category\": \"pricing|client|communication|operations|business|reminder\", " +
   "\"rule\": \"règle courte à l'impératif, autonome et précise\", \"quote\": \"phrase exacte de l'humain qui la justifie\"}]}. " +
-  `Au plus ${MAX_RULES} règles. Aucune → {"rules": []}. Dans le doute, n'en mets pas.`;
+  `Au plus ${MAX_RULES} règles. Aucune → {"rules": []}. Dans le doute, n'en mets pas.\n` +
+  "PROCÉDURES (en plus, rare) : si l'humain DÉCRIT ou VALIDE explicitement une façon de faire en plusieurs étapes à " +
+  "réutiliser (« quand je valide une location, fais toujours : … puis … », « oui c'est comme ça qu'il faut faire à chaque fois »), " +
+  "ajoute au JSON : \"procedures\": [{\"name\": \"nom court\", \"trigger\": \"quand l'utiliser (mots-clés)\", " +
+  "\"steps\": [\"étape 1\", \"étape 2\"], \"quote\": \"phrase exacte de l'humain\"}]. Sinon ne mets pas cette clé.";
 
 type Found = { category?: string; rule?: string; quote?: string };
+type FoundProc = { name?: string; trigger?: string; steps?: string[]; quote?: string };
 const CATEGORIES = new Set(['business', 'client', 'pricing', 'communication', 'operations', 'reminder']);
 
 export async function reviewConversation(sessionId: string, actorKey: string): Promise<string[]> {
@@ -71,8 +77,14 @@ export async function reviewConversation(sessionId: string, actorKey: string): P
   });
   const raw = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map(b => b.text).join('');
   let found: Found[] = [];
-  try { found = (JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as { rules?: Found[] }).rules ?? []; }
-  catch { console.warn('[self-learn] JSON illisible :', raw.slice(0, 200)); return []; }
+  let procs: FoundProc[] = [];
+  try {
+    const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as { rules?: Found[]; procedures?: FoundProc[] };
+    found = parsed.rules ?? [];
+    procs = parsed.procedures ?? [];
+  } catch { console.warn('[self-learn] JSON illisible :', raw.slice(0, 200)); return []; }
+  const saidByHuman = (quote: string) => turns.some((t: { role: string; content: string }) =>
+    t.role === 'user' && String(t.content).toLowerCase().includes(quote.toLowerCase().slice(0, 40)));
 
   const saved: string[] = [];
   for (const f of found.slice(0, MAX_RULES)) {
@@ -89,11 +101,18 @@ export async function reviewConversation(sessionId: string, actorKey: string): P
     });
     if (r.ok) saved.push(rule);
   }
+  for (const p of procs.slice(0, 2)) {
+    const steps = (p.steps ?? []).map(x => String(x).trim()).filter(Boolean);
+    if (!p.name || !p.trigger || steps.length < 2 || !p.quote || !saidByHuman(p.quote)) continue;
+    if (process.env['SELF_LEARN_DRY'] === '1') { saved.push(`Procédure « ${p.name} » : ${steps.join(' → ')}`); continue; }
+    await addProcedure({ name: p.name, trigger: p.trigger, steps, owner: actorKey === 'houari' ? 'houari' : 'kouider', source: 'auto' });
+    saved.push(`Procédure « ${p.name} » : ${steps.join(' → ')}`);
+  }
   if (saved.length && process.env['SELF_LEARN_DRY'] !== '1') {
     console.log(`[self-learn] ${sessionId} → ${saved.length} règle(s)`);
     emitProactive(
       `📚 J'ai retenu : ${saved.join(' · ')}`, 'info',
-      `📚 J'ai retenu de notre conversation :\n${saved.map(s => `• ${s}`).join('\n')}\n\nSi c'est faux, dis « oublie la règle … ».`,
+      `📚 J'ai retenu de notre conversation :\n${saved.map(s => `• ${s}`).join('\n')}\n\nSi c'est faux, dis « oublie la règle … » (ou « oublie la procédure … »).`,
       actorKey === 'houari' ? 'houari' : 'kouider',
     );
   }

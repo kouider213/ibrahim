@@ -242,7 +242,7 @@ const MEMORY_AGENT: AgentDefinition = {
 SPÉCIALITÉ: mémoriser, retrouver, apprendre des règles, préférences Kouider, rapports d'évolution.
 TOUJOURS: confirmer ce qui a été mémorisé, citer la source si rappel.`,
   toolNames: [
-    'remember_info','recall_memory','learn_rule','get_kouider_preferences','list_learned_rules','forget_learned_rule','search_conversations','undo_memory_cleanup','set_private_mode','show_my_memory','forget_memory_fact',
+    'remember_info','recall_memory','learn_rule','get_kouider_preferences','list_learned_rules','forget_learned_rule','search_conversations','undo_memory_cleanup','set_private_mode','show_my_memory','forget_memory_fact','save_procedure','list_procedures','delete_procedure',
     'get_monthly_improvement_report','get_learning_evolution','record_feedback','track_habit',
   ],
   keywords:  /\b(souviens|rappelle|mémorise|retiens|oublie|préférence|habitude|apprentissage|évolution|amélioration|feedback|règle|routine|tracker|suivi|prends?\s+l.habitude)\b/i,
@@ -437,7 +437,9 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'create_google_doc', 'create_google_sheet',
     'add_prospect', 'list_prospects', 'update_prospect', 'prospect_replies', 'prospect_autopilot',
     'call_me', 'create_mission', 'list_missions', 'update_mission', 'run_mission_now', 'prepare_meeting',
-    'create_intention', 'list_intentions', 'cancel_intention', 'search_conversations', 'set_private_mode', 'show_my_memory'],
+    'create_intention', 'list_intentions', 'cancel_intention', 'search_conversations', 'set_private_mode', 'show_my_memory',
+    'create_goal', 'list_goals', 'update_goal', 'assign_task', 'complete_task', 'list_team_tasks',
+    'save_procedure', 'list_procedures', 'delete_procedure'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
@@ -455,12 +457,15 @@ PROPOSER (jamais d'envoi ni de modification automatique) — dis-le s'il demande
 Rappel ponctuel (« rappelle-moi demain à 9h ») → schedule_reminder, pas une mission.
 RAPPELS D'ÉVÉNEMENT : « la prochaine fois que Karim réserve… », « si Sonatrach répond, appelle-moi » → create_intention
 (event booking/email/whatsapp/mention/any). Relis : qui, quel événement, quel rappel, appel ou notif.
+OBJECTIFS (« objectif : louer la Jumpy ce week-end ») → create_goal (échéance AAAA-MM-JJ).
+TÂCHES (« dis à Houari de préparer la Clio pour 10h ») → assign_task (heure d'Oran +01:00) ; « c'est fait » → complete_task.
 RDV : « prépare-moi mon RDV de 15h » → prepare_meeting. Dzaryx prépare aussi seul chaque RDV ~1 h avant (notif + appel).`,
   toolNames: ['create_mission', 'list_missions', 'update_mission', 'run_mission_now', 'prepare_meeting',
     'create_intention', 'list_intentions', 'cancel_intention',
+    'create_goal', 'list_goals', 'update_goal', 'assign_task', 'complete_task', 'list_team_tasks',
     'schedule_reminder', 'list_calendar_events', 'list_personal_events', 'list_prospects', 'web_search'],
   // NB : pas de \b devant une lettre accentuée en JS (« écrit ») → (?:^|\s) à la place
-  keywords: /\b(?:la\s+)?prochaine\s+fois\s+qu(?:e|')|\b(?:si|quand|d[eè]s\s+qu(?:e|'))\s+[^.?!]{1,60}(?:^|\s)(?:r[eé]serve|r[eé]pond|[eé]crit|m'?appelle|me\s+parle)(?=[^.?!]*(?:rappelle|pr[eé]viens|appelle[\s-]moi|dis[\s-]le[\s-]moi|alerte))|rappels?\s+d'[eé]v[eé]nement|\bmissions?\b|pr[eé]pare[\s-](?:moi\s+)?(?:mon|le|ce|mes)\s+(?:rdv|rendez[\s-]vous|r[eé]union)|\b(?:chaque|tous\s+les|toutes\s+les)\s+(?:jours?|matins?|soirs?|semaines?|mois|lundis?|mardis?|mercredis?|jeudis?|vendredis?|samedis?|dimanches?|heures?)\b[^.?!]*\b(?:v[eé]rifie|surveille|regarde|cherche|fais[\s-]moi|dis[\s-]moi|pr[eé]viens|analyse|compare|contr[oô]le)/i,
+  keywords: /\bobjectifs?\b|\bt[aâ]ches?\b|\bdis\s+[aà]\s+houari\b|\bdemande\s+[aà]\s+houari\b|\b(?:la\s+)?prochaine\s+fois\s+qu(?:e|')|\b(?:si|quand|d[eè]s\s+qu(?:e|'))\s+[^.?!]{1,60}(?:^|\s)(?:r[eé]serve|r[eé]pond|[eé]crit|m'?appelle|me\s+parle)(?=[^.?!]*(?:rappelle|pr[eé]viens|appelle[\s-]moi|dis[\s-]le[\s-]moi|alerte))|rappels?\s+d'[eé]v[eé]nement|\bmissions?\b|pr[eé]pare[\s-](?:moi\s+)?(?:mon|le|ce|mes)\s+(?:rdv|rendez[\s-]vous|r[eé]union)|\b(?:chaque|tous\s+les|toutes\s+les)\s+(?:jours?|matins?|soirs?|semaines?|mois|lundis?|mardis?|mercredis?|jeudis?|vendredis?|samedis?|dimanches?|heures?)\b[^.?!]*\b(?:v[eé]rifie|surveille|regarde|cherche|fais[\s-]moi|dis[\s-]moi|pr[eé]viens|analyse|compare|contr[oô]le)/i,
   priority:  11,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.3, maxTokens: 1200, fallback: 'openai' },
 };

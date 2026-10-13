@@ -6,7 +6,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
-import { supabase } from '../integrations/supabase.js';
+import { supabase, getConversationHistory, saveConversationTurn } from '../integrations/supabase.js';
 import { executeTool } from '../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../integrations/tools.js';
 
@@ -65,6 +65,14 @@ RÈGLES ABSOLUES :
 4. Si tu ne sais pas / hors sujet : propose de transférer à l'équipe sur WhatsApp.
 5. Ne confirme jamais une réservation toi-même : tu enregistres la demande, l'équipe confirme.
 
+PROPOSE AU BON MOMENT (UNE seule proposition par conversation, naturelle, jamais insistante — seulement ce qui existe) :
+- Le client arrive en avion → la livraison GRATUITE à l'aéroport d'Oran Es-Sénia.
+- Famille, groupe, beaucoup de bagages → une voiture 7-9 places du catalogue (Jumpy, Berlingo, Jogger…).
+- Séjour de plusieurs jours / vient de l'étranger → un logement de la rubrique IMMOBILIER du catalogue, s'il y en a.
+- Location déjà en cours ou bientôt finie → proposer de prolonger (l'équipe confirme).
+N'invente AUCUN autre service ni supplément (pas de siège bébé, GPS, assurance en plus… sauf s'ils sont dans le catalogue).
+Tu as l'HISTORIQUE de la conversation avec ce client : ne redemande pas ce qu'il a déjà dit (nom, dates, voiture).
+
 CATALOGUE ACTUEL :
 ${catalog}`;
 
@@ -78,7 +86,20 @@ export async function respondToClient(message: string, opts?: { clientPhone?: st
   const sid = opts?.sessionId ?? `client_${opts?.clientPhone ?? 'web'}`;
   let leadCreated = false;
 
+  // Mémoire de la conversation avec CE client (avant : seul le dernier message était envoyé)
+  const past = await getConversationHistory(sid, 12).catch(() => [] as Array<{ role: string; content: string }>);
+  const history: Anthropic.MessageParam[] = [];
+  for (const t of past as Array<{ role: string; content: string }>) {
+    const role = t.role === 'assistant' ? 'assistant' : 'user';
+    if (history.length && history[history.length - 1]!.role === role) continue;   // alternance stricte
+    if (!history.length && role === 'assistant') continue;
+    history.push({ role, content: String(t.content).slice(0, 1500) });
+  }
+  if (history.length && history[history.length - 1]!.role === 'user') history.pop();
+  void saveConversationTurn(sid, 'user', message).catch(() => {});
+
   const messages: Anthropic.MessageParam[] = [
+    ...history,
     { role: 'user', content: opts?.clientPhone ? `[Téléphone client: ${opts.clientPhone}]\n${message}` : message },
   ];
 
@@ -94,7 +115,9 @@ export async function respondToClient(message: string, opts?: { clientPhone?: st
     const toolUses = resp.content.filter(b => b.type === 'tool_use') as Anthropic.ToolUseBlock[];
     if (toolUses.length === 0) {
       const text = resp.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('').trim();
-      return { reply: text || 'Je transmets ta demande à l\'équipe, on te répond très vite 👌', leadCreated };
+      const reply = text || 'Je transmets ta demande à l\'équipe, on te répond très vite 👌';
+      void saveConversationTurn(sid, 'assistant', reply).catch(() => {});
+      return { reply, leadCreated };
     }
 
     messages.push({ role: 'assistant', content: resp.content });

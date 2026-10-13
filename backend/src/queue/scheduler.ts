@@ -46,6 +46,8 @@ import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
 import { jobMissions } from '../integrations/missions.js';
 import { jobMeetingPrep } from '../integrations/meeting-prep.js';
 import { jobIntentions } from '../integrations/intentions.js';
+import { jobGoals } from '../integrations/goals.js';
+import { jobTeamTasks } from '../integrations/team-tasks.js';
 import { jobMemoryConsolidation } from '../integrations/memory-consolidation.js';
 import { jobPrivacyExpire } from '../integrations/privacy.js';
 import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
@@ -280,6 +282,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'goals',
+    cron:  '0 9 * * *',             // 9h (Bruxelles) — point quotidien sur chaque objectif + actions proposées
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'team-tasks',
+    cron:  '*/15 * * * *',          // toutes les 15 min — rappels des tâches de Houari / alerte si pas confirmé
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'intentions',
     cron:  '*/5 * * * *',           // toutes les 5 min — rappels déclenchés par un événement (résa, mail pro, WhatsApp)
     tz:    'Europe/Brussels',
@@ -352,6 +364,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'missions':                async () => { await jobMissions(); },
   'meeting-prep':            async () => { await jobMeetingPrep(); },
   'intentions':              async () => { await jobIntentions(); },
+  'goals':                   async () => { await jobGoals(); },
+  'team-tasks':              async () => { await jobTeamTasks(); },
   'memory-consolidation':    async () => { await jobMemoryConsolidation(); },
   'privacy-expire':          async () => { await jobPrivacyExpire(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },

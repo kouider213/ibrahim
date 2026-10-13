@@ -4,6 +4,8 @@ import { autoExtractMemory }                      from './auto-memory.js';
 import { noteOwnerTurn }                          from './self-learning.js';
 import { checkMentionIntentions }                 from '../integrations/intentions.js';
 import { isPrivate }                              from '../integrations/privacy.js';
+import { proceduresContext }                      from '../integrations/procedures.js';
+import { openTasksContext }                       from '../integrations/team-tasks.js';
 import { trackEpisode }                           from './episode-tracker.js';
 import { type OrgMember, DEFAULT_MEMBER }        from '../orchestrator/org-resolver.js';
 import { guardResponse, applyScopeGuard, phantomGuard, PHANTOM_REFUSAL, earlyToolAvailabilityCheck } from './response-guard.js';
@@ -172,8 +174,14 @@ export async function processMessage(
   else ctx.systemExtra = `MODE PRIVÉ ACTIF : n'enregistre RIEN en mémoire (remember_info, learn_rule…) sauf si l'utilisateur le demande explicitement dans ce message.\n\n${ctx.systemExtra ?? ''}`.trim();
 
   // Rappels déclenchés par ce que dit Kouider/Houari (« quand je parle de la Clio, rappelle-moi le pneu »)
-  const intentNote = await checkMentionIntentions(userMessage, actorUserId).catch(() => '');
-  if (intentNote) ctx.systemExtra = `${intentNote}\n\n${ctx.systemExtra ?? ''}`.trim();
+  // + procédures apprises qui concernent ce message, + tâches en attente de Houari
+  const [intentNote, procNote, tasksNote] = await Promise.all([
+    checkMentionIntentions(userMessage, actorUserId).catch(() => ''),
+    proceduresContext(userMessage, actorUserId).catch(() => ''),
+    openTasksContext(actorUserId).catch(() => ''),
+  ]);
+  const extraNotes = [intentNote, procNote, tasksNote].filter(Boolean).join('\n\n');
+  if (extraNotes) ctx.systemExtra = `${extraNotes}\n\n${ctx.systemExtra ?? ''}`.trim();
 
   // Inject V2 pending-action context into system extra if present
   if (v2ContextAddition) {
