@@ -24,8 +24,8 @@ router.post('/pending', requireMobileAuth, async (req, res) => {
 // POST /api/call/answer { callId? } — décrocher (ou lancer l'appel) → phrase d'accueil + audio
 router.post('/answer', requireMobileAuth, async (req, res) => {
   try {
-    const { callId } = req.body as { callId?: string };
-    res.json(await answerCall(callActor(req), callId));
+    const { callId, noAudio } = req.body as { callId?: string; noAudio?: boolean };
+    res.json(await answerCall(callActor(req), callId, !!noAudio));
   } catch (err) {
     console.error('[call] answer:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'answer failed' });
@@ -84,5 +84,70 @@ async function streamTurn(res: import('express').Response, text: string): Promis
   }
   res.end();
 }
+
+// POST /api/call/realtime — clé OpenAI TEMPORAIRE (1 min pour se connecter) pour la voix temps réel des appels
+// Telegram (tgcall/realtime.py). La vraie clé reste sur Railway. La session (voix, consignes, outil) est fixée ici.
+const REALTIME_MODEL = 'gpt-realtime';
+const REALTIME_VOICE = 'cedar';
+
+function realtimeInstructions(who: CallActor): string {
+  const name = who === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
+  const now = new Date();
+  const fmt = (tz: string) => now.toLocaleString('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  return [
+    `Tu es Dzaryx, l'assistant personnel de ${name}, au TÉLÉPHONE avec lui (appel Telegram, en direct).`,
+    `${env.OWNER_NAME} dirige FIK Conciergerie : location de voitures et conciergerie à Oran (Algérie) ; il vit en Belgique. Son associé est ${env.PARTNER_NAME}.`,
+    `Maintenant : ${fmt('Europe/Brussels')} en Belgique (${fmt('Africa/Algiers')} à Oran).`,
+    `Parle en français, tutoiement, comme un vrai assistant au téléphone : chaleureux, naturel, phrases courtes, 1 à 3 phrases par réponse. Pas de listes, pas de markdown.`,
+    `Si on te coupe la parole, arrête-toi et écoute.`,
+    `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
+    `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin).`,
+  ].join('\n');
+}
+
+router.post('/realtime', requireMobileAuth, async (req, res) => {
+  if (!env.OPENAI_API_KEY) { res.status(503).json({ error: 'OPENAI_API_KEY absente' }); return; }
+  const who = callActor(req);
+  try {
+    const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        expires_after: { anchor: 'created_at', seconds: 120 },
+        session: {
+          type: 'realtime',
+          model: REALTIME_MODEL,
+          instructions: realtimeInstructions(who),
+          audio: {
+            input: {
+              format: { type: 'audio/pcm', rate: 24000 },
+              noise_reduction: { type: 'far_field' },
+              transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' },
+              turn_detection: { type: 'semantic_vad', eagerness: 'high', create_response: true, interrupt_response: true },
+            },
+            output: { format: { type: 'audio/pcm', rate: 24000 }, voice: REALTIME_VOICE },
+          },
+          tools: [{
+            type: 'function',
+            name: 'ask_dzaryx',
+            description: 'Le cerveau de Dzaryx (accès réel aux réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
+            parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
+          }],
+          tool_choice: 'auto',
+        },
+      }),
+    });
+    const data = await r.json() as { value?: string; error?: { message?: string } };
+    if (!r.ok || !data.value) {
+      console.error('[call] realtime:', r.status, data.error?.message);
+      res.status(502).json({ error: data.error?.message ?? `OpenAI HTTP ${r.status}` });
+      return;
+    }
+    res.json({ key: data.value, model: REALTIME_MODEL });
+  } catch (err) {
+    console.error('[call] realtime:', err instanceof Error ? err.message : String(err));
+    res.status(500).json({ error: 'realtime failed' });
+  }
+});
 
 export default router;

@@ -62,7 +62,7 @@ export async function getPendingCall(actor: CallActor): Promise<PendingCall | nu
 }
 
 /** Kouider décroche (appel de Dzaryx) ou lance l'appel lui-même → phrase d'accueil + audio. */
-export async function answerCall(actor: CallActor, callId?: string): Promise<{ text: string; audio: string | null; incoming: boolean }> {
+export async function answerCall(actor: CallActor, callId?: string, noAudio = false): Promise<{ text: string; audio: string | null; incoming: boolean }> {
   const pending = await getPendingCall(actor);
   const incoming = !!pending && (!callId || pending.id === callId);
   const text = incoming ? pending!.greeting : `Oui ${firstName(actor)}, je t'écoute.`;
@@ -72,7 +72,7 @@ export async function answerCall(actor: CallActor, callId?: string): Promise<{ t
     saveConversationTurn(`voice_${actor}`, 'assistant', text, { call: true, call_id: pending!.id })
       .catch(err => console.error('[voice-call] contexte:', err instanceof Error ? err.message : String(err)));
   }
-  const buf = await synthesizeVoice(text);
+  const buf = noAudio ? null : await synthesizeVoice(text);   // noAudio : la voix temps réel dit l'accueil elle-même
   console.log(`[voice-call] ANSWER ${actor} incoming=${incoming}`);
   return { text, audio: buf ? buf.toString('base64') : null, incoming };
 }
