@@ -9,6 +9,7 @@ import { executeTool } from '../../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../../integrations/tools.js';
 import { kvGet, kvSet } from '../../integrations/app-store.js';
 import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
+import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
 
 const router = Router();
 
@@ -23,6 +24,13 @@ function callActor(req: Request): CallActor {
 router.post('/pending', requireMobileAuth, async (req, res) => {
   const call = await getPendingCall(callActor(req));
   res.json({ call: call ? { id: call.id, reason: call.reason, createdAt: call.createdAt } : null });
+});
+
+// POST /api/call/heartbeat { connected } — battement du service d'appels Telegram (VPS), toutes les minutes
+router.post('/heartbeat', requireMobileAuth, async (req, res) => {
+  await recordTgcallHeartbeat((req.body as { connected?: boolean }).connected !== false)
+    .catch(err => console.error('[call] heartbeat:', err instanceof Error ? err.message : err));
+  res.json({ ok: true });
 });
 
 // POST /api/call/answer { callId? } — décrocher (ou lancer l'appel) → phrase d'accueil + audio

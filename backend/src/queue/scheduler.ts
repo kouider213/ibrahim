@@ -41,6 +41,7 @@ import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeekly
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
 import { jobDailyRecapCall, jobMailReplyCall } from './jobs/call-jobs.js';
+import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -232,6 +233,11 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'tgcall-watch',
+    cron:  '*/5 * * * *',           // toutes les 5 min — service d'appels Telegram vivant ? (alerte une fois + « rétabli »)
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'auto-call-flush',
     cron:  '*/15 * * * *',          // toutes les 15 min — appels auto mis en file (nuit, appels rapprochés)
     tz:    'Africa/Algiers',
@@ -284,6 +290,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
   'auto-call-flush':         async () => { await flushAutoCalls(); },
+  'tgcall-watch':            async () => { await checkTgcallAlive(); },
   'daily-recap-call':        async () => { await jobDailyRecapCall(); },
   'mail-reply-call':         async () => { await jobMailReplyCall(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },

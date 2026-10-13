@@ -541,6 +541,16 @@ async def poll_pending() -> None:
         await asyncio.sleep(POLL_S)
 
 
+async def heartbeat() -> None:
+    """Signe de vie au backend toutes les minutes (alerte à Kouider s'il s'arrête)."""
+    while True:
+        try:
+            await api('/api/call/heartbeat', {'connected': app.is_connected}, 'kouider', 15)
+        except Exception as e:
+            log.warning('heartbeat: %s', e)
+        await asyncio.sleep(60)
+
+
 # ── Messages privés ──────────────────────────────────────────────────────────
 
 @app.on_message(pfilters.private & pfilters.incoming)
@@ -658,6 +668,7 @@ async def main() -> None:
             log.error('%s introuvable (%s): %s — il doit d\'abord écrire au compte Dzaryx', actor, ref, e)
     await ensure_fillers()
     asyncio.create_task(poll_pending())
+    asyncio.create_task(heartbeat())
     await asyncio.Event().wait()
 
 
