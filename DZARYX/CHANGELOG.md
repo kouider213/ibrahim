@@ -6,6 +6,19 @@
 ---
 
 
+## 2026-10-13 — Appels Telegram plus rapides + vrai test des secours IA
+
+### backend/ + tgcall/
+- `6c816db` — `integrations/fallback-probe.ts` (nouveau) : `/api/health-ai` envoie un vrai message test à Claude,
+  Groq, Gemini, OpenAI (cache 30 min, `?force=1`) au lieu de vérifier la présence des clés. Job `fallback-watch`
+  9h30 (Alger) : alerte si un provider est « down » (crédit épuisé / modèle retiré). Vérifié en prod : tous 🟢.
+- `6c816db` — `agents/core-router.ts` : toute phrase avec « mail / email / gmail / boîte de réception » va à
+  l'agent Général (« j'ai reçu un email » partait en Finance → « pas d'accès à ta messagerie »).
+- `b22bdb8` / `800f2d4` — appels : `/api/transcribe` `provider:'fast'` = Groq Whisper turbo en français (0,4 s au
+  lieu de 1,0 s) ; `/api/call/turn` `stream:true` = NDJSON, 1re phrase envoyée seule puis la suite (voix en
+  parallèle) ; `tgcall/dzaryx_tg.py` enchaîne les morceaux. Mesuré : ~2-3 s de réflexion + 1re voix, ~3-4 s par
+  tour au total. Pas encore testé dans un vrai appel. Darija et compte Telegram de Houari abandonnés (Kouider).
+
 ## 2026-10-13 — Secours sans Claude réparé (Groq + Gemini)
 
 ### backend/
