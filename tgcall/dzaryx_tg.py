@@ -57,7 +57,7 @@ POLL_S = float(os.environ.get('POLL_S', '4'))
 
 SAMPLE_RATE = 16000
 SPEECH_RMS = int(os.environ.get('SPEECH_RMS', '600'))   # seuil de voix (PCM 16 bits)
-END_SILENCE_S = 0.7                                     # silence qui termine une phrase
+END_SILENCE_S = float(os.environ.get('END_SILENCE_S', '1.1'))  # silence qui termine une phrase (0.7 coupait Kouider en pleine phrase)
 MIN_SPEECH_S = 0.35
 MAX_UTTERANCE_S = 30
 
@@ -79,6 +79,9 @@ class CallState:
         self.actor = actor
         self.speaking_until = 0.0     # Dzaryx parle → on n'écoute pas (pas d'écho)
         self.busy = False             # un tour est en cours de traitement
+        self.task: asyncio.Task | None = None
+        self.turn_pcm = b''           # voix du tour en cours (si Kouider continue sa phrase → on fusionne)
+        self.answered = False         # Dzaryx a commencé à répondre (au-delà du « Mmh »)
         self.buf = bytearray()
         self.voiced_s = 0.0
         self.silence_s = 0.0
@@ -119,13 +122,15 @@ async def api_stream(path: str, body: dict, actor: str, timeout: float = 90):
 # Petits « Mmh… » joués dès la fin de ta phrase : on sait tout de suite qu'il a entendu,
 # pendant qu'il transcrit / réfléchit / génère la voix. Générés une fois via /api/tts.
 FILLERS = ['Mmh…', 'Je regarde.', 'Ok, attends.', 'Deux secondes.']
+LONG_FILLERS = ['Je cherche, deux secondes.', 'Je regarde ça, un instant.']   # si la réponse tarde (> 3,5 s)
+LONG_WAIT_S = 3.5
 FILLER_DIR = HERE / 'fillers'
 
 
 async def ensure_fillers() -> None:
     FILLER_DIR.mkdir(exist_ok=True)
-    for i, text in enumerate(FILLERS):
-        f = FILLER_DIR / f'{i}.mp3'
+    for i, text in enumerate(FILLERS + LONG_FILLERS):
+        f = FILLER_DIR / (f'{i}.mp3' if i < len(FILLERS) else f'long{i - len(FILLERS)}.mp3')
         if f.exists():
             continue
         try:
@@ -135,8 +140,8 @@ async def ensure_fillers() -> None:
             log.warning('filler %r: %s', text, e)
 
 
-async def play_filler(user_id: int) -> None:
-    files = list(FILLER_DIR.glob('*.mp3'))
+async def play_filler(user_id: int, long: bool = False) -> None:
+    files = list(FILLER_DIR.glob('long*.mp3' if long else '[0-9]*.mp3'))
     if not files:
         return
     try:
@@ -163,6 +168,22 @@ def save_mp3(b64: str) -> str:
     return f.name
 
 
+def concat_mp3(paths: list[str]) -> str:
+    """Plusieurs phrases → un seul fichier : un seul flux joué, donc pas de blanc entre les phrases."""
+    if len(paths) == 1:
+        return paths[0]
+    out = tempfile.NamedTemporaryFile(prefix='dzc_', suffix='.wav', delete=False).name
+    try:
+        ins = [a for p in paths for a in ('-i', p)]
+        subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', *ins, '-filter_complex',
+                        f'concat=n={len(paths)}:v=0:a=1', '-ar', '48000', '-ac', '1', out],
+                       check=True, timeout=10)
+        return out
+    except Exception as e:
+        log.warning('concat: %s', e)
+        return paths[0]
+
+
 def mp3_duration(path: str) -> float:
     try:
         out = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
@@ -174,11 +195,11 @@ def mp3_duration(path: str) -> float:
 
 # ── Appel : parler / écouter ─────────────────────────────────────────────────
 
-async def say(user_id: int, audio_b64: str | None, first: bool = False) -> None:
+async def say(user_id: int, audio_b64: str | None, first: bool = False, path: str | None = None) -> None:
     st = active.get(user_id)
-    if not audio_b64 or st is None:
+    if (not audio_b64 and not path) or st is None:
         return
-    path = save_mp3(audio_b64)
+    path = path or save_mp3(audio_b64)
     st.speaking_until = time.monotonic() + mp3_duration(path) + 0.4
     stream = MediaStream(path, AudioParameters(48000, 1), video_flags=MediaStream.Flags.IGNORE)
     if first:
@@ -197,6 +218,8 @@ async def handle_utterance(user_id: int, pcm: bytes) -> None:
     if st is None:
         return
     st.busy = True
+    st.answered = False
+    st.turn_pcm = pcm
     t0 = time.monotonic()
     try:
         await play_filler(user_id)
@@ -208,30 +231,77 @@ async def handle_utterance(user_id: int, pcm: bytes) -> None:
         if not text:
             return
         t1 = time.monotonic()
-        first = True
-        async for part in api_stream('/api/call/turn', {'message': text, 'stream': True}, st.actor):
-            if first:
-                log.info('Dzaryx (stt %.1fs, 1re phrase %.1fs): %r', t1 - t0, time.monotonic() - t1,
-                         (part.get('text') or '')[:120])
-                first = False
-            else:
-                # on attend la fin de la phrase en cours avant d'enchaîner
+
+        # Les phrases arrivent en flux : la 1re est jouée tout de suite, les suivantes sont mises de côté
+        # pendant qu'elle se joue, puis jouées ENSEMBLE (un seul fichier → pas de trou entre les phrases).
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def reader() -> None:
+            try:
+                async for part in api_stream('/api/call/turn', {'message': text, 'stream': True}, st.actor):
+                    if part.get('audio'):
+                        await queue.put(part)
+            except Exception as e:
+                log.error('réponse en flux: %s', e)
+            finally:
+                await queue.put(None)
+
+        rtask = asyncio.create_task(reader())
+        try:
+            try:
+                part = await asyncio.wait_for(queue.get(), LONG_WAIT_S)
+            except asyncio.TimeoutError:
+                await play_filler(user_id, long=True)       # « Je cherche, deux secondes. » : la ligne n'est pas morte
+                part = await queue.get()
+            if part is None:
+                return
+            log.info('Dzaryx (stt %.1fs, 1re phrase %.1fs): %r', t1 - t0, time.monotonic() - t1,
+                     (part.get('text') or '')[:120])
+            st.answered = True
+            await say(user_id, part['audio'])
+            done = False
+            while not done:
                 wait = st.speaking_until - 0.4 - time.monotonic()
                 if wait > 0:
                     await asyncio.sleep(wait)
                 if active.get(user_id) is not st:
                     return
-            await say(user_id, part.get('audio'))
+                paths: list[str] = []
+                nxt = await queue.get()                   # attend au moins la phrase suivante
+                while nxt is not None:
+                    paths.append(save_mp3(nxt['audio']))
+                    if queue.empty():
+                        break
+                    nxt = queue.get_nowait()
+                if nxt is None:
+                    done = True
+                if paths:
+                    await say(user_id, None, path=concat_mp3(paths))
+        finally:
+            rtask.cancel()
+    except asyncio.CancelledError:
+        log.info('tour annulé : Kouider continuait sa phrase')
+        raise
     except Exception as e:
         log.error('tour échoué: %s', e)
     finally:
-        st.busy = False
+        if st.task is asyncio.current_task():
+            st.busy = False
+
+
+def start_turn(user_id: int, pcm: bytes) -> None:
+    st = active.get(user_id)
+    if st is None:
+        return
+    st.task = asyncio.create_task(handle_utterance(user_id, pcm))
 
 
 @calls.on_update(cfilters.stream_frame(Direction.INCOMING))
 async def on_frames(_, update: StreamFrames) -> None:
     st = active.get(update.chat_id)
-    if st is None or st.busy or time.monotonic() < st.speaking_until:
+    # On écoute aussi pendant que Dzaryx réfléchit (avant sa réponse) : si Kouider reprend sa phrase,
+    # on annule le tour en cours et on repart avec toute la phrase. Pendant qu'il parle : pas d'écoute (écho).
+    if st is None or (st.busy and st.answered) or time.monotonic() < st.speaking_until:
         if st is not None:
             st.buf.clear(); st.voiced_s = 0.0; st.silence_s = 0.0
         return
@@ -252,7 +322,11 @@ async def on_frames(_, update: StreamFrames) -> None:
             enough = st.voiced_s >= MIN_SPEECH_S
             st.buf.clear(); st.voiced_s = 0.0; st.silence_s = 0.0
             if enough:
-                asyncio.create_task(handle_utterance(update.chat_id, pcm))
+                if st.busy and not st.answered and st.task and not st.task.done():
+                    st.task.cancel()
+                    pcm = st.turn_pcm + pcm
+                    log.info('Kouider continue sa phrase → je fusionne et je relance')
+                start_turn(update.chat_id, pcm)
             return
 
 

@@ -6,6 +6,14 @@
 ---
 
 
+## 2026-10-13 — Appels Telegram : moins de coupures
+
+### tgcall/dzaryx_tg.py
+- Fin de phrase après 1,1 s de silence (au lieu de 0,7 : coupait Kouider en pleine phrase) — réglable `END_SILENCE_S`.
+- Écoute pendant que Dzaryx réfléchit : si Kouider reprend sa phrase, le tour est annulé et relancé avec la phrase entière.
+- Phrases suivantes assemblées en un seul fichier (ffmpeg concat → wav) : plus de blanc entre les phrases.
+- Si la réponse tarde (> 3,5 s) : « Je cherche, deux secondes. » pour que la ligne ne paraisse pas morte.
+
 ## 2026-10-13 — Démarchage : signaux d'affaires (sociétés qui arrivent à Oran)
 
 ### backend/
