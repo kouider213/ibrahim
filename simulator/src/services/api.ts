@@ -433,6 +433,10 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
   _socket.off('Dzaryx:response').on('Dzaryx:response', (d: { text: string; fallback?: boolean; sessionId?: string }) => {
     if (!d.sessionId || d.sessionId === sessionId) cbs.onResponse(d.text, d.fallback ?? false);
   });
+  // Dzaryx appelle (app ouverte) → Phone.tsx affiche l'écran « Dzaryx t'appelle »
+  _socket.off('Dzaryx:incoming_call').on('Dzaryx:incoming_call', (d: { id: string; reason: string }) => {
+    try { window.dispatchEvent(new CustomEvent('Dzaryx:incoming_call', { detail: d })); } catch { /* ignore */ }
+  });
   // Proactive: dispatch via queue AND call screen callback (VoiceScreen HUD)
   // Filter by targetActor — 'all' goes to everyone, actor-specific only to that actor
   _socket.off('Dzaryx:proactive').on('Dzaryx:proactive', (d: { text: string; targetActor?: string; deepLink?: string }) => {
@@ -443,6 +447,17 @@ export function connectSocket(sessionId: string, cbs: SocketCbs): Socket {
 
   return _socket;
 }
+
+// ── Appels Dzaryx dans l'app (sans numéro) ───────────────────────────────────
+export interface PendingCall { id: string; reason: string; createdAt: string }
+export const callApi = {
+  // POST (pas GET) : un GET serait resservi par le cache hors-ligne → fausse sonnerie
+  pending: () => apiFetch<{ call: PendingCall | null }>('/api/call/pending', { method: 'POST', body: JSON.stringify({ actor: _actor }) }),
+  answer:  (callId?: string) => apiFetch<{ text: string; audio: string | null; incoming: boolean }>('/api/call/answer', {
+    method: 'POST', body: JSON.stringify({ callId, actor: _actor }),
+  }),
+  decline: (callId?: string) => apiFetch<{ ok: boolean }>('/api/call/decline', { method: 'POST', body: JSON.stringify({ callId, actor: _actor }) }),
+};
 
 export function disconnectSocket(): void { _socket?.disconnect(); _socket = null; }
 export function isSocketConnected(): boolean { return _socket?.connected ?? false; }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   api, connectSocket, disconnectSocket, getOrCreateSessionId,
   playBase64Audio, enqueueChunk, flushChunks, unlockAudio, stopAudio, isAudioPlaying,
-  sendNativeAction, tryParseNativeAction,
+  sendNativeAction, tryParseNativeAction, callApi, speakOnDevice,
   type DzaryxStatus,
 } from '../../services/api.ts';
 import { OrbIcon } from '../ui/Premium.tsx';
@@ -12,7 +12,13 @@ interface Props {
   onWsStatus: (ok: boolean) => void;
   actor?: 'kouider' | 'houari';
   compact?: boolean;  // overlay barre fine (façon Gemini)
+  // Appel en cours (Dzaryx a appelé, ou Kouider l'appelle) : mains libres + barre d'appel
+  call?: { id?: string; incoming: boolean; key: number };
+  onHangup?: () => void;
+  onStartCall?: () => void;
 }
+
+const MAX_CALL_S = 15 * 60;   // un appel raccroche tout seul après 15 min (crédits ElevenLabs/Claude)
 
 // Palette or Dzaryx — un seul hue, intensité varie selon l'état (calme façon Gemini)
 const STATE_COLOR: Record<DzaryxStatus, string> = {
@@ -65,8 +71,25 @@ function imageUrlsFrom(text: string): string[] {
 // PAS la permission à chaque retour. (Le re-prompt au lancement de l'app reste une
 // limite iOS pour les sites web — installer en PWA / autoriser dans Réglages Safari.)
 let sharedMicStream: MediaStream | null = null;
+let sharedMicPromise: Promise<MediaStream> | null = null;
 
-export default function VoiceScreen({ onNavigateText, onWsStatus, compact = false }: Props) {
+/**
+ * À appeler DANS le tap « Décrocher » / « Appeler » : iOS n'autorise le son et le
+ * micro qu'à la suite d'un geste. Débloque l'audio et ouvre le micro tout de suite.
+ */
+export function prepareCallAudio(): void {
+  sessionAudioUnlocked = true;
+  unlockAudio();
+  const live = !!sharedMicStream && sharedMicStream.getAudioTracks().some(t => t.readyState === 'live');
+  if (live || !navigator.mediaDevices?.getUserMedia) return;
+  sharedMicPromise = navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    video: false,
+  });
+  sharedMicPromise.then(st => { sharedMicStream = st; }).catch(() => {}).finally(() => { sharedMicPromise = null; });
+}
+
+export default function VoiceScreen({ onNavigateText, onWsStatus, compact = false, call, onHangup, onStartCall }: Props) {
   const canvasRef       = useRef<HTMLCanvasElement>(null);
   const animRef         = useRef<number>(0);
   const analyserRef     = useRef<AnalyserNode | null>(null);
@@ -278,6 +301,51 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   handsFreeRef.current = handsFree;
   const [wakeWordOn, setWakeWordOn]       = useState(false);
 
+  // ── Appel (dans l'app, sans numéro) ─────────────────────────────────────────
+  const callRef = useRef(false);
+  callRef.current = !!call;
+  const [callSecs, setCallSecs] = useState(0);
+
+  useEffect(() => {
+    if (!call) return;
+    let cancelled = false;
+    sessionAudioUnlocked = true;
+    unlockAudio();
+    setAudioUnlocked(true);
+    // Mains libres = VAD : il t'écoute sans bouton, comme au téléphone.
+    // (Pas le mode continu : il enregistrerait le silence → Whisper inventerait des phrases.)
+    setHandsFree(true);
+    setContinuousMode(false);
+    setResp(''); setStream('');
+    setCallSecs(0);
+    void initMic();
+    setStatus('thinking');
+    callApi.answer(call.id)
+      .then(r => {
+        if (cancelled) return;
+        setResp(r.text);
+        setStatus('idle');
+        if (r.audio) void playBase64Audio(r.audio); else speakOnDevice(r.text);
+      })
+      .catch(() => { if (!cancelled) { setStatus('idle'); setResp('Je t\'écoute.'); speakOnDevice('Je t\'écoute.'); } });
+    const timer = setInterval(() => setCallSecs(s => s + 1), 1000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [call?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function hangUp() {
+    callRef.current = false;
+    stopAudio();
+    discardRecording();
+    setHandsFree(false);
+    setStatus('idle');
+    setHud('APPEL TERMINÉ');
+    onHangup?.();
+  }
+
+  useEffect(() => {
+    if (call && callSecs >= MAX_CALL_S) hangUp();
+  }, [callSecs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Socket.IO ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const sock = connectSocket(sessionId.current, {
@@ -371,6 +439,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     try {
       // Réutilise le stream déjà ouvert cette session (pas de re-prompt iOS au
       // changement d'onglet). Sinon en demande un nouveau (déclenche la permission).
+      if (sharedMicPromise) { try { await sharedMicPromise; } catch { /* re-demandé juste après */ } }
       let stream = sharedMicStream;
       const live = !!stream && stream.getAudioTracks().some(t => t.readyState === 'live');
       if (!live) {
@@ -606,6 +675,10 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       } else if (bargeFramesRef.current > 0) {
         bargeFramesRef.current = 0;
       }
+
+      // En appel, le haut-parleur renvoie la voix de Dzaryx dans le micro : pendant qu'il parle,
+      // seul le barge-in ci-dessus (voix forte, 5 frames) peut l'interrompre — pas l'armement VAD.
+      if (callRef.current && (statusRef.current === 'speaking' || isAudioPlaying())) { requestAnimationFrame(tick); return; }
 
       // VAD désactivé par DÉFAUT (handsFree off) : trop instable sur ce micro (flicker arm/désarm).
       // → push-to-talk (tap micro = démarre, re-tap = envoie). Le VAD continu ne tourne QUE si
@@ -987,6 +1060,22 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             </button>
           )}
 
+          {/* Appeler Dzaryx (conversation mains libres, comme au téléphone) */}
+          {onStartCall && !call && (
+            <button
+              onClick={onStartCall}
+              title="Appeler Dzaryx"
+              style={{
+                background: 'rgba(52,199,89,0.14)', border: '1px solid rgba(52,199,89,0.55)',
+                borderRadius: 16, padding: '4px 12px', cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#5BE07F',
+                letterSpacing: '0.02em',
+              }}
+            >
+              📞 Appeler
+            </button>
+          )}
+
           {/* Mains-libres */}
           <button
             onClick={() => setHandsFree(h => !h)}
@@ -1003,6 +1092,35 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           </button>
         </div>
       </div>
+
+      {/* ── BARRE D'APPEL (par-dessus l'en-tête) ── */}
+      {call && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 7,
+          padding: '12px 16px', background: 'linear-gradient(180deg, #000 70%, rgba(0,0,0,0))',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter' }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#34C759', boxShadow: '0 0 8px #34C759' }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>En appel avec Dzaryx</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', fontVariantNumeric: 'tabular-nums' }}>
+                {String(Math.floor(callSecs / 60)).padStart(2, '0')}:{String(callSecs % 60).padStart(2, '0')}
+                {' · '}{status === 'speaking' ? 'il parle' : status === 'thinking' ? 'il réfléchit' : status === 'listening' ? 'il t\'écoute' : 'parle quand tu veux'}
+              </div>
+            </div>
+          </div>
+          <button onClick={hangUp} title="Raccrocher" style={{
+            width: 48, height: 48, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: '#FF3B30', boxShadow: '0 4px 16px rgba(255,59,48,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" style={{ transform: 'rotate(135deg)' }}>
+              <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* ── ÉTOILE DZARYX (centre, façon Gemini) ── */}
       <div style={{

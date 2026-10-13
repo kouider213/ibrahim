@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import VoiceScreen from './screens/VoiceScreen.tsx';
+import VoiceScreen, { prepareCallAudio } from './screens/VoiceScreen.tsx';
+import CallOverlay from './CallOverlay.tsx';
 import TextScreen from './screens/TextScreen.tsx';
 import BookingsScreen from './screens/BookingsScreen.tsx';
 import FleetScreen from './screens/FleetScreen.tsx';
@@ -27,7 +28,7 @@ import SearchScreen from './screens/SearchScreen.tsx';
 import ParrainageScreen from './screens/ParrainageScreen.tsx';
 import PricingScreen from './screens/PricingScreen.tsx';
 import DemarchageScreen from './screens/DemarchageScreen.tsx';
-import { setSimActor, resumeWebPush, business } from '../services/api.ts';
+import { setSimActor, resumeWebPush, business, callApi } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
@@ -90,6 +91,9 @@ export default function Phone() {
   const [showOnboard, setShowOnboard] = useState<boolean>(() => { try { return !localStorage.getItem('dz:onboarded'); } catch { return false; } });
   const [wsOk, setWsOk]       = useState(false);
   const [notif, setNotif]     = useState<Notif | null>(null);
+  // Appels Dzaryx : ringing = « Dzaryx t'appelle » à l'écran ; activeCall = conversation en cours (écran Voix)
+  const [ringing, setRinging]       = useState<{ id: string; reason: string } | null>(null);
+  const [activeCall, setActiveCall] = useState<{ id?: string; incoming: boolean; key: number } | null>(null);
   const notifTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const session = getSavedSession();
@@ -133,7 +137,7 @@ export default function Phone() {
     const swHandler = (e: MessageEvent) => {
       if ((e.data as { type?: string } | null)?.type === 'NOTIF_CLICK') {
         const dl = (e.data as { deepLink?: string }).deepLink;
-        if (dl) setPage(dl as Page);
+        if (dl && dl !== 'call') setPage(dl as Page);   // 'call' : géré par l'écran d'appel
         setSimState('app');
       }
     };
@@ -145,6 +149,73 @@ export default function Phone() {
       if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
     };
   }, []);
+
+  // ── Appels Dzaryx ─────────────────────────────────────────────────────────
+  const activeCallRef = useRef(activeCall);
+  activeCallRef.current = activeCall;
+  const checkPendingCall = () => {
+    if (!getSavedSession() || activeCallRef.current) return;
+    callApi.pending()
+      .then(r => { if (r.call && !activeCallRef.current) setRinging({ id: r.call.id, reason: r.call.reason }); })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    // App lancée depuis une notif (app fermée) : ?deeplink=<page> ou ?deeplink=call
+    const dl = new URLSearchParams(window.location.search).get('deeplink');
+    if (dl) {
+      if (dl === 'call') checkPendingCall();
+      else if (TABS.some(t => t.id === dl)) setPage(dl as Page);
+      try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
+    } else {
+      checkPendingCall();   // ouverte depuis l'écran d'accueil pendant que Dzaryx appelle
+    }
+    const onIncoming = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; reason: string }>).detail;
+      if (!activeCallRef.current) setRinging(d);
+    };
+    const onSw = (e: MessageEvent) => {
+      const m = e.data as { type?: string; deepLink?: string } | null;
+      if (m?.type === 'NOTIF_CLICK' && m.deepLink === 'call') checkPendingCall();
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') checkPendingCall(); };
+    window.addEventListener('Dzaryx:incoming_call', onIncoming);
+    navigator.serviceWorker?.addEventListener('message', onSw);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('Dzaryx:incoming_call', onIncoming);
+      navigator.serviceWorker?.removeEventListener('message', onSw);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sonnerie sans réponse → s'arrête après 3 min (comme côté serveur)
+  useEffect(() => {
+    if (!ringing) return;
+    const t = setTimeout(() => setRinging(null), 180_000);
+    return () => clearTimeout(t);
+  }, [ringing]);
+
+  // Quitter l'écran Voix pendant un appel = raccrocher
+  useEffect(() => { if (page !== 'voice' && activeCall) setActiveCall(null); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const answerCall = () => {
+    prepareCallAudio();                 // dans le tap : iOS débloque son + micro
+    const id = ringing?.id;
+    setRinging(null);
+    setSimState('app');
+    setPage('voice');
+    setActiveCall({ id, incoming: true, key: Date.now() });
+  };
+  const declineCall = () => {
+    const id = ringing?.id;
+    setRinging(null);
+    void callApi.decline(id).catch(() => {});
+  };
+  const startCall = () => {
+    prepareCallAudio();
+    setActiveCall({ incoming: false, key: Date.now() });
+  };
 
   const unlock  = () => setSimState('home');
   const openApp = () => setSimState('login');
@@ -192,7 +263,8 @@ export default function Phone() {
 
   const renderScreen = () => {
     switch (safePage) {
-      case 'voice':         return <VoiceScreen onNavigateText={() => setPage('text')} onWsStatus={setWsOk} actor={actor} />;
+      case 'voice':         return <VoiceScreen onNavigateText={() => setPage('text')} onWsStatus={setWsOk} actor={actor}
+                                call={activeCall ?? undefined} onHangup={() => setActiveCall(null)} onStartCall={startCall} />;
       case 'text':          return <TextScreen onNavigateVoice={() => setPage('voice')} actor={actor} />;
       case 'bookings':      return <BookingsScreen actor={actor} />;
       case 'fleet':         return <FleetScreen actor={actor} />;
@@ -278,6 +350,11 @@ export default function Phone() {
             DÉCONNEXION…
           </div>
         </div>
+      )}
+
+      {/* Dzaryx t'appelle */}
+      {ringing && simState === 'app' && (
+        <CallOverlay reason={ringing.reason} onAnswer={answerCall} onDecline={declineCall} />
       )}
 
       {/* Notification banner */}

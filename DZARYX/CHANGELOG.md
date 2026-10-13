@@ -6,6 +6,12 @@
 ---
 
 
+## 2026-10-13 — Appels Dzaryx dans l'app (sans numéro de téléphone) | app SW v127
+- feat backend : `notifications/voice-call.ts` + routes `/api/call` (`pending`, `answer`, `decline`, `test`) — Dzaryx « appelle » = push `📞 Dzaryx t'appelle` (TTL 3 min, urgence haute) + appel en attente (`app_kv call:pending:<actor>`) ; décrocher → phrase d'accueil ElevenLabs, enregistrée dans `voice_<actor>` pour le contexte
+- feat outil `call_me` : « appelle-moi » (tout de suite) ou « appelle-moi dans 20 min / demain à 9h » (rappel `[APPEL] …` → le reminder-worker fait sonner l'app)
+- feat app : écran de sonnerie (Décrocher / Refuser), bouton « 📞 Appeler » sur l'écran Voix, barre d'appel (durée, raccrocher), mains libres VAD, raccroche seul après 15 min ; `?deeplink=` géré au lancement à froid
+- fix : « appel/téléphone » ne part plus en fast mode sans outils
+
 ## 2026-10-12 (soir) — Démarchage : relance, suivi des visites, contact@, WhatsApp, RDV, bilan | `14bd2bc` + app SW v126
 - feat : relance unique après 5 jours sans réponse, dans la même conversation et la langue du 1er mail (`runFollowUps`)
 - feat : lien de suivi `?ref=` par société (clients → /entreprises) ; job 30 min lit `page_views` → notif « 👀 X vient de visiter ton site »
