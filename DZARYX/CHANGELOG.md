@@ -6,6 +6,8 @@
 ---
 
 
+## 2026-10-13 — call_me : texte « appel Telegram + app » (était « l'app sonnera »). Rappel 20h30 vérifié en base.
+
 ## 2026-10-13 — Appel vidéo Telegram : Dzaryx voit la caméra (comme l'app)
 
 ### backend/ + tgcall/

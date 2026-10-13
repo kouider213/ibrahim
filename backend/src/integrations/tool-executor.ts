@@ -1902,12 +1902,12 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
   if (!later) {
     const actor = sessionId && /^(voice|mobile)_houari($|_)/i.test(sessionId) ? 'houari' : 'kouider';
     const { id } = await callOwner(reason, actor);
-    return `✅ L'app sonne maintenant (appel ${id.slice(0, 8)}). Si personne ne décroche, l'appel s'arrête après 3 minutes.`;
+    return `✅ Dzaryx t'appelle maintenant sur Telegram et dans l'app (appel ${id.slice(0, 8)}). Si personne ne décroche, l'appel s'arrête après 3 minutes.`;
   }
   const raw = await scheduleReminder({ ...input, message: `${CALL_REMINDER_MARK}${reason}` }, sessionId);
   try {
     const r = JSON.parse(raw) as { status?: string; local_time?: string; timezone_used?: string };
-    if (r.status === 'created') return `✅ Appel programmé : l'app sonnera à ${r.local_time} (${r.timezone_used}). ${raw}`;
+    if (r.status === 'created') return `✅ Appel programmé : Dzaryx appellera sur Telegram (et l'app sonnera) à ${r.local_time} (${r.timezone_used}). ${raw}`;
   } catch { /* renvoie le résultat brut */ }
   return `❌ Appel NON programmé. ${raw}`;
 }
