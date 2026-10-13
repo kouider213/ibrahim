@@ -6,6 +6,15 @@
 ---
 
 
+## 2026-10-13 — Appels : par écrit, rappel plus tard, raccrocher, appel manqué, photos Telegram
+
+### backend/ + tgcall/
+- Voix temps réel : `send_text_to_me` (message Telegram immédiat), `call_me` programmé (via `/api/call/tool`,
+  refusé sans délai/heure), `end_call` (raccroche après l'au revoir ; le résumé est quand même fait).
+- Appel de Dzaryx non décroché / refusé / occupé → message Telegram avec ce qu'il voulait dire.
+- Photo / image envoyée au compte Dzaryx → `/api/call/turn` avec image (même cerveau que l'app).
+- `/api/call/turn` `channel: 'message'` : pas de consigne « appel en cours » pour les messages écrits.
+
 ## 2026-10-13 — Appels : lectures rapides, même voix pour les vocaux, choix de la voix
 
 ### backend/ + tgcall/
