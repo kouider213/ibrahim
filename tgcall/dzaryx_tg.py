@@ -58,6 +58,8 @@ TOKEN = os.environ['ACCESS_TOKEN']
 # actor → identifiant Telegram (id numérique ou @username)
 PEERS = {a: os.environ[f'{a.upper()}_TG'] for a in ('kouider', 'houari') if os.environ.get(f'{a.upper()}_TG')}
 POLL_S = float(os.environ.get('POLL_S', '4'))
+RETRY_S = float(os.environ.get('RETRY_S', '600'))   # appel manqué → 2e essai 10 min plus tard (une seule fois)
+RETRY_TAG = "tu n'avais pas décroché"
 # Voix temps réel (OpenAI Realtime) : discussion naturelle. 0 → ancienne chaîne (transcription → Dzaryx → voix).
 REALTIME = os.environ.get('REALTIME', '1') == '1'
 
@@ -96,6 +98,7 @@ class CallState:
 
 
 active: dict[int, CallState] = {}
+last_call: dict[int, float] = {}   # user_id → monotonic du dernier appel (entrant ou sortant)
 ROTATION = {VideoRotation.VIDEO_ROTATION_0: 0, VideoRotation.VIDEO_ROTATION_90: 90,
             VideoRotation.VIDEO_ROTATION_180: 180, VideoRotation.VIDEO_ROTATION_270: 270}
 
@@ -400,6 +403,7 @@ async def on_end(_, update: StreamEnded) -> None:
 async def start_call(actor: str, user_id: int) -> None:
     if user_id in active:
         return
+    last_call[user_id] = time.monotonic()
     active[user_id] = CallState(actor)
     if REALTIME and await start_realtime(actor, user_id):
         return
@@ -413,21 +417,41 @@ async def start_call(actor: str, user_id: int) -> None:
         log.error('appel %s impossible: %s', actor, e)
         active.pop(user_id, None)
         if ans and ans.get('incoming'):
-            await missed_call(user_id, ans.get('text') or '', e)
+            await missed_call(actor, user_id, ans.get('text') or '', e)
         try:
             await calls.leave_call(user_id)
         except Exception:
             pass
 
 
-async def missed_call(user_id: int, reason: str, err: Exception) -> None:
-    """Kouider n'a pas décroché : il reçoit par écrit ce que Dzaryx voulait lui dire."""
+async def missed_call(actor: str, user_id: int, reason: str, err: Exception) -> None:
+    """Kouider n'a pas décroché : il reçoit par écrit ce que Dzaryx voulait lui dire, puis un 2e essai."""
+    retry = RETRY_TAG not in reason          # un seul nouvel essai, jamais en boucle
     try:
         why = 'occupé' if 'Busy' in type(err).__name__ else 'pas de réponse'
-        await app.send_message(user_id, f'📞 Appel manqué ({why}). Je voulais te dire :\n{reason}\n\nRappelle-moi quand tu veux.')
+        later = (f'Je réessaie dans {int(RETRY_S // 60)} min, ou rappelle-moi quand tu veux.'
+                 if retry else 'Rappelle-moi quand tu veux.')
+        await app.send_message(user_id, f'📞 Appel manqué ({why}). Je voulais te dire :\n{reason}\n\n{later}')
         log.info('appel manqué → message envoyé')
     except Exception as e:
         log.error('message appel manqué: %s', e)
+    if retry:
+        asyncio.create_task(retry_call(actor, user_id, reason))
+
+
+async def retry_call(actor: str, user_id: int, greeting: str) -> None:
+    """2e essai, sauf si on s'est parlé entre-temps (il a rappelé, ou un autre appel a eu lieu)."""
+    missed_at = time.monotonic()
+    await asyncio.sleep(RETRY_S)
+    if user_id in active or last_call.get(user_id, 0) > missed_at:
+        log.info("2e essai annulé : on s'est parlé entre-temps")
+        return
+    reason = re.sub(r"^Allô [^,]+, c'est Dzaryx\.\s*", '', greeting).strip() or greeting
+    try:
+        await api('/api/call/retry', {'reason': reason}, actor)
+        log.info('2e essai lancé pour %s', actor)
+    except Exception as e:
+        log.error('2e essai: %s', e)
 
 
 def call_tools(user_id: int) -> dict:
@@ -494,7 +518,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
         await rt.close()
         active.pop(user_id, None)
         if st.outgoing:
-            await missed_call(user_id, greeting, e)
+            await missed_call(actor, user_id, greeting, e)
         try:
             await calls.leave_call(user_id)
         except Exception:

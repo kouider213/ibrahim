@@ -49,6 +49,14 @@ router.post('/test', requireMobileAuth, async (req, res) => {
   res.json({ ok: true, id });
 });
 
+// POST /api/call/retry { reason } — appel manqué sur Telegram : 2e essai (tgcall, 10 min après)
+router.post('/retry', requireMobileAuth, async (req, res) => {
+  const reason = String((req.body as { reason?: string }).reason ?? '').trim();
+  if (!reason) { res.status(400).json({ error: 'reason required' }); return; }
+  const { id } = await callOwner(`Je te rappelle, tu n'avais pas décroché. ${reason}`, callActor(req));
+  res.json({ ok: true, id });
+});
+
 // POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
 // réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
 router.post('/turn', requireMobileAuth, async (req, res) => {
