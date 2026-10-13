@@ -2,12 +2,15 @@ import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { isGroqAvailable, isGeminiAvailable, isOpenAIAvailable } from '../../integrations/llm-router.js';
 import { redis } from '../../queue/queue.js';
+import { probeProviders, type ProbeResult } from '../../integrations/fallback-probe.js';
 
 const router = Router();
 
 // GET /api/health-ai
 // Returns AI provider availability, usage counts, fallback events for today.
-router.get('/', requireMobileAuth, async (_req, res) => {
+// Chaque provider est réellement testé (cache 30 min, ?force=1 pour retester) : « clé présente » ne suffit pas.
+router.get('/', requireMobileAuth, async (req, res) => {
+  const probes = await probeProviders(req.query['force'] === '1');
   const today = new Date().toISOString().slice(0, 10);
   const providers = ['claude', 'groq', 'gemini', 'openai', 'ollama'] as const;
 
@@ -37,6 +40,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
 
   const providerStatus: Record<string, {
     available: boolean;
+    probe?: ProbeResult;
     calls_today: number;
     fallback_success_today: number;
     emoji: string;
@@ -73,6 +77,16 @@ router.get('/', requireMobileAuth, async (_req, res) => {
     },
   };
 
+  // Le vrai test l'emporte sur « clé présente »
+  const PROBE_EMOJI = { ok: '🟢', busy: '🟡', down: '🔴', absent: '🔴' } as const;
+  for (const [k, v] of Object.entries(providerStatus)) {
+    const pr = probes[k];
+    if (!pr) continue;
+    v.probe     = pr;
+    v.available = pr.state === 'ok' || pr.state === 'busy';
+    v.emoji     = PROBE_EMOJI[pr.state];
+  }
+
   // Determine active fallback (any non-claude provider with fallback_success > 0 today)
   const activeFallback = Object.entries(providerStatus)
     .filter(([k, v]) => k !== 'claude' && v.fallback_success_today > 0)
@@ -80,7 +94,9 @@ router.get('/', requireMobileAuth, async (_req, res) => {
     .map(([k]) => k)[0] ?? null;
 
   // Survival status: can we respond without Claude?
-  const canSurvive = isGroqAvailable() || isGeminiAvailable() || isOpenAIAvailable();
+  const fallbackOk = (k: string) => probes[k]?.state === 'ok';
+  const canSurvive = fallbackOk('groq') || fallbackOk('gemini') || fallbackOk('openai');
+  const freeSurvive = fallbackOk('groq') || fallbackOk('gemini');
 
   res.json({
     status:                  'ok',
@@ -89,11 +105,13 @@ router.get('/', requireMobileAuth, async (_req, res) => {
     active_fallback:         activeFallback,
     claude_failures_today:   claudeFailures,
     fallback_events_today:   claudeFailures,
-    survival_status:         canSurvive ? '✅ Dzaryx survive sans Claude' : '❌ Aucun fallback disponible',
+    survival_status:         freeSurvive ? '✅ Dzaryx survive sans Claude (secours gratuits OK)'
+                           : canSurvive  ? '⚠️ Sans Claude, seul OpenAI (payant) répond'
+                           :               '❌ Aucun secours ne répond',
     survival_providers:      {
-      groq:    isGroqAvailable(),
-      gemini:  isGeminiAvailable(),
-      openai:  isOpenAIAvailable(),
+      groq:    fallbackOk('groq'),
+      gemini:  fallbackOk('gemini'),
+      openai:  fallbackOk('openai'),
     },
   });
 });

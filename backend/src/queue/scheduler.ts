@@ -18,6 +18,7 @@ import {
   jobBIDaily,
   jobBIReminders,
   jobClaudeCostMonitor,
+  jobFallbackWatch,
   jobClientRelance,
   jobVehicleUtilization,
   jobHabitCheck,
@@ -133,6 +134,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'fallback-watch',
+    cron:  '30 9 * * *',        // 9h30 chaque matin — teste vraiment Claude + secours Groq/Gemini/OpenAI
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'claude-cost-monitor',
     cron:  '0 20 * * *',       // 20h chaque soir — rapport coûts API Claude
     tz:    'Africa/Algiers',
@@ -245,6 +251,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'bi-daily':                 jobBIDaily,
   'bi-reminders':             jobBIReminders,
   'claude-cost-monitor':      jobClaudeCostMonitor,
+  'fallback-watch':           jobFallbackWatch,
   'client-relance':           jobClientRelance,
   'vehicle-utilization':      jobVehicleUtilization,
   'habit-check':              jobHabitCheck,

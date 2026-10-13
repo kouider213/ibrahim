@@ -14,7 +14,19 @@ export interface AgentRoute {
   label:      string;
 }
 
+// Mails : seul l'agent Général a list_emails/read_email/send_email. Sans ce raccourci,
+// « dis-moi si j'ai reçu un email » partait en Finance (« reçu ») → « pas d'accès à ta messagerie ».
+const MAIL_RE = /\b(e-?mails?|mails?|gmail|courriels?|bo[iî]te\s+(?:mail|de\s+r[eé]ception))\b/i;
+
 export function routeToAgent(text: string): AgentRoute {
+  if (MAIL_RE.test(text)) {
+    const general = AGENT_MAP.get('general');
+    if (general) {
+      const agentTools = Dzaryx_TOOLS.filter(t => general.toolNames.includes(t.name));
+      console.log(`[core-router] → ${general.name} (mail, ${agentTools.length} tools)`);
+      return { agent: general, agentTools, label: general.name };
+    }
+  }
   // Check agents in priority order
   for (const agent of AGENT_REGISTRY) {
     if (agent.keywords.test(text)) {

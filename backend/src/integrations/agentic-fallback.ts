@@ -42,7 +42,7 @@ interface FallbackEndpoint {
   apiKey:  string;
 }
 
-function endpoints(): FallbackEndpoint[] {
+export function fallbackEndpoints(): FallbackEndpoint[] {
   const list: FallbackEndpoint[] = [];
   if (GROQ_KEY)   list.push({ key: 'groq',   name: 'Groq GPT-OSS 120B',   url: 'https://api.groq.com/openai/v1/chat/completions',                                model: 'openai/gpt-oss-120b', apiKey: GROQ_KEY });
   if (GEMINI_KEY) list.push({ key: 'gemini', name: 'Gemini 3.5 Flash', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',       model: 'gemini-3.5-flash',        apiKey: GEMINI_KEY });
@@ -51,7 +51,7 @@ function endpoints(): FallbackEndpoint[] {
 }
 
 export function isAgenticFallbackAvailable(): boolean {
-  return endpoints().length > 0;
+  return fallbackEndpoints().length > 0;
 }
 
 // ── Conversion outils Anthropic → format OpenAI functions ─────────────────────
@@ -100,7 +100,7 @@ export async function runAgenticFallback(
   onToolStart?: ToolStartCallback,
   onToolDone?:  ToolDoneCallback,
 ): Promise<AgenticFallbackResult> {
-  const eps = endpoints();
+  const eps = fallbackEndpoints();
   if (eps.length === 0) throw new Error('No agentic fallback provider configured');
 
   const tools        = toolOverride && toolOverride.length > 0 ? toolOverride : Dzaryx_TOOLS;

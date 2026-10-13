@@ -2097,3 +2097,25 @@ export async function jobOpportunitiesWatch(_job: Job): Promise<void> {
     console.error('[job:opportunities-watch] ❌', err instanceof Error ? err.message : String(err));
   }
 }
+
+// ── Fallback watch — chaque matin, teste VRAIMENT Claude + les secours (Groq, Gemini, OpenAI) ──
+// Alerte seulement si un provider est « down » (modèle retiré, clé invalide, crédit épuisé).
+// « busy » (saturé / quota du jour) = temporaire → pas d'alerte.
+export async function jobFallbackWatch(_job: Job): Promise<void> {
+  const { probeProviders } = await import('../../integrations/fallback-probe.js');
+  const probes = await probeProviders(true);
+  const NAMES: Record<string, string> = { claude: 'Claude', groq: 'Groq (gratuit)', gemini: 'Gemini (gratuit)', openai: 'OpenAI (payant)' };
+  const down = Object.entries(probes).filter(([, p]) => p.state === 'down');
+  console.log(`[job:fallback-watch] ${Object.entries(probes).map(([k, p]) => `${k}=${p.state}`).join(' ')}`);
+  if (down.length === 0) return;
+
+  const lines = ['⚠️ *Dzaryx — un fournisseur IA ne répond plus*'];
+  for (const [k, p] of down) {
+    const credit = /credit|balance|billing|quota/i.test(p.error ?? '');
+    lines.push(`• ${NAMES[k] ?? k} (${p.model}) : ${credit ? 'crédit épuisé' : 'en panne'} — ${(p.error ?? '').slice(0, 120)}`);
+  }
+  const freeOk = probes['groq']?.state === 'ok' || probes['gemini']?.state === 'ok';
+  lines.push(freeOk ? '\nLes secours gratuits marchent encore.' : '\nAttention : plus aucun secours gratuit ne répond.');
+  const spoken = `Alerte : ${down.map(([k]) => NAMES[k] ?? k).join(', ')} ne répond plus.`;
+  emitProactive(spoken, 'alert', stripTgMd(lines.join('\n')), 'kouider');
+}
