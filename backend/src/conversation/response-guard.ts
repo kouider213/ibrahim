@@ -6,7 +6,7 @@ import { env } from '../config/env.js';
 // Outils write: leur succès légitime une confirmation d'action
 const WRITE_TOOLS = new Set([
   'create_booking', 'update_booking', 'cancel_booking', 'delete_booking',
-  'record_payment', 'store_document', 'record_expense', 'delete_expense',
+  'record_payment', 'store_document', 'record_expense', 'delete_expense', 'record_car_km', 'update_vehicle_maintenance',
   'github_write_file', 'github_patch_file', 'update_site_file',
   'send_telegram_message', 'send_whatsapp_to_client', 'send_email',
   'create_calendar_event', 'update_calendar_event', 'sync_calendar', 'delete_calendar_event',

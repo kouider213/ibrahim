@@ -97,6 +97,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
     // Phase extras
     'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
+    'record_car_km', 'check_client', 'update_vehicle_maintenance', 'get_vehicle_maintenance',
   ],
   keywords:  /\b(réservations?|booking|louer|location|disponib|voitures?|retard|flotte|clients?|arrivée|départ|véhicules?|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartements?|immobilier|immo|biens?|maisons?|villas?|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,
   priority:  10,

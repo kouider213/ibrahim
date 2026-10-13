@@ -23,6 +23,7 @@ import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { runDailyOutreach } from './prospect-autopilot.js';
 import { recordExpense, getExpenses, deleteExpense } from './expenses.js';
+import { clientRisk, recordCarKm } from '../notifications/client-care.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
@@ -258,7 +259,12 @@ async function _dispatch(
     switch (name) {
       case 'list_bookings':         return await listBookings(input);
       case 'update_booking':        return await updateBooking(input);
-      case 'create_booking':        return await createBooking(input, sessionId);
+      case 'create_booking': {
+        const risk = await clientRisk(String(input['client_name'] ?? ''), input['client_phone'] as string | undefined).catch(() => null);
+        const res = await createBooking(input, sessionId);
+        return risk?.text && res.startsWith('✅') ? `${res}\n\n${risk.text}` : res;
+      }
+      case 'check_client':          return (await clientRisk(String(input['client_name'] ?? ''), input['client_phone'] as string | undefined)).text || '❌ Nom du client requis.';
       case 'cancel_booking':        return await cancelBooking(input);
       case 'delete_booking':        return await deleteBooking(input);
       case 'get_financial_report':  return await financialReport(input);
@@ -465,6 +471,7 @@ async function _dispatch(
       case 'update_vehicle_maintenance':     return await updateVehicleMaintenanceTool(input);
       case 'get_vehicle_maintenance':        return await getVehicleMaintenanceTool(input);
       case 'record_expense':                 return await recordExpense(input);
+      case 'record_car_km':                  return (await recordCarKm(String(input['car_name'] ?? ''), Number(input['km']))) || '❌ Kilométrage invalide.';
       case 'get_expenses':                   return await getExpenses(input);
       case 'delete_expense':                 return await deleteExpense(input);
       // ─── PHASE EXTRAS (dégât / signature / pricing) ───
@@ -6397,7 +6404,8 @@ async function saveVehicleStateBefore(
   if (!b64) return '❌ Aucune image trouvée. Envoie une photo du véhicule avec ce message.';
 
   const result = await saveBeforeState(clientName, carName, [{ base64: b64, mime }], 'kouider');
-  return result.message;
+  const kmLine = input['km'] != null ? await recordCarKm(carName, Number(input['km'])).catch(() => '') : '';
+  return [result.message, kmLine || (input['km'] == null ? 'ℹ️ Kilométrage non donné : demande-le à Kouider (record_car_km).' : '')].filter(Boolean).join('\n');
 }
 
 async function saveVehicleStateAfter(
@@ -6421,7 +6429,8 @@ async function saveVehicleStateAfter(
   if (!b64) return '❌ Aucune image trouvée. Envoie une photo du véhicule avec ce message.';
 
   const result = await saveAfterState(clientName, carName, [{ base64: b64, mime }], 'kouider');
-  return result.message;
+  const kmLine = input['km'] != null ? await recordCarKm(carName, Number(input['km'])).catch(() => '') : '';
+  return [result.message, kmLine || (input['km'] == null ? 'ℹ️ Kilométrage non donné : demande-le à Kouider (record_car_km).' : '')].filter(Boolean).join('\n');
 }
 
 async function getVehicleStatesTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
@@ -6604,6 +6613,8 @@ async function updateVehicleMaintenanceTool(input: Record<string, unknown>): Pro
   if (nextServiceKm   != null) updates['next_service_km']      = nextServiceKm;
   if (serviceNotes)            updates['service_notes']        = serviceNotes;
   if (intervalKm      != null) updates['service_interval_km']  = intervalKm;
+  // Vidange faite à X km → prochaine = X + intervalle (sinon l'ancienne échéance restait)
+  if (lastServiceKm != null && nextServiceKm == null) updates['next_service_km'] = lastServiceKm + (intervalKm ?? 10_000);
 
   if (!Object.keys(updates).length) return '❌ Aucune donnée à mettre à jour.';
 
@@ -6620,7 +6631,9 @@ async function updateVehicleMaintenanceTool(input: Record<string, unknown>): Pro
   if (nextServiceDate)         parts.push(`prochain entretien: ${nextServiceDate}`);
   if (serviceNotes)            parts.push(`notes: ${serviceNotes}`);
 
-  return `✅ Entretien mis à jour pour ${carName || carId}: ${parts.join(', ')}`;
+  const kmNow   = currentKm ?? lastServiceKm;
+  const kmLine  = carName && kmNow != null ? await recordCarKm(carName, kmNow).catch(() => '') : '';
+  return `✅ Entretien mis à jour pour ${carName || carId}: ${parts.join(', ')}${kmLine ? `\n${kmLine}` : ''}`;
 }
 
 // ── Vehicle Maintenance Status ────────────────────────────────────────────────

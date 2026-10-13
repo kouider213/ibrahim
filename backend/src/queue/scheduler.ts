@@ -42,6 +42,7 @@ import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
 import { jobDailyRecapCall, jobMailReplyCall } from './jobs/call-jobs.js';
 import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
+import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -233,6 +234,16 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'client-birthdays',
+    cron:  '15 9 * * *',            // 9h15 — anniversaires clients (date de naissance des passeports) → message WhatsApp prêt + appel
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'review-whatsapp',
+    cron:  '30 10 * * *',           // 10h30 — demande d'avis WhatsApp prête pour les clients sans email (rendus hier)
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'tgcall-watch',
     cron:  '*/5 * * * *',           // toutes les 5 min — service d'appels Telegram vivant ? (alerte une fois + « rétabli »)
     tz:    'Africa/Algiers',
@@ -291,6 +302,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'monthly-excel':           jobMonthlyExcel,
   'auto-call-flush':         async () => { await flushAutoCalls(); },
   'tgcall-watch':            async () => { await checkTgcallAlive(); },
+  'client-birthdays':        async () => { await jobBirthdays(); },
+  'review-whatsapp':         async () => { await jobReviewWhatsapp(); },
   'daily-recap-call':        async () => { await jobDailyRecapCall(); },
   'mail-reply-call':         async () => { await jobMailReplyCall(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },

@@ -12,6 +12,7 @@ import { supabase } from '../integrations/supabase.js';
 import { sendWhatsApp, type Lang } from '../integrations/whatsapp.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
+import { clientRisk } from '../notifications/client-care.js';
 import { chat } from '../integrations/claude-api.js';
 import { createCalendarEvent } from '../integrations/google-calendar.js';
 
@@ -233,8 +234,9 @@ export async function handleBookingFlow(
       `👉 Va dans DEMANDES pour valider ou refuser.`,
     ].filter(Boolean).join('\n');
 
-    emitProactive(`🚗 Nouvelle demande WhatsApp — ${merged.client_name}`, 'alert', summary, 'kouider');
-    void autoCall(`wa-request:${phone}:${merged.start_date ?? ''}`, `Nouvelle demande de réservation sur WhatsApp de ${merged.client_name}. Elle t'attend dans Demandes pour valider ou refuser.`);
+    const risk = await clientRisk(String(merged.client_name ?? ''), phone).catch(() => null);
+    emitProactive(`🚗 Nouvelle demande WhatsApp — ${merged.client_name}`, 'alert', risk?.text ? `${summary}\n\n${risk.text}` : summary, 'kouider');
+    void autoCall(`wa-request:${phone}:${merged.start_date ?? ''}`, `Nouvelle demande de réservation sur WhatsApp de ${merged.client_name}.${risk?.spoken ? ` ${risk.spoken}` : ''} Elle t'attend dans Demandes pour valider ou refuser.`);
 
     return { handled: true, reply: ackPendingApproval(lang) };
   }

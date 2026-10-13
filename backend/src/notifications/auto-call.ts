@@ -10,14 +10,14 @@ import { callOwner, getPendingCall } from './voice-call.js';
 // Garde-fous :
 // - Jamais la nuit : seulement 8h–22h heure de Bruxelles. La nuit → mis en file, appel groupé à 8h.
 // - Pas plus d'un appel auto toutes les 10 min : sinon mis en file, appel groupé ensuite.
-// - Max 8 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
+// - Max 12 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
 // - Interrupteur : app_kv `autocall:off` = '1' → plus aucun appel auto (les notifs restent).
 
 const TZ          = 'Europe/Brussels';
 const START_HOUR  = 8;
 const END_HOUR    = 22;
 const MIN_GAP_MS  = 10 * 60_000;
-const MAX_PER_DAY = 8;
+const MAX_PER_DAY = 12;  // 8 → 12 le 2026-10-13 : Kouider veut que Dzaryx appelle plus souvent
 
 const QUEUE_KEY = 'autocall:queue';
 const LAST_KEY  = 'autocall:last';

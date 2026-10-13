@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { env } from '../../config/env.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
 import { autoCall } from '../../notifications/auto-call.js';
+import { clientRisk } from '../../notifications/client-care.js';
 
 const router = Router();
 
@@ -34,9 +35,11 @@ router.post('/notify', async (req, res) => {
         `⏳ En attente de confirmation — réponds OUI/NON à Dzaryx pour accepter`,
       ].filter(Boolean).join('\n');
 
-      emitProactive(msg, 'alert', msg, 'kouider');
+      const risk = await clientRisk(String(data['client_name'] ?? ''), data['client_phone'] as string | undefined).catch(() => null);
+      const full = risk?.text ? `${msg}\n\n${risk.text}` : msg;
+      emitProactive(full, 'alert', full, 'kouider');
       void autoCall(`site-booking:${data['client_name']}:${data['start_date']}:${data['car_name']}`,
-        `Nouvelle réservation sur le site : ${data['client_name']}, ${data['car_name']}, du ${data['start_date']} au ${data['end_date']}, ${data['total']} euros. Tu l'acceptes ?`);
+        `Nouvelle réservation sur le site : ${data['client_name']}, ${data['car_name']}, du ${data['start_date']} au ${data['end_date']}, ${data['total']} euros.${risk?.spoken ? ` ${risk.spoken}` : ''} Tu l'acceptes ?`);
     } else if (type === 'new_review') {
       const msg = [
         `⭐ Nouvel avis (${data['rating']}/5) — *${data['client_name']}*`,

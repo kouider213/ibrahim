@@ -1953,6 +1953,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       type: 'object' as const,
       properties: {
         client_name: { type: 'string', description: 'Nom du client (locataire)' },
+        km:          { type: 'number', description: 'Kilométrage au compteur (DEMANDE-LE à Kouider s\'il ne l\'a pas donné : sert à prévenir la vidange)' },
         car_name:    { type: 'string', description: 'Nom du véhicule (ex: "Clio 5", "Logan")' },
       },
       required: ['client_name', 'car_name'],
@@ -1965,6 +1966,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       type: 'object' as const,
       properties: {
         client_name: { type: 'string', description: 'Nom du client (locataire)' },
+        km:          { type: 'number', description: 'Kilométrage au compteur (DEMANDE-LE à Kouider s\'il ne l\'a pas donné : sert à prévenir la vidange)' },
         car_name:    { type: 'string', description: 'Nom du véhicule' },
       },
       required: ['client_name', 'car_name'],
@@ -2105,6 +2107,30 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         service_notes:       { type: 'string',  description: 'Notes sur l\'entretien (ex: "vidange + filtres faits")' },
       },
       required: [],
+    },
+  },
+  {
+    name: 'record_car_km',
+    description: 'Enregistre le kilométrage au compteur d\'une voiture et dit dans combien de km tombe la prochaine vidange (alerte + appel si < 1000 km ou dépassée). Utiliser quand Kouider dit "la Clio est à 85 000 km", "compteur du Jogger 120 000", ou répond au km demandé après un état des lieux. Pour une vidange FAITE → update_vehicle_maintenance avec last_service_km.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        car_name: { type: 'string', description: 'Nom exact du véhicule (ex: "Clio 5 diesel")' },
+        km:       { type: 'number', description: 'Kilométrage au compteur' },
+      },
+      required: ['car_name', 'km'],
+    },
+  },
+  {
+    name: 'check_client',
+    description: 'Historique de confiance d\'un client : nombre de locations, notes, impayés, dégâts constatés → nouveau / fiable / à surveiller / à risque. Utiliser pour "Karim c\'est un bon client ?", "je peux lui faire confiance ?", avant d\'accepter une demande. (create_booking l\'affiche déjà automatiquement.)',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        client_name:  { type: 'string', description: 'Nom du client' },
+        client_phone: { type: 'string', description: 'Téléphone (optionnel, améliore la recherche)' },
+      },
+      required: ['client_name'],
     },
   },
   {
