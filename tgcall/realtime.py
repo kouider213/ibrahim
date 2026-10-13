@@ -181,9 +181,10 @@ async def speak(http: aiohttp.ClientSession, api: ApiFn, text: str, actor: str, 
                             'ton naturel et chaleureux, sans rien ajouter ni commenter.',
             'audio': {'input': {'turn_detection': None},
                       'output': {'voice': voice or res.get('voice') or 'cedar'}}}}))
-        await ws.send_str(json.dumps({'type': 'conversation.item.create', 'item': {
-            'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': f'Lis : {text}'}]}}))
-        await ws.send_str(json.dumps({'type': 'response.create', 'response': {'output_modalities': ['audio']}}))
+        await ws.send_str(json.dumps({'type': 'response.create', 'response': {
+            'output_modalities': ['audio'], 'conversation': 'none', 'input': [],
+            'instructions': 'Prononce EXACTEMENT ce texte, mot pour mot, et RIEN d\'autre (pas d\'introduction, '
+                            f'pas de « d\'accord », pas de commentaire) : « {text} »'}}))
         async for msg in ws:
             if msg.type != aiohttp.WSMsgType.TEXT:
                 break
