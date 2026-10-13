@@ -5,6 +5,9 @@ import { processMessage } from '../../conversation/orchestrator.js';
 import { synthesizeVoice } from '../../notifications/dispatcher.js';
 import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
 import { env } from '../../config/env.js';
+import { executeTool } from '../../integrations/tool-executor.js';
+import { Dzaryx_TOOLS } from '../../integrations/tools.js';
+import { kvGet, kvSet } from '../../integrations/app-store.js';
 import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
 
 const router = Router();
@@ -89,7 +92,21 @@ async function streamTurn(res: import('express').Response, text: string): Promis
 // POST /api/call/realtime — clé OpenAI TEMPORAIRE (1 min pour se connecter) pour la voix temps réel des appels
 // Telegram (tgcall/realtime.py). La vraie clé reste sur Railway. La session (voix, consignes, outil) est fixée ici.
 const REALTIME_MODEL = 'gpt-realtime';
-const REALTIME_VOICE = 'cedar';
+const DEFAULT_VOICE = 'cedar';
+export const REALTIME_VOICES = ['cedar', 'marin', 'ash', 'coral', 'verse', 'sage'] as const;
+const VOICE_KEY = 'call:voice';
+async function realtimeVoice(): Promise<string> {
+  const v = await kvGet(VOICE_KEY).catch(() => null);
+  return v && (REALTIME_VOICES as readonly string[]).includes(v) ? v : DEFAULT_VOICE;
+}
+
+// Lectures RAPIDES pendant l'appel : outils en lecture seule exécutés directement (sans le cerveau complet,
+// qui prend 5 à 15 s). Toute action / tout le reste passe toujours par ask_dzaryx.
+const QUICK_TOOLS = ['list_bookings', 'get_fleet_status', 'check_car_availability', 'get_unpaid_bookings',
+  'get_finance_dashboard', 'list_emails', 'read_email'] as const;
+const quickToolDefs = Dzaryx_TOOLS
+  .filter(t => (QUICK_TOOLS as readonly string[]).includes(t.name))
+  .map(t => ({ type: 'function', name: t.name, description: `Lecture rapide. ${t.description ?? ''}`.slice(0, 1000), parameters: t.input_schema }));
 
 function realtimeInstructions(who: CallActor, calls: string): string {
   const name = who === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
@@ -101,6 +118,7 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `Maintenant : ${fmt('Europe/Brussels')} en Belgique (${fmt('Africa/Algiers')} à Oran).`,
     `Parle en français, tutoiement, comme un vrai assistant au téléphone : chaleureux, naturel, phrases courtes, 1 à 3 phrases par réponse. Pas de listes, pas de markdown.`,
     `Si on te coupe la parole, arrête-toi et écoute.`,
+    `RAPIDE : pour juste LIRE des réservations, la flotte, une dispo, les impayés, les finances ou les mails, utilise directement l'outil correspondant (list_bookings, get_fleet_status, check_car_availability, get_unpaid_bookings, get_finance_dashboard, list_emails puis read_email) : c'est instantané. ask_dzaryx pour tout le reste (clients, agenda, rappels, prospects, web, mails envoyés…) et pour TOUTE action.`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
     `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
     `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin).`,
@@ -132,14 +150,14 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
               transcription: { model: 'gpt-4o-mini-transcribe', language: 'fr' },
               turn_detection: { type: 'semantic_vad', eagerness: 'high', create_response: true, interrupt_response: true },
             },
-            output: { format: { type: 'audio/pcm', rate: 24000 }, voice: REALTIME_VOICE },
+            output: { format: { type: 'audio/pcm', rate: 24000 }, voice: await realtimeVoice() },
           },
           tools: [{
             type: 'function',
             name: 'ask_dzaryx',
             description: 'Le cerveau de Dzaryx (accès réel aux réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
             parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
-          }],
+          }, ...quickToolDefs],
           tool_choice: 'auto',
         },
       }),
@@ -150,11 +168,34 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
       res.status(502).json({ error: data.error?.message ?? `OpenAI HTTP ${r.status}` });
       return;
     }
-    res.json({ key: data.value, model: REALTIME_MODEL });
+    res.json({ key: data.value, model: REALTIME_MODEL, voice: await realtimeVoice() });
   } catch (err) {
     console.error('[call] realtime:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'realtime failed' });
   }
+});
+
+// POST /api/call/tool { name, input } — lecture rapide pendant un appel (liste blanche, lecture seule)
+router.post('/tool', requireMobileAuth, async (req, res) => {
+  const { name, input } = req.body as { name?: string; input?: Record<string, unknown> };
+  if (!name || !(QUICK_TOOLS as readonly string[]).includes(name)) { res.status(400).json({ error: 'tool not allowed' }); return; }
+  try {
+    const out = await executeTool(name, input ?? {}, `voice_${callActor(req)}`);
+    res.json({ text: out.slice(0, 6000) });
+  } catch (err) {
+    console.error('[call] tool:', err instanceof Error ? err.message : String(err));
+    res.status(500).json({ error: 'tool failed' });
+  }
+});
+
+// GET/POST /api/call/voice { voice? } — voix de Dzaryx (appels + vocaux Telegram). Sans voice → voix actuelle.
+router.post('/voice', requireMobileAuth, async (req, res) => {
+  const { voice } = req.body as { voice?: string };
+  if (voice) {
+    if (!(REALTIME_VOICES as readonly string[]).includes(voice)) { res.status(400).json({ error: 'unknown voice', voices: REALTIME_VOICES }); return; }
+    await kvSet(VOICE_KEY, voice);
+  }
+  res.json({ voice: await realtimeVoice(), voices: REALTIME_VOICES });
 });
 
 // POST /api/call/summary { lines: [{role, text}], durationS } — fin d'un appel Telegram : résumé + choses à faire

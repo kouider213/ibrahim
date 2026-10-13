@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import random
+import re
 import subprocess
 import tempfile
 import time
@@ -32,7 +33,7 @@ from pytgcalls.types import (
     StreamEnded, StreamFrames,
 )
 
-from realtime import IN_RATE, OUT_RATE, RealtimeCall
+from realtime import IN_RATE, OUT_RATE, RealtimeCall, speak
 
 HERE = Path(__file__).parent
 
@@ -473,7 +474,14 @@ async def on_message(_, msg: Message) -> None:
                 await msg.reply_text("Je n'ai pas bien entendu, tu peux répéter ?")
                 return
             await app.send_chat_action(uid, 'record_audio')
-            out = await api('/api/call/turn', {'message': text}, actor)
+            out = await api('/api/call/turn', {'message': text, 'textOnly': True}, actor)
+            reply = out.get('text') or '…'
+            try:   # même voix que les appels
+                await reply_voice_pcm(msg, await speak(http, api, re.sub(r'[*_#`>|]', '', reply)[:900], actor))
+                return
+            except Exception as e:
+                log.warning('voix temps réel pour le vocal: %s → ancienne voix', e)
+                out = await api('/api/call/turn', {'message': text}, actor)
             if out.get('audio'):
                 mp3 = save_mp3(out['audio'])
                 ogg = mp3[:-4] + '.ogg'
@@ -482,6 +490,8 @@ async def on_message(_, msg: Message) -> None:
                 os.unlink(mp3); os.unlink(ogg)
             else:
                 await msg.reply_text(out.get('text') or '…')
+        elif msg.text and VOICE_CMD.match(msg.text.strip()):
+            await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:
             await app.send_chat_action(uid, 'typing')
             out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True}, actor)
@@ -489,6 +499,46 @@ async def on_message(_, msg: Message) -> None:
     except Exception as e:
         log.error('message échoué: %s', e)
         await msg.reply_text('Petit souci technique, réessaie dans un instant.')
+
+
+async def reply_voice_pcm(msg: Message, pcm: bytes) -> None:
+    ogg = tempfile.mktemp(prefix='dzv_', suffix='.ogg')
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 's16le', '-ar', str(IN_RATE), '-ac', '1', '-i', '-',
+                    '-c:a', 'libopus', '-b:a', '48k', ogg], input=pcm, check=True, timeout=30)
+    try:
+        await msg.reply_voice(ogg)
+    finally:
+        os.unlink(ogg)
+
+
+# « voix » → échantillons ; « voix 3 » / « voix marin » → la choisir (appels + vocaux)
+VOICE_CMD = re.compile(r'^voix(?:\s+(\w+))?\s*$', re.I)
+VOICE_SAMPLE = 'Salut Kouider, c\'est Dzaryx. Tu as deux nouvelles réservations aujourd\'hui, je te les lis ?'
+
+
+async def voice_command(msg: Message, actor: str, choice: str | None) -> None:
+    cur = await api('/api/call/voice', {}, actor, 15)
+    voices: list[str] = cur['voices']
+    if choice:
+        v = voices[int(choice) - 1] if choice.isdigit() and 0 < int(choice) <= len(voices) else choice.lower()
+        if v not in voices:
+            await msg.reply_text(f'Je ne connais pas cette voix. Choix : 1 à {len(voices)}.')
+            return
+        await api('/api/call/voice', {'voice': v}, actor, 15)
+        await msg.reply_text(f'C\'est noté : voix {voices.index(v) + 1} ({v}) pour les appels et les vocaux.')
+        return
+    await msg.reply_text(f'Voici {len(voices)} voix. Réponds « voix 2 » (par exemple) pour choisir. Actuelle : {voices.index(cur["voice"]) + 1}.')
+    for i, v in enumerate(voices, 1):
+        try:
+            await app.send_chat_action(msg.chat.id, 'record_audio')
+            pcm = await speak(http, api, VOICE_SAMPLE, actor, voice=v)
+            ogg = tempfile.mktemp(prefix='dzs_', suffix='.ogg')
+            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 's16le', '-ar', str(IN_RATE), '-ac', '1', '-i', '-',
+                            '-c:a', 'libopus', '-b:a', '48k', ogg], input=pcm, check=True, timeout=30)
+            await app.send_voice(msg.chat.id, ogg, caption=f'Voix {i}' + (' (actuelle)' if v == cur['voice'] else ''))
+            os.unlink(ogg)
+        except Exception as e:
+            log.error('échantillon %s: %s', v, e)
 
 
 # ── Démarrage ────────────────────────────────────────────────────────────────

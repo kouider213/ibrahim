@@ -157,8 +157,44 @@ class RealtimeCall:
             except Exception as e:
                 result = f'Erreur technique : {e}. Dis-lui que tu n\'arrives pas à vérifier pour le moment.'
         else:
-            result = 'Outil inconnu.'
-        log.info('ask_dzaryx (%.1fs) %r → %r', time.monotonic() - t0, args.get('request', '')[:80], result[:120])
+            try:   # lecture rapide (réservations, mails, flotte…) sans le cerveau complet
+                out = await self.api('/api/call/tool', {'name': name, 'input': args}, self.actor, 30)
+                result = out.get('text') or 'Rien trouvé.'
+            except Exception as e:
+                result = f'Erreur technique : {e}. Essaie ask_dzaryx.'
+        log.info('%s (%.1fs) %r → %r', name, time.monotonic() - t0, (args.get('request') or json.dumps(args, ensure_ascii=False))[:80], result[:120])
         await self._send({'type': 'conversation.item.create', 'item': {
             'type': 'function_call_output', 'call_id': call_id, 'output': result}})
         await self._send({'type': 'response.create'})
+
+
+async def speak(http: aiohttp.ClientSession, api: ApiFn, text: str, actor: str, voice: str | None = None) -> bytes:
+    """Fait dire `text` par la voix temps réel (même voix que les appels) → PCM 24 kHz mono 16 bits."""
+    res = await api('/api/call/realtime', {}, actor, 20)
+    pcm = bytearray()
+    async with http.ws_connect(
+            f"wss://api.openai.com/v1/realtime?model={res.get('model', 'gpt-realtime')}",
+            headers={'Authorization': f"Bearer {res['key']}"}, max_msg_size=0) as ws:
+        await ws.send_str(json.dumps({'type': 'session.update', 'session': {
+            'type': 'realtime', 'tools': [],
+            'instructions': 'Tu es une voix de lecture. Lis le texte fourni EXACTEMENT, mot pour mot, en français, '
+                            'ton naturel et chaleureux, sans rien ajouter ni commenter.',
+            'audio': {'input': {'turn_detection': None},
+                      'output': {'voice': voice or res.get('voice') or 'cedar'}}}}))
+        await ws.send_str(json.dumps({'type': 'conversation.item.create', 'item': {
+            'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': f'Lis : {text}'}]}}))
+        await ws.send_str(json.dumps({'type': 'response.create', 'response': {'output_modalities': ['audio']}}))
+        async for msg in ws:
+            if msg.type != aiohttp.WSMsgType.TEXT:
+                break
+            ev = json.loads(msg.data)
+            t = ev.get('type', '')
+            if t in ('response.output_audio.delta', 'response.audio.delta'):
+                pcm.extend(base64.b64decode(ev['delta']))
+            elif t == 'response.done':
+                break
+            elif t == 'error':
+                raise RuntimeError(ev.get('error'))
+    if not pcm:
+        raise RuntimeError('aucun son reçu')
+    return bytes(pcm)
