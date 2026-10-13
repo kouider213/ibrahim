@@ -101,6 +101,7 @@ function realtimeInstructions(who: CallActor): string {
     `Parle en français, tutoiement, comme un vrai assistant au téléphone : chaleureux, naturel, phrases courtes, 1 à 3 phrases par réponse. Pas de listes, pas de markdown.`,
     `Si on te coupe la parole, arrête-toi et écoute.`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
+    `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
     `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin).`,
   ].join('\n');
 }
