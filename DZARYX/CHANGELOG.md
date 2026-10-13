@@ -11,9 +11,9 @@
 ### backend/
 - `notifications/auto-call.ts` (nouveau) : `autoCall(key, phrase)` fait sonner Kouider (Telegram) en plus de la notif.
   Garde-fous : 8h–22h heure de Bruxelles (la nuit → appel groupé à 8h), 10 min mini entre 2 appels (sinon groupé),
-  max 8/jour, 1 seul appel par info (24 h), interrupteur app_kv `autocall:off` = '1'.
-- Déclencheurs : point du matin (7h30 Alger), nouvelle réservation site, nouvelle demande WhatsApp, client WhatsApp
-  qui dit avoir payé l'acompte, retard de retour, impayé urgent (après 2 rappels), prospect intéressé, prospect qui visite le site.
+  1 seul appel par info (24 h), interrupteur app_kv `autocall:off` = '1'.
+- Déclencheurs (moments importants seulement, choix de Kouider) : nouvelle réservation site, nouvelle demande WhatsApp, client WhatsApp
+  qui dit avoir payé l'acompte, retard de retour, impayé urgent (après 2 rappels). Max 5/jour.
 - Scheduler : job `auto-call-flush` toutes les 15 min (appels mis en file).
 
 ## 2026-10-13 — Appels Telegram plus rapides + vrai test des secours IA

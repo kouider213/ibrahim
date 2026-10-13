@@ -1,22 +1,22 @@
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { callOwner, getPendingCall } from './voice-call.js';
 
-// Appels AUTOMATIQUES de Dzaryx à Kouider (sans qu'il demande) pour les infos qui comptent :
-// briefing du matin, nouvelle réservation, client qui dit avoir payé, retard de retour,
-// impayé urgent, prospect intéressé / qui visite le site.
+// Appels AUTOMATIQUES de Dzaryx à Kouider (sans qu'il demande) — UNIQUEMENT les moments importants
+// (choix de Kouider) : nouvelle réservation (site / WhatsApp), client qui dit avoir payé l'acompte,
+// retard de retour, impayé urgent. Pas de point du matin ni de prospects : ça reste en notif.
 // La notif texte part toujours en plus (emitProactive) — l'appel s'ajoute, il ne remplace rien.
 //
 // Garde-fous :
 // - Jamais la nuit : seulement 8h–22h heure de Bruxelles. La nuit → mis en file, appel groupé à 8h.
 // - Pas plus d'un appel auto toutes les 10 min : sinon mis en file, appel groupé ensuite.
-// - Max 8 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
+// - Max 5 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
 // - Interrupteur : app_kv `autocall:off` = '1' → plus aucun appel auto (les notifs restent).
 
 const TZ          = 'Europe/Brussels';
 const START_HOUR  = 8;
 const END_HOUR    = 22;
 const MIN_GAP_MS  = 10 * 60_000;
-const MAX_PER_DAY = 8;
+const MAX_PER_DAY = 5;
 
 const QUEUE_KEY = 'autocall:queue';
 const LAST_KEY  = 'autocall:last';

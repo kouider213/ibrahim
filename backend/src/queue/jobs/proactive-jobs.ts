@@ -224,8 +224,6 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   if (weather) ttsLines.push(`Météo Oran : ${weather.temperature} degrés, ${weather.condition}.`);
   if (recap?.short) ttsLines.push(recap.short);
   emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg), 'kouider', 'bookings');
-  // Appel du matin : le même résumé, à l'oral (le « Bonjour Kouider » est déjà dit au décroché)
-  await autoCall(`morning:${today}`, `Voici ton point du matin. ${ttsLines.slice(1).join(' ') || 'Rien de spécial aujourd\'hui.'}`);
 
   console.log('[job:morning-briefing] Sent');
 }
