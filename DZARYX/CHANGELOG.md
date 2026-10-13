@@ -6,6 +6,12 @@
 ---
 
 
+## 2026-10-13 — Réservation, paiement, devis, agenda rapides dans l'appel
+- `63f9638` (`integrations/call-quick.ts`, `api/routes/call.ts`) : `quick_booking` (dispo, prix catalogue `resale_price` ou dit, coût Houari `base_price`, bénéfice, client à risque ; relecture sans `confirmed`, `create_booking` après oui), `quick_payment` (retrouve la résa pas soldée du client, « laquelle ? » si plusieurs, reste à payer), `quick_quote` (dispo + prix client + livraison + devis prêt à envoyer), `quick_agenda` (départs/retours, agenda FIK + perso, rappels du jour), `schedule_reminder` en écriture rapide confirmée.
+- Fix `create_booking` : car_name « Clio » prenait une Clio au hasard → « laquelle ? ».
+- Fix `check_car_availability` : affichait `base_price` (coût Houari) comme prix client en « DZD » et comptait un jour de moins → prix client €, coût Houari, prix Houari DA, jours inclus.
+- Testé : relectures sur la vraie base (rien écrit), conversation simulée (bon outil, relecture, oui → confirmed). Pas encore en vrai appel.
+
 ## 2026-10-13 — Nouveautés DANS l'appel Telegram (voix temps réel)
 - `7dfa7ea` + `5decf02` (`api/routes/call.ts`, `tgcall/realtime.py`, `tgcall/dzaryx_tg.py`) :
   - **Réponses rapides** (< 1 s, `/api/call/tool`) : `check_client`, `get_expenses`, `get_vehicle_maintenance`. (`get_client_profile` écarté : il pousse des notifs de documents.)
