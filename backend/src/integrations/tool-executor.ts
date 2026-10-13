@@ -84,6 +84,7 @@ import { executeImageToImage } from './image-to-image.js';
 import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.js';
 import { saveBeforeState, saveAfterState } from './vehicle-state.js';
 import { savePropertyBeforeState, savePropertyAfterState } from './property-state.js';
+import { callOwner, CALL_REMINDER_MARK } from '../notifications/voice-call.js';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
@@ -323,6 +324,7 @@ async function _dispatch(
       case 'fetch_url':                  return await fetchUrl(input);
       // ─── Rappels ───
       case 'schedule_reminder':          return await scheduleReminder(input, sessionId);
+      case 'call_me':                    return await callMeTool(input, sessionId);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
       // ─── GOOGLE CALENDAR ───
@@ -1885,6 +1887,26 @@ async function scheduleReminder(
   );
 
   return JSON.stringify(result);
+}
+
+// ─── APPEL DZARYX (dans l'app, sans numéro) ───────────────────────────────
+// Tout de suite → l'app sonne. Plus tard → rappel marqué [APPEL] : le reminder-worker
+// fait sonner l'app au lieu d'envoyer une notif texte.
+async function callMeTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
+  const reason = String(input['reason'] ?? '').trim();
+  if (!reason) return '❌ reason requis : ce que Dzaryx dira en décrochant.';
+  const later = input['delay_minutes'] != null || !!input['at_time'] || !!input['at_date'];
+  if (!later) {
+    const actor = sessionId && /^(voice|mobile)_houari($|_)/i.test(sessionId) ? 'houari' : 'kouider';
+    const { id } = await callOwner(reason, actor);
+    return `✅ L'app sonne maintenant (appel ${id.slice(0, 8)}). Si personne ne décroche, l'appel s'arrête après 3 minutes.`;
+  }
+  const raw = await scheduleReminder({ ...input, message: `${CALL_REMINDER_MARK}${reason}` }, sessionId);
+  try {
+    const r = JSON.parse(raw) as { status?: string; local_time?: string; timezone_used?: string };
+    if (r.status === 'created') return `✅ Appel programmé : l'app sonnera à ${r.local_time} (${r.timezone_used}). ${raw}`;
+  } catch { /* renvoie le résultat brut */ }
+  return `❌ Appel NON programmé. ${raw}`;
 }
 
 // ─── PHASE 15 — Recherche d'images (Pexels) ──────────────────────────────

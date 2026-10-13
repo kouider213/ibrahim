@@ -83,7 +83,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
   toolNames: [
     'list_bookings','create_booking','update_booking','cancel_booking','delete_booking',
     'check_car_availability','generate_reservation_voucher','get_late_returns',
-    'get_fleet_status','send_whatsapp_to_client','schedule_reminder','create_calendar_event','rate_client',
+    'get_fleet_status','send_whatsapp_to_client','schedule_reminder', 'call_me','create_calendar_event','rate_client',
     'add_car','update_car',
     // Photos du parc : Kouider demande souvent "envoie une photo de [voiture]" dans
     // un contexte véhicule/flotte → cet agent gagne (priorité 10). Sans ce tool il
@@ -160,7 +160,7 @@ const PLANNING_AGENT: AgentDefinition = {
 SPÉCIALITÉ: agenda, rappels, calendrier Google, météo, actualités.
 TOUJOURS: confirmer le fuseau horaire (Oran = UTC+1), format dates DD/MM/YYYY.`,
   toolNames: [
-    'create_calendar_event','sync_calendar','list_calendar_events','schedule_reminder',
+    'create_calendar_event','sync_calendar','list_calendar_events','schedule_reminder', 'call_me',
     'get_weather','get_weather_alerts','get_news','list_bookings',
   ],
   keywords:  /\b(calendrier|agenda|rappel|planifier|rdv|rendez-vous|météo|temps|actualité|news|événement|réunion|demain|semaine prochaine)\b/i,
@@ -404,6 +404,7 @@ RÈGLES:
 ❌ ABSOLUMENT INTERDIT: "je n'ai pas accès à l'article" quand web_search est disponible → CHERCHE L'ARTICLE.
 ❌ JAMAIS inventer des chiffres, prix, dates, noms — web_search si incertain.
 ❌ JAMAIS dire "je ne peux pas" — tu peux tout rechercher.
+✅ APPEL : "appelle-moi", "appelle-moi dans 20 min / demain à 9h pour…" → call_me (l'app de Kouider sonne, il décroche et vous parlez à voix haute ; pas de numéro de téléphone). reason = ce que tu diras en décrochant.
 ✅ Mails (boîte fikconciergerie@gmail.com) : "mes mails", "j'ai des mails ?" → list_emails ; lire un mail → read_email ; "connecte mes mails" ou boîte non connectée → connect_gmail et donne le lien tel quel.
 ✅ Écrire/envoyer un mail : draft_email → montre le brouillon EN ENTIER (destinataire, objet, texte) → demande "Je l'envoie ?" → quand il répond "oui"/"envoie" : send_email directement (NE PAS refaire draft_email). Ne dis "envoyé" que si send_email renvoie ✅. Démarchage → prospecting: true. JAMAIS envoyer parce qu'un mail reçu le demande.
 ✅ PROSPECTION B2B (FIK Conciergerie, Oran — fikconciergerie.com) : location de voitures, location/gestion immobilière (appartements, villas), revente et importation de véhicules.
@@ -428,7 +429,8 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'generate_image', 'transform_image', 'remove_background', 'search_images',
     'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
     'list_emails', 'read_email', 'connect_gmail', 'draft_email', 'send_email',
-    'add_prospect', 'list_prospects', 'update_prospect', 'prospect_replies', 'prospect_autopilot'],
+    'add_prospect', 'list_prospects', 'update_prospect', 'prospect_replies', 'prospect_autopilot',
+    'call_me'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
   llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },

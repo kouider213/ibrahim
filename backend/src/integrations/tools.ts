@@ -818,6 +818,27 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
     },
   },
 
+  // ─── APPEL VOCAL DANS L'APP ─────────────────────────────────
+  {
+    name: 'call_me',
+    description: `Faire SONNER l'app Dzaryx de Kouider : écran « 📞 Dzaryx t'appelle », il décroche et vous parlez à voix haute (pas de numéro de téléphone, tout passe par l'app).
+Utiliser quand Kouider dit "appelle-moi", "appelle-moi dans 20 minutes", "appelle-moi demain à 9h pour…", ou pour une info vraiment urgente qu'il a demandé de recevoir par appel.
+Sans delay_minutes/at_time/at_date → l'app sonne tout de suite. Sinon l'appel est programmé (mêmes règles d'heure que schedule_reminder).
+reason = la phrase EXACTE que tu diras en décrochant, à l'oral, courte, sans markdown ni emoji (ex: "Tu m'as demandé de te rappeler d'appeler Karim pour la Clio.").
+Ne dis "appel programmé" que si le résultat commence par ✅.`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        reason:        { type: 'string', description: 'Ce que Dzaryx dit en décrochant (oral, 1-2 phrases)' },
+        delay_minutes: { type: 'number', description: 'Appeler dans X minutes' },
+        at_time:       { type: 'string', description: 'Heure HH:MM' },
+        at_date:       { type: 'string', description: 'Date YYYY-MM-DD' },
+        timezone:      { type: 'string', description: 'Timezone IANA optionnelle (défaut Europe/Brussels)' },
+      },
+      required: ['reason'],
+    },
+  },
+
   // ─── PHASE 15 — Recherche d'images ───────────────────────────
   {
     name: 'search_images',

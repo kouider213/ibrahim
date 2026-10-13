@@ -1,5 +1,6 @@
 import { durableKv as redis } from '../integrations/app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { callOwner, CALL_REMINDER_MARK } from '../notifications/voice-call.js';
 import {
   getPendingDue,
   getRetryEligible,
@@ -18,6 +19,12 @@ let _started = false;
 // ── Send a single reminder to the configured channel ─────────────────────────
 async function deliver(row: ReminderRow): Promise<string> {
   const providers: string[] = [];
+
+  // Rappel « appelle-moi » → l'app sonne (écran d'appel) au lieu d'une notif texte
+  if (row.message.startsWith(CALL_REMINDER_MARK)) {
+    await callOwner(row.message.slice(CALL_REMINDER_MARK.length));
+    return 'call';
+  }
 
   // App only (Socket.IO + Expo Push)
   emitProactive(row.message, 'reminder', `⏰ Rappel\n\n${row.message}`);

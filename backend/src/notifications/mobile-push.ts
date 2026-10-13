@@ -89,6 +89,7 @@ async function sendTargetedWebPush(
   title: string, body: string,
   data?: Record<string, string>,
   target: ProactiveActor = 'all',
+  options?: Parameters<typeof sendWebPush>[4],
 ): Promise<void> {
   const actors = target === 'all' ? ['kouider', 'houari'] : [target];
   const subs = target === 'all'
@@ -97,9 +98,24 @@ async function sendTargetedWebPush(
 
   await Promise.all(
     (subs as NonNullable<Awaited<ReturnType<typeof getWebSub>>>[]).map(sub =>
-      sendWebPush(sub, title, body, data),
+      sendWebPush(sub, title, body, data, options),
     ),
   );
+}
+
+/**
+ * Push direct (sans historique ni préférences par type) + événement Socket.IO dans la room de l'acteur.
+ * Sert aux appels de Dzaryx : la notif doit sonner tout de suite et expirer vite (TTL court).
+ */
+export async function pushToActor(
+  title: string, body: string, data: Record<string, string>,
+  target: ProactiveActor, socketEvent?: { name: string; payload: unknown }, ttlSeconds = 120,
+): Promise<void> {
+  if (_io && socketEvent) _io.to(target === 'all' ? 'actor:all' : `actor:${target}`).emit(socketEvent.name, socketEvent.payload);
+  await Promise.allSettled([
+    sendExpoPush(title, body, data, target),
+    sendTargetedWebPush(title, body, data, target, { TTL: ttlSeconds, urgency: 'high' }),
+  ]);
 }
 
 type HistoryItem = { text: string; type: ProactiveType; timestamp: string; targetActor?: string; deepLink?: string };

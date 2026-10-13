@@ -54,11 +54,12 @@ export async function sendWebPush(
   title: string,
   body: string,
   data?: Record<string, string>,
+  options?: webpush.RequestOptions,
 ): Promise<void> {
   configure();
   if (!_configured) return;
   try {
-    await webpush.sendNotification(sub, JSON.stringify({ title, body, data }));
+    await webpush.sendNotification(sub, JSON.stringify({ title, body, data }), options);
   } catch (err: unknown) {
     // 410 Gone = subscription expired/unregistered → clean up
     const status = (err as { statusCode?: number }).statusCode;
