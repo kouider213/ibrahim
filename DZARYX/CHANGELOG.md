@@ -6,6 +6,14 @@
 ---
 
 
+## 2026-10-13 — Mémoire des appels + actions avec accord oral (3e12b43)
+
+### backend/ + tgcall/
+- `notifications/call-memory.ts` + `POST /api/call/summary` : fin d'appel → résumé + « à faire » (Claude), gardés 30 j
+  (app_kv `callmem:<actor>`, 10 derniers) + memory_facts. Injectés dans la voix temps réel et le contexte du chat.
+- `tgcall` : transcription de l'appel gardée, résumé envoyé à Kouider en message Telegram après l'appel.
+- Voix temps réel : toute action en 2 temps (relecture + « je le fais ? », puis `ask_dzaryx` « CONFIRMÉ AU TÉLÉPHONE : … »).
+
 ## 2026-10-13 — Appels Telegram en voix temps réel (OpenAI Realtime)
 
 ### backend/ + tgcall/
