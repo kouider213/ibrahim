@@ -1603,7 +1603,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'send_nexus_command',
-    description: 'Envoyer une commande directe au PC de Kouider via NEXUS. NEXUS peut: ouvrir des apps (Spotify, Chrome, VS Code, CapCut...), prendre un screenshot, lister/organiser fichiers, contrôler souris/clavier, lancer une musique, ouvrir un dossier, minuteurs/notes/courses/to-do/volume/luminosité/éteindre le PC (« éteins le PC », annulable), PILOTER LE NAVIGATEUR du PC (« va sur le site X et remplis le formulaire / cherche / télécharge … » : Nexus te répond s'il a besoin d'un accord, Kouider dit « oui continue »). IMPORTANT: appeler ping_nexus d\'abord pour vérifier que NEXUS est en ligne. NE PAS envoyer de commandes de suppression de fichiers sans confirmation explicite. ⛔ JAMAIS utiliser pour Obsidian — utiliser obsidian_* outils à la place.',
+    description: 'Envoyer une commande directe au PC de Kouider via NEXUS. NEXUS peut: ouvrir des apps (Spotify, Chrome, VS Code, CapCut...), prendre un screenshot, lister/organiser fichiers, contrôler souris/clavier, lancer une musique, ouvrir un dossier, minuteurs/notes/courses/to-do/volume/luminosité/éteindre le PC (« éteins le PC », annulable), PILOTER LE NAVIGATEUR du PC (« va sur le site X et remplis le formulaire / cherche / télécharge … » : Nexus te répond s\'il a besoin d\'un accord, Kouider dit « oui continue »). IMPORTANT: appeler ping_nexus d\'abord pour vérifier que NEXUS est en ligne. NE PAS envoyer de commandes de suppression de fichiers sans confirmation explicite. ⛔ JAMAIS utiliser pour Obsidian — utiliser obsidian_* outils à la place.',
     input_schema: {
       type: 'object' as const,
       properties: {
