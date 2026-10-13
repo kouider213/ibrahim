@@ -11,6 +11,7 @@ import { redis } from '../queue/queue.js';
 import { supabase } from '../integrations/supabase.js';
 import { sendWhatsApp, type Lang } from '../integrations/whatsapp.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { autoCall } from '../notifications/auto-call.js';
 import { chat } from '../integrations/claude-api.js';
 import { createCalendarEvent } from '../integrations/google-calendar.js';
 
@@ -233,6 +234,7 @@ export async function handleBookingFlow(
     ].filter(Boolean).join('\n');
 
     emitProactive(`🚗 Nouvelle demande WhatsApp — ${merged.client_name}`, 'alert', summary, 'kouider');
+    void autoCall(`wa-request:${phone}:${merged.start_date ?? ''}`, `Nouvelle demande de réservation sur WhatsApp de ${merged.client_name}. Elle t'attend dans Demandes pour valider ou refuser.`);
 
     return { handled: true, reply: ackPendingApproval(lang) };
   }
@@ -245,6 +247,7 @@ export async function handleBookingFlow(
       // Kouider must manually confirm payment in app
       const summary = `📨 Client ${phone} dit avoir payé l'acompte.\nDemande: ${sess.requestId}\nVérifier et confirmer dans DEMANDES.`;
       emitProactive('Acompte client — vérification requise', 'alert', summary, 'kouider');
+      void autoCall(`wa-deposit:${sess.requestId}`, `Un client WhatsApp dit avoir payé son acompte. Vérifie le paiement et confirme dans Demandes.`);
       const ack = lang === 'fr'
         ? 'Merci ! Votre notification de paiement a été transmise à notre équipe. Nous vérifions et revenons vers vous sous peu. 🙏'
         : lang === 'ar'

@@ -8,6 +8,7 @@ import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, 
 import { addProspect, getAutopilot, updateProspect, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
 import { findFreeSlots } from './google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { autoCall } from '../notifications/auto-call.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 
 // Démarchage automatique FIK Conciergerie : chaque jour Dzaryx trouve de nouvelles sociétés (web, LinkedIn,
@@ -525,6 +526,7 @@ export async function checkProspectVisits(): Promise<number> {
       `${total > 1 ? ` C'est sa ${total}e visite.` : ''}\nC'est le bon moment pour les contacter${p.phone ? ` : ${p.phone}` : ''}` +
       `${p.linkedin_contacts?.length ? ` ou sur LinkedIn (${p.linkedin_contacts[0]!.name})` : ''}.`,
       'kouider', 'demarchage');
+    void autoCall(`prospect-visit:${p.company}`, `${p.company} vient d'ouvrir ton mail et de visiter ton site. C'est le bon moment pour les appeler.`);
     n++;
   }
   return n;
@@ -606,6 +608,7 @@ export async function checkProspectReplies(): Promise<number> {
         (devis.length ? `🧾 Devis préparé (${devis.length} ligne(s), montants à mettre) : bouton « Préparer le devis » dans la page Démarchage.\n` : '') +
         `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.`;
     emitProactive(`${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ' (intéressé !)' : ''}.`, 'alert', chat, 'kouider', 'demarchage');
+    if (a.interet === 'interesse') void autoCall(`prospect-reply:${p.company}`, `${p.company} a répondu à ton mail de démarchage, et ils sont intéressés. Regarde leur réponse dans Démarchage.`);
   }
   return handled;
 }

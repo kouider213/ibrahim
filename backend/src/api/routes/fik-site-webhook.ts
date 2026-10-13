@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { env } from '../../config/env.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
+import { autoCall } from '../../notifications/auto-call.js';
 
 const router = Router();
 
@@ -34,6 +35,8 @@ router.post('/notify', async (req, res) => {
       ].filter(Boolean).join('\n');
 
       emitProactive(msg, 'alert', msg, 'kouider');
+      void autoCall(`site-booking:${data['client_name']}:${data['start_date']}:${data['car_name']}`,
+        `Nouvelle réservation sur le site : ${data['client_name']}, ${data['car_name']}, du ${data['start_date']} au ${data['end_date']}, ${data['total']} euros. Tu l'acceptes ?`);
     } else if (type === 'new_review') {
       const msg = [
         `⭐ Nouvel avis (${data['rating']}/5) — *${data['client_name']}*`,

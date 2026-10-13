@@ -4,6 +4,7 @@ import { insertReminder } from '../../db/reminders.js';
 import { buildYesterdayRecap } from '../../integrations/prospect-autopilot.js';
 import { weatherAlerts } from '../../integrations/jarvis-tools.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
+import { autoCall } from '../../notifications/auto-call.js';
 
 // Strip Telegram markdown for chat display (*bold*, _italic_)
 function stripTgMd(s: string): string {
@@ -223,6 +224,8 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
   if (weather) ttsLines.push(`Météo Oran : ${weather.temperature} degrés, ${weather.condition}.`);
   if (recap?.short) ttsLines.push(recap.short);
   emitProactive(ttsLines.join(' '), 'morning', stripTgMd(fullMsg), 'kouider', 'bookings');
+  // Appel du matin : le même résumé, à l'oral (le « Bonjour Kouider » est déjà dit au décroché)
+  await autoCall(`morning:${today}`, `Voici ton point du matin. ${ttsLines.slice(1).join(' ') || 'Rien de spécial aujourd\'hui.'}`);
 
   console.log('[job:morning-briefing] Sent');
 }
@@ -606,6 +609,7 @@ export async function jobUnpaidReminder(_job: Job): Promise<void> {
           `2 rappels envoyés — aucun règlement. Contacte ce client directement.`,
         ].join('\n');
         emitProactive(`🔴 URGENT — ${clientName} — ${remaining}€ non encaissé après ${daysWithCar}j`, 'alert', urgentMsg, 'kouider', 'bookings');
+        await autoCall(`unpaid-urgent:${clientName}:${carName}`, `${clientName} n'a toujours pas payé le solde de ${remaining} euros pour la ${carName}, après deux rappels. Il faut le contacter directement.`);
         emitProactive(
           `🔴 URGENT — ${clientName} — ${remaining}€ non encaissé (${daysWithCar}j) — ${carName}`,
           'alert',
@@ -739,6 +743,7 @@ export async function jobLateReturnAlert(_job: Job): Promise<void> {
       `Devait rendre le ${b.end_date} — Contacte ce client immédiatement.`,
     ].join('\n');
     emitProactive(`🚨 Retard ${daysLate}j — ${b.client_name} (${carName}) — Contact urgent !`, 'alert', lateMsg, 'kouider', 'fleet');
+    await autoCall(`late-return:${b.id as string}`, `${b.client_name} n'a pas rendu la ${carName}. Il devait la rendre le ${b.end_date}, ça fait ${daysLate} jour${daysLate > 1 ? 's' : ''} de retard. Il faut l'appeler.`);
   }
 
   const overdueList = (overdue as any[]).map((b: any) => {

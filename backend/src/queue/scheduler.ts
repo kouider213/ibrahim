@@ -39,6 +39,7 @@ import {
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { flushAutoCalls } from '../notifications/auto-call.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -229,6 +230,11 @@ const JOBS = [
     cron:  '30 9 1 * *',            // 9h30 le 1er du mois — export Excel comptable auto
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'auto-call-flush',
+    cron:  '*/15 * * * *',          // toutes les 15 min — appels auto mis en file (nuit, appels rapprochés)
+    tz:    'Africa/Algiers',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -266,6 +272,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'maintenance-alert':       jobMaintenanceAlert,
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
+  'auto-call-flush':         async () => { await flushAutoCalls(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
   'prospect-replies':        async () => {
     await checkProspectReplies();
