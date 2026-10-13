@@ -316,3 +316,12 @@ export async function getThreadLastMessageId(account: GmailAccount, threadId: st
     gmailAddress(account), `/threads/${encodeURIComponent(threadId)}`, { format: 'metadata', metadataHeaders: ['Message-ID'] });
   return header(t.messages?.at(-1)?.payload?.headers, 'Message-ID');
 }
+
+/** Vrai si la conversation contient un mail ENVOYÉ par la boîte avant ce message → c'est une réponse à un de nos mails. */
+export async function isReplyToUs(account: GmailAccount, threadId: string, messageId: string): Promise<boolean> {
+  const t = await gmailGet<{ messages?: Array<{ id: string; labelIds?: string[] }> }>(
+    gmailAddress(account), `/threads/${encodeURIComponent(threadId)}`, { format: 'minimal' });
+  const msgs = t.messages ?? [];
+  const idx = msgs.findIndex(m => m.id === messageId);
+  return msgs.slice(0, idx < 0 ? msgs.length : idx).some(m => m.labelIds?.includes('SENT'));
+}

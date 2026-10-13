@@ -8,6 +8,7 @@ import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, 
 import { addProspect, getAutopilot, updateProspect, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
 import { findFreeSlots } from './google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { autoCall } from '../notifications/auto-call.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 
 // Démarchage automatique FIK Conciergerie : chaque jour Dzaryx trouve de nouvelles sociétés (web, LinkedIn,
@@ -606,6 +607,7 @@ export async function checkProspectReplies(): Promise<number> {
         (devis.length ? `🧾 Devis préparé (${devis.length} ligne(s), montants à mettre) : bouton « Préparer le devis » dans la page Démarchage.\n` : '') +
         `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.`;
     emitProactive(`${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ' (intéressé !)' : ''}.`, 'alert', chat, 'kouider', 'demarchage');
+    void autoCall(`mail-reply:${latest.id}`, `${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ', et ils sont intéressés' : a.interet === 'refus' ? ', mais ils ne sont pas intéressés' : ''}. ${a.resume}`);
   }
   return handled;
 }

@@ -40,6 +40,7 @@ import { runProactiveEngine } from '../conversation/proactive-engine.js';
 import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
+import { jobDailyRecapCall, jobMailReplyCall } from './jobs/call-jobs.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -235,6 +236,16 @@ const JOBS = [
     cron:  '*/15 * * * *',          // toutes les 15 min — appels auto mis en file (nuit, appels rapprochés)
     tz:    'Africa/Algiers',
   },
+  {
+    name:  'daily-recap-call',
+    cron:  '0 10 * * *',            // 10h (Bruxelles) chaque jour — Dzaryx appelle Kouider pour le récap
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'mail-reply-call',
+    cron:  '*/15 * * * *',          // toutes les 15 min — quelqu'un a répondu à un mail de Kouider → appel (la nuit : mis en file pour 8h)
+    tz:    'Europe/Brussels',
+  },
 ] as const;
 
 const handlers: Record<string, (job: Job) => Promise<void>> = {
@@ -273,6 +284,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
   'auto-call-flush':         async () => { await flushAutoCalls(); },
+  'daily-recap-call':        async () => { await jobDailyRecapCall(); },
+  'mail-reply-call':         async () => { await jobMailReplyCall(); },
   'prospect-outreach':       async () => { console.log(`[prospect-auto] ${await runDailyOutreach()}`); },
   'prospect-replies':        async () => {
     await checkProspectReplies();

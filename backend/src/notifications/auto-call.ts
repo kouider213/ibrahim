@@ -2,21 +2,22 @@ import { kvGet, kvSet } from '../integrations/app-store.js';
 import { callOwner, getPendingCall } from './voice-call.js';
 
 // Appels AUTOMATIQUES de Dzaryx à Kouider (sans qu'il demande) — UNIQUEMENT les moments importants
-// (choix de Kouider) : nouvelle réservation (site / WhatsApp), client qui dit avoir payé l'acompte,
-// retard de retour, impayé urgent. Pas de point du matin ni de prospects : ça reste en notif.
+// (choix de Kouider) : récap quotidien de 10h, quelqu'un répond à un de ses mails, nouvelle réservation
+// (site / WhatsApp), client qui dit avoir payé l'acompte, retard de retour, impayé urgent.
+// Pas de visites de site par les prospects : ça reste en notif.
 // La notif texte part toujours en plus (emitProactive) — l'appel s'ajoute, il ne remplace rien.
 //
 // Garde-fous :
 // - Jamais la nuit : seulement 8h–22h heure de Bruxelles. La nuit → mis en file, appel groupé à 8h.
 // - Pas plus d'un appel auto toutes les 10 min : sinon mis en file, appel groupé ensuite.
-// - Max 5 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
+// - Max 8 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
 // - Interrupteur : app_kv `autocall:off` = '1' → plus aucun appel auto (les notifs restent).
 
 const TZ          = 'Europe/Brussels';
 const START_HOUR  = 8;
 const END_HOUR    = 22;
 const MIN_GAP_MS  = 10 * 60_000;
-const MAX_PER_DAY = 5;
+const MAX_PER_DAY = 8;
 
 const QUEUE_KEY = 'autocall:queue';
 const LAST_KEY  = 'autocall:last';
@@ -59,6 +60,7 @@ async function ring(reason: string): Promise<void> {
  * @param spoken phrase dite au décroché, à l'oral, courte, sans emoji ni markdown
  */
 export async function autoCall(key: string, spoken: string): Promise<void> {
+  if (process.env['AUTOCALL_DRY_RUN'] === '1') { console.log(`[auto-call] DRY ${key} → ${spoken}`); return; }
   try {
     const dedupe = `autocall:done:${key}`;
     if (await kvGet(dedupe)) return;
