@@ -6,6 +6,10 @@
 ---
 
 
+## 2026-10-13 — Démarchage : alerte réserve de prospects vide
+- `584d598` : si la recherche du jour ne trouve pas assez de sociétés avec email → alerte « plus assez de sociétés à contacter » (1er, 3e, 7e jour puis hebdo, compteur `app_kv prospect:dry_days`), avec pistes (nouveau secteur, noms donnés par Kouider). Récap du jour : ligne « 📦 Réserve : plus que N » sous 2 jours de stock. Avant : arrêt silencieux.
+- Vérifié : relances J+5 (`runFollowUps`) et bilan du lundi 9h (`prospect-weekly`) existaient déjà — 1res relances le 17/10.
+
 ## 2026-10-13 — Appel manqué → 2e essai auto + ménage roadmap
 - `1265bb5` : appel Telegram manqué → message écrit + **2e essai 10 min plus tard** (une seule fois, annulé si Kouider a rappelé entre-temps). Route `POST /api/call/retry`, `RETRY_S` dans tgcall.
 - `ea2c901` : roadmap — projets payants retirés (WhatsApp Twilio, GPS trackers, App Store, TikTok, IoT, PC auto-unlock/Spotify) ; signature électronique marquée ✅ (déjà en place : `create_signature_link` + `/sign/<token>`). tgcall ignore ses propres messages.
