@@ -52,16 +52,19 @@ router.post('/test', requireMobileAuth, async (req, res) => {
 // POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
 // réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
 router.post('/turn', requireMobileAuth, async (req, res) => {
-  const { message, textOnly, stream } = req.body as { message?: string; textOnly?: boolean; stream?: boolean };
-  if (!message?.trim()) { res.status(400).json({ error: 'message required' }); return; }
+  const { message, textOnly, stream, image, imageMime, channel } = req.body as {
+    message?: string; textOnly?: boolean; stream?: boolean; image?: string; imageMime?: string; channel?: 'call' | 'message' };
+  if (!message?.trim() && !image) { res.status(400).json({ error: 'message required' }); return; }
   const who = callActor(req);
   const actor: OrgMember = who === 'houari'
     ? { orgId: '', ownerKey: 'houari', role: 'admin', displayName: env.PARTNER_NAME }
     : DEFAULT_MEMBER;
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
-    const inCall = `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter.]\n${message.trim().slice(0, 2000)}`;
-    const out = await processMessage(inCall, `voice_${who}`, true, undefined, 'image/jpeg', actor);
+    const said = (message?.trim() || 'Voici une photo.').slice(0, 2000);
+    // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
+    const inCall = channel === 'message' ? said : `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter.]\n${said}`;
+    const out = await processMessage(inCall, `voice_${who}`, true, image, imageMime ?? 'image/jpeg', actor);
     const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
     if (stream && !textOnly) { await streamTurn(res, text); return; }
     const buf =textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900), true);
@@ -108,6 +111,20 @@ const quickToolDefs = Dzaryx_TOOLS
   .filter(t => (QUICK_TOOLS as readonly string[]).includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: `Lecture rapide. ${t.description ?? ''}`.slice(0, 1000), parameters: t.input_schema }));
 
+// Outils propres à l'appel : exécutés par tgcall (send_text_to_me, end_call) ou programmés (call_me).
+const CALL_TOOLS = [
+  { type: 'function', name: 'send_text_to_me',
+    description: 'Envoie TOUT DE SUITE un message écrit Telegram à Kouider (numéro, adresse, nom, brouillon de mail, liste…) quand il dit « envoie-moi ça », « écris-le moi », ou quand une info est difficile à retenir à l\'oral. Pas besoin de confirmation : c\'est pour lui.',
+    parameters: { type: 'object', properties: { text: { type: 'string', description: 'Le texte exact à lui envoyer, complet et propre' } }, required: ['text'] } },
+  { type: 'function', name: 'call_me',
+    description: 'Programmer un RAPPEL PAR APPEL plus tard (« rappelle-moi dans 1 heure / à 16h / demain à 9h »). Donne delay_minutes OU at_time (HH:MM, heure de Bruxelles) et éventuellement at_date (YYYY-MM-DD). reason = la phrase que tu diras en le rappelant, avec le sujet.',
+    parameters: { type: 'object', properties: {
+      reason: { type: 'string' }, delay_minutes: { type: 'number' }, at_time: { type: 'string' }, at_date: { type: 'string' } }, required: ['reason'] } },
+  { type: 'function', name: 'end_call',
+    description: 'Raccrocher. Seulement APRÈS avoir dit au revoir, quand Kouider a fini ou demande à raccrocher (« c\'est bon », « rappelle-moi plus tard », « salut »).',
+    parameters: { type: 'object', properties: {} } },
+];
+
 function realtimeInstructions(who: CallActor, calls: string): string {
   const name = who === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
   const now = new Date();
@@ -125,6 +142,9 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `ACTIONS (envoyer un mail/message/WhatsApp, créer/modifier/annuler une réservation, enregistrer un paiement, programmer un rappel, appeler ou relancer quelqu'un…) : TOUJOURS en deux temps.`,
     `1) Prépare : si un texte est à envoyer, demande à ask_dzaryx de le rédiger SANS l'envoyer. Puis relis-lui à l'oral précisément ce que tu vas faire (à qui, quoi, quand) et demande « Je le fais ? ».`,
     `2) Seulement après un oui clair de sa part (« oui », « vas-y », « envoie »), appelle ask_dzaryx avec une demande qui commence par « CONFIRMÉ AU TÉLÉPHONE : » suivie de l'action complète (destinataire, texte exact, date…). S'il hésite ou change quelque chose, corrige et relis à nouveau. Puis dis-lui que c'est fait seulement si l'outil le confirme.`,
+    `ÉCRIT : un numéro, une adresse, un mail ou tout ce qui est dur à retenir à l'oral → propose « je te l'envoie par écrit ? » ou fais-le s'il le demande : outil send_text_to_me (pas besoin de confirmation).`,
+    `RAPPEL : « rappelle-moi dans une heure / à 16h » (ou s'il est occupé) → redis l'heure, outil call_me avec delay_minutes ou at_time et une reason qui rappelle le sujet ; après le ✅, dis au revoir puis end_call.`,
+    `RACCROCHER : quand la discussion est finie, dis au revoir en une phrase, puis appelle end_call.`,
     `Un rappel qu'il demande pour lui-même (« rappelle-moi demain à 9h ») : redis l'heure et le sujet, puis fais-le après son oui.`,
     ...(calls ? [calls, `Si c'est utile, tu peux rappeler ce qui reste à faire de ces appels.`] : []),
   ].join('\n');
@@ -157,7 +177,7 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
             name: 'ask_dzaryx',
             description: 'Le cerveau de Dzaryx (accès réel aux réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
             parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
-          }, ...quickToolDefs],
+          }, ...quickToolDefs, ...CALL_TOOLS],
           tool_choice: 'auto',
         },
       }),
@@ -178,7 +198,9 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
 // POST /api/call/tool { name, input } — lecture rapide pendant un appel (liste blanche, lecture seule)
 router.post('/tool', requireMobileAuth, async (req, res) => {
   const { name, input } = req.body as { name?: string; input?: Record<string, unknown> };
-  if (!name || !(QUICK_TOOLS as readonly string[]).includes(name)) { res.status(400).json({ error: 'tool not allowed' }); return; }
+  // call_me : seulement un rappel PROGRAMMÉ (« rappelle-moi dans 1 heure »), jamais tout de suite pendant l'appel
+  const later = name === 'call_me' && !!(input?.['delay_minutes'] || input?.['at_time'] || input?.['at_date']);
+  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later)) { res.status(400).json({ error: 'tool not allowed' }); return; }
   try {
     const out = await executeTool(name, input ?? {}, `voice_${callActor(req)}`);
     res.json({ text: out.slice(0, 6000) });

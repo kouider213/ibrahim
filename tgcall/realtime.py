@@ -27,11 +27,16 @@ SILENCE = b'\x00' * FRAME_10MS
 SEND_EVERY_S = 0.1                 # voix de Kouider envoyée à OpenAI par paquets de 100 ms
 
 ApiFn = Callable[[str, dict, str, float], Awaitable[dict]]
+# Outils exécutés ici (pas au backend) : nom → fonction(args) → (résultat, relancer la parole ?)
+LocalTool = Callable[[dict], Awaitable[tuple[str, bool]]]
 
 
 class RealtimeCall:
-    def __init__(self, calls: PyTgCalls, http: aiohttp.ClientSession, api: ApiFn, user_id: int, actor: str):
+    def __init__(self, calls: PyTgCalls, http: aiohttp.ClientSession, api: ApiFn, user_id: int, actor: str,
+                 local_tools: dict[str, LocalTool] | None = None):
         self.calls, self.http, self.api = calls, http, api
+        self.local_tools = local_tools or {}
+        self.responding = False           # OpenAI est en train de produire une réponse
         self.user_id, self.actor = user_id, actor
         self.ws: aiohttp.ClientWebSocketResponse | None = None
         self.out = bytearray()            # voix de Dzaryx à jouer (48 kHz)
@@ -122,6 +127,10 @@ class RealtimeCall:
             t = ev.get('type', '')
             if t in ('response.output_audio.delta', 'response.audio.delta'):
                 self._play(base64.b64decode(ev['delta']))
+            elif t == 'response.created':
+                self.responding = True
+            elif t == 'response.done':
+                self.responding = False
             elif t == 'input_audio_buffer.speech_started':
                 if self.out:
                     self.out.clear()          # Kouider parle par-dessus → Dzaryx se tait tout de suite
@@ -150,7 +159,13 @@ class RealtimeCall:
         except json.JSONDecodeError:
             args = {}
         t0 = time.monotonic()
-        if name == 'ask_dzaryx':
+        follow_up = True
+        if name in self.local_tools:
+            try:
+                result, follow_up = await self.local_tools[name](args)
+            except Exception as e:
+                result = f'Échec : {e}'
+        elif name == 'ask_dzaryx':
             try:
                 out = await self.api('/api/call/turn', {'message': args.get('request', ''), 'textOnly': True}, self.actor, 60)
                 result = out.get('text') or 'Pas de réponse.'
@@ -165,7 +180,16 @@ class RealtimeCall:
         log.info('%s (%.1fs) %r → %r', name, time.monotonic() - t0, (args.get('request') or json.dumps(args, ensure_ascii=False))[:80], result[:120])
         await self._send({'type': 'conversation.item.create', 'item': {
             'type': 'function_call_output', 'call_id': call_id, 'output': result}})
-        await self._send({'type': 'response.create'})
+        if follow_up:
+            await self._send({'type': 'response.create'})
+
+    async def wait_silent(self, max_s: float = 15) -> None:
+        """Attend que Dzaryx ait fini de parler (réponse terminée + voix jouée)."""
+        end = time.monotonic() + max_s
+        await asyncio.sleep(0.3)
+        while (self.responding or self.out) and time.monotonic() < end:
+            await asyncio.sleep(0.1)
+        await asyncio.sleep(0.4)
 
 
 async def speak(http: aiohttp.ClientSession, api: ApiFn, text: str, actor: str, voice: str | None = None) -> bytes:

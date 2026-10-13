@@ -88,6 +88,7 @@ class CallState:
         self.turn_pcm = b''           # voix du tour en cours (si Kouider continue sa phrase → on fusionne)
         self.answered = False         # Dzaryx a commencé à répondre (au-delà du « Mmh »)
         self.rt: RealtimeCall | None = None   # voix temps réel (sinon ancienne chaîne)
+        self.outgoing = False         # c'est Dzaryx qui appelle (motif en attente)
         self.buf = bytearray()
         self.voiced_s = 0.0
         self.silence_s = 0.0
@@ -392,6 +393,7 @@ async def start_call(actor: str, user_id: int) -> None:
     active[user_id] = CallState(actor)
     if REALTIME and await start_realtime(actor, user_id):
         return
+    ans: dict | None = None
     try:
         # answer = phrase d'accueil (motif de l'appel en attente, sinon "je t'écoute") + retire l'attente
         ans = await api('/api/call/answer', {}, actor)
@@ -400,17 +402,60 @@ async def start_call(actor: str, user_id: int) -> None:
     except Exception as e:
         log.error('appel %s impossible: %s', actor, e)
         active.pop(user_id, None)
+        if ans and ans.get('incoming'):
+            await missed_call(user_id, ans.get('text') or '', e)
         try:
             await calls.leave_call(user_id)
         except Exception:
             pass
 
 
+async def missed_call(user_id: int, reason: str, err: Exception) -> None:
+    """Kouider n'a pas décroché : il reçoit par écrit ce que Dzaryx voulait lui dire."""
+    try:
+        why = 'occupé' if 'Busy' in type(err).__name__ else 'pas de réponse'
+        await app.send_message(user_id, f'📞 Appel manqué ({why}). Je voulais te dire :\n{reason}\n\nRappelle-moi quand tu veux.')
+        log.info('appel manqué → message envoyé')
+    except Exception as e:
+        log.error('message appel manqué: %s', e)
+
+
+def call_tools(user_id: int) -> dict:
+    """Outils de la voix temps réel exécutés ici : message écrit et raccrocher."""
+    async def send_text_to_me(args: dict) -> tuple[str, bool]:
+        text = (args.get('text') or '').strip()
+        if not text:
+            return 'Texte vide, rien envoyé.', True
+        await app.send_message(user_id, text)
+        return '✅ Envoyé sur Telegram.', True
+
+    async def end_call(_: dict) -> tuple[str, bool]:
+        asyncio.create_task(hang_up(user_id))
+        return 'Raccroché.', False
+
+    return {'send_text_to_me': send_text_to_me, 'end_call': end_call}
+
+
+async def hang_up(user_id: int) -> None:
+    st = active.get(user_id)
+    if st and st.rt:
+        await st.rt.wait_silent()          # finir son « au revoir »
+    st = active.pop(user_id, None)
+    try:
+        await calls.leave_call(user_id)
+    except Exception as e:
+        log.warning('raccrocher: %s', e)
+    if st and st.rt:
+        await st.rt.close()
+        asyncio.create_task(remember_call(user_id, st.actor, st.rt))
+    log.info('Dzaryx a raccroché')
+
+
 async def start_realtime(actor: str, user_id: int) -> bool:
     """Appel en voix temps réel. False → on bascule sur l'ancienne chaîne."""
     st = active[user_id]
     assert http is not None
-    rt = RealtimeCall(calls, http, api, user_id, actor)
+    rt = RealtimeCall(calls, http, api, user_id, actor, call_tools(user_id))
     try:
         # connexion OpenAI pendant que le téléphone sonne
         ans, _ = await asyncio.gather(api('/api/call/answer', {'noAudio': True}, actor), rt.connect())
@@ -419,6 +464,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
         await rt.close()
         return False
     st.rt = rt
+    st.outgoing = bool(ans.get('incoming'))   # Dzaryx appelle (motif en attente) ≠ Kouider qui appelle
     greeting = ans.get('text') or 'Oui, je t\'écoute.'
     log.info('appel %s (temps réel) → %r', actor, greeting)
     try:
@@ -431,6 +477,8 @@ async def start_realtime(actor: str, user_id: int) -> bool:
         log.error('appel %s impossible: %s', actor, e)
         await rt.close()
         active.pop(user_id, None)
+        if st.outgoing:
+            await missed_call(user_id, greeting, e)
         try:
             await calls.leave_call(user_id)
         except Exception:
@@ -474,14 +522,14 @@ async def on_message(_, msg: Message) -> None:
                 await msg.reply_text("Je n'ai pas bien entendu, tu peux répéter ?")
                 return
             await app.send_chat_action(uid, 'record_audio')
-            out = await api('/api/call/turn', {'message': text, 'textOnly': True}, actor)
+            out = await api('/api/call/turn', {'message': text, 'textOnly': True, 'channel': 'message'}, actor)
             reply = out.get('text') or '…'
             try:   # même voix que les appels
                 await reply_voice_pcm(msg, await speak(http, api, re.sub(r'[*_#`>|]', '', reply)[:900], actor))
                 return
             except Exception as e:
                 log.warning('voix temps réel pour le vocal: %s → ancienne voix', e)
-                out = await api('/api/call/turn', {'message': text}, actor)
+                out = await api('/api/call/turn', {'message': text, 'channel': 'message'}, actor)
             if out.get('audio'):
                 mp3 = save_mp3(out['audio'])
                 ogg = mp3[:-4] + '.ogg'
@@ -490,11 +538,20 @@ async def on_message(_, msg: Message) -> None:
                 os.unlink(mp3); os.unlink(ogg)
             else:
                 await msg.reply_text(out.get('text') or '…')
+        elif msg.photo or (msg.document and (msg.document.mime_type or '').startswith('image/')):
+            await app.send_chat_action(uid, 'typing')
+            path = await msg.download(file_name=tempfile.mktemp(prefix='dzimg_', suffix='.jpg'))
+            b64 = base64.b64encode(Path(path).read_bytes()).decode()
+            os.unlink(path)
+            mime = 'image/jpeg' if msg.photo else msg.document.mime_type
+            out = await api('/api/call/turn', {'message': msg.caption or '', 'image': b64, 'imageMime': mime,
+                                               'textOnly': True, 'channel': 'message'}, actor, 120)
+            await msg.reply_text(out.get('text') or '…')
         elif msg.text and VOICE_CMD.match(msg.text.strip()):
             await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:
             await app.send_chat_action(uid, 'typing')
-            out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True}, actor)
+            out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor)
             await msg.reply_text(out.get('text') or '…')
     except Exception as e:
         log.error('message échoué: %s', e)
