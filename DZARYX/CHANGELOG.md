@@ -16,7 +16,7 @@
   quelqu'un répond à un de ses mails (prospects + `mail-reply-call` toutes les 15 min, `gmail.isReplyToUs`), nouvelle réservation
   site, nouvelle demande WhatsApp, client WhatsApp qui dit avoir payé l'acompte, retard de retour, impayé urgent. Max 8/jour.
   Pas d'appel pour le point du matin de 7h30 ni les visites de site des prospects (notif seulement). `AUTOCALL_DRY_RUN=1` = test sans sonner.
-  ⚠️ Boîte perso kouiderpablo@gmail.com pas connectée → seules les réponses sur fikconciergerie@gmail.com déclenchent un appel.
+  Boîte pro fikconciergerie@gmail.com UNIQUEMENT (envois via contact@fikconciergerie.com) — jamais la boîte perso (choix de Kouider).
 - Scheduler : job `auto-call-flush` toutes les 15 min (appels mis en file).
 
 ## 2026-10-13 — Appels Telegram plus rapides + vrai test des secours IA

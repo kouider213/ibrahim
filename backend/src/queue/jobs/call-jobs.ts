@@ -5,7 +5,8 @@ import { autoCall } from '../../notifications/auto-call.js';
 
 // Appels automatiques planifiés (choix de Kouider) :
 // - 10h (Bruxelles) chaque jour : récapitulatif à l'oral
-// - toutes les 15 min : quelqu'un a répondu à un de ses mails (boîtes perso + pro)
+// - toutes les 15 min : quelqu'un a répondu à un de ses mails — boîte PRO fikconciergerie@gmail.com UNIQUEMENT
+//   (envois via l'alias contact@fikconciergerie.com). Jamais la boîte perso : choix de Kouider.
 
 function oranDate(offsetDays = 0): string {
   return new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Africa/Algiers' });
@@ -44,7 +45,7 @@ export async function jobDailyRecapCall(): Promise<void> {
 
 /** Réponses à SES mails (conversation où la boîte a envoyé un mail avant). Les prospects sont gérés par checkProspectReplies. */
 export async function jobMailReplyCall(): Promise<void> {
-  for (const account of ['perso', 'pro'] as GmailAccount[]) {
+  for (const account of ['pro'] as GmailAccount[]) {   // jamais 'perso'
     let msgs;
     try {
       msgs = await listInboxMessages(account, 'in:inbox newer_than:2h -category:promotions -category:social -category:forums', 20);
