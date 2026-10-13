@@ -451,8 +451,15 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     }
   } else if (actor.ownerKey === 'kouider') {
     // Kouider = MIROIR de langue aussi : il peut parler darija/arabe, espagnol, anglais ou français.
-    // Darija → réponds en darija algérienne/oranaise (il comprend l'algérien). Sinon français par défaut.
-    if (['ar', 'darija', 'fr+darija'].includes(langDetection.lang)) {
+    // Écriture arabe → darija oranaise. Darija en lettres latines / mélange → français (il parle surtout
+    // français et le STT invente parfois de la darija sur du français → jamais de réponse en écriture arabe).
+    if (['darija', 'fr+darija'].includes(langDetection.lang) && !/[\u0600-\u06FF]/.test(userMessage)) {
+      langDetection = {
+        lang:       'fr',
+        label:      'Français + touche darija latine (Kouider)',
+        systemHint: 'LANGUE: Kouider parle surtout FRANÇAIS (il glisse parfois des mots de darija) → réponds en FRANÇAIS naturel. Tu peux glisser 1-2 mots de darija en LETTRES LATINES (wesh, labas, bzaf). ⛔ JAMAIS d\'écriture arabe.',
+      };
+    } else if (['ar', 'darija', 'fr+darija'].includes(langDetection.lang)) {
       langDetection = {
         lang:       'darija',
         label:      'Darija algérienne/oranaise (Kouider)',

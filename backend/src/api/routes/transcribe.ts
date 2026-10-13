@@ -54,8 +54,10 @@ async function transcribeWithOpenAI(audio: string, mimeType: string): Promise<st
   const form = new FormData();
   form.append('file', new Blob([buf], { type: mimeType }), `audio.${ext}`);
   form.append('model', 'gpt-4o-transcribe');
-  // Pas de verrou de langue (FR + darija algérienne mélangés). Prompt = biais léger sur le contexte/dialecte.
-  form.append('prompt', 'Conversation à Oran en darija algérienne mélangée avec du français. Mots fréquents: wesh, rak, raki, kayen, makanch, bzaf, mli7, chhal, kifach, 3andi, drahem, tomobil, location voiture, réservation, dispo.');
+  // Pas de verrou de langue (FR + darija possibles). Prompt COURT et NEUTRE : l'ancien lexique darija
+  // (wesh, rak, kayen…) faisait inventer de la darija sur du français ("Il y a du nouveau" → "wesh rak?")
+  // et était parfois recopié tel quel comme transcription.
+  form.append('prompt', 'Kouider parle surtout en français, parfois en arabe algérien. Transcris exactement ce qui est dit.');
   form.append('response_format', 'json');
   const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
@@ -83,6 +85,12 @@ const CONTAINS_JUNK = [
   /merci d'avoir regard/i,
   /abonnez[- ]vous/i,
   /sous-titrage/i,
+  // Écho du prompt STT (le modèle recopie ses consignes sur du silence)
+  /conversation à oran/i,
+  /mots fréquents/i,
+  /transcris exactement/i,
+  /parle surtout en français/i,
+  /^\s*context\s*:/i,
 ];
 function cleanTranscript(t: string): string {
   const s = (t ?? '').trim();
@@ -107,7 +115,7 @@ async function transcribeWithGroq(audio: string, mimeType: string): Promise<stri
   form.append('model', 'whisper-large-v3-turbo');
   // Pas de verrou de langue (français + darija oranaise mélangés).
   // Prompt COURT = contexte léger sans forcer des mots (un long lexique biaise Whisper → "comprend de travers").
-  form.append('prompt', "Conversation à Oran : français et arabe algérien (darija). Location de voitures.");
+  form.append('prompt', 'Kouider parle surtout en français, parfois en arabe algérien. Transcris exactement ce qui est dit.');
   form.append('response_format', 'json');
 
   const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
