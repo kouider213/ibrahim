@@ -6,6 +6,13 @@
 ---
 
 
+## 2026-10-13 — Démarchage : signaux d'affaires (sociétés qui arrivent à Oran)
+
+### backend/
+- `integrations/prospect-autopilot.ts` : `SIGNALS` — 1 recherche de plus chaque jour (contrats signés, chantiers, usines,
+  recrutements d'expatriés à Oran/Arzew/Béthioua) → la société est cherchée, son email public trouvé, mail auto comme les autres.
+- LinkedIn : reste en « préparé, Kouider envoie » (envoi auto = risque de blocage du compte, pas d'API officielle).
+
 ## 2026-10-13 — Dzaryx appelle Kouider tout seul pour les infos importantes
 
 ### backend/

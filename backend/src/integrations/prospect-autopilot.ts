@@ -90,6 +90,18 @@ const TARGETS: Array<{ segment: ProspectSegment; label: string; abroad?: boolean
   { segment: 'autre', partner: true, label: 'agences immobilières, résidences et appart-hôtels à Oran (PARTENAIRES : logements pour nos clients)', queries: [
     'agence immobilière location meublé Oran contact email', 'résidence hôtelière appart hôtel Oran contact email' ] },
 ];
+// Signaux d'affaires : sociétés qui ARRIVENT ou démarrent un projet à Oran (contrat signé, chantier, usine, recrutement
+// d'expatriés) → besoin immédiat de logements + voitures. 1 recherche de plus chaque jour, en plus de la rotation.
+const SIGNALS: typeof TARGETS[number] = {
+  segment: 'entreprise',
+  label: 'sociétés (souvent étrangères) qui viennent de signer un contrat, lancer un chantier/une usine ou recruter du personnel en mission à Oran, Arzew, Béthioua ou dans l\'Ouest algérien — elles vont envoyer des équipes sur place',
+  queries: [
+    'contrat signé projet Oran 2026 société étrangère', 'nouveau projet industriel Arzew Béthioua 2026',
+    'chantier Oran attribué entreprise étrangère 2026', 'usine Oran inauguration partenariat étranger 2026',
+    'offre emploi expatrié mission Oran Algérie', 'recrutement ingénieurs mission Arzew Algérie',
+    'projet dessalement Oran entreprise réalisation', 'port Oran extension contrat entreprise',
+  ],
+};
 const CLIENT_SEGMENTS: ProspectSegment[] = ['grand_compte', 'entreprise', 'agence_voyage', 'organisme'];
 const PARTNER_SEGMENTS: ProspectSegment[] = ['loueur_voitures', 'proprietaire_appart', 'autre'];
 const isPartner = (seg: ProspectSegment) => PARTNER_SEGMENTS.includes(seg);
@@ -116,10 +128,11 @@ async function discoverProspects(wanted: number): Promise<number> {
   const clients  = TARGETS.filter(t => !t.partner);
   const partners = TARGETS.filter(t => t.partner);
   const pickQ = (t: typeof TARGETS[number], i: number) => t.queries[Math.floor(dayIdx / TARGETS.length + i) % t.queries.length]!;
-  // Chaque jour : 2 recherches clients + 1 recherche partenaires (cibles qui tournent)
+  // Chaque jour : 2 recherches clients + 1 partenaires (cibles qui tournent) + 1 signal d'affaires (projet/contrat à Oran)
   const plan = [
     ...[0, 1].map(i => { const t = clients[(dayIdx * 2 + i) % clients.length]!; return { target: t, query: pickQ(t, i) }; }),
     (() => { const t = partners[dayIdx % partners.length]!; return { target: t, query: pickQ(t, 2) }; })(),
+    { target: SIGNALS, query: SIGNALS.queries[dayIdx % SIGNALS.queries.length]! },
   ];
 
   let added = 0;
