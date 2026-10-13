@@ -98,7 +98,7 @@ export async function callGroqVision(
   const { data } = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
-      model:       'meta-llama/llama-4-scout-17b-16e-instruct',
+      model:       'qwen/qwen3.8-27b',
       messages:    [{ role: 'system', content: systemPrompt }, { role: 'user', content: userContent }],
       max_tokens:  1024,
       temperature: 0.2,
@@ -120,7 +120,7 @@ export async function callGroq(userMessage: string, systemExtra?: string): Promi
   const { data } = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
-      model:       'llama-3.3-70b-versatile',
+      model:       'openai/gpt-oss-120b',
       messages:    [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }],
       max_tokens:  512,
       temperature: 0.7,
@@ -162,7 +162,7 @@ export async function callGemini(
   }
 
   const { default: axios } = await import('axios');
-  const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
+  const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
   let lastErr = '';
   for (const model of GEMINI_MODELS) {
     try {

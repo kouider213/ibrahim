@@ -6,6 +6,18 @@
 ---
 
 
+## 2026-10-13 — Secours sans Claude réparé (Groq + Gemini)
+
+### backend/
+- Les secours gratuits étaient **morts sans que ça se voie** : Groq avait retiré `llama-3.3-70b-versatile` et
+  `llama-4-scout` (vision), Google `gemini-2.0-flash` / `2.0-flash-lite` / `1.5-flash`. Si Claude tombait (crédit
+  épuisé), seul OpenAI GPT-4o (payant) prenait le relais. `/api/health-ai` disait quand même « ✅ survive » (il ne
+  vérifie que la présence des clés).
+- Remplacés partout : Groq → `openai/gpt-oss-120b` (texte + outils), `qwen/qwen3.8-27b` (vision) ; Gemini →
+  `gemini-3.5-flash`, secours `gemini-3.1-flash-lite` puis `gemini-flash-latest`.
+- Testé avec les clés de prod : aller-retour d'outil OK sur gpt-oss-120b (1 s) et gemini-3.5-flash (3,4 s) ; vision
+  OK sur qwen3.8 et gemini-3.5/3.1. (gemini-3.7/3.8-flash et flash-latest étaient en 503 « high demand » au test.)
+
 ## 2026-10-13 — 2e passe JARVIS (TechEnClair) : WhatsApp, réponses instantanées, Google Docs/Sheets, classement foot
 
 ### nexus/

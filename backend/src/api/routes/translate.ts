@@ -47,7 +47,7 @@ async function translateTexts(texts: string[], target: string): Promise<TransRes
 
   // 1) Groq (gratuit, gros quota) puis 2) OpenAI — via objet JSON {"t":[...]}
   const oai: Array<{ name: string; url: string; model: string; k?: string }> = [
-    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', k: GROQ_KEY },
+    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', k: GROQ_KEY },
     { name: 'openai', url: 'https://api.openai.com/v1/chat/completions',      model: 'gpt-4o-mini',            k: OPENAI_KEY },
   ];
   for (const p of oai) {
@@ -70,7 +70,7 @@ async function translateTexts(texts: string[], target: string): Promise<TransRes
   if (GEMINI_KEY) {
     const { default: axios } = await import('axios');
     const prompt = `Translate each item of this JSON array into ${lang}. Keep proper nouns, prices, numbers, URLs unchanged. Return ONLY a JSON array of strings, same length and order.\n${JSON.stringify(texts)}`;
-    for (const model of ['gemini-2.0-flash', 'gemini-1.5-flash']) {
+    for (const model of ['gemini-3.5-flash', 'gemini-3.1-flash-lite']) {
       try {
         const { data } = await axios.post(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,

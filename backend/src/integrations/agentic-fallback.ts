@@ -4,8 +4,8 @@
  * Dzaryx garde TOUTE sa puissance : mêmes outils, mêmes données Supabase.
  *
  * Providers (API compatible OpenAI chat/completions + tool calling) :
- *   1. Groq  llama-3.3-70b-versatile  (free tier)
- *   2. Gemini gemini-2.0-flash via endpoint OpenAI-compat (free tier)
+ *   1. Groq  openai/gpt-oss-120b  (free tier)
+ *   2. Gemini gemini-3.5-flash via endpoint OpenAI-compat (free tier)
  *   3. OpenAI gpt-4o (payant — dernier recours si crédits restants)
  */
 import axios from 'axios';
@@ -44,8 +44,8 @@ interface FallbackEndpoint {
 
 function endpoints(): FallbackEndpoint[] {
   const list: FallbackEndpoint[] = [];
-  if (GROQ_KEY)   list.push({ key: 'groq',   name: 'Groq LLaMA 3.3',   url: 'https://api.groq.com/openai/v1/chat/completions',                                model: 'llama-3.3-70b-versatile', apiKey: GROQ_KEY });
-  if (GEMINI_KEY) list.push({ key: 'gemini', name: 'Gemini 2.0 Flash', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',       model: 'gemini-2.0-flash',        apiKey: GEMINI_KEY });
+  if (GROQ_KEY)   list.push({ key: 'groq',   name: 'Groq GPT-OSS 120B',   url: 'https://api.groq.com/openai/v1/chat/completions',                                model: 'openai/gpt-oss-120b', apiKey: GROQ_KEY });
+  if (GEMINI_KEY) list.push({ key: 'gemini', name: 'Gemini 3.5 Flash', url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',       model: 'gemini-3.5-flash',        apiKey: GEMINI_KEY });
   if (OPENAI_KEY) list.push({ key: 'openai', name: 'OpenAI GPT-4o',    url: 'https://api.openai.com/v1/chat/completions',                                     model: 'gpt-4o',                  apiKey: OPENAI_KEY });
   return list;
 }

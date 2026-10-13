@@ -8,7 +8,7 @@ export const COMPETITOR_AGENT = {
   id:          'competitor',
   name:        '🔎 Agent Concurrence',
   provider:    'groq' as const,
-  model:       'llama-3.3-70b-versatile',
+  model:       'openai/gpt-oss-120b',
   temperature: 0.5,
   maxTokens:   1000,
   fallback:    'gemini' as const,

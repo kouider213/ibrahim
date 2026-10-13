@@ -8,7 +8,7 @@ export const SOCIAL_AGENT = {
   id:          'social',
   name:        '📱 Agent Social Media',
   provider:    'groq' as const,
-  model:       'llama-3.3-70b-versatile',
+  model:       'openai/gpt-oss-120b',
   temperature: 0.85,  // plus créatif pour le contenu
   maxTokens:   1000,
   fallback:    'gemini' as const,

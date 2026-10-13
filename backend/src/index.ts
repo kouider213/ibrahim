@@ -264,8 +264,8 @@ app.get('/debug_llm', (_req, res) => {
     nodeEnv:            process.env['NODE_ENV'],
     railwayEnvironment: process.env['RAILWAY_ENVIRONMENT'],
     railwayService:     process.env['RAILWAY_SERVICE_NAME'],
-    groqModel:          'meta-llama/llama-4-scout-17b-16e-instruct',
-    geminiModels:       ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'],
+    groqModel:          'qwen/qwen3.8-27b',
+    geminiModels:       ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'],
   });
 });
 

@@ -40,8 +40,8 @@ export interface ProviderResult {
 const COST_PER_MTok: Record<ProviderName, [number, number]> = {
   claude: [3.00,  15.00],   // claude-sonnet-4-6
   openai: [2.50,  10.00],   // gpt-4o
-  gemini: [0.075,  0.30],   // gemini-1.5-flash
-  groq:   [0.59,   0.79],   // llama-3.3-70b
+  gemini: [0.075,  0.30],   // gemini-3.5-flash
+  groq:   [0.59,   0.79],   // gpt-oss-120b
 };
 
 function estimateCost(p: ProviderName, inp: number, out: number): number {
@@ -63,8 +63,8 @@ export function defaultModel(p: ProviderName): string {
   switch (p) {
     case 'claude': return 'claude-sonnet-4-6';
     case 'openai': return 'gpt-4o';
-    case 'gemini': return 'gemini-2.0-flash';
-    case 'groq':   return 'llama-3.3-70b-versatile';
+    case 'gemini': return 'gemini-3.5-flash';
+    case 'groq':   return 'openai/gpt-oss-120b';
   }
 }
 

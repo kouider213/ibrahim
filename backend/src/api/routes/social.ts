@@ -18,7 +18,7 @@ router.post('/generate', requireMobileAuth, async (req, res) => {
     `Réponds en JSON: {"caption":"...", "hashtags":"#... #..."}`;
 
   const providers = [
-    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', k: GROQ_KEY },
+    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', k: GROQ_KEY },
     { name: 'openai', url: 'https://api.openai.com/v1/chat/completions',      model: 'gpt-4o-mini',            k: OPENAI_KEY },
   ];
   const { default: axios } = await import('axios');

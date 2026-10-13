@@ -30,7 +30,7 @@ async function generate(topic: string): Promise<{ ok: boolean; article?: Article
     `Réponds UNIQUEMENT en JSON : {"title": "...", "excerpt": "phrase d'accroche ~140 caractères", "body": "<h2>...</h2><p>...</p>"}`;
 
   const providers: Array<{ name: string; url: string; model: string; k?: string }> = [
-    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', k: GROQ_KEY },
+    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', k: GROQ_KEY },
     { name: 'openai', url: 'https://api.openai.com/v1/chat/completions',      model: 'gpt-4o-mini',            k: OPENAI_KEY },
   ];
 

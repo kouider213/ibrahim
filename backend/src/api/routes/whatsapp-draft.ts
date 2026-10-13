@@ -25,7 +25,7 @@ async function draft(clientMsg: string, context: string, lang: string, tone: str
   const user = `Message du client : "${clientMsg}"\n${context ? `Contexte / infos à utiliser : ${context}` : ''}`;
 
   const providers = [
-    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.3-70b-versatile', k: GROQ_KEY },
+    { name: 'groq',   url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', k: GROQ_KEY },
     { name: 'openai', url: 'https://api.openai.com/v1/chat/completions',      model: 'gpt-4o-mini',            k: OPENAI_KEY },
   ];
   let lastErr = `[keys groq=${!!GROQ_KEY} openai=${!!OPENAI_KEY}]`;
