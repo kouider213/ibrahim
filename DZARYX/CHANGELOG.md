@@ -6,6 +6,16 @@
 ---
 
 
+## 2026-10-13 — Nouveautés DANS l'appel Telegram (voix temps réel)
+- `7dfa7ea` + `5decf02` (`api/routes/call.ts`, `tgcall/realtime.py`, `tgcall/dzaryx_tg.py`) :
+  - **Réponses rapides** (< 1 s, `/api/call/tool`) : `check_client`, `get_expenses`, `get_vehicle_maintenance`. (`get_client_profile` écarté : il pousse des notifs de documents.)
+  - **Dictée rapide** : `record_expense`, `record_car_km`, `update_vehicle_maintenance` directement depuis l'appel, avec paramètre `confirmed` obligatoire (refusé sans `confirmed:true` → relecture + « oui » d'abord).
+  - **« J'ai des choses pour toi »** : boîte `app_kv autocall:inbox` (infos sur quota atteint, appels coupés, appel manqué via `POST /api/call/missed`, retirées si le 2e essai sonne) + file d'appels → annoncées au décroché quand c'est Kouider qui appelle (`waitingGreeting`), puis vidées.
+  - **Lien WhatsApp client** : outil `whatsapp_link` → numéro retrouvé dans les réservations (`clientWhatsappLink`, « lequel ? » si homonymes) → lien wa.me pré-rempli envoyé à Kouider sur Telegram.
+  - **Interprète** : outil `interpreter` (on/off, langue) → `session.update` (transcription toutes langues, VAD `low`) + règles de traduction dans les 2 sens.
+  - **Fix** : `update_vehicle_maintenance` « Clio » modifiait TOUTES les Clio (ilike) → une seule voiture (`findCar`), sinon « laquelle ? ».
+  - Testé : outils sur la vraie base (sans écriture), session OpenAI acceptée, conversation simulée par écrit (bon outil choisi à chaque fois, relecture avant dictée, traduction FR↔EN). Pas encore testé dans un vrai appel.
+
 ## 2026-10-13 — Client à risque, km → vidange, anniversaires, avis WhatsApp, + d'appels
 - `b609905` (`notifications/client-care.ts`) :
   - `clientRisk` : historique (locations, notes `[NOTE CLIENT]`, impayés terminés, dégâts `vehicle_states`) ajouté au résultat de `create_booking`, aux notifs nouvelle résa site + demande WhatsApp, et dit dans l'appel auto. Outil `check_client`.
