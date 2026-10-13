@@ -6,6 +6,17 @@
 ---
 
 
+## 2026-10-13 — Appels Telegram en voix temps réel (OpenAI Realtime)
+
+### backend/ + tgcall/
+- `POST /api/call/realtime` : clé OpenAI temporaire (120 s) + session fixée côté backend (gpt-realtime, voix `cedar`,
+  semantic_vad, coupure de parole, outil `ask_dzaryx`). La vraie clé reste sur Railway.
+- `tgcall/realtime.py` (nouveau) : voix de Kouider (24 kHz) → OpenAI en continu ; voix de Dzaryx → appel par tranches
+  de 10 ms au rythme réel (ExternalMedia + send_frame), sans trou ; Kouider peut couper Dzaryx.
+  `ask_dzaryx` → `/api/call/turn` textOnly (vrai cerveau : réservations, mails, agenda…).
+- Mesuré : 1er son 0,4 s (avant 4-7 s). `REALTIME=0` dans tgcall/.env → ancienne chaîne. Si OpenAI indisponible → ancienne chaîne auto.
+- `/api/call/answer { noAudio }` : pas de voix ElevenLabs inutile pour l'accueil.
+
 ## 2026-10-13 — Appels Telegram : moins de coupures
 
 ### tgcall/dzaryx_tg.py

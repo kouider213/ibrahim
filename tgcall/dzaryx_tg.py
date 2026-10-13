@@ -28,9 +28,11 @@ from pyrogram.types import Message
 from pytgcalls import PyTgCalls, filters as cfilters
 from pytgcalls.types.raw import AudioParameters
 from pytgcalls.types import (
-    CallConfig, ChatUpdate, Direction, MediaStream, RecordStream,
+    CallConfig, ChatUpdate, Direction, ExternalMedia, MediaStream, RecordStream,
     StreamEnded, StreamFrames,
 )
+
+from realtime import IN_RATE, OUT_RATE, RealtimeCall
 
 HERE = Path(__file__).parent
 
@@ -54,6 +56,8 @@ TOKEN = os.environ['ACCESS_TOKEN']
 # actor → identifiant Telegram (id numérique ou @username)
 PEERS = {a: os.environ[f'{a.upper()}_TG'] for a in ('kouider', 'houari') if os.environ.get(f'{a.upper()}_TG')}
 POLL_S = float(os.environ.get('POLL_S', '4'))
+# Voix temps réel (OpenAI Realtime) : discussion naturelle. 0 → ancienne chaîne (transcription → Dzaryx → voix).
+REALTIME = os.environ.get('REALTIME', '1') == '1'
 
 SAMPLE_RATE = 16000
 SPEECH_RMS = int(os.environ.get('SPEECH_RMS', '600'))   # seuil de voix (PCM 16 bits)
@@ -82,6 +86,7 @@ class CallState:
         self.task: asyncio.Task | None = None
         self.turn_pcm = b''           # voix du tour en cours (si Kouider continue sa phrase → on fusionne)
         self.answered = False         # Dzaryx a commencé à répondre (au-delà du « Mmh »)
+        self.rt: RealtimeCall | None = None   # voix temps réel (sinon ancienne chaîne)
         self.buf = bytearray()
         self.voiced_s = 0.0
         self.silence_s = 0.0
@@ -299,6 +304,10 @@ def start_turn(user_id: int, pcm: bytes) -> None:
 @calls.on_update(cfilters.stream_frame(Direction.INCOMING))
 async def on_frames(_, update: StreamFrames) -> None:
     st = active.get(update.chat_id)
+    if st is not None and st.rt is not None:
+        for fr in update.frames:
+            st.rt.feed(fr.frame)
+        return
     # On écoute aussi pendant que Dzaryx réfléchit (avant sa réponse) : si Kouider reprend sa phrase,
     # on annule le tour en cours et on repart avec toute la phrase. Pendant qu'il parle : pas d'écoute (écho).
     if st is None or (st.busy and st.answered) or time.monotonic() < st.speaking_until:
@@ -341,7 +350,10 @@ async def on_incoming(_, update: ChatUpdate) -> None:
 
 @calls.on_update(cfilters.chat_update(ChatUpdate.Status.LEFT_CALL))
 async def on_left(_, update: ChatUpdate) -> None:
-    if active.pop(update.chat_id, None):
+    st = active.pop(update.chat_id, None)
+    if st:
+        if st.rt:
+            await st.rt.close()
         log.info('appel terminé avec %s', update.chat_id)
 
 
@@ -357,6 +369,8 @@ async def start_call(actor: str, user_id: int) -> None:
     if user_id in active:
         return
     active[user_id] = CallState(actor)
+    if REALTIME and await start_realtime(actor, user_id):
+        return
     try:
         # answer = phrase d'accueil (motif de l'appel en attente, sinon "je t'écoute") + retire l'attente
         ans = await api('/api/call/answer', {}, actor)
@@ -369,6 +383,38 @@ async def start_call(actor: str, user_id: int) -> None:
             await calls.leave_call(user_id)
         except Exception:
             pass
+
+
+async def start_realtime(actor: str, user_id: int) -> bool:
+    """Appel en voix temps réel. False → on bascule sur l'ancienne chaîne."""
+    st = active[user_id]
+    assert http is not None
+    rt = RealtimeCall(calls, http, api, user_id, actor)
+    try:
+        # connexion OpenAI pendant que le téléphone sonne
+        ans, _ = await asyncio.gather(api('/api/call/answer', {'noAudio': True}, actor), rt.connect())
+    except Exception as e:
+        log.error('voix temps réel indisponible (%s) → ancienne voix', e)
+        await rt.close()
+        return False
+    st.rt = rt
+    greeting = ans.get('text') or 'Oui, je t\'écoute.'
+    log.info('appel %s (temps réel) → %r', actor, greeting)
+    try:
+        await calls.play(user_id, MediaStream(ExternalMedia.AUDIO, AudioParameters(OUT_RATE, 1),
+                                              video_flags=MediaStream.Flags.IGNORE), CallConfig(timeout=45))
+        await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1)))
+        rt.start_audio()
+        await rt.greet(greeting)
+    except Exception as e:
+        log.error('appel %s impossible: %s', actor, e)
+        await rt.close()
+        active.pop(user_id, None)
+        try:
+            await calls.leave_call(user_id)
+        except Exception:
+            pass
+    return True
 
 
 async def poll_pending() -> None:
