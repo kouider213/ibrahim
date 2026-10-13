@@ -12,6 +12,7 @@ import { summarizeCall, recentCallsText, type CallLine } from '../../notificatio
 import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
 import { clientWhatsappLink } from '../../notifications/client-care.js';
+import { quickBooking, quickPayment, quickQuote, quickAgenda } from '../../integrations/call-quick.js';
 
 const router = Router();
 
@@ -145,7 +146,7 @@ const quickToolDefs = Dzaryx_TOOLS
 
 // Écritures RAPIDES dictées au téléphone (dépense, km, vidange faite) : en 2 s au lieu du cerveau complet.
 // Exécutées seulement avec confirmed:true, c.-à-d. APRÈS relecture à l'oral et un « oui » de Kouider.
-const QUICK_WRITE_TOOLS = ['record_expense', 'record_car_km', 'update_vehicle_maintenance'] as const;
+const QUICK_WRITE_TOOLS = ['record_expense', 'record_car_km', 'update_vehicle_maintenance', 'schedule_reminder'] as const;
 const CONFIRMED_PARAM = { type: 'boolean', description: 'true SEULEMENT après avoir relu l\'action à l\'oral et reçu un « oui » clair de Kouider' };
 const quickWriteDefs = Dzaryx_TOOLS
   .filter(t => (QUICK_WRITE_TOOLS as readonly string[]).includes(t.name))
@@ -156,6 +157,42 @@ const quickWriteDefs = Dzaryx_TOOLS
       parameters: { ...schema, properties: { ...(schema.properties ?? {}), confirmed: CONFIRMED_PARAM },
         required: [...(schema.required ?? []), 'confirmed'] } };
   });
+
+// Outils rapides propres à l'appel (integrations/call-quick.ts). Réservation/paiement : sans confirmed:true
+// → seulement la relecture à faire, rien n'est écrit.
+const CALL_QUICK = {
+  quick_booking: (i: Record<string, unknown>, who: CallActor) => quickBooking(i, who, `voice_${who}`),
+  quick_payment: (i: Record<string, unknown>, who: CallActor) => quickPayment(i, `voice_${who}`),
+  quick_quote:   (i: Record<string, unknown>, who: CallActor) => quickQuote(i, `voice_${who}`),
+  quick_agenda:  (i: Record<string, unknown>, who: CallActor) => quickAgenda(i, who),
+} as const;
+const CALL_QUICK_DEFS = [
+  { type: 'function', name: 'quick_booking',
+    description: 'CRÉER UNE RÉSERVATION dictée (« réserve la Clio 5 diesel pour Karim du 3 au 8 novembre à 45 € »). 1er appel SANS confirmed → vérifie la dispo, calcule prix/bénéfice, regarde si le client est fiable et renvoie la relecture : lis-la à Kouider et demande « je crée ? ». Après son oui → même appel avec confirmed:true. Dates YYYY-MM-DD (départ et retour inclus). Sans prix dit → prix catalogue.',
+    parameters: { type: 'object', properties: {
+      car_name: { type: 'string' }, client_name: { type: 'string' }, client_phone: { type: 'string' },
+      start_date: { type: 'string' }, end_date: { type: 'string' },
+      price_per_day: { type: 'number', description: 'Prix client par jour en € (s\'il le dit)' },
+      total_price: { type: 'number', description: 'Prix total en € (s\'il dit un total)' },
+      owner_price_per_day: { type: 'number', description: 'Prix Houari par jour, seulement s\'il le dit (sinon celui de la voiture)' },
+      paid_amount: { type: 'number', description: 'Acompte déjà reçu' }, notes: { type: 'string' },
+      confirmed: CONFIRMED_PARAM }, required: ['car_name', 'client_name', 'start_date', 'end_date'] } },
+  { type: 'function', name: 'quick_payment',
+    description: 'ENREGISTRER UN PAIEMENT dicté (« Karim m\'a payé 200 € », « acompte de 100 € de Fatima »). Retrouve sa réservation pas soldée. 1er appel SANS confirmed → relecture (montant, voiture, reste à payer) : lis-la et demande « je note ? ». Après son oui → confirmed:true. Si plusieurs réservations : demande laquelle et rappelle avec car_name ou start_date.',
+    parameters: { type: 'object', properties: {
+      client_name: { type: 'string' }, amount: { type: 'number' },
+      type: { type: 'string', enum: ['acompte', 'solde', 'partiel'] }, note: { type: 'string', description: 'ex. « espèces », « virement »' },
+      car_name: { type: 'string' }, start_date: { type: 'string' }, confirmed: CONFIRMED_PARAM }, required: ['client_name', 'amount'] } },
+  { type: 'function', name: 'quick_quote',
+    description: 'DEVIS EXPRESS (« combien une Clio du 3 au 8 ? », « qu\'est-ce qui est libre ce week-end ? », « avec livraison à l\'aéroport »). Dispo + prix client + livraison, et un devis prêt à envoyer. Sans car_name → liste des voitures libres avec leurs prix. Lecture seule.',
+    parameters: { type: 'object', properties: {
+      start_date: { type: 'string' }, end_date: { type: 'string' }, car_name: { type: 'string' },
+      delivery_address: { type: 'string', description: 'Lieu de livraison à Oran (aéroport, Bir El Djir…)' },
+      price_per_day: { type: 'number', description: 'Prix par jour si Kouider en fixe un autre' } }, required: ['start_date', 'end_date'] } },
+  { type: 'function', name: 'quick_agenda',
+    description: 'AGENDA D\'UN JOUR (« qu\'est-ce que j\'ai demain ? », « mon programme vendredi ») : départs et retours de voitures, rendez-vous (agenda FIK + perso), rappels prévus. date YYYY-MM-DD (défaut aujourd\'hui). Lecture seule.',
+    parameters: { type: 'object', properties: { date: { type: 'string' } } } },
+];
 
 // Outils propres à l'appel : exécutés par tgcall (send_text_to_me, end_call) ou programmés (call_me).
 const CALL_TOOLS = [
@@ -197,19 +234,21 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `Si on te coupe la parole, arrête-toi et écoute.`,
     `RAPIDE : pour juste LIRE des réservations, la flotte, une dispo, les impayés, les finances, les mails, si un client est fiable (« Karim c'est un bon client ? » → check_client), les dépenses ou le bénéfice réel d'une voiture (get_expenses) ou l'entretien / la vidange (get_vehicle_maintenance), utilise directement l'outil correspondant : c'est instantané. ask_dzaryx pour tout le reste (agenda, rappels, prospects, web, mails envoyés…) et pour toute autre action.`,
     `DICTÉE RAPIDE : dépense (« 3000 DA d'essence sur la Sandero » → record_expense), kilométrage (« la Clio est à 85 000 » → record_car_km), vidange faite (« vidange faite sur le Jogger à 80 000 » → update_vehicle_maintenance avec car_name, last_service_km et last_service_date d'aujourd'hui). Relis en UNE phrase (« 3000 dinars d'essence sur la Sandero, je note ? »), puis après son oui appelle l'outil avec confirmed:true. Sans devise dite, c'est des dinars. Si l'outil demande quelle voiture, pose-lui la question puis rappelle l'outil (son oui reste valable).`,
+    `RÉSERVATION / PAIEMENT dictés : « réserve la … pour … du … au … » → quick_booking ; « X m'a payé … » → quick_payment. D'abord SANS confirmed : l'outil renvoie la relecture, lis-la simplement (voiture, client, dates, prix, bénéfice, et l'alerte si client à risque) et demande « je crée ? » / « je note ? ». Après son oui → même outil avec confirmed:true. Convertis « du 3 au 8 novembre » en dates YYYY-MM-DD (année en cours ou suivante si passée).`,
+    `DEVIS : « combien pour… », « qu'est-ce qui est libre… » → quick_quote. S'il veut l'envoyer au client → whatsapp_link avec le texte du devis (ou send_text_to_me s'il veut juste le texte).`,
+    `AGENDA : « qu'est-ce que j'ai demain / vendredi ? » → quick_agenda. RAPPEL pour lui (« rappelle-moi d'appeler le garage à 15h ») → redis l'heure, puis après son oui schedule_reminder avec confirmed:true (heure de Bruxelles). Un rappel PAR APPEL → call_me.`,
     `WHATSAPP CLIENT : « envoie à Karim que… », « dis au client que… », « préviens-le sur WhatsApp » → TOUJOURS l'outil whatsapp_link, JAMAIS ask_dzaryx (rien ne part sans lui, il appuie lui-même). Rédige un message court et poli, dis-lui en une phrase ce que tu vas écrire, puis outil whatsapp_link : il reçoit le lien sur Telegram et l'envoie lui-même en un clic. Dis « je t'ai envoyé le lien, tu n'as plus qu'à appuyer ».`,
     `INTERPRÈTE : « traduis », « sois mon interprète », « il parle anglais » → outil interpreter (on:true, langue) puis suis les règles qu'il te renvoie, jusqu'à « stop traduction » (interpreter on:false).`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
     `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
     `Quand l'outil répond, redis l'essentiel à l'oral, simplement (montants en euros ou dinars en toutes lettres si besoin).`,
-    `ACTIONS (envoyer un mail, créer/modifier/annuler une réservation, enregistrer un paiement, programmer un rappel, relancer quelqu'un…) : TOUJOURS en deux temps. Exceptions qui ont leur outil direct : la dictée rapide (dépense, km, vidange) et whatsapp_link pour un message à un client.`,
+    `ACTIONS (envoyer un mail, modifier/annuler une réservation, relancer quelqu'un…) : TOUJOURS en deux temps via ask_dzaryx. Outils directs (eux aussi après relecture + oui) : quick_booking, quick_payment, dictée rapide (dépense, km, vidange), schedule_reminder ; whatsapp_link pour un message à un client.`,
     `1) Prépare : si un texte est à envoyer, demande à ask_dzaryx de le rédiger SANS l'envoyer. Puis relis-lui à l'oral précisément ce que tu vas faire (à qui, quoi, quand) et demande « Je le fais ? ».`,
     `2) Seulement après un oui clair de sa part (« oui », « vas-y », « envoie »), appelle ask_dzaryx avec une demande qui commence par « CONFIRMÉ AU TÉLÉPHONE : » suivie de l'action complète (destinataire, texte exact, date…). S'il hésite ou change quelque chose, corrige et relis à nouveau. Puis dis-lui que c'est fait seulement si l'outil le confirme.`,
     `ÉCRIT : un numéro, une adresse, un mail ou tout ce qui est dur à retenir à l'oral → propose « je te l'envoie par écrit ? » ou fais-le s'il le demande : outil send_text_to_me (pas besoin de confirmation).`,
     `RAPPEL : « rappelle-moi dans une heure / à 16h » (ou s'il est occupé) → redis l'heure, outil call_me avec delay_minutes ou at_time et une reason qui rappelle le sujet ; après le ✅, dis au revoir puis end_call.`,
     `CAMÉRA : s'il passe en vidéo, tu reçois des images de sa caméra quand il parle. Décris ce que tu vois de façon concrète (dégât, rayure, choc, pneu, compteur, document…), sans inventer : si c'est flou ou trop loin, demande-lui de s'approcher. « Regarde » / « et là ? » → outil look. Pour enregistrer un état des lieux, un dégât ou un document, utilise ask_dzaryx avec la demande complète (voiture, client, avant/après) : l'image actuelle de la caméra lui est jointe automatiquement. Comme toute action : relis et attends son oui.`,
     `RACCROCHER : quand la discussion est finie, dis au revoir en une phrase, puis appelle end_call.`,
-    `Un rappel qu'il demande pour lui-même (« rappelle-moi demain à 9h ») : redis l'heure et le sujet, puis fais-le après son oui.`,
     ...(calls ? [calls, `Si c'est utile, tu peux rappeler ce qui reste à faire de ces appels.`] : []),
   ].join('\n');
 }
@@ -241,7 +280,7 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
             name: 'ask_dzaryx',
             description: 'Le cerveau de Dzaryx (accès réel aux réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
             parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
-          }, ...quickToolDefs, ...quickWriteDefs, ...CALL_TOOLS],
+          }, ...quickToolDefs, ...quickWriteDefs, ...CALL_QUICK_DEFS, ...CALL_TOOLS],
           tool_choice: 'auto',
         },
       }),
@@ -265,7 +304,8 @@ router.post('/tool', requireMobileAuth, async (req, res) => {
   // call_me : seulement un rappel PROGRAMMÉ (« rappelle-moi dans 1 heure »), jamais tout de suite pendant l'appel
   const later = name === 'call_me' && !!(input?.['delay_minutes'] || input?.['at_time'] || input?.['at_date']);
   const write = (QUICK_WRITE_TOOLS as readonly string[]).includes(name ?? '');
-  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && name !== 'whatsapp_link')) {
+  const own = name && Object.hasOwn(CALL_QUICK, name) ? CALL_QUICK[name as keyof typeof CALL_QUICK] : null;
+  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && name !== 'whatsapp_link')) {
     res.status(400).json({ error: 'tool not allowed' }); return;
   }
   try {
@@ -273,6 +313,7 @@ router.post('/tool', requireMobileAuth, async (req, res) => {
       const r = await clientWhatsappLink(String(input?.['client'] ?? ''), String(input?.['message'] ?? ''), input?.['phone'] as string | undefined);
       res.json(r); return;
     }
+    if (own) { res.json({ text: (await own(input ?? {}, callActor(req))).slice(0, 6000) }); return; }
     const { confirmed, ...args } = input ?? {};
     if (write && confirmed !== true) {
       res.json({ text: 'Pas encore enregistré : relis-lui l\'action à l\'oral, attends son oui, puis rappelle l\'outil avec confirmed:true.' });

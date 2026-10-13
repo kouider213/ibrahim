@@ -591,14 +591,11 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
   // Resolve car_id from car_name if UUID not provided
   let carId = input['car_id'] as string | undefined;
   if (!carId && input['car_name']) {
-    const { data: carMatch } = await supabase
-      .from('cars')
-      .select('id, name')
-      .ilike('name', `%${input['car_name']}%`)
-      .limit(1)
-      .single();
+    // « Clio » = 4 voitures : on ne prend plus la 1re au hasard
+    const carMatch = await findCar(String(input['car_name']));
     if (!carMatch) return `❌ Voiture "${input['car_name']}" introuvable dans la flotte. Vérifie le nom exact.`;
-    carId = (carMatch as any).id as string;
+    if (Array.isArray(carMatch)) return `❌ Plusieurs voitures correspondent à « ${input['car_name']} » : ${carMatch.map(c => c.name).join(', ')}. Laquelle ? (réservation non créée)`;
+    carId = carMatch.id;
   }
   if (!carId) return '❌ car_id ou car_name manquant — spécifie la voiture';
 
@@ -1477,15 +1474,14 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
   const overlapRows = (overlapping ?? []) as OverlapRow[];
   const busyCarIds = new Set(overlapRows.map(b => b.car_id));
 
-  let carsQuery = supabase.from('cars').select('id, name, base_price, category').eq('available', true);
+  let carsQuery = supabase.from('cars').select('id, name, base_price, resale_price, houari_resale_price, category').eq('available', true);
   if (carId) carsQuery = carsQuery.eq('id', carId);
 
   const { data: cars, error } = await carsQuery;
   if (error) return `❌ Erreur: ${error.message}`;
 
-  const startD = new Date(startDate);
-  const endD   = new Date(endDate);
-  const days   = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / 86_400_000));
+  // Jours INCLUS (départ + retour), comme create_booking
+  const days = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000) + 1);
 
   const available = (cars ?? []).filter((c: { id: string }) => !busyCarIds.has(c.id));
 
@@ -1505,9 +1501,12 @@ async function checkCarAvailability(input: Record<string, unknown>): Promise<str
     return `❌ Aucune voiture disponible du ${startDate} au ${endDate}.`;
   }
 
-  const lines = available.map((c: { id: string; name: string; base_price: number; category: string }) => {
-    const total = c.base_price * days;
-    return `🚗 ${c.name} (${c.category}) — ${c.base_price.toLocaleString('fr-DZ')} DZD/jour → Total ${days}j: ${total.toLocaleString('fr-DZ')} DZD`;
+  // base_price = prix Houari (coût, €) ; resale_price = prix client Kouider (€) ; houari_resale_price = prix client Houari (DA).
+  // Avant : base_price affiché comme prix client, en « DZD ».
+  const lines = available.map((c: { id: string; name: string; base_price: number | null; resale_price: number | null; houari_resale_price: number | null; category: string }) => {
+    const client = c.resale_price != null ? `${c.resale_price} €/jour → ${Math.round(c.resale_price * days * 100) / 100} € (${days}j)` : 'prix client ?';
+    const houari = c.houari_resale_price != null ? ` | Houari ${c.houari_resale_price.toLocaleString('fr-FR')} DA/jour` : '';
+    return `🚗 ${c.name} (${c.category}) — client ${client} | coût Houari ${c.base_price ?? '?'} €/jour${houari}`;
   });
 
   return `✅ Disponible du ${startDate} au ${endDate} (${days} jours):\n${lines.join('\n')}`;
