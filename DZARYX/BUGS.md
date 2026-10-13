@@ -12,17 +12,7 @@
 - **Fichier(s)** : `simulator/src/services/api.ts`, `simulator/src/components/Phone.tsx`, `simulator/src/components/screens/SettingsScreen.tsx`
 - **Description** : `registerWebPush()` (→ `Notification.requestPermission()`) appelé au montage (`Phone.tsx` useEffect) + dans `setTimeout(600)` après login → hors geste utilisateur. iOS Safari/PWA ignore en silence la demande hors tap → plus de prompt ni de notifs (pire après réinstall : permission iOS remise à zéro).
 - **Fix** : split `api.ts` — `registerWebPush()` geste seul (prompt) ; `resumeWebPush()` silencieux (re-souscrit si déjà `granted`) ; `subscribePush()` réutilise `getSubscription()` + re-POST backend ; `notifStatus()`. Montage/login → `resumeWebPush()`. Bouton tap **🔔 ACTIVER** dans Réglages + guide install PWA iOS.
-- **⏭️ Kouider** : réinstaller la PWA depuis l'écran d'accueil, l'ouvrir depuis l'icône, Réglages → 🔔 ACTIVER → Autoriser.
-
-### B030 — Wake word "Zaria" ne fire pas en vocal (Porcupine)
-- **Statut** : 🟡 EN COURS — besoin logs device (Kouider)
-- **Fichier(s)** : `dzaryx-native/plugins/withDzaryxWakeWord.js`, `dzaryx-native/assets/wakeword/Zaria_android.ppn`
-- **Description** : le service de fond Porcupine s'initialise (notif "Zaria active" visible) mais la détection
-  vocale ne déclenche pas l'overlay. La **notif tap** + l'overlay marchent comme substitut.
-- **Pistes** : version lib Porcupine vs `.ppn` **v4** (mismatch silencieux), sensibilité (0.85 actuel), micro déjà
-  capté par l'app. Clé Picovoice = env EAS `PICOVOICE_ACCESS_KEY`.
-- **Fix** : récupérer le **logcat** du OnePlus 5T pendant un essai, vérifier l'init PorcupineManager + onWake.
-  Voir [[AUDIT/08_DECISIONS#wakeword-zaria]] et [[AUDIT/10_JOURNAL_SESSION]].
+- **Confirmé par Kouider le 2026-10-13** : les notifications marchent.
 
 ### B025 — Token GitHub exposé dans git remote (SÉCURITÉ)
 - **Statut** : 🔴 OUVERT — action manuelle requise (Kouider)
@@ -249,7 +239,15 @@
 
 ## Bugs Won't Fix ⚪
 
-_(aucun pour l'instant)_
+### B030 — Wake word "Zaria" ne fire pas en vocal (Porcupine) ⚪
+- **Statut** : ⚪ WON'T FIX — 2026-10-13, Kouider n'en a pas besoin
+- **Fichier(s)** : `dzaryx-native/plugins/withDzaryxWakeWord.js`, `dzaryx-native/assets/wakeword/Zaria_android.ppn`
+- **Description** : le service de fond Porcupine s'initialise (notif "Zaria active" visible) mais la détection
+  vocale ne déclenche pas l'overlay. La **notif tap** + l'overlay marchent comme substitut.
+- **Pistes** : version lib Porcupine vs `.ppn` **v4** (mismatch silencieux), sensibilité (0.85 actuel), micro déjà
+  capté par l'app. Clé Picovoice = env EAS `PICOVOICE_ACCESS_KEY`.
+- **Fix** : récupérer le **logcat** du OnePlus 5T pendant un essai, vérifier l'init PorcupineManager + onWake.
+  Voir [[AUDIT/08_DECISIONS#wakeword-zaria]] et [[AUDIT/10_JOURNAL_SESSION]].
 
 ---
 
