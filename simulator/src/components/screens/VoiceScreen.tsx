@@ -50,6 +50,13 @@ const SILENCE_DELAY = 1300;   // ms de silence après parole avant d'envoyer (la
 const MIN_SPEECH_MS = 280;    // garde "oui/non/vas-y", jette les blips < 0,28s
 const NO_SPEECH_MS  = 1500;   // armé par un bruit mais aucune vraie voix → on jette
 const MAX_REC_MS    = 15000;
+// Seuils ADAPTATIFS : les valeurs ci-dessus = calibrage pour un ambiant de 3.8.
+// Dans un autre endroit (voiture, dehors, haut-parleur en appel) l'ambiant change :
+// fixes, les seuils faisaient soit tout jeter (voix jamais « confirmée »), soit
+// enregistrer sans fin. On garde les mêmes RATIOS au-dessus du bruit mesuré.
+const CALIB_FLOOR   = 0.0038;
+const MIN_FLOOR     = 0.0015;
+const MAX_FLOOR     = 0.03;
 
 // Persiste l'état "audio débloqué" pour toute la session de page (survit aux
 // changements d'onglet VOIX↔CHAT). Une fois l'utilisateur a tapé une fois,
@@ -105,6 +112,8 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   const isRecordingRef  = useRef(false);
   const bargeFramesRef  = useRef(0);   // frames consécutives de vraie voix pendant que Dzaryx parle → barge-in
   const bargeRecordingRef = useRef(false); // l'enregistrement courant vient d'un barge-in/tap → auto-envoi au silence même en mode manuel
+  const vadGenRef       = useRef(0);   // chaque startVAD tue la boucle précédente (sinon une boucle « zombie » sur l'ancien micro lit du silence et jette tes phrases)
+  const noiseFloorRef   = useRef(CALIB_FLOOR);
   const sessionId       = useRef(getOrCreateSessionId());
 
   const [status, setStatus]     = useState<DzaryxStatus>('idle');
@@ -451,9 +460,13 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       }
       if (!stream) throw new Error('Stream micro indisponible');
       streamRef.current = stream;
-      const audioCtx = new AudioContext({ sampleRate: 44100 });
+      // Ancien contexte (ré-init par le watchdog) → fermé, sinon il fuit et garde un analyseur mort
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') audioCtxRef.current.close().catch(() => {});
+      const audioCtx = new AudioContext();
       audioCtxRef.current = audioCtx;
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      // Pas d'await : sans geste utilisateur, resume() peut rester en attente indéfiniment
+      // → startVAD() n'était jamais appelé → micro sourd. Le watchdog relance resume().
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
       const source   = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 2048;
@@ -477,6 +490,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current);
+      vadGenRef.current++;   // stoppe la boucle VAD
       srWantedRef.current = false; srDictationRef.current = false; stopSR(); // stoppe l'écoute au changement d'onglet
       // NE PAS couper le micro partagé (sharedMicStream) au changement d'onglet :
       // on le garde ouvert pour éviter qu'iOS redemande la permission au retour.
@@ -529,7 +543,11 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         setStatus('idle'); setHud('PRÊT — PARLE-MOI'); thinkingSinceRef.current = 0;
         isRecordingRef.current = false;  // débloque un enregistrement coincé
       }
-      // 2) micro coupé (stream mort) alors qu'on est au repos → on relance
+      // 2) AudioContext suspendu/interrompu (iOS après une lecture audio, retour d'arrière-plan)
+      //    → l'analyseur ne renvoie que du silence → le VAD ne t'entend plus. On le réveille.
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {});
+      // 3) micro coupé (stream mort) alors qu'on est au repos → on relance
       const live = !!streamRef.current && streamRef.current.getAudioTracks().some(t => t.readyState === 'live');
       if (!live && statusRef.current !== 'speaking' && statusRef.current !== 'thinking') {
         micInitRef.current = false; // autorise une ré-init
@@ -645,7 +663,9 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     if (!analyser) return;
     const timeBuf = new Uint8Array(analyser.fftSize);
     const a = analyser;
+    const gen = ++vadGenRef.current;
     function tick() {
+      if (gen !== vadGenRef.current) return;   // boucle remplacée par une ré-init → on s'arrête
       if (statusRef.current === 'thinking') {
         requestAnimationFrame(tick); return;
       }
@@ -659,12 +679,22 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       rmsRef.current = rms;
       setRmsLevel(Math.min(rms * 80, 1));
 
+      // Plancher de bruit : mesuré seulement au repos (pas pendant ta voix ni celle de Dzaryx).
+      // Descend vite, monte lentement (~3s) → suit l'ambiant sans « apprendre » ta voix.
+      if (!isRecordingRef.current && statusRef.current === 'idle' && !isAudioPlaying()) {
+        const f = noiseFloorRef.current;
+        noiseFloorRef.current = Math.min(MAX_FLOOR, Math.max(MIN_FLOOR,
+          rms < f ? f * 0.9 + rms * 0.1 : f * 0.995 + rms * 0.005));
+      }
+      const k = noiseFloorRef.current / CALIB_FLOOR;
+      const armRms = ARM_RMS * k, speechRms = SPEECH_RMS * k;
+
       // ── BARGE-IN VOCAL — UNIQUEMENT en MAINS-LIBRES ─────────────────────────
       // En manuel, Dzaryx ne se coupe JAMAIS tout seul : il s'arrête seulement quand
       // tu appuies sur le micro (évite les coupures parasites sur écho/bruit).
       // En mains-libres, on garde le barge-in (seuil ×2 + 5 frames d'affilée = vraie voix,
       // pas l'écho de Dzaryx) pour une vraie conversation continue.
-      if (handsFreeRef.current && (statusRef.current === 'speaking' || isAudioPlaying()) && rms > SPEECH_RMS * 2) {
+      if (handsFreeRef.current && (statusRef.current === 'speaking' || isAudioPlaying()) && rms > speechRms * 2) {
         bargeFramesRef.current++;
         if (bargeFramesRef.current >= 5) {
           bargeFramesRef.current = 0;
@@ -688,16 +718,16 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       if (!handsFreeRef.current && !bargeRecordingRef.current) { requestAnimationFrame(tick); return; }
       if (statusRef.current === 'idle' && !isRecordingRef.current) {
         const hint = handsFreeRef.current ? 'PARLE-MOI' : 'TAPE 🎤 POUR PARLER';
-        setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(SPEECH_RMS * 1000).toFixed(1)} | ${hint}`);
+        setHud(`MIC: ${(rms * 1000).toFixed(1)} | SEUIL: ${(speechRms * 1000).toFixed(1)} | ${hint}`);
       }
-      if (rms > ARM_RMS) {
+      if (rms > armRms) {
         // 1er son → on enregistre TOUT DE SUITE (capture le début du mot, jamais coupé).
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
         // Auto-armement (écoute sans bouton) UNIQUEMENT en mode mains-libres.
         // Sinon (défaut) on n'enregistre QUE quand l'utilisateur tape MICRO → on ne
         // capte plus l'ambiant ni les autres voix → Dzaryx comprend bien ce qu'IL dit.
         if (!isRecordingRef.current && handsFreeRef.current) { startRecording(true); armStartRef.current = Date.now(); }
-        if (rms > SPEECH_RMS) {
+        if (rms > speechRms) {
           // Vraie voix confirmée → BARGE-IN : si Dzaryx parle (ou audio en cours), on le COUPE
           // tout de suite (comme Gemini) — indépendant du statut, basé sur l'audio réellement joué.
           if (statusRef.current === 'speaking' || isAudioPlaying()) { stopAudio(); setStatus('idle'); }

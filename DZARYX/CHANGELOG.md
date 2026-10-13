@@ -6,6 +6,12 @@
 ---
 
 
+## 2026-10-13 — Fix : Dzaryx n'entend pas toujours (micro « sourd ») | app SW v128
+- fix VAD : une ré-init du micro (watchdog) laissait l'ancienne boucle VAD tourner sur un micro mort → elle lisait du silence et JETAIT tes phrases au bout de 0,4 s. Chaque boucle a maintenant un numéro de génération ; l'ancienne s'arrête
+- fix : `initMic` attendait `audioCtx.resume()` → sans geste utilisateur la promesse pouvait ne jamais se résoudre → VAD jamais démarré. Resume non bloquant + ancien AudioContext fermé + plus de `sampleRate: 44100` forcé
+- fix watchdog : réveille l'AudioContext s'il est suspendu/interrompu (iOS après lecture d'une réponse, retour d'arrière-plan) — avant, l'analyseur renvoyait du silence
+- feat : seuils VAD adaptatifs au bruit ambiant (mêmes ratios que le calibrage 3.8, mais suivent l'ambiant : voiture, dehors, haut-parleur en appel)
+
 ## 2026-10-13 — Appels Dzaryx dans l'app (sans numéro de téléphone) | app SW v127
 - feat backend : `notifications/voice-call.ts` + routes `/api/call` (`pending`, `answer`, `decline`, `test`) — Dzaryx « appelle » = push `📞 Dzaryx t'appelle` (TTL 3 min, urgence haute) + appel en attente (`app_kv call:pending:<actor>`) ; décrocher → phrase d'accueil ElevenLabs, enregistrée dans `voice_<actor>` pour le contexte
 - feat outil `call_me` : « appelle-moi » (tout de suite) ou « appelle-moi dans 20 min / demain à 9h » (rappel `[APPEL] …` → le reminder-worker fait sonner l'app)
