@@ -55,7 +55,9 @@ router.post('/turn', requireMobileAuth, async (req, res) => {
     ? { orgId: '', ownerKey: 'houari', role: 'admin', displayName: env.PARTNER_NAME }
     : DEFAULT_MEMBER;
   try {
-    const out = await processMessage(message.trim().slice(0, 2000), `voice_${who}`, true, undefined, 'image/jpeg', actor);
+    // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
+    const inCall = `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne.]\n${message.trim().slice(0, 2000)}`;
+    const out = await processMessage(inCall, `voice_${who}`, true, undefined, 'image/jpeg', actor);
     const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
     const buf = textOnly ? null : await synthesizeVoice(text.replace(/[*_#`>|]/g, '').slice(0, 900));
     res.json({ text, audio: buf ? buf.toString('base64') : null });

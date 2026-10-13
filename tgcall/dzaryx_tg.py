@@ -140,7 +140,9 @@ async def say(user_id: int, audio_b64: str | None, first: bool = False) -> None:
         st.speaking_until = time.monotonic() + mp3_duration(path) + 0.4
         await calls.record(user_id, RecordStream(True, AudioParameters(SAMPLE_RATE, 1)))
     else:
+        log.info('lecture réponse (%.1fs)', mp3_duration(path))
         await calls.play(user_id, stream)
+        log.info('lecture lancée')
 
 
 async def handle_utterance(user_id: int, pcm: bytes) -> None:
@@ -210,6 +212,7 @@ async def on_left(_, update: ChatUpdate) -> None:
 @calls.on_update(cfilters.stream_end())
 async def on_end(_, update: StreamEnded) -> None:
     st = active.get(update.chat_id)
+    log.info('fin de flux %s %s', update.stream_type, update.device)
     if st:
         st.speaking_until = min(st.speaking_until, time.monotonic() + 0.3)
 
