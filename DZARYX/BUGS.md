@@ -7,8 +7,8 @@
 
 ## Bugs Ouverts 🔴
 
-### B034 — Anciens codes d'accès encore valides (visibles dans les vieilles versions publiques de l'app) 🔴
-- **Statut** : 🔴 OUVERT — 2026-10-14
+### B034 — Anciens codes d'accès encore valides (visibles dans les vieilles versions publiques de l'app) ✅
+- **Statut** : ✅ FIXÉ — 2026-10-14 13:19 (tgcall a son jeton d'appareil, auth:legacy=off, ancien code → 403 vérifié)
 - **Fichier(s)** : `backend/src/auth/device-auth.ts` (app_kv `auth:legacy`), `tgcall/.env` (`ACCESS_TOKEN`)
 - **Description** : la nouvelle app n'a plus de code dedans (connexion par mot de passe + jeton d'appareil), mais
   `MOBILE_ACCESS_TOKEN` reste dans l'historique public de gh-pages et reste accepté. Il ne peut pas être coupé tant
