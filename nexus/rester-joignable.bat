@@ -28,7 +28,7 @@ powercfg /setacvalueindex SCHEME_CURRENT SUB_SLEEP RTCWAKE 1
 powercfg /setactive SCHEME_CURRENT
 
 echo [3/4] Reveil par le reseau (Wake-on-LAN)...
-powershell -NoProfile -Command "Get-NetAdapter -Physical | ForEach-Object { try { Set-NetAdapterPowerManagement -Name $_.Name -WakeOnMagicPacket Enabled -ErrorAction Stop; Write-Host ('   OK  ' + $_.Name) } catch { Write-Host ('   --  ' + $_.Name + ' (pas pris en charge)') } }"
+powershell -NoProfile -Command "Get-NetAdapter -Physical | ForEach-Object { $a = $_.Name; try { Set-NetAdapterPowerManagement -Name $a -WakeOnMagicPacket Enabled -ErrorAction Stop; Write-Host ('   OK  ' + $a) } catch { Write-Host ('   --  ' + $a + ' (pas pris en charge)') } }"
 
 echo [4/4] Verification...
 powercfg /query SCHEME_CURRENT SUB_BUTTONS LIDACTION | findstr /i "AC Power Setting"
