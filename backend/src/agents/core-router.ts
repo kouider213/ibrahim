@@ -22,8 +22,10 @@ const MAIL_RE = /\b(e-?mails?|mails?|gmail|courriels?|bo[iî]te\s+(?:mail|de\s+r
 // mode privé / mémoire (« quel prix j'avais donné à Karim » peut partir en Finance → il lui faut search_conversations).
 const ALWAYS_TOOLS = ['search_conversations', 'create_intention', 'list_intentions', 'set_private_mode', 'show_my_memory',
   'assign_task', 'complete_task', 'list_team_tasks', 'save_procedure', 'create_goal',
-  'browser_task', 'browser_reply', 'browser_status'];
-const withAlways = (names: string[]) => Dzaryx_TOOLS.filter(t => names.includes(t.name) || ALWAYS_TOOLS.includes(t.name));
+  'browser_task', 'browser_reply', 'browser_status',
+  // « fais un document sur toi » part souvent vers l'Agent Clients (mot « document ») : docs + vraie liste partout
+  'list_my_capabilities', 'create_google_doc', 'create_google_sheet'];
+export const withAlways = (names: string[]) => Dzaryx_TOOLS.filter(t => names.includes(t.name) || ALWAYS_TOOLS.includes(t.name));
 
 export function routeToAgent(text: string): AgentRoute {
   if (MAIL_RE.test(text)) {

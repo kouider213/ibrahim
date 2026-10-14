@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-10-14 (soir) — B034 terminé ; Dzaryx connaît sa vraie liste d'outils
+
+- **B034 fermé** : tgcall a son propre jeton, `auth:legacy`=off. Ancien `MOBILE_ACCESS_TOKEN` → 403 sur Railway et le VPS.
+- **Nouvel outil `list_my_capabilities`** (`integrations/capabilities.ts`) : nom, nombre EXACT d'outils (202), agents,
+  chaque outil par catégorie, lu dans `tools.ts`. Avant, avec la recherche d'outils, Dzaryx ne voyait qu'une partie de
+  ses outils et inventait le nombre quand on lui demandait « un document avec toutes tes capacités ».
+- **Routage** : « crée un document… » partait vers l'Agent Clients (mot « document »), sans `create_google_doc`.
+  `list_my_capabilities`, `create_google_doc`, `create_google_sheet` ajoutés aux outils de TOUS les agents
+  (`ALWAYS_TOOLS`) et aux outils toujours chargés (`CORE_TOOLS`). L'agent choisi d'après l'historique
+  (`conversation/orchestrator.ts`) reçoit aussi `ALWAYS_TOOLS` (avant : non).
+
 ## 2026-10-14 (après-midi) — Appels : Dzaryx sait qu'il a appelé ; dictée sans jargon ; jeton tgcall prêt
 
 - **Appel sortant** (`tgcall/realtime.py` `greet`) : consigne ajoutée « c'est TOI qui appelles, motif : … ».

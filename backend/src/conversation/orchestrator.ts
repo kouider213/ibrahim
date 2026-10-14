@@ -423,8 +423,8 @@ export async function processMessage(
   // (priority override removed — caused CLIENTS_AGENT to be hijacked by BOOKING_AGENT from old booking history)
   const historyAgent = detectAgentFromHistory(ctx.messages);
   if (!agentRoute.agent && historyAgent) {
-    const { Dzaryx_TOOLS } = await import('../integrations/tools.js');
-    agentRoute.agentTools = Dzaryx_TOOLS.filter((t: { name: string }) => historyAgent.toolNames.includes(t.name));
+    const { withAlways } = await import('../agents/core-router.js');
+    agentRoute.agentTools = withAlways(historyAgent.toolNames);
     agentRoute.label = historyAgent.name;
     agentRoute.agent = historyAgent;
   }
