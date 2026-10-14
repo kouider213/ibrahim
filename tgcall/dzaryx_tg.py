@@ -563,7 +563,7 @@ async def start_realtime(actor: str, user_id: int) -> bool:
                                               video_flags=MediaStream.Flags.IGNORE), CallConfig(timeout=45))
         await calls.record(user_id, RecordStream(True, AudioParameters(IN_RATE, 1), camera=True))
         rt.start_audio()
-        await rt.greet(greeting)
+        await rt.greet(greeting, st.outgoing)
     except Exception as e:
         log.error('appel %s impossible: %s', actor, e)
         await rt.close()

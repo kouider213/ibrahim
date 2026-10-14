@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-10-14 (après-midi) — Appels : Dzaryx sait qu'il a appelé ; dictée sans jargon ; jeton tgcall prêt
+
+- **Appel sortant** (`tgcall/realtime.py` `greet`) : consigne ajoutée « c'est TOI qui appelles, motif : … ».
+  Au récap 10h, « c'est toi qui m'as appelé » était compris comme « qui m'a appelé ? ».
+- **Dictée pendant l'appel** (`api/routes/call.ts` `/turn`) : Dzaryx demande « Je l'enregistre ? » au lieu de
+  réciter la consigne interne « dis confirmé au téléphone ».
+- **B034** : `backend/scripts/tgcall-token.ts` donne à tgcall son propre jeton (à lancer par Kouider).
+  Nexus utilise `PC_AGENT_TOKEN` (pas concerné). Houari n'utilise pas l'app. Reste : raccourci Siri.
+
 ## 2026-10-14 — Mails : Dzaryx annonce bien contact@ ; appel automatique en cas de panne
 
 - **Mails** : les envois partaient déjà de `contact@fikconciergerie.com` (vérifié dans « Envoyés »), mais le brouillon

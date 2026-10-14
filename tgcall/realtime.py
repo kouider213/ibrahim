@@ -91,8 +91,13 @@ class RealtimeCall:
         if self.ws and not self.ws.closed:
             await self.ws.send_str(json.dumps(event))
 
-    async def greet(self, text: str) -> None:
+    async def greet(self, text: str, outgoing: bool = False) -> None:
         """Dzaryx parle en premier (motif de l'appel, ou « je t'écoute »)."""
+        if outgoing:   # sinon « c'est toi qui m'as appelé » est compris comme une question sur ses appels
+            await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
+                {'type': 'input_text', 'text': f"C'est TOI (Dzaryx) qui appelles {self.actor.capitalize()}, il n'a pas appelé. "
+                 f"Motif de ton appel : « {text} ». S'il demande pourquoi tu appelles ou dit que c'est toi qui l'as "
+                 "appelé, confirme et redonne le motif en une phrase."}]}})
         await self._send({'type': 'response.create', 'response': {
             'instructions': f'Commence l\'appel en disant, naturellement et presque mot pour mot : « {text} »'}})
 

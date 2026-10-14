@@ -15,6 +15,8 @@
   que le service d'appels Telegram l'utilise.
 - **Fix prévu** : donner à tgcall son propre jeton d'appareil (`issueDeviceToken('kouider', 'service:tgcall')`),
   le mettre dans `tgcall/.env`, `pm2 restart dzaryx-tg`, puis `setLegacyOff(true)` (app_kv `auth:legacy`=`off`).
+- **Avancement** : script prêt `backend/scripts/tgcall-token.ts`. Nexus pas concerné (`PC_AGENT_TOKEN`), Houari
+  n'utilise pas l'app. Avant de couper : vérifier le raccourci Siri (en-tête `x-dzaryx-token`).
 
 ### B033 — Jours de location comptés sans le jour de retour (contrat, part Houari, CA) ✅
 - **Statut** : ✅ FIXÉ — 2026-10-14 (`3174fc9`)
