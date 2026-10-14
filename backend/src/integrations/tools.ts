@@ -2266,6 +2266,22 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: { type: 'object' as const, properties: { procedure: { type: 'string' } }, required: ['procedure'] },
   },
 
+  {
+    name: 'browser_task',
+    description: 'Faire une tâche dans un NAVIGATEUR SUR LE SERVEUR (marche même PC éteint) : "va sur le site de … et trouve …", "regarde les prix des loueurs sur …", "remplis le formulaire de …", "télécharge … sur …". S\'arrête et demande à Kouider (capture sur Telegram) avant toute action irréversible ou s\'il faut se connecter / un code. Si le PC de Kouider est allumé et qu\'il veut SON PC, utiliser send_nexus_command à la place.',
+    input_schema: { type: 'object' as const, properties: { task: { type: 'string', description: 'La tâche complète, précise (site, quoi chercher / remplir)' } }, required: ['task'] },
+  },
+  {
+    name: 'browser_reply',
+    description: 'Répondre au navigateur du serveur quand il attend Kouider : "continue", "oui envoie", "le code est 123456", "clique sur Accepter", "annule". Utiliser dès que Kouider répond à une question du navigateur.',
+    input_schema: { type: 'object' as const, properties: { answer: { type: 'string', description: 'La réponse de Kouider, telle quelle' } }, required: ['answer'] },
+  },
+  {
+    name: 'browser_status',
+    description: 'Où en est la tâche du navigateur du serveur ("état du navigateur", "il a fini ?").',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+
   // ─── CONTRAT PDF (Phase 8.2) ──────────────────────────────────────
   {
     name: 'generate_contract',

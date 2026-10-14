@@ -82,6 +82,7 @@ import { setPrivateModeTool, showMyMemoryTool, forgetMemoryFactTool } from './pr
 import { createGoalTool, listGoalsTool, updateGoalTool } from './goals.js';
 import { assignTaskTool, completeTaskTool, listTeamTasksTool } from './team-tasks.js';
 import { saveProcedureTool, listProceduresTool, deleteProcedureTool } from './procedures.js';
+import { browserTaskTool, browserReplyTool, browserStatusTool } from './browser-relay.js';
 import { generateRentalContract } from './generate-contract.js';
 import { exportBookingsToExcel } from './excel-export.js';
 // schedulerQueue removed — schedule_reminder now uses worker-only delivery (no BullMQ)
@@ -494,6 +495,9 @@ async function _dispatch(
       case 'save_procedure':             return await saveProcedureTool(input, sessionId);
       case 'list_procedures':            return await listProceduresTool();
       case 'delete_procedure':           return await deleteProcedureTool(input);
+      case 'browser_task':               return await browserTaskTool(input, sessionId);
+      case 'browser_reply':              return await browserReplyTool(input);
+      case 'browser_status':             return await browserStatusTool();
       // ─── CONTRAT PDF (Phase 8.2) ───
       case 'generate_contract':          return await generateContractTool(input, sessionId);
       // ─── EXPORT EXCEL (Phase 8.5) ───
