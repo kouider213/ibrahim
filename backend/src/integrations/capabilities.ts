@@ -10,7 +10,7 @@ import { askJson, startDossierJob, type DocSpec, type Section } from './pro-doc.
 // Ordre important : la première catégorie qui correspond gagne.
 const CATEGORIES: Array<[string, RegExp]> = [
   ['PC à distance (Nexus)', /nexus/],
-  ['Code, sites et serveurs', /^github_|railway|supabase_execute|netlify|code_task|new_project|site_file|health_check|site_analytics|set_site_hero/],
+  ['Code, sites et serveurs', /^github_|demo_site|railway|supabase_execute|netlify|code_task|new_project|site_file|health_check|site_analytics|set_site_hero/],
   ['Immobilier, ventes de véhicules et prospects', /propert|vehicles?_for_sale|vehicle_sale|vehicle_sold|vehicle_details|^list_packs|_pack|lead|prospect/],
   ['Images et vidéos', /image|video|subtitle|thumbnail|background|text_overlay|optimize_for|social_variants|voice|scenario|animate|photo/],
   ['Réservations, flotte et voitures', /booking|car|fleet|late_returns|voucher|contract|signature|vehicle|damage|pricing|delivery_fee|travel_time|rate_client/],

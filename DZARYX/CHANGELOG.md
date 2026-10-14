@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-10-14 (soir 3) — Démo de site d'un commerce en 1–2 min (create_demo_site)
+
+- **`create_demo_site`** (`integrations/demo-site.ts`) : lien Google Maps (ou nom + ville) → Google Places (API
+  « legacy » findplacefromtext + details, clé `GOOGLE_MAPS_API_KEY` ou `GOOGLE_PLACES_API_KEY`) : nom, adresse, tél.,
+  horaires, 8 photos, note, avis, services → Claude écrit les textes et INVENTE seulement ce qui manque (menu,
+  prestations, prix…) en le listant → page HTML responsive (hero photo, carte/prestations, galerie, avis, horaires,
+  plan, bouton appel) → Netlify (déploiement par empreintes SHA1, nouveau site `demo-<nom>-xxxx`). ~20 s testé
+  (restaurant + garage à Oran). Lien + liste « inventé » envoyés sur Telegram et dans l'app.
+- **`get_demo_site`** : démos gardées dans app_kv `demo:site:<slug>` (+ index `demo:sites`) avec vraies infos / inventé,
+  base pour le vrai site.
+- Le VPS de secours n'a pas `GOOGLE_MAPS_API_KEY` dans `.env` (Railway oui).
+
 ## 2026-10-14 (soir 2) — Dossiers de présentation soignés (create_presentation_doc)
 
 - **Nouvel outil `create_presentation_doc`** (`integrations/pro-doc.ts`) : Google Doc prêt à remettre — page de garde

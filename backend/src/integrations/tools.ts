@@ -2508,4 +2508,21 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       required: ['title', 'material'],
     },
   },
+  {
+    name: 'create_demo_site',
+    description: 'SITE DE DÉMO d\'un commerce en 1 à 2 min, pour le montrer au patron (restaurant, coiffeur, garage, librairie, bar tabac, vente auto…). Kouider envoie le LIEN GOOGLE MAPS du commerce (maps.app.goo.gl, google.com/maps, g.co/kgs…) ou son nom + ville. Dzaryx prend sur Google : nom, adresse, téléphone, horaires, photos, note, avis ; il INVENTE seulement ce qui manque (menu, prestations, prix, véhicules, produits) et le liste. Le site est mis en ligne et le lien arrive tout seul sur Telegram et dans l\'app. Si Kouider a parlé d\'une démo de site et envoie ensuite juste un lien Google Maps → appelle cet outil avec ce lien.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        link:  { type: 'string', description: 'Lien Google Maps du commerce, ou nom + ville' },
+        notes: { type: 'string', description: 'Précisions de Kouider (ex. « mets en avant les pizzas », « couleurs bleu et blanc »)' },
+      },
+      required: ['link'],
+    },
+  },
+  {
+    name: 'get_demo_site',
+    description: 'Retrouver les démos de sites déjà faites : sans name → liste avec liens ; avec name → le lien, les VRAIES infos Google et tout ce qui a été INVENTÉ (à remplacer par les vraies infos pour faire le vrai site).',
+    input_schema: { type: 'object' as const, properties: { name: { type: 'string', description: 'Nom du commerce' } } },
+  },
 ];
