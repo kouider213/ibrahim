@@ -2,9 +2,19 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-10-13**.
+> Dernière mise à jour : **2026-10-14**.
 
 ---
+
+## ⚡ Session 2026-10-14 — Claude 5.5, mémoire par le sens, connexion sécurisée, voix temps réel du PC
+- **Modèles** : Sonnet 5.5 / Haiku 5.5 partout via `integrations/anthropic-compat.ts` (créer les clients avec
+  `createAnthropic()`, jamais `new Anthropic(...)`). Route Générale : recherche d'outils côté serveur (~45 outils chargés).
+- **Jours facturés** : toujours `rentalDays()` (finance.ts) — jours inclus. Tests financiers 11/11.
+- **Mémoire par le sens** : `integrations/semantic-memory.ts` (app_kv `emb:facts:v1`, `emb:conv:v1`).
+- **Connexion de l'app** : mot de passe vérifié par le serveur (`/api/auth/*`, `auth/device-auth.ts`), jeton par
+  appareil. App publiée sans code (SW v130). **B034 ouvert** : anciens codes encore acceptés (tgcall en dépend).
+- **Nexus** (pas testé sur le PC) : voix temps réel `modules/realtime_voice.py`, « regarde avec moi »,
+  `modules/ui_automation.py`. Le PC récupère tout à sa prochaine connexion (mise à jour auto + pip).
 
 ## ⚡ Session 2026-10-13 (soir) — Comparaison avec les autres « Jarvis » → voir `DZARYX/SESSIONS/2026-10-13/`
 - **Nexus** (PAS encore testé sur le PC Windows) : extras JARVIS (minuteurs, notes, courses, volume, arrêt…), pilote de

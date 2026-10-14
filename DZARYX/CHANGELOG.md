@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-10-14 (après-midi) — Claude 5.5, mémoire par le sens, connexion sécurisée, voix temps réel du PC | `3174fc9`, `19f9f12`, `5087064`, `92daa52`, `c7695cb`
+
+- **Modèles** : tout le backend passe à Claude Sonnet 5.5 (cerveau) et Haiku 5.5 (réponses rapides) via un client
+  unique `integrations/anthropic-compat.ts`, qui adapte chaque requête (temperature retirée, budget de réflexion →
+  niveau d'effort, `between_tools`, repli serveur en cas de refus). Grille de prix du suivi de coûts mise à jour.
+- **Recherche d'outils** (route Générale, 201 outils) : seuls ~45 outils courants restent chargés, les autres sont
+  trouvés à la demande (`tool_search_tool_bm25`). Prompt par message : ~145 000 → ~30 000 tokens.
+- **Bugs d'argent corrigés** : contrat, part de Houari, prévision de CA et taux d'occupation comptaient un jour de
+  moins (jours non inclus). Une seule règle : `rentalDays()` dans `integrations/finance.ts`. Tests 11/11.
+- **Mémoire par le sens** (`integrations/semantic-memory.ts`) : souvenirs et conversations retrouvés même formulés
+  autrement (empreintes OpenAI 256 dim, Gemini en secours, stockées dans app_kv, sans migration).
+- **Sécurité** : l'app ne contient plus aucun code d'accès ni mot de passe. Connexion vérifiée par le serveur
+  (`/api/auth/login`, mots de passe hashés scrypt), jeton propre à chaque appareil, anti-devinette + alerte Telegram,
+  Réglages → Sécurité (changer son mot de passe, appareils connectés). ⚠️ Les anciens codes restent acceptés tant que
+  `app_kv auth:legacy` ≠ `off` : le service d'appels Telegram (`tgcall/.env ACCESS_TOKEN`) les utilise encore.
+- **Siri** : l'en-tête du jeton était lu avec des majuscules (jamais trouvé) → corrigé.
+- **Nexus** : voix temps réel sur le PC (`modules/realtime_voice.py`, « Nexus » ouvre une vraie conversation, on peut
+  lui couper la parole), « regarde avec moi » (écran joint à chaque phrase), clics par lecture des fenêtres Windows
+  (`modules/ui_automation.py`, clic par vision en secours). Non testé sur le PC (éteint).
+
+---
+
 ## 2026-10-14 — Piloter le PC (Nexus) depuis le téléphone
 
 - **App « MON PC »** (`simulator/…/NexusScreen.tsx`, réécrit + enfin dans le menu) : écran du PC en direct au doigt

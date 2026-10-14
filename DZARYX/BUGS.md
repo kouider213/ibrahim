@@ -7,6 +7,25 @@
 
 ## Bugs Ouverts 🔴
 
+### B034 — Anciens codes d'accès encore valides (visibles dans les vieilles versions publiques de l'app) 🔴
+- **Statut** : 🔴 OUVERT — 2026-10-14
+- **Fichier(s)** : `backend/src/auth/device-auth.ts` (app_kv `auth:legacy`), `tgcall/.env` (`ACCESS_TOKEN`)
+- **Description** : la nouvelle app n'a plus de code dedans (connexion par mot de passe + jeton d'appareil), mais
+  `MOBILE_ACCESS_TOKEN` reste dans l'historique public de gh-pages et reste accepté. Il ne peut pas être coupé tant
+  que le service d'appels Telegram l'utilise.
+- **Fix prévu** : donner à tgcall son propre jeton d'appareil (`issueDeviceToken('kouider', 'service:tgcall')`),
+  le mettre dans `tgcall/.env`, `pm2 restart dzaryx-tg`, puis `setLegacyOff(true)` (app_kv `auth:legacy`=`off`).
+
+### B033 — Jours de location comptés sans le jour de retour (contrat, part Houari, CA) ✅
+- **Statut** : ✅ FIXÉ — 2026-10-14 (`3174fc9`)
+- **Fichier(s)** : `generate-contract.ts`, `queue/jobs/proactive-jobs.ts` (prévision CA, part Houari, occupation)
+- **Description** : 4 calculs utilisaient (fin − début) jours au lieu de jours inclus → contrat avec 1 jour de moins
+  et prix/jour faux, part de Houari sous-estimée d'un jour.
+- **Fix** : `rentalDays()` (finance.ts) partout ; test financier 5 aligné + sections 9-10.
+
+### B032 — Route Siri toujours refusée ✅
+- **Statut** : ✅ FIXÉ — 2026-10-14 (`5087064`) — en-tête lu `x-Dzaryx-token` alors que Node met tout en minuscules.
+
 ### B031 — Notifs push iOS jamais demandées (prompt hors geste utilisateur) ✅
 - **Statut** : ✅ FIXÉ — 2026-06-19 (commit `83621e8`, SW v115)
 - **Fichier(s)** : `simulator/src/services/api.ts`, `simulator/src/components/Phone.tsx`, `simulator/src/components/screens/SettingsScreen.tsx`
