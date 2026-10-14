@@ -1233,6 +1233,26 @@ export const business = {
     }).then(r => r.json() as Promise<T>)
       .catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'réseau' }) as T),
 
+  // PC cloud (bureau virtuel du serveur) : quels PC sont joignables + ouvrir une adresse
+  nexusTargets: () =>
+    fetch(`${BACKEND_URL}/api/nexus/live/targets`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json() as Promise<{ ok: boolean; laptop: boolean; cloud: boolean; cloud_since?: string | null }>)
+      .catch(() => ({ ok: false, laptop: false, cloud: false })),
+
+  cloudOpen: (url: string) =>
+    fetch(`${BACKEND_URL}/api/nexus/live/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({ url, target: 'cloud' }),
+    }).then(r => r.json() as Promise<{ ok: boolean; result?: string; error?: string }>)
+      .catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'réseau' })),
+
+  cloudRestartBrowser: () =>
+    fetch(`${BACKEND_URL}/api/nexus/live/restart-browser`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` }, body: '{}',
+    }).then(r => r.json() as Promise<{ ok: boolean; result?: string; error?: string }>)
+      .catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'réseau' })),
+
   nexusSay: (command: string, confirmed = false) =>
     apiFetch<{ ok: boolean; text?: string; error?: string }>('/api/nexus/say', {
       method: 'POST', body: JSON.stringify({ command, confirmed }),

@@ -4,6 +4,7 @@ import { Hero } from '../ui/Premium.tsx';
 
 // Piloter le PC (Nexus) depuis le téléphone : écran en direct au doigt, clavier, télécommande,
 // et « Demande à Nexus » à l'écrit ou à la voix (même cerveau que sur le PC).
+// Deux PC : le laptop (Nexus) et le PC cloud (bureau virtuel toujours allumé sur le serveur, Chrome connecté).
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
@@ -17,12 +18,17 @@ type Pt = { x: number; y: number; nx: number; ny: number };
 
 const QUALITY = { net: { scale: 0.6, quality: 55 }, rapide: { scale: 0.4, quality: 40 } } as const;
 const LIVE_MAX_MS = 5 * 60_000;     // le direct s'arrête seul après 5 min sans toucher (données mobiles)
+const SITES: Array<[string, string]> = [
+  ['Google', 'https://www.google.com'], ['Gmail', 'https://mail.google.com'], ['Agenda', 'https://calendar.google.com'],
+  ['Drive', 'https://drive.google.com'], ['Netlify', 'https://app.netlify.com'], ['Google Business', 'https://business.google.com'],
+];
+type Target = 'laptop' | 'cloud';
 const CHIPS = ['Ouvre Spotify', 'Ouvre Chrome', 'Volume 30', 'Coupe le son', 'Verrouille le PC', 'Mets le PC en veille et réveille-le demain à 8h'];
 
 export default function NexusScreen() {
   const [status, setStatus]   = useState<{ online: boolean; launcher: boolean; text: string } | null>(null);
   const [frame, setFrame]     = useState<Frame | null>(null);
-  const [live, setLive]       = useState(false);
+  const [liveOn, setLive]     = useState(false);
   const [quality, setQuality] = useState<keyof typeof QUALITY>('net');
   const [dragMode, setDragMode] = useState<'scroll' | 'drag'>('scroll');
   const [full, setFull]       = useState(false);
@@ -34,6 +40,10 @@ export default function NexusScreen() {
   const [busy, setBusy]       = useState('');
   const [recording, setRecording] = useState(false);
   const [toast, setToast]     = useState('');
+  const [target, setTarget]   = useState<Target>('laptop');
+  const [targets, setTargets] = useState<{ laptop: boolean; cloud: boolean } | null>(null);
+  const [url, setUrl]         = useState('');
+  const picked = useRef(false);    // Kouider a choisi lui-même → plus de bascule automatique
 
   const imgRef     = useRef<HTMLImageElement | null>(null);
   const liveRef    = useRef(false);
@@ -46,13 +56,22 @@ export default function NexusScreen() {
   const chunks     = useRef<Blob[]>([]);
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
-  const online = !!status?.online;
+  const cloud = target === 'cloud';
+  const online = cloud ? !!targets?.cloud : !!status?.online;
+  // Même routes que le laptop, avec target:'cloud' pour le PC du serveur
+  const live = useCallback(<T = { ok: boolean; result?: string; error?: string }>(path: 'frame' | 'click' | 'drag' | 'scroll' | 'key', body: Record<string, unknown>) =>
+    business.nexusLive<T>(path, target === 'cloud' ? { ...body, target: 'cloud' } : body), [target]);
 
   // ── État ──────────────────────────────────────────────────────────────────
   const refreshStatus = useCallback(async () => {
+    const t = await business.nexusTargets();
+    setTargets({ laptop: !!t.laptop, cloud: !!t.cloud });
+    // Laptop éteint mais PC cloud là → on montre le PC cloud (tant que Kouider n'a pas choisi)
+    if (!picked.current) setTarget(!t.laptop && t.cloud ? 'cloud' : 'laptop');
     try { setStatus(await business.nexusRemoteStatus()); }
     catch { setStatus({ online: false, launcher: false, text: 'Serveur injoignable.' }); }
   }, []);
+  const choose = (t: Target) => { picked.current = true; setTarget(t); setFrame(null); setLive(false); };
   useEffect(() => {
     void refreshStatus();
     const t = setInterval(refreshStatus, 15_000);
@@ -61,17 +80,17 @@ export default function NexusScreen() {
 
   // ── Image de l'écran ──────────────────────────────────────────────────────
   const grab = useCallback(async () => {
-    const r = await business.nexusLive<{ ok: boolean; image_base64?: string; error?: string }>('frame', { ...QUALITY[quality] });
+    const r = await live<{ ok: boolean; image_base64?: string; error?: string }>('frame', { ...QUALITY[quality] });
     if (r.ok && r.image_base64) {
       setFrame({ src: `data:image/jpeg;base64,${r.image_base64}`, at: new Date().toLocaleTimeString('fr-FR') });
       return true;
     }
     return false;
-  }, [quality]);
+  }, [quality, live]);
 
   useEffect(() => {
-    liveRef.current = live;
-    if (!live) return;
+    liveRef.current = liveOn;
+    if (!liveOn) return;
     lastTouch.current = Date.now();
     let stop = false;
     (async () => {
@@ -83,7 +102,7 @@ export default function NexusScreen() {
       }
     })();
     return () => { stop = true; };
-  }, [live, grab]);
+  }, [liveOn, grab]);
 
   useEffect(() => { if (online && !frame) void grab(); }, [online, frame, grab]);
 
@@ -113,7 +132,7 @@ export default function NexusScreen() {
 
   const click = (p: Pt, button: 'left' | 'right' | 'double', cx: number, cy: number) => {
     showMark(cx, cy, button);
-    void business.nexusLive('click', { ...p, button }).then(r => { if (!r.ok) flash(r.error ?? 'Clic raté'); after(); });
+    void live('click', { ...p, button }).then(r => { if (!r.ok) flash(r.error ?? 'Clic raté'); after(); });
   };
 
   const onDown = (e: React.PointerEvent) => {
@@ -139,7 +158,7 @@ export default function NexusScreen() {
       const dy = e.clientY - pr.lastY;
       if (Math.abs(dy) >= 28) {
         pr.lastY = e.clientY;
-        void business.nexusLive('scroll', { direction: dy > 0 ? 'up' : 'down', amount: Math.min(6, Math.round(Math.abs(dy) / 28) * 2) });
+        void live('scroll', { direction: dy > 0 ? 'up' : 'down', amount: Math.min(6, Math.round(Math.abs(dy) / 28) * 2) });
       }
     }
   };
@@ -152,7 +171,7 @@ export default function NexusScreen() {
     if (pr.moved) {
       if (dragMode === 'drag') {
         const to = pointAt(e.clientX, e.clientY);
-        if (to) void business.nexusLive('drag', { from: pr.p, to }).then(() => after());
+        if (to) void live('drag', { from: pr.p, to }).then(() => after());
       } else after();
       return;
     }
@@ -171,13 +190,13 @@ export default function NexusScreen() {
   // ── Clavier ───────────────────────────────────────────────────────────────
   const key = (body: Record<string, unknown>, label: string) => {
     if (!online) return;
-    void business.nexusLive('key', body).then(r => { if (!r.ok) flash(`${label} : ${r.error ?? 'raté'}`); after(); });
+    void live('key', body).then(r => { if (!r.ok) flash(`${label} : ${r.error ?? 'raté'}`); after(); });
   };
   const typeText = async () => {
     if (!kb || !online) return;
-    const r = await business.nexusLive('key', { text: kb });
+    const r = await live('key', { text: kb });
     if (!r.ok) { flash(r.error ?? 'Texte non envoyé'); return; }
-    if (enterAfter) await business.nexusLive('key', { key: 'enter' });
+    if (enterAfter) await live('key', { key: 'enter' });
     setKb(''); after();
   };
 
@@ -187,6 +206,15 @@ export default function NexusScreen() {
     if (!c || busy) return;
     if (!confirmed) setMsgs(m => [...m, { who: 'me' as const, text: c }].slice(-12));
     setAsk(''); setBusy('say');
+    if (cloud) {
+      try {
+        const r = await api.chat(`Sur mon PC cloud (navigateur du serveur, que je regarde en direct) : ${c}`, 'cloudpc_app', undefined, undefined, true);
+        setMsgs(m => [...m, { who: 'nexus' as const, text: (r.text ?? 'Dzaryx s\'en occupe.').replace(/\*\*/g, '') }].slice(-12));
+        after();
+      } catch (e) { setMsgs(m => [...m, { who: 'nexus' as const, text: `Erreur : ${e instanceof Error ? e.message : e}` }]); }
+      finally { setBusy(''); }
+      return;
+    }
     try {
       const r = await business.nexusSay(c, confirmed);
       const text = r.text ?? r.error ?? 'Pas de réponse.';
@@ -231,6 +259,24 @@ export default function NexusScreen() {
     } catch { flash('Micro refusé'); }
   };
 
+  // ── PC cloud : ouvrir une adresse, relancer Chrome ───────────────────────
+  const openUrl = async (u: string) => {
+    const v = u.trim();
+    if (!v || !online) return;
+    const r = await business.cloudOpen(v);
+    if (!r.ok) { flash(r.error ?? 'Page non ouverte'); return; }
+    setUrl(''); setTimeout(() => { void grab(); }, 1500);
+  };
+  const restartChrome = async () => {
+    if (!window.confirm('Relancer Chrome sur le PC cloud ? (tes connexions sont gardées)')) return;
+    setBusy('restart');
+    try {
+      const r = await business.cloudRestartBrowser();
+      flash(r.ok ? 'Chrome relancé (connexions gardées)' : r.error ?? 'Échec');
+      setTimeout(() => { void grab(); }, 4000);
+    } finally { setBusy(''); }
+  };
+
   // ── Entretien ─────────────────────────────────────────────────────────────
   const maint = async (kind: 'wake' | 'update' | 'restart') => {
     if (busy) return;
@@ -245,7 +291,7 @@ export default function NexusScreen() {
   };
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
-  const dot = status === null ? C.amber : online ? C.accent : C.red;
+  const dot = (cloud ? targets === null : status === null) ? C.amber : online ? C.accent : C.red;
   const screen = (
     <div style={{ position: 'relative', background: '#000', borderRadius: full ? 0 : 14, overflow: 'hidden', border: full ? 'none' : `1px solid ${C.border}`, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', ...(full ? { width: '100%', height: '100%' } : { minHeight: 180 }) }}>
       {frame ? (
@@ -255,17 +301,17 @@ export default function NexusScreen() {
           style={full ? { maxWidth: '100%', maxHeight: '100%', display: 'block' } : { width: '100%', height: 'auto', display: 'block' }} />
       ) : (
         <div style={{ color: C.muted, fontSize: 13, padding: 30, textAlign: 'center' }}>
-          {online ? 'Chargement de l\'écran…' : 'PC non connecté'}
+          {online ? 'Chargement de l\'écran…' : cloud ? 'PC cloud non connecté' : 'PC non connecté'}
         </div>
       )}
       {mark && <div style={{ position: 'absolute', left: mark.x - 18, top: mark.y - 18, width: 36, height: 36, borderRadius: '50%', border: `3px solid ${mark.kind === 'right' ? C.amber : C.accent}`, pointerEvents: 'none', boxShadow: '0 0 12px rgba(16,185,129,0.6)' }} />}
-      {frame && <div style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 10, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 6px', pointerEvents: 'none' }}>{live ? '● direct' : frame.at}</div>}
+      {frame && <div style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 10, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 6px', pointerEvents: 'none' }}>{liveOn ? '● direct' : frame.at}</div>}
     </div>
   );
 
   const toolbar = (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      <Pill on={live} onClick={() => { if (online) setLive(l => !l); }} label={live ? '⏸ Pause' : '▶ Direct'} />
+      <Pill on={liveOn} onClick={() => { if (online) setLive(l => !l); }} label={liveOn ? '⏸ Pause' : '▶ Direct'} />
       <Pill onClick={() => { void grab(); }} label="📸 Actualiser" />
       <Pill on={dragMode === 'drag'} onClick={() => setDragMode(m => (m === 'scroll' ? 'drag' : 'scroll'))} label={dragMode === 'scroll' ? '↕ Glisser = défiler' : '✋ Glisser = déplacer'} />
       <Pill onClick={() => setQuality(q => (q === 'net' ? 'rapide' : 'net'))} label={quality === 'net' ? 'Image nette' : 'Image rapide'} />
@@ -287,11 +333,25 @@ export default function NexusScreen() {
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
       <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Nexus" title="Mon PC" /></div>
 
+      {/* Quel PC */}
+      <div style={{ display: 'flex', gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, marginBottom: 10 }}>
+        {([['laptop', '💻 Laptop', targets?.laptop], ['cloud', '☁️ PC cloud', targets?.cloud]] as Array<[Target, string, boolean | undefined]>).map(([t, l, on]) => (
+          <button key={t} onClick={() => choose(t)} style={{ flex: 1, padding: '9px 6px', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 13, fontWeight: 600,
+            background: target === t ? 'rgba(16,185,129,0.18)' : 'transparent', color: target === t ? C.accent : C.text }}>
+            {l} <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginLeft: 4, background: on === undefined ? C.amber : on ? C.accent : C.red }} />
+          </button>
+        ))}
+      </div>
+
       {/* État */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 12 }}>
         <span style={{ width: 10, height: 10, borderRadius: '50%', background: dot, boxShadow: `0 0 8px ${dot}`, flexShrink: 0 }} />
-        <span style={{ fontSize: 13, color: C.text, flex: 1, lineHeight: 1.35 }}>{status?.text ?? 'Vérification…'}</span>
-        {!online && <Btn onClick={() => { void maint('wake'); }} label={busy === 'wake' ? '…' : 'Réveiller'} color={C.accent} />}
+        <span style={{ fontSize: 13, color: C.text, flex: 1, lineHeight: 1.35 }}>
+          {cloud
+            ? (targets?.cloud ? 'PC cloud en ligne — toujours allumé sur le serveur. Chrome garde tes connexions ; Dzaryx y fait ses tâches web.' : 'PC cloud injoignable (service du serveur). Dis « vérifie le PC cloud » à Claude Code.')
+            : (status?.text ?? 'Vérification…')}
+        </span>
+        {!online && !cloud && <Btn onClick={() => { void maint('wake'); }} label={busy === 'wake' ? '…' : 'Réveiller'} color={C.accent} />}
       </div>
 
       {/* Écran */}
@@ -299,8 +359,25 @@ export default function NexusScreen() {
       <div style={{ marginBottom: 6 }}>{toolbar}</div>
       <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Toucher = clic · double toucher = double clic · appui long = clic droit · glisser = défiler ou déplacer</div>
 
+      {/* PC cloud : adresse + sites */}
+      {cloud && (
+        <Section title="Ouvrir sur le PC cloud">
+          <div style={{ display: 'flex', gap: 7, marginBottom: 9 }}>
+            <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void openUrl(url); }}
+              placeholder="adresse du site (ex. autolux…)" disabled={!online} inputMode="url" autoCapitalize="none" style={{ ...inp, flex: 1 }} />
+            <Btn onClick={() => { void openUrl(url); }} label="Ouvrir" color={C.accent} disabled={!online} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {SITES.map(([l, u]) => <Pill key={l} onClick={() => { void openUrl(u); }} label={l} />)}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
+            Connecte-toi une fois à tes sites ici : Chrome s'en souvient. Le serveur est aux Pays-Bas (certains sites l'affichent en néerlandais ; Ouedkniss le bloque).
+          </div>
+        </Section>
+      )}
+
       {/* Demande à Nexus */}
-      <Section title="Demande à Nexus">
+      <Section title={cloud ? 'Demande à Dzaryx (sur le PC cloud)' : 'Demande à Nexus'}>
         {msgs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
             {msgs.map((m, i) => (
@@ -310,14 +387,14 @@ export default function NexusScreen() {
         )}
         <div style={{ display: 'flex', gap: 7 }}>
           <input value={ask} onChange={e => setAsk(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void say(ask); }}
-            placeholder={online ? '« ouvre Spotify », « volume 30 »…' : 'PC non connecté'} disabled={!online} style={{ ...inp, flex: 1 }} />
+            placeholder={!online ? 'PC non connecté' : cloud ? '« trouve les horaires d\'Air Algérie Oran-Bruxelles »…' : '« ouvre Spotify », « volume 30 »…'} disabled={!online} style={{ ...inp, flex: 1 }} />
           <button onClick={() => { void toggleMic(); }} disabled={!online || (!!busy && !recording)} aria-label="Dicter"
             style={{ ...round, background: recording ? C.red : 'rgba(255,255,255,0.06)' }}>{recording ? '■' : '🎙️'}</button>
           <button onClick={() => { void say(ask); }} disabled={!online || !ask.trim() || !!busy} aria-label="Envoyer"
             style={{ ...round, background: C.accent, color: '#04140d' }}>{busy === 'say' || busy === 'stt' ? '…' : '➤'}</button>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
-          {CHIPS.map(c => <Pill key={c} onClick={() => { void say(c); }} label={c} />)}
+          {!cloud && CHIPS.map(c => <Pill key={c} onClick={() => { void say(c); }} label={c} />)}
         </div>
       </Section>
 
@@ -335,30 +412,44 @@ export default function NexusScreen() {
           {([['Entrée', { key: 'enter' }], ['Échap', { key: 'esc' }], ['⌫', { key: 'backspace' }], ['Tab', { key: 'tab' }],
              ['←', { key: 'left' }], ['↑', { key: 'up' }], ['↓', { key: 'down' }], ['→', { key: 'right' }],
              ['Copier', { keys: ['ctrl', 'c'] }], ['Coller', { keys: ['ctrl', 'v'] }], ['Annuler', { keys: ['ctrl', 'z'] }], ['Tout', { keys: ['ctrl', 'a'] }],
-             ['Alt+Tab', { keys: ['alt', 'tab'] }], ['Windows', { keys: ['win'] }], ['Bureau', { keys: ['win', 'd'] }], ['Fermer', { keys: ['alt', 'f4'] }],
+             ...(cloud
+               ? [['◀ Retour', { keys: ['alt', 'left'] }], ['＋ Onglet', { keys: ['ctrl', 't'] }], ['Onglet ▶', { keys: ['ctrl', 'tab'] }], ['✕ Onglet', { keys: ['ctrl', 'w'] }]]
+               : [['Alt+Tab', { keys: ['alt', 'tab'] }], ['Windows', { keys: ['win'] }], ['Bureau', { keys: ['win', 'd'] }], ['Fermer', { keys: ['alt', 'f4'] }]]),
           ] as Array<[string, Record<string, unknown>]>).map(([l, b]) => <Key key={l} label={l} onClick={() => key(b, l)} disabled={!online} />)}
         </Grid>
       </Section>
 
       {/* Télécommande */}
-      <Section title="Télécommande">
+      {!cloud && <Section title="Télécommande">
         <Grid>
           {([['⏮', 'prevtrack'], ['⏯', 'playpause'], ['⏭', 'nexttrack'], ['🔇', 'volumemute'], ['🔉', 'volumedown'], ['🔊', 'volumeup'], ['F5', 'f5'], ['⛶ F11', 'f11']] as Array<[string, string]>)
             .map(([l, k]) => <Key key={l} label={l} onClick={() => key({ key: k }, l)} disabled={!online} />)}
         </Grid>
-      </Section>
+      </Section>}
+
+      {cloud && (
+        <Section title="PC cloud">
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+            <Btn onClick={() => { void key({ key: 'f5' }, 'F5'); }} label="↻ Actualiser la page" color={C.accent} disabled={!online} />
+            <Btn onClick={() => { void restartChrome(); }} label={busy === 'restart' ? '…' : '⟲ Relancer Chrome'} color={C.amber} disabled={!online} />
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
+            Toujours allumé, même quand ton laptop est éteint. Ce n'est pas ton laptop : pas tes fichiers ni tes logiciels Windows. Quand Dzaryx fait une tâche web, tu le vois ici et tu peux prendre la main (connexion, code).
+          </div>
+        </Section>
+      )}
 
       {/* Entretien */}
-      <Section title="Nexus">
+      {!cloud && <Section title="Nexus">
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
           <Btn onClick={() => { void maint('update'); }} label={busy === 'update' ? 'Mise à jour…' : '⬇ Mettre à jour'} color={C.accent} disabled={!online} />
           <Btn onClick={() => { void maint('restart'); }} label={busy === 'restart' ? '…' : '↻ Redémarrer Nexus'} color={C.amber} disabled={!online} />
           <Btn onClick={() => { void maint('wake'); }} label={busy === 'wake' ? '…' : '⏻ Réveiller'} color={C.muted} />
         </div>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
-          Nexus se met à jour tout seul quand le PC se rallume. PC éteint : il ne peut pas être rallumé à distance. En veille : dis « mets le PC en veille et réveille-le demain à 8h ».
+          Nexus se met à jour tout seul quand le PC se rallume. PC éteint : il ne peut pas être rallumé à distance — utilise le PC cloud. En veille : dis « mets le PC en veille et réveille-le demain à 8h ».
         </div>
-      </Section>
+      </Section>}
 
       {toast && <Toast text={toast} />}
     </div>
