@@ -56,6 +56,7 @@ import { jobPrivacyExpire } from '../integrations/privacy.js';
 import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
 import { jobDbBackup } from '../integrations/db-backup.js';
 import { jobSelfTest } from '../integrations/self-test.js';
+import { jobSeasonWatch } from '../integrations/seasons.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -257,6 +258,11 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'season-watch',
+    cron:  '15 9 * * 1',            // lundi 9h15 — saisons (diaspora, Aïd, vacances FR/BE) dans ≤ 6 semaines + remplissage réel
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'monthly-excel',
     cron:  '30 9 1 * *',            // 9h30 le 1er du mois — export Excel comptable auto
     tz:    'Africa/Algiers',
@@ -379,6 +385,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
+  'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },
   'db-backup':               async () => { console.log(`[db-backup] ${await jobDbBackup()}`); },
   'auto-call-flush':         async () => { await flushAutoCalls(); },
   'tgcall-watch':            async () => { await checkTgcallAlive(); },

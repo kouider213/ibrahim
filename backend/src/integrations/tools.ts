@@ -2511,6 +2511,14 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'get_upcoming_seasons',
+    description: "Saisons fortes à venir pour la location à Oran : vacances scolaires France + Belgique (diaspora), été diaspora, Ramadan, Aïd el-Fitr, Aïd el-Adha, Mawlid, fêtes nationales — avec le REMPLISSAGE RÉEL du parc sur chaque période et un conseil (prix, relances). Pour « quand est l'Aïd ? », « la diaspora arrive quand ? », « je dois monter mes prix ? », « les vacances de Toussaint ». Avant de proposer des prix de saison (apply_dynamic_pricing / suggest_smart_pricing).",
+    input_schema: {
+      type: 'object' as const,
+      properties: { days: { type: 'number', description: 'Horizon en jours (défaut 120, max 365)' } },
+    },
+  },
+  {
     name: 'run_self_test',
     description: "Ton AUTO-TEST et tes SAUVEGARDES. what='full' (défaut) : vérifie maintenant que tout marche (base, cerveau IA, ~16 outils en lecture seule, Gmail, agenda, sauvegardes, service Telegram, tâches auto, Nexus) — 1 à 2 min. what='last' : résultat du dernier auto-test (7h45 chaque matin). what='backup' : état des sauvegardes de la base (Drive pro + VPS, chaque nuit, 30 jours gardés). what='backup_now' : lance tout de suite une sauvegarde vers le Drive. Pour « tout marche ? », « fais un auto-test », « mes données sont sauvegardées ? », « fais une sauvegarde ».",
     input_schema: {

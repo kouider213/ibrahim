@@ -9,6 +9,7 @@ import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.j
 import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
 import { listMyCapabilities } from './capabilities.js';
 import { selfTestTool } from './self-test.js';
+import { seasonsReport } from './seasons.js';
 import { jobDbBackup } from './db-backup.js';
 import { createPresentationDoc } from './pro-doc.js';
 import { createDemoSite, getDemoSite } from './demo-site.js';
@@ -368,6 +369,7 @@ async function _dispatch(
       case 'create_google_doc':         return await createGoogleDoc(input);
       case 'create_google_sheet':       return await createGoogleSheet(input);
       case 'list_my_capabilities':      return await listMyCapabilities(input);
+      case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));
       case 'run_self_test':             return input['what'] === 'backup_now'
         ? `💾 Sauvegarde faite : ${await jobDbBackup().catch(e => `❌ échec — ${e instanceof Error ? e.message : String(e)}`)}`
         : await selfTestTool(input);
