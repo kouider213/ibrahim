@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-14 (soir 6) — FIK Sites : « Ouvrir son espace (moi) » + guide domaine copier-coller | app SW v132
+
+- **Accès FIK à l'espace client** : bouton 🔓 « Ouvrir son espace (moi) » dans la fiche du site → POST
+  `/api/fik-sites/:id/open-admin` → `openAsStaff()` : session `staff` de 2 h (jeton dans le #fragment, gardé en
+  sessionStorage), le mot de passe du patron et ses connexions ne changent pas. Bandeau « Mode FIK Conciergerie »,
+  carte mot de passe masquée (et refusée côté API). `ADMIN_VERSION`/`adminV` : les anciennes pages /admin/ sont
+  republiées automatiquement à la première ouverture.
+- **Bloc Nom de domaine** : 4 étapes expliquées (acheter → brancher → zone DNS → attendre), chaque valeur DNS avec
+  bouton Copier (`dnsTarget` dans l'overview), + « Copier le message pour le client » prêt pour WhatsApp.
+
 ## 2026-10-14 (soir 5) — FIK Sites étapes 3 à 6 + page « Sites clients » dans l'app | app SW v131
 
 - **Étape 3 — domaine** : `manage_client_site` domain / domain_check / domain_remove. Netlify `custom_domain` + alias www,

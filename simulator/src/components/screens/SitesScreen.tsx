@@ -190,6 +190,7 @@ function SiteDetail({ s, act, onRead }: { s: ClientSiteRow; act: Act; onRead: ()
         <button onClick={() => window.open(s.url, '_blank')} style={btn('rgba(96,165,250,0.18)', C.blue)}>🌐 Voir le site</button>
         <button onClick={() => window.open(s.adminUrl, '_blank')} style={btn('rgba(255,255,255,0.07)', C.text)}>🔧 Espace client</button>
         <button onClick={() => copy(s.adminUrl)} style={btn('rgba(255,255,255,0.07)', C.text)}>📋 Lien espace client</button>
+        <OpenAsMe s={s} />
       </div>
       <BillingBlock s={s} act={act} />
       <MessagesBlock s={s} onRead={onRead} />
@@ -337,24 +338,106 @@ function EditBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
   );
 }
 
+// Ouvre l'espace client du patron sans son mot de passe (session FIK de 2 h, le patron reste connecté).
+function OpenAsMe({ s }: { s: ClientSiteRow }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const go = async () => {
+    const w = window.open('', '_blank');   // ouvert tout de suite, sinon iOS bloque la fenêtre après l'attente
+    setBusy(true); setErr('');
+    try {
+      const { url } = await business.siteOpenAdmin(s.id);
+      if (w) w.location.href = url; else window.location.href = url;
+    } catch (e) { w?.close(); setErr(errText(e)); }
+    finally { setBusy(false); }
+  };
+  return (<>
+    <button disabled={busy} onClick={() => { void go(); }} style={{ ...btn('rgba(16,185,129,0.16)', C.accent), opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Ouverture…' : '🔓 Ouvrir son espace (moi)'}</button>
+    {err && <div style={{ width: '100%', color: C.red, fontSize: 11.5 }}>❌ {err}</div>}
+  </>);
+}
+
+function CopyLine({ label, value }: { label: string; value: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0f0f14', border: `1px solid ${C.border}`, borderRadius: 9, padding: '6px 6px 6px 10px', marginTop: 5 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10.5, color: C.muted }}>{label}</div>
+        <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13, wordBreak: 'break-all' }}>{value}</div>
+      </div>
+      <button onClick={() => { void navigator.clipboard?.writeText(value); setDone(true); setTimeout(() => setDone(false), 1500); }}
+        style={{ ...btn(done ? 'rgba(16,185,129,0.2)' : 'rgba(96,165,250,0.18)', done ? C.accent : C.blue), flex: '0 0 auto' }}>{done ? '✓ Copié' : 'Copier'}</button>
+    </div>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: string; children?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', gap: 9, marginTop: 10 }}>
+      <div style={{ flex: '0 0 22px', height: 22, borderRadius: 11, background: 'rgba(96,165,250,0.18)', color: C.blue, fontSize: 11.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{n}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700 }}>{title}</div>
+        {children && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{children}</div>}
+      </div>
+    </div>
+  );
+}
+
 function DomainBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
   const [domain, setDomain] = useState('');
+  const [sent, setSent] = useState(false);
   const d = s.domain;
+  const name = d?.name ?? (domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '') || 'son-domaine.com');
+  const t = s.dnsTarget;
+  // Message tout prêt si c'est le patron (ou son informaticien) qui règle le DNS chez son vendeur.
+  const clientMsg = `Bonjour, pour que votre site s'affiche sur ${name}, il faut régler 2 lignes dans la « zone DNS » du domaine (chez OVH, GoDaddy, Hostinger…) :\n\n` +
+    `1) Type A — Nom : @ (ou vide) — Valeur : ${t.a}\n2) Type CNAME — Nom : www — Valeur : ${t.cname}\n\n` +
+    `Supprimez les autres lignes A, AAAA ou CNAME qui ont le nom @ ou www. C'est actif en quelques minutes à 24 h. Merci ! — FIK Conciergerie`;
+  const copyMsg = () => { void navigator.clipboard?.writeText(clientMsg); setSent(true); setTimeout(() => setSent(false), 1500); };
+  const dnsSteps = (
+    <>
+      <Step n={3} title="Régler le DNS chez le vendeur du domaine">
+        Connecte-toi au compte du client (OVH, GoDaddy, Hostinger…) → le domaine → <b style={{ color: C.text }}>Zone DNS</b> (ou « Gérer le DNS »). Ajoute ou modifie ces 2 lignes :
+      </Step>
+      <div style={{ marginLeft: 31 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, marginTop: 7 }}>Ligne 1 — type <span style={{ color: C.blue }}>A</span></div>
+        <CopyLine label="Nom / Hôte (chez OVH : laisser vide)" value="@" />
+        <CopyLine label="Valeur / Pointe vers" value={t.a} />
+        <div style={{ fontSize: 11.5, fontWeight: 700, marginTop: 9 }}>Ligne 2 — type <span style={{ color: C.blue }}>CNAME</span></div>
+        <CopyLine label="Nom / Hôte" value="www" />
+        <CopyLine label="Valeur / Cible" value={t.cname} />
+        <div style={{ fontSize: 11.5, color: C.gold, marginTop: 7 }}>⚠️ Supprime les autres lignes A, AAAA ou CNAME qui ont le nom « @ » ou « www » (souvent une page « parking » du vendeur). Ne touche pas aux lignes MX (les e-mails).</div>
+        <button onClick={copyMsg} style={{ ...btn(sent ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.07)', sent ? C.accent : C.text), marginTop: 8 }}>{sent ? '✓ Message copié' : '💬 Copier le message pour le client'}</button>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Si c'est lui (ou son informaticien) qui fait le réglage : colle ce message sur WhatsApp, tout y est.</div>
+      </div>
+      <Step n={4} title="Attendre que ça devienne actif">
+        De quelques minutes à 24 h. Dzaryx vérifie chaque jour et te prévient sur Telegram quand le site s'ouvre sur {name} avec le cadenas https.
+      </Step>
+    </>
+  );
   return (
     <Block title="🔗 NOM DE DOMAINE">
       {!d ? (<>
-        <div style={{ color: C.muted, fontSize: 12, marginBottom: 6 }}>Adresse actuelle : {s.netlifyUrl.replace(/^https:\/\//, '')}. Le client achète son domaine (OVH, GoDaddy, Hostinger…), puis tu le branches ici.</div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="restaurant-pralin.com" style={{ ...input, flex: 1 }} autoCapitalize="none" />
+        <div style={{ color: C.muted, fontSize: 12 }}>Adresse actuelle : {s.netlifyUrl.replace(/^https:\/\//, '')}. Pour avoir son propre nom (ex. restaurant-pralin.com) :</div>
+        <Step n={1} title="Le client achète son domaine">
+          Chez OVH, Hostinger, GoDaddy ou Namecheap, à son nom (environ 10 à 15 € par an pour un .com, à renouveler chaque année). Le mieux : qu'il te donne l'accès à ce compte, sinon il fera l'étape 3 avec ton message.
+        </Step>
+        <Step n={2} title="Brancher le domaine ici" />
+        <div style={{ display: 'flex', gap: 6, marginTop: 6, marginLeft: 31 }}>
+          <input value={domain} onChange={e => setDomain(e.target.value)} placeholder="restaurant-pralin.com" style={{ ...input, flex: 1 }} autoCapitalize="none" autoCorrect="off" />
           <button disabled={!domain.trim()} onClick={() => { void act('domain', { domain: domain.trim() }).then(ok => { if (ok) setDomain(''); }); }} style={{ ...btn('rgba(96,165,250,0.18)', C.blue), opacity: domain.trim() ? 1 : 0.5 }}>Brancher</button>
         </div>
+        {dnsSteps}
       </>) : (<>
         <div><b>{d.name}</b> · {d.status === 'active' ? <span style={{ color: C.accent }}>✅ actif (https)</span> : <span style={{ color: C.gold }}>⏳ en attente du DNS</span>}</div>
-        {d.status === 'pending' && s.dns && <div style={{ whiteSpace: 'pre-wrap', fontSize: 11.5, background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, marginTop: 6 }}>{s.dns}</div>}
-        {d.checkedAt && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Dernière vérification : {fmtAt(d.checkedAt)}</div>}
+        {d.status === 'pending' && <>
+          <Step n={1} title="Domaine acheté" />
+          <Step n={2} title={`Branché sur le site ✓`} />
+          {dnsSteps}
+        </>}
+        {d.checkedAt && <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>Dernière vérification : {fmtAt(d.checkedAt)}</div>}
         <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
           {d.status === 'pending' && <button onClick={() => { void act('domain_check'); }} style={btn('rgba(96,165,250,0.18)', C.blue)}>🔄 Vérifier maintenant</button>}
-          {d.status === 'pending' && s.dns && <button onClick={() => { void navigator.clipboard?.writeText(s.dns!); }} style={btn('rgba(255,255,255,0.07)', C.text)}>📋 Copier les réglages</button>}
           <ConfirmButton label="Retirer" confirm="Oui, retirer le domaine" color={C.red} onGo={() => { void act('domain_remove'); }} />
         </div>
       </>)}

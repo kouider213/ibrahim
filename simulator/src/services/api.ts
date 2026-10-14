@@ -886,6 +886,7 @@ export interface ClientSiteRow {
   url: string; netlifyUrl: string; adminUrl: string; createdAt: string; updatedAt: string; photo: string | null;
   account: string | null; invented: string[];
   domain: { name: string; status: 'pending' | 'active'; since: string; checkedAt?: string } | null; dns: string | null;
+  dnsTarget: { a: string; cname: string };
   billing: { monthly: number; currency: string; paidUntil: string; autoPause: boolean; graceDays: number; late: number;
     payments: Array<{ at: string; amount: number; months: number; note?: string }> } | null;
   notify: { email: string | null; kouider: boolean }; unread: number; messages: SiteMessage[];
@@ -996,6 +997,7 @@ export const business = {
     apiFetch<{ message: string }>('/api/fik-sites/create', { method: 'POST', body: JSON.stringify({ demo, real_info, client_email }) }),
   siteAction: (id: string, action: string, params: Record<string, unknown> = {}) =>
     apiFetch<{ message: string }>(`/api/fik-sites/${encodeURIComponent(id)}/action`, { method: 'POST', body: JSON.stringify({ ...params, action }) }),
+  siteOpenAdmin: (id: string) => apiFetch<{ url: string }>(`/api/fik-sites/${encodeURIComponent(id)}/open-admin`, { method: 'POST' }),
   siteMessagesRead: (id: string) => apiFetch<{ ok: boolean }>(`/api/fik-sites/${encodeURIComponent(id)}/messages/read`, { method: 'POST' }),
   prospectsAutopilot: (patch: { enabled?: boolean; per_day?: number }) =>
     apiFetch<{ autopilot: ProspectsOverview['autopilot'] }>('/api/prospects/autopilot', { method: 'POST', body: JSON.stringify(patch) }),

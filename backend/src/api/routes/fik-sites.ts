@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { sitesOverview, manageClientSite, createClientSite, getSite, markMessagesRead } from '../../integrations/client-sites.js';
+import { sitesOverview, manageClientSite, createClientSite, getSite, markMessagesRead, openAsStaff } from '../../integrations/client-sites.js';
 import { createDemoSite } from '../../integrations/demo-site.js';
 
 // Page « Sites clients » de l'app Dzaryx (Kouider) : démos, vrais sites, abonnements, domaines, messages.
@@ -36,6 +36,14 @@ router.post('/:id/action', async (req, res) => {
   if (!ACTIONS.includes(action)) { res.status(400).json({ error: 'Action inconnue' }); return; }
   if (!(await getSite(String(req.params['id'])))) { res.status(404).json({ error: 'Site introuvable' }); return; }
   try { res.json({ message: await manageClientSite({ ...body, action, site: String(req.params['id']) }) }); }
+  catch (err) { res.status(502).json({ error: err instanceof Error ? err.message : 'Erreur' }); }
+});
+
+// Ouvre l'espace client du patron pour Kouider, sans toucher à son mot de passe.
+router.post('/:id/open-admin', async (req, res) => {
+  const s = await getSite(String(req.params['id']));
+  if (!s) { res.status(404).json({ error: 'Site introuvable' }); return; }
+  try { res.json({ url: await openAsStaff(s) }); }
   catch (err) { res.status(502).json({ error: err instanceof Error ? err.message : 'Erreur' }); }
 });
 

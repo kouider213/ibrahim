@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import {
-  type ClientSite, loginClient, sessionSite, logoutClient, changeClientPassword, cleanEdit, publishSite, saveSite,
+  type ClientSite, loginClient, sessionOf, logoutClient, changeClientPassword, cleanEdit, publishSite, saveSite,
   uploadPhoto, removePhotos, isOwnPhoto, MAX_PHOTOS, receiveMessage, listMessages, markMessagesRead,
 } from '../../integrations/client-sites.js';
 
@@ -8,15 +8,15 @@ import {
 // patron (Bearer), obtenu par /login — indépendant des jetons de l'app Dzaryx.
 
 const router = Router();
-type Authed = Request & { site?: ClientSite; token?: string };
+type Authed = Request & { site?: ClientSite; token?: string; staff?: boolean };
 
 const bearer = (req: Request) => (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '').trim();
 
 async function auth(req: Authed, res: Response, next: NextFunction): Promise<void> {
   const token = bearer(req);
-  const site = token ? await sessionSite(token).catch(() => null) : null;
-  if (!site?.account) { res.status(401).json({ error: 'Non connecté' }); return; }
-  req.site = site; req.token = token;
+  const sess = token ? await sessionOf(token).catch(() => null) : null;
+  if (!sess || (!sess.site.account && !sess.staff)) { res.status(401).json({ error: 'Non connecté' }); return; }
+  req.site = sess.site; req.token = token; req.staff = sess.staff;
   next();
 }
 
@@ -43,7 +43,7 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/me', auth, (req: Authed, res) => {
-  res.json({ site: editable(req.site!), url: req.site!.url });
+  res.json({ site: editable(req.site!), url: req.site!.url, staff: !!req.staff });
 });
 
 router.put('/me', auth, async (req: Authed, res) => {
@@ -85,6 +85,7 @@ router.post('/me/photo', auth, async (req: Authed, res) => {
 });
 
 router.post('/me/password', auth, async (req: Authed, res) => {
+  if (req.staff) { res.status(403).json({ error: 'Mode FIK : le mot de passe du patron se change depuis l\'app Dzaryx.' }); return; }
   const { old, new: next } = (req.body ?? {}) as Record<string, unknown>;
   const err = await changeClientPassword(req.site!, String(old ?? ''), String(next ?? ''));
   if (err) { res.status(400).json({ error: err }); return; }

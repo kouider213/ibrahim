@@ -44,13 +44,18 @@ textarea{min-height:90px;resize:vertical}input:focus,textarea:focus{outline:2px 
 .err{color:var(--bad);font-size:.9rem;margin-top:10px}.ok{color:var(--ok)}
 .msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:.92rem}.msg.new{border-color:var(--p);background:#fdf8ef}
 .mh{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}.mh span{color:var(--mut);font-size:.8rem;white-space:nowrap}.mt{margin-top:6px;white-space:pre-wrap;color:#444}.msg a{color:var(--p)}
+.staff{background:#1f2937;color:#fde68a;font-size:.85rem;padding:8px 16px;text-align:center}
 .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:.9rem;z-index:9;max-width:90vw}
 </style></head>
 <body>
 <div id="app"></div>
 <script>
 const SITE=${json(siteId)},NAME=${json(siteName)},API=${json(apiBase)}+'/api/client-sites',TK='fik-admin-'+SITE;
-let token=null;try{token=localStorage.getItem(TK)}catch(e){}
+let token=null,staff=false;
+const hk=location.hash.match(/^#k=([0-9a-f]{64})$/);
+if(hk){token=hk[1];staff=true;try{sessionStorage.setItem(TK+'-k',token)}catch(e){}history.replaceState(null,'',location.pathname)}
+else{try{const t=sessionStorage.getItem(TK+'-k');if(t){token=t;staff=true}}catch(e){}}
+if(!token)try{token=localStorage.getItem(TK)}catch(e){}
 let st=null,dirty=false,siteUrl=location.origin+'/';
 const DAYS=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
 const app=document.getElementById('app');
@@ -59,7 +64,7 @@ function h(tag,attrs,...kids){const e=document.createElement(tag);for(const[k,v]
 function toast(t){const e=h('div',{class:'toast',text:t});document.body.append(e);setTimeout(()=>e.remove(),3500)}
 function touch(){dirty=true;const s=document.getElementById('status');if(s){s.textContent='Modifications non publiées';s.className=''}}
 async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})}});let d={};try{d=await r.json()}catch(e){}if(r.status===401&&path!=='/login'){logout();throw new Error('Session expirée, reconnectez-vous.')}if(!r.ok)throw new Error(d.error||('Erreur '+r.status));return d}
-function logout(){if(token)fetch(API+'/logout',{method:'POST',headers:{Authorization:'Bearer '+token}}).catch(()=>{});try{localStorage.removeItem(TK)}catch(e){}token=null;st=null;renderLogin()}
+function logout(){if(token)fetch(API+'/logout',{method:'POST',headers:{Authorization:'Bearer '+token}}).catch(()=>{});try{if(staff)sessionStorage.removeItem(TK+'-k');else localStorage.removeItem(TK)}catch(e){}token=null;staff=false;st=null;renderLogin()}
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
 
 function renderLogin(msg){
@@ -73,7 +78,7 @@ function renderLogin(msg){
   app.append(h('div',{class:'login'},f,h('p',{class:'hint',style:'text-align:center',text:'Mot de passe oublié ? Contactez FIK Conciergerie.'})));
 }
 
-async function load(){try{const d=await api('/me');st=d.site;siteUrl=d.url||siteUrl;dirty=false;render()}catch(x){renderLogin(x.message)}}
+async function load(){try{const d=await api('/me');st=d.site;staff=!!d.staff;siteUrl=d.url||siteUrl;dirty=false;render()}catch(x){renderLogin(x.message)}}
 
 function field(label,obj,key,opts={}){const el=h(opts.area?'textarea':'input',{placeholder:opts.ph||''});el.value=obj[key]||'';el.addEventListener('input',()=>{obj[key]=el.value;touch()});return[h('label',{text:label}),el]}
 
@@ -83,6 +88,7 @@ function render(){
   const p=st.place,c=st.content;
   app.replaceChildren(
     h('header',{},h('b',{text:p.name}),h('div',{class:'row',style:'flex:0 0 auto'},h('a',{href:siteUrl,target:'_blank',rel:'noopener'},'Voir mon site'),h('button',{on:{click:logout}},'Quitter'))),
+    staff?h('div',{class:'staff',text:'Mode FIK Conciergerie : vous modifiez le site à la place du patron. Sa connexion et son mot de passe ne changent pas.'}):null,
     h('div',{class:'bar'},h('span',{id:'status',text:'Tout est publié'}),h('button',{class:'btn main',id:'pub',on:{click:publish}},'Publier')),
     h('main',{},
       messagesCard(),
@@ -94,7 +100,7 @@ function render(){
       card('Points forts','Un par ligne (ex. « Terrasse », « Wi-Fi gratuit »).',linesArea(c,'highlights')),
       photosCard(),
       card('Couleurs',null,h('div',{class:'colors'},color('Couleur principale','primary'),color('Couleur d\\'accent','accent'))),
-      passwordCard()));
+      staff?null:passwordCard()));
 }
 
 function messagesCard(){

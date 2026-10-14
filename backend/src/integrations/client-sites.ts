@@ -30,6 +30,7 @@ export interface ClientSite {
   billing?: Billing;
   notify?: { email?: string; kouider: boolean };   // où envoyer les messages du formulaire (défaut : e-mail du compte)
   pausedReason?: 'billing' | 'manual';
+  adminV?: number;   // version de la page /admin/ publiée (republiée si elle est plus vieille que ADMIN_VERSION)
 }
 export interface Payment { at: string; amount: number; months: number; note?: string }
 export interface Billing {
@@ -46,6 +47,8 @@ const INDEX = 'fik:sites';
 const BUCKET = 'fik-sites';
 const SESSION_DAYS = 30;
 export const MAX_PHOTOS = 20;
+const ADMIN_VERSION = 2;   // à monter quand client-site-admin.ts change
+const STAFF_HOURS = 2;
 export const API_BASE = () => process.env['PUBLIC_API_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
 export const publicUrl = (s: ClientSite) => (s.domain?.status === 'active' ? `https://${s.domain.name}` : s.url);
 export const adminUrl = (s: ClientSite) => `${publicUrl(s)}/admin/`;
@@ -112,6 +115,7 @@ export async function publishSite(s: ClientSite): Promise<string> {
   // Une fois un domaine branché, Netlify renvoie ce domaine : on garde l'adresse netlify.app comme adresse de base.
   if (!s.url) s.url = url;
   s.netlifySiteId = siteId;
+  s.adminV = ADMIN_VERSION;
   await saveSite(s);
   return publicUrl(s);
 }
@@ -590,7 +594,7 @@ export async function sitesOverview() {
       id: x.id, name: x.name, kind: x.content.kind, status: x.status, pausedReason: x.pausedReason ?? null,
       url: publicUrl(x), netlifyUrl: x.url, adminUrl: adminUrl(x), createdAt: x.createdAt, updatedAt: x.updatedAt,
       photo: x.photos[0] ?? null, account: x.account?.email ?? null, invented: x.content.invented,
-      domain: x.domain ?? null, dns: x.domain ? dnsInstructions(x) : null,
+      domain: x.domain ?? null, dns: x.domain ? dnsInstructions(x) : null, dnsTarget: { a: NETLIFY_LB, cname: netlifyHost(x) },
       billing: x.billing ? { ...x.billing, late: lateDays(x.billing) } : null,
       notify: { email: x.notify?.email ?? null, kouider: !!x.notify?.kouider },
       unread: msgs.filter(m => !m.read).length, messages: msgs.slice(0, 30),
@@ -611,7 +615,7 @@ export async function sitesOverview() {
 }
 
 // ── Sessions de l'espace client ──────────────────────────────────────────────
-interface Session { site: string; epoch: number }
+interface Session { site: string; epoch: number; staff?: true }   // staff = Kouider entré depuis l'app
 const sessionEpoch = async (siteId: string) => Number((await kvGet(`fik:epoch:${siteId}`)) ?? '0');
 async function revokeSessions(siteId: string): Promise<void> {
   await kvSet(`fik:epoch:${siteId}`, String((await sessionEpoch(siteId)) + 1));
@@ -636,11 +640,26 @@ export async function loginClient(siteId: string, email: string, password: strin
   return token;
 }
 
-export async function sessionSite(token: string): Promise<ClientSite | null> {
+export async function sessionOf(token: string): Promise<{ site: ClientSite; staff: boolean } | null> {
   if (!/^[0-9a-f]{64}$/.test(token)) return null;
   const sess = JSON.parse((await kvGet(`fik:sess:${sha256(token)}`)) ?? 'null') as Session | null;
   if (!sess || sess.epoch !== await sessionEpoch(sess.site)) return null;
-  return getSite(sess.site);
+  const site = await getSite(sess.site);
+  return site ? { site, staff: !!sess.staff } : null;
+}
+
+export async function sessionSite(token: string): Promise<ClientSite | null> {
+  return (await sessionOf(token))?.site ?? null;
+}
+
+/** Kouider ouvre l'espace client sans le mot de passe du patron (session de 2 h, le patron n'est pas déconnecté).
+ *  Le jeton passe dans le #fragment de l'adresse : il n'est jamais envoyé à Netlify ni gardé dans l'historique. */
+export async function openAsStaff(s: ClientSite): Promise<string> {
+  if ((s.adminV ?? 0) < ADMIN_VERSION) await publishSite(s);   // anciennes pages /admin/ : pas encore le mode staff
+  const token = randomBytes(32).toString('hex');
+  const sess: Session = { site: s.id, epoch: await sessionEpoch(s.id), staff: true };
+  await kvSet(`fik:sess:${sha256(token)}`, JSON.stringify(sess), STAFF_HOURS * 3600);
+  return `${s.url}/admin/#k=${token}`;
 }
 
 export async function logoutClient(token: string): Promise<void> {
