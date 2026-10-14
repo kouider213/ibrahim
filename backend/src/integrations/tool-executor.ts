@@ -252,7 +252,7 @@ export async function executeTool(
   return result;
 }
 
-const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'nexus_full_status']);
+const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'update_nexus', 'nexus_full_status']);
 const PC_TOOLS    = new Set(['pc_run_command', 'pc_open_file', 'pc_screenshot', 'pc_list_files', 'pc_read_file']);
 
 async function _dispatch(
@@ -381,6 +381,7 @@ async function _dispatch(
       case 'nexus_screenshot':         return await nexusScreenshotTool(input);
       case 'wake_nexus':               return await wakeNexusTool();
       case 'restart_nexus':            return await restartNexusTool();
+      case 'update_nexus':             return await updateNexusTool();
       case 'nexus_full_status':        return await nexusFullStatusTool();
       // ─── INSPECTION VÉHICULE ───
       case 'save_vehicle_state_before': return await saveVehicleStateBefore(input, undefined, 'image/jpeg', sessionId);
@@ -5012,6 +5013,34 @@ async function wakeNexusTool(): Promise<string> {
   } catch (err) {
     return `❌ Erreur réveil Nexus: ${err instanceof Error ? err.message : String(err)}`;
   }
+}
+
+async function updateNexusTool(): Promise<string> {
+  // Mise à jour à distance de Nexus (depuis le téléphone) : git pull + dépendances + Chromium, puis redémarrage.
+  const { isNexusOnline, nexusSysinfo, nexusRunCommand } = await import('../actions/handlers/nexus-relay.js');
+  if (!isNexusOnline()) return '❌ Nexus est hors ligne. Allume le PC ou dis « réveille Nexus », puis redemande la mise à jour.';
+  const info = await nexusSysinfo();
+  if (!info.ok || !info.python_executable || !info.cwd) return '⚠️ Nexus n\'a pas donné son dossier ni son Python — mise à jour impossible.';
+  const py = `"${info.python_executable}"`;
+  const steps: Array<[string, string, number]> = [
+    ['Récupération du nouveau code', 'git pull', 120_000],
+    ['Installation des dépendances', `${py} -m pip install -r requirements.txt`, 600_000],
+    ['Installation de Chromium', `${py} -m playwright install chromium`, 600_000],
+  ];
+  const lines: string[] = ['🔄 **Mise à jour de Nexus**'];
+  for (const [label, cmd, timeout] of steps) {
+    try {
+      const r = await nexusRunCommand(cmd, info.cwd, timeout);
+      const tail = (r.ok ? r.stdout : (r.stderr || r.stdout)).trim().split('\n').slice(-3).join('\n');
+      lines.push(`${r.ok ? '✅' : '❌'} ${label}${tail ? `\n   ${tail.slice(0, 300)}` : ''}`);
+      if (!r.ok) return [...lines, '\nMise à jour arrêtée — Nexus n\'a pas été redémarré.'].join('\n');
+    } catch (e) {
+      lines.push(`❌ ${label} : ${(e as Error).message}`);
+      return [...lines, '\nMise à jour arrêtée — Nexus n\'a pas été redémarré.'].join('\n');
+    }
+  }
+  lines.push(await restartNexusTool());
+  return lines.join('\n');
 }
 
 async function restartNexusTool(): Promise<string> {

@@ -242,6 +242,7 @@ MÉMOIRE PERMANENTE:
 
 NEXUS — REDÉMARRAGE À DISTANCE:
 - "redémarre Nexus" / "relance Nexus" / "restart Nexus" → restart_nexus (⛔ JAMAIS dire "je ne peux pas" — tu PEUX)
+- "mets à jour Nexus" / "update Nexus" / "installe la nouvelle version de Nexus" → update_nexus (git pull + dépendances + Chromium + redémarrage, depuis le téléphone)
 - Nexus peut se redémarrer lui-même via nexus:self_restart, le watchdog le relance en 3-5 secondes
 - Après redémarrage: attendre 10s puis ping_nexus pour confirmer qu'il est de retour
 

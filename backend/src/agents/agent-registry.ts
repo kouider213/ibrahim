@@ -372,6 +372,7 @@ RÈGLES STRICTES:
 3. JAMAIS utiliser send_nexus_command pour des actions Obsidian.
 4. Si Nexus est offline → dis "Nexus offline, impossible d'accéder au vault."
 5. Si Nexus a besoin d'être redémarré → restart_nexus.
+6. Si Kouider demande de mettre à jour Nexus → update_nexus.
 
 FLUX STANDARD:
 - "quel est le profil de [client]" → obsidian_read_client(client_name="[client]")
@@ -382,7 +383,7 @@ FLUX STANDARD:
     'obsidian_find_vault',
     'obsidian_read_client', 'obsidian_update_client', 'obsidian_list_clients',
     'obsidian_write_note', 'obsidian_read_note',
-    'ping_nexus', 'restart_nexus',
+    'ping_nexus', 'restart_nexus', 'update_nexus',
   ],
   keywords:  /\b(obsidian|vault\s+obsidian|vault|cerveau|brain|profil\s+client|note\s+client|m[eé]moire\s+long|long.terme)\b/i,
   priority:  9,

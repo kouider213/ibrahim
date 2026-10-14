@@ -1636,6 +1636,11 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     input_schema: { type: 'object' as const, properties: {} },
   },
   {
+    name: 'update_nexus',
+    description: 'Mettre à jour Nexus à distance sur le PC de Kouider : récupère le nouveau code (git pull), installe les dépendances et Chromium, puis redémarre Nexus. Utiliser quand Kouider dit « mets à jour Nexus », « update Nexus », « installe la nouvelle version de Nexus ». Prend quelques minutes. Nécessite que Nexus soit en ligne.',
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
     name: 'nexus_full_status',
     description: 'Obtenir l\'état complet du système NEXUS: Nexus actif ?, Launcher connecté ?, hostname PC, uptime Launcher, dernière réveil, dernière erreur. Utiliser quand Kouider demande "état de Nexus", "status PC", "est-ce que le launcher tourne", "info système".',
     input_schema: { type: 'object' as const, properties: {} },
