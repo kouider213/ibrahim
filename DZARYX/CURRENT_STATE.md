@@ -13,6 +13,8 @@
 - **Mémoire par le sens** : `integrations/semantic-memory.ts` (app_kv `emb:facts:v1`, `emb:conv:v1`).
 - **Connexion de l'app** : mot de passe vérifié par le serveur (`/api/auth/*`, `auth/device-auth.ts`), jeton par
   appareil. App publiée sans code (SW v130). **B034 ouvert** : anciens codes encore acceptés (tgcall en dépend).
+- **Surveillance Railway** : cron VPS chaque minute `tgcall/watchdog.py` → si `/health` KO ~3 min, message
+  Telegram + appel d'alarme (`fillers/alarm.mp3`) sans le backend. Test réel OK. Récap 10h du 14/10 : appel reçu.
 - **Nexus** (pas testé sur le PC) : voix temps réel `modules/realtime_voice.py`, « regarde avec moi »,
   `modules/ui_automation.py`. Le PC récupère tout à sa prochaine connexion (mise à jour auto + pip).
 
