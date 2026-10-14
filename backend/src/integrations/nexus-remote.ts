@@ -108,7 +108,18 @@ export async function nexusBehind(): Promise<{ pcSha: string; mainSha: string; f
 let _autoUpdating = false;
 let _lastCheck = 0;
 
+const ON_CONNECT_NOTE = 'nexus:on_connect_note';   // rappel à donner à Kouider au prochain allumage du PC (une fois)
+
+async function deliverConnectNote(): Promise<void> {
+  const note = await kvGet(ON_CONNECT_NOTE).catch(() => null);
+  if (!note) return;
+  await kvSet(ON_CONNECT_NOTE, '', 60);
+  emitProactive(note.slice(0, 120), 'reminder', note, 'kouider');
+  await queueTelegramMessage(note);
+}
+
 export async function onNexusRegistered(): Promise<void> {
+  void deliverConnectNote().catch(err => console.error('[NEXUS] connect note:', err instanceof Error ? err.message : err));
   if (_autoUpdating || Date.now() - _lastCheck < 10 * 60_000) return;   // une vérification par 10 min (reconnexions Railway)
   _lastCheck = Date.now();
   if ((await kvGet(AUTO_UPDATE_KEY).catch(() => null)) === 'off') return;
