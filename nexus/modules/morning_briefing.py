@@ -112,19 +112,14 @@ class MorningBriefing:
             return False
 
     async def _fetch_bookings(self) -> int | None:
-        import aiohttp
-        backend = os.environ.get('BACKEND_URL', 'https://ibrahim-backend-production.up.railway.app')
-        token   = os.environ.get('PC_AGENT_TOKEN', '')
+        """Locations en cours aujourd'hui (confirmées/actives dont la période couvre la date du jour, en local)."""
+        from datetime import date
         try:
-            async with aiohttp.ClientSession() as s:
-                async with s.get(
-                    f'{backend}/api/bookings?status=ACTIVE,CONFIRMED',
-                    headers={'Authorization': f'Bearer {token}'},
-                    timeout=aiohttp.ClientTimeout(total=8),
-                ) as r:
-                    data = await r.json()
-                    items = data if isinstance(data, list) else data.get('data', [])
-                    return len(items)
+            items = await self.app.panels.bookings('', 300)
+            today = date.today().isoformat()
+            return sum(1 for b in items
+                       if str(b.get('status')) in ('CONFIRMED', 'ACTIVE')
+                       and str(b.get('start_date'))[:10] <= today <= str(b.get('end_date'))[:10])
         except Exception as e:
             log.error('Bookings fetch: %s', e)
             return None

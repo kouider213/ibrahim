@@ -45,6 +45,7 @@ from modules.input_control    import InputControl
 from modules.app_installer    import AppInstaller
 from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
+from modules.panels           import Panels
 from modules                  import vision_click
 from modules                  import ui_automation
 from modules                  import quick_answers, whatsapp_call
@@ -149,6 +150,7 @@ class NexusApp:
         self.extras   = Extras(notify=self._notify_from_thread)
         self.browser  = BrowserAgent()
         self.overlay  = Overlay(self)
+        self.panels   = Panels(self)
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -230,6 +232,12 @@ class NexusApp:
         extra = self.extras.try_handle(t)
         if extra:
             await self._reply(extra, source)
+            return
+
+        # ── 0b2a. Panneaux métier : réservations/agenda, documents clients, facture, liens, dossier, graphique, ménage ──
+        panel_reply = await self.panels.handle(t)
+        if panel_reply is not None:
+            await self._reply(panel_reply, source)
             return
 
         # ── 0b2b. Installer le mode hors ligne (Ollama + modèle + whisper local) ──
@@ -837,8 +845,31 @@ class NexusApp:
     def _start_http(self) -> None:
         os.chdir(BASE_DIR)
 
+        app = self
+
         class SilentHandler(http.server.SimpleHTTPRequestHandler):
             def log_message(self, *_): pass
+
+            # N'expose QUE l'interface (/gui/) et les fichiers déposés par les panneaux (/files/<clé>) — jamais .env ni le code
+            def do_GET(self):
+                path = self.path.split('?', 1)[0]
+                if path.startswith('/gui/'):
+                    return super().do_GET()
+                if path.startswith('/files/'):
+                    f = app.panels.served.get(path[len('/files/'):])
+                    if f and f.is_file():
+                        import mimetypes
+                        body = f.read_bytes()
+                        self.send_response(200)
+                        self.send_header('Content-Type', mimetypes.guess_type(f.name)[0] or 'application/octet-stream')
+                        self.send_header('Content-Length', str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
+                self.send_error(404)
+
+            def do_HEAD(self):
+                self.send_error(405)
 
         with socketserver.TCPServer(('localhost', HTTP_PORT), SilentHandler) as httpd:
             log.info('HTTP  → http://localhost:%d/gui/index.html', HTTP_PORT)
@@ -867,6 +898,8 @@ class NexusApp:
                         self.toggle_mic()
                     elif t2 == 'widget_request':
                         asyncio.create_task(self.handle_widget_request(data.get('widget', '')))
+                    elif t2 == 'panel_action':
+                        asyncio.create_task(self.panels.action(data))
                     elif t2 == 'camera_toggle':
                         if self.vision.is_live():
                             r = self.vision.stop_all_live()
@@ -878,7 +911,9 @@ class NexusApp:
             finally:
                 self.gui_connections.discard(conn)
 
-        async with websockets.serve(handler, 'localhost', WS_PORT):
+        # Seule la page Nexus locale (ou un outil sans Origin) peut se connecter : un site web ouvert dans le navigateur ne le peut pas
+        allowed = [f'http://localhost:{HTTP_PORT}', f'http://127.0.0.1:{HTTP_PORT}', None]
+        async with websockets.serve(handler, 'localhost', WS_PORT, origins=allowed):
             log.info('WS    → ws://localhost:%d', WS_PORT)
             await asyncio.Future()
 

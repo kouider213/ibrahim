@@ -15,6 +15,17 @@
 - Ouverture en plein écran (`--start-fullscreen`), bouton ⛶. `install-nexus-autostart.bat` : démarrage avec Windows.
 - `handle_widget_request` : + `weather`, `bookings`, `railway` (cartes remplies à la connexion). Statut GUI : `mic_available`.
 - **Reste** : installer PyAudio (micro + mot « Nexus » vocal) — pas de build prêt testé pour Python 3.14.
+- **Panneaux métier** (`nexus/modules/panels.py` + panneaux dans `gui/index.html`) : « montre-moi les dernières réservations »
+  (agenda calendrier + liste), « montre le passeport/permis de X » (consultation journalisée dans `document_access_logs`),
+  « crée une facture (pour X) » (PDF sauvegardé dans `Bureau\Nexus\Factures`), « envoie-moi le lien … » (Telegram),
+  « fais de la place sur le PC » (analyse + bouton ; seuls les temp > 2 j sont supprimés), « crée un dossier avec les
+  réservations » (CSV), « crée-moi un graphique » (SVG). Plusieurs étapes dans une phrase = enchaînées, onglets.
+- **backend** `api/routes/nexus-data.ts` (nouveau, `/api/nexus/data/*`, jeton PC uniquement) : bookings, documents (liens
+  signés 10 min), invoice, notify. `generatePdfReceipt` : jours **inclus** via `rentalDays` (comme B033).
+- **Bug corrigé** : le jeton PC était refusé (403) par `/api/bookings` et le briefing lisait la mauvaise clé → « 0 réservation »
+  toujours affiché. Le compteur utilise maintenant `/api/nexus/data/bookings` (en cours aujourd'hui).
+- **Sécurité Nexus** : le serveur local n'expose plus que `/gui/` (avant : tout le dossier, `.env` compris) ; le WebSocket
+  7778 refuse les pages web extérieures (contrôle de l'Origin).
 
 ---
 

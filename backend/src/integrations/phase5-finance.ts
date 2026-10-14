@@ -10,6 +10,7 @@
 
 import { supabase } from './supabase.js';
 import { getPricingForVehicle } from '../config/pricing.js';
+import { rentalDays } from './finance.js';
 
 // ── Calcul financier normalisé — SANS fallback catalogue ─────────────────────
 // Règle stricte :
@@ -561,9 +562,7 @@ export async function generatePdfReceipt(bookingId: string): Promise<{ url: stri
 
   const booking  = b as any;
   const carName  = booking.cars?.name ?? 'Véhicule';
-  const startDt  = new Date(booking.start_date);
-  const endDt    = new Date(booking.end_date);
-  const nbDays   = Math.max(1, Math.ceil((endDt.getTime() - startDt.getTime()) / 86_400_000));
+  const nbDays   = rentalDays(booking.start_date, booking.end_date, booking.nb_days);   // jours inclus (départ + retour)
   const daily    = Math.round((booking.final_price ?? 0) / nbDays);
   const acompte  = booking.acompte_amount ?? 0;
   const solde    = (booking.final_price ?? 0) - acompte;
