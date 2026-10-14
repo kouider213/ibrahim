@@ -166,7 +166,7 @@ const CORE_TOOLS = new Set([
   'set_private_mode', 'show_my_memory', 'send_nexus_command', 'nexus_screenshot', 'ping_nexus',
   'web_search', 'assign_task', 'list_team_tasks', 'create_goal', 'save_procedure',
   // Se décrire sans inventer + documents
-  'list_my_capabilities', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site',
+  'list_my_capabilities', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site',
 ]);
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────

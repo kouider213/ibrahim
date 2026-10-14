@@ -57,6 +57,7 @@ import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js
 import { jobDbBackup } from '../integrations/db-backup.js';
 import { jobSelfTest } from '../integrations/self-test.js';
 import { jobSeasonWatch } from '../integrations/seasons.js';
+import { jobCloudWatch, jobCloudRoutines } from '../integrations/cloud-watch.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -263,6 +264,16 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'cloud-watch',
+    cron:  '*/15 * * * *',          // pages surveillées sur le PC cloud (chacune à son rythme, 15 min minimum)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'cloud-routines',
+    cron:  '*/5 * * * *',           // tâches web programmées (heure de Bruxelles)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'monthly-excel',
     cron:  '30 9 1 * *',            // 9h30 le 1er du mois — export Excel comptable auto
     tz:    'Africa/Algiers',
@@ -386,6 +397,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'monthly-excel':           jobMonthlyExcel,
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },
+  'cloud-watch':             async () => { console.log(`[cloud-watch] ${await jobCloudWatch()}`); },
+  'cloud-routines':          async () => { console.log(`[cloud-routines] ${await jobCloudRoutines()}`); },
   'db-backup':               async () => { console.log(`[db-backup] ${await jobDbBackup()}`); },
   'auto-call-flush':         async () => { await flushAutoCalls(); },
   'tgcall-watch':            async () => { await checkTgcallAlive(); },

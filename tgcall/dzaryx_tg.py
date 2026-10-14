@@ -785,9 +785,15 @@ async def outbox_loop() -> None:
             asyncio.create_task(alarm_call(uid, text))
         for txt in sorted(OUTBOX.glob('*.txt')):
             img = txt.with_suffix('.jpg')
+            # document joint : même nom, autre extension (pdf, docx, xlsx… — déposé par le PC cloud)
+            docs = [f for f in OUTBOX.glob(txt.stem + '.*') if f.suffix.lower() not in ('.txt', '.jpg', '.call')]
             try:
                 text = txt.read_text(encoding='utf-8').strip()
-                if img.exists():
+                if docs:
+                    for doc in docs:
+                        await app.send_document(uid, str(doc), caption=text[:1000],
+                                                file_name=doc.name[len(txt.stem) + 1:] or doc.name)   # « <stamp>.<nom d'origine> »
+                elif img.exists():
                     await app.send_photo(uid, str(img), caption=text[:1000])
                 elif text:
                     await app.send_message(uid, text[:4000])
@@ -798,6 +804,8 @@ async def outbox_loop() -> None:
             finally:
                 txt.unlink(missing_ok=True)
                 img.unlink(missing_ok=True)
+                for doc in docs:
+                    doc.unlink(missing_ok=True)
 
 
 # ── Démarrage ────────────────────────────────────────────────────────────────

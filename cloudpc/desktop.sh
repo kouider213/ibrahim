@@ -17,7 +17,27 @@ xsetroot -solid '#0b1020' 2>/dev/null
 openbox --sm-disable &
 trap 'kill $XPID 2>/dev/null; pkill -P $$ 2>/dev/null' EXIT
 
+# Préférences Chrome (avant chaque lancement) : téléchargements sans question dans $DATA/downloads (= dossier des
+# fichiers envoyés depuis le téléphone, ouvert par défaut quand un site demande un fichier), langue française.
+prefs() {
+  python3 - "$DATA" <<'PY'
+import json, os, sys
+data = sys.argv[1]; d = os.path.join(data, 'profile', 'Default'); os.makedirs(d, exist_ok=True)
+p = os.path.join(d, 'Preferences')
+try: prefs = json.load(open(p))
+except Exception: prefs = {}
+dl = os.path.join(data, 'downloads')
+prefs.setdefault('download', {}).update({'default_directory': dl, 'prompt_for_download': False, 'directory_upgrade': True})
+prefs.setdefault('savefile', {})['default_directory'] = dl
+prefs.setdefault('selectfile', {})['last_directory'] = dl
+prefs.setdefault('intl', {})['accept_languages'] = 'fr-FR,fr,en'
+prefs.setdefault('translate', {})['enabled'] = False
+json.dump(prefs, open(p, 'w'))
+PY
+}
+
 while kill -0 $XPID 2>/dev/null; do
+  prefs
   "$CHROME" --user-data-dir="$DATA/profile" --remote-debugging-port=9223 --remote-debugging-address=127.0.0.1 \
     --no-first-run --no-default-browser-check --start-maximized --lang=fr-FR --accept-lang=fr-FR,fr,en --disable-dev-shm-usage \
     --password-store=basic --no-sandbox --disable-features=Translate --disable-session-crashed-bubble \

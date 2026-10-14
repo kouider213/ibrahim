@@ -32,6 +32,39 @@ async function run(res: Response, fn: () => Promise<unknown>, cloud = false): Pr
   catch (err) { res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) }); }
 }
 
+// Les PC de Kouider (laptop + PC cloud avec ses connexions Gmail, banque…) : Kouider seulement, jamais Houari.
+router.use(requireMobileAuth, (req, res, next) => {
+  if (req.mobileActor?.ownerKey === 'houari') { res.status(403).json({ ok: false, error: 'Réservé à Kouider' }); return; }
+  next();
+});
+
+// ── PC cloud : fichiers, presse-papiers, onglets, capture ────────────────────
+const cloud = (res: Response, event: string, data: unknown, ms = 15_000) => run(res, () => cloudEmit(event, data, ms), true);
+
+router.get('/files', requireMobileAuth, (_req, res) => { void cloud(res, 'cloud:files', {}); });
+// POST /upload { name, b64 } → fichier du téléphone dans les Téléchargements du PC cloud (15 Mo max)
+router.post('/upload', requireMobileAuth, (req, res) => {
+  const { name, b64 } = req.body as { name?: string; b64?: string };
+  if (!b64 || !name) { res.status(400).json({ ok: false, error: 'name et b64 requis' }); return; }
+  if (b64.length > 20 * 1024 * 1024) { res.status(413).json({ ok: false, error: 'Fichier trop gros (15 Mo max)' }); return; }
+  void cloud(res, 'cloud:file_put', { name: String(name).slice(0, 180), b64 }, 60_000);
+});
+router.post('/file-link', requireMobileAuth, (req, res) => { void cloud(res, 'cloud:file_link', { name: (req.body as { name?: string }).name }, 60_000); });
+router.post('/file-telegram', requireMobileAuth, (req, res) => { void cloud(res, 'cloud:file_telegram', { name: (req.body as { name?: string }).name }, 30_000); });
+router.post('/file-open', requireMobileAuth, (req, res) => { void cloud(res, 'cloud:file_open', { name: (req.body as { name?: string }).name }); });
+router.post('/file-delete', requireMobileAuth, (req, res) => { void cloud(res, 'cloud:file_delete', { name: (req.body as { name?: string }).name }); });
+router.get('/clipboard', requireMobileAuth, (_req, res) => { void cloud(res, 'cloud:clipboard_get', {}); });
+router.post('/clipboard', requireMobileAuth, (req, res) => {
+  const { text, paste } = req.body as { text?: string; paste?: boolean };
+  void cloud(res, 'cloud:clipboard_set', { text: String(text ?? '').slice(0, 20000), paste: paste === true });
+});
+router.get('/tabs', requireMobileAuth, (_req, res) => { void cloud(res, 'cloud:tabs', {}); });
+router.post('/tab', requireMobileAuth, (req, res) => {
+  const { id, action } = req.body as { id?: string; action?: 'show' | 'close' };
+  void cloud(res, action === 'close' ? 'cloud:tab_close' : 'cloud:tab_activate', { id });
+});
+router.post('/screenshot-telegram', requireMobileAuth, (_req, res) => { void cloud(res, 'cloud:screenshot_telegram', {}, 30_000); });
+
 // GET /targets → quels PC sont joignables (l'app choisit le laptop s'il est là, sinon le PC cloud)
 router.get('/targets', requireMobileAuth, (_req, res) => {
   res.json({ ok: true, laptop: isNexusOnline(), cloud: isCloudPcOnline(), cloud_since: cloudPcSince() });

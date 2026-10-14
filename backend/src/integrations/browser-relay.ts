@@ -40,7 +40,7 @@ export async function browserTaskTool(input: Record<string, unknown>, sessionId?
   list.push({ id: randomUUID().slice(0, 8), task, status: 'queued', created_at: now, updated_at: now,
     owner: sessionId?.toLowerCase().includes('houari') ? 'houari' : 'kouider' });
   await save(list);
-  return `🌐 C'est parti sur le navigateur du serveur (marche même PC éteint) : « ${task} ». Je te préviens du résultat ; s'il faut une connexion, un code ou ton accord, je t'envoie la capture d'écran sur Telegram et tu me réponds ici.`;
+  return `🌐 C'est parti sur le navigateur du serveur (marche même PC éteint) : « ${task} ». Tu peux regarder en direct : MON PC → PC cloud. Je te préviens du résultat ; s'il faut une connexion, un code ou ton accord, je t'envoie la capture d'écran sur Telegram et tu me réponds ici (ou tu le fais toi-même sur le PC cloud).`;
 }
 
 export async function browserReplyTool(input: Record<string, unknown>): Promise<string> {
@@ -82,11 +82,12 @@ export async function updateJobFromWorker(id: string, upd: { status: 'waiting' |
   if (upd.status === 'waiting') {
     j.question = upd.text;
     emitProactive(`🌐 Le navigateur a besoin de toi`, 'alert',
-      `🌐 Navigateur — « ${j.task} »\n\n${upd.text}\n\n(capture d'écran sur Telegram) Réponds-moi : « continue », « le code est … », « clique sur … » ou « annule ».`, j.owner);
+      `🌐 Navigateur — « ${j.task} »\n\n${upd.text}\n\n(capture d'écran sur Telegram) Réponds-moi : « continue », « le code est … », « clique sur … » ou « annule ».\n` +
+      'Ou fais-le toi-même : touche « Regarder » → MON PC → PC cloud (même navigateur), puis dis-moi « continue ».', j.owner, 'nexus-cloud');
   } else {
     j.result = upd.text;
     emitProactive(`🌐 ${upd.status === 'done' ? 'Terminé' : 'Erreur'} : ${j.task.slice(0, 60)}`, upd.status === 'done' ? 'info' : 'alert',
-      `🌐 Navigateur — « ${j.task} »\n\n${upd.text}`, j.owner);
+      `🌐 Navigateur — « ${j.task} »\n\n${upd.text}`, j.owner, 'nexus-cloud');
   }
   await save(list);
   return true;

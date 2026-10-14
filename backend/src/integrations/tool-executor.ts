@@ -11,6 +11,7 @@ import { listMyCapabilities } from './capabilities.js';
 import { selfTestTool } from './self-test.js';
 import { seasonsReport } from './seasons.js';
 import { cloudPcTool } from '../actions/handlers/cloudpc-relay.js';
+import { watchPageTool, webRoutineTool } from './cloud-watch.js';
 import { jobDbBackup } from './db-backup.js';
 import { createPresentationDoc } from './pro-doc.js';
 import { createDemoSite, getDemoSite } from './demo-site.js';
@@ -271,6 +272,7 @@ export async function executeTool(
 }
 
 const NEXUS_TOOLS = new Set(['ping_nexus', 'send_nexus_command', 'nexus_screenshot', 'wake_nexus', 'restart_nexus', 'update_nexus', 'nexus_full_status']);
+const CLOUD_TOOLS = new Set(['cloud_pc', 'watch_page', 'web_routine', 'browser_task', 'browser_reply']);   // PC cloud = connexions de Kouider
 const PC_TOOLS    = new Set(['pc_run_command', 'pc_open_file', 'pc_screenshot', 'pc_list_files', 'pc_read_file']);
 
 async function _dispatch(
@@ -280,8 +282,8 @@ async function _dispatch(
 ): Promise<string> {
   // Nexus / PC — Kouider uniquement
   const isHouariSession = /houari/i.test(sessionId ?? '');
-  if (isHouariSession && (NEXUS_TOOLS.has(name) || PC_TOOLS.has(name))) {
-    return '❌ Nexus PC disponible uniquement pour Kouider.';
+  if (isHouariSession && (NEXUS_TOOLS.has(name) || PC_TOOLS.has(name) || CLOUD_TOOLS.has(name))) {
+    return '❌ Réservé à Kouider (son PC, son PC cloud et ses connexions).';
   }
 
   try {
@@ -379,6 +381,8 @@ async function _dispatch(
       case 'create_google_sheet':       return await createGoogleSheet(input);
       case 'list_my_capabilities':      return await listMyCapabilities(input);
       case 'cloud_pc':                  return await cloudPcTool(input);
+      case 'watch_page':                return await watchPageTool(input);
+      case 'web_routine':               return await webRoutineTool(input);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));
       case 'run_self_test':             return input['what'] === 'backup_now'
         ? `💾 Sauvegarde faite : ${await jobDbBackup().catch(e => `❌ échec — ${e instanceof Error ? e.message : String(e)}`)}`

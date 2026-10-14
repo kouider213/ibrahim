@@ -1,6 +1,7 @@
 // PC cloud (cloudpc/agent.py sur le VPS) : bureau virtuel toujours allumé, à côté du Nexus du laptop.
 // Appareil SÉPARÉ (namespace /cloudpc) pour ne rien changer au Nexus du laptop. Même jeton (PC_AGENT_TOKEN).
 import type { Server as SocketServer, Socket } from 'socket.io';
+import axios from 'axios';
 import { env } from '../../config/env.js';
 
 let _socket: Socket | null = null;
@@ -20,11 +21,42 @@ export function initCloudPcRelay(io: SocketServer): void {
     console.log(`[CLOUDPC] connecté ${socket.id}`);
     void import('../../integrations/app-store.js')
       .then(({ kvSet }) => kvSet('cloudpc:last_seen', _since!)).catch(() => {});
+    socket.on('cloud:new_file', (f: { name?: string; size?: number; url?: string | null }) => {
+      void onNewFile(f).catch(err => console.error('[CLOUDPC] nouveau fichier:', err instanceof Error ? err.message : err));
+    });
     socket.on('disconnect', reason => {
       if (_socket?.id === socket.id) _socket = null;
       console.warn(`[CLOUDPC] déconnecté (${reason})`);
     });
   });
+}
+
+export interface CloudFile { name: string; size: number; url?: string | null; drive?: string | null; at: string }
+const RECENT = 'cloudpc:files:recent';
+
+/** Téléchargement terminé sur le PC cloud → copie dans le Drive (« Dzaryx — PC cloud ») + notification avec liens. */
+async function onNewFile(f: { name?: string; size?: number; url?: string | null }): Promise<void> {
+  const name = String(f.name ?? 'fichier'); const size = Number(f.size) || 0;
+  let drive: string | null = null;
+  if (f.url && size <= 25 * 1024 * 1024) {
+    try {
+      const { data } = await axios.get<ArrayBuffer>(f.url, { responseType: 'arraybuffer', timeout: 120_000 });
+      const { uploadFileToDrive } = await import('../../integrations/drive-files.js');
+      drive = await uploadFileToDrive(name, Buffer.from(data), 'Dzaryx — PC cloud');
+    } catch (err) {
+      console.warn('[CLOUDPC] copie Drive:', err instanceof Error ? err.message : err);
+    }
+  }
+  const { kvGet, kvSet } = await import('../../integrations/app-store.js');
+  const recent = JSON.parse((await kvGet(RECENT).catch(() => null)) ?? '[]') as CloudFile[];
+  recent.unshift({ name, size, url: f.url ?? null, drive, at: new Date().toISOString() });
+  await kvSet(RECENT, JSON.stringify(recent.slice(0, 30)));
+  const kb = size < 1024 * 1024 ? `${Math.round(size / 1024)} Ko` : `${(size / 1048576).toFixed(1)} Mo`;
+  const { emitProactive } = await import('../../notifications/mobile-push.js');
+  emitProactive(`📥 Téléchargé sur le PC cloud : ${name}`, 'info',
+    `📥 Nouveau fichier sur le PC cloud : ${name} (${kb})${drive ? `\n☁️ Copié dans ton Drive : ${drive}` : ''}` +
+    `${f.url ? `\n📱 Le télécharger sur le téléphone : ${f.url}` : ''}\nOu dans l'app : MON PC → PC cloud → Fichiers (Telegram, ouvrir, supprimer).`,
+    'kouider', 'nexus-cloud');
 }
 
 export const isCloudPcOnline = (): boolean => _socket !== null && _socket.connected;
@@ -63,6 +95,33 @@ export async function cloudPcTool(input: Record<string, unknown>): Promise<strin
       const r = await cloudEmit<{ ok: boolean; tabs?: Tab[]; error?: string }>('cloud:tabs', {});
       if (!r.ok) return `❌ ${r.error}`;
       return `🗂️ Onglets du PC cloud :\n${(r.tabs ?? []).map((t, i) => `${i + 1}. ${t.title || '(sans titre)'} — ${t.url}`).join('\n') || '(aucun)'}`;
+    }
+    if (action === 'files') {
+      const r = await cloudEmit<{ ok: boolean; files?: Array<{ name: string; size: number; mtime: string }>; error?: string }>('cloud:files', {});
+      if (!r.ok) return `❌ ${r.error}`;
+      return `📁 Fichiers du PC cloud (Téléchargements) :\n${(r.files ?? []).slice(0, 25).map(f => `• ${f.name} — ${Math.max(1, Math.round(f.size / 1024))} Ko — ${new Date(f.mtime).toLocaleString('fr-FR', { timeZone: 'Europe/Brussels' })}`).join('\n') || '(vide)'}`;
+    }
+    if (action === 'send_file') {
+      const name = String(input['file'] ?? '').trim();
+      if (!name) return '❌ Quel fichier envoyer ? (action files pour la liste)';
+      const r = await cloudEmit('cloud:file_telegram', { name, caption: `📎 ${name} (PC cloud)` }, 30_000);
+      return r.ok ? `✈️ ${name} envoyé sur ton Telegram.` : `❌ ${r.error}`;
+    }
+    if (action === 'file_link') {
+      const r = await cloudEmit<{ ok: boolean; url?: string; error?: string }>('cloud:file_link', { name: String(input['file'] ?? '') }, 60_000);
+      return r.ok ? `🔗 Lien de téléchargement (24 h) : ${r.url}` : `❌ ${r.error}`;
+    }
+    if (action === 'open_file') {
+      const r = await cloudEmit('cloud:file_open', { name: String(input['file'] ?? '') }, 20_000);
+      return r.ok ? `📂 ${r.result} sur le PC cloud (MON PC → PC cloud).` : `❌ ${r.error}`;
+    }
+    if (action === 'screenshot') {
+      const r = await cloudEmit('cloud:screenshot_telegram', { caption: String(input['caption'] ?? '') || '🖥️ Écran du PC cloud' }, 30_000);
+      return r.ok ? '📸 Capture de l\'écran du PC cloud envoyée sur ton Telegram.' : `❌ ${r.error}`;
+    }
+    if (action === 'copy_text') {
+      const r = await cloudEmit('cloud:clipboard_set', { text: String(input['text'] ?? ''), paste: input['paste'] === true });
+      return r.ok ? `📋 ${r.result}.` : `❌ ${r.error}`;
     }
     if (action === 'restart_browser') {
       const r = await cloudEmit('cloud:restart_browser', {});

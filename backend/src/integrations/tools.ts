@@ -2512,13 +2512,40 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'cloud_pc',
-    description: "Le PC CLOUD de Kouider : un bureau virtuel toujours allumé sur le serveur, avec un Chrome qui garde ses connexions — utile surtout quand le laptop (Nexus) est éteint ou que Kouider est en voyage. Kouider le voit et le pilote dans l'app (MON PC → PC cloud). action='status' : état + onglets ouverts. 'open_url' (url) : ouvrir une page pour Kouider (il la verra dans l'app). 'read_page' : lire le texte de la page affichée (ex. « lis ce que j'ai ouvert sur le PC cloud »). 'tabs' : liste des onglets. 'restart_browser' : relancer Chrome s'il bloque. Les tâches web autonomes (remplir un formulaire, chercher sur un site) passent par browser_task, qui travaille dans CE même Chrome : Kouider peut regarder en direct et prendre la main (connexion, code, captcha).",
+    description: "Le PC CLOUD de Kouider : un bureau virtuel toujours allumé sur le serveur, avec un Chrome qui garde ses connexions — utile surtout quand le laptop (Nexus) est éteint ou que Kouider est en voyage. Kouider le voit et le pilote dans l'app (MON PC → PC cloud). action='status' : état + onglets ouverts. 'open_url' (url) : ouvrir une page pour Kouider (il la verra dans l'app). 'read_page' : lire le texte de la page affichée (ex. « lis ce que j'ai ouvert sur le PC cloud »). 'tabs' : liste des onglets. 'files' : fichiers téléchargés / envoyés (dossier Téléchargements). 'send_file' (file) : envoyer un fichier sur le Telegram de Kouider. 'file_link' (file) : lien de téléchargement 24 h. 'open_file' (file) : l'ouvrir sur le PC cloud (Word/Excel → LibreOffice, PDF → Chrome). 'screenshot' : capture de l'écran envoyée sur Telegram. 'copy_text' (text, paste) : presse-papiers. 'restart_browser' : relancer Chrome s'il bloque. Tout fichier téléchargé est copié tout seul dans le Drive (dossier « Dzaryx — PC cloud ») et Kouider est prévenu. Pour SURVEILLER une page → watch_page ; tâche web À HEURE FIXE → web_routine. Les tâches web autonomes (remplir un formulaire, chercher sur un site) passent par browser_task, qui travaille dans CE même Chrome : Kouider peut regarder en direct et prendre la main (connexion, code, captcha).",
     input_schema: {
       type: 'object' as const,
       properties: {
-        action: { type: 'string', enum: ['status', 'open_url', 'read_page', 'tabs', 'restart_browser'], description: 'status (défaut)' },
+        action: { type: 'string', enum: ['status', 'open_url', 'read_page', 'tabs', 'files', 'send_file', 'file_link', 'open_file', 'screenshot', 'copy_text', 'restart_browser'], description: 'status (défaut)' },
         url: { type: 'string', description: 'Adresse à ouvrir (open_url)' },
+        file: { type: 'string', description: 'Nom exact du fichier (send_file / file_link / open_file) — voir action files' },
+        text: { type: 'string', description: 'copy_text : texte à mettre dans le presse-papiers du PC cloud' },
+        paste: { type: 'boolean', description: 'copy_text : true = coller aussi tout de suite (Ctrl+V)' },
+        caption: { type: 'string', description: 'screenshot : légende' },
         max_chars: { type: 'number', description: 'read_page : longueur max du texte (défaut 6000)' },
+      },
+    },
+  },
+  {
+    name: 'watch_page',
+    description: "SURVEILLER UNE PAGE WEB sur le PC cloud et prévenir Kouider (app + Telegram) quand ce qui compte change : un prix (billet d'avion, voiture), une place / un rendez-vous qui se libère (consulat, administration), une réponse ou un statut sur un site, une nouvelle annonce. La page est lue dans le Chrome du PC cloud (avec ses connexions), en arrière-plan. action='add' (url, what = l'info précise à suivre ex. « prix du vol le moins cher le 12/11 », vide = toute la page ; every_minutes 15 à 1440, défaut 60), 'list', 'remove' (id), 'check_now' (id). Pour « surveille…», « préviens-moi quand … change / baisse / se libère ».",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['add', 'list', 'remove', 'check_now'] },
+        url: { type: 'string' }, what: { type: 'string' }, every_minutes: { type: 'number' }, id: { type: 'string' },
+      },
+    },
+  },
+  {
+    name: 'web_routine',
+    description: "TÂCHE WEB À HEURE FIXE sur le PC cloud (même PC de Kouider éteint) : « chaque lundi à 9h, télécharge ma facture sur … », « tous les jours à 8h regarde mes réservations sur … et résume ». Lance browser_task à l'heure dite (heure de Bruxelles) ; les fichiers téléchargés vont tout seuls dans le Drive. action='add' (task précise, time HH:MM, days = numéros 0=dimanche…6=samedi, vide = chaque jour), 'list', 'remove' (id), 'run_now' (id).",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['add', 'list', 'remove', 'run_now'] },
+        task: { type: 'string' }, time: { type: 'string', description: 'HH:MM heure de Bruxelles' },
+        days: { type: 'array', items: { type: 'number' } }, id: { type: 'string' },
       },
     },
   },
