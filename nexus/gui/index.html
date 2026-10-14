@@ -116,6 +116,7 @@ main{display:grid;grid-template-columns:minmax(260px,1fr) minmax(340px,1.15fr) m
       <div class="chip" id="c-backend"><i></i>Dzaryx</div>
       <div class="chip" id="c-mic"><i></i>Micro</div>
       <div class="chip" id="c-cam"><i></i>Caméra</div>
+      <button class="chip" id="btn-fs" title="Plein écran (F11)" aria-label="Plein écran">⛶</button>
       <div id="clock"></div>
     </div>
   </header>
@@ -278,6 +279,7 @@ function toggleMic(){
   toast(micOn?"Micro activé — parle, j'écoute":'Micro coupé');
 }
 function toggleCam(){ send({type:'camera_toggle'}); }
+$('btn-fs').addEventListener('click',()=>{ if(document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(()=>toast('Plein écran : utilise F11')); });
 $('btn-mic').addEventListener('click',toggleMic);
 $('btn-cam').addEventListener('click',toggleCam);
 document.addEventListener('keydown',e=>{

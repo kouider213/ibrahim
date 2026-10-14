@@ -876,9 +876,11 @@ class NexusApp:
         url = f'http://localhost:{HTTP_PORT}/gui/index.html'
         browsers = [
             [r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-             f'--app={url}', '--window-size=1000,750', '--window-position=80,40'],
+             f'--app={url}', '--start-fullscreen'],
             [r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
-             f'--app={url}', '--window-size=1000,750'],
+             f'--app={url}', '--start-fullscreen'],
+            [r'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
+             f'--app={url}', '--start-fullscreen'],
         ]
         for cmd in browsers:
             try:
