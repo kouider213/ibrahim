@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-14 — Navigateur du serveur activé + mise à jour de Nexus à distance | `f738157`, `2243eab`
+
+- **Navigateur sur le serveur** (demande explicite de Kouider) : outils `browser_task` / `browser_reply` / `browser_status`,
+  `integrations/browser-relay.ts`, `api/routes/browser.ts`, service VPS `browser-worker/worker.py` (pm2 `dzaryx-browser`,
+  à démarrer par Kouider — le démarrage a été bloqué par le garde-fou de Claude Code).
+- **`update_nexus`** : « mets à jour Nexus » depuis le téléphone → git pull + pip install + Chromium + redémarrage
+  (via `nexus:sysinfo` pour le dossier et le Python du PC, puis `nexus:run_command`).
+
+---
+
 ## 2026-10-13 — Objectifs, tâches Houari avec suivi, procédures apprises, mémoire côté clients | `ce4e3fa`
 
 ### backend/
