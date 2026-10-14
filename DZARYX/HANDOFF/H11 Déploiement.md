@@ -15,10 +15,11 @@ git push origin main      # Railway redéploie (~2 min)
 ```bash
 # 1. bumper le cache Service Worker : simulator/public/sw.js → const CACHE = 'dzaryx-vNN'
 cd simulator
-# ⚠️ OBLIGATOIRE : sans ces 3 variables le build envoie un jeton vide → 401 + bannière « Hors ligne »
-T=$(grep -E "^MOBILE_ACCESS_TOKEN=" ../.env | cut -d= -f2- | tr -d '"')
-VITE_ACCESS_TOKEN="$T" VITE_BACKEND_URL=https://ibrahim-backend-production.up.railway.app \
+# ⚠️ Depuis le 14/10/2026 : JAMAIS de VITE_ACCESS_TOKEN dans le build (la page est publique).
+# L'app se connecte par mot de passe (/api/auth/login) et reçoit un jeton propre à l'appareil.
+VITE_BACKEND_URL=https://ibrahim-backend-production.up.railway.app \
   VITE_WS_URL=wss://ibrahim-backend-production.up.railway.app npm run build
+# vérifier : grep -rl "$MOBILE_ACCESS_TOKEN" dist  → doit ne rien trouver
 npx gh-pages -d dist
 git add ... && git commit && git push
 ```
