@@ -1,6 +1,6 @@
 ﻿import type { Job } from 'bullmq';
 import { Cron } from 'croner';
-import { ensureAppStoreTables, claimJobRun } from '../integrations/app-store.js';
+import { ensureAppStoreTables, claimJobRun, kvGet, kvSet, kvDel } from '../integrations/app-store.js';
 import {
   jobMorningBriefing,
   jobEndRentalReminder,
@@ -400,11 +400,29 @@ async function runJob(name: string, slot: string): Promise<void> {
   try {
     await handler({ name, id: `${name}:${slot}`, data: {} } as unknown as Job);
     console.log(`[scheduler] ✅ ${name} done`);
+    void kvDel(`jobfail:${name}`).catch(() => {});
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[scheduler] ❌ ${name} failed:`, msg);
+    if (await firstTransientFailure(name, msg)) return;
     void reportIncident(`job:${name}`, `La tâche automatique « ${name} » a planté.`, `La tâche automatique « ${name} » a échoué :\n${msg.slice(0, 400)}`);
   }
+}
+
+// Coupure réseau passagère (ex. « timeout of 15000ms exceeded ») sur une tâche qui repasse dans moins de 2 h :
+// pas d'appel au 1er échec, seulement si l'essai suivant échoue aussi.
+const TRANSIENT_RE = /timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|socket hang up|fetch failed|\b50[234]\b/i;
+
+async function firstTransientFailure(name: string, msg: string): Promise<boolean> {
+  if (!TRANSIENT_RE.test(msg)) return false;
+  const next = crons.find(c => c.name === name)?.nextRun();
+  if (!next || next.getTime() - Date.now() > 2 * 3600_000) return false;
+  try {
+    if (await kvGet(`jobfail:${name}`)) return false;
+    await kvSet(`jobfail:${name}`, '1', 6 * 3600);
+    console.warn(`[scheduler] ${name} : échec passager, on attend l'essai suivant avant d'alerter`);
+    return true;
+  } catch { return false; }
 }
 
 export async function initScheduler(): Promise<void> {
