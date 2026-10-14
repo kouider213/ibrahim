@@ -37,13 +37,73 @@ export function switchToNextBackend(): boolean {
   return true;
 }
 
-export const ACCESS_TOKEN = (_env['VITE_ACCESS_TOKEN'] as string) ?? '';
-const HOUARI_TOKEN        = (_env['VITE_ACCESS_TOKEN_HOUARI'] as string) ?? '';
+// Connexion par appareil : l'app ne contient plus aucun code d'accès. Le serveur vérifie identifiant + mot de passe
+// (POST /api/auth/login) et remet un jeton propre à ce téléphone, gardé dans localStorage.
+const DEVICE_TOKEN_KEY = 'dz:device_token';
+export function getDeviceToken(): string {
+  try { return localStorage.getItem(DEVICE_TOKEN_KEY) ?? ''; } catch { return ''; }
+}
+export function setDeviceToken(t: string | null) {
+  try { if (t) localStorage.setItem(DEVICE_TOKEN_KEY, t); else localStorage.removeItem(DEVICE_TOKEN_KEY); } catch { /* ignore */ }
+}
 
 let _actor: 'kouider' | 'houari' = 'kouider';
 export const setSimActor = (a: 'kouider' | 'houari') => { _actor = a; };
 export const getSimActor = () => _actor;
-function getToken() { return (_actor === 'houari' && HOUARI_TOKEN) ? HOUARI_TOKEN : ACCESS_TOKEN; }
+export function getToken() { return getDeviceToken(); }
+
+/** Jeton refusé par le serveur (appareil déconnecté, mot de passe changé…) → l'app revient à l'écran de connexion. */
+// Un 403 peut aussi vouloir dire « pas le droit » (page réservée à Kouider) : on vérifie le jeton lui-même avant de déconnecter.
+let _checkingAuth = false;
+function signalAuthExpired() {
+  const t = getDeviceToken();
+  if (!t || _checkingAuth) return;
+  _checkingAuth = true;
+  fetch(`${BACKEND_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${t}` } })
+    .then(r => {
+      if ((r.status === 401 || r.status === 403) && getDeviceToken() === t) {
+        try { window.dispatchEvent(new CustomEvent('dz:auth-expired')); } catch { /* SSR */ }
+      }
+    })
+    .catch(() => { /* réseau : on ne déconnecte pas */ })
+    .finally(() => { _checkingAuth = false; });
+}
+
+export async function loginDevice(user: string, password: string): Promise<{ token: string; actor: 'kouider' | 'houari' }> {
+  const label = `App ${/iPhone|iPad/.test(navigator.userAgent) ? 'iPhone' : /Android/.test(navigator.userAgent) ? 'Android' : 'navigateur'} — ${new Date().toLocaleDateString('fr-BE')}`;
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < _BACKENDS.length; attempt++) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user, password, label }),
+      });
+      const data = await res.json().catch(() => ({})) as { token?: string; actor?: 'kouider' | 'houari'; error?: string };
+      if (res.ok && data.token && data.actor) return { token: data.token, actor: data.actor };
+      if ([502, 503, 504].includes(res.status) && switchToNextBackend()) continue;
+      throw new Error(data.error ?? `Erreur ${res.status}`);
+    } catch (e) {
+      lastErr = e as Error;
+      if (e instanceof TypeError && switchToNextBackend()) continue;   // réseau → backend de secours
+      break;
+    }
+  }
+  throw lastErr ?? new Error('Connexion impossible');
+}
+
+export async function logoutDevice(): Promise<void> {
+  const t = getDeviceToken();
+  setDeviceToken(null);
+  if (t) await fetch(`${BACKEND_URL}/api/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${t}` } }).catch(() => {});
+}
+
+export async function changePassword(current: string, next: string, logoutOthers: boolean): Promise<{ ok?: boolean; error?: string; loggedOut?: number }> {
+  const res = await fetch(`${BACKEND_URL}/api/auth/password`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    body: JSON.stringify({ current, next, logoutOthers }),
+  });
+  return res.json().catch(() => ({ error: `Erreur ${res.status}` }));
+}
 
 function getTimezone(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'Europe/Paris'; }
@@ -93,6 +153,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, _atte
     return apiFetch<T>(path, options, _attempt + 1);
   }
   if (!res.ok) {
+    if (res.status === 401 || res.status === 403) signalAuthExpired();
     if (isGet) { const cached = readOfflineCache<T>(path); if (cached) { setOffline(true); return cached.data; } }
     throw new Error(`API ${res.status}: ${await res.text()}`);
   }
@@ -172,12 +233,12 @@ export const api = {
     }),
 
   health: () =>
-    fetch(`${BACKEND_URL}/health`, { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } })
+    fetch(`${BACKEND_URL}/health`, { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.json() as Promise<{ status: string; uptime?: number }>)
       .catch(() => ({ status: 'error' })),
 
   nexusStatus: () =>
-    fetch(`${BACKEND_URL}/api/nexus/status`, { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } })
+    fetch(`${BACKEND_URL}/api/nexus/status`, { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.json() as Promise<{ connected: boolean }>)
       .catch(() => ({ connected: false })),
 

@@ -29,7 +29,7 @@ import ParrainageScreen from './screens/ParrainageScreen.tsx';
 import PricingScreen from './screens/PricingScreen.tsx';
 import DemarchageScreen from './screens/DemarchageScreen.tsx';
 import NexusScreen from './screens/NexusScreen.tsx';
-import { setSimActor, resumeWebPush, business, callApi } from '../services/api.ts';
+import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
@@ -40,10 +40,6 @@ export type Page =
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
 
-const CREDS: Record<string, { password: string; actor: Actor }> = {
-  kouider: { password: 'kouider31', actor: 'kouider' },
-  houari:  { password: 'houari31',  actor: 'houari'  },
-};
 
 const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean; houariOnly?: boolean; group?: 'tool' }> = [
   // ── Barre du bas (essentiels) ──
@@ -81,6 +77,8 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
 
 function getSavedSession(): { actor: Actor; user: string } | null {
   try {
+    // Session valable seulement avec un jeton d'appareil remis par le serveur (connexion du 14/10/2026)
+    if (!getDeviceToken()) return null;
     const s = localStorage.getItem('dzaryx_session');
     return s ? (JSON.parse(s) as { actor: Actor; user: string }) : null;
   } catch { return null; }
@@ -224,6 +222,7 @@ export default function Phone() {
 
   const logout = () => {
     setPowering(true);
+    void logoutDevice();
     setTimeout(() => {
       localStorage.removeItem('dzaryx_session');
       setLoggedActor(null);
@@ -234,23 +233,37 @@ export default function Phone() {
     }, 900);
   };
 
-  const doLogin = () => {
-    const cred = CREDS[loginUser.toLowerCase().trim()];
-    if (!cred || cred.password !== loginPass) {
-      setLoginErr('Identifiants incorrects');
-      setTimeout(() => setLoginErr(''), 2000);
-      return;
-    }
+  // Identifiant + mot de passe vérifiés par le serveur → jeton propre à ce téléphone
+  const doLogin = async () => {
     setLoginLoading(true);
-    setTimeout(() => {
-      setLoggedActor(cred.actor);
-      setSimActor(cred.actor);
-      localStorage.setItem('dzaryx_session', JSON.stringify({ actor: cred.actor, user: loginUser.toLowerCase().trim() }));
+    try {
+      const { token, actor: who } = await loginDevice(loginUser.toLowerCase().trim(), loginPass);
+      setDeviceToken(token);
+      setLoggedActor(who);
+      setSimActor(who);
+      localStorage.setItem('dzaryx_session', JSON.stringify({ actor: who, user: loginUser.toLowerCase().trim() }));
+      setLoginPass('');
       setSimState('app');
-      setLoginLoading(false);
       void resumeWebPush(); // silencieux ; le prompt se fait via le bouton Réglages (geste iOS)
-    }, 600);
+    } catch (e) {
+      setLoginErr(e instanceof Error ? e.message : 'Connexion impossible');
+      setTimeout(() => setLoginErr(''), 3000);
+    } finally {
+      setLoginLoading(false);
+    }
   };
+
+  // Jeton refusé par le serveur (appareil déconnecté à distance, mot de passe changé) → retour à la connexion
+  useEffect(() => {
+    const onExpired = () => {
+      setDeviceToken(null);
+      localStorage.removeItem('dzaryx_session');
+      setLoggedActor(null);
+      setSimState('locked');
+    };
+    window.addEventListener('dz:auth-expired', onExpired);
+    return () => window.removeEventListener('dz:auth-expired', onExpired);
+  }, []);
 
   const actor = loggedActor ?? 'kouider';
 

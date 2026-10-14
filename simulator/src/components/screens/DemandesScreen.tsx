@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BACKEND_URL, ACCESS_TOKEN } from '../../services/api.ts';
+import { BACKEND_URL, getToken } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 
 interface Demande {
@@ -65,14 +65,14 @@ const LANG_FLAG: Record<string, string> = { fr: '🇫🇷', ar: '🇩🇿', en: 
 const SITE = 'https://fikconciergerie.com';
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BACKEND_URL}${path}`, { headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` } });
+  const res = await fetch(`${BACKEND_URL}${path}`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<T>;
 }
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`API ${res.status}`);

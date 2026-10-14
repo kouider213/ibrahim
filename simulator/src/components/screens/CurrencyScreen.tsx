@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BACKEND_URL, ACCESS_TOKEN } from '../../services/api.ts';
+import { BACKEND_URL, getToken } from '../../services/api.ts';
 
 interface Rates {
   eur_to_dzd_official: number;
@@ -45,7 +45,7 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
     setLoading(true);
     setError('');
     try {
-      const token = ACCESS_TOKEN;
+      const token = getToken();
       const res = await fetch(`${BACKEND_URL}/api/rates/exchange`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -101,7 +101,7 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
     // Sync to backend (fire-and-forget)
     fetch(`${BACKEND_URL}/api/rates/parallel`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ eur_to_dzd: eur, usd_to_dzd: p.usd_to_dzd }),
     }).catch(() => {});
   };

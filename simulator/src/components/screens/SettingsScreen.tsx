@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { business, setSimActor, getSimActor, registerWebPush, notifStatus } from '../../services/api.ts';
+import { business, setSimActor, getSimActor, registerWebPush, notifStatus, changePassword, apiFetch } from '../../services/api.ts';
 import CapacitesScreen from './CapacitesScreen.tsx';
 
 interface StoredLocation { lat: number; lng: number; city?: string; country: string; updated_at: string; }
@@ -155,6 +155,9 @@ export default function SettingsScreen() {
 
         {/* Notifications */}
         <NotifPrefs />
+
+        {/* Mot de passe + appareils connectés */}
+        <SecurityPanel />
 
         {/* GPS Location */}
         <Panel title="LOCALISATION GPS">
@@ -378,6 +381,63 @@ function NotifPrefs() {
         ))}
       </div>
       <div style={{ fontSize: 9.5, color: '#ffffff33', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
+    </Panel>
+  );
+}
+
+// Sécurité : le mot de passe est vérifié par le serveur ; chaque téléphone connecté a son propre jeton.
+function SecurityPanel() {
+  const [cur, setCur]   = useState('');
+  const [next, setNext] = useState('');
+  const [others, setOthers] = useState(true);
+  const [msg, setMsg]   = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [devices, setDevices] = useState<Array<{ id: string; actor: string; label: string; last: string | null; created: string }>>([]);
+
+  useEffect(() => {
+    apiFetch<{ devices: typeof devices }>('/api/auth/devices').then(d => setDevices(d.devices ?? [])).catch(() => {});
+  }, [msg]);
+
+  const submit = async () => {
+    if (next.length < 6) { setMsg({ ok: false, text: 'Au moins 6 caractères.' }); return; }
+    setBusy(true);
+    const r = await changePassword(cur, next, others).catch(() => ({ error: 'Réseau indisponible' } as { error: string; ok?: boolean; loggedOut?: number }));
+    setBusy(false);
+    if (r.ok) {
+      setCur(''); setNext('');
+      setMsg({ ok: true, text: `Mot de passe changé${r.loggedOut ? ` · ${r.loggedOut} autre(s) appareil(s) déconnecté(s)` : ''}.` });
+    } else setMsg({ ok: false, text: r.error ?? 'Échec' });
+  };
+
+  const input: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box', background: '#1d1d25', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 10, padding: '10px 12px', color: '#fff', fontFamily: 'Inter, sans-serif', fontSize: 13, marginBottom: 8,
+  };
+  const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleString('fr-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+
+  return (
+    <Panel title="SÉCURITÉ">
+      <input type="password" placeholder="Mot de passe actuel" value={cur} onChange={e => setCur(e.target.value)} autoComplete="current-password" style={input} />
+      <input type="password" placeholder="Nouveau mot de passe (6 caractères min.)" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" style={input} />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#9b9ba6', marginBottom: 10 }}>
+        <input type="checkbox" checked={others} onChange={e => setOthers(e.target.checked)} />
+        Déconnecter mes autres appareils
+      </label>
+      <button onClick={() => void submit()} disabled={busy || !cur || !next} style={actionBtn('#10b981')}>
+        {busy ? 'ENREGISTREMENT…' : '🔐 CHANGER MON MOT DE PASSE'}
+      </button>
+      {msg && <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, marginTop: 8, color: msg.ok ? '#00e676' : '#ff3366' }}>{msg.text}</div>}
+      {devices.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9b9ba6', marginBottom: 6 }}>Appareils connectés</div>
+          {devices.map(d => (
+            <div key={d.id} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#cfcfd6', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              {d.actor === 'houari' ? '👤 Houari' : '👤 Kouider'} · {d.label}
+              <div style={{ fontSize: 10, color: '#6b6b76' }}>Connecté le {fmt(d.created)} · vu {fmt(d.last)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </Panel>
   );
 }
