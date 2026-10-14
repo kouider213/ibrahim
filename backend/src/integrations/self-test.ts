@@ -116,6 +116,14 @@ export async function runSelfTest(): Promise<SelfTestReport> {
     return { ok: true, info: `${DAILY_JOBS.length} tâches du jour lancées, aucune en échec` };
   }));
 
+  // PC cloud : toujours allumé sur le VPS → hors ligne = vraie panne
+  checks.push(await timed('PC cloud (serveur)', async () => {
+    const { isCloudPcOnline, cloudEmit } = await import('../actions/handlers/cloudpc-relay.js');
+    if (!isCloudPcOnline()) return { ok: false, info: 'agent non connecté (pm2 dzaryx-cloudpc / dzaryx-cloudpc-desktop sur le VPS)' };
+    const st = await cloudEmit<{ ok: boolean; chrome?: boolean; tabs?: unknown[] }>('cloud:status', {}, 15_000);
+    return { ok: !!st.chrome, info: st.chrome ? `en ligne, Chrome ouvert (${st.tabs?.length ?? 0} onglet(s))` : 'en ligne mais Chrome fermé' };
+  }));
+
   // Nexus : pour info seulement (le PC peut être éteint normalement). Dernier signe gardé dans app_kv (survit aux redéploiements).
   checks.push(await timed('Nexus (PC)', async () => {
     if (getNexusStatus().online) {

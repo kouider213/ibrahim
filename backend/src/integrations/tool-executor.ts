@@ -243,8 +243,16 @@ export async function executeTool(
 ): Promise<string> {
   const t0     = Date.now();
   const sid    = sessionId ?? 'unknown';
-  const result = await _dispatch(name, input, sessionId);
+  let result   = await _dispatch(name, input, sessionId);
   const ms     = Date.now() - t0;
+  // Laptop (Nexus) éteint mais PC cloud en ligne → Dzaryx propose le PC cloud au lieu de bloquer
+  if ((NEXUS_TOOLS.has(name) || PC_TOOLS.has(name)) && /hors ligne|offline|not connected/i.test(result)) {
+    const { isCloudPcOnline } = await import('../actions/handlers/cloudpc-relay.js');
+    if (isCloudPcOnline()) {
+      result += '\n💡 Le PC CLOUD est en ligne (toujours allumé) : pour une tâche web utilise browser_task ou cloud_pc ; ' +
+        'Kouider peut aussi le piloter dans l\'app (MON PC → PC cloud). Il n\'a pas les fichiers ni les logiciels du laptop.';
+    }
+  }
 
   const isError = isToolFailureResult(result, name);
 
