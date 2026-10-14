@@ -3,6 +3,7 @@
 // message « rétabli » quand il revient.
 import { kvGet, kvSet, kvDel } from '../integrations/app-store.js';
 import { emitProactive } from './mobile-push.js';
+import { reportIncident } from './incident-call.js';
 
 const BEAT_KEY = 'tgcall:heartbeat';
 const DOWN_KEY = 'tgcall:down';
@@ -30,4 +31,6 @@ export async function checkTgcallAlive(): Promise<void> {
     `⚠️ Le service d'appels Telegram ne répond plus depuis ${Math.round(ageMin)} min (dernier signe de vie ${new Date(last).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' })}).\n` +
     'Tant que ça dure : Dzaryx ne peut ni t\'appeler ni décrocher sur Telegram. Les appels auto passent par l\'app.\n' +
     'Je te préviens dès que ça remarche. Si ça dure, dis « vérifie le service d\'appels » à Claude Code.', 'kouider');
+  // Telegram ne peut pas sonner → l'appel passe par l'app
+  void reportIncident('tgcall-down', `Le service d'appels Telegram est coupé depuis ${Math.round(ageMin)} minutes.`, null);
 }

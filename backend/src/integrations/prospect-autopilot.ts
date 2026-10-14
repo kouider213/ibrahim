@@ -3,7 +3,8 @@ import { env } from '../config/env.js';
 import { supabase } from './supabase.js';
 import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.js';
 import crypto from 'crypto';
-import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress } from './gmail.js';
+import { sendEmail, canSendEmail, countSentToday, listInboxMessages, readEmail, getMessageIdHeader, getThreadLastMessageId, proSenderAddress, getGmailConnectLink, PRO_ALIAS } from './gmail.js';
+import { reportIncident } from '../notifications/incident-call.js';
 import { addProspect, getAutopilot, updateProspect, companyKey, type Prospect, type ProspectSegment, type LinkedinContact, type QuoteDraftLine } from './prospects.js';
 import { findFreeSlots } from './google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -352,7 +353,8 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
   const settings = await getAutopilot();
   if (!settings.enabled && !opts.force) return 'Démarchage automatique en pause.';
   if (!(await canSendEmail('pro'))) {
-    emitProactive('Démarchage auto bloqué : la boîte fikconciergerie@gmail.com doit être reconnectée.', 'alert', undefined, 'kouider', 'demarchage');
+    void reportIncident('gmail-send-perm', 'Le démarchage est bloqué : la boîte fikconciergerie@gmail.com doit être reconnectée pour envoyer.',
+      `Démarchage auto bloqué : Dzaryx n'a plus la permission d'envoyer depuis fikconciergerie@gmail.com (envoi en tant que ${PRO_ALIAS}).\nReconnecte la boîte : ${getGmailConnectLink()}`);
     return 'Gmail non connecté en envoi.';
   }
   const perDay = Math.min(Math.max(settings.per_day, 1), MAX_PER_DAY);
@@ -408,6 +410,11 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
       failed.push(`${p.company} (${err instanceof Error ? err.message.slice(0, 60) : 'erreur'})`);
     }
     if (i < batch.length - 1) await new Promise(r => setTimeout(r, SEND_GAP_MS));
+  }
+  const sendErrors = failed.filter(f => !f.endsWith('(texte non généré)'));
+  if (sendErrors.length) {
+    void reportIncident('outreach-send-failed', `${sendErrors.length} mail${sendErrors.length > 1 ? 's' : ''} de démarchage n'ont pas pu partir.`,
+      `Envois de démarchage en échec (Gmail) :\n${sendErrors.map(f => `• ${f}`).join('\n')}`);
   }
 
   // Relances (sociétés sans réponse depuis 5 jours) avec ce qui reste du quota Gmail du jour

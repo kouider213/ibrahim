@@ -89,17 +89,23 @@ import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
 import { initNexusRelay, initLauncherRelay } from './actions/handlers/nexus-relay.js';
+import { reportIncident } from './notifications/incident-call.js';
 
 // ── Garde-fou global : le backend ne doit JAMAIS mourir ───────
 // Cause historique du crash loop (502) : Upstash Redis quota explosé →
 // BullMQ émet un event 'error' (ReplyError rate-limited) non catché →
 // uncaughtException → Node meurt → restart boucle. On log et on CONTINUE
 // de servir l'API/chat/sockets au lieu de tuer le process.
+// Et Dzaryx APPELLE Kouider (une fois par panne, voir incident-call.ts).
 process.on('uncaughtException', (err) => {
   console.error('[fatal] uncaughtException (process maintenu en vie):', err instanceof Error ? err.stack ?? err.message : err);
+  const msg = err instanceof Error ? err.message : String(err);
+  void reportIncident(`crash:${msg}`, 'Le serveur a eu une erreur grave, il tourne toujours.', `Erreur grave du serveur (il reste en ligne) :\n${msg.slice(0, 400)}`);
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[fatal] unhandledRejection (process maintenu en vie):', reason instanceof Error ? reason.stack ?? reason.message : reason);
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  void reportIncident(`rejection:${msg}`, 'Une erreur imprévue est arrivée sur le serveur.', `Erreur imprévue du serveur (il reste en ligne) :\n${msg.slice(0, 400)}`);
 });
 
 // ── Simple in-memory rate limiter ─────────────────────────────

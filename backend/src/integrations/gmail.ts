@@ -238,7 +238,9 @@ export async function proAliasReady(): Promise<boolean> {
     const ok = (r.sendAs ?? []).some(a => a.sendAsEmail.toLowerCase() === PRO_ALIAS && a.verificationStatus === 'accepted');
     aliasCache = { ok, at: Date.now() };
   } catch {
-    aliasCache = { ok: false, at: Date.now() };
+    // Erreur passagère (réseau, quota) : on garde le dernier état connu et on réessaie dans 5 min,
+    // au lieu de repasser une heure entière sur l'adresse Gmail
+    aliasCache = { ok: aliasCache?.ok ?? true, at: Date.now() - 3300_000 };
   }
   return aliasCache.ok;
 }

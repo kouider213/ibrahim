@@ -19,7 +19,7 @@ import {
 import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { setCarPapers, getCarPapers } from './car-papers.js';
-import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
+import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, proSenderAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { runDailyOutreach } from './prospect-autopilot.js';
@@ -2128,7 +2128,7 @@ async function draftEmailTool(input: Record<string, unknown>, sessionId?: string
   const draft: EmailDraft = { to, subject, body, createdAt: Date.now(), reply, prospectId: prospect?.id };
   for (const [k, d] of emailDrafts) if (Date.now() - d.createdAt > DRAFT_TTL_MS) emailDrafts.delete(k);
   emailDrafts.set(draftKey(sessionId, id), draft);
-  return `📝 Brouillon prêt (draft_id: ${id}) — PAS ENCORE ENVOYÉ.${prospect ? ` Réponse à ${prospect.company} (même conversation).` : ''}\nDe: ${gmailAddress('pro')}\nÀ: ${to}\nObjet: ${subject}\n\n${body}\n\n` +
+  return `📝 Brouillon prêt (draft_id: ${id}) — PAS ENCORE ENVOYÉ.${prospect ? ` Réponse à ${prospect.company} (même conversation).` : ''}\nDe: FIK Conciergerie <${await proSenderAddress()}> (les réponses arrivent dans ${gmailAddress('pro')})\nÀ: ${to}\nObjet: ${subject}\n\n${body}\n\n` +
     `→ Montre ce brouillon EN ENTIER à Kouider et demande "Je l'envoie ?". N'appelle send_email qu'après son "oui"/"envoie" dans son PROCHAIN message.`;
 }
 
@@ -2173,7 +2173,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
   for (const k of [...emailDrafts.keys()]) if (k.startsWith(prefix)) emailDrafts.delete(k);  // évite un double envoi
   void markProspectContacted(draft.to).catch(() => {});
   if (draft.prospectId) void updateProspect(draft.prospectId, { suggested_reply: null, last_contacted_at: new Date().toISOString() }).catch(() => {});
-  return `✅ Mail envoyé à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;
+  return `✅ Mail envoyé depuis ${await proSenderAddress()} à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;
 }
 
 // ── Prospection B2B ──

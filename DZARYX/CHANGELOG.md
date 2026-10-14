@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-10-14 — Mails : Dzaryx annonce bien contact@ ; appel automatique en cas de panne
+
+- **Mails** : les envois partaient déjà de `contact@fikconciergerie.com` (vérifié dans « Envoyés »), mais le brouillon
+  affichait « De: fikconciergerie@gmail.com » → Dzaryx disait à Kouider que ça ne partait pas de contact@.
+  Brouillon + confirmation + descriptions d'outils + prompt : envoi depuis contact@, réception dans fikconciergerie@gmail.com.
+  `proAliasReady()` : une erreur passagère ne fait plus repasser 1 h sur l'adresse Gmail.
+- **Appel sur incident** (`notifications/incident-call.ts`, `reportIncident`) : alerte écrite + Dzaryx appelle Kouider
+  (Telegram + app). Branché sur : erreur grave du serveur (uncaughtException/unhandledRejection), tâche planifiée
+  en échec, service d'appels Telegram coupé, démarchage bloqué (boîte à reconnecter) ou mails de démarchage en échec.
+  Une même panne = 1 appel / 3 h ; max 6 appels d'incident / jour (au-delà : écrit seulement).
+
 ## 2026-10-14 (soir) — Nexus : « ouvre Chrome » corrigé, interface HUD animée plein écran | `8f002eb`, `a15166d`
 
 - **Bug** `nexus.py` : « ouvre <app> » cherchait d'abord un fichier au Bureau (ouvrait un `.json` de photos dans VS Code).

@@ -43,6 +43,7 @@ import { flushAutoCalls } from '../notifications/auto-call.js';
 import { jobDailyRecapCall, jobMailReplyCall, jobRentalEveCall } from './jobs/call-jobs.js';
 import { jobCarPapersCall } from '../integrations/car-papers.js';
 import { checkTgcallAlive } from '../notifications/tgcall-watch.js';
+import { reportIncident } from '../notifications/incident-call.js';
 import { jobMissions } from '../integrations/missions.js';
 import { jobMeetingPrep } from '../integrations/meeting-prep.js';
 import { jobIntentions } from '../integrations/intentions.js';
@@ -400,7 +401,9 @@ async function runJob(name: string, slot: string): Promise<void> {
     await handler({ name, id: `${name}:${slot}`, data: {} } as unknown as Job);
     console.log(`[scheduler] ✅ ${name} done`);
   } catch (err) {
-    console.error(`[scheduler] ❌ ${name} failed:`, err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[scheduler] ❌ ${name} failed:`, msg);
+    void reportIncident(`job:${name}`, `La tâche automatique « ${name} » a planté.`, `La tâche automatique « ${name} » a échoué :\n${msg.slice(0, 400)}`);
   }
 }
 
