@@ -37,6 +37,11 @@ router.get('/targets', requireMobileAuth, (_req, res) => {
   res.json({ ok: true, laptop: isNexusOnline(), cloud: isCloudPcOnline(), cloud_since: cloudPcSince() });
 });
 
+// POST /restart-browser → relancer le Chrome du PC cloud (profil et connexions gardés)
+router.post('/restart-browser', requireMobileAuth, (_req, res) => {
+  void run(res, () => cloudEmit('cloud:restart_browser', {}), true);
+});
+
 // POST /open { url, target:'cloud' } → ouvrir une adresse sur le PC cloud
 router.post('/open', requireMobileAuth, (req, res) => {
   const url = String((req.body as { url?: string }).url ?? '').slice(0, 2000);
@@ -47,7 +52,7 @@ router.post('/open', requireMobileAuth, (req, res) => {
 router.post('/frame', requireMobileAuth, (req, res) => {
   const { quality, scale } = req.body as { quality?: number; scale?: number };
   const q = Math.min(90, Number(quality) || 50), sc = Math.min(1, Number(scale) || 0.5);
-  if (isCloud(req)) { void run(res, () => cloudEmit('cloud:frame', { quality: q, scale: Math.max(sc, 0.6) }, 15_000), true); return; }
+  if (isCloud(req)) { void run(res, () => cloudEmit('cloud:frame', { quality: q, scale: sc }, 15_000), true); return; }
   void run(res, () => nexusScreenshotJpeg(q, sc, 15_000));
 });
 

@@ -2288,7 +2288,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
 
   {
     name: 'browser_task',
-    description: 'Faire une tâche dans un NAVIGATEUR SUR LE SERVEUR (marche même PC éteint) : "va sur le site de … et trouve …", "regarde les prix des loueurs sur …", "remplis le formulaire de …", "télécharge … sur …". S\'arrête et demande à Kouider (capture sur Telegram) avant toute action irréversible ou s\'il faut se connecter / un code. Si le PC de Kouider est allumé et qu\'il veut SON PC, utiliser send_nexus_command à la place.',
+    description: 'Faire une tâche dans un NAVIGATEUR SUR LE SERVEUR (marche même PC éteint) — c\'est le Chrome du PC CLOUD : Kouider peut regarder en direct et prendre la main dans l\'app (MON PC → PC cloud), et les connexions qu\'il y a faites servent à Dzaryx : "va sur le site de … et trouve …", "regarde les prix des loueurs sur …", "remplis le formulaire de …", "télécharge … sur …". S\'arrête et demande à Kouider (capture sur Telegram) avant toute action irréversible ou s\'il faut se connecter / un code (il peut aussi le faire lui-même dans MON PC → PC cloud). Si le PC de Kouider est allumé et qu\'il veut SON PC, utiliser send_nexus_command à la place.',
     input_schema: { type: 'object' as const, properties: { task: { type: 'string', description: 'La tâche complète, précise (site, quoi chercher / remplir)' } }, required: ['task'] },
   },
   {
