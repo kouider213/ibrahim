@@ -2525,4 +2525,31 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     description: 'Retrouver les démos de sites déjà faites : sans name → liste avec liens ; avec name → le lien, les VRAIES infos Google et tout ce qui a été INVENTÉ (à remplacer par les vraies infos pour faire le vrai site).',
     input_schema: { type: 'object' as const, properties: { name: { type: 'string', description: 'Nom du commerce' } } },
   },
+  {
+    name: 'create_client_site',
+    description: 'VRAI SITE CLIENT (FIK Sites) à partir d\'une démo déjà faite : « le client est d\'accord, on fait le vrai site », « reprends la démo du restaurant X avec le vrai menu ». Dzaryx remplace ce qui était inventé par les vraies infos données par Kouider (real_info), enlève l\'étiquette démo et met le site en ligne. Avec client_email, crée l\'ESPACE CLIENT (adresse du site + /admin) où le patron modifie lui-même menu, prestations, photos, horaires et textes, comme sur Shopify ; le mot de passe est envoyé à Kouider sur Telegram. Prêt en 1 à 2 min, lien sur Telegram et dans l\'app.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        demo:         { type: 'string', description: 'Nom du commerce de la démo de départ (voir get_demo_site)' },
+        real_info:    { type: 'string', description: 'Les vraies infos données par Kouider (vrai menu et prix, vraies prestations, autre téléphone, horaires…), même en vrac. Vide si on garde la démo telle quelle.' },
+        client_email: { type: 'string', description: 'E-mail du patron pour son espace client (facultatif, peut être ajouté plus tard)' },
+      },
+      required: ['demo'],
+    },
+  },
+  {
+    name: 'manage_client_site',
+    description: 'Gérer les VRAIS sites des clients (FIK Sites). action=list → tous les sites ; info → lien, espace client, ce qui est encore inventé ; edit → modifier le site en langage naturel (changes : « change les horaires du samedi », « ajoute la pizza 4 fromages à 900 DA », « voici le vrai menu… ») puis remise en ligne ; pause → site remplacé par « momentanément indisponible » (ex. client qui ne paie pas) ; resume → remis en ligne ; account → crée l\'espace client ou donne un NOUVEAU mot de passe (client_email), envoyé sur Telegram.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action:       { type: 'string', enum: ['list', 'info', 'edit', 'pause', 'resume', 'account'] },
+        site:         { type: 'string', description: 'Nom du commerce (sauf pour list)' },
+        changes:      { type: 'string', description: 'Pour edit : ce qu\'il faut changer, ou les vraies infos' },
+        client_email: { type: 'string', description: 'Pour account : e-mail du patron' },
+      },
+      required: ['action'],
+    },
+  },
 ];

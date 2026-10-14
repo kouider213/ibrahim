@@ -89,7 +89,7 @@ export function hashPassword(pw: string): string {
   return `scrypt$${salt.toString('hex')}$${scryptSync(pw, salt, 32).toString('hex')}`;
 }
 
-function checkPassword(pw: string, stored: string): boolean {
+export function checkPassword(pw: string, stored: string): boolean {
   const [kind, saltHex, hashHex] = stored.split('$');
   if (kind !== 'scrypt' || !saltHex || !hashHex) return false;
   const got = scryptSync(pw, Buffer.from(saltHex, 'hex'), 32);

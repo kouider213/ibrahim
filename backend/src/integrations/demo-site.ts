@@ -13,15 +13,15 @@ import { emitProactive } from '../notifications/mobile-push.js';
 const mapsKey = () => process.env['GOOGLE_PLACES_API_KEY'] ?? process.env['GOOGLE_MAPS_API_KEY'];
 const DEMO_INDEX = 'demo:sites';
 
-interface Place {
+export interface Place {
   place_id: string; name: string; address: string; phone?: string; website?: string; mapsUrl?: string;
   rating?: number; ratingsTotal?: number; priceLevel?: number; types: string[]; hours: string[];
   summary?: string; reviews: Array<{ author: string; rating: number; text: string }>;
   photoRefs: string[]; lat?: number; lng?: number; extras: string[];
 }
 
-interface OfferItem { name: string; description?: string; price?: string }
-interface Content {
+export interface OfferItem { name: string; description?: string; price?: string }
+export interface Content {
   kind: string; tagline: string; about: string[]; offerTitle: string; offerIntro: string;
   offer: Array<{ group: string; items: OfferItem[] }>; highlights: string[];
   palette: { primary: string; accent: string; dark: string; light: string }; fonts: [string, string];
@@ -105,7 +105,7 @@ async function downloadPhotos(refs: string[]): Promise<Buffer[]> {
 }
 
 // ── 2. Textes (Claude) ───────────────────────────────────────────────────────
-const FONT_PAIRS: Array<[string, string]> = [
+export const FONT_PAIRS: Array<[string, string]> = [
   ['Playfair Display', 'Lato'], ['Montserrat', 'Open Sans'], ['Oswald', 'Roboto'], ['Poppins', 'Inter'],
   ['Cormorant Garamond', 'Nunito'], ['Bebas Neue', 'Source Sans 3'], ['DM Serif Display', 'DM Sans'],
 ];
@@ -128,7 +128,7 @@ Réponds UNIQUEMENT en JSON :
  "invented": ["..."]}
 offer : 3 ou 4 groupes de 3 à 5 éléments. palette adaptée au métier (dark = fond sombre lisible avec texte blanc, light = fond clair). fontPair = indice parmi : ${FONT_PAIRS.map((p, i) => `${i}=${p[0]}/${p[1]}`).join(', ')}.`;
 
-const HEX = /^#[0-9a-f]{6}$/i;
+export const HEX = /^#[0-9a-f]{6}$/i;
 
 async function writeContent(p: Place, notes: string): Promise<Content> {
   const fiche = {
@@ -157,9 +157,11 @@ async function writeContent(p: Place, notes: string): Promise<Content> {
 }
 
 // ── 3. Page HTML (un seul fichier + photos) ──────────────────────────────────
-const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+export const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
-function renderHtml(p: Place, c: Content, photos: string[]): string {
+export interface RenderOpts { demo: boolean; siteId?: string }
+
+export function renderHtml(p: Omit<Place, 'photoRefs'>, c: Content, photos: string[], opts: RenderOpts = { demo: true }): string {
   const [fh, fb] = c.fonts;
   const fontsUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fh)}:wght@400;600;700&family=${encodeURIComponent(fb)}:wght@400;600&display=swap`;
   const tel = p.phone ? `tel:${p.phone.replace(/\s/g, '')}` : '';
@@ -179,7 +181,7 @@ function renderHtml(p: Place, c: Content, photos: string[]): string {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(p.name)} — ${esc(c.tagline)}</title>
 <meta name="description" content="${esc(c.about[0] ?? c.tagline)}">
-<meta name="robots" content="noindex">
+${opts.demo ? '<meta name="robots" content="noindex">' : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="${fontsUrl}" rel="stylesheet">
 <style>
@@ -271,8 +273,8 @@ ${p.reviews.length ? `<section style="background:#fff3"><div class="wrap reveal"
     <iframe class="map" src="${mapEmbed}" loading="lazy" title="Plan"></iframe></div>
 </div></section>
 
-<footer><b>${esc(p.name)}</b> · ${esc(p.address)}<br><br>Site de démonstration réalisé par <b>FIK Conciergerie</b></footer>
-<div class="demo">Version de démonstration</div>
+<footer><b>${esc(p.name)}</b> · ${esc(p.address)}<br><br>${opts.demo ? 'Site de démonstration réalisé' : 'Site réalisé'} par <b>FIK Conciergerie</b></footer>
+${opts.demo ? '<div class="demo">Version de démonstration</div>' : ''}
 ${tel ? `<a class="callfab" href="${tel}" aria-label="Appeler">📞</a>` : ''}
 <script>
 const today=${JSON.stringify(days)}[new Date().getDay()];
@@ -284,12 +286,22 @@ document.querySelectorAll('.reveal').forEach(e=>io.observe(e));
 }
 
 // ── 4. Mise en ligne Netlify (déploiement par empreintes, sans zip) ──────────
-async function deployNetlify(slug: string, files: Record<string, Buffer>): Promise<string> {
+// siteId absent → crée le site Netlify (nom pris → suffixe) ; présent → nouveau déploiement du même site.
+export async function deployNetlify(slug: string, files: Record<string, Buffer>, siteId?: string): Promise<{ url: string; siteId: string }> {
   const token = process.env['NETLIFY_TOKEN'];
   if (!token) throw new Error('NETLIFY_TOKEN manquant sur le serveur');
   const h = { Authorization: `Bearer ${token}` };
-  const { data: site } = await axios.post('https://api.netlify.com/api/v1/sites', { name: slug }, { headers: h, timeout: 20_000 });
-  const siteId = (site as { id: string }).id;
+  if (!siteId) {
+    for (const name of [slug, `${slug}-${randomBytes(2).toString('hex')}`]) {
+      try {
+        const { data: site } = await axios.post('https://api.netlify.com/api/v1/sites', { name }, { headers: h, timeout: 20_000 });
+        siteId = (site as { id: string }).id; slug = name; break;
+      } catch (err) {
+        if (!(axios.isAxiosError(err) && err.response?.status === 422)) throw err;
+      }
+    }
+    if (!siteId) throw new Error(`Netlify : nom « ${slug} » déjà pris`);
+  }
   const sha = (b: Buffer) => createHash('sha1').update(b).digest('hex');
   const digest = Object.fromEntries(Object.entries(files).map(([path, b]) => [`/${path}`, sha(b)]));
   const { data: dep } = await axios.post(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, { files: digest }, { headers: h, timeout: 20_000 });
@@ -304,15 +316,15 @@ async function deployNetlify(slug: string, files: Record<string, Buffer>): Promi
   for (let i = 0; i < 30; i++) {
     const { data: st } = await axios.get(`https://api.netlify.com/api/v1/deploys/${d.id}`, { headers: h, timeout: 15_000 });
     const s = st as { state: string; ssl_url?: string; error_message?: string };
-    if (s.state === 'ready') return s.ssl_url ?? `https://${slug}.netlify.app`;
+    if (s.state === 'ready') return { url: s.ssl_url ?? `https://${slug}.netlify.app`, siteId };
     if (s.state === 'error') throw new Error(`Netlify : ${s.error_message ?? 'erreur de déploiement'}`);
     await new Promise(r => setTimeout(r, 2000));
   }
-  return `https://${slug}.netlify.app`;
+  return { url: `https://${slug}.netlify.app`, siteId };
 }
 
 // ── 5. Outil ─────────────────────────────────────────────────────────────────
-const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
+export const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
 const running = new Set<string>();
 
 export async function buildDemo(link: string, notes: string): Promise<DemoRecord> {
@@ -326,7 +338,7 @@ export async function buildDemo(link: string, notes: string): Promise<DemoRecord
   const files: Record<string, Buffer> = { 'index.html': Buffer.from(renderHtml(place, content, photoNames)) };
   photoBufs.forEach((b, i) => { files[photoNames[i]!] = b; });
   const slug = `demo-${slugify(place.name) || 'commerce'}-${randomBytes(2).toString('hex')}`;
-  const url = await deployNetlify(slug, files);
+  const { url } = await deployNetlify(slug, files);
   const { photoRefs: _drop, ...placeData } = place;
   const rec: DemoRecord = { slug, url, createdAt: new Date().toISOString(), place: placeData, content, ...(notes ? { notes } : {}) };
   await kvSet(`demo:site:${slug}`, JSON.stringify(rec));
@@ -360,6 +372,13 @@ export function createDemoSite(input: Record<string, unknown>): string {
     emitProactive(msg.split('\n')[0]!.slice(0, 100), 'info', msg);
   })();
   return '⏳ Démo du site en préparation (1 à 2 minutes) : infos et photos Google, textes, mise en ligne. Le lien sera envoyé sur Telegram et dans l\'app, avec la liste de ce qui a été inventé.';
+}
+
+export async function loadDemo(name: string): Promise<DemoRecord | null> {
+  const index = JSON.parse((await kvGet(DEMO_INDEX)) ?? '[]') as Array<{ slug: string; name: string }>;
+  const q = name.trim().toLowerCase();
+  const hit = index.find(d => d.name.toLowerCase().includes(q) || d.slug.includes(slugify(q)));
+  return hit ? JSON.parse((await kvGet(`demo:site:${hit.slug}`)) ?? 'null') as DemoRecord | null : null;
 }
 
 export async function getDemoSite(input: Record<string, unknown>): Promise<string> {

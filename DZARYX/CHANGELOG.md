@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-10-14 (soir 4) — FIK Sites (plan A) : vrais sites clients + espace client type Shopify
+
+- **`create_client_site`** (`integrations/client-sites.ts`) : une démo devient un vrai site. Les vraies infos de Kouider
+  (`real_info`) remplacent ce qui était inventé (Claude met à jour la liste `invented`), photos copiées dans le
+  stockage Supabase public `fik-sites/<id>/`, site Netlify sans « démo » ni noindex. Avec `client_email` → espace
+  client, mot de passe envoyé à Kouider sur Telegram. Données : app_kv `fik:site:<id>`, index `fik:sites`.
+- **`manage_client_site`** : list / info / edit (langage naturel → Claude → remise en ligne) / pause (page
+  « momentanément indisponible ») / resume / account (nouveau mot de passe + coupe les sessions).
+- **Espace client** `<site>/admin/` (`integrations/client-site-admin.ts`, déployé avec chaque site) : infos, horaires,
+  présentation, offre (catégories/éléments/prix), points forts, photos (envoi redimensionné, ordre, suppression),
+  couleurs, mot de passe → « Publier » ≈ 4 s. Tout en textContent/value (pas d'innerHTML).
+- **API** `/api/client-sites` (`api/routes/client-sites.ts`) : login (scrypt, 8 échecs → 15 min bloqué), me, PUT me
+  (seules les photos du site, pas de touche à `invented`/polices), me/photo (≤ 8 Mo), me/password, logout.
+  Sessions app_kv `fik:sess:<sha256>` 30 j, coupées par `fik:epoch:<id>`.
+- `demo-site.ts` : renderHtml(opts.demo), deployNetlify(slug, files, siteId?) → {url, siteId}, loadDemo().
+- Clé `GOOGLE_MAPS_API_KEY` ajoutée au backend de secours (VPS).
+- Test : https://restaurant-pralin-illusion.netlify.app (+ /admin/), créé depuis la démo Pralin en 11 s.
+
 ## 2026-10-14 (soir 3) — Démo de site d'un commerce en 1–2 min (create_demo_site)
 
 - **`create_demo_site`** (`integrations/demo-site.ts`) : lien Google Maps (ou nom + ville) → Google Places (API
