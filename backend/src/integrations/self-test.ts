@@ -102,11 +102,12 @@ export async function runSelfTest(): Promise<SelfTestReport> {
   }));
 
   checks.push(await timed('Tâches automatiques', async () => {
-    const since = new Date(Date.now() - 26 * 3_600_000).toISOString();
-    const { data, error } = await supabase.from('job_runs').select('job').gte('started_at', since).in('job', DAILY_JOBS);
-    if (error) return { ok: false, info: error.message };
-    const ran = new Set((data ?? []).map(r => (r as { job: string }).job));
-    const missing = DAILY_JOBS.filter(j => !ran.has(j));
+    // Dernier passage de chaque tâche ; une tâche jamais lancée (ajoutée aujourd'hui) n'est pas une panne.
+    const last = await Promise.all(DAILY_JOBS.map(async j => {
+      const { data } = await supabase.from('job_runs').select('started_at').eq('job', j).order('started_at', { ascending: false }).limit(1);
+      return [j, (data?.[0] as { started_at?: string } | undefined)?.started_at ?? null] as const;
+    }));
+    const missing = last.filter(([, at]) => at && ageH(at) > 26).map(([j]) => j);
     const { data: fails } = await supabase.from('app_kv').select('key').like('key', 'jobfail:%');
     const failing = (fails ?? []).map(r => (r as { key: string }).key.slice(8));
     if (missing.length || failing.length) {
