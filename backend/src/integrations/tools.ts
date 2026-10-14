@@ -2511,6 +2511,18 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'cloud_pc',
+    description: "Le PC CLOUD de Kouider : un bureau virtuel toujours allumé sur le serveur, avec un Chrome qui garde ses connexions — utile surtout quand le laptop (Nexus) est éteint ou que Kouider est en voyage. Kouider le voit et le pilote dans l'app (MON PC → PC cloud). action='status' : état + onglets ouverts. 'open_url' (url) : ouvrir une page pour Kouider (il la verra dans l'app). 'read_page' : lire le texte de la page affichée (ex. « lis ce que j'ai ouvert sur le PC cloud »). 'tabs' : liste des onglets. 'restart_browser' : relancer Chrome s'il bloque. Les tâches web autonomes (remplir un formulaire, chercher sur un site) passent par browser_task, qui travaille dans CE même Chrome : Kouider peut regarder en direct et prendre la main (connexion, code, captcha).",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['status', 'open_url', 'read_page', 'tabs', 'restart_browser'], description: 'status (défaut)' },
+        url: { type: 'string', description: 'Adresse à ouvrir (open_url)' },
+        max_chars: { type: 'number', description: 'read_page : longueur max du texte (défaut 6000)' },
+      },
+    },
+  },
+  {
     name: 'get_upcoming_seasons',
     description: "Saisons fortes à venir pour la location à Oran : vacances scolaires France + Belgique (diaspora), été diaspora, Ramadan, Aïd el-Fitr, Aïd el-Adha, Mawlid, fêtes nationales — avec le REMPLISSAGE RÉEL du parc sur chaque période et un conseil (prix, relances). Pour « quand est l'Aïd ? », « la diaspora arrive quand ? », « je dois monter mes prix ? », « les vacances de Toussaint ». Avant de proposer des prix de saison (apply_dynamic_pricing / suggest_smart_pricing).",
     input_schema: {

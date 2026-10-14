@@ -91,6 +91,7 @@ import { initApprover }     from './validations/approver.js';
 import { initDispatcher }   from './notifications/dispatcher.js';
 import { initPcRelay, registerPcAgent, unregisterPcAgent } from './actions/handlers/pc-relay.js';
 import { initNexusRelay, initLauncherRelay } from './actions/handlers/nexus-relay.js';
+import { initCloudPcRelay } from './actions/handlers/cloudpc-relay.js';
 import { reportIncident } from './notifications/incident-call.js';
 
 // ── Garde-fou global : le backend ne doit JAMAIS mourir ───────
@@ -391,6 +392,7 @@ initDispatcher(mobileNs);
 initPcRelay(io);
 initNexusRelay(io);
 initLauncherRelay(io);
+initCloudPcRelay(io);
 
 mobileNs.use((socket, next) => {
   const token = socket.handshake.auth['token'] as string | undefined;

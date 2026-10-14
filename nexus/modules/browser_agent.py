@@ -121,6 +121,7 @@ class BrowserAgent:
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='nexus-browser')
         self._pw = None
         self._ctx = None
+        self._cdp = None                      # Chrome du PC cloud (BROWSER_CDP_URL)
         self._page = None
         self._pending: list | None = None     # conversation en pause (ask_kouider)
         self._pending_tool_id: str | None = None
@@ -158,7 +159,25 @@ class BrowserAgent:
 
     # ── Navigateur ───────────────────────────────────────────────────────────
     def _ensure_browser(self):
+        if self._cdp is not None and not self._cdp.is_connected():   # Chrome du PC cloud relancé → on se rebranche
+            try:
+                self._pw.stop()
+            except Exception:
+                pass
+            self._pw = self._ctx = self._page = self._cdp = None
         if self._page is not None and not self._page.is_closed():
+            return self._page
+        if self._ctx is None and os.getenv('BROWSER_CDP_URL'):
+            # PC cloud du serveur : on travaille dans le Chrome VISIBLE déjà ouvert (Kouider peut regarder et
+            # prendre la main depuis l'app) au lieu d'un navigateur caché à part.
+            from playwright.sync_api import sync_playwright
+            self._pw = sync_playwright().start()
+            self._cdp = self._pw.chromium.connect_over_cdp(os.environ['BROWSER_CDP_URL'])
+            self._ctx = self._cdp.contexts[0] if self._cdp.contexts else self._cdp.new_context()
+            self._ctx.on('page', self._on_new_page)
+            self._page = self._ctx.new_page()          # un onglet à Dzaryx, ceux de Kouider restent intacts
+            self._page.bring_to_front()
+            self._watch_downloads(self._page)
             return self._page
         if self._ctx is None:
             from playwright.sync_api import sync_playwright
@@ -195,7 +214,16 @@ class BrowserAgent:
 
     def _close_sync(self) -> str:
         try:
-            if self._ctx:
+            if self._cdp is not None:
+                # Chrome du PC cloud : on ferme seulement l'onglet de Dzaryx et on se détache (Chrome reste ouvert)
+                try:
+                    if self._page and not self._page.is_closed():
+                        self._page.close()
+                except Exception:
+                    pass
+                self._cdp.close()
+                self._cdp = None
+            elif self._ctx:
                 self._ctx.close()
             if self._pw:
                 self._pw.stop()
