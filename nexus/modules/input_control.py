@@ -85,7 +85,7 @@ class INPUT(ctypes.Structure):
     _fields_ = [('type', ctypes.c_ulong), ('_input', _INPUTunion)]
 
 
-_user32 = ctypes.windll.user32
+_user32 = ctypes.windll.user32 if hasattr(ctypes, "windll") else None   # None hors Windows (tests sur serveur)
 
 
 def _send(*inputs: INPUT) -> None:

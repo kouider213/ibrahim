@@ -163,6 +163,7 @@ class WakeWordDetector:
         rec.pause_threshold = 0.6
 
         was_in_session = False
+        fails = 0
         while self._active:
             # Le micro manuel du GUI a la main → on ne se bat pas pour le périphérique
             if self.app.mic_active:
@@ -215,9 +216,17 @@ class WakeWordDetector:
                     log.info('Commande vocale: %s', command)
                     self._session_until = time.time() + SESSION_TIMEOUT
                     self._run(self.app.handle_command(command, 'nexus'))
+                fails = 0
             except Exception as e:
-                log.error('Wake word loop error: %s', e)
-                time.sleep(2)
+                # Pas de PyAudio / pas de micro : inutile de réessayer toutes les 2 s (le journal se remplissait)
+                if 'PyAudio' in str(e):
+                    log.error('Mot « Nexus » désactivé : PyAudio absent (pip install PyAudio). Le reste de Nexus marche.')
+                    self._run(self.app.journal('🎤 Mot « Nexus » désactivé : PyAudio manquant — relance install ou « mets à jour Nexus »'))
+                    return
+                fails += 1
+                if fails in (1, 5) or fails % 50 == 0:
+                    log.error('Wake word loop error (%d): %s', fails, e)
+                time.sleep(min(60, 2 * 2 ** min(fails - 1, 5)))
 
     def _realtime(self, first_text: str) -> bool:
         """Conversation en voix temps réel (modules/realtime_voice.py). Bloque ce fil jusqu'à la fin de la

@@ -115,9 +115,17 @@ export async function runSelfTest(): Promise<SelfTestReport> {
     return { ok: true, info: `${DAILY_JOBS.length} tâches du jour lancées, aucune en échec` };
   }));
 
-  // Nexus : pour info seulement (le PC peut être éteint normalement).
-  const nx = getNexusStatus();
-  checks.push({ name: 'Nexus (PC)', ok: true, info: nx.online ? 'connecté' : `hors ligne (dernier signe ${nx.last_seen ? new Date(nx.last_seen).toLocaleString('fr-FR', { timeZone: 'Europe/Brussels' }) : 'inconnu'}) — normal si le PC est éteint`, ms: 0 });
+  // Nexus : pour info seulement (le PC peut être éteint normalement). Dernier signe gardé dans app_kv (survit aux redéploiements).
+  checks.push(await timed('Nexus (PC)', async () => {
+    if (getNexusStatus().online) {
+      const { nexusBehind } = await import('./nexus-remote.js');
+      const b = await nexusBehind().catch(() => null);
+      return { ok: true, info: `connecté${b?.files.length ? ` — en retard de ${b.files.length} fichier(s), mise à jour auto au prochain démarrage` : ', à jour'}` };
+    }
+    const last = JSON.parse((await kvGet('nexus:last_seen')) ?? '{}') as { at?: string };
+    const h = ageH(last.at);
+    return { ok: true, info: last.at ? `hors ligne depuis ${h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} j`} (normal si le PC est éteint)` : 'jamais vu' };
+  }, 30_000));
 
   const report: SelfTestReport = { at: new Date().toISOString(), ok: checks.filter(c => c.ok).length, failed: checks.filter(c => !c.ok).length, checks };
   await kvSet('selftest:last', JSON.stringify(report));

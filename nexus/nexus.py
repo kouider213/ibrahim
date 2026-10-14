@@ -19,6 +19,7 @@ import re
 import socketserver
 import subprocess
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -805,9 +806,15 @@ class NexusApp:
 
     # ── Widgets ──────────────────────────────────────────────────────────────
     async def handle_widget_request(self, widget_type: str) -> None:
+        try:
+            await self._widget(widget_type)
+        except Exception as e:                       # un widget en panne ne doit jamais arrêter Nexus
+            log.warning('widget %s: %s', widget_type, e)
+
+    async def _widget(self, widget_type: str) -> None:
         if widget_type == 'disk':
             import shutil
-            t2, u, f = shutil.disk_usage('C:')
+            t2, u, f = shutil.disk_usage(os.environ.get('SystemDrive', 'C:') + os.sep if os.name == 'nt' else '/')
             await self.gui_send({
                 'type': 'widget', 'widget': 'disk',
                 'data': {'total': t2, 'used': u, 'free': f, 'pct': round(u / t2 * 100, 1)},
@@ -959,14 +966,38 @@ class NexusApp:
         await asyncio.sleep(0.4)
         threading.Thread(target=self._open_browser, daemon=True).start()
         self.overlay.start()
+        # Chaque partie tourne sous surveillance : si l'une plante, elle redémarre seule et le reste continue
+        # (avant : une seule exception — ex. un widget — arrêtait tout Nexus, et le watchdog le relançait en boucle).
         await asyncio.gather(
-            self._gui_ws(),
-            self.ws.run(),
-            self.wol.run(),
-            self.proact.run(),
-            self.night.run_loop(),
-            self._startup(),
+            self._supervise('interface', self._gui_ws),
+            self._supervise('connexion Dzaryx', self.ws.run),
+            self._supervise('réveil réseau', self.wol.run),
+            self._supervise('surveillance', self.proact.run),
+            self._supervise('veille de nuit', self.night.run_loop),
+            self._supervise('démarrage', self._startup, restart=False),
         )
+
+    async def _supervise(self, name: str, factory, restart: bool = True) -> None:
+        fails = 0
+        while True:
+            started = time.monotonic()
+            try:
+                await factory()
+                if not restart:
+                    return
+                log.warning('%s s\'est arrêté — relance', name)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log.exception('%s a planté : %s', name, e)
+                try:
+                    await self.journal(f'⚠️ {name} a planté ({str(e)[:120]}) — {"relancé" if restart else "ignoré"}, le reste de Nexus continue')
+                except Exception:
+                    pass
+                if not restart:
+                    return
+            fails = 0 if time.monotonic() - started > 300 else fails + 1
+            await asyncio.sleep(min(300, 5 * 2 ** min(fails, 6)))
 
 
 def main() -> None:
