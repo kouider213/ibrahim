@@ -13,6 +13,19 @@ Backend : `actions/handlers/cloudpc-relay.ts` (outil `cloud_pc`), routes `/api/n
 `/targets`, `/open`, `/restart-browser`. App : MON PC → bouton « ☁️ PC cloud » (choisi tout seul si le laptop est éteint).
 Auto-test 7h45 : vérifie agent + Chrome.
 
+## Fonctions (2026-10-14 soir)
+- **Fichiers** : dossier `/root/cloudpc-data/downloads` = téléchargements de Chrome (sans question) + fichiers envoyés du
+  téléphone (`/upload`, 15 Mo). Nouveau téléchargement → Supabase Storage (bucket privé `cloudpc`, lien 72 h) → copie dans
+  le Drive pro « Dzaryx — PC cloud » + notification (lien « Regarder » = `nexus-cloud`). Boutons : 📱 téléphone (lien 24 h),
+  ✈️ Telegram (dépôt dans `tgcall/outbox` : `<stamp>.txt` + `<stamp>.<nom>` → envoyé comme document), 📂 ouvrir
+  (Word/Excel → LibreOffice en français, sinon Chrome), 🗑️.
+- **Presse-papiers** (xclip) : coller du téléphone vers le PC (avec Ctrl+V auto) et récupérer.
+- **Onglets** listés dans l'app (afficher / fermer), zoom, Ctrl+F, capture → Telegram.
+- **Surveillance de pages** (`watch_page`, job `cloud-watch` */15) : page lue en arrière-plan (onglet CDP `background`),
+  valeur suivie extraite par Haiku ou changement important de la page → app + Telegram. 3 échecs → prévenu.
+- **Tâches web programmées** (`web_routine`, job `cloud-routines` */5, heure de Bruxelles) → `browser_task`.
+- Routes `/api/nexus/live/*` réservées à Kouider ; outils cloud/browser refusés aux sessions de Houari.
+
 Limites : serveur aux Pays-Bas (Google en néerlandais au début, résultats localisés ; Ouedkniss bloque l'adresse).
 Ne pas automatiser WhatsApp Web (risque de blocage du numéro).
 Dépannage : `pm2 logs dzaryx-cloudpc`, `curl 127.0.0.1:9223/json/version`, `/root/cloudpc-data/chrome.log`.

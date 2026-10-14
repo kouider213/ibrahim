@@ -1247,6 +1247,15 @@ export const business = {
     }).then(r => r.json() as Promise<{ ok: boolean; result?: string; error?: string }>)
       .catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'réseau' })),
 
+  // PC cloud : fichiers, presse-papiers, onglets, capture → Telegram (routes /api/nexus/live/*, Kouider seulement)
+  cloud: <T = { ok: boolean; result?: string; error?: string }>(path: string, body?: Record<string, unknown>) =>
+    fetch(`${BACKEND_URL}/api/nexus/live/${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    }).then(r => r.json() as Promise<T>)
+      .catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'réseau' }) as T),
+
   cloudRestartBrowser: () =>
     fetch(`${BACKEND_URL}/api/nexus/live/restart-browser`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` }, body: '{}',

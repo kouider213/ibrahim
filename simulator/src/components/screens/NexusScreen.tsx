@@ -23,6 +23,8 @@ const SITES: Array<[string, string]> = [
   ['Drive', 'https://drive.google.com'], ['Netlify', 'https://app.netlify.com'], ['Google Business', 'https://business.google.com'],
 ];
 type Target = 'laptop' | 'cloud';
+type CloudFile = { name: string; size: number; mtime: string };
+type Tab = { id: string; title: string; url: string };
 const CHIPS = ['Ouvre Spotify', 'Ouvre Chrome', 'Volume 30', 'Coupe le son', 'Verrouille le PC', 'Mets le PC en veille et réveille-le demain à 8h'];
 
 export default function NexusScreen() {
@@ -40,10 +42,15 @@ export default function NexusScreen() {
   const [busy, setBusy]       = useState('');
   const [recording, setRecording] = useState(false);
   const [toast, setToast]     = useState('');
-  const [target, setTarget]   = useState<Target>('laptop');
+  const [target, setTarget]   = useState<Target>(() => { try { return localStorage.getItem('dz:pc_target') === 'cloud' ? 'cloud' : 'laptop'; } catch { return 'laptop'; } });
   const [targets, setTargets] = useState<{ laptop: boolean; cloud: boolean } | null>(null);
   const [url, setUrl]         = useState('');
-  const picked = useRef(false);    // Kouider a choisi lui-même → plus de bascule automatique
+  const [files, setFiles]     = useState<CloudFile[] | null>(null);
+  const [tabs, setTabs]       = useState<Tab[]>([]);
+  const [clip, setClip]       = useState('');
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  // Lien « Regarder » d'une notification (nexus-cloud) → on ouvre directement le PC cloud
+  const picked = useRef((() => { try { const v = localStorage.getItem('dz:pc_target'); localStorage.removeItem('dz:pc_target'); return v === 'cloud'; } catch { return false; } })());    // Kouider a choisi lui-même → plus de bascule automatique
 
   const imgRef     = useRef<HTMLImageElement | null>(null);
   const liveRef    = useRef(false);
@@ -277,6 +284,71 @@ export default function NexusScreen() {
     } finally { setBusy(''); }
   };
 
+  // ── PC cloud : fichiers, presse-papiers, onglets ──────────────────────────
+  const loadFiles = useCallback(async () => {
+    const r = await business.cloud<{ ok: boolean; files?: CloudFile[]; error?: string }>('files');
+    setFiles(r.ok ? r.files ?? [] : []);
+  }, []);
+  const loadTabs = useCallback(async () => {
+    const r = await business.cloud<{ ok: boolean; tabs?: Tab[] }>('tabs');
+    if (r.ok) setTabs(r.tabs ?? []);
+  }, []);
+  useEffect(() => {
+    if (!cloud || !online) return;
+    void loadFiles(); void loadTabs();
+    const t = setInterval(() => { void loadTabs(); }, 8000);
+    return () => clearInterval(t);
+  }, [cloud, online, loadFiles, loadTabs]);
+
+  const upload = async (f: File) => {
+    if (f.size > 15 * 1024 * 1024) { flash('15 Mo maximum'); return; }
+    setBusy('upload');
+    try {
+      const b64 = await blobToB64(f);
+      const r = await business.cloud<{ ok: boolean; result?: string; error?: string }>('upload', { name: f.name, b64 });
+      flash(r.ok ? `📤 ${f.name} envoyé (dossier Téléchargements)` : r.error ?? 'Envoi raté');
+      void loadFiles();
+    } finally { setBusy(''); }
+  };
+  const fileAction = async (f: CloudFile, act: 'phone' | 'telegram' | 'open' | 'delete') => {
+    if (act === 'delete' && !window.confirm(`Supprimer ${f.name} du PC cloud ?`)) return;
+    if (act === 'phone') {
+      const w = window.open('', '_blank');        // ouvert tout de suite (sinon bloqué après l'attente)
+      const r = await business.cloud<{ ok: boolean; url?: string; error?: string }>('file-link', { name: f.name });
+      if (r.ok && r.url) { if (w) w.location.href = r.url; else window.location.href = r.url; }
+      else { w?.close(); flash(r.error ?? 'Lien indisponible'); }
+      return;
+    }
+    const path = act === 'telegram' ? 'file-telegram' : act === 'open' ? 'file-open' : 'file-delete';
+    const r = await business.cloud(path, { name: f.name });
+    flash(r.ok ? (act === 'telegram' ? '✈️ Envoyé sur Telegram' : act === 'open' ? '📂 Ouvert sur le PC cloud' : '🗑️ Supprimé') : r.error ?? 'Raté');
+    if (act === 'open') after();
+    if (act === 'delete') void loadFiles();
+  };
+  const clipToPc = async (paste: boolean) => {
+    let text = clip;
+    if (!text) { try { text = await navigator.clipboard.readText(); } catch { /* permission refusée */ } }
+    if (!text) { flash('Écris ou colle d\'abord le texte ici'); return; }
+    const r = await business.cloud('clipboard', { text, paste });
+    flash(r.ok ? (paste ? '📋 Collé sur le PC cloud' : '📋 Copié — Ctrl+V sur le PC cloud') : r.error ?? 'Raté');
+    if (paste) after();
+  };
+  const clipFromPc = async () => {
+    const r = await business.cloud<{ ok: boolean; text?: string; error?: string }>('clipboard');
+    if (!r.ok) { flash(r.error ?? 'Raté'); return; }
+    setClip(r.text ?? '');
+    try { await navigator.clipboard.writeText(r.text ?? ''); flash('📋 Copié sur ton téléphone'); } catch { flash('Texte récupéré ci-dessous'); }
+  };
+  const tabAction = async (t: Tab, action: 'show' | 'close') => {
+    const r = await business.cloud('tab', { id: t.id, action });
+    if (!r.ok) flash(r.error ?? 'Raté');
+    void loadTabs(); after();
+  };
+  const shotTelegram = async () => {
+    const r = await business.cloud('screenshot-telegram', {});
+    flash(r.ok ? '📸 Capture envoyée sur Telegram' : r.error ?? 'Raté');
+  };
+
   // ── Entretien ─────────────────────────────────────────────────────────────
   const maint = async (kind: 'wake' | 'update' | 'restart') => {
     if (busy) return;
@@ -370,8 +442,66 @@ export default function NexusScreen() {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {SITES.map(([l, u]) => <Pill key={l} onClick={() => { void openUrl(u); }} label={l} />)}
           </div>
+          {tabs.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>Onglets ouverts</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {tabs.map(t => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button onClick={() => { void tabAction(t, 'show'); }} style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '8px 10px', borderRadius: 9, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title || t.url}</button>
+                    <button onClick={() => { void tabAction(t, 'close'); }} aria-label="Fermer l'onglet" style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 9, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, cursor: 'pointer' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
             Connecte-toi une fois à tes sites ici : Chrome s'en souvient. Le serveur est aux Pays-Bas (certains sites l'affichent en néerlandais ; Ouedkniss le bloque).
+          </div>
+        </Section>
+      )}
+
+      {/* PC cloud : fichiers */}
+      {cloud && (
+        <Section title="Fichiers du PC cloud">
+          <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
+          <div style={{ display: 'flex', gap: 7, marginBottom: 10 }}>
+            <Btn onClick={() => fileRef.current?.click()} label={busy === 'upload' ? 'Envoi…' : '📤 Envoyer un fichier'} color={C.accent} disabled={!online || !!busy} />
+            <Btn onClick={() => { void loadFiles(); }} label="↻" color={C.muted} disabled={!online} />
+          </div>
+          {files === null ? <div style={{ fontSize: 12, color: C.muted }}>…</div>
+            : files.length === 0 ? <div style={{ fontSize: 12, color: C.muted }}>Aucun fichier. Ce que tu télécharges sur le PC cloud arrive ici (et dans ton Drive).</div>
+            : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {files.slice(0, 15).map(f => (
+                  <div key={f.name} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</div>
+                    <div style={{ fontSize: 11, color: C.muted, margin: '2px 0 6px' }}>{fmtSize(f.size)} · {new Date(f.mtime).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      <Pill onClick={() => { void fileAction(f, 'phone'); }} label="📱 Téléphone" />
+                      <Pill onClick={() => { void fileAction(f, 'telegram'); }} label="✈️ Telegram" />
+                      <Pill onClick={() => { void fileAction(f, 'open'); }} label="📂 Ouvrir" />
+                      <Pill onClick={() => { void fileAction(f, 'delete'); }} label="🗑️" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
+            Un site te demande un fichier ? Envoie-le ici, puis choisis-le dans le dossier « downloads ». Word / Excel s'ouvrent dans LibreOffice.
+          </div>
+        </Section>
+      )}
+
+      {/* PC cloud : copier-coller */}
+      {cloud && (
+        <Section title="Copier-coller">
+          <textarea value={clip} onChange={e => setClip(e.target.value)} rows={2} placeholder="Texte, lien, code… (vide = presse-papiers du téléphone)"
+            style={{ ...inp, width: '100%', resize: 'vertical', marginBottom: 8 }} />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <Pill onClick={() => { void clipToPc(true); }} label="📋 Coller sur le PC" />
+            <Pill onClick={() => { void clipToPc(false); }} label="Copier sur le PC" />
+            <Pill onClick={() => { void clipFromPc(); }} label="⬇ Récupérer du PC" />
           </div>
         </Section>
       )}
@@ -413,7 +543,8 @@ export default function NexusScreen() {
              ['←', { key: 'left' }], ['↑', { key: 'up' }], ['↓', { key: 'down' }], ['→', { key: 'right' }],
              ['Copier', { keys: ['ctrl', 'c'] }], ['Coller', { keys: ['ctrl', 'v'] }], ['Annuler', { keys: ['ctrl', 'z'] }], ['Tout', { keys: ['ctrl', 'a'] }],
              ...(cloud
-               ? [['◀ Retour', { keys: ['alt', 'left'] }], ['＋ Onglet', { keys: ['ctrl', 't'] }], ['Onglet ▶', { keys: ['ctrl', 'tab'] }], ['✕ Onglet', { keys: ['ctrl', 'w'] }]]
+               ? [['◀ Retour', { keys: ['alt', 'left'] }], ['＋ Onglet', { keys: ['ctrl', 't'] }], ['Onglet ▶', { keys: ['ctrl', 'tab'] }], ['✕ Onglet', { keys: ['ctrl', 'w'] }],
+                  ['Zoom +', { keys: ['ctrl', 'plus'] }], ['Zoom −', { keys: ['ctrl', 'minus'] }], ['Zoom 100', { keys: ['ctrl', '0'] }], ['Chercher', { keys: ['ctrl', 'f'] }]]
                : [['Alt+Tab', { keys: ['alt', 'tab'] }], ['Windows', { keys: ['win'] }], ['Bureau', { keys: ['win', 'd'] }], ['Fermer', { keys: ['alt', 'f4'] }]]),
           ] as Array<[string, Record<string, unknown>]>).map(([l, b]) => <Key key={l} label={l} onClick={() => key(b, l)} disabled={!online} />)}
         </Grid>
@@ -431,6 +562,7 @@ export default function NexusScreen() {
         <Section title="PC cloud">
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
             <Btn onClick={() => { void key({ key: 'f5' }, 'F5'); }} label="↻ Actualiser la page" color={C.accent} disabled={!online} />
+            <Btn onClick={() => { void shotTelegram(); }} label="📸 Capture → Telegram" color={C.accent} disabled={!online} />
             <Btn onClick={() => { void restartChrome(); }} label={busy === 'restart' ? '…' : '⟲ Relancer Chrome'} color={C.amber} disabled={!online} />
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
@@ -458,6 +590,7 @@ export default function NexusScreen() {
 
 // ── Petits composants ─────────────────────────────────────────────────────────
 
+const fmtSize = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} Ko` : `${(b / 1048576).toFixed(1)} Mo`);
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const blobToB64 = (b: Blob) => new Promise<string>((res, rej) => {
   const r = new FileReader();

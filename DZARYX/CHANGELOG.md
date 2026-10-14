@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-14 (soir 12) — PC cloud : fichiers, copier-coller, onglets, surveillance de pages, tâches programmées | 8f6b60f →, app SW v137
+
+- Fichiers (envoi du téléphone, téléchargements → Drive + notification, Telegram en document, LibreOffice FR), presse-papiers,
+  onglets, zoom, capture → Telegram, lien « Regarder » des notifications (`nexus-cloud`), outils `watch_page` + `web_routine`
+  (jobs `cloud-watch`, `cloud-routines`), routes PC réservées à Kouider. Détails : `cloudpc/A_LIRE.md`.
+- Testé en production : vrai téléchargement (.docx) → Drive, envoi/lien/suppression de fichier, presse-papiers (accents),
+  lecture de page en arrière-plan, surveillance + tâche programmée créées par Dzaryx (puis supprimées), app 390 px.
+
 ## 2026-10-14 (soir 11) — PC cloud toujours allumé | ad86be8 → 691f79b, app SW v136
 
 - **PC cloud** (VPS) : bureau virtuel Xvfb + openbox + Google Chrome (profil gardé), agent `cloudpc/agent.py` (namespace `/cloudpc`), pm2 `dzaryx-cloudpc-desktop` / `dzaryx-cloudpc`. Voir `cloudpc/A_LIRE.md`.

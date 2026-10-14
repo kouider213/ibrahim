@@ -366,6 +366,7 @@ async def on_clip_set(d):
 
     def _set() -> None:
         p = subprocess.Popen(['xclip', '-selection', 'clipboard', '-i'], stdin=subprocess.PIPE,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,   # xclip reste en fond pour servir le texte
                              env={**os.environ, 'DISPLAY': DISPLAY}, start_new_session=True)
         p.communicate(text.encode(), timeout=5)
     await run(_set)

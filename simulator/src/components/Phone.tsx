@@ -90,6 +90,15 @@ function getSavedSession(): { actor: Actor; user: string } | null {
 
 interface Notif { text: string; deepLink?: Page }
 
+// « nexus-cloud » (notifications du PC cloud) = écran MON PC, directement sur le PC cloud
+function resolveDeepLink(dl: string): Page {
+  if (dl === 'nexus-cloud') {
+    try { localStorage.setItem('dz:pc_target', 'cloud'); } catch { /* ignore */ }
+    return 'nexus';
+  }
+  return dl as Page;
+}
+
 export default function Phone() {
   // Lien PC : ?carte=1 → ouvre directement la Carte live en grand
   const carteLink = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('carte');
@@ -134,7 +143,7 @@ export default function Phone() {
     const handler = (e: Event) => {
       const { text, deepLink } = (e as CustomEvent<{ text: string; deepLink?: string }>).detail;
       if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
-      setNotif({ text, deepLink: deepLink as Page | undefined });
+      setNotif({ text, deepLink: deepLink ? resolveDeepLink(deepLink) : undefined });
       notifTimerRef.current = setTimeout(() => setNotif(null), 5000);
     };
     window.addEventListener('Dzaryx:notify', handler);
@@ -143,7 +152,7 @@ export default function Phone() {
     const swHandler = (e: MessageEvent) => {
       if ((e.data as { type?: string } | null)?.type === 'NOTIF_CLICK') {
         const dl = (e.data as { deepLink?: string }).deepLink;
-        if (dl && dl !== 'call') setPage(dl as Page);   // 'call' : géré par l'écran d'appel
+        if (dl && dl !== 'call') setPage(resolveDeepLink(dl));   // 'call' : géré par l'écran d'appel
         setSimState('app');
       }
     };
@@ -171,6 +180,7 @@ export default function Phone() {
     const dl = new URLSearchParams(window.location.search).get('deeplink');
     if (dl) {
       if (dl === 'call') checkPendingCall();
+      else if (dl === 'nexus-cloud') setPage(resolveDeepLink(dl));
       else if (TABS.some(t => t.id === dl)) setPage(dl as Page);
       try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
     } else {
