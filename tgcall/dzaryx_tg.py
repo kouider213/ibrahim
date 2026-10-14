@@ -24,7 +24,7 @@ import wave
 from pathlib import Path
 
 import aiohttp
-from pyrogram import Client, filters as pfilters
+from pyrogram import Client, enums, filters as pfilters
 from pyrogram.types import Message
 from pytgcalls import PyTgCalls, filters as cfilters
 from pytgcalls.types.raw import AudioParameters
@@ -636,7 +636,7 @@ async def on_message(_, msg: Message) -> None:
             if not text:
                 await msg.reply_text("Je n'ai pas bien entendu, tu peux répéter ?")
                 return
-            await app.send_chat_action(uid, 'record_audio')
+            await app.send_chat_action(uid, enums.ChatAction.RECORD_AUDIO)
             out = await api('/api/call/turn', {'message': text, 'textOnly': True, 'channel': 'message'}, actor)
             reply = out.get('text') or '…'
             try:   # même voix que les appels
@@ -654,7 +654,7 @@ async def on_message(_, msg: Message) -> None:
             else:
                 await msg.reply_text(out.get('text') or '…')
         elif msg.photo or (msg.document and (msg.document.mime_type or '').startswith('image/')):
-            await app.send_chat_action(uid, 'typing')
+            await app.send_chat_action(uid, enums.ChatAction.TYPING)
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzimg_', suffix='.jpg'))
             b64 = base64.b64encode(Path(path).read_bytes()).decode()
             os.unlink(path)
@@ -665,7 +665,7 @@ async def on_message(_, msg: Message) -> None:
         elif msg.text and VOICE_CMD.match(msg.text.strip()):
             await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:
-            await app.send_chat_action(uid, 'typing')
+            await app.send_chat_action(uid, enums.ChatAction.TYPING)
             out = await api('/api/call/turn', {'message': msg.text, 'textOnly': True, 'channel': 'message'}, actor)
             await msg.reply_text(out.get('text') or '…')
     except Exception as e:
@@ -702,7 +702,7 @@ async def voice_command(msg: Message, actor: str, choice: str | None) -> None:
     await msg.reply_text(f'Voici {len(voices)} voix. Réponds « voix 2 » (par exemple) pour choisir. Actuelle : {voices.index(cur["voice"]) + 1}.')
     for i, v in enumerate(voices, 1):
         try:
-            await app.send_chat_action(msg.chat.id, 'record_audio')
+            await app.send_chat_action(msg.chat.id, enums.ChatAction.RECORD_AUDIO)
             pcm = await speak(http, api, VOICE_SAMPLE, actor, voice=v)
             ogg = tempfile.mktemp(prefix='dzs_', suffix='.ogg')
             subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 's16le', '-ar', str(IN_RATE), '-ac', '1', '-i', '-',
