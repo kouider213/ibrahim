@@ -87,7 +87,8 @@ button.chip:hover{border-color:var(--line2);color:var(--text)}
 #cam span{position:absolute;top:7px;left:9px;font-size:9px;letter-spacing:.18em;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.6);color:var(--red)}
 
 /* ── Panneaux ── */
-#panel{position:absolute;inset:0 0 62px 0;display:none;flex-direction:column;border-radius:18px;background:rgba(6,12,30,.9);border:1px solid var(--line2);
+.stage.popen #feed,.stage.popen .caption{opacity:0;pointer-events:none}
+#panel{position:absolute;inset:0;display:none;flex-direction:column;border-radius:18px;background:rgba(6,12,30,.9);border:1px solid var(--line2);
   backdrop-filter:blur(18px);box-shadow:0 20px 70px rgba(0,0,0,.55),0 0 40px rgba(74,163,255,.12);overflow:hidden;z-index:4}
 #panel.on{display:flex;animation:pin .35s cubic-bezier(.2,.8,.2,1)}
 @keyframes pin{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:none}}
@@ -129,7 +130,7 @@ button.chip:hover{border-color:var(--line2);color:var(--text)}
 .doc img.big{position:fixed;inset:4vh 4vw;width:92vw;height:92vh;max-height:none;z-index:20;cursor:zoom-out;border:1px solid var(--line2);border-radius:14px}
 .doc div{padding:10px 13px;font-size:12.5px;color:var(--dim)}.doc b{color:var(--text);display:block;font-size:13.5px}
 .frame{width:100%;height:100%;min-height:340px;border:0;border-radius:12px;background:#fff}
-.pimg{max-width:100%;max-height:100%;display:block;margin:0 auto;border-radius:12px}
+.pimg{max-width:100%;max-height:calc(100vh - 360px);min-height:240px;object-fit:contain;display:block;margin:0 auto;border-radius:12px}
 .rowl{display:flex;justify-content:space-between;gap:12px;padding:11px 13px;border-radius:11px;border:1px solid var(--line);background:rgba(74,163,255,.06);margin-bottom:8px;font-size:13px}
 .rowl a{color:var(--cyan);text-decoration:none;word-break:break-all}.rowl a:hover{text-decoration:underline}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
@@ -327,15 +328,15 @@ function btn(label, cls, fn){ const b=el('button','pbtn'+(cls?' '+cls:''),label)
 function act(o){ send(Object.assign({type:'panel_action'},o)); }
 const fmtD = s => s ? s.slice(8,10)+'/'+s.slice(5,7) : '';
 const money = n => (n==null||n==='') ? '—' : Number(n).toLocaleString('fr-FR')+' €';
-const ST = { CONFIRMED:['Confirmée','#34d399'], ACTIVE:['En cours','#38d8f5'], PENDING:['En attente','#fbbf24'], COMPLETED:['Terminée','#8ea3c8'], CANCELLED:['Annulée','#f87171'] };
+const ST = { CONFIRMED:['Confirmée','#34d399'], ACTIVE:['En cours','#38d8f5'], PENDING:['En attente','#fbbf24'], COMPLETED:['Terminée','#8ea3c8'], CANCELLED:['Annulée','#f87171'], REJECTED:['Refusée','#f87171'] };
 
 function showPanel(d){
   panels.push(d); if(panels.length>6) panels.shift(); panelIdx=panels.length-1; drawPanel();
 }
-function closePanel(){ panels.length=0; panelIdx=-1; $('panel').classList.remove('on'); }
+function closePanel(){ panels.length=0; panelIdx=-1; $('panel').classList.remove('on'); $('stage').classList.remove('popen'); }
 function drawPanel(){
   const p=panels[panelIdx]; if(!p){ closePanel(); return; }
-  $('panel').classList.add('on');
+  $('panel').classList.add('on'); $('stage').classList.add('popen');
   const tabs=$('ptabs'); tabs.textContent='';
   panels.forEach((q,i)=>{ const t=el('button','ptab'+(i===panelIdx?' on':''),q.title); t.addEventListener('click',()=>{ panelIdx=i; drawPanel(); }); tabs.appendChild(t); });
   const body=$('pbody'); body.textContent='';
@@ -421,9 +422,12 @@ function rCleanup(body,d){
   [[(d.temp_mb||0)+' Mo','Fichiers temporaires libérables'],[(d.pct??'—')+' %','Disque C: utilisé'],[(d.free_gb??'—')+' Go','Espace libre']].forEach(([v,l])=>{ const c=el('div','stat'); c.append(el('b','',v),el('small','',l)); s.appendChild(c); });
   body.appendChild(s);
   if(d.done) body.appendChild(el('div','pnote','✓ '+d.done));
+  else {
+    const row=el('div','pbtns'); row.style.margin='0 0 14px';
+    const go=btn(d.temp_mb>0?'Nettoyer les fichiers temporaires ('+d.temp_mb+' Mo)':'Rien à nettoyer','go',b=>{ act({action:'cleanup_confirm'}); b.disabled=true; b.textContent='Nettoyage en cours…'; });
+    go.disabled=!(d.temp_mb>0); row.append(go,el('span','pnote','Seuls les fichiers temporaires de plus de 2 jours sont supprimés.')); body.appendChild(row);
+  }
   if((d.big||[]).length){ body.appendChild(el('div','pnote warn','Gros fichiers dans Téléchargements — à vérifier toi-même, je n\'y touche pas')); d.big.forEach(f=>{ const r=el('div','rowl'); r.appendChild(el('span','',f.name)); r.appendChild(el('span','',f.mb+' Mo · '+f.age+' j')); body.appendChild(r); }); }
-  if(!d.done) body.appendChild(el('div','pbtns')).appendChild(btn(d.temp_mb>0?'Nettoyer les fichiers temporaires ('+d.temp_mb+' Mo)':'Rien à nettoyer','go',b=>{ act({action:'cleanup_confirm'}); b.disabled=true; b.textContent='Nettoyage en cours…'; })).disabled=!(d.temp_mb>0);
-  body.appendChild(el('div','pnote','Seuls les fichiers temporaires de plus de 2 jours sont supprimés.'));
 }
 
 /* ══════════ HUD animé (Canvas 2D, dessiné de zéro) ══════════

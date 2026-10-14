@@ -245,8 +245,8 @@ class Panels:
         count = {k: 0 for k in months}
         rev = {k: 0.0 for k in months}
         for b in items:
-            if str(b.get('status')) == 'CANCELLED' or not b.get('start_date'):
-                continue
+            if str(b.get('status')) not in ('CONFIRMED', 'ACTIVE', 'COMPLETED') or not b.get('start_date'):
+                continue      # ni en attente, ni refusée, ni annulée : ce n'est pas du chiffre d'affaires
             try:
                 key = (int(str(b['start_date'])[:4]), int(str(b['start_date'])[5:7]))
             except ValueError:

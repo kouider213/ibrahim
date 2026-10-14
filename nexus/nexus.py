@@ -919,6 +919,8 @@ class NexusApp:
 
     # ── Browser ───────────────────────────────────────────────────────────────
     def _open_browser(self) -> None:
+        if os.environ.get('NEXUS_NO_GUI_WINDOW') == '1':     # tests / lancement sans fenêtre
+            return
         url = f'http://localhost:{HTTP_PORT}/gui/index.html'
         browsers = [
             [r'C:\Program Files\Google\Chrome\Application\chrome.exe',
