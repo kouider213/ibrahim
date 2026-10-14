@@ -659,6 +659,7 @@ export interface Booking {
   profit_kouider: number | null; nb_days: number | null;
   paid_amount?: number | null;
   rented_by?: string | null;
+  car_id?: string | null;
   cars?: { name: string } | null;
 }
 
@@ -907,6 +908,10 @@ export const business = {
 
   fetchCars: () =>
     apiFetch<{ cars: Car[] }>('/api/cars'),
+
+  // Fenêtre large (carte live) : assez de résas récentes pour couvrir celles en cours.
+  fetchBookingsWindow: () =>
+    apiFetch<{ bookings: Booking[] }>('/api/bookings?limit=300'),
 
   fetchFleet: () =>
     apiFetch<FleetIntel>('/api/bi/fleet'),

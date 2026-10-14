@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-10-14 (soir 7) — Carte live : le parc vu comme un jeu | app SW v133
+
+- **Nouvel écran 🗺️ CARTE LIVE** (Plus → CARTE LIVE, Kouider seul) — `simulator/src/components/screens/CarteScreen.tsx`.
+  Ville isométrique en SVG (agence AutoLux, parking, atelier, ville, mer) ; chaque voiture est placée selon son
+  statut réel : dispo/départ du jour → parking, louée/retour du jour → en ville, indispo sans résa → atelier.
+  Position symbolique (pas de GPS). Pastilles : ! (rappel HIGH), € (à encaisser), ↩ retour, 🔑 départ.
+- Toucher une voiture → la caméra zoome dessus + fiche (client, dates, montant dû, alertes, WhatsApp, appel,
+  « Demander à Dzaryx » → chat via `dz:ask_prompt`). Zoom +/−/⤢ et glisser pour se déplacer.
+- Jauge de la journée (dehors/total, départs, retours, à encaisser), filtres par statut, panneau Assistant
+  (rappels `/api/bi/reminders` + bouton Briefing du jour).
+- Données : `/api/cars`, `/api/bookings?limit=300` (`business.fetchBookingsWindow`, `car_id` ajouté au type),
+  `/api/bi/reminders`, `/api/insights/today`. Aucun changement backend.
+
 ## 2026-10-14 (soir 6) — FIK Sites : « Ouvrir son espace (moi) » + guide domaine copier-coller | app SW v132
 
 - **Accès FIK à l'espace client** : bouton 🔓 « Ouvrir son espace (moi) » dans la fiche du site → POST
