@@ -1,4 +1,5 @@
 import { supabase, getMemoryFacts, type MemoryFact } from '../integrations/supabase.js';
+import { rankFacts } from '../integrations/semantic-memory.js';
 
 // 4 chars ≈ 1 token (mixed French/English/Arabic estimate)
 const CHARS_PER_TOKEN = 4;
@@ -60,8 +61,14 @@ export async function buildMemoryContext(
     const facts = await getMemoryFacts({ is_current: true, limit: 200, user_id: userId });
 
     if (facts.length > 0) {
+      // Proximité de sens (embeddings) en plus des mots-clés — abandonnée après 1,2 s pour ne pas ralentir la réponse
+      const semantic = await rankFacts(userMessage, facts, 1200);
+      const sim = new Map(semantic?.map(r => [r.item.id, r.score]) ?? []);
       const scored = facts
-        .map((f: MemoryFact) => ({ fact: f, score: scoreMemoryFact(f, userMessage) }))
+        .map((f: MemoryFact) => {
+          const s = sim.get(f.id) ?? 0;
+          return { fact: f, score: scoreMemoryFact(f, userMessage) + (s > 0.25 ? s * 80 : 0) };
+        })
         .sort((a, b) => b.score - a.score);
 
       const entries: Array<{ content: string; category: string }> = [];

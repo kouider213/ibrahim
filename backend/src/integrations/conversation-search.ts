@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { rankMessages } from './semantic-memory.js';
 
 // Retrouver ce qu'on s'est dit (idée reprise d'OpenClaw « session search ») : « qu'est-ce que je t'avais dit sur
 // Sonatrach la semaine dernière ? », « quel prix j'avais donné à Karim au téléphone ? ». Cherche dans toutes les
@@ -47,6 +48,27 @@ export async function searchConversationsTool(input: Record<string, unknown>, se
   }).filter(x => x.score >= Math.min(words.length, 2) || (words.length === 1 && x.score >= 1))
     .sort((a, b) => b.score - a.score || b.r.created_at.localeCompare(a.r.created_at))
     .slice(0, 8);
+  // Peu ou pas de résultat par mots-clés → recherche par le sens sur les messages récents
+  // (« le client qui avait abîmé la voiture » retrouve « rayure sur la portière de la Clio »)
+  let viaSense = false;
+  if (scored.length < 3) {
+    let rq = supabase.from('conversations').select('id, session_id, role, content, created_at')
+      .in('role', ['user', 'assistant'])
+      .gte('created_at', new Date(Date.now() - days * 86_400_000).toISOString())
+      .not('session_id', 'ilike', 'test%').not('session_id', 'ilike', 'mission_%')
+      .not('session_id', 'ilike', 'readonly%').not('session_id', 'ilike', 'mcp_%')
+      .order('created_at', { ascending: false }).limit(600);
+    if (isHouari) rq = rq.ilike('session_id', '%houari%');
+    const recent = ((await rq).data ?? []) as Array<{ id: string; session_id: string; role: string; content: string; created_at: string }>;
+    const ranked = await rankMessages(query, recent.filter(r => String(r.content).length > 15));
+    const have = new Set(scored.map(x => `${x.r.created_at}|${x.r.content}`));
+    for (const x of ranked ?? []) {
+      if (x.score < 0.35 || scored.length >= 8) break;
+      if (have.has(`${x.item.created_at}|${x.item.content}`)) continue;
+      scored.push({ r: x.item, score: x.score });
+      viaSense = true;
+    }
+  }
   if (!scored.length) return `Rien trouvé sur « ${query} » dans nos conversations des ${days} derniers jours.`;
 
   const lines = scored.map(({ r }) => {
@@ -59,5 +81,5 @@ export async function searchConversationsTool(input: Record<string, unknown>, se
     const who = r.role === 'user' ? (r.session_id.includes('houari') ? 'Houari' : 'Kouider') : 'Dzaryx';
     return `• ${when} (${channel(r.session_id)}) — ${who} : ${excerpt}`;
   });
-  return `🔎 ${scored.length} passage(s) sur « ${query} » (${days} derniers jours) — c'est ce qui a été DIT, vérifie dans les données si c'est encore vrai :\n${lines.join('\n')}`;
+  return `🔎 ${scored.length} passage(s) sur « ${query} » (${days} derniers jours${viaSense ? ', recherche par le sens incluse' : ''}) — c'est ce qui a été DIT, vérifie dans les données si c'est encore vrai :\n${lines.join('\n')}`;
 }

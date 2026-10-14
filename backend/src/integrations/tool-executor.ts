@@ -1169,14 +1169,21 @@ async function recallMemory(input: Record<string, unknown>, sessionId?: string):
   // Search memory_facts (modern) first
   try {
     const { getMemoryFacts } = await import('../integrations/supabase.js');
-    const facts = await getMemoryFacts({ is_current: true, limit: 50, user_id: userId });
+    const facts = await getMemoryFacts({ is_current: true, limit: 200, user_id: userId });
     const searchQuery = (input['query'] as string | undefined)?.toLowerCase() ?? '';
     const catFilter   = input['category'] as string | undefined;
-    const filtered = facts.filter(f => {
-      const matchesCat = !catFilter || f.domain === catFilter;
-      const matchesQ   = !searchQuery || `${f.key} ${f.value}`.toLowerCase().includes(searchQuery);
-      return matchesCat && matchesQ;
-    });
+    const inCat = facts.filter(f => !catFilter || f.domain === catFilter);
+    const filtered = inCat.filter(f => !searchQuery || `${f.key} ${f.value}`.toLowerCase().includes(searchQuery));
+    // Recherche par le sens : retrouve un souvenir même formulé avec d'autres mots
+    if (searchQuery && filtered.length < 5) {
+      const { rankFacts } = await import('./semantic-memory.js');
+      const ranked = await rankFacts(searchQuery, inCat, 6000);
+      const seen = new Set(filtered.map(f => f.id));
+      for (const r of ranked ?? []) {
+        if (r.score < 0.3 || filtered.length >= 12) break;
+        if (!seen.has(r.item.id)) filtered.push(r.item);
+      }
+    }
     if (filtered.length > 0) {
       return filtered.slice(0, 15).map(f => `[${f.domain}] ${f.key}: ${f.value}`).join('\n');
     }
