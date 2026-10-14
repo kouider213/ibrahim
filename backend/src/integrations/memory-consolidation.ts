@@ -1,10 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env.js';
 import { supabase } from './supabase.js';
 import { getLearnedRules, deactivateRule, type LearnedRule } from './learned-rules.js';
 import { kvGet, kvSet } from './app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { archiveUnusedProcedures } from './procedures.js';
+import { createAnthropic } from './anthropic-compat.js';
 
 // Ménage de la mémoire la nuit (idée reprise d'OpenClaw « dreaming ») : maintenant que Dzaryx apprend tout seul,
 // les règles peuvent se répéter ou se contredire (« Clio 35 € » en octobre, « Clio 40 € » en décembre).
@@ -12,7 +12,7 @@ import { archiveUnusedProcedures } from './procedures.js';
 // supprimé : les règles écartées sont seulement désactivées, et « annule le ménage de la mémoire » les remet.
 
 const MODEL = process.env['MEMORY_CLEAN_MODEL'] ?? 'claude-haiku-5-5';
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropic();
 const LOG_KEY = 'memclean:last';
 
 const SYSTEM =

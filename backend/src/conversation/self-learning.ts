@@ -1,10 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env.js';
 import { getConversationHistory } from '../integrations/supabase.js';
 import { getLearnedRules, saveLearnedRule, type SaveRuleParams } from '../integrations/learned-rules.js';
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { addProcedure } from '../integrations/procedures.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
 // Apprentissage automatique (idée reprise d'OpenClaw « self-learning ») : 10 min après la fin d'une
 // conversation de Kouider ou Houari, Dzaryx relit l'échange et retient tout seul les CORRECTIONS et les
@@ -17,7 +17,7 @@ const IDLE_MS     = 10 * 60_000;
 const MIN_TURNS   = 2;            // au moins 2 messages de l'utilisateur depuis la dernière relecture
 const MAX_RULES   = 3;            // par relecture
 const MODEL       = process.env['SELF_LEARN_MODEL'] ?? 'claude-haiku-5-5';
-const anthropic   = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic   = createAnthropic();
 
 const pending = new Map<string, { timer: NodeJS.Timeout; turns: number; actor: string }>();
 

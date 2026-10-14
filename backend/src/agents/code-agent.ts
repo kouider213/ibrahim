@@ -6,9 +6,9 @@ function sendTelegram(_chatId: string, text: string): Promise<void> {
   return Promise.resolve();
 }
 import { waitForDeploy } from '../integrations/railway.js';
-import { env } from '../config/env.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const client = createAnthropic();
 
 const AGENT_SYSTEM = `Tu es un agent de développement expert TypeScript/Node.js/React.
 Tu travailles sur le projet Dzaryx — assistant IA pour Fik Conciergerie Oran.
@@ -204,7 +204,7 @@ export async function runCodeAgent(
 
   for (let i = 0; i < MAX; i++) {
     const response = await client.messages.create({
-      model:      'claude-sonnet-4-6',
+      model:      'claude-sonnet-5-5',
       max_tokens: 8096,
       system:     AGENT_SYSTEM,
       tools:      AGENT_TOOLS,

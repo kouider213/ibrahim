@@ -23,6 +23,7 @@ import { generateOpportunities } from '../../integrations/opportunities.js';
 import { createMarketingVideo } from '../../marketing/video-creator.js';
 import { savePendingVideo } from '../../marketing/approval-store.js';
 import type { Car } from '../../integrations/supabase.js';
+import { rentalDays } from '../../integrations/finance.js';
 
 // ── 0. Réveil matinal 7h30 — app only (Socket.IO + Expo Push), no Telegram ────
 export async function jobMorningBriefing(_job: Job): Promise<void> {
@@ -135,7 +136,7 @@ export async function jobMorningBriefing(_job: Job): Promise<void> {
     lines.push(`📋 *À venir (7 jours):*`);
     for (const b of upcoming) {
       const car     = b.cars?.name ?? '?';
-      const nbDays  = Math.max(1, Math.ceil((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000));
+      const nbDays  = rentalDays(b.start_date, b.end_date, (b as { nb_days?: number | null }).nb_days);
       const ppd     = b.client_price_per_day ?? (b.final_price ? b.final_price / nbDays : 0);
       const total   = ppd * nbDays;
       forecastCA   += total;
@@ -1259,9 +1260,7 @@ export async function jobVehicleUtilization(_job: Job): Promise<void> {
 
     for (const b of (bookings ?? []) as Array<{ car_id: string; start_date: string; end_date: string }>) {
       if (!(b.car_id in bookedDays)) continue;
-      const start = new Date(b.start_date).getTime();
-      const end   = new Date(b.end_date).getTime();
-      const days  = Math.max(1, Math.round((end - start) / 86_400_000));
+      const days  = rentalDays(b.start_date, b.end_date);
       bookedDays[b.car_id] = (bookedDays[b.car_id] ?? 0) + days;
     }
 
@@ -1704,9 +1703,7 @@ export async function jobHouariWeeklyReport(_job: Job): Promise<void> {
 
     for (const b of all) {
       if (!b.owner_price_per_day) continue;
-      const nbDays = Math.max(1, Math.ceil(
-        (new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000,
-      ));
+      const nbDays = rentalDays(b.start_date, b.end_date, (b as { nb_days?: number | null }).nb_days);
       const houariCut = b.owner_price_per_day * nbDays;
       houariTotal += houariCut;
       details.push(`  • ${b.client_name} — ${b.cars?.name ?? '?'} (${nbDays}j × ${b.owner_price_per_day}€ = ${houariCut}€)`);

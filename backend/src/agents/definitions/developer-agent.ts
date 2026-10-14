@@ -1,13 +1,13 @@
 /**
  * Developer Agent — Analyse technique et recommandations d'infrastructure.
- * Provider: Claude claude-sonnet-4-6 (meilleur pour code/architecture).
+ * Provider: Claude claude-sonnet-5-5 (meilleur pour code/architecture).
  * Rôle dans multi-agent: état technique du système, dette tech, améliorations prioritaires.
  */
 export const DEVELOPER_AGENT = {
   id:          'developer',
   name:        '💻 Agent Developer',
   provider:    'claude' as const,
-  model:       'claude-sonnet-4-6',
+  model:       'claude-sonnet-5-5',
   temperature: 0.4,   // précision technique
   maxTokens:   1200,
   fallback:    'openai' as const,

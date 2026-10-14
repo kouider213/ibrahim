@@ -4,14 +4,14 @@
  * Falls back to Claude when the desired provider is not configured.
  *
  * Supported providers:
- *   claude  → Anthropic claude-sonnet-4-6 / claude-haiku-4-5
+ *   claude  → Anthropic claude-sonnet-5-5 / claude-haiku-5-5
  *   openai  → GPT-4o (requires OPENAI_API_KEY)
  *   gemini  → Gemini 1.5 Flash (requires GEMINI_API_KEY)
  *   groq    → LLaMA 3.3 70B (requires GROQ_API_KEY)
  */
-import Anthropic from '@anthropic-ai/sdk';
 import axios     from 'axios';
 import { env }   from '../config/env.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ export interface ProviderResult {
 
 // ── Cost table (USD per million tokens: [input_rate, output_rate]) ────────────
 const COST_PER_MTok: Record<ProviderName, [number, number]> = {
-  claude: [3.00,  15.00],   // claude-sonnet-4-6
+  claude: [2.00,  10.00],   // claude-sonnet-5-5
   openai: [2.50,  10.00],   // gpt-4o
   gemini: [0.075,  0.30],   // gemini-3.5-flash
   groq:   [0.59,   0.79],   // gpt-oss-120b
@@ -61,7 +61,7 @@ export function isAvailable(p: ProviderName): boolean {
 
 export function defaultModel(p: ProviderName): string {
   switch (p) {
-    case 'claude': return 'claude-sonnet-4-6';
+    case 'claude': return 'claude-sonnet-5-5';
     case 'openai': return 'gpt-4o';
     case 'gemini': return 'gemini-3.5-flash';
     case 'groq':   return 'openai/gpt-oss-120b';
@@ -73,7 +73,7 @@ export function defaultModel(p: ProviderName): string {
 async function _claude(
   msg: string, sys: string, model: string, temp: number, maxTok: number,
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = createAnthropic();
   const r = await client.messages.create({
     model, max_tokens: maxTok, temperature: temp,
     system: sys,

@@ -28,7 +28,7 @@ export async function summarizeCall(who: CallActor, lines: CallLine[], durationS
   if (lines.filter(l => l.role === 'user' && l.text.trim().split(/\s+/).length >= 3).length === 0) return null;
 
   const r = await callProvider(
-    { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.2, maxTokens: 600, fallback: 'openai' },
+    { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.2, maxTokens: 600, fallback: 'openai' },
     `Transcription de l'appel téléphonique entre ${name} et Dzaryx (son assistant) :\n\n${transcript}`,
     `Tu résumes un appel pour la mémoire de Dzaryx. Réponds UNIQUEMENT en JSON :
 {"summary": "...", "todos": ["..."]}

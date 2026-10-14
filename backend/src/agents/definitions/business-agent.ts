@@ -1,13 +1,13 @@
 /**
  * Business Agent — Analyse stratégique globale de Fik Conciergerie Oran.
- * Provider: Claude claude-sonnet-4-6 (raisonnement métier approfondi).
+ * Provider: Claude claude-sonnet-5-5 (raisonnement métier approfondi).
  * Rôle dans multi-agent: vision d'ensemble, opportunités stratégiques, recommandations prioritaires.
  */
 export const BUSINESS_AGENT = {
   id:          'business',
   name:        '🏢 Agent Business',
   provider:    'claude' as const,
-  model:       'claude-sonnet-4-6',
+  model:       'claude-sonnet-5-5',
   temperature: 0.7,
   maxTokens:   1500,
   fallback:    'openai' as const,

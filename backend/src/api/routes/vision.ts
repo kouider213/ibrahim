@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { callGroqVision, isGroqAvailable } from '../../integrations/llm-router.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
+import { createAnthropic } from '../../integrations/anthropic-compat.js';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropic();
 
 const router = Router();
 
@@ -55,7 +56,7 @@ async function analyzeImageWithFallback(
   if (env.ANTHROPIC_API_KEY) {
     try {
       const r = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-5-5',
         max_tokens: _maxTokens,
         system: systemExtra,
         messages: [{
@@ -67,7 +68,7 @@ async function analyzeImageWithFallback(
         }],
       });
       console.log('[AI_ROUTER] task=vision provider=claude-haiku fallback_reason=primary route=vision.ts');
-      return (r.content[0] as Anthropic.TextBlock).text.trim();
+      return r.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('').trim();
     } catch (cErr) {
       console.warn('[AI_ROUTER] task=vision provider=claude-haiku FAILED — trying groq-vision:', cErr instanceof Error ? cErr.message : cErr);
     }

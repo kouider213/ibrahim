@@ -1,11 +1,11 @@
 ﻿import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../../config/env.js';
 import { supabase } from '../../integrations/supabase.js';
 import { callGroq, isGroqAvailable } from '../../integrations/llm-router.js';
+import { createAnthropic } from '../../integrations/anthropic-compat.js';
 
 const router = Router();
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropic();
 
 // Simple in-memory rate limiter (IP → { count, resetAt })
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -209,12 +209,12 @@ router.post('/chat', async (req, res) => {
       // Haiku fallback
       console.log('[AI_ROUTER] provider=claude-haiku route=widget fallback=true');
       const response = await anthropic.messages.create({
-        model:      'claude-haiku-4-5-20251001',
+        model:      'claude-haiku-5-5',
         max_tokens: 400,
         system:     systemPrompt,
         messages,
       });
-      text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+      text = response.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
     }
 
     res.json({ reply: text });

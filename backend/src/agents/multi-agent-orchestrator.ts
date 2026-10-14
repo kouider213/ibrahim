@@ -303,10 +303,10 @@ CONSIGNE :
 5. Conclusion : les 3 actions prioritaires à lancer en premier.
 6. Réponse en français (ou darija si approprié).`;
 
-  console.log(`[multi-agent:${requestId}] FUSION — ${successful.length} agents → Claude claude-sonnet-4-6`);
+  console.log(`[multi-agent:${requestId}] FUSION — ${successful.length} agents → Claude claude-sonnet-5-5`);
 
   const fused = await callProvider(
-    { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.6, maxTokens: 2000 },
+    { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.6, maxTokens: 2000 },
     fusionPrompt,
     'Tu es Dzaryx, assistant IA de Fik Conciergerie Oran. Synthétise les analyses de tes agents spécialisés.',
     60_000,

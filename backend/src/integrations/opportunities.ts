@@ -1,8 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env.js';
 import { redis } from '../queue/queue.js';
+import { createAnthropic } from './anthropic-compat.js';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropic();
 
 export type OppCategory = 'location' | 'vente' | 'import' | 'immo' | 'business' | 'change' | 'invest' | 'aide' | 'loi' | 'marche' | 'modele';
 export type OppUrgency  = 'info' | 'a_suivre' | 'urgent';
@@ -87,10 +86,10 @@ export async function generateOpportunities(): Promise<OpportunitiesReport> {
     let text = '';
     try {
       const msg = await anthropic.messages.create({
-        model:      'claude-sonnet-4-6',
+        model:      'claude-sonnet-5-5',
         max_tokens: 6000,
         system:     SYSTEM,
-        tools:      [{ type: 'web_search_20250305' as any, name: 'web_search', max_uses: 5 } as any],
+        tools:      [{ type: 'web_search_20260209' as any, name: 'web_search', max_uses: 5 } as any],
         messages:   [{ role: 'user', content: 'Recherche les infos récentes (auto, immo, devises euro/dinar, investissement, aides État, lois — business Algérie/Oran) puis réponds UNIQUEMENT avec le JSON demandé — aucun texte avant ni après.' }],
       });
       text = msg.content.filter(b => b.type === 'text').map(b => (b as any).text).join('\n');

@@ -9,11 +9,12 @@
  */
 import axios from 'axios';
 import { fallbackEndpoints } from './agentic-fallback.js';
+import { CLAUDE_FAST, adaptRawRequest } from './anthropic-compat.js';
 
 export type ProbeState = 'ok' | 'busy' | 'down' | 'absent';
 export interface ProbeResult { state: ProbeState; model: string; ms: number; error?: string }
 
-const CLAUDE_PROBE_MODEL = 'claude-haiku-4-5-20251001';
+const CLAUDE_PROBE_MODEL = CLAUDE_FAST;
 const CACHE_MS = 30 * 60_000;
 let cache: { at: number; results: Record<string, ProbeResult> } | null = null;
 
@@ -44,9 +45,12 @@ export async function probeProviders(force = false): Promise<Record<string, Prob
 
   const anthropicKey = process.env['ANTHROPIC_API_KEY'];
   if (anthropicKey) {
-    jobs.push(timed(CLAUDE_PROBE_MODEL, () => axios.post('https://api.anthropic.com/v1/messages',
+    const req = adaptRawRequest(
       { model: CLAUDE_PROBE_MODEL, max_tokens: 1, messages: [{ role: 'user', content: 'OK' }] },
-      { headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' }, timeout: 20_000 },
+      { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+    );
+    jobs.push(timed(CLAUDE_PROBE_MODEL, () => axios.post('https://api.anthropic.com/v1/messages',
+      req.body, { headers: req.headers, timeout: 20_000 },
     )).then(r => { results['claude'] = r; }));
   } else {
     results['claude'] = { state: 'absent', model: CLAUDE_PROBE_MODEL, ms: 0 };

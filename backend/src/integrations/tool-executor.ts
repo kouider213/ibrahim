@@ -78,6 +78,7 @@ import { prepareMeetingTool } from './meeting-prep.js';
 import { createIntentionTool, listIntentionsTool, cancelIntentionTool } from './intentions.js';
 import { searchConversationsTool } from './conversation-search.js';
 import { undoMemoryCleanupTool } from './memory-consolidation.js';
+import { createAnthropic } from './anthropic-compat.js';
 import { setPrivateModeTool, showMyMemoryTool, forgetMemoryFactTool } from './privacy.js';
 import { createGoalTool, listGoalsTool, updateGoalTool } from './goals.js';
 import { assignTaskTool, completeTaskTool, listTeamTasksTool } from './team-tasks.js';
@@ -877,8 +878,7 @@ const IMAGE_EXTS    = /\.(jpg|jpeg|png|webp|bmp)(\?|$)/i;
 
 async function ocrDocumentBuffer(buffer: Buffer, docType: string, hint?: string): Promise<Record<string, string> | null> {
   try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const client = createAnthropic();
 
     const base64    = buffer.toString('base64');
     const mediaType: 'image/jpeg' | 'image/png' = hint?.includes('.png') ? 'image/png' : 'image/jpeg';
@@ -889,7 +889,7 @@ async function ocrDocumentBuffer(buffer: Buffer, docType: string, hint?: string)
       : 'nom, prénom, numéro_document, date_naissance, date_expiration, nationalité, sexe, pays_délivrance';
 
     const { content } = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model:      'claude-haiku-5-5',
       max_tokens: 400,
       messages: [{
         role:    'user',
@@ -900,7 +900,7 @@ async function ocrDocumentBuffer(buffer: Buffer, docType: string, hint?: string)
       }],
     });
 
-    const text = (content[0] as { type: string; text: string }).text ?? '';
+    const text = (content as Array<{ type: string; text?: string }>).filter(b => b.type === 'text').map(b => b.text ?? '').join('');
     const json = text.match(/\{[\s\S]*?\}/)?.[0];
     return json ? JSON.parse(json) as Record<string, string> : null;
   } catch {
@@ -6743,10 +6743,9 @@ async function estimateDamageTool(input: Record<string, unknown>, sessionId?: st
   if (!base64) return '❌ Envoie une photo du dégât avec ta demande.';
   const ctx = input['context'] ? String(input['context']) : '';
   try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const client = createAnthropic();
     const { content } = await client.messages.create({
-      model: 'claude-sonnet-4-6', max_tokens: 700,
+      model: 'claude-sonnet-5-5', max_tokens: 700,
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: (mime.includes('png') ? 'image/png' : 'image/jpeg') as 'image/png' | 'image/jpeg', data: base64 } },
         { type: 'text', text: `Tu es expert carrosserie auto en Algérie (Oran). Décris le(s) dégât(s) visible(s) sur ce véhicule et donne une ESTIMATION du coût de réparation en DINARS algériens (fourchette réaliste prix Oran 2026), pièce + main d'œuvre. ${ctx}\nFormat court: 1) dégâts constatés 2) réparation nécessaire 3) estimation DZD (fourchette) 4) à facturer au client oui/non. Sois honnête si la photo est floue.` },

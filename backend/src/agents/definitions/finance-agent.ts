@@ -1,7 +1,7 @@
 /**
  * Finance Agent — Analyse financière et recommandations de rentabilité.
  * Provider: GPT-4o (si configuré) — précision chiffrée, calculs structurés.
- * Fallback: Claude claude-sonnet-4-6.
+ * Fallback: Claude claude-sonnet-5-5.
  * Rôle dans multi-agent: chiffres CA, marges, prévisions saisonnières, pricing.
  */
 export const FINANCE_AGENT = {

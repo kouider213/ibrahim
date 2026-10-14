@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { supabase } from './supabase.js';
+import { rentalDays } from './finance.js';
 
 export async function generateRentalContract(
   bookingId: string,
@@ -59,9 +60,7 @@ function buildContractPDF(booking: Record<string, unknown>, contractNumber: stri
     const carName  = car?.['name'] ?? String(booking['car_id'] ?? '—');
     const startDate = String(booking['start_date'] ?? '');
     const endDate   = String(booking['end_date']   ?? '');
-    const days = Math.max(1, Math.ceil(
-      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000,
-    ));
+    const days = rentalDays(startDate, endDate, booking['nb_days'] as number | null | undefined);
     const total   = Number(booking['final_price']  ?? 0);
     const paid    = Number(booking['paid_amount']  ?? 0);
     const daily   = days > 0 ? Math.round(total / days) : total;

@@ -25,6 +25,7 @@ import {
   formatTikTokDataForReport,
   type TikTokVideo,
 } from '../integrations/apify-tiktok.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
 // ── Authorized tools ──────────────────────────────────────────────────────────
 
@@ -264,7 +265,7 @@ export async function runSocialAgentWithTools(
   timeoutMs    = 180_000,
 ): Promise<SocialAgentResult> {
   const t0    = Date.now();
-  const model = 'claude-sonnet-4-6';
+  const model = 'claude-sonnet-5-5';
 
   const toolsCalled: SocialToolCall[] = [];
   let totalInputTokens  = 0;
@@ -279,7 +280,7 @@ export async function runSocialAgentWithTools(
     return makeFailedResult(requestId, model, toolsCalled, 0, 0, Date.now() - t0, 'ANTHROPIC_API_KEY absent');
   }
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = createAnthropic();
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: 'user', content: userMessage },
   ];

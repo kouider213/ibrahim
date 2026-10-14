@@ -1,9 +1,9 @@
 ﻿import PDFDocument from 'pdfkit';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from './supabase.js';
-import { env } from '../config/env.js';
+import { createAnthropic } from './anthropic-compat.js';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY ?? '' });
+const anthropic = createAnthropic();
 
 export async function generateReservationVoucher(
   bookingId: string,
@@ -89,7 +89,7 @@ export async function generateReservationVoucher(
       console.log('[voucher] Image fetched, size:', buf.length, 'bytes — running OCR...');
 
       const ocrResp = await anthropic.messages.create({
-        model:      'claude-sonnet-4-6',
+        model:      'claude-sonnet-5-5',
         max_tokens: 300,
         messages:   [{
           role:    'user',

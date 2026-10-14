@@ -1,10 +1,10 @@
 import { redis } from '../queue/queue.js';
 
-// Claude API pricing per 1M tokens (USD) — May 2025
+// Claude API pricing per 1M tokens (USD) — octobre 2026 (Haiku 5.5 : prompts ≤ 100K tokens)
 const PRICING = {
-  'claude-haiku-4-5':     { input: 0.80,  output: 4.00,   cacheRead: 0.08,  cacheWrite: 1.00  },
-  'claude-sonnet-4-6':    { input: 3.00,  output: 15.00,  cacheRead: 0.30,  cacheWrite: 3.75  },
-  'claude-opus-4-7':      { input: 15.00, output: 75.00,  cacheRead: 1.50,  cacheWrite: 18.75 },
+  'claude-haiku-5-5':     { input: 0.10,  output: 0.50,   cacheRead: 0.01,  cacheWrite: 0.125 },
+  'claude-sonnet-5-5':    { input: 2.00,  output: 10.00,  cacheRead: 0.20,  cacheWrite: 2.50  },
+  'claude-opus-5-5':      { input: 4.00,  output: 20.00,  cacheRead: 0.20,  cacheWrite: 5.00  },
 } as const;
 type ModelKey = keyof typeof PRICING;
 
@@ -20,9 +20,9 @@ function redisKey(field: string): string {
 }
 
 function modelKeyFor(model: string): ModelKey {
-  if (model.includes('haiku'))  return 'claude-haiku-4-5';
-  if (model.includes('opus'))   return 'claude-opus-4-7';
-  return 'claude-sonnet-4-6'; // default
+  if (model.includes('haiku'))  return 'claude-haiku-5-5';
+  if (model.includes('opus'))   return 'claude-opus-5-5';
+  return 'claude-sonnet-5-5'; // default
 }
 
 export async function trackTokenUsage(

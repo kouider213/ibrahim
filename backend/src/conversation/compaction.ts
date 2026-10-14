@@ -13,12 +13,12 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env.js';
 import { supabase } from '../integrations/supabase.js';
 import type { Message } from '../integrations/claude-api.js';
 import { callGroq, isGroqAvailable } from '../integrations/llm-router.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const client = createAnthropic();
 
 // Seuils de compaction
 const MAX_MESSAGES_BEFORE_COMPACT = 20;  // Compacter si plus de 20 messages
@@ -77,7 +77,7 @@ Commence par: "📋 RÉSUMÉ SESSION PRÉCÉDENTE:"`;
   // Claude Haiku fallback (jamais Gemini — consigne Kouider)
   console.log('[compaction] summarized via Claude Haiku (fallback)');
   const response = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
+    model:      'claude-haiku-5-5',
     max_tokens: 600,
     messages:   [{ role: 'user', content: prompt }],
   });

@@ -5,12 +5,12 @@
 // propose de vérifier + crée un lead. Peut donner prix client, infos, photos.
 // ──────────────────────────────────────────────────────────────────────────────
 import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env.js';
 import { supabase, getConversationHistory, saveConversationTurn } from '../integrations/supabase.js';
 import { executeTool } from '../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../integrations/tools.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const client = createAnthropic();
 
 // Outils SÛRS exposés au client (lecture + capture de lead uniquement).
 const CLIENT_TOOL_NAMES = [
@@ -105,7 +105,7 @@ export async function respondToClient(message: string, opts?: { clientPhone?: st
 
   for (let round = 0; round < 4; round++) {
     const resp = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5-5',
       max_tokens: 1024,
       system: CLIENT_SYSTEM(catalog),
       tools: clientTools,

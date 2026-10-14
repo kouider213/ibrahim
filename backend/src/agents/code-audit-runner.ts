@@ -20,6 +20,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 import { getFileContent, updateFile, listDirectory } from '../integrations/github.js';
 import { getRailwayLogs } from '../integrations/railway.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -252,7 +253,7 @@ export async function runCodeAudit(
   timeoutMs   = 90_000,
 ): Promise<CodeAuditResult> {
   const t0    = Date.now();
-  const model = 'claude-sonnet-4-6';
+  const model = 'claude-sonnet-5-5';
 
   const toolsCalled:   AuditToolCall[] = [];
   const patchesApplied: AuditPatch[]   = [];
@@ -305,7 +306,7 @@ export async function runCodeAudit(
   }
 
   // ── Step 2: Run agent ────────────────────────────────────────────────────────
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = createAnthropic();
   const messages: Anthropic.Messages.MessageParam[] = [
     {
       role:    'user',

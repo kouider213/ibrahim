@@ -4,6 +4,7 @@
  * Groq (rapide/simple + vision secours) → Claude (agentique/outils/vision principale).
  */
 import { Dzaryx } from '../config/constants.js';
+import { CLAUDE_FAST, adaptRawRequest } from './anthropic-compat.js';
 
 const GROQ_KEY    = process.env['GROQ_API_KEY'];
 const OPENAI_KEY  = process.env['OPENAI_API_KEY'];
@@ -278,24 +279,21 @@ export async function callClaudeVision(
   userContent.push({ type: 'text', text: userMessage });
 
   const { default: axios } = await import('axios');
-  const { data } = await axios.post(
-    'https://api.anthropic.com/v1/messages',
+  const req = adaptRawRequest(
     {
-      model:      'claude-haiku-4-5-20251001',
+      model:      CLAUDE_FAST,
       max_tokens: 1024,
       system:     systemPrompt,
       messages:   [{ role: 'user', content: userContent }],
     },
     {
-      headers: {
-        'x-api-key':         ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-        'Content-Type':      'application/json',
-      },
-      timeout: 30_000,
+      'x-api-key':         ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'Content-Type':      'application/json',
     },
   );
-  const text = (data.content?.[0]?.text as string | undefined) ?? '';
+  const { data } = await axios.post('https://api.anthropic.com/v1/messages', req.body, { headers: req.headers, timeout: 30_000 });
+  const text = ((data.content as Array<{ type: string; text?: string }> | undefined)?.find(b => b.type === 'text')?.text) ?? '';
   if (!text) throw new Error('Claude Vision returned empty response');
   console.log(`[claude-vision] ✅ ${text.length} chars`);
   return text;

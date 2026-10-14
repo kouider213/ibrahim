@@ -24,7 +24,7 @@ const router = Router();
 // ── GET /api/multi-agent/providers ────────────────────────────────────────────
 router.get('/providers', requireMobileAuth, (_req, res) => {
   res.json({
-    claude: { available: isAvailable('claude'), note: 'Primary — claude-sonnet-4-6' },
+    claude: { available: isAvailable('claude'), note: 'Primary — claude-sonnet-5-5' },
     openai: { available: isAvailable('openai'), note: 'Finance + Code Reviewer — GPT-4o' },
     gemini: { available: isAvailable('gemini'), note: 'Social fallback — Gemini 1.5 Flash' },
     groq:   { available: isAvailable('groq'),   note: 'Social + Competitor — LLaMA 3.3 70B' },
@@ -59,7 +59,7 @@ router.get('/catalog', requireMobileAuth, (_req, res) => {
     total_agents: catalog.length,
     execution_model: 'Promise.allSettled — parallel, isolated, never blocks on failure',
     default_timeout_ms: 30_000,
-    fusion_model: 'claude-sonnet-4-6',
+    fusion_model: 'claude-sonnet-5-5',
     agents: catalog,
   });
 });
@@ -616,7 +616,7 @@ Format strict — une ligne par idée:
 Si une idée est une synthèse de plusieurs agents, indique tous les agents sources.`;
 
       const attrResult = await callProvider(
-        { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.2, maxTokens: 600 },
+        { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.2, maxTokens: 600 },
         attrPrompt,
         'Tu es un analyseur de sources. Sois précis et bref.',
         20_000,
@@ -729,7 +729,7 @@ Si une idée est une synthèse de plusieurs agents, indique tous les agents sour
 
       // ── Fusion + attribution ─────────────────────────────────────────────
       fusion: {
-        model:         'claude-sonnet-4-6',
+        model:         'claude-sonnet-5-5',
         latency_ms:    report.fusionLatencyMs,
         response_full: report.fusedResponse,
         attribution,

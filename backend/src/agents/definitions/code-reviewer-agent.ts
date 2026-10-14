@@ -1,7 +1,7 @@
 /**
  * Code Reviewer Agent — Audit de code et sécurité.
  * Provider: GPT-4o (si configuré) — excellent pour review systématique.
- * Fallback: Claude claude-sonnet-4-6.
+ * Fallback: Claude claude-sonnet-5-5.
  * Rôle dans multi-agent: identification bugs, failles sécu, dette technique.
  */
 export const CODE_REVIEWER_AGENT = {

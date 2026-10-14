@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
 import { env } from '../config/env.js';
 import { supabase } from './supabase.js';
@@ -11,13 +10,14 @@ import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
+import { createAnthropic } from './anthropic-compat.js';
 
 // Démarchage automatique FIK Conciergerie : chaque jour Dzaryx trouve de nouvelles sociétés (web, LinkedIn,
 // annuaires), leur écrit un mail personnalisé avec le lien du site, puis surveille les réponses.
 // Une réponse n'est JAMAIS envoyée seule : Dzaryx prépare un texte, Kouider valide par oui/non dans le chat.
 
 const SITE_URL       = 'https://fikconciergerie.com';
-const MODEL          = 'claude-sonnet-4-6';
+const MODEL          = 'claude-sonnet-5-5';
 const DAILY_CAP      = 30;   // même limite que l'envoi manuel (au-delà Gmail classe la boîte en spam)
 const MAX_PER_DAY    = 15;
 const SEND_GAP_MS    = 20_000;
@@ -26,7 +26,7 @@ const EMAIL_RE       = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const STOP_RE        = /^\W*(stop|unsubscribe|désinscri|desinscri|ne plus (me )?(recevoir|contacter)|retirez[- ]moi|توقف|إلغاء الاشتراك)/im;
 const BOUNCE_RE      = /mailer-daemon|postmaster/i;
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropic();
 
 async function ask(system: string, user: string, maxTokens = 1500): Promise<string> {
   const r = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] });

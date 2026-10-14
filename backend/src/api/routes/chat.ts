@@ -7,6 +7,7 @@ import { redis } from '../../queue/queue.js';
 import { isValidTimezone } from '../../utils/timezone.js';
 import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.js';
 import { env } from '../../config/env.js';
+import { createAnthropic } from '../../integrations/anthropic-compat.js';
 
 const router = Router();
 
@@ -103,8 +104,7 @@ router.post('/analyze-file', requireMobileAuth, async (req, res) => {
   const question = message.trim() || `Analyse ce document (${fileName}) et donne-moi un résumé clair, les infos clés et tout point important (montants, dates, clauses, anomalies).`;
 
   try {
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const anthropic = createAnthropic();
 
     let content: unknown[];
     const isPdf = mime === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf');
@@ -129,7 +129,7 @@ router.post('/analyze-file', requireMobileAuth, async (req, res) => {
     }
 
     const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5-5',
       max_tokens: 1800,
       system: 'Tu es Dzaryx, assistant de Kouider (Fik Conciergerie, Oran). Analyse le document fourni de façon claire et concrète, en français. Mets en avant les montants, dates, parties, clauses et anomalies. Réponse structurée (markdown).',
       messages: [{ role: 'user', content: content as never }],

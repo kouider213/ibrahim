@@ -3,7 +3,7 @@
  * Run: npx tsx src/tests/financial-calculations.test.ts
  */
 import assert from 'node:assert/strict';
-import { computeBookingFinancials } from '../integrations/finance.js';
+import { computeBookingFinancials, rentalDays } from '../integrations/finance.js';
 
 let passed = 0;
 let failed = 0;
@@ -123,17 +123,17 @@ section('5. Calcul durée automatique');
 {
   const r = computeBookingFinancials({
     start_date:           '2026-05-01',
-    end_date:             '2026-05-08',  // 7 jours
+    end_date:             '2026-05-08',  // 8 jours inclus (départ + retour comptent)
     final_price:          null,
     client_price_per_day: 50,
     owner_price_per_day:  40,
     // nb_days absent — doit être calculé
   });
   try {
-    assert.equal(r.nb_days, 7,           'nb_days calculé = 7');
-    assert.equal(r.final_price, 350,     'final = 50×7 = 350€');
-    assert.equal(r.kouider_profit, 70,   'profit = (50-40)×7 = 70€');
-    ok('Durée auto (7 jours), final=350€, profit=70€');
+    assert.equal(r.nb_days, 8,           'nb_days calculé = 8 (jours inclus)');
+    assert.equal(r.final_price, 400,     'final = 50×8 = 400€');
+    assert.equal(r.kouider_profit, 80,   'profit = (50-40)×8 = 80€');
+    ok('Durée auto (8 jours inclus), final=400€, profit=80€');
   } catch (e: any) { fail('Durée auto', e.message); }
 }
 
@@ -201,6 +201,42 @@ section('8. Remise appliquée (discount_applied)');
     assert.equal(r.kouider_profit, 25,     'profit = (45-40)×5 = 25€');
     ok('discount_applied=50€ préservé, profit recalculé sur prix remisé');
   } catch (e: any) { fail('Discount preserved', e.message); }
+}
+
+// ─── 9. rentalDays — une seule règle pour contrat, part Houari, CA ────────────
+
+section('9. rentalDays (jours inclus)');
+
+try {
+  assert.equal(rentalDays('2026-07-24', '2026-08-08'), 16,       '24/07→08/08 = 16 j (exemple de référence)');
+  assert.equal(rentalDays('2026-05-01', '2026-05-01'), 1,        'même jour = 1 j');
+  assert.equal(rentalDays('2026-05-01', '2026-05-02'), 2,        'lendemain = 2 j');
+  assert.equal(rentalDays('2026-03-28', '2026-03-31'), 4,        "passage à l'heure d'été sans jour perdu");
+  assert.equal(rentalDays('2026-10-24', '2026-10-27'), 4,        "passage à l'heure d'hiver sans jour en trop");
+  assert.equal(rentalDays('2026-12-30', '2027-01-02'), 4,        "changement d'année");
+  assert.equal(rentalDays('2026-05-01', '2026-05-10', 7), 7,     'nb_days enregistré prioritaire');
+  assert.equal(rentalDays('2026-05-01', '2026-05-10', 0), 10,    'nb_days = 0 ignoré');
+  assert.equal(rentalDays('2026-05-10', '2026-05-01'), 1,        'dates inversées → minimum 1 j');
+  assert.equal(rentalDays('', ''), 1,                            'dates vides → 1 j (pas NaN)');
+  ok('rentalDays : 10 cas (jours inclus, DST, année, nb_days, dates invalides)');
+} catch (e: any) { fail('rentalDays', e.message); }
+
+// ─── 10. Part Houari et prix/jour depuis le total (contrat) ─────────────────────
+
+section('10. Part Houari + prix/jour du contrat');
+
+{
+  const r = computeBookingFinancials({
+    start_date: '2026-07-24', end_date: '2026-08-08',
+    final_price: 800, client_price_per_day: null, owner_price_per_day: 30,
+  });
+  try {
+    assert.equal(r.nb_days, 16,              '16 jours');
+    assert.equal(r.client_price_per_day, 50, '800/16 = 50 €/j');
+    assert.equal(r.owner_total, 480,         'part Houari 30×16 = 480€');
+    assert.equal(r.kouider_profit, 320,      'profit (50-30)×16 = 320€');
+    ok('Location 16 j : 50 €/j, Houari 480€, profit 320€');
+  } catch (e: any) { fail('Part Houari 16 j', e.message); }
 }
 
 // ─── Résumé ───────────────────────────────────────────────────────────────────

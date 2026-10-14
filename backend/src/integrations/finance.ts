@@ -66,6 +66,16 @@ export async function seedPricingTable(): Promise<void> {
 //   owner_ppd   → owner_price_per_day si > 0, sinon null (JAMAIS catalogue)
 //   profit      → null si owner_ppd manquant (pas inventé)
 //
+/**
+ * Nombre de jours facturés d'une location = JOURS INCLUS (départ + retour comptent) : 24/07→08/08 = 16 j.
+ * nb_days enregistré sur la réservation prioritaire. Seule règle de calcul à utiliser partout (contrat, Houari, CA).
+ */
+export function rentalDays(startDate: string, endDate: string, nbDays?: number | null): number {
+  if (nbDays != null && nbDays > 0) return nbDays;
+  const diff = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000);
+  return Number.isFinite(diff) ? Math.max(1, diff + 1) : 1;
+}
+
 export function computeBookingFinancials(b: {
   final_price:          number | null;
   client_price_per_day: number | null;
@@ -89,9 +99,7 @@ export function computeBookingFinancials(b: {
   data_complete:        boolean;
 } {
   // Jours = JOURS INCLUS (départ + retour comptent). 24/07→08/08 = 16j. Fallback si nb_days absent.
-  const nb_days = b.nb_days ?? Math.max(1,
-    Math.round((new Date(b.end_date).getTime() - new Date(b.start_date).getTime()) / 86_400_000) + 1,
-  );
+  const nb_days = rentalDays(b.start_date, b.end_date, b.nb_days);
   const paid_amount     = b.paid_amount     ?? 0;
   const discount_applied = b.discount_applied ?? 0;
   const rentedBy        = b.rented_by       ?? 'Kouider';

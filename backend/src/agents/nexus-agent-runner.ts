@@ -29,6 +29,7 @@ import {
   nexusFileList,
   setNexusBusy, clearNexusBusy,
 } from '../actions/handlers/nexus-relay.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -422,7 +423,7 @@ export async function runNexusAgent(
   timeoutMs    = 90_000,
 ): Promise<NexusAgentResult> {
   const t0    = Date.now();
-  const model = 'claude-sonnet-4-6';
+  const model = 'claude-sonnet-5-5';
 
   const toolsCalled:   NexusToolCall[]    = [];
   const screenshots:   NexusScreenshot[]  = [];
@@ -451,7 +452,7 @@ export async function runNexusAgent(
 
   setNexusBusy(`nexus-agent:${requestId} — ${userMessage.slice(0, 60)}`);
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = createAnthropic();
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: 'user', content: userMessage },
   ];

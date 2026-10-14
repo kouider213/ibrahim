@@ -15,6 +15,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 import { executeTool } from '../integrations/tool-executor.js';
+import { createAnthropic } from '../integrations/anthropic-compat.js';
 
 // ── Authorized tools (allowlist) ──────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ export async function runFinanceAgentWithTools(
   timeoutMs    = 90_000,
 ): Promise<FinanceAgentResult> {
   const t0    = Date.now();
-  const model = 'claude-sonnet-4-6';
+  const model = 'claude-sonnet-5-5';
 
   const toolsCalled: FinanceToolCall[] = [];
   let totalInputTokens  = 0;
@@ -154,7 +155,7 @@ export async function runFinanceAgentWithTools(
     return makeFailedResult(requestId, model, toolsCalled, 0, 0, Date.now() - t0, 'ANTHROPIC_API_KEY absent');
   }
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = createAnthropic();
   const messages: Anthropic.Messages.MessageParam[] = [
     { role: 'user', content: userMessage },
   ];

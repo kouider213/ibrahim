@@ -102,7 +102,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
   ],
   keywords:  /\b(réservations?|booking|louer|location|disponib|voitures?|retard|flotte|clients?|arrivée|départ|véhicules?|agenda|synchro|marque.*dispo|est.*disponible|plus.*disponible|appartements?|immobilier|immo|biens?|maisons?|villas?|à\s+vendre|vente|acheté|acheteur|locataire)\b/i,
   priority:  10,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500 },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.5, maxTokens: 1500 },
 };
 
 // ── Agent 2: Finance ──────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ TOUJOURS: donner des chiffres précis avec devise (€/DZD), indiquer la périod
   ],
   keywords:  /\b(finance|financier|paiement|payé|impayé|argent|ca|chiffre|recette|facture|reçu|bénéfice|trésorerie|revenue|revenu|revenus|encaissé|dette|profit|gagné|gain|rapport\s+fi|compta|comptable|export|d[eé]penses?|d[eé]pens[eé]|essence|carburant|gasoil|plein|ticket|vidange|assurance|caisse)\b/i,
   priority:  9,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.3, maxTokens: 1500, fallback: 'openai' },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.3, maxTokens: 1500, fallback: 'openai' },
 };
 
 // ── Agent 3: Clients ──────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ ENREGISTREMENT DOCUMENT:
   ],
   keywords:  /\b(client|document|contrat|sign(?:e|er|ature)|passep|passeport|paseport|pasport|passport|permis|permi|identit|whatsapp|sms|message|envoyer|envoi|notif|noter|évaluation|historique\s+client|profil\s+client|qui\s+est\s+[A-Z])\b/i,
   priority:  8,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1200 },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.5, maxTokens: 1200 },
 };
 
 // ── Agent 4: Planning ─────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ TOUJOURS: confirmer le fuseau horaire (Oran = UTC+1), format dates DD/MM/YYYY.`,
   ],
   keywords:  /\b(calendrier|agenda|rappel|planifier|rdv|rendez-vous|météo|temps|actualité|news|événement|réunion|demain|semaine prochaine)\b/i,
   priority:  7,
-  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.5, maxTokens: 1000 },
+  llm: { provider: 'claude', model: 'claude-haiku-5-5', temperature: 0.5, maxTokens: 1000 },
 };
 
 // ── Agent 5: Marketing Image/Vidéo ───────────────────────────────────────────
@@ -213,7 +213,7 @@ ENVOI DE PHOTO EXISTANTE (≠ création pub) — "envoie/montre la photo de X" :
   ],
   keywords:  /\b(image|photo|vid[eé]o|miniature|thumbnail|montage|sous-titre|fond|background|pub|visuel|r[eé]seaux|instagram|reel|story|banner|logo|supprimer\s+fond|optimiser|g[eé]n[eè]re?r?\s+(?:image|photo|visuel)|crée?\w*\s+(?:image|photo|pub|visuel|affiche)|image\s+ia|photo\s+ia)\b/i,
   priority:  6,
-  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.7, maxTokens: 1200, fallback: 'groq' },
+  llm: { provider: 'claude', model: 'claude-haiku-5-5', temperature: 0.7, maxTokens: 1200, fallback: 'groq' },
 };
 
 // ── Agent 6: TikTok ───────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ TOUJOURS: adapter le contenu au marché algérien, hashtags en arabe + français
   ],
   keywords:  /(fais|cr[eé]e?r?|g[eé]n[eè]re?|lance|tourne|produis?|r[eé]alise?)\s+(m[eo]i\s+)?(une?\s+)?(vid[eé]o|pub|clip|tiktok|r[eé]el?)|\b(tiktok|viral|hashtag|trending|concurrent|cr[eé]ateur|follower|vue|like|sc[eé]nario|script\s+vid[eé]o|voix\s+off|narration|campagne)\b/i,
   priority:  7,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.85, maxTokens: 1500, fallback: 'openai' },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.85, maxTokens: 1500, fallback: 'openai' },
 };
 
 // ── Agent 7: Mémoire & Apprentissage ─────────────────────────────────────────
@@ -247,7 +247,7 @@ TOUJOURS: confirmer ce qui a été mémorisé, citer la source si rappel.`,
   ],
   keywords:  /\b(souviens|rappelle|mémorise|retiens|oublie|préférence|habitude|apprentissage|évolution|amélioration|feedback|règle|routine|tracker|suivi|prends?\s+l.habitude)\b/i,
   priority:  5,
-  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.4, maxTokens: 800 },
+  llm: { provider: 'claude', model: 'claude-haiku-5-5', temperature: 0.4, maxTokens: 800 },
 };
 
 // ── Agent 8: Code & Infra ─────────────────────────────────────────────────────
@@ -264,7 +264,7 @@ TOUJOURS: lire le fichier avant de modifier, vérifier le déploiement Railway a
   ],
   keywords:  /\b(code|github|deploy|railway|bug|typescript|react|modifier|fonction|erreur\s+ts|patch|commit|push|netlify|supabase)\b|\bcréer?\s+(?:une?\s+)?(?:fonction|fichier|classe|module|script|composant|route|endpoint|api)\b/i,
   priority:  8,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.4, maxTokens: 2000 },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.4, maxTokens: 2000 },
 };
 
 // ── Agent 9: Designer UI/UX ───────────────────────────────────────────────────
@@ -281,7 +281,7 @@ TOUJOURS: produire du code React/CSS directement utilisable, penser mobile-first
   ],
   keywords:  /\b(design|ui|ux|interface|maquette|composant|css|layout|couleur|palette|logo|icône|figma|wireframe|prototype|style|thème|charte graphique)\b/i,
   priority:  7,
-  llm: { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.7, maxTokens: 1200, fallback: 'groq' },
+  llm: { provider: 'claude', model: 'claude-haiku-5-5', temperature: 0.7, maxTokens: 1200, fallback: 'groq' },
 };
 
 // ── Agent 10: Code Reviewer ───────────────────────────────────────────────────
@@ -332,7 +332,7 @@ FORMAT RÉPONSE:
   ],
   keywords:  /\b(analyse?\s+(?:les?\s+)?(?:r[eé]seaux?|concurrent\w*|march[eé]|seo)|veille\s+(?:concurrentiel\w*|r[eé]seau|march[eé])|benchmark|recherche\s+concurrent\w*|concurrent\w*|part\s+de\s+march[eé]|positionnement|croissance\s+(?:tiktok|instagram|r[eé]seaux))\b/i,
   priority:  7,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.6, maxTokens: 1500, fallback: 'openai' },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.6, maxTokens: 1500, fallback: 'openai' },
 };
 
 // ── Agent 12: Video Creator ───────────────────────────────────────────────────
@@ -356,7 +356,7 @@ TOUJOURS: format vertical 9:16, musique tendance Oran, optimisé partage.`,
   ],
   keywords:  /\b(cr[eé]e?r?\s+(?:une?\s+)?(?:pipeline\s+)?vid[eé]o|pipeline\s+vid[eé]o|produire?\s+(?:une?\s+)?vid[eé]o|script\s+(?:vid[eé]o|voix\s+off|voiceover)|plan\s+(?:de\s+)?montage|capcut\s+(?:projet|montage)|runway\s+vid[eé]o|voiceover)\b/i,
   priority:  6,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.75, maxTokens: 1500 },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.75, maxTokens: 1500 },
 };
 
 // ── Agent 13: Obsidian Brain ──────────────────────────────────────────────────
@@ -387,7 +387,7 @@ FLUX STANDARD:
   ],
   keywords:  /\b(obsidian|vault\s+obsidian|vault|cerveau|brain|profil\s+client|note\s+client|m[eé]moire\s+long|long.terme)\b/i,
   priority:  9,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.4, maxTokens: 1200 },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.4, maxTokens: 1200 },
 };
 
 // ── Agent 14: Général — catch-all pour toute question hors métier ────────────
@@ -443,7 +443,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'save_procedure', 'list_procedures', 'delete_procedure'],
   keywords:  /./,  // catch-all — toujours matcher (priority le plus bas)
   priority:  1,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.5, maxTokens: 1500, fallback: 'openai' },
 };
 
 // ── Agent Missions & RDV : missions permanentes (idée OpenClaw) + préparation de RDV ─────────────
@@ -468,7 +468,7 @@ RDV : « prépare-moi mon RDV de 15h » → prepare_meeting. Dzaryx prépare aus
   // NB : pas de \b devant une lettre accentuée en JS (« écrit ») → (?:^|\s) à la place
   keywords: /\bobjectifs?\b|\bt[aâ]ches?\b|\bdis\s+[aà]\s+houari\b|\bdemande\s+[aà]\s+houari\b|\b(?:la\s+)?prochaine\s+fois\s+qu(?:e|')|\b(?:si|quand|d[eè]s\s+qu(?:e|'))\s+[^.?!]{1,60}(?:^|\s)(?:r[eé]serve|r[eé]pond|[eé]crit|m'?appelle|me\s+parle)(?=[^.?!]*(?:rappelle|pr[eé]viens|appelle[\s-]moi|dis[\s-]le[\s-]moi|alerte))|rappels?\s+d'[eé]v[eé]nement|\bmissions?\b|pr[eé]pare[\s-](?:moi\s+)?(?:mon|le|ce|mes)\s+(?:rdv|rendez[\s-]vous|r[eé]union)|\b(?:chaque|tous\s+les|toutes\s+les)\s+(?:jours?|matins?|soirs?|semaines?|mois|lundis?|mardis?|mercredis?|jeudis?|vendredis?|samedis?|dimanches?|heures?)\b[^.?!]*\b(?:v[eé]rifie|surveille|regarde|cherche|fais[\s-]moi|dis[\s-]moi|pr[eé]viens|analyse|compare|contr[oô]le)/i,
   priority:  11,
-  llm: { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.3, maxTokens: 1200, fallback: 'openai' },
+  llm: { provider: 'claude', model: 'claude-sonnet-5-5', temperature: 0.3, maxTokens: 1200, fallback: 'openai' },
 };
 
 // ── Registry ──────────────────────────────────────────────────────────────────

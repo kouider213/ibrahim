@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env.js';
 import { executeTool } from './tool-executor.js';
 import { Dzaryx_TOOLS } from './tools.js';
+import { createAnthropic } from './anthropic-compat.js';
 
 // Dzaryx qui travaille SEUL (missions permanentes, préparation de RDV, serveur MCP) : uniquement des outils
 // de LECTURE. Aucune écriture, aucun envoi, aucun SQL brut — la boucle refuse tout outil hors de cette liste,
@@ -25,7 +25,7 @@ export const READ_TOOLS = new Set([
 export const READ_TOOL_DEFS: Anthropic.Tool[] = Dzaryx_TOOLS.filter(t => READ_TOOLS.has(t.name));
 
 const MODEL = process.env['READONLY_AGENT_MODEL'] ?? 'claude-sonnet-5-5';
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropic();
 
 const BASE_SYSTEM =
   "Tu es Dzaryx, l'assistant de Kouider (FIK Conciergerie, location de voitures à Oran ; Kouider vit à Bruxelles, " +

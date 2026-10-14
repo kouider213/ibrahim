@@ -1,8 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env.js';
+import { createAnthropic } from './anthropic-compat.js';
 
-const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const anthropic = createAnthropic();
 
 cloudinary.config({
   cloud_name: env.CLOUDINARY_CLOUD_NAME ?? '',
@@ -136,7 +136,7 @@ ${jsonShape}`;
   let text = '';
   try {
     const msg = await anthropic.messages.create({
-      model:      'claude-sonnet-4-6',
+      model:      'claude-sonnet-5-5',
       max_tokens: 1800,
       system,
       messages: [{
@@ -147,7 +147,7 @@ ${jsonShape}`;
         ],
       }],
     });
-    text = msg.content[0]?.type === 'text' ? msg.content[0].text : '';
+    text = msg.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
   } catch (e) {
     console.error('[inspection-core] anthropic error:', e);
     return { description: '', severity: 'aucun', accident: false, damages: [], damageBoxes: [], damageDetected: false };

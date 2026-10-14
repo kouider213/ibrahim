@@ -1,13 +1,13 @@
 ﻿import Anthropic from '@anthropic-ai/sdk';
-import { env } from '../config/env.js';
 import { Dzaryx } from '../config/constants.js';
 import { Dzaryx_TOOLS } from './tools.js';
 import { executeTool } from './tool-executor.js';
 import { randomUUID } from 'crypto';
 import { compactIfNeeded, emergencyCompact, needsCompaction } from '../conversation/compaction.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
+import { createAnthropic } from './anthropic-compat.js';
 
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const client = createAnthropic();
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -142,9 +142,30 @@ function needsWebSearch(messages: Message[]): boolean {
 
 // Server tool web_search natif Anthropic
 const ANTHROPIC_WEB_SEARCH_TOOL: Anthropic.Tool = {
-  type: 'web_search_20250305' as any,
+  type: 'web_search_20260209' as any,
   name: 'web_search',
 } as any;
+
+// Recherche d'outils (BM25) — les outils hors CORE_TOOLS sont envoyés avec defer_loading
+const DEFER_THRESHOLD = 60;
+const TOOL_SEARCH_TOOL: Anthropic.Tool = { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' } as any;
+const TOOL_SEARCH_HINT =
+  "Une partie de tes outils est cachée pour aller plus vite : avant de dire que tu ne peux pas faire quelque chose, " +
+  "cherche l'outil adapté avec tool_search_tool_bm25 (requête courte en français, ex. « kilométrage voiture », « contrat signature »).";
+const CORE_TOOLS = new Set([
+  // Locations, flotte, clients, argent
+  'list_bookings', 'create_booking', 'update_booking', 'cancel_booking', 'check_car_availability', 'get_fleet_status',
+  'get_client_profile', 'get_client_brain', 'add_client_note', 'check_client', 'get_client_history',
+  'get_payment_status', 'record_payment', 'get_unpaid_bookings', 'get_late_returns', 'get_financial_report',
+  'get_revenue_report', 'get_daily_report', 'record_expense', 'get_expenses',
+  // Communication, agenda, mails
+  'send_whatsapp_to_client', 'send_telegram_message', 'call_me', 'schedule_reminder',
+  'list_emails', 'read_email', 'draft_email', 'send_email', 'create_calendar_event', 'list_calendar_events',
+  // Mémoire et PC
+  'remember_info', 'recall_memory', 'search_conversations', 'create_intention', 'list_intentions',
+  'set_private_mode', 'show_my_memory', 'send_nexus_command', 'nexus_screenshot', 'ping_nexus',
+  'web_search', 'assign_task', 'list_team_tasks', 'create_goal', 'save_procedure',
+]);
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────
 function extractCitations(content: Anthropic.ContentBlock[]): CitationInfo[] {
@@ -189,7 +210,7 @@ export async function chatWithTools(
     if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
     const response = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model:      'claude-haiku-5-5',
       max_tokens: 512,
       system:     systemBlocks,
       messages:   messages.map(m => ({ role: m.role, content: m.content })),
@@ -247,9 +268,17 @@ export async function chatWithTools(
   const baseTools = useWebSearch
     ? activeDzaryxTools.filter(t => t.name !== 'web_search')
     : activeDzaryxTools;
-  const tools: Anthropic.Tool[] = useWebSearch
-    ? [...baseTools, ANTHROPIC_WEB_SEARCH_TOOL]
+  // Recherche d'outils côté serveur : au-delà de DEFER_THRESHOLD outils (route « Général » = les 201),
+  // seuls les outils courants restent chargés ; les autres sont trouvés à la demande par le modèle.
+  // ~35 000 tokens d'outils en moins par message, et moins de confusion entre outils voisins.
+  const useToolSearch = baseTools.length > DEFER_THRESHOLD;
+  const scopedTools: Anthropic.Tool[] = useToolSearch
+    ? [TOOL_SEARCH_TOOL, ...baseTools.map(t => (CORE_TOOLS.has(t.name) ? t : ({ ...t, defer_loading: true } as Anthropic.Tool)))]
     : baseTools;
+  if (useToolSearch) systemBlocks.push({ type: 'text', text: TOOL_SEARCH_HINT });
+  const tools: Anthropic.Tool[] = useWebSearch
+    ? [...scopedTools, ANTHROPIC_WEB_SEARCH_TOOL]
+    : scopedTools;
 
   let apiMessages: Anthropic.MessageParam[] = processedMessages.map(m => ({
     role:    m.role,
@@ -319,7 +348,7 @@ export async function chatWithTools(
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const createParams: Anthropic.MessageCreateParamsNonStreaming = {
-          model:      'claude-sonnet-4-6',
+          model:      'claude-sonnet-5-5',
           max_tokens: 16000,
           system:     systemBlocks,
           tools:      tools,
@@ -384,7 +413,7 @@ export async function chatWithTools(
 
     // Track cost per API call (fire-and-forget)
     trackTokenUsage(
-      'claude-sonnet-4-6',
+      'claude-sonnet-5-5',
       response.usage.input_tokens,
       response.usage.output_tokens,
       usage.cache_read_input_tokens ?? 0,
@@ -404,6 +433,11 @@ export async function chatWithTools(
 
     const textBlocks = response.content.filter(b => b.type === 'text');
     finalText = textBlocks.map(b => (b as Anthropic.TextBlock).text).join('');
+    // Sonnet 5.5 peut décliner une demande (stop_reason « refusal ») même après le repli serveur
+    if ((response.stop_reason as string) === 'refusal' && !finalText.trim()) {
+      console.warn('[claude] refus du modèle :', JSON.stringify((response as any).stop_details ?? {}));
+      finalText = "Je ne peux pas traiter cette demande telle quelle. Reformule-la autrement et je réessaie.";
+    }
 
     const citations = extractCitations(response.content);
     if (citations.length > 0) {
@@ -539,7 +573,7 @@ export async function chat(
   if (systemExtra) systemBlocks.push({ type: 'text', text: systemExtra });
 
   const response = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
+    model:      'claude-haiku-5-5',
     max_tokens: 1024,
     system:     systemBlocks,
     messages,
@@ -550,7 +584,7 @@ export async function chat(
     .map(b => (b as { type: 'text'; text: string }).text)
     .join('');
 
-  trackTokenUsage('claude-haiku-4-5', response.usage.input_tokens, response.usage.output_tokens).catch(() => {});
+  trackTokenUsage('claude-haiku-5-5', response.usage.input_tokens, response.usage.output_tokens).catch(() => {});
 
   return {
     text,
@@ -576,7 +610,7 @@ export async function chatStream(
   let stopReason   = 'end_turn';
 
   const stream = client.messages.stream({
-    model:      'claude-haiku-4-5-20251001',
+    model:      'claude-haiku-5-5',
     max_tokens: 1024,
     system:     systemBlocks,
     messages,
@@ -594,7 +628,7 @@ export async function chatStream(
     }
   }
 
-  trackTokenUsage('claude-haiku-4-5', inputTokens, outputTokens).catch(() => {});
+  trackTokenUsage('claude-haiku-5-5', inputTokens, outputTokens).catch(() => {});
   return { text: fullText, inputTokens, outputTokens, stopReason, toolsExecuted: [] };
 }
 
@@ -639,7 +673,7 @@ Retourne UNIQUEMENT un JSON valide:
 }`;
 
   const response = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
+    model:      'claude-haiku-5-5',
     max_tokens: 256,
     messages:   [{ role: 'user', content: prompt }],
   });
