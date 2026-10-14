@@ -604,11 +604,27 @@ async def poll_pending() -> None:
         await asyncio.sleep(POLL_S)
 
 
+class _ErrorCollector(logging.Handler):
+    """Garde les erreurs du service pour les remonter au backend (auto-test quotidien)."""
+    def __init__(self) -> None:
+        super().__init__(logging.ERROR)
+        self.items: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if len(self.items) < 20:
+            self.items.append(f'{record.name}: {record.getMessage()}'[:300])
+
+
+_errors = _ErrorCollector()
+logging.getLogger().addHandler(_errors)
+
+
 async def heartbeat() -> None:
-    """Signe de vie au backend toutes les minutes (alerte à Kouider s'il s'arrête)."""
+    """Signe de vie au backend toutes les minutes (alerte à Kouider s'il s'arrête) + erreurs récentes."""
     while True:
         try:
-            await api('/api/call/heartbeat', {'connected': app.is_connected}, 'kouider', 15)
+            errs, _errors.items = _errors.items, []
+            await api('/api/call/heartbeat', {'connected': app.is_connected, 'errors': errs}, 'kouider', 15)
         except Exception as e:
             log.warning('heartbeat: %s', e)
         await asyncio.sleep(60)

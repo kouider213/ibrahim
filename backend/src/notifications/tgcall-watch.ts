@@ -9,6 +9,16 @@ const BEAT_KEY = 'tgcall:heartbeat';
 const DOWN_KEY = 'tgcall:down';
 const DOWN_MIN = 5;
 
+/** Erreurs remontées par le service (log ERROR) : gardées 24 h pour l'auto-test (selftest). */
+export async function recordTgcallErrors(errors: string[]): Promise<void> {
+  if (!errors.length) return;
+  const now = new Date().toISOString();
+  const prev = JSON.parse((await kvGet('tgcall:errors')) ?? '[]') as Array<{ at: string; msg: string }>;
+  const keep = prev.filter(e => Date.now() - new Date(e.at).getTime() < 86_400_000)
+    .concat(errors.slice(0, 20).map(msg => ({ at: now, msg: String(msg).slice(0, 300) }))).slice(-30);
+  await kvSet('tgcall:errors', JSON.stringify(keep));
+}
+
 export async function recordTgcallHeartbeat(connected: boolean): Promise<void> {
   if (!connected) return;  // service vivant mais Telegram déconnecté = appels impossibles → compté comme panne
   await kvSet(BEAT_KEY, new Date().toISOString());

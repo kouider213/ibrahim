@@ -8,6 +8,8 @@ import { supabase } from './supabase.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
 import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
 import { listMyCapabilities } from './capabilities.js';
+import { selfTestTool } from './self-test.js';
+import { jobDbBackup } from './db-backup.js';
 import { createPresentationDoc } from './pro-doc.js';
 import { createDemoSite, getDemoSite } from './demo-site.js';
 import { carteDemoLink } from './bookings-import.js';
@@ -224,7 +226,7 @@ const FAIL_PHRASE_PATTERNS: RegExp[] = [
   /\bnot\s+found\b/i,  // English not-found
 ];
 
-function isToolFailureResult(result: string, toolName: string): boolean {
+export function isToolFailureResult(result: string, toolName: string): boolean {
   if (result.startsWith(`Outil inconnu: ${toolName}`)) return true;
   if (FAIL_START_PATTERNS.some(p => p.test(result)))   return true;
   if (FAIL_PHRASE_PATTERNS.some(p => p.test(result)))   return true;
@@ -366,6 +368,9 @@ async function _dispatch(
       case 'create_google_doc':         return await createGoogleDoc(input);
       case 'create_google_sheet':       return await createGoogleSheet(input);
       case 'list_my_capabilities':      return await listMyCapabilities(input);
+      case 'run_self_test':             return input['what'] === 'backup_now'
+        ? `💾 Sauvegarde faite : ${await jobDbBackup().catch(e => `❌ échec — ${e instanceof Error ? e.message : String(e)}`)}`
+        : await selfTestTool(input);
       case 'create_presentation_doc':   return createPresentationDoc(input);
       case 'create_demo_site':          return createDemoSite(input);
       case 'get_demo_site':             return await getDemoSite(input);

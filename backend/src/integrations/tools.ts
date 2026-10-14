@@ -2511,6 +2511,16 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'run_self_test',
+    description: "Ton AUTO-TEST et tes SAUVEGARDES. what='full' (défaut) : vérifie maintenant que tout marche (base, cerveau IA, ~16 outils en lecture seule, Gmail, agenda, sauvegardes, service Telegram, tâches auto, Nexus) — 1 à 2 min. what='last' : résultat du dernier auto-test (7h45 chaque matin). what='backup' : état des sauvegardes de la base (Drive pro + VPS, chaque nuit, 30 jours gardés). what='backup_now' : lance tout de suite une sauvegarde vers le Drive. Pour « tout marche ? », « fais un auto-test », « mes données sont sauvegardées ? », « fais une sauvegarde ».",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        what: { type: 'string', enum: ['full', 'last', 'backup', 'backup_now'], description: 'full (défaut), last, backup, backup_now' },
+      },
+    },
+  },
+  {
     name: 'create_presentation_doc',
     description: 'DOSSIER DE PRÉSENTATION soigné dans Google Docs, prêt à remettre (partenaire, client, investisseur, banque) : page de garde avec le logo FIK, résumé + sommaire avec les numéros de page, puis une partie par page, rédigée proprement. À utiliser pour « fais un document / dossier / présentation sur… », « un document bien écrit », « à présenter ». Mets dans material TOUTES les vraies infos (récupérées d\'abord avec les autres outils ou données par Kouider) : rien n\'est inventé. Prêt en 1 à 2 min ; le lien est envoyé tout seul sur Telegram et dans l\'app. Pour un dossier sur Dzaryx lui-même → list_my_capabilities output=google_doc.',
     input_schema: {

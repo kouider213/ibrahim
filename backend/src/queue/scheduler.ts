@@ -54,6 +54,8 @@ import { jobTeamTasks } from '../integrations/team-tasks.js';
 import { jobMemoryConsolidation } from '../integrations/memory-consolidation.js';
 import { jobPrivacyExpire } from '../integrations/privacy.js';
 import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
+import { jobDbBackup } from '../integrations/db-backup.js';
+import { jobSelfTest } from '../integrations/self-test.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -245,6 +247,16 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'db-backup',
+    cron:  '0 3 * * *',             // 3h — sauvegarde complète de la base → Drive pro (30 jours gardés)
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'self-test',
+    cron:  '45 7 * * *',            // 7h45 — auto-test en lecture seule ; message seulement si problème (+ résumé le lundi)
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'monthly-excel',
     cron:  '30 9 1 * *',            // 9h30 le 1er du mois — export Excel comptable auto
     tz:    'Africa/Algiers',
@@ -366,6 +378,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'maintenance-alert':       jobMaintenanceAlert,
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
+  'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
+  'db-backup':               async () => { console.log(`[db-backup] ${await jobDbBackup()}`); },
   'auto-call-flush':         async () => { await flushAutoCalls(); },
   'tgcall-watch':            async () => { await checkTgcallAlive(); },
   'client-birthdays':        async () => { await jobBirthdays(); },

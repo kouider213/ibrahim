@@ -11,7 +11,7 @@ import { Dzaryx_TOOLS } from '../../integrations/tools.js';
 import { kvGet, kvSet } from '../../integrations/app-store.js';
 import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
 import { isPrivate } from '../../integrations/privacy.js';
-import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
+import { recordTgcallHeartbeat, recordTgcallErrors } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
 import { clientWhatsappLink } from '../../notifications/client-care.js';
 import { quickBooking, quickPayment, quickQuote, quickAgenda, quickModifyBooking, quickEmailReply, quickContract } from '../../integrations/call-quick.js';
@@ -46,8 +46,13 @@ router.post('/pending', requireMobileAuth, async (req, res) => {
 
 // POST /api/call/heartbeat { connected } — battement du service d'appels Telegram (VPS), toutes les minutes
 router.post('/heartbeat', requireMobileAuth, async (req, res) => {
-  await recordTgcallHeartbeat((req.body as { connected?: boolean }).connected !== false)
+  const body = req.body as { connected?: boolean; errors?: unknown };
+  await recordTgcallHeartbeat(body.connected !== false)
     .catch(err => console.error('[call] heartbeat:', err instanceof Error ? err.message : err));
+  if (Array.isArray(body.errors)) {
+    await recordTgcallErrors(body.errors.map(String))
+      .catch(err => console.error('[call] erreurs tgcall:', err instanceof Error ? err.message : err));
+  }
   res.json({ ok: true });
 });
 
