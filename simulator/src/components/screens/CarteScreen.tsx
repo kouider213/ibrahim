@@ -4,7 +4,7 @@
 // En démo (?demo=carte) : données fictives, rien n'est chargé du serveur → offre FIK à montrer aux prospects.
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
 import { apiFetch, business, type Car, type Booking, type SmartReminder, type TodayItem, type SaleVehicle, type SiteProperty } from '../../services/api.ts';
-import { STATUS, ZONE_INFO, ALL_ZONES, buildCars, demoWorld, norm, type Status, type World, type ZoneId, type DemoKind, type Item } from '../carte/data.ts';
+import { STATUS, ZONE_INFO, ALL_ZONES, buildCars, demoWorld, norm, ymd, addDays, monthMoney, fmtMoney, moneyTag, type Status, type World, type ZoneId, type DemoKind, type Item, type Money } from '../carte/data.ts';
 import type { SceneApi, Pick } from '../carte/scene.ts';
 import AddRentals from '../carte/AddRentals.tsx';
 import CarSheet from '../carte/CarSheet.tsx';
@@ -50,6 +50,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const [fresh, setFresh] = useState<string[]>([]);      // animés sur la carte (quelques secondes)
   const [freshNote, setFreshNote] = useState<string[]>([]); // bandeau « Nouveau »
   const [demoArrival, setDemoArrival] = useState(false);
+  const [day, setDay] = useState(0);                     // barre de temps : 0 = aujourd'hui … +13 j
+  const [showMoney, setShowMoney] = useState(false);     // 💶 étiquettes argent sur la carte
+  const [month, setMonth] = useState(() => ymd(new Date()).slice(0, 7));
   const host = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const api = useRef<SceneApi | null>(null);
@@ -112,6 +115,21 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   // Démo : une nouvelle voiture arrive après quelques secondes, pour montrer l'effet au prospect
   useEffect(() => { if (!demo) return; const t = setTimeout(() => { setDemoArrival(true); setFresh(['car:demo-new', 'prop:p0', 'imp:i0', 'sale:s0']); }, 6000); return () => clearTimeout(t); }, [demo]);
 
+  const cash = useMemo(() => monthMoney(cars, bookings, month), [cars, bookings, month]);
+  // Barre de temps : pour chacun des 14 prochains jours, combien de voitures sont libres / dehors / partent / rentrent
+  const days = useMemo(() => {
+    if (demo) return [];
+    const t0 = ymd(new Date());
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = addDays(t0, i);
+      const o: Record<Status, number> = { dispo: 0, depart: 0, loue: 0, retour: 0, atelier: 0 };
+      buildCars(cars, bookings, [], new Map(), d).forEach(m => { o[m.status]++; });
+      return { d, ...o, out: o.loue + o.retour + o.depart };
+    });
+  }, [demo, cars, bookings]);
+  const when = day === 0 ? 'aujourd\'hui' : day === 1 ? 'demain' : `le ${fmtD(addDays(ymd(new Date()), day))}`;
+  const stLabel = (k: Status) => STATUS[k].label.replace('aujourd\'hui', when);
+
   const world = useMemo<World>(() => {
     if (demo) {
       const w = demoWorld(demo.kind, demo.brand);
@@ -119,8 +137,10 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       return { ...w, fresh };
     }
     const due = new Map((today?.toCollect ?? []).map(x => [x.id, x.due]));
-    return { brand: 'FIK CONCIERGERIE', zones: ALL_ZONES, cars: buildCars(cars, bookings, reminders, due), ...extra, fresh };
-  }, [demo, demoArrival, cars, bookings, reminders, today, extra, fresh]);
+    const list = buildCars(cars, bookings, reminders, due, addDays(ymd(new Date()), day));
+    if (showMoney) list.forEach(m => { m.money = moneyTag(cash.byCar.get(m.id)); });
+    return { brand: 'FIK CONCIERGERIE', zones: ALL_ZONES, cars: list, ...extra, fresh, showMoney };
+  }, [demo, demoArrival, cars, bookings, reminders, today, extra, fresh, day, showMoney, cash]);
   const freshText = useMemo(() => {
     if (demo) return '';
     const n = (p: string) => freshNote.filter(f => f.startsWith(p)).length;
@@ -182,7 +202,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       {sheet && !demo && (!sheet.id || sheetRaw) ? (
         <ItemSheet kind={sheet.kind} raw={sheetRaw} onClose={() => setSheet(null)} onChanged={() => void load()} onAsk={onAsk} />
       ) : car && !demo ? (
-        <CarSheet m={car} car={cars.find(c => c.id === car.id)} onClose={() => choose(null)} onChanged={() => void load()}
+        <CarSheet m={car} car={cars.find(c => c.id === car.id)} money={cash.byCar.get(car.id)} monthLabel={monthName(month)} actor={actor} onClose={() => choose(null)} onChanged={() => void load()}
           onAsk={onAsk} onOpen={onOpen} onRent={() => setAdding({ car: car.id })} />
       ) : car ? <>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -198,7 +218,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         ) : <div style={{ fontSize: 12.5, marginTop: 6, color: '#334155' }}>{car.status === 'atelier' ? 'À l\'atelier, aucune location en cours.' : 'Au parking — prête à partir.'}</div>}
         {car.alerts.slice(0, 2).map(a => <div key={a.id} style={{ fontSize: 11.5, marginTop: 5, color: a.priority === 'HIGH' ? '#b91c1c' : '#9a3412' }}>⚠️ {a.message}</div>)}
         <div style={{ fontSize: 11.5, marginTop: 7, color: '#64748b' }}>Dans la vraie version : tout se modifie ici (état, réparation, km, vidange, papiers, rappels, paiement…).</div>
-      </> : zone && <ZonePanel zone={zone} world={world} demo={!!demo} onClose={() => choose(null)} onOpen={onOpen} onAsk={onAsk}
+      </> : zone && <ZonePanel zone={zone} world={world} demo={!!demo} when={when} onClose={() => choose(null)} onOpen={onOpen} onAsk={onAsk}
         onCar={id => choose({ kind: 'car', id })} onAdd={() => setAdding({})} onItem={(kind, id) => setSheet({ kind, id })}
         demands={raws.dem.map(x => ({ id: x.id, label: String(x['title'] ?? 'Demande'), sub: [x['client_name'], x['status']].filter(Boolean).join(' · ') }))} />}
     </div>
@@ -219,6 +239,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         @keyframes dz3N { from { filter: brightness(1) } to { filter: brightness(1.25) } }
         .dz3-short { display: none } .dz3-compact .dz3-full { display: none } .dz3-compact .dz3-short { display: inline } .dz3-compact .dz3-zone { padding: 3px 7px; font-size: 11px }
         .dz3-price { background: #fef3c7; color: #92400e; font: 800 9.5px ${C.font}; padding: 2px 6px; border-radius: 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.15) }
+        .dz3-money { background: #fef3c7; color: #92400e; font: 800 10px ${C.font}; padding: 2px 6px; border-radius: 7px; white-space: nowrap; border: 1px solid #f59e0b; box-shadow: 0 2px 6px rgba(0,0,0,.2); cursor: pointer }
         @keyframes dz3P { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.7) } 50% { box-shadow: 0 0 0 7px rgba(239,68,68,0) } } .dz3-pulse { animation: dz3P 1.2s ease-in-out infinite }
       `}</style>
 
@@ -241,16 +262,21 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       {/* Jauge de la journée */}
       {world.cars.length > 0 && <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '11px 13px', marginBottom: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 7 }}>
-          <span>JAUGE DE LA JOURNÉE</span><span style={{ color: C.text }}>{out}/{world.cars.length} dehors · {Math.round(out / total * 100)}%</span>
+          <span>{day === 0 ? 'JAUGE DE LA JOURNÉE' : `PRÉVISION — ${when.toUpperCase()}`}</span><span style={{ color: C.text }}>{out}/{world.cars.length} dehors · {Math.round(out / total * 100)}%</span>
         </div>
         <div style={{ display: 'flex', height: 9, borderRadius: 6, overflow: 'hidden', background: '#27272a' }}>
           {(['loue', 'retour', 'depart', 'dispo', 'atelier'] as Status[]).map(k => counts[k] > 0 && <div key={k} style={{ width: `${counts[k] / total * 100}%`, background: STATUS[k].badge }} />)}
         </div>
-        {!demo && <div style={{ display: 'flex', gap: 14, marginTop: 9, fontSize: 12 }}>
+        {!demo && (day === 0 ? <div style={{ display: 'flex', gap: 14, marginTop: 9, fontSize: 12 }}>
           <span>🔑 <b>{today?.departures.length ?? counts.depart}</b> départs</span>
           <span>↩️ <b>{today?.returns.length ?? counts.retour}</b> retours</span>
           <span>💰 <b>{(today?.toCollect ?? []).reduce((s, x) => s + x.due, 0).toLocaleString('fr-FR')}</b> à encaisser</span>
-        </div>}
+        </div> : <div style={{ display: 'flex', gap: 14, marginTop: 9, fontSize: 12, flexWrap: 'wrap' }}>
+          <span>🔑 <b>{counts.depart}</b> départs</span>
+          <span>↩️ <b>{counts.retour}</b> retours</span>
+          <span style={{ color: counts.dispo === 0 ? C.red : undefined }}>🅿️ <b>{counts.dispo}</b> libre{counts.dispo > 1 ? 's' : ''}{counts.dispo === 0 ? ' — complet' : ''}</span>
+        </div>)}
+        {days.length > 0 && <TimeBar days={days} day={day} setDay={setDay} total={world.cars.length} />}
       </div>}
 
       {/* Faire entrer toutes les locations */}
@@ -278,6 +304,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
           <MapBtn onClick={() => api.current?.zoom(1.5)}>+</MapBtn>
           <MapBtn onClick={() => api.current?.zoom(1 / 1.5)}>−</MapBtn>
           <MapBtn onClick={() => { setPick(null); api.current?.reset(); }}>⌂</MapBtn>
+          {!demo && <MapBtn onClick={() => setShowMoney(v => !v)} on={showMoney}>💶</MapBtn>}
         </div>
         {full && <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.82)', color: '#fff', borderRadius: 12, padding: '7px 11px', fontFamily: C.font }}>
           <div style={{ fontSize: 10, letterSpacing: '0.16em', color: '#6ee7b7', fontWeight: 700 }}>CARTE LIVE</div>
@@ -289,6 +316,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 10.5, color: '#0f172a', opacity: 0.6, zIndex: 3, pointerEvents: 'none', fontFamily: C.font }}>
           1 doigt : déplacer · 2 doigts : zoom / tourner{full ? ' · souris : clic droit pour tourner' : ''}
         </div>
+        {day > 0 && <div onClick={() => setDay(0)} style={{ position: 'absolute', top: full ? 78 : 8, left: 8, zIndex: 3, background: '#4f46e5', color: '#fff', borderRadius: 12, padding: '6px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(79,70,229,.4)' }}>
+          🕒 {when.charAt(0).toUpperCase() + when.slice(1)} · revenir à aujourd'hui ✕
+        </div>}
         {full && panel && <div style={{ position: 'absolute', left: 8, right: 8, bottom: 26, zIndex: 4, maxWidth: 460, margin: '0 auto' }}>{panel}</div>}
       </div>
 
@@ -298,7 +328,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       {world.cars.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0 14px' }}>
         {(Object.keys(STATUS) as Status[]).map(k => (
           <button key={k} onClick={() => choose({ kind: 'zone', zone: ZONE_OF[k] })} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', borderRadius: 20, padding: '5px 10px', background: C.surface, color: C.text, border: `1px solid ${C.border}` }}>
-            <span style={{ width: 8, height: 8, borderRadius: 4, background: STATUS[k].badge }} />{STATUS[k].label} <b>{counts[k]}</b>
+            <span style={{ width: 8, height: 8, borderRadius: 4, background: STATUS[k].badge }} />{stLabel(k)} <b>{counts[k]}</b>
           </button>
         ))}
       </div>}
@@ -320,6 +350,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
           💬 Je veux la même pour mon entreprise
         </a>
       ) : <>
+        <MoneyCard money={cash} cars={world.cars} month={month} setMonth={setMonth} on={showMoney} toggle={() => setShowMoney(v => !v)}
+          onCar={id => choose({ kind: 'car', id })} onAsk={onAsk} />
+
         {/* Assistant */}
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 13px', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -362,16 +395,16 @@ function zoneCount(z: ZoneId, w: World): string {
   }
 }
 
-function ZonePanel({ zone, world, demo, onClose, onOpen, onAsk, onCar, onAdd, onItem, demands }: {
-  zone: ZoneId; world: World; demo: boolean; onClose: () => void; onOpen: (p: string) => void; onAsk: (p: string) => void; onCar: (id: string) => void; onAdd: () => void;
+function ZonePanel({ zone, world, demo, when, onClose, onOpen, onAsk, onCar, onAdd, onItem, demands }: {
+  zone: ZoneId; world: World; demo: boolean; when: string; onClose: () => void; onOpen: (p: string) => void; onAsk: (p: string) => void; onCar: (id: string) => void; onAdd: () => void;
   onItem: (kind: SheetKind, id: string | null) => void; demands: Item[];
 }) {
   const info = ZONE_INFO[zone];
   const cars = (s: Status[]) => world.cars.filter(c => s.includes(c.status));
   const list: Item[] | null =
-    zone === 'parking' ? cars(['depart', 'dispo']).map(c => ({ id: c.id, label: c.name, sub: c.status === 'depart' ? `Départ aujourd'hui · ${c.booking?.client_name ?? ''}` : 'Disponible' }))
+    zone === 'parking' ? cars(['depart', 'dispo']).map(c => ({ id: c.id, label: c.name, sub: c.status === 'depart' ? `Départ ${when} · ${c.booking?.client_name ?? ''}` : 'Disponible' }))
     : zone === 'atelier' ? cars(['atelier']).map(c => ({ id: c.id, label: c.name, sub: 'Indisponible' }))
-    : zone === 'ville' ? cars(['loue', 'retour']).map(c => ({ id: c.id, label: c.name, sub: `${c.booking?.client_name ?? ''} · ${c.status === 'retour' ? 'retour aujourd\'hui' : `jusqu'au ${c.booking ? fmtD(c.booking.end_date) : ''}`}` }))
+    : zone === 'ville' ? cars(['loue', 'retour']).map(c => ({ id: c.id, label: c.name, sub: `${c.booking?.client_name ?? ''} · ${c.status === 'retour' ? `retour ${when}` : `jusqu'au ${c.booking ? fmtD(c.booking.end_date) : ''}`}` }))
     : zone === 'vente' ? world.sales : zone === 'port' ? world.imports : zone === 'immo' ? world.properties : zone === 'packs' ? world.packs
     : zone === 'agence' && !demo ? demands : null;
   const isCar = zone === 'parking' || zone === 'atelier' || zone === 'ville';
@@ -455,9 +488,94 @@ function SellOffer({ onCopy }: { onCopy: (url: string) => void }) {
 function Top({ onClick, title, children }: { onClick: () => void; title: string; children: ReactNode }) {
   return <button onClick={onClick} title={title} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '7px 11px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 13 }}>{children}</button>;
 }
-function MapBtn({ onClick, children }: { onClick: () => void; children: ReactNode }) {
-  return <button onClick={onClick} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.94)', color: '#0f172a', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{children}</button>;
+function MapBtn({ onClick, on, children }: { onClick: () => void; on?: boolean; children: ReactNode }) {
+  return <button onClick={onClick} style={{ width: 34, height: 34, borderRadius: 10, border: on ? '2px solid #f59e0b' : 'none', background: on ? '#fef3c7' : 'rgba(255,255,255,0.94)', color: '#0f172a', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{children}</button>;
 }
 function Btn({ bg, fg, onClick, children }: { bg: string; fg: string; onClick: () => void; children: ReactNode }) {
   return <button onClick={onClick} style={{ background: bg, color: fg, border: 'none', borderRadius: 9, padding: '7px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{children}</button>;
+}
+
+const monthName = (m: string) => new Date(m + '-15T12:00:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+const shiftMonth = (m: string, n: number) => { const d = new Date(m + '-15T12:00:00'); d.setMonth(d.getMonth() + n); return ymd(d).slice(0, 7); };
+
+// Barre de temps : 14 jours, chaque colonne = part du parc dehors ce jour-là. Toucher un jour → la ville passe à ce jour.
+function TimeBar({ days, day, setDay, total }: { days: Array<{ d: string; dispo: number; depart: number; retour: number; out: number }>; day: number; setDay: (n: number) => void; total: number }) {
+  const t = Math.max(1, total);
+  return (
+    <div style={{ marginTop: 11 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 5 }}>
+        <span>🕒 BARRE DE TEMPS — TOUCHE UN JOUR</span><span>libres / {total}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(14, 1fr)', gap: 3 }}>
+        {days.map((x, i) => {
+          const full = x.dispo === 0, pct = x.out / t;
+          const dd = new Date(x.d + 'T12:00:00');
+          return (
+            <button key={x.d} onClick={() => setDay(i)} title={`${x.d} : ${x.out} dehors, ${x.dispo} libres, ${x.depart} départs, ${x.retour} retours`}
+              style={{ padding: 0, border: `1.5px solid ${day === i ? '#818cf8' : 'transparent'}`, borderRadius: 7, background: day === i ? '#312e81' : 'transparent', cursor: 'pointer', color: C.text, minWidth: 0 }}>
+              <div style={{ height: 34, display: 'flex', alignItems: 'flex-end', padding: '0 3px' }}>
+                <div style={{ width: '100%', height: `${Math.max(8, pct * 100)}%`, borderRadius: 3, background: full ? C.red : pct > 0.75 ? C.orange : '#3b82f6' }} />
+              </div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: i === 0 ? C.accent : C.muted, lineHeight: 1.1, paddingTop: 2 }}>{i === 0 ? 'auj' : dd.toLocaleDateString('fr-FR', { weekday: 'short' }).slice(0, 3)}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: full ? C.red : C.text, paddingBottom: 2 }}>{x.dispo}</div>
+            </button>
+          );
+        })}
+      </div>
+      <input type="range" min={0} max={days.length - 1} value={day} onChange={e => setDay(Number(e.target.value))} style={{ width: '100%', marginTop: 4, accentColor: '#818cf8' }} />
+    </div>
+  );
+}
+
+// L'argent du mois : chiffre d'affaires, bénéfice (seulement si prix propriétaire saisi), reste à encaisser, voitures qui dorment
+function MoneyCard({ money, cars, month, setMonth, on, toggle, onCar, onAsk }: {
+  money: { byCar: Map<string, Money>; total: Money }; cars: World['cars']; month: string; setMonth: (m: string) => void;
+  on: boolean; toggle: () => void; onCar: (id: string) => void; onAsk: (p: string) => void;
+}) {
+  const t = money.total;
+  const ranked = cars.map(c => ({ c, m: money.byCar.get(c.id) })).filter((x): x is { c: World['cars'][number]; m: Money } => !!x.m);
+  const val = (m: Money) => m.ca['€'] + m.ca['DA'] / 250; // tri seulement (≈ taux), jamais affiché
+  const top = ranked.filter(x => x.m.days).sort((a, b) => val(b.m) - val(a.m)).slice(0, 3);
+  const asleep = ranked.filter(x => !x.m.days);
+  const known = t.rentals - t.noOwner;
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 13px', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, flex: 1 }}>💶 L'argent — {monthName(month)}</div>
+        <button onClick={() => setMonth(shiftMonth(month, -1))} style={mbtn}>‹</button>
+        <button onClick={() => setMonth(shiftMonth(month, 1))} style={mbtn}>›</button>
+        <button onClick={toggle} style={{ ...mbtn, width: 'auto', padding: '0 9px', background: on ? '#f59e0b' : 'transparent', color: on ? '#1c1917' : C.gold, borderColor: `${C.gold}66` }}>{on ? '✓ Sur la carte' : 'Sur la carte'}</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+        <Stat k="Chiffre d'affaires" v={fmtMoney(t.ca)} sub={`${t.rentals} loc. · ${t.days} j`} />
+        <Stat k="Bénéfice" v={known ? fmtMoney(t.profit) : 'inconnu'} sub={t.noOwner ? `${t.noOwner} loc. sans prix propriétaire` : 'complet'} warn={t.noOwner > 0} />
+        <Stat k="Reste à encaisser" v={fmtMoney(t.due)} warn={t.due['€'] + t.due['DA'] > 0} />
+      </div>
+      {t.noOwner > 0 && <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
+        Bénéfice = (prix client − prix propriétaire) × jours. {known ? 'Le chiffre ci-dessus ne compte que les locations où le prix propriétaire est saisi.' : 'Aucune location de ce mois n\'a de prix propriétaire : ajoute-le dans la réservation pour voir le bénéfice.'}
+      </div>}
+      {top.length > 0 && <div style={{ marginTop: 9 }}>
+        <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 3 }}>CE QUI RAPPORTE</div>
+        {top.map(({ c, m }) => <div key={c.id} onClick={() => onCar(c.id)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderTop: `1px solid ${C.border}`, cursor: 'pointer' }}>
+          <b>{c.name}</b><span>{fmtMoney(m.ca)} · {m.days} j{m.due['€'] + m.due['DA'] ? <span style={{ color: C.orange }}> · reste {fmtMoney(m.due)}</span> : ''} ›</span>
+        </div>)}
+      </div>}
+      {asleep.length > 0 && <div style={{ marginTop: 8 }}>
+        <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 4 }}>💤 QUI DORT (0 jour loué ce mois)</div>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {asleep.slice(0, 12).map(({ c }) => <button key={c.id} onClick={() => onCar(c.id)} style={{ fontSize: 11.5, borderRadius: 14, padding: '4px 9px', cursor: 'pointer', border: `1px solid ${C.border}`, background: 'transparent', color: C.text }}>{c.name}</button>)}
+        </div>
+        <button onClick={() => onAsk(`Ces voitures n'ont aucun jour loué en ${monthName(month)} : ${asleep.map(x => x.c.name).join(', ')}. Pourquoi, et comment les louer vite (prix, pub, clients à relancer) ?`)}
+          style={{ marginTop: 7, background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 9, padding: '5px 10px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 11.5 }}>✨ Comment les faire rouler ?</button>
+      </div>}
+    </div>
+  );
+}
+const mbtn: CSSProperties = { width: 28, height: 26, borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.text, cursor: 'pointer', fontSize: 13, fontWeight: 800 };
+function Stat({ k, v, sub, warn }: { k: string; v: string; sub?: string; warn?: boolean }) {
+  return <div style={{ background: '#0f0f14', borderRadius: 10, padding: '7px 8px', minWidth: 0 }}>
+    <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{k}</div>
+    <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2, color: warn && k !== 'Bénéfice' ? C.orange : C.text, overflowWrap: 'anywhere' }}>{v}</div>
+    {sub && <div style={{ fontSize: 10, color: warn ? C.orange : C.muted, marginTop: 1 }}>{sub}</div>}
+  </div>;
 }

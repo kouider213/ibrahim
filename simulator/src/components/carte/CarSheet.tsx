@@ -2,8 +2,9 @@
 // État (dispo / réparation / indispo + motif), location en cours (payé, prolonger, terminer),
 // km, vidange, papiers, notes, et rappels datés (« vidange à prévoir ») envoyés sur Telegram + app.
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { business, type Booking, type Car, type CarReminder } from '../../services/api.ts';
-import { STATUS, ymd, type MapCar } from './data.ts';
+import { business, getOrCreateSessionId, type Booking, type Car, type CarReminder, type InspectionResult } from '../../services/api.ts';
+import { STATUS, ymd, fmtMoney, type MapCar, type Money } from './data.ts';
+import { InspectionModal } from '../screens/FleetScreen.tsx';
 import { errMsg } from './AddRentals.tsx';
 
 export const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 8px', color: '#0f172a', fontSize: 12.5 };
@@ -12,17 +13,38 @@ const addDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n
 const daysTo = (s?: string | null) => (s ? Math.round((new Date(s.slice(0, 10) + 'T12:00:00').getTime() - Date.now()) / 86_400_000) : null);
 const SUGGEST = ['Vidange à prévoir', 'Contrôle technique', 'Assurance à renouveler', 'Pneus à vérifier', 'Nettoyage complet', 'Récupérer au garage'];
 
-export default function CarSheet({ m, car, onClose, onChanged, onAsk, onOpen, onRent }: {
-  m: MapCar; car: Car | undefined; onClose: () => void; onChanged: () => void;
-  onAsk: (p: string) => void; onOpen: (p: string) => void; onRent: () => void;
+export default function CarSheet({ m, car, money, monthLabel, onClose, onChanged, onAsk, onOpen, onRent }: {
+  m: MapCar; car: Car | undefined; money?: Money; monthLabel?: string; onClose: () => void; onChanged: () => void;
+  onAsk: (p: string) => void; onOpen: (p: string) => void; onRent: () => void; actor?: string;
 }) {
+  const [insp, setInsp] = useState<'before' | 'after' | null>(null);
+  const [damage, setDamage] = useState<string[] | null>(null); // dégâts trouvés au retour → proposer l'atelier
   const [tab, setTab] = useState<'info' | 'etat' | 'rappels'>('info');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [rem, setRem] = useState<CarReminder[] | null>(null);
   const b = m.booking;
 
-  useEffect(() => { setTab('info'); setMsg(''); setRem(null); }, [m.id]);
+  useEffect(() => { setTab('info'); setMsg(''); setRem(null); setDamage(null); setInsp(null); }, [m.id]);
+
+  // Résultat de l'état des lieux : au retour, un dégât NOUVEAU (ou un choc) → proposer réparation + rappel
+  const onInspect = (r: InspectionResult, mode: 'before' | 'after') => {
+    const boxes = r.analysis?.damageBoxes ?? [];
+    const found = (mode === 'after' ? boxes.filter(d => d.is_new) : []).map(d => d.label);
+    if (r.analysis?.accident && !found.length) found.push('Choc / accident détecté');
+    setDamage(found.length ? found : null);
+    setMsg(found.length ? '' : `✓ État des lieux ${mode === 'before' ? 'de départ' : 'de retour'} enregistré${mode === 'after' ? ' — aucun nouveau dégât' : ''}`);
+  };
+  const sendToRepair = () => {
+    if (!damage) return;
+    const what = damage.slice(0, 3).join(', ');
+    void run(async () => {
+      await business.updateCar(m.id, { available: false, maintenance_note: `🔧 Carrosserie : ${what}`.slice(0, 200) });
+      const d = new Date(); d.setDate(d.getDate() + 2);
+      await business.addCarReminder(m.id, { message: `Réparer : ${what}${b ? ` (retour de ${b.client_name})` : ''}`, date: ymd(d), time: '09:00' });
+      setDamage(null);
+    }, 'Voiture passée en réparation + rappel dans 2 jours');
+  };
   useEffect(() => {
     if (tab !== 'rappels' || rem) return;
     void business.carReminders(m.id).then(r => setRem(r.reminders ?? [])).catch(() => setRem([]));
@@ -75,8 +97,23 @@ export default function CarSheet({ m, car, onClose, onChanged, onAsk, onOpen, on
           })}
           {car?.service_notes && <div>📝 {car.service_notes}</div>}
         </div>
+        {money && <div style={{ fontSize: 12, marginTop: 7, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 9, padding: '6px 8px', color: '#78350f', lineHeight: 1.45 }}>
+          💶 <b>{monthLabel}</b> : {money.days ? <>{fmtMoney(money.ca)} · {money.days} jour{money.days > 1 ? 's' : ''} loué{money.days > 1 ? 's' : ''}
+            {' · '}bénéfice {money.rentals - money.noOwner ? fmtMoney(money.profit) : 'inconnu'}{money.noOwner && money.rentals - money.noOwner ? ` (+${money.noOwner} loc. sans prix propriétaire)` : ''}
+            {money.due['€'] + money.due['DA'] > 0 && <b style={{ color: '#b45309' }}> · reste {fmtMoney(money.due)}</b>}</>
+            : <b>💤 0 jour loué — elle dort</b>}
+        </div>}
         {m.alerts.slice(0, 3).map(a => <div key={a.id} style={{ fontSize: 11.5, marginTop: 5, color: a.priority === 'HIGH' ? '#b91c1c' : '#9a3412' }}>⚠️ {a.message}</div>)}
+        {damage && <div style={{ marginTop: 8, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 9, padding: '8px 9px', fontSize: 12, color: '#7f1d1d' }}>
+          🚨 <b>Nouveau dégât au retour</b> : {damage.slice(0, 4).join(' · ')}
+          <div style={{ display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap' }}>
+            <Btn bg="#b91c1c" fg="#fff" disabled={busy} onClick={sendToRepair}>🔧 Mettre en réparation + rappel</Btn>
+            {b && <Btn bg="#ede9fe" fg="#6d28d9" onClick={() => onAsk(`Au retour de la ${m.name}, l'état des lieux montre : ${damage.join(', ')}. Client ${b.client_name}. Estime le coût et rédige le message WhatsApp au client.`)}>✨ Coût + message client</Btn>}
+            <Btn bg="#f1f5f9" fg="#334155" onClick={() => setDamage(null)}>Ignorer</Btn>
+          </div>
+        </div>}
         <div style={{ display: 'flex', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
+          <Btn bg="#fff7ed" fg="#c2410c" onClick={() => setInsp(m.status === 'retour' || m.status === 'loue' ? 'after' : 'before')}>📸 État des lieux {m.status === 'retour' || m.status === 'loue' ? 'retour' : 'départ'}</Btn>
           {b?.client_phone && <>
             <Btn bg="#dcfce7" fg="#15803d" onClick={() => wa(b.client_phone)}>💬 WhatsApp</Btn>
             <Btn bg="#e0f2fe" fg="#0369a1" onClick={() => { window.location.href = `tel:${b.client_phone}`; }}>📞 Appeler</Btn>
@@ -93,6 +130,8 @@ export default function CarSheet({ m, car, onClose, onChanged, onAsk, onOpen, on
 
       {tab === 'rappels' && <Reminders carId={m.id} list={rem} busy={busy} setList={setRem} run={run} />}
 
+      {insp && <InspectionModal kind="vehicle" subject={m.name} sessionId={getOrCreateSessionId()} fixed initialMode={insp}
+        initialClient={b?.client_name ?? ''} onResult={onInspect} onClose={() => setInsp(null)} />}
       {msg && <div style={{ fontSize: 12, marginTop: 8, fontWeight: 600, color: msg.startsWith('✓') ? '#047857' : '#b91c1c' }}>{msg}</div>}
     </div>
   );

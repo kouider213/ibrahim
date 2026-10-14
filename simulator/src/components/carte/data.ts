@@ -15,6 +15,7 @@ export type ZoneId = 'agence' | 'parking' | 'atelier' | 'ville' | 'vente' | 'por
 export interface MapCar {
   id: string; name: string; status: Status; booking: Booking | null;
   due: number; alerts: SmartReminder[]; badge: { t: string; c: string } | null;
+  money?: string;      // étiquette argent du mois (mode 💶 de la carte)
 }
 export interface Item { id: string; label: string; sub?: string }
 
@@ -31,6 +32,7 @@ export interface World {
   prospects: number;   // sociétés démarchées
   replies: number;     // réponses de prospects
   fresh?: string[];    // nouveautés depuis la dernière visite (car:/sale:/prop:/imp:<id>) → animées
+  showMoney?: boolean; // affiche l'étiquette argent au-dessus de chaque voiture
 }
 
 export const ALL_ZONES: ZoneId[] = ['agence', 'parking', 'atelier', 'ville', 'vente', 'port', 'immo', 'packs', 'aeroport', 'b2b', 'web'];
@@ -53,8 +55,9 @@ const ACTIVE = ['ACCEPTED', 'CONFIRMED', 'ACTIVE', 'COMPLETED'];
 export const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
-export function buildCars(cars: Car[], bookings: Booking[], reminders: SmartReminder[], dueById: Map<string, number>): MapCar[] {
-  const t = ymd(new Date());
+// t = jour affiché (barre de temps) : statut de chaque voiture ce jour-là.
+// L'atelier reste l'état actuel (on ne sait pas quand une réparation finit).
+export function buildCars(cars: Car[], bookings: Booking[], reminders: SmartReminder[], dueById: Map<string, number>, t = ymd(new Date())): MapCar[] {
   const live = bookings.filter(b => ACTIVE.includes((b.status ?? '').toUpperCase()) && b.start_date <= t && b.end_date >= t);
   return cars.map<MapCar>(car => {
     const mine = live.filter(b => (b.car_id ? b.car_id === car.id : norm(b.cars?.name) === norm(car.name)));
@@ -68,6 +71,46 @@ export function buildCars(cars: Car[], bookings: Booking[], reminders: SmartRemi
     return { id: car.id, name: car.name, status, booking, due, alerts, badge };
   });
 }
+
+export const addDays = (d: string, n: number) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); };
+
+// ── Argent du mois ────────────────────────────────────────────────────────────
+// Même règle que le serveur (finance.ts) : jours inclus (départ + retour), prix client/jour = client_price_per_day
+// sinon final_price / jours ; bénéfice = (prix client − prix propriétaire) × jours, UNIQUEMENT si le prix
+// propriétaire est saisi sur la location (jamais pris du catalogue) → sinon « bénéfice inconnu ».
+export type Cur = '€' | 'DA';
+export interface Money { ca: Record<Cur, number>; profit: Record<Cur, number>; due: Record<Cur, number>; days: number; rentals: number; noOwner: number }
+const zero = (): Money => ({ ca: { '€': 0, 'DA': 0 }, profit: { '€': 0, 'DA': 0 }, due: { '€': 0, 'DA': 0 }, days: 0, rentals: 0, noOwner: 0 });
+const span = (a: string, b: string) => Math.max(0, Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86_400_000) + 1);
+
+export function monthMoney(cars: Car[], bookings: Booking[], month: string /* YYYY-MM */): { byCar: Map<string, Money>; total: Money } {
+  const m0 = `${month}-01`;
+  const m1 = addDays(addDays(m0, 32).slice(0, 7) + '-01', -1);
+  const byCar = new Map<string, Money>(cars.map(c => [c.id, zero()]));
+  const total = zero();
+  for (const b of bookings) {
+    if (!ACTIVE.includes((b.status ?? '').toUpperCase()) || b.end_date < m0 || b.start_date > m1) continue;
+    const car = cars.find(c => (b.car_id ? c.id === b.car_id : norm(c.name) === norm(b.cars?.name)));
+    const days = b.nb_days && b.nb_days > 0 ? b.nb_days : span(b.start_date, b.end_date);
+    const inMonth = Math.min(days, span(b.start_date < m0 ? m0 : b.start_date, b.end_date > m1 ? m1 : b.end_date));
+    const cur: Cur = (b as Booking & { currency?: string }).currency === 'DZD' ? 'DA' : '€';
+    const cppd = b.client_price_per_day && b.client_price_per_day > 0 ? b.client_price_per_day : b.final_price != null ? b.final_price / days : null;
+    const oppd = b.owner_price_per_day && b.owner_price_per_day > 0 ? b.owner_price_per_day : null;
+    const paid = Number(b.paid_amount ?? (b.payment_status === 'PAID' ? b.final_price : 0)) || 0;
+    const due = b.payment_status === 'PAID' || b.final_price == null ? 0 : Math.max(0, b.final_price - paid);
+    for (const acc of car ? [byCar.get(car.id)!, total] : [total]) {
+      acc.rentals++; acc.days += inMonth; acc.due[cur] += due;
+      if (cppd != null) acc.ca[cur] += cppd * inMonth;
+      if (cppd != null && oppd != null) acc.profit[cur] += (cppd - oppd) * inMonth; else acc.noOwner++;
+    }
+  }
+  const round = (o: Money) => { (['ca', 'profit', 'due'] as const).forEach(k => { o[k]['€'] = Math.round(o[k]['€']); o[k]['DA'] = Math.round(o[k]['DA']); }); };
+  byCar.forEach(round); round(total);
+  return { byCar, total };
+}
+export const fmtMoney = (r: Record<Cur, number>) => (['€', 'DA'] as const).filter(c => r[c]).map(c => `${r[c].toLocaleString('fr-FR')} ${c}`).join(' + ') || '0 €';
+// Étiquette courte au-dessus de la voiture : CA du mois, ou « dort » si aucun jour loué
+export const moneyTag = (m: Money | undefined) => (!m || !m.days ? '💤 0 jour' : `${fmtMoney(m.ca)}${m.due['€'] || m.due['DA'] ? ' · reste' : ''}`);
 
 export function badgeOf(status: Status, due: number, alerts: SmartReminder[]) {
   return alerts.some(a => a.priority === 'HIGH') ? { t: '!', c: '#ef4444' }

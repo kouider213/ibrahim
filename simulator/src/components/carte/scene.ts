@@ -342,6 +342,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   // Nouveautés : la voiture arrive en roulant, le bien pousse du sol, le conteneur descend sur le bateau
   let spawns: Array<{ o: THREE.Object3D; kind: 'drive' | 'grow' | 'drop'; from: THREE.Vector3; to: THREE.Vector3; t0: number; dur: number }> = [];
   let fresh = new Set<string>();
+  let showMoney = false;
   const born = (o: THREE.Object3D, kind: 'drive' | 'grow' | 'drop', from: THREE.Vector3, dur: number, text: string, y: number) => {
     spawns.push({ o, kind, from, to: o.position.clone(), t0: performance.now() + Math.random() * 600, dur });
     if (kind === 'drive') o.position.copy(from);
@@ -370,6 +371,10 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
       if (m.badge.c === '#ef4444') b.element.classList.add('dz3-pulse');
       b.position.set(0, 2.2, 0); g.add(b);
     }
+    if (showMoney && m.money) {
+      const t = label(m.money, 'dz3-money', () => onPick({ kind: 'car', id: m.id }));
+      t.position.set(0, m.badge ? 3 : 2.2, 0); g.add(t);
+    }
     if (moving) movers.push({ g, s: moving.s, v: moving.v });
     carPos.set(m.id, g.position);
     if (fresh.has(`car:${m.id}`)) {
@@ -381,6 +386,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const update = (w: World) => {
     clearDyn();
     fresh = new Set(w.fresh ?? []);
+    showMoney = !!w.showMoney;
     zones = w.zones;
     const on = (z: ZoneId) => zones.includes(z);
     world.children.forEach(o => {

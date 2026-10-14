@@ -902,11 +902,12 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-export function InspectionModal({ kind, subject, sessionId, onClose }: {
+export function InspectionModal({ kind, subject, sessionId, onClose, initialMode = 'before', initialClient = '', onResult, fixed }: {
   kind: 'vehicle' | 'property'; subject: string; sessionId: string; onClose: () => void;
+  initialMode?: 'before' | 'after'; initialClient?: string; onResult?: (r: InspectionResult, mode: 'before' | 'after') => void; fixed?: boolean;
 }) {
-  const [mode, setMode]     = useState<'before' | 'after'>('before');
-  const [client, setClient] = useState('');
+  const [mode, setMode]     = useState<'before' | 'after'>(initialMode);
+  const [client, setClient] = useState(initialClient);
   const [busy, setBusy]     = useState(false);
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [err, setErr]       = useState('');
@@ -934,7 +935,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
         mode, client_name: client.trim(), subject,
         images, mime: 'image/jpeg', session_id: sessionId,
       });
-      if (r.success) setResult(r);
+      if (r.success) { setResult(r); onResult?.(r, mode); }
       else setErr(r.message || 'Échec de l\'analyse');
     } catch {
       setErr('Erreur réseau. Réessaie.');
@@ -945,7 +946,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose }: {
   const photos: string[]   = result?.photos ?? (result?.photoUrl ? [result.photoUrl] : []);
 
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.94)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+    <div style={{ position: fixed ? 'fixed' : 'absolute', inset: 0, zIndex: fixed ? 1200 : 50, background: 'rgba(0,5,15,0.94)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
       <div style={{ background: 'linear-gradient(135deg, #161618, #101012)', border: '1px solid #ffb34733', borderRadius: 18, padding: 18, width: '92%', maxWidth: 320, maxHeight: '92%', overflowY: 'auto', boxShadow: '0 0 40px rgba(255,179,71,0.12)' }}>
         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#ffb347', letterSpacing: '0.2em', textAlign: 'center' }}>{title}</div>
         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ffffff66', letterSpacing: '0.1em', marginBottom: 14, textAlign: 'center' }}>{subject.toUpperCase()}</div>

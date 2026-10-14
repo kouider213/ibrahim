@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-14 (soir 9) — Carte live : barre de temps, argent, état des lieux, commandes vocales | app SW v135
+
+- **Barre de temps** : 14 jours, une colonne par jour (part du parc dehors, voitures libres, rouge = complet). Toucher un jour → la ville 3D passe à ce jour (départs, retours, parking). L'atelier reste l'état actuel.
+- **L'argent du mois** (‹ › pour changer de mois) : chiffre d'affaires, bénéfice, reste à encaisser, top 3 et voitures qui dorment. Même règle que finance.ts : jours inclus, bénéfice = (prix client − prix propriétaire) × jours uniquement si owner_price_per_day est saisi sur la location, sinon « inconnu ». Bouton 💶 : étiquettes argent au-dessus de chaque voiture.
+- **Fiche voiture** : ligne argent du mois + 📸 état des lieux départ/retour (InspectionModal réutilisé). Nouveau dégât au retour → un toucher : voiture en réparation (🔧 Carrosserie : …) + rappel J+2 ; ✨ coût + message client.
+- **Voix** : `update_car` accepte `state` (disponible/reparation/indisponible) + `reason` ; nouvel outil `update_import_status` (client/véhicule/réf → étape REQUESTED…DELIVERED + note, via /api/update-import-order du site).
+
 ## 2026-10-14 (soir 8) — Carte live 3D : tous les métiers, tout modifiable | app SW v134
 
 - **Carte en vraie 3D (three.js)** — `simulator/src/components/carte/scene.ts` : agence, parking location agrandi,

@@ -1867,7 +1867,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'update_car',
-    description: 'Mettre à jour un véhicule EXISTANT: disponibilité, prix, nom, places, carburant, transmission, image, description. Utiliser quand Kouider dit "la Clio est disponible", "change le prix du Duster à 80€/j", "ajoute une photo au Sandero".',
+    description: 'Mettre à jour un véhicule EXISTANT: état (disponible / en réparation / indisponible + motif), prix, nom, places, carburant, transmission, image, description. Utiliser quand Kouider dit "la Clio est disponible", "mets la Golf en réparation, embrayage", "le Duster est indispo, papiers", "change le prix du Duster à 80€/j", "ajoute une photo au Sandero". La Carte live se met à jour toute seule.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1883,7 +1883,22 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         fuel:         { type: 'string',  description: 'Carburant: essence, diesel, électrique, hybride' },
         transmission: { type: 'string',  description: 'Transmission: manuelle, automatique' },
         image_url:    { type: 'string',  description: 'URL de la photo principale' },
+        state:        { type: 'string',  enum: ['disponible', 'reparation', 'indisponible'], description: 'État sur la carte : disponible, en réparation (atelier) ou indisponible pour une autre raison' },
+        reason:       { type: 'string',  description: 'Motif si réparation/indisponible (ex. "embrayage", "chez le garagiste", "papiers")' },
       },
+    },
+  },
+  {
+    name: 'update_import_status',
+    description: 'Changer l\'étape d\'une importation de véhicule (commande import_orders du site) et/ou ajouter une note interne. Utiliser quand Kouider dit "l\'import de Fethi est en douane", "la Golf de Karim est sur le bateau", "l\'A3 est livrée". Le client est prévenu automatiquement par le site. La Carte live se met à jour toute seule.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query:  { type: 'string', description: 'Nom du client, véhicule (marque/modèle) ou référence de la commande' },
+        status: { type: 'string', enum: ['REQUESTED', 'SEARCHING', 'FOUND', 'PURCHASED', 'SHIPPING', 'CUSTOMS', 'READY', 'DELIVERED'], description: 'Étape : REQUESTED demande reçue, SEARCHING recherche, FOUND trouvé, PURCHASED acheté, SHIPPING en mer/bateau, CUSTOMS douane, READY prêt, DELIVERED livré' },
+        note:   { type: 'string', description: 'Note interne optionnelle (ajoutée aux notes admin)' },
+      },
+      required: ['query'],
     },
   },
 

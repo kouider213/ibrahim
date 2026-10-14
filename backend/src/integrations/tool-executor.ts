@@ -475,6 +475,7 @@ async function _dispatch(
       case 'calculate_delivery_fee':     return await calculateDeliveryFeeTool(input);
       case 'export_accounting':          return await exportAccountingPDF(input);
       case 'update_car':                 return await updateCarTool(input);
+      case 'update_import_status':       return await updateImportStatusTool(input);
       case 'add_car':                    return await addCarTool(input, sessionId);
       case 'delete_car':                 return await deleteCarTool(input);
       // ─── ANALYTICS SITE ───
@@ -6256,6 +6257,14 @@ async function updateCarTool(input: Record<string, unknown>): Promise<string> {
   if (input['fuel']          !== undefined) updates['fuel']          = input['fuel'];
   if (input['transmission']  !== undefined) updates['transmission']  = input['transmission'];
   if (input['image_url']     !== undefined) updates['image_url']     = input['image_url'];
+  // État de la Carte live : « 🔧 motif » = atelier/réparation, motif simple = indisponible
+  const state = input['state'] as string | undefined;
+  if (state) {
+    const reason = String(input['reason'] ?? '').trim();
+    updates['available'] = state === 'disponible';
+    updates['maintenance_note'] = state === 'disponible' ? null
+      : state === 'reparation' ? `🔧 ${reason || 'En réparation'}` : (reason || 'Indisponible');
+  }
 
   if (Object.keys(updates).length === 0) return '❌ Aucun champ à mettre à jour fourni';
 
@@ -6263,19 +6272,66 @@ async function updateCarTool(input: Record<string, unknown>): Promise<string> {
     .from('cars')
     .update(updates)
     .eq('id', carId)
-    .select('name, available, base_price, resale_price')
+    .select('name, available, base_price, resale_price, maintenance_note')
     .single();
 
   if (error) return `❌ Erreur mise à jour: ${error.message}`;
 
-  const car = data as { name: string; available: boolean; base_price: number; resale_price: number };
+  const car = data as { name: string; available: boolean; base_price: number; resale_price: number; maintenance_note: string | null };
   const lines = [
     `✅ ${car.name} mis à jour`,
-    `📍 Statut: ${car.available ? '✅ DISPONIBLE' : '🔒 EN LOCATION / INDISPONIBLE'}`,
+    `📍 Statut: ${car.available ? '✅ DISPONIBLE' : car.maintenance_note?.startsWith('🔧') ? `🔧 EN RÉPARATION (${car.maintenance_note.replace(/^🔧\s*/, '')})` : `🔒 INDISPONIBLE${car.maintenance_note ? ` (${car.maintenance_note})` : ''}`}`,
     car.base_price   != null ? `💶 Prix client: ${car.base_price}€/j` : '',
     car.resale_price != null ? `🏠 Prix proprio: ${car.resale_price}€/j` : '',
   ].filter(Boolean);
   return lines.join('\n');
+}
+
+// ─── IMPORTS : étape d'une commande (via l'API du site → email/WhatsApp client auto) ──
+
+const IMPORT_STAGE_FR: Record<string, string> = {
+  REQUESTED: 'Demande reçue', SEARCHING: 'Recherche', FOUND: 'Trouvé', PURCHASED: 'Acheté',
+  SHIPPING: 'En mer', CUSTOMS: 'Douane', READY: 'Prêt', DELIVERED: 'Livré',
+};
+
+async function updateImportStatusTool(input: Record<string, unknown>): Promise<string> {
+  const q = String(input['query'] ?? '').trim();
+  const status = input['status'] as string | undefined;
+  const note = String(input['note'] ?? '').trim();
+  if (!q) return '❌ query requis (client, véhicule ou référence)';
+  if (!status && !note) return '❌ Donne une étape (status) ou une note';
+  if (status && !IMPORT_STAGE_FR[status]) return `❌ Étape inconnue: ${status}`;
+
+  const { data } = await supabase.from('import_orders')
+    .select('id, order_ref, status, client_name, vehicle_brand, vehicle_model, vehicle_year, notes_admin')
+    .order('created_at', { ascending: false }).limit(200);
+  type Imp = { id: string; order_ref: string | null; status: string | null; client_name: string | null; vehicle_brand: string | null; vehicle_model: string | null; vehicle_year: number | null; notes_admin: string | null };
+  const rows = (data ?? []) as Imp[];
+  if (!rows.length) return '❌ Aucune importation enregistrée';
+  const words = q.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  const hay = (o: Imp) => [o.order_ref, o.client_name, o.vehicle_brand, o.vehicle_model, o.vehicle_year].filter(Boolean).join(' ').toLowerCase();
+  const hits = rows.filter(o => words.every(w => hay(o).includes(w)));
+  const open = hits.filter(o => o.status !== 'DELIVERED' && o.status !== 'CANCELLED');
+  const pick = open.length ? open : hits;
+  if (!pick.length) return `❌ Aucune importation ne correspond à "${q}"`;
+  const label = (o: Imp) => `${[o.vehicle_brand, o.vehicle_model, o.vehicle_year].filter(Boolean).join(' ') || 'Import'} · ${o.client_name ?? '?'}${o.order_ref ? ` (${o.order_ref})` : ''}`;
+  if (pick.length > 1) return `⚠️ Plusieurs importations correspondent à "${q}" — précise :\n${pick.slice(0, 6).map(o => `• ${label(o)} — ${IMPORT_STAGE_FR[o.status ?? ''] ?? o.status}`).join('\n')}`;
+
+  const o = pick[0]!;
+  const patch: Record<string, unknown> = {};
+  if (status) patch['status'] = status;
+  if (note) patch['notes_admin'] = [o.notes_admin, `${new Date().toISOString().slice(0, 10)} : ${note}`].filter(Boolean).join('\n');
+  const site = process.env['FIK_SITE_URL'] || 'https://fikconciergerie.com';
+  try {
+    const r = await fetch(`${site}/api/update-import-order`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: o.id, patch }),
+    });
+    if (!r.ok) return `❌ Le site a refusé la mise à jour (${r.status})`;
+  } catch (e) { return `❌ Site injoignable: ${(e as Error).message}`; }
+  return [`✅ ${label(o)}`,
+    status ? `🚢 Étape: ${IMPORT_STAGE_FR[o.status ?? ''] ?? o.status ?? '—'} → ${IMPORT_STAGE_FR[status]}` : '',
+    note ? `📝 Note ajoutée` : ''].filter(Boolean).join('\n');
 }
 
 // ─── ANALYTICS SITE FIK ─────────────────────────────────────────────────────

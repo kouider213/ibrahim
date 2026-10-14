@@ -84,7 +84,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     'list_bookings','create_booking','update_booking','cancel_booking','delete_booking',
     'check_car_availability','generate_reservation_voucher','get_late_returns',
     'get_fleet_status','send_whatsapp_to_client','schedule_reminder', 'call_me','create_calendar_event','rate_client',
-    'add_car','update_car',
+    'add_car','update_car','update_import_status',
     // Photos du parc : Kouider demande souvent "envoie une photo de [voiture]" dans
     // un contexte véhicule/flotte → cet agent gagne (priorité 10). Sans ce tool il
     // improvisait "je n'ai pas accès aux photos". Maintenant il récupère la vraie photo.
@@ -428,7 +428,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'list_properties', 'get_property_photo', 'update_property_status',
     'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'mark_vehicle_sold',
     'record_client_deal', 'get_client_history', 'get_car_photo', 'list_bookings',
-    'add_car', 'update_car',
+    'add_car', 'update_car', 'update_import_status',
     'create_property', 'add_vehicle_for_sale', 'update_property', 'update_vehicle_details', 'set_site_hero',
     'list_packs', 'create_pack', 'set_pack_status',
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
