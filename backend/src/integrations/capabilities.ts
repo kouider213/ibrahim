@@ -1,6 +1,7 @@
 import { Dzaryx_TOOLS } from './tools.js';
 import { AGENT_REGISTRY } from '../agents/agent-registry.js';
-import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
+import { createGoogleSheet } from './google-docs.js';
+import { askJson, startDossierJob, type DocSpec, type Section } from './pro-doc.js';
 
 // list_my_capabilities — la VRAIE liste des outils de Dzaryx, lue dans son code (tools.ts).
 // Avec la recherche d'outils, le modèle ne voit qu'une partie de ses outils : sans ceci, il invente
@@ -16,7 +17,7 @@ const CATEGORIES: Array<[string, RegExp]> = [
   ['Argent et comptabilité', /payment|revenue|financ|receipt|expense|accounting|export_excel|anomal|unpaid|client_deal|daily_report/],
   ['Clients', /client|_reviews?$|arrival_pattern/],
   ['Marketing et réseaux sociaux', /tiktok|social|competitor/],
-  ['Mails, documents et tableaux', /email|gmail|google_doc|google_sheet|document/],
+  ['Mails, documents et tableaux', /email|gmail|google_doc|google_sheet|document|presentation_doc/],
   ['Agenda, rappels et appels', /calendar|event|reminder|^call_me$|alarm|meeting|telegram|whatsapp/],
   ['Recherche et infos du monde', /web_search|fetch_url|weather|football|news|currency|browser|location/],
   ['Mémoire, apprentissage et missions', /memory|remember|recall|learn|rule|feedback|improvement|preference|conversation|private_mode|intention|mission|goal|task|procedure|habit|obsidian|capabilit/],
@@ -32,7 +33,7 @@ function shortDesc(desc: string | undefined): string {
   return first.length > 160 ? first.slice(0, 157) + '…' : first;
 }
 
-function grouped(): Array<[string, Array<{ name: string; desc: string }>]> {
+export function grouped(): Array<[string, Array<{ name: string; desc: string }>]> {
   const groups = new Map<string, Array<{ name: string; desc: string }>>();
   for (const t of Dzaryx_TOOLS) {
     const cat = categoryOf(t.name);
@@ -62,18 +63,48 @@ export async function listMyCapabilities(input: Record<string, unknown>): Promis
     return `${res}\n${header().slice(1).join('\n')}`;
   }
 
-  const detailed = input['detail'] !== false || output === 'google_doc';
+  if (output === 'google_doc') return startDossierJob('Dzaryx — dossier de présentation', () => capabilitiesDossier(groups));
+  const detailed = input['detail'] !== false;
   const lines = [...header(), ''];
   for (const [cat, tools] of groups) {
-    lines.push(output === 'google_doc' ? `${cat.toUpperCase()} (${tools.length})` : `## ${cat} (${tools.length})`);
+    lines.push(`## ${cat} (${tools.length})`);
     for (const t of tools) lines.push(detailed ? `- ${t.name} : ${t.desc}` : `- ${t.name}`);
     lines.push('');
   }
-  if (output === 'google_doc') {
-    lines[1] = `Nombre d'outils : ${Dzaryx_TOOLS.length}`;
-    const res = await createGoogleDoc({ title: `Dzaryx — toutes mes capacités (${date})`, content: lines.join('\n') });
-    return `${res}\n${header().slice(1).join('\n')}`;
-  }
   lines.push("Pour un document : list_my_capabilities avec output='google_doc' ou 'google_sheet' le crée directement depuis cette liste.");
   return lines.join('\n');
+}
+
+// Dossier « capacités » : la liste des outils vient du code (rien d'oublié), Claude ne fait que la rédiger.
+const CAT_SYSTEM = `Tu rédiges une partie d'un dossier de présentation de Dzaryx, l'assistant IA de FIK Conciergerie (location de voitures à Oran ; Kouider, le fondateur, vit à Bruxelles). Français impeccable, ton professionnel, vouvoiement du lecteur, pas d'émojis, pas de jargon technique (ni noms de fonctions, ni « API »).
+Pour CHAQUE outil reçu, donne un nom lisible (2 à 5 mots) et une phrase claire qui dit ce qu'il apporte. Garde exactement les mêmes "name". N'invente aucune fonction.
+Réponds UNIQUEMENT en JSON : {"intro": "paragraphe de 3 à 4 phrases sur ce domaine", "items": [{"name": "...", "label": "...", "phrase": "..."}]}`;
+
+export async function capabilitiesDossier(groups: Array<[string, Array<{ name: string; desc: string }>]>): Promise<DocSpec> {
+  const sections: Section[] = await Promise.all(groups.map(async ([cat, tools]): Promise<Section> => {
+    let intro = '';
+    const byName = new Map<string, { label: string; phrase: string }>();
+    try {
+      const r = await askJson<{ intro?: string; items?: Array<{ name?: string; label?: string; phrase?: string }> }>(CAT_SYSTEM,
+        `Domaine : ${cat}\nOutils :\n${tools.map(t => `- ${t.name} : ${t.desc}`).join('\n')}`, 8000);
+      intro = String(r.intro ?? '').trim();
+      for (const it of r.items ?? []) if (it.name && it.label && it.phrase) byName.set(it.name, { label: it.label.trim(), phrase: it.phrase.trim() });
+    } catch (err) {
+      console.warn('[capabilities] rédaction', cat, err instanceof Error ? err.message : String(err));
+    }
+    return { title: `${cat} (${tools.length})`, blocks: [
+      ...(intro ? [{ type: 'p' as const, text: intro }] : []),
+      { type: 'bullets' as const, items: tools.map(t => {
+        const w = byName.get(t.name);
+        return w ? `**${w.label}** — ${w.phrase}` : `**${t.name.replace(/_/g, ' ')}** — ${t.desc}`;
+      }) },
+    ] };
+  }));
+  const total = groups.reduce((n, [, t]) => n + t.length, 0);
+  const agents = AGENT_REGISTRY.map(a => a.name.replace(/^\P{L}+/u, '').trim());
+  const summary = [
+    `Dzaryx est l'assistant intelligent de **FIK Conciergerie**, la société de location de voitures et de conciergerie de Kouider à Oran. Il gère au quotidien les réservations, la flotte, les clients et l'argent, communique par l'application, par Telegram et au téléphone, et agit à distance sur le PC de Kouider.`,
+    `Ce dossier présente l'ensemble de ses capacités : **${total} outils** répartis en **${groups.length} domaines**, mis en œuvre par **${agents.length} agents spécialisés** (${agents.join(', ')}). Chaque partie ci-après décrit un domaine : ce qu'il couvre, puis chacun de ses outils.`,
+  ];
+  return { title: 'Dzaryx — dossier de présentation', subtitle: "L'assistant intelligent de FIK Conciergerie", summary, sections };
 }

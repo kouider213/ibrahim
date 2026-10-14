@@ -4,11 +4,11 @@ import { getGoogleUserToken, getGmailConnectLink, gmailAddress, SCOPE_DRIVE_FILE
 // Création de Google Docs / Sheets dans le Drive de fikconciergerie@gmail.com (idée reprise de JARVIS).
 // Même connexion OAuth que Gmail, avec la permission drive.file (Dzaryx ne voit que ses propres fichiers).
 
-async function token(): Promise<string | null> {
+export async function token(): Promise<string | null> {
   return getGoogleUserToken('pro', SCOPE_DRIVE_FILE);
 }
 
-const notConnected = () =>
+export const notConnected = () =>
   `🔗 Il faut d'abord autoriser Dzaryx à créer des Docs/Sheets sur ${gmailAddress('pro')}. Ouvre ce lien et accepte : ${getGmailConnectLink()}\n(Recopie ce lien en entier, en texte brut.)`;
 
 function apiError(err: unknown, what: string): string {

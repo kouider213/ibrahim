@@ -166,7 +166,7 @@ const CORE_TOOLS = new Set([
   'set_private_mode', 'show_my_memory', 'send_nexus_command', 'nexus_screenshot', 'ping_nexus',
   'web_search', 'assign_task', 'list_team_tasks', 'create_goal', 'save_procedure',
   // Se décrire sans inventer + documents
-  'list_my_capabilities', 'create_google_doc', 'create_google_sheet',
+  'list_my_capabilities', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc',
 ]);
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────

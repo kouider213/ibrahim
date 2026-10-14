@@ -8,6 +8,7 @@ import { supabase } from './supabase.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
 import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
 import { listMyCapabilities } from './capabilities.js';
+import { createPresentationDoc } from './pro-doc.js';
 import { insertReminder, findByDedupKey } from '../db/reminders.js';
 import {
   resolveTimezone,
@@ -362,6 +363,7 @@ async function _dispatch(
       case 'create_google_doc':         return await createGoogleDoc(input);
       case 'create_google_sheet':       return await createGoogleSheet(input);
       case 'list_my_capabilities':      return await listMyCapabilities(input);
+      case 'create_presentation_doc':   return createPresentationDoc(input);
       case 'draft_email':               return await draftEmailTool(input, sessionId);
       case 'send_email':                return await sendEmailTool(input, sessionId);
       case 'add_prospect':              return await addProspectTool(input);

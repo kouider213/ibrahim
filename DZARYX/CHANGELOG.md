@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-10-14 (soir 2) — Dossiers de présentation soignés (create_presentation_doc)
+
+- **Nouvel outil `create_presentation_doc`** (`integrations/pro-doc.ts`) : Google Doc prêt à remettre — page de garde
+  avec le logo FIK (`backend/assets/fik-logo.jpg`, en ligne sur Supabase `client-documents/branding/fik-logo.jpg`,
+  ou `BRAND_LOGO_URL`), résumé, sommaire cliquable avec les VRAIS numéros de page (export PDF via
+  docs.google.com/…/export + pdfjs-dist), une partie par page, titres or, pied de page. Claude (Sonnet) rédige en JSON
+  à partir de `material` uniquement (rien d'inventé). Tourne en arrière-plan (1–2 min) ; lien envoyé sur Telegram
+  (tg-outbox) + dans l'app.
+- `list_my_capabilities output=google_doc` → dossier « Dzaryx — dossier de présentation » : liste des outils lue dans le
+  code (aucun oublié, testé 203/203), chaque outil réécrit en français clair (12 rédactions en parallèle, ~20 s).
+- À savoir : l'API Google Drive n'est PAS activée dans le projet Google (1041982301741) → pas de suppression/liste de
+  fichiers via Drive ; l'export PDF passe par le lien Docs.
+
 ## 2026-10-14 (soir) — B034 terminé ; Dzaryx connaît sa vraie liste d'outils
 
 - **B034 fermé** : tgcall a son propre jeton, `auth:legacy`=off. Ancien `MOBILE_ACCESS_TOKEN` → 403 sur Railway et le VPS.

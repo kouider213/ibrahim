@@ -933,7 +933,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'create_google_doc',
-    description: 'Créer un Google Doc dans le Drive de fikconciergerie@gmail.com (compte-rendu, devis, note, contrat brouillon…) et renvoyer son lien. Ex : "fais-moi un Google Doc avec…", "mets ça dans un doc".',
+    description: 'Créer un Google Doc SIMPLE (texte brut) dans le Drive de fikconciergerie@gmail.com (note rapide, brouillon…) et renvoyer son lien. Pour un document bien présenté / un dossier à remettre → create_presentation_doc. Ex : "fais-moi un Google Doc avec…", "mets ça dans un doc".',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -2486,13 +2486,26 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
 
   {
     name: 'list_my_capabilities',
-    description: 'Ta VRAIE liste d\'outils, lue dans ton code : ton nom, le nombre EXACT d\'outils, les agents spécialisés et chaque outil rangé par catégorie avec ce qu\'il fait. Une partie de tes outils est cachée (recherche d\'outils) : tu ne les connais PAS tous de tête. Pour un document sur toi : output=\'google_doc\' ou \'google_sheet\' (fait en quelques secondes). OBLIGATOIRE avant de répondre à « combien d\'outils tu as », « qu\'est-ce que tu sais faire », « tes capacités / fonctions », ou de faire un document / Google Doc / Sheet qui te décrit. Ne jamais inventer ni arrondir le nombre.',
+    description: 'Ta VRAIE liste d\'outils, lue dans ton code : ton nom, le nombre EXACT d\'outils, les agents spécialisés et chaque outil rangé par catégorie avec ce qu\'il fait. Une partie de tes outils est cachée (recherche d\'outils) : tu ne les connais PAS tous de tête. Pour un document sur toi : output=\'google_doc\' (dossier soigné) ou \'google_sheet\'. OBLIGATOIRE avant de répondre à « combien d\'outils tu as », « qu\'est-ce que tu sais faire », « tes capacités / fonctions », ou de faire un document / Google Doc / Sheet qui te décrit. Ne jamais inventer ni arrondir le nombre.',
     input_schema: {
       type: 'object' as const,
       properties: {
         detail: { type: 'boolean', description: 'true (défaut) : avec une phrase par outil. false : noms seulement (réponse vocale courte).' },
-        output: { type: 'string', enum: ['texte', 'google_doc', 'google_sheet'], description: "texte (défaut) : la liste ici. google_doc / google_sheet : crée DIRECTEMENT le document dans le Drive depuis la vraie liste et renvoie le lien (rapide, rien à réécrire). À utiliser pour « fais un doc / un Google Doc / un tableau avec toutes tes capacités »." },
+        output: { type: 'string', enum: ['texte', 'google_doc', 'google_sheet'], description: "texte (défaut) : la liste ici. google_doc : DOSSIER DE PRÉSENTATION soigné (logo, résumé, sommaire, une partie par domaine), prêt en 1 à 2 min, lien envoyé sur Telegram et dans l'app. google_sheet : tableau, lien tout de suite. À utiliser pour « fais un doc / un Google Doc / un tableau avec toutes tes capacités »." },
       },
+    },
+  },
+  {
+    name: 'create_presentation_doc',
+    description: 'DOSSIER DE PRÉSENTATION soigné dans Google Docs, prêt à remettre (partenaire, client, investisseur, banque) : page de garde avec le logo FIK, résumé + sommaire avec les numéros de page, puis une partie par page, rédigée proprement. À utiliser pour « fais un document / dossier / présentation sur… », « un document bien écrit », « à présenter ». Mets dans material TOUTES les vraies infos (récupérées d\'abord avec les autres outils ou données par Kouider) : rien n\'est inventé. Prêt en 1 à 2 min ; le lien est envoyé tout seul sur Telegram et dans l\'app. Pour un dossier sur Dzaryx lui-même → list_my_capabilities output=google_doc.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title:    { type: 'string', description: 'Titre du dossier' },
+        brief:    { type: 'string', description: 'À qui il est destiné et dans quel but (ex. « présenter FIK Conciergerie à un investisseur »)' },
+        material: { type: 'string', description: 'Tous les faits, chiffres et textes à utiliser, même en vrac : c\'est la SEULE source du rédacteur' },
+      },
+      required: ['title', 'material'],
     },
   },
 ];
