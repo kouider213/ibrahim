@@ -28,7 +28,7 @@ load_dotenv(Path(__file__).parent / '.env')
 
 from modules.voice            import VoiceModule
 from modules.ws_client        import NexusWSClient
-from modules.pc_control       import PCControl
+from modules.pc_control       import PCControl, APP_MAP
 from modules.wol              import WoLService
 from modules.claude_code      import ClaudeCodeManager
 from modules.wake_word        import WakeWordDetector
@@ -511,7 +511,12 @@ class NexusApp:
 
         m_open = _FILE_OPEN_RE.search(t)
         if m_open:
-            result = self.files.open_file(m_open.group(2).strip())
+            wanted = m_open.group(2).strip().lower()
+            app_key = next((k for k in sorted(APP_MAP, key=len, reverse=True) if re.search(rf'\b{re.escape(k)}\b', wanted)), None)
+            if app_key:
+                result = self.pc.open_app(app_key)
+            else:
+                result = self.files.open_file(m_open.group(2).strip())
             if source == 'nexus':
                 await self.speak(result)
             else:
@@ -834,7 +839,11 @@ class NexusApp:
 
         async def handler(conn):
             self.gui_connections.add(conn)
-            await self.gui_send({'type': 'status', 'backend': self.ws.is_connected()})
+            import importlib.util
+            await self.gui_send({
+                'type': 'status', 'backend': self.ws.is_connected(),
+                'mic_available': importlib.util.find_spec('pyaudio') is not None,
+            })
             # Send chat history
             await self.gui_send({'type': 'chat_history', 'history': self._chat_history[-5:]})
             try:

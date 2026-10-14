@@ -3,567 +3,336 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NEXUS — Agent IA PC</title>
+<title>NEXUS — Fik Conciergerie</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#030310;--bg2:#07071a;--bg3:#0d0d28;
-  --cyan:#00d4ff;--cyan2:#00a0cc;--purple:#7b2fff;
-  --orange:#ff6b35;--green:#00ff88;--red:#ff3366;--gold:#ffd700;
-  --text:#c8d8f0;--dim:#2a4060;--dim2:#4a6080;
-  --glow:0 0 20px rgba(0,212,255,.5);
-  --glow-sm:0 0 10px rgba(0,212,255,.4);
-  --glow-lg:0 0 40px rgba(0,212,255,.35);
-  --border:rgba(0,212,255,.1);
+  --bg:#05060f;--panel:rgba(14,18,36,.72);--line:rgba(120,170,255,.14);
+  --text:#e6edff;--dim:#8a97b8;--faint:#55607e;
+  --cyan:#22d3ee;--green:#34d399;--violet:#a78bfa;--amber:#fbbf24;--red:#f87171;
+  --r:14px;
 }
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
-  font-family:'Courier New',Consolas,monospace;font-size:13px;-webkit-font-smoothing:antialiased}
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 50% at 50% 38%,rgba(34,211,238,.10),transparent 70%),
+             radial-gradient(ellipse 40% 40% at 90% 100%,rgba(167,139,250,.08),transparent 70%)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 
-/* ── BACKGROUND ─────────────────────────────────────── */
-.bg-grid{position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
-  background-size:44px 44px}
-.bg-radial{position:fixed;inset:0;pointer-events:none;z-index:0;
-  background:radial-gradient(ellipse 80% 55% at 50% -10%,rgba(0,212,255,.05) 0%,transparent 70%),
-    radial-gradient(ellipse 50% 40% at 95% 100%,rgba(123,47,255,.04) 0%,transparent 60%)}
-.scan-line{position:fixed;left:0;right:0;height:1px;pointer-events:none;z-index:99;
-  background:linear-gradient(90deg,transparent,rgba(0,212,255,.15),transparent);
-  animation:scan 10s linear infinite}
+.app{position:relative;height:100vh;display:grid;grid-template-rows:auto 1fr auto;gap:12px;padding:14px 18px}
 
-/* ── SHELL ───────────────────────────────────────────── */
-.shell{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+/* ── Barre du haut ── */
+header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:baseline;gap:12px}
+.brand b{font-size:18px;letter-spacing:.42em;font-weight:700;color:var(--cyan)}
+.brand span{font-size:11px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase}
+.chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--line);font-size:11px;letter-spacing:.08em;color:var(--dim)}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.chip.on i{background:var(--green);box-shadow:0 0 8px var(--green)}
+.chip.off i{background:var(--red);box-shadow:0 0 8px var(--red)}
+#clock{font-variant-numeric:tabular-nums;color:var(--dim);font-size:13px;min-width:64px;text-align:right}
 
-/* ── HEADER ──────────────────────────────────────────── */
-header{display:flex;align-items:center;justify-content:space-between;
-  padding:8px 18px;border-bottom:1px solid var(--border);
-  background:rgba(3,3,16,.95);backdrop-filter:blur(16px);flex-shrink:0}
-.brand{display:flex;align-items:center;gap:10px}
-.brand-pulse{width:9px;height:9px;border-radius:50%;background:var(--cyan);
-  box-shadow:var(--glow-sm);animation:pulse 2.2s ease-in-out infinite}
-.brand-name{font-size:14px;font-weight:bold;letter-spacing:8px;color:var(--cyan);text-shadow:var(--glow-sm)}
-.brand-sub{font-size:8px;letter-spacing:3px;color:var(--dim2)}
-.hdr-right{display:flex;align-items:center;gap:20px}
-.status-bar{display:flex;gap:14px;align-items:center}
-.st{display:flex;align-items:center;gap:4px;font-size:8px;letter-spacing:1.5px;color:var(--dim2)}
-.st-dot{width:5px;height:5px;border-radius:50%;background:var(--dim);transition:all .4s}
-.st-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
-.st-dot.off{background:var(--orange);box-shadow:0 0 5px var(--orange)}
-#clock{font-size:11px;letter-spacing:2px;color:var(--dim2)}
+/* ── Zone principale : conversation | orbe | outils ── */
+main{display:grid;grid-template-columns:minmax(260px,1fr) minmax(340px,1.15fr) minmax(260px,1fr);gap:14px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  backdrop-filter:blur(14px);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.card h2{font-size:10px;letter-spacing:.22em;color:var(--faint);font-weight:600;padding:12px 16px 8px;text-transform:uppercase}
 
-/* ── MAIN LAYOUT: 2 colonnes ─────────────────────────── */
-.main{flex:1;display:flex;overflow:hidden;min-height:0}
+/* Conversation */
+#chat{flex:1;overflow-y:auto;padding:4px 14px 14px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.msg{max-width:92%;padding:9px 12px;border-radius:12px;line-height:1.5;font-size:13px;word-break:break-word;white-space:pre-wrap}
+.msg.nexus{background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.18);align-self:flex-start}
+.msg.user{background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.25);align-self:flex-end}
+.empty{margin:auto;text-align:center;color:var(--faint);font-size:12px;line-height:1.7;padding:20px}
 
-/* ── COLONNE GAUCHE: Logo + chat ─────────────────────── */
-.col-left{width:340px;flex-shrink:0;display:flex;flex-direction:column;
-  border-right:1px solid var(--border);background:rgba(3,3,16,.6)}
+/* Orbe */
+.stage{align-items:center;justify-content:center;gap:6px;padding:14px}
+#orbWrap{position:relative;width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+#orb{max-width:100%;max-height:100%;aspect-ratio:1}
+#phase{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--cyan);transition:color .4s}
+#sub{font-size:12px;color:var(--dim);min-height:18px;text-align:center;padding:0 10px;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#agent{display:none;font-size:10px;letter-spacing:.2em;padding:3px 11px;border-radius:999px;
+  border:1px solid rgba(167,139,250,.4);background:rgba(167,139,250,.12);color:var(--violet)}
 
-.logo-wrap{display:flex;flex-direction:column;align-items:center;padding:16px 0 8px;flex-shrink:0}
-.nexus-svg{width:130px;height:130px}
-.ring-outer{animation:spin-cw 14s linear infinite;transform-origin:center}
-.ring-inner{animation:spin-ccw 9s linear infinite;transform-origin:center}
-.ring-med{animation:spin-cw 22s linear infinite;transform-origin:center}
-.core-group{animation:core-pulse 3.5s ease-in-out infinite;transform-origin:center}
+/* Outils */
+.tools{gap:0}
+.scroll{overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.actions{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:0 14px 14px}
+.act{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:11px;text-align:left;
+  background:rgba(120,170,255,.06);border:1px solid var(--line);font-size:12.5px;transition:background .15s,border-color .15s,transform .1s}
+.act:hover{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.4)}
+.act:active{transform:scale(.97)}
+.act .ic{font-size:16px;width:20px;text-align:center}
+.act.busy{opacity:.55;pointer-events:none}
+#widgets{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 12px}
+.wg{flex:1 1 110px;padding:9px 12px;border-radius:11px;background:rgba(120,170,255,.05);border:1px solid var(--line)}
+.wg small{display:block;font-size:9px;letter-spacing:.2em;color:var(--faint);text-transform:uppercase;margin-bottom:3px}
+.wg b{font-size:19px;font-weight:600}
+.wg em{display:block;font-style:normal;font-size:11px;color:var(--dim);margin-top:1px}
+.bar{height:3px;background:var(--line);border-radius:2px;margin-top:6px}
+.bar>div{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--cyan),var(--violet))}
+#journal{flex:1;padding:0 14px 12px;display:flex;flex-direction:column;gap:3px;font-size:11.5px;min-height:70px}
+.j{display:flex;gap:9px;color:var(--dim);line-height:1.4}
+.j time{color:var(--faint);font-variant-numeric:tabular-nums;flex-shrink:0}
+#cam{display:none;margin:0 14px 12px;border-radius:11px;overflow:hidden;border:1px solid var(--line);position:relative}
+#cam.on{display:block}
+#cam img{width:100%;display:block}
+#cam span{position:absolute;top:7px;left:9px;font-size:9px;letter-spacing:.18em;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.6);color:var(--red)}
 
-.waveform{display:flex;align-items:center;gap:3px;height:32px;margin-top:6px}
-.wv-bar{width:4px;border-radius:3px;background:var(--cyan);height:4px;opacity:.2;transition:opacity .2s}
-.waveform.active .wv-bar{opacity:1}
-.waveform.active .wv-bar:nth-child(1){animation:wv .7s ease-in-out infinite 0s}
-.waveform.active .wv-bar:nth-child(2){animation:wv .7s ease-in-out infinite .1s}
-.waveform.active .wv-bar:nth-child(3){animation:wv .7s ease-in-out infinite .2s}
-.waveform.active .wv-bar:nth-child(4){animation:wv .7s ease-in-out infinite .05s}
-.waveform.active .wv-bar:nth-child(5){animation:wv .7s ease-in-out infinite .15s}
-.waveform.active .wv-bar:nth-child(6){animation:wv .7s ease-in-out infinite .25s}
-.waveform.active .wv-bar:nth-child(7){animation:wv .7s ease-in-out infinite .12s}
-.waveform.active .wv-bar:nth-child(8){animation:wv .7s ease-in-out infinite .22s}
+/* Barre de saisie */
+.inputbar{display:flex;gap:10px;align-items:center;padding:10px 12px;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);backdrop-filter:blur(14px)}
+#inp{flex:1;background:transparent;border:0;color:var(--text);font:inherit;font-size:14px;padding:6px 8px;outline:none}
+#inp::placeholder{color:var(--faint)}
+.ibtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:rgba(120,170,255,.06);
+  display:flex;align-items:center;justify-content:center;font-size:17px;transition:all .15s;flex-shrink:0}
+.ibtn:hover{border-color:rgba(34,211,238,.5);background:rgba(34,211,238,.12)}
+.ibtn.active{background:rgba(52,211,153,.2);border-color:var(--green);box-shadow:0 0 16px rgba(52,211,153,.4)}
+.ibtn.rec{background:rgba(248,113,113,.18);border-color:var(--red)}
+.ibtn.send{background:var(--cyan);color:#04121a;border-color:var(--cyan);font-weight:700}
+.ibtn.send:hover{filter:brightness(1.1)}
+#toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%) translateY(10px);opacity:0;pointer-events:none;
+  background:#10162c;border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:12.5px;transition:all .25s;max-width:80vw}
+#toast.show{opacity:1;transform:translateX(-50%)}
 
-.agent-badge{font-size:8px;letter-spacing:3px;font-weight:bold;padding:3px 10px;
-  border-radius:12px;background:rgba(123,47,255,.15);border:1px solid rgba(123,47,255,.4);
-  color:var(--purple);text-shadow:0 0 8px var(--purple);display:none;margin-top:5px;
-  animation:slide-down .3s ease}
-
-.thinking-wrap{display:flex;align-items:center;gap:5px;height:18px;justify-content:center;margin-top:4px}
-.thinking-wrap i{width:5px;height:5px;border-radius:50%;background:var(--cyan);opacity:0;
-  animation:think 1.3s ease-in-out infinite}
-.thinking-wrap i:nth-child(2){animation-delay:.22s}
-.thinking-wrap i:nth-child(3){animation-delay:.44s}
-
-/* ── Chat history (colonne gauche) ───────────────────── */
-.chat-history{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;
-  gap:6px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.15) transparent}
-.chat-history::-webkit-scrollbar{width:3px}
-.chat-history::-webkit-scrollbar-thumb{background:rgba(0,212,255,.15);border-radius:2px}
-.chat-msg{padding:7px 10px;border-radius:6px;font-size:11px;line-height:1.55;
-  animation:msg-in .25s ease;max-width:100%;word-break:break-word}
-.chat-msg.nexus{background:rgba(0,212,255,.05);border-left:2px solid var(--cyan);color:var(--text)}
-.chat-msg.user{background:rgba(123,47,255,.07);border-right:2px solid var(--purple);
-  color:var(--text);align-self:flex-end;text-align:right}
-.chat-role{font-size:8px;letter-spacing:2px;margin-bottom:3px;opacity:.6}
-.chat-msg.nexus .chat-role{color:var(--cyan)}
-.chat-msg.user .chat-role{color:var(--purple)}
-
-/* ── COLONNE DROITE: Widgets + caméra ───────────────── */
-.col-right{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:10px 12px;gap:8px}
-
-/* ── Caméra widget ───────────────────────────────────── */
-.camera-widget{border-radius:10px;border:1px solid var(--border);
-  background:rgba(0,0,0,.5);overflow:hidden;position:relative;flex-shrink:0;
-  display:none}
-.camera-widget.active{display:block;animation:slide-down .4s ease}
-#camera-img{width:100%;display:block;border-radius:9px}
-.cam-label{position:absolute;top:8px;left:10px;font-size:8px;letter-spacing:2px;
-  color:var(--cyan);background:rgba(0,0,0,.6);padding:2px 8px;border-radius:10px;
-  border:1px solid rgba(0,212,255,.3)}
-.cam-live-dot{width:6px;height:6px;border-radius:50%;background:var(--red);
-  display:inline-block;margin-right:5px;animation:pulse 1s ease-in-out infinite}
-
-/* ── Widgets row ─────────────────────────────────────── */
-.widgets-row{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;flex-shrink:0;
-  scrollbar-width:none}
-.widgets-row::-webkit-scrollbar{display:none}
-
-.widget{background:rgba(0,212,255,.04);border:1px solid var(--border);
-  border-radius:10px;padding:10px 14px;min-width:120px;flex-shrink:0;
-  position:relative;overflow:hidden;animation:slide-down .35s ease;
-  transition:border-color .3s,box-shadow .3s}
-.widget:hover{border-color:rgba(0,212,255,.25);box-shadow:var(--glow-sm)}
-.wg-title{font-size:7px;letter-spacing:2.5px;color:var(--dim2);margin-bottom:5px}
-.wg-val{font-size:22px;font-weight:bold;color:var(--text);line-height:1.1}
-.wg-sub{font-size:9px;color:var(--dim2);margin-top:2px}
-.disk-bar{height:3px;background:rgba(0,212,255,.1);border-radius:2px;margin-top:6px}
-.disk-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));transition:width .6s ease}
-
-/* Weather widget special */
-.widget.weather-wg .wg-val{color:var(--gold)}
-.widget.music-wg .wg-val{font-size:14px;color:var(--green);word-break:break-all}
-.widget.railway-wg.ok .wg-val{color:var(--green)}
-.widget.railway-wg.fail .wg-val{color:var(--red)}
-.widget.bookings-wg .wg-val{color:var(--cyan)}
-
-/* ── Status area ─────────────────────────────────────── */
-.status-area{border:1px solid var(--border);border-radius:10px;
-  background:rgba(0,212,255,.02);padding:10px 14px;flex-shrink:0}
-.status-line{font-size:10px;letter-spacing:2px;color:var(--dim2);min-height:16px}
-#status-text{transition:all .3s}
-
-/* ── Journal panel ───────────────────────────────────── */
-.journal-panel{flex:1;border:1px solid var(--border);border-radius:10px;
-  background:rgba(0,0,0,.3);overflow:hidden;display:flex;flex-direction:column;min-height:0}
-.journal-header{display:flex;align-items:center;justify-content:space-between;
-  padding:6px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
-.journal-title{font-size:7px;letter-spacing:3px;color:var(--dim2)}
-.journal-count{font-size:7px;color:var(--dim);background:rgba(0,212,255,.07);
-  padding:1px 6px;border-radius:8px;border:1px solid var(--border)}
-.journal-log{flex:1;overflow-y:auto;padding:6px 10px;display:flex;flex-direction:column;
-  gap:3px;scrollbar-width:thin;scrollbar-color:rgba(0,212,255,.1) transparent}
-.journal-log::-webkit-scrollbar{width:2px}
-.journal-log::-webkit-scrollbar-thumb{background:rgba(0,212,255,.1)}
-.journal-entry{display:flex;gap:8px;align-items:flex-start;padding:3px 0;
-  border-bottom:1px solid rgba(0,212,255,.03);animation:msg-in .2s ease}
-.journal-ts{font-size:8px;color:var(--dim);flex-shrink:0;letter-spacing:1px;padding-top:1px}
-.journal-txt{font-size:9px;color:var(--dim2);line-height:1.4;word-break:break-word}
-
-/* ── Input bar ───────────────────────────────────────── */
-.input-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;
-  border-top:1px solid var(--border);background:rgba(3,3,16,.98);flex-shrink:0}
-.input-field{flex:1;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.12);
-  border-radius:8px;padding:9px 13px;color:var(--text);font-family:inherit;font-size:13px;
-  outline:none;transition:border-color .2s,box-shadow .2s}
-.input-field:focus{border-color:rgba(0,212,255,.35);box-shadow:var(--glow-sm)}
-.input-field::placeholder{color:var(--dim)}
-.btn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,212,255,.2);
-  background:rgba(0,212,255,.04);color:var(--cyan);font-size:15px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
-.btn:hover{background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.4)}
-.btn.active{background:rgba(0,212,255,.2);box-shadow:var(--glow);animation:pulse 1s ease-in-out infinite}
-.btn.cam-active{background:rgba(255,51,102,.15);border-color:rgba(255,51,102,.5);color:var(--red)}
-
-/* ── Animations ──────────────────────────────────────── */
-@keyframes spin-cw {to{transform:rotate(360deg)}}
-@keyframes spin-ccw{to{transform:rotate(-360deg)}}
-@keyframes core-pulse{
-  0%,100%{filter:drop-shadow(0 0 8px rgba(0,212,255,.6));opacity:.85}
-  50%{filter:drop-shadow(0 0 22px rgba(0,212,255,.95));opacity:1}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-@keyframes wv{0%,100%{height:3px}50%{height:26px}}
-@keyframes slide-down{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes msg-in{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:translateX(0)}}
-@keyframes think{0%,60%,100%{opacity:0;transform:scale(1)}30%{opacity:1;transform:scale(1.3)}}
-@keyframes scan{0%{top:-1px}100%{top:100vh}}
+@media(max-width:980px){
+  main{grid-template-columns:1fr;grid-auto-rows:minmax(260px,auto);overflow-y:auto}
+  html,body{overflow:auto}.app{height:auto;min-height:100vh}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
-<div class="bg-grid"></div>
-<div class="bg-radial"></div>
-<div class="scan-line"></div>
+<div class="app">
 
-<div class="shell">
-
-  <!-- ── HEADER ── -->
   <header>
-    <div class="brand">
-      <div class="brand-pulse"></div>
-      <div>
-        <div class="brand-name">NEXUS</div>
-        <div class="brand-sub">FIK CONCIERGERIE · ORAN</div>
-      </div>
-    </div>
-    <div class="hdr-right">
-      <div class="status-bar">
-        <div class="st"><div class="st-dot" id="dot-backend"></div><span>BACKEND</span></div>
-        <div class="st"><div class="st-dot" id="dot-local"></div><span>LOCAL</span></div>
-        <div class="st"><div class="st-dot" id="dot-mic"></div><span>MIC</span></div>
-        <div class="st"><div class="st-dot" id="dot-cam"></div><span>CAM</span></div>
-      </div>
+    <div class="brand"><b>NEXUS</b><span>Fik Conciergerie · Oran</span></div>
+    <div class="chips">
+      <div class="chip" id="c-local"><i></i>Local</div>
+      <div class="chip" id="c-backend"><i></i>Dzaryx</div>
+      <div class="chip" id="c-mic"><i></i>Micro</div>
+      <div class="chip" id="c-cam"><i></i>Caméra</div>
       <div id="clock"></div>
     </div>
   </header>
 
-  <!-- ── MAIN ── -->
-  <div class="main">
+  <main>
+    <section class="card" aria-label="Conversation">
+      <h2>Conversation</h2>
+      <div id="chat"><div class="empty">Dis « Nexus » ou écris une commande.<br>Ex : « ouvre Chrome », « météo », « mets du Lacrim ».</div></div>
+    </section>
 
-    <!-- Colonne gauche: logo + chat -->
-    <div class="col-left">
-      <div class="logo-wrap">
-        <svg class="nexus-svg" viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <filter id="glow3"><feGaussianBlur stdDeviation="3" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            <filter id="glow6"><feGaussianBlur stdDeviation="6" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-          </defs>
-          <circle cx="65" cy="65" r="60" fill="none" stroke="rgba(0,212,255,.07)" stroke-width="1"/>
-          <g class="ring-outer">
-            <circle cx="65" cy="65" r="56" fill="none" stroke="#00d4ff"
-              stroke-width="1" stroke-dasharray="5 9" opacity=".45" filter="url(#glow3)"/>
-            <rect x="62" y="7"  width="6" height="2" rx="1" fill="#00d4ff" opacity=".9"/>
-            <rect x="62" y="121" width="6" height="2" rx="1" fill="#00d4ff" opacity=".9"/>
-            <rect x="7"  y="62" width="2" height="6" rx="1" fill="#00d4ff" opacity=".9"/>
-            <rect x="121" y="62" width="2" height="6" rx="1" fill="#00d4ff" opacity=".9"/>
-          </g>
-          <g class="ring-med">
-            <circle cx="65" cy="65" r="48" fill="none" stroke="#7b2fff"
-              stroke-width=".8" stroke-dasharray="14 7" opacity=".3" filter="url(#glow3)"/>
-          </g>
-          <g class="ring-inner">
-            <circle cx="65" cy="65" r="40" fill="none" stroke="#00d4ff"
-              stroke-width="1.5" stroke-dasharray="10 6" opacity=".5" filter="url(#glow3)"/>
-            <circle cx="65" cy="25" r="2" fill="#00d4ff" opacity=".8"/>
-            <circle cx="105" cy="65" r="2" fill="#00d4ff" opacity=".8"/>
-            <circle cx="65" cy="105" r="2" fill="#00d4ff" opacity=".8"/>
-            <circle cx="25"  cy="65" r="2" fill="#00d4ff" opacity=".8"/>
-          </g>
-          <line x1="65" y1="33" x2="65" y2="42" stroke="#00d4ff" stroke-width=".5" opacity=".3"/>
-          <line x1="65" y1="88" x2="65" y2="97" stroke="#00d4ff" stroke-width=".5" opacity=".3"/>
-          <line x1="33" y1="65" x2="42" y2="65" stroke="#00d4ff" stroke-width=".5" opacity=".3"/>
-          <line x1="88" y1="65" x2="97" y2="65" stroke="#00d4ff" stroke-width=".5" opacity=".3"/>
-          <g class="core-group" filter="url(#glow6)">
-            <circle cx="65" cy="65" r="28" fill="rgba(0,212,255,.04)" stroke="#00d4ff" stroke-width="1.2" opacity=".7"/>
-            <circle cx="65" cy="65" r="19" fill="rgba(0,212,255,.07)"/>
-            <circle cx="65" cy="65" r="7"  fill="#00d4ff" opacity=".85"/>
-            <circle cx="65" cy="65" r="3"  fill="#fff"    opacity=".6"/>
-          </g>
-          <text x="65" y="69" text-anchor="middle" font-family="'Courier New',monospace"
-            font-size="9" font-weight="bold" letter-spacing="5"
-            fill="#00d4ff" filter="url(#glow3)" opacity=".9">NEXUS</text>
-        </svg>
+    <section class="card stage" aria-label="Nexus">
+      <div id="orbWrap"><canvas id="orb"></canvas></div>
+      <div id="phase">En veille</div>
+      <div id="agent"></div>
+      <div id="sub">Nexus en attente</div>
+    </section>
 
-        <div class="waveform" id="waveform">
-          <div class="wv-bar"></div><div class="wv-bar"></div><div class="wv-bar"></div>
-          <div class="wv-bar"></div><div class="wv-bar"></div><div class="wv-bar"></div>
-          <div class="wv-bar"></div><div class="wv-bar"></div>
-        </div>
+    <section class="card tools" aria-label="Outils">
+      <h2>Actions rapides</h2>
+      <div class="actions" id="actions"></div>
+      <div id="widgets"></div>
+      <div id="cam"><span>● LIVE</span><img id="camimg" alt="Caméra Nexus"></div>
+      <h2>Journal</h2>
+      <div id="journal" class="scroll"></div>
+    </section>
+  </main>
 
-        <div class="agent-badge" id="agent-badge"></div>
-        <div class="thinking-wrap" id="think-wrap" style="display:none">
-          <i></i><i></i><i></i>
-        </div>
-      </div>
-
-      <!-- Chat history -->
-      <div class="chat-history" id="chat-history">
-        <!-- Populated by JS -->
-      </div>
-    </div>
-
-    <!-- Colonne droite: widgets + caméra -->
-    <div class="col-right">
-
-      <!-- Caméra live -->
-      <div class="camera-widget" id="camera-widget">
-        <img id="camera-img" alt="camera"/>
-        <div class="cam-label"><span class="cam-live-dot"></span>LIVE · NEXUS VISION</div>
-      </div>
-
-      <!-- Widgets row -->
-      <div class="widgets-row" id="widgets-row">
-        <!-- Populated by JS -->
-      </div>
-
-      <!-- Status -->
-      <div class="status-area">
-        <div class="status-line" id="status-text">━━━ NEXUS EN ATTENTE ━━━</div>
-      </div>
-
-      <!-- Journal temps réel -->
-      <div class="journal-panel">
-        <div class="journal-header">
-          <span class="journal-title">📡 JOURNAL TEMPS RÉEL</span>
-          <span class="journal-count" id="journal-count">0</span>
-        </div>
-        <div class="journal-log" id="journal-log"></div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ── INPUT BAR ── -->
-  <div class="input-bar">
-    <input class="input-field" id="inp" type="text"
-      placeholder="Parle à NEXUS… (Lacrim sur YouTube, météo, regarde-moi…)"
-      autocomplete="off" spellcheck="false"/>
-    <button class="btn" id="btn-cam"   title="Caméra (Ctrl+K)">📷</button>
-    <button class="btn" id="btn-mic"   title="Micro (Ctrl+M)">🎤</button>
+  <div class="inputbar">
+    <button class="ibtn" id="btn-mic" title="Micro (Ctrl+M)" aria-label="Micro">🎤</button>
+    <button class="ibtn" id="btn-cam" title="Caméra (Ctrl+K)" aria-label="Caméra">📷</button>
+    <input id="inp" type="text" placeholder="Écris une commande à Nexus…" autocomplete="off" spellcheck="false" aria-label="Commande">
+    <button class="ibtn send" id="btn-send" title="Envoyer (Entrée)" aria-label="Envoyer">➤</button>
   </div>
 </div>
+<div id="toast" role="status"></div>
 
 <script>
+'use strict';
 const WS_URL = 'ws://localhost:7778';
+const $ = id => document.getElementById(id);
 
-const inp        = document.getElementById('inp');
-const waveform   = document.getElementById('waveform');
-const widgetsRow = document.getElementById('widgets-row');
-const btnMic     = document.getElementById('btn-mic');
-const btnCam     = document.getElementById('btn-cam');
-const dotBE      = document.getElementById('dot-backend');
-const dotLoc     = document.getElementById('dot-local');
-const dotMic     = document.getElementById('dot-mic');
-const dotCam     = document.getElementById('dot-cam');
-const thinkWrap  = document.getElementById('think-wrap');
-const statusTxt  = document.getElementById('status-text');
-const agentBadge = document.getElementById('agent-badge');
-const chatEl     = document.getElementById('chat-history');
-const cameraWg   = document.getElementById('camera-widget');
-const cameraImg  = document.getElementById('camera-img');
+const ACTIONS = [
+  { ic:'🌐', label:'Chrome',        cmd:'ouvre chrome' },
+  { ic:'💻', label:'VS Code',       cmd:'ouvre vs code' },
+  { ic:'📸', label:'Capture écran', cmd:'screenshot' },
+  { ic:'🖥️', label:'Analyse écran', cmd:'analyse écran' },
+  { ic:'☀️', label:'Briefing',      cmd:'briefing du matin' },
+  { ic:'⛅', label:'Météo Oran',    cmd:'météo' },
+  { ic:'⏯️', label:'Pause musique', cmd:'pause' },
+  { ic:'💾', label:'Disque',        widget:'disk' },
+];
 
-const journalLog   = document.getElementById('journal-log');
-const journalCount = document.getElementById('journal-count');
+let ws = null, micOn = false, camOn = false, micOk = true;
+let phase = 'idle', toastTimer = 0;
+const PHASE_LABEL = { idle:'En veille', listening:"J'écoute", thinking:'Je réfléchis', speaking:'Je parle' };
 
-let ws = null, micActive = false, camActive = false;
+/* ── Utilitaires ── */
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('show'),3200); }
+function chip(id,on){ $(id).className='chip '+(on===null?'':on?'on':'off'); }
+function setSub(t){ $('sub').textContent=(t||'').slice(0,120); }
+function setPhase(p){ phase=p; $('phase').textContent=PHASE_LABEL[p]; $('phase').style.color=`rgb(${PHASES[p].rgb.join(',')})`; }
+function idlePhase(){ setPhase(micOn?'listening':'idle'); }
 
-// ── Clock ──────────────────────────────────────────────
-function updateClock() {
-  const now = new Date();
-  document.getElementById('clock').textContent =
-    now.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-}
-setInterval(updateClock, 1000);
-updateClock();
+setInterval(()=>{ $('clock').textContent=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); },1000);
 
-// ── WebSocket ──────────────────────────────────────────
-function connect() {
+/* ── WebSocket ── */
+function connect(){
   ws = new WebSocket(WS_URL);
-  ws.onopen  = () => { setDot(dotLoc, true);  setStatus('━━━ NEXUS CONNECTÉ ━━━'); };
-  ws.onclose = () => { setDot(dotLoc, false); setTimeout(connect, 2500); };
-  ws.onerror = () => setDot(dotLoc, false);
-  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onopen    = () => { chip('c-local',true); setSub('Nexus connecté'); };
+  ws.onclose   = () => { chip('c-local',false); chip('c-backend',false); setTimeout(connect,2500); };
+  ws.onerror   = () => chip('c-local',false);
+  ws.onmessage = e => { try { handle(JSON.parse(e.data)); } catch(_){} };
 }
-function send(obj) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+function send(o){
+  if(ws && ws.readyState===WebSocket.OPEN){ ws.send(JSON.stringify(o)); return true; }
+  toast('Nexus local déconnecté — reconnexion…'); return false;
 }
 
-// ── Message handler ────────────────────────────────────
-function handle(d) {
-  switch (d.type) {
-
-    case 'speak':
-      showThink(false);
-      setStatus('NEXUS PARLE…');
-      break;
-
-    case 'waveform':
-      waveform.classList.toggle('active', !!d.active);
-      if (!d.active) setStatus('EN ATTENTE');
-      break;
-
-    case 'thinking':
-      showThink(!!d.active);
-      if (d.active) setStatus('RÉFLEXION…');
-      break;
-
+/* ── Messages du serveur ── */
+function handle(d){
+  switch(d.type){
     case 'status':
-      if (d.backend !== undefined) setDot(dotBE, d.backend);
-      if (d.text) {
-        setStatus(d.text);
-        const m = d.text.match(/^AGENT\s+(\w+)/i);
-        if (m) showAgent(m[1]); else hideAgent();
+      if(d.backend!==undefined) chip('c-backend',!!d.backend);
+      if(d.mic_available!==undefined){ micOk=!!d.mic_available; if(!micOk){ chip('c-mic',false); $('c-mic').title='PyAudio manquant : pip install pyaudio'; } else if(!micOn) chip('c-mic',null); }
+      if(d.text){
+        setSub(d.text);
+        const m=d.text.match(/^AGENT\s+(\w+)/i);
+        $('agent').style.display=m?'inline-block':'none'; if(m) $('agent').textContent='⬡ AGENT '+m[1].toUpperCase();
+        if(/ACTIF|ÉCOUTE/i.test(d.text)) setPhase('listening'); else if(/VEILLE|ATTENTE/i.test(d.text)) idlePhase();
       }
       break;
-
-    case 'widget':
-      renderWidget(d.widget, d.data);
-      break;
-
-    case 'journal':
-      setStatus('📡 ' + d.text.slice(0, 60));
-      if (d.history) renderJournal(d.history);
-      break;
-
-    case 'chat_history':
-      renderChat(d.history || []);
-      break;
-
+    case 'thinking': if(d.active){ setPhase('thinking'); setSub('Je réfléchis…'); } else if(phase==='thinking') idlePhase(); break;
+    case 'speak':    setPhase('speaking'); setSub(d.text||''); break;
+    case 'waveform': if(d.active) setPhase('speaking'); else idlePhase(); break;
+    case 'widget':   renderWidget(d.widget,d.data||{}); break;
+    case 'journal':  if(d.history) renderJournal(d.history); break;
+    case 'chat_history': renderChat(d.history||[]); break;
     case 'camera_frame':
-      if (d.data) {
-        cameraWg.classList.add('active');
-        camActive = true;
-        setDot(dotCam, true);
-        btnCam.classList.add('cam-active');
-        cameraImg.src = 'data:image/jpeg;base64,' + d.data;
-      } else {
-        cameraWg.classList.remove('active');
-        camActive = false;
-        setDot(dotCam, false);
-        btnCam.classList.remove('cam-active');
-      }
-      break;
+      camOn=!!d.data; $('cam').classList.toggle('on',camOn); chip('c-cam',camOn?true:null); $('btn-cam').classList.toggle('rec',camOn);
+      if(camOn) $('camimg').src='data:image/jpeg;base64,'+d.data; break;
   }
+  document.querySelectorAll('.act.busy').forEach(b=>b.classList.remove('busy'));
 }
 
-// ── Chat history ───────────────────────────────────────
-function renderChat(history) {
-  chatEl.innerHTML = '';
-  history.forEach(m => {
-    const div  = document.createElement('div');
-    div.className = 'chat-msg ' + (m.role === 'nexus' ? 'nexus' : 'user');
-    const role = document.createElement('div');
-    role.className = 'chat-role';
-    role.textContent = m.role === 'nexus' ? '◉ NEXUS' : '▸ TOI';
-    const txt = document.createElement('div');
-    txt.textContent = m.text.slice(0, 200) + (m.text.length > 200 ? '…' : '');
-    div.appendChild(role);
-    div.appendChild(txt);
-    chatEl.appendChild(div);
+/* ── Rendu : conversation / journal / widgets (textContent partout, jamais innerHTML sur du texte reçu) ── */
+function renderChat(h){
+  const box=$('chat'); box.textContent='';
+  if(!h.length){ const e=document.createElement('div'); e.className='empty'; e.textContent='Dis « Nexus » ou écris une commande.'; box.appendChild(e); return; }
+  h.forEach(m=>{ const d=document.createElement('div'); d.className='msg '+(m.role==='nexus'?'nexus':'user'); d.textContent=String(m.text||'').slice(0,800); box.appendChild(d); });
+  box.scrollTop=box.scrollHeight;
+}
+function renderJournal(items){
+  const box=$('journal'); box.textContent='';
+  items.slice(-12).forEach(e=>{ const r=document.createElement('div'); r.className='j';
+    const t=document.createElement('time'); t.textContent=e.ts; const s=document.createElement('span'); s.textContent=e.text;
+    r.append(t,s); box.appendChild(r); });
+  box.scrollTop=box.scrollHeight;
+}
+function renderWidget(type,data){
+  const old=document.querySelector(`[data-wg="${type}"]`); if(old) old.remove();
+  const w=document.createElement('div'); w.className='wg'; w.dataset.wg=type;
+  const add=(title,val,sub,bar)=>{
+    const s=document.createElement('small'); s.textContent=title; const b=document.createElement('b'); b.textContent=val; w.append(s,b);
+    if(sub){ const e=document.createElement('em'); e.textContent=sub; w.appendChild(e); }
+    if(bar!==undefined){ const o=document.createElement('div'); o.className='bar'; const i=document.createElement('div'); i.style.width=Math.min(100,bar)+'%'; o.appendChild(i); w.appendChild(o); }
+  };
+  if(type==='disk')          add('Disque C:',data.pct+'%',(data.free/1e9).toFixed(1)+' Go libres',data.pct);
+  else if(type==='weather')  add('Météo Oran',data.temp+'°C',data.desc);
+  else if(type==='bookings') add('Réservations',data.count,"actives aujourd'hui");
+  else if(type==='railway')  add('Serveur',data.status==='ok'?'● En ligne':'✗ Hors ligne');
+  else if(type==='music')    add('Musique',String(data.query||'').slice(0,28),data.platform==='youtube'?'YouTube':'Spotify');
+  else if(type==='tiktok')   add('TikTok',String(data.result||'').slice(0,90));
+  else if(type==='agent')    add('Agent',String(data.agent||''),String(data.result||'').slice(0,80));
+  else return;
+  $('widgets').appendChild(w);
+}
+
+/* ── Actions ── */
+function sendCmd(text){
+  text=text.trim(); if(!text) return;
+  if(send({type:'message',text})){ setPhase('thinking'); setSub('Je m\'en occupe…'); }
+}
+$('inp').addEventListener('keydown',e=>{ if(e.key==='Enter'){ sendCmd($('inp').value); $('inp').value=''; } });
+$('btn-send').addEventListener('click',()=>{ sendCmd($('inp').value); $('inp').value=''; $('inp').focus(); });
+
+ACTIONS.forEach(a=>{
+  const b=document.createElement('button'); b.className='act';
+  const i=document.createElement('span'); i.className='ic'; i.textContent=a.ic; b.append(i,document.createTextNode(a.label));
+  b.addEventListener('click',()=>{
+    b.classList.add('busy'); setTimeout(()=>b.classList.remove('busy'),4000);
+    if(a.widget) send({type:'widget_request',widget:a.widget}); else sendCmd(a.cmd);
   });
-  chatEl.scrollTop = chatEl.scrollHeight;
-}
-
-// ── Widgets ────────────────────────────────────────────
-function renderWidget(type, data) {
-  const old = document.querySelector(`[data-wg="${type}"]`);
-  if (old) old.remove();
-
-  const w = document.createElement('div');
-  w.className = 'widget';
-  w.dataset.wg = type;
-
-  if (type === 'disk') {
-    const pct  = data.pct;
-    const free = (data.free / 1e9).toFixed(1);
-    const color = pct > 85 ? 'var(--orange)' : pct > 70 ? 'var(--gold)' : 'var(--cyan)';
-    w.innerHTML = `<div class="wg-title">DISQUE C:</div>
-      <div class="wg-val" style="color:${color}">${pct}%</div>
-      <div class="wg-sub">${free} GB libres</div>
-      <div class="disk-bar"><div class="disk-fill" style="width:${pct}%"></div></div>`;
-  }
-  else if (type === 'weather') {
-    w.classList.add('weather-wg');
-    w.innerHTML = `<div class="wg-title">MÉTÉO ORAN</div>
-      <div class="wg-val">${data.temp}°C</div>
-      <div class="wg-sub">${data.desc}</div>`;
-  }
-  else if (type === 'bookings') {
-    w.classList.add('bookings-wg');
-    w.innerHTML = `<div class="wg-title">RÉSERVATIONS</div>
-      <div class="wg-val">${data.count}</div>
-      <div class="wg-sub">actives aujourd'hui</div>`;
-  }
-  else if (type === 'railway') {
-    const ok = data.status === 'ok';
-    w.classList.add('railway-wg', ok ? 'ok' : 'fail');
-    w.innerHTML = `<div class="wg-title">RAILWAY</div>
-      <div class="wg-val">${ok ? '●' : '✗'}</div>
-      <div class="wg-sub">${ok ? 'en ligne' : 'hors ligne'}</div>`;
-  }
-  else if (type === 'music') {
-    w.classList.add('music-wg');
-    const icon = data.platform === 'youtube' ? '▶ YT' : '♫ SP';
-    w.innerHTML = `<div class="wg-title">MUSIQUE ${icon}</div>
-      <div class="wg-val">${data.query}</div>
-      <div class="wg-sub">en cours</div>`;
-  }
-  else if (type === 'tiktok') {
-    w.style.minWidth = '200px';
-    w.innerHTML = `<div class="wg-title">📱 TIKTOK</div>
-      <div class="wg-val" style="font-size:10px;color:var(--purple);line-height:1.4">${data.result.replace(/\n/g,'<br>')}</div>`;
-  }
-  else {
-    w.innerHTML = `<div class="wg-title">${type.toUpperCase()}</div>
-      <div class="wg-val" style="font-size:12px">${JSON.stringify(data)}</div>`;
-  }
-
-  widgetsRow.appendChild(w);
-}
-
-// ── Journal ────────────────────────────────────────────
-function renderJournal(entries) {
-  journalLog.innerHTML = '';
-  entries.forEach(e => {
-    const row = document.createElement('div');
-    row.className = 'journal-entry';
-    row.innerHTML = `<span class="journal-ts">${e.ts}</span><span class="journal-txt">${e.text}</span>`;
-    journalLog.appendChild(row);
-  });
-  journalLog.scrollTop = journalLog.scrollHeight;
-  journalCount.textContent = entries.length;
-}
-
-// ── Status helpers ─────────────────────────────────────
-function setStatus(t) { statusTxt.textContent = t.toUpperCase().slice(0, 90); }
-function showThink(on) { thinkWrap.style.display = on ? 'flex' : 'none'; }
-function setDot(el, on) { el.className = 'st-dot ' + (on ? 'on' : 'off'); }
-function showAgent(name) {
-  agentBadge.textContent = '⬡ AGENT ' + name.toUpperCase();
-  agentBadge.style.display = 'block';
-}
-function hideAgent() { agentBadge.style.display = 'none'; }
-
-// ── Input ──────────────────────────────────────────────
-function sendMsg(text) {
-  text = text.trim();
-  if (!text) return;
-  showThink(true);
-  send({ type: 'message', text });
-}
-inp.addEventListener('keydown', e => {
-  if (e.key === 'Enter') { sendMsg(inp.value); inp.value = ''; }
-  if (e.key === 'Escape') inp.blur();
+  $('actions').appendChild(b);
 });
 
-// ── Mic ────────────────────────────────────────────────
-function toggleMic() {
-  micActive = !micActive;
-  btnMic.classList.toggle('active', micActive);
-  setDot(dotMic, micActive);
-  send({ type: 'mic_toggle', active: micActive });
+function toggleMic(){
+  if(!micOk){ toast("Micro indisponible : PyAudio n'est pas installé sur ce PC."); return; }
+  micOn=!micOn; $('btn-mic').classList.toggle('active',micOn); chip('c-mic',micOn?true:null);
+  send({type:'mic_toggle',active:micOn}); idlePhase();
+  toast(micOn?"Micro activé — parle, j'écoute":'Micro coupé');
 }
-btnMic.addEventListener('click', toggleMic);
-
-// ── Camera ─────────────────────────────────────────────
-function toggleCam() {
-  send({ type: 'camera_toggle' });
-}
-btnCam.addEventListener('click', toggleCam);
-
-// ── Keyboard shortcuts ─────────────────────────────────
-document.addEventListener('keydown', e => {
-  if (e.ctrlKey && e.key === 'm') { e.preventDefault(); toggleMic(); }
-  if (e.ctrlKey && e.key === 'k') { e.preventDefault(); toggleCam(); }
-  if (e.ctrlKey && e.key === 'd') { e.preventDefault(); send({ type: 'widget_request', widget: 'disk' }); }
-  if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) inp.focus();
+function toggleCam(){ send({type:'camera_toggle'}); }
+$('btn-mic').addEventListener('click',toggleMic);
+$('btn-cam').addEventListener('click',toggleCam);
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey&&e.key==='m'){ e.preventDefault(); toggleMic(); }
+  if(e.ctrlKey&&e.key==='k'){ e.preventDefault(); toggleCam(); }
+  if(!e.ctrlKey&&!e.altKey&&!e.metaKey&&e.key.length===1&&document.activeElement.tagName!=='INPUT') $('inp').focus();
 });
 
-// ── Boot ───────────────────────────────────────────────
+/* ── Orbe de particules (sphère de Fibonacci en Canvas 2D, code propre au projet) ── */
+const PHASES={
+  idle:     {radius:.70,spin:.15,jitter:.02,links:0,  rgb:[34,211,238]},
+  listening:{radius:.62,spin:.30,jitter:.04,links:.35,rgb:[52,211,153]},
+  thinking: {radius:.58,spin:.90,jitter:.03,links:.80,rgb:[167,139,250]},
+  speaking: {radius:.74,spin:.45,jitter:.10,links:.50,rgb:[251,191,36]},
+};
+(function orb(){
+  const cv=$('orb'), ctx=cv.getContext('2d'), COUNT=420, LINK=.22;
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const g=Math.PI*(3-Math.sqrt(5));
+  const base=Array.from({length:COUNT},(_,i)=>{const y=1-(i/(COUNT-1))*2,r=Math.sqrt(1-y*y),t=g*i;return{x:Math.cos(t)*r,y,z:Math.sin(t)*r,s:Math.random()*6.283};});
+  const cur={radius:.7,spin:.15,jitter:.02,links:0,r:34,g:211,b:238,vol:0};
+  let size=0,angle=0,last=performance.now();
+  function fit(){ const w=$('orbWrap'), s=Math.max(160,Math.min(w.clientWidth,w.clientHeight,520)), dpr=Math.min(devicePixelRatio||1,2);
+    size=s; cv.style.width=cv.style.height=s+'px'; cv.width=cv.height=s*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  new ResizeObserver(fit).observe($('orbWrap')); fit();
+  function frame(now){
+    const dt=Math.min((now-last)/1000,.05); last=now;
+    const p=PHASES[phase], k=1-Math.exp(-dt*4);
+    for(const key of ['radius','spin','jitter','links']) cur[key]+=(p[key]-cur[key])*k;
+    cur.r+=(p.rgb[0]-cur.r)*k; cur.g+=(p.rgb[1]-cur.g)*k; cur.b+=(p.rgb[2]-cur.b)*k;
+    const tv=phase==='speaking'?.45+.3*Math.sin(now/90)*Math.sin(now/230):0;
+    cur.vol+=(tv-cur.vol)*(1-Math.exp(-dt*12));
+    if(!reduce) angle+=cur.spin*dt;
+    const t=now/1000, half=size/2, sc=half*(cur.radius+cur.vol*.12);
+    const cA=Math.cos(angle), sA=Math.sin(angle), cT=Math.cos(.35), sT=Math.sin(.35);
+    const pts=base.map(b=>{ const s=1+(reduce?0:Math.sin(t*3+b.s)*cur.jitter*(1+cur.vol*2));
+      const x1=(b.x*cA-b.z*sA)*s, z1=(b.x*sA+b.z*cA)*s, y1=b.y*s; return{x:x1,y:y1*cT-z1*sT,z:y1*sT+z1*cT}; });
+    ctx.clearRect(0,0,size,size);
+    const rgb=`${cur.r|0},${cur.g|0},${cur.b|0}`;
+    const gl=ctx.createRadialGradient(half,half,0,half,half,sc*1.1);
+    gl.addColorStop(0,`rgba(${rgb},${.18+cur.vol*.25})`); gl.addColorStop(1,`rgba(${rgb},0)`);
+    ctx.fillStyle=gl; ctx.fillRect(0,0,size,size);
+    if(cur.links>.02){ ctx.lineWidth=.6; const f=pts.filter(q=>q.z>.1);
+      for(let i=0;i<f.length;i+=2){ const a=f[i];
+        for(let j=i+2;j<f.length;j+=3){ const c=f[j], dx=a.x-c.x, dy=a.y-c.y, dz=a.z-c.z, d2=dx*dx+dy*dy+dz*dz;
+          if(d2<LINK*LINK){ ctx.strokeStyle=`rgba(${rgb},${(1-Math.sqrt(d2)/LINK)*cur.links*.35})`;
+            ctx.beginPath(); ctx.moveTo(half+a.x*sc,half+a.y*sc); ctx.lineTo(half+c.x*sc,half+c.y*sc); ctx.stroke(); } } } }
+    for(const q of pts){ const d=(q.z+1)/2; ctx.fillStyle=`rgba(${rgb},${.15+d*.85})`;
+      ctx.beginPath(); ctx.arc(half+q.x*sc,half+q.y*sc,.5+d*1.4+cur.vol*d,0,6.283); ctx.fill(); }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+setPhase('idle');
 connect();
 </script>
 </body>
