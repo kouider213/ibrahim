@@ -5,6 +5,8 @@ import { supabase } from '../../integrations/supabase.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { redis } from '../../queue/queue.js';
 import { env } from '../../config/env.js';
+import { insertReminder, updateReminderStatus } from '../../db/reminders.js';
+import { resolveTimezone, getUTCOffsetString, toLocalISO } from '../../utils/timezone.js';
 
 cloudinary.config({
   cloud_name: env.CLOUDINARY_CLOUD_NAME ?? '',
@@ -166,6 +168,15 @@ const carUpdateSchema = z.object({
   seats:               z.number().int().min(1).optional(),
   fuel:                z.string().optional(),
   transmission:        z.string().optional(),
+  // Entretien / papiers (modifiables depuis la Carte live)
+  maintenance_note:    z.string().max(500).nullable().optional(),
+  service_notes:       z.string().max(1000).nullable().optional(),
+  current_km:          z.number().int().min(0).nullable().optional(),
+  next_service_km:     z.number().int().min(0).nullable().optional(),
+  next_service_date:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  insurance_expiry:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  technical_expiry:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  vignette_expiry:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
 // PATCH /api/cars/:id — update car fields (availability, price, etc.)
@@ -191,6 +202,54 @@ router.patch('/:id', requireMobileAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// ── Rappels liés à une voiture (« vidange à prévoir », « passer au CT »…) ─────
+// Passent par le système de rappels normal (Telegram + notif app à l'heure dite).
+// GET /api/cars/:id/reminders — rappels en attente pour cette voiture
+router.get('/:id/reminders', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const { data, error } = await supabase.from('reminders').select('id, message, remind_at, local_time_iso, status')
+    .like('dedup_key', `car:${id}:%`).eq('status', 'PENDING').order('remind_at', { ascending: true });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ reminders: data ?? [] });
+});
+
+// POST /api/cars/:id/reminders { message, date: AAAA-MM-JJ, time?: HH:MM (défaut 09:00) }
+router.post('/:id/reminders', requireMobileAuth, async (req, res) => {
+  const { id } = req.params as { id: string };
+  const { message, date, time } = (req.body ?? {}) as { message?: string; date?: string; time?: string };
+  if (!message?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(date ?? '')) { res.status(400).json({ error: 'Message et date requis' }); return; }
+  try {
+    const { data: car } = await supabase.from('cars').select('name').eq('id', id).single();
+    const storedTz = await redis.get('user:tz').catch(() => null);
+    const tz = resolveTimezone(null, storedTz ?? null);
+    const hm = /^\d{2}:\d{2}$/.test(time ?? '') ? time! : '09:00';
+    // Heure locale de Kouider → instant UTC
+    const guess = new Date(`${date}T${hm}:00Z`);
+    const off = getUTCOffsetString(tz.timezone, guess); // ex. +02:00
+    const remindAt = new Date(`${date}T${hm}:00${off}`);
+    if (remindAt.getTime() < Date.now() - 60_000) { res.status(400).json({ error: 'Cette date est déjà passée' }); return; }
+    const row = await insertReminder({
+      message: `🚗 ${(car as { name?: string } | null)?.name ?? 'Voiture'} : ${message.trim()}`,
+      remind_at: remindAt, timezone: tz.timezone, utc_offset: off, local_time_iso: toLocalISO(remindAt, tz.timezone),
+      timezone_source: tz.source, created_by: 'carte_live', dedup_key: `car:${id}:${Date.now()}`,
+      telegram_target: env.TELEGRAM_CHAT_ID ?? undefined,
+    });
+    if (!row) { res.status(500).json({ error: 'Rappel non enregistré' }); return; }
+    res.json({ reminder: { id: row.id, message: row.message, remind_at: row.remind_at, local_time_iso: row.local_time_iso } });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// DELETE /api/cars/:id/reminders/:rid — annule un rappel
+router.delete('/:id/reminders/:rid', requireMobileAuth, async (req, res) => {
+  const { id, rid } = req.params as { id: string; rid: string };
+  const { data } = await supabase.from('reminders').select('dedup_key').eq('id', rid).single();
+  if (!(data as { dedup_key?: string } | null)?.dedup_key?.startsWith(`car:${id}:`)) { res.status(404).json({ error: 'Rappel introuvable' }); return; }
+  await updateReminderStatus(rid, 'CANCELLED');
+  res.json({ ok: true });
 });
 
 export default router;

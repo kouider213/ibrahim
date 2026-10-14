@@ -10,6 +10,7 @@ import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
 import { listMyCapabilities } from './capabilities.js';
 import { createPresentationDoc } from './pro-doc.js';
 import { createDemoSite, getDemoSite } from './demo-site.js';
+import { carteDemoLink } from './bookings-import.js';
 import { createClientSite, manageClientSite } from './client-sites.js';
 import { insertReminder, findByDedupKey } from '../db/reminders.js';
 import {
@@ -368,6 +369,7 @@ async function _dispatch(
       case 'create_presentation_doc':   return createPresentationDoc(input);
       case 'create_demo_site':          return createDemoSite(input);
       case 'get_demo_site':             return await getDemoSite(input);
+      case 'carte_live_demo_link':      return carteDemoLink(input);
       case 'create_client_site':        return createClientSite(input);
       case 'manage_client_site':        return await manageClientSite(input);
       case 'draft_email':               return await draftEmailTool(input, sessionId);

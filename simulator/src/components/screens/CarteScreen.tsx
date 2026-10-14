@@ -1,387 +1,463 @@
-// Carte live — le parc AutoLux vu comme un jeu : agence, parking, ville, atelier.
-// Chaque voiture est posée là où elle est « logiquement » (dispo → parking, louée → en ville,
-// sans résa et indispo → atelier). Pas de GPS : la position est symbolique, le statut est réel.
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
-import { business, type Car, type Booking, type SmartReminder, type TodayItem } from '../../services/api.ts';
+// Carte live 3D — tout le business FIK vu comme un jeu : agence, parking location, atelier, voitures qui roulent
+// en ville, vente auto, port d'import, immobilier, packs séjour, aéroport, entreprises, FIK Sites.
+// Pas de GPS : la position est symbolique, le statut est réel. Plein écran + lien pour l'ouvrir sur le PC.
+// En démo (?demo=carte) : données fictives, rien n'est chargé du serveur → offre FIK à montrer aux prospects.
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
+import { apiFetch, business, type Car, type Booking, type SmartReminder, type TodayItem, type SaleVehicle, type SiteProperty } from '../../services/api.ts';
+import { STATUS, ZONE_INFO, ALL_ZONES, buildCars, demoWorld, norm, type Status, type World, type ZoneId, type DemoKind, type Item } from '../carte/data.ts';
+import type { SceneApi, Pick } from '../carte/scene.ts';
+import AddRentals from '../carte/AddRentals.tsx';
+import CarSheet from '../carte/CarSheet.tsx';
+import ItemSheet, { type SheetKind, type Raw } from '../carte/ItemSheet.tsx';
 
 const C = {
   bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', gold: '#fbbf24', red: '#ef4444', blue: '#60a5fa', orange: '#fb923c', text: '#f5f5f7', muted: '#9b9ba6',
+  accent: '#10b981', gold: '#fbbf24', red: '#ef4444', orange: '#fb923c', text: '#f5f5f7', muted: '#9b9ba6',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
-
-const ACTIVE = ['ACCEPTED', 'CONFIRMED', 'ACTIVE', 'COMPLETED'];
-
-type Status = 'dispo' | 'depart' | 'loue' | 'retour' | 'atelier';
-const STATUS: Record<Status, { label: string; body: string; dark: string; badge: string }> = {
-  dispo:   { label: 'Disponible',       body: '#34d399', dark: '#059669', badge: '#10b981' },
-  depart:  { label: 'Départ aujourd\'hui', body: '#fcd34d', dark: '#d97706', badge: '#f59e0b' },
-  loue:    { label: 'En location',      body: '#60a5fa', dark: '#2563eb', badge: '#3b82f6' },
-  retour:  { label: 'Retour aujourd\'hui', body: '#fdba74', dark: '#ea580c', badge: '#f97316' },
-  atelier: { label: 'Indisponible',     body: '#a1a1aa', dark: '#52525b', badge: '#71717a' },
-};
-
-interface MapCar {
-  car: Car; status: Status; booking: Booking | null;
-  due: number; alerts: SmartReminder[];
-  x: number; y: number;
-}
-
-// ── Projection isométrique ───────────────────────────────────────────────────
-const TW = 56, TH = 28, OX = 400, OY = 40;
-const VW = { cx: 403, cy: 222, w: 690, h: 420 };
-const P = (x: number, y: number, z = 0) => `${(x - y) * TW / 2 + OX},${(x + y) * TH / 2 - z + OY}`;
-const SX = (x: number, y: number) => (x - y) * TW / 2 + OX;
-const SY = (x: number, y: number, z = 0) => (x + y) * TH / 2 - z + OY;
-
-function Box({ x, y, w, d, h, top, left, right, z = 0 }: { x: number; y: number; w: number; d: number; h: number; top: string; left: string; right: string; z?: number }) {
-  return (
-    <g>
-      <polygon points={`${P(x, y + d, z)} ${P(x + w, y + d, z)} ${P(x + w, y + d, z + h)} ${P(x, y + d, z + h)}`} fill={left} />
-      <polygon points={`${P(x + w, y, z)} ${P(x + w, y + d, z)} ${P(x + w, y + d, z + h)} ${P(x + w, y, z + h)}`} fill={right} />
-      <polygon points={`${P(x, y, z + h)} ${P(x + w, y, z + h)} ${P(x + w, y + d, z + h)} ${P(x, y + d, z + h)}`} fill={top} />
-    </g>
-  );
-}
-
-const Tile = ({ x, y, w, d, fill, stroke }: { x: number; y: number; w: number; d: number; fill: string; stroke?: string }) => (
-  <polygon points={`${P(x, y)} ${P(x + w, y)} ${P(x + w, y + d)} ${P(x, y + d)}`} fill={fill} stroke={stroke} strokeWidth={stroke ? 1 : 0} />
-);
-
-function Tree({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
-  const cx = SX(x, y), cy = SY(x, y);
-  return (
-    <g>
-      <ellipse cx={cx} cy={cy + 2} rx={9 * s} ry={4 * s} fill="rgba(0,0,0,0.12)" />
-      <rect x={cx - 1.5 * s} y={cy - 10 * s} width={3 * s} height={10 * s} fill="#92400e" />
-      <circle cx={cx} cy={cy - 16 * s} r={9 * s} fill="#4ade80" />
-      <circle cx={cx - 3 * s} cy={cy - 19 * s} r={5 * s} fill="#86efac" />
-    </g>
-  );
-}
-
-function Palm({ x, y }: { x: number; y: number }) {
-  const cx = SX(x, y), cy = SY(x, y);
-  return (
-    <g>
-      <ellipse cx={cx} cy={cy + 2} rx={8} ry={3} fill="rgba(0,0,0,0.12)" />
-      <path d={`M${cx},${cy} q3,-14 1,-28`} stroke="#a16207" strokeWidth={3} fill="none" />
-      {[-60, -20, 20, 60, 160].map(a => (
-        <ellipse key={a} cx={cx + 1 + Math.cos(a * Math.PI / 180) * 9} cy={cy - 28 + Math.sin(a * Math.PI / 180) * 4} rx={10} ry={3}
-          transform={`rotate(${a / 2} ${cx + 1} ${cy - 28})`} fill="#22c55e" />
-      ))}
-    </g>
-  );
-}
-
-function CarSprite({ m, selected, onClick }: { m: MapCar; selected: boolean; onClick: () => void }) {
-  const s = STATUS[m.status];
-  const { x, y } = m;
-  const badge = m.alerts.some(a => a.priority === 'HIGH') ? { t: '!', c: C.red }
-    : m.due > 0 ? { t: '€', c: C.gold }
-    : m.status === 'retour' ? { t: '↩', c: s.badge }
-    : m.status === 'depart' ? { t: '🔑', c: s.badge }
-    : m.alerts.length ? { t: '•', c: C.orange } : null;
-  const bx = SX(x + 0.35, y + 0.2), by = SY(x + 0.35, y + 0.2, 34);
-  return (
-    <g onClick={onClick} style={{ cursor: 'pointer' }} className={m.status === 'loue' ? 'dz-bob' : undefined}>
-      {selected && <ellipse cx={SX(x + 0.35, y + 0.2)} cy={SY(x + 0.35, y + 0.2)} rx={26} ry={13} fill="none" stroke="#fff" strokeWidth={2.5} className="dz-pulse" />}
-      <ellipse cx={SX(x + 0.35, y + 0.2)} cy={SY(x + 0.35, y + 0.2) + 2} rx={20} ry={8} fill="rgba(0,0,0,0.18)" />
-      <Box x={x} y={y} w={0.7} d={0.4} h={6} z={2} top={s.body} left={s.dark} right={s.body} />
-      <Box x={x + 0.15} y={y + 0.05} w={0.38} d={0.3} h={6} z={8} top="#e0f2fe" left="#334155" right="#475569" />
-      {[[x + 0.12, y + 0.4], [x + 0.55, y + 0.4]].map(([wx, wy], i) => (
-        <ellipse key={i} cx={SX(wx, wy)} cy={SY(wx, wy) + 1} rx={3} ry={2.5} fill="#18181b" />
-      ))}
-      {badge && (
-        <g>
-          <line x1={bx} y1={by + 9} x2={bx} y2={SY(x + 0.35, y + 0.2, 16)} stroke={badge.c} strokeWidth={1.5} />
-          <circle cx={bx} cy={by} r={9} fill={badge.c} stroke="#fff" strokeWidth={2} className={badge.c === C.red ? 'dz-pulse' : undefined} />
-          <text x={bx} y={by + 3.5} textAnchor="middle" fontSize={badge.t === '🔑' ? 8 : 11} fontWeight={800} fill="#fff">{badge.t}</text>
-        </g>
-      )}
-    </g>
-  );
-}
-
-// ── Emplacements : parking (devant l'agence), ville (rues), atelier ─────────
-const PARKING = Array.from({ length: 24 }, (_, i) => ({ x: 6.15 + (i % 6) * 0.95, y: 1.25 + Math.floor(i / 6) * 0.75 }));
-const CITY = [
-  [1.2, 7.3], [3.0, 7.0], [5.6, 7.4], [7.6, 6.9], [9.6, 7.3], [11.0, 8.6], [8.3, 9.0], [6.2, 9.4], [3.9, 9.2],
-  [1.5, 9.6], [2.6, 11.2], [5.0, 11.3], [7.4, 11.1], [9.8, 10.7], [11.2, 11.4], [4.3, 8.2], [10.4, 9.6], [0.8, 11.0],
-].map(([x, y]) => ({ x, y }));
-const GARAGE = [{ x: 0.6, y: 1.3 }, { x: 0.6, y: 2.1 }, { x: 0.6, y: 2.9 }, { x: 1.5, y: 3.6 }, { x: 0.6, y: 3.7 }, { x: 1.5, y: 4.2 }];
-
-function place(list: MapCar[]) {
-  const take = (pool: Array<{ x: number; y: number }>, i: number) => pool[i % pool.length]!;
-  let p = 0, c = 0, g = 0;
-  for (const m of list) {
-    const spot = m.status === 'loue' || m.status === 'retour' ? take(CITY, c++)
-      : m.status === 'atelier' ? take(GARAGE, g++) : take(PARKING, p++);
-    m.x = spot.x; m.y = spot.y;
-  }
-  return list;
-}
-
-const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const fmtD = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+const APP_URL = 'https://kouider213.github.io/ibrahim/';
+const FIK_WA = '32466311469';
 
 type Today = { departures: TodayItem[]; returns: TodayItem[]; toCollect: Array<TodayItem & { due: number }> };
+type Demande = { id: string; source: string; title: string; client_name?: string; client_phone?: string; status?: string; meta?: string; kind?: string; ref?: string; created_at?: string; fields?: Record<string, unknown> };
+const DONE = /cancel|annul|deliver|livr|done|termin|closed|refus|reject|conclu|perdu|finali|complet/i;
+const fmtD = (s: string) => new Date(s + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const money = (n: number, cur?: string | null) => `${n.toLocaleString('fr-FR')} ${cur === 'DZD' ? 'DA' : '€'}`;
+const ZONE_OF: Record<Status, ZoneId> = { dispo: 'parking', depart: 'parking', loue: 'ville', retour: 'ville', atelier: 'atelier' };
 
-export default function CarteScreen({ onAsk, onOpen }: { onAsk: (prompt: string) => void; onOpen: (page: string) => void }) {
+export interface CarteProps {
+  onAsk: (prompt: string) => void;
+  onOpen: (page: string) => void;
+  actor?: string;
+  startFull?: boolean;
+  demo?: { kind: DemoKind; brand: string };
+}
+
+export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFull, demo }: CarteProps) {
   const [cars, setCars] = useState<Car[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reminders, setReminders] = useState<SmartReminder[]>([]);
   const [today, setToday] = useState<Today | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [sel, setSel] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Status | null>(null);
-  // Caméra : centre + zoom, animée vers la voiture touchée (façon jeu)
-  const [view, setView] = useState({ cx: VW.cx, cy: VW.cy, z: 1 });
-  const viewRef = useRef(view); viewRef.current = view;
-  const anim = useRef(0);
-  const flyTo = useCallback((cx: number, cy: number, z: number) => {
-    cancelAnimationFrame(anim.current);
-    const from = viewRef.current, t0 = performance.now();
-    const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / 450), e = 1 - Math.pow(1 - k, 3);
-      setView({ cx: from.cx + (cx - from.cx) * e, cy: from.cy + (cy - from.cy) * e, z: from.z + (z - from.z) * e });
-      if (k < 1) anim.current = requestAnimationFrame(step);
-    };
-    anim.current = requestAnimationFrame(step);
-  }, []);
-  useEffect(() => () => cancelAnimationFrame(anim.current), []);
-  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const [extra, setExtra] = useState<Omit<World, 'brand' | 'zones' | 'cars'>>({ sales: [], imports: [], properties: [], packs: [], pending: 0, sites: 0, prospects: 0, replies: 0 });
+  const [loading, setLoading] = useState(!demo);
+  const [pick, setPick] = useState<Pick>(null);
+  const [full, setFull] = useState(!!startFull);
+  const [adding, setAdding] = useState<{ car?: string } | null>(null);
+  const [sheet, setSheet] = useState<{ kind: SheetKind; id: string | null } | null>(null); // fiche métier (null id = création)
+  const [raws, setRaws] = useState<Record<SheetKind, Raw[]>>({ sale: [], prop: [], imp: [], pack: [], dem: [] });
+  const [toast, setToast] = useState('');
+  const [ready, setReady] = useState(false);
+  const [fresh, setFresh] = useState<string[]>([]);      // animés sur la carte (quelques secondes)
+  const [freshNote, setFreshNote] = useState<string[]>([]); // bandeau « Nouveau »
+  const [demoArrival, setDemoArrival] = useState(false);
+  const host = useRef<HTMLDivElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
+  const api = useRef<SceneApi | null>(null);
+
+  const say = (t: string) => { setToast(t); setTimeout(() => setToast(''), 2600); };
 
   const load = useCallback(async () => {
+    if (demo) return;
     setLoading(true);
     try {
-      const [c, b, r, t] = await Promise.all([
+      const [c, b, r, t, v, p, d, pk, s, pr] = await Promise.all([
         business.fetchCars().catch(() => ({ cars: [] as Car[] })),
         business.fetchBookingsWindow().catch(() => ({ bookings: [] as Booking[] })),
         business.fetchReminders().catch(() => ({ reminders: [] as SmartReminder[] })),
         business.insightsToday().catch(() => null),
+        business.fetchVehiclesForSale().catch(() => ({ vehicles: [] as SaleVehicle[] })),
+        business.fetchProperties().catch(() => ({ properties: [] as SiteProperty[] })),
+        apiFetch<{ demandes: Demande[] }>('/api/demandes').catch(() => ({ demandes: [] as Demande[] })),
+        apiFetch<{ packs: Array<{ id: string; title?: string; name?: string }> }>('/api/packs').catch(() => ({ packs: [] })),
+        business.sitesOverview().catch(() => null),
+        business.prospectsOverview().catch(() => null),
       ]);
-      setCars(c.cars ?? []); setBookings(b.bookings ?? []); setReminders(r.reminders ?? []); setToday(t);
+      setCars(c.cars ?? []); setBookings(b.bookings ?? []); setReminders(r.reminders ?? []); setToday(t && Array.isArray(t.departures) && Array.isArray(t.returns) && Array.isArray(t.toCollect) ? t : null);
+      const dem = d.demandes ?? [];
+      setRaws({
+        sale: (v.vehicles ?? []) as unknown as Raw[], prop: (p.properties ?? []) as unknown as Raw[], pack: (pk.packs ?? []) as unknown as Raw[],
+        imp: dem.filter(x => x.source === 'import') as unknown as Raw[],
+        dem: dem.filter(x => x.source !== 'import' && !DONE.test(x.status ?? '')) as unknown as Raw[],
+      });
+      setExtra({
+        sales: (v.vehicles ?? []).filter(x => !/vendu|sold/i.test(x.status ?? '')).map<Item>(x => ({ id: x.id, label: [x.brand, x.model, x.year].filter(Boolean).join(' '), sub: x.price ? money(x.price, x.currency) : undefined })),
+        imports: dem.filter(x => x.source === 'import' && !DONE.test(x.status ?? '')).map<Item>(x => ({ id: x.id, label: x.title, sub: [x.client_name, x.status].filter(Boolean).join(' · ') })),
+        properties: (p.properties ?? []).filter(x => !/vendu|sold|archiv/i.test(x.status ?? '')).map<Item>(x => ({ id: x.id, label: x.title || x.name || 'Bien', sub: /vente|sale/i.test(x.transaction ?? '') ? 'À vendre' : 'À louer' })),
+        packs: (pk.packs ?? []).map<Item>(x => ({ id: x.id, label: x.title || x.name || 'Pack' })),
+        pending: dem.filter(x => /pending|new|nouveau|open|attente/i.test(x.status ?? '') || !x.status).length,
+        sites: s?.stats?.live ?? 0,
+        prospects: pr?.stats?.sent ?? 0,
+        replies: pr?.stats?.replies ?? 0,
+      });
     } finally { setLoading(false); }
-  }, []);
+  }, [demo]);
   useEffect(() => { void load(); }, [load]);
+  // Sur PC / TV : rafraîchit tout seul chaque minute
+  useEffect(() => { if (demo) return; const t = setInterval(() => void load(), 60_000); return () => clearInterval(t); }, [load, demo]);
 
-  const map = useMemo<MapCar[]>(() => {
-    const t = ymd(new Date());
-    const live = bookings.filter(b => ACTIVE.includes((b.status ?? '').toUpperCase()) && b.start_date <= t && b.end_date >= t);
-    const dueById = new Map((today?.toCollect ?? []).map(x => [x.id, x.due]));
-    const list = cars.map<MapCar>(car => {
-      const mine = live.filter(b => (b.car_id ? b.car_id === car.id : norm(b.cars?.name) === norm(car.name)));
-      const running = mine.find(b => b.start_date < t || (b.start_date === t && b.end_date === t)) ?? mine.find(b => b.end_date === t);
-      const leaving = mine.find(b => b.start_date === t && b !== running);
-      const booking = running ?? leaving ?? null;
-      const status: Status = running ? (running.end_date === t ? 'retour' : 'loue') : leaving ? 'depart' : car.available ? 'dispo' : 'atelier';
-      return {
-        car, status, booking,
-        due: booking ? (dueById.get(booking.id) ?? 0) : 0,
-        alerts: reminders.filter(r => norm(r.car_name) === norm(car.name)),
-        x: 0, y: 0,
-      };
+  // Nouveautés depuis la dernière visite : comparées à ce que la carte a déjà montré (mémorisé sur l'appareil)
+  useEffect(() => {
+    if (demo || loading || !cars.length) return;
+    const ids = [...cars.map(c => `car:${c.id}`), ...extra.sales.map(x => `sale:${x.id}`), ...extra.properties.map(x => `prop:${x.id}`), ...extra.imports.map(x => `imp:${x.id}`)];
+    let seen: string[] | null = null;
+    try { seen = JSON.parse(localStorage.getItem('dz:carte:seen') ?? 'null') as string[] | null; } catch { /* ignore */ }
+    const known = new Set(seen ?? ids); // 1re visite : rien n'est « nouveau »
+    const nw = ids.filter(id => !known.has(id));
+    if (nw.length) { setFresh(nw); setFreshNote(nw); }
+    try { localStorage.setItem('dz:carte:seen', JSON.stringify([...new Set([...(seen ?? []), ...ids])].slice(-2000))); } catch { /* ignore */ }
+  }, [demo, loading, cars, extra]);
+
+  // Une fois l'animation jouée, on ne la rejoue pas au rafraîchissement suivant
+  useEffect(() => { if (!fresh.length) return; const t = setTimeout(() => setFresh([]), 16_000); return () => clearTimeout(t); }, [fresh]);
+  // Démo : une nouvelle voiture arrive après quelques secondes, pour montrer l'effet au prospect
+  useEffect(() => { if (!demo) return; const t = setTimeout(() => { setDemoArrival(true); setFresh(['car:demo-new', 'prop:p0', 'imp:i0', 'sale:s0']); }, 6000); return () => clearTimeout(t); }, [demo]);
+
+  const world = useMemo<World>(() => {
+    if (demo) {
+      const w = demoWorld(demo.kind, demo.brand);
+      if (demoArrival && w.cars.length) w.cars.push({ id: 'demo-new', name: 'Nouvelle Clio 6', status: 'dispo', booking: null, due: 0, alerts: [], badge: null });
+      return { ...w, fresh };
+    }
+    const due = new Map((today?.toCollect ?? []).map(x => [x.id, x.due]));
+    return { brand: 'FIK CONCIERGERIE', zones: ALL_ZONES, cars: buildCars(cars, bookings, reminders, due), ...extra, fresh };
+  }, [demo, demoArrival, cars, bookings, reminders, today, extra, fresh]);
+  const freshText = useMemo(() => {
+    if (demo) return '';
+    const n = (p: string) => freshNote.filter(f => f.startsWith(p)).length;
+    return ([['car:', 'voiture'], ['sale:', 'véhicule à vendre'], ['prop:', 'bien'], ['imp:', 'import']] as const)
+      .filter(([p]) => n(p)).map(([p, t]) => `${n(p)} ${t}${n(p) > 1 && !t.includes(' ') ? 's' : ''}`).join(', ');
+  }, [freshNote, demo]);
+
+  // Scène 3D (three.js chargé à la demande)
+  useEffect(() => {
+    let dead = false;
+    void import('../carte/scene.ts').then(({ createScene }) => {
+      if (dead || !host.current) return;
+      api.current = createScene(host.current, p => { setPick(p); api.current?.focus(p); });
+      setReady(true);
     });
-    return place(list);
-  }, [cars, bookings, reminders, today]);
+    return () => { dead = true; api.current?.dispose(); api.current = null; };
+  }, []);
+  useEffect(() => { if (ready) api.current?.update(world); }, [ready, world]);
+  const choose = (p: Pick) => { setPick(p); setSheet(null); api.current?.focus(p); };
+
+  // Plein écran : vrai plein écran si le navigateur le permet (PC, Android), sinon la carte prend tout l'écran (iPhone)
+  useEffect(() => {
+    const on = () => { if (!document.fullscreenElement) setFull(false); };
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
+  const toggleFull = () => {
+    if (full) { if (document.fullscreenElement) void document.exitFullscreen().catch(() => {}); setFull(false); return; }
+    setFull(true);
+    const el = wrap.current as (HTMLDivElement & { webkitRequestFullscreen?: () => void }) | null;
+    if (el?.requestFullscreen) void el.requestFullscreen().catch(() => {});
+    else el?.webkitRequestFullscreen?.();
+  };
+  useEffect(() => { const t = setTimeout(() => api.current?.resize(), 60); return () => clearTimeout(t); }, [full]);
+
+  const pcLink = `${APP_URL}?carte=1`;
+  const shareLink = async (url: string, title: string) => {
+    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    try { await navigator.clipboard.writeText(url); say('Lien copié ✓'); }
+    catch { if (nav.share) await nav.share({ title, url }).catch(() => {}); else window.prompt('Copie ce lien :', url); }
+  };
 
   const counts = useMemo(() => {
     const o: Record<Status, number> = { dispo: 0, depart: 0, loue: 0, retour: 0, atelier: 0 };
-    map.forEach(m => { o[m.status]++; });
+    world.cars.forEach(m => { o[m.status]++; });
     return o;
-  }, [map]);
-  const total = map.length || 1;
+  }, [world]);
+  const total = world.cars.length || 1;
   const out = counts.loue + counts.retour;
-  const selected = map.find(m => m.car.id === sel) ?? null;
-  const shown = (filter ? map.filter(m => m.status === filter) : map).slice().sort((a, b) => (a.x + a.y) - (b.x + b.y));
   const urgent = reminders.filter(r => r.priority === 'HIGH').length;
-
-  const pick = (id: string | null) => {
-    if (drag.current?.moved) return;
-    setSel(id);
-    const m = id ? map.find(x => x.car.id === id) : null;
-    if (m) { const z = 2.4; flyTo(SX(m.x + 0.35, m.y + 0.2), SY(m.x + 0.35, m.y + 0.2) + 6, z); }
-    else flyTo(VW.cx, VW.cy, 1);
-  };
-  const vb = `${view.cx - VW.w / (2 * view.z)} ${view.cy - VW.h / (2 * view.z)} ${VW.w / view.z} ${VW.h / view.z}`;
-  const onDown = (e: React.PointerEvent) => { drag.current = { x: e.clientX, y: e.clientY, moved: false }; };
-  const onMove = (e: React.PointerEvent) => {
-    const d = drag.current; if (!d || view.z <= 1.01) return;
-    const dx = e.clientX - d.x, dy = e.clientY - d.y;
-    if (!d.moved && Math.hypot(dx, dy) < 6) return;
-    d.moved = true; d.x = e.clientX; d.y = e.clientY;
-    const k = (VW.w / view.z) / (svgRef.current?.clientWidth || 360);
-    cancelAnimationFrame(anim.current);
-    setView(v => ({ ...v, cx: v.cx - dx * k, cy: v.cy - dy * k }));
-  };
-  const onUp = () => { setTimeout(() => { drag.current = null; }, 0); };
-
+  const car = pick?.kind === 'car' ? world.cars.find(m => m.id === pick.id) ?? null : null;
+  const zone = pick?.kind === 'zone' ? pick.zone : null;
   const wa = (phone: string | null) => { const p = (phone || '').replace(/\D/g, ''); if (p) window.open(`https://wa.me/${p}`, '_blank'); };
 
+  // ── Fiche (voiture ou métier) ───────────────────────────────────────────────
+  const sheetRaw = sheet?.id ? raws[sheet.kind].find(x => x.id === sheet.id) ?? null : null;
+  const panel = (car || zone) && (
+    <div style={{ background: '#fff', color: '#0f172a', borderRadius: 14, padding: '11px 12px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', maxHeight: full ? '62vh' : undefined, overflowY: 'auto' }}>
+      {sheet && !demo && (!sheet.id || sheetRaw) ? (
+        <ItemSheet kind={sheet.kind} raw={sheetRaw} onClose={() => setSheet(null)} onChanged={() => void load()} onAsk={onAsk} />
+      ) : car && !demo ? (
+        <CarSheet m={car} car={cars.find(c => c.id === car.id)} onClose={() => choose(null)} onChanged={() => void load()}
+          onAsk={onAsk} onOpen={onOpen} onRent={() => setAdding({ car: car.id })} />
+      ) : car ? <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: STATUS[car.status].badge, borderRadius: 6, padding: '2px 7px' }}>{STATUS[car.status].label.toUpperCase()}</span>
+          <span style={{ fontSize: 14.5, fontWeight: 800, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{car.name}</span>
+          <button onClick={() => choose(null)} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+        </div>
+        {car.booking ? (
+          <div style={{ fontSize: 12.5, marginTop: 6, color: '#334155' }}>
+            👤 <b>{car.booking.client_name}</b> · {fmtD(car.booking.start_date)} → {fmtD(car.booking.end_date)}
+            {car.due > 0 && <span style={{ color: '#b45309', fontWeight: 700 }}> · {money(car.due)} à encaisser</span>}
+          </div>
+        ) : <div style={{ fontSize: 12.5, marginTop: 6, color: '#334155' }}>{car.status === 'atelier' ? 'À l\'atelier, aucune location en cours.' : 'Au parking — prête à partir.'}</div>}
+        {car.alerts.slice(0, 2).map(a => <div key={a.id} style={{ fontSize: 11.5, marginTop: 5, color: a.priority === 'HIGH' ? '#b91c1c' : '#9a3412' }}>⚠️ {a.message}</div>)}
+        <div style={{ fontSize: 11.5, marginTop: 7, color: '#64748b' }}>Dans la vraie version : tout se modifie ici (état, réparation, km, vidange, papiers, rappels, paiement…).</div>
+      </> : zone && <ZonePanel zone={zone} world={world} demo={!!demo} onClose={() => choose(null)} onOpen={onOpen} onAsk={onAsk}
+        onCar={id => choose({ kind: 'car', id })} onAdd={() => setAdding({})} onItem={(kind, id) => setSheet({ kind, id })}
+        demands={raws.dem.map(x => ({ id: x.id, label: String(x['title'] ?? 'Demande'), sub: [x['client_name'], x['status']].filter(Boolean).join(' · ') }))} />}
+    </div>
+  );
+
+  const mapBox: CSSProperties = full
+    ? { position: 'fixed', inset: 0, zIndex: 900, background: '#bae6fd' }
+    : { position: 'relative', borderRadius: 18, overflow: 'hidden', background: '#bae6fd', border: `1px solid ${C.border}`, height: 'min(68vh, 520px)', minHeight: 320 };
+
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '18px 14px 30px' }}>
+    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: demo ? '14px 14px 30px' : '18px 14px 30px', boxSizing: 'border-box' }}>
       <style>{`
-        @keyframes dzBob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-2px) } }
-        .dz-bob { animation: dzBob 2.4s ease-in-out infinite }
-        @keyframes dzPulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
-        .dz-pulse { animation: dzPulse 1.3s ease-in-out infinite }
-                @keyframes dzWave { 0%,100% { opacity: .35 } 50% { opacity: .7 } }
-        .dz-wave { animation: dzWave 3s ease-in-out infinite }
+        .dz3-zone { background: rgba(255,255,255,.94); color: #0f172a; font: 700 11px ${C.font}; padding: 4px 9px; border-radius: 20px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+        .dz3-zone b { color: #047857 }
+        .dz3-brand { background: #0f766e; color: #fff; letter-spacing: .06em } .dz3-brand b { color: #fde68a }
+        .dz3-badge { width: 18px; height: 18px; border-radius: 9px; color: #fff; font: 800 11px ${C.font}; display: grid; place-items: center; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25) }
+        .dz3-new { background: linear-gradient(90deg,#f59e0b,#ec4899); color: #fff; font: 800 11px ${C.font}; padding: 3px 9px; border-radius: 20px; white-space: nowrap; box-shadow: 0 3px 10px rgba(236,72,153,.45); animation: dz3N 1s ease-in-out infinite alternate }
+        @keyframes dz3N { from { filter: brightness(1) } to { filter: brightness(1.25) } }
+        .dz3-short { display: none } .dz3-compact .dz3-full { display: none } .dz3-compact .dz3-short { display: inline } .dz3-compact .dz3-zone { padding: 3px 7px; font-size: 11px }
+        .dz3-price { background: #fef3c7; color: #92400e; font: 800 9.5px ${C.font}; padding: 2px 6px; border-radius: 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.15) }
+        @keyframes dz3P { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.7) } 50% { box-shadow: 0 0 0 7px rgba(239,68,68,0) } } .dz3-pulse { animation: dz3P 1.2s ease-in-out infinite }
       `}</style>
 
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Carte live</div>
-          <div style={{ fontSize: 26, fontWeight: 800 }}>Mon parc</div>
+      {demo && <div style={{ background: `${C.gold}18`, border: `1px solid ${C.gold}44`, color: C.gold, borderRadius: 12, padding: '8px 11px', fontSize: 12, marginBottom: 10 }}>
+        Démo FIK Conciergerie — données d'exemple. Votre activité réelle, vue comme un jeu, sur téléphone, PC ou télé.
+      </div>}
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>{demo ? 'Carte live' : 'Dzaryx · Carte live 3D'}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{demo ? world.brand : 'Tout mon business'}</div>
         </div>
-        <button onClick={() => void load()} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer', color: C.accent, fontWeight: 700 }}>↻</button>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {!demo && <Top onClick={() => void shareLink(pcLink, 'Carte live Dzaryx')} title="Lien pour ouvrir la carte sur le PC">🔗 PC</Top>}
+          <Top onClick={toggleFull} title="Plein écran">⛶</Top>
+          {!demo && <Top onClick={() => void load()} title="Rafraîchir">↻</Top>}
+        </div>
       </div>
 
       {/* Jauge de la journée */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '11px 13px', marginBottom: 12 }}>
+      {world.cars.length > 0 && <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '11px 13px', marginBottom: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 7 }}>
-          <span>JAUGE DE LA JOURNÉE</span><span style={{ color: C.text }}>{out}/{map.length} dehors · {Math.round(out / total * 100)}%</span>
+          <span>JAUGE DE LA JOURNÉE</span><span style={{ color: C.text }}>{out}/{world.cars.length} dehors · {Math.round(out / total * 100)}%</span>
         </div>
         <div style={{ display: 'flex', height: 9, borderRadius: 6, overflow: 'hidden', background: '#27272a' }}>
-          {(['loue', 'retour', 'depart', 'dispo', 'atelier'] as Status[]).map(k => counts[k] > 0 && (
-            <div key={k} style={{ width: `${counts[k] / total * 100}%`, background: STATUS[k].badge }} />
-          ))}
+          {(['loue', 'retour', 'depart', 'dispo', 'atelier'] as Status[]).map(k => counts[k] > 0 && <div key={k} style={{ width: `${counts[k] / total * 100}%`, background: STATUS[k].badge }} />)}
         </div>
-        <div style={{ display: 'flex', gap: 14, marginTop: 9, fontSize: 12 }}>
+        {!demo && <div style={{ display: 'flex', gap: 14, marginTop: 9, fontSize: 12 }}>
           <span>🔑 <b>{today?.departures.length ?? counts.depart}</b> départs</span>
           <span>↩️ <b>{today?.returns.length ?? counts.retour}</b> retours</span>
-          <span>💰 <b>{(today?.toCollect ?? []).reduce((s, x) => s + x.due, 0).toLocaleString('fr-FR')}</b></span>
-        </div>
-      </div>
+          <span>💰 <b>{(today?.toCollect ?? []).reduce((s, x) => s + x.due, 0).toLocaleString('fr-FR')}</b> à encaisser</span>
+        </div>}
+      </div>}
 
-      {/* La carte */}
-      <div style={{ position: 'relative', borderRadius: 18, overflow: 'hidden', background: 'linear-gradient(180deg,#bae6fd 0%,#e0f2fe 100%)', border: `1px solid ${C.border}` }}>
-        {loading && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#0f172a', fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.4)', zIndex: 2 }}>Chargement du parc…</div>}
-        <svg ref={svgRef} viewBox={vb} preserveAspectRatio="xMidYMid slice" style={{ width: '100%', aspectRatio: '690 / 420', display: 'block', touchAction: view.z > 1.01 ? 'none' : 'pan-y' }}
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp}>
-          {/* mer + plage (côté Oran) */}
-          <polygon points={`${P(-3, -3)} ${P(16, -3)} ${P(16, 16)} ${P(-3, 16)}`} fill="#7dd3fc" />
-          {[0, 1, 2].map(i => <path key={i} className="dz-wave" style={{ animationDelay: `${i}s` }} d={`M${SX(13.6 + i * 0.6, -1)},${SY(13.6 + i * 0.6, -1)} l60,30`} stroke="#fff" strokeWidth={2} strokeLinecap="round" />)}
-          <Tile x={-0.6} y={-0.6} w={13.4} d={13.4} fill="#fde68a" />
-          <Tile x={0} y={0} w={12.2} d={12.2} fill="#86efac" />
-          {/* routes */}
-          <Tile x={0} y={5.1} w={12.2} d={1.1} fill="#64748b" />
-          <Tile x={5.1} y={0} w={0.8} d={12.2} fill="#64748b" />
-          {Array.from({ length: 12 }, (_, i) => <Tile key={i} x={i + 0.3} y={5.6} w={0.45} d={0.08} fill="#f8fafc" />)}
-          <Tile x={0} y={8.4} w={12.2} d={0.6} fill="#94a3b8" />
-          {/* parking */}
-          <Tile x={5.95} y={0.95} w={5.9} d={3.2} fill="#cbd5e1" />
-          {PARKING.map((s, i) => <Tile key={i} x={s.x - 0.08} y={s.y - 0.1} w={0.86} d={0.6} fill="none" stroke="#f8fafc" />)}
-          {/* atelier */}
-          <Tile x={0.3} y={0.9} w={2} d={3.9} fill="#d4d4d8" />
-          <Box x={1.5} y={1.0} w={0.8} d={2.3} h={26} top="#a1a1aa" left="#71717a" right="#d4d4d8" />
-          {/* agence AutoLux */}
-          <Tile x={2.6} y={0.6} w={3.1} d={3.6} fill="#e5e7eb" />
-          <Box x={2.9} y={0.9} w={2.5} d={2.6} h={46} top="#f1f5f9" left="#0f766e" right="#14b8a6" />
-          <Box x={2.9} y={0.9} w={2.5} d={2.6} h={6} z={46} top="#fbbf24" left="#d97706" right="#f59e0b" />
-          <g>
-            <rect x={SX(4.15, 2.2) - 30} y={SY(4.15, 2.2, 78)} width={60} height={15} rx={4} fill="#0f766e" />
-            <text x={SX(4.15, 2.2)} y={SY(4.15, 2.2, 78) + 11} textAnchor="middle" fontSize={10} fontWeight={900} fill="#fff" letterSpacing="0.08em">AUTOLUX</text>
-          </g>
-          {/* petite voiture d'ambiance qui roule sur l'avenue */}
-          <g>
-            <animateTransform attributeName="transform" type="translate" from="0 0" to={`${13 * TW / 2} ${13 * TH / 2}`} dur="16s" repeatCount="indefinite" />
-            <Box x={-0.8} y={5.25} w={0.7} d={0.4} h={6} z={2} top="#fb7185" left="#be123c" right="#f43f5e" />
-            <Box x={-0.65} y={5.3} w={0.38} d={0.3} h={6} z={8} top="#e0f2fe" left="#334155" right="#475569" />
-          </g>
-          {/* ville */}
-          {[
-            [0.4, 6.6, 1.3, 1.3, 38, '#fca5a5', '#ef4444'], [2.4, 6.5, 1.2, 1.4, 54, '#c4b5fd', '#8b5cf6'],
-            [6.6, 6.5, 1.6, 1.2, 30, '#fdba74', '#f97316'], [8.8, 6.4, 1.2, 1.5, 62, '#93c5fd', '#3b82f6'],
-            [0.5, 9.5, 1.1, 1.1, 34, '#f9a8d4', '#ec4899'], [3.0, 9.9, 1.4, 1.0, 44, '#fde68a', '#eab308'],
-            [6.6, 9.6, 1.0, 1.3, 70, '#a5b4fc', '#6366f1'], [8.6, 9.9, 1.5, 1.2, 28, '#fecaca', '#f87171'],
-            [10.6, 6.8, 1.2, 1.2, 40, '#bbf7d0', '#16a34a'],
-          ].map(([x, y, w, d, h, a, b], i) => (
-            <Box key={i} x={x as number} y={y as number} w={w as number} d={d as number} h={h as number} top="#f8fafc" left={b as string} right={a as string} />
-          ))}
-          {[[11.5, 0.6], [11.6, 2.2], [11.4, 4.3], [0.2, 5.0], [4.9, 8.0], [10.4, 12.0], [1.8, 12.0], [5.6, 12.0], [8.0, 8.0]].map(([x, y], i) => <Tree key={i} x={x!} y={y!} s={0.9} />)}
-          {[[12.6, 1.2], [12.6, 4.0], [12.6, 7.5], [12.6, 10.4]].map(([x, y], i) => <Palm key={i} x={x!} y={y!} />)}
-          {/* étiquettes de zones */}
-          {([['PARKING', 9, 0.4], ['ATELIER', 0.2, 4.7], ['EN VILLE', 6, 12.4]] as const).map(([t, x, y]) => (
-            <text key={t} x={SX(x, y)} y={SY(x, y)} textAnchor="middle" fontSize={10} fontWeight={800} fill="#0f172a" opacity={0.55} letterSpacing="0.1em">{t}</text>
-          ))}
-          {shown.map(m => <CarSprite key={m.car.id} m={m} selected={m.car.id === sel} onClick={() => pick(m.car.id === sel ? null : m.car.id)} />)}
-        </svg>
-
-        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {[['+', () => flyTo(view.cx, view.cy, Math.min(4, view.z * 1.6))], ['−', () => flyTo(view.cx, view.cy, Math.max(1, view.z / 1.6))], ['⤢', () => pick(null)]].map(([t, fn]) => (
-            <button key={t as string} onClick={fn as () => void} style={{ width: 30, height: 30, borderRadius: 9, border: 'none', background: 'rgba(255,255,255,0.92)', color: '#0f172a', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{t as string}</button>
-          ))}
-        </div>
-
-      </div>
-
-        {/* Fiche voiture */}
-      {selected && (
-        <div style={{ marginTop: 8, background: '#fff', color: '#0f172a', borderRadius: 14, padding: '11px 12px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: STATUS[selected.status].badge, borderRadius: 6, padding: '2px 7px' }}>{STATUS[selected.status].label.toUpperCase()}</span>
-            <span style={{ fontSize: 14.5, fontWeight: 800, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.car.name}</span>
-            <button onClick={() => pick(null)} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+      {/* Faire entrer toutes les locations */}
+      {!demo && !loading && (
+        <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}33`, borderRadius: 14, padding: '10px 12px', marginBottom: 12 }}>
+          <div style={{ fontSize: 12.5, lineHeight: 1.4 }}>
+            <b>{bookings.length} location{bookings.length > 1 ? 's' : ''}</b> dans Dzaryx. Ajoute toutes les autres : la carte, les relances et les rapports deviennent justes.
           </div>
-          {selected.booking ? (
-            <div style={{ fontSize: 12.5, marginTop: 6, color: '#334155' }}>
-              👤 <b>{selected.booking.client_name}</b> · {fmtD(selected.booking.start_date)} → {fmtD(selected.booking.end_date)}
-              {selected.due > 0 && <span style={{ color: '#b45309', fontWeight: 700 }}> · {selected.due.toLocaleString('fr-FR')} à encaisser</span>}
-            </div>
-          ) : (
-            <div style={{ fontSize: 12.5, marginTop: 6, color: '#334155' }}>{selected.status === 'atelier' ? 'Marquée indisponible, aucune location en cours.' : 'Libre — prête à partir.'}</div>
-          )}
-          {selected.alerts.slice(0, 2).map(a => (
-            <div key={a.id} style={{ fontSize: 11.5, marginTop: 5, color: a.priority === 'HIGH' ? '#b91c1c' : '#9a3412' }}>⚠️ {a.message}</div>
-          ))}
-          <div style={{ display: 'flex', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
-            {selected.booking?.client_phone && <>
-              <Btn bg="#dcfce7" fg="#15803d" onClick={() => wa(selected.booking!.client_phone)}>💬 WhatsApp</Btn>
-              <Btn bg="#e0f2fe" fg="#0369a1" onClick={() => { window.location.href = `tel:${selected.booking!.client_phone}`; }}>📞 Appeler</Btn>
-            </>}
-            <Btn bg="#ede9fe" fg="#6d28d9" onClick={() => onAsk(selected.booking
-              ? `Fais le point sur la ${selected.car.name} louée par ${selected.booking.client_name} (${selected.booking.start_date} → ${selected.booking.end_date}) : paiement, retour, et ce que je dois faire.`
-              : `La ${selected.car.name} est ${STATUS[selected.status].label.toLowerCase()}. Quelles sont les prochaines réservations et comment la louer plus vite ?`)}>✨ Demander à Dzaryx</Btn>
-            <Btn bg="#f1f5f9" fg="#334155" onClick={() => onOpen('fleet')}>🚗 Parc</Btn>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <Btn bg={C.accent} fg="#fff" onClick={() => setAdding({})}>➕ Ajouter des locations</Btn>
           </div>
         </div>
       )}
 
-      {/* Légende / filtres */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0 14px' }}>
+      {freshText && <div onClick={() => setFreshNote([])} style={{ background: 'linear-gradient(90deg,#f59e0b22,#ec489922)', border: '1px solid #ec489955', borderRadius: 12, padding: '8px 11px', fontSize: 12.5, marginBottom: 10, cursor: 'pointer' }}>
+        ✨ <b>Nouveau sur la carte</b> depuis ta dernière visite : {freshText}
+      </div>}
+
+      {/* La carte 3D */}
+      <div ref={wrap} style={mapBox}>
+        <div ref={host} style={{ position: 'absolute', inset: 0, touchAction: 'none' }} />
+        {(loading || !ready) && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#0f172a', fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,0.35)', zIndex: 2, pointerEvents: 'none' }}>Construction de la ville…</div>}
+        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 5, zIndex: 3 }}>
+          {full && <MapBtn onClick={toggleFull}>✕</MapBtn>}
+          <MapBtn onClick={() => api.current?.zoom(1.5)}>+</MapBtn>
+          <MapBtn onClick={() => api.current?.zoom(1 / 1.5)}>−</MapBtn>
+          <MapBtn onClick={() => { setPick(null); api.current?.reset(); }}>⌂</MapBtn>
+        </div>
+        {full && <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.82)', color: '#fff', borderRadius: 12, padding: '7px 11px', fontFamily: C.font }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', color: '#6ee7b7', fontWeight: 700 }}>CARTE LIVE</div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{world.brand}</div>
+          <div style={{ display: 'flex', gap: 9, fontSize: 11.5, marginTop: 3, flexWrap: 'wrap' }}>
+            {(Object.keys(STATUS) as Status[]).map(k => <span key={k}><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 4, background: STATUS[k].badge, marginRight: 4 }} />{counts[k]}</span>)}
+          </div>
+        </div>}
+        <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 10.5, color: '#0f172a', opacity: 0.6, zIndex: 3, pointerEvents: 'none', fontFamily: C.font }}>
+          1 doigt : déplacer · 2 doigts : zoom / tourner{full ? ' · souris : clic droit pour tourner' : ''}
+        </div>
+        {full && panel && <div style={{ position: 'absolute', left: 8, right: 8, bottom: 26, zIndex: 4, maxWidth: 460, margin: '0 auto' }}>{panel}</div>}
+      </div>
+
+      {!full && panel && <div style={{ marginTop: 8 }}>{panel}</div>}
+
+      {/* Légende : touche → vole vers la zone */}
+      {world.cars.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0 14px' }}>
         {(Object.keys(STATUS) as Status[]).map(k => (
-          <button key={k} onClick={() => setFilter(filter === k ? null : k)} style={{
-            display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', borderRadius: 20, padding: '5px 10px',
-            background: filter === k ? `${STATUS[k].badge}30` : C.surface, color: C.text, border: `1px solid ${filter === k ? STATUS[k].badge : C.border}`,
-          }}>
+          <button key={k} onClick={() => choose({ kind: 'zone', zone: ZONE_OF[k] })} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', borderRadius: 20, padding: '5px 10px', background: C.surface, color: C.text, border: `1px solid ${C.border}` }}>
             <span style={{ width: 8, height: 8, borderRadius: 4, background: STATUS[k].badge }} />{STATUS[k].label} <b>{counts[k]}</b>
+          </button>
+        ))}
+      </div>}
+
+      {/* Tous les métiers */}
+      <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', margin: '6px 0 8px' }}>{demo ? 'ZONES' : 'TOUS NOS MÉTIERS'}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 7, marginBottom: 14 }}>
+        {world.zones.map(z => (
+          <button key={z} onClick={() => choose({ kind: 'zone', zone: z })} style={{ textAlign: 'left', background: zone === z ? `${C.accent}18` : C.surface, border: `1px solid ${zone === z ? C.accent : C.border}`, borderRadius: 12, padding: '9px 10px', color: C.text, cursor: 'pointer' }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>{ZONE_INFO[z].icon} {ZONE_INFO[z].title}</div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>{zoneCount(z, world)}</div>
           </button>
         ))}
       </div>
 
-      {/* Assistant */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 13px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 800 }}>✨ Assistant {urgent > 0 && <span style={{ color: C.red, fontSize: 11 }}>· {urgent} urgent{urgent > 1 ? 's' : ''}</span>}</div>
-          <button onClick={() => onAsk('Fais-moi le briefing du jour du parc : départs, retours, paiements à encaisser, voitures libres à pousser, et les urgences dans l\'ordre.')}
-            style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 9, padding: '5px 10px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 11.5 }}>Briefing du jour</button>
-        </div>
-        {reminders.length === 0 ? <div style={{ fontSize: 12, color: C.muted }}>Rien d'urgent sur le parc.</div> : reminders.slice(0, 4).map(r => (
-          <div key={r.id} onClick={() => { const m = map.find(x => norm(x.car.name) === norm(r.car_name)); if (m) pick(m.car.id); }}
-            style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 0', borderTop: `1px solid ${C.border}`, cursor: 'pointer' }}>
-            <span style={{ width: 7, height: 7, borderRadius: 4, marginTop: 5, flexShrink: 0, background: r.priority === 'HIGH' ? C.red : r.priority === 'MEDIUM' ? C.orange : C.muted }} />
-            <div style={{ fontSize: 12, lineHeight: 1.35 }}><b>{r.car_name}</b> · {r.client_name}<div style={{ color: C.muted }}>{r.message}</div></div>
+      {demo ? (
+        <a href={`https://wa.me/${FIK_WA}?text=${encodeURIComponent(`Bonjour FIK, j'ai vu la démo Carte live${demo.brand ? ` (${demo.brand})` : ''}. Je veux la même pour mon entreprise.`)}`} target="_blank" rel="noreferrer"
+          style={{ display: 'block', textAlign: 'center', background: '#22c55e', color: '#fff', fontWeight: 800, borderRadius: 12, padding: '12px 0', textDecoration: 'none', fontSize: 14 }}>
+          💬 Je veux la même pour mon entreprise
+        </a>
+      ) : <>
+        {/* Assistant */}
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 13px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>✨ Assistant {urgent > 0 && <span style={{ color: C.red, fontSize: 11 }}>· {urgent} urgent{urgent > 1 ? 's' : ''}</span>}</div>
+            <button onClick={() => onAsk('Fais-moi le briefing du jour de tout le business : départs, retours, paiements à encaisser, voitures libres à pousser, ventes, imports, immobilier, demandes du site et les urgences dans l\'ordre.')}
+              style={{ background: `${C.accent}18`, border: `1px solid ${C.accent}44`, borderRadius: 9, padding: '5px 10px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 11.5 }}>Briefing du jour</button>
           </div>
-        ))}
+          {reminders.length === 0 ? <div style={{ fontSize: 12, color: C.muted }}>Rien d'urgent sur le parc.</div> : reminders.slice(0, 4).map(r => (
+            <div key={r.id} onClick={() => { const m = world.cars.find(x => norm(x.name) === norm(r.car_name)); if (m) choose({ kind: 'car', id: m.id }); }}
+              style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '7px 0', borderTop: `1px solid ${C.border}`, cursor: 'pointer' }}>
+              <span style={{ width: 7, height: 7, borderRadius: 4, marginTop: 5, flexShrink: 0, background: r.priority === 'HIGH' ? C.red : r.priority === 'MEDIUM' ? C.orange : C.muted }} />
+              <div style={{ fontSize: 12, lineHeight: 1.35 }}><b>{r.car_name}</b> · {r.client_name}<div style={{ color: C.muted }}>{r.message}</div></div>
+            </div>
+          ))}
+        </div>
+        <PcLink url={pcLink} onCopy={() => void shareLink(pcLink, 'Carte live Dzaryx')} />
+        {actor === 'kouider' && <SellOffer onCopy={u => void shareLink(u, 'Démo Carte live')} />}
+      </>}
+
+      {adding && <AddRentals cars={cars} actor={actor} initialCar={adding.car} onClose={() => setAdding(null)} onDone={n => { say(`${n} location${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} ✓`); void load(); }} />}
+      {toast && <div style={{ position: 'fixed', left: '50%', bottom: 90, transform: 'translateX(-50%)', background: '#0f172a', color: '#fff', padding: '9px 14px', borderRadius: 12, fontSize: 13, fontWeight: 700, zIndex: 1100, boxShadow: '0 6px 20px rgba(0,0,0,.35)' }}>{toast}</div>}
+    </div>
+  );
+}
+
+function zoneCount(z: ZoneId, w: World): string {
+  const n = (s: Status[]) => w.cars.filter(c => s.includes(c.status)).length;
+  switch (z) {
+    case 'agence': return w.pending ? `${w.pending} demande${w.pending > 1 ? 's' : ''} en attente` : 'Aucune demande en attente';
+    case 'parking': return `${n(['dispo', 'depart'])} voiture${n(['dispo', 'depart']) > 1 ? 's' : ''} au parking`;
+    case 'atelier': return `${n(['atelier'])} à l'atelier`;
+    case 'ville': return `${n(['loue', 'retour'])} en location`;
+    case 'vente': return w.sales.length ? `${w.sales.length} à vendre` : 'Bientôt — 0 à vendre';
+    case 'port': return `${w.imports.length} import${w.imports.length > 1 ? 's' : ''} en cours`;
+    case 'immo': return w.properties.length ? `${w.properties.length} bien${w.properties.length > 1 ? 's' : ''}` : 'Bientôt — 0 bien';
+    case 'packs': return w.packs.length ? `${w.packs.length} pack${w.packs.length > 1 ? 's' : ''}` : 'Bientôt — 0 pack';
+    case 'aeroport': return 'Livraison, accueil, transferts';
+    case 'b2b': return w.prospects ? `${w.prospects} démarchées · ${w.replies} réponse${w.replies > 1 ? 's' : ''}` : 'Packs entreprises';
+    case 'web': return w.sites ? `${w.sites} site${w.sites > 1 ? 's' : ''} en ligne` : 'Sites pour les commerces';
+  }
+}
+
+function ZonePanel({ zone, world, demo, onClose, onOpen, onAsk, onCar, onAdd, onItem, demands }: {
+  zone: ZoneId; world: World; demo: boolean; onClose: () => void; onOpen: (p: string) => void; onAsk: (p: string) => void; onCar: (id: string) => void; onAdd: () => void;
+  onItem: (kind: SheetKind, id: string | null) => void; demands: Item[];
+}) {
+  const info = ZONE_INFO[zone];
+  const cars = (s: Status[]) => world.cars.filter(c => s.includes(c.status));
+  const list: Item[] | null =
+    zone === 'parking' ? cars(['depart', 'dispo']).map(c => ({ id: c.id, label: c.name, sub: c.status === 'depart' ? `Départ aujourd'hui · ${c.booking?.client_name ?? ''}` : 'Disponible' }))
+    : zone === 'atelier' ? cars(['atelier']).map(c => ({ id: c.id, label: c.name, sub: 'Indisponible' }))
+    : zone === 'ville' ? cars(['loue', 'retour']).map(c => ({ id: c.id, label: c.name, sub: `${c.booking?.client_name ?? ''} · ${c.status === 'retour' ? 'retour aujourd\'hui' : `jusqu'au ${c.booking ? fmtD(c.booking.end_date) : ''}`}` }))
+    : zone === 'vente' ? world.sales : zone === 'port' ? world.imports : zone === 'immo' ? world.properties : zone === 'packs' ? world.packs
+    : zone === 'agence' && !demo ? demands : null;
+  const isCar = zone === 'parking' || zone === 'atelier' || zone === 'ville';
+  const itemKind = ({ vente: 'sale', port: 'imp', immo: 'prop', packs: 'pack', agence: 'dem' } as Partial<Record<ZoneId, SheetKind>>)[zone];
+  const tap = demo ? undefined : isCar ? onCar : itemKind ? (id: string) => onItem(itemKind, id) : undefined;
+  const actions: Array<[string, () => void]> = demo ? [] : ({
+    agence: [['📥 Demandes du site', () => onOpen('leads')], ['📅 Réservations', () => onOpen('bookings')]],
+    parking: [['➕ Ajouter des locations', onAdd], ['🚗 Parc', () => onOpen('fleet')]],
+    atelier: [['🚗 Parc', () => onOpen('fleet')], ['✨ Dzaryx', () => onAsk('Quelles voitures sont indisponibles, pourquoi, et quand reviennent-elles ? Vidanges et papiers à prévoir ?')]],
+    ville: [['📅 Réservations', () => onOpen('bookings')], ['➕ Ajouter des locations', onAdd]],
+    vente: [['➕ Mettre en vente', () => onItem('sale', null)], ['🏷️ Véhicules à vendre', () => onOpen('fleet')], ['✨ Dzaryx', () => onAsk('Comment lancer la vente de véhicules d\'occasion : quels modèles acheter/importer pour revendre à Oran, à quel prix, et comment les mettre en vente sur le site ?')]],
+    port: [['➕ Nouvel import', () => onItem('imp', null)], ['📥 Commandes d\'import', () => onOpen('leads')], ['✨ Dzaryx', () => onAsk('Fais le point sur mes importations de véhicules en cours et ce que je dois faire pour chacune.')]],
+    immo: [['➕ Ajouter un bien', () => onItem('prop', null)], ['🏠 Immobilier', () => onOpen('immo')], ['✨ Dzaryx', () => onAsk('Aide-moi à lancer l\'immobilier : comment trouver mes premiers biens à louer ou vendre à Oran et les mettre sur le site ?')]],
+    packs: [['➕ Nouveau pack', () => onItem('pack', null)], ['✨ Créer un pack avec Dzaryx', () => onAsk('Aide-moi à créer un pack séjour clé en main (voiture + logement + extras) pour le site, avec un prix.')]],
+    aeroport: [['📥 Demandes', () => onOpen('leads')], ['✨ Dzaryx', () => onAsk('Quelles livraisons aéroport, accueils et transferts sont prévus ces prochains jours ?')]],
+    b2b: [['📤 Démarchage', () => onOpen('demarchage')]],
+    web: [['🌐 Sites clients', () => onOpen('sites')]],
+  } as Record<ZoneId, Array<[string, () => void]>>)[zone];
+  return <>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 14.5, fontWeight: 800, flex: 1 }}>{info.icon} {info.title}</span>
+      <span style={{ fontSize: 11.5, color: '#475569', fontWeight: 700 }}>{zoneCount(zone, world)}</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: '#64748b' }}>✕</button>
+    </div>
+    <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{info.desc}</div>
+    {list && list.length > 0 && <div style={{ marginTop: 7, maxHeight: 170, overflowY: 'auto' }}>
+      {list.slice(0, 30).map(x => (
+        <div key={x.id} onClick={tap ? () => tap(x.id) : undefined} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '5px 0', borderTop: '1px solid #e2e8f0', fontSize: 12.5, cursor: tap ? 'pointer' : 'default' }}>
+          <b style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.label}</b><span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{x.sub}{tap ? ' ›' : ''}</span>
+        </div>
+      ))}
+    </div>}
+    {list && list.length === 0 && <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>Rien pour le moment.</div>}
+    {actions.length > 0 && <div style={{ display: 'flex', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
+      {actions.map(([t, fn]) => <Btn key={t} bg="#f1f5f9" fg="#334155" onClick={fn}>{t}</Btn>)}
+    </div>}
+  </>;
+}
+
+function PcLink({ url, onCopy }: { url: string; onCopy: () => void }) {
+  return (
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 13px', marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 800 }}>🖥️ Voir la carte sur ton PC</div>
+      <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 8px', lineHeight: 1.4 }}>
+        Ouvre ce lien sur le PC : la carte s'affiche directement en grand et se met à jour toute seule chaque minute. La 1re fois, connecte-toi avec ton mot de passe Dzaryx. Touche ⛶ pour le vrai plein écran.
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <code style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, background: '#0f0f14', borderRadius: 8, padding: '8px 9px', color: '#a7f3d0' }}>{url}</code>
+        <Btn bg={C.accent} fg="#fff" onClick={onCopy}>Copier</Btn>
       </div>
     </div>
   );
 }
 
+// Offre FIK : vendre la Carte live à d'autres entreprises (démo publique personnalisée, données fictives)
+function SellOffer({ onCopy }: { onCopy: (url: string) => void }) {
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<DemoKind>('location');
+  const url = `${APP_URL}?demo=carte&k=${kind}${name.trim() ? `&n=${encodeURIComponent(name.trim())}` : ''}`;
+  const msg = `Bonjour${name.trim() ? ` ${name.trim()}` : ''}, voici à quoi ressemblerait votre activité en direct, vue comme un jeu : chaque véhicule ou bien est à sa place (disponible, loué, à l'atelier, en vente…), les retards et paiements à encaisser sautent aux yeux, et on peut l'afficher en plein écran sur un PC ou une télé. Démo (données d'exemple) : ${url}\n— FIK Conciergerie`;
+  const kinds: Array<[DemoKind, string]> = [['location', 'Loueur'], ['vente', 'Vente auto'], ['garage', 'Garage'], ['immo', 'Agence immo'], ['transport', 'Transport']];
+  return (
+    <div style={{ background: `linear-gradient(135deg, ${C.gold}14, ${C.surface})`, border: `1px solid ${C.gold}40`, borderRadius: 14, padding: '12px 13px' }}>
+      <div style={{ fontSize: 13, fontWeight: 800 }}>💼 Offre FIK — vendre la Carte live</div>
+      <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 8px', lineHeight: 1.4 }}>
+        Une démo à leur nom, avec des données d'exemple (aucune de tes vraies données). Tu peux aussi dire à Dzaryx : « envoie la démo carte au garage X ».
+      </div>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom de l'entreprise (ex. Garage Benali)" style={{ width: '100%', boxSizing: 'border-box', background: '#0f0f14', border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 9px', color: C.text, fontSize: 13, marginBottom: 7 }} />
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 9 }}>
+        {kinds.map(([k, t]) => <button key={k} onClick={() => setKind(k)} style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 16, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${kind === k ? C.gold : C.border}`, background: kind === k ? `${C.gold}25` : 'transparent', color: C.text }}>{t}</button>)}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <Btn bg={C.gold} fg="#1c1917" onClick={() => window.open(url, '_blank')}>👁️ Voir la démo</Btn>
+        <Btn bg="#22c55e" fg="#fff" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')}>💬 Envoyer</Btn>
+        <Btn bg="#334155" fg="#fff" onClick={() => onCopy(url)}>🔗 Copier le lien</Btn>
+      </div>
+    </div>
+  );
+}
+
+function Top({ onClick, title, children }: { onClick: () => void; title: string; children: ReactNode }) {
+  return <button onClick={onClick} title={title} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '7px 11px', cursor: 'pointer', color: C.accent, fontWeight: 700, fontSize: 13 }}>{children}</button>;
+}
+function MapBtn({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return <button onClick={onClick} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.94)', color: '#0f172a', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{children}</button>;
+}
 function Btn({ bg, fg, onClick, children }: { bg: string; fg: string; onClick: () => void; children: ReactNode }) {
   return <button onClick={onClick} style={{ background: bg, color: fg, border: 'none', borderRadius: 9, padding: '7px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>{children}</button>;
 }

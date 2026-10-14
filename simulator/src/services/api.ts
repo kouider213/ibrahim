@@ -670,7 +670,12 @@ export interface Car {
   houari_base_price?: number | null; houari_resale_price?: number | null;
   currency?: string | null; category: string | null;
   image_url?: string | null;
+  maintenance_note?: string | null; service_notes?: string | null;
+  current_km?: number | null; next_service_km?: number | null; next_service_date?: string | null;
+  insurance_expiry?: string | null; technical_expiry?: string | null; vignette_expiry?: string | null;
 }
+
+export interface CarReminder { id: string; message: string; remind_at: string; local_time_iso?: string | null }
 
 // ── Inspection (état avant/après véhicule + bien) ──────────────────
 export interface DamageBox {
@@ -1119,6 +1124,13 @@ export const business = {
 
   toggleCar: (id: string, available: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ available }) }),
+
+  carReminders: (id: string) =>
+    apiFetch<{ reminders: CarReminder[] }>(`/api/cars/${encodeURIComponent(id)}/reminders`),
+  addCarReminder: (id: string, data: { message: string; date: string; time?: string }) =>
+    apiFetch<{ reminder: CarReminder }>(`/api/cars/${encodeURIComponent(id)}/reminders`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteCarReminder: (id: string, rid: string) =>
+    apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}/reminders/${encodeURIComponent(rid)}`, { method: 'DELETE' }),
 
   updateCar: (id: string, data: Record<string, unknown>) =>
     apiFetch<{ car: Car }>(`/api/cars/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),

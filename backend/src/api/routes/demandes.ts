@@ -12,6 +12,7 @@ type Demande = {
   ref?: string; title: string; client_name?: string; client_phone?: string;
   client_email?: string; status?: string; lang?: string; created_at?: string;
   meta?: string; admin_path: string; kind?: string;
+  fields?: Record<string, unknown>; // champs bruts éditables (fiche de la Carte live)
 };
 
 router.get('/', requireMobileAuth, async (_req, res) => {
@@ -46,7 +47,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
     }),
     safe(async () => {
       const { data } = await supabase.from('import_orders')
-        .select('id, order_ref, status, client_name, client_phone, client_email, vehicle_brand, vehicle_model, vehicle_year, budget, currency, lang, created_at')
+        .select('id, order_ref, status, client_name, client_phone, client_email, vehicle_brand, vehicle_model, vehicle_year, budget, currency, country_origin, notes_admin, lang, created_at')
         .order('created_at', { ascending: false }).limit(120);
       for (const o of data ?? []) out.push({
         id: 'import-' + o.id, source: 'import', ref: o.order_ref,
@@ -55,6 +56,7 @@ router.get('/', requireMobileAuth, async (_req, res) => {
         status: o.status, lang: o.lang, created_at: o.created_at,
         meta: o.budget ? `${o.budget} ${o.currency || ''}` : '',
         admin_path: '/admin/import',
+        fields: { vehicle_brand: o.vehicle_brand, vehicle_model: o.vehicle_model, vehicle_year: o.vehicle_year, budget: o.budget, currency: o.currency, country_origin: o.country_origin, notes_admin: o.notes_admin },
       });
     }),
     safe(async () => {
@@ -90,8 +92,22 @@ router.get('/', requireMobileAuth, async (_req, res) => {
 const SITE = process.env['FIK_SITE_URL'] || 'https://fikconciergerie.com';
 
 router.post('/update', requireMobileAuth, async (req, res) => {
-  const { source, id, status } = (req.body ?? {}) as { source?: string; id?: string; status?: string };
-  if (!source || !id || !status) { res.status(400).json({ error: 'source + id + status requis' }); return; }
+  const { source, id, status, patch } = (req.body ?? {}) as { source?: string; id?: string; status?: string; patch?: Record<string, unknown> };
+  if (!source || !id || (!status && !patch)) { res.status(400).json({ error: 'source + id + status (ou patch) requis' }); return; }
+
+  // Modification des infos d'une importation (véhicule, budget, pays, notes) — le site filtre les champs.
+  if (patch && source === 'import') {
+    try {
+      const r = await fetch(`${SITE}/api/update-import-order`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, patch: status ? { ...patch, status } : patch }),
+      });
+      if (!r.ok) throw new Error(`site update-import-order ${r.status}`);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+    return;
+  }
+  if (!status) { res.status(400).json({ error: 'status requis' }); return; }
 
   try {
     if (source === 'booking') {

@@ -91,7 +91,9 @@ function getSavedSession(): { actor: Actor; user: string } | null {
 interface Notif { text: string; deepLink?: Page }
 
 export default function Phone() {
-  const [page, setPage]       = useState<Page>('voice');
+  // Lien PC : ?carte=1 → ouvre directement la Carte live en grand
+  const carteLink = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('carte');
+  const [page, setPage]       = useState<Page>(carteLink ? 'carte' : 'voice');
   const [showOnboard, setShowOnboard] = useState<boolean>(() => { try { return !localStorage.getItem('dz:onboarded'); } catch { return false; } });
   const [wsOk, setWsOk]       = useState(false);
   const [notif, setNotif]     = useState<Notif | null>(null);
@@ -307,7 +309,7 @@ export default function Phone() {
       case 'nexus':         return <NexusScreen />;
       case 'demarchage':    return <DemarchageScreen onOpen={(p) => setPage(p as Page)} />;
       case 'sites':         return <SitesScreen />;
-      case 'carte':         return <CarteScreen onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
+      case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;
       case 'calendar':      return <CalendarScreen />;

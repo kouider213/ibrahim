@@ -4,6 +4,7 @@ import { getBookings, checkCarAvailability, createBooking, supabase } from '../.
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../../integrations/google-calendar.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { updateClientIntelFromBooking } from '../../orchestrator/client-intelligence.js';
+import { parseRentals } from '../../integrations/bookings-import.js';
 
 const router = Router();
 
@@ -55,8 +56,19 @@ const bookingSchema = z.object({
   owner_price_per_day:  z.number().min(0).optional(),
   payment_status:       z.enum(['UNPAID', 'PENDING', 'PARTIAL', 'PAID']).optional(),
   paid_amount:          z.number().min(0).optional(),
-  initial_status:       z.enum(['PENDING', 'CONFIRMED']).optional(),
+  initial_status:       z.enum(['PENDING', 'CONFIRMED', 'COMPLETED']).optional(),
   currency:             z.enum(['EUR', 'DZD']).optional().default('EUR'),
+});
+
+// POST /api/bookings/import/parse — texte ou photo du carnet → liste de locations à vérifier (rien n'est créé)
+router.post('/import/parse', requireMobileAuth, async (req, res) => {
+  const { text, imageBase64, mime } = (req.body ?? {}) as { text?: string; imageBase64?: string; mime?: string };
+  if (!text?.trim() && !imageBase64) { res.status(400).json({ error: 'Colle un texte ou envoie une photo.' }); return; }
+  try {
+    res.json({ items: await parseRentals({ text, imageBase64, mime }) });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 router.post('/', requireMobileAuth, async (req, res) => {

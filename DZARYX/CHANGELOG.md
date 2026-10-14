@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-10-14 (soir 8) — Carte live 3D : tous les métiers, tout modifiable | app SW v134
+
+- **Carte en vraie 3D (three.js)** — `simulator/src/components/carte/scene.ts` : agence, parking location agrandi,
+  atelier, ville, **vente auto** (showroom + parking), **port d'import** (bateau), **immobilier**, packs séjour,
+  aéroport & conciergerie, entreprises (B2B), FIK Sites. Nouveautés animées (voiture/bien/import ajouté).
+- **Plein écran** (⛶) + **🔗 PC** : lien `?carte=1` pour ouvrir la carte sur le PC/TV (rafraîchie chaque minute).
+- **Fiche voiture modifiable** (`carte/CarSheet.tsx`) : état dispo / réparation / indispo + motif, location en cours
+  (tout payé, prolonger, terminer), km, vidange, assurance, CT, vignette, notes, **rappels datés** (Telegram + app).
+  Backend : champs entretien dans `PATCH /api/cars/:id` + `/api/cars/:id/reminders`.
+- **Fiche modifiable pour tous les autres métiers** (`carte/ItemSheet.tsx`) : vente auto (statut en vente/réservé/vendu,
+  prix, km), immobilier (louer/vendre, loyer, locataire, statut, supprimer), imports (étapes Demande → Livré,
+  véhicule, budget, pays, notes internes), packs, demandes de l'agence (accepter/refuser, en cours/conclu).
+  Bouton ➕ dans chaque zone pour ajouter. Euro par défaut, dinar au choix.
+  Backend : `POST /api/demandes/update` accepte `patch` (import) ; `GET /api/demandes` renvoie `fields` des imports.
+- **Ajouter des locations** (`carte/AddRentals.tsx`) : une par une ou en lot depuis un texte/photo du carnet
+  (`POST /api/bookings/import/parse`, `integrations/bookings-import.ts`, acomptes compris).
+- **Offre FIK « Carte live »** : démo publique personnalisée (`?demo=carte&k=…&n=…`) + outil Dzaryx `carte_live_demo_link`.
+
 ## 2026-10-14 (soir 7) — Carte live : le parc vu comme un jeu | app SW v133
 
 - **Nouvel écran 🗺️ CARTE LIVE** (Plus → CARTE LIVE, Kouider seul) — `simulator/src/components/screens/CarteScreen.tsx`.

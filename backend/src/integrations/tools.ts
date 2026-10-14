@@ -2521,6 +2521,14 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'carte_live_demo_link',
+    description: 'OFFRE FIK « CARTE LIVE » : lien de démo PUBLIC (données fictives) de la carte 3D façon jeu vidéo, personnalisé au nom d\'une entreprise prospect, + message prêt à envoyer. « montre la carte live au garage X », « envoie la démo carte à l\'agence Y ». kind = location (loueur), vente (concession / vente auto), garage (atelier), immo (agence immobilière), transport (flotte / livraison).',
+    input_schema: { type: 'object' as const, properties: {
+      company: { type: 'string', description: 'Nom de l\'entreprise du prospect' },
+      kind:    { type: 'string', enum: ['location', 'vente', 'garage', 'immo', 'transport'], description: 'Métier du prospect' },
+    } },
+  },
+  {
     name: 'get_demo_site',
     description: 'Retrouver les démos de sites déjà faites : sans name → liste avec liens ; avec name → le lien, les VRAIES infos Google et tout ce qui a été INVENTÉ (à remplacer par les vraies infos pour faire le vrai site).',
     input_schema: { type: 'object' as const, properties: { name: { type: 'string', description: 'Nom du commerce' } } },
