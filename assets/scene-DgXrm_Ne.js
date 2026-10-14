@@ -1,4 +1,4 @@
-import{Z as Ta,S as _l}from"./index-DQxDuUEH.js";/**
+import{Z as Ta,S as _l}from"./index-sbJbVbpE.js";/**
  * @license
  * Copyright 2010-2024 Three.js Authors
  * SPDX-License-Identifier: MIT
