@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-10-14 (soir 5) — FIK Sites étapes 3 à 6 + page « Sites clients » dans l'app | app SW v131
+
+- **Étape 3 — domaine** : `manage_client_site` domain / domain_check / domain_remove. Netlify `custom_domain` + alias www,
+  réglages DNS (A @ → 75.2.60.5, CNAME www → <site>.netlify.app), vérif DNS + certificat https (POST /sites/:id/ssl),
+  vérif quotidienne. `publicUrl()` = domaine actif sinon netlify.app (`url` garde toujours l'adresse netlify.app).
+- **Étape 4 — formulaire** sur chaque vrai site (`renderHtml` opts.formApi, `formKind`) : réservation de table
+  (restaurant/café/bar/hôtel), rendez-vous (coiffure/beauté/garage/santé), sinon message. POST public
+  `/api/client-sites/public/:id/message` (piège à robots, < 2,5 s ignoré, 5/10 min par IP, 60/jour par site) →
+  app_kv `fik:msgs:<id>`, e-mail au patron (boîte pro, Reply-To = visiteur ; `sendEmail` accepte `replyTo`),
+  copie Telegram à Kouider en option (`notify`), rubrique « Réservations et messages » dans l'espace client.
+- **Étape 5 — abonnements à la main** : billing (prix, monnaie, payé jusqu'au, pause auto + délai), paid (mois,
+  montant, note → historique ; remet en ligne si pause pour impayé). Tâche `client-sites` 9h : rappel J-3, retard J+1
+  puis chaque semaine, pause auto après le délai, un seul message Telegram.
+- **Étape 6 — voix** : report (« qui n'a pas payé ? », revenus mensuels, retards), messages, notify ; outil mis à jour.
+- **App** : écran `SitesScreen.tsx` (menu Plus → 🌐 SITES CLIENTS, Kouider seulement) : chiffres, nouvelle démo,
+  démos → vrai site, fiche par site (abonnement + paiement, messages, modifier, domaine, espace client, inventé, pause).
+  API `/api/fik-sites` (requireMobileAuth + Kouider seulement), mêmes fonctions que l'outil vocal.
+
 ## 2026-10-14 (soir 4) — FIK Sites (plan A) : vrais sites clients + espace client type Shopify
 
 - **`create_client_site`** (`integrations/client-sites.ts`) : une démo devient un vrai site. Les vraies infos de Kouider

@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import {
   type ClientSite, loginClient, sessionSite, logoutClient, changeClientPassword, cleanEdit, publishSite, saveSite,
-  uploadPhoto, removePhotos, isOwnPhoto, MAX_PHOTOS,
+  uploadPhoto, removePhotos, isOwnPhoto, MAX_PHOTOS, receiveMessage, listMessages, markMessagesRead,
 } from '../../integrations/client-sites.js';
 
 // API de l'espace client des sites FIK (page /admin/ de chaque site, sur Netlify). Auth : jeton de session du
@@ -88,6 +88,28 @@ router.post('/me/password', auth, async (req: Authed, res) => {
   const { old, new: next } = (req.body ?? {}) as Record<string, unknown>;
   const err = await changeClientPassword(req.site!, String(old ?? ''), String(next ?? ''));
   if (err) { res.status(400).json({ error: err }); return; }
+  res.json({ ok: true });
+});
+
+// Formulaire public du site (réservation / rendez-vous / message) — sans connexion.
+router.post('/public/:id/message', async (req, res) => {
+  try {
+    const err = await receiveMessage(String(req.params['id']), (req.body ?? {}) as Record<string, unknown>, req.ip ?? '');
+    if (err) { res.status(400).json({ error: err }); return; }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[client-sites] message', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Envoi impossible pour le moment' });
+  }
+});
+
+router.get('/me/messages', auth, async (req: Authed, res) => {
+  res.json({ messages: await listMessages(req.site!.id) });
+});
+
+router.post('/me/messages/read', auth, async (req: Authed, res) => {
+  const ids = (req.body as { ids?: unknown })?.ids;
+  await markMessagesRead(req.site!.id, Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : undefined);
   res.json({ ok: true });
 });
 

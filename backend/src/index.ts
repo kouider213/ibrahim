@@ -78,6 +78,7 @@ import dealsRoutes          from './api/routes/deals.js';
 // import whatsappRoutes       from './api/routes/whatsapp.js'; // désactivé — bot client WhatsApp pas utilisé pour l'instant
 import fikSiteWebhookRoutes from './api/routes/fik-site-webhook.js';
 import clientSitesRoutes from './api/routes/client-sites.js';
+import fikSitesRoutes from './api/routes/fik-sites.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -364,6 +365,7 @@ app.use('/api/inspections', apiLimiter, inspectionsRoutes);
 app.use('/api/deals',       apiLimiter, dealsRoutes);
 app.use('/api/packs',     apiLimiter, packsRoutes);
 app.use('/api/fik-site',  fikSiteWebhookRoutes);
+app.use('/api/fik-sites',  apiLimiter, fikSitesRoutes);   // page « Sites clients » de l'app (Kouider)
 app.use('/api/client-sites', apiLimiter, clientSitesRoutes); // espace client des sites FIK (jeton de session du patron)
 
 app.use(errorHandler);

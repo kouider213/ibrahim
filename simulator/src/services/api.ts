@@ -879,6 +879,23 @@ export interface ProspectsOverview {
   prospects: ProspectRow[];
 }
 
+// ── Sites clients (FIK Sites) ──
+export interface SiteMessage { id: string; at: string; mode: 'table' | 'rdv' | 'contact'; name: string; phone: string; email?: string; date?: string; time?: string; people?: number; message?: string; read: boolean }
+export interface ClientSiteRow {
+  id: string; name: string; kind: string; status: 'live' | 'paused'; pausedReason: 'billing' | 'manual' | null;
+  url: string; netlifyUrl: string; adminUrl: string; createdAt: string; updatedAt: string; photo: string | null;
+  account: string | null; invented: string[];
+  domain: { name: string; status: 'pending' | 'active'; since: string; checkedAt?: string } | null; dns: string | null;
+  billing: { monthly: number; currency: string; paidUntil: string; autoPause: boolean; graceDays: number; late: number;
+    payments: Array<{ at: string; amount: number; months: number; note?: string }> } | null;
+  notify: { email: string | null; kouider: boolean }; unread: number; messages: SiteMessage[];
+}
+export interface SitesOverview {
+  sites: ClientSiteRow[];
+  demos: Array<{ slug: string; name: string; url: string; createdAt: string; converted: boolean }>;
+  stats: { live: number; paused: number; late: number; unread: number; mrr: Record<string, number> };
+}
+
 export const business = {
   fetchBookings: (q?: string, rentedBy?: string) => {
     const p = new URLSearchParams({ limit: '40' });
@@ -973,6 +990,13 @@ export const business = {
     apiFetch<{ months: number; dormant: Array<{ name: string; phone: string | null; date: string; car: string; count: number }> }>(`/api/insights/reengage?months=${months}`),
   // Démarchage (prospection B2B)
   prospectsOverview: () => apiFetch<ProspectsOverview>('/api/prospects/overview'),
+  sitesOverview: () => apiFetch<SitesOverview>('/api/fik-sites/overview'),
+  sitesDemo: (link: string, notes: string) => apiFetch<{ message: string }>('/api/fik-sites/demo', { method: 'POST', body: JSON.stringify({ link, notes }) }),
+  sitesCreate: (demo: string, real_info: string, client_email: string) =>
+    apiFetch<{ message: string }>('/api/fik-sites/create', { method: 'POST', body: JSON.stringify({ demo, real_info, client_email }) }),
+  siteAction: (id: string, action: string, params: Record<string, unknown> = {}) =>
+    apiFetch<{ message: string }>(`/api/fik-sites/${encodeURIComponent(id)}/action`, { method: 'POST', body: JSON.stringify({ ...params, action }) }),
+  siteMessagesRead: (id: string) => apiFetch<{ ok: boolean }>(`/api/fik-sites/${encodeURIComponent(id)}/messages/read`, { method: 'POST' }),
   prospectsAutopilot: (patch: { enabled?: boolean; per_day?: number }) =>
     apiFetch<{ autopilot: ProspectsOverview['autopilot'] }>('/api/prospects/autopilot', { method: 'POST', body: JSON.stringify(patch) }),
   prospectsRun: () => apiFetch<{ ok: boolean; message: string }>('/api/prospects/run', { method: 'POST' }),

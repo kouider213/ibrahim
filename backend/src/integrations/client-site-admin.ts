@@ -42,6 +42,8 @@ textarea{min-height:90px;resize:vertical}input:focus,textarea:focus{outline:2px 
 #status{font-size:.85rem;color:var(--mut)}
 .login{max-width:380px;margin:12vh auto;padding:0 16px}.login .card{padding:22px}
 .err{color:var(--bad);font-size:.9rem;margin-top:10px}.ok{color:var(--ok)}
+.msg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:.92rem}.msg.new{border-color:var(--p);background:#fdf8ef}
+.mh{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}.mh span{color:var(--mut);font-size:.8rem;white-space:nowrap}.mt{margin-top:6px;white-space:pre-wrap;color:#444}.msg a{color:var(--p)}
 .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:.9rem;z-index:9;max-width:90vw}
 </style></head>
 <body>
@@ -83,6 +85,7 @@ function render(){
     h('header',{},h('b',{text:p.name}),h('div',{class:'row',style:'flex:0 0 auto'},h('a',{href:siteUrl,target:'_blank',rel:'noopener'},'Voir mon site'),h('button',{on:{click:logout}},'Quitter'))),
     h('div',{class:'bar'},h('span',{id:'status',text:'Tout est publié'}),h('button',{class:'btn main',id:'pub',on:{click:publish}},'Publier')),
     h('main',{},
+      messagesCard(),
       card('Informations','Ce qui s\\'affiche en haut du site et dans le pied de page.',
         ...field('Nom du commerce',p,'name'),...field('Phrase d\\'accroche',c,'tagline'),...field('Téléphone',p,'phone',{ph:'+213 …'}),...field('Adresse',p,'address')),
       hoursCard(),
@@ -92,6 +95,23 @@ function render(){
       photosCard(),
       card('Couleurs',null,h('div',{class:'colors'},color('Couleur principale','primary'),color('Couleur d\\'accent','accent'))),
       passwordCard()));
+}
+
+function messagesCard(){
+  const box=h('div',{},h('p',{class:'hint',text:'Chargement…'}));
+  const fmt=iso=>new Date(iso).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  const day=d=>new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const KIND={table:'Réservation',rdv:'Rendez-vous',contact:'Message'};
+  api('/me/messages').then(d=>{const list=d.messages||[];const unread=list.filter(m=>!m.read).length;
+    if(!list.length){box.replaceChildren(h('p',{class:'hint',text:'Aucun message pour le moment. Les demandes envoyées depuis le formulaire de votre site arrivent ici et par e-mail.'}));return}
+    box.replaceChildren(...list.slice(0,40).map(m=>h('div',{class:'msg'+(m.read?'':' new')},
+      h('div',{class:'mh'},h('b',{text:KIND[m.mode]+' — '+m.name}),h('span',{text:fmt(m.at)})),
+      m.date?h('div',{text:'📅 '+day(m.date)+(m.time?' à '+m.time:'')+(m.people?' · '+m.people+' pers.':'')}):null,
+      h('div',{},'📞 ',h('a',{href:'tel:'+m.phone.replace(/\s/g,''),text:m.phone}),m.email?h('span',{},' · ✉️ ',h('a',{href:'mailto:'+m.email,text:m.email})):null),
+      m.message?h('div',{class:'mt',text:m.message}):null)),
+      unread?h('button',{class:'btn small',style:'margin-top:10px',on:{click:async()=>{await api('/me/messages/read',{method:'POST',body:'{}'});box.querySelectorAll('.msg.new').forEach(e=>e.classList.remove('new'));toast('Messages marqués comme lus')}}},'Tout marquer comme lu ('+unread+')'):null)
+  }).catch(x=>box.replaceChildren(h('p',{class:'err',text:x.message})));
+  return card('Réservations et messages',null,box);
 }
 
 function linesArea(obj,key){const t=h('textarea');t.value=(obj[key]||[]).join('\\n');t.addEventListener('input',()=>{obj[key]=t.value.split('\\n').map(s=>s.trim()).filter(Boolean);touch()});return t}

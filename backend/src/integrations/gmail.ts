@@ -251,7 +251,7 @@ export async function proSenderAddress(): Promise<string> {
 }
 
 export async function sendEmail(
-  account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef },
+  account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef; replyTo?: string },
 ): Promise<{ id: string; threadId: string }> {
   const address = gmailAddress(account);
   if (!(await canSendEmail(account))) throw new GmailSendNotAllowedError(address);
@@ -262,7 +262,9 @@ export async function sendEmail(
   const raw = [
     `From: ${from}`,
     // Envoi depuis contact@ (Zoho, sans transfert) : les réponses reviennent dans la boîte Gmail que Dzaryx surveille
-    ...(sender !== address ? [`Reply-To: ${SENDER_NAME} <${address}>`] : []),
+    // replyTo (ex. visiteur d'un site client) : adresse simple déjà validée, sans retour à la ligne
+    ...(mail.replyTo && /^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/.test(mail.replyTo) ? [`Reply-To: ${mail.replyTo}`]
+      : sender !== address ? [`Reply-To: ${SENDER_NAME} <${address}>`] : []),
     `To: ${mail.to}`,
     `Subject: ${encodeHeader(mail.subject)}`,
     // Réponse : ces en-têtes + threadId → le mail reste dans la même conversation chez le destinataire

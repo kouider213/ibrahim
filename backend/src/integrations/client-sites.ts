@@ -1,13 +1,15 @@
 import axios from 'axios';
 import { randomBytes, randomInt } from 'crypto';
+import { promises as dns } from 'dns';
 import { supabase } from './supabase.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { askJson } from './pro-doc.js';
 import { hashPassword, checkPassword, sha256 } from '../auth/device-auth.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
+import { sendEmail } from './gmail.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import {
-  type Place, type Content, type OfferItem, FONT_PAIRS, HEX, esc, renderHtml, deployNetlify, slugify, loadDemo,
+  type Place, type Content, type OfferItem, FONT_PAIRS, HEX, esc, renderHtml, deployNetlify, slugify, loadDemo, formKind,
 } from './demo-site.js';
 import { adminPageHtml } from './client-site-admin.js';
 
@@ -24,6 +26,19 @@ export interface ClientSite {
   createdAt: string; updatedAt: string; fromDemo?: string;
   place: Omit<Place, 'photoRefs'>; content: Content; photos: string[];
   account?: { email: string; pw: string };
+  domain?: { name: string; status: 'pending' | 'active'; since: string; checkedAt?: string };
+  billing?: Billing;
+  notify?: { email?: string; kouider: boolean };   // où envoyer les messages du formulaire (défaut : e-mail du compte)
+  pausedReason?: 'billing' | 'manual';
+}
+export interface Payment { at: string; amount: number; months: number; note?: string }
+export interface Billing {
+  monthly: number; currency: string; paidUntil: string;   // AAAA-MM-JJ : payé jusqu'à cette date incluse
+  autoPause: boolean; graceDays: number; payments: Payment[]; reminded?: string;   // dernière alerte (clé jour/étape)
+}
+export interface SiteMessage {
+  id: string; at: string; mode: 'table' | 'rdv' | 'contact'; name: string; phone: string; email?: string;
+  date?: string; time?: string; people?: number; message?: string; read: boolean;
 }
 interface IndexRow { id: string; name: string; url: string; status: ClientSite['status']; fromDemo?: string }
 
@@ -32,10 +47,11 @@ const BUCKET = 'fik-sites';
 const SESSION_DAYS = 30;
 export const MAX_PHOTOS = 20;
 export const API_BASE = () => process.env['PUBLIC_API_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
-const adminUrl = (s: ClientSite) => `${s.url}/admin/`;
+export const publicUrl = (s: ClientSite) => (s.domain?.status === 'active' ? `https://${s.domain.name}` : s.url);
+export const adminUrl = (s: ClientSite) => `${publicUrl(s)}/admin/`;
 
 // ── Stockage ─────────────────────────────────────────────────────────────────
-const readIndex = async () => JSON.parse((await kvGet(INDEX)) ?? '[]') as IndexRow[];
+export const readIndex = async () => JSON.parse((await kvGet(INDEX)) ?? '[]') as IndexRow[];
 
 export async function getSite(id: string): Promise<ClientSite | null> {
   return JSON.parse((await kvGet(`fik:site:${id}`)) ?? 'null') as ClientSite | null;
@@ -45,11 +61,11 @@ async function saveSite(s: ClientSite): Promise<void> {
   s.updatedAt = new Date().toISOString();
   await kvSet(`fik:site:${s.id}`, JSON.stringify(s));
   const index = (await readIndex()).filter(r => r.id !== s.id);
-  index.unshift({ id: s.id, name: s.name, url: s.url, status: s.status, ...(s.fromDemo ? { fromDemo: s.fromDemo } : {}) });
+  index.unshift({ id: s.id, name: s.name, url: publicUrl(s), status: s.status, ...(s.fromDemo ? { fromDemo: s.fromDemo } : {}) });
   await kvSet(INDEX, JSON.stringify(index));
 }
 
-async function findSite(name: string): Promise<ClientSite | null> {
+export async function findSite(name: string): Promise<ClientSite | null> {
   const q = name.trim().toLowerCase();
   if (!q) return null;
   const index = await readIndex();
@@ -89,13 +105,15 @@ function pausedHtml(s: ClientSite): string {
 
 export async function publishSite(s: ClientSite): Promise<string> {
   const files: Record<string, Buffer> = {
-    'index.html': Buffer.from(s.status === 'paused' ? pausedHtml(s) : renderHtml(s.place, s.content, s.photos, { demo: false, siteId: s.id })),
+    'index.html': Buffer.from(s.status === 'paused' ? pausedHtml(s) : renderHtml(s.place, s.content, s.photos, { demo: false, siteId: s.id, formApi: API_BASE() })),
     'admin/index.html': Buffer.from(adminPageHtml(s.id, s.place.name, API_BASE())),
   };
   const { url, siteId } = await deployNetlify(s.id, files, s.netlifySiteId || undefined);
-  s.url = url; s.netlifySiteId = siteId;
+  // Une fois un domaine branché, Netlify renvoie ce domaine : on garde l'adresse netlify.app comme adresse de base.
+  if (!s.url) s.url = url;
+  s.netlifySiteId = siteId;
   await saveSite(s);
-  return url;
+  return publicUrl(s);
 }
 
 // ── Nettoyage d'un contenu modifié (par Claude ou par le patron dans /admin) ─
@@ -250,6 +268,7 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
     if (!index.length) return 'Aucun vrai site client pour le moment (les démos : get_demo_site).';
     return `Sites clients (${index.length}) :\n${index.map(r => `- ${r.name} — ${r.url}${r.status === 'paused' ? ' (EN PAUSE)' : ''}`).join('\n')}`;
   }
+  if (action === 'report') return billingReport();
   const s = await findSite(name);
   if (!s) {
     const index = await readIndex();
@@ -263,6 +282,8 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
         `Adresse ${s.place.address} ; tél. ${s.place.phone ?? '—'} ; horaires : ${s.place.hours.join(' | ') || '—'}`,
         `${s.content.offerTitle} : ${s.content.offer.map(g => `${g.group} (${g.items.map(i => `${i.name}${i.price ? ` ${i.price}` : ''}`).join(', ')})`).join(' ; ')}`,
         `Photos : ${s.photos.length}`,
+        s.domain ? `Domaine : ${s.domain.name} (${s.domain.status === 'active' ? 'actif' : 'en attente du DNS'})` : 'Domaine : aucun',
+        s.billing ? `Abonnement : ${money(s.billing.monthly, s.billing.currency)}/mois, payé jusqu'au ${frDate(s.billing.paidUntil)}${lateDays(s.billing) > 0 ? ` — ${lateDays(s.billing)} j de RETARD` : ''}` : 'Abonnement : pas réglé',
         `Encore inventé : ${s.content.invented.length ? s.content.invented.join(' ; ') : 'rien'}`,
       ].join('\n');
     case 'edit': {
@@ -282,6 +303,7 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
     case 'pause':
     case 'resume':
       s.status = action === 'pause' ? 'paused' : 'live';
+      if (action === 'pause') s.pausedReason = 'manual'; else delete s.pausedReason;
       await publishSite(s);
       return action === 'pause'
         ? `⏸️ Site « ${s.name} » en pause : les visiteurs voient « momentanément indisponible » avec le téléphone. ${s.url}`
@@ -296,9 +318,296 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
       await queueTelegramMessage(`🔑 Espace client « ${s.name} » :\n${adminUrl(s)}\nE-mail : ${s.account.email}\nMot de passe : ${password}`).catch(() => {});
       return `✅ Espace client prêt pour « ${s.name} » (${s.account.email}). Le lien et le nouveau mot de passe sont envoyés sur Telegram. Les anciennes connexions sont coupées.`;
     }
+    case 'domain': {
+      const d = str(input['domain'], 260);
+      if (!d) return s.domain ? `Domaine de « ${s.name} » : ${s.domain.name} (${s.domain.status === 'active' ? 'actif' : 'en attente du DNS'}).\n${dnsInstructions(s)}` : '❌ Donne-moi le nom de domaine (domain).';
+      return await setDomain(s, d);
+    }
+    case 'domain_check':
+      return (await checkDomain(s)).msg;
+    case 'domain_remove':
+      return await removeDomain(s);
+    case 'billing': {
+      const err = setBilling(s, { monthly: input['monthly'], currency: input['currency'], paid_until: input['paid_until'], auto_pause: input['auto_pause'], grace_days: input['grace_days'] });
+      if (err) return err;
+      await saveSite(s);
+      const b = s.billing!;
+      return `💳 Abonnement « ${s.name} » : ${money(b.monthly, b.currency)}/mois, payé jusqu'au ${frDate(b.paidUntil)}. Pause automatique : ${b.autoPause ? `oui, après ${b.graceDays} jours de retard` : 'non (je te préviens seulement)'}.`;
+    }
+    case 'paid':
+      return await markPaid(s, input['amount'], input['months'], str(input['note'], 200));
+    case 'messages': {
+      const list = await listMessages(s.id);
+      if (!list.length) return `Aucun message reçu par le site « ${s.name} ».`;
+      await markMessagesRead(s.id);
+      return `Messages du site « ${s.name} » (${list.length}) :\n${list.slice(0, 10).map(m => `- ${new Date(m.at).toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${MODE_LABEL[m.mode]} · ${describeMessage(m).replace(/\n/g, ' · ')}`).join('\n')}`;
+    }
+    case 'notify': {
+      const email = str(input['notify_email'], 200);
+      if (email && !EMAIL.test(email)) return `❌ E-mail invalide : « ${email} ».`;
+      s.notify = { ...(email ? { email: email.toLowerCase() } : s.notify?.email ? { email: s.notify.email } : {}),
+        kouider: typeof input['copy_kouider'] === 'boolean' ? input['copy_kouider'] : !!s.notify?.kouider };
+      await saveSite(s);
+      return `📨 Messages du site « ${s.name} » envoyés à ${s.notify.email ?? s.account?.email ?? '(personne : ajoute un e-mail)'}${s.notify.kouider ? ', avec une copie pour toi sur Telegram' : ''}.`;
+    }
     default:
-      return `❌ Action inconnue « ${action} » (list, info, edit, pause, resume, account).`;
+      return `❌ Action inconnue « ${action} » (list, info, edit, pause, resume, account, domain, domain_check, domain_remove, billing, paid, report, messages, notify).`;
   }
+}
+
+// ── Étape 4 : messages du formulaire (réservation / rendez-vous / contact) ──
+const MSGS = (id: string) => `fik:msgs:${id}`;
+const msgRate = new Map<string, number[]>();
+
+export async function listMessages(siteId: string): Promise<SiteMessage[]> {
+  return JSON.parse((await kvGet(MSGS(siteId))) ?? '[]') as SiteMessage[];
+}
+
+export async function markMessagesRead(siteId: string, ids?: string[]): Promise<void> {
+  const list = await listMessages(siteId);
+  for (const m of list) if (!ids || ids.includes(m.id)) m.read = true;
+  await kvSet(MSGS(siteId), JSON.stringify(list));
+}
+
+const MODE_LABEL = { table: 'réservation de table', rdv: 'demande de rendez-vous', contact: 'message' } as const;
+
+function describeMessage(m: SiteMessage): string {
+  return [
+    `Nom : ${m.name}`, `Téléphone : ${m.phone}`, m.email ? `E-mail : ${m.email}` : '',
+    m.date ? `Date : ${new Date(`${m.date}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}${m.time ? ` à ${m.time}` : ''}` : '',
+    m.people ? `Personnes : ${m.people}` : '', m.message ? `Message : ${m.message}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+/** Message envoyé par un visiteur. Renvoie une erreur à afficher, ou null si c'est bon (ou si c'est un robot : on ne le lui dit pas). */
+export async function receiveMessage(siteId: string, raw: Record<string, unknown>, ip: string): Promise<string | null> {
+  const s = await getSite(siteId);
+  if (!s || s.status !== 'live') return 'Site indisponible';
+  if (str(raw['website'])) return null;                                   // champ piège rempli → robot
+  if (Number(raw['elapsed']) < 2500) return null;                         // envoyé en moins de 2,5 s → robot
+  const now = Date.now();
+  const recent = (msgRate.get(ip) ?? []).filter(t => now - t < 10 * 60_000);
+  if (recent.length >= 5) return 'Trop de messages envoyés, réessayez plus tard ou appelez-nous';
+  msgRate.set(ip, [...recent, now]);
+  const name = str(raw['name'], 80), phone = str(raw['phone'], 30);
+  if (!name || phone.replace(/\D/g, '').length < 6) return 'Nom et téléphone obligatoires';
+  const email = str(raw['email'], 120);
+  const mode = formKind(s.content.kind).mode;
+  const m: SiteMessage = {
+    id: randomBytes(6).toString('hex'), at: new Date().toISOString(), mode, name, phone, read: false,
+    ...(EMAIL.test(email) ? { email } : {}),
+    ...(/^\d{4}-\d{2}-\d{2}$/.test(str(raw['date'])) ? { date: str(raw['date']) } : {}),
+    ...(/^\d{2}:\d{2}$/.test(str(raw['time'])) ? { time: str(raw['time']) } : {}),
+    ...(Number(raw['people']) > 0 ? { people: Math.min(200, Math.round(Number(raw['people']))) } : {}),
+    ...(str(raw['message'], 2000) ? { message: str(raw['message'], 2000) } : {}),
+  };
+  if (mode === 'contact' && !m.message) return 'Écrivez votre message';
+  const list = await listMessages(siteId);
+  if (list.filter(x => now - Date.parse(x.at) < 86400_000).length >= 60) return 'Trop de messages aujourd\'hui, appelez-nous';
+  list.unshift(m);
+  await kvSet(MSGS(siteId), JSON.stringify(list.slice(0, 300)));
+
+  const to = s.notify?.email ?? s.account?.email;
+  const subject = `${m.mode === 'contact' ? 'Nouveau message' : `Nouvelle ${MODE_LABEL[m.mode]}`} — ${s.place.name}`;
+  let mailed = false;
+  if (to) {
+    try {
+      await sendEmail('pro', { to, subject, replyTo: m.email,
+        body: `Bonjour,\n\nNouvelle ${MODE_LABEL[m.mode]} reçue sur votre site ${publicUrl(s)} :\n\n${describeMessage(m)}\n\n` +
+          `${m.email ? 'Répondez simplement à cet e-mail pour lui écrire.\n' : ''}Tous vos messages sont aussi dans votre espace client : ${adminUrl(s)}\n\n— FIK Conciergerie` });
+      mailed = true;
+    } catch (err) { console.error('[client-sites] e-mail message', err instanceof Error ? err.message : err); }
+  }
+  if (s.notify?.kouider || !mailed) {
+    await queueTelegramMessage(`📨 ${subject}${mailed ? '' : ' (pas envoyé au patron : pas d\'e-mail)'}\n${describeMessage(m)}`).catch(() => {});
+  }
+  return null;
+}
+
+// ── Étape 3 : nom de domaine du client ───────────────────────────────────────
+const NETLIFY_LB = '75.2.60.5';
+const DOMAIN_RE = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
+const netlifyHeaders = () => ({ Authorization: `Bearer ${process.env['NETLIFY_TOKEN']}` });
+const netlifyHost = (s: ClientSite) => new URL(s.url).host;
+
+export function dnsInstructions(s: ClientSite): string {
+  return `Chez le vendeur du domaine (OVH, GoDaddy, Hostinger, Namecheap…), zone DNS de ${s.domain?.name ?? 'ton domaine'} :\n` +
+    `- enregistrement A, nom « @ » → ${NETLIFY_LB}\n- enregistrement CNAME, nom « www » → ${netlifyHost(s)}\n` +
+    `Supprime les autres enregistrements A/AAAA/CNAME sur « @ » et « www ». Ça prend de quelques minutes à 24 h ; Dzaryx vérifie chaque jour et te prévient quand c'est actif (cadenas https compris).`;
+}
+
+export async function setDomain(s: ClientSite, raw: string): Promise<string> {
+  const name = raw.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
+  if (!DOMAIN_RE.test(name)) return `❌ Nom de domaine invalide : « ${raw} » (ex. restaurant-pralin.com).`;
+  await axios.patch(`https://api.netlify.com/api/v1/sites/${s.netlifySiteId}`, { custom_domain: name, domain_aliases: [`www.${name}`] },
+    { headers: netlifyHeaders(), timeout: 20_000 });
+  s.domain = { name, status: 'pending', since: new Date().toISOString() };
+  await saveSite(s);
+  return `🌐 Domaine ${name} branché sur le site « ${s.name} ». Il reste à régler le DNS :\n${dnsInstructions(s)}`;
+}
+
+export async function removeDomain(s: ClientSite): Promise<string> {
+  if (!s.domain) return `Le site « ${s.name} » n'a pas de domaine.`;
+  await axios.patch(`https://api.netlify.com/api/v1/sites/${s.netlifySiteId}`, { custom_domain: null, domain_aliases: [] },
+    { headers: netlifyHeaders(), timeout: 20_000 });
+  const old = s.domain.name;
+  delete s.domain;
+  await saveSite(s);
+  return `Domaine ${old} retiré : le site reste sur ${s.url}.`;
+}
+
+export async function checkDomain(s: ClientSite): Promise<{ active: boolean; msg: string }> {
+  if (!s.domain) return { active: false, msg: 'Pas de domaine.' };
+  const name = s.domain.name, host = netlifyHost(s);
+  const [a, wa, wc] = await Promise.all([dns.resolve4(name).catch((): string[] => []), dns.resolve4(`www.${name}`).catch((): string[] => []),
+    dns.resolveCname(`www.${name}`).catch((): string[] => [])]);
+  const apexOk = a.includes(NETLIFY_LB);
+  const wwwOk = wa.includes(NETLIFY_LB) || wc.some(x => x.replace(/\.$/, '') === host);
+  s.domain.checkedAt = new Date().toISOString();
+  if (!apexOk || !wwwOk) {
+    await saveSite(s);
+    return { active: false, msg: `DNS de ${name} pas encore bon : « @ » → ${a.join(', ') || 'rien'} (attendu ${NETLIFY_LB}) ; « www » → ${[...wc, ...wa].join(', ') || 'rien'} (attendu ${host}).` };
+  }
+  try {
+    await axios.post(`https://api.netlify.com/api/v1/sites/${s.netlifySiteId}/ssl`, null, { headers: netlifyHeaders(), timeout: 60_000 });
+  } catch (err) {
+    await saveSite(s);
+    const why = axios.isAxiosError(err) ? JSON.stringify(err.response?.data ?? err.message).slice(0, 160) : String(err);
+    return { active: false, msg: `DNS bon pour ${name}, certificat https pas encore prêt (${why}). Je réessaie.` };
+  }
+  const wasPending = s.domain.status !== 'active';
+  s.domain.status = 'active';
+  await publishSite(s);   // l'espace client et les liens prennent la nouvelle adresse
+  return { active: true, msg: `${wasPending ? '✅ ' : ''}https://${name} est actif (https compris).` };
+}
+
+// ── Étape 5 : abonnements (paiement à la main : espèces, BaridiMob, virement) ─
+const todayDz = () => new Date(Date.now() + 3600_000).toISOString().slice(0, 10);   // Oran = UTC+1
+export function addMonths(d: string, n: number): string {
+  const [y, m, dd] = d.split('-').map(Number) as [number, number, number];
+  const t = new Date(Date.UTC(y, m - 1 + n, dd));
+  if (t.getUTCDate() !== dd) t.setUTCDate(0);   // 31 janv. + 1 mois → 28/29 févr.
+  return t.toISOString().slice(0, 10);
+}
+const dayDiff = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400_000);
+/** Jours de retard (> 0), 0 = dû aujourd'hui ou à jour, < 0 = jours avant l'échéance. */
+export const lateDays = (b: Billing) => dayDiff(b.paidUntil, todayDz());
+const money = (n: number, cur: string) => `${n.toLocaleString('fr-FR')} ${cur}`;
+const frDate = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+export function setBilling(s: ClientSite, v: { monthly?: unknown; currency?: unknown; paid_until?: unknown; auto_pause?: unknown; grace_days?: unknown }): string {
+  const monthly = v.monthly != null && v.monthly !== '' ? Number(v.monthly) : s.billing?.monthly;
+  if (monthly == null || !(monthly >= 0)) return '❌ Il me faut le prix mensuel (monthly).';
+  const paidUntil = /^\d{4}-\d{2}-\d{2}$/.test(String(v.paid_until ?? '')) ? String(v.paid_until) : (s.billing?.paidUntil ?? todayDz());
+  s.billing = {
+    monthly, currency: str(v.currency, 8) || s.billing?.currency || 'DA', paidUntil,
+    autoPause: typeof v.auto_pause === 'boolean' ? v.auto_pause : (s.billing?.autoPause ?? false),
+    graceDays: Number(v.grace_days) > 0 ? Math.min(90, Math.round(Number(v.grace_days))) : (s.billing?.graceDays ?? 10),
+    payments: s.billing?.payments ?? [], ...(s.billing?.reminded ? { reminded: s.billing.reminded } : {}),
+  };
+  return '';
+}
+
+export async function markPaid(s: ClientSite, amountIn: unknown, monthsIn: unknown, note: string): Promise<string> {
+  if (!s.billing) return `❌ Pas encore d'abonnement pour « ${s.name} » : donne d'abord le prix mensuel (action billing).`;
+  const months = Math.max(1, Math.min(24, Math.round(Number(monthsIn) || 1)));
+  const amount = amountIn != null && amountIn !== '' ? Number(amountIn) : s.billing.monthly * months;
+  s.billing.paidUntil = addMonths(s.billing.paidUntil, months);
+  s.billing.payments.unshift({ at: new Date().toISOString(), amount, months, ...(note ? { note } : {}) });
+  s.billing.payments = s.billing.payments.slice(0, 120);
+  delete s.billing.reminded;
+  let extra = '';
+  if (s.status === 'paused' && s.pausedReason === 'billing' && lateDays(s.billing) <= 0) {
+    s.status = 'live'; delete s.pausedReason;
+    await publishSite(s);
+    extra = ' Le site, mis en pause pour impayé, est remis en ligne.';
+  } else await saveSite(s);
+  const late = lateDays(s.billing);
+  return `💰 Paiement noté pour « ${s.name} » : ${money(amount, s.billing.currency)} (${months} mois). Payé jusqu'au ${frDate(s.billing.paidUntil)}` +
+    `${late > 0 ? ` — encore ${late} jour(s) de retard` : ''}.${extra}`;
+}
+
+export async function billingReport(): Promise<string> {
+  const sites = (await Promise.all((await readIndex()).map(r => getSite(r.id)))).filter((x): x is ClientSite => !!x);
+  if (!sites.length) return 'Aucun site client pour le moment.';
+  const billed = sites.filter(x => x.billing);
+  const mrr = new Map<string, number>();
+  for (const x of billed) if (x.status === 'live') mrr.set(x.billing!.currency, (mrr.get(x.billing!.currency) ?? 0) + x.billing!.monthly);
+  const late = billed.filter(x => lateDays(x.billing!) > 0).sort((a, b) => lateDays(b.billing!) - lateDays(a.billing!));
+  const soon = billed.filter(x => { const d = lateDays(x.billing!); return d <= 0 && d >= -7; });
+  return [
+    `Sites clients : ${sites.length} (${sites.filter(x => x.status === 'live').length} en ligne, ${sites.filter(x => x.status === 'paused').length} en pause)`,
+    `Revenus mensuels (sites en ligne) : ${mrr.size ? [...mrr].map(([c, n]) => money(n, c)).join(' + ') : '—'}`,
+    late.length ? `En retard (${late.length}) :\n${late.map(x => `- ${x.name} : ${lateDays(x.billing!)} j de retard, payé jusqu'au ${frDate(x.billing!.paidUntil)} (${money(x.billing!.monthly, x.billing!.currency)}/mois)${x.status === 'paused' ? ' — EN PAUSE' : ''}`).join('\n')}` : 'Personne en retard.',
+    soon.length ? `À payer dans les 7 jours :\n${soon.map(x => `- ${x.name} : le ${frDate(x.billing!.paidUntil)} (${money(x.billing!.monthly, x.billing!.currency)})`).join('\n')}` : '',
+    sites.filter(x => !x.billing).length ? `Sans abonnement réglé : ${sites.filter(x => !x.billing).map(x => x.name).join(', ')}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+/** Tâche quotidienne : domaines en attente, échéances, retards, pause automatique. Un seul message à Kouider. */
+export async function jobClientSites(): Promise<string> {
+  const lines: string[] = [];
+  const today = todayDz();
+  for (const r of await readIndex()) {
+    const s = await getSite(r.id);
+    if (!s) continue;
+    if (s.domain?.status === 'pending') {
+      const d = await checkDomain(s).catch(err => ({ active: false, msg: String(err) }));
+      if (d.active) lines.push(`🌐 ${s.name} : ${d.msg}`);
+      else if (dayDiff(s.domain.since.slice(0, 10), today) % 3 === 2) lines.push(`🌐 ${s.name} : ${d.msg}`);
+    }
+    const b = s.billing;
+    if (!b) continue;
+    const late = lateDays(b);
+    let note = '';
+    if (late === -3) note = `📅 ${s.name} : ${money(b.monthly, b.currency)} à payer le ${frDate(b.paidUntil)} (dans 3 jours).`;
+    else if (late === 1 || (late > 1 && late % 7 === 0)) note = `⏰ ${s.name} : ${late} jour(s) de retard de paiement (${money(b.monthly, b.currency)}/mois, payé jusqu'au ${frDate(b.paidUntil)}).`;
+    if (b.autoPause && late >= b.graceDays && s.status === 'live') {
+      s.status = 'paused'; s.pausedReason = 'billing';
+      await publishSite(s);
+      note = `⏸️ ${s.name} mis en pause automatiquement : ${late} jours de retard. Dès que tu notes le paiement, il revient en ligne.`;
+    }
+    if (note && b.reminded !== `${today}`) {
+      b.reminded = today;
+      await saveSite(s);
+      lines.push(note);
+    }
+  }
+  if (lines.length) {
+    const msg = `🌐 Sites clients — ${lines.length} point(s) :\n${lines.join('\n')}`;
+    await queueTelegramMessage(msg).catch(() => {});
+    emitProactive(lines[0]!.slice(0, 100), 'info', msg);
+  }
+  return lines.length ? lines.join(' | ') : 'rien à signaler';
+}
+
+// ── Vue d'ensemble pour la page « Sites » de l'app ───────────────────────────
+export async function sitesOverview() {
+  const sites = (await Promise.all((await readIndex()).map(r => getSite(r.id)))).filter((x): x is ClientSite => !!x);
+  const rows = await Promise.all(sites.map(async x => {
+    const msgs = await listMessages(x.id);
+    return {
+      id: x.id, name: x.name, kind: x.content.kind, status: x.status, pausedReason: x.pausedReason ?? null,
+      url: publicUrl(x), netlifyUrl: x.url, adminUrl: adminUrl(x), createdAt: x.createdAt, updatedAt: x.updatedAt,
+      photo: x.photos[0] ?? null, account: x.account?.email ?? null, invented: x.content.invented,
+      domain: x.domain ?? null, dns: x.domain ? dnsInstructions(x) : null,
+      billing: x.billing ? { ...x.billing, late: lateDays(x.billing) } : null,
+      notify: { email: x.notify?.email ?? null, kouider: !!x.notify?.kouider },
+      unread: msgs.filter(m => !m.read).length, messages: msgs.slice(0, 30),
+    };
+  }));
+  const demos = JSON.parse((await kvGet('demo:sites')) ?? '[]') as Array<{ slug: string; name: string; url: string; createdAt: string }>;
+  const converted = new Set(sites.map(x => x.fromDemo));
+  const mrr: Record<string, number> = {};
+  for (const x of sites) if (x.billing && x.status === 'live') mrr[x.billing.currency] = (mrr[x.billing.currency] ?? 0) + x.billing.monthly;
+  return {
+    sites: rows,
+    demos: demos.map(d => ({ ...d, converted: converted.has(d.slug) })),
+    stats: {
+      live: sites.filter(x => x.status === 'live').length, paused: sites.filter(x => x.status === 'paused').length,
+      late: rows.filter(x => (x.billing?.late ?? 0) > 0).length, unread: rows.reduce((n, x) => n + x.unread, 0), mrr,
+    },
+  };
 }
 
 // ── Sessions de l'espace client ──────────────────────────────────────────────

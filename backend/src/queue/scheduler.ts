@@ -37,6 +37,7 @@ import {
   jobOpportunitiesRefresh,
 } from './jobs/proactive-jobs.js';
 import { runProactiveEngine } from '../conversation/proactive-engine.js';
+import { jobClientSites } from '../integrations/client-sites.js';
 import { runDailyOutreach, checkProspectReplies, checkProspectVisits, sendWeeklyReport } from '../integrations/prospect-autopilot.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { flushAutoCalls } from '../notifications/auto-call.js';
@@ -234,6 +235,11 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'client-sites',
+    cron:  '0 9 * * *',             // 9h chaque jour — sites clients : domaines en attente, échéances, retards, pause auto
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'prospect-weekly',
     cron:  '0 9 * * 1',             // 9h chaque lundi — bilan démarchage (envois, réponses, RDV, ce qui marche)
     tz:    'Africa/Algiers',
@@ -382,6 +388,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
     await checkProspectVisits().catch(err => console.error('[prospect-auto] visites:', err instanceof Error ? err.message : err));
   },
   'prospect-weekly':         async () => { await sendWeeklyReport(); },
+  'client-sites':            async () => { console.log(`[client-sites] ${await jobClientSites()}`); },
 };
 
 // Les tâches planifiées tournent dans le process (croner) et non plus via BullMQ : le worker BullMQ

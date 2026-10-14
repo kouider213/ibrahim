@@ -159,7 +159,38 @@ async function writeContent(p: Place, notes: string): Promise<Content> {
 // ── 3. Page HTML (un seul fichier + photos) ──────────────────────────────────
 export const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
-export interface RenderOpts { demo: boolean; siteId?: string }
+export interface RenderOpts { demo: boolean; siteId?: string; formApi?: string }
+
+// Formulaire du site selon le métier : réservation de table, rendez-vous, ou simple message.
+export function formKind(kind: string): { mode: 'table' | 'rdv' | 'contact'; title: string; nav: string } {
+  if (['restaurant', 'cafe', 'bar', 'hotel'].includes(kind)) return { mode: 'table', title: kind === 'hotel' ? 'Réserver' : 'Réserver une table', nav: 'Réserver' };
+  if (['coiffure', 'beaute', 'garage', 'sante'].includes(kind)) return { mode: 'rdv', title: 'Prendre rendez-vous', nav: 'Rendez-vous' };
+  return { mode: 'contact', title: 'Nous écrire', nav: 'Contact' };
+}
+
+function formSection(c: Content, siteId: string, api: string): string {
+  const f = formKind(c.kind);
+  const extra = f.mode === 'table'
+    ? `<div class="f3"><label>Date<input name="date" type="date" required></label><label>Heure<input name="time" type="time" required></label><label>Personnes<input name="people" type="number" min="1" max="200" value="2" required></label></div>`
+    : f.mode === 'rdv' ? `<div class="f3"><label>Date souhaitée<input name="date" type="date" required></label><label>Heure<input name="time" type="time"></label></div>` : '';
+  return `<section id="form" class="formsec"><div class="wrap reveal"><div class="eyebrow">${esc(f.nav)}</div><h2>${esc(f.title)}</h2>
+  <form id="fikform" autocomplete="on">
+    <div class="f2"><label>Nom<input name="name" required maxlength="80"></label><label>Téléphone<input name="phone" type="tel" required maxlength="30"></label></div>
+    <label>E-mail (facultatif)<input name="email" type="email" maxlength="120"></label>
+    ${extra}
+    <label>${f.mode === 'contact' ? 'Votre message' : 'Précisions (facultatif)'}<textarea name="message" rows="4" maxlength="2000"${f.mode === 'contact' ? ' required' : ''}></textarea></label>
+    <input name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+    <button class="btn" type="submit">Envoyer</button><p class="fmsg" role="status"></p>
+  </form></div></section>
+<script>
+(function(){const f=document.getElementById('fikform'),m=f.querySelector('.fmsg'),t0=Date.now();
+f.addEventListener('submit',async e=>{e.preventDefault();const b=f.querySelector('button');b.disabled=true;m.textContent='Envoi…';
+const d=Object.fromEntries(new FormData(f));d.mode=${JSON.stringify(f.mode)};d.elapsed=Date.now()-t0;
+try{const r=await fetch(${JSON.stringify(`${api}/api/client-sites/public/${siteId}/message`)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});const j=await r.json().catch(()=>({}));
+if(!r.ok)throw new Error(j.error||'Envoi impossible');f.reset();m.textContent=${JSON.stringify(f.mode === 'contact' ? 'Merci, votre message a bien été envoyé. Nous vous répondons rapidement.' : 'Merci, votre demande a bien été envoyée. Nous vous recontactons pour la confirmer.')}}
+catch(x){m.textContent=x.message+'. Vous pouvez aussi nous appeler.'}b.disabled=false})})();
+</script>`;
+}
 
 export function renderHtml(p: Omit<Place, 'photoRefs'>, c: Content, photos: string[], opts: RenderOpts = { demo: true }): string {
   const [fh, fb] = c.fonts;
@@ -236,10 +267,15 @@ footer b{color:#fff}
 .demo{position:fixed;left:50%;transform:translateX(-50%);top:62px;z-index:30;background:rgba(0,0,0,.72);color:#fff;font-size:.72rem;padding:6px 12px;border-radius:20px}
 .callfab{position:fixed;right:16px;bottom:78px;z-index:30;background:var(--p);color:#fff;width:58px;height:58px;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:1.5rem;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.3)}
 @media(max-width:700px){.callfab{display:flex}}
+.formsec{background:#fff}.formsec form{max-width:640px}.formsec label{display:block;font-size:.85rem;font-weight:600;margin:12px 0 4px;color:#555}
+.formsec input,.formsec textarea{width:100%;font:inherit;padding:11px 13px;border:1px solid rgba(0,0,0,.15);border-radius:10px;margin-top:4px;background:#fff}
+.formsec .f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.formsec .f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:600px){.formsec .f2,.formsec .f3{grid-template-columns:1fr}}
+.formsec .btn{margin-top:18px;cursor:pointer;font:inherit;font-weight:600}.formsec .btn:disabled{opacity:.6}.fmsg{margin-top:12px;font-weight:600;color:var(--p)}.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .reveal{opacity:0;transform:translateY(24px);transition:all .7s ease}.reveal.on{opacity:1;transform:none}
 </style></head>
 <body>
-<nav><b>${esc(p.name)}</b><div class="links"><a href="#about">À propos</a><a href="#offer">${esc(c.offerTitle)}</a>${photos.length > 1 ? '<a href="#gallery">Photos</a>' : ''}<a href="#contact">Horaires & accès</a></div></nav>
+<nav><b>${esc(p.name)}</b><div class="links"><a href="#about">À propos</a><a href="#offer">${esc(c.offerTitle)}</a>${photos.length > 1 ? '<a href="#gallery">Photos</a>' : ''}<a href="#contact">Horaires & accès</a>${opts.formApi && opts.siteId ? `<a href="#form">${esc(formKind(c.kind).nav)}</a>` : ''}</div></nav>
 
 <header class="hero"><div class="wrap">
   ${p.rating ? `<div class="rating"><span class="s">${stars(p.rating)}</span> ${p.rating.toFixed(1).replace('.', ',')} · ${p.ratingsTotal ?? ''} avis Google</div>` : ''}
@@ -264,6 +300,8 @@ ${photos.length > 2 ? `<section id="gallery"><div class="wrap reveal"><div class
 
 ${p.reviews.length ? `<section style="background:#fff3"><div class="wrap reveal"><div class="eyebrow">Ils en parlent</div><h2>Avis de nos clients</h2>
   <div class="reviews">${p.reviews.slice(0, 3).map(r => `<div class="review"><div class="s">${stars(r.rating)}</div><p>« ${esc(r.text)} »</p><b>${esc(r.author)} · avis Google</b></div>`).join('')}</div></div></section>` : ''}
+
+${opts.formApi && opts.siteId ? formSection(c, opts.siteId, opts.formApi) : ''}
 
 <section id="contact"><div class="wrap info reveal">
   <div><div class="eyebrow">Horaires</div><h2>Quand nous trouver</h2>
