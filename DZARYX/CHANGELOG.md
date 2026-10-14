@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-14 (soir 11) — PC cloud toujours allumé | ad86be8 → 691f79b, app SW v136
+
+- **PC cloud** (VPS) : bureau virtuel Xvfb + openbox + Google Chrome (profil gardé), agent `cloudpc/agent.py` (namespace `/cloudpc`), pm2 `dzaryx-cloudpc-desktop` / `dzaryx-cloudpc`. Voir `cloudpc/A_LIRE.md`.
+- **App MON PC** : choix 💻 Laptop / ☁️ PC cloud (auto si le laptop est éteint), adresse + sites, clavier navigateur, « Demande à Dzaryx », relancer Chrome. Routes `/api/nexus/live/*` + `target:'cloud'`, `/targets`, `/open`, `/restart-browser`.
+- **Dzaryx** : outil `cloud_pc` (status/open_url/read_page/tabs/restart_browser) ; `browser_task` tourne dans le Chrome visible (browser-worker en CDP, `BROWSER_CDP_URL`) ; Nexus hors ligne → propose le PC cloud ; auto-test vérifie le PC cloud.
+- **Sauvegarde Drive** : API activée par Kouider → 1re sauvegarde OK (92 tables).
+- Testé en production : téléphone 390 px (page ouverte, direct, toucher = clic), outil cloud_pc via Dzaryx, browser_task réel (Wikipédia Alger) dans le Chrome visible.
+
 ## 2026-10-14 (soir 10) — Sauvegardes, auto-test, saisons, apprentissage des méthodes, Nexus plus solide | 5cde7bf → 8fbbd72
 
 - **Bug (B035)** : tous les messages Telegram à Dzaryx (texte, vocal, photo) plantaient — `send_chat_action` attend `enums.ChatAction`, pas une chaîne. Corrigé (`5cde7bf`).

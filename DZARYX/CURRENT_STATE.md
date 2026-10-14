@@ -8,11 +8,12 @@
 
 ## ⚡ Session 2026-10-14 (soir) — Sauvegardes, auto-test, saisons, Nexus plus solide
 - **Sauvegardes** : VPS chaque nuit 3h30 (`/root/backups`, base + photos, 30 j) ✅ testé. Drive (job Railway 3h) ❌ tant que
-  l'API Google Drive n'est pas activée (lien dans le message d'erreur / auto-test). Restaurer : `backend/scripts/backup-restore.ts`.
+  Drive ✅ (API activée le 14/10, 1re sauvegarde OK). Restaurer : `backend/scripts/backup-restore.ts`.
 - **Auto-test** 7h45 (`run_self_test`) — testé en ligne : 21/23 (Drive + faux positif client-sites corrigé).
 - **Saisons** (`get_upcoming_seasons`, lundi 9h15). Vacances scolaires codées jusqu'à l'été 2027 → à compléter en 2027.
 - **Nexus** : surveillance des tâches, `rester-joignable.bat`. Démarre à la CONNEXION Windows (ONLOGON) : après un
-  redémarrage il faut se connecter. Idée pour demain : « Nexus cloud » sur le VPS (voir réponse à Kouider du 14/10).
+  redémarrage il faut se connecter.
+- **PC cloud** ✅ en ligne (VPS, `cloudpc/A_LIRE.md`) : app MON PC → ☁️ PC cloud, outil `cloud_pc`, browser_task visible.
 - **Ouedkniss** bloque le VPS → veille des prix à faire via Nexus.
 
 ## ⚡ Session 2026-10-14 — Claude 5.5, mémoire par le sens, connexion sécurisée, voix temps réel du PC
