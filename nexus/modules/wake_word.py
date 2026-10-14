@@ -205,6 +205,8 @@ class WakeWordDetector:
                 elif action == 'sleep':
                     self._session_until = 0.0
                     self._run(self._on_sleep())
+                elif action in ('wake', 'command') and self._realtime(command if action == 'command' else ''):
+                    pass   # conversation temps réel terminée → on revient à l'écoute du mot « Nexus »
                 elif action == 'wake':
                     log.info('Wake word detected: %s', text)
                     self._session_until = time.time() + SESSION_TIMEOUT
@@ -216,6 +218,25 @@ class WakeWordDetector:
             except Exception as e:
                 log.error('Wake word loop error: %s', e)
                 time.sleep(2)
+
+    def _realtime(self, first_text: str) -> bool:
+        """Conversation en voix temps réel (modules/realtime_voice.py). Bloque ce fil jusqu'à la fin de la
+        conversation (le micro lui appartient). False → ancien mode (échec, ou NEXUS_REALTIME=0)."""
+        from modules.realtime_voice import realtime_enabled, PCVoiceSession
+        from modules.ws_client import BACKEND_URL, PC_TOKEN
+        if not (self.app.loop and PC_TOKEN and realtime_enabled()):
+            return False
+        log.info('Conversation temps réel%s', f' : {first_text}' if first_text else '')
+        session = PCVoiceSession(self.app, BACKEND_URL, PC_TOKEN)
+        started = time.time()
+        try:
+            asyncio.run_coroutine_threadsafe(session.run(first_text), self.app.loop).result()
+            self._session_until = 0.0
+            return True
+        except Exception as e:
+            log.error('voix temps réel: %s', e)
+            # échec immédiat (pas de réseau, pas de clé…) → la phrase est traitée par l'ancien mode
+            return time.time() - started > 15
 
     async def _on_wake(self) -> None:
         await self.app.gui_send({'type': 'status', 'text': 'NEXUS ACTIF'})

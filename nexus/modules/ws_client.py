@@ -70,6 +70,23 @@ _BLOCKED_RE = re.compile('|'.join(_BLOCKED_PATTERNS), re.IGNORECASE)
 # journaliserait vers Telegram est renvoyé à Dzaryx (appel, app) au lieu de partir sur Telegram.
 _SYNC_SINK: contextvars.ContextVar[dict | None] = contextvars.ContextVar('nexus_sync_sink', default=None)
 
+
+async def run_captured(app, text: str, timeout: float = 25) -> str:
+    """Exécute une commande Nexus et renvoie ce qu'elle aurait journalisé (voix temps réel du PC, pc_action)."""
+    sink = {'lines': [], 'open': True}
+
+    async def run():
+        _SYNC_SINK.set(sink)
+        await app.handle_command(text, 'dzaryx-sync')
+
+    task = asyncio.create_task(run())
+    done, _ = await asyncio.wait({task}, timeout=timeout)
+    sink['open'] = False
+    if task in done and task.exception():
+        return f'Échec : {task.exception()}'[:300]
+    out = '\n'.join(sink['lines'])[:4000]
+    return out if task in done else (out + '\n(toujours en cours, le résultat arrivera sur Telegram)').strip()
+
 _ALLOWED_PREFIXES = (
     'git ', 'node ', 'npx ', 'npm ', 'py ', 'python3 ',
     'powershell ', 'cd', 'dir', 'type ', 'echo ',

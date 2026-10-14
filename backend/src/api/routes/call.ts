@@ -1,4 +1,5 @@
-import { Router, type Request } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
+import { extractBearerToken, validateToken } from '../../auth/tokens.js';
 import { requireMobileAuth } from '../middleware/auth.js';
 import { answerCall, declineCall, getPendingCall, callOwner, type CallActor } from '../../notifications/voice-call.js';
 import { processMessage } from '../../conversation/orchestrator.js';
@@ -14,10 +15,20 @@ import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
 import { clientWhatsappLink } from '../../notifications/client-care.js';
 import { quickBooking, quickPayment, quickQuote, quickAgenda, quickModifyBooking, quickEmailReply, quickContract } from '../../integrations/call-quick.js';
-import { takeTelegramMessages } from '../../notifications/tg-outbox.js';
+import { takeTelegramMessages, queueTelegramMessage } from '../../notifications/tg-outbox.js';
 import { pcCommand, pcStatus, pcWake, pcScreenToTelegram, pcLookJpeg } from '../../integrations/nexus-remote.js';
 
 const router = Router();
+
+// Nexus (jeton de l'agent PC) parle au nom de Kouider : voix temps réel du PC (nexus/modules/realtime_voice.py)
+function requireCallerAuth(req: Request, res: Response, next: NextFunction): void {
+  const token = extractBearerToken(req);
+  if (token && validateToken(token, 'pc-agent')) {
+    req.mobileActor = { id: 'kouider', displayName: env.OWNER_NAME, ownerKey: 'kouider', role: 'owner' };
+    next(); return;
+  }
+  requireMobileAuth(req, res, next);
+}
 
 // Même règle que /api/chat : jeton partagé → l'acteur vient de l'app (Houari connecté dans le simulateur).
 function callActor(req: Request): CallActor {
@@ -87,7 +98,7 @@ router.post('/missed', requireMobileAuth, async (req, res) => {
 
 // POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
 // réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
-router.post('/turn', requireMobileAuth, async (req, res) => {
+router.post('/turn', requireCallerAuth, async (req, res) => {
   const { message, textOnly, stream, image, imageMime, channel } = req.body as {
     message?: string; textOnly?: boolean; stream?: boolean; image?: string; imageMime?: string; channel?: 'call' | 'message' };
   if (!message?.trim() && !image) { res.status(400).json({ error: 'message required' }); return; }
@@ -269,6 +280,36 @@ const CALL_TOOLS = [
     parameters: { type: 'object', properties: {} } },
 ];
 
+// Voix temps réel sur le PC (Nexus) : ces outils sont exécutés directement par Nexus sur le PC, sans passer par ici
+const PC_REMOTE_TOOLS = new Set(['pc_command', 'pc_status', 'pc_wake', 'pc_screen_to_telegram', 'pc_look', 'end_call', 'interpreter']);
+const PC_LOCAL_TOOLS = [
+  { type: 'function', name: 'pc_action',
+    description: 'Agir sur CE PC tout de suite (« ouvre Spotify », « volume 30 », « mets YouTube », « ferme Chrome », « verrouille », « minuteur 10 minutes », « note … », « tape … »). Écris la commande comme Kouider la dirait, en français. Éteindre, redémarrer, veille, supprimer : relis et attends son oui, puis confirmed:true.',
+    parameters: { type: 'object', properties: {
+      command: { type: 'string', description: 'La commande, en français' },
+      confirmed: { type: 'boolean', description: 'true seulement après son oui pour éteindre / redémarrer / veille / supprimer' } }, required: ['command'] } },
+  { type: 'function', name: 'look_screen',
+    description: 'REGARDER L\'ÉCRAN maintenant (« qu\'est-ce qu\'il y a sur mon écran ? », « regarde », « ça a marché ? », « lis-moi ça »). Tu reçois l\'image de l\'écran.',
+    parameters: { type: 'object', properties: {} } },
+  { type: 'function', name: 'watch_screen',
+    description: 'Mode « REGARDE AVEC MOI » : on:true quand Kouider veut que tu suives son écran pendant qu\'il parle (« regarde avec moi », « suis ce que je fais », « aide-moi sur ce site ») ; tu reçois alors une image de l\'écran à chaque fois qu\'il parle. on:false quand il dit « c\'est bon, arrête de regarder ».',
+    parameters: { type: 'object', properties: { on: { type: 'boolean' } }, required: ['on'] } },
+  { type: 'function', name: 'end_conversation',
+    description: 'Terminer la conversation vocale sur le PC, APRÈS avoir dit au revoir en une phrase (« merci », « c\'est tout », « à plus », « repos »).',
+    parameters: { type: 'object', properties: {} } },
+];
+
+function pcInstructions(base: string): string {
+  return base.split('\n').map(line => {
+    if (line.startsWith('Tu es Dzaryx')) return `Tu es Dzaryx, la voix de Nexus sur le PC de ${env.OWNER_NAME} : il te parle en direct par le micro de son ordinateur (pas un appel téléphonique).`;
+    if (line.startsWith('PC (Nexus)')) return `CE PC : tout ce qui concerne l'ordinateur (« ouvre Spotify », « volume 30 », « mets YouTube », « verrouille ») → pc_action, c'est direct. « Qu'est-ce qu'il y a sur mon écran ? », « regarde », « lis-moi ça » → look_screen. « Regarde avec moi », « aide-moi sur ce site » → watch_screen on:true : tu reçois l'écran à chaque fois qu'il parle ; décris et guide pas à pas (où cliquer, quoi taper). Éteindre, redémarrer, veille, supprimer : relis et attends son oui (confirmed:true).`;
+    if (line.startsWith('CAMÉRA')) return `ÉCRAN : décris ce que tu vois de façon concrète, sans inventer ; si c'est trop petit pour être lu, dis-le et propose de zoomer (pc_action « zoom avant »).`;
+    if (line.startsWith('RACCROCHER')) return `FIN : quand il a fini (« merci », « c'est tout », « repos »), dis au revoir en une phrase, puis appelle end_conversation.`;
+    if (line.startsWith('RAPPEL :')) return line.replace('après le ✅, dis au revoir puis end_call', 'après le ✅, dis-le lui simplement');
+    return line;
+  }).join('\n');
+}
+
 function realtimeInstructions(who: CallActor, calls: string): string {
   const name = who === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
   const now = new Date();
@@ -305,9 +346,10 @@ function realtimeInstructions(who: CallActor, calls: string): string {
   ].join('\n');
 }
 
-router.post('/realtime', requireMobileAuth, async (req, res) => {
+router.post('/realtime', requireCallerAuth, async (req, res) => {
   if (!env.OPENAI_API_KEY) { res.status(503).json({ error: 'OPENAI_API_KEY absente' }); return; }
   const who = callActor(req);
+  const pcMode = (req.body as { mode?: string } | undefined)?.mode === 'pc' && who === 'kouider';
   try {
     const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
@@ -317,7 +359,9 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
         session: {
           type: 'realtime',
           model: REALTIME_MODEL,
-          instructions: realtimeInstructions(who, await recentCallsText(who).catch(() => '')),
+          instructions: pcMode
+            ? pcInstructions(realtimeInstructions(who, await recentCallsText(who).catch(() => '')))
+            : realtimeInstructions(who, await recentCallsText(who).catch(() => '')),
           audio: {
             input: {
               format: { type: 'audio/pcm', rate: 24000 },
@@ -332,7 +376,9 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
             name: 'ask_dzaryx',
             description: 'Le cerveau de Dzaryx (accès réel aux réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, web…). Pose la demande complète de Kouider, en français. Renvoie la réponse à redire à l\'oral.',
             parameters: { type: 'object', properties: { request: { type: 'string', description: 'La demande complète, avec le contexte utile de la conversation' } }, required: ['request'] },
-          }, ...quickToolDefs, ...quickWriteDefs, ...CALL_QUICK_DEFS, ...CALL_TOOLS],
+          }, ...[...quickToolDefs, ...quickWriteDefs, ...CALL_QUICK_DEFS, ...CALL_TOOLS]
+              .filter(t => !pcMode || !PC_REMOTE_TOOLS.has((t as { name: string }).name)),
+             ...(pcMode ? PC_LOCAL_TOOLS : [])],
           tool_choice: 'auto',
         },
       }),
@@ -351,16 +397,22 @@ router.post('/realtime', requireMobileAuth, async (req, res) => {
 });
 
 // POST /api/call/tool { name, input } — lecture rapide pendant un appel (liste blanche, lecture seule)
-router.post('/tool', requireMobileAuth, async (req, res) => {
+router.post('/tool', requireCallerAuth, async (req, res) => {
   const { name, input } = req.body as { name?: string; input?: Record<string, unknown> };
   // call_me : seulement un rappel PROGRAMMÉ (« rappelle-moi dans 1 heure »), jamais tout de suite pendant l'appel
   const later = name === 'call_me' && !!(input?.['delay_minutes'] || input?.['at_time'] || input?.['at_date']);
   const write = (QUICK_WRITE_TOOLS as readonly string[]).includes(name ?? '');
   const own = name && Object.hasOwn(CALL_QUICK, name) ? CALL_QUICK[name as keyof typeof CALL_QUICK] : null;
-  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && name !== 'whatsapp_link' && name !== 'send_contract')) {
+  if (!name || (!(QUICK_TOOLS as readonly string[]).includes(name) && !later && !write && !own && !['whatsapp_link', 'send_contract', 'send_text_to_me'].includes(name))) {
     res.status(400).json({ error: 'tool not allowed' }); return;
   }
   try {
+    if (name === 'send_text_to_me') {   // voix du PC : pas de client Telegram local → file d'envoi du backend
+      const text = String(input?.['text'] ?? '').trim();
+      if (!text) { res.json({ text: 'Texte vide.' }); return; }
+      await queueTelegramMessage(text, undefined, callActor(req));
+      res.json({ text: '✅ Envoyé sur Telegram.' }); return;
+    }
     if (name === 'send_contract') {
       res.json(callActor(req) === 'kouider' ? await quickContract(input ?? {}) : { ok: false, text: 'Contrats réservés à Kouider.' }); return;
     }
@@ -400,7 +452,7 @@ router.post('/voice', requireMobileAuth, async (req, res) => {
 
 // POST /api/call/summary { lines: [{role, text}], durationS } — fin d'un appel Telegram : résumé + choses à faire
 // retenus (mémoire des appels). Renvoie le résumé, que tgcall envoie à Kouider en message.
-router.post('/summary', requireMobileAuth, async (req, res) => {
+router.post('/summary', requireCallerAuth, async (req, res) => {
   const { lines, durationS } = req.body as { lines?: CallLine[]; durationS?: number };
   if (!Array.isArray(lines)) { res.status(400).json({ error: 'lines required' }); return; }
   try {

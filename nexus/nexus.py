@@ -46,6 +46,7 @@ from modules.app_installer    import AppInstaller
 from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
 from modules                  import vision_click
+from modules                  import ui_automation
 from modules                  import quick_answers, whatsapp_call
 from modules.extras           import Extras
 from modules.browser_agent    import BrowserAgent
@@ -522,7 +523,10 @@ class NexusApp:
             loop = asyncio.get_running_loop()
             # « écris X dans <champ> » → clic guidé par la vision puis saisie
             result = None
-            if vision_click.TYPE_IN_RE.search(t):
+            # 1) lecture de la fenêtre (UI Automation) : vrais boutons/champs, rapide et sans IA
+            if vision_click.TYPE_IN_RE.search(t) or (_INPUT_CLICK_RE.search(tl) and vision_click.CLICK_RE.search(t)):
+                result = await loop.run_in_executor(None, ui_automation.try_handle, t)
+            if not result and vision_click.TYPE_IN_RE.search(t):
                 result = await loop.run_in_executor(None, vision_click.try_handle, t)
             # Coordonnées, touches, scroll, saisie simple
             result = result or self.input.try_handle(t)

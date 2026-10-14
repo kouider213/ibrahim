@@ -30,3 +30,5 @@ httpx>=0.27.0
 keyboard>=0.13.5
 # faster-whisper : installé par « installe le mode hors ligne » (gros paquet, optionnel)
 vosk>=0.3.45
+sounddevice>=0.4.6     # voix temps réel (micro + haut-parleurs, PortAudio inclus sous Windows)
+uiautomation>=2.0.18; sys_platform == "win32"   # lire les boutons/champs des fenêtres (clics fiables)
