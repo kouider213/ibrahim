@@ -48,6 +48,8 @@ import documentsRoutes     from './api/routes/documents.js';
 import ttsRoutes           from './api/routes/tts.js';
 import callRoutes          from './api/routes/call.js';
 import mcpRoutes           from './api/routes/mcp.js';
+import authDeviceRoutes    from './api/routes/auth-device.js';
+import { startDeviceAuthSync } from './auth/device-auth.js';
 import browserRoutes       from './api/routes/browser.js';
 import transcribeRoutes    from './api/routes/transcribe.js';
 import translateRoutes     from './api/routes/translate.js';
@@ -325,6 +327,7 @@ app.use('/api/documents',     apiLimiter, documentsRoutes);
 app.use('/api/tts',           apiLimiter, ttsRoutes);
 app.use('/api/call',          apiLimiter, callRoutes);
 app.use('/api/mcp',           apiLimiter, mcpRoutes);
+app.use('/api/auth',          apiLimiter, authDeviceRoutes);
 app.use('/api/browser',       browserRoutes);
 app.use('/api/transcribe',   apiLimiter, transcribeRoutes);
 app.use('/api/translate',    apiLimiter, translateRoutes);
@@ -524,6 +527,8 @@ async function initFikRealtimeListener(): Promise<void> {
 
 // ── Start server ──────────────────────────────────────────────
 const PORT = env.PORT || 3000;
+startDeviceAuthSync();
+
 server.listen(PORT, () => {
   console.log(`✅ Dzaryx backend running on port ${PORT}`);
   void ensureProspectsTable();

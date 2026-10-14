@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { env } from '../config/env.js';
 import type { Request } from 'express';
+import { deviceActor, legacyMobileAllowed } from './device-auth.js';
 
 export type TokenType = 'mobile' | 'pc-agent' | 'webhook';
 
@@ -19,6 +20,7 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export function validateToken(token: string, type: TokenType): boolean {
+  if (type === 'mobile') return identifyMobileActor(token) !== null;
   const expected = TOKEN_MAP[type];
   if (!expected) return false;
   return safeEqual(token, expected);
@@ -32,13 +34,18 @@ export interface MobileActor {
 }
 
 // Identify which mobile user based on their token
+const KOUIDER = (): MobileActor => ({ id: 'kouider', displayName: env.OWNER_NAME, ownerKey: 'kouider', role: 'owner' });
+const HOUARI  = (): MobileActor => ({ id: 'houari', displayName: env.PARTNER_NAME, ownerKey: 'houari', role: 'admin' });
+
+// Identify which mobile user based on their token : jeton d'appareil (connexion par mot de passe, device-auth.ts),
+// puis anciens codes statiques tant qu'ils ne sont pas coupés (app_kv auth:legacy = off).
 export function identifyMobileActor(token: string): MobileActor | null {
-  if (safeEqual(token, env.MOBILE_ACCESS_TOKEN)) {
-    return { id: 'kouider', displayName: env.OWNER_NAME, ownerKey: 'kouider', role: 'owner' };
-  }
-  if (env.MOBILE_TOKEN_HOUARI && safeEqual(token, env.MOBILE_TOKEN_HOUARI)) {
-    return { id: 'houari', displayName: env.PARTNER_NAME, ownerKey: 'houari', role: 'admin' };
-  }
+  if (!token) return null;
+  const dev = deviceActor(token);
+  if (dev) return dev === 'houari' ? HOUARI() : KOUIDER();
+  if (!legacyMobileAllowed()) return null;
+  if (env.MOBILE_ACCESS_TOKEN && safeEqual(token, env.MOBILE_ACCESS_TOKEN)) return KOUIDER();
+  if (env.MOBILE_TOKEN_HOUARI && safeEqual(token, env.MOBILE_TOKEN_HOUARI)) return HOUARI();
   return null;
 }
 

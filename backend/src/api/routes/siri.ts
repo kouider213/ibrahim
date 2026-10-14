@@ -1,7 +1,7 @@
 ﻿import { Router } from 'express';
 import { z } from 'zod';
 import { processMessage } from '../../conversation/orchestrator.js';
-import { env } from '../../config/env.js';
+import { extractBearerToken, identifyMobileActor } from '../../auth/tokens.js';
 
 const router = Router();
 
@@ -13,8 +13,9 @@ const sirisSchema = z.object({
 // POST /api/siri — endpoint simplifié pour Siri Shortcut iOS
 // Retourne du texte brut (pas de JSON) pour que Siri puisse le lire
 router.post('/', async (req, res) => {
-  const token = req.headers['x-Dzaryx-token'] as string | undefined;
-  if (token !== env.MOBILE_ACCESS_TOKEN) {
+  // Les en-têtes arrivent en minuscules dans Node ; jeton d'appareil de Kouider (ou ancien code tant qu'il est actif)
+  const token = (req.headers['x-dzaryx-token'] as string | undefined) ?? extractBearerToken(req) ?? '';
+  if (identifyMobileActor(token)?.id !== 'kouider') {
     res.status(401).type('text').send('Non autorisé');
     return;
   }
