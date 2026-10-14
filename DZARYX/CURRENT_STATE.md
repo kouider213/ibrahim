@@ -6,13 +6,22 @@
 
 ---
 
+## ⚡ Session 2026-10-14 (soir) — Sauvegardes, auto-test, saisons, Nexus plus solide
+- **Sauvegardes** : VPS chaque nuit 3h30 (`/root/backups`, base + photos, 30 j) ✅ testé. Drive (job Railway 3h) ❌ tant que
+  l'API Google Drive n'est pas activée (lien dans le message d'erreur / auto-test). Restaurer : `backend/scripts/backup-restore.ts`.
+- **Auto-test** 7h45 (`run_self_test`) — testé en ligne : 21/23 (Drive + faux positif client-sites corrigé).
+- **Saisons** (`get_upcoming_seasons`, lundi 9h15). Vacances scolaires codées jusqu'à l'été 2027 → à compléter en 2027.
+- **Nexus** : surveillance des tâches, `rester-joignable.bat`. Démarre à la CONNEXION Windows (ONLOGON) : après un
+  redémarrage il faut se connecter. Idée pour demain : « Nexus cloud » sur le VPS (voir réponse à Kouider du 14/10).
+- **Ouedkniss** bloque le VPS → veille des prix à faire via Nexus.
+
 ## ⚡ Session 2026-10-14 — Claude 5.5, mémoire par le sens, connexion sécurisée, voix temps réel du PC
 - **Modèles** : Sonnet 5.5 / Haiku 5.5 partout via `integrations/anthropic-compat.ts` (créer les clients avec
   `createAnthropic()`, jamais `new Anthropic(...)`). Route Générale : recherche d'outils côté serveur (~45 outils chargés).
 - **Jours facturés** : toujours `rentalDays()` (finance.ts) — jours inclus. Tests financiers 11/11.
 - **Mémoire par le sens** : `integrations/semantic-memory.ts` (app_kv `emb:facts:v1`, `emb:conv:v1`).
 - **Connexion de l'app** : mot de passe vérifié par le serveur (`/api/auth/*`, `auth/device-auth.ts`), jeton par
-  appareil. App publiée sans code (SW v130). **B034 ouvert** : anciens codes encore acceptés (tgcall en dépend).
+  appareil. App publiée sans code (SW v130). B034 fixé (anciens codes coupés).
 - **Surveillance Railway** : cron VPS chaque minute `tgcall/watchdog.py` → si `/health` KO ~3 min, message
   Telegram + appel d'alarme (`fillers/alarm.mp3`) sans le backend. Test réel OK. Récap 10h du 14/10 : appel reçu.
 - **Nexus** (pas testé sur le PC) : voix temps réel `modules/realtime_voice.py`, « regarde avec moi »,

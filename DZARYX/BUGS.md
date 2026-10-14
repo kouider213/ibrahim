@@ -7,6 +7,13 @@
 
 ## Bugs Ouverts 🔴
 
+### B035 — Messages Telegram à Dzaryx toujours en échec ✅
+- **Statut** : ✅ FIXÉ — 2026-10-14 (`5cde7bf`)
+- **Fichier(s)** : `tgcall/dzaryx_tg.py` (`on_message`, `voice_command`)
+- **Description** : `send_chat_action(uid, 'typing')` → « 'str' object has no attribute 'name' » : texte, vocal et photo
+  envoyés au compte Telegram de Dzaryx répondaient « Petit souci technique ». Les appels n'étaient pas touchés.
+- **Fix** : `enums.ChatAction.TYPING / RECORD_AUDIO`. Prévention : tgcall remonte ses erreurs → auto-test quotidien.
+
 ### B034 — Anciens codes d'accès encore valides (visibles dans les vieilles versions publiques de l'app) ✅
 - **Statut** : ✅ FIXÉ — 2026-10-14 13:19 (tgcall a son jeton d'appareil, auth:legacy=off, ancien code → 403 vérifié)
 - **Fichier(s)** : `backend/src/auth/device-auth.ts` (app_kv `auth:legacy`), `tgcall/.env` (`ACCESS_TOKEN`)

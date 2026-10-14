@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-14 (soir 10) — Sauvegardes, auto-test, saisons, apprentissage des méthodes, Nexus plus solide | 5cde7bf → 8fbbd72
+
+- **Bug (B035)** : tous les messages Telegram à Dzaryx (texte, vocal, photo) plantaient — `send_chat_action` attend `enums.ChatAction`, pas une chaîne. Corrigé (`5cde7bf`).
+- **Sauvegardes** (`integrations/db-backup.ts`) : les 92 tables en `.json.gz`. VPS : cron 3h30 `scripts/backup-local.ts` → `/root/backups/db` (30 gardés) + copie des photos/documents Storage (`/root/backups/storage`, 221 fichiers, 147 Mo). Railway : job `db-backup` 3h → Drive pro « Dzaryx — Sauvegardes » — **bloqué tant que l'API Google Drive n'est pas activée** dans le projet Google 1041982301741. Restauration : `scripts/backup-restore.ts` (aperçu, `--yes` pour écrire, `--table`).
+- **Auto-test** (`integrations/self-test.ts`) : job `self-test` 7h45, ~23 vérifications en lecture seule (base, Claude + secours, 16 outils, Gmail, agenda, sauvegardes, tgcall + ses erreurs, tâches auto, Nexus). Message seulement si problème (+ résumé le lundi). Outil `run_self_test` (full / last / backup / backup_now). tgcall remonte ses erreurs dans le battement (`app_kv tgcall:errors`).
+- **Saisons** (`integrations/seasons.ts`) : vacances FR/BE 2026-27, été diaspora, Ramadan/Aïd/Mawlid (Umm al-Qura, ±1 j), fêtes nationales + remplissage réel du parc et conseil prix. Outil `get_upcoming_seasons`, job `season-watch` lundi 9h15 (J-42 / J-14).
+- **Apprentissage** : la relecture des conversations voit aussi les outils utilisés → retient une méthode qui a marché (≥ 3 outils + Kouider satisfait) et améliore une méthode corrigée (idée Hermes Agent).
+- **Nexus** : chaque partie sous surveillance (une exception ne coupe plus tout), mot « Nexus » sans PyAudio ne boucle plus, PyAudio installé par la mise à jour à distance, `rester-joignable.bat`. Testé sur le VPS contre le backend local : connexion, ping, sysinfo, exec, reconnexion.
+- **Ouedkniss** : bloqué depuis le VPS (« problème de chargement », même avec un vrai navigateur) → à faire depuis Nexus (IP du PC).
+
 ## 2026-10-14 (soir 9) — Carte live : barre de temps, argent, état des lieux, commandes vocales | app SW v135
 
 - **Barre de temps** : 14 jours, une colonne par jour (part du parc dehors, voitures libres, rouge = complet). Toucher un jour → la ville 3D passe à ce jour (départs, retours, parking). L'atelier reste l'état actuel.
