@@ -2486,11 +2486,12 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
 
   {
     name: 'list_my_capabilities',
-    description: 'Ta VRAIE liste d\'outils, lue dans ton code : ton nom, le nombre EXACT d\'outils, les agents spécialisés et chaque outil rangé par catégorie avec ce qu\'il fait. Une partie de tes outils est cachée (recherche d\'outils) : tu ne les connais PAS tous de tête. OBLIGATOIRE avant de répondre à « combien d\'outils tu as », « qu\'est-ce que tu sais faire », « tes capacités / fonctions », ou de faire un document / Google Doc / Sheet qui te décrit. Ne jamais inventer ni arrondir le nombre.',
+    description: 'Ta VRAIE liste d\'outils, lue dans ton code : ton nom, le nombre EXACT d\'outils, les agents spécialisés et chaque outil rangé par catégorie avec ce qu\'il fait. Une partie de tes outils est cachée (recherche d\'outils) : tu ne les connais PAS tous de tête. Pour un document sur toi : output=\'google_doc\' ou \'google_sheet\' (fait en quelques secondes). OBLIGATOIRE avant de répondre à « combien d\'outils tu as », « qu\'est-ce que tu sais faire », « tes capacités / fonctions », ou de faire un document / Google Doc / Sheet qui te décrit. Ne jamais inventer ni arrondir le nombre.',
     input_schema: {
       type: 'object' as const,
       properties: {
         detail: { type: 'boolean', description: 'true (défaut) : avec une phrase par outil. false : noms seulement (réponse vocale courte).' },
+        output: { type: 'string', enum: ['texte', 'google_doc', 'google_sheet'], description: "texte (défaut) : la liste ici. google_doc / google_sheet : crée DIRECTEMENT le document dans le Drive depuis la vraie liste et renvoie le lien (rapide, rien à réécrire). À utiliser pour « fais un doc / un Google Doc / un tableau avec toutes tes capacités »." },
       },
     },
   },

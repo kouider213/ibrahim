@@ -15,6 +15,11 @@
   `list_my_capabilities`, `create_google_doc`, `create_google_sheet` ajoutés aux outils de TOUS les agents
   (`ALWAYS_TOOLS`) et aux outils toujours chargés (`CORE_TOOLS`). L'agent choisi d'après l'historique
   (`conversation/orchestrator.ts`) reçoit aussi `ALWAYS_TOOLS` (avant : non).
+- **Appels** : la voix temps réel répondait « je ne peux pas créer de Google Doc » sans demander au cerveau.
+  Consignes : jamais « je ne peux pas » sans ask_dzaryx (qui a 200+ outils) ; document/tableau → ask_dzaryx puis lien
+  par écrit (send_text_to_me). `/api/call/turn` : le cerveau recopie les liens à la fin de sa réponse.
+  `list_my_capabilities` `output: google_doc | google_sheet` crée le document directement (9 s, testé : Doc 231 lignes,
+  Sheet 1 ligne/outil) — le modèle n'a plus 200 lignes à réécrire (limite de 90 s pendant un appel).
 
 ## 2026-10-14 (après-midi) — Appels : Dzaryx sait qu'il a appelé ; dictée sans jargon ; jeton tgcall prêt
 

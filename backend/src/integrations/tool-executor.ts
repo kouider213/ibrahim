@@ -361,7 +361,7 @@ async function _dispatch(
       case 'connect_gmail':             return connectGmailTool(input);
       case 'create_google_doc':         return await createGoogleDoc(input);
       case 'create_google_sheet':       return await createGoogleSheet(input);
-      case 'list_my_capabilities':      return listMyCapabilities(input);
+      case 'list_my_capabilities':      return await listMyCapabilities(input);
       case 'draft_email':               return await draftEmailTool(input, sessionId);
       case 'send_email':                return await sendEmailTool(input, sessionId);
       case 'add_prospect':              return await addProspectTool(input);

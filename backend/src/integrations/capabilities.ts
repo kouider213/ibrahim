@@ -1,5 +1,6 @@
 import { Dzaryx_TOOLS } from './tools.js';
 import { AGENT_REGISTRY } from '../agents/agent-registry.js';
+import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
 
 // list_my_capabilities — la VRAIE liste des outils de Dzaryx, lue dans son code (tools.ts).
 // Avec la recherche d'outils, le modèle ne voit qu'une partie de ses outils : sans ceci, il invente
@@ -31,28 +32,48 @@ function shortDesc(desc: string | undefined): string {
   return first.length > 160 ? first.slice(0, 157) + '…' : first;
 }
 
-export function listMyCapabilities(input: Record<string, unknown>): string {
-  const detailed = input['detail'] !== false;
+function grouped(): Array<[string, Array<{ name: string; desc: string }>]> {
   const groups = new Map<string, Array<{ name: string; desc: string }>>();
   for (const t of Dzaryx_TOOLS) {
     const cat = categoryOf(t.name);
     if (!groups.has(cat)) groups.set(cat, []);
     groups.get(cat)!.push({ name: t.name, desc: shortDesc(t.description) });
   }
-  const order = [...CATEGORIES.map(c => c[0]), 'Autres'].filter(c => groups.has(c));
+  return [...CATEGORIES.map(c => c[0]), 'Autres'].filter(c => groups.has(c)).map(c => [c, groups.get(c)!]);
+}
 
-  const lines = [
-    'Nom : Dzaryx — assistant IA de Kouider (FIK Conciergerie, location de voitures à Oran).',
-    `Nombre EXACT d'outils : ${Dzaryx_TOOLS.length} (liste lue dans le code, ne pas arrondir ni inventer).`,
-    `Agents spécialisés (${AGENT_REGISTRY.length}) : ${AGENT_REGISTRY.map(a => a.name).join(', ')}.`,
-    '',
-  ];
-  for (const cat of order) {
-    const tools = groups.get(cat)!;
-    lines.push(`## ${cat} (${tools.length})`);
+const header = () => [
+  'Nom : Dzaryx — assistant IA de Kouider (FIK Conciergerie, location de voitures à Oran).',
+  `Nombre EXACT d'outils : ${Dzaryx_TOOLS.length} (liste lue dans le code, ne pas arrondir ni inventer).`,
+  `Agents spécialisés (${AGENT_REGISTRY.length}) : ${AGENT_REGISTRY.map(a => a.name).join(', ')}.`,
+];
+
+// output = 'google_doc' / 'google_sheet' : le document est fait ICI, directement depuis la vraie liste —
+// en quelques secondes, même pendant un appel (le modèle n'a pas à réécrire 200 lignes).
+export async function listMyCapabilities(input: Record<string, unknown>): Promise<string> {
+  const output = String(input['output'] ?? 'texte');
+  const groups = grouped();
+  const date = new Date().toLocaleDateString('fr-FR', { timeZone: 'Europe/Brussels' });
+
+  if (output === 'google_sheet') {
+    const rows: string[][] = [['Catégorie', 'Outil', 'Ce qu\'il fait']];
+    for (const [cat, tools] of groups) for (const t of tools) rows.push([cat, t.name, t.desc]);
+    const res = await createGoogleSheet({ title: `Dzaryx — ${Dzaryx_TOOLS.length} outils (${date})`, rows });
+    return `${res}\n${header().slice(1).join('\n')}`;
+  }
+
+  const detailed = input['detail'] !== false || output === 'google_doc';
+  const lines = [...header(), ''];
+  for (const [cat, tools] of groups) {
+    lines.push(output === 'google_doc' ? `${cat.toUpperCase()} (${tools.length})` : `## ${cat} (${tools.length})`);
     for (const t of tools) lines.push(detailed ? `- ${t.name} : ${t.desc}` : `- ${t.name}`);
     lines.push('');
   }
-  lines.push("Pour un document : reprendre ces chiffres et catégories tels quels, puis create_google_doc ou create_google_sheet avec ce contenu.");
+  if (output === 'google_doc') {
+    lines[1] = `Nombre d'outils : ${Dzaryx_TOOLS.length}`;
+    const res = await createGoogleDoc({ title: `Dzaryx — toutes mes capacités (${date})`, content: lines.join('\n') });
+    return `${res}\n${header().slice(1).join('\n')}`;
+  }
+  lines.push("Pour un document : list_my_capabilities avec output='google_doc' ou 'google_sheet' le crée directement depuis cette liste.");
   return lines.join('\n');
 }
