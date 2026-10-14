@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-10-14 — Piloter le PC (Nexus) depuis le téléphone
+
+- **App « MON PC »** (`simulator/…/NexusScreen.tsx`, réécrit + enfin dans le menu) : écran du PC en direct au doigt
+  (toucher = clic, double toucher, appui long = clic droit, glisser = défiler ou déplacer), plein écran, clavier,
+  télécommande (médias/volume), « Demande à Nexus » à l'écrit ou à la voix, réveiller / mettre à jour / redémarrer.
+  Coordonnées relatives (nx/ny) → clic juste quelle que soit la résolution. Anciens boutons cassés supprimés
+  (clic en 0,0, « RESTART » = taskkill de tous les Python).
+- **Backend** : `api/routes/nexus-live.ts` (`/api/nexus/live/*`, limite à part 600/min — le direct ne mange plus la
+  limite générale de 120/min), `/api/nexus/say|wake-pc|remote-status|update|soft-restart`,
+  `integrations/nexus-remote.ts` (commande avec réponse, état, réveil, capture → Telegram, **mise à jour automatique
+  de Nexus au rallumage du PC** s'il a du retard sur `nexus/` — coupure : app_kv `nexus:autoupdate`=off),
+  `send_nexus_command` renvoie la vraie réponse de Nexus, `wake_nexus` tente le réveil réseau (MAC gardée en base).
+- **Appels Telegram** : outils `pc_command` (relecture + oui pour éteindre/veille/supprimer), `pc_status`, `pc_wake`,
+  `pc_screen_to_telegram`, `pc_look` (Dzaryx voit l'écran du PC pendant l'appel). `notifications/tg-outbox.ts` :
+  messages/photos du backend envoyés par le compte Telegram de Dzaryx (via `/api/call/pending`, aussi en plein appel).
+- **Nexus** : `nexus:command_sync` (réponse renvoyée au lieu de Telegram), capture rapide mss+Pillow avec curseur
+  (+ correctif : l'ancienne capture PowerShell enregistrait du PNG), `nexus:mouse_drag`, flèches/médias/F5/F11,
+  « mets le PC en veille (et réveille-le demain à 8h) », « réveille le PC à 14h » (tâche Windows qui sort de veille).
+
+---
+
 ## 2026-10-14 — Navigateur du serveur activé + mise à jour de Nexus à distance | `f738157`, `2243eab`
 
 - **Navigateur sur le serveur** (demande explicite de Kouider) : outils `browser_task` / `browser_reply` / `browser_status`,

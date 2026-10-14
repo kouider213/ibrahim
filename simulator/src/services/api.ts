@@ -1118,53 +1118,31 @@ export const business = {
       `/api/maps/autocomplete?input=${encodeURIComponent(input)}`
     ),
 
-  // ── NEXUS remote control ───────────────────────────────────────────────────
+  // ── NEXUS : piloter le PC depuis le téléphone ─────────────────────────────
+  // Écran en direct : route à part (/api/nexus/live, sa propre limite), jamais de bascule de serveur ni de cache.
 
-  nexusMouseMove: (x: number, y: number) =>
-    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/mouse/move', {
-      method: 'POST', body: JSON.stringify({ x, y }),
+  nexusLive: <T = { ok: boolean; result?: string; error?: string }>(path: 'frame' | 'click' | 'drag' | 'scroll' | 'key', body: Record<string, unknown>) =>
+    fetch(`${BACKEND_URL}/api/nexus/live/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify(body),
+    }).then(r => r.json() as Promise<T>)
+      .catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'réseau' }) as T),
+
+  nexusSay: (command: string, confirmed = false) =>
+    apiFetch<{ ok: boolean; text?: string; error?: string }>('/api/nexus/say', {
+      method: 'POST', body: JSON.stringify({ command, confirmed }),
     }),
 
-  nexusMouseClick: (x: number, y: number, button: 'left' | 'right' | 'double' = 'left') =>
-    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/mouse/click', {
-      method: 'POST', body: JSON.stringify({ x, y, button }),
-    }),
+  nexusRemoteStatus: () =>
+    apiFetch<{ ok: boolean; online: boolean; launcher: boolean; text: string }>('/api/nexus/remote-status'),
 
-  nexusMouseScroll: (direction: 'up' | 'down', amount = 3) =>
-    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/mouse/scroll', {
-      method: 'POST', body: JSON.stringify({ direction, amount }),
-    }),
+  nexusWakePc: () =>
+    apiFetch<{ ok: boolean; text?: string; error?: string }>('/api/nexus/wake-pc', { method: 'POST' }),
 
-  nexusKeyPress: (key: string) =>
-    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/key/press', {
-      method: 'POST', body: JSON.stringify({ key }),
-    }),
+  nexusUpdate: () =>
+    apiFetch<{ ok: boolean; text?: string; error?: string }>('/api/nexus/update', { method: 'POST' }),
 
-  nexusTypeText: (text: string) =>
-    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/key/type', {
-      method: 'POST', body: JSON.stringify({ text }),
-    }),
-
-  nexusHotkey: (keys: string[]) =>
-    apiFetch<{ ok: boolean; result?: string }>('/api/nexus/input/key/hotkey', {
-      method: 'POST', body: JSON.stringify({ keys }),
-    }),
-
-  nexusGetScreenSize: () =>
-    apiFetch<{ ok: boolean; width?: number; height?: number }>('/api/nexus/screen/size'),
-
-  nexusCapture: (quality = 50, scale = 0.5) =>
-    apiFetch<{ ok: boolean; image_base64?: string; size_kb?: number; timestamp?: string; error?: string }>(
-      '/api/nexus/screen/capture', { method: 'POST', body: JSON.stringify({ quality, scale }) }
-    ),
-
-  nexusScreenshot: () =>
-    apiFetch<{ ok: boolean; image_base64?: string; size_kb?: number; error?: string }>(
-      '/api/nexus/screen/screenshot', { method: 'POST' }
-    ),
-
-  nexusRunCommand: (command: string, cwd?: string) =>
-    apiFetch<{ ok: boolean; exit_code?: number; stdout?: string; stderr?: string; error?: string }>(
-      '/api/nexus/exec', { method: 'POST', body: JSON.stringify({ command, cwd, timeout_ms: 30000 }) }
-    ),
+  nexusRestart: () =>
+    apiFetch<{ ok: boolean; text?: string; error?: string }>('/api/nexus/soft-restart', { method: 'POST' }),
 };

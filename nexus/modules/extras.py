@@ -67,6 +67,11 @@ _BRIGHT_DOWN_RE = re.compile(r"^(?:baisse|diminue)\s+(?:la\s+)?luminosit[eé]$",
 _SHUTDOWN_RE = re.compile(r"^(?:[eé]teins|arr[eê]te|ferme)\s+(?:le\s+)?(?:pc|ordi(?:nateur)?)(?:\s+dans\s+(.+))?$", re.I)
 _REBOOT_RE = re.compile(r"^(?:red[eé]marre|reboot)\s+(?:le\s+)?(?:pc|ordi(?:nateur)?)$", re.I)
 _ABORT_RE = re.compile(r"^annule\s+(?:l'arr[eê]t|l'extinction|le\s+red[eé]marrage)$", re.I)
+_SLEEP_RE = re.compile(r"^(?:mets?\s+)?(?:le\s+)?(?:pc|ordi(?:nateur)?)\s+en\s+veille(?:\s+(?:et\s+)?(?:r[eé]veille|rallume)[\s-]le\s+(.+))?$", re.I)
+_WAKE_AT_RE = re.compile(r"^(?:r[eé]veille|rallume|allume)\s+(?:le\s+)?(?:pc|ordi(?:nateur)?)\s+((?:demain\s+)?(?:[aà]\s+)?\d{1,2}\s*(?:h|:)\s*\d{0,2}|dans\s+.+)$", re.I)
+_WAKE_CANCEL_RE = re.compile(r"^annule\s+(?:le\s+)?r[eé]veil\s+(?:du\s+)?(?:pc|ordi(?:nateur)?)$", re.I)
+_CLOCK_RE = re.compile(r"(demain\s+)?(?:[aà]\s+)?(\d{1,2})\s*(?:h|:)\s*(\d{0,2})", re.I)
+_WAKE_TASK = 'NexusReveil'
 _LOCK_RE = re.compile(r"^(?:verrouille|bloque)\s+(?:le\s+)?(?:pc|ordi(?:nateur)?|session|[eé]cran)$", re.I)
 _TRASH_RE = re.compile(r"^vide\s+(?:la\s+)?corbeille$", re.I)
 
@@ -314,6 +319,22 @@ class Extras:
         if _ABORT_RE.match(t):
             r = subprocess.run(['shutdown', '/a'], capture_output=True)
             return 'Arrêt annulé.' if r.returncode == 0 else "Aucun arrêt n'était prévu."
+        m = _WAKE_AT_RE.match(t)
+        if m:
+            return self.schedule_wake(m.group(1))
+        if _WAKE_CANCEL_RE.match(t):
+            r = _ps(f"Unregister-ScheduledTask -TaskName '{_WAKE_TASK}' -Confirm:$false", timeout=20)
+            return 'Réveil du PC annulé.' if r.returncode == 0 else "Aucun réveil n'était programmé."
+        m = _SLEEP_RE.match(t)
+        if m:
+            note = ''
+            if m.group(1):
+                note = self.schedule_wake(m.group(1)) + ' '
+            # 15 s pour que la réponse parte vers le téléphone avant que la carte réseau s'endorme
+            subprocess.Popen(['powershell', '-NoProfile', '-WindowStyle', 'Hidden', '-Command',
+                              'Start-Sleep 15; rundll32.exe powrprof.dll,SetSuspendState 0,1,0'],
+                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            return note + "Le PC se met en veille dans 15 secondes."
         if _LOCK_RE.match(t):
             subprocess.run(['rundll32.exe', 'user32.dll,LockWorkStation'])
             return 'PC verrouillé.'
@@ -323,6 +344,47 @@ class Extras:
         if _WORK_RE.match(t):
             return self.work_mode()
         return None
+
+    @staticmethod
+    def schedule_wake(when: str) -> str:
+        """Réveil programmé : une tâche Windows « réveiller l'ordinateur » sort le PC de la veille à l'heure dite
+        et le garde éveillé 15 min (Nexus se reconnecte tout seul). Ne marche pas si le PC est complètement éteint."""
+        when = when.strip()
+        now = datetime.now()
+        if when.lower().startswith('dans'):
+            sec = parse_duration(when[4:])
+            if not sec:
+                return f"Je n'ai pas compris l'heure du réveil « {when} »."
+            at = datetime.fromtimestamp(now.timestamp() + sec)
+        else:
+            m = _CLOCK_RE.search(when)
+            if not m:
+                return f"Je n'ai pas compris l'heure du réveil « {when} »."
+            h, mi = int(m.group(2)), int(m.group(3) or 0)
+            if h > 23 or mi > 59:
+                return f"Heure invalide : {when}."
+            at = now.replace(hour=h, minute=mi, second=0, microsecond=0)
+            if m.group(1) or at <= now:
+                from datetime import timedelta
+                at += timedelta(days=1)
+        ps1 = _DATA_FILE.parent / 'nexus_reveil.ps1'
+        ps1.parent.mkdir(parents=True, exist_ok=True)
+        ps1.write_text(
+            "Add-Type -Name P -Namespace W -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint f);'\n"
+            "[W.P]::SetThreadExecutionState(0x80000041) | Out-Null\nStart-Sleep 900\n", encoding='utf-8')
+        script = (
+            "powercfg /SETACVALUEINDEX SCHEME_CURRENT SUB_SLEEP RTCWAKE 1 2>$null; "
+            "powercfg /SETDCVALUEINDEX SCHEME_CURRENT SUB_SLEEP RTCWAKE 1 2>$null; powercfg /SETACTIVE SCHEME_CURRENT 2>$null; "
+            f"$a=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{ps1}\"'; "
+            f"$t=New-ScheduledTaskTrigger -Once -At '{at.strftime('%Y-%m-%dT%H:%M:%S')}'; "
+            "$s=New-ScheduledTaskSettingsSet -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable; "
+            f"Register-ScheduledTask -TaskName '{_WAKE_TASK}' -Action $a -Trigger $t -Settings $s -Force | Out-Null"
+        )
+        r = _ps(script, timeout=30)
+        if r.returncode != 0:
+            return f"Je n'ai pas pu programmer le réveil : {(r.stderr or r.stdout).strip()[:200]}"
+        jour = 'demain' if at.date() != now.date() else "aujourd'hui"
+        return f"Réveil du PC programmé {jour} à {at.strftime('%H:%M')} (s'il est en veille, pas éteint)."
 
     @staticmethod
     def _endpoint():

@@ -14,6 +14,8 @@ import { recordTgcallHeartbeat } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
 import { clientWhatsappLink } from '../../notifications/client-care.js';
 import { quickBooking, quickPayment, quickQuote, quickAgenda, quickModifyBooking, quickEmailReply, quickContract } from '../../integrations/call-quick.js';
+import { takeTelegramMessages } from '../../notifications/tg-outbox.js';
+import { pcCommand, pcStatus, pcWake, pcScreenToTelegram, pcLookJpeg } from '../../integrations/nexus-remote.js';
 
 const router = Router();
 
@@ -27,7 +29,8 @@ function callActor(req: Request): CallActor {
 // POST /api/call/pending — appel de Dzaryx en train de sonner ? (POST : jamais servi par le cache hors-ligne de l'app)
 router.post('/pending', requireMobileAuth, async (req, res) => {
   const call = await getPendingCall(callActor(req));
-  res.json({ call: call ? { id: call.id, reason: call.reason, createdAt: call.createdAt } : null });
+  const messages = await takeTelegramMessages(callActor(req)).catch(() => []);
+  res.json({ call: call ? { id: call.id, reason: call.reason, createdAt: call.createdAt } : null, messages });
 });
 
 // POST /api/call/heartbeat { connected } — battement du service d'appels Telegram (VPS), toutes les minutes
@@ -168,6 +171,11 @@ const CALL_QUICK = {
   quick_agenda:  (i: Record<string, unknown>, who: CallActor) => quickAgenda(i, who),
   quick_modify_booking: (i: Record<string, unknown>, who: CallActor) => quickModifyBooking(i, `voice_${who}`),
   quick_email_reply:    (i: Record<string, unknown>, who: CallActor) => quickEmailReply(i, who),
+  // PC de Kouider (Nexus) — réservé à Kouider
+  pc_command: (i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcCommand(i) : Promise.resolve('Le PC est réservé à Kouider.'),
+  pc_status:  (_i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcStatus() : Promise.resolve('Le PC est réservé à Kouider.'),
+  pc_wake:    (_i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcWake() : Promise.resolve('Le PC est réservé à Kouider.'),
+  pc_screen_to_telegram: (_i: Record<string, unknown>, who: CallActor) => who === 'kouider' ? pcScreenToTelegram(who) : Promise.resolve('Le PC est réservé à Kouider.'),
 } as const;
 const CALL_QUICK_DEFS = [
   { type: 'function', name: 'quick_booking',
@@ -210,6 +218,20 @@ const CALL_QUICK_DEFS = [
       from: { type: 'string', description: 'Nom ou adresse de la personne qui a écrit' },
       body: { type: 'string', description: 'Le texte de la réponse, rédigé proprement en vouvoiement (sans signature, ajoutée seule)' },
       confirmed: CONFIRMED_PARAM }, required: ['from'] } },
+  { type: 'function', name: 'pc_command',
+    description: 'PILOTER LE PC de Kouider (Nexus) en une phrase : « ouvre Spotify », « mets le volume à 30 », « coupe le son », « verrouille le PC », « ouvre Chrome sur youtube.com », « lance la musique », « mets le PC en veille et réveille-le demain à 8h », « éteins le PC », « va sur le site X et… ». Renvoie ce que Nexus a fait (en 1 à 20 s). Éteindre / redémarrer / veille / supprimer : relis d\'abord et attends son oui, puis confirmed:true.',
+    parameters: { type: 'object', properties: {
+      command: { type: 'string', description: 'La commande en français, telle que Kouider la dit' },
+      confirmed: CONFIRMED_PARAM }, required: ['command'] } },
+  { type: 'function', name: 'pc_status',
+    description: 'ÉTAT DU PC : allumé ? Nexus connecté ? mise à jour en attente ? (« mon PC est allumé ? », « Nexus est là ? »). Lecture seule.',
+    parameters: { type: 'object', properties: {} } },
+  { type: 'function', name: 'pc_wake',
+    description: 'RÉVEILLER LE PC / NEXUS tout de suite (« allume le PC », « réveille Nexus »). Pas besoin de confirmation.',
+    parameters: { type: 'object', properties: {} } },
+  { type: 'function', name: 'pc_screen_to_telegram',
+    description: 'ENVOYER une capture de l\'écran du PC à Kouider sur Telegram (« envoie-moi l\'écran du PC », « fais une capture du PC »). Pas besoin de confirmation.',
+    parameters: { type: 'object', properties: {} } },
   { type: 'function', name: 'send_contract',
     description: 'CONTRAT À SIGNER en une phrase (« envoie le contrat à Karim », « fais signer Fatima ») : crée le lien de signature de sa dernière réservation et envoie à Kouider sur Telegram le lien WhatsApp avec le message prêt. Il n\'a plus qu\'à appuyer, le client signe sur son téléphone. Pas besoin de confirmation : rien ne part sans lui.',
     parameters: { type: 'object', properties: {
@@ -239,6 +261,9 @@ const CALL_TOOLS = [
     parameters: { type: 'object', properties: {
       on: { type: 'boolean' },
       language: { type: 'string', description: 'Langue du client (anglais, arabe, espagnol, italien, allemand…)' } }, required: ['on'] } },
+  { type: 'function', name: 'pc_look',
+    description: 'REGARDER L\'ÉCRAN DU PC de Kouider maintenant (« qu\'est-ce qu\'il y a sur mon écran ? », « regarde mon PC », « ça a marché ? » après une commande PC). Tu reçois l\'image de l\'écran.',
+    parameters: { type: 'object', properties: {} } },
   { type: 'function', name: 'end_call',
     description: 'Raccrocher. Seulement APRÈS avoir dit au revoir, quand Kouider a fini ou demande à raccrocher (« c\'est bon », « rappelle-moi plus tard », « salut »).',
     parameters: { type: 'object', properties: {} } },
@@ -264,6 +289,7 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `PAPIERS DES VOITURES : « l'assurance de la Sandero expire le 15 mars » → relis, puis après son oui set_car_papers avec confirmed:true. « Les papiers sont à jour ? » → get_car_papers.`,
     `AGENDA : « qu'est-ce que j'ai demain / vendredi ? » → quick_agenda. RAPPEL pour lui (« rappelle-moi d'appeler le garage à 15h ») → redis l'heure, puis après son oui schedule_reminder avec confirmed:true (heure de Bruxelles). Un rappel PAR APPEL → call_me.`,
     `WHATSAPP CLIENT : « envoie à Karim que… », « dis au client que… », « préviens-le sur WhatsApp » → TOUJOURS l'outil whatsapp_link, JAMAIS ask_dzaryx (rien ne part sans lui, il appuie lui-même). Rédige un message court et poli, dis-lui en une phrase ce que tu vas écrire, puis outil whatsapp_link : il reçoit le lien sur Telegram et l'envoie lui-même en un clic. Dis « je t'ai envoyé le lien, tu n'as plus qu'à appuyer ».`,
+    `PC (Nexus) : tout ce qui concerne son ordinateur (« ouvre Spotify sur le PC », « volume 30 », « verrouille le PC », « éteins le PC ») → pc_command, c'est direct. « Mon PC est allumé ? » → pc_status ; « allume / réveille le PC » → pc_wake ; « envoie-moi l'écran » → pc_screen_to_telegram ; « qu'est-ce qu'il y a sur mon écran ? », « regarde mon PC » → pc_look (tu reçois l'image de l'écran et tu la décris). Éteindre, redémarrer, veille, supprimer : relis et attends son oui (confirmed:true).`,
     `INTERPRÈTE : « traduis », « sois mon interprète », « il parle anglais » → outil interpreter (on:true, langue) puis suis les règles qu'il te renvoie, jusqu'à « stop traduction » (interpreter on:false).`,
     `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
     `Même si la question ressemble à une précédente (« j'ai déjà répondu ? », « il y a du nouveau ? », « c'est sûr ? »), RAPPELLE ask_dzaryx : ne réponds JAMAIS oui/non sur un fait de mémoire. Si tu n'as pas vérifié, dis « je vérifie » et appelle l'outil.`,
@@ -354,6 +380,12 @@ router.post('/tool', requireMobileAuth, async (req, res) => {
     console.error('[call] tool:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'tool failed' });
   }
+});
+
+// POST /api/call/pc-look — image de l'écran du PC pour la voix temps réel (outil pc_look de tgcall)
+router.post('/pc-look', requireMobileAuth, async (req, res) => {
+  if (callActor(req) !== 'kouider') { res.json({ ok: false, error: 'PC réservé à Kouider' }); return; }
+  res.json(await pcLookJpeg().catch(e => ({ ok: false, error: (e as Error).message })));
 });
 
 // GET/POST /api/call/voice { voice? } — voix de Dzaryx (appels + vocaux Telegram). Sans voice → voix actuelle.

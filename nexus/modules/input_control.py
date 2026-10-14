@@ -46,6 +46,13 @@ KEY_NAMES: dict[str, int] = {
     'shift':  VK_SHIFT,   'maj': VK_SHIFT,
     'win':    VK_WIN,
     'f4':     VK_F4,
+    # Flèches, navigation, médias (télécommande depuis le téléphone)
+    'left': 0x25, 'up': 0x26, 'right': 0x27, 'down': 0x28,
+    'gauche': 0x25, 'haut': 0x26, 'droite': 0x27, 'bas': 0x28,
+    'home': 0x24, 'end': 0x23, 'pageup': 0x21, 'pagedown': 0x22,
+    'f5': 0x74, 'f11': 0x7A,
+    'volumemute': 0xAD, 'volumedown': 0xAE, 'volumeup': 0xAF,
+    'nexttrack': 0xB0, 'prevtrack': 0xB1, 'playpause': 0xB3,
 }
 
 
@@ -175,6 +182,16 @@ class InputControl:
         for v in reversed(vks):
             _send(_key(v, up=True))
         return f'✅ Raccourci: {"+".join(keys)}'
+
+    def drag(self, x1: int, y1: int, x2: int, y2: int, steps: int = 12) -> str:
+        self.move_mouse(x1, y1)
+        time.sleep(0.05)
+        _send(_mouse(MOUSEEVENTF_LEFTDOWN))
+        for i in range(1, steps + 1):
+            self.move_mouse(x1 + (x2 - x1) * i // steps, y1 + (y2 - y1) * i // steps)
+            time.sleep(0.015)
+        _send(_mouse(MOUSEEVENTF_LEFTUP))
+        return f'✅ Glisser ({x1}, {y1}) → ({x2}, {y2})'
 
     def scroll(self, direction: str, amount: int = 3) -> str:
         delta = 120 * amount * (1 if direction in ('haut', 'up') else -1)

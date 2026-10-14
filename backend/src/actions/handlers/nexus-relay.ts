@@ -368,6 +368,12 @@ export function initNexusRelay(io: SocketServer): void {
       ram_used_mb?: number; ram_total_mb?: number; cpu_percent?: number; uptime_s?: number;
     }) => {
       _nexusMac = data?.mac ?? '';
+      // Gardés en base : après un redémarrage de Railway (PC éteint), le réveil réseau en a encore besoin
+      if (_nexusMac) void import('../../integrations/app-store.js')
+        .then(({ kvSet }) => kvSet('nexus:last_seen', JSON.stringify({ mac: _nexusMac, ip: _nexusPublicIp, at: new Date().toISOString() })))
+        .catch(() => {});
+      // Rallumage du PC : mise à jour automatique de Nexus s'il a du retard
+      void import('../../integrations/nexus-remote.js').then(m => m.onNexusRegistered()).catch(() => {});
       if (data?.hostname)    _tel.lastHostname    = data.hostname;
       if (data?.python)      _tel.lastPythonExe   = data.python;
       if (data?.py_ver)      _tel.lastPythonVer   = data.py_ver;
@@ -824,8 +830,15 @@ export function getLauncherStatus(): Promise<Record<string, unknown>> {
 // ── triggerWol ────────────────────────────────────────────────────────────────
 
 export async function triggerWol(): Promise<{ sent: boolean; mac: string; ip: string }> {
-  const mac = _nexusMac;
-  const ip  = _nexusPublicIp;
+  let mac = _nexusMac;
+  let ip  = _nexusPublicIp;
+  if (!mac) {
+    try {
+      const { kvGet } = await import('../../integrations/app-store.js');
+      const last = JSON.parse((await kvGet('nexus:last_seen')) ?? '{}') as { mac?: string; ip?: string };
+      mac = last.mac ?? ''; ip = ip || (last.ip ?? '');
+    } catch { /* rien en base */ }
+  }
   if (!mac || mac.length < 12) return { sent: false, mac, ip };
   const sent = await _sendWolPacket(mac, ip || '255.255.255.255');
   console.log(`[NEXUS WoL] Sent to ${ip || 'broadcast'} MAC=${mac} → ${sent}`);
@@ -922,8 +935,31 @@ type InputResult = { ok: boolean; result?: string; error?: string };
 export const nexusMouseMove  = (x: number, y: number, ms = 3_000) =>
   _nexusEmit<InputResult>('nexus:mouse_move',   { x, y },           ms);
 
-export const nexusMouseClick = (x: number, y: number, button: 'left' | 'right' | 'double' = 'left', ms = 3_000) =>
-  _nexusEmit<InputResult>('nexus:mouse_click',  { x, y, button },   ms);
+export const nexusMouseClick = (x: number, y: number, button: 'left' | 'right' | 'double' = 'left', ms = 3_000, norm?: { nx: number; ny: number }) =>
+  _nexusEmit<InputResult>('nexus:mouse_click',  { x, y, button, ...(norm ?? {}) }, ms);
+
+export const nexusMouseDrag  = (from: { x: number; y: number; nx?: number; ny?: number }, to: { x: number; y: number; nx?: number; ny?: number }, ms = 5_000) =>
+  _nexusEmit<InputResult>('nexus:mouse_drag', {
+    x1: from.x, y1: from.y, x2: to.x, y2: to.y,
+    ...(from.nx != null && from.ny != null && to.nx != null && to.ny != null ? { nx1: from.nx, ny1: from.ny, nx2: to.nx, ny2: to.ny } : {}),
+  }, ms);
+
+/**
+ * Commande en français avec RÉPONSE : Nexus renvoie ce qu'il a fait (au lieu de l'envoyer seulement sur Telegram).
+ * Ancienne version de Nexus (pas d'accusé) → commande envoyée sans attendre, done:false et legacy:true.
+ */
+export async function nexusCommandSync(text: string, waitS = 20): Promise<{ ok: boolean; done: boolean; text: string; legacy?: boolean; error?: string }> {
+  try {
+    const r = await _nexusEmit<{ ok?: boolean; done?: boolean; text?: string; error?: string }>(
+      'nexus:command_sync', { text, timeout: waitS }, (waitS + 6) * 1_000);
+    return { ok: r.ok ?? false, done: r.done ?? false, text: r.text ?? '', error: r.error };
+  } catch (err) {
+    if (!_nexusSocket) return { ok: false, done: false, text: '', error: 'Nexus hors ligne' };
+    console.warn(`[NEXUS] command_sync sans réponse (${err instanceof Error ? err.message : err}) → envoi simple`);
+    sendToNexus('nexus:command', { text, source: 'dzaryx-app' });
+    return { ok: true, done: false, text: '', legacy: true };
+  }
+}
 
 export const nexusMouseScroll = (direction: 'up' | 'down', amount = 3, ms = 3_000) =>
   _nexusEmit<InputResult>('nexus:mouse_scroll', { direction, amount }, ms);
@@ -941,7 +977,7 @@ export const nexusGetScreenSize = (ms = 5_000) =>
   _nexusEmit<{ ok: boolean; width?: number; height?: number }>('nexus:get_screen_size', {}, ms);
 
 export const nexusScreenshotJpeg = (quality = 50, scale = 0.5, ms = 20_000) =>
-  _nexusEmit<{ ok: boolean; image_base64?: string; size_kb?: number; timestamp?: string; error?: string }>(
+  _nexusEmit<{ ok: boolean; image_base64?: string; size_kb?: number; width?: number; height?: number; timestamp?: string; error?: string }>(
     'nexus:screenshot_jpeg', { quality, scale }, ms,
   );
 

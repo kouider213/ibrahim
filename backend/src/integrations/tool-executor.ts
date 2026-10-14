@@ -4950,12 +4950,16 @@ async function pingNexusTool(): Promise<string> {
 async function sendNexusCommandTool(input: Record<string, unknown>): Promise<string> {
   const command = (input['command'] as string | undefined)?.trim();
   if (!command) return '❌ Commande requise (ex: "ouvre spotify", "screenshot")';
-  const { isNexusOnline, sendToNexus } = await import('../actions/handlers/nexus-relay.js');
+  const { isNexusOnline, nexusCommandSync } = await import('../actions/handlers/nexus-relay.js');
   if (!isNexusOnline()) {
-    return '❌ NEXUS hors ligne — impossible d\'envoyer la commande. Lance start.bat sur le PC.';
+    return '❌ NEXUS hors ligne — le PC est éteint, en veille ou sans internet. Propose « réveille le PC » (outil wake_nexus).';
   }
-  sendToNexus('nexus:command', { text: command, source: 'dzaryx-app' });
-  return `✅ Commande envoyée à NEXUS: "${command}"\n📡 NEXUS va l\'exécuter et envoyer le résultat dans l\'app ou via le journal.`;
+  // Nexus répond directement (résultat réel) ; une tâche longue continue et finit en notification
+  const r = await nexusCommandSync(command, 20);
+  if (!r.ok) return `❌ Nexus n'a pas réussi « ${command} » : ${r.error ?? 'erreur inconnue'}`;
+  if (r.legacy) return `✅ Commande envoyée à NEXUS: "${command}"\n📡 Ancienne version de Nexus : le résultat arrivera en notification (« mets à jour Nexus » pour les réponses directes).`;
+  if (!r.done) return `⏳ NEXUS a commencé « ${command} »${r.text ? ` :\n${r.text}` : ''}\nLa suite arrivera en notification.`;
+  return `✅ NEXUS (« ${command} ») :\n${r.text || 'Fait.'}`;
 }
 
 async function nexusScreenshotTool(input: Record<string, unknown>): Promise<string> {
@@ -4993,14 +4997,9 @@ async function wakeNexusTool(): Promise<string> {
   }
 
   if (!isLauncherOnline()) {
-    return [
-      '❌ Launcher hors ligne — impossible de réveiller Nexus.',
-      '',
-      '🔧 Pour activer le Launcher:',
-      '  1. Allume le PC Windows',
-      '  2. Exécute install-nexus-launcher.bat (une seule fois)',
-      '  3. Le Launcher démarrera automatiquement à chaque session',
-    ].join('\n');
+    // PC en veille / éteint : signal de réveil réseau + conseil du réveil programmé
+    const { pcWake } = await import('./nexus-remote.js');
+    return await pcWake();
   }
 
   try {

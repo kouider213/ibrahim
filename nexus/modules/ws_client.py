@@ -10,6 +10,7 @@ Hardening features:
   - Logging    : structured JSON logs to nexus/logs/ (nexus / jobs / security / websocket)
 """
 import asyncio
+import contextvars
 import logging
 import os
 import re
@@ -64,6 +65,10 @@ _BLOCKED_PATTERNS = [
 _BLOCKED_RE = re.compile('|'.join(_BLOCKED_PATTERNS), re.IGNORECASE)
 
 # ── Security: allowed command prefixes (allowlist — admin = bypass) ───────────
+
+# Commande « avec réponse » (nexus:command_sync) : tant que la demande attend, ce que Nexus
+# journaliserait vers Telegram est renvoyé à Dzaryx (appel, app) au lieu de partir sur Telegram.
+_SYNC_SINK: contextvars.ContextVar[dict | None] = contextvars.ContextVar('nexus_sync_sink', default=None)
 
 _ALLOWED_PREFIXES = (
     'git ', 'node ', 'npx ', 'npm ', 'py ', 'python3 ',
@@ -244,6 +249,28 @@ class NexusWSClient:
             source = data.get('source', 'nexus')
             log.info('← Remote command: %s', text[:60])
             asyncio.create_task(self.app.handle_command(text, source))
+
+        # ── Commande avec réponse : Dzaryx (appel Telegram, app) attend le résultat ──
+
+        @sio.on('nexus:command_sync', namespace='/nexus')
+        async def on_command_sync(data: dict):
+            text    = (data.get('text') or '').strip()
+            timeout = max(3.0, min(120.0, float(data.get('timeout', 25))))
+            if not text:
+                return {'ok': False, 'error': 'commande vide'}
+            log.info('← Remote command (sync): %s', text[:60])
+            sink = {'lines': [], 'open': True}
+
+            async def run():
+                _SYNC_SINK.set(sink)
+                await self.app.handle_command(text, 'dzaryx-sync')
+
+            task = asyncio.create_task(run())
+            done, _ = await asyncio.wait({task}, timeout=timeout)
+            sink['open'] = False          # la suite (tâche longue) repart sur Telegram comme avant
+            if task in done and task.exception():
+                return {'ok': False, 'done': True, 'error': str(task.exception())[:300], 'text': '\n'.join(sink['lines'])}
+            return {'ok': True, 'done': task in done, 'text': '\n'.join(sink['lines'])[:4000]}
 
         # ── Wake signal ───────────────────────────────────────────────────────
 
@@ -733,10 +760,20 @@ class NexusWSClient:
 
         # ── Remote control — souris ──────────────────────────────────────────
 
+        def _xy(data: dict, kx: str = 'x', ky: str = 'y') -> tuple[int, int]:
+            # nx/ny = position relative (0..1) sur l'écran principal : juste quelle que soit la résolution / mise à l'échelle
+            if f'n{kx}' in data and f'n{ky}' in data:
+                import ctypes as _ct
+                u32 = _ct.windll.user32
+                w, h = u32.GetSystemMetrics(0), u32.GetSystemMetrics(1)
+                nx = max(0.0, min(1.0, float(data[f'n{kx}']))); ny = max(0.0, min(1.0, float(data[f'n{ky}'])))
+                return round(nx * (w - 1)), round(ny * (h - 1))
+            return int(data.get(kx, 0)), int(data.get(ky, 0))
+
         @sio.on('nexus:mouse_move', namespace='/nexus')
         async def on_mouse_move(data: dict):
             from .input_control import InputControl
-            x = int(data.get('x', 0)); y = int(data.get('y', 0))
+            x, y = _xy(data)
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, lambda: InputControl().move_mouse(x, y))
             return {'ok': True, 'result': result}
@@ -744,7 +781,7 @@ class NexusWSClient:
         @sio.on('nexus:mouse_click', namespace='/nexus')
         async def on_mouse_click(data: dict):
             from .input_control import InputControl
-            x      = int(data.get('x', 0)); y = int(data.get('y', 0))
+            x, y   = _xy(data)
             button = data.get('button', 'left')
             loop = asyncio.get_event_loop()
             ic = InputControl()
@@ -754,6 +791,14 @@ class NexusWSClient:
                 result = await loop.run_in_executor(None, lambda: ic.double_click(x, y))
             else:
                 result = await loop.run_in_executor(None, lambda: ic.click(x, y))
+            return {'ok': True, 'result': result}
+
+        @sio.on('nexus:mouse_drag', namespace='/nexus')
+        async def on_mouse_drag(data: dict):
+            from .input_control import InputControl
+            x1, y1 = _xy(data, 'x1', 'y1'); x2, y2 = _xy(data, 'x2', 'y2')
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, lambda: InputControl().drag(x1, y1, x2, y2))
             return {'ok': True, 'result': result}
 
         @sio.on('nexus:mouse_scroll', namespace='/nexus')
@@ -805,6 +850,39 @@ class NexusWSClient:
         async def on_screenshot_jpeg(data: dict):
             import subprocess as _sp, tempfile as _tmp, base64 as _b64
             scale    = max(0.2, min(1.0, float(data.get('scale', 0.5))))
+            quality  = max(20, min(95, int(data.get('quality', 50))))
+            # Rapide (~0,1 s) : mss + Pillow, avec le curseur dessiné (sinon on ne le voit pas depuis le téléphone)
+            def _fast() -> dict | None:
+                try:
+                    import io, ctypes as _ct, mss
+                    from PIL import Image, ImageDraw
+                except ImportError:
+                    return None
+                with mss.mss() as sct:
+                    mon  = sct.monitors[1]
+                    shot = sct.grab(mon)
+                img = Image.frombytes('RGB', shot.size, shot.rgb)
+                try:
+                    import ctypes.wintypes as _wt
+                    pt = _wt.POINT(); _ct.windll.user32.GetCursorPos(_ct.byref(pt))
+                    cx, cy = pt.x - mon['left'], pt.y - mon['top']
+                    d = ImageDraw.Draw(img); r = max(6, img.width // 160)
+                    d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(255, 51, 102), width=max(2, r // 3))
+                except Exception:
+                    pass
+                if scale < 1.0:
+                    img = img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale))), Image.BILINEAR)
+                buf = io.BytesIO(); img.save(buf, 'JPEG', quality=quality, optimize=False)
+                b = buf.getvalue()
+                return {'ok': True, 'image_base64': _b64.b64encode(b).decode(), 'size_bytes': len(b),
+                        'size_kb': round(len(b) / 1024, 1), 'width': shot.size[0], 'height': shot.size[1],
+                        'timestamp': datetime.now().isoformat()}
+            try:
+                fast = await asyncio.get_event_loop().run_in_executor(None, _fast)
+                if fast:
+                    return fast
+            except Exception as e:
+                log.warning('screenshot_jpeg rapide échoué, PowerShell: %s', e)
             tmp_path = _tmp.mktemp(suffix='.jpg', prefix='nexus_live_')
             ps_cmd = (
                 f"Add-Type -AssemblyName System.Windows.Forms,System.Drawing; "
@@ -816,7 +894,7 @@ class NexusWSClient:
                 f"$thumb=New-Object System.Drawing.Bitmap($w,$h); "
                 f"$tg=[System.Drawing.Graphics]::FromImage($thumb); "
                 f"$tg.DrawImage($bmp,0,0,$w,$h); "
-                f"$thumb.Save('{tmp_path}'); "
+                f"$thumb.Save('{tmp_path}',[System.Drawing.Imaging.ImageFormat]::Jpeg); "
                 f"$bmp.Dispose();$g.Dispose();$thumb.Dispose();$tg.Dispose()"
             )
             log.info('nexus:screenshot_jpeg scale=%.1f', scale)
@@ -868,6 +946,10 @@ class NexusWSClient:
             return 'Timeout — Dzaryx ne répond pas.'
 
     async def journal(self, message: str) -> None:
+        sink = _SYNC_SINK.get()
+        if sink is not None and sink['open']:
+            sink['lines'].append(message)
+            return
         if self._connected and self._sio:
             try:
                 await self._sio.emit('nexus:journal', {'text': message}, namespace='/nexus')

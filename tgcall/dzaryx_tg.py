@@ -484,6 +484,16 @@ def call_tools(user_id: int) -> dict:
             return 'Image de la caméra ajoutée : décris ce que tu vois.', True
         return 'Caméra coupée : aucune image. Demande-lui d\'activer la vidéo dans Telegram.', True
 
+    async def pc_look(_: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        if not st or not st.rt:
+            return 'Vue du PC indisponible.', True
+        res = await api('/api/call/pc-look', {}, st.actor, 30)
+        if not res.get('ok') or not res.get('image'):
+            return f"Je ne vois pas l'écran du PC : {res.get('error') or 'capture impossible'}.", True
+        await st.rt.show_image(res['image'])
+        return "Image de l'écran du PC ajoutée : décris ce que tu vois (fenêtres, textes lisibles), sans inventer.", True
+
     async def whatsapp_link(args: dict) -> tuple[str, bool]:
         st = active.get(user_id)
         actor = st.actor if st else 'kouider'
@@ -513,7 +523,7 @@ def call_tools(user_id: int) -> dict:
         log.info('interprète %s (%s)', 'ON' if args.get('on') else 'OFF', args.get('language', ''))
         return await st.rt.set_interpreter(bool(args.get('on')), str(args.get('language') or '')), True
 
-    return {'send_text_to_me': send_text_to_me, 'end_call': end_call, 'look': look,
+    return {'send_text_to_me': send_text_to_me, 'end_call': end_call, 'look': look, 'pc_look': pc_look,
             'whatsapp_link': whatsapp_link, 'send_contract': send_contract, 'interpreter': interpreter}
 
 
@@ -567,14 +577,26 @@ async def start_realtime(actor: str, user_id: int) -> bool:
     return True
 
 
+async def send_outbox_message(uid: int, m: dict) -> None:
+    try:
+        text = (m.get('text') or '')[:4000]
+        if m.get('image'):
+            photo = io.BytesIO(base64.b64decode(m['image'])); photo.name = 'pc.jpg'
+            await app.send_photo(uid, photo, caption=text[:1000] or None)
+        elif text:
+            await app.send_message(uid, text, disable_web_page_preview=True)
+    except Exception as e:
+        log.error('message backend → Telegram: %s', e)
+
+
 async def poll_pending() -> None:
     while True:
         for actor, uid in actor_peer.items():
-            if uid in active:
-                continue
             try:
                 res = await api('/api/call/pending', {}, actor, 15)
-                if res.get('call'):
+                for m in res.get('messages') or []:      # résultats arrivés après coup (mise à jour Nexus, écran du PC…), même en plein appel
+                    asyncio.create_task(send_outbox_message(uid, m))
+                if res.get('call') and uid not in active:
                     log.info('appel en attente pour %s → je compose', actor)
                     asyncio.create_task(start_call(actor, uid))
             except Exception as e:

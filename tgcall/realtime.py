@@ -137,6 +137,11 @@ class RealtimeCall:
             {'type': 'input_image', 'image_url': f'data:image/jpeg;base64,{jpg}'}]}})
         return True
 
+    async def show_image(self, jpg_b64: str) -> None:
+        """Image extérieure (écran du PC) ajoutée à la conversation : le modèle la voit et la décrit."""
+        await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'user', 'content': [
+            {'type': 'input_image', 'image_url': f'data:image/jpeg;base64,{jpg_b64}'}]}})
+
     # ── Voix de Dzaryx → appel (tranches de 10 ms au rythme réel) ────────────
     async def _pacer(self) -> None:
         nxt = time.monotonic()

@@ -1,562 +1,412 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { business } from '../../services/api.ts';
+import { api, business } from '../../services/api.ts';
+import { Hero } from '../ui/Premium.tsx';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// Piloter le PC (Nexus) depuis le téléphone : écran en direct au doigt, clavier, télécommande,
+// et « Demande à Nexus » à l'écrit ou à la voix (même cerveau que sur le PC).
 
-interface ActionLog { time: string; cmd: string; result: string; ok: boolean; }
+const C = {
+  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
+  accent: '#10b981', red: '#f87171', amber: '#fbbf24', text: '#f5f5f7', muted: '#9b9ba6',
+  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
+};
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+type Frame = { src: string; at: string };
+type Msg = { who: 'me' | 'nexus'; text: string };
+type Pt = { x: number; y: number; nx: number; ny: number };
+
+const QUALITY = { net: { scale: 0.6, quality: 55 }, rapide: { scale: 0.4, quality: 40 } } as const;
+const LIVE_MAX_MS = 5 * 60_000;     // le direct s'arrête seul après 5 min sans toucher (données mobiles)
+const CHIPS = ['Ouvre Spotify', 'Ouvre Chrome', 'Volume 30', 'Coupe le son', 'Verrouille le PC', 'Mets le PC en veille et réveille-le demain à 8h'];
 
 export default function NexusScreen() {
-  const [connected,   setConnected]   = useState<boolean | null>(null);
-  const [hostname,    setHostname]    = useState('...');
-  const [latency,     setLatency]     = useState<number | null>(null);
-  const [screenImg,   setScreenImg]   = useState<string | null>(null);
-  const [imgTs,       setImgTs]       = useState<string>('—');
-  const [imgKb,       setImgKb]       = useState<number | null>(null);
-  const [screenW,     setScreenW]     = useState(1920);
-  const [screenH,     setScreenH]     = useState(1080);
-  const [liveMode,    setLiveMode]    = useState(false);
-  const [capturing,   setCapturing]   = useState(false);
-  const [quality,     setQuality]     = useState(50);
-  const [scale,       setScale]       = useState(0.5);
-  const [fullscreen,  setFullscreen]  = useState(false);
-  const [logs,        setLogs]        = useState<ActionLog[]>([]);
-  const [cmd,         setCmd]         = useState('');
-  const [cmdRunning,  setCmdRun]      = useState(false);
-  const [kbText,      setKbText]      = useState('');
-  const [secLock,     setSecLock]     = useState(false);
-  const [clickMode,   setClickMode]   = useState<'left' | 'right' | 'double'>('left');
+  const [status, setStatus]   = useState<{ online: boolean; launcher: boolean; text: string } | null>(null);
+  const [frame, setFrame]     = useState<Frame | null>(null);
+  const [live, setLive]       = useState(false);
+  const [quality, setQuality] = useState<keyof typeof QUALITY>('net');
+  const [dragMode, setDragMode] = useState<'scroll' | 'drag'>('scroll');
+  const [full, setFull]       = useState(false);
+  const [mark, setMark]       = useState<{ x: number; y: number; kind: string } | null>(null);
+  const [kb, setKb]           = useState('');
+  const [enterAfter, setEnterAfter] = useState(true);
+  const [ask, setAsk]         = useState('');
+  const [msgs, setMsgs]       = useState<Msg[]>([]);
+  const [busy, setBusy]       = useState('');
+  const [recording, setRecording] = useState(false);
+  const [toast, setToast]     = useState('');
 
-  const imgRef      = useRef<HTMLImageElement>(null);
-  const liveTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const imgRef     = useRef<HTMLImageElement | null>(null);
+  const liveRef    = useRef(false);
+  const lastTouch  = useRef(Date.now());
+  const press      = useRef<{ p: Pt; t: number; cx: number; cy: number; moved: boolean; long: boolean; lastY: number } | null>(null);
+  const longTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tapTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTap    = useRef<{ t: number; cx: number; cy: number } | null>(null);
+  const recRef     = useRef<MediaRecorder | null>(null);
+  const chunks     = useRef<Blob[]>([]);
 
-  // ── Log helper ─────────────────────────────────────────────────────────────
-  const addLog = useCallback((cmd: string, result: string, ok: boolean) => {
-    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setLogs(prev => [{ time, cmd, result, ok }, ...prev].slice(0, 20));
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2600); };
+  const online = !!status?.online;
+
+  // ── État ──────────────────────────────────────────────────────────────────
+  const refreshStatus = useCallback(async () => {
+    try { setStatus(await business.nexusRemoteStatus()); }
+    catch { setStatus({ online: false, launcher: false, text: 'Serveur injoignable.' }); }
   }, []);
-
-  // ── Status check ───────────────────────────────────────────────────────────
-  const checkStatus = useCallback(async () => {
-    try {
-      const t0 = Date.now();
-      const r = await business.nexus();
-      const lat = Date.now() - t0;
-      setConnected(r.nexus_online || r.connected || false);
-      setHostname(r.hostname ?? 'PC-Kouider');
-      setLatency(lat);
-    } catch { setConnected(false); }
-  }, []);
-
   useEffect(() => {
-    void checkStatus();
-    // Get screen size once
-    business.nexusGetScreenSize().then(r => {
-      if (r.ok && r.width) { setScreenW(r.width); setScreenH(r.height ?? 1080); }
-    }).catch(() => {});
-    statusTimer.current = setInterval(checkStatus, 15000);
-    return () => { if (statusTimer.current) clearInterval(statusTimer.current); };
-  }, [checkStatus]);
+    void refreshStatus();
+    const t = setInterval(refreshStatus, 15_000);
+    return () => clearInterval(t);
+  }, [refreshStatus]);
 
-  // ── Screenshot capture ─────────────────────────────────────────────────────
-  const capture = useCallback(async () => {
-    if (capturing || !connected) return;
-    setCapturing(true);
-    try {
-      const r = await business.nexusCapture(quality, scale);
-      if (r.ok && r.image_base64) {
-        setScreenImg(`data:image/jpeg;base64,${r.image_base64}`);
-        setImgTs(r.timestamp ? new Date(r.timestamp).toLocaleTimeString('fr-FR') : new Date().toLocaleTimeString('fr-FR'));
-        setImgKb(r.size_kb ?? null);
-      }
-    } catch { /* silent */ }
-    finally { setCapturing(false); }
-  }, [capturing, connected, quality, scale]);
-
-  // ── Live mode ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (liveMode) {
-      void capture();
-      liveTimer.current = setInterval(() => { void capture(); }, 1800);
-    } else {
-      if (liveTimer.current) clearInterval(liveTimer.current);
+  // ── Image de l'écran ──────────────────────────────────────────────────────
+  const grab = useCallback(async () => {
+    const r = await business.nexusLive<{ ok: boolean; image_base64?: string; error?: string }>('frame', { ...QUALITY[quality] });
+    if (r.ok && r.image_base64) {
+      setFrame({ src: `data:image/jpeg;base64,${r.image_base64}`, at: new Date().toLocaleTimeString('fr-FR') });
+      return true;
     }
-    return () => { if (liveTimer.current) clearInterval(liveTimer.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveMode]);
+    return false;
+  }, [quality]);
 
-  // ── Click on live screen → mouse click on PC ──────────────────────────────
-  const handleScreenClick = useCallback((e: React.MouseEvent<HTMLImageElement>) => {
-    if (!connected || secLock) return;
-    const rect   = imgRef.current!.getBoundingClientRect();
-    const relX   = (e.clientX - rect.left) / rect.width;
-    const relY   = (e.clientY - rect.top)  / rect.height;
-    const pcX    = Math.round(relX * screenW);
-    const pcY    = Math.round(relY * screenH);
-    business.nexusMouseClick(pcX, pcY, clickMode).then(r => {
-      addLog(`${clickMode === 'double' ? 'DblClic' : clickMode === 'right' ? 'R-Clic' : 'Clic'} (${pcX},${pcY})`, r.result ?? '✅', r.ok);
-    }).catch(() => {});
-  }, [connected, secLock, clickMode, screenW, screenH, addLog]);
+  useEffect(() => {
+    liveRef.current = live;
+    if (!live) return;
+    lastTouch.current = Date.now();
+    let stop = false;
+    (async () => {
+      while (!stop && liveRef.current) {
+        if (Date.now() - lastTouch.current > LIVE_MAX_MS) { setLive(false); flash('Direct en pause (5 min sans toucher)'); break; }
+        if (document.hidden) { await sleep(1000); continue; }
+        const ok = await grab();
+        await sleep(ok ? 250 : 2000);
+      }
+    })();
+    return () => { stop = true; };
+  }, [live, grab]);
 
-  // ── Quick actions ─────────────────────────────────────────────────────────
-  const quickAction = useCallback(async (label: string, fn: () => Promise<{ ok: boolean; result?: string; stdout?: string; stderr?: string }>) => {
-    if (!connected) return;
-    try {
-      const r = await fn();
-      addLog(label, r.result ?? r.stdout ?? '✅', r.ok);
-    } catch (err) { addLog(label, String(err), false); }
-  }, [connected, addLog]);
+  useEffect(() => { if (online && !frame) void grab(); }, [online, frame, grab]);
 
-  // ── Run command ───────────────────────────────────────────────────────────
-  const runCmd = async () => {
-    if (!cmd.trim() || cmdRunning || !connected) return;
-    setCmdRun(true);
-    try {
-      const r = await business.nexusRunCommand(cmd.trim());
-      addLog(cmd.trim(), (r.stdout || r.stderr || '✅').slice(0, 80), r.ok);
-      setCmd('');
-    } catch (err) { addLog(cmd, String(err), false); }
-    finally { setCmdRun(false); }
+  // Après une action hors direct : une image fraîche pour voir le résultat
+  const after = useCallback(() => {
+    lastTouch.current = Date.now();
+    if (!liveRef.current) setTimeout(() => { void grab(); }, 700);
+  }, [grab]);
+
+  // ── Doigt sur l'écran → souris du PC ──────────────────────────────────────
+  const pointAt = (cx: number, cy: number): Pt | null => {
+    const img = imgRef.current;
+    if (!img) return null;
+    const r = img.getBoundingClientRect();
+    const nx = (cx - r.left) / r.width, ny = (cy - r.top) / r.height;
+    if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;
+    const w = img.naturalWidth / QUALITY[quality].scale, h = img.naturalHeight / QUALITY[quality].scale;
+    return { nx, ny, x: Math.round(nx * w), y: Math.round(ny * h) };
   };
 
-  // ── Send keyboard text ────────────────────────────────────────────────────
-  const sendText = async () => {
-    if (!kbText.trim() || !connected) return;
-    const r = await business.nexusTypeText(kbText);
-    addLog(`Type: "${kbText}"`, r.result ?? '✅', r.ok);
-    setKbText('');
+  const showMark = (cx: number, cy: number, kind: string) => {
+    const r = imgRef.current?.parentElement?.getBoundingClientRect();
+    if (!r) return;
+    setMark({ x: cx - r.left, y: cy - r.top, kind });
+    setTimeout(() => setMark(null), 450);
   };
 
-  const connCol = connected === null ? '#ffb347' : connected ? '#00e676' : '#ff3366';
-  const connTxt = connected === null ? 'VÉRIFICATION…' : connected ? 'CONNECTÉ' : 'HORS LIGNE';
+  const click = (p: Pt, button: 'left' | 'right' | 'double', cx: number, cy: number) => {
+    showMark(cx, cy, button);
+    void business.nexusLive('click', { ...p, button }).then(r => { if (!r.ok) flash(r.error ?? 'Clic raté'); after(); });
+  };
+
+  const onDown = (e: React.PointerEvent) => {
+    if (!online) return;
+    const p = pointAt(e.clientX, e.clientY);
+    if (!p) return;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    press.current = { p, t: Date.now(), cx: e.clientX, cy: e.clientY, moved: false, long: false, lastY: e.clientY };
+    longTimer.current = setTimeout(() => {
+      const pr = press.current;
+      if (pr && !pr.moved) { pr.long = true; navigator.vibrate?.(25); click(pr.p, 'right', pr.cx, pr.cy); }
+    }, 550);
+  };
+
+  const onMove = (e: React.PointerEvent) => {
+    const pr = press.current;
+    if (!pr) return;
+    if (Math.hypot(e.clientX - pr.cx, e.clientY - pr.cy) > 10) {
+      pr.moved = true;
+      if (longTimer.current) clearTimeout(longTimer.current);
+    }
+    if (pr.moved && dragMode === 'scroll') {
+      const dy = e.clientY - pr.lastY;
+      if (Math.abs(dy) >= 28) {
+        pr.lastY = e.clientY;
+        void business.nexusLive('scroll', { direction: dy > 0 ? 'up' : 'down', amount: Math.min(6, Math.round(Math.abs(dy) / 28) * 2) });
+      }
+    }
+  };
+
+  const onUp = (e: React.PointerEvent) => {
+    const pr = press.current;
+    press.current = null;
+    if (longTimer.current) clearTimeout(longTimer.current);
+    if (!pr || pr.long) return;
+    if (pr.moved) {
+      if (dragMode === 'drag') {
+        const to = pointAt(e.clientX, e.clientY);
+        if (to) void business.nexusLive('drag', { from: pr.p, to }).then(() => after());
+      } else after();
+      return;
+    }
+    // Double tap = double clic ; sinon clic simple (petit délai pour reconnaître le double)
+    const prev = lastTap.current;
+    if (prev && Date.now() - prev.t < 300 && Math.hypot(prev.cx - pr.cx, prev.cy - pr.cy) < 30) {
+      if (tapTimer.current) clearTimeout(tapTimer.current);
+      lastTap.current = null;
+      click(pr.p, 'double', pr.cx, pr.cy);
+      return;
+    }
+    lastTap.current = { t: Date.now(), cx: pr.cx, cy: pr.cy };
+    tapTimer.current = setTimeout(() => { lastTap.current = null; click(pr.p, 'left', pr.cx, pr.cy); }, 260);
+  };
+
+  // ── Clavier ───────────────────────────────────────────────────────────────
+  const key = (body: Record<string, unknown>, label: string) => {
+    if (!online) return;
+    void business.nexusLive('key', body).then(r => { if (!r.ok) flash(`${label} : ${r.error ?? 'raté'}`); after(); });
+  };
+  const typeText = async () => {
+    if (!kb || !online) return;
+    const r = await business.nexusLive('key', { text: kb });
+    if (!r.ok) { flash(r.error ?? 'Texte non envoyé'); return; }
+    if (enterAfter) await business.nexusLive('key', { key: 'enter' });
+    setKb(''); after();
+  };
+
+  // ── Demande à Nexus (écrit ou voix) ───────────────────────────────────────
+  const say = async (command: string, confirmed = false) => {
+    const c = command.trim();
+    if (!c || busy) return;
+    if (!confirmed) setMsgs(m => [...m, { who: 'me' as const, text: c }].slice(-12));
+    setAsk(''); setBusy('say');
+    try {
+      const r = await business.nexusSay(c, confirmed);
+      const text = r.text ?? r.error ?? 'Pas de réponse.';
+      if (!confirmed && text.startsWith('Pas encore fait')) {
+        setBusy('');
+        if (window.confirm(`Confirmer sur le PC : « ${c} » ?`)) { void say(c, true); return; }
+        setMsgs(m => [...m, { who: 'nexus' as const, text: 'Annulé.' }]);
+        return;
+      }
+      setMsgs(m => [...m, { who: 'nexus' as const, text }].slice(-12));
+      after();
+    } catch (e) { setMsgs(m => [...m, { who: 'nexus' as const, text: `Erreur : ${e instanceof Error ? e.message : e}` }]); }
+    finally { setBusy(''); }
+  };
+
+  const toggleMic = async () => {
+    if (recording) {
+      const rec = recRef.current;
+      if (rec && rec.state !== 'inactive') await new Promise<void>(r => { rec.onstop = () => r(); rec.stop(); });
+      rec?.stream.getTracks().forEach(t => t.stop());
+      recRef.current = null; setRecording(false);
+      const blob = new Blob(chunks.current, { type: rec?.mimeType || 'audio/webm' });
+      chunks.current = [];
+      if (blob.size < 500) return;
+      setBusy('stt');
+      try {
+        const b64 = await blobToB64(blob);
+        const { text } = await api.transcribe(b64, blob.type.split(';')[0]);
+        if (text?.trim()) void say(text.trim());
+      } catch { flash('Voix non comprise'); }
+      finally { setBusy(b => (b === 'stt' ? '' : b)); }
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported(m)) ?? '';
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunks.current = [];
+      rec.ondataavailable = e => { if (e.data.size > 0) chunks.current.push(e.data); };
+      rec.start(100);
+      recRef.current = rec; setRecording(true);
+    } catch { flash('Micro refusé'); }
+  };
+
+  // ── Entretien ─────────────────────────────────────────────────────────────
+  const maint = async (kind: 'wake' | 'update' | 'restart') => {
+    if (busy) return;
+    if (kind === 'update' && !window.confirm('Mettre à jour Nexus maintenant ? (quelques minutes, puis il redémarre)')) return;
+    setBusy(kind);
+    try {
+      const r = kind === 'wake' ? await business.nexusWakePc() : kind === 'update' ? await business.nexusUpdate() : await business.nexusRestart();
+      setMsgs(m => [...m, { who: 'nexus' as const, text: (r.text ?? r.error ?? 'Fait.').replace(/\*\*/g, '') }].slice(-12));
+      setTimeout(() => { void refreshStatus(); }, kind === 'wake' ? 8000 : 4000);
+    } catch (e) { flash(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(''); }
+  };
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────
+  const dot = status === null ? C.amber : online ? C.accent : C.red;
+  const screen = (
+    <div style={{ position: 'relative', background: '#000', borderRadius: full ? 0 : 14, overflow: 'hidden', border: full ? 'none' : `1px solid ${C.border}`, touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', ...(full ? { width: '100%', height: '100%' } : { minHeight: 180 }) }}>
+      {frame ? (
+        <img ref={imgRef} src={frame.src} alt="Écran du PC" draggable={false}
+          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => { press.current = null; }}
+          onContextMenu={e => e.preventDefault()}
+          style={full ? { maxWidth: '100%', maxHeight: '100%', display: 'block' } : { width: '100%', height: 'auto', display: 'block' }} />
+      ) : (
+        <div style={{ color: C.muted, fontSize: 13, padding: 30, textAlign: 'center' }}>
+          {online ? 'Chargement de l\'écran…' : 'PC non connecté'}
+        </div>
+      )}
+      {mark && <div style={{ position: 'absolute', left: mark.x - 18, top: mark.y - 18, width: 36, height: 36, borderRadius: '50%', border: `3px solid ${mark.kind === 'right' ? C.amber : C.accent}`, pointerEvents: 'none', boxShadow: '0 0 12px rgba(16,185,129,0.6)' }} />}
+      {frame && <div style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 10, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 6px', pointerEvents: 'none' }}>{live ? '● direct' : frame.at}</div>}
+    </div>
+  );
+
+  const toolbar = (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <Pill on={live} onClick={() => { if (online) setLive(l => !l); }} label={live ? '⏸ Pause' : '▶ Direct'} />
+      <Pill onClick={() => { void grab(); }} label="📸 Actualiser" />
+      <Pill on={dragMode === 'drag'} onClick={() => setDragMode(m => (m === 'scroll' ? 'drag' : 'scroll'))} label={dragMode === 'scroll' ? '↕ Glisser = défiler' : '✋ Glisser = déplacer'} />
+      <Pill onClick={() => setQuality(q => (q === 'net' ? 'rapide' : 'net'))} label={quality === 'net' ? 'Image nette' : 'Image rapide'} />
+      <Pill onClick={() => setFull(f => !f)} label={full ? '✕ Fermer' : '⛶ Plein écran'} />
+    </div>
+  );
+
+  if (full) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: '#000', display: 'flex', flexDirection: 'column', fontFamily: C.font }}>
+        <div style={{ flex: 1, minHeight: 0 }}>{screen}</div>
+        <div style={{ padding: 8, background: C.bg }}>{toolbar}</div>
+        {toast && <Toast text={toast} />}
+      </div>
+    );
+  }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
-      <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
+    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
+      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Nexus" title="Mon PC" /></div>
 
-      {/* Header */}
-      <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textAlign: 'center', textShadow: '0 0 12px #10b98155' }}>
-          NEXUS PC
-        </div>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#10b98144', letterSpacing: '0.25em', textAlign: 'center', marginBottom: 6 }}>
-          CONTRÔLE DISTANT SÉCURISÉ
-        </div>
-
-        {/* Status bar */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-          <StatusChip label="ÉTAT NEXUS" val={connTxt} col={connCol} icon="🤖" />
-          <StatusChip label="PC" val={hostname} col="#10b981" icon="💻" />
-          <StatusChip label="LATENCE" val={latency !== null ? `${latency}ms` : '—'} col="#ffb347" icon="⚡" />
-          <div
-            onClick={() => { void checkStatus(); void capture(); }}
-            style={{ flexShrink: 0, background: 'rgba(16,185,129,0.08)', border: '1px solid #10b98122', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
-          >
-            <span style={{ fontSize: 8 }}>{capturing ? '⏳' : '🔄'}</span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 4, color: '#10b98155', letterSpacing: '0.1em' }}>ACTU</span>
-          </div>
-        </div>
+      {/* État */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 12 }}>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: dot, boxShadow: `0 0 8px ${dot}`, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, color: C.text, flex: 1, lineHeight: 1.35 }}>{status?.text ?? 'Vérification…'}</span>
+        {!online && <Btn onClick={() => { void maint('wake'); }} label={busy === 'wake' ? '…' : 'Réveiller'} color={C.accent} />}
       </div>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 8px' }}>
+      {/* Écran */}
+      <div style={{ marginBottom: 8 }}>{screen}</div>
+      <div style={{ marginBottom: 6 }}>{toolbar}</div>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Toucher = clic · double toucher = double clic · appui long = clic droit · glisser = défiler ou déplacer</div>
 
-        {/* Live screen */}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b98166', letterSpacing: '0.2em' }}>
-              📺 ÉCRAN DU PC EN DIRECT
-            </div>
-            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-              {imgKb && <span style={{ fontSize: 7, color: '#ffffff22' }}>{imgKb}KB</span>}
-              <span style={{ fontSize: 7, color: '#ffffff22' }}>{imgTs}</span>
-              <button
-                onClick={() => setFullscreen(f => !f)}
-                style={{ ...miniBtn('#10b981') }}
-              >{fullscreen ? '⊡' : '⊞'}</button>
-              <button
-                onClick={() => setLiveMode(l => !l)}
-                style={{ ...miniBtn(liveMode ? '#00e676' : '#ffffff33'), fontSize: 6 }}
-              >{liveMode ? '⏹ STOP' : '▶ LIVE'}</button>
-              <button onClick={() => void capture()} style={{ ...miniBtn('#10b981') }}>📸</button>
-            </div>
-          </div>
-
-          {/* Screen display */}
-          <div style={{
-            position: 'relative',
-            background: '#000',
-            borderRadius: 8,
-            border: `1px solid ${connected ? '#10b98133' : '#ff336622'}`,
-            overflow: 'hidden',
-            height: fullscreen ? 220 : 150,
-          }}>
-            {screenImg ? (
-              <img
-                ref={imgRef}
-                src={screenImg}
-                alt="PC Screen"
-                onClick={handleScreenClick}
-                style={{
-                  width: '100%', height: '100%', objectFit: 'contain',
-                  cursor: secLock ? 'not-allowed' : clickMode === 'right' ? 'context-menu' : 'crosshair',
-                  display: 'block',
-                }}
-              />
-            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b98122', letterSpacing: '0.2em' }}>
-                  {connected ? '📸 CLIQUER POUR CAPTURER' : '🔴 NEXUS HORS LIGNE'}
-                </div>
-                {connected && (
-                  <button onClick={() => void capture()} style={{ ...btnStyle('#10b981'), fontSize: 7, padding: '4px 10px' }}>
-                    CAPTURER L'ÉCRAN
-                  </button>
-                )}
-              </div>
-            )}
-            {capturing && (
-              <div style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(16,185,129,0.2)', borderRadius: 4, padding: '2px 5px', fontSize: 7, color: '#10b981' }}>
-                ⏳
-              </div>
-            )}
-            {secLock && (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,51,102,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ff3366', letterSpacing: '0.2em' }}>🔒 VERROUILLÉ</span>
-              </div>
-            )}
-          </div>
-
-          {/* Click mode selector */}
-          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-            {(['left', 'right', 'double'] as const).map(m => (
-              <button key={m} onClick={() => setClickMode(m)} style={{
-                flex: 1, padding: '4px 0', fontFamily: 'Inter, sans-serif', fontSize: 5, letterSpacing: '0.1em',
-                background: clickMode === m ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.03)',
-                border: `1px solid ${clickMode === m ? '#10b98188' : '#10b98118'}`,
-                borderRadius: 6, color: clickMode === m ? '#10b981' : '#ffffff44', cursor: 'pointer',
-              }}>
-                {m === 'left' ? '👆 CLIC' : m === 'right' ? '👆 DROIT' : '👆 DBL'}
-              </button>
+      {/* Demande à Nexus */}
+      <Section title="Demande à Nexus">
+        {msgs.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+            {msgs.map((m, i) => (
+              <div key={i} style={{ alignSelf: m.who === 'me' ? 'flex-end' : 'flex-start', maxWidth: '88%', background: m.who === 'me' ? 'rgba(16,185,129,0.16)' : 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.text}</div>
             ))}
           </div>
+        )}
+        <div style={{ display: 'flex', gap: 7 }}>
+          <input value={ask} onChange={e => setAsk(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void say(ask); }}
+            placeholder={online ? '« ouvre Spotify », « volume 30 »…' : 'PC non connecté'} disabled={!online} style={{ ...inp, flex: 1 }} />
+          <button onClick={() => { void toggleMic(); }} disabled={!online || (!!busy && !recording)} aria-label="Dicter"
+            style={{ ...round, background: recording ? C.red : 'rgba(255,255,255,0.06)' }}>{recording ? '■' : '🎙️'}</button>
+          <button onClick={() => { void say(ask); }} disabled={!online || !ask.trim() || !!busy} aria-label="Envoyer"
+            style={{ ...round, background: C.accent, color: '#04140d' }}>{busy === 'say' || busy === 'stt' ? '…' : '➤'}</button>
         </div>
-
-        {/* Touch control guide */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
-          {[
-            { icon: '☝️', label: 'TOUCHER', sub: '= CLIC GAUCHE' },
-            { icon: '☝️☝️', label: 'DOUBLE TAP', sub: '= DOUBLE CLIC' },
-            { icon: '✌️', label: 'APPUI LONG', sub: '= CLIC DROIT' },
-            { icon: '🖐️', label: 'GLISSER', sub: '= CURSEUR' },
-          ].map(g => (
-            <div key={g.label} style={{ flex: '1 0 40%', background: 'rgba(16,185,129,0.03)', borderRadius: 6, padding: '4px 6px', border: '1px solid #10b98110', textAlign: 'center' }}>
-              <div style={{ fontSize: 9 }}>{g.icon}</div>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 5, color: '#10b98166', letterSpacing: '0.1em' }}>{g.label}</div>
-              <div style={{ fontSize: 5, color: '#ffffff33', marginTop: 1 }}>{g.sub}</div>
-            </div>
-          ))}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
+          {CHIPS.map(c => <Pill key={c} onClick={() => { void say(c); }} label={c} />)}
         </div>
+      </Section>
 
-        {/* Quick actions */}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#10b98144', letterSpacing: '0.2em', marginBottom: 5 }}>ACTIONS RAPIDES</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-            {[
-              { icon: '🌐', label: 'CHROME',   fn: () => business.nexusRunCommand('start chrome') },
-              { icon: '📝', label: 'VS CODE',  fn: () => business.nexusRunCommand('code') },
-              { icon: '🐙', label: 'GITHUB',   fn: () => business.nexusRunCommand('start https://github.com') },
-              { icon: '🤖', label: 'CLAUDE',   fn: () => business.nexusRunCommand('claude') },
-              { icon: '📸', label: 'CAPTURE',  fn: () => capture().then(() => ({ ok: true })) },
-              { icon: '⌨️', label: 'TERMINAL', fn: () => business.nexusRunCommand('wt.exe') },
-              { icon: '🔄', label: 'NEXUS', col: '#ff8800', fn: () => business.nexusRunCommand('taskkill /F /IM python.exe') },
-              { icon: '🔒', label: 'VERROU', col: '#ff3366', fn: () => Promise.resolve({ ok: true, result: 'Contrôle verrouillé' }) },
-            ].map((a, i) => (
-              <button
-                key={a.label}
-                onClick={() => {
-                  if (a.label === 'VERROU') { setSecLock(l => !l); addLog('Contrôle', secLock ? 'Déverrouillé' : 'Verrouillé', true); return; }
-                  if (a.label === 'CAPTURE') { void capture(); return; }
-                  void quickAction(a.label, a.fn as () => Promise<{ ok: boolean; result?: string; stdout?: string; stderr?: string }>);
-                }}
-                disabled={!connected && a.label !== 'VERROU'}
-                style={{
-                  background: i === 6 ? 'rgba(255,136,0,0.08)' : i === 7 ? (secLock ? 'rgba(255,51,102,0.15)' : 'rgba(255,51,102,0.06)') : 'rgba(16,185,129,0.06)',
-                  border: `1px solid ${i === 6 ? '#ff880022' : i === 7 ? '#ff336633' : '#10b98118'}`,
-                  borderRadius: 8, padding: '6px 2px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                  cursor: connected ? 'pointer' : 'default', opacity: connected ? 1 : 0.4,
-                }}
-              >
-                <span style={{ fontSize: 14 }}>{a.label === 'VERROU' && secLock ? '🔓' : a.icon}</span>
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 4.5, color: i === 6 ? '#ff8800' : i === 7 ? '#ff3366' : '#10b98177', letterSpacing: '0.05em' }}>
-                  {a.label === 'NEXUS' ? 'RESTART' : a.label}
-                </span>
-              </button>
-            ))}
-          </div>
+      {/* Clavier */}
+      <Section title="Clavier">
+        <div style={{ display: 'flex', gap: 7, marginBottom: 9 }}>
+          <input value={kb} onChange={e => setKb(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void typeText(); }}
+            placeholder="Texte à taper sur le PC" disabled={!online} style={{ ...inp, flex: 1 }} />
+          <Btn onClick={() => { void typeText(); }} label="Taper" color={C.accent} />
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.muted, marginBottom: 10 }}>
+          <input type="checkbox" checked={enterAfter} onChange={e => setEnterAfter(e.target.checked)} /> Appuyer sur Entrée après
+        </label>
+        <Grid>
+          {([['Entrée', { key: 'enter' }], ['Échap', { key: 'esc' }], ['⌫', { key: 'backspace' }], ['Tab', { key: 'tab' }],
+             ['←', { key: 'left' }], ['↑', { key: 'up' }], ['↓', { key: 'down' }], ['→', { key: 'right' }],
+             ['Copier', { keys: ['ctrl', 'c'] }], ['Coller', { keys: ['ctrl', 'v'] }], ['Annuler', { keys: ['ctrl', 'z'] }], ['Tout', { keys: ['ctrl', 'a'] }],
+             ['Alt+Tab', { keys: ['alt', 'tab'] }], ['Windows', { keys: ['win'] }], ['Bureau', { keys: ['win', 'd'] }], ['Fermer', { keys: ['alt', 'f4'] }],
+          ] as Array<[string, Record<string, unknown>]>).map(([l, b]) => <Key key={l} label={l} onClick={() => key(b, l)} disabled={!online} />)}
+        </Grid>
+      </Section>
 
-        {/* Command input */}
-        <div style={{ marginBottom: 8, background: 'rgba(16,185,129,0.02)', borderRadius: 10, padding: 10, border: '1px solid #10b98112' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#10b98155', letterSpacing: '0.2em', marginBottom: 6 }}>COMMANDE RAPIDE</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              value={cmd}
-              onChange={e => setCmd(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && void runCmd()}
-              placeholder="Écrivez une commande…"
-              disabled={!connected || secLock}
-              style={{ ...inputSt, flex: 1 }}
-            />
-            <button onClick={() => void runCmd()} disabled={!connected || !cmd.trim() || cmdRunning || secLock} style={{ ...btnStyle('#10b981'), padding: '4px 10px', fontSize: 10 }}>
-              {cmdRunning ? '⏳' : '▶'}
-            </button>
-          </div>
-          {/* Quick chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-            {['ouvre Chrome', 'lance Claude Code', 'fais une capture', 'ouvre VS Code', 'exécute npm run build'].map(q => (
-              <button key={q} onClick={() => setCmd(q)} style={{
-                background: 'rgba(16,185,129,0.05)', border: '1px solid #10b98118', borderRadius: 12,
-                padding: '3px 8px', fontSize: 7, color: '#10b98155', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-              }}>
-                {q}
-              </button>
-            ))}
-          </div>
+      {/* Télécommande */}
+      <Section title="Télécommande">
+        <Grid>
+          {([['⏮', 'prevtrack'], ['⏯', 'playpause'], ['⏭', 'nexttrack'], ['🔇', 'volumemute'], ['🔉', 'volumedown'], ['🔊', 'volumeup'], ['F5', 'f5'], ['⛶ F11', 'f11']] as Array<[string, string]>)
+            .map(([l, k]) => <Key key={l} label={l} onClick={() => key({ key: k }, l)} disabled={!online} />)}
+        </Grid>
+      </Section>
+
+      {/* Entretien */}
+      <Section title="Nexus">
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+          <Btn onClick={() => { void maint('update'); }} label={busy === 'update' ? 'Mise à jour…' : '⬇ Mettre à jour'} color={C.accent} disabled={!online} />
+          <Btn onClick={() => { void maint('restart'); }} label={busy === 'restart' ? '…' : '↻ Redémarrer Nexus'} color={C.amber} disabled={!online} />
+          <Btn onClick={() => { void maint('wake'); }} label={busy === 'wake' ? '…' : '⏻ Réveiller'} color={C.muted} />
         </div>
-
-        {/* Mouse directional pad */}
-        <div style={{ marginBottom: 8, background: 'rgba(16,185,129,0.02)', borderRadius: 10, padding: 10, border: '1px solid #10b98112' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#10b98155', letterSpacing: '0.2em', marginBottom: 6, textAlign: 'center' }}>CONTRÔLE SOURIS</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, maxWidth: 160, margin: '0 auto' }}>
-            <div />
-            <button onClick={() => business.nexusMouseScroll('up').then(r => addLog('Scroll ↑', r.result ?? '✅', r.ok))} style={padBtn}>↑</button>
-            <div />
-            <button onClick={() => {/* move left - would need position tracking */}} style={{ ...padBtn, opacity: 0.3 }}>←</button>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b98133', border: '1px solid #10b98155' }} />
-            </div>
-            <button onClick={() => {/* move right */}} style={{ ...padBtn, opacity: 0.3 }}>→</button>
-            <div />
-            <button onClick={() => business.nexusMouseScroll('down').then(r => addLog('Scroll ↓', r.result ?? '✅', r.ok))} style={padBtn}>↓</button>
-            <div />
-          </div>
-          <div style={{ display: 'flex', gap: 4, marginTop: 6, justifyContent: 'center' }}>
-            <button onClick={() => business.nexusMouseClick(0, 0, 'left').catch(() => {})} style={{ ...padBtn, padding: '4px 12px', fontSize: 7 }}>L-CLK</button>
-            <button onClick={() => business.nexusMouseClick(0, 0, 'right').catch(() => {})} style={{ ...padBtn, padding: '4px 12px', fontSize: 7 }}>R-CLK</button>
-          </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 9, lineHeight: 1.5 }}>
+          Nexus se met à jour tout seul quand le PC se rallume. PC éteint : il ne peut pas être rallumé à distance. En veille : dis « mets le PC en veille et réveille-le demain à 8h ».
         </div>
+      </Section>
 
-        {/* Virtual keyboard — type text */}
-        <div style={{ marginBottom: 8, background: 'rgba(16,185,129,0.02)', borderRadius: 10, padding: 10, border: '1px solid #10b98112' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#10b98155', letterSpacing: '0.2em', marginBottom: 6 }}>CLAVIER VIRTUEL</div>
-
-          {/* Text input row */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-            <input
-              value={kbText}
-              onChange={e => setKbText(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && void sendText()}
-              placeholder="Texte à taper sur le PC…"
-              disabled={!connected || secLock}
-              style={{ ...inputSt, flex: 1 }}
-            />
-            <button onClick={() => void sendText()} disabled={!connected || !kbText || secLock} style={{ ...btnStyle('#00e676'), padding: '4px 8px', fontSize: 9 }}>⌤</button>
-          </div>
-
-          {/* AZERTY rows */}
-          {[
-            ['A','Z','E','R','T','Y','U','I','O','P'],
-            ['Q','S','D','F','G','H','J','K','L','M'],
-            ['W','X','C','V','B','N',',',';','!','_'],
-          ].map((row, ri) => (
-            <div key={ri} style={{ display: 'flex', gap: 2, marginBottom: 3, justifyContent: 'center' }}>
-              {row.map(k => (
-                <button
-                  key={k}
-                  onClick={() => connected && !secLock && business.nexusKeyPress(k).then(r => addLog(`Key: ${k}`, r.result ?? '✅', r.ok)).catch(() => {})}
-                  style={{ width: 28, height: 24, background: 'rgba(16,185,129,0.06)', border: '1px solid #10b98115', borderRadius: 5, color: '#c8e8ff', fontSize: 9, cursor: connected && !secLock ? 'pointer' : 'not-allowed', fontFamily: 'Inter, sans-serif' }}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-          ))}
-
-          {/* Special keys */}
-          <div style={{ display: 'flex', gap: 3, justifyContent: 'center', marginTop: 3 }}>
-            {[
-              { label: '123', key: '' },
-              { label: 'ESPACE', key: 'space' },
-              { label: '⌫', key: 'backspace' },
-              { label: '↵', key: 'enter' },
-            ].map(k => (
-              <button
-                key={k.label}
-                onClick={() => k.key && connected && !secLock && business.nexusKeyPress(k.key).then(r => addLog(`Key: ${k.label}`, r.result ?? '✅', r.ok)).catch(() => {})}
-                style={{ flex: k.label === 'ESPACE' ? 3 : 1, height: 24, background: 'rgba(16,185,129,0.04)', border: '1px solid #10b98112', borderRadius: 5, color: '#ffffff55', fontSize: 8, cursor: k.key && connected && !secLock ? 'pointer' : 'default', fontFamily: 'Inter, sans-serif' }}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Hotkeys */}
-          <div style={{ display: 'flex', gap: 3, marginTop: 5, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Ctrl+C', keys: ['ctrl', 'c'] },
-              { label: 'Ctrl+V', keys: ['ctrl', 'v'] },
-              { label: 'Ctrl+Z', keys: ['ctrl', 'z'] },
-              { label: 'Ctrl+A', keys: ['ctrl', 'a'] },
-              { label: 'Alt+F4', keys: ['alt', 'f4'] },
-              { label: 'Win',    keys: ['win'] },
-              { label: 'Esc',    keys: ['esc'] },
-              { label: 'Tab',    keys: ['tab'] },
-            ].map(hk => (
-              <button
-                key={hk.label}
-                onClick={() => connected && !secLock && business.nexusHotkey(hk.keys).then(r => addLog(hk.label, r.result ?? '✅', r.ok)).catch(() => {})}
-                style={{ background: 'rgba(255,183,71,0.06)', border: '1px solid #ffb34718', borderRadius: 6, padding: '3px 7px', fontSize: 7, color: '#ffb34777', cursor: connected && !secLock ? 'pointer' : 'default', fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}
-              >
-                {hk.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Action history */}
-        <div style={{ marginBottom: 8, background: 'rgba(16,185,129,0.02)', borderRadius: 10, padding: 10, border: '1px solid #10b98112' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#10b98155', letterSpacing: '0.2em', marginBottom: 6 }}>HISTORIQUE DES ACTIONS</div>
-          {logs.length === 0 ? (
-            <div style={{ textAlign: 'center', fontSize: 8, color: '#ffffff18', padding: 8 }}>Aucune action</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {logs.slice(0, 8).map((l, i) => (
-                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', padding: '3px 0', borderBottom: '1px solid #10b98108' }}>
-                  <span style={{ fontSize: 7, color: '#ffffff22', flexShrink: 0, minWidth: 40 }}>{l.time}</span>
-                  <span style={{ fontSize: 7, color: '#c8e8ff', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.cmd}</span>
-                  <span style={{ fontSize: 7, color: l.ok ? '#00e676' : '#ff3366', flexShrink: 0 }}>{l.ok ? '✓' : '✗'}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Options affichage + sécurité */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
-          {/* Display options */}
-          <div style={{ background: 'rgba(16,185,129,0.02)', borderRadius: 10, padding: 8, border: '1px solid #10b98112' }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: '#10b98155', letterSpacing: '0.15em', marginBottom: 6 }}>OPTIONS AFFICHAGE</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <Row label="QUALITÉ" val={
-                <select value={quality} onChange={e => setQuality(Number(e.target.value))} style={{ background: '#0a0a0c', border: '1px solid #10b98122', color: '#10b981', borderRadius: 4, fontSize: 7, padding: '1px 3px', fontFamily: 'Inter, sans-serif' }}>
-                  <option value={30}>Basse</option>
-                  <option value={50}>Moy.</option>
-                  <option value={70}>Haute</option>
-                  <option value={90}>Max</option>
-                </select>
-              } />
-              <Row label="ÉCHELLE" val={
-                <select value={scale} onChange={e => setScale(Number(e.target.value))} style={{ background: '#0a0a0c', border: '1px solid #10b98122', color: '#10b981', borderRadius: 4, fontSize: 7, padding: '1px 3px', fontFamily: 'Inter, sans-serif' }}>
-                  <option value={0.3}>30%</option>
-                  <option value={0.5}>50%</option>
-                  <option value={0.75}>75%</option>
-                  <option value={1}>100%</option>
-                </select>
-              } />
-              <Row label="ÉCRAN" val={`${screenW}×${screenH}`} />
-            </div>
-          </div>
-
-          {/* Security mode */}
-          <div style={{ background: secLock ? 'rgba(255,51,102,0.04)' : 'rgba(16,185,129,0.02)', borderRadius: 10, padding: 8, border: `1px solid ${secLock ? '#ff336622' : '#10b98112'}` }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: secLock ? '#ff3366aa' : '#10b98155', letterSpacing: '0.15em', marginBottom: 6 }}>MODE SÉCURITÉ</div>
-            <div style={{ fontSize: 7, color: '#ffffff33', lineHeight: 1.6, marginBottom: 6 }}>
-              • Confirmation avant actions<br />
-              • Suppressions bloquées<br />
-              • Accès administrateur sécurisé<br />
-              • Actions journalisées
-            </div>
-            <button onClick={() => setSecLock(l => !l)} style={{
-              width: '100%', padding: '5px 0', fontFamily: 'Inter, sans-serif', fontSize: 6,
-              background: secLock ? 'rgba(255,51,102,0.12)' : 'rgba(0,230,118,0.08)',
-              border: `1px solid ${secLock ? '#ff336644' : '#00e67644'}`,
-              borderRadius: 6, color: secLock ? '#ff3366' : '#00e676', cursor: 'pointer', letterSpacing: '0.15em',
-            }}>
-              {secLock ? '🔓 DÉVERROUILLER' : '🔒 VERROUILLER'}
-            </button>
-          </div>
-        </div>
-      </div>
+      {toast && <Toast text={toast} />}
     </div>
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── Petits composants ─────────────────────────────────────────────────────────
 
-function StatusChip({ label, val, col, icon }: { label: string; val: string; col: string; icon: string }) {
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+const blobToB64 = (b: Blob) => new Promise<string>((res, rej) => {
+  const r = new FileReader();
+  r.onloadend = () => res(String(r.result).split(',')[1] ?? ''); r.onerror = rej; r.readAsDataURL(b);
+});
+
+const inp: React.CSSProperties = { boxSizing: 'border-box', minWidth: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+const round: React.CSSProperties = { width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: `1px solid ${C.border}`, color: C.text, fontSize: 17, cursor: 'pointer' };
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ flex: 1, background: `${col}08`, borderRadius: 6, padding: '3px 5px', border: `1px solid ${col}18`, minWidth: 0 }}>
-      <div style={{ fontSize: 5, color: `${col}55`, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif', marginBottom: 1 }}>{icon} {label}</div>
-      <div style={{ fontSize: 7, color: col, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Inter, sans-serif' }}>{val}</div>
+    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 13, marginBottom: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>{title}</div>
+      {children}
     </div>
   );
 }
 
-function Row({ label, val }: { label: string; val: React.ReactNode }) {
+function Grid({ children }: { children: React.ReactNode }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>{children}</div>;
+}
+
+function Key({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <span style={{ fontSize: 6, color: '#ffffff22', fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em' }}>{label}</span>
-      <span style={{ fontSize: 7, color: '#10b981cc' }}>{val}</span>
-    </div>
+    <button onClick={onClick} disabled={disabled} style={{ padding: '11px 2px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)', color: C.text, fontSize: 13, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</button>
   );
 }
 
-function Corner({ pos }: { pos: 'tl' | 'tr' | 'bl' | 'br' }) {
-  const s = 10, t = 1.5, col = 'transparent';
-  const bT = pos.startsWith('t') ? `${t}px solid ${col}33` : 'none';
-  const bB = pos.startsWith('b') ? `${t}px solid ${col}33` : 'none';
-  const bL = pos.endsWith('l')   ? `${t}px solid ${col}33` : 'none';
-  const bR = pos.endsWith('r')   ? `${t}px solid ${col}33` : 'none';
-  const h  = pos.endsWith('l')   ? { left: 4 }  : { right: 4 };
-  const v  = pos.startsWith('t') ? { top: 4 }   : { bottom: 4 };
-  return <div style={{ position: 'absolute', zIndex: 1, width: s, height: s, borderTop: bT, borderBottom: bB, borderLeft: bL, borderRight: bR, ...h, ...v }} />;
+function Pill({ label, onClick, on }: { label: string; onClick: () => void; on?: boolean }) {
+  return (
+    <button onClick={onClick} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(16,185,129,0.16)' : 'rgba(255,255,255,0.04)', color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer' }}>{label}</button>
+  );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────────
-
-const inputSt: React.CSSProperties = {
-  background: 'rgba(16,185,129,0.04)', border: '1px solid #10b9811a',
-  borderRadius: 8, padding: '6px 8px', fontFamily: 'Inter, sans-serif',
-  fontSize: 9, color: '#c8e8ff', outline: 'none', boxSizing: 'border-box', width: '100%',
-};
-
-function btnStyle(col: string): React.CSSProperties {
-  return {
-    background: `${col}12`, border: `1px solid ${col}44`, borderRadius: 6,
-    padding: '5px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: col,
-    cursor: 'pointer', letterSpacing: '0.1em',
-  };
+function Btn({ label, onClick, color, disabled }: { label: string; onClick: () => void; color: string; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ padding: '10px 13px', borderRadius: 11, border: `1px solid ${color}55`, background: `${color}1f`, color, fontSize: 13, fontWeight: 600, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>{label}</button>
+  );
 }
 
-function miniBtn(col: string): React.CSSProperties {
-  return {
-    background: `${col}10`, border: `1px solid ${col}33`, borderRadius: 5,
-    padding: '2px 5px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: col, cursor: 'pointer',
-  };
-}
-
-const padBtn: React.CSSProperties = {
-  background: 'rgba(16,185,129,0.08)', border: '1px solid #10b98122',
-  borderRadius: 6, padding: '6px 0', fontFamily: 'Inter, sans-serif',
-  fontSize: 12, color: '#10b981', cursor: 'pointer', textAlign: 'center',
-};
-
-// Extend business type for nexus run command
-declare module '../../services/api.ts' {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface NexusRunResult { ok: boolean; stdout?: string; stderr?: string; result?: string; }
+function Toast({ text }: { text: string }) {
+  return <div style={{ position: 'absolute', left: 16, right: 16, bottom: 20, zIndex: 60, background: '#222', border: `1px solid ${C.border}`, color: C.text, borderRadius: 12, padding: '10px 14px', fontSize: 13, textAlign: 'center' }}>{text}</div>;
 }

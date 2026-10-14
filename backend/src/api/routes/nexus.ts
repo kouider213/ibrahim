@@ -26,6 +26,8 @@ import type { TaskStep } from '../../actions/handlers/nexus-task-runner.js';
 import { requireMobileAuth, requirePcAuth } from '../middleware/auth.js';
 import { nexusRateLimiter, nexusIpLogger, nexusAntiReplay } from '../middleware/nexus-security.js';
 import { nexusQueue } from '../../actions/handlers/nexus-command-queue.js';
+import { pcCommand, pcWake, pcStatus } from '../../integrations/nexus-remote.js';
+import { executeTool } from '../../integrations/tool-executor.js';
 import { runAutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
 import type { AutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
@@ -938,9 +940,41 @@ router.post('/input/mouse/move', requireMobileAuth, async (req, res) => {
 // POST /api/nexus/input/mouse/click
 router.post('/input/mouse/click', requireMobileAuth, async (req, res) => {
   if (!nexusGuard(res)) return;
-  const { x, y, button } = req.body as { x: number; y: number; button?: 'left' | 'right' | 'double' };
-  try { res.json(await nexusMouseClick(Number(x), Number(y), button ?? 'left')); }
+  const { x, y, button, nx, ny } = req.body as { x: number; y: number; button?: 'left' | 'right' | 'double'; nx?: number; ny?: number };
+  const norm = nx != null && ny != null ? { nx: Number(nx), ny: Number(ny) } : undefined;
+  try { res.json(await nexusMouseClick(Number(x), Number(y), button ?? 'left', 3_000, norm)); }
   catch (err) { res.status(504).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/say { command, confirmed? } — commande en français (« ouvre Spotify ») avec la réponse de Nexus
+router.post('/say', requireMobileAuth, async (req, res) => {
+  const { command, confirmed } = req.body as { command?: string; confirmed?: boolean };
+  try { res.json({ ok: true, text: await pcCommand({ command, confirmed, wait_s: 25 }) }); }
+  catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/wake-pc — réveiller Nexus (Launcher) ou le PC (réveil réseau)
+router.post('/wake-pc', requireMobileAuth, async (_req, res) => {
+  try { res.json({ ok: true, text: await pcWake() }); }
+  catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// GET /api/nexus/remote-status — état lisible pour l'app (PC, Nexus, mise à jour en attente)
+router.get('/remote-status', requireMobileAuth, async (_req, res) => {
+  try { res.json({ ok: true, online: isNexusOnline(), launcher: isLauncherOnline(), text: await pcStatus() }); }
+  catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/soft-restart — redémarrer Nexus proprement (le watchdog le relance)
+router.post('/soft-restart', requireMobileAuth, async (_req, res) => {
+  try { res.json({ ok: true, text: await executeTool('restart_nexus', {}, 'app') }); }
+  catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
+});
+
+// POST /api/nexus/update — mettre à jour Nexus maintenant (git pull + dépendances + redémarrage)
+router.post('/update', requireMobileAuth, async (_req, res) => {
+  try { res.json({ ok: true, text: await executeTool('update_nexus', {}, 'app') }); }
+  catch (err) { res.status(500).json({ ok: false, error: String(err) }); }
 });
 
 // POST /api/nexus/input/mouse/scroll
