@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-10-14 (soir) — Nexus : « ouvre Chrome » corrigé, interface HUD animée plein écran | `8f002eb`, `a15166d`
+
+- **Bug** `nexus.py` : « ouvre <app> » cherchait d'abord un fichier au Bureau (ouvrait un `.json` de photos dans VS Code).
+  Les applications connues (`APP_MAP`) sont maintenant lancées en priorité.
+- **Interface** `nexus/gui/index.html` refaite de zéro (HUD Canvas animé : anneaux à graduations en contre-rotation,
+  globe fil de fer, orbite, 4 états veille/écoute/réflexion/parole ; cartes réservations/météo/disque/serveur ;
+  rail d'actions ; conversation). Pas de code copié de TechEnClair (licence non commerciale).
+- Ouverture en plein écran (`--start-fullscreen`), bouton ⛶. `install-nexus-autostart.bat` : démarrage avec Windows.
+- `handle_widget_request` : + `weather`, `bookings`, `railway` (cartes remplies à la connexion). Statut GUI : `mic_available`.
+- **Reste** : installer PyAudio (micro + mot « Nexus » vocal) — pas de build prêt testé pour Python 3.14.
+
+---
+
 ## 2026-10-14 (après-midi) — Claude 5.5, mémoire par le sens, connexion sécurisée, voix temps réel du PC | `3174fc9`, `19f9f12`, `5087064`, `92daa52`, `c7695cb`
 
 - **Modèles** : tout le backend passe à Claude Sonnet 5.5 (cerveau) et Haiku 5.5 (réponses rapides) via un client

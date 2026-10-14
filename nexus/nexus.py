@@ -804,6 +804,17 @@ class NexusApp:
                 'type': 'widget', 'widget': 'disk',
                 'data': {'total': t2, 'used': u, 'free': f, 'pct': round(u / t2 * 100, 1)},
             })
+        elif widget_type == 'weather':
+            weather = await self._fetch_weather()
+            if weather:
+                await self.gui_send({'type': 'widget', 'widget': 'weather', 'data': weather})
+        elif widget_type == 'bookings':
+            count = await self.briefing._fetch_bookings()
+            if count is not None:
+                await self.gui_send({'type': 'widget', 'widget': 'bookings', 'data': {'count': count}})
+        elif widget_type == 'railway':
+            ok = await self.briefing._check_railway()
+            await self.gui_send({'type': 'widget', 'widget': 'railway', 'data': {'status': 'ok' if ok else 'offline'}})
 
     # ── Weather ──────────────────────────────────────────────────────────────
     async def _fetch_weather(self) -> dict | None:
