@@ -15,6 +15,11 @@
   (Telegram + app). Branché sur : erreur grave du serveur (uncaughtException/unhandledRejection), tâche planifiée
   en échec, service d'appels Telegram coupé, démarchage bloqué (boîte à reconnecter) ou mails de démarchage en échec.
   Une même panne = 1 appel / 3 h ; max 6 appels d'incident / jour (au-delà : écrit seulement).
+- **Railway complètement tombé** (`tgcall/watchdog.py`, cron VPS chaque minute) : vérifie `/health` ; 3 échecs
+  de suite (~3 min) → message Telegram + appel d'alarme, rappel toutes les 2 h, message « rétabli » au retour.
+  Passe par `tgcall/outbox` : un fichier `*.call` fait appeler Kouider (`alarm_call` dans `dzaryx_tg.py`) sans
+  le backend, avec le message préenregistré `fillers/alarm.mp3`. Test réel OK (appel reçu à 12h21).
+  Test à blanc : `python3 tgcall/watchdog.py --dry-run [--url URL]`.
 
 ## 2026-10-14 (soir) — Nexus : « ouvre Chrome » corrigé, interface HUD animée plein écran | `8f002eb`, `a15166d`
 

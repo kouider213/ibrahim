@@ -6,3 +6,6 @@
 __pycache__/
 fillers/
 outbox/
+.watchdog.json
+.*.tmp
+watchdog.log

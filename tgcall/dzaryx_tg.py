@@ -717,15 +717,56 @@ async def voice_command(msg: Message, actor: str, choice: str | None) -> None:
 OUTBOX = HERE / 'outbox'
 
 
+ALARM_MP3 = FILLER_DIR / 'alarm.mp3'
+ALARM_TEXT = ("Allô Kouider, c'est Dzaryx. Alerte : le serveur principal ne répond plus depuis plusieurs minutes. "
+              "Je ne peux plus répondre ni aux clients ni à toi. Les détails sont sur Telegram.")
+
+
+async def alarm_call(uid: int, text: str) -> None:
+    """Appel d'alarme SANS le backend (surveillance VPS : Railway en panne) : sonne, lit un message, raccroche.
+    Voix générée si le backend répond, sinon le message préenregistré alarm.mp3."""
+    if uid in active:
+        log.info('alarme : déjà en appel, message écrit seulement')
+        return
+    path = str(ALARM_MP3)
+    if text and text != ALARM_TEXT:
+        try:
+            path = save_mp3((await api('/api/tts', {'text': text}, 'kouider', 20))['audio'])
+        except Exception as e:
+            log.warning('alarme : voix indisponible (%s) → message préenregistré', e)
+    if not Path(path).exists():
+        log.error('alarme : aucun message audio')
+        return
+    last_call[uid] = time.monotonic()
+    try:
+        await calls.play(uid, MediaStream(path, AudioParameters(48000, 1), video_flags=MediaStream.Flags.IGNORE),
+                         CallConfig(timeout=45))
+        await asyncio.sleep(mp3_duration(path) * 2 + 2)     # le temps de décrocher puis d'écouter
+        log.info('alarme : appel passé')
+    except Exception as e:
+        log.warning('alarme : pas décroché (%s)', e)
+    finally:
+        try:
+            await calls.leave_call(uid)
+        except Exception:
+            pass
+
+
 async def outbox_loop() -> None:
     """Toutes les 3 s : envoie à Kouider, dans l'ordre des noms, les fichiers tgcall/outbox/*.txt
-    (avec la photo <même nom>.jpg si elle existe), puis les supprime."""
+    (avec la photo <même nom>.jpg si elle existe), puis les supprime. Un fichier *.call (texte à dire,
+    vide = alarme serveur) le fait appeler en plus."""
     OUTBOX.mkdir(exist_ok=True)
     while True:
         await asyncio.sleep(3)
         uid = actor_peer.get('kouider')
         if not uid:
             continue
+        for call in sorted(OUTBOX.glob('*.call')):
+            text = call.read_text(encoding='utf-8').strip() or ALARM_TEXT
+            call.unlink(missing_ok=True)
+            log.info('outbox → appel d\'alarme : %s', call.name)
+            asyncio.create_task(alarm_call(uid, text))
         for txt in sorted(OUTBOX.glob('*.txt')):
             img = txt.with_suffix('.jpg')
             try:
@@ -760,6 +801,11 @@ async def main() -> None:
         except Exception as e:
             log.error('%s introuvable (%s): %s — il doit d\'abord écrire au compte Dzaryx', actor, ref, e)
     await ensure_fillers()
+    if not ALARM_MP3.exists():
+        try:
+            ALARM_MP3.write_bytes(base64.b64decode((await api('/api/tts', {'text': ALARM_TEXT}, 'kouider', 30))['audio']))
+        except Exception as e:
+            log.warning('message d\'alarme non généré: %s', e)
     asyncio.create_task(poll_pending())
     asyncio.create_task(heartbeat())
     asyncio.create_task(outbox_loop())
