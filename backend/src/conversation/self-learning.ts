@@ -3,7 +3,8 @@ import { getConversationHistory } from '../integrations/supabase.js';
 import { getLearnedRules, saveLearnedRule, type SaveRuleParams } from '../integrations/learned-rules.js';
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
-import { addProcedure } from '../integrations/procedures.js';
+import { addProcedure, loadProcedures } from '../integrations/procedures.js';
+import { getActionHistory } from '../orchestrator/action-engine.js';
 import { createAnthropic } from '../integrations/anthropic-compat.js';
 
 // Apprentissage automatique (idée reprise d'OpenClaw « self-learning ») : 10 min après la fin d'une
@@ -51,7 +52,13 @@ const SYSTEM =
   "PROCÉDURES (en plus, rare) : si l'humain DÉCRIT ou VALIDE explicitement une façon de faire en plusieurs étapes à " +
   "réutiliser (« quand je valide une location, fais toujours : … puis … », « oui c'est comme ça qu'il faut faire à chaque fois »), " +
   "ajoute au JSON : \"procedures\": [{\"name\": \"nom court\", \"trigger\": \"quand l'utiliser (mots-clés)\", " +
-  "\"steps\": [\"étape 1\", \"étape 2\"], \"quote\": \"phrase exacte de l'humain\"}]. Sinon ne mets pas cette clé.";
+  "\"steps\": [\"étape 1\", \"étape 2\"], \"quote\": \"phrase exacte de l'humain\"}]. Sinon ne mets pas cette clé.\n" +
+  "MÉTHODES DÉCOUVERTES (idée Hermes Agent) : la liste OUTILS UTILISÉS montre ce que Dzaryx a fait. Si Dzaryx a réussi une " +
+  "tâche RÉUTILISABLE en enchaînant au moins 3 outils réussis ET que l'humain s'en est montré satisfait ensuite (« parfait », " +
+  "« merci c'est bon », « nickel », sans correction), ajoute-la dans \"procedures\" : étapes = la suite d'actions qui a marché, " +
+  "en français clair (pas les noms techniques seuls), quote = la phrase de satisfaction de l'humain. Pas pour une simple question.\n" +
+  "AMÉLIORATION : si une PROCÉDURE EXISTANTE a servi et que l'humain a corrigé la façon de faire, renvoie-la avec le MÊME " +
+  "\"name\" et les étapes corrigées (quote = sa correction).";
 
 type Found = { category?: string; rule?: string; quote?: string };
 type FoundProc = { name?: string; trigger?: string; steps?: string[]; quote?: string };
@@ -70,10 +77,14 @@ export async function reviewConversation(sessionId: string, actorKey: string): P
   const transcript = turns.map((t: { role: string; content: string }) =>
     `${t.role === 'user' ? who : 'DZARYX'}: ${String(t.content).slice(0, 1200)}`).join('\n');
   const existing = (await getLearnedRules(actorKey, 60)).map(r => `- ${r.rule}`).join('\n') || '(aucune)';
+  const procsKnown = (await loadProcedures()).filter(p => p.active)
+    .map(p => `- ${p.name} (quand : ${p.trigger}) : ${p.steps.join(' → ')}`).join('\n') || '(aucune)';
+  const actions = (await getActionHistory(sessionId, 40)).filter(a => a.timestamp > since).reverse();
+  const toolsUsed = actions.map(a => `- ${a.toolName} ${a.success ? 'OK' : 'ÉCHEC'}${a.result ? ` → ${a.result.replace(/\s+/g, ' ').slice(0, 80)}` : ''}`).join('\n') || '(aucun)';
 
   const res = await anthropic.messages.create({
-    model: MODEL, max_tokens: 800, system: SYSTEM,
-    messages: [{ role: 'user', content: `RÈGLES EXISTANTES :\n${existing}\n\nCONVERSATION :\n${transcript}` }],
+    model: MODEL, max_tokens: 1200, system: SYSTEM,
+    messages: [{ role: 'user', content: `RÈGLES EXISTANTES :\n${existing}\n\nPROCÉDURES EXISTANTES :\n${procsKnown}\n\nCONVERSATION :\n${transcript}\n\nOUTILS UTILISÉS (dans l'ordre) :\n${toolsUsed}` }],
   });
   const raw = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map(b => b.text).join('');
   let found: Found[] = [];
@@ -105,8 +116,8 @@ export async function reviewConversation(sessionId: string, actorKey: string): P
     const steps = (p.steps ?? []).map(x => String(x).trim()).filter(Boolean);
     if (!p.name || !p.trigger || steps.length < 2 || !p.quote || !saidByHuman(p.quote)) continue;
     if (process.env['SELF_LEARN_DRY'] === '1') { saved.push(`Procédure « ${p.name} » : ${steps.join(' → ')}`); continue; }
-    await addProcedure({ name: p.name, trigger: p.trigger, steps, owner: actorKey === 'houari' ? 'houari' : 'kouider', source: 'auto' });
-    saved.push(`Procédure « ${p.name} » : ${steps.join(' → ')}`);
+    const how = await addProcedure({ name: p.name, trigger: p.trigger, steps, owner: actorKey === 'houari' ? 'houari' : 'kouider', source: 'auto' });
+    saved.push(`${how === 'updated' ? 'Méthode améliorée' : 'Procédure'} « ${p.name} » : ${steps.join(' → ')}`);
   }
   if (saved.length && process.env['SELF_LEARN_DRY'] !== '1') {
     console.log(`[self-learn] ${sessionId} → ${saved.length} règle(s)`);
