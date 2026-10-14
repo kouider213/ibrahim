@@ -84,6 +84,19 @@ async function driveFolder(headers: Record<string, string>): Promise<string> {
 }
 
 export async function uploadToDrive(d: BackupDump): Promise<string> {
+  try {
+    return await uploadToDriveRaw(d);
+  } catch (err) {
+    const body = axios.isAxiosError(err) ? JSON.stringify(err.response?.data ?? err.message) : String(err);
+    if (/has not been used|is disabled|SERVICE_DISABLED/i.test(body)) {
+      const m = body.match(/https:\/\/console\.developers\.google\.com\/apis\/api\/drive\.googleapis\.com\/overview\?project=\d+/);
+      throw new Error(`l'API Google Drive n'est pas activée dans le projet Google de Dzaryx — ouvre ${m?.[0] ?? 'console.cloud.google.com → API Google Drive'} et clique « Activer » (copie VPS OK en attendant)`);
+    }
+    throw new Error(`Drive : ${body.slice(0, 200)}`);
+  }
+}
+
+async function uploadToDriveRaw(d: BackupDump): Promise<string> {
   const t = await driveToken();
   if (!t) throw new Error('Drive pro non autorisé (permission drive.file manquante) — reconnecte Gmail pro');
   const headers = { Authorization: `Bearer ${t}` };
