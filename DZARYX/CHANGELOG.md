@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-10-15 (12) — Agenda perso Dzaryx + bonhomme Kouider + vrais avions
+- Backend : `update_personal_event` (modifier un RDV perso), `list_personal_events` par jour/période avec les id + lieu,
+  `create_personal_event` avec lieu ; si Google refuse → message « pas d'accès » + marche à suivre (avant : « agenda vide »).
+  `personalCalendarAccess()`. Routes `GET /api/calendar/me`, `PATCH|DELETE /api/calendar/personal/:id` (Kouider seulement).
+  Constat prod 2026-10-15 : kouiderpablo@gmail.com N'EST PAS partagé avec id-ibrahim-calendar@ibrahim-493817.iam.gserviceaccount.com.
+- Carte : bonhomme de Kouider (polo FIK) qui marche vers le lieu de son RDV (mots-clés aéroport/garage/banque…), maison la nuit,
+  plage les jours de repos ; bulle = RDV en cours / suivant ; fiche = agenda 7 jours perso + FIK, ajouter/modifier/supprimer,
+  « Organise ma journée ». Avions de ligne réalistes (fuselage, ailes en flèche, réacteurs, dérive, hublots, train, feux de
+  navigation + strobe), vraie trajectoire roulage/décollage/tour/atterrissage avec inclinaison ; balisage de piste ; passerelle ;
+  ferry Oran ⇄ Espagne qui arrive/reste à quai/repart. SW v148 (gh-pages publié).
+
 ## 2026-10-15 (11) — Carte live : voitures qui bougent + ambiance sonore
 - Mission « Remettre » validée → la voiture sort du parking (allée, sortie, avenue) puis roule en ville ; « Récupérer »
   validée → elle rentre se garer. L'affichage du jour tient compte des missions faites (`shown` dans CarteScreen).

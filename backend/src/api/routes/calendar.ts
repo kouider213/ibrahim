@@ -8,6 +8,7 @@ import {
 } from '../../integrations/google-calendar.js';
 import { exchangeGmailCode, getGmailAuthUrl, GMAIL_STATE_PREFIX } from '../../integrations/gmail.js';
 import { requireMobileAuth } from '../middleware/auth.js';
+import { getDaysOff } from '../../integrations/kouider-dossier.js';
 
 const router = Router();
 
@@ -89,9 +90,10 @@ router.get('/me', requireMobileAuth, async (req, res) => {
   try {
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date());
     const from = new Date(`${day}T00:00:00+01:00`), to = new Date(from.getTime() + 8 * 86_400_000);
-    const [perso, fik] = await Promise.all([
+    const [perso, fik, daysOff] = await Promise.all([
       listPersonalEventsRange(from.toISOString(), to.toISOString(), 60),
       listUpcomingEvents(40).catch(() => []),
+      getDaysOff().catch(() => [1, 4]),
     ]);
     const access = perso === null ? await personalCalendarAccess() : { ok: true, calendar: 'kouiderpablo@gmail.com' };
     type Ev = { id?: string; summary: string; location?: string; description?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } };
@@ -99,7 +101,7 @@ router.get('/me', requireMobileAuth, async (req, res) => {
     const pro = (fik as unknown as Ev[]).filter(e => !(e.summary ?? '').startsWith('🚗')).map(e => pick(e, 'fik'))
       .filter(e => e.start && e.start < to.toISOString());
     const events = [...(perso ?? []).map(e => pick(e as Ev, 'perso')), ...pro].sort((a, b) => String(a.start).localeCompare(String(b.start)));
-    res.json({ day, access, events });
+    res.json({ day, access, events, daysOff });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

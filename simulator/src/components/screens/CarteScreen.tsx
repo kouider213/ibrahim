@@ -7,6 +7,7 @@ import { apiFetch, business, type Car, type Booking, type SmartReminder, type To
 import { STATUS, ZONE_INFO, ALL_ZONES, buildCars, demoWorld, norm, ymd, addDays, monthMoney, fmtMoney, moneyTag, type Status, type World, type ZoneId, type DemoKind, type Item, type Money } from '../carte/data.ts';
 import type { SceneApi, Pick, SkyMode, Weather } from '../carte/scene.ts';
 import { Missions, buildQuests, useQuests, type Quest } from '../carte/Missions.tsx';
+import { MePanel, meState, demoMe, type MeData } from '../carte/MePanel.tsx';
 import { sfx, speak, hush, soundOn, setSound, ambientStart, ambientMood, ambientStop } from '../carte/sfx.ts';
 import AddRentals from '../carte/AddRentals.tsx';
 import CarSheet from '../carte/CarSheet.tsx';
@@ -62,7 +63,8 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const [tour, setTour] = useState<{ i: number; steps: Array<{ p: Pick; t: string }> } | null>(null);
   const [questsOpen, setQuestsOpen] = useState(false);
   const [rolling, setRolling] = useState<string[]>([]);   // missions dont la voiture est en train de sortir
-  const [arrive, setArrive] = useState<string[]>([]);     // voitures qui rentrent au parking   // plein écran : liste des missions par-dessus la carte
+  const [arrive, setArrive] = useState<string[]>([]);     // voitures qui rentrent au parking
+  const [meData, setMeData] = useState<MeData | null>(() => demo ? demoMe() : null); // agenda du bonhomme Kouider   // plein écran : liste des missions par-dessus la carte
   const host = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const api = useRef<SceneApi | null>(null);
@@ -118,6 +120,12 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     void get(); const t = setInterval(get, 15 * 60_000); return () => clearInterval(t);
   }, [demo]);
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 30_000); return () => clearInterval(t); }, []);
+  // Agenda de Kouider (perso + FIK) pour son bonhomme — toutes les 5 min
+  const loadMe = useCallback(() => {
+    if (demo || actor !== 'kouider') return;
+    void apiFetch<MeData>('/api/calendar/me').then(setMeData).catch(() => {});
+  }, [demo, actor]);
+  useEffect(() => { loadMe(); const t = setInterval(loadMe, 5 * 60_000); return () => clearInterval(t); }, [loadMe]);
 
   // Nouveautés depuis la dernière visite : comparées à ce que la carte a déjà montré (mémorisé sur l'appareil)
   useEffect(() => {
@@ -188,7 +196,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     say(`✅ ${q.title} · +${q.xp} XP`);
     if (perfect) setTimeout(() => { sfx.fanfare(); api.current?.burst({ kind: 'zone', zone: 'agence' }, '🏆 Journée parfaite !'); api.current?.fireworks(); }, 900);
   });
-  const targets = useMemo(() => day === 0 ? Q.all.filter(q => !Q.done.includes(q.id) && q.pick).map(q => q.pick!.kind === 'car' ? q.pick!.id : `zone:${q.pick!.zone}`) : [], [Q.all, Q.done, day]);
+  const targets = useMemo(() => day === 0 ? Q.all.filter(q => !Q.done.includes(q.id) && q.pick).map(q => { const p = q.pick!; return p.kind === 'car' ? p.id : p.kind === 'zone' ? `zone:${p.zone}` : 'me'; }) : [], [Q.all, Q.done, day]);
   const goQuest = (q: Quest) => {
     sfx.tap(); setQuestsOpen(false);
     if (q.ask) { onAsk(q.ask); return; }
@@ -204,6 +212,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     const steps: Array<{ p: Pick; t: string }> = [
       { p: { kind: 'zone', zone: 'agence' }, t: `${hello}${demo ? '' : ' Kouider'} ! ${wx ? `${wx.temp} degrés à Oran. ` : ''}${w.pending ? `${pl(w.pending, 'demande')} du site t'attendent à l'agence.` : 'Aucune demande en attente à l\'agence.'}` },
     ];
+    if (demo || actor === 'kouider') steps.push({ p: { kind: 'me' }, t: `${demo ? 'Vous' : 'Toi'} : ${me.bubble.replace(/^\S+\s/, '')}.` });
     if (w.cars.length) {
       steps.push({ p: { kind: 'zone', zone: 'parking' }, t: `Au parking : ${pl(n(['dispo', 'depart']), 'voiture prête', 'voitures prêtes')}${n(['depart']) ? `, dont ${pl(n(['depart']), 'départ')} aujourd'hui` : ''}.` });
       steps.push({ p: { kind: 'zone', zone: 'ville' }, t: `En ville : ${pl(n(['loue', 'retour']), 'voiture louée', 'voitures louées')}${n(['retour']) ? `, ${pl(n(['retour']), 'retour')} prévu${n(['retour']) > 1 ? 's' : ''} aujourd'hui` : ''}.` });
@@ -260,6 +269,8 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       return m;
     }) };
   }, [world, day, Q.done, rolling]);
+  const me = useMemo(() => meState(meData, demo ? 'Vous' : 'Kouider', Q.all.filter(q => !Q.done.includes(q.id)).length, clock), [meData, demo, Q.all, Q.done, clock]);
+  useEffect(() => { if (ready) api.current?.setMe(demo || actor === 'kouider' ? me : null); }, [ready, me, demo, actor]);
   useEffect(() => { if (ready) api.current?.update({ ...shown, targets, led, arrive }); }, [ready, shown, targets, led]); // eslint-disable-line react-hooks/exhaustive-deps
   // Ambiance sonore : démarre au premier toucher sur la carte (règle des navigateurs), suit jour/nuit et pluie
   useEffect(() => {
@@ -308,13 +319,16 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const urgent = reminders.filter(r => r.priority === 'HIGH').length;
   const car = pick?.kind === 'car' ? shown.cars.find(m => m.id === pick.id) ?? null : null;
   const zone = pick?.kind === 'zone' ? pick.zone : null;
+  const meOpen = pick?.kind === 'me';
   const wa = (phone: string | null) => { const p = (phone || '').replace(/\D/g, ''); if (p) window.open(`https://wa.me/${p}`, '_blank'); };
 
   // ── Fiche (voiture ou métier) ───────────────────────────────────────────────
   const sheetRaw = sheet?.id ? raws[sheet.kind].find(x => x.id === sheet.id) ?? null : null;
-  const panel = (car || zone) && (
+  const panel = (car || zone || meOpen) && (
     <div style={{ background: '#fff', color: '#0f172a', borderRadius: 14, padding: '11px 12px', boxShadow: '0 8px 30px rgba(0,0,0,0.25)', maxHeight: full ? '62vh' : undefined, overflowY: 'auto' }}>
-      {sheet && !demo && (!sheet.id || sheetRaw) ? (
+      {meOpen ? (
+        <MePanel data={meData} state={me} demo={!!demo} onClose={() => choose(null)} onAsk={onAsk} onChanged={loadMe} />
+      ) : sheet && !demo && (!sheet.id || sheetRaw) ? (
         <ItemSheet kind={sheet.kind} raw={sheetRaw} onClose={() => setSheet(null)} onChanged={() => void load()} onAsk={onAsk} />
       ) : car && !demo ? (
         <CarSheet m={car} car={cars.find(c => c.id === car.id)} money={cash.byCar.get(car.id)} monthLabel={monthName(month)} actor={actor} onClose={() => choose(null)} onChanged={() => void load()}
@@ -361,6 +375,11 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         .dz3-led { width: 104px; overflow: hidden; background: #050505; border: 2px solid #3f3f46; border-radius: 4px; padding: 3px 0; box-shadow: 0 0 12px rgba(251,191,36,.35); cursor: pointer }
         .dz3-led span { display: inline-block; white-space: nowrap; padding-left: 100%; font: 800 9.5px ui-monospace, Menlo, monospace; color: #fbbf24; text-shadow: 0 0 6px #f59e0b; animation: dz3L 14s linear infinite }
         @keyframes dz3L { to { transform: translateX(-100%) } }
+        .dz3-me { display: flex; flex-direction: column; align-items: center; background: #0f766e; color: #fff; font: 700 10.5px ${C.font}; padding: 4px 9px; border-radius: 12px; white-space: nowrap; box-shadow: 0 4px 14px rgba(15,118,110,.45); border: 2px solid #fbbf24; max-width: 220px }
+        .dz3-me b { font-size: 11.5px; color: #fde68a } .dz3-me span { overflow: hidden; text-overflow: ellipsis; max-width: 200px }
+        .dz3-me i { font-style: normal; display: none } .dz3-me-far i { display: inline } .dz3-me-far span { display: none } .dz3-me-far { padding: 3px 8px }
+        .dz3-me-alert { background: #b91c1c; box-shadow: 0 4px 14px rgba(185,28,28,.45) }
+        .dz3-compact .dz3-me span { max-width: 140px }
         .dz3-name { background: rgba(15,23,42,.82); color: #fff; font: 700 9.5px ${C.font}; padding: 2px 6px; border-radius: 6px; white-space: nowrap; transform: translateY(14px) }
         .dz3-gain { background: linear-gradient(90deg,#fbbf24,#f59e0b); color: #1c1917; font: 900 15px ${C.font}; padding: 5px 12px; border-radius: 20px; white-space: nowrap; box-shadow: 0 6px 20px rgba(245,158,11,.55); border: 2px solid #fff }
         @keyframes dz3T { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }

@@ -10,7 +10,10 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { STATUS, ZONE_INFO, type World, type ZoneId, type MapCar } from './data.ts';
 
-export type Pick = { kind: 'car'; id: string } | { kind: 'zone'; zone: ZoneId } | null;
+export type Pick = { kind: 'car'; id: string } | { kind: 'zone'; zone: ZoneId } | { kind: 'me' } | null;
+// Où se trouve le bonhomme de Kouider (zone de la carte, chez lui ou à la plage)
+export type MeSpot = ZoneId | 'home' | 'beach';
+export interface MeState { spot: MeSpot; name: string; bubble: string; alert?: boolean }
 export type SkyMode = 'auto' | 'jour' | 'nuit';
 // Météo réelle (Open-Meteo, codes WMO) : pluie, nuages, vent → la ville réagit
 export interface Weather { code: number; temp: number; wind: number; clouds: number }
@@ -21,7 +24,8 @@ export interface SceneApi {
   burst: (p: Pick, text: string) => void;
   fireworks: () => void;                   // journée parfaite
   driveOut: (carId: string, done: () => void) => void; // la voiture quitte le parking (remise au client)
-  mood: () => { night: number; wet: boolean };         // pour l'ambiance sonore  // pluie de pièces + gain qui monte (mission réussie)
+  mood: () => { night: number; wet: boolean };         // pour l'ambiance sonore
+  setMe: (m: MeState | null) => void;                  // bonhomme de Kouider (agenda)  // pluie de pièces + gain qui monte (mission réussie)
   focus: (p: Pick) => void;
   zoom: (k: number) => void;
   reset: () => void;
@@ -202,6 +206,45 @@ function makeCar(color: string, scale = 1, kind: 'city' | 'suv' | 'van' = 'city'
   box(g, -L / 2, 0.4 + hi, 0.34, 0.03, 0.1, 0.16, TAIL, false); box(g, -L / 2, 0.4 + hi, -0.34, 0.03, 0.1, 0.16, TAIL, false);
   g.userData['wheels'] = wheels;
   g.scale.setScalar(scale);
+  return g;
+}
+
+// ── Avion de ligne (nez vers +z) : fuselage, ailes en flèche, réacteurs, dérive, hublots, feux de navigation ──
+const NAV_R = new THREE.MeshBasicMaterial({ color: '#ff3b30' }), NAV_G = new THREE.MeshBasicMaterial({ color: '#34c759' });
+const STROBE = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true });
+function plate(points: Array<[number, number]>, depth: number) {
+  const sh = new THREE.Shape(); sh.moveTo(points[0]![0], points[0]![1]); points.slice(1).forEach(([x, y]) => sh.lineTo(x, y));
+  return new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false });
+}
+const WING_G = plate([[0, 0], [2.7, -1.15], [2.7, -1.55], [0, -1.45]], 0.07);
+const STAB_G = plate([[0, 0], [1.15, -0.55], [1.15, -0.85], [0, -0.75]], 0.05);
+const FIN_G = plate([[0, 0], [-1.35, 0], [-1.75, 1.45], [-1.2, 1.45]], 0.07);
+export function makePlane(tailColor: string, stripe: string): THREE.Group {
+  const g = new THREE.Group(), white = shiny('#f8fafc', 60), belly = mat('#cbd5e1'), tail = shiny(tailColor, 60), dark = mat('#0f172a');
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 4.2, 20), white); body.rotation.x = Math.PI / 2; g.add(body);
+  const bel = new THREE.Mesh(new THREE.CylinderGeometry(0.425, 0.425, 4.2, 20, 1, true, Math.PI * 0.75, Math.PI * 0.5), belly); bel.rotation.x = Math.PI / 2; g.add(bel);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), white);
+  nose.rotation.x = Math.PI / 2; nose.scale.set(1, 1.7, 1); nose.position.z = 2.1; g.add(nose);
+  const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.1, 1.6, 20), white); cone.rotation.x = Math.PI / 2 + 0.1; cone.position.set(0, 0.1, -2.88); g.add(cone);
+  for (const sx of [1, -1]) {
+    box(g, sx * 0.405, 0.1, 0.1, 0.03, 0.08, 3.5, dark, false);                     // hublots
+    box(g, sx * 0.4, -0.08, 0.1, 0.04, 0.07, 3.9, mat(stripe), false);             // liseré
+    const w = new THREE.Mesh(WING_G, white); w.rotation.x = Math.PI / 2; w.position.set(0, -0.12, 0.75); w.scale.x = sx; w.castShadow = true; g.add(w);
+    const st = new THREE.Mesh(STAB_G, white); st.rotation.x = Math.PI / 2; st.position.set(0, 0.22, -2.75); st.scale.x = sx; st.castShadow = true; g.add(st);
+    const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.85, 16), shiny('#e5e7eb', 90)); eng.rotation.x = Math.PI / 2; eng.position.set(sx * 1.05, -0.42, 0.65); g.add(eng);
+    const intake = new THREE.Mesh(new THREE.CircleGeometry(0.17, 16), dark); intake.position.set(sx * 1.05, -0.42, 1.08); g.add(intake);
+    box(g, sx * 1.05, -0.3, 0.45, 0.06, 0.2, 0.5, white, false);                    // mât réacteur
+    const nav = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), sx > 0 ? NAV_R : NAV_G); nav.position.set(sx * 2.68, -0.08, -0.45); g.add(nav);
+  }
+  box(g, 0, 0.12, 2.42, 0.42, 0.1, 0.25, dark, false).rotation.x = -0.5;             // cockpit
+  const fin = new THREE.Mesh(FIN_G, tail); fin.rotation.y = -Math.PI / 2; fin.position.set(0.035, 0.32, -2.05); fin.castShadow = true; g.add(fin);
+  const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), STROBE); strobe.position.set(0, 0.2, -3.7); g.add(strobe);
+  const gear = new THREE.Group();
+  for (const [gx, gz] of [[0, 1.7], [0.55, 0.1], [-0.55, 0.1]] as const) {
+    box(gear, gx, -0.72, gz, 0.05, 0.32, 0.05, '#71717a', false);
+    const wh = new THREE.Mesh(CYL, mat('#111113')); wh.scale.set(0.12, 0.1, 0.12); wh.rotation.z = Math.PI / 2; wh.position.set(gx, -0.72, gz); gear.add(wh);
+  }
+  g.add(gear); g.userData['gear'] = gear;
   return g;
 }
 
@@ -394,10 +437,19 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   box(ap, AP.x - 4.2, 0, AP.z - 6, 3, 2.4, 6, '#e2e8f0'); box(ap, AP.x - 4.2, 2.4, AP.z - 6, 3.2, 0.2, 6.2, '#0ea5e9');
   cyl(ap, AP.x - 4.2, 2.6, AP.z - 1.8, 0.3, 3, '#f1f5f9'); box(ap, AP.x - 4.2, 5.6, AP.z - 1.8, 1.2, 0.8, 1.2, '#0ea5e9');
   tag(world, ap, 'aeroport');
-  const plane = new THREE.Group();
-  box(plane, 0, 0, 0, 0.7, 0.7, 4, '#f8fafc'); box(plane, 0, 0.25, 0.2, 5, 0.12, 1, '#e2e8f0'); box(plane, 0, 0.5, -1.8, 0.12, 1, 0.7, '#0ea5e9');
+  const plane = makePlane('#0e7490', '#0e7490'); plane.scale.setScalar(0.85);
   plane.userData['zone'] = 'aeroport'; plane.traverse(o => { o.userData['zone'] = 'aeroport'; });
   world.add(plane);
+  // Trajectoire réaliste : roulage, décollage, tour au-dessus de la mer et de la ville, approche, atterrissage
+  const AX = Z.aeroport.x, AZ = Z.aeroport.z;
+  const flight = new THREE.CatmullRomCurve3([
+    [AX, 0.82, AZ + 9], [AX, 0.82, AZ - 1], [AX, 2.2, AZ - 10], [AX - 3, 7, AZ - 24], [AX - 16, 12, AZ - 36], [AX - 40, 14, AZ - 36],
+    [AX - 70, 14, AZ - 20], [AX - 76, 13, AZ + 6], [AX - 58, 11, AZ + 26], [AX - 26, 8, AZ + 32], [AX - 6, 5, AZ + 30], [AX, 2.5, AZ + 20], [AX, 0.82, AZ + 12],
+  ].map(([x, y, z]) => new THREE.Vector3(x, y, z)), true, 'centripetal');
+  const FLIGHT_S = 48;
+  // Balisage de piste (bleu sur les bords, blanc au seuil) — s'allume la nuit
+  const RWY = new THREE.MeshBasicMaterial({ color: '#60a5fa' }), RWY_W = new THREE.MeshBasicMaterial({ color: '#fef9c3' });
+  for (let z = AZ - 10.5; z <= AZ + 10.5; z += 1.5) for (const dx of [-2.1, 2.1]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 4), Math.abs(z - (AZ + 10.5)) < 0.1 ? RWY_W : RWY); l.position.set(AX + dx, 0.06, z); world.add(l); }
   // Arbres
   ([[-28, -4], [-27, 4], [-12, -2.5], [-5.5, -2.5], [4.5, -2.5], [24, -3], [-2, 2.6], [8, 2.6], [24, 18], [-24, 22.5], [-10, 22.8], [9, 22.8], [29.5, 14], [29.5, 6], [-14, 2.6]] as const)
     .forEach(([x, z]) => tree(world, x, z, 1));
@@ -456,9 +508,10 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: '#cbd5e1', transparent: true, opacity: 0.55 }));
   rain.visible = false; rain.frustumCulled = false; scene.add(rain);
   // Avion garé au terminal
-  const parked = new THREE.Group();
-  box(parked, 0, 0, 0, 0.7, 0.7, 4, '#f8fafc'); box(parked, 0, 0.25, 0.2, 5, 0.12, 1, '#e2e8f0'); box(parked, 0, 0.5, -1.8, 0.12, 1, 0.7, '#f59e0b');
-  parked.position.set(Z.aeroport.x - 8.2, 0.3, Z.aeroport.z + 4); parked.rotation.y = 0.3; tag(world, parked, 'aeroport');
+  const parked = makePlane('#b91c1c', '#b91c1c'); parked.scale.setScalar(0.85);
+  parked.position.set(Z.aeroport.x - 8.6, 0.72, Z.aeroport.z + 3.5); parked.rotation.y = Math.PI + 0.35; tag(world, parked, 'aeroport');
+  // Passerelle d'embarquement
+  box(world, Z.aeroport.x - 6.6, 1.1, Z.aeroport.z + 1.3, 2.2, 0.55, 0.55, '#d4d4d8').rotation.y = 0.5;
   // Bus (ambiance : ce n'est pas une voiture du parc)
   const bus = new THREE.Group();
   box(bus, 0, 0.2, 0, 3.4, 1.3, 1.1, '#f59e0b'); box(bus, 0, 0.85, 0, 3.2, 0.4, 1.12, '#bae6fd', false); box(bus, 0, 1.5, 0, 3.4, 0.08, 1.1, '#f8fafc');
@@ -531,10 +584,45 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   boat.traverse(o => { o.userData['zone'] = 'port'; });
   world.add(boat);
   const boatCargo = new THREE.Group(); boat.add(boatCargo);
+  // Ferry Oran ⇄ Alicante/Marseille : arrive, reste à quai, repart (cycle 3 min)
+  const ferry = new THREE.Group();
+  box(ferry, 0, -0.4, 0, 3.4, 1.5, 12, '#f8fafc'); box(ferry, 0, -0.4, 0, 3.45, 0.35, 12.05, '#1d4ed8', false);
+  box(ferry, 0, 1.1, -0.6, 3, 1.1, 8.5, '#f1f5f9'); box(ferry, 0, 2.2, -1.2, 2.6, 0.9, 5.5, '#e2e8f0');
+  for (let i = 0; i < 9; i++) for (const sx of [1, -1]) box(ferry, sx * 1.51, 1.45, -4.4 + i * 0.95, 0.03, 0.32, 0.6, WIN, false);
+  cyl(ferry, 0, 3.1, -2.6, 0.45, 1.3, '#1d4ed8'); cyl(ferry, 0, 4.4, -2.6, 0.47, 0.25, '#0f172a');
+  world.add(ferry);
+  const FERRY_DOCK = new THREE.Vector3(-7, 0, -18.4), FERRY_SEA = new THREE.Vector3(-7, 0, -62);
+
   // Jet ski (packs)
   const jet = new THREE.Group();
   box(jet, 0, 0, 0, 1.4, 0.4, 0.6, '#facc15'); box(jet, -0.2, 0.4, 0, 0.5, 0.3, 0.4, '#0f172a');
   jet.traverse(o => { o.userData['zone'] = 'packs'; }); world.add(jet);
+
+  // ── Le bonhomme de Kouider : il va là où son agenda l'emmène ────────────────
+  const ME_SPOT: Record<MeSpot, [number, number]> = {
+    agence: [2.2, -4.6], parking: [12, -2.6], atelier: [-8.5, -4.2], ville: [0, 11.6], vente: [-15, 4.6], port: [-16, -7.4],
+    immo: [14.5, 4.6], packs: [26, -7.2], aeroport: [Z.aeroport.x - 6.4, Z.aeroport.z - 2.2], b2b: [-3.5, 4.9], web: [3.5, 4.9],
+    home: [-1.6, 23.2], beach: [22, -13.2],
+  };
+  const me = new THREE.Group();
+  const limb = (x: number, y: number, w: number, h: number, c: string) => { const p = new THREE.Group(); p.position.set(x, y, 0); box(p, 0, -h, 0, w, h, w, c); me.add(p); return p; };
+  const legL = limb(0.1, 0.62, 0.15, 0.6, '#1e3a8a'), legR = limb(-0.1, 0.62, 0.15, 0.6, '#1e3a8a');
+  box(me, 0, 0.6, 0, 0.42, 0.62, 0.26, '#0f766e');                                    // polo FIK
+  box(me, 0, 1.17, 0.02, 0.22, 0.05, 0.2, '#fbbf24', false);                          // col doré
+  const armL = limb(0.28, 1.18, 0.12, 0.55, '#0f766e'), armR = limb(-0.28, 1.18, 0.12, 0.55, '#0f766e');
+  const headM = new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 10), mat('#c8946a')); headM.position.y = 1.42; me.add(headM);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2.2), mat('#1c1917')); hair.position.y = 1.45; me.add(hair);
+  box(me, 0, 1.24, 0.1, 0.24, 0.12, 0.1, '#292524', false);                           // barbe
+  const phone = new THREE.Mesh(BOX, mat('#0f172a')); phone.scale.set(0.08, 0.14, 0.02); phone.position.set(0, -0.5, 0.06); armR.add(phone);
+  const meRing = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.56, 28), new THREE.MeshBasicMaterial({ color: '#fbbf24', transparent: true, opacity: 0.9, depthWrite: false }));
+  meRing.rotation.x = -Math.PI / 2; meRing.position.y = 0.04; me.add(meRing);
+  me.scale.setScalar(1.6); me.position.set(...[ME_SPOT.agence[0], 0, ME_SPOT.agence[1]] as [number, number, number]); me.visible = false;
+  me.traverse(o => { o.userData['me'] = true; });
+  scene.add(me);
+  const meEl = document.createElement('div'); meEl.className = 'dz3-me'; meEl.style.pointerEvents = 'auto'; meEl.style.cursor = 'pointer';
+  meEl.addEventListener('click', e => { e.stopPropagation(); onPick({ kind: 'me' }); });
+  const meLabel = new CSS2DObject(meEl); meLabel.position.set(0, 2.15, 0); me.add(meLabel);
+  const meTarget = me.position.clone();
 
   // ── Contenu dynamique ───────────────────────────────────────────────────────
   const dyn = new THREE.Group(); scene.add(dyn);
@@ -632,7 +720,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
       const zz = o.userData['zone'] as ZoneId | undefined ?? (o.children[0]?.userData['zone'] as ZoneId | undefined);
       if (zz) o.visible = on(zz);
     });
-    jet.visible = on('packs'); plane.visible = on('aeroport'); boat.visible = on('port');
+    jet.visible = on('packs'); plane.visible = on('aeroport'); boat.visible = on('port'); ferry.visible = on('port');
 
     // Voitures de location
     const by = (s: string[]) => w.cars.filter(c => s.includes(c.status));
@@ -738,9 +826,11 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const COIN = new THREE.MeshPhongMaterial({ color: '#fbbf24', emissive: '#b45309', emissiveIntensity: 0.35, shininess: 120, specular: '#fff7ed' });
   let coins: Array<{ m: THREE.Mesh; v: THREE.Vector3; t0: number }> = [];
   const where = (p: Pick): THREE.Vector3 => {
+    if (p?.kind === 'me') return me.position.clone();
     if (p?.kind === 'car') return carPos.get(p.id)?.clone() ?? new THREE.Vector3(Z.agence.x, 0, Z.agence.z);
     const z = Z[p?.kind === 'zone' ? p.zone : 'agence']; return new THREE.Vector3(z.x, 0, z.z);
   };
+  const posOf = (id: string) => id === '__me' ? me.position : carPos.get(id);
   const burst = (p: Pick, text: string) => {
     const at = where(p), now = performance.now();
     for (let i = 0; i < 18; i++) {
@@ -827,6 +917,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   };
   const focus = (p: Pick) => {
     if (!p) { flyTo(HOME, 1); return; }
+    if (p.kind === 'me') { flyTo(me.position, 3.4, '__me'); return; }
     if (p.kind === 'car') { const v = carPos.get(p.id); if (v) flyTo(v, 3.2, p.id); return; }
     const z = Z[p.zone]; flyTo(new THREE.Vector3(z.x, 0, z.z), p.zone === 'aeroport' ? 2 : 2.4);
   };
@@ -842,8 +933,9 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     const r = el.getBoundingClientRect();
     ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ptr, cam);
-    const hit = ray.intersectObjects([dyn, world], true).find(h => h.object.visible && (h.object.userData['car'] || h.object.userData['zone']));
+    const hit = ray.intersectObjects([me, dyn, world], true).find(h => h.object.visible && (h.object.userData['me'] || h.object.userData['car'] || h.object.userData['zone']));
     if (!hit) { onPick(null); return; }
+    if (hit.object.userData['me']) { onPick({ kind: 'me' }); return; }
     const car = hit.object.userData['car'] as string | undefined;
     onPick(car ? { kind: 'car', id: car } : { kind: 'zone', zone: hit.object.userData['zone'] as ZoneId });
   };
@@ -939,24 +1031,48 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     (beam.material as THREE.MeshBasicMaterial).color.setHSL(0.15, 1, 0.55 + Math.sin(t * 3) * 0.2);
     boat.position.y = Math.sin(t * 1.3) * 0.12; boat.rotation.z = Math.sin(t * 0.9) * 0.02;
     jet.position.set(Z.packs.x + Math.cos(t * 0.6) * 5, 0.05 + Math.sin(t * 3) * 0.05, -19 + Math.sin(t * 0.6) * 2.5); jet.rotation.y = -t * 0.6;
-    const k = (t % 24) / 24; // l'avion décolle, fait le tour, se repose
-    const air = Math.max(0, Math.sin(k * Math.PI * 2 - Math.PI / 2) + 0.3);
-    plane.position.set(Z.aeroport.x + Math.sin(k * Math.PI * 2) * 3, 0.5 + air * 9, Z.aeroport.z + Math.cos(k * Math.PI * 2) * -9);
-    plane.rotation.y = -k * Math.PI * 2 + Math.PI; plane.rotation.z = air > 0.4 ? 0.15 : 0;
+    {
+      const u = (t % FLIGHT_S) / FLIGHT_S, p0 = flight.getPointAt(u), p1 = flight.getPointAt((u + 0.004) % 1), p2 = flight.getPointAt((u + 0.012) % 1);
+      plane.position.copy(p0); plane.lookAt(p1);
+      const d1 = p1.clone().sub(p0).setY(0).normalize(), d2 = p2.clone().sub(p1).setY(0).normalize();
+      const turn = d1.x * d2.z - d1.z * d2.x;                                           // virage → inclinaison
+      plane.rotateZ(THREE.MathUtils.clamp(-turn * 18, -0.45, 0.45));
+      (plane.userData['gear'] as THREE.Object3D).visible = p0.y < 3.5;
+      STROBE.opacity = (t * 1.3) % 1 < 0.08 ? 1 : 0;
+    }
+    {
+      const c = (t % 180) / 180;                                                        // 0-0.3 arrivée, 0.3-0.7 à quai, 0.7-1 départ
+      const k2 = c < 0.3 ? 1 - Math.pow(1 - c / 0.3, 2) : c < 0.7 ? 1 : 1 - Math.pow((c - 0.7) / 0.3, 2);
+      ferry.position.lerpVectors(FERRY_SEA, FERRY_DOCK, k2); ferry.position.y = Math.sin(t * 0.8) * 0.08;
+      ferry.rotation.y = c < 0.7 ? Math.PI : 0;
+    }
+    if (me.visible) {
+      const d = meTarget.clone().sub(me.position).setY(0), dist = d.length();
+      if (dist > 0.05) {
+        const step = Math.min(dist, dt * 3.6); me.position.addScaledVector(d.normalize(), step);
+        me.rotation.y = Math.atan2(d.x, d.z);
+        const sw = Math.sin(t * 11) * 0.6; legL.rotation.x = sw; legR.rotation.x = -sw; armL.rotation.x = -sw * 0.7; armR.rotation.x = sw * 0.7;
+      } else {
+        legL.rotation.x = legR.rotation.x = 0; armL.rotation.x = Math.sin(t * 1.5) * 0.05; armR.rotation.x = -0.9 + Math.sin(t * 2) * 0.05; // regarde son téléphone
+        me.position.y = 0;
+      }
+      (meRing.material as THREE.MeshBasicMaterial).opacity = 0.6 + Math.sin(t * 3) * 0.3;
+    }
 
     if (fly) {
       const e = Math.min(1, (performance.now() - fly.t0) / 650), q = 1 - Math.pow(1 - e, 3);
-      const target = fly.follow ? (carPos.get(fly.follow) ?? fly.to) : fly.to;
+      const target = fly.follow ? (posOf(fly.follow) ?? fly.to) : fly.to;
       const nt = fly.from.clone().lerp(target, q);
       cam.position.add(nt.clone().sub(controls.target)); controls.target.copy(nt);
       cam.zoom = fly.z0 + (fly.z1 - fly.z0) * q; cam.updateProjectionMatrix();
       if (e >= 1) { follow = fly.follow ?? null; fly = null; }
     } else if (follow) {
-      const v = carPos.get(follow);
+      const v = posOf(follow);
       if (v) { cam.position.add(v.clone().sub(controls.target)); controls.target.copy(v); }
     }
     const near = cam.zoom > 1.9;
     for (const t of prices) t.visible = near;
+    meEl.classList.toggle('dz3-me-far', cam.zoom < 1.6);
     const close = cam.zoom > 2.7;
     for (const n of names) n.visible = close;
     controls.update();
@@ -977,6 +1093,14 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
       trip(g, parkPath(g.position.x, g.position.z), true, done);
     },
     mood: () => ({ night: 1 - dayK, wet: isWet }),
+    setMe: m => {
+      if (!m) { me.visible = false; return; }
+      const first = !me.visible; me.visible = true;
+      const [x, z] = ME_SPOT[m.spot] ?? ME_SPOT.agence;
+      meTarget.set(x, 0, z); if (first) me.position.copy(meTarget);
+      meEl.innerHTML = `<b>${m.name}<i> ${[...m.bubble][0] ?? ''}</i></b><span>${m.bubble}</span>`;
+      meEl.classList.toggle('dz3-me-alert', !!m.alert);
+    },
     setSky: (mode, zone) => { skyMode = mode; if (zone) tz = zone; nextSky = 0; },
     setWeather: w => { wx = w; },
     zoom: k => { cam.zoom = Math.max(controls.minZoom, Math.min(controls.maxZoom, cam.zoom * k)); cam.updateProjectionMatrix(); },
@@ -984,7 +1108,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     dispose: () => {
       ro.disconnect(); renderer.setAnimationLoop(null);
       el.removeEventListener('pointerdown', onDown); el.removeEventListener('pointerup', onUp);
-      clearDyn(); coins.forEach(c => c.m.removeFromParent()); controls.dispose(); composer.dispose(); envRT.dispose(); pmrem.dispose(); renderer.dispose();
+      clearDyn(); meEl.remove(); coins.forEach(c => c.m.removeFromParent()); controls.dispose(); composer.dispose(); envRT.dispose(); pmrem.dispose(); renderer.dispose();
       renderer.domElement.remove(); css.domElement.remove();
     },
   };
