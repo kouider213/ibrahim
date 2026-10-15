@@ -251,14 +251,16 @@ export async function proSenderAddress(): Promise<string> {
 }
 
 export async function sendEmail(
-  account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef; replyTo?: string },
+  account: GmailAccount, mail: { to: string; subject: string; body: string; reply?: ThreadRef; replyTo?: string; fromName?: string },
 ): Promise<{ id: string; threadId: string }> {
   const address = gmailAddress(account);
   if (!(await canSendEmail(account))) throw new GmailSendNotAllowedError(address);
   const token = await getGmailToken(address);
   if (!token) throw new GmailNotConnectedError(address);
   const sender = account === 'pro' ? await proSenderAddress() : address;
-  const from = account === 'pro' ? `${SENDER_NAME} <${sender}>` : address;
+  // fromName : nom affiché (ex. démarchage sites web) — ASCII simple, sinon nom par défaut
+  const name = mail.fromName && /^[A-Za-z0-9 .\-]{2,40}$/.test(mail.fromName) ? mail.fromName : SENDER_NAME;
+  const from = account === 'pro' ? `${name} <${sender}>` : address;
   const raw = [
     `From: ${from}`,
     // Envoi depuis contact@ (Zoho, sans transfert) : les réponses reviennent dans la boîte Gmail que Dzaryx surveille

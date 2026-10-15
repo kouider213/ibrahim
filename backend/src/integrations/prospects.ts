@@ -4,7 +4,7 @@ import { runSql } from './app-store.js';
 // Prospection B2B de FIK Conciergerie (Oran) : propriétaires d'appartements, loueurs de voitures,
 // agences de voyage, entreprises (TotalEnergies…). Distinct de client_leads (clients qui CHERCHENT un bien).
 
-export const PROSPECT_SEGMENTS = ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'organisme', 'autre'] as const;
+export const PROSPECT_SEGMENTS = ['proprietaire_appart', 'loueur_voitures', 'agence_voyage', 'entreprise', 'grand_compte', 'organisme', 'autre', 'site_web'] as const;  // site_web = commerce sans site (démarchage FIK Sites)
 export const PROSPECT_STATUSES = ['a_contacter', 'contacte', 'a_repondu', 'interesse', 'client', 'refus', 'stop'] as const;
 export type ProspectSegment = typeof PROSPECT_SEGMENTS[number];
 export type ProspectStatus  = typeof PROSPECT_STATUSES[number];

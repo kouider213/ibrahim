@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-15 (4) — Démarchage « sites web » (FIK Sites) en Belgique, France, Algérie
+- `backend/src/integrations/site-prospecting.ts` (nouveau) : Google Places → commerces SANS vrai site (Facebook/Insta seuls = cible),
+  e-mail public trouvé sur le web et vérifié (jamais deviné). Rotation villes BE/FR/DZ × 20 métiers. 1er mail = proposition de démo
+  gratuite uniquement ; démo faite (`buildDemo`) et envoyée SEULEMENT après un « oui », avec la liste de ce qui a été inventé
+  (remplacé par ses vraies infos dans la version finale) + créneaux de RDV. Relances courtes, réponses → proposées à Kouider.
+- `prospect-autopilot.ts` : mode `sites` (défaut) / `conciergerie` / `both` ; outil `prospect_autopilot` : set_mode, set_cities, retry_demo.
+
 ## 2026-10-15 (3) — Dzaryx envoie vraiment sur WhatsApp
 - `backend/src/integrations/claude-api.ts` : `whatsapp_web`, `business_mentor`, `kouider_dossier` ajoutés aux CORE_TOOLS (ils étaient cachés derrière la recherche d'outils → Dzaryx répondait « pas d'outil WhatsApp »).
 - `backend/src/integrations/tool-executor.ts` + `tools.ts` : `send_whatsapp_to_client` (Twilio coupé) → passe par `whatsapp_web` send (relecture puis confirmed).

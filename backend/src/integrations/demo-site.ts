@@ -365,11 +365,15 @@ export async function deployNetlify(slug: string, files: Record<string, Buffer>,
 export const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
 const running = new Set<string>();
 
-export async function buildDemo(link: string, notes: string): Promise<DemoRecord> {
+/** placeId connu (démarchage « sites web ») → pas besoin de retrouver la fiche depuis un lien. */
+export async function buildDemo(link: string, notes: string, knownPlaceId?: string): Promise<DemoRecord> {
   if (!mapsKey()) throw new Error('clé Google Maps absente du serveur (GOOGLE_MAPS_API_KEY)');
-  const { query, lat, lng } = await resolveLink(link);
-  const placeId = await findPlace(query, lat, lng);
-  if (!placeId) throw new Error(`commerce introuvable sur Google pour « ${query} »`);
+  let placeId = knownPlaceId ?? null;
+  if (!placeId) {
+    const { query, lat, lng } = await resolveLink(link);
+    placeId = await findPlace(query, lat, lng);
+    if (!placeId) throw new Error(`commerce introuvable sur Google pour « ${query} »`);
+  }
   const place = await placeDetails(placeId);
   const [content, photoBufs] = await Promise.all([writeContent(place, notes), downloadPhotos(place.photoRefs)]);
   const photoNames = photoBufs.map((_, i) => `img/photo-${i + 1}.jpg`);

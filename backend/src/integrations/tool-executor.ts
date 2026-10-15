@@ -36,6 +36,7 @@ import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSe
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { runDailyOutreach } from './prospect-autopilot.js';
+import { getProspectMode, setProspectMode, getSiteCities, setSiteCities, retrySiteDemo } from './site-prospecting.js';
 import { recordExpense, getExpenses, deleteExpense, findCar } from './expenses.js';
 import { clientRisk, recordCarKm } from '../notifications/client-care.js';
 import { executeMediaTool } from './media-executor.js';
@@ -2219,7 +2220,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
 // ── Prospection B2B ──
 const SEGMENT_LABEL: Record<ProspectSegment, string> = {
   proprietaire_appart: '🏠 Proprio appart', loueur_voitures: '🚗 Loueur voitures',
-  agence_voyage: '✈️ Agence de voyage', entreprise: '🏢 Entreprise', grand_compte: '🏭 Grand compte', organisme: '🎓 Organisme', autre: '• Autre',
+  agence_voyage: '✈️ Agence de voyage', entreprise: '🏢 Entreprise', grand_compte: '🏭 Grand compte', organisme: '🎓 Organisme', autre: '• Autre', site_web: '🌐 Commerce sans site',
 };
 
 async function addProspectTool(input: Record<string, unknown>): Promise<string> {
@@ -2271,6 +2272,21 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
     if (!(n >= 1 && n <= 15)) return '❌ Nombre de mails par jour entre 1 et 15.';
     await setAutopilot({ per_day: n });
   }
+  if (action === 'set_mode') {
+    const m = String(input['mode'] ?? '');
+    if (m !== 'sites' && m !== 'conciergerie' && m !== 'both') return '❌ Mode : sites (commerces sans site web), conciergerie, ou both (moitié-moitié).';
+    await setProspectMode(m);
+  }
+  if (action === 'set_cities') {
+    const cities = (Array.isArray(input['cities']) ? input['cities'] : String(input['cities'] ?? '').split(/[;\n]/)).map(c => String(c).trim()).filter(Boolean);
+    if (!cities.length) return '❌ Donne au moins une ville (ex. « Jette, Bruxelles »).';
+    await setSiteCities(cities);
+  }
+  if (action === 'retry_demo') {
+    const found = await findProspect(String(input['company'] ?? ''));
+    if (found.length !== 1) return found.length ? `❓ Plusieurs prospects : ${found.map(p => p.company).join(', ')}. Précise.` : '❌ Prospect introuvable.';
+    return await retrySiteDemo(found[0]!);
+  }
   if (action === 'run_now') {
     // Plusieurs minutes (recherche + 20 s entre chaque mail) → en arrière-plan, le récap arrive dans l'app
     void runDailyOutreach({ force: true }).then(r => console.log(`[prospect-auto] ${r}`))
@@ -2279,8 +2295,12 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
   }
   const s = await getAutopilot();
   const { count } = await supabase.from('prospects').select('id', { count: 'exact', head: true }).not('gmail_thread_id', 'is', null);
+  const mode = await getProspectMode();
+  const modeTxt = mode === 'sites' ? '🌐 commerces SANS SITE WEB (proposition de démo FIK Sites)' : mode === 'both' ? 'moitié commerces sans site web, moitié conciergerie' : 'FIK Conciergerie (entreprises, partenaires)';
   return `${s.enabled ? '✅ Démarchage auto ACTIF' : '⏸️ Démarchage auto EN PAUSE'} — ${s.per_day} mail(s)/jour à 10h (heure d\'Oran), ` +
-    `nouvelles sociétés uniquement. ${count ?? 0} société(s) démarchée(s) au total.`;
+    `nouvelles sociétés uniquement. Cible : ${modeTxt}.` +
+    (mode !== 'conciergerie' ? ` Villes : ${(await getSiteCities()).join(' · ')}. La démo n'est faite et envoyée QUE si le commerce répond oui au 1er mail.` : '') +
+    ` ${count ?? 0} société(s) démarchée(s) au total.`;
 }
 
 async function updateProspectTool(input: Record<string, unknown>): Promise<string> {

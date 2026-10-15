@@ -12,6 +12,7 @@ import { autoCall } from '../notifications/auto-call.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 import { createAnthropic } from './anthropic-compat.js';
+import { getProspectMode, discoverSiteProspects, sendSiteOutreach, writeSiteFollowUp, handleSiteReply } from './site-prospecting.js';
 
 // Démarchage automatique FIK Conciergerie : chaque jour Dzaryx trouve de nouvelles sociétés (web, LinkedIn,
 // annuaires), leur écrit un mail personnalisé avec le lien du site, puis surveille les réponses.
@@ -363,16 +364,20 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
   const { count: doneToday } = await supabase.from('prospects').select('id', { count: 'exact', head: true })
     .not('gmail_thread_id', 'is', null).gte('last_contacted_at', oranDayStart());
   const sentInBox = await countSentToday('pro').catch(() => 0);
-  const toSend = Math.min(perDay - (doneToday ?? 0), DAILY_CAP - sentInBox);
+  const toSendAll = Math.min(perDay - (doneToday ?? 0), DAILY_CAP - sentInBox);
+  // Mode (réglable) : « sites » = commerces sans site web (FIK Sites), « conciergerie » = FIK Conciergerie, « both » = moitié-moitié
+  const mode = await getProspectMode();
+  const sitesN = toSendAll <= 0 ? 0 : mode === 'sites' ? toSendAll : mode === 'both' ? Math.ceil(toSendAll / 2) : 0;
+  const toSend = Math.max(0, toSendAll - sitesN);
 
   // Un grand compte par jour (avant les petites sociétés → son mail part dans le lot du jour)
-  const keyLine = await discoverKeyAccount().catch(err => { console.error('[prospect-auto] grand compte:', err); return null; });
+  const keyLine = toSend > 0 ? await discoverKeyAccount().catch(err => { console.error('[prospect-auto] grand compte:', err); return null; }) : null;
 
   // Jamais contactés, avec email (grands comptes d'abord) ; s'il en manque on en cherche de nouveaux
   const pick = async () => {
     const { data } = await supabase.from('prospects').select('*').eq('status', 'a_contacter')
       .not('email', 'is', null).is('last_contacted_at', null).order('created_at').limit(200);
-    const rows = (data ?? []) as Prospect[];
+    const rows = ((data ?? []) as Prospect[]).filter(r => r.segment !== 'site_web');
     // ~1/3 partenaires (au moins 1), le reste clients (grands comptes d'abord) ; on complète si un type manque
     const partnerSlots = Math.max(1, Math.round(toSend / 3));
     const clientsRows  = [...rows.filter(r => r.segment === 'grand_compte'), ...rows.filter(r => r.segment !== 'grand_compte' && !isPartner(r.segment))];
@@ -390,9 +395,31 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
     }
   }
 
-  const site = await getSiteInfo();
+  const site = batch.length ? await getSiteInfo() : '';
   const sent: string[] = [];
   const failed: string[] = [];
+
+  // Commerces sans site web : le 1er mail propose seulement une démo (faite et envoyée s'ils répondent oui)
+  if (sitesN > 0) {
+    const pickSites = async () => ((await supabase.from('prospects').select('*').eq('status', 'a_contacter').eq('segment', 'site_web')
+      .not('email', 'is', null).is('last_contacted_at', null).order('created_at').limit(sitesN)).data ?? []) as Prospect[];
+    let sites = await pickSites();
+    if (sites.length < sitesN) {
+      await discoverSiteProspects(sitesN - sites.length).catch(err => console.error('[prospect-auto] recherche sites:', err));
+      sites = await pickSites();
+    }
+    for (const p of sites) {
+      try {
+        const subject = await sendSiteOutreach(p);
+        if (subject) sent.push(`• 🌐 ${p.company} (${p.city}, sans site web) — ${p.email}`);
+        else failed.push(`${p.company} (texte non généré)`);
+      } catch (err) {
+        console.error(`[prospect-auto] envoi site ${p.email}:`, err instanceof Error ? err.message : err);
+        failed.push(`${p.company} (${err instanceof Error ? err.message.slice(0, 60) : 'erreur'})`);
+      }
+      await new Promise(r => setTimeout(r, SEND_GAP_MS));
+    }
+  }
   for (const [i, p] of batch.entries()) {
     try {
       const ref = p.ref_code ?? newRefCode();
@@ -430,7 +457,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
     ? `📦 Réserve : plus que ${stock} société(s) à contacter. J'en cherche de nouvelles chaque jour.` : '';
 
   if (!sent.length && !followed.length) {
-    const why = toSend <= 0 ? `${doneToday ?? 0} mail(s) de démarchage déjà envoyés aujourd'hui` : 'aucune nouvelle société avec un email public trouvée';
+    const why = toSendAll <= 0 ? `${doneToday ?? 0} mail(s) de démarchage déjà envoyés aujourd'hui` : 'aucune nouvelle société avec un email public trouvée';
     const extra = [keyLine, stockLine, waReady ? `💬 ${waReady} message(s) WhatsApp prêt(s) pour des partenaires (page Démarchage)` : ''].filter(Boolean).join('\n');
     if (extra || failed.length) emitProactive(`Démarchage du jour : aucun mail envoyé (${why}).`, 'info',
       [`Démarchage du jour : aucun mail envoyé (${why}).`, failed.length ? `⚠️ Non envoyés : ${failed.join(', ')}` : '', extra].filter(Boolean).join('\n'), 'kouider', 'demarchage');
@@ -438,7 +465,8 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
   }
 
   const recap = [
-    `📤 Démarchage du jour : ${sent.length} mail(s) envoyé(s) depuis ${await proSenderAddress()}, chacun avec son lien de suivi.`,
+    `📤 Démarchage du jour : ${sent.length} mail(s) envoyé(s) depuis ${await proSenderAddress()}` +
+      `${sitesN > 0 ? ' (🌐 = commerce sans site : je propose une démo, faite et envoyée seulement s\'il répond oui)' : ', chacun avec son lien de suivi'}.`,
     ...sent,
     failed.length ? `⚠️ Non envoyés : ${failed.join(', ')}` : '',
     followed.length ? `🔁 ${followed.length} relance(s) (pas de réponse depuis ${FOLLOWUP_DAYS} jours) :\n${followed.join('\n')}` : '',
@@ -512,12 +540,14 @@ export async function runFollowUps(budget: number): Promise<string[]> {
   for (const p of (data ?? []) as Prospect[]) {
     try {
       const ref = p.ref_code ?? newRefCode();
-      const body = await writeFollowUp(p, trackedLink(p, ref));
+      const isSite = p.segment === 'site_web';
+      const body = isSite ? await writeSiteFollowUp(p) : await writeFollowUp(p, trackedLink(p, ref));
       if (!body) continue;
       const inReplyTo = await getThreadLastMessageId('pro', p.gmail_thread_id!);
       const base = p.last_subject || 'FIK Conciergerie';
       const subject = /^re\s*:/i.test(base) ? base : `Re: ${base}`;
-      await sendEmail('pro', { to: p.email!, subject, body, reply: inReplyTo ? { threadId: p.gmail_thread_id!, inReplyTo } : undefined });
+      await sendEmail('pro', { to: p.email!, subject, body, reply: inReplyTo ? { threadId: p.gmail_thread_id!, inReplyTo } : undefined,
+        ...(isSite ? { fromName: 'Kouider - FIK Sites' } : {}) });
       await updateProspect(p.id, {
         followup_at: new Date().toISOString(), ref_code: ref,
         notes: [p.notes, `[${new Date().toISOString().slice(0, 10)}] Relance envoyée en ${langName(p.lang)}`].filter(Boolean).join('\n'),
@@ -626,6 +656,12 @@ export async function checkProspectReplies(): Promise<number> {
     if (STOP_RE.test(mail.body.slice(0, 300))) {
       await updateProspect(p.id, { ...base, status: 'stop', suggested_reply: null });
       emitProactive(`${p.company} a demandé à ne plus recevoir de mails — noté, je ne leur écrirai plus.`, 'info', undefined, 'kouider');
+      continue;
+    }
+
+    // Commerce sans site web : oui → démo faite et envoyée tout de suite ; sinon réponse proposée à Kouider
+    if (p.segment === 'site_web') {
+      await handleSiteReply(p, mail, base).catch(err => console.error(`[prospect-auto] réponse site ${p.email}:`, err instanceof Error ? err.message : err));
       continue;
     }
 
