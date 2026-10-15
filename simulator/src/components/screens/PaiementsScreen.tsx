@@ -56,7 +56,7 @@ export default function PaiementsScreen() {
   const unknown = paid.filter(r => r.state === 'unknown');
 
   return (
-    <div style={{ minHeight: '100%', background: '#0a0a0c', color: C.text, fontFamily: C.font, paddingBottom: 90 }}>
+    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#0a0a0c', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
       <Hero eyebrow="Dzaryx · Abonnements" title="À payer" subtitle="Tout ce qu'il faut payer pour garder Dzaryx actif" accent={C.gold} />
       <div style={{ padding: '0 14px' }}>
         {loading && !data ? <SkeletonCards /> : (<>
@@ -132,7 +132,7 @@ function Card({ r, open, onToggle, act }: { r: BillingRow; open: boolean; onTogg
             {r.payUrl && <button onClick={() => window.open(r.payUrl, '_blank')} style={btn('rgba(251,191,36,0.18)', C.gold)}>💳 Payer</button>}
             {r.kind !== 'gratuit' && r.kind !== 'credits' && r.id !== 'railway' && r.id !== 'domain' && <button onClick={() => { if (window.confirm(`${r.name} payé ? (l'échéance passe au ${r.period === 'an' ? 'an' : 'mois'} suivant)`)) void act(() => business.billingUpdate(r.id, { paid: true })); }} style={btn('rgba(16,185,129,0.18)', C.accent)}>✓ Payé</button>}
             {r.kind === 'credits' && <button onClick={setBalance} style={btn('rgba(16,185,129,0.18)', C.accent)}>💰 J'ai rechargé</button>}
-            {r.kind !== 'gratuit' && r.id !== 'railway' && r.id !== 'domain' && <button onClick={setDate} style={btn('rgba(255,255,255,0.06)', C.text)}>📅 Date</button>}
+            {r.kind !== 'gratuit' && !((r.id === 'railway' || r.id === 'domain') && r.live) && <button onClick={setDate} style={btn('rgba(255,255,255,0.06)', C.text)}>📅 Date</button>}
             {r.kind !== 'gratuit' && <button onClick={setAmount} style={btn('rgba(255,255,255,0.06)', C.text)}>Montant</button>}
           </div>
         </div>

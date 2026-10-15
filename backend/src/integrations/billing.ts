@@ -88,18 +88,31 @@ const fmtDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-
 
 // ── Infos réelles ──
 interface RailwayInfo { due: string; total: number; usage: number; status: string }
-async function railwayInfo(): Promise<RailwayInfo | null> {
+const RAILWAY_LAST = 'billing:railway_last';
+/** Facture Railway en direct ; si le jeton du serveur ne peut pas la lire, dernière lecture réussie (gardée en base). */
+async function railwayInfo(): Promise<(RailwayInfo & { cached?: boolean }) | null> {
   const token = process.env['RAILWAY_TOKEN'];
-  if (!token) return null;
+  const query = '{ projects { edges { node { workspace { customer { currentUsage billingPeriod { end } subscriptions { status nextInvoiceDate nextInvoiceCurrentTotal } } } } } } }';
+  // Jeton de compte/équipe (Bearer) ou jeton de projet (Project-Access-Token)
+  for (const headers of token ? [{ Authorization: `Bearer ${token}` }, { 'Project-Access-Token': token }] : []) {
+    try {
+      const { data } = await axios.post('https://backboard.railway.com/graphql/v2', { query }, { headers, timeout: 15_000 });
+      const c = data?.data?.projects?.edges?.[0]?.node?.workspace?.customer;
+      const sub = c?.subscriptions?.[0];
+      const end = sub?.nextInvoiceDate ?? c?.billingPeriod?.end;
+      if (!end) continue;
+      const info = { due: String(end).slice(0, 10), total: Number(sub?.nextInvoiceCurrentTotal ?? 0) / 100, usage: Number(c?.currentUsage ?? 0), status: String(sub?.status ?? 'active') };
+      await kvSet(RAILWAY_LAST, JSON.stringify(info)).catch(() => {});
+      return info;
+    } catch { /* essai suivant */ }
+  }
   try {
-    const { data } = await axios.post('https://backboard.railway.com/graphql/v2', {
-      query: '{ projects { edges { node { workspace { customer { currentUsage billingPeriod { end } subscriptions { status nextInvoiceDate nextInvoiceCurrentTotal } } } } } } }',
-    }, { headers: { Authorization: `Bearer ${token}` }, timeout: 15_000 });
-    const c = data?.data?.projects?.edges?.[0]?.node?.workspace?.customer;
-    const sub = c?.subscriptions?.[0];
-    const end = sub?.nextInvoiceDate ?? c?.billingPeriod?.end;
-    if (!end) return null;
-    return { due: String(end).slice(0, 10), total: Number(sub?.nextInvoiceCurrentTotal ?? 0) / 100, usage: Number(c?.currentUsage ?? 0), status: String(sub?.status ?? 'active') };
+    const last = JSON.parse((await kvGet(RAILWAY_LAST)) ?? 'null') as RailwayInfo | null;
+    if (!last) return null;
+    // Date passée → la facture a été prélevée : on avance d'un mois
+    const d = new Date(`${last.due}T12:00:00Z`);
+    while (daysUntil(d.toISOString().slice(0, 10)) < 0) d.setUTCMonth(d.getUTCMonth() + 1);
+    return { ...last, due: d.toISOString().slice(0, 10), cached: true };
   } catch { return null; }
 }
 
@@ -136,7 +149,8 @@ export async function getBilling(): Promise<{ rows: BillingRow[]; claudeSpent7d:
     let due = o.due ?? null, amount = o.amount ?? null, live = false;
     let status = '', state: BillingRow['state'] = 'unknown';
     if (s.id === 'railway' && rw) {
-      due = rw.due; amount = `${rw.total.toFixed(2)} $ (facture en cours)`; live = true;
+      due = ov['railway']?.due && rw.cached ? ov['railway'].due : rw.due; live = !rw.cached;
+      amount = rw.cached ? `≈ ${rw.total.toFixed(2)} $ (dernière lecture)` : `${rw.total.toFixed(2)} $ (facture en cours)`;
       status = rw.status === 'active' ? 'Abonnement actif' : `Abonnement : ${rw.status}`;
     }
     if (s.id === 'domain' && dom) { due = dom; live = true; status = `Chez Name.com — expire le ${fmtDay(dom)}`; }
