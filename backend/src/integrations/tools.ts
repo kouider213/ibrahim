@@ -1032,11 +1032,11 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'billing',
-    description: 'À PAYER pour garder Dzaryx actif : Railway (vital), Claude, VPS/PC cloud, domaine, ElevenLabs, Google Maps… et les services gratuits. list = état de chaque service (échéance, montant, crédit, ce qui casse si pas payé, survie sans crédit). paid = Kouider a payé (« j\'ai payé Railway ») → échéance suivante. set = noter une date d\'échéance (due AAAA-MM-JJ), un montant réel, ou le solde après une recharge (balance en $, ex. « j\'ai rechargé Claude de 50 $ »).',
+    description: 'À PAYER pour garder Dzaryx actif : Railway (vital), Claude, VPS/PC cloud, domaine, ElevenLabs, Google Maps… et les services gratuits. list = état de chaque service (échéance, montant, crédit, ce qui casse si pas payé, survie sans crédit). paid = Kouider a payé (« j\'ai payé Railway ») → échéance suivante. set = noter une date d\'échéance (due AAAA-MM-JJ), un montant réel, ou le solde après une recharge (balance en $, ex. « j\'ai rechargé Claude de 50 $ »). eco_on / eco_off = mode économie Claude (tâches de fond sur Haiku, ~20× moins cher ; chat et mails importants gardent Sonnet).',
     input_schema: {
       type: 'object' as const,
       properties: {
-        action:  { type: 'string', enum: ['list', 'paid', 'set'] },
+        action:  { type: 'string', enum: ['list', 'paid', 'set', 'eco_on', 'eco_off'] },
         service: { type: 'string', description: 'railway, anthropic, vps, domain, elevenlabs, google_maps, supabase, upstash, openai, fal…' },
         due:     { type: 'string', description: 'Prochaine échéance AAAA-MM-JJ' },
         amount:  { type: 'string', description: 'Montant réel, ex. « 6 € »' },
@@ -2680,11 +2680,11 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'manage_client_site',
-    description: 'Gérer les VRAIS sites des clients (FIK Sites), à la voix ou par écrit. action=list → tous les sites ; info → lien, espace client, domaine, abonnement, ce qui est encore inventé ; edit → modifier le site en langage naturel (changes : « change les horaires du samedi », « ajoute la pizza 4 fromages à 900 DA », « voici le vrai menu… ») puis remise en ligne ; pause / resume → site remplacé par « momentanément indisponible » / remis en ligne ; account → crée l\'espace client ou donne un NOUVEAU mot de passe (client_email), envoyé sur Telegram ; domain → brancher un nom de domaine (domain, ex. restaurant-pralin.com) et donner les réglages DNS ; domain_check → vérifier si le domaine marche ; domain_remove ; billing → régler l\'abonnement (monthly, currency, paid_until, auto_pause, grace_days) ; paid → noter un paiement reçu en main propre/BaridiMob/virement (amount, months) ; report → « qui n\'a pas payé ? », revenus mensuels, retards (sans site) ; messages → réservations/rendez-vous/messages reçus par le formulaire du site ; notify → où envoyer ces messages (notify_email) et copie pour Kouider sur Telegram (copy_kouider).',
+    description: 'Gérer les VRAIS sites des clients (FIK Sites), à la voix ou par écrit. action=list → tous les sites ; info → lien, espace client, domaine, abonnement, ce qui est encore inventé ; edit → modifier le site en langage naturel (changes : « change les horaires du samedi », « ajoute la pizza 4 fromages à 900 DA », « voici le vrai menu… ») puis remise en ligne ; pause / resume → site remplacé par « momentanément indisponible » / remis en ligne ; account → crée l\'espace client ou donne un NOUVEAU mot de passe (client_email), envoyé sur Telegram ; domain → brancher un nom de domaine (domain, ex. restaurant-pralin.com) et donner les réglages DNS ; domain_check → vérifier si le domaine marche ; domain_remove ; billing → régler l\'abonnement (monthly, currency, paid_until, auto_pause, grace_days) ; paid → noter un paiement reçu en main propre/BaridiMob/virement (amount, months) ; report → « qui n\'a pas payé ? », revenus mensuels, retards (sans site) ; messages → réservations/rendez-vous/messages reçus par le formulaire du site ; notify → où envoyer ces messages (notify_email) et copie pour Kouider sur Telegram (copy_kouider) ; stats → visites, clics Appeler/Itinéraire/WhatsApp, demandes reçues ce mois-ci et le mois dernier + idée de vente ; send_report → envoyer maintenant au patron son bilan par mail (mois dernier, ou month="current"). Le bilan part aussi tout seul le 1er de chaque mois.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        action:       { type: 'string', enum: ['list', 'info', 'edit', 'pause', 'resume', 'account', 'domain', 'domain_check', 'domain_remove', 'billing', 'paid', 'report', 'messages', 'notify'] },
+        action:       { type: 'string', enum: ['list', 'info', 'edit', 'pause', 'resume', 'account', 'domain', 'domain_check', 'domain_remove', 'billing', 'paid', 'report', 'messages', 'notify', 'stats', 'send_report'] },
         site:         { type: 'string', description: 'Nom du commerce (sauf pour list et report)' },
         changes:      { type: 'string', description: 'Pour edit : ce qu\'il faut changer, ou les vraies infos' },
         client_email: { type: 'string', description: 'Pour account : e-mail du patron' },

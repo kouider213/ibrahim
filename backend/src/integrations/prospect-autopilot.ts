@@ -11,7 +11,7 @@ import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
-import { createAnthropic } from './anthropic-compat.js';
+import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { proposeProspectWhatsapp } from './prospect-whatsapp.js';
 import { getProspectMode, discoverSiteProspects, sendSiteOutreach, writeSiteFollowUp, handleSiteReply } from './site-prospecting.js';
 
@@ -32,7 +32,7 @@ const BOUNCE_RE      = /mailer-daemon|postmaster/i;
 const anthropic = createAnthropic();
 
 async function ask(system: string, user: string, maxTokens = 1500): Promise<string> {
-  const r = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] });
+  const r = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }, QUALITY);
   trackTokenUsage(MODEL, r.usage.input_tokens, r.usage.output_tokens).catch(() => {});
   return r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
 }

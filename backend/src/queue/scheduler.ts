@@ -272,6 +272,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'client-sites-monthly',
+    cron:  '0 10 1 * *',            // le 1er à 10h — bilan du mois précédent envoyé à chaque patron FIK Sites + résumé et idées de vente
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'billing-watch',
     cron:  '0 10 * * *',            // 10h — « À PAYER » : échéances J-7/J-3/J-1/J0, retards, crédit Claude bas ou coupé
     tz:    'Europe/Brussels',
@@ -419,6 +424,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
   'billing-watch':           jobBillingWatch,
+  'client-sites-monthly':    async () => { console.log(`[client-sites-monthly] ${await (await import('../integrations/client-site-stats.js')).jobClientSitesMonthly()}`); },
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
   'business-mentor':         jobBusinessMentor,
   'mentor-news':             jobMentorNewsWatch,

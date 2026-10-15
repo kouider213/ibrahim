@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-15 (8) — Bilan mensuel FIK Sites, mode économie Claude, rendez-vous en 1 clic
+- `client-site-stats.ts` : compteur sans cookie dans les vrais sites (visite/session, clics Appeler, Itinéraire, WhatsApp →
+  `POST /api/client-sites/public/:id/hit`, compteurs Redis `fiksite:stats:*`). Job `client-sites-monthly` le 1er à 10h : bilan
+  du mois au patron par mail + résumé à Kouider avec une idée de vente par site. Outil manage_client_site : `stats`, `send_report`.
+  SITE_VERSION 2 : les anciens sites sont republiés par le job du matin (compteur).
+- `anthropic-compat.ts` : mode économie (app_kv `billing:eco`, ON par défaut) : appels NON streamés Sonnet → Haiku, sauf
+  `QUALITY` (mails prospects, conseiller business, inspections), réflexion ou outils serveur. Interrupteur page À PAYER / outil billing.
+- `rdv-booking.ts` + `/rdv/:token` : lien signé dans le mail de démo (et les réponses proposées) → vrais créneaux libres →
+  RDV dans l'agenda perso, mail de confirmation, alerte app + Telegram + appel. App SW v144.
+
 ## 2026-10-15 (7) — « À PAYER » : étiquettes OBLIGATOIRE (Railway seul) / FACULTATIF / GRATUIT · INDISPENSABLE + encadré « minimum obligatoire » (SW v142)
 
 ## 2026-10-15 (6) — « À PAYER » + Dzaryx ne meurt jamais tant que Railway est payé

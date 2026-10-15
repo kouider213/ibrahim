@@ -151,16 +151,46 @@ async function freeBrain(body: Body): Promise<Response | null> {
   return null;
 }
 
+// ── Mode économie (15/10/2026, Kouider : « le moins de frais possible ») ──
+// Les appels NON streamés (tâches de fond) passent de Sonnet à Haiku (~20× moins cher), sauf ceux marqués QUALITY
+// (mails aux prospects, conseiller business, inspections photo). Le chat (streamé) garde Sonnet.
+// Interrupteur : app_kv « billing:eco » ('0' = coupé), page À PAYER. Activé par défaut.
+export const QUALITY = { headers: { 'x-dz-quality': 'high' } } as const;
+let ecoCache: { on: boolean; at: number } = { on: true, at: 0 };
+export let ecoDowngrades = 0;
+async function ecoOn(): Promise<boolean> {
+  if (Date.now() - ecoCache.at > 60_000) {
+    try {
+      const { kvGet } = await import('./app-store.js');
+      ecoCache = { on: (await kvGet('billing:eco')) !== '0', at: Date.now() };
+    } catch { ecoCache.at = Date.now(); }
+  }
+  return ecoCache.on;
+}
+export function setEcoCache(on: boolean): void { ecoCache = { on, at: Date.now() }; }
+/** Haiku accepte ce corps ? (pas de réflexion forcée, seulement des outils « maison ») */
+function ecoSafe(body: Body): boolean {
+  if (body.thinking && body.thinking.type !== 'disabled') return false;
+  return ((body.tools ?? []) as Body[]).every(t => !t.type || t.type === 'custom');
+}
+
 export const compatFetch: typeof fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   let parsed: Body | null = null;
   if (init?.body && typeof init.body === 'string' && /\/v1\/messages(\/count_tokens)?(\?|$)/.test(url)) {
     try {
       const body = JSON.parse(init.body) as Body;
+      const headers = new Headers(init.headers);
+      const quality = headers.get('x-dz-quality') === 'high';
+      headers.delete('x-dz-quality');
+      if (!url.includes('count_tokens') && !body.stream && !quality && typeof body.model === 'string'
+          && (MODEL_MAP[body.model] ?? body.model) === CLAUDE_MAIN && ecoSafe(body) && await ecoOn()) {
+        body.model = CLAUDE_FAST;
+        ecoDowngrades++;
+      }
       const betas = adaptMessagesBody(body);
       if (url.includes('count_tokens')) { delete body.fallbacks; betas.length = 0; }
       else parsed = body;
-      const headers = new Headers(init.headers);
       mergeBetas(headers, betas);
       init = { ...init, body: JSON.stringify(body), headers };
     } catch { /* corps non JSON : envoyé tel quel */ }

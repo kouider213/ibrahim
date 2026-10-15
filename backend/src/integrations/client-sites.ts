@@ -31,6 +31,8 @@ export interface ClientSite {
   notify?: { email?: string; kouider: boolean };   // où envoyer les messages du formulaire (défaut : e-mail du compte)
   pausedReason?: 'billing' | 'manual';
   adminV?: number;   // version de la page /admin/ publiée (republiée si elle est plus vieille que ADMIN_VERSION)
+  siteV?: number;    // version de la page publique (SITE_VERSION)
+  statsSince?: string; // date du début du comptage des visites
 }
 export interface Payment { at: string; amount: number; months: number; note?: string }
 export interface Billing {
@@ -48,6 +50,7 @@ const BUCKET = 'fik-sites';
 const SESSION_DAYS = 30;
 export const MAX_PHOTOS = 20;
 const ADMIN_VERSION = 2;   // à monter quand client-site-admin.ts change
+const SITE_VERSION = 2;    // 2 = compteur de visites (bilan mensuel) ; les sites plus vieux sont republiés par le job du matin
 const STAFF_HOURS = 2;
 export const API_BASE = () => process.env['PUBLIC_API_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
 export const publicUrl = (s: ClientSite) => (s.domain?.status === 'active' ? `https://${s.domain.name}` : s.url);
@@ -116,6 +119,7 @@ export async function publishSite(s: ClientSite): Promise<string> {
   if (!s.url) s.url = url;
   s.netlifySiteId = siteId;
   s.adminV = ADMIN_VERSION;
+  if ((s.siteV ?? 0) < SITE_VERSION) { s.siteV = SITE_VERSION; s.statsSince ??= new Date().toISOString().slice(0, 10); }
   await saveSite(s);
   return publicUrl(s);
 }
@@ -279,6 +283,16 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
     return `❌ Aucun site client trouvé pour « ${name} ».${index.length ? ` Sites : ${index.map(r => r.name).join(', ')}` : ''}`;
   }
   switch (action) {
+    case 'stats': {          // visites et clics du mois en cours + du mois dernier, idée de vente
+      const st = await import('./client-site-stats.js');
+      const now = await st.siteReport(s, st.currentYm(), false), prev = await st.siteReport(s, st.previousYm(), false);
+      return `📊 « ${s.name} » — ce mois-ci :\n${now.line}\nMois dernier :\n${prev.line}${s.statsSince ? `\n(comptage depuis le ${s.statsSince})` : ''}`;
+    }
+    case 'send_report': {    // envoie maintenant au patron le bilan du mois dernier (ou du mois en cours : month=current)
+      const st = await import('./client-site-stats.js');
+      const r = await st.siteReport(s, input['month'] === 'current' ? st.currentYm() : st.previousYm(), true);
+      return r.sent ? `✅ Bilan envoyé au patron de « ${s.name} ».\n${r.line}` : `❌ Pas envoyé (pas d'e-mail du patron ou site en pause).\n${r.line}`;
+    }
     case 'info':
       return [
         `« ${s.name} » — ${s.url} (${s.status === 'paused' ? 'EN PAUSE' : 'en ligne'}, mis à jour le ${s.updatedAt.slice(0, 10)})`,
@@ -555,6 +569,9 @@ export async function jobClientSites(): Promise<string> {
   for (const r of await readIndex()) {
     const s = await getSite(r.id);
     if (!s) continue;
+    if ((s.siteV ?? 0) < SITE_VERSION && s.status === 'live') {   // nouvelle version de page (compteur) → republier
+      await publishSite(s).catch(err => console.error('[client-sites] republication', err instanceof Error ? err.message : err));
+    }
     if (s.domain?.status === 'pending') {
       const d = await checkDomain(s).catch(err => ({ active: false, msg: String(err) }));
       if (d.active) lines.push(`🌐 ${s.name} : ${d.msg}`);

@@ -1,6 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { env } from '../config/env.js';
-import { createAnthropic } from './anthropic-compat.js';
+import { createAnthropic, QUALITY } from './anthropic-compat.js';
 
 const anthropic = createAnthropic();
 
@@ -146,7 +146,7 @@ ${jsonShape}`;
           { type: 'text',  text: userPrompt },
         ],
       }],
-    });
+    }, QUALITY);
     text = msg.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
   } catch (e) {
     console.error('[inspection-core] anthropic error:', e);

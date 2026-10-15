@@ -120,7 +120,7 @@ export async function generateMentorIdea(focus = ''): Promise<MentorIdea | null>
     'Fais tes recherches (données FIK + web), puis réponds avec le JSON.',
   ].filter(Boolean).join('\n\n');
 
-  const run = await runReadOnlyAgent(instruction, { system: MENTOR_SYSTEM, sessionId: 'business_mentor', maxRounds: 12, maxTokens: 4000 });
+  const run = await runReadOnlyAgent(instruction, { system: MENTOR_SYSTEM, sessionId: 'business_mentor', maxRounds: 12, maxTokens: 4000, quality: true });
   return parseIdea(run.text);
 }
 

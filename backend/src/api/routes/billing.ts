@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireMobileAuth } from '../middleware/auth.js';
-import { getBilling, updateBilling } from '../../integrations/billing.js';
+import { getBilling, updateBilling, setEco } from '../../integrations/billing.js';
 
 // Page « À PAYER » de l'app (Kouider) : ce qu'il faut payer pour garder Dzaryx actif.
 const router = Router();
@@ -11,6 +11,12 @@ router.use(requireMobileAuth, (req, res, next) => {
 
 router.get('/', async (_req, res) => {
   try { res.json(await getBilling()); }
+  catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/billing/eco { on } — mode économie Claude
+router.post('/eco', async (req, res) => {
+  try { await setEco((req.body as { on?: boolean }).on !== false); res.json({ ok: true, message: (req.body as { on?: boolean }).on !== false ? '🌱 Mode économie activé' : 'Mode économie coupé' }); }
   catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 

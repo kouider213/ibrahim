@@ -139,7 +139,14 @@ export async function markClaudeCreditOut(detail: string): Promise<void> {
 export async function claudeOutSince(): Promise<string | null> { return redis.get(CLAUDE_OUT_KEY).catch(() => null); }
 export async function clearClaudeOut(): Promise<void> { await redis.del(CLAUDE_OUT_KEY).catch(() => {}); }
 
-export async function getBilling(): Promise<{ rows: BillingRow[]; claudeSpent7d: number | null; survival: string[] }> {
+export async function getEco(): Promise<boolean> { return (await kvGet('billing:eco').catch(() => null)) !== '0'; }
+export async function setEco(on: boolean): Promise<void> {
+  await kvSet('billing:eco', on ? '1' : '0');
+  const { setEcoCache } = await import('./anthropic-compat.js');
+  setEcoCache(on);
+}
+
+export async function getBilling(): Promise<{ rows: BillingRow[]; claudeSpent7d: number | null; survival: string[]; eco: boolean }> {
   const [ov, rw, dom, probe, outSince, spent] = await Promise.all([
     overrides(), railwayInfo(), domainExpiry(), probeProviders().catch(() => ({} as Awaited<ReturnType<typeof probeProviders>>)), claudeOutSince(), claudeSpent(),
   ]);
@@ -192,7 +199,7 @@ export async function getBilling(): Promise<{ rows: BillingRow[]; claudeSpent7d:
       : '⚠️ Cerveaux gratuits injoignables en ce moment : sans Claude, Dzaryx répondrait en mode très limité.',
     'Sans ElevenLabs : voix du téléphone. Sans VPS : plus d\'appels Telegram ni de WhatsApp, le reste marche.',
   ];
-  return { rows: rows.filter(r => r.active), claudeSpent7d: r7.length ? r7.reduce((a, b) => a + b, 0) : null, survival };
+  return { eco: await getEco(), rows: rows.filter(r => r.active), claudeSpent7d: r7.length ? r7.reduce((a, b) => a + b, 0) : null, survival };
 }
 
 /** Kouider a payé / saisi une échéance, un montant, une recharge. */
@@ -272,6 +279,10 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
       `\n\nGratuits : ${free.map(r => `${icon(r)} ${r.name}`).join(', ')}` +
       (claudeSpent7d !== null ? `\nClaude, 7 derniers jours : ≈ ${claudeSpent7d.toFixed(2)} $ (estimation)` : '') +
       `\n\nSurvie : ${survival.join(' ')}`;
+  }
+  if (action === 'eco_on' || action === 'eco_off') {
+    await setEco(action === 'eco_on');
+    return action === 'eco_on' ? '✅ Mode économie activé : les tâches de fond passent sur le modèle léger (Haiku), le chat et les mails importants gardent Sonnet.' : '✅ Mode économie coupé : tout repasse sur Sonnet (plus cher).';
   }
   const id = String(input['service'] ?? '').toLowerCase().trim();
   const svc = SERVICES.find(s => s.id === id || s.name.toLowerCase().includes(id));

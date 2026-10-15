@@ -92,6 +92,13 @@ router.post('/me/password', auth, async (req: Authed, res) => {
   res.json({ ok: true });
 });
 
+// Compteur public du site (visites, clics Appeler / Itinéraire / WhatsApp) — bilan mensuel du patron.
+router.post('/public/:id/hit', (req, res) => {
+  void import('../../integrations/client-site-stats.js').then(m => m.recordHit(String(req.params['id']), String(req.query['e'] ?? ''), req.ip ?? ''))
+    .catch(() => {});
+  res.status(204).end();
+});
+
 // Formulaire public du site (réservation / rendez-vous / message) — sans connexion.
 router.post('/public/:id/message', async (req, res) => {
   try {

@@ -192,6 +192,17 @@ catch(x){m.textContent=x.message+'. Vous pouvez aussi nous appeler.'}b.disabled=
 </script>`;
 }
 
+/** Compteur des vrais sites clients (bilan mensuel du patron) : 1 visite par session + clics Appeler / Itinéraire / WhatsApp. Aucun cookie. */
+function statsBeacon(api: string, siteId: string): string {
+  const u = `${api}/api/client-sites/public/${siteId}/hit?e=`;
+  return `<script>
+(function(){var u=${JSON.stringify(u)};function h(e){try{if(navigator.sendBeacon)navigator.sendBeacon(u+e);else fetch(u+e,{method:'POST',keepalive:true})}catch(x){}}
+try{if(!sessionStorage.getItem('fikv')){sessionStorage.setItem('fikv','1');h('visit')}}catch(x){h('visit')}
+document.addEventListener('click',function(ev){var a=ev.target&&ev.target.closest?ev.target.closest('a'):null;if(!a)return;var r=a.getAttribute('href')||'';
+if(r.indexOf('tel:')===0)h('call');else if(/google\.com\/maps\/dir/.test(r))h('route');else if(/wa\.me|whatsapp/.test(r))h('whatsapp')},true)})();
+</script>`;
+}
+
 export function renderHtml(p: Omit<Place, 'photoRefs'>, c: Content, photos: string[], opts: RenderOpts = { demo: true }): string {
   const [fh, fb] = c.fonts;
   const fontsUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fh)}:wght@400;600;700&family=${encodeURIComponent(fb)}:wght@400;600&display=swap`;
@@ -319,7 +330,7 @@ const today=${JSON.stringify(days)}[new Date().getDay()];
 document.querySelectorAll('.hours [data-day]').forEach(e=>{if(e.dataset.day===today)e.classList.add('today')});
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target)}}),{threshold:.12});
 document.querySelectorAll('.reveal').forEach(e=>io.observe(e));
-</script>
+</script>${!opts.demo && opts.siteId && opts.formApi ? statsBeacon(opts.formApi, opts.siteId) : ''}
 </body></html>`;
 }
 

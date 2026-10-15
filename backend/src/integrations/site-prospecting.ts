@@ -8,8 +8,9 @@ import { findFreeSlots } from './google-calendar.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
-import { createAnthropic } from './anthropic-compat.js';
+import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { proposeProspectWhatsapp } from './prospect-whatsapp.js';
+import { rdvLink } from './rdv-booking.js';
 
 // DÉMARCHAGE « SITES WEB » (FIK Sites) : Dzaryx trouve sur Google Maps des commerces SANS site, cherche leur
 // e-mail public et leur propose de créer leur site. Le 1er mail propose seulement une démo gratuite.
@@ -66,7 +67,7 @@ async function saveSiteInfo(id: string, info: SiteProspectInfo): Promise<void> {
 
 const anthropic = createAnthropic();
 async function ask(system: string, user: string, maxTokens = 1200): Promise<string> {
-  const r = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] });
+  const r = await anthropic.messages.create({ model: MODEL, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }, QUALITY);
   trackTokenUsage(MODEL, r.usage.input_tokens, r.usage.output_tokens).catch(() => {});
   return r.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
 }
@@ -258,7 +259,7 @@ export async function handleSiteReply(p: Prospect, mail: { subject: string; body
   }
 
   await updateProspect(p.id, { ...base, status: a.intent === 'refus' ? 'refus' : 'interesse', replied_at: new Date().toISOString(),
-    suggested_reply: a.intent === 'refus' ? null : a.reponse, proposed_slots: slots.length && a.intent !== 'refus' ? slots : p.proposed_slots });
+    suggested_reply: a.intent === 'refus' ? null : `${a.reponse}\n\n👉 Ou choisissez directement votre rendez-vous : ${rdvLink(p.id)}`, proposed_slots: slots.length && a.intent !== 'refus' ? slots : p.proposed_slots });
   const chat = a.intent === 'refus'
     ? `📩 ${p.company} a répondu au démarchage site web : pas intéressé.\nRésumé : ${a.resume}\nJe ne les relancerai pas.`
     : `📩 ${p.company} (${p.email}) a répondu${demoSent ? ' après avoir reçu sa démo' : ''} !\nRésumé : ${a.resume}\n` +
@@ -297,6 +298,7 @@ export async function sendDemo(p: Prospect, base: Pick<ReplyBase, 'gmail_thread_
       .replace('{{INVENTE}}', invented.map(x => `- ${x}`).join('\n'))
       .replace('{{CRENEAUX}}', slots.length ? slotsText(slots).split(' ; ').map(s => `- ${s} (heure de Bruxelles)`).join('\n') : '');
     if (invented.length && !invented.every(x => body.includes(x))) body += `\n\nÉléments inventés pour la démo :\n${invented.map(x => `- ${x}`).join('\n')}`;
+    body += `\n\n👉 Choisissez directement votre rendez-vous en 1 clic : ${rdvLink(p.id)}`;
     body += `\n\n${SIGNATURE}`;
     const subjBase = base.last_subject || p.last_subject || `Démo du site ${p.company}`;
     const subject = /^re\s*:/i.test(subjBase) ? subjBase : `Re: ${subjBase}`;

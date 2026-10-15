@@ -80,6 +80,7 @@ import fikSiteWebhookRoutes from './api/routes/fik-site-webhook.js';
 import clientSitesRoutes from './api/routes/client-sites.js';
 import fikSitesRoutes from './api/routes/fik-sites.js';
 import billingRoutes from './api/routes/billing.js';
+import rdvRoutes from './api/routes/rdv.js';
 
 // Integrations
 import { setBISocket } from './bi/bi-socket.js';
@@ -367,7 +368,8 @@ app.use('/api/inspections', apiLimiter, inspectionsRoutes);
 app.use('/api/deals',       apiLimiter, dealsRoutes);
 app.use('/api/packs',     apiLimiter, packsRoutes);
 app.use('/api/fik-site',  fikSiteWebhookRoutes);
-app.use('/api/billing',    apiLimiter, billingRoutes);    // page « À PAYER » (Kouider)
+app.use('/api/billing',    apiLimiter, billingRoutes);
+app.use('/rdv',            apiLimiter, rdvRoutes);        // page publique « choisir mon rendez-vous » (FIK Sites)    // page « À PAYER » (Kouider)
 app.use('/api/fik-sites',  apiLimiter, fikSitesRoutes);   // page « Sites clients » de l'app (Kouider)
 app.use('/api/client-sites', apiLimiter, clientSitesRoutes); // espace client des sites FIK (jeton de session du patron)
 

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { executeTool } from './tool-executor.js';
 import { Dzaryx_TOOLS } from './tools.js';
-import { createAnthropic } from './anthropic-compat.js';
+import { createAnthropic, QUALITY } from './anthropic-compat.js';
 
 // Dzaryx qui travaille SEUL (missions permanentes, préparation de RDV, serveur MCP) : uniquement des outils
 // de LECTURE. Aucune écriture, aucun envoi, aucun SQL brut — la boucle refuse tout outil hors de cette liste,
@@ -37,7 +37,7 @@ const BASE_SYSTEM =
 export interface ReadOnlyRun { text: string; toolsUsed: string[] }
 
 export async function runReadOnlyAgent(instruction: string, opts: {
-  system?: string; sessionId?: string; maxRounds?: number; maxTokens?: number;
+  system?: string; sessionId?: string; maxRounds?: number; maxTokens?: number; quality?: boolean;   // quality : garde Sonnet en mode économie
 } = {}): Promise<ReadOnlyRun> {
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: instruction }];
   const toolsUsed: string[] = [];
@@ -48,7 +48,7 @@ export async function runReadOnlyAgent(instruction: string, opts: {
   for (let round = 0; round < (opts.maxRounds ?? 8); round++) {
     const res = await anthropic.messages.create({
       model: MODEL, max_tokens: opts.maxTokens ?? 1500, system, tools: READ_TOOL_DEFS, messages,
-    });
+    }, opts.quality ? QUALITY : undefined);
     messages.push({ role: 'assistant', content: res.content });
     const uses = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
     if (res.stop_reason !== 'tool_use' || !uses.length) {
@@ -74,7 +74,7 @@ export async function runReadOnlyAgent(instruction: string, opts: {
   }
   // Trop d'étapes : on demande une synthèse finale sans outils
   messages.push({ role: 'user', content: 'Stop : fais maintenant ta réponse finale avec ce que tu as.' });
-  const last = await anthropic.messages.create({ model: MODEL, max_tokens: opts.maxTokens ?? 1500, system, messages });
+  const last = await anthropic.messages.create({ model: MODEL, max_tokens: opts.maxTokens ?? 1500, system, messages }, opts.quality ? QUALITY : undefined);
   const text = last.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map(b => b.text).join('').trim();
   return { text, toolsUsed };
 }

@@ -72,6 +72,15 @@ export default function PaiementsScreen() {
             <div style={{ color: C.muted, marginTop: 4 }}>C'est le seul paiement obligatoire pour garder Dzaryx en vie. Tout ce qui est marqué FACULTATIF peut être arrêté pour faire des économies : Dzaryx continue (en mode gratuit pour ce service).</div>
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 }}>
+            <div style={{ flex: 1, fontSize: 12, lineHeight: 1.45 }}>
+              <div style={{ fontWeight: 800, fontSize: 13.5 }}>🌱 Mode économie Claude {data?.eco !== false ? 'activé' : 'coupé'}</div>
+              <div style={{ color: C.muted }}>Les tâches de fond utilisent le modèle léger (≈ 20× moins cher). Le chat, les mails aux prospects, le conseiller et les inspections gardent le meilleur modèle.</div>
+            </div>
+            <button onClick={() => void act(() => business.billingEco(data?.eco === false))}
+              style={btn(data?.eco !== false ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.06)', data?.eco !== false ? C.accent : C.text)}>{data?.eco !== false ? 'ON' : 'OFF'}</button>
+          </div>
+
           <div style={{ background: 'rgba(16,185,129,0.08)', border: `1px solid rgba(16,185,129,0.25)`, borderRadius: 14, padding: 12, marginBottom: 14, fontSize: 12, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}>🛡️ Dzaryx ne meurt pas</div>
             {(data?.survival ?? []).map((l, i) => <div key={i}>• {l}</div>)}
