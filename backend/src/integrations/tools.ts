@@ -1951,7 +1951,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       properties: {
         destination: {
           type: 'string',
-          description: 'Destination en texte: "aéroport", "centre-ville", "port", "gare", "Bir El Djir", etc.',
+          description: 'Destination en texte: adresse, "aéroport", "gare"… ou "salle" / "travail" / "maison" (adresses de Kouider enregistrées)',
         },
         arrival_time: {
           type: 'string',

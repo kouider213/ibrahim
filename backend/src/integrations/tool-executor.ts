@@ -5966,7 +5966,16 @@ async function getMyLocationTool(sessionId?: string): Promise<string> {
 // ─── TRAJET TEMPS RÉEL ────────────────────────────────────────────────────────
 async function getTravelTimeTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const { getTravelTime } = await import('./maps.js');
-  const destination = input['destination'] as string | undefined;
+  let destination = input['destination'] as string | undefined;
+  // Lieux de la routine de Kouider : « la salle », « le travail », « la maison » → adresses enregistrées
+  if (destination && !sessionId?.includes('houari')) {
+    const { getRoutineConfig } = await import('./morning-routine.js');
+    const a = (await getRoutineConfig()).addresses;
+    const d = destination.trim().toLowerCase();
+    if (/^(la )?(salle|gym|salle de sport|sport)( de wemmel)?$/.test(d)) destination = a.gym;
+    else if (/^(le )?(travail|magasin|boulot)$/.test(d)) destination = a.work;
+    else if (/^(la )?maison|chez moi$/.test(d)) destination = a.home;
+  }
   let originLat     = input['origin_lat']  as number | undefined;
   let originLng     = input['origin_lng']  as number | undefined;
   const arrivalTime = input['arrival_time'] as string | undefined;
@@ -5993,6 +6002,7 @@ async function getTravelTimeTool(input: Record<string, unknown>, sessionId?: str
     `🗺️ **Trajet → ${result.destination_label}**`,
     `⏱ Durée: **${result.travel_time_minutes} min** ${trafficEmoji} (trafic ${result.traffic === 'unknown' ? 'non disponible' : result.traffic})`,
     `📏 Distance: ${result.distance_km} km`,
+    `🏁 En partant maintenant : arrivée vers **${(await import('./morning-routine.js')).hm(Date.now() + result.travel_time_minutes * 60_000)}** (heure de Bruxelles)`,
     arrivalTime ? `🚀 Partir à: **${result.recommended_departure}**` : '',
     ``,
     `📍 Navigation:`,

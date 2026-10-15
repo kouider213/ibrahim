@@ -167,6 +167,8 @@ const CORE_TOOLS = new Set([
   'web_search', 'assign_task', 'list_team_tasks', 'create_goal', 'save_procedure',
   // Se décrire sans inventer + documents
   'list_my_capabilities', 'whatsapp_web', 'business_mentor', 'kouider_dossier', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site', 'fik_site_contract', 'flash_offer', 'billing', 'morning_routine', 'travel',
+  // Position live (Telegram) + trajet avec trafic réel
+  'get_my_location', 'get_travel_time',
 ]);
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────
