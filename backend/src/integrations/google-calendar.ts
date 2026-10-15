@@ -273,6 +273,22 @@ export async function updateAgendaSeries(anyId: string, u: { title?: string; sta
   return r !== null;
 }
 
+/** Décale une série récurrente de quelques minutes (début et/ou fin), en temps absolu (insensible au fuseau de la série).
+ *  onlyDays : n'agit que si la série ne tombe QUE sur ces jours (BYDAY), sinon renvoie 'skip'. */
+export async function shiftAgendaSeries(anyId: string, startMin: number, endMin: number, onlyDays?: string[]): Promise<'ok' | 'skip' | 'fail'> {
+  const inst = await calendarRequest<AgendaEvent>('GET', fikPath(`/events/${encodeURIComponent(anyId)}`));
+  const masterId = inst?.recurringEventId ?? anyId.split('_')[0]!;
+  const m = await calendarRequest<AgendaEvent & { recurrence?: string[] }>('GET', fikPath(`/events/${encodeURIComponent(masterId)}`));
+  if (!m?.start.dateTime || !m.end.dateTime) return 'fail';
+  if (onlyDays) {
+    const by = (m.recurrence ?? []).join(';').match(/BYDAY=([A-Z,]+)/)?.[1]?.split(',') ?? [];
+    if (!by.length || by.some(d => !onlyDays.includes(d))) return 'skip';
+  }
+  const mv = (t: { dateTime?: string; timeZone?: string }, min: number) => ({ dateTime: new Date(new Date(t.dateTime!).getTime() + min * 60_000).toISOString(), timeZone: t.timeZone ?? 'Europe/Brussels' });
+  const r = await calendarRequest('PATCH', fikPath(`/events/${encodeURIComponent(masterId)}`), { start: mv(m.start, startMin), end: mv(m.end, endMin) });
+  return r !== null ? 'ok' : 'fail';
+}
+
 // Créneaux « 🟢 Libre » de l'agenda FIK (transparents) sur une période — là où Dzaryx peut donner des RDV
 export async function listFreeWindows(fromIso: string, toIso: string): Promise<Array<{ start: number; end: number }>> {
   const evs = await listAgendaRange(fromIso, toIso, 250);
