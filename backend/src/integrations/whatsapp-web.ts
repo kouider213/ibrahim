@@ -111,7 +111,10 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       if (!chat) return '❌ À qui ? (nom du contact tel qu\'il apparaît dans WhatsApp, ou numéro)';
       const text = (String(input['text'] ?? '').trim() || (await drafts())[chat.toLowerCase()]?.draft || '').trim();
       if (!text) return '❌ Quel message ? (aucune réponse proposée pour ce contact)';
-      const sig = `${chat.toLowerCase()}|${text}`;
+      // Signature tolérante : numéro → chiffres seuls ; texte sans guillemets ni espaces multiples
+      const digits = chat.replace(/\D/g, '');
+      const chatKey = digits.length >= 9 && /^[+\d\s().-]+$/.test(chat) ? digits : chat.toLowerCase();
+      const sig = `${chatKey}|${text.replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').trim()}`;
       const shown = await kvGet(PREVIEW_KEY).catch(() => null);
       if (input['confirmed'] !== true || shown !== sig) {
         await kvSet(PREVIEW_KEY, sig, 20 * 60);

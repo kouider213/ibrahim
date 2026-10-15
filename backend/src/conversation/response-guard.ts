@@ -8,7 +8,7 @@ const WRITE_TOOLS = new Set([
   'create_booking', 'update_booking', 'cancel_booking', 'delete_booking',
   'record_payment', 'store_document', 'record_expense', 'delete_expense', 'record_car_km', 'update_vehicle_maintenance', 'set_car_papers',
   'github_write_file', 'github_patch_file', 'update_site_file',
-  'send_telegram_message', 'send_whatsapp_to_client', 'send_email',
+  'send_telegram_message', 'send_whatsapp_to_client', 'send_email', 'whatsapp_web',
   'create_calendar_event', 'update_calendar_event', 'sync_calendar', 'delete_calendar_event',
   'remember_info', 'learn_rule', 'record_feedback', 'rate_client',
   'netlify_deploy', 'railway_wait_deploy',
@@ -54,7 +54,9 @@ export function phantomGuard(
   if (!hasActionClaim) return text;
 
   // Y a-t-il au moins un outil write qui a réussi ?
-  const hasSuccessfulWriteTool = toolsExecuted.some(t => WRITE_TOOLS.has(t.name) && t.success);
+  // whatsapp_web : seul un vrai envoi (« ✅ Envoyé… ») compte, pas une lecture ni une relecture
+  const hasSuccessfulWriteTool = toolsExecuted.some(t => WRITE_TOOLS.has(t.name) && t.success
+    && (t.name !== 'whatsapp_web' || /^\s*✅/.test(t.result ?? '')));
   if (hasSuccessfulWriteTool) return text;
 
   // ⛔ PHANTOM DÉTECTÉ
