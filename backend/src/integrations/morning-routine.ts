@@ -18,6 +18,7 @@ const CONFIG_KEY = 'routine:config';
 const HISTORY_KEY = 'routine:history';
 const ACTIVE_KEY = 'kouider:last_active';
 const CALENDAR_FLAG = 'routine:calendar:v1';
+const DAYS_V2_FLAG = 'routine:days:v2';                 // séance 1h30 + trajets dans l'agenda
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 
@@ -45,7 +46,8 @@ export interface RoutineConfig {
 
 // Horaires calculés le 2026-10-15 depuis l'agenda FIK (Agence FIK 9h mar/ven/sam, 10h mer ; travail 6h30 jeu) et les
 // trajets Google Maps avec trafic (maison → salle ≈ 15-19 min, salle → maison ≈ 16-26 min à 8h, maison → travail 3 min).
-const SPORT_EARLY: DayPlan = { kind: 'sport', wake: '06:00', leave: '06:25', sport: ['06:45', '07:45'], shower: '08:10', eat: '08:30', next: '09:00 Agence FIK' };
+// v2 (Kouider) : séance de 1h30 ; aller 20 min et retour 25 min comptés et visibles dans l'agenda.
+const SPORT_EARLY: DayPlan = { kind: 'sport', wake: '05:30', leave: '05:50', sport: ['06:10', '07:40'], shower: '08:05', eat: '08:25', next: '09:00 Agence FIK' };
 export const DEFAULT_CONFIG: RoutineConfig = {
   enabled: true,
   pausedUntil: null,
@@ -55,10 +57,10 @@ export const DEFAULT_CONFIG: RoutineConfig = {
     gym: 'Chaussée de Bruxelles 397B, 1780 Wemmel, Belgique',
   },
   days: [
-    { kind: 'sport', wake: '06:00', leave: '06:25', sport: ['06:45', '07:45'], shower: '08:05', eat: '08:30', next: '08:30 petit-déj en famille, 10:00 travail' },
-    { kind: 'sport', wake: '06:30', leave: '06:55', sport: ['07:15', '08:15'], shower: '08:35', eat: '09:00', next: '09:00 petit-déj en famille (jour de congé)' },
+    { kind: 'sport', wake: '05:45', leave: '06:05', sport: ['06:25', '07:55'], shower: '08:20', eat: '08:45', next: '08:45 petit-déj en famille, 10:00 travail' },
+    { kind: 'sport', wake: '06:30', leave: '06:50', sport: ['07:10', '08:40'], shower: '09:05', eat: '09:30', next: '09:30 petit-déj en famille (jour de congé)' },
     { ...SPORT_EARLY, next: '09:00 Agence FIK, 12:00 travail' },
-    { kind: 'sport', wake: '07:00', leave: '07:25', sport: ['07:45', '08:45'], shower: '09:10', eat: '09:30', next: '10:00 Agence FIK, 13:00 travail' },
+    { kind: 'sport', wake: '06:30', leave: '06:50', sport: ['07:10', '08:40'], shower: '09:05', eat: '09:25', next: '10:00 Agence FIK, 13:00 travail' },
     { kind: 'work', wake: '05:15', shower: '05:20', eat: '05:40', leave: '06:15', next: '06:30 ouverture du magasin (Jette)' },
     { ...SPORT_EARLY, next: '09:00 Agence FIK, 12:00 travail' },
     { ...SPORT_EARLY, next: '09:00 Agence FIK, 12:00 travail' },
@@ -215,6 +217,11 @@ async function sendWakeMessage(cfg: RoutineConfig, plan: DayPlan, date: string, 
 
 export async function jobMorningRoutine(): Promise<void> {
   if ((await kvGet(CALENDAR_FLAG).catch(() => '1')) !== '1') await setupRoutineCalendar().catch(e => console.error('[routine] agenda:', e));
+  else if ((await kvGet(DAYS_V2_FLAG).catch(() => '1')) !== '1') {
+    await kvSet(DAYS_V2_FLAG, '1');
+    const r = await syncRoutineCalendar({ ...(await getRoutineConfig()), days: DEFAULT_CONFIG.days }).catch(e => String(e));
+    console.log(`[routine] horaires v2 (1h30 + trajets) : ${r}`);
+  }
   const cfg = await getRoutineConfig();
   const { date, hhmm, weekday } = localNow();
   const plan = cfg.days[weekday];
@@ -271,6 +278,10 @@ export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> 
     if (p.kind === 'sport' && p.sport) {
       add(`sport-${p.sport.join('-')}`, { title: '🏋️ Sport — salle de Wemmel', start: p.sport[0], end: p.sport[1], location: c.addresses.gym,
         desc: `Réveil ${p.wake} · départ ${p.leave} (Dzaryx te dit l'heure exacte selon le trafic).\nDzaryx vérifie que tu es réveillé et t'appelle si tu ne réponds pas.` }, d);
+      if (p.leave) add(`aller-${p.leave}-${p.sport[0]}`, { title: '🚗 Trajet → salle de Wemmel', start: p.leave, end: p.sport[0], location: '',
+        desc: 'Temps de trajet maison → salle (Dzaryx te prévient si le trafic l\'allonge).' }, d);
+      if (p.shower) add(`retour-${p.sport[1]}-${p.shower}`, { title: '🚗 Retour maison', start: p.sport[1], end: p.shower, location: '',
+        desc: 'Temps de trajet salle → maison.' }, d);
       if (p.shower && p.eat) {
         const familyMeal = /famille/i.test(p.next ?? '');
         add(`douche-${p.shower}-${p.eat}`, { title: familyMeal ? '🚿 Douche (puis petit-déj en famille)' : '🚿 Douche + 🍳 petit-déj',
