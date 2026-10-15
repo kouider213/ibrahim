@@ -15,7 +15,7 @@ const addMin = (date: string, time: string, min: number) => { const d = new Date
 
 // Lieu deviné à partir du titre / lieu du RDV
 const SPOT_WORDS: Array<[RegExp, MeSpot]> = [
-  [/a[ée]roport|\bvol\b|avion|s[ée]nia|navette|accueil/i, 'aeroport'],
+  [/a[ée]roport|\bvol\b|avion|s[ée]nia|navette|accueil|belgique|bruxelles/i, 'aeroport'],
   [/garage|atelier|vidange|m[ée]cani|carross|pneu|contr[ôo]le tech|lavage/i, 'atelier'],
   [/\bport\b|bateau|ferry|douane|import/i, 'port'],
   [/plage|piscine|vacances|baignade/i, 'beach'],
@@ -25,6 +25,7 @@ const SPOT_WORDS: Array<[RegExp, MeSpot]> = [
   [/vente|acheteur|showroom/i, 'vente'],
   [/remise|cl[ée]s|livraison|d[ée]part|parking/i, 'parking'],
   [/maison|famille|femme|fils|anniversaire|f[êe]te|d[îi]ner/i, 'home'],
+  [/\bagence\b|libre/i, 'agence'],
   [/banque|mairie|da[ïi]ra|wilaya|march[ée]|centre|courses|m[ée]decin|dentiste|docteur|h[ôo]pital|pharmacie|caf[ée]|resto|restaurant|poste|ville/i, 'ville'],
 ];
 export const spotOf = (e: MeEvent): MeSpot | null => { const t = `${e.title} ${e.location ?? ''}`; return SPOT_WORDS.find(([r]) => r.test(t))?.[1] ?? null; };

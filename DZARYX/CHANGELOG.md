@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-10-15 (14) — Agenda FIK réorganisé (3 h libres / jour) + créneaux RDV
+- Séries renommées pour le bonhomme : « ✈️ Belgique — travail », « 🏢 Agence FIK — business Algérie », « 🏠 Maison — temps famille ».
+- Raccourcies (business + famille seulement, travail inchangé) pour libérer 3 h/jour → séries « 🟢 Libre — RDV possibles »
+  (transparentes, Europe/Brussels) : jeu 16-19 ; ven/sam/mar 10-12 + 20-21 ; mer 11-13 + 20-21 ; dim 9-10, 18-19, 20-21 ; lun 12-15.
+- `findFreeSlots` propose d'abord ces créneaux (1 RDV/jour, hors congés lun/jeu et ven/sam) → autopilot prospects, FIK Sites, page RDV.
+- `update_agenda_event` whole_series / `PATCH /api/calendar/agenda/:id {series:true}` ; `/add` accepte recurrence/transparent/timeZone.
+- Carte : « Belgique » → aéroport, « Agence » / « Libre » → agence. SW v150.
+
 ## 2026-10-15 (13) — Dzaryx : agenda FIK seulement, jamais l'agenda perso
 - Décision Kouider : Dzaryx n'accède QU'À l'agenda FIK (fikconciergerie@gmail.com). Supprimé : tout accès à kouiderpablo@gmail.com
   (outils *_personal_event, contexte « AGENDA PERSO », préparation des RDV, agenda en appel, /calendar/all, freeBusy, RDV FIK Sites).
