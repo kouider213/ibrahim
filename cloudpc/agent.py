@@ -540,6 +540,10 @@ async def watch_downloads() -> None:
 @sio.on('cloud:wa', namespace=NS)
 @safe
 async def on_wa(d):
+    if d.get('action') == 'send_file':
+        # Uniquement un fichier du dossier Téléchargements du PC cloud (nom seul, jamais un chemin)
+        f = FILES / Path(str(d.get('file') or '')).name
+        return await asyncio.wait_for(whatsapp_web.action({**d, 'path': str(f)}), 600)
     return await asyncio.wait_for(whatsapp_web.action(d), 90)
 
 

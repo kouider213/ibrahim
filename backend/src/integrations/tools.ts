@@ -2575,13 +2575,14 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'whatsapp_web',
-    description: "Le WHATSAPP BUSINESS de Kouider (+32 466 31 14 69), connecté au PC cloud : lire les messages des clients et leur RÉPONDRE après son accord. Chaque nouveau message non lu arrive tout seul avec une réponse proposée. action='unread' : non lus + réponses proposées. 'read' + chat : lire une discussion (la marque comme lue). 'drafts' : réponses en attente. 'send' + chat (+ text, sinon la réponse proposée) : 1) SANS confirmed → relecture, demande « je l'envoie ? » ; 2) après son OUI clair seulement → confirmed:true avec le même chat et le même texte. Jamais sans son accord, jamais de premier message à un inconnu ni d'envoi en masse. 'status' : connecté ? 'connect' : donne un code pour (re)connecter WhatsApp. Pour « j'ai des messages WhatsApp ? », « qu'est-ce que Karim m'a écrit ? », « réponds-lui que… », « envoie la réponse ».",
+    description: "Le WHATSAPP BUSINESS de Kouider (+32 466 31 14 69), connecté au PC cloud : lire les messages des clients et leur RÉPONDRE après son accord. Chaque nouveau message non lu arrive tout seul avec une réponse proposée. action='unread' : non lus + réponses proposées. 'read' + chat : lire une discussion (la marque comme lue). 'drafts' : réponses en attente. 'send' + chat (+ text, sinon la réponse proposée) : 1) SANS confirmed → relecture, demande « je l'envoie ? » ; 2) après son OUI clair seulement → confirmed:true avec le même chat et le même texte. 'send_file' + chat + file (+ text = légende) : envoyer une photo, une vidéo ou un document (contrat, devis PDF…) qui est dans les Téléchargements du PC cloud (voir cloud_pc action files) — même relecture puis confirmed:true. Jamais sans son accord, jamais de premier message à un inconnu ni d'envoi en masse. 'status' : connecté ? 'connect' : donne un code pour (re)connecter WhatsApp. Pour « j'ai des messages WhatsApp ? », « qu'est-ce que Karim m'a écrit ? », « réponds-lui que… », « envoie la réponse ».",
     input_schema: {
       type: 'object' as const,
       properties: {
-        action: { type: 'string', enum: ['unread', 'read', 'drafts', 'send', 'status', 'connect'] },
+        action: { type: 'string', enum: ['unread', 'read', 'drafts', 'send', 'send_file', 'status', 'connect'] },
         chat: { type: 'string', description: 'Nom du contact tel que dans WhatsApp, ou numéro' },
-        text: { type: 'string', description: 'Message à envoyer (send)' },
+        text: { type: 'string', description: 'Message à envoyer (send) ou légende (send_file)' },
+        file: { type: 'string', description: 'Nom exact du fichier dans les Téléchargements du PC cloud (send_file)' },
         count: { type: 'number', description: 'Nombre de messages à lire (read, défaut 15)' },
         confirmed: { type: 'boolean', description: 'true seulement après le oui de Kouider sur la relecture' },
       },

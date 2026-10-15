@@ -201,6 +201,79 @@ async def send(chat: str, text: str) -> dict:
     return {'ok': sent, 'chat': title or chat, **({} if sent else {'error': "Le message n'apparaît pas comme envoyé."})}
 
 
+MEDIA = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.3gp', '.mkv', '.webm', '.avi'}
+
+
+async def send_file(chat: str, path: str, caption: str = '') -> dict:
+    """Envoie un fichier du PC cloud (photo/vidéo → « Photos et vidéos », le reste → « Document ») avec une légende.
+    Le sélecteur de fichiers de Chrome est intercepté (CDP) : aucune fenêtre ne s'ouvre."""
+    f = Path(path)
+    if not f.is_file():
+        return {'ok': False, 'error': f'Fichier introuvable : {f.name}'}
+    if f.stat().st_size > 2000 * 1024 * 1024:
+        return {'ok': False, 'error': 'Fichier trop gros pour WhatsApp (2 Go max).'}
+    media = f.suffix.lower() in MEDIA
+    async with LOCK:
+        async with await _page() as p:
+            if not await _open_chat(p, chat):
+                return {'ok': False, 'error': f'Discussion « {chat} » introuvable.'}
+            title = await p.js("((document.querySelector('#main header span[title], #main header span[dir=\"auto\"]') || {}).innerText || '')")
+            before = await p.js("document.querySelectorAll('#main [data-testid^=\"conv-msg-\"], #main div.message-out').length")
+            if not await p.js("""(() => { const b = document.querySelector('#main footer [aria-label="Joindre"], #main footer [aria-label="Attach"]');
+                if (b) b.click(); return !!b; })()"""):
+                return {'ok': False, 'error': 'Bouton « Joindre » introuvable (page WhatsApp changée).'}
+            await asyncio.sleep(1.2)
+            # Le clic sur l'entrée du menu crée un <input type=file> caché ; on le remplit directement (CDP), sans fenêtre
+            label = '^(Photos et vidéos|Photos & videos)$' if media else '^(Document)$'
+            if not await p.js(f"""(() => {{ const re = new RegExp({json.dumps(label)}, 'i');
+                const el = [...document.querySelectorAll('[role=menuitem], li, [role=button]')].find(e => re.test((e.getAttribute('aria-label') || e.innerText || '').trim()));
+                if (el) el.click(); return !!el; }})()"""):
+                return {'ok': False, 'error': 'Menu « Photos et vidéos / Document » introuvable.'}
+            pick = ("(i => /video/.test(i.accept))" if media else "(i => !/video/.test(i.accept) && i.accept !== 'image/*')")
+            obj = None
+            for _ in range(10):
+                await asyncio.sleep(0.5)
+                r = await p.call('Runtime.evaluate', {'expression': f"[...document.querySelectorAll('input[type=file]')].reverse().find({pick}) || null"})
+                obj = r.get('result', {}).get('objectId')
+                if obj:
+                    break
+            if not obj:
+                return {'ok': False, 'error': 'Champ fichier WhatsApp introuvable (page changée ?).'}
+            await p.call('DOM.setFileInputFiles', {'files': [str(f.resolve())], 'objectId': obj})
+            # Aperçu : attendre le bouton Envoyer, taper la légende, envoyer
+            send_js = """(() => { const b = [...document.querySelectorAll('[aria-label="Envoyer"], [aria-label="Send"], [data-icon="send"], [data-icon="wds-ic-send-filled"]')]
+                .map(e => e.closest('[role=button],button') || e).find(e => !e.closest('#main footer'));
+              if (b) b.click(); return !!b; })()"""
+            for _ in range(60):
+                await asyncio.sleep(1)
+                if await p.js("!![...document.querySelectorAll('[aria-label=\"Envoyer\"], [aria-label=\"Send\"], [data-icon=send], [data-icon=wds-ic-send-filled]')].find(e => !e.closest('#main footer'))"):
+                    break
+            else:
+                return {'ok': False, 'error': "L'aperçu d'envoi ne s'est pas ouvert (fichier refusé par WhatsApp ?)."}
+            if caption.strip():
+                await asyncio.sleep(0.8)
+                await p.js("""(() => { const a = document.activeElement; if (a && a.isContentEditable) return true;
+                    const c = [...document.querySelectorAll('[contenteditable=true]')].find(e => !e.closest('#main footer') && !e.closest('#side'));
+                    if (c) c.focus(); return !!c; })()""")
+                for i, line in enumerate(caption.strip().split('\n')):
+                    if i:
+                        await _key(p, 'Enter', 'Enter', 13, 8)
+                    if line:
+                        await p.call('Input.insertText', {'text': line})
+                await asyncio.sleep(0.5)
+            if not await p.js(send_js):
+                return {'ok': False, 'error': 'Bouton Envoyer introuvable dans l\'aperçu.'}
+            # Fin de l'envoi : un nouveau message « moi » apparaît (vidéo : peut prendre du temps)
+            for _ in range(int(30 + f.stat().st_size / 200_000)):
+                await asyncio.sleep(1)
+                n = await p.js("document.querySelectorAll('#main [data-testid^=\"conv-msg-\"], #main div.message-out').length")
+                if n and n > before:
+                    last = await p.js(f'({JS_MESSAGES})(1)')
+                    if last and last['messages'] and last['messages'][-1]['me']:
+                        return {'ok': True, 'chat': title or chat, 'file': f.name}
+    return {'ok': False, 'error': "Le fichier n'apparaît pas encore comme envoyé (vérifie sur le téléphone)."}
+
+
 async def action(d: dict) -> dict:
     a = str(d.get('action') or 'status')
     if a == 'status':
@@ -213,6 +286,8 @@ async def action(d: dict) -> dict:
         return await read(str(d.get('chat') or ''), int(d.get('n') or 15))
     if a == 'send':
         return await send(str(d.get('chat') or ''), str(d.get('text') or ''))
+    if a == 'send_file':
+        return await send_file(str(d.get('chat') or ''), str(d.get('path') or ''), str(d.get('caption') or ''))
     return {'ok': False, 'error': f'action inconnue : {a}'}
 
 

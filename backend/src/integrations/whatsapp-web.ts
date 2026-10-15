@@ -142,7 +142,23 @@ export async function whatsappWebTool(input: Record<string, unknown>, sessionId?
       const d = await drafts(); delete d[chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
       return `✅ Envoyé sur WhatsApp à ${r['chat'] || chat}.`;
     }
-    return '❌ action inconnue (status, connect, unread, read, drafts, send).';
+    if (action === 'send_file') {
+      const file = String(input['file'] ?? '').trim().split(/[\\/]/).pop() ?? '';
+      const caption = String(input['text'] ?? '').trim();
+      if (!chat) return '❌ À qui ? (nom du contact tel qu\'il apparaît dans WhatsApp, ou numéro)';
+      if (!file) return '❌ Quel fichier ? (nom exact dans les Téléchargements du PC cloud — cloud_pc action files)';
+      const sig = `file|${chat.replace(/\D/g, '') || chat.toLowerCase()}|${file}|${caption.replace(/\s+/g, ' ')}`;
+      const shown = await kvGet(PREVIEW_KEY).catch(() => null);
+      if (input['confirmed'] !== true || shown !== sig) {
+        await kvSet(PREVIEW_KEY, sig, 20 * 60);
+        return `📎 À envoyer sur WhatsApp à ${chat} : le fichier « ${file} »${caption ? `\nLégende : « ${caption} »` : ''}\n\nDEMANDE À KOUIDER : « Je l'envoie ? ». Seulement après son oui clair → même outil, même chat, même fichier, même texte, confirmed:true.`;
+      }
+      const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send_file', chat, file, caption }, 620_000);
+      if (!r.ok) return `❌ Pas envoyé : ${r.error}`;
+      await kvSet(PREVIEW_KEY, '', 60);
+      return `✅ Fichier « ${file} » envoyé sur WhatsApp à ${r['chat'] || chat}.`;
+    }
+    return '❌ action inconnue (status, connect, unread, read, drafts, send, send_file).';
   } catch (err) {
     return `❌ WhatsApp : ${err instanceof Error ? err.message : String(err)}`;
   }
