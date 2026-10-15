@@ -407,6 +407,7 @@ async function _dispatch(
       case 'update_prospect':           return await updateProspectTool(input);
       case 'prospect_replies':          return await prospectRepliesTool(input);
       case 'prospect_autopilot':        return await prospectAutopilotTool(input);
+      case 'billing':                   return await (await import('./billing.js')).billingTool(input);
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
       // ─── OBSIDIAN BRAIN ───

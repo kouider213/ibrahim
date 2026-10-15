@@ -1031,6 +1031,22 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'billing',
+    description: 'À PAYER pour garder Dzaryx actif : Railway (vital), Claude, VPS/PC cloud, domaine, ElevenLabs, Google Maps… et les services gratuits. list = état de chaque service (échéance, montant, crédit, ce qui casse si pas payé, survie sans crédit). paid = Kouider a payé (« j\'ai payé Railway ») → échéance suivante. set = noter une date d\'échéance (due AAAA-MM-JJ), un montant réel, ou le solde après une recharge (balance en $, ex. « j\'ai rechargé Claude de 50 $ »).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action:  { type: 'string', enum: ['list', 'paid', 'set'] },
+        service: { type: 'string', description: 'railway, anthropic, vps, domain, elevenlabs, google_maps, supabase, upstash, openai, fal…' },
+        due:     { type: 'string', description: 'Prochaine échéance AAAA-MM-JJ' },
+        amount:  { type: 'string', description: 'Montant réel, ex. « 6 € »' },
+        balance: { type: 'number', description: 'Crédits restants en $ après recharge (Claude, OpenAI…)' },
+        note:    { type: 'string' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'prospect_autopilot',
     description: 'Démarchage automatique quotidien à 10h (jamais 2 fois la même société). Mode « sites » (par défaut) : commerces SANS SITE WEB trouvés sur Google Maps (villes réglables) → 1er mail qui propose une démo gratuite de leur site ; s\'ils répondent oui, Dzaryx fait la démo et l\'envoie tout seul avec la liste de ce qui a été inventé + des créneaux de rendez-vous. Mode « conciergerie » : entreprises/partenaires FIK Conciergerie. « both » = moitié-moitié. Voir l\'état, activer/pause, mails par jour, changer le mode ou les villes, relancer une démo ratée (retry_demo), lancer tout de suite.',
     input_schema: {

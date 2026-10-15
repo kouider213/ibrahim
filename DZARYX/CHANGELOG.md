@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-15 (6) — « À PAYER » + Dzaryx ne meurt jamais tant que Railway est payé
+- `backend/src/integrations/billing.ts` (nouveau) : liste des services (vital/important/optionnel, ce qui casse si pas payé, lien
+  pour payer). Railway lu en direct (GraphQL : facture en cours + date), domaine lu en direct (RDAP, Name.com, expire 2027-06-03),
+  Claude : crédit épuisé détecté + solde estimé depuis la dernière recharge (compteur `claude:spend:total_usd`). Tâche 10h
+  `billing-watch` : J-30 (domaine), J-7, J-3, J-1, J0, retard → app + Telegram, appel la veille pour les services VITAUX.
+  Outil `billing` (list / paid / set). API `/api/billing`. Page app 💳 À PAYER (SW v141).
+- `anthropic-compat.ts` : crédit Claude épuisé / clé coupée → TOUS les appels non streamés (tâches de fond) passent sur
+  Groq → Gemini → OpenAI (format traduit, outils compris), revérif de Claude toutes les 10 min, fin auto quand Claude remarche.
+  Le chat streamé garde son repli agentique (orchestrator). Testé en simulant « credit balance is too low ».
+
 ## 2026-10-15 (5) — WhatsApp seulement après une réponse au mail de démarchage
 - `backend/src/integrations/prospect-whatsapp.ts` (nouveau) : un prospect répond (oui à la démo, question, RDV) et a un mobile
   BE/FR/DZ → Dzaryx prépare un court message pour continuer sur WhatsApp. Jamais de 1er contact automatique (risque de ban du numéro).

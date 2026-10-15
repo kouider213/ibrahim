@@ -44,6 +44,10 @@ export async function trackTokenUsage(
       pipe.expire(redisKey(`${k}:${field}`), TTL_SECONDS);
     }
   }
+  // Compteur cumulé (sans expiration) : la page « À PAYER » estime le crédit Claude restant depuis la dernière recharge
+  const pr = PRICING[key];
+  const usd = (inputTokens * pr.input + outputTokens * pr.output + cacheReadTokens * pr.cacheRead + cacheWriteTokens * pr.cacheWrite) / 1_000_000;
+  if (usd > 0) pipe.incrbyfloat('claude:spend:total_usd', usd);
   await pipe.exec();
 }
 

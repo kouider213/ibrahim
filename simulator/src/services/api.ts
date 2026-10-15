@@ -886,6 +886,15 @@ export interface ProspectsOverview {
   prospects: ProspectRow[];
 }
 
+// ── À PAYER (abonnements pour garder Dzaryx actif) ──
+export interface BillingRow {
+  id: string; name: string; level: 'vital' | 'important' | 'optionnel'; kind: 'abonnement' | 'credits' | 'gratuit' | 'annuel';
+  what: string; ifUnpaid: string; payUrl: string; period?: 'mois' | 'an'; price?: string;
+  due: string | null; daysLeft: number | null; amount: string | null; note: string | null;
+  state: 'ok' | 'soon' | 'late' | 'out' | 'unknown'; status: string; live: boolean;
+}
+export interface BillingOverview { rows: BillingRow[]; claudeSpent7d: number | null; survival: string[] }
+
 // ── Sites clients (FIK Sites) ──
 export interface SiteMessage { id: string; at: string; mode: 'table' | 'rdv' | 'contact'; name: string; phone: string; email?: string; date?: string; time?: string; people?: number; message?: string; read: boolean }
 export interface ClientSiteRow {
@@ -1023,6 +1032,9 @@ export const business = {
   prospectWhatsappSent: (id: string, sent: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/prospects/${id}/whatsapp`, { method: 'POST', body: JSON.stringify({ sent }) }),
   prospectWhatsappSend: (id: string) => apiFetch<{ ok: boolean; message: string }>(`/api/prospects/${id}/whatsapp/send`, { method: 'POST' }),
+  billing: () => apiFetch<BillingOverview>('/api/billing'),
+  billingUpdate: (id: string, patch: { due?: string; amount?: string; balance?: number; note?: string; paid?: boolean }) =>
+    apiFetch<{ ok: boolean; message: string }>(`/api/billing/${id}`, { method: 'POST', body: JSON.stringify(patch) }),
   prospectsWeekly: () => apiFetch<{ report: string }>('/api/prospects/weekly'),
   // Contenu social
   socialGenerate: (data: { topic: string; platform?: string; lang?: string }) =>

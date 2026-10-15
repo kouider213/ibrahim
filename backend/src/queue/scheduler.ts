@@ -58,6 +58,7 @@ import { jobDbBackup } from '../integrations/db-backup.js';
 import { jobSelfTest } from '../integrations/self-test.js';
 import { jobSeasonWatch } from '../integrations/seasons.js';
 import { jobBusinessMentor, jobMentorNewsWatch } from '../integrations/business-mentor.js';
+import { jobBillingWatch } from '../integrations/billing.js';
 import { jobKouiderDossier } from '../integrations/kouider-dossier.js';
 import { jobCloudWatch, jobCloudRoutines } from '../integrations/cloud-watch.js';
 
@@ -271,6 +272,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'billing-watch',
+    cron:  '0 10 * * *',            // 10h — « À PAYER » : échéances J-7/J-3/J-1/J0, retards, crédit Claude bas ou coupé
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'self-test',
     cron:  '45 7 * * *',            // 7h45 — auto-test en lecture seule ; message seulement si problème (+ résumé le lundi)
     tz:    'Africa/Algiers',
@@ -412,6 +418,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'maintenance-alert':       jobMaintenanceAlert,
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
+  'billing-watch':           jobBillingWatch,
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
   'business-mentor':         jobBusinessMentor,
   'mentor-news':             jobMentorNewsWatch,

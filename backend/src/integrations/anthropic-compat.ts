@@ -77,19 +77,112 @@ function mergeBetas(headers: Headers, betas: string[]): void {
   headers.set('anthropic-beta', cur.join(','));
 }
 
+// ── Survie sans crédit Claude (15/10/2026) ──
+// Crédit épuisé / clé coupée → les appels NON streamés (démarchage, conseiller, résumés, agents en lecture…) sont
+// rejoués sur les cerveaux gratuits (Groq, Gemini, puis OpenAI) au format OpenAI, et la réponse est rendue au format
+// Anthropic : le code appelant ne voit pas la différence. Le chat (streamé) a déjà son propre repli (orchestrator).
+const DEAD_RE = /credit balance|billing|purchase credits|insufficient|quota/i;
+let claudeDeadUntil = 0;
+
+function isClaudeDead(status: number, text: string): boolean {
+  if (status === 401 || status === 402) return true;
+  return (status === 400 || status === 403) && DEAD_RE.test(text);
+}
+
+type Block = { type: string; text?: string; id?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown };
+function blockText(c: unknown): string {
+  if (typeof c === 'string') return c;
+  if (!Array.isArray(c)) return '';
+  return (c as Block[]).map(b => b.type === 'text' ? b.text ?? '' : b.type === 'image' || b.type === 'document' ? '[pièce jointe non lisible en mode secours]' : '').filter(Boolean).join('\n');
+}
+
+/** Corps Anthropic → corps OpenAI chat/completions. */
+function toOpenAI(body: Body, model: string): Body {
+  const msgs: Body[] = [];
+  const sys = blockText(body.system);
+  if (sys) msgs.push({ role: 'system', content: sys });
+  for (const m of (body.messages ?? []) as Array<{ role: string; content: unknown }>) {
+    if (typeof m.content === 'string') { msgs.push({ role: m.role, content: m.content }); continue; }
+    const blocks = (m.content ?? []) as Block[];
+    if (m.role === 'assistant') {
+      const calls = blocks.filter(b => b.type === 'tool_use').map(b => ({ id: b.id, type: 'function', function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) } }));
+      msgs.push({ role: 'assistant', content: blockText(blocks) || null, ...(calls.length ? { tool_calls: calls } : {}) });
+    } else {
+      for (const b of blocks.filter(x => x.type === 'tool_result')) msgs.push({ role: 'tool', tool_call_id: b.tool_use_id, content: blockText(b.content) || 'ok' });
+      const t = blockText(blocks);
+      if (t) msgs.push({ role: 'user', content: t });
+    }
+  }
+  const tools = ((body.tools ?? []) as Array<{ name: string; description?: string; input_schema?: unknown }>).filter(t => t.input_schema)
+    .map(t => ({ type: 'function', function: { name: t.name, description: (t.description ?? '').slice(0, 1024), parameters: t.input_schema } }));
+  return { model, messages: msgs, max_tokens: Math.min(Number(body.max_tokens) || 1024, 8000), ...(tools.length ? { tools } : {}) };
+}
+
+/** Réponse OpenAI → message Anthropic. */
+function toAnthropic(data: Body, model: string): Body {
+  const msg = data?.choices?.[0]?.message ?? {};
+  const content: Body[] = [];
+  if (msg.content) content.push({ type: 'text', text: String(msg.content) });
+  for (const c of (msg.tool_calls ?? []) as Array<{ id: string; function: { name: string; arguments: string } }>) {
+    let input: unknown = {};
+    try { input = JSON.parse(c.function.arguments || '{}'); } catch { /* arguments illisibles */ }
+    content.push({ type: 'tool_use', id: c.id, name: c.function.name, input });
+  }
+  if (!content.length) content.push({ type: 'text', text: '' });
+  return {
+    id: `fallback_${Date.now()}`, type: 'message', role: 'assistant', model: `fallback:${model}`, content,
+    stop_reason: (msg.tool_calls ?? []).length ? 'tool_use' : 'end_turn', stop_sequence: null,
+    usage: { input_tokens: data?.usage?.prompt_tokens ?? 0, output_tokens: data?.usage?.completion_tokens ?? 0 },
+  };
+}
+
+async function freeBrain(body: Body): Promise<Response | null> {
+  const { fallbackEndpoints } = await import('./agentic-fallback.js');
+  for (const ep of fallbackEndpoints()) {
+    try {
+      const r = await fetch(ep.url, { method: 'POST', headers: { 'content-type': 'application/json', Authorization: `Bearer ${ep.apiKey}` },
+        body: JSON.stringify(toOpenAI(body, ep.model)), signal: AbortSignal.timeout(90_000) });
+      if (!r.ok) { console.warn(`[claude-secours] ${ep.key} ${r.status}`); continue; }
+      const out = toAnthropic(await r.json() as Body, ep.model);
+      console.warn(`[claude-secours] réponse servie par ${ep.key} (${ep.model})`);
+      return new Response(JSON.stringify(out), { status: 200, headers: { 'content-type': 'application/json' } });
+    } catch (err) { console.warn(`[claude-secours] ${ep.key}:`, err instanceof Error ? err.message : err); }
+  }
+  return null;
+}
+
 export const compatFetch: typeof fetch = async (input, init) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  let parsed: Body | null = null;
   if (init?.body && typeof init.body === 'string' && /\/v1\/messages(\/count_tokens)?(\?|$)/.test(url)) {
     try {
       const body = JSON.parse(init.body) as Body;
       const betas = adaptMessagesBody(body);
       if (url.includes('count_tokens')) { delete body.fallbacks; betas.length = 0; }
+      else parsed = body;
       const headers = new Headers(init.headers);
       mergeBetas(headers, betas);
       init = { ...init, body: JSON.stringify(body), headers };
     } catch { /* corps non JSON : envoyé tel quel */ }
   }
-  return fetch(input, init);
+  const canRescue = !!parsed && !parsed.stream;
+  // Claude déjà connu comme coupé : on ne perd pas de temps, on revérifie toutes les 10 min
+  if (canRescue && Date.now() < claudeDeadUntil) {
+    const r = await freeBrain(parsed!);
+    if (r) return r;
+  }
+  const res = await fetch(input, init);
+  if (parsed && res.ok && claudeDeadUntil) {       // Claude remarche (recharge faite) → fin du mode secours
+    claudeDeadUntil = 0;
+    void import('./billing.js').then(b => b.clearClaudeOut()).catch(() => {});
+  }
+  if (!parsed || res.ok || res.status < 400 || res.status >= 500) return res;
+  const text = await res.clone().text().catch(() => '');
+  if (!isClaudeDead(res.status, text)) return res;
+  claudeDeadUntil = Date.now() + 10 * 60_000;
+  void import('./billing.js').then(b => b.markClaudeCreditOut(`${res.status} ${text.replace(/\s+/g, ' ').slice(0, 120)}`)).catch(() => {});
+  if (!canRescue) return res;
+  return (await freeBrain(parsed)) ?? res;
 };
 
 /** À utiliser à la place de `new Anthropic({ apiKey })` partout dans le backend. */
