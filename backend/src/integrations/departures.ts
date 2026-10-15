@@ -4,7 +4,7 @@ import { getLocation } from './location.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
-import { getRoutineConfig, routinePausedReason, lastKouiderActivity, localNow, hm } from './morning-routine.js';
+import { ensureRoutineStart, getRoutineConfig, routinePausedReason, lastKouiderActivity, localNow, hm } from './morning-routine.js';
 
 // DÉPARTS + TRAFIC (demande de Kouider 2026-10-15) : pour chaque RDV de l'agenda FIK qui a une ADRESSE (salle de sport,
 // travail, aéroport, RDV…), Dzaryx calcule le trajet avec le trafic réel (Google Maps), depuis la position GPS de
@@ -55,6 +55,7 @@ interface DepState { warnedAt?: number; warnMin?: number; leaveBy?: number; upda
 
 /** Toutes les 5 min (4h–23h Bruxelles). */
 export async function jobDepartureWatch(): Promise<void> {
+  await ensureRoutineStart().catch(() => {});
   const now = Date.now();
   const evs = await listAgendaRange(new Date(now).toISOString(), new Date(now + 4 * 3600_000).toISOString(), 30);
   if (!evs?.length) return;
@@ -71,7 +72,8 @@ export async function jobDepartureWatch(): Promise<void> {
     const title = e.summary ?? 'RDV';
     if (/^(🟢|🏠|🚿|⏰)/u.test(title) || /laekenveld/i.test(e.location)) continue;
     const routineTrip = /wemmel|werrie/i.test(e.location) || /^(🏋️|✈️ Belgique)/u.test(title);
-    if (paused && routineTrip) continue;
+    // pause « sport » (ex. il commence lundi) : seules les alertes salle sautent, le travail reste prévenu
+    if (paused && routineTrip && !(/sport/i.test(cfg.pauseReason ?? '') && !/wemmel/i.test(e.location) && !/^🏋️/u.test(title))) continue;
     const start = Date.parse(e.start.dateTime);
     if (start <= now) continue;
 

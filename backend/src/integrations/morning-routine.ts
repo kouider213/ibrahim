@@ -19,8 +19,10 @@ const HISTORY_KEY = 'routine:history';
 const ACTIVE_KEY = 'kouider:last_active';
 const CALENDAR_FLAG = 'routine:calendar:v1';
 const DAYS_V2_FLAG = 'routine:days:v3';                 // séance 1h30 + trajets ; mar/ven/sam réveil 6h, Agence FIK 10h
+const START_FLAG = 'routine:start:2026-10-19';          // sport à partir du lundi 19/10 : séries recréées après la pause
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+const ROUTINE_TITLE = /^(🏋️ Sport — salle de Wemmel|🚗 Trajet → salle de Wemmel|🚗 Retour maison|🚿 Douche|⏰ Réveil, douche, petit-déj)/u;
 
 export interface DayPlan {
   kind: 'sport' | 'work' | 'none';
@@ -236,7 +238,16 @@ async function shiftMorningAgence(): Promise<string> {
 
 // ── Tâche planifiée (toutes les 2 min, 4h–11h Bruxelles) ─────────────────────
 
+/** Une seule fois : séries de l'agenda recréées pour ne commencer qu'après la pause (sport à partir du lundi 19/10). */
+export async function ensureRoutineStart(): Promise<void> {
+  if ((await kvGet(START_FLAG).catch(() => '1')) === '1') return;
+  const r = await syncRoutineCalendar().catch(e => String(e));
+  if (/^\d+\/\d+ séries/.test(r) && !r.startsWith('0/')) await kvSet(START_FLAG, '1');
+  console.log(`[routine] séries après la pause : ${r}`);
+}
+
 export async function jobMorningRoutine(): Promise<void> {
+  await ensureRoutineStart();
   if ((await kvGet(CALENDAR_FLAG).catch(() => '1')) !== '1') await setupRoutineCalendar().catch(e => console.error('[routine] agenda:', e));
   else if ((await kvGet(DAYS_V2_FLAG).catch(() => '1')) !== '1') {
     await kvSet(DAYS_V2_FLAG, '1');
@@ -280,15 +291,24 @@ export async function jobMorningRoutine(): Promise<void> {
 
 // ── Agenda : séries sport / douche + adresses ────────────────────────────────
 
-function nextDateFor(weekday: number): string {
-  const { date, weekday: today } = localNow();
-  return addDays(date, ((weekday - today + 7) % 7) || 7);
+/** Prochaine date de ce jour de semaine après aujourd'hui — et après la pause (« je commence le sport lundi »). */
+function nextDateFor(weekday: number, pausedUntil?: string | null): string {
+  const { date } = localNow();
+  const from = pausedUntil && pausedUntil > date ? pausedUntil : date;
+  const fromDay = localNow(localTs(from, '12:00')).weekday;
+  return addDays(from, ((weekday - fromDay + 7) % 7) || 7);
 }
 
 /** (Re)crée dans l'agenda FIK les séries de la routine à partir de la config (en supprimant les anciennes). */
 export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> {
   const c = cfg ?? await getRoutineConfig();
-  for (const id of c.calendarIds ?? []) await deleteAgendaEvent(id).catch(() => false);
+  // Séries connues + toute série de la routine retrouvée par son titre (ids perdus) — sans agenda joignable, on ne touche à rien.
+  const { date: today } = localNow();
+  const evs = await listAgendaRange(new Date(localTs(today, '00:00')).toISOString(), new Date(localTs(addDays(today, 15), '00:00')).toISOString(), 250);
+  if (!evs) return 'agenda FIK injoignable — séries inchangées';
+  const old = new Set(c.calendarIds ?? []);
+  for (const e of evs) if (e.recurringEventId && ROUTINE_TITLE.test(e.summary ?? '')) old.add(e.recurringEventId);
+  for (const id of old) await deleteAgendaEvent(id).catch(() => false);
   type Block = { title: string; start: string; end: string; location: string; desc: string; days: number[] };
   const blocks = new Map<string, Block>();
   const add = (k: string, b: Omit<Block, 'days'>, d: number) => {
@@ -316,7 +336,7 @@ export async function syncRoutineCalendar(cfg?: RoutineConfig): Promise<string> 
   });
   const ids: string[] = [];
   for (const b of blocks.values()) {
-    const first = b.days.map(nextDateFor).sort()[0]!;
+    const first = b.days.map(d => nextDateFor(d, c.pausedUntil)).sort()[0]!;
     const id = await createAgendaEvent(b.title, `${first}T${b.start}:00`, `${first}T${b.end}:00`, b.desc, false, b.location,
       { recurrence: [`RRULE:FREQ=WEEKLY;BYDAY=${b.days.map(d => RRULE_DAYS[d]).join(',')}`], timeZone: TZ });
     if (id) ids.push(id);
