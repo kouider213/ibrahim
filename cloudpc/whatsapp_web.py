@@ -64,7 +64,7 @@ async def _page():
     return Page('https://web.whatsapp.com', URL)
 
 
-async def _shown_code(text: str) -> str | None:
+def _shown_code(text: str) -> str | None:
     if 'Saisissez le code' not in text:
         return None
     lines = [l.strip() for l in text.split('\n')]
