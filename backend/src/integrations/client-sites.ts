@@ -33,6 +33,7 @@ export interface ClientSite {
   adminV?: number;   // version de la page /admin/ publiée (republiée si elle est plus vieille que ADMIN_VERSION)
   siteV?: number;    // version de la page publique (SITE_VERSION)
   statsSince?: string; // date du début du comptage des visites
+  visibility?: import('./site-visibility.js').Visibility;  // pack visibilité (post Google + Instagram chaque semaine)
 }
 export interface Payment { at: string; amount: number; months: number; note?: string }
 export interface Billing {
@@ -293,6 +294,10 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
       const r = await st.siteReport(s, input['month'] === 'current' ? st.currentYm() : st.previousYm(), true);
       return r.sent ? `✅ Bilan envoyé au patron de « ${s.name} ».\n${r.line}` : `❌ Pas envoyé (pas d'e-mail du patron ou site en pause).\n${r.line}`;
     }
+    case 'visibility':       // pack visibilité : on (visibility_monthly) / off (visibility=false)
+      return (await import('./site-visibility.js')).setVisibility(s, input['visibility'] !== false, input['visibility_monthly']);
+    case 'visibility_post':  // post de la semaine maintenant : aperçu, ou envoyé au patron si send=true
+      return (await import('./site-visibility.js')).visibilityPost(s, input['send'] === true);
     case 'info':
       return [
         `« ${s.name} » — ${s.url} (${s.status === 'paused' ? 'EN PAUSE' : 'en ligne'}, mis à jour le ${s.updatedAt.slice(0, 10)})`,
@@ -369,7 +374,7 @@ export async function manageClientSite(input: Record<string, unknown>): Promise<
       return `📨 Messages du site « ${s.name} » envoyés à ${s.notify.email ?? s.account?.email ?? '(personne : ajoute un e-mail)'}${s.notify.kouider ? ', avec une copie pour toi sur Telegram' : ''}.`;
     }
     default:
-      return `❌ Action inconnue « ${action} » (list, info, edit, pause, resume, account, domain, domain_check, domain_remove, billing, paid, report, messages, notify).`;
+      return `❌ Action inconnue « ${action} » (list, info, edit, pause, resume, account, domain, domain_check, domain_remove, billing, paid, report, messages, notify, stats, send_report, visibility, visibility_post).`;
   }
 }
 

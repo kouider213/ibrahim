@@ -38,7 +38,7 @@ import { addProspect, listProspects, findProspect, updateProspect, markProspectC
 import { runDailyOutreach } from './prospect-autopilot.js';
 import { getProspectMode, setProspectMode, getSiteCities, setSiteCities, retrySiteDemo } from './site-prospecting.js';
 import { recordExpense, getExpenses, deleteExpense, findCar } from './expenses.js';
-import { clientRisk, recordCarKm } from '../notifications/client-care.js';
+import { clientRisk, recordCarKm, flashOffers } from '../notifications/client-care.js';
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
@@ -299,6 +299,7 @@ async function _dispatch(
         const res = await createBooking(input, sessionId);
         return risk?.text && res.startsWith('✅') ? `${res}\n\n${risk.text}` : res;
       }
+      case 'flash_offer':           return (await flashOffers()).text;
       case 'check_client':          return (await clientRisk(String(input['client_name'] ?? ''), input['client_phone'] as string | undefined)).text || '❌ Nom du client requis.';
       case 'cancel_booking':        return await cancelBooking(input);
       case 'delete_booking':        return await deleteBooking(input);
@@ -400,6 +401,7 @@ async function _dispatch(
       case 'carte_live_demo_link':      return carteDemoLink(input);
       case 'create_client_site':        return createClientSite(input);
       case 'manage_client_site':        return await manageClientSite(input);
+      case 'fik_site_contract':         return await (await import('./site-contract.js')).manageSiteContract(input);
       case 'draft_email':               return await draftEmailTool(input, sessionId);
       case 'send_email':                return await sendEmailTool(input, sessionId);
       case 'add_prospect':              return await addProspectTool(input);

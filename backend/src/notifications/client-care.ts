@@ -4,6 +4,9 @@
 // - jobBirthdays : anniversaires des clients (date de naissance lue sur passeport/permis) → message WhatsApp prêt + appel
 // - jobReviewWhatsapp : demande d'avis Google prête à envoyer sur WhatsApp pour les clients SANS email
 //   (ceux avec email la reçoivent déjà par le site, cron reminders)
+// - fidélité : à partir de la 3e location, -LOYALTY_DISCOUNT % (signalé à chaque nouvelle réservation + message prêt
+//   au client après sa 2e location terminée, dans jobReviewWhatsapp)
+// - jobFlashOffer : voiture libre le week-end qui vient → offre flash prête pour les anciens clients de ce type de voiture
 import { supabase } from '../integrations/supabase.js';
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { emitProactive } from './mobile-push.js';
@@ -13,6 +16,8 @@ const TZ = 'Africa/Algiers';
 const SITE = 'https://fikconciergerie.com';
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CSluTI58e1CwEBM/review';  // même lien que le site (lib/google.js)
 export const BIRTHDAY_DISCOUNT = 10;  // % proposé dans le message d'anniversaire
+export const LOYALTY_DISCOUNT = 10;   // % à partir de la 3e location
+export const FLASH_DISCOUNT = 10;     // % de l'offre flash « voiture libre ce week-end »
 const SERVICE_WARN_KM = 1000;
 
 const phoneKey = (p?: string | null) => { const d = (p ?? '').replace(/\D/g, ''); return d.length >= 8 ? d.slice(-9) : ''; };
@@ -75,19 +80,23 @@ export async function clientRisk(name: string, phone?: string | null): Promise<C
 
   const avg = stars.length ? (stars.reduce((a, b) => a + b, 0) / stars.length).toFixed(1) : null;
   const history = `${past.length} location(s)${avg ? `, note moyenne ${avg}/5` : ''}`;
+  // Fidélité : ≥ 2 locations terminées → la prochaine (la 3e, 4e…) a droit à la remise
+  const done = past.filter(b => b.status === 'COMPLETED' || b.end_date < ymd).length;
+  const loyal = done >= 2
+    ? `\n🎁 FIDÉLITÉ : ce sera sa ${done + 1}e location → -${LOYALTY_DISCOUNT} % à appliquer (montant en € dans discount_applied) et à lui annoncer.` : '';
   if (issues.length) {
     return {
       level: 'risque',
-      text: `⚠️ CLIENT À RISQUE — ${cleanName} : ${history}. ${issues.join(', ')}.\n👉 Conseil : caution plus haute ou paiement d'avance avant de remettre les clés.`,
+      text: `⚠️ CLIENT À RISQUE — ${cleanName} : ${history}. ${issues.join(', ')}.\n👉 Conseil : caution plus haute ou paiement d'avance avant de remettre les clés.`,  // pas de remise fidélité
       spoken: `Attention, ${cleanName} est un client à risque : ${issues.join(', ')}.`,
     };
   }
   if (flagged.length) {
     const notes = flagged.slice(0, 2).map(b => (b.notes ?? '').slice(0, 80)).join(' | ');
-    return { level: 'attention', text: `🟡 ${cleanName} : ${history}. Remarques passées : ${notes}`, spoken: `Petite remarque sur ${cleanName} dans ses anciennes locations.` };
+    return { level: 'attention', text: `🟡 ${cleanName} : ${history}. Remarques passées : ${notes}${loyal}`, spoken: `Petite remarque sur ${cleanName} dans ses anciennes locations.` };
   }
-  return { level: 'ok', text: `✅ ${cleanName} : client connu, ${history}, rien à signaler.`,
-    spoken: past.length > 1 ? `C'est un client fidèle, ${past.length} locations sans problème.` : `Il a déjà loué une fois chez toi, sans problème.` };
+  return { level: 'ok', text: `✅ ${cleanName} : client connu, ${history}, rien à signaler.${loyal}`,
+    spoken: past.length > 1 ? `C'est un client fidèle, ${past.length} locations sans problème${loyal ? `, il a droit à ${LOYALTY_DISCOUNT} pour cent de remise fidélité` : ''}.` : `Il a déjà loué une fois chez toi, sans problème.` };
 }
 
 /**
@@ -234,8 +243,9 @@ export async function jobReviewWhatsapp(): Promise<void> {
     .select('id, client_name, client_phone, client_email, client_lang, cars(name)')
     .eq('end_date', yesterday).is('review_request_sent_at', null)
     .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED']);
-  const todo = ((data ?? []) as Array<{ id: string; client_name: string; client_phone: string | null; client_email: string | null; client_lang: string | null; cars?: { name: string } | { name: string }[] | null }>)
-    .filter(b => !/@/.test(b.client_email ?? '') && phoneKey(b.client_phone));
+  const ended = (data ?? []) as Array<{ id: string; client_name: string; client_phone: string | null; client_email: string | null; client_lang: string | null; cars?: { name: string } | { name: string }[] | null }>;
+  await loyaltyNudges(ended).catch(e => console.error('[loyalty]', e));
+  const todo = ended.filter(b => !/@/.test(b.client_email ?? '') && phoneKey(b.client_phone));
   if (!todo.length) return;
 
   const lines: string[] = [];
@@ -250,4 +260,103 @@ export async function jobReviewWhatsapp(): Promise<void> {
   if (!lines.length) return;
   emitProactive(`⭐ ${lines.length} demande(s) d'avis prête(s) à envoyer sur WhatsApp`, 'info',
     [`⭐ Locations terminées hier, clients sans email : demande d'avis Google prête. Appuie sur le lien, WhatsApp s'ouvre avec le message :`, ...lines].join('\n\n'), 'kouider', 'bookings');
+}
+
+// ── 5. Fidélité : message après la 2e location terminée ──────────────────────
+
+function loyaltyText(first: string, lang: string): string {
+  if (lang === 'ar') return `شكراً ${first} على ثقتك المتجددة! 🙏 كعميل وفي، إيجارك القادم عند Fik Conciergerie بخصم ${LOYALTY_DISCOUNT}%. فقط أخبرنا بالتواريخ. — Kouider`;
+  if (lang === 'en') return `Thank you ${first} for renting with us again! 🙏 As a loyal client, your next rental at Fik Conciergerie is ${LOYALTY_DISCOUNT}% off. Just send us your dates. — Kouider`;
+  return `Merci ${first} pour votre fidélité ! 🙏 Comme vous avez déjà loué 2 fois chez nous, votre prochaine location chez Fik Conciergerie est à -${LOYALTY_DISCOUNT} %. Envoyez-nous simplement vos dates. — Kouider`;
+}
+
+/** Locations terminées hier : si c'est la 2e location du client, message « -10 % sur la prochaine » prêt à envoyer. */
+async function loyaltyNudges(ended: Array<{ client_name: string; client_phone: string | null; client_lang: string | null }>): Promise<void> {
+  const lines: string[] = [];
+  for (const b of ended) {
+    const pk = phoneKey(b.client_phone);
+    if (!pk) continue;
+    const { count } = await supabase.from('bookings').select('id', { count: 'exact', head: true })
+      .in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED']).ilike('client_phone', `%${pk}`);
+    if (count !== 2) continue;
+    const k = `loyalty:${pk}`;
+    if (await kvGet(k)) continue;
+    await kvSet(k, '1', 365 * 86_400);
+    const first = titleCase(b.client_name.split(/\s/)[0] ?? b.client_name);
+    const link = waLink(b.client_phone, loyaltyText(first, b.client_lang ?? 'fr'));
+    if (link) lines.push(`🎁 ${b.client_name} (2 locations)\n👉 ${link}`);
+  }
+  if (!lines.length) return;
+  emitProactive(`🎁 Fidélité : ${lines.length} client(s) à prévenir de leur -${LOYALTY_DISCOUNT} %`, 'info',
+    [`🎁 Ces clients viennent de finir leur 2e location : leur prochaine est à -${LOYALTY_DISCOUNT} %. Appuie sur le lien, WhatsApp s'ouvre avec le message :`, ...lines].join('\n\n'), 'kouider', 'bookings');
+}
+
+// ── 6. Offre flash : voiture libre le week-end qui vient ─────────────────────
+
+type FlashCar = { id: string; name: string; category: string | null; resale_price: number | null; currency: string | null };
+
+function flashText(first: string, car: string, price: string, lang: string): string {
+  if (lang === 'ar') return `مرحباً ${first}! 🚗 ${car} متاحة نهاية هذا الأسبوع عند Fik Conciergerie: عرض خاص -${FLASH_DISCOUNT}% → ${price} في اليوم. أجبنا للحجز. — Kouider`;
+  if (lang === 'en') return `Hello ${first}! 🚗 The ${car} is free this weekend at Fik Conciergerie: flash offer -${FLASH_DISCOUNT}% → ${price}/day. Reply to book it. — Kouider`;
+  return `Bonjour ${first} ! 🚗 La ${car} est libre ce week-end chez Fik Conciergerie : offre flash -${FLASH_DISCOUNT} % → ${price}/jour. Répondez à ce message pour la réserver. — Kouider`;
+}
+
+/**
+ * Voitures libres du jeudi au samedi qui viennent (week-end algérien) → pour chacune, message prêt pour les anciens
+ * clients qui ont loué ce type de voiture (même catégorie), sans ceux qui ont déjà une location à venir.
+ * Rien n'est envoyé : Kouider appuie sur le lien s'il est d'accord.
+ */
+export async function flashOffers(maxPerCar = 4): Promise<{ text: string; count: number }> {
+  const now = new Date();
+  const dow = new Date(`${today().ymd}T12:00:00+01:00`).getUTCDay();
+  const thu = new Date(now.getTime() + ((4 - dow + 7) % 7) * 86_400_000);
+  const ymd = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d);
+  const from = ymd(thu), to = ymd(new Date(thu.getTime() + 2 * 86_400_000));
+
+  const [{ data: cars }, { data: busy }, { data: past }] = await Promise.all([
+    supabase.from('cars').select('id, name, category, resale_price, currency').eq('available', true),
+    supabase.from('bookings').select('car_id').in('status', ['PENDING', 'CONFIRMED', 'ACTIVE']).lte('start_date', to).gte('end_date', from),
+    supabase.from('bookings').select('client_name, client_phone, client_lang, car_id, start_date, end_date, status').in('status', ['CONFIRMED', 'ACTIVE', 'COMPLETED']).order('start_date', { ascending: false }).limit(1000),
+  ]);
+  const taken = new Set(((busy ?? []) as { car_id: string }[]).map(b => b.car_id));
+  const free = ((cars ?? []) as FlashCar[]).filter(c => !taken.has(c.id) && c.resale_price);
+  if (!free.length) return { text: `Toutes les voitures sont louées du ${from} au ${to}. 👍`, count: 0 };
+
+  const catOf = new Map(((cars ?? []) as FlashCar[]).map(c => [c.id, (c.category ?? '').toLowerCase()]));
+  const rows = (past ?? []) as Array<{ client_name: string; client_phone: string | null; client_lang: string | null; car_id: string; end_date: string; status: string }>;
+  const upcoming = new Set(rows.filter(b => b.end_date >= today().ymd).map(b => phoneKey(b.client_phone)).filter(Boolean));
+  const used = new Set<string>();  // un client = une seule offre
+  const blocks: string[] = [];
+  let count = 0;
+  for (const car of free) {
+    const cat = (car.category ?? '').toLowerCase();
+    const price = `${Math.round(car.resale_price! * (100 - FLASH_DISCOUNT) / 100)} ${car.currency === 'DZD' ? 'DA' : '€'}`;
+    const lines: string[] = [];
+    for (const b of rows) {
+      const pk = phoneKey(b.client_phone);
+      if (!pk || used.has(pk) || upcoming.has(pk)) continue;
+      if (b.car_id !== car.id && (!cat || catOf.get(b.car_id) !== cat)) continue;
+      const first = titleCase(b.client_name.split(/\s/)[0] ?? b.client_name);
+      const link = waLink(b.client_phone, flashText(first, car.name, price, b.client_lang ?? 'fr'));
+      if (!link) continue;
+      used.add(pk);
+      lines.push(`• ${b.client_name} 👉 ${link}`);
+      if (lines.length >= maxPerCar) break;
+    }
+    if (!lines.length) { blocks.push(`🚗 ${car.name} — libre, mais aucun ancien client de ce type de voiture à contacter.`); continue; }
+    count += lines.length;
+    blocks.push(`🚗 ${car.name} (${car.category ?? '—'}) → ${price}/jour au lieu de ${car.resale_price} :\n${lines.join('\n')}`);
+  }
+  return {
+    count,
+    text: [`⚡ OFFRE FLASH — voitures libres du ${from} au ${to} (-${FLASH_DISCOUNT} %). Rien n'est envoyé : appuie sur un lien si tu es d'accord, WhatsApp s'ouvre avec le message.`, ...blocks].join('\n\n'),
+  };
+}
+
+/** Mercredi matin : offre flash du week-end prête, si au moins un client à contacter. */
+export async function jobFlashOffer(): Promise<string> {
+  const { text, count } = await flashOffers();
+  if (!count) return `aucune offre (${text.slice(0, 80)})`;
+  emitProactive(`⚡ Offre flash prête : ${count} ancien(s) client(s) pour les voitures libres ce week-end`, 'reminder', text, 'kouider', 'bookings');
+  return `${count} message(s) prêts`;
 }

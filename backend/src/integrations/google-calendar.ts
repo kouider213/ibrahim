@@ -317,12 +317,15 @@ export async function findFreeSlots(count = 3, durationMin = 30): Promise<string
   const busy = Object.values(res.calendars).flatMap(c => c.busy ?? [])
     .map(b => [new Date(b.start).getTime(), new Date(b.end).getTime()] as const);
   const free = (s: number) => !busy.some(([bs, be]) => s < be && s + durationMin * 60_000 > bs);
+  // Jours de congé de Kouider (lundi + jeudi par défaut, réglables) : jamais de rendez-vous proposé
+  const daysOff = await import('./kouider-dossier.js').then(m => m.getDaysOff()).catch(() => [] as number[]);
 
   const slots: string[] = [];
   for (let d = 0; d < 12 && slots.length < count; d++) {
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date(from.getTime() + d * 86_400_000));
     const dow = new Date(`${day}T12:00:00+01:00`).getUTCDay();
     if (dow === 5 || dow === 6) continue;  // vendredi-samedi : week-end en Algérie
+    if (daysOff.includes(dow)) continue;   // congé de Kouider
     // Un horaire différent selon le jour (matin / début d'après-midi / fin d'après-midi) pour laisser le choix
     const hours = [[10, 11, 12], [14, 15, 11], [16, 10, 15]][slots.length % 3]!;
     const hit = hours.map(h => new Date(`${day}T${String(h).padStart(2, '0')}:00:00+01:00`).getTime()).find(t => t > from.getTime() && free(t));

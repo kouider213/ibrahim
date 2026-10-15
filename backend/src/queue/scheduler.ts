@@ -53,7 +53,7 @@ import { jobBrowserWatch } from '../integrations/browser-relay.js';
 import { jobTeamTasks } from '../integrations/team-tasks.js';
 import { jobMemoryConsolidation } from '../integrations/memory-consolidation.js';
 import { jobPrivacyExpire } from '../integrations/privacy.js';
-import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js';
+import { jobBirthdays, jobReviewWhatsapp, jobFlashOffer } from '../notifications/client-care.js';
 import { jobDbBackup } from '../integrations/db-backup.js';
 import { jobSelfTest } from '../integrations/self-test.js';
 import { jobSeasonWatch } from '../integrations/seasons.js';
@@ -307,6 +307,16 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'visibility-weekly',
+    cron:  '0 9 * * 2',             // mardi 9h — pack visibilité FIK Sites : post Google + Instagram de la semaine envoyé aux patrons
+    tz:    'Africa/Algiers',
+  },
+  {
+    name:  'flash-offer',
+    cron:  '0 10 * * 3',            // mercredi 10h — voitures libres jeudi→samedi : offre flash -10 % prête pour les anciens clients
+    tz:    'Africa/Algiers',
+  },
+  {
     name:  'client-birthdays',
     cron:  '15 9 * * *',            // 9h15 — anniversaires clients (date de naissance des passeports) → message WhatsApp prêt + appel
     tz:    'Africa/Algiers',
@@ -436,6 +446,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'auto-call-flush':         async () => { await flushAutoCalls(); },
   'tgcall-watch':            async () => { await checkTgcallAlive(); },
   'client-birthdays':        async () => { await jobBirthdays(); },
+  'flash-offer':             async () => { console.log(`[flash-offer] ${await jobFlashOffer()}`); },
+  'visibility-weekly':       async () => { console.log(`[visibility-weekly] ${await (await import('../integrations/site-visibility.js')).jobVisibilityWeekly()}`); },
   'review-whatsapp':         async () => { await jobReviewWhatsapp(); },
   'daily-recap-call':        async () => { await jobDailyRecapCall(); },
   'mail-reply-call':         async () => { await jobMailReplyCall(); },
