@@ -15,7 +15,7 @@ import os
 import time
 from pathlib import Path
 
-from cdp import Page
+from cdp import Page, cdp_json
 
 log = logging.getLogger('cloudpc.wa')
 URL = 'https://web.whatsapp.com/'
@@ -63,7 +63,27 @@ JS_MESSAGES = r"""((max) => {
 
 
 async def _page():
-    return Page('https://web.whatsapp.com', URL)
+    # Un seul onglet WhatsApp : avec deux, chacun reprend la main (« ouvert dans une autre fenêtre ») et coupe l'autre en plein envoi
+    try:
+        tabs = [t for t in cdp_json('/json/list') if t['type'] == 'page' and t['url'].startswith('https://web.whatsapp.com')]
+        for t in sorted(tabs, key=lambda t: t['id'])[1:]:
+            cdp_json(f"/json/close/{t['id']}")
+    except Exception as e:
+        log.warning('onglets WhatsApp en double : %s', e)
+    return _UseHere('https://web.whatsapp.com', URL)
+
+
+class _UseHere(Page):
+    """Page WhatsApp qui clique tout seul sur « Utiliser ici » si WhatsApp s'est cru ouvert ailleurs."""
+    async def __aenter__(self):
+        await super().__aenter__()
+        if await self.js("!![...document.querySelectorAll('button, div[role=button]')].find(b => /^(Utiliser ici|Use here)$/i.test((b.innerText || '').trim()))"):
+            await self.js("[...document.querySelectorAll('button, div[role=button]')].find(b => /^(Utiliser ici|Use here)$/i.test((b.innerText || '').trim())).click()")
+            for _ in range(30):
+                await asyncio.sleep(1)
+                if await self.js("!!document.querySelector('#pane-side')"):
+                    break
+        return self
 
 
 def _shown_code(text: str) -> str | None:
@@ -218,17 +238,22 @@ async def send_file(chat: str, path: str, caption: str = '') -> dict:
             if not await _open_chat(p, chat):
                 return {'ok': False, 'error': f'Discussion « {chat} » introuvable.'}
             title = await p.js("((document.querySelector('#main header span[title], #main header span[dir=\"auto\"]') || {}).innerText || '')")
-            before = await p.js("document.querySelectorAll('#main [data-testid^=\"conv-msg-\"], #main div.message-out').length")
-            if not await p.js("""(() => { const b = document.querySelector('#main footer [aria-label="Joindre"], #main footer [aria-label="Attach"]');
-                if (b) b.click(); return !!b; })()"""):
-                return {'ok': False, 'error': 'Bouton « Joindre » introuvable (page WhatsApp changée).'}
-            await asyncio.sleep(1.2)
+            await asyncio.sleep(4)   # la discussion vient d'être (re)chargée : laisser WhatsApp finir de se synchroniser
             # Le clic sur l'entrée du menu crée un <input type=file> caché ; on le remplit directement (CDP), sans fenêtre
             label = '^(Photos et vidéos|Photos & videos)$' if media else '^(Document)$'
-            if not await p.js(f"""(() => {{ const re = new RegExp({json.dumps(label)}, 'i');
-                const el = [...document.querySelectorAll('[role=menuitem], li, [role=button]')].find(e => re.test((e.getAttribute('aria-label') || e.innerText || '').trim()));
-                if (el) el.click(); return !!el; }})()"""):
-                return {'ok': False, 'error': 'Menu « Photos et vidéos / Document » introuvable.'}
+            for _ in range(3):
+                if not await p.js("""(() => { const b = document.querySelector('#main footer [aria-label="Joindre"], #main footer [aria-label="Attach"]');
+                    if (b) b.click(); return !!b; })()"""):
+                    await asyncio.sleep(2)
+                    continue
+                await asyncio.sleep(1.2)
+                if await p.js(f"""(() => {{ const re = new RegExp({json.dumps(label)}, 'i');
+                    const el = [...document.querySelectorAll('[role=menuitem], li, [role=button]')].find(e => re.test((e.getAttribute('aria-label') || e.innerText || '').trim()));
+                    if (el) el.click(); return !!el; }})()"""):
+                    break
+                await asyncio.sleep(1)
+            else:
+                return {'ok': False, 'error': 'Menu « Joindre → Photos et vidéos / Document » introuvable (page WhatsApp changée ?).'}
             pick = ("(i => /video/.test(i.accept))" if media else "(i => !/video/.test(i.accept) && i.accept !== 'image/*')")
             obj = None
             for _ in range(10):
@@ -243,7 +268,7 @@ async def send_file(chat: str, path: str, caption: str = '') -> dict:
             # Aperçu : attendre le bouton Envoyer, taper la légende, envoyer
             send_js = """(() => { const b = [...document.querySelectorAll('[aria-label="Envoyer"], [aria-label="Send"], [data-icon="send"], [data-icon="wds-ic-send-filled"]')]
                 .map(e => e.closest('[role=button],button') || e).find(e => !e.closest('#main footer'));
-              if (b) b.click(); return !!b; })()"""
+              if (!b) return null; const r = b.getBoundingClientRect(); return {x: r.x + r.width / 2, y: r.y + r.height / 2}; })()"""
             for _ in range(60):
                 await asyncio.sleep(1)
                 if await p.js("!![...document.querySelectorAll('[aria-label=\"Envoyer\"], [aria-label=\"Send\"], [data-icon=send], [data-icon=wds-ic-send-filled]')].find(e => !e.closest('#main footer'))"):
@@ -261,16 +286,26 @@ async def send_file(chat: str, path: str, caption: str = '') -> dict:
                     if line:
                         await p.call('Input.insertText', {'text': line})
                 await asyncio.sleep(0.5)
-            if not await p.js(send_js):
-                return {'ok': False, 'error': 'Bouton Envoyer introuvable dans l\'aperçu.'}
-            # Fin de l'envoi : un nouveau message « moi » apparaît (vidéo : peut prendre du temps)
-            for _ in range(int(30 + f.stat().st_size / 200_000)):
-                await asyncio.sleep(1)
-                n = await p.js("document.querySelectorAll('#main [data-testid^=\"conv-msg-\"], #main div.message-out').length")
-                if n and n > before:
-                    last = await p.js(f'({JS_MESSAGES})(1)')
-                    if last and last['messages'] and last['messages'][-1]['me']:
+        # Nouvelle connexion à l'onglet pour cliquer : dans la même session CDP que la pose du fichier,
+        # WhatsApp ignore le clic sur Envoyer (constaté le 2026-10-15)
+        async with await _page() as p:
+                if not await p.js(send_js):
+                    return {'ok': False, 'error': 'Bouton Envoyer introuvable dans l\'aperçu.'}
+                # Vrai clic souris (un .click() JS n'envoie pas) ; jusqu'à 3 essais puis Entrée.
+                # Envoyé = l'aperçu se ferme (WhatsApp termine ensuite le chargement tout seul, même pour une vidéo)
+                for attempt in range(4):
+                    await asyncio.sleep(2)
+                    box = await p.js(send_js)
+                    if not box:
                         return {'ok': True, 'chat': title or chat, 'file': f.name}
+                    if attempt < 3:
+                        for t in ('mouseMoved', 'mousePressed', 'mouseReleased'):
+                            await p.call('Input.dispatchMouseEvent', {'type': t, 'x': box['x'], 'y': box['y'], 'button': 'none' if t == 'mouseMoved' else 'left', 'clickCount': 1})
+                    else:
+                        await _key(p, 'Enter', 'Enter', 13)
+                await asyncio.sleep(2)
+                if not await p.js(send_js):
+                    return {'ok': True, 'chat': title or chat, 'file': f.name}
     return {'ok': False, 'error': "Le fichier n'apparaît pas encore comme envoyé (vérifie sur le téléphone)."}
 
 
