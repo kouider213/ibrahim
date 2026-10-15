@@ -29,7 +29,7 @@ import {
   toLocalISO,
   isValidTimezone,
 } from '../utils/timezone.js';
-import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, listPersonalEvents, createPersonalCalendarEvent, deletePersonalCalendarEvent } from './google-calendar.js';
+import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, createPersonalCalendarEvent, deletePersonalCalendarEvent, listPersonalEventsRange, updatePersonalCalendarEvent, personalCalendarAccess } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { setCarPapers, getCarPapers } from './car-papers.js';
 import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, proSenderAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
@@ -377,6 +377,7 @@ async function _dispatch(
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
       case 'create_personal_event':     return await createPersonalEventTool(input);
       case 'list_personal_events':      return await listPersonalEventsTool(input);
+      case 'update_personal_event':     return await updatePersonalEventTool(input);
       case 'delete_personal_event':     return await deletePersonalEventTool(input);
       // ─── GMAIL ───
       case 'list_emails':               return await listEmailsTool(input);
@@ -2068,19 +2069,37 @@ async function createPersonalEventTool(input: Record<string, unknown>): Promise<
   if (!title || !startDatetime || !endDatetime)
     return '❌ title, start_datetime, end_datetime sont requis';
 
-  const eventId = await createPersonalCalendarEvent(title, startDatetime, endDatetime, description, allDay);
+  const eventId = await createPersonalCalendarEvent(title, startDatetime, endDatetime, description, allDay, input['location'] as string | undefined);
   if (!eventId) return '❌ Impossible de créer l\'événement. Vérifie que l\'agenda kouiderpablo@gmail.com est partagé avec le service account et que PERSONAL_GCAL_ID est configuré dans Railway.';
   return `✅ Événement ajouté dans ton agenda perso !\n📅 ${title}\n🗓️ ${startDatetime} → ${endDatetime}${description ? `\n📝 ${description}` : ''}\n🔗 Event ID: ${eventId}`;
 }
 
 async function listPersonalEventsTool(input: Record<string, unknown>): Promise<string> {
-  const maxResults = Number(input['max_results'] ?? 15);
-  const events = await listPersonalEvents(maxResults);
-  if (!events.length) return '📅 Aucun événement à venir dans ton agenda perso (kouiderpablo@gmail.com).';
-  return `📅 ${events.length} événement(s) dans ton agenda perso:\n${events.map((e: any) => {
-    const start = e.start?.dateTime?.slice(0, 16).replace('T', ' ') ?? e.start?.date ?? '?';
-    return `- ${e.summary} | ${start}`;
-  }).join('\n')}`;
+  // Période : un jour précis (date), ou à partir d'aujourd'hui sur N jours (défaut 14)
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input['date'] ?? '')) ? String(input['date']) : null;
+  const days = Math.min(120, Math.max(1, Number(input['days'] ?? (date ? 1 : 14))));
+  const start = date ? new Date(`${date}T00:00:00+01:00`) : new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Algiers' }) + 'T00:00:00+01:00');
+  const end = new Date(start.getTime() + days * 86_400_000);
+  const events = await listPersonalEventsRange(start.toISOString(), end.toISOString(), Number(input['max_results'] ?? 50));
+  if (events === null) {
+    const acc = await personalCalendarAccess();
+    return `❌ Je n'ai PAS accès à l'agenda perso de Kouider (${acc.calendar}) : ${acc.reason}. Ne dis pas que l'agenda est vide.${acc.shareWith ? ` Pour régler : dans Google Agenda (kouiderpablo@gmail.com) → Paramètres de l'agenda → Partager avec des personnes → ajouter ${acc.shareWith} avec « Apporter des modifications aux événements ».` : ''}`;
+  }
+  const when = (e: { start: { dateTime?: string; date?: string } }) => e.start.dateTime
+    ? new Date(e.start.dateTime).toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : `${new Date(`${e.start.date}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} (journée)`;
+  const span = date ? `le ${date}` : `les ${days} prochains jours`;
+  if (!events.length) return `📅 Agenda perso (accès OK) : rien de prévu ${span}.`;
+  return `📅 Agenda perso — ${events.length} événement(s) ${span} :\n${events.map(e => `- ${when(e)} · ${e.summary}${e.location ? ` · 📍 ${e.location}` : ''} [id: ${e.id}]`).join('\n')}\n(Pour modifier/supprimer : update_personal_event / delete_personal_event avec l'id.)`;
+}
+
+async function updatePersonalEventTool(input: Record<string, unknown>): Promise<string> {
+  const id = String(input['google_event_id'] ?? '').trim();
+  if (!id) return '❌ google_event_id requis — appelle list_personal_events (il donne les id).';
+  const s = (k: string) => (typeof input[k] === 'string' && (input[k] as string).trim() ? (input[k] as string).trim() : undefined);
+  const ok = await updatePersonalCalendarEvent(id, { title: s('title'), start: s('start_datetime'), end: s('end_datetime'), description: s('description'), location: s('location'), allDay: input['all_day'] === true });
+  if (!ok) { const acc = await personalCalendarAccess(); return acc.ok ? '❌ Événement introuvable ou modification refusée — revérifie l\'id avec list_personal_events.' : `❌ Pas d'accès à l'agenda perso : ${acc.reason}`; }
+  return `✅ RDV modifié dans l'agenda perso${s('title') ? ` : ${s('title')}` : ''}${s('start_datetime') ? ` → ${s('start_datetime')!.replace('T', ' ').slice(0, 16)}` : ''}.`;
 }
 
 // Seule la boîte fikconciergerie@gmail.com est lue (demande Kouider 2026-10-12)
@@ -2326,8 +2345,11 @@ async function updateProspectTool(input: Record<string, unknown>): Promise<strin
 async function deletePersonalEventTool(input: Record<string, unknown>): Promise<string> {
   const googleEventId = input['google_event_id'] as string | undefined;
   if (!googleEventId) return '❌ google_event_id requis — appelle list_personal_events pour obtenir l\'ID';
-  await deletePersonalCalendarEvent(googleEventId);
-  return `✅ Événement ${googleEventId} supprimé de ton agenda perso`;
+  if (!(await deletePersonalCalendarEvent(googleEventId))) {
+    const acc = await personalCalendarAccess();
+    return acc.ok ? '❌ Événement introuvable (déjà supprimé ?) — revérifie avec list_personal_events.' : `❌ Pas d'accès à l'agenda perso : ${acc.reason}`;
+  }
+  return `✅ Événement supprimé de ton agenda perso`;
 }
 
 async function searchImages(input: Record<string, unknown>): Promise<string> {

@@ -4,6 +4,7 @@ import {
   createCalendarEvent, syncPendingBookings,
   listPersonalEvents, listHouariEvents,
   createPersonalCalendarEvent, createHouariCalendarEvent,
+  listPersonalEventsRange, updatePersonalCalendarEvent, deletePersonalCalendarEvent, personalCalendarAccess,
 } from '../../integrations/google-calendar.js';
 import { exchangeGmailCode, getGmailAuthUrl, GMAIL_STATE_PREFIX } from '../../integrations/gmail.js';
 import { requireMobileAuth } from '../middleware/auth.js';
@@ -81,6 +82,40 @@ router.post('/events', requireMobileAuth, async (req, res) => {
   }
 });
 
+// ── Bonhomme Kouider sur la Carte live : son agenda du jour + des 7 jours, état de l'accès ──
+const ownerOf = (req: unknown) => (req as { mobileActor?: { ownerKey?: string } }).mobileActor?.ownerKey ?? 'kouider';
+router.get('/me', requireMobileAuth, async (req, res) => {
+  if (ownerOf(req) === 'houari') { res.status(403).json({ error: 'Agenda de Kouider seulement' }); return; }
+  try {
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date());
+    const from = new Date(`${day}T00:00:00+01:00`), to = new Date(from.getTime() + 8 * 86_400_000);
+    const [perso, fik] = await Promise.all([
+      listPersonalEventsRange(from.toISOString(), to.toISOString(), 60),
+      listUpcomingEvents(40).catch(() => []),
+    ]);
+    const access = perso === null ? await personalCalendarAccess() : { ok: true, calendar: 'kouiderpablo@gmail.com' };
+    type Ev = { id?: string; summary: string; location?: string; description?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } };
+    const pick = (e: Ev, src: 'perso' | 'fik') => ({ id: e.id, src, title: e.summary, location: e.location ?? null, start: e.start.dateTime ?? e.start.date ?? null, end: e.end?.dateTime ?? e.end?.date ?? null, allDay: !e.start.dateTime });
+    const pro = (fik as unknown as Ev[]).filter(e => !(e.summary ?? '').startsWith('🚗')).map(e => pick(e, 'fik'))
+      .filter(e => e.start && e.start < to.toISOString());
+    const events = [...(perso ?? []).map(e => pick(e as Ev, 'perso')), ...pro].sort((a, b) => String(a.start).localeCompare(String(b.start)));
+    res.json({ day, access, events });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+router.patch('/personal/:id', requireMobileAuth, async (req, res) => {
+  if (ownerOf(req) === 'houari') { res.status(403).json({ error: 'Agenda de Kouider seulement' }); return; }
+  const b = req.body as { title?: string; start?: string; end?: string; location?: string; description?: string; allDay?: boolean };
+  const ok = await updatePersonalCalendarEvent(String(req.params['id']), b);
+  res.status(ok ? 200 : 502).json({ success: ok });
+});
+router.delete('/personal/:id', requireMobileAuth, async (req, res) => {
+  if (ownerOf(req) === 'houari') { res.status(403).json({ error: 'Agenda de Kouider seulement' }); return; }
+  const ok = await deletePersonalCalendarEvent(String(req.params['id']));
+  res.status(ok ? 200 : 502).json({ success: ok });
+});
+
 // GET /api/calendar/all — multi-calendar events, actor-aware
 router.get('/all', requireMobileAuth, async (req, res) => {
   const actor = (req.query['actor'] as string) === 'houari' ? 'houari' : 'kouider';
@@ -123,6 +158,7 @@ router.post('/add', requireMobileAuth, async (req, res) => {
     endDateTime:   string;
     description?:  string;
     allDay?:       boolean;
+    location?:     string;
   };
   if (!calendar || !title || !startDateTime || !endDateTime) {
     res.status(400).json({ error: 'calendar, title, startDateTime, endDateTime requis' });
@@ -133,7 +169,7 @@ router.post('/add', requireMobileAuth, async (req, res) => {
     if (calendar === 'fik') {
       eventId = await createCalendarEvent(`add_${Date.now()}`, title, '', startDateTime.slice(0,10), endDateTime.slice(0,10), description);
     } else if (calendar === 'kouider') {
-      eventId = await createPersonalCalendarEvent(title, startDateTime, endDateTime, description, allDay);
+      eventId = await createPersonalCalendarEvent(title, startDateTime, endDateTime, description, allDay, (req.body as { location?: string }).location);
     } else {
       eventId = await createHouariCalendarEvent(title, startDateTime, endDateTime, description, allDay);
     }

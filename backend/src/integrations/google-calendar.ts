@@ -98,13 +98,16 @@ async function getAccessToken(): Promise<string | null> {
 
 // ── Calendar API ──────────────────────────────────────────────
 
+// Dernière erreur Google (pour dire « pas d'accès » au lieu de « agenda vide »)
+let lastCalendarError: { status?: number; msg: string } | null = null;
+
 async function calendarRequest<T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: object,
 ): Promise<T | null> {
   const token = await getAccessToken();
-  if (!token) { console.error('[google-calendar] No token — set GOOGLE_SERVICE_ACCOUNT_JSON'); return null; }
+  if (!token) { lastCalendarError = { msg: 'no_token' }; console.error('[google-calendar] No token — set GOOGLE_SERVICE_ACCOUNT_JSON'); return null; }
   try {
     const res = await axios.request<T>({
       method, url: `${GOOGLE_CALENDAR_BASE}${path}`,
@@ -114,6 +117,7 @@ async function calendarRequest<T>(
     return res.data;
   } catch (err: unknown) {
     const axErr = err as { response?: { status?: number; data?: unknown } };
+    lastCalendarError = { status: axErr?.response?.status, msg: axErr?.response ? JSON.stringify(axErr.response.data).slice(0, 300) : (err instanceof Error ? err.message : String(err)) };
     if (axErr?.response) {
       console.error(`[google-calendar] ${method} ${path} HTTP ${axErr.response.status}:`, JSON.stringify(axErr.response.data));
     } else {
@@ -211,10 +215,12 @@ export async function createPersonalCalendarEvent(
   endDateTime: string,
   description?: string,
   allDay?: boolean,
+  location?: string,
 ): Promise<string | null> {
   const calId = getPersonalCalId();
   const body: Record<string, unknown> = { summary: title };
   if (description) body['description'] = description;
+  if (location) body['location'] = location;
   if (allDay) {
     body['start'] = { date: startDateTime.slice(0, 10) };
     body['end']   = { date: endDateTime.slice(0, 10) };
@@ -228,8 +234,54 @@ export async function createPersonalCalendarEvent(
 
 export async function deletePersonalCalendarEvent(googleEventId: string): Promise<boolean> {
   const calId = getPersonalCalId();
-  await calendarRequest('DELETE', `/calendars/${encodeURIComponent(calId)}/events/${googleEventId}`);
-  return true;
+  const r = await calendarRequest('DELETE', `/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(googleEventId)}`);
+  return r !== null;
+}
+
+export interface PersonalEvent {
+  id?: string; summary: string; description?: string; location?: string;
+  start: { dateTime?: string; date?: string; timeZone?: string };
+  end: { dateTime?: string; date?: string; timeZone?: string };
+}
+// Événements perso sur une période (ex. aujourd'hui, un jour précis, la semaine) — null = pas d'accès
+export async function listPersonalEventsRange(fromIso: string, toIso: string, max = 50): Promise<PersonalEvent[] | null> {
+  const calId = getPersonalCalId();
+  const res = await calendarRequest<{ items: PersonalEvent[] }>('GET',
+    `/calendars/${encodeURIComponent(calId)}/events?maxResults=${max}&orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(fromIso)}&timeMax=${encodeURIComponent(toIso)}`);
+  return res ? (res.items ?? []) : null;
+}
+
+// Modifier un RDV perso : titre, horaires, lieu, notes (seuls les champs donnés changent)
+export async function updatePersonalCalendarEvent(googleEventId: string, u: Partial<{ title: string; start: string; end: string; description: string; location: string; allDay: boolean }>): Promise<boolean> {
+  const calId = getPersonalCalId();
+  const patch: Record<string, unknown> = {};
+  if (u.title) patch['summary'] = u.title;
+  if (u.description !== undefined) patch['description'] = u.description;
+  if (u.location !== undefined) patch['location'] = u.location;
+  const when = (v: string, dflt: string) => u.allDay ? { date: v.slice(0, 10) } : { dateTime: v.includes('T') ? v : `${v}T${dflt}`, timeZone: 'Africa/Algiers' };
+  if (u.start) patch['start'] = when(u.start, '09:00:00');
+  if (u.end) patch['end'] = when(u.end, '10:00:00');
+  if (u.start && !u.end && !u.allDay && u.start.includes('T')) {        // même durée par défaut : +1 h
+    const e = new Date(new Date(`${u.start}Z`).getTime() + 3600_000).toISOString().slice(0, 19);
+    patch['end'] = { dateTime: e, timeZone: 'Africa/Algiers' };
+  }
+  const r = await calendarRequest('PATCH', `/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(googleEventId)}`, patch);
+  return r !== null;
+}
+
+// Dzaryx a-t-il vraiment accès à l'agenda perso ? (sinon on le dit clairement)
+export async function personalCalendarAccess(): Promise<{ ok: boolean; calendar: string; reason?: string; shareWith?: string }> {
+  const calId = getPersonalCalId();
+  const r = await calendarRequest<{ id: string }>('GET', `/calendars/${encodeURIComponent(calId)}`);
+  if (r) return { ok: true, calendar: calId };
+  const sa = getServiceAccount();
+  const e = lastCalendarError;
+  return {
+    ok: false, calendar: calId, shareWith: sa?.client_email,
+    reason: e?.msg === 'no_token' ? 'Aucune clé Google configurée sur le serveur'
+      : e?.status === 404 || e?.status === 403 ? `L'agenda ${calId} n'est pas partagé avec Dzaryx${sa ? ` (${sa.client_email})` : ''}`
+      : `Erreur Google ${e?.status ?? ''} ${e?.msg ?? ''}`.trim(),
+  };
 }
 
 // ── Houari personal calendar ──────────────────────────────────
