@@ -889,7 +889,7 @@ export interface ProspectsOverview {
 // ── À PAYER (abonnements pour garder Dzaryx actif) ──
 export interface BillingRow {
   id: string; name: string; level: 'vital' | 'important' | 'optionnel'; kind: 'abonnement' | 'credits' | 'gratuit' | 'annuel';
-  what: string; ifUnpaid: string; payUrl: string; period?: 'mois' | 'an'; price?: string;
+  what: string; ifUnpaid: string; payUrl: string; period?: 'mois' | 'an'; price?: string; mandatory?: boolean;
   due: string | null; daysLeft: number | null; amount: string | null; note: string | null;
   state: 'ok' | 'soon' | 'late' | 'out' | 'unknown'; status: string; live: boolean;
 }

@@ -11,9 +11,10 @@ const C = {
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 9, padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font } as const);
-const LEVEL: Record<string, { label: string; color: string }> = {
-  vital: { label: 'VITAL', color: C.red }, important: { label: 'IMPORTANT', color: C.gold }, optionnel: { label: 'OPTIONNEL', color: C.muted },
-};
+/** Étiquette : ce qu'il faut VRAIMENT payer (Railway) vs facultatif ; gratuits indispensables à garder gratuits */
+const badge = (r: BillingRow) => r.mandatory ? { label: 'OBLIGATOIRE', color: C.red }
+  : r.kind === 'gratuit' ? (r.level === 'vital' ? { label: 'GRATUIT · INDISPENSABLE', color: C.accent } : { label: 'GRATUIT', color: C.accent })
+  : { label: 'FACULTATIF', color: C.muted };
 const STATE: Record<string, { icon: string; color: string }> = {
   ok: { icon: '🟢', color: C.accent }, soon: { icon: '🟠', color: C.gold }, late: { icon: '🔴', color: C.red },
   out: { icon: '🔴', color: C.red }, unknown: { icon: '⚪', color: C.muted },
@@ -48,7 +49,8 @@ export default function PaiementsScreen() {
   };
 
   const rows = data?.rows ?? [];
-  const paid = rows.filter(r => r.kind !== 'gratuit');
+  const paid = rows.filter(r => r.kind !== 'gratuit').sort((a, b) => Number(!!b.mandatory) - Number(!!a.mandatory));
+  const must = paid.filter(r => r.mandatory);
   const free = rows.filter(r => r.kind === 'gratuit');
   const urgent = paid.filter(r => r.state === 'late' || r.state === 'out' || r.state === 'soon');
   const unknown = paid.filter(r => r.state === 'unknown');
@@ -62,6 +64,12 @@ export default function PaiementsScreen() {
             <StatCard icon="⚠️" value={String(urgent.length)} label="À REGARDER" color={urgent.length ? C.red : C.accent} />
             <StatCard icon="❔" value={String(unknown.length)} label="DATE À REMPLIR" color={C.gold} />
             <StatCard icon="🧠" value={data?.claudeSpent7d != null ? `${data.claudeSpent7d.toFixed(1)} $` : '—'} label="CLAUDE 7 JOURS" color="#a78bfa" />
+          </div>
+
+          <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.35)', borderRadius: 14, padding: 12, marginBottom: 10, fontSize: 12.5, lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 800, fontSize: 13.5, marginBottom: 4 }}>💡 Le minimum obligatoire</div>
+            {must.map(r => <div key={r.id}>🔴 <b>{r.name}</b> — {r.amount ?? r.price}{r.due ? ` · le ${new Date(`${r.due}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''}</div>)}
+            <div style={{ color: C.muted, marginTop: 4 }}>C'est le seul paiement obligatoire pour garder Dzaryx en vie. Tout ce qui est marqué FACULTATIF peut être arrêté pour faire des économies : Dzaryx continue (en mode gratuit pour ce service).</div>
           </div>
 
           <div style={{ background: 'rgba(16,185,129,0.08)', border: `1px solid rgba(16,185,129,0.25)`, borderRadius: 14, padding: 12, marginBottom: 14, fontSize: 12, lineHeight: 1.5 }}>
@@ -85,7 +93,7 @@ export default function PaiementsScreen() {
 
 function Card({ r, open, onToggle, act }: { r: BillingRow; open: boolean; onToggle: () => void; act: (fn: () => Promise<{ message?: string }>) => Promise<void> }) {
   const st = STATE[r.state] ?? STATE['unknown']!;
-  const lv = LEVEL[r.level] ?? LEVEL['optionnel']!;
+  const lv = badge(r);
   const setDate = () => {
     const v = window.prompt(`Prochain paiement de ${r.name} (JJ/MM/AAAA)`, r.due ? r.due.split('-').reverse().join('/') : '');
     if (v === null) return;

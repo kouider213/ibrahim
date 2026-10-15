@@ -5,6 +5,8 @@
 
 ---
 
+## 2026-10-15 (7) — « À PAYER » : étiquettes OBLIGATOIRE (Railway seul) / FACULTATIF / GRATUIT · INDISPENSABLE + encadré « minimum obligatoire » (SW v142)
+
 ## 2026-10-15 (6) — « À PAYER » + Dzaryx ne meurt jamais tant que Railway est payé
 - `backend/src/integrations/billing.ts` (nouveau) : liste des services (vital/important/optionnel, ce qui casse si pas payé, lien
   pour payer). Railway lu en direct (GraphQL : facture en cours + date), domaine lu en direct (RDAP, Name.com, expire 2027-06-03),

@@ -19,11 +19,12 @@ export type Kind  = 'abonnement' | 'credits' | 'gratuit' | 'annuel';
 interface Def {
   id: string; name: string; level: Level; kind: Kind; what: string; ifUnpaid: string; payUrl: string;
   period?: 'mois' | 'an'; price?: string;    // prix public indicatif, à corriger par Kouider
+  mandatory?: boolean;                         // OBLIGATOIRE à payer pour que Dzaryx reste en vie (Railway seulement)
   env?: string[];                              // service compté seulement si une de ces clés est configurée
 }
 
 export const SERVICES: Def[] = [
-  { id: 'railway', name: 'Railway', level: 'vital', kind: 'abonnement', period: 'mois', price: '≈ 5 à 10 $',
+  { id: 'railway', name: 'Railway', level: 'vital', kind: 'abonnement', period: 'mois', price: '≈ 5 à 10 $', mandatory: true,
     what: 'Le cerveau de Dzaryx (serveur) : Telegram, app, démarchage, appels programmés.',
     ifUnpaid: 'Dzaryx s\'arrête complètement. À payer en priorité.', payUrl: 'https://railway.com/account/billing' },
   { id: 'anthropic', name: 'Claude (Anthropic)', level: 'important', kind: 'credits', price: 'crédits prépayés',
@@ -40,7 +41,7 @@ export const SERVICES: Def[] = [
   { id: 'google_maps', name: 'Google Maps API', level: 'optionnel', kind: 'credits', price: '200 $/mois offerts par Google',
     what: 'Démarchage sites web, démos de sites, carte.', ifUnpaid: 'Plus de nouveaux commerces trouvés ni de démos.', payUrl: 'https://console.cloud.google.com/billing', env: ['GOOGLE_MAPS_API_KEY', 'GOOGLE_PLACES_API_KEY'] },
   { id: 'supabase', name: 'Supabase (base de données)', level: 'vital', kind: 'gratuit', price: 'gratuit (plan Free)',
-    what: 'Toutes les données : réservations, clients, prospects, mémoire.', ifUnpaid: 'Gratuit : rien à payer tant qu\'on reste dans la limite.', payUrl: 'https://supabase.com/dashboard/org/_/billing', env: ['SUPABASE_URL'] },
+    what: 'Toutes les données : réservations, clients, prospects, mémoire.', ifUnpaid: 'Gratuit mais INDISPENSABLE : ne jamais passer en payant, juste rester dans la limite gratuite.', payUrl: 'https://supabase.com/dashboard/org/_/billing', env: ['SUPABASE_URL'] },
   { id: 'upstash', name: 'Upstash Redis', level: 'important', kind: 'gratuit', price: 'gratuit (limite mensuelle)',
     what: 'Mémoire rapide et tâches programmées.', ifUnpaid: 'Gratuit ; si la limite est dépassée, tâches programmées en pause jusqu\'au mois suivant.', payUrl: 'https://console.upstash.com', env: ['REDIS_URL'] },
   { id: 'groq', name: 'Groq (cerveau de secours)', level: 'optionnel', kind: 'gratuit', price: 'gratuit',
@@ -252,7 +253,8 @@ export async function billingTool(input: Record<string, unknown>): Promise<strin
     const icon = (r: BillingRow) => r.state === 'out' || r.state === 'late' ? '🔴' : r.state === 'soon' ? '🟠' : r.state === 'ok' ? '🟢' : '⚪';
     const paid = rows.filter(r => r.kind !== 'gratuit'), free = rows.filter(r => r.kind === 'gratuit');
     return `💳 À PAYER pour garder Dzaryx actif :\n` +
-      paid.map(r => `${icon(r)} ${r.name} [${r.level}] — ${r.status}${r.amount ? ` · ${r.amount}` : r.price ? ` · ${r.price}` : ''}`).join('\n') +
+      `(Seul OBLIGATOIRE : Railway. Tout le reste est facultatif, Dzaryx survit sans.)\n` +
+      paid.map(r => `${icon(r)} ${r.name} [${r.mandatory ? 'OBLIGATOIRE' : 'facultatif'}] — ${r.status}${r.amount ? ` · ${r.amount}` : r.price ? ` · ${r.price}` : ''}`).join('\n') +
       `\n\nGratuits : ${free.map(r => `${icon(r)} ${r.name}`).join(', ')}` +
       (claudeSpent7d !== null ? `\nClaude, 7 derniers jours : ≈ ${claudeSpent7d.toFixed(2)} $ (estimation)` : '') +
       `\n\nSurvie : ${survival.join(' ')}`;
