@@ -465,7 +465,7 @@ RDV : « prépare-moi mon RDV de 15h » → prepare_meeting. Dzaryx prépare aus
   toolNames: ['create_mission', 'list_missions', 'update_mission', 'run_mission_now', 'prepare_meeting',
     'create_intention', 'list_intentions', 'cancel_intention',
     'create_goal', 'list_goals', 'update_goal', 'assign_task', 'complete_task', 'list_team_tasks',
-    'schedule_reminder', 'list_calendar_events', 'list_personal_events', 'list_prospects', 'web_search'],
+    'schedule_reminder', 'list_calendar_events', 'list_agenda_events', 'list_prospects', 'web_search'],
   // NB : pas de \b devant une lettre accentuée en JS (« écrit ») → (?:^|\s) à la place
   keywords: /\bobjectifs?\b|\bt[aâ]ches?\b|\bdis\s+[aà]\s+houari\b|\bdemande\s+[aà]\s+houari\b|\b(?:la\s+)?prochaine\s+fois\s+qu(?:e|')|\b(?:si|quand|d[eè]s\s+qu(?:e|'))\s+[^.?!]{1,60}(?:^|\s)(?:r[eé]serve|r[eé]pond|[eé]crit|m'?appelle|me\s+parle)(?=[^.?!]*(?:rappelle|pr[eé]viens|appelle[\s-]moi|dis[\s-]le[\s-]moi|alerte))|rappels?\s+d'[eé]v[eé]nement|\bmissions?\b|pr[eé]pare[\s-](?:moi\s+)?(?:mon|le|ce|mes)\s+(?:rdv|rendez[\s-]vous|r[eé]union)|\b(?:chaque|tous\s+les|toutes\s+les)\s+(?:jours?|matins?|soirs?|semaines?|mois|lundis?|mardis?|mercredis?|jeudis?|vendredis?|samedis?|dimanches?|heures?)\b[^.?!]*\b(?:v[eé]rifie|surveille|regarde|cherche|fais[\s-]moi|dis[\s-]moi|pr[eé]viens|analyse|compare|contr[oô]le)/i,
   priority:  11,

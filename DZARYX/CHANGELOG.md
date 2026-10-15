@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-15 (13) — Dzaryx : agenda FIK seulement, jamais l'agenda perso
+- Décision Kouider : Dzaryx n'accède QU'À l'agenda FIK (fikconciergerie@gmail.com). Supprimé : tout accès à kouiderpablo@gmail.com
+  (outils *_personal_event, contexte « AGENDA PERSO », préparation des RDV, agenda en appel, /calendar/all, freeBusy, RDV FIK Sites).
+- Nouveaux outils sur l'agenda FIK : `list_agenda_events` (jour/période, heure, lieu, id), `create_agenda_event` (heure + lieu),
+  `update_agenda_event` (date ET heure), `delete_agenda_event` ; « pas d'accès » dit clairement. Les RDV FIK Sites vont dans l'agenda FIK.
+- Carte : le bonhomme lit l'agenda FIK (`/api/calendar/me`, `PATCH|DELETE /api/calendar/agenda/:id`). SW v149.
+
 ## 2026-10-15 (12) — Agenda perso Dzaryx + bonhomme Kouider + vrais avions
 - Backend : `update_personal_event` (modifier un RDV perso), `list_personal_events` par jour/période avec les id + lieu,
   `create_personal_event` avec lieu ; si Google refuse → message « pas d'accès » + marche à suivre (avant : « agenda vide »).

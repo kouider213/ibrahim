@@ -1,4 +1,4 @@
-import { listPersonalEvents, listUpcomingEvents } from './google-calendar.js';
+import { listUpcomingEvents } from './google-calendar.js';
 import { kvGet, kvSet } from './app-store.js';
 import { runReadOnlyAgent } from './readonly-agent.js';
 import { emitProactive } from '../notifications/mobile-push.js';
@@ -50,12 +50,9 @@ export async function prepareMeeting(e: Ev): Promise<{ oral: string; detail: str
 /** Job toutes les 10 min. */
 export async function jobMeetingPrep(): Promise<void> {
   if ((await kvGet('meetprep:off').catch(() => null)) === '1') return;
-  const [perso, biz] = await Promise.all([
-    listPersonalEvents(15).catch(() => [] as unknown[]),
-    listUpcomingEvents(20).catch(() => [] as unknown[]),
-  ]);
+  const biz = await listUpcomingEvents(20).catch(() => [] as unknown[]);   // agenda FIK seulement
   const now = Date.now();
-  for (const e of [...perso, ...biz] as Ev[]) {
+  for (const e of biz as Ev[]) {
     if (!e.id || isBookingOrNoise(e)) continue;
     const mins = (new Date(e.start!.dateTime!).getTime() - now) / 60_000;
     if (mins < WINDOW_MIN || mins > WINDOW_MAX) continue;
@@ -78,11 +75,8 @@ export async function jobMeetingPrep(): Promise<void> {
 /** Outil prepare_meeting : « prépare-moi mon RDV de 15h / avec Sonatrach » (à la demande, sans appel). */
 export async function prepareMeetingTool(input: Record<string, unknown>): Promise<string> {
   const q = String(input['query'] ?? '').trim().toLowerCase();
-  const [perso, biz] = await Promise.all([
-    listPersonalEvents(20).catch(() => [] as unknown[]),
-    listUpcomingEvents(25).catch(() => [] as unknown[]),
-  ]);
-  const events = ([...perso, ...biz] as Ev[]).filter(e => !isBookingOrNoise(e))
+  const biz = await listUpcomingEvents(25).catch(() => [] as unknown[]);   // agenda FIK seulement
+  const events = (biz as Ev[]).filter(e => !isBookingOrNoise(e))
     .sort((a, b) => new Date(a.start!.dateTime!).getTime() - new Date(b.start!.dateTime!).getTime());
   const hhmm = (e: Ev) => new Date(e.start!.dateTime!).toLocaleTimeString('fr-BE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
   const t = q.match(/\b(\d{1,2})\s*(?:h|:)\s*(\d{2})?\b/);   // « 15h », « 9h30 », « 15:00 »

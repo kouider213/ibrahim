@@ -873,10 +873,10 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       required: ['booking_id', 'client_name', 'car_name', 'start_date', 'end_date'],
     },
   },
-  // ─── AGENDA PERSO KOUIDER (kouiderpablo@gmail.com) ──────────
+  // ─── AGENDA DE KOUIDER = agenda FIK (fikconciergerie@gmail.com) — jamais l'agenda perso ──
   {
-    name: 'create_personal_event',
-    description: 'Créer un événement dans l\'agenda PERSONNEL de Kouider (kouiderpablo@gmail.com) — RDV privés, voyages, visites médicales, rappels perso, anniversaires, etc. NE PAS utiliser pour les réservations Fik Conciergerie. Utiliser quand Kouider dit "mets dans mon agenda perso", "ajoute un RDV privé", "note ce voyage", "rappelle-moi ce truc perso".',
+    name: 'create_agenda_event',
+    description: 'Ajouter un RDV avec heure dans l\'agenda de Kouider = agenda FIK (fikconciergerie@gmail.com) : RDV client, garage, banque, aéroport, appel prospect, voyage, rappel… Utiliser quand Kouider dit "mets dans mon agenda", "ajoute un RDV", "note ce rendez-vous". Dzaryx n\'a PAS accès à l\'agenda perso de Kouider (kouiderpablo@gmail.com) et ne doit jamais y toucher. Pour une RÉSERVATION de voiture : create_calendar_event.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -891,8 +891,8 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
-    name: 'list_personal_events',
-    description: 'Lire l\'agenda PERSONNEL de Kouider (kouiderpablo@gmail.com) : RDV, voyages, rappels perso, avec leur id (pour modifier/supprimer). Par défaut les 14 prochains jours ; date=YYYY-MM-DD pour un jour précis ; days pour une autre durée. Utiliser pour "mon agenda", "qu\'est-ce que j\'ai demain / lundi / cette semaine", "mes RDV". Si l\'outil dit pas d\'accès, le dire à Kouider (ne jamais dire que l\'agenda est vide).',
+    name: 'list_agenda_events',
+    description: 'Lire l\'agenda de Kouider = agenda FIK (fikconciergerie@gmail.com) : RDV, locations, rappels, avec heure, lieu et id (pour modifier/supprimer). Par défaut les 14 prochains jours ; date=YYYY-MM-DD pour un jour précis ; days pour une autre durée. Utiliser pour "mon agenda", "qu\'est-ce que j\'ai demain / lundi / cette semaine", "mes RDV". Si l\'outil dit pas d\'accès, le dire (ne jamais dire que l\'agenda est vide). Jamais l\'agenda perso.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -903,12 +903,12 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
-    name: 'update_personal_event',
-    description: 'MODIFIER un RDV de l\'agenda PERSONNEL de Kouider : déplacer (nouvelle date/heure), renommer, changer le lieu ou les notes. Appeler list_personal_events d\'abord pour avoir l\'id. Ex : "décale mon RDV banque à 16h", "mets le dentiste à jeudi".',
+    name: 'update_agenda_event',
+    description: 'MODIFIER un RDV de l\'agenda FIK de Kouider : déplacer (nouvelle date ET heure), renommer, changer le lieu ou les notes. Appeler list_agenda_events d\'abord pour avoir l\'id. Ex : "décale mon RDV banque à 16h", "mets le garage à jeudi 10h".',
     input_schema: {
       type: 'object' as const,
       properties: {
-        google_event_id: { type: 'string', description: 'id de l\'événement (donné par list_personal_events)' },
+        google_event_id: { type: 'string', description: 'id de l\'événement (donné par list_agenda_events)' },
         title:           { type: 'string', description: 'Nouveau titre (optionnel)' },
         start_datetime:  { type: 'string', description: 'Nouveau début YYYY-MM-DDTHH:MM:SS (heure d\'Algérie) ou YYYY-MM-DD si journée (optionnel)' },
         end_datetime:    { type: 'string', description: 'Nouvelle fin (optionnel ; sinon début + 1 h)' },
@@ -1082,12 +1082,12 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
-    name: 'delete_personal_event',
-    description: 'Supprimer un événement de l\'agenda PERSONNEL de Kouider. Appeler list_personal_events d\'abord pour obtenir l\'ID.',
+    name: 'delete_agenda_event',
+    description: 'Supprimer un RDV de l\'agenda FIK de Kouider. Appeler list_agenda_events d\'abord pour obtenir l\'id. Demander confirmation si ce n\'est pas clair.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        google_event_id: { type: 'string', description: 'ID Google de l\'événement (obtenu via list_personal_events)' },
+        google_event_id: { type: 'string', description: 'id de l\'événement (obtenu via list_agenda_events)' },
       },
       required: ['google_event_id'],
     },

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { supabase } from './supabase.js';
 import { updateProspect, type Prospect } from './prospects.js';
-import { findFreeSlots, createPersonalCalendarEvent } from './google-calendar.js';
+import { findFreeSlots, createAgendaEvent } from './google-calendar.js';
 import { sendEmail } from './gmail.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
@@ -73,7 +73,7 @@ export async function rdvBook(token: string, slot: string): Promise<{ status: nu
   }
   const end = new Date(new Date(slot).getTime() + 30 * 60_000).toISOString();
   await kvSet(BOOKED(p.id), slot, 60 * 86_400);   // d'abord : un double clic ne réserve pas deux fois
-  const eventId = await createPersonalCalendarEvent(`📞 FIK Sites — ${p.company}`, slot, end,
+  const eventId = await createAgendaEvent(`📞 FIK Sites — ${p.company}`, slot, end,
     `Rendez-vous pris en ligne par ${p.company} (${p.city ?? ''}).\nTél : ${p.phone ?? '—'}\nE-mail : ${p.email ?? '—'}\nSujet : sa démo de site et la création du vrai site.`).catch(() => null);
   await updateProspect(p.id, { status: 'interesse', replied_at: new Date().toISOString(),
     notes: [p.notes, `[${new Date().toISOString().slice(0, 10)}] RDV pris en ligne : ${fmt(slot)}${eventId ? '' : ' (⚠️ pas ajouté à l\'agenda)'}`].filter(Boolean).join('\n') }).catch(() => {});

@@ -1,7 +1,7 @@
 ﻿import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, getRecentEpisodes, supabase } from '../integrations/supabase.js';
 import { kouiderDossierText } from '../integrations/kouider-dossier.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
-import { listUpcomingEvents, listPersonalEvents } from '../integrations/google-calendar.js';
+import { listUpcomingEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
 import { formatPricingTable } from '../config/pricing.js';
 import type { Message } from '../integrations/claude-api.js';
@@ -192,7 +192,7 @@ export async function buildContext(
     getLearnedRules(actor.ownerKey, 40).catch(() => []),
     mentionedClient ? getClientBrain(mentionedClient, actor.ownerKey).catch(() => null) : Promise.resolve(null),
     getActorBrainContext(actor.ownerKey).catch(() => ''),
-    isKouider ? listPersonalEvents(10).catch(() => []) : Promise.resolve([]),
+    Promise.resolve([]),   // agenda perso : jamais lu (décision Kouider 2026-10-15, agenda FIK seulement)
     recentCallsText(actor.ownerKey === 'houari' ? 'houari' : 'kouider').catch(() => ''),
     isKouider ? kouiderDossierText().catch(() => '') : Promise.resolve(''),
   ]);

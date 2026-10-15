@@ -29,7 +29,7 @@ import {
   toLocalISO,
   isValidTimezone,
 } from '../utils/timezone.js';
-import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, createPersonalCalendarEvent, deletePersonalCalendarEvent, listPersonalEventsRange, updatePersonalCalendarEvent, personalCalendarAccess } from './google-calendar.js';
+import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaEvent, agendaAccess } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { setCarPapers, getCarPapers } from './car-papers.js';
 import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, proSenderAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
@@ -375,10 +375,10 @@ async function _dispatch(
       case 'create_calendar_event':      return await createCalendarEventTool(input);
       case 'sync_calendar':             return await syncCalendarTool();
       case 'list_calendar_events':      return await listCalendarEventsTool(input);
-      case 'create_personal_event':     return await createPersonalEventTool(input);
-      case 'list_personal_events':      return await listPersonalEventsTool(input);
-      case 'update_personal_event':     return await updatePersonalEventTool(input);
-      case 'delete_personal_event':     return await deletePersonalEventTool(input);
+      case 'create_agenda_event':       return await createAgendaEventTool(input);
+      case 'list_agenda_events':        return await listAgendaEventsTool(input);
+      case 'update_agenda_event':       return await updateAgendaEventTool(input);
+      case 'delete_agenda_event':       return await deleteAgendaEventTool(input);
       // ─── GMAIL ───
       case 'list_emails':               return await listEmailsTool(input);
       case 'read_email':                return await readEmailTool(input);
@@ -2059,7 +2059,7 @@ async function deleteCalendarEventTool(input: Record<string, unknown>): Promise<
 
 // ── Personal calendar tools ───────────────────────────────────
 
-async function createPersonalEventTool(input: Record<string, unknown>): Promise<string> {
+async function createAgendaEventTool(input: Record<string, unknown>): Promise<string> {
   const title         = input['title']          as string | undefined;
   const startDatetime = input['start_datetime'] as string | undefined;
   const endDatetime   = input['end_datetime']   as string | undefined;
@@ -2069,37 +2069,37 @@ async function createPersonalEventTool(input: Record<string, unknown>): Promise<
   if (!title || !startDatetime || !endDatetime)
     return '❌ title, start_datetime, end_datetime sont requis';
 
-  const eventId = await createPersonalCalendarEvent(title, startDatetime, endDatetime, description, allDay, input['location'] as string | undefined);
-  if (!eventId) return '❌ Impossible de créer l\'événement. Vérifie que l\'agenda kouiderpablo@gmail.com est partagé avec le service account et que PERSONAL_GCAL_ID est configuré dans Railway.';
-  return `✅ Événement ajouté dans ton agenda perso !\n📅 ${title}\n🗓️ ${startDatetime} → ${endDatetime}${description ? `\n📝 ${description}` : ''}\n🔗 Event ID: ${eventId}`;
+  const eventId = await createAgendaEvent(title, startDatetime, endDatetime, description, allDay, input['location'] as string | undefined);
+  if (!eventId) { const acc = await agendaAccess(); return `❌ Impossible d'ajouter le RDV à l'agenda FIK${acc.ok ? '' : ` : ${acc.reason}`}.`; }
+  return `✅ RDV ajouté dans l'agenda FIK !\n📅 ${title}\n🗓️ ${startDatetime} → ${endDatetime}${description ? `\n📝 ${description}` : ''}\n🔗 Event ID: ${eventId}`;
 }
 
-async function listPersonalEventsTool(input: Record<string, unknown>): Promise<string> {
+async function listAgendaEventsTool(input: Record<string, unknown>): Promise<string> {
   // Période : un jour précis (date), ou à partir d'aujourd'hui sur N jours (défaut 14)
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(input['date'] ?? '')) ? String(input['date']) : null;
   const days = Math.min(120, Math.max(1, Number(input['days'] ?? (date ? 1 : 14))));
   const start = date ? new Date(`${date}T00:00:00+01:00`) : new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Algiers' }) + 'T00:00:00+01:00');
   const end = new Date(start.getTime() + days * 86_400_000);
-  const events = await listPersonalEventsRange(start.toISOString(), end.toISOString(), Number(input['max_results'] ?? 50));
+  const events = await listAgendaRange(start.toISOString(), end.toISOString(), Number(input['max_results'] ?? 50));
   if (events === null) {
-    const acc = await personalCalendarAccess();
-    return `❌ Je n'ai PAS accès à l'agenda perso de Kouider (${acc.calendar}) : ${acc.reason}. Ne dis pas que l'agenda est vide.${acc.shareWith ? ` Pour régler : dans Google Agenda (kouiderpablo@gmail.com) → Paramètres de l'agenda → Partager avec des personnes → ajouter ${acc.shareWith} avec « Apporter des modifications aux événements ».` : ''}`;
+    const acc = await agendaAccess();
+    return `❌ Je n'arrive pas à lire l'agenda FIK (${acc.calendar}) : ${acc.reason}. Ne dis pas que l'agenda est vide.`;
   }
   const when = (e: { start: { dateTime?: string; date?: string } }) => e.start.dateTime
     ? new Date(e.start.dateTime).toLocaleString('fr-FR', { timeZone: 'Africa/Algiers', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
     : `${new Date(`${e.start.date}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} (journée)`;
   const span = date ? `le ${date}` : `les ${days} prochains jours`;
-  if (!events.length) return `📅 Agenda perso (accès OK) : rien de prévu ${span}.`;
-  return `📅 Agenda perso — ${events.length} événement(s) ${span} :\n${events.map(e => `- ${when(e)} · ${e.summary}${e.location ? ` · 📍 ${e.location}` : ''} [id: ${e.id}]`).join('\n')}\n(Pour modifier/supprimer : update_personal_event / delete_personal_event avec l'id.)`;
+  if (!events.length) return `📅 Agenda FIK : rien de prévu ${span}.`;
+  return `📅 Agenda FIK — ${events.length} événement(s) ${span} :\n${events.map(e => `- ${when(e)} · ${e.summary}${e.location ? ` · 📍 ${e.location}` : ''} [id: ${e.id}]`).join('\n')}\n(Pour modifier/supprimer : update_agenda_event / delete_agenda_event avec l'id.)`;
 }
 
-async function updatePersonalEventTool(input: Record<string, unknown>): Promise<string> {
+async function updateAgendaEventTool(input: Record<string, unknown>): Promise<string> {
   const id = String(input['google_event_id'] ?? '').trim();
-  if (!id) return '❌ google_event_id requis — appelle list_personal_events (il donne les id).';
+  if (!id) return '❌ google_event_id requis — appelle list_agenda_events (il donne les id).';
   const s = (k: string) => (typeof input[k] === 'string' && (input[k] as string).trim() ? (input[k] as string).trim() : undefined);
-  const ok = await updatePersonalCalendarEvent(id, { title: s('title'), start: s('start_datetime'), end: s('end_datetime'), description: s('description'), location: s('location'), allDay: input['all_day'] === true });
-  if (!ok) { const acc = await personalCalendarAccess(); return acc.ok ? '❌ Événement introuvable ou modification refusée — revérifie l\'id avec list_personal_events.' : `❌ Pas d'accès à l'agenda perso : ${acc.reason}`; }
-  return `✅ RDV modifié dans l'agenda perso${s('title') ? ` : ${s('title')}` : ''}${s('start_datetime') ? ` → ${s('start_datetime')!.replace('T', ' ').slice(0, 16)}` : ''}.`;
+  const ok = await updateAgendaEvent(id, { title: s('title'), start: s('start_datetime'), end: s('end_datetime'), description: s('description'), location: s('location'), allDay: input['all_day'] === true });
+  if (!ok) { const acc = await agendaAccess(); return acc.ok ? '❌ Événement introuvable ou modification refusée — revérifie l\'id avec list_agenda_events.' : `❌ Pas d'accès à l'agenda FIK : ${acc.reason}`; }
+  return `✅ RDV modifié dans l'agenda FIK${s('title') ? ` : ${s('title')}` : ''}${s('start_datetime') ? ` → ${s('start_datetime')!.replace('T', ' ').slice(0, 16)}` : ''}.`;
 }
 
 // Seule la boîte fikconciergerie@gmail.com est lue (demande Kouider 2026-10-12)
@@ -2342,14 +2342,14 @@ async function updateProspectTool(input: Record<string, unknown>): Promise<strin
   return `✅ ${p.company} mis à jour${status ? ` → ${status}` : ''}${notes ? ' (note ajoutée)' : ''}.`;
 }
 
-async function deletePersonalEventTool(input: Record<string, unknown>): Promise<string> {
+async function deleteAgendaEventTool(input: Record<string, unknown>): Promise<string> {
   const googleEventId = input['google_event_id'] as string | undefined;
-  if (!googleEventId) return '❌ google_event_id requis — appelle list_personal_events pour obtenir l\'ID';
-  if (!(await deletePersonalCalendarEvent(googleEventId))) {
-    const acc = await personalCalendarAccess();
-    return acc.ok ? '❌ Événement introuvable (déjà supprimé ?) — revérifie avec list_personal_events.' : `❌ Pas d'accès à l'agenda perso : ${acc.reason}`;
+  if (!googleEventId) return '❌ google_event_id requis — appelle list_agenda_events pour obtenir l\'id';
+  if (!(await deleteAgendaEvent(googleEventId))) {
+    const acc = await agendaAccess();
+    return acc.ok ? '❌ Événement introuvable (déjà supprimé ?) — revérifie avec list_agenda_events.' : `❌ Pas d'accès à l'agenda FIK : ${acc.reason}`;
   }
-  return `✅ Événement supprimé de ton agenda perso`;
+  return `✅ RDV supprimé de l'agenda FIK`;
 }
 
 async function searchImages(input: Record<string, unknown>): Promise<string> {

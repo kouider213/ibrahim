@@ -13,7 +13,7 @@ export const READ_TOOLS = new Set([
   'github_read_file', 'github_list_files', 'github_search_code', 'get_payment_status',
   'get_revenue_report', 'get_late_returns', 'get_unpaid_bookings', 'get_finance_dashboard', 'check_anomalies',
   'get_monthly_improvement_report', 'get_learning_evolution', 'get_kouider_preferences', 'check_car_availability',
-  'web_search', 'search_images', 'list_personal_events', 'list_emails', 'read_email', 'list_prospects',
+  'web_search', 'search_images', 'list_agenda_events', 'list_emails', 'read_email', 'list_prospects',
   'prospect_replies', 'list_calendar_events', 'get_fleet_status', 'get_car_photo', 'list_properties',
   'get_property_photo', 'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'list_packs', 'list_leads',
   'get_daily_report', 'get_client_history', 'obsidian_read_client', 'obsidian_list_clients', 'obsidian_read_note',

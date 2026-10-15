@@ -7,7 +7,7 @@ import { supabase, checkCarAvailability as isCarFree } from './supabase.js';
 import { findCar } from './expenses.js';
 import { executeTool } from './tool-executor.js';
 import { clientRisk } from '../notifications/client-care.js';
-import { listUpcomingEvents, listPersonalEvents, updateCalendarEvent, deleteCalendarEvent } from './google-calendar.js';
+import { listUpcomingEvents, updateCalendarEvent, deleteCalendarEvent } from './google-calendar.js';
 import { listInboxMessages, readEmail, sendEmail, canSendEmail, countSentToday, getGmailConnectLink, proSenderAddress } from './gmail.js';
 import { isOptedOut, listPendingReplies, updateProspect } from './prospects.js';
 import { paperWarning } from './car-papers.js';
@@ -197,17 +197,10 @@ export async function quickAgenda(input: Record<string, unknown>, actor: string)
   const sameDay = (iso?: string) => !!iso && new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date(iso)) === day;
   const hhmm = (iso?: string) => iso && iso.length > 10 ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : 'journée';
   type Ev = { summary: string; start: { dateTime?: string; date?: string } };
-  const [pro, perso] = await Promise.all([
-    listUpcomingEvents(50).catch(() => [] as unknown[]),
-    actor === 'kouider' ? listPersonalEvents(30).catch(() => [] as unknown[]) : Promise.resolve([] as unknown[]),
-  ]);
+  const pro = await listUpcomingEvents(50).catch(() => [] as unknown[]);   // agenda FIK seulement (jamais l'agenda perso)
   for (const e of pro as Ev[]) {   // les locations (« 🚗 … ») sont déjà listées en départs/retours
     const iso = e.start?.dateTime ?? e.start?.date;
     if ((e.start?.date === day || sameDay(iso)) && !(e.summary ?? '').startsWith('🚗')) out.push(`🗓 ${hhmm(e.start?.dateTime)} ${e.summary}`);
-  }
-  for (const e of perso as Ev[]) {
-    const iso = e.start?.dateTime ?? e.start?.date;
-    if (e.start?.date === day || sameDay(iso)) out.push(`👤 ${hhmm(e.start?.dateTime)} ${e.summary} (perso)`);
   }
 
   const from = new Date(`${day}T00:00:00Z`); from.setUTCHours(from.getUTCHours() - 3);

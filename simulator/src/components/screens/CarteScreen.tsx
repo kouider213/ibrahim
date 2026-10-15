@@ -120,7 +120,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     void get(); const t = setInterval(get, 15 * 60_000); return () => clearInterval(t);
   }, [demo]);
   useEffect(() => { const t = setInterval(() => setClock(new Date()), 30_000); return () => clearInterval(t); }, []);
-  // Agenda de Kouider (perso + FIK) pour son bonhomme — toutes les 5 min
+  // Agenda de Kouider (= agenda FIK) pour son bonhomme — toutes les 5 min
   const loadMe = useCallback(() => {
     if (demo || actor !== 'kouider') return;
     void apiFetch<MeData>('/api/calendar/me').then(setMeData).catch(() => {});

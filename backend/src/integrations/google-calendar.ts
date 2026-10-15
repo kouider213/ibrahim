@@ -7,7 +7,6 @@ const GOOGLE_CALENDAR_BASE = 'https://www.googleapis.com/calendar/v3';
 const GOOGLE_TOKEN_URL     = 'https://oauth2.googleapis.com/token';
 const CALENDAR_SCOPE       = 'https://www.googleapis.com/auth/calendar';
 const CALENDAR_ID          = 'fikconciergerie@gmail.com';
-const getPersonalCalId     = () => env.PERSONAL_GCAL_ID ?? 'kouiderpablo@gmail.com';
 const getHouariCalId       = () => env.HOUARI_GCAL_ID   ?? 'houari.douba@gmail.com';
 
 interface ServiceAccountKey {
@@ -200,24 +199,21 @@ export async function syncPendingBookings(): Promise<number> {
   return count;
 }
 
-// ── Personal calendar (kouiderpablo@gmail.com) ────────────────
+// ── Agenda de Kouider = agenda FIK (fikconciergerie@gmail.com) ──────────────
+// Décision Kouider 2026-10-15 : Dzaryx n'a accès QU'À l'agenda FIK, jamais à son agenda perso (kouiderpablo@gmail.com).
+// Ses RDV (pro, perso qu'il veut confier à Dzaryx, FIK Sites…) sont donc tous dans l'agenda FIK.
 
-export async function listPersonalEvents(maxResults = 15): Promise<CalendarEvent[]> {
-  const calId = getPersonalCalId();
-  const res = await calendarRequest<{ items: CalendarEvent[] }>('GET',
-    `/calendars/${encodeURIComponent(calId)}/events?maxResults=${maxResults}&orderBy=startTime&singleEvents=true&timeMin=${new Date().toISOString()}`);
-  return res?.items ?? [];
+export interface AgendaEvent {
+  id?: string; summary: string; description?: string; location?: string;
+  start: { dateTime?: string; date?: string; timeZone?: string };
+  end: { dateTime?: string; date?: string; timeZone?: string };
 }
+const fikPath = (rest = '') => `/calendars/${encodeURIComponent(CALENDAR_ID)}${rest}`;
 
-export async function createPersonalCalendarEvent(
-  title: string,
-  startDateTime: string,
-  endDateTime: string,
-  description?: string,
-  allDay?: boolean,
-  location?: string,
+// RDV avec heure, lieu, notes (pas une réservation de voiture : pour ça createCalendarEvent)
+export async function createAgendaEvent(
+  title: string, startDateTime: string, endDateTime: string, description?: string, allDay?: boolean, location?: string,
 ): Promise<string | null> {
-  const calId = getPersonalCalId();
   const body: Record<string, unknown> = { summary: title };
   if (description) body['description'] = description;
   if (location) body['location'] = location;
@@ -228,32 +224,19 @@ export async function createPersonalCalendarEvent(
     body['start'] = { dateTime: startDateTime.includes('T') ? startDateTime : `${startDateTime}T09:00:00`, timeZone: 'Africa/Algiers' };
     body['end']   = { dateTime: endDateTime.includes('T')   ? endDateTime   : `${endDateTime}T10:00:00`,   timeZone: 'Africa/Algiers' };
   }
-  const created = await calendarRequest<{ id: string }>('POST', `/calendars/${encodeURIComponent(calId)}/events`, body);
+  const created = await calendarRequest<{ id: string }>('POST', fikPath('/events'), body);
   return created?.id ?? null;
 }
 
-export async function deletePersonalCalendarEvent(googleEventId: string): Promise<boolean> {
-  const calId = getPersonalCalId();
-  const r = await calendarRequest('DELETE', `/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(googleEventId)}`);
-  return r !== null;
-}
-
-export interface PersonalEvent {
-  id?: string; summary: string; description?: string; location?: string;
-  start: { dateTime?: string; date?: string; timeZone?: string };
-  end: { dateTime?: string; date?: string; timeZone?: string };
-}
-// Événements perso sur une période (ex. aujourd'hui, un jour précis, la semaine) — null = pas d'accès
-export async function listPersonalEventsRange(fromIso: string, toIso: string, max = 50): Promise<PersonalEvent[] | null> {
-  const calId = getPersonalCalId();
-  const res = await calendarRequest<{ items: PersonalEvent[] }>('GET',
-    `/calendars/${encodeURIComponent(calId)}/events?maxResults=${max}&orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(fromIso)}&timeMax=${encodeURIComponent(toIso)}`);
+// Événements sur une période (ex. aujourd'hui, un jour précis, la semaine) — null = pas d'accès
+export async function listAgendaRange(fromIso: string, toIso: string, max = 50): Promise<AgendaEvent[] | null> {
+  const res = await calendarRequest<{ items: AgendaEvent[] }>('GET',
+    fikPath(`/events?maxResults=${max}&orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(fromIso)}&timeMax=${encodeURIComponent(toIso)}`));
   return res ? (res.items ?? []) : null;
 }
 
-// Modifier un RDV perso : titre, horaires, lieu, notes (seuls les champs donnés changent)
-export async function updatePersonalCalendarEvent(googleEventId: string, u: Partial<{ title: string; start: string; end: string; description: string; location: string; allDay: boolean }>): Promise<boolean> {
-  const calId = getPersonalCalId();
+// Modifier un RDV : titre, horaires (avec l'heure), lieu, notes — seuls les champs donnés changent
+export async function updateAgendaEvent(googleEventId: string, u: Partial<{ title: string; start: string; end: string; description: string; location: string; allDay: boolean }>): Promise<boolean> {
   const patch: Record<string, unknown> = {};
   if (u.title) patch['summary'] = u.title;
   if (u.description !== undefined) patch['description'] = u.description;
@@ -265,23 +248,22 @@ export async function updatePersonalCalendarEvent(googleEventId: string, u: Part
     const e = new Date(new Date(`${u.start}Z`).getTime() + 3600_000).toISOString().slice(0, 19);
     patch['end'] = { dateTime: e, timeZone: 'Africa/Algiers' };
   }
-  const r = await calendarRequest('PATCH', `/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(googleEventId)}`, patch);
+  const r = await calendarRequest('PATCH', fikPath(`/events/${encodeURIComponent(googleEventId)}`), patch);
   return r !== null;
 }
 
-// Dzaryx a-t-il vraiment accès à l'agenda perso ? (sinon on le dit clairement)
-export async function personalCalendarAccess(): Promise<{ ok: boolean; calendar: string; reason?: string; shareWith?: string }> {
-  const calId = getPersonalCalId();
-  const r = await calendarRequest<{ id: string }>('GET', `/calendars/${encodeURIComponent(calId)}`);
-  if (r) return { ok: true, calendar: calId };
-  const sa = getServiceAccount();
+export async function deleteAgendaEvent(googleEventId: string): Promise<boolean> {
+  const r = await calendarRequest('DELETE', fikPath(`/events/${encodeURIComponent(googleEventId)}`));
+  if (r !== null) await supabase.from('calendar_events').update({ status: 'deleted', updated_at: new Date().toISOString() }).eq('google_event_id', googleEventId);
+  return r !== null;
+}
+
+// Dzaryx a-t-il bien accès à l'agenda FIK ? (sinon on le dit clairement, jamais « agenda vide »)
+export async function agendaAccess(): Promise<{ ok: boolean; calendar: string; reason?: string }> {
+  const r = await calendarRequest<{ id: string }>('GET', fikPath());
+  if (r) return { ok: true, calendar: CALENDAR_ID };
   const e = lastCalendarError;
-  return {
-    ok: false, calendar: calId, shareWith: sa?.client_email,
-    reason: e?.msg === 'no_token' ? 'Aucune clé Google configurée sur le serveur'
-      : e?.status === 404 || e?.status === 403 ? `L'agenda ${calId} n'est pas partagé avec Dzaryx${sa ? ` (${sa.client_email})` : ''}`
-      : `Erreur Google ${e?.status ?? ''} ${e?.msg ?? ''}`.trim(),
-  };
+  return { ok: false, calendar: CALENDAR_ID, reason: e?.msg === 'no_token' ? 'Aucune clé Google configurée sur le serveur' : `Erreur Google ${e?.status ?? ''} ${e?.msg ?? ''}`.trim() };
 }
 
 // ── Houari personal calendar ──────────────────────────────────
@@ -363,7 +345,7 @@ export async function findFreeSlots(count = 3, durationMin = 30): Promise<string
   const to   = new Date(Date.now() + 12 * 86_400_000);
   const res = await calendarRequest<{ calendars?: Record<string, { busy?: Array<{ start: string; end: string }> }> }>('POST', '/freeBusy', {
     timeMin: from.toISOString(), timeMax: to.toISOString(), timeZone: 'Africa/Algiers',
-    items: [{ id: getPersonalCalId() }, { id: CALENDAR_ID }],
+    items: [{ id: CALENDAR_ID }],
   });
   if (!res?.calendars) return [];
   const busy = Object.values(res.calendars).flatMap(c => c.busy ?? [])
