@@ -15,6 +15,8 @@
 - **À PAYER** (`billing.ts`, page 💳) : Railway = seul OBLIGATOIRE ; alertes 10h J-7/J-3/J-1/J0 (+ appel pour Railway).
   Railway et domaine lus en direct. ⏳ VPS Hostinger + ElevenLabs : date à saisir par Kouider ; solde Claude à saisir à la recharge.
 - **Survie** : crédit Claude épuisé → toutes les tâches de fond passent sur Groq/Gemini (`anthropic-compat.ts`).
+- **Bilan mensuel FIK Sites** (1er à 10h), **mode économie Claude** (ON, page À PAYER), **RDV en 1 clic** (`/rdv/…` dans le mail
+  de démo). ⏳ 1er bilan réel le 1/11 ; page RDV jamais testée avec l'agenda (seulement sur Railway).
 - ⚠️ `emitProactive` = app seulement (pas Telegram) — ajouter `queueTelegramMessage` si Telegram voulu.
 
 ## ⚡ Session 2026-10-15 — Dzaryx « bras droit » : conseiller business + dossier Kouider + congés
