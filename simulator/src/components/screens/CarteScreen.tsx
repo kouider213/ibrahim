@@ -7,7 +7,7 @@ import { apiFetch, business, type Car, type Booking, type SmartReminder, type To
 import { STATUS, ZONE_INFO, ALL_ZONES, buildCars, demoWorld, norm, ymd, addDays, monthMoney, fmtMoney, moneyTag, type Status, type World, type ZoneId, type DemoKind, type Item, type Money } from '../carte/data.ts';
 import type { SceneApi, Pick, SkyMode, Weather } from '../carte/scene.ts';
 import { Missions, buildQuests, useQuests, type Quest } from '../carte/Missions.tsx';
-import { sfx, speak, hush, soundOn, setSound } from '../carte/sfx.ts';
+import { sfx, speak, hush, soundOn, setSound, ambientStart, ambientMood, ambientStop } from '../carte/sfx.ts';
 import AddRentals from '../carte/AddRentals.tsx';
 import CarSheet from '../carte/CarSheet.tsx';
 import ItemSheet, { type SheetKind, type Raw } from '../carte/ItemSheet.tsx';
@@ -60,7 +60,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const [sound, setSnd] = useState(soundOn);
   const [clock, setClock] = useState(() => new Date());
   const [tour, setTour] = useState<{ i: number; steps: Array<{ p: Pick; t: string }> } | null>(null);
-  const [questsOpen, setQuestsOpen] = useState(false);   // plein écran : liste des missions par-dessus la carte
+  const [questsOpen, setQuestsOpen] = useState(false);
+  const [rolling, setRolling] = useState<string[]>([]);   // missions dont la voiture est en train de sortir
+  const [arrive, setArrive] = useState<string[]>([]);     // voitures qui rentrent au parking   // plein écran : liste des missions par-dessus la carte
   const host = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const api = useRef<SceneApi | null>(null);
@@ -179,6 +181,10 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(clock);
   const Q = useQuests(quests, todayKey, !demo && !loading && cars.length > 0, (q, perfect) => {
     sfx.coin(); api.current?.burst(q.pick ?? null, q.gain ?? `+${q.xp} XP`);
+    // La voiture bouge vraiment : remise → elle sort du parking ; retour → elle rentre se garer
+    const carId = q.pick?.kind === 'car' ? q.pick.id : null;
+    if (carId && q.id.startsWith('dep:')) { setRolling(r => [...r, q.id]); setTimeout(() => api.current?.driveOut(carId, () => setRolling(r => r.filter(x => x !== q.id))), 700); }
+    if (carId && q.id.startsWith('ret:')) { setArrive([carId]); setTimeout(() => setArrive(a => a.filter(x => x !== carId)), 8000); }
     say(`✅ ${q.title} · +${q.xp} XP`);
     if (perfect) setTimeout(() => { sfx.fanfare(); api.current?.burst({ kind: 'zone', zone: 'agence' }, '🏆 Journée parfaite !'); api.current?.fireworks(); }, 900);
   });
@@ -242,7 +248,30 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     if (c.length) parts.push(`${n('dispo')} libres`, `${n('depart')} départs`, `${n('retour')} retours`, `${c.filter(x => x.status === 'loue' || x.status === 'retour').length}/${c.length} dehors`);
     return parts.join(' ★ ');
   }, [todayWorld, demo, world.brand, month, cash]);
-  useEffect(() => { if (ready) api.current?.update({ ...world, targets, led }); }, [ready, world, targets, led]);
+  // Ce que la carte montre aujourd'hui tient compte des missions faites : clés remises → la voiture roule en ville,
+  // retour récupéré → elle est au parking (même avant que la réservation soit clôturée)
+  const shown = useMemo<World>(() => {
+    if (day !== 0) return world;
+    const doneIds = new Set(Q.done.filter(id => !rolling.includes(id)));
+    return { ...world, cars: world.cars.map(m => {
+      const b = m.booking?.id;
+      if (b && m.status === 'depart' && doneIds.has(`dep:${b}`)) return { ...m, status: 'loue' as Status, badge: m.badge?.t === '🔑' ? null : m.badge };
+      if (b && m.status === 'retour' && doneIds.has(`ret:${b}`)) return { ...m, status: 'dispo' as Status, badge: m.badge?.t === '↩' ? null : m.badge };
+      return m;
+    }) };
+  }, [world, day, Q.done, rolling]);
+  useEffect(() => { if (ready) api.current?.update({ ...shown, targets, led, arrive }); }, [ready, shown, targets, led]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Ambiance sonore : démarre au premier toucher sur la carte (règle des navigateurs), suit jour/nuit et pluie
+  useEffect(() => {
+    if (!sound || !ready) { ambientStop(); return; }
+    const el = wrap.current;
+    const go = () => { ambientStart(); const m = api.current?.mood(); if (m) ambientMood(m); };
+    el?.addEventListener('pointerdown', go);
+    const t = setInterval(() => { const m = api.current?.mood(); if (m) ambientMood(m); }, 4000);
+    const vis = () => { if (document.hidden) ambientStop(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => { el?.removeEventListener('pointerdown', go); clearInterval(t); document.removeEventListener('visibilitychange', vis); ambientStop(); };
+  }, [sound, ready]);
   useEffect(() => { if (ready) api.current?.setSky(sky, tz); }, [ready, sky, tz]);
   useEffect(() => { if (ready) api.current?.setWeather(wx); }, [ready, wx]);
   const choose = (p: Pick) => { setPick(p); setSheet(null); api.current?.focus(p); };
@@ -277,7 +306,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const total = world.cars.length || 1;
   const out = counts.loue + counts.retour;
   const urgent = reminders.filter(r => r.priority === 'HIGH').length;
-  const car = pick?.kind === 'car' ? world.cars.find(m => m.id === pick.id) ?? null : null;
+  const car = pick?.kind === 'car' ? shown.cars.find(m => m.id === pick.id) ?? null : null;
   const zone = pick?.kind === 'zone' ? pick.zone : null;
   const wa = (phone: string | null) => { const p = (phone || '').replace(/\D/g, ''); if (p) window.open(`https://wa.me/${p}`, '_blank'); };
 

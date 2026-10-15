@@ -19,7 +19,9 @@ export interface SceneApi {
   setSky: (mode: SkyMode, tz?: string) => void;
   setWeather: (w: Weather | null) => void;
   burst: (p: Pick, text: string) => void;
-  fireworks: () => void;                   // journée parfaite  // pluie de pièces + gain qui monte (mission réussie)
+  fireworks: () => void;                   // journée parfaite
+  driveOut: (carId: string, done: () => void) => void; // la voiture quitte le parking (remise au client)
+  mood: () => { night: number; wet: boolean };         // pour l'ambiance sonore  // pluie de pièces + gain qui monte (mission réussie)
   focus: (p: Pick) => void;
   zoom: (k: number) => void;
   reset: () => void;
@@ -553,6 +555,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   // Nouveautés : la voiture arrive en roulant, le bien pousse du sol, le conteneur descend sur le bateau
   let spawns: Array<{ o: THREE.Object3D; kind: 'drive' | 'grow' | 'drop'; from: THREE.Vector3; to: THREE.Vector3; t0: number; dur: number }> = [];
   let fresh = new Set<string>();
+  let arrive = new Set<string>();
   let showMoney = false;
   const born = (o: THREE.Object3D, kind: 'drive' | 'grow' | 'drop', from: THREE.Vector3, dur: number, text: string, y: number) => {
     spawns.push({ o, kind, from, to: o.position.clone(), t0: performance.now() + Math.random() * 600, dur });
@@ -564,11 +567,23 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     setTimeout(() => { l.removeFromParent(); l.element.remove(); }, 15000);
   };
   const carPos = new Map<string, THREE.Vector3>();
+  const carObj = new Map<string, THREE.Group>();
+  // Trajets parking ⇄ route : allée la plus proche → sortie est du parking → avenue
+  let trips: Array<{ g: THREE.Group; pts: THREE.Vector3[]; t0: number; len: number; fade: boolean; done?: () => void }> = [];
+  const parkPath = (x: number, z: number) => {
+    const aisle = z < -8 ? -11.2 : -5.2, ex = Z.parking.x + Z.parking.w / 2 + 0.8, lane = LOOP.z0 - 0.7;
+    return [new THREE.Vector3(x, 0.02, z), new THREE.Vector3(x, 0.02, aisle), new THREE.Vector3(ex, 0.02, aisle), new THREE.Vector3(ex, 0.02, lane), new THREE.Vector3(ex + 9, 0.02, lane)];
+  };
+  const trip = (g: THREE.Group, pts: THREE.Vector3[], fade: boolean, done?: () => void) => {
+    let len = 0; for (let i = 1; i < pts.length; i++) len += pts[i]!.distanceTo(pts[i - 1]!);
+    trips.push({ g, pts, t0: performance.now(), len, fade, done });
+  };
   let zones: ZoneId[] = [];
 
   const clearDyn = () => {
     dyn.traverse(o => { if (o instanceof CSS2DObject) o.element.remove(); });
-    dyn.clear(); boatCargo.clear(); movers = []; prices = []; names = []; rings = []; arrows = []; spawns = []; carPos.clear();
+    dyn.clear(); boatCargo.clear(); movers = []; prices = []; names = []; rings = []; arrows = []; spawns = []; carPos.clear(); carObj.clear();
+    trips.forEach(t => t.done?.()); trips = [];
   };
 
   const placeCar = (m: MapCar, x: number, z: number, rot: number, moving?: { s: number; v: number }) => {
@@ -594,7 +609,11 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
       t.position.set(0, m.badge ? 3 : 2.2, 0); g.add(t);
     }
     if (moving) movers.push({ g, s: moving.s, v: moving.v });
-    carPos.set(m.id, g.position);
+    carPos.set(m.id, g.position); carObj.set(m.id, g);
+    if (arrive.has(m.id) && !moving) {
+      trip(g, parkPath(x, z).reverse(), false);
+      const l = label('↩️ Rentrée au parking', 'dz3-new'); l.position.set(0, 2.9, 0); g.add(l); setTimeout(() => { l.removeFromParent(); l.element.remove(); }, 6000);
+    }
     if (fresh.has(`car:${m.id}`)) {
       if (moving) { const l = label('✨ Nouvelle voiture', 'dz3-new'); l.position.set(0, 2.9, 0); g.add(l); setTimeout(() => { l.removeFromParent(); l.element.remove(); }, 15000); }
       else born(g, 'drive', new THREE.Vector3(x, 0.02, LOOP.z0 - 0.7), 2600, 'Nouvelle voiture', 2.9);
@@ -605,6 +624,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     clearDyn();
     fresh = new Set(w.fresh ?? []);
     targets = new Set(w.targets ?? []);
+    arrive = new Set(w.arrive ?? []);
     showMoney = !!w.showMoney;
     zones = w.zones;
     const on = (z: ZoneId) => zones.includes(z);
@@ -735,7 +755,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   };
 
   // ── Ciel : heure réelle (Oran par défaut), lever/coucher du soleil calculés ─
-  let skyMode: SkyMode = 'auto', tz = 'Africa/Algiers';
+  let skyMode: SkyMode = 'auto', tz = 'Africa/Algiers', isWet = false;
   let wx: Weather | null = null;
   let dayK = 1, dayTarget = 1, dusk = 0, sunA = 0, flash = 0, nextSky = 0;
   const SKY_DAY = new THREE.Color('#bae6fd'), SKY_NIGHT = new THREE.Color('#0b1636'), SKY_DUSK = new THREE.Color('#fca5a5'), SKY_RAIN = new THREE.Color('#94a3b8');
@@ -790,7 +810,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     CLOUD.opacity = 0.75 + cloudy * 0.2; CLOUD.color.set(wet ? '#cbd5e1' : '#ffffff').lerp(tmp.set('#475569'), night * 0.7);
     const nClouds = Math.round(3 + cloudy * 9);
     clouds.forEach((c, i) => { c.visible = i < nClouds; });
-    rain.visible = wet;
+    rain.visible = wet; isWet = wet;
     if (wet) {
       const arr = rainGeo.attributes['position'] as THREE.BufferAttribute, f = dt * (storm ? 34 : 26);
       for (let i = 0; i < RAIN_N; i++) { let y = arr.getY(i * 2) - f; if (y < 0) y += 30; arr.setY(i * 2, y); arr.setY(i * 2 + 1, y - 0.9); }
@@ -862,6 +882,30 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
       arr.needsUpdate = true; seaGeo.computeVertexNormals();
     }
     applySky(dt, t);
+    for (const tr of trips) {
+      let d = ((now - tr.t0) / 1000) * 5.5;
+      const end = d >= tr.len;
+      for (let i = 1; i < tr.pts.length; i++) {
+        const a = tr.pts[i - 1]!, b = tr.pts[i]!, L = a.distanceTo(b);
+        if (d <= L || i === tr.pts.length - 1) {
+          const k = Math.min(1, d / Math.max(0.001, L));
+          tr.g.position.lerpVectors(a, b, k);
+          const want = Math.atan2(-(b.z - a.z), b.x - a.x);
+          let diff = want - tr.g.rotation.y; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+          tr.g.rotation.y += diff * Math.min(1, dt * 9);
+          if (tr.fade) { const f = Math.max(0, 1 - Math.max(0, d - (tr.len - 4)) / 4); tr.g.scale.setScalar(0.95 * Math.max(0.01, f)); }
+          break;
+        }
+        d -= L;
+      }
+      for (const w of tr.g.userData['wheels'] as THREE.Object3D[] ?? []) w.rotation.z -= dt * 22;
+      if (end) { tr.g.position.copy(tr.pts[tr.pts.length - 1]!); if (tr.fade) tr.g.visible = false; }
+    }
+    if (trips.some(tr => (now - tr.t0) / 1000 * 5.5 >= tr.len)) {
+      const fin = trips.filter(tr => (now - tr.t0) / 1000 * 5.5 >= tr.len);
+      trips = trips.filter(tr => !fin.includes(tr));
+      fin.forEach(tr => tr.done?.());
+    }
     for (const b of gulls) {
       const a = t * 0.35 + b.o;
       b.g.position.set(-15 + Math.cos(a) * (7 + b.o), 7 + Math.sin(t * 0.7 + b.o) * 1.2, -17 + Math.sin(a) * (4 + b.o * 0.5));
@@ -927,6 +971,12 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
 
   return {
     update, focus, resize, burst, fireworks,
+    driveOut: (id, done) => {
+      const g = carObj.get(id);
+      if (!g || movers.some(m => m.g === g)) { done(); return; }
+      trip(g, parkPath(g.position.x, g.position.z), true, done);
+    },
+    mood: () => ({ night: 1 - dayK, wet: isWet }),
     setSky: (mode, zone) => { skyMode = mode; if (zone) tz = zone; nextSky = 0; },
     setWeather: w => { wx = w; },
     zoom: k => { cam.zoom = Math.max(controls.minZoom, Math.min(controls.maxZoom, cam.zoom * k)); cam.updateProjectionMatrix(); },

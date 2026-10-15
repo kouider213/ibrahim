@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-15 (11) — Carte live : voitures qui bougent + ambiance sonore
+- Mission « Remettre » validée → la voiture sort du parking (allée, sortie, avenue) puis roule en ville ; « Récupérer »
+  validée → elle rentre se garer. L'affichage du jour tient compte des missions faites (`shown` dans CarteScreen).
+- `sfx.ts` : ambiance synthétisée (vagues en houle, circulation, mouettes/klaxons le jour, grillons la nuit, pluie si
+  météo pluvieuse), démarre au 1er toucher sur la carte, suit jour/nuit (`scene.mood()`), coupée par 🔊 ou app en arrière-plan. SW v147.
+
 ## 2026-10-15 (10) — Carte live : graphisme réaliste + nouveautés
 - `scene.ts` : rendu PBR (MeshStandard, tone mapping ACES, reflets d'environnement sur carrosseries/vitres/mer), halo des
   lumières la nuit (bloom), MSAA ; textures procédurales (herbe, asphalte, béton, sable), façades avec fenêtres allumées au

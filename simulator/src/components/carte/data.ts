@@ -34,6 +34,7 @@ export interface World {
   fresh?: string[];    // nouveautés depuis la dernière visite (car:/sale:/prop:/imp:<id>) → animées
   showMoney?: boolean; // affiche l'étiquette argent au-dessus de chaque voiture
   led?: string;        // panneau LED sur le toit de l'agence (texte défilant)
+  arrive?: string[];   // voitures qui rentrent au parking en roulant (retour validé)
   targets?: string[];  // missions du jour : flèche dorée au-dessus (id voiture ou zone:<id>)
 }
 
