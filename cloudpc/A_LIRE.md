@@ -27,5 +27,13 @@ Auto-test 7h45 : vérifie agent + Chrome.
 - Routes `/api/nexus/live/*` réservées à Kouider ; outils cloud/browser refusés aux sessions de Houari.
 
 Limites : serveur aux Pays-Bas (Google en néerlandais au début, résultats localisés ; Ouedkniss bloque l'adresse).
-Ne pas automatiser WhatsApp Web (risque de blocage du numéro).
+
+## WhatsApp Business (2026-10-15, demande de Kouider)
+`whatsapp_web.py` : web.whatsapp.com connecté comme APPAREIL (numéro +32 466 31 14 69, code par numéro). Toutes les 20 s,
+liste les discussions non lues SANS les ouvrir → `cloud:wa_new` → backend `integrations/whatsapp-web.ts` : réponse
+proposée (agent lecture seule), app + Telegram, appel si location / situation délicate. Outil `whatsapp_web`
+(unread/read/drafts/send/status/connect) : envoi seulement après relecture + oui de Kouider (même texte, 20 min).
+Connexion : `connect` → code ; pendant 30 min (`/root/cloudpc-data/wa_link_until`) chaque nouveau code → Telegram.
+Risque : WhatsApp n'aime pas l'automatisation — pas d'envoi en masse, pas de premier contact, réponses tapées comme un humain.
+Alternative officielle si besoin : API WhatsApp Cloud en « coexistence » avec l'appli Business (webhook déjà dans `api/routes/whatsapp.ts`).
 Dépannage : `pm2 logs dzaryx-cloudpc`, `curl 127.0.0.1:9223/json/version`, `/root/cloudpc-data/chrome.log`.

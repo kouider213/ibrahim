@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-15 (2) — WhatsApp Business sur le PC cloud | b301d40
+
+- web.whatsapp.com dans le Chrome du PC cloud (appareil connecté, code par numéro). Nouveaux messages non lus → réponse
+  proposée par Dzaryx (vraies dispos/prix via outils de lecture) → app + Telegram ; appel si demande de location ou
+  situation délicate. Outil `whatsapp_web` : lire, réponses en attente, envoyer APRÈS accord (relecture obligatoire). Voir `cloudpc/A_LIRE.md`.
+
 ## 2026-10-15 — Conseiller business, dossier « qui est Kouider », jours de congé, appels situations délicates
 
 - **Conseiller business** (`integrations/business-mentor.ts`) : chaque jour travaillé à 11h30 (Bruxelles), Dzaryx analyse les
