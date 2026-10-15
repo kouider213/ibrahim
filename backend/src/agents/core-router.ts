@@ -24,7 +24,9 @@ const ALWAYS_TOOLS = ['search_conversations', 'create_intention', 'list_intentio
   'assign_task', 'complete_task', 'list_team_tasks', 'save_procedure', 'create_goal',
   'browser_task', 'browser_reply', 'browser_status',
   // « fais un document sur toi » part souvent vers l'Agent Clients (mot « document ») : docs + vraie liste partout
-  'list_my_capabilities', 'business_mentor', 'kouider_dossier', 'whatsapp_web', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site'];
+  'list_my_capabilities', 'business_mentor', 'kouider_dossier', 'whatsapp_web', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site',
+  // « à quelle heure j'arrive à la salle avec la voiture ? » part vers l'Agent Réservations (mot « voiture ») : position live + trafic partout
+  'get_my_location', 'get_travel_time', 'morning_routine', 'travel'];
 export const withAlways = (names: string[]) => Dzaryx_TOOLS.filter(t => names.includes(t.name) || ALWAYS_TOOLS.includes(t.name));
 
 export function routeToAgent(text: string): AgentRoute {
@@ -54,7 +56,7 @@ export function routeToAgent(text: string): AgentRoute {
 export function forceAgent(agentId: string): AgentRoute {
   const agent = AGENT_MAP.get(agentId) ?? null;
   if (!agent) return { agent: null, agentTools: Dzaryx_TOOLS, label: '🤖 Dzaryx' };
-  const agentTools = Dzaryx_TOOLS.filter(t => agent.toolNames.includes(t.name));
+  const agentTools = withAlways(agent.toolNames);
   return { agent, agentTools, label: agent.name };
 }
 
