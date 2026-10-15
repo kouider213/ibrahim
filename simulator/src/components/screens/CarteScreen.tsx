@@ -224,6 +224,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     </div>
   );
 
+  // Plein écran sur iPhone : décaler sous l'encoche / la barre d'état et au-dessus de la barre du bas
+  const sTop = full ? 'calc(8px + env(safe-area-inset-top, 0px))' : 8;
+  const sBot = (px: number) => full ? `calc(${px}px + env(safe-area-inset-bottom, 0px))` : px;
   const mapBox: CSSProperties = full
     ? { position: 'fixed', inset: 0, zIndex: 900, background: '#bae6fd' }
     : { position: 'relative', borderRadius: 18, overflow: 'hidden', background: '#bae6fd', border: `1px solid ${C.border}`, height: 'min(68vh, 520px)', minHeight: 320 };
@@ -299,27 +302,27 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       <div ref={wrap} style={mapBox}>
         <div ref={host} style={{ position: 'absolute', inset: 0, touchAction: 'none' }} />
         {(loading || !ready) && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#0f172a', fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,0.35)', zIndex: 2, pointerEvents: 'none' }}>Construction de la ville…</div>}
-        <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 5, zIndex: 3 }}>
-          {full && <MapBtn onClick={toggleFull}>✕</MapBtn>}
+        <div style={{ position: 'absolute', top: sTop, right: 8, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, zIndex: 3 }}>
+          {full && <button onClick={toggleFull} aria-label="Quitter le plein écran" style={{ height: 34, borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)', padding: '0 10px', whiteSpace: 'nowrap' }}>✕ Quitter</button>}
           <MapBtn onClick={() => api.current?.zoom(1.5)}>+</MapBtn>
           <MapBtn onClick={() => api.current?.zoom(1 / 1.5)}>−</MapBtn>
           <MapBtn onClick={() => { setPick(null); api.current?.reset(); }}>⌂</MapBtn>
           {!demo && <MapBtn onClick={() => setShowMoney(v => !v)} on={showMoney}>💶</MapBtn>}
         </div>
-        {full && <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.82)', color: '#fff', borderRadius: 12, padding: '7px 11px', fontFamily: C.font }}>
+        {full && <div style={{ position: 'absolute', top: sTop, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.82)', color: '#fff', borderRadius: 12, padding: '7px 11px', fontFamily: C.font }}>
           <div style={{ fontSize: 10, letterSpacing: '0.16em', color: '#6ee7b7', fontWeight: 700 }}>CARTE LIVE</div>
           <div style={{ fontSize: 15, fontWeight: 800 }}>{world.brand}</div>
           <div style={{ display: 'flex', gap: 9, fontSize: 11.5, marginTop: 3, flexWrap: 'wrap' }}>
             {(Object.keys(STATUS) as Status[]).map(k => <span key={k}><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 4, background: STATUS[k].badge, marginRight: 4 }} />{counts[k]}</span>)}
           </div>
         </div>}
-        <div style={{ position: 'absolute', left: 8, bottom: 8, fontSize: 10.5, color: '#0f172a', opacity: 0.6, zIndex: 3, pointerEvents: 'none', fontFamily: C.font }}>
+        <div style={{ position: 'absolute', left: 8, bottom: sBot(8), fontSize: 10.5, color: '#0f172a', opacity: 0.6, zIndex: 3, pointerEvents: 'none', fontFamily: C.font }}>
           1 doigt : déplacer · 2 doigts : zoom / tourner{full ? ' · souris : clic droit pour tourner' : ''}
         </div>
-        {day > 0 && <div onClick={() => setDay(0)} style={{ position: 'absolute', top: full ? 78 : 8, left: 8, zIndex: 3, background: '#4f46e5', color: '#fff', borderRadius: 12, padding: '6px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(79,70,229,.4)' }}>
+        {day > 0 && <div onClick={() => setDay(0)} style={{ position: 'absolute', top: full ? 'calc(78px + env(safe-area-inset-top, 0px))' : 8, left: 8, zIndex: 3, background: '#4f46e5', color: '#fff', borderRadius: 12, padding: '6px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(79,70,229,.4)' }}>
           🕒 {when.charAt(0).toUpperCase() + when.slice(1)} · revenir à aujourd'hui ✕
         </div>}
-        {full && panel && <div style={{ position: 'absolute', left: 8, right: 8, bottom: 26, zIndex: 4, maxWidth: 460, margin: '0 auto' }}>{panel}</div>}
+        {full && panel && <div style={{ position: 'absolute', left: 8, right: 8, bottom: sBot(26), zIndex: 4, maxWidth: 460, margin: '0 auto' }}>{panel}</div>}
       </div>
 
       {!full && panel && <div style={{ marginTop: 8 }}>{panel}</div>}
