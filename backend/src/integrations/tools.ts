@@ -741,7 +741,7 @@ export const Dzaryx_TOOLS: Anthropic.Tool[] = [
   // ─── PHASE 6 — WhatsApp clients ──────────────────────────────
   {
     name: 'send_whatsapp_to_client',
-    description: 'Envoyer un message WhatsApp à un client (confirmation de réservation, rappel, réponse à une plainte, etc.). Toujours utiliser après validation Kouider pour les réponses sensibles.',
+    description: "Envoyer un message WhatsApp à un client (passe par le WhatsApp Business de Kouider sur le PC cloud). Renvoie une relecture : après son OUI → whatsapp_web action='send' confirmed:true, même chat, même texte. Préfère directement whatsapp_web.",
     input_schema: {
       type: 'object' as const,
       properties: {

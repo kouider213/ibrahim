@@ -350,7 +350,7 @@ async function _dispatch(
       case 'get_learning_evolution':     return await getLearningEvolutionTool(input);
       case 'get_kouider_preferences':    return await getKouiderPreferencesTool();
       // ─── PHASE 6 — WhatsApp ───
-      case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input);
+      case 'send_whatsapp_to_client':    return await sendWhatsAppToClient(input, sessionId);
       case 'check_car_availability':     return await checkCarAvailability(input);
       case 'get_client_profile':         return await getClientProfileTool(input['client_name'] as string);
       case 'get_client_brain':           return await getClientBrainTool(input['name_or_phone'] as string, sessionId);
@@ -1532,14 +1532,14 @@ async function getKouiderPreferencesTool(): Promise<string> {
 
 // ── Phase 6 — WhatsApp tools ──────────────────────────────────
 
-async function sendWhatsAppToClient(input: Record<string, unknown>): Promise<string> {
+async function sendWhatsAppToClient(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   const phone   = input['phone']   as string;
   const message = input['message'] as string;
   if (!phone || !message) return '❌ phone et message sont requis';
   const ok = await sendWhatsApp(phone, message);
-  return ok
-    ? `✅ Message WhatsApp envoyé à ${phone}`
-    : `❌ Échec envoi WhatsApp à ${phone} (Twilio non configuré ?)`;
+  if (ok) return `✅ Message WhatsApp envoyé à ${phone}`;
+  // Twilio coupé : on passe par le WhatsApp Business du PC cloud (relecture d'abord, puis whatsapp_web confirmed:true)
+  return await whatsappWebTool({ action: 'send', chat: phone, text: message }, sessionId);
 }
 
 async function checkCarAvailability(input: Record<string, unknown>): Promise<string> {

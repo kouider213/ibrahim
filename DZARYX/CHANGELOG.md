@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-15 (3) — Dzaryx envoie vraiment sur WhatsApp
+- `backend/src/integrations/claude-api.ts` : `whatsapp_web`, `business_mentor`, `kouider_dossier` ajoutés aux CORE_TOOLS (ils étaient cachés derrière la recherche d'outils → Dzaryx répondait « pas d'outil WhatsApp »).
+- `backend/src/integrations/tool-executor.ts` + `tools.ts` : `send_whatsapp_to_client` (Twilio coupé) → passe par `whatsapp_web` send (relecture puis confirmed).
+- `cloudpc/whatsapp_web.py` : nouveau DOM WhatsApp Web (`[data-testid^=conv-msg-]`, coches msg-check) → `read` et la vérif de `send` marchent. Premier envoi réel OK (+33 6 50 11 24 04, 07:26).
+
 ## 2026-10-15 (2) — WhatsApp Business sur le PC cloud | b301d40
 
 - web.whatsapp.com dans le Chrome du PC cloud (appareil connecté, code par numéro). Nouveaux messages non lus → réponse

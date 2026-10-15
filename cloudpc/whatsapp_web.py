@@ -50,12 +50,14 @@ JS_MESSAGES = r"""((max) => {
   const main = document.querySelector('#main');
   if (!main) return null;
   const title = (main.querySelector('header span[title], header span[dir="auto"]') || {}).innerText || '';
-  const rows = [...main.querySelectorAll('div.message-in, div.message-out')];
+  // Ancien DOM : div.message-in/out ; nouveau DOM (2026-10) : [data-testid^=conv-msg-], envoyé = coche msg-check/dblcheck/time ou tail-out
+  let rows = [...main.querySelectorAll('div.message-in, div.message-out')];
+  if (!rows.length) rows = [...main.querySelectorAll('[data-testid^="conv-msg-"]')];
   return { chat: title, messages: rows.slice(-max).map(m => {
     const c = m.querySelector('[data-pre-plain-text]');
     const meta = c ? c.getAttribute('data-pre-plain-text') : '';
     const text = [...m.querySelectorAll('span.selectable-text')].map(s => s.innerText).join(' ').trim();
-    return { me: m.classList.contains('message-out'), meta: meta.trim(), text: text || (m.querySelector('img') ? '[photo]' : m.querySelector('audio, [data-icon*="audio"], [data-icon*="ptt"]') ? '[message vocal]' : '[pièce jointe]') };
+    return { me: m.classList.contains('message-out') || !!m.querySelector('[data-icon="tail-out"], [data-icon^="msg-check"], [data-icon^="msg-dblcheck"], [data-icon^="msg-time"]'), meta: meta.trim(), text: text || (m.querySelector('img') ? '[photo]' : m.querySelector('audio, [data-icon*="audio"], [data-icon*="ptt"]') ? '[message vocal]' : '[pièce jointe]') };
   }) };
 })"""
 
