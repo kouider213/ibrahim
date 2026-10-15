@@ -880,8 +880,9 @@ export interface ProspectRow {
 }
 export interface ProspectsOverview {
   autopilot: { enabled: boolean; per_day: number };
+  mode?: 'sites' | 'conciergerie' | 'both'; cities?: string[];
   sender: string; sender_pro: boolean;
-  stats: { total: number; sent: number; sent_today: number; replies: number; linkedin_todo: number; whatsapp_todo: number; followups: number; visits: number; by_status: Record<string, number> };
+  stats: { total: number; sent: number; sent_today: number; replies: number; linkedin_todo: number; whatsapp_todo: number; followups: number; visits: number; sites_sent?: number; by_status: Record<string, number> };
   prospects: ProspectRow[];
 }
 
@@ -1009,7 +1010,7 @@ export const business = {
     apiFetch<{ message: string }>(`/api/fik-sites/${encodeURIComponent(id)}/action`, { method: 'POST', body: JSON.stringify({ ...params, action }) }),
   siteOpenAdmin: (id: string) => apiFetch<{ url: string }>(`/api/fik-sites/${encodeURIComponent(id)}/open-admin`, { method: 'POST' }),
   siteMessagesRead: (id: string) => apiFetch<{ ok: boolean }>(`/api/fik-sites/${encodeURIComponent(id)}/messages/read`, { method: 'POST' }),
-  prospectsAutopilot: (patch: { enabled?: boolean; per_day?: number }) =>
+  prospectsAutopilot: (patch: { enabled?: boolean; per_day?: number; mode?: 'sites' | 'conciergerie' | 'both'; cities?: string[] }) =>
     apiFetch<{ autopilot: ProspectsOverview['autopilot'] }>('/api/prospects/autopilot', { method: 'POST', body: JSON.stringify(patch) }),
   prospectsRun: () => apiFetch<{ ok: boolean; message: string }>('/api/prospects/run', { method: 'POST' }),
   prospectReply: (id: string, text: string) =>

@@ -10,7 +10,7 @@ const C = {
 
 const SEGMENT: Record<string, string> = {
   grand_compte: '🏭 Grand compte', entreprise: '🏢 Entreprise', agence_voyage: '✈️ Agence de voyage', organisme: '🎓 Organisme',
-  loueur_voitures: '🤝 Loueur voitures', proprietaire_appart: '🤝 Proprio appart', autre: '🤝 Résidence / immo',
+  site_web: '🌐 Sans site web', loueur_voitures: '🤝 Loueur voitures', proprietaire_appart: '🤝 Proprio appart', autre: '🤝 Résidence / immo',
 };
 const PARTNER = ['loueur_voitures', 'proprietaire_appart', 'autre'];
 const LANG: Record<string, string> = { fr: 'Français', en: 'Anglais', ar: 'Arabe', es: 'Espagnol', it: 'Italien', de: 'Allemand', tr: 'Turc', pt: 'Portugais', nl: 'Néerlandais', zh: 'Chinois', ko: 'Coréen', ja: 'Japonais', ru: 'Russe' };
@@ -23,12 +23,16 @@ const STATUS: Record<string, { label: string; color: string }> = {
   refus:       { label: 'Pas intéressé', color: C.red },
   stop:        { label: 'STOP',        color: C.red },
 };
-type Filter = 'all' | 'clients' | 'partners' | 'replies' | 'visits' | 'linkedin' | 'whatsapp' | 'grand_compte' | 'contacte' | 'a_contacter' | 'closed';
+type Filter = 'all' | 'sites' | 'clients' | 'partners' | 'replies' | 'visits' | 'linkedin' | 'whatsapp' | 'grand_compte' | 'contacte' | 'a_contacter' | 'closed';
 const FILTERS: Array<{ id: Filter; label: string }> = [
-  { id: 'all', label: 'Tout' }, { id: 'clients', label: '🎯 Clients' }, { id: 'partners', label: '🤝 Partenaires' }, { id: 'replies', label: '📩 Réponses' },
+  { id: 'all', label: 'Tout' }, { id: 'sites', label: '🌐 Sites web' }, { id: 'clients', label: '🎯 Clients' }, { id: 'partners', label: '🤝 Partenaires' }, { id: 'replies', label: '📩 Réponses' },
   { id: 'visits', label: '👀 Visites' }, { id: 'linkedin', label: '🔗 LinkedIn' }, { id: 'whatsapp', label: '💬 WhatsApp' },
   { id: 'grand_compte', label: '🏭 Grands comptes' }, { id: 'contacte', label: 'Contactés' },
   { id: 'a_contacter', label: 'À contacter' }, { id: 'closed', label: 'Refus / STOP' },
+];
+
+const MODES: Array<{ id: 'sites' | 'conciergerie' | 'both'; label: string }> = [
+  { id: 'sites', label: '🌐 Sites web' }, { id: 'conciergerie', label: '🏨 Conciergerie' }, { id: 'both', label: 'Les deux' },
 ];
 
 const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—';
@@ -75,7 +79,8 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
   const list = rows.filter(r => {
     if (ql && !`${r.company} ${r.email ?? ''} ${r.notes ?? ''}`.toLowerCase().includes(ql)) return false;
     switch (filter) {
-      case 'clients':      return !PARTNER.includes(r.segment);
+      case 'sites':        return r.segment === 'site_web';
+      case 'clients':      return !PARTNER.includes(r.segment) && r.segment !== 'site_web';
       case 'partners':     return PARTNER.includes(r.segment);
       case 'replies':      return !!r.last_reply_text || !!r.suggested_reply;
       case 'visits':       return !!r.site_visit_at;
@@ -119,7 +124,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{ap.enabled ? '✅ Démarchage auto actif' : '⏸️ Démarchage auto en pause'}</div>
-                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Chaque jour à 10h (Oran) · {ap.per_day} mail(s)/jour + 1 grand compte</div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Chaque jour à 10h (Oran) · {ap.per_day} mail(s)/jour{(data.mode ?? 'sites') !== 'sites' ? ' + 1 grand compte' : ''}</div>
               </div>
               <button onClick={() => act(() => business.prospectsAutopilot({ enabled: !ap.enabled }), ap.enabled ? 'Démarchage mis en pause' : 'Démarchage réactivé')}
                 style={btn(ap.enabled ? 'rgba(248,113,113,0.15)' : 'rgba(16,185,129,0.18)', ap.enabled ? C.red : C.accent)}>{ap.enabled ? 'Pause' : 'Activer'}</button>
@@ -132,6 +137,33 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
               <div style={{ flex: 1 }} />
               <button onClick={() => act(() => business.prospectsRun(), '🚀 Lancé — récap en notification dans quelques minutes')} style={btn(C.accent, '#06210f')}>🚀 Lancer maintenant</button>
             </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 12, marginBottom: 6 }}>Qui démarcher ?</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {MODES.map(m => {
+                const on = (data.mode ?? 'sites') === m.id;
+                return <button key={m.id} onClick={() => !on && act(() => business.prospectsAutopilot({ mode: m.id }), `Mode : ${m.label}`)}
+                  style={{ ...btn(on ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.06)', on ? C.accent : C.text), flex: 1, border: on ? `1px solid ${C.accent}` : '1px solid transparent' }}>{m.label}</button>;
+              })}
+            </div>
+            <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.45 }}>
+              {(data.mode ?? 'sites') === 'conciergerie'
+                ? '🏨 Entreprises et partenaires FIK Conciergerie, mail avec le lien du site.'
+                : '🌐 Commerces SANS site web (Google Maps) : le 1er mail propose une démo gratuite. La démo est faite et envoyée seulement s\'ils répondent oui.'
+                  + ((data.mode ?? 'sites') === 'both' ? ' Moitié sites web, moitié conciergerie.' : '')}
+              {st?.sites_sent ? ` · ${st.sites_sent} commerce(s) déjà contacté(s).` : ''}
+            </div>
+            {(data.mode ?? 'sites') !== 'conciergerie' && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8 }}>
+                <div style={{ flex: 1, fontSize: 11.5, lineHeight: 1.45 }}>📍 {(data.cities ?? []).join(' · ')}</div>
+                <button onClick={() => {
+                  const v = window.prompt('Villes à démarcher, séparées par des virgules (ex : Liège Belgique, Lyon France, Oran Algérie)',
+                    (data.cities ?? []).map(c => c.replace(', ', ' ')).join(', '));
+                  if (v === null) return;
+                  const list = v.split(/[,;\n]/).map(x => x.trim()).filter(Boolean);
+                  if (list.length) act(() => business.prospectsAutopilot({ cities: list }), `${list.length} ville(s) enregistrée(s)`);
+                }} style={btn('rgba(255,255,255,0.06)', C.text)}>Villes</button>
+              </div>
+            )}
             <div style={{ fontSize: 11.5, color: data.sender_pro ? C.accent : C.gold, marginTop: 10, lineHeight: 1.4 }}>
               {data.sender_pro
                 ? `✉️ Envoi depuis ${data.sender}`
