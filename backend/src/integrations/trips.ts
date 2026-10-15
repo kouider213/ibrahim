@@ -121,7 +121,10 @@ async function addFlight(f: NewFlight): Promise<Trip | string> {
 
   const fl = f.flight_number ? ` ${f.flight_number.toUpperCase()}` : '';
   const title = who === 'client' ? `Arrivée de ${f.client_name ?? 'client'} — vol${fl} ${f.from} → ${f.to}` : `Vol${fl} ${f.from} → ${f.to}`;
-  const airport = f.airport_address || (who === 'client' ? f.to : f.from);
+  // « Bruxelles » seul = centre-ville pour Google : on vise l'aéroport (« Aéroport Bruxelles » → Zaventem, « Aéroport Charleroi » → BSCA)
+  const city = who === 'client' ? f.to : f.from;
+  const airport = f.airport_address || (/^(bru|bruxelles|brussels|brussel|zaventem)\b/i.test(city.trim()) ? 'Brussels Airport, 1930 Zaventem, Belgique'
+    : /a[ée]roport|airport|luchthaven|\d/i.test(city) ? city : `Aéroport ${city}`);
   const t: Trip = {
     id: randomUUID().slice(0, 8), who, kind: 'flight', title, clientName: f.client_name, bookingId: f.booking_id,
     flightNumber: f.flight_number?.toUpperCase(), airline: f.airline, from: f.from, to: f.to, departAt, arriveAt, tz: dtz,

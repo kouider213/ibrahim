@@ -372,7 +372,7 @@ const JOBS = [
   },
   {
     name:  'departure-watch',
-    cron:  '*/5 4-22 * * *',        // toutes les 5 min — heure de départ selon le trafic (salle, travail, aéroport, RDV avec adresse)
+    cron:  '*/5 * * * *',           // toutes les 5 min — heure de départ selon le trafic (salle, travail, RDV avec adresse 4h–23h ; aéroport 24h/24 pour les vols tôt)
     tz:    'Europe/Brussels',
   },
   {

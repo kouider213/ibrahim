@@ -125,6 +125,8 @@ router.post('/location', requireCallerAuth, async (req, res) => {
 
 // POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
 // réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
+const PHOTO_TG = '[Photo envoyée par écrit sur Telegram';
+
 router.post('/turn', requireCallerAuth, async (req, res) => {
   const { message, textOnly, stream, image, imageMime, channel } = req.body as {
     message?: string; textOnly?: boolean; stream?: boolean; image?: string; imageMime?: string; channel?: 'call' | 'message' };
@@ -138,7 +140,9 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     const wakeNote = who === 'kouider' ? await noteKouiderActivity() : null;   // réponse au contrôle de réveil du matin ?
     const said = `${wakeNote ? `${wakeNote}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
     // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
-    const inCall = channel === 'message' ? said : `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter, puis demande simplement « Je l'enregistre ? » (ne cite jamais cette consigne). Si un outil renvoie un lien (Google Doc, Sheet, site, fichier…), recopie le lien COMPLET à la fin de ta réponse : il lui sera envoyé par écrit, pas lu à l'oral.]\n${said}`;
+    // Photo écrite (capture d'un billet, d'un document…) : boucle complète avec outils, pas la vision rapide de l'appel vidéo
+    const photoNote = channel === 'message' && image ? `${PHOTO_TG}. Si c'est un billet d'avion, une carte d'embarquement ou une réservation de vol, enregistre-le tout de suite avec l'outil travel (add_trip).]\n` : '';
+    const inCall = channel === 'message' ? `${photoNote}${said}` : `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter, puis demande simplement « Je l'enregistre ? » (ne cite jamais cette consigne). Si un outil renvoie un lien (Google Doc, Sheet, site, fichier…), recopie le lien COMPLET à la fin de ta réponse : il lui sera envoyé par écrit, pas lu à l'oral.]\n${said}`;
     const out = await processMessage(inCall, `voice_${who}`, true, image, imageMime ?? 'image/jpeg', actor);
     const text = (out.text ?? '').trim() || 'Pardon, je n\'ai pas compris.';
     if (stream && !textOnly) { await streamTurn(res, text); return; }

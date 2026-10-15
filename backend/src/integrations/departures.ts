@@ -64,9 +64,11 @@ async function askAddress(id: string, title: string, start: number, now: number,
   await queueTelegramMessage(`📍 « ${name} » à ${hm(start)} n'a pas d'adresse dans l'agenda. Envoie-la-moi (ou le nom du lieu) : je l'ajoute et je te dis quand partir, avec le trafic et le lien Waze.`);
 }
 
-/** Toutes les 5 min (4h–23h Bruxelles). */
+/** Toutes les 5 min (RDV 4h–23h Bruxelles, aéroport 24h/24). */
 export async function jobDepartureWatch(): Promise<void> {
-  await ensureRoutineStart().catch(() => {});
+  const hour = Number(localNow().hhmm.slice(0, 2));
+  const night = hour < 4 || hour >= 23;
+  if (!night) await ensureRoutineStart().catch(() => {});
   const now = Date.now();
   const evs = await listAgendaRange(new Date(now).toISOString(), new Date(now + 4 * 3600_000).toISOString(), 30);
   if (!evs?.length) return;
@@ -81,6 +83,7 @@ export async function jobDepartureWatch(): Promise<void> {
   for (const e of evs) {
     if (!e.id || !e.start.dateTime || e.transparency === 'transparent') continue;
     const title = e.summary ?? 'RDV';
+    if (night && !/^🧳/u.test(title)) continue;                      // la nuit : seulement l'aéroport (vol à 6h → partir vers 3h)
     if (!e.location?.trim()) { await askAddress(e.id, title, Date.parse(e.start.dateTime), now, !!e.recurringEventId); continue; }
     if (/^(🟢|🏠|🚿|⏰)/u.test(title) || /laekenveld/i.test(e.location)) continue;
     const routineTrip = /wemmel|werrie/i.test(e.location) || /^(🏋️|✈️ Belgique)/u.test(title);

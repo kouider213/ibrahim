@@ -354,7 +354,7 @@ export async function processMessage(
   // Caméra+voix EN DIRECT (session voice_ + image): on force toujours la cascade vision
   // rapide (Claude Haiku en premier) même sans clé Gemini → réponse rapide garantie.
   // Le scanner texte (avec outils possibles) garde son routing normal.
-  const _isLiveVisionTurn = !!imageBase64 && sessionId.startsWith('voice_');
+  const _isLiveVisionTurn = !!imageBase64 && sessionId.startsWith('voice_') && !userMessage.includes('[Photo envoyée par écrit sur Telegram');
   if (_isLiveVisionTurn || (route.fastPath && route.provider === 'groq')) {
     const fastToday = new Date().toISOString().slice(0, 10);
 
