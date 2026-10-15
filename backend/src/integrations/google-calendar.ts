@@ -204,7 +204,7 @@ export async function syncPendingBookings(): Promise<number> {
 // Ses RDV (pro, perso qu'il veut confier à Dzaryx, FIK Sites…) sont donc tous dans l'agenda FIK.
 
 export interface AgendaEvent {
-  id?: string; summary: string; description?: string; location?: string;
+  id?: string; summary: string; description?: string; location?: string; recurringEventId?: string; transparency?: string;
   start: { dateTime?: string; date?: string; timeZone?: string };
   end: { dateTime?: string; date?: string; timeZone?: string };
 }
@@ -213,16 +213,20 @@ const fikPath = (rest = '') => `/calendars/${encodeURIComponent(CALENDAR_ID)}${r
 // RDV avec heure, lieu, notes (pas une réservation de voiture : pour ça createCalendarEvent)
 export async function createAgendaEvent(
   title: string, startDateTime: string, endDateTime: string, description?: string, allDay?: boolean, location?: string,
+  opts: { recurrence?: string[]; transparent?: boolean; timeZone?: string } = {},
 ): Promise<string | null> {
   const body: Record<string, unknown> = { summary: title };
+  if (opts.recurrence?.length) body['recurrence'] = opts.recurrence;      // ex. ['RRULE:FREQ=WEEKLY;BYDAY=TH']
+  if (opts.transparent) body['transparency'] = 'transparent';            // « libre » : ne bloque pas les créneaux
   if (description) body['description'] = description;
   if (location) body['location'] = location;
   if (allDay) {
     body['start'] = { date: startDateTime.slice(0, 10) };
     body['end']   = { date: endDateTime.slice(0, 10) };
   } else {
-    body['start'] = { dateTime: startDateTime.includes('T') ? startDateTime : `${startDateTime}T09:00:00`, timeZone: 'Africa/Algiers' };
-    body['end']   = { dateTime: endDateTime.includes('T')   ? endDateTime   : `${endDateTime}T10:00:00`,   timeZone: 'Africa/Algiers' };
+    const tz = opts.timeZone ?? 'Africa/Algiers';
+    body['start'] = { dateTime: startDateTime.includes('T') ? startDateTime : `${startDateTime}T09:00:00`, timeZone: tz };
+    body['end']   = { dateTime: endDateTime.includes('T')   ? endDateTime   : `${endDateTime}T10:00:00`,   timeZone: tz };
   }
   const created = await calendarRequest<{ id: string }>('POST', fikPath('/events'), body);
   return created?.id ?? null;
@@ -250,6 +254,30 @@ export async function updateAgendaEvent(googleEventId: string, u: Partial<{ titl
   }
   const r = await calendarRequest('PATCH', fikPath(`/events/${encodeURIComponent(googleEventId)}`), patch);
   return r !== null;
+}
+
+// Modifier TOUTE une série (événement qui se répète) : nouveau titre et/ou nouvelles heures (HH:MM), même jour de
+// départ et même fuseau que la série (ex. Europe/Brussels) → toutes les semaines suivent.
+export async function updateAgendaSeries(anyId: string, u: { title?: string; startTime?: string; endTime?: string; location?: string }): Promise<boolean> {
+  const inst = await calendarRequest<AgendaEvent>('GET', fikPath(`/events/${encodeURIComponent(anyId)}`));
+  const masterId = inst?.recurringEventId ?? anyId.split('_')[0]!;
+  const m = await calendarRequest<AgendaEvent>('GET', fikPath(`/events/${encodeURIComponent(masterId)}`));
+  if (!m) return false;
+  const patch: Record<string, unknown> = {};
+  if (u.title) patch['summary'] = u.title;
+  if (u.location !== undefined) patch['location'] = u.location;
+  const at = (orig: { dateTime?: string; timeZone?: string }, hhmm: string) => ({ dateTime: `${orig.dateTime!.slice(0, 10)}T${hhmm}:00`, timeZone: orig.timeZone ?? 'Europe/Brussels' });
+  if (u.startTime && m.start.dateTime) patch['start'] = at(m.start, u.startTime);
+  if (u.endTime && m.end.dateTime) patch['end'] = at(m.end, u.endTime);
+  const r = await calendarRequest('PATCH', fikPath(`/events/${encodeURIComponent(masterId)}`), patch);
+  return r !== null;
+}
+
+// Créneaux « 🟢 Libre » de l'agenda FIK (transparents) sur une période — là où Dzaryx peut donner des RDV
+export async function listFreeWindows(fromIso: string, toIso: string): Promise<Array<{ start: number; end: number }>> {
+  const evs = await listAgendaRange(fromIso, toIso, 250);
+  return (evs ?? []).filter(e => (e.summary ?? '').startsWith('🟢') && e.start.dateTime && e.end.dateTime)
+    .map(e => ({ start: new Date(e.start.dateTime!).getTime(), end: new Date(e.end.dateTime!).getTime() }));
 }
 
 export async function deleteAgendaEvent(googleEventId: string): Promise<boolean> {
@@ -354,6 +382,21 @@ export async function findFreeSlots(count = 3, durationMin = 30): Promise<string
   // Jours de congé de Kouider (lundi + jeudi par défaut, réglables) : jamais de rendez-vous proposé
   const daysOff = await import('./kouider-dossier.js').then(m => m.getDaysOff()).catch(() => [] as number[]);
 
+  // 1) D'abord les créneaux « 🟢 Libre — RDV possibles » que Kouider garde pour ça (un RDV par jour, jours différents)
+  const windows = await listFreeWindows(from.toISOString(), to.toISOString()).catch(() => []);
+  const picked: string[] = [], usedDays = new Set<string>();
+  for (const w of windows.sort((a, b) => a.start - b.start)) {
+    if (picked.length >= count) break;
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date(w.start));
+    const dow = new Date(`${day}T12:00:00+01:00`).getUTCDay();
+    if (usedDays.has(day) || daysOff.includes(dow) || dow === 5 || dow === 6) continue;   // congé + week-end algérien
+    for (let t = w.start; t + durationMin * 60_000 <= w.end; t += 30 * 60_000) {
+      if (t > from.getTime() && free(t)) { picked.push(new Date(t).toISOString()); usedDays.add(day); break; }
+    }
+  }
+  if (picked.length) return picked;
+
+  // 2) Sinon : horaires de bureau classiques
   const slots: string[] = [];
   for (let d = 0; d < 12 && slots.length < count; d++) {
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date(from.getTime() + d * 86_400_000));

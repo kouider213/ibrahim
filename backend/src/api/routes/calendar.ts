@@ -3,7 +3,7 @@ import {
   getAuthUrl, exchangeCodeForTokens, listUpcomingEvents,
   createCalendarEvent, syncPendingBookings,
   listHouariEvents, createHouariCalendarEvent,
-  createAgendaEvent, listAgendaRange, updateAgendaEvent, deleteAgendaEvent, agendaAccess,
+  createAgendaEvent, listAgendaRange, updateAgendaEvent, updateAgendaSeries, deleteAgendaEvent, agendaAccess,
 } from '../../integrations/google-calendar.js';
 import { exchangeGmailCode, getGmailAuthUrl, GMAIL_STATE_PREFIX } from '../../integrations/gmail.js';
 import { requireMobileAuth } from '../middleware/auth.js';
@@ -100,8 +100,9 @@ router.get('/me', requireMobileAuth, async (req, res) => {
 });
 router.patch('/agenda/:id', requireMobileAuth, async (req, res) => {
   if (ownerOf(req) === 'houari') { res.status(403).json({ error: 'Agenda de Kouider seulement' }); return; }
-  const b = req.body as { title?: string; start?: string; end?: string; location?: string; description?: string; allDay?: boolean };
-  const ok = await updateAgendaEvent(String(req.params['id']), b);
+  const b = req.body as { title?: string; start?: string; end?: string; location?: string; description?: string; allDay?: boolean; series?: boolean; startTime?: string; endTime?: string };
+  // series=true : toute la série (titre / heures HH:MM), sinon cet événement seulement
+  const ok = b.series ? await updateAgendaSeries(String(req.params['id']), b) : await updateAgendaEvent(String(req.params['id']), b);
   res.status(ok ? 200 : 502).json({ success: ok });
 });
 router.delete('/agenda/:id', requireMobileAuth, async (req, res) => {
@@ -163,7 +164,8 @@ router.post('/add', requireMobileAuth, async (req, res) => {
     if (calendar === 'fik') {
       eventId = await createCalendarEvent(`add_${Date.now()}`, title, '', startDateTime.slice(0,10), endDateTime.slice(0,10), description);
     } else if (calendar === 'kouider') {
-      eventId = await createAgendaEvent(title, startDateTime, endDateTime, description, allDay, (req.body as { location?: string }).location); // « mon agenda » = agenda FIK
+      const x = req.body as { location?: string; recurrence?: string[]; transparent?: boolean; timeZone?: string };
+      eventId = await createAgendaEvent(title, startDateTime, endDateTime, description, allDay, x.location, { recurrence: x.recurrence, transparent: x.transparent, timeZone: x.timeZone }); // « mon agenda » = agenda FIK
     } else {
       eventId = await createHouariCalendarEvent(title, startDateTime, endDateTime, description, allDay);
     }

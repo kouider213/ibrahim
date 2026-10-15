@@ -29,7 +29,7 @@ import {
   toLocalISO,
   isValidTimezone,
 } from '../utils/timezone.js';
-import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaEvent, agendaAccess } from './google-calendar.js';
+import { createCalendarEvent, syncPendingBookings, listUpcomingEvents, deleteCalendarEvent, updateCalendarEvent, createAgendaEvent, deleteAgendaEvent, listAgendaRange, updateAgendaEvent, updateAgendaSeries, agendaAccess } from './google-calendar.js';
 import { getFinancialReport, formatFinancialReport } from './finance.js';
 import { setCarPapers, getCarPapers } from './car-papers.js';
 import { listEmails, readEmail, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, proSenderAddress, GmailNotConnectedError, GmailSendNotAllowedError, type GmailAccount } from './gmail.js';
@@ -2097,7 +2097,10 @@ async function updateAgendaEventTool(input: Record<string, unknown>): Promise<st
   const id = String(input['google_event_id'] ?? '').trim();
   if (!id) return '❌ google_event_id requis — appelle list_agenda_events (il donne les id).';
   const s = (k: string) => (typeof input[k] === 'string' && (input[k] as string).trim() ? (input[k] as string).trim() : undefined);
-  const ok = await updateAgendaEvent(id, { title: s('title'), start: s('start_datetime'), end: s('end_datetime'), description: s('description'), location: s('location'), allDay: input['all_day'] === true });
+  const hh = (v?: string) => v?.match(/T(\d{2}:\d{2})/)?.[1] ?? v?.match(/^(\d{2}:\d{2})$/)?.[1];
+  const ok = input['whole_series'] === true
+    ? await updateAgendaSeries(id, { title: s('title'), startTime: hh(s('start_datetime')), endTime: hh(s('end_datetime')), location: s('location') })
+    : await updateAgendaEvent(id, { title: s('title'), start: s('start_datetime'), end: s('end_datetime'), description: s('description'), location: s('location'), allDay: input['all_day'] === true });
   if (!ok) { const acc = await agendaAccess(); return acc.ok ? '❌ Événement introuvable ou modification refusée — revérifie l\'id avec list_agenda_events.' : `❌ Pas d'accès à l'agenda FIK : ${acc.reason}`; }
   return `✅ RDV modifié dans l'agenda FIK${s('title') ? ` : ${s('title')}` : ''}${s('start_datetime') ? ` → ${s('start_datetime')!.replace('T', ' ').slice(0, 16)}` : ''}.`;
 }
