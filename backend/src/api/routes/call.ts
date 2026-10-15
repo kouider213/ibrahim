@@ -10,6 +10,7 @@ import { executeTool } from '../../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../../integrations/tools.js';
 import { kvGet, kvSet } from '../../integrations/app-store.js';
 import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
+import { kouiderDossierText } from '../../integrations/kouider-dossier.js';
 import { isPrivate } from '../../integrations/privacy.js';
 import { recordTgcallHeartbeat, recordTgcallErrors } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
@@ -315,7 +316,7 @@ function pcInstructions(base: string): string {
   }).join('\n');
 }
 
-function realtimeInstructions(who: CallActor, calls: string): string {
+function realtimeInstructions(who: CallActor, calls: string, dossier = ''): string {
   const name = who === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
   const now = new Date();
   const fmt = (tz: string) => now.toLocaleString('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -349,7 +350,9 @@ function realtimeInstructions(who: CallActor, calls: string): string {
     `ÉCRIT : un numéro, une adresse, un mail ou tout ce qui est dur à retenir à l'oral → propose « je te l'envoie par écrit ? » ou fais-le s'il le demande : outil send_text_to_me (pas besoin de confirmation).`,
     `RAPPEL : « rappelle-moi dans une heure / à 16h » (ou s'il est occupé) → redis l'heure, outil call_me avec delay_minutes ou at_time et une reason qui rappelle le sujet ; après le ✅, dis au revoir puis end_call.`,
     `CAMÉRA : s'il passe en vidéo, tu reçois des images de sa caméra quand il parle. Décris ce que tu vois de façon concrète (dégât, rayure, choc, pneu, compteur, document…), sans inventer : si c'est flou ou trop loin, demande-lui de s'approcher. « Regarde » / « et là ? » → outil look. Pour enregistrer un état des lieux, un dégât ou un document, utilise ask_dzaryx avec la demande complète (voiture, client, avant/après) : l'image actuelle de la caméra lui est jointe automatiquement. Comme toute action : relis et attends son oui.`,
+    `CONSEILLER BUSINESS : quand tu lui proposes une idée, un plan, un contact, un risque ou une opportunité (ton appel « conseiller » du jour), parle comme un mentor qui a réussi, puis écoute. « Mets-le sur papier » → ask_dzaryx « business_mentor action paper » ; « vas-y, exécute » → ask_dzaryx « business_mentor action execute » ; « non, laisse tomber » → action reject ; « donne-moi une autre idée sur … » → action new avec le focus. Le détail écrit est déjà sur Telegram.`,
     `RACCROCHER : quand la discussion est finie, dis au revoir en une phrase, puis appelle end_call.`,
+    ...(dossier ? [dossier] : []),
     ...(calls ? [calls, `Si c'est utile, tu peux rappeler ce qui reste à faire de ces appels.`] : []),
   ].join('\n');
 }
@@ -367,9 +370,14 @@ router.post('/realtime', requireCallerAuth, async (req, res) => {
         session: {
           type: 'realtime',
           model: REALTIME_MODEL,
-          instructions: pcMode
-            ? pcInstructions(realtimeInstructions(who, await recentCallsText(who).catch(() => '')))
-            : realtimeInstructions(who, await recentCallsText(who).catch(() => '')),
+          instructions: await (async () => {
+            const [calls, dossier] = await Promise.all([
+              recentCallsText(who).catch(() => ''),
+              who === 'kouider' ? kouiderDossierText().catch(() => '') : Promise.resolve(''),
+            ]);
+            const base = realtimeInstructions(who, calls, dossier);
+            return pcMode ? pcInstructions(base) : base;
+          })(),
           audio: {
             input: {
               format: { type: 'audio/pcm', rate: 24000 },

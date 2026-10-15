@@ -57,6 +57,8 @@ import { jobBirthdays, jobReviewWhatsapp } from '../notifications/client-care.js
 import { jobDbBackup } from '../integrations/db-backup.js';
 import { jobSelfTest } from '../integrations/self-test.js';
 import { jobSeasonWatch } from '../integrations/seasons.js';
+import { jobBusinessMentor, jobMentorNewsWatch } from '../integrations/business-mentor.js';
+import { jobKouiderDossier } from '../integrations/kouider-dossier.js';
 import { jobCloudWatch, jobCloudRoutines } from '../integrations/cloud-watch.js';
 
 const SCHEDULER_QUEUE = 'in-process';
@@ -254,13 +256,28 @@ const JOBS = [
     tz:    'Africa/Algiers',
   },
   {
+    name:  'business-mentor',
+    cron:  '30 11 * * *',           // 11h30 — l'appel du conseiller business (idée/plan/contact/risque) ; sauté les jours de congé
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'mentor-news',
+    cron:  '0 8,17 * * *',          // 8h + 17h — veille actu : risque/opportunité URGENT → appel, le reste par message
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'kouider-dossier',
+    cron:  '30 3 * * *',            // 3h30 — réécrit le portrait de Kouider (mémoire, règles, messages, appels)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'self-test',
     cron:  '45 7 * * *',            // 7h45 — auto-test en lecture seule ; message seulement si problème (+ résumé le lundi)
     tz:    'Africa/Algiers',
   },
   {
     name:  'season-watch',
-    cron:  '15 9 * * 1',            // lundi 9h15 — saisons (diaspora, Aïd, vacances FR/BE) dans ≤ 6 semaines + remplissage réel
+    cron:  '15 9 * * 2',            // mardi 9h15 (lundi = congé de Kouider) — saisons (diaspora, Aïd, vacances FR/BE) dans ≤ 6 semaines + remplissage réel
     tz:    'Africa/Algiers',
   },
   {
@@ -396,6 +413,9 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'smart-alarm':             jobSmartAlarm,
   'monthly-excel':           jobMonthlyExcel,
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
+  'business-mentor':         jobBusinessMentor,
+  'mentor-news':             jobMentorNewsWatch,
+  'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },
   'cloud-watch':             async () => { console.log(`[cloud-watch] ${await jobCloudWatch()}`); },
   'cloud-routines':          async () => { console.log(`[cloud-routines] ${await jobCloudRoutines()}`); },

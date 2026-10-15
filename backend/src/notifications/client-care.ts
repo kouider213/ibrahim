@@ -146,7 +146,7 @@ export async function recordCarKm(carName: string, km: number): Promise<string> 
   emitProactive(line, 'alert', `${line}\nPrévois-la avant la prochaine location. Une fois faite, dis-moi « vidange faite sur la ${car.name} à X km ».`, 'kouider', 'fleet');
   void autoCall(`service-km:${car.id}:${nextKm}`, left <= 0
     ? `La ${car.name} a dépassé sa vidange de ${Math.round(-left)} kilomètres. Il faut la faire avant de la relouer.`
-    : `La ${car.name} arrive à sa vidange, il reste ${Math.round(left)} kilomètres. Pense à la prévoir.`);
+    : `La ${car.name} arrive à sa vidange, il reste ${Math.round(left)} kilomètres. Pense à la prévoir.`, { level: 'normal' });
   return line;
 }
 
@@ -215,7 +215,7 @@ export async function jobBirthdays(): Promise<void> {
   emitProactive(`🎂 Anniversaire : ${fresh.map(f => f.name).join(', ')}`, 'reminder', text, 'kouider');
   const names = fresh.map(f => f.name);
   void autoCall(`birthdays:${yyyy}-${mm}-${dd}`,
-    `Aujourd'hui c'est l'anniversaire de ${names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names.at(-1)}` : names[0]}, un de tes clients. Je t'ai préparé le message WhatsApp avec ${BIRTHDAY_DISCOUNT} pour cent de remise, tu n'as qu'à l'envoyer.`);
+    `Aujourd'hui c'est l'anniversaire de ${names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names.at(-1)}` : names[0]}, un de tes clients. Je t'ai préparé le message WhatsApp avec ${BIRTHDAY_DISCOUNT} pour cent de remise, tu n'as qu'à l'envoyer.`, { level: 'normal' });
 }
 
 // ── 4. Demande d'avis par WhatsApp (clients sans email) ──────────────────────

@@ -1,4 +1,5 @@
 ﻿import { getConversationHistory, getActiveRules, getFleet, getBookings, getRecentUserMessages, getRecentEpisodes, supabase } from '../integrations/supabase.js';
+import { kouiderDossierText } from '../integrations/kouider-dossier.js';
 import { getOranWeather, formatWeatherForContext, getAlgeriaNews, formatNewsForContext, type WeatherData } from '../integrations/web-search.js';
 import { listUpcomingEvents, listPersonalEvents } from '../integrations/google-calendar.js';
 import { getFinancialReport } from '../integrations/finance.js';
@@ -150,7 +151,7 @@ export async function buildContext(
 
   const isKouider = actor.ownerKey === 'kouider';
 
-  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx, personalCalendarEvents, callsMemText] = await Promise.all([
+  const [history, crossHistory, rules, fleet, allBookings, weather, news, calendarEvents, financeReport, memories, styleMessages, compactionSummary, clientIntel, recentEpisodes, smartReminders, vipClients, learnedRules, clientBrain, actorBrainCtx, personalCalendarEvents, callsMemText, dossierText] = await Promise.all([
     getConversationHistory(sessionId, historyLimit).catch(() => []),
     crossChannelSessionId
       ? supabase
@@ -193,6 +194,7 @@ export async function buildContext(
     getActorBrainContext(actor.ownerKey).catch(() => ''),
     isKouider ? listPersonalEvents(10).catch(() => []) : Promise.resolve([]),
     recentCallsText(actor.ownerKey === 'houari' ? 'houari' : 'kouider').catch(() => ''),
+    isKouider ? kouiderDossierText().catch(() => '') : Promise.resolve(''),
   ]);
 
   // Détection humeur (synchrone, rapide)
@@ -533,6 +535,7 @@ ${financeReport.bookings.map((b: any) => `- ${b.client_name} | ${b.car_name} | $
     remindersText,
     learnedRulesText,
     callsMemText ? `\n\n${callsMemText}` : '',
+    dossierText ? `\n\n${dossierText}` : '',
   ].join('');
 
   // Filter old confirmation-only messages from non-recent history to prevent context contamination.

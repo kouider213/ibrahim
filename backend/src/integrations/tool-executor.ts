@@ -4,6 +4,8 @@
  * PROPRIETARY — ALL RIGHTS RESERVED — UNAUTHORIZED USE PROHIBITED
  * Signature: DZX-FK-OAN-2024-K7X9M2Q1
  */
+import { businessMentorTool } from './business-mentor.js';
+import { kouiderDossierTool } from './kouider-dossier.js';
 import { supabase } from './supabase.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
 import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
@@ -383,6 +385,8 @@ async function _dispatch(
       case 'cloud_pc':                  return await cloudPcTool(input);
       case 'watch_page':                return await watchPageTool(input);
       case 'web_routine':               return await webRoutineTool(input);
+      case 'business_mentor':           return await businessMentorTool(input, sessionId);
+      case 'kouider_dossier':           return await kouiderDossierTool(input, sessionId);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));
       case 'run_self_test':             return input['what'] === 'backup_now'
         ? `💾 Sauvegarde faite : ${await jobDbBackup().catch(e => `❌ échec — ${e instanceof Error ? e.message : String(e)}`)}`

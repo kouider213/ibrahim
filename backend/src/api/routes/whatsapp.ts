@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { autoCall } from '../../notifications/auto-call.js';
+import { isComplaint } from '../../integrations/whatsapp.js';
 import { respondToClient } from '../../conversation/client-responder.js';
 import { emitProactive } from '../../notifications/mobile-push.js';
 import { requireMobileAuth } from '../middleware/auth.js';
@@ -27,6 +29,8 @@ async function sendWhatsApp(to: string, body: string): Promise<void> {
 }
 
 // ── Vérification du webhook (Meta) ───────────────────────────────────────────
+const DELICATE_RE = /accident|accroch|panne|en panne|crev[ée]|police|gendarm|vol[ée]e?\b|amende|fourri[èe]re|bless|urgence|urgent|حادث|عطب|شرطة|سرقة/i;
+
 router.get('/webhook', (req, res) => {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
@@ -51,6 +55,13 @@ router.post('/webhook', async (req, res) => {
 
     const { reply, leadCreated } = await respondToClient(text, { clientPhone: from, sessionId: `wa_${from}` });
     await sendWhatsApp(from, reply);
+
+    // Situation délicate (plainte, accident, panne, police, vol…) → Dzaryx appelle Kouider tout de suite
+    if (isComplaint(text) || DELICATE_RE.test(text)) {
+      void autoCall(`wa-delicate:${from}:${new Date().toISOString().slice(0, 13)}`,
+        `Situation délicate sur WhatsApp. Le client ${from.slice(-4).split('').join(' ')} écrit : ${text.slice(0, 220)}. Tu veux que je te prépare une réponse ?`,
+        { level: 'urgent' });
+    }
 
     // Handoff : prévenir Kouider pour qu'il reprenne le relais.
     if (leadCreated) {

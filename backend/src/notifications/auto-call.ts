@@ -1,5 +1,6 @@
 import { kvGet, kvSet } from '../integrations/app-store.js';
 import { callOwner, getPendingCall } from './voice-call.js';
+import { isDayOff } from '../integrations/kouider-dossier.js';
 
 // Appels AUTOMATIQUES de Dzaryx à Kouider (sans qu'il demande) — UNIQUEMENT les moments importants
 // (choix de Kouider) : récap quotidien de 10h, quelqu'un répond à un de ses mails, nouvelle réservation
@@ -12,6 +13,8 @@ import { callOwner, getPendingCall } from './voice-call.js';
 // - Pas plus d'un appel auto toutes les 10 min : sinon mis en file, appel groupé ensuite.
 // - Max 12 appels auto par jour, et chaque info n'appelle qu'une fois (clé anti-doublon 24 h).
 // - Interrupteur : app_kv `autocall:off` = '1' → plus aucun appel auto (les notifs restent).
+// - Jours de congé de Kouider (lundi + jeudi, app_kv `kouider:days_off`) : seuls les appels 'urgent' sonnent ;
+//   les 'normal' (idées business, actu, anniversaires, vidange…) sont gardés et dits le prochain jour travaillé.
 //
 // « J'ai des choses pour toi » : ce qui n'a pas pu être dit par appel (quota, appels coupés, appel manqué)
 // ou qui attend dans la file est gardé dans `autocall:inbox`. Quand Kouider appelle Dzaryx, il commence par ça.
@@ -26,7 +29,10 @@ const QUEUE_KEY = 'autocall:queue';
 const LAST_KEY  = 'autocall:last';
 const OFF_KEY   = 'autocall:off';
 const INBOX_KEY = 'autocall:inbox';
+const HELD_KEY  = 'autocall:held';
 const INBOX_MAX_AGE_MS = 36 * 3_600_000;
+
+export type AutoCallLevel = 'urgent' | 'normal';
 
 function localNow(): { hour: number; day: string } {
   const parts = new Intl.DateTimeFormat('fr-BE', { timeZone: TZ, hour: '2-digit', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -35,9 +41,10 @@ function localNow(): { hour: number; day: string } {
   return { hour: Number(get('hour')), day: `${get('year')}-${get('month')}-${get('day')}` };
 }
 
-async function readQueue(): Promise<string[]> {
-  try { return JSON.parse((await kvGet(QUEUE_KEY)) ?? '[]') as string[]; } catch { return []; }
+async function readList(key: string): Promise<string[]> {
+  try { return JSON.parse((await kvGet(key)) ?? '[]') as string[]; } catch { return []; }
 }
+const readQueue = () => readList(QUEUE_KEY);
 
 type InboxItem = { at: number; text: string };
 const sameInfo = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -70,11 +77,12 @@ export async function removeFromCallInbox(text: string): Promise<void> {
  * puis vidé — c'est dit dans cet appel, la file ne fera donc plus sonner pour ça.
  */
 export async function takeCallInbox(): Promise<string[]> {
-  const [inbox, queue] = await Promise.all([readInbox(), readQueue()]);
+  const [inbox, queue, held] = await Promise.all([readInbox(), readQueue(), readList(HELD_KEY)]);
   const all: string[] = [];
-  for (const t of [...inbox.map(i => i.text), ...queue]) if (!all.some(a => sameInfo(a, t))) all.push(t);
+  for (const t of [...inbox.map(i => i.text), ...queue, ...held]) if (!all.some(a => sameInfo(a, t))) all.push(t);
   if (inbox.length) await kvSet(INBOX_KEY, '[]', 60);
   if (queue.length) await kvSet(QUEUE_KEY, '[]', 60);
+  if (held.length)  await kvSet(HELD_KEY, '[]', 60);
   return all.slice(-6);
 }
 
@@ -103,7 +111,7 @@ async function ring(reason: string): Promise<void> {
  * @param key    identifiant unique de l'info (ex. `site-booking:<id>`) — n'appelle qu'une fois par 24 h
  * @param spoken phrase dite au décroché, à l'oral, courte, sans emoji ni markdown
  */
-export async function autoCall(key: string, spoken: string): Promise<void> {
+export async function autoCall(key: string, spoken: string, opts: { level?: AutoCallLevel } = {}): Promise<void> {
   if (process.env['AUTOCALL_DRY_RUN'] === '1') { console.log(`[auto-call] DRY ${key} → ${spoken}`); return; }
   try {
     const dedupe = `autocall:done:${key}`;
@@ -112,6 +120,14 @@ export async function autoCall(key: string, spoken: string): Promise<void> {
     const clean = spoken.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}*_`]/gu, '').replace(/\s+/g, ' ').trim();
     // Appels coupés : rien ne sonne, mais il l'entendra quand il appellera
     if ((await kvGet(OFF_KEY)) === '1') { await addToCallInbox(clean); return; }
+    // Jour de congé : on ne dérange pas pour du non urgent → gardé pour le prochain jour travaillé
+    if (opts.level === 'normal' && await isDayOff().catch(() => false)) {
+      const held = await readList(HELD_KEY);
+      if (!held.some(h => sameInfo(h, clean))) held.push(clean);
+      await kvSet(HELD_KEY, JSON.stringify(held.slice(-8)), 4 * 86_400);
+      console.log(`[auto-call] jour de congé — ${key} gardé pour demain`);
+      return;
+    }
 
     const check = await canRingNow();
     if (check.ok) {
@@ -135,6 +151,13 @@ export async function autoCall(key: string, spoken: string): Promise<void> {
 
 /** Tâche planifiée (toutes les 15 min) : appelle avec les infos mises en file (nuit, appels rapprochés). */
 export async function flushAutoCalls(): Promise<void> {
+  // Fin du congé : ce qui a été gardé (non urgent) rejoint la file, dès 9h le jour travaillé suivant
+  const held = await readList(HELD_KEY);
+  if (held.length && !(await isDayOff().catch(() => true)) && localNow().hour >= 9) {
+    const q = await readQueue();
+    await kvSet(QUEUE_KEY, JSON.stringify([...q, ...held.filter(h => !q.some(x => sameInfo(x, h)))].slice(-10)), 2 * 86_400);
+    await kvSet(HELD_KEY, '[]', 60);
+  }
   const queue = await readQueue();
   if (!queue.length) return;
   if (!(await canRingNow()).ok) return;

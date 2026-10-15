@@ -113,7 +113,7 @@ export async function jobCarPapersCall(): Promise<void> {
   if (toNotify.length) emitProactive(`Papiers à renouveler ce mois-ci : ${toNotify.join(' ')}`, 'reminder', `📄 Papiers à renouveler (30 jours)\n${toNotify.map(t => `• ${t}`).join('\n')}`, 'kouider', 'fleet');
   if (toCall.length) {
     emitProactive(`Papiers urgents : ${toCall.join(' ')}`, 'alert', `🚨 PAPIERS DES VOITURES\n${toCall.map(t => `• ${t}`).join('\n')}`, 'kouider', 'fleet');
-    await autoCall(`car-papers:${today}`, `Attention aux papiers des voitures. ${toCall.join(' ')} Pense à les renouveler.`);
+    await autoCall(`car-papers:${today}`, `Attention aux papiers des voitures. ${toCall.join(' ')} Pense à les renouveler.`, { level: 'normal' });
   }
   console.log(`[car-papers] ${toCall.length} appel(s), ${toNotify.length} notif(s)`);
 }

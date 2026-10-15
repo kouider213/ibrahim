@@ -2550,6 +2550,32 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'business_mentor',
+    description: "Ton CONSEILLER BUSINESS (homme d'affaires qui a réussi) : chaque jour travaillé il appelle Kouider avec UNE proposition (idée, nouveau projet, plan, personne à contacter, risque, opportunité), analysée avec les chiffres FIK + recherche web. action='new' : nouvelle analyse maintenant (focus = sujet facultatif : « l'immobilier à Oran », « comment doubler le CA cet été ») — résultat sur Telegram + app. 'history' : les dernières propositions. 'show' : le détail d'une proposition. 'paper' : « mets-le sur papier » → business plan complet en Google Docs envoyé par Telegram. 'execute' : « vas-y, exécute » → plan validé, Dzaryx le suit chaque semaine. 'reject' : on laisse tomber. idea = id ou mots du titre (vide = la dernière). Pour « donne-moi une idée », « un plan pour… », « ton idée d'hier, mets-la sur papier », « exécute ».",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['new', 'history', 'show', 'paper', 'execute', 'reject'] },
+        focus: { type: 'string', description: "Sujet de l'analyse (action new)" },
+        idea: { type: 'string', description: 'id ou mots du titre (vide = dernière proposition)' },
+      },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'kouider_dossier',
+    description: "Le DOSSIER PERSONNEL de Kouider (qui il est, famille, rythme, habitudes, envies, ambitions, comment lui parler) — Dzaryx tourne autour de lui. action='show' : lire le dossier. 'add' + fact : retenir une info sur lui (« j'aime… », « je ne veux plus… », « mon fils s'appelle… »). 'days_off' + days (0=dimanche…6=samedi) : ses jours de congé (par défaut lundi et jeudi, en famille : seulement les urgences ces jours-là, rien de business dans l'agenda).",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['show', 'add', 'days_off'] },
+        fact: { type: 'string' },
+        days: { type: 'array', items: { type: 'number' } },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'get_upcoming_seasons',
     description: "Saisons fortes à venir pour la location à Oran : vacances scolaires France + Belgique (diaspora), été diaspora, Ramadan, Aïd el-Fitr, Aïd el-Adha, Mawlid, fêtes nationales — avec le REMPLISSAGE RÉEL du parc sur chaque période et un conseil (prix, relances). Pour « quand est l'Aïd ? », « la diaspora arrive quand ? », « je dois monter mes prix ? », « les vacances de Toussaint ». Avant de proposer des prix de saison (apply_dynamic_pricing / suggest_smart_pricing).",
     input_schema: {

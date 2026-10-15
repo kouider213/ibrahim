@@ -6,6 +6,12 @@
 
 ---
 
+## ⚡ Session 2026-10-15 — Dzaryx « bras droit » : conseiller business + dossier Kouider + congés
+
+- Appel conseiller business chaque jour travaillé 11h30 (idée/plan/contact/risque/opportunité, recherche web), veille actu 8h/17h
+  (urgent → appel), dossier « qui est Kouider » réécrit chaque nuit, congés lundi + jeudi (seulement les urgences),
+  appel si situation délicate sur WhatsApp. Détails : CHANGELOG 2026-10-15.
+
 ## ⚡ Session 2026-10-14 (soir) — Sauvegardes, auto-test, saisons, Nexus plus solide
 - **Sauvegardes** : VPS chaque nuit 3h30 (`/root/backups`, base + photos, 30 j) ✅ testé. Drive (job Railway 3h) ❌ tant que
   Drive ✅ (API activée le 14/10, 1re sauvegarde OK). Restaurer : `backend/scripts/backup-restore.ts`.

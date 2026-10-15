@@ -24,7 +24,7 @@ const ALWAYS_TOOLS = ['search_conversations', 'create_intention', 'list_intentio
   'assign_task', 'complete_task', 'list_team_tasks', 'save_procedure', 'create_goal',
   'browser_task', 'browser_reply', 'browser_status',
   // « fais un document sur toi » part souvent vers l'Agent Clients (mot « document ») : docs + vraie liste partout
-  'list_my_capabilities', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site'];
+  'list_my_capabilities', 'business_mentor', 'kouider_dossier', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site'];
 export const withAlways = (names: string[]) => Dzaryx_TOOLS.filter(t => names.includes(t.name) || ALWAYS_TOOLS.includes(t.name));
 
 export function routeToAgent(text: string): AgentRoute {

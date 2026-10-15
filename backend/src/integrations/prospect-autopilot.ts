@@ -475,7 +475,7 @@ async function checkDryStock(wanted: number, found: number, stock: number | null
     '• m\'envoyer des noms de sociétés : je les ajoute et je leur écris.',
   ].join('\n');
   emitProactive(`Démarchage : plus assez de sociétés à contacter${since}.`, 'alert', text, 'kouider', 'demarchage');
-  void autoCall(`prospect-dry:${days}`, `Je n'ai plus assez de sociétés à démarcher. Donne-moi un nouveau secteur ou une ville à cibler, par exemple le BTP à Arzew, et je relance la prospection.`);
+  void autoCall(`prospect-dry:${days}`, `Je n'ai plus assez de sociétés à démarcher. Donne-moi un nouveau secteur ou une ville à cibler, par exemple le BTP à Arzew, et je relance la prospection.`, { level: 'normal' });
   return text;
 }
 
@@ -663,7 +663,7 @@ export async function checkProspectReplies(): Promise<number> {
         (devis.length ? `🧾 Devis préparé (${devis.length} ligne(s), montants à mettre) : bouton « Préparer le devis » dans la page Démarchage.\n` : '') +
         `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.`;
     emitProactive(`${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ' (intéressé !)' : ''}.`, 'alert', chat, 'kouider', 'demarchage');
-    void autoCall(`mail-reply:${latest.id}`, `${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ', et ils sont intéressés' : a.interet === 'refus' ? ', mais ils ne sont pas intéressés' : ''}. ${a.resume}`);
+    void autoCall(`mail-reply:${latest.id}`, `${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ', et ils sont intéressés' : a.interet === 'refus' ? ', mais ils ne sont pas intéressés' : ''}. ${a.resume}`, { level: 'normal' });
   }
   return handled;
 }

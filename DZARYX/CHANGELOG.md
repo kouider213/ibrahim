@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-10-15 — Conseiller business, dossier « qui est Kouider », jours de congé, appels situations délicates
+
+- **Conseiller business** (`integrations/business-mentor.ts`) : chaque jour travaillé à 11h30 (Bruxelles), Dzaryx analyse les
+  données FIK + le web et APPELLE Kouider avec UNE proposition (idée, projet, plan, contact, risque, opportunité), chiffrée.
+  Détail écrit sur Telegram + app. Outil `business_mentor` : new (focus) / history / show / paper (business plan Google Docs) /
+  execute (mission de suivi chaque mercredi 10h) / reject. Historique `app_kv mentor:history` (pas de répétition).
+- **Veille actu** (job `mentor-news`, 8h + 17h) : risque/opportunité nouveau → message ; URGENT → appel.
+- **Dossier Kouider** (`integrations/kouider-dossier.ts`) : portrait réécrit chaque nuit 3h30 (mémoire, règles, messages,
+  appels), donné au chat et aux appels. Outil `kouider_dossier` (show / add / days_off).
+- **Jours de congé lundi + jeudi** : `autoCall(..., { level: 'normal' })` gardé pour le jour travaillé suivant (papiers,
+  objectifs, prospects, vidange, anniversaires) ; urgences toujours. Récap 10h court et seulement s'il y a des départs/retours/retards.
+  Conseiller sauté ces jours-là. `season-watch` déplacé au mardi.
+- **Situations délicates WhatsApp** (plainte, accident, panne, police, vol…) → appel urgent.
+- Testé : génération réelle d'une proposition (Toussaint, parc vide, relance clients diaspora), dossier réécrit (2,6 k car.).
+
 ## 2026-10-14 (soir 12) — PC cloud : fichiers, copier-coller, onglets, surveillance de pages, tâches programmées | 8f6b60f →, app SW v137
 
 - Fichiers (envoi du téléphone, téléchargements → Drive + notification, Telegram en document, LibreOffice FR), presse-papiers,

@@ -104,7 +104,7 @@ async function checkGoal(g: Goal, notify = true): Promise<string> {
         emitProactive(`🎯 ${g.objective} : ${progress.slice(0, 120)}`, 'info', `🎯 Objectif « ${g.objective} »\n\n📊 ${progress}\n\n👉 À faire aujourd'hui :\n${actions}`, g.owner);
         // Échéance dans 2 jours ou moins et pas atteint → appel
         const daysLeft = g.deadline ? (new Date(g.deadline).getTime() - new Date(today()).getTime()) / 86_400_000 : 99;
-        if (daysLeft <= 2 && oral && g.owner === 'kouider') await autoCall(`goal:${g.id}:${today()}`, `Objectif ${g.objective}. ${oral}`);
+        if (daysLeft <= 2 && oral && g.owner === 'kouider') await autoCall(`goal:${g.id}:${today()}`, `Objectif ${g.objective}. ${oral}`, { level: 'normal' });
       }
     }
   }

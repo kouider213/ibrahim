@@ -3,6 +3,7 @@ import { listInboxMessages, isReplyToUs, type GmailAccount } from '../../integra
 import { buildYesterdayRecap } from '../../integrations/prospect-autopilot.js';
 import { autoCall } from '../../notifications/auto-call.js';
 import { paperWarning } from '../../integrations/car-papers.js';
+import { isDayOff } from '../../integrations/kouider-dossier.js';
 
 // Appels automatiques planifiés (choix de Kouider) :
 // - 10h (Bruxelles) chaque jour : récapitulatif à l'oral
@@ -29,6 +30,17 @@ export async function jobDailyRecapCall(): Promise<void> {
     buildYesterdayRecap().catch(() => null),
   ]);
   const list = (rows: unknown) => ((rows ?? []) as B[]).map(b => `${b.client_name} avec ${carOf(b)}`).join(', ');
+
+  // Jour de congé (lundi, jeudi) : récap seulement s'il se passe quelque chose aujourd'hui, en version courte
+  if (await isDayOff().catch(() => false)) {
+    const urgent: string[] = [];
+    if (departs.data?.length) urgent.push(`Départs aujourd'hui : ${list(departs.data)}.`);
+    if (returns.data?.length) urgent.push(`Retours aujourd'hui : ${list(returns.data)}.`);
+    if (late.data?.length)    urgent.push(`${plural(late.data.length, 'voiture')} pas encore rendue${late.data.length > 1 ? 's' : ''}.`);
+    if (!urgent.length) return;
+    await autoCall(`daily-recap:${today}`, `C'est ton jour en famille, je fais court. ${urgent.join(' ')} Houari gère, le reste attend demain. Bonne journée !`);
+    return;
+  }
 
   const parts: string[] = ['Voici ton récap du jour.'];
   const nActive = actives.data?.length ?? 0;
