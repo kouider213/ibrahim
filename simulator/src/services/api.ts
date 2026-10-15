@@ -1022,6 +1022,7 @@ export const business = {
     apiFetch<{ ok: boolean }>(`/api/prospects/${id}/linkedin/${idx}`, { method: 'POST', body: JSON.stringify({ sent }) }),
   prospectWhatsappSent: (id: string, sent: boolean) =>
     apiFetch<{ ok: boolean }>(`/api/prospects/${id}/whatsapp`, { method: 'POST', body: JSON.stringify({ sent }) }),
+  prospectWhatsappSend: (id: string) => apiFetch<{ ok: boolean; message: string }>(`/api/prospects/${id}/whatsapp/send`, { method: 'POST' }),
   prospectsWeekly: () => apiFetch<{ report: string }>('/api/prospects/weekly'),
   // Contenu social
   socialGenerate: (data: { topic: string; platform?: string; lang?: string }) =>

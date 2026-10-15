@@ -68,6 +68,22 @@ export async function onWaNew(c: WaChat): Promise<void> {
 
 type R = { ok: boolean; error?: string; [k: string]: unknown };
 
+/** Réponse proposée (ex. suite à un mail de démarchage) : « envoie la réponse à <chat> » la retrouve. */
+export async function saveWaDraft(chat: string, preview: string, draft: string): Promise<void> {
+  const all = await drafts();
+  all[chat.toLowerCase()] = { chat, preview, draft, at: new Date().toISOString() };
+  const keep = Object.entries(all).sort((x, y) => y[1].at.localeCompare(x[1].at)).slice(0, 20);
+  await kvSet(DRAFTS_KEY, JSON.stringify(Object.fromEntries(keep)), 3 * 86_400);
+}
+
+/** Envoi direct, déjà validé par Kouider (bouton « Envoyer » de l'app). */
+export async function sendWaDirect(number: string, text: string): Promise<void> {
+  if (!isCloudPcOnline()) throw new Error('le PC cloud ne répond pas (WhatsApp injoignable)');
+  const r = await cloudEmit<R>('cloud:wa', { action: 'send', chat: `+${number.replace(/\D/g, '')}`, text }, 80_000);
+  if (!r.ok) throw new Error(r.error ?? 'pas envoyé');
+  const d = await drafts(); delete d[`+${number.replace(/\D/g, '')}`]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
+}
+
 /** Outil whatsapp_web (Kouider uniquement). */
 export async function whatsappWebTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';

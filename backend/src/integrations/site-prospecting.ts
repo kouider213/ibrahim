@@ -9,6 +9,7 @@ import { emitProactive } from '../notifications/mobile-push.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 import { createAnthropic } from './anthropic-compat.js';
+import { proposeProspectWhatsapp } from './prospect-whatsapp.js';
 
 // DÉMARCHAGE « SITES WEB » (FIK Sites) : Dzaryx trouve sur Google Maps des commerces SANS site, cherche leur
 // e-mail public et leur propose de créer leur site. Le 1er mail propose seulement une démo gratuite.
@@ -236,13 +237,15 @@ export async function handleSiteReply(p: Prospect, mail: { subject: string; body
     `Commerce : ${p.company} (${p.city}).${info?.demoUrl ? `\nDémo envoyée : ${info.demoUrl}` : ''}\nObjet : ${mail.subject}\n\nSon mail :\n${mail.body.slice(0, 3000)}`,
   ));
   if (!a || a.kind === 'auto') { await updateProspect(p.id, { reply_seen_id: base.reply_seen_id }); return; }
+  // A répondu et a un mobile → message WhatsApp proposé pour continuer là-bas (envoyé seulement si Kouider valide)
+  const waLine = a.intent === 'refus' ? '' : await proposeProspectWhatsapp(p, a.resume, 'sites');
 
   if (a.intent === 'veut_demo' && !demoSent) {
     await updateProspect(p.id, { ...base, status: 'interesse', replied_at: new Date().toISOString(), suggested_reply: null });
     // Une seule annonce par réponse, même si l'envoi est retenté à la vérification suivante
     const once = async (k: string) => { const key = `siteprospect:said:${k}:${base.reply_seen_id}`; if (await kvGet(key)) return false; await kvSet(key, '1', 7 * 86_400); return true; };
     if (await once('yes')) emitProactive(`${p.company} veut voir la démo de son site — je la prépare et je la lui envoie.`, 'alert',
-      `📩 ${p.company} (${p.email}) a dit oui à la démo de son site.\nRésumé : ${a.resume}\n⏳ Je fais la démo avec sa fiche Google et je la lui envoie (2-3 min).`, 'kouider', 'demarchage');
+      `📩 ${p.company} (${p.email}) a dit oui à la démo de son site.\nRésumé : ${a.resume}\n⏳ Je fais la démo avec sa fiche Google et je la lui envoie (2-3 min).${waLine}`, 'kouider', 'demarchage');
     await sendDemo(p, base, slots).catch(async err => {
       const e = err instanceof Error ? err.message : String(err);
       console.error('[site-prospect] démo:', e);
@@ -260,7 +263,7 @@ export async function handleSiteReply(p: Prospect, mail: { subject: string; body
     ? `📩 ${p.company} a répondu au démarchage site web : pas intéressé.\nRésumé : ${a.resume}\nJe ne les relancerai pas.`
     : `📩 ${p.company} (${p.email}) a répondu${demoSent ? ' après avoir reçu sa démo' : ''} !\nRésumé : ${a.resume}\n` +
       `${info?.demoUrl ? `🌐 Sa démo : ${info.demoUrl}\n` : ''}${slotTxt && a.intent === 'rdv' ? `📅 Ma réponse propose : ${slotTxt}\n` : ''}` +
-      `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.`;
+      `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.${waLine}`;
   emitProactive(`${p.company} a répondu${a.intent === 'rdv' ? ' : il veut un rendez-vous !' : '.'}`, 'alert', chat, 'kouider', 'demarchage');
 }
 

@@ -4,6 +4,7 @@ import { supabase } from '../../integrations/supabase.js';
 import { getAutopilot, setAutopilot, updateProspect, PROSPECT_STATUSES, type Prospect, type ProspectStatus } from '../../integrations/prospects.js';
 import { runDailyOutreach, sendProspectReply, algerianMobile, buildWeeklyReport } from '../../integrations/prospect-autopilot.js';
 import { getProspectMode, setProspectMode, getSiteCities, setSiteCities, type ProspectMode } from '../../integrations/site-prospecting.js';
+import { prospectWaNumber, sendProspectWhatsapp } from '../../integrations/prospect-whatsapp.js';
 import { proAliasReady, PRO_ALIAS, gmailAddress } from '../../integrations/gmail.js';
 
 // Page « Démarchage » de l'app : tout le fichier prospects, les réponses à valider, les messages LinkedIn.
@@ -30,7 +31,7 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
           && new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date(r.last_contacted_at)) === day).length,
         replies:    rows.filter(r => ['a_repondu', 'interesse', 'client', 'refus'].includes(r.status)).length,
         linkedin_todo: rows.reduce((n, r) => n + (r.linkedin_contacts ?? []).filter(c => !c.sent_at).length, 0),
-        whatsapp_todo: rows.filter(r => r.whatsapp_message && !r.whatsapp_sent_at && r.status === 'a_contacter').length,
+        whatsapp_todo: rows.filter(r => r.whatsapp_message && !r.whatsapp_sent_at && !['refus', 'stop', 'client'].includes(r.status)).length,
         followups:  rows.filter(r => r.followup_at).length,
         visits:     rows.filter(r => r.site_visit_at).length,
         sites_sent: rows.filter(r => r.segment === 'site_web' && r.gmail_thread_id).length,
@@ -43,7 +44,7 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
         last_subject: r.last_subject, last_reply_text: r.last_reply_text, suggested_reply: r.suggested_reply,
         linkedin_contacts: r.linkedin_contacts ?? [], lang: r.lang ?? null, last_sent_text: r.last_sent_text ?? null,
         followup_at: r.followup_at ?? null, site_visit_at: r.site_visit_at ?? null, site_visits: r.site_visits ?? 0,
-        whatsapp_message: r.whatsapp_message ?? null, whatsapp_sent_at: r.whatsapp_sent_at ?? null, whatsapp_number: algerianMobile(r.phone),
+        whatsapp_message: r.whatsapp_message ?? null, whatsapp_sent_at: r.whatsapp_sent_at ?? null, whatsapp_number: prospectWaNumber(r.phone) ?? algerianMobile(r.phone),
         quote_draft: r.quote_draft ?? null, proposed_slots: r.proposed_slots ?? null,
       })),
     });
@@ -134,13 +135,21 @@ router.post('/:id/linkedin/:idx', requireMobileAuth, async (req, res) => {
 router.post('/:id/whatsapp', requireMobileAuth, async (req, res) => {
   const sent = (req.body as { sent?: boolean }).sent !== false;
   try {
+    const { data: cur } = await supabase.from('prospects').select('status').eq('id', String(req.params['id'])).maybeSingle();
+    const first = (cur as { status?: string } | null)?.status === 'a_contacter';   // 1er contact WhatsApp → « contacté » ; sinon on garde son statut
     await updateProspect(String(req.params['id']), sent
-      ? { whatsapp_sent_at: new Date().toISOString(), status: 'contacte', last_contacted_at: new Date().toISOString() }
+      ? { whatsapp_sent_at: new Date().toISOString(), ...(first ? { status: 'contacte' as const, last_contacted_at: new Date().toISOString() } : {}) }
       : { whatsapp_sent_at: null });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// POST /api/prospects/:id/whatsapp/send — Kouider appuie sur « Envoyer » : Dzaryx l'envoie depuis le WhatsApp Business (PC cloud)
+router.post('/:id/whatsapp/send', requireMobileAuth, async (req, res) => {
+  try { res.json({ ok: true, message: await sendProspectWhatsapp(String(req.params['id'])) }); }
+  catch (err) { res.status(400).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 
 export default router;

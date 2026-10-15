@@ -12,6 +12,7 @@ import { autoCall } from '../notifications/auto-call.js';
 import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 import { createAnthropic } from './anthropic-compat.js';
+import { proposeProspectWhatsapp } from './prospect-whatsapp.js';
 import { getProspectMode, discoverSiteProspects, sendSiteOutreach, writeSiteFollowUp, handleSiteReply } from './site-prospecting.js';
 
 // Démarchage automatique FIK Conciergerie : chaque jour Dzaryx trouve de nouvelles sociétés (web, LinkedIn,
@@ -697,7 +698,8 @@ export async function checkProspectReplies(): Promise<number> {
       : `📩 ${p.company} (${p.email}) a répondu à ton mail de démarchage !\nRésumé : ${a.resume}\n` +
         (usedSlots.length ? `📅 Ma réponse lui propose ${usedSlots.length} créneaux libres de ton agenda : ${slotText}.\n` : '') +
         (devis.length ? `🧾 Devis préparé (${devis.length} ligne(s), montants à mettre) : bouton « Préparer le devis » dans la page Démarchage.\n` : '') +
-        `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.`;
+        `\n👉 Valide la réponse dans la page Démarchage, ou dis « réponds à ${p.company} » ici.` +
+        await proposeProspectWhatsapp(p, a.resume, 'conciergerie');
     emitProactive(`${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ' (intéressé !)' : ''}.`, 'alert', chat, 'kouider', 'demarchage');
     void autoCall(`mail-reply:${latest.id}`, `${p.company} a répondu à ton mail de démarchage${a.interet === 'interesse' ? ', et ils sont intéressés' : a.interet === 'refus' ? ', mais ils ne sont pas intéressés' : ''}. ${a.resume}`, { level: 'normal' });
   }

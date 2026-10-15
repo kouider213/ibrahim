@@ -73,7 +73,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
   const rows = data?.prospects ?? [];
   const replies = rows.filter(r => r.suggested_reply);
   const liTodo = rows.filter(r => r.linkedin_contacts.some(c => !c.sent_at));
-  const waTodo = rows.filter(r => r.whatsapp_message && r.whatsapp_number && !r.whatsapp_sent_at && r.status === 'a_contacter');
+  const waTodo = rows.filter(r => r.whatsapp_message && r.whatsapp_number && !r.whatsapp_sent_at && !['refus', 'stop', 'client'].includes(r.status));
   const visits = rows.filter(r => r.site_visit_at).sort((a, b) => (b.site_visit_at ?? '').localeCompare(a.site_visit_at ?? ''));
   const ql = q.trim().toLowerCase();
   const list = rows.filter(r => {
@@ -218,16 +218,18 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
           </Section>
         )}
 
-        {/* WhatsApp à envoyer (partenaires d'Oran sans email) */}
+        {/* WhatsApp à envoyer : partenaires d'Oran sans email, ou prospects qui ont répondu au mail (suite sur WhatsApp) */}
         {waTodo.length > 0 && (
           <Section title={`💬 Messages WhatsApp à envoyer (${waTodo.length})`}
-            hint="Partenaires d'Oran sans email : « Ouvrir WhatsApp » ouvre la conversation avec le message déjà écrit, tu n'as qu'à appuyer sur Envoyer.">
+            hint="Jamais de 1er contact automatique : ce sont des gens qui ont répondu à ton mail (ou des partenaires d'Oran sans email). « Envoyer » = Dzaryx l'envoie depuis ton WhatsApp Business ; « Ouvrir WhatsApp » = tu l'envoies toi-même.">
             {waTodo.map(r => (
               <div key={r.id} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12, marginBottom: 8 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.company} <span style={{ color: C.muted, fontWeight: 500 }}>· {SEGMENT[r.segment] ?? r.segment}</span></div>
                 <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 7 }}>{r.phone}</div>
                 <div style={{ fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 9, marginBottom: 9 }}>{r.whatsapp_message}</div>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                  {r.status !== 'a_contacter' && <button onClick={() => { if (window.confirm(`Envoyer ce message WhatsApp à ${r.company} (+${r.whatsapp_number}) ?`)) act(() => business.prospectWhatsappSend(r.id), `💬 Envoyé à ${r.company}`); }}
+                    style={btn(C.wa, '#06210f')}>📤 Envoyer</button>}
                   <button onClick={() => window.open(`https://wa.me/${r.whatsapp_number}?text=${encodeURIComponent(r.whatsapp_message ?? '')}`, '_blank')} style={btn('rgba(37,211,102,0.2)', C.wa)}>Ouvrir WhatsApp</button>
                   <button onClick={() => act(() => business.prospectWhatsappSent(r.id, true), `Noté : message envoyé à ${r.company}`)} style={btn('rgba(16,185,129,0.18)', C.accent)}>✓ Envoyé</button>
                 </div>

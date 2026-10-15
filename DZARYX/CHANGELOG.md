@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-15 (5) — WhatsApp seulement après une réponse au mail de démarchage
+- `backend/src/integrations/prospect-whatsapp.ts` (nouveau) : un prospect répond (oui à la démo, question, RDV) et a un mobile
+  BE/FR/DZ → Dzaryx prépare un court message pour continuer sur WhatsApp. Jamais de 1er contact automatique (risque de ban du numéro).
+  Envoi seulement après validation : bouton « 📤 Envoyer » (page Démarchage, via le PC cloud) ou outil `whatsapp_web` (relecture + oui).
+- App (SW v140) : section WhatsApp ouverte aux prospects qui ont répondu ; « ✓ Envoyé » ne remet plus le statut à « contacté ».
+- App (SW v139, 557b540) : choix Sites web / Conciergerie / Les deux, villes réglables, filtre 🌐.
+
 ## 2026-10-15 (4) — Démarchage « sites web » (FIK Sites) en Belgique, France, Algérie
 - `backend/src/integrations/site-prospecting.ts` (nouveau) : Google Places → commerces SANS vrai site (Facebook/Insta seuls = cible),
   e-mail public trouvé sur le web et vérifié (jamais deviné). Rotation villes BE/FR/DZ × 20 métiers. 1er mail = proposition de démo
