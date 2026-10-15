@@ -33,6 +33,7 @@ export interface World {
   replies: number;     // réponses de prospects
   fresh?: string[];    // nouveautés depuis la dernière visite (car:/sale:/prop:/imp:<id>) → animées
   showMoney?: boolean; // affiche l'étiquette argent au-dessus de chaque voiture
+  led?: string;        // panneau LED sur le toit de l'agence (texte défilant)
   targets?: string[];  // missions du jour : flèche dorée au-dessus (id voiture ou zone:<id>)
 }
 

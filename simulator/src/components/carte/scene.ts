@@ -3,6 +3,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { STATUS, ZONE_INFO, type World, type ZoneId, type MapCar } from './data.ts';
 
 export type Pick = { kind: 'car'; id: string } | { kind: 'zone'; zone: ZoneId } | null;
@@ -13,7 +18,8 @@ export interface SceneApi {
   update: (w: World) => void;
   setSky: (mode: SkyMode, tz?: string) => void;
   setWeather: (w: Weather | null) => void;
-  burst: (p: Pick, text: string) => void;  // pluie de pièces + gain qui monte (mission réussie)
+  burst: (p: Pick, text: string) => void;
+  fireworks: () => void;                   // journée parfaite  // pluie de pièces + gain qui monte (mission réussie)
   focus: (p: Pick) => void;
   zoom: (k: number) => void;
   reset: () => void;
@@ -64,29 +70,71 @@ for (const row of [12.5, 15.2]) for (let i = 0; i < 8; i++) SALE.push([-23.5 + i
 const IMMO: Array<[number, number]> = [[11.5, 7], [15, 7], [18.5, 7], [11.5, 11.5], [15, 11.5], [18.5, 11.5], [11.5, 16], [15, 16], [18.5, 16]];
 
 const mat = (() => {
-  const cache = new Map<string, THREE.MeshLambertMaterial>();
+  const cache = new Map<string, THREE.MeshStandardMaterial>();
   return (c: string, opts: { transparent?: boolean; opacity?: number } = {}) => {
     const k = `${c}|${opts.opacity ?? 1}`;
     let m = cache.get(k);
-    if (!m) { m = new THREE.MeshLambertMaterial({ color: c, ...opts }); cache.set(k, m); }
+    if (!m) { m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0, ...opts }); cache.set(k, m); }
     return m;
   };
 })();
 const shiny = (() => {
-  const cache = new Map<string, THREE.MeshPhongMaterial>();
+  const cache = new Map<string, THREE.MeshStandardMaterial>();
   return (c: string, sh = 70) => {
     const k = `${c}|${sh}`;
     let m = cache.get(k);
-    if (!m) { m = new THREE.MeshPhongMaterial({ color: c, shininess: sh, specular: '#ffffff' }); cache.set(k, m); }
+    // Peinture métallisée : reflets de l'environnement (vernis)
+    if (!m) { m = new THREE.MeshStandardMaterial({ color: c, roughness: sh >= 90 ? 0.18 : 0.3, metalness: sh >= 90 ? 0.9 : 0.45 }); cache.set(k, m); }
     return m;
   };
 })();
 // Matériaux qui changent avec l'heure : fenêtres allumées, phares, lampadaires
-const WIN = new THREE.MeshLambertMaterial({ color: '#e0f2fe', emissive: '#fcd34d', emissiveIntensity: 0 });
-const WIN2 = new THREE.MeshLambertMaterial({ color: '#c7d2fe', emissive: '#fde68a', emissiveIntensity: 0 });
-const HEAD = new THREE.MeshLambertMaterial({ color: '#fef9c3', emissive: '#fef08a', emissiveIntensity: 0.2 });
-const TAIL = new THREE.MeshLambertMaterial({ color: '#b91c1c', emissive: '#ef4444', emissiveIntensity: 0.2 });
-const GLASS = new THREE.MeshPhongMaterial({ color: '#1e293b', shininess: 120, specular: '#e0f2fe' });
+const WIN = new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.1, metalness: 0.6, emissive: '#fcd34d', emissiveIntensity: 0 });
+const WIN2 = new THREE.MeshStandardMaterial({ color: '#a5b4fc', roughness: 0.1, metalness: 0.7, emissive: '#fde68a', emissiveIntensity: 0 });
+const HEAD = new THREE.MeshStandardMaterial({ color: '#fef9c3', emissive: '#fef08a', emissiveIntensity: 0.2 });
+const TAIL = new THREE.MeshStandardMaterial({ color: '#b91c1c', emissive: '#ef4444', emissiveIntensity: 0.2 });
+const GLASS = new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.05, metalness: 0.9 });
+
+// ── Textures procédurales (aucun fichier à charger) ─────────────────────────
+function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, srgb = true) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d')!);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const rnd = (() => { let x = 1234567; return () => ((x = (x * 16807) % 2147483647) / 2147483647); })();
+const speckle = (base: string, dots: string[], n: number, r: number) => (g: CanvasRenderingContext2D) => {
+  g.fillStyle = base; g.fillRect(0, 0, g.canvas.width, g.canvas.height);
+  for (let i = 0; i < n; i++) { g.fillStyle = dots[i % dots.length]!; g.globalAlpha = 0.25 + rnd() * 0.5; g.fillRect(rnd() * g.canvas.width, rnd() * g.canvas.height, r * (0.5 + rnd()), r * (0.5 + rnd())); }
+  g.globalAlpha = 1;
+};
+const GRASS_T = canvasTex(256, 256, speckle('#5fae4a', ['#4c9a3a', '#72bf5a', '#3f8a30', '#86c96a', '#68a84e'], 5000, 3));
+const ASPHALT_T = canvasTex(256, 256, speckle('#3d434d', ['#4b525d', '#2f343c', '#5a616b', '#363b44'], 6000, 2));
+const CONCRETE_T = canvasTex(256, 256, speckle('#c9cdd2', ['#b9bec4', '#d8dbdf', '#aeb3b9'], 3500, 3));
+const SAND_T = canvasTex(256, 256, speckle('#f3d99b', ['#e8c97e', '#fbe8b8', '#dcbc72'], 4000, 2));
+const texMat = (t: THREE.Texture, w: number, d: number, k: number, rough = 0.95) => {
+  const tt = t.clone(); tt.needsUpdate = true; tt.repeat.set(w / k, d / k);
+  return new THREE.MeshStandardMaterial({ map: tt, roughness: rough });
+};
+// Façade d'immeuble : fenêtres dessinées, certaines s'allument la nuit (emissiveMap)
+function facade(color: string, floors: number, cols: number): THREE.MeshStandardMaterial {
+  const W = 128, H = 32 * floors;
+  const lit = canvasTex(W, H, g => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+    for (let f = 0; f < floors; f++) for (let c = 0; c < cols; c++) if (rnd() < 0.55) { g.fillStyle = rnd() < 0.7 ? '#ffd27a' : '#fff1c9'; g.fillRect(c * W / cols + 5, f * 32 + 9, W / cols - 10, 15); }
+  });
+  const map = canvasTex(W, H, g => {
+    g.fillStyle = color; g.fillRect(0, 0, W, H);
+    for (let f = 0; f < floors; f++) {
+      g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(0, f * 32 + 28, W, 3);
+      for (let c = 0; c < cols; c++) { g.fillStyle = '#334155'; g.fillRect(c * W / cols + 5, f * 32 + 9, W / cols - 10, 15); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(c * W / cols + 5, f * 32 + 9, W / cols - 10, 4); }
+    }
+  });
+  return new THREE.MeshStandardMaterial({ map, emissiveMap: lit, emissive: '#ffffff', emissiveIntensity: 0, roughness: 0.8 });
+}
+const FACADES: THREE.MeshStandardMaterial[] = [];
 const glowTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d')!, r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -155,15 +203,23 @@ function makeCar(color: string, scale = 1, kind: 'city' | 'suv' | 'van' = 'city'
   return g;
 }
 
+const ICO = new THREE.IcosahedronGeometry(1, 0);
+const LEAVES = ['#2f7d32', '#3a8f3a', '#4c9f38', '#2e6b2f', '#5aa83f'].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
 function tree(p: THREE.Object3D, x: number, z: number, s = 1) {
-  cyl(p, x, 0, z, 0.12 * s, 0.7 * s, '#92400e');
-  const top = new THREE.Mesh(new THREE.ConeGeometry(0.6 * s, 1.3 * s, 7), mat('#22c55e'));
-  top.position.set(x, 1.25 * s, z); top.castShadow = true; p.add(top);
+  cyl(p, x, 0, z, 0.1 * s, 0.9 * s, '#6b4423');
+  const k = Math.abs(Math.round(x * 13 + z * 7));
+  for (let i = 0; i < 4; i++) {
+    const r = (0.42 + ((k + i) % 3) * 0.1) * s, a = (i / 4) * Math.PI * 2 + k;
+    const f = new THREE.Mesh(ICO, LEAVES[(k + i) % LEAVES.length]!);
+    f.scale.setScalar(r); f.rotation.set(k + i, i, 0);
+    f.position.set(x + (i < 3 ? Math.cos(a) * 0.3 * s : 0), (i < 3 ? 1.15 : 1.6) * s, z + (i < 3 ? Math.sin(a) * 0.3 * s : 0));
+    f.castShadow = true; f.receiveShadow = true; p.add(f);
+  }
 }
 function palm(p: THREE.Object3D, x: number, z: number) {
   cyl(p, x, 0, z, 0.1, 2.2, '#a16207');
   for (let i = 0; i < 5; i++) {
-    const l = box(p, x, 2.1, z, 1.3, 0.06, 0.32, '#16a34a');
+    const l = box(p, x, 2.1, z, 1.4, 0.05, 0.36, LEAVES[i % LEAVES.length]!);
     l.rotation.y = (i / 5) * Math.PI * 2; l.rotation.z = -0.35; l.position.x += Math.cos(l.rotation.y) * 0.5; l.position.z -= Math.sin(l.rotation.y) * 0.5;
   }
 }
@@ -181,6 +237,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setSize(W(), H());
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.9;
   host.appendChild(renderer.domElement);
   renderer.domElement.style.display = 'block';
   const css = new CSS2DRenderer();
@@ -189,6 +246,10 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   host.appendChild(css.domElement);
 
   const scene = new THREE.Scene();
+  // Reflets réalistes (carrosseries, vitres, mer) : environnement studio pré-calculé
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+  scene.environment = envRT.texture; scene.environmentIntensity = 0.55;
   scene.background = new THREE.Color('#bae6fd');
   scene.fog = new THREE.Fog('#bae6fd', 120, 220);
   const VIEW = 46;
@@ -225,21 +286,34 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const world = new THREE.Group(); scene.add(world);
   // Mer vivante : vagues + reflets du soleil
   const seaGeo = new THREE.PlaneGeometry(260, 200, 64, 48);
-  const seaMat = new THREE.MeshPhongMaterial({ color: '#38bdf8', shininess: 110, specular: '#ffffff', flatShading: true });
+  const seaMat = new THREE.MeshStandardMaterial({ color: '#2a9fd6', roughness: 0.12, metalness: 0.25, flatShading: true });
   const sea = new THREE.Mesh(seaGeo, seaMat);
   sea.rotation.x = -Math.PI / 2; sea.position.set(6, -0.45, -10); sea.receiveShadow = true; world.add(sea);
   const seaPos = seaGeo.attributes['position'] as THREE.BufferAttribute;
-  box(world, 5, -0.3, 8, 84, 0.3, 40, '#86efac', false).receiveShadow = true; // terre
-  box(world, 24, -0.3, -13.3, 22, 0.32, 3.5, '#fde68a', false);                   // plage
-  // routes
-  const road = '#475569', line = '#f8fafc';
-  box(world, 0.5, 0, LOOP.z0 - 0.7, 64, 0.02, 2.2, road, false);
-  box(world, 0.5, 0, LOOP.z1 + 0.7, 54.4, 0.02, 2.2, road, false);
-  box(world, LOOP.x0 - 0.7, 0, 10.5, 2.2, 0.02, 23.6, road, false);
-  box(world, LOOP.x1 + 0.7, 0, 10.5, 2.2, 0.02, 23.6, road, false);
-  box(world, 0, 0, -3.3, 2, 0.02, 4.6, road, false);
-  box(world, 32, 0, 3, 8, 0.02, 2.2, road, false);
+  box(world, 5, -0.3, 8, 84, 0.3, 40, texMat(GRASS_T, 84, 40, 6), false).receiveShadow = true; // terre
+  box(world, 24, -0.3, -13.3, 22, 0.32, 3.5, texMat(SAND_T, 22, 3.5, 4), false);                    // plage
+  box(world, 5, -0.6, -12.2, 84, 0.3, 0.6, '#9ca3af', false);                                         // quai / digue
+  // routes : asphalte, trottoirs, passages piétons
+  const line = '#f8fafc';
+  const rd = (x: number, z: number, w: number, d: number) => box(world, x, 0, z, w, 0.02, d, texMat(ASPHALT_T, w, d, 5), false);
+  rd(0.5, LOOP.z0 - 0.7, 64, 2.2); rd(0.5, LOOP.z1 + 0.7, 54.4, 2.2);
+  rd(LOOP.x0 - 0.7, 10.5, 2.2, 23.6); rd(LOOP.x1 + 0.7, 10.5, 2.2, 23.6);
+  rd(0, -3.3, 2, 4.6); rd(32, 3, 8, 2.2);
   for (let x = -24; x < 30; x += 2.2) box(world, x, 0.03, LOOP.z0 - 0.7, 1, 0.01, 0.14, line, false);
+  for (let x = -22; x < 26; x += 2.2) box(world, x, 0.03, LOOP.z1 + 0.7, 1, 0.01, 0.14, line, false);
+  const walk = (x: number, z: number, w: number, d: number) => box(world, x, 0, z, w, 0.09, d, texMat(CONCRETE_T, w, d, 3, 0.9), false);
+  walk(-13, -2.5, 24, 1.3); walk(13.5, -2.5, 25, 1.3); walk(0.5, 1.15, 51, 1.5);
+  walk(0.5, LOOP.z1 - 0.9, 51, 1); walk(0.5, LOOP.z1 + 2.3, 51, 1);
+  for (const cx of [-6, 8, 20]) for (let k = 0; k < 5; k++) box(world, cx - 0.8 + k * 0.4, 0.03, LOOP.z0 - 0.7, 0.22, 0.01, 2, line, false); // passages piétons
+  // Feux tricolores au carrefour de l'agence
+  const lights: THREE.Mesh[][] = [];
+  for (const [lx, lz] of [[-1.4, -1.9], [1.4, 0.5]] as const) {
+    cyl(world, lx, 0, lz, 0.06, 2.2, '#1f2937'); box(world, lx, 2.2, lz, 0.28, 0.75, 0.28, '#111827');
+    lights.push(['#ef4444', '#f59e0b', '#22c55e'].map((c, i) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), new THREE.MeshStandardMaterial({ color: '#111', emissive: c, emissiveIntensity: 0 }));
+      m.position.set(lx, 2.8 - i * 0.22, lz + 0.15); world.add(m); return m;
+    }));
+  }
 
   // Port + grue
   const P = Z.port;
@@ -268,7 +342,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   tag(world, ag, 'agence');
   // Parking location
   const PK = Z.parking;
-  tag(world, box(new THREE.Group(), PK.x, 0, PK.z, PK.w, 0.05, PK.d, '#cbd5e1', false), 'parking');
+  tag(world, box(new THREE.Group(), PK.x, 0, PK.z, PK.w, 0.05, PK.d, texMat(ASPHALT_T, PK.w, PK.d, 5), false), 'parking');
   const pl = new THREE.Group(); tag(world, pl, 'parking');
   for (const [x, z] of PARK) box(pl, x - 0.62, 0.06, z, 0.05, 0.01, 2.2, '#f8fafc', false);
   // Packs séjour : villa + piscine
@@ -300,8 +374,12 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
   const city = new THREE.Group();
   ([[-5, 14, 2.4, 4, '#fca5a5'], [-1.5, 15.5, 2.2, 6, '#c4b5fd'], [2, 14, 2.6, 3.5, '#fdba74'], [5.5, 15.5, 2, 7, '#93c5fd'], [-5.5, 17.8, 2, 2.6, '#f9a8d4'], [5, 18.2, 2.4, 3, '#fde68a']] as const)
     .forEach(([x, z, s, h, c]) => {
-      box(city, x, 0, z, s, h, s, c); box(city, x, h, z, s + 0.15, 0.15, s + 0.15, '#f8fafc');
-      for (let f = 0.8; f < h - 0.4; f += 1.1) { box(city, x, f, z + s / 2 + 0.01, s * 0.7, 0.42, 0.03, WIN, false); box(city, x + s / 2 + 0.01, f, z, 0.03, 0.42, s * 0.7, WIN, false); }
+      const fm = facade(c, Math.max(2, Math.round(h / 1.1)), 3); FACADES.push(fm);
+      const b = new THREE.Mesh(BOX, [fm, fm, mat('#e7e5e4'), mat('#e7e5e4'), fm, fm]);
+      b.scale.set(s, h, s); b.position.set(x, h / 2, z); b.castShadow = true; b.receiveShadow = true; city.add(b);
+      box(city, x, h, z, s + 0.15, 0.15, s + 0.15, '#f8fafc');
+      box(city, x + s * 0.2, h + 0.15, z - s * 0.2, 0.5, 0.35, 0.5, '#9ca3af');      // clim / local technique
+      cyl(city, x - s * 0.25, h + 0.15, z + s * 0.2, 0.22, 0.5, '#e5e7eb');           // citerne d'eau (Oran)
     });
   tag(world, city, 'ville');
   // Quartier immo (terrain)
@@ -394,6 +472,39 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     people.push({ g, x0: lane[0]!, x1: lane[1]!, z: lane[2]!, v: 0.6 + (i % 4) * 0.18, o: i * 7.3 });
     world.add(g);
   }
+  // Parapluies quand il pleut
+  const umbrellas: THREE.Object3D[] = [];
+  people.forEach(({ g }, i) => {
+    const u = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.25, 8), mat(['#1d4ed8', '#be123c', '#0f172a', '#ca8a04'][i % 4]!)); top.position.y = 1.35; u.add(top);
+    const st = new THREE.Mesh(CYL, mat('#334155')); st.scale.set(0.02, 0.5, 0.02); st.position.y = 1.05; u.add(st);
+    u.visible = false; g.add(u); umbrellas.push(u);
+  });
+  // Mosquée avec minaret (Oran)
+  {
+    const mq = new THREE.Group(), MX = -21.5, MZ = -4.4;
+    box(mq, MX, 0, MZ, 4.2, 2.2, 3.2, '#f5f0e6');
+    box(mq, MX, 2.2, MZ, 4.4, 0.18, 3.4, '#e7dfcf');
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1.2, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), shiny('#0f766e', 90));
+    dome.position.set(MX, 2.38, MZ); dome.castShadow = true; mq.add(dome);
+    cyl(mq, MX, 3.5, MZ, 0.05, 0.5, '#fbbf24');
+    for (let i = 0; i < 4; i++) box(mq, MX - 1.4 + i * 0.95, 0.5, MZ + 1.61, 0.5, 1.1, 0.03, '#0f766e', false);
+    cyl(mq, MX + 2.6, 0, MZ - 1, 0.42, 6.2, '#f5f0e6');
+    cyl(mq, MX + 2.6, 5, MZ - 1, 0.58, 0.18, '#e7dfcf');
+    box(mq, MX + 2.6, 5.2, MZ - 1, 0.5, 0.5, 0.5, WIN, false);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 12), shiny('#0f766e', 90)); cap.position.set(MX + 2.6, 6.7, MZ - 1); cap.castShadow = true; mq.add(cap);
+    world.add(mq);
+  }
+  // Mouettes au-dessus du port
+  const gulls: Array<{ g: THREE.Group; l: THREE.Group; r: THREE.Group; o: number }> = [];
+  for (let i = 0; i < 7; i++) {
+    const g = new THREE.Group();
+    box(g, 0, 0, 0, 0.5, 0.14, 0.16, '#f8fafc', false);
+    const wing = (side: number) => { const w = new THREE.Group(); box(w, 0, 0.04, side * 0.35, 0.22, 0.03, 0.7, '#e5e7eb', false); g.add(w); return w; };
+    const l = wing(1), r = wing(-1);
+    world.add(g); gulls.push({ g, l, r, o: i * 0.9 });
+  }
+
   // Voiliers + barques
   const sails: Array<{ g: THREE.Group; cx: number; cz: number; r: number; v: number }> = [];
   for (let i = 0; i < 4; i++) {
@@ -560,16 +671,46 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
       web: w.sites ? `FIK Sites · <b>${w.sites}</b> en ligne` : 'FIK Sites',
     };
     const anchor: Record<ZoneId, [number, number, number]> = {
-      agence: [Z.agence.x, 8.2, Z.agence.z], parking: [Z.parking.x, 2.5, Z.parking.z - 6], atelier: [Z.atelier.x - 2.5, 4.4, Z.atelier.z + 3],
+      agence: [Z.agence.x, 9.4, Z.agence.z], parking: [Z.parking.x, 2.5, Z.parking.z - 6], atelier: [Z.atelier.x - 2.5, 4.4, Z.atelier.z + 3],
       ville: [0, 9, 16], vente: [Z.vente.x, 4.6, Z.vente.z - 3.6], port: [Z.port.x, 9, Z.port.z], immo: [15, 5, 4.5],
       packs: [Z.packs.x, 5.4, Z.packs.z + 1], aeroport: [Z.aeroport.x - 4, 7.6, Z.aeroport.z - 4], b2b: [Z.b2b.x, 13.6, Z.b2b.z], web: [Z.web.x, 5, Z.web.z],
     };
+    if (w.led) { const led = label(`<span>${w.led}</span>`, 'dz3-led', () => onPick({ kind: 'zone', zone: 'agence' })); led.position.set(Z.agence.x, 6.4, Z.agence.z + 2.6); dyn.add(led); prices.push(led); }
     for (const z of zones) {
       const short = (text[z] ?? '').match(/<b>(\d+)<\/b>/)?.[1] ?? '';
       const html = `${ZONE_INFO[z].icon}<span class="dz3-full"> ${text[z] ?? ZONE_INFO[z].title}</span>${short ? `<span class="dz3-short"> ${short}</span>` : ''}`;
       const l = label(html, z === 'agence' ? 'dz3-zone dz3-brand' : 'dz3-zone', () => onPick({ kind: 'zone', zone: z }));
       l.position.set(...anchor[z]); dyn.add(l);
       if (targets.has(`zone:${z}`)) { const g = new THREE.Group(); g.position.set(anchor[z][0], 0, anchor[z][2]); dyn.add(g); arrow(g, anchor[z][1] + 1.6); }
+    }
+  };
+
+  // ── Post-traitement : halo des lumières la nuit (bloom), anti-crénelage MSAA ─
+  const rt = new THREE.WebGLRenderTarget(W(), H(), { type: THREE.HalfFloatType, samples: 4 });
+  const composer = new EffectComposer(renderer, rt);
+  composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(W(), H());
+  composer.addPass(new RenderPass(scene, cam));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(W() / 2, H() / 2), 0.7, 0.55, 0.82);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+
+  // ── Feu d'artifice (journée parfaite) ──────────────────────────────────────
+  let fws: Array<{ pts: THREE.Points; vel: Float32Array; t0: number; y0: number; boom: boolean }> = [];
+  const fireworks = () => {
+    const now = performance.now();
+    for (let k = 0; k < 7; k++) {
+      const N = 70, g = new THREE.BufferGeometry(), pos = new Float32Array(N * 3), vel = new Float32Array(N * 3);
+      const cx = HOME.x - 14 + Math.random() * 28, cz = HOME.z - 10 + Math.random() * 18;
+      for (let i = 0; i < N; i++) {
+        pos.set([cx, 0, cz], i * 3);
+        const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), sp = 5 + Math.random() * 2;
+        vel.set([Math.sin(ph) * Math.cos(th) * sp, Math.cos(ph) * sp, Math.sin(ph) * Math.sin(th) * sp], i * 3);
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const col = new THREE.Color().setHSL(Math.random(), 1, 0.6);
+      const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: col, size: 5 * renderer.getPixelRatio(), sizeAttenuation: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      pts.frustumCulled = false; scene.add(pts);
+      fws.push({ pts, vel, t0: now + k * 380, y0: 12 + Math.random() * 6, boom: false });
     }
   };
 
@@ -630,15 +771,19 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     const dim = 1 - (wet ? 0.35 : cloudy * 0.2);
     if (storm && Math.random() < dt * 0.25) flash = 1;
     flash = Math.max(0, flash - dt * 4);
-    hemi.intensity = (0.55 + 1.05 * dayK) * dim + flash * 2.5;
+    hemi.intensity = (0.5 + 0.55 * dayK) * dim + flash * 2.5;
     hemi.color.copy(MOON).lerp(tmp.set('#ffffff'), dayK);
     hemi.groundColor.set(dayK > 0.5 ? '#86efac' : '#1e293b');
     const a = Math.max(-1, Math.min(1, sunA)) * Math.PI / 2;
-    if (dayK > 0.08) { sun.position.set(6 - Math.sin(a) * 60, 10 + Math.cos(a) * 60, 3 + Math.cos(a) * 26); sun.color.copy(SUN_DAY).lerp(SUN_DUSK, dusk); sun.intensity = 2.3 * dayK * dim + 0.3; }
+    if (dayK > 0.08) { sun.position.set(6 - Math.sin(a) * 60, 10 + Math.cos(a) * 60, 3 + Math.cos(a) * 26); sun.color.copy(SUN_DAY).lerp(SUN_DUSK, dusk); sun.intensity = 2.6 * dayK * dim + 0.3; }
     else { sun.position.set(-20, 70, 30); sun.color.copy(MOON); sun.intensity = 0.45; }
     seaMat.color.copy(SEA_NIGHT).lerp(SEA_DAY, dayK);
     const lit = Math.max(0, night - 0.15) / 0.85;
-    WIN.emissiveIntensity = lit * 0.95; WIN2.emissiveIntensity = lit * 0.8;
+    WIN.emissiveIntensity = lit * 1.4; WIN2.emissiveIntensity = lit * 1.1;
+    for (const f of FACADES) f.emissiveIntensity = lit * 1.6;
+    scene.environmentIntensity = 0.12 + 0.28 * dayK;
+    bloom.strength = lit * 0.8; bloom.threshold = 0.85 - lit * 0.25; bloom.enabled = lit > 0.02;
+    umbrellas.forEach(u => { u.visible = wet; });
     HEAD.emissiveIntensity = 0.2 + lit * 1.4; TAIL.emissiveIntensity = 0.2 + lit * 0.9;
     GLOW.opacity = lit * 0.95; POOL.opacity = lit * 0.45; BEAM.opacity = lit * 0.5; lhMat.opacity = lit * 0.35;
     lhBeam.rotation.y = t * 0.9;
@@ -717,6 +862,28 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
       arr.needsUpdate = true; seaGeo.computeVertexNormals();
     }
     applySky(dt, t);
+    for (const b of gulls) {
+      const a = t * 0.35 + b.o;
+      b.g.position.set(-15 + Math.cos(a) * (7 + b.o), 7 + Math.sin(t * 0.7 + b.o) * 1.2, -17 + Math.sin(a) * (4 + b.o * 0.5));
+      b.g.rotation.y = -a; const f = Math.sin(t * 9 + b.o * 3) * 0.6; b.l.rotation.x = f; b.r.rotation.x = -f;
+    }
+    { const ph = Math.floor((t % 12) / 4); lights.forEach(set => set.forEach((m, i) => { (m.material as THREE.MeshStandardMaterial).emissiveIntensity = (ph === 0 ? i === 2 : ph === 1 ? i === 1 : i === 0) ? 2.2 : 0.05; })); }
+    if (fws.length) {
+      for (const f of fws) {
+        const e = (now - f.t0) / 1000; if (e < 0) continue;
+        const pos = f.pts.geometry.attributes['position'] as THREE.BufferAttribute, M = f.pts.material as THREE.PointsMaterial;
+        if (!f.boom) { for (let i = 0; i < pos.count; i++) pos.setY(i, Math.min(f.y0, e * 18)); if (e * 18 >= f.y0) f.boom = true; M.size = 3 * renderer.getPixelRatio(); }
+        else {
+          for (let i = 0; i < pos.count; i++) {
+            f.vel[i * 3 + 1]! -= 6 * dt;
+            pos.setXYZ(i, pos.getX(i) + f.vel[i * 3]! * dt, pos.getY(i) + f.vel[i * 3 + 1]! * dt, pos.getZ(i) + f.vel[i * 3 + 2]! * dt);
+          }
+          M.size = 5 * renderer.getPixelRatio(); M.opacity = Math.max(0, 1 - (e - f.y0 / 18) / 1.8);
+        }
+        pos.needsUpdate = true;
+      }
+      fws = fws.filter(f => { const alive = (now - f.t0) / 1000 < f.y0 / 18 + 1.9; if (!alive) { f.pts.removeFromParent(); f.pts.geometry.dispose(); } return alive; });
+    }
     for (const p of people) {
       const L = p.x1 - p.x0, d = (t * p.v + p.o) % (2 * L), fwd = d < L;
       p.g.position.set(fwd ? p.x0 + d : p.x1 - (d - L), Math.abs(Math.sin(t * 8 + p.o)) * 0.05, p.z); p.g.rotation.y = fwd ? 0 : Math.PI;
@@ -749,17 +916,17 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     const close = cam.zoom > 2.7;
     for (const n of names) n.visible = close;
     controls.update();
-    renderer.render(scene, cam);
+    composer.render();
     css.render(scene, cam);
   });
 
   const compact = () => css.domElement.classList.toggle('dz3-compact', W() < 560);
   compact();
-  const resize = () => { renderer.setSize(W(), H()); css.setSize(W(), H()); fit(); compact(); };
+  const resize = () => { renderer.setSize(W(), H()); composer.setSize(W(), H()); bloom.resolution.set(W() / 2, H() / 2); css.setSize(W(), H()); fit(); compact(); };
   const ro = new ResizeObserver(resize); ro.observe(host);
 
   return {
-    update, focus, resize, burst,
+    update, focus, resize, burst, fireworks,
     setSky: (mode, zone) => { skyMode = mode; if (zone) tz = zone; nextSky = 0; },
     setWeather: w => { wx = w; },
     zoom: k => { cam.zoom = Math.max(controls.minZoom, Math.min(controls.maxZoom, cam.zoom * k)); cam.updateProjectionMatrix(); },
@@ -767,7 +934,7 @@ export function createScene(host: HTMLElement, onPick: (p: Pick) => void): Scene
     dispose: () => {
       ro.disconnect(); renderer.setAnimationLoop(null);
       el.removeEventListener('pointerdown', onDown); el.removeEventListener('pointerup', onUp);
-      clearDyn(); coins.forEach(c => c.m.removeFromParent()); controls.dispose(); renderer.dispose();
+      clearDyn(); coins.forEach(c => c.m.removeFromParent()); controls.dispose(); composer.dispose(); envRT.dispose(); pmrem.dispose(); renderer.dispose();
       renderer.domElement.remove(); css.domElement.remove();
     },
   };

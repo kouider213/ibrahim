@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-15 (10) — Carte live : graphisme réaliste + nouveautés
+- `scene.ts` : rendu PBR (MeshStandard, tone mapping ACES, reflets d'environnement sur carrosseries/vitres/mer), halo des
+  lumières la nuit (bloom), MSAA ; textures procédurales (herbe, asphalte, béton, sable), façades avec fenêtres allumées au
+  hasard la nuit, citernes et clims sur les toits ; arbres en feuillage ; trottoirs, passages piétons, marquage, feux tricolores.
+- Nouveautés : mosquée avec minaret, mouettes au port, parapluies quand il pleut, feu d'artifice (journée parfaite / fin de
+  visite si tout est fait), panneau LED défilant sur l'agence (CA du mois, libres, départs, retours) visible au zoom. SW v146.
+
 ## 2026-10-15 (9) — Carte live v2 : réaliste, missions du jour, visite guidée
 - `scene.ts` : vraie heure d'Oran (lever/coucher calculés, ciel, soleil qui tourne, nuit avec fenêtres allumées, lampadaires,
   phares, faisceau du phare) ; vraie météo Open-Meteo (pluie, orages avec éclairs, brouillard, nuages, vent sur les vagues) ;

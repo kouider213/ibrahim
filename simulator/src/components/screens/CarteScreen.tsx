@@ -180,7 +180,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const Q = useQuests(quests, todayKey, !demo && !loading && cars.length > 0, (q, perfect) => {
     sfx.coin(); api.current?.burst(q.pick ?? null, q.gain ?? `+${q.xp} XP`);
     say(`✅ ${q.title} · +${q.xp} XP`);
-    if (perfect) setTimeout(() => { sfx.fanfare(); api.current?.burst({ kind: 'zone', zone: 'agence' }, '🏆 Journée parfaite !'); }, 900);
+    if (perfect) setTimeout(() => { sfx.fanfare(); api.current?.burst({ kind: 'zone', zone: 'agence' }, '🏆 Journée parfaite !'); api.current?.fireworks(); }, 900);
   });
   const targets = useMemo(() => day === 0 ? Q.all.filter(q => !Q.done.includes(q.id) && q.pick).map(q => q.pick!.kind === 'car' ? q.pick!.id : `zone:${q.pick!.zone}`) : [], [Q.all, Q.done, day]);
   const goQuest = (q: Quest) => {
@@ -215,7 +215,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   useEffect(() => {
     if (!tour) return;
     const st = tour.steps[tour.i];
-    if (!st) { setTour(null); return; }
+    if (!st) { setTour(null); if (!Q.all.some(q => !Q.done.includes(q.id))) api.current?.fireworks(); return; }
     api.current?.focus(st.p);
     let next = false;
     const go = () => { if (next) return; next = true; setTour(t => t && { ...t, i: t.i + 1 }); };
@@ -235,7 +235,14 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
     });
     return () => { dead = true; api.current?.dispose(); api.current = null; };
   }, []);
-  useEffect(() => { if (ready) api.current?.update({ ...world, targets }); }, [ready, world, targets]);
+  // Panneau LED sur l'agence : les chiffres clés qui défilent
+  const led = useMemo(() => {
+    const c = todayWorld.cars, n = (st: Status) => c.filter(x => x.status === st).length;
+    const parts = demo ? [`Bienvenue chez ${world.brand}`] : [`CA ${monthName(month).split(' ')[0]} : ${fmtMoney(cash.total.ca)}`];
+    if (c.length) parts.push(`${n('dispo')} libres`, `${n('depart')} départs`, `${n('retour')} retours`, `${c.filter(x => x.status === 'loue' || x.status === 'retour').length}/${c.length} dehors`);
+    return parts.join(' ★ ');
+  }, [todayWorld, demo, world.brand, month, cash]);
+  useEffect(() => { if (ready) api.current?.update({ ...world, targets, led }); }, [ready, world, targets, led]);
   useEffect(() => { if (ready) api.current?.setSky(sky, tz); }, [ready, sky, tz]);
   useEffect(() => { if (ready) api.current?.setWeather(wx); }, [ready, wx]);
   const choose = (p: Pick) => { setPick(p); setSheet(null); api.current?.focus(p); };
@@ -322,6 +329,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         .dz3-short { display: none } .dz3-compact .dz3-full { display: none } .dz3-compact .dz3-short { display: inline } .dz3-compact .dz3-zone { padding: 3px 7px; font-size: 11px }
         .dz3-price { background: #fef3c7; color: #92400e; font: 800 9.5px ${C.font}; padding: 2px 6px; border-radius: 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.15) }
         .dz3-money { background: #fef3c7; color: #92400e; font: 800 10px ${C.font}; padding: 2px 6px; border-radius: 7px; white-space: nowrap; border: 1px solid #f59e0b; box-shadow: 0 2px 6px rgba(0,0,0,.2); cursor: pointer }
+        .dz3-led { width: 104px; overflow: hidden; background: #050505; border: 2px solid #3f3f46; border-radius: 4px; padding: 3px 0; box-shadow: 0 0 12px rgba(251,191,36,.35); cursor: pointer }
+        .dz3-led span { display: inline-block; white-space: nowrap; padding-left: 100%; font: 800 9.5px ui-monospace, Menlo, monospace; color: #fbbf24; text-shadow: 0 0 6px #f59e0b; animation: dz3L 14s linear infinite }
+        @keyframes dz3L { to { transform: translateX(-100%) } }
         .dz3-name { background: rgba(15,23,42,.82); color: #fff; font: 700 9.5px ${C.font}; padding: 2px 6px; border-radius: 6px; white-space: nowrap; transform: translateY(14px) }
         .dz3-gain { background: linear-gradient(90deg,#fbbf24,#f59e0b); color: #1c1917; font: 900 15px ${C.font}; padding: 5px 12px; border-radius: 20px; white-space: nowrap; box-shadow: 0 6px 20px rgba(245,158,11,.55); border: 2px solid #fff }
         @keyframes dz3T { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
