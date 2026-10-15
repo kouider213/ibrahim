@@ -2,9 +2,20 @@
 
 > **CE FICHIER EST MIS À JOUR À CHAQUE FIN DE SESSION.**
 > Tout agent AI lit ce fichier EN PREMIER pour savoir où en est le projet.
-> Dernière mise à jour : **2026-10-14**.
+> Dernière mise à jour : **2026-10-15**.
 
 ---
+
+## ⚡ Session 2026-10-15 (suite) — Démarchage sites web, WhatsApp après réponse, À PAYER, survie sans crédit
+- **Démarchage FIK Sites** (`site-prospecting.ts`, mode par défaut « sites ») : commerces SANS site en Belgique/France/Algérie,
+  1er mail = proposition de démo, démo envoyée seulement après un « oui ». Réglable dans l'app (mode, villes). ⏳ 1er vrai passage
+  à vérifier (recherche d'e-mail jamais testée en vrai : clés Tavily/Jina seulement sur Railway).
+- **WhatsApp** (`prospect-whatsapp.ts`) : jamais en 1er contact ; message proposé seulement après une réponse au mail
+  (mobile BE/FR/DZ), envoyé après validation (bouton 📤 Envoyer). ⏳ pas encore testé sur une vraie réponse.
+- **À PAYER** (`billing.ts`, page 💳) : Railway = seul OBLIGATOIRE ; alertes 10h J-7/J-3/J-1/J0 (+ appel pour Railway).
+  Railway et domaine lus en direct. ⏳ VPS Hostinger + ElevenLabs : date à saisir par Kouider ; solde Claude à saisir à la recharge.
+- **Survie** : crédit Claude épuisé → toutes les tâches de fond passent sur Groq/Gemini (`anthropic-compat.ts`).
+- ⚠️ `emitProactive` = app seulement (pas Telegram) — ajouter `queueTelegramMessage` si Telegram voulu.
 
 ## ⚡ Session 2026-10-15 — Dzaryx « bras droit » : conseiller business + dossier Kouider + congés
 
