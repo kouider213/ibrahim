@@ -33,6 +33,7 @@ export interface World {
   replies: number;     // réponses de prospects
   fresh?: string[];    // nouveautés depuis la dernière visite (car:/sale:/prop:/imp:<id>) → animées
   showMoney?: boolean; // affiche l'étiquette argent au-dessus de chaque voiture
+  targets?: string[];  // missions du jour : flèche dorée au-dessus (id voiture ou zone:<id>)
 }
 
 export const ALL_ZONES: ZoneId[] = ['agence', 'parking', 'atelier', 'ville', 'vente', 'port', 'immo', 'packs', 'aeroport', 'b2b', 'web'];

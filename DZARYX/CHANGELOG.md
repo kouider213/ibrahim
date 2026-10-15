@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-10-15 (9) — Carte live v2 : réaliste, missions du jour, visite guidée
+- `scene.ts` : vraie heure d'Oran (lever/coucher calculés, ciel, soleil qui tourne, nuit avec fenêtres allumées, lampadaires,
+  phares, faisceau du phare) ; vraie météo Open-Meteo (pluie, orages avec éclairs, brouillard, nuages, vent sur les vagues) ;
+  mer animée ; voitures réalistes (citadine/SUV/utilitaire selon le modèle, vraie peinture, jantes qui tournent, virages doux),
+  statut = anneau au sol ; noms des voitures au zoom ; flèches dorées sur les missions ; pluie de pièces quand une mission est faite.
+- `Missions.tsx` : missions du jour (remettre/récupérer, encaisser, urgences, demandes, voiture qui dort) + XP, niveaux, série de
+  journées parfaites (sur l'appareil). Paiement/urgence réglés ailleurs → mission réussie toute seule.
+- `CarteScreen.tsx` : ▶ Visite guidée (caméra + voix), 🕒/☀️/🌙, 🔊 sons (`sfx.ts`), heure + météo sur la carte. SW v145.
+
 ## 2026-10-15 (8) — Bilan mensuel FIK Sites, mode économie Claude, rendez-vous en 1 clic
 - `client-site-stats.ts` : compteur sans cookie dans les vrais sites (visite/session, clics Appeler, Itinéraire, WhatsApp →
   `POST /api/client-sites/public/:id/hit`, compteurs Redis `fiksite:stats:*`). Job `client-sites-monthly` le 1er à 10h : bilan

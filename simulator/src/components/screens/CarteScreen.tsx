@@ -5,7 +5,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type CSSProperties } from 'react';
 import { apiFetch, business, type Car, type Booking, type SmartReminder, type TodayItem, type SaleVehicle, type SiteProperty } from '../../services/api.ts';
 import { STATUS, ZONE_INFO, ALL_ZONES, buildCars, demoWorld, norm, ymd, addDays, monthMoney, fmtMoney, moneyTag, type Status, type World, type ZoneId, type DemoKind, type Item, type Money } from '../carte/data.ts';
-import type { SceneApi, Pick } from '../carte/scene.ts';
+import type { SceneApi, Pick, SkyMode, Weather } from '../carte/scene.ts';
+import { Missions, buildQuests, useQuests, type Quest } from '../carte/Missions.tsx';
+import { sfx, speak, hush, soundOn, setSound } from '../carte/sfx.ts';
 import AddRentals from '../carte/AddRentals.tsx';
 import CarSheet from '../carte/CarSheet.tsx';
 import ItemSheet, { type SheetKind, type Raw } from '../carte/ItemSheet.tsx';
@@ -53,6 +55,12 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   const [day, setDay] = useState(0);                     // barre de temps : 0 = aujourd'hui … +13 j
   const [showMoney, setShowMoney] = useState(false);     // 💶 étiquettes argent sur la carte
   const [month, setMonth] = useState(() => ymd(new Date()).slice(0, 7));
+  const [sky, setSky] = useState<SkyMode>('auto');      // 🕒 heure réelle / ☀️ / 🌙
+  const [wx, setWx] = useState<Weather | null>(null);
+  const [sound, setSnd] = useState(soundOn);
+  const [clock, setClock] = useState(() => new Date());
+  const [tour, setTour] = useState<{ i: number; steps: Array<{ p: Pick; t: string }> } | null>(null);
+  const [questsOpen, setQuestsOpen] = useState(false);   // plein écran : liste des missions par-dessus la carte
   const host = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const api = useRef<SceneApi | null>(null);
@@ -97,6 +105,17 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
   useEffect(() => { void load(); }, [load]);
   // Sur PC / TV : rafraîchit tout seul chaque minute
   useEffect(() => { if (demo) return; const t = setInterval(() => void load(), 60_000); return () => clearInterval(t); }, [load, demo]);
+
+  // Météo réelle d'Oran (Open-Meteo, gratuit, sans clé) → pluie, nuages, vent sur la carte
+  useEffect(() => {
+    if (demo) return;
+    const get = () => fetch('https://api.open-meteo.com/v1/forecast?latitude=35.70&longitude=-0.63&current=temperature_2m,weather_code,wind_speed_10m,cloud_cover&timezone=Africa%2FAlgiers')
+      .then(r => r.json() as Promise<{ current?: { temperature_2m: number; weather_code: number; wind_speed_10m: number; cloud_cover: number } }>)
+      .then(j => { const c = j.current; if (c) setWx({ code: c.weather_code, temp: Math.round(c.temperature_2m), wind: c.wind_speed_10m, clouds: c.cloud_cover }); })
+      .catch(() => {});
+    void get(); const t = setInterval(get, 15 * 60_000); return () => clearInterval(t);
+  }, [demo]);
+  useEffect(() => { const t = setInterval(() => setClock(new Date()), 30_000); return () => clearInterval(t); }, []);
 
   // Nouveautés depuis la dernière visite : comparées à ce que la carte a déjà montré (mémorisé sur l'appareil)
   useEffect(() => {
@@ -148,17 +167,77 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       .filter(([p]) => n(p)).map(([p, t]) => `${n(p)} ${t}${n(p) > 1 && !t.includes(' ') ? 's' : ''}`).join(', ');
   }, [freshNote, demo]);
 
+  // Missions du jour (toujours sur aujourd'hui, même si la barre de temps regarde un autre jour)
+  const todayWorld = useMemo<World>(() => {
+    if (demo || day === 0) return world;
+    const due = new Map((today?.toCollect ?? []).map(x => [x.id, x.due]));
+    return { ...world, cars: buildCars(cars, bookings, reminders, due) };
+  }, [demo, day, world, cars, bookings, reminders, today]);
+  const asleep = useMemo(() => demo ? [] : cars.filter(c => !cash.byCar.get(c.id)?.days).map(c => c.id), [demo, cars, cash]);
+  const quests = useMemo(() => buildQuests(todayWorld, { asleep }), [todayWorld, asleep]);
+  const tz = demo ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'Africa/Algiers';
+  const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(clock);
+  const Q = useQuests(quests, todayKey, !demo && !loading && cars.length > 0, (q, perfect) => {
+    sfx.coin(); api.current?.burst(q.pick ?? null, q.gain ?? `+${q.xp} XP`);
+    say(`✅ ${q.title} · +${q.xp} XP`);
+    if (perfect) setTimeout(() => { sfx.fanfare(); api.current?.burst({ kind: 'zone', zone: 'agence' }, '🏆 Journée parfaite !'); }, 900);
+  });
+  const targets = useMemo(() => day === 0 ? Q.all.filter(q => !Q.done.includes(q.id) && q.pick).map(q => q.pick!.kind === 'car' ? q.pick!.id : `zone:${q.pick!.zone}`) : [], [Q.all, Q.done, day]);
+  const goQuest = (q: Quest) => {
+    sfx.tap(); setQuestsOpen(false);
+    if (q.ask) { onAsk(q.ask); return; }
+    if (q.pick) { if (day !== 0) setDay(0); choose(q.pick); }
+  };
+
+  // Visite guidée : la caméra fait le tour du business et raconte la journée (voix si 🔊)
+  const startTour = () => {
+    const w = todayWorld, n = (st: Status[]) => w.cars.filter(c => st.includes(c.status)).length;
+    const pl = (k: number, one: string, many = `${one}s`) => `${k} ${k > 1 ? many : one}`;
+    const hello = (() => { const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(new Date())); return h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir'; })();
+    const left = Q.all.filter(q => !Q.done.includes(q.id)).length;
+    const steps: Array<{ p: Pick; t: string }> = [
+      { p: { kind: 'zone', zone: 'agence' }, t: `${hello}${demo ? '' : ' Kouider'} ! ${wx ? `${wx.temp} degrés à Oran. ` : ''}${w.pending ? `${pl(w.pending, 'demande')} du site t'attendent à l'agence.` : 'Aucune demande en attente à l\'agence.'}` },
+    ];
+    if (w.cars.length) {
+      steps.push({ p: { kind: 'zone', zone: 'parking' }, t: `Au parking : ${pl(n(['dispo', 'depart']), 'voiture prête', 'voitures prêtes')}${n(['depart']) ? `, dont ${pl(n(['depart']), 'départ')} aujourd'hui` : ''}.` });
+      steps.push({ p: { kind: 'zone', zone: 'ville' }, t: `En ville : ${pl(n(['loue', 'retour']), 'voiture louée', 'voitures louées')}${n(['retour']) ? `, ${pl(n(['retour']), 'retour')} prévu${n(['retour']) > 1 ? 's' : ''} aujourd'hui` : ''}.` });
+      if (n(['atelier'])) steps.push({ p: { kind: 'zone', zone: 'atelier' }, t: `À l'atelier : ${pl(n(['atelier']), 'voiture')} indisponible${n(['atelier']) > 1 ? 's' : ''}.` });
+      const due = w.cars.reduce((s2, c) => s2 + c.due, 0);
+      if (due > 0) steps.push({ p: { kind: 'zone', zone: 'agence' }, t: `Argent à encaisser : ${due.toLocaleString('fr-FR')} euros.` });
+    }
+    if (w.zones.includes('vente') && w.sales.length) steps.push({ p: { kind: 'zone', zone: 'vente' }, t: `Vente auto : ${pl(w.sales.length, 'véhicule')} à vendre.` });
+    if (w.zones.includes('port') && w.imports.length) steps.push({ p: { kind: 'zone', zone: 'port' }, t: `Au port : ${pl(w.imports.length, 'import')} en cours.` });
+    if (w.zones.includes('immo') && w.properties.length) steps.push({ p: { kind: 'zone', zone: 'immo' }, t: `Immobilier : ${pl(w.properties.length, 'bien')}.` });
+    steps.push({ p: null, t: left ? `Tu as ${pl(left, 'mission')} aujourd'hui. Les flèches dorées te montrent où aller. C'est parti !` : 'Tout est réglé pour aujourd\'hui. Journée parfaite !' });
+    setPick(null); setSheet(null); sfx.whoosh();
+    setTour({ i: 0, steps });
+  };
+  useEffect(() => {
+    if (!tour) return;
+    const st = tour.steps[tour.i];
+    if (!st) { setTour(null); return; }
+    api.current?.focus(st.p);
+    let next = false;
+    const go = () => { if (next) return; next = true; setTour(t => t && { ...t, i: t.i + 1 }); };
+    const spoke = speak(st.t, () => setTimeout(go, 500));
+    const t = setTimeout(go, spoke ? 12_000 : 3800);
+    return () => clearTimeout(t);
+  }, [tour?.i, !!tour]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stopTour = () => { hush(); setTour(null); api.current?.focus(null); };
+
   // Scène 3D (three.js chargé à la demande)
   useEffect(() => {
     let dead = false;
     void import('../carte/scene.ts').then(({ createScene }) => {
       if (dead || !host.current) return;
-      api.current = createScene(host.current, p => { setPick(p); api.current?.focus(p); });
+      api.current = createScene(host.current, p => { if (p) sfx.tap(); setPick(p); api.current?.focus(p); });
       setReady(true);
     });
     return () => { dead = true; api.current?.dispose(); api.current = null; };
   }, []);
-  useEffect(() => { if (ready) api.current?.update(world); }, [ready, world]);
+  useEffect(() => { if (ready) api.current?.update({ ...world, targets }); }, [ready, world, targets]);
+  useEffect(() => { if (ready) api.current?.setSky(sky, tz); }, [ready, sky, tz]);
+  useEffect(() => { if (ready) api.current?.setWeather(wx); }, [ready, wx]);
   const choose = (p: Pick) => { setPick(p); setSheet(null); api.current?.focus(p); };
 
   // Plein écran : vrai plein écran si le navigateur le permet (PC, Android), sinon la carte prend tout l'écran (iPhone)
@@ -243,6 +322,9 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
         .dz3-short { display: none } .dz3-compact .dz3-full { display: none } .dz3-compact .dz3-short { display: inline } .dz3-compact .dz3-zone { padding: 3px 7px; font-size: 11px }
         .dz3-price { background: #fef3c7; color: #92400e; font: 800 9.5px ${C.font}; padding: 2px 6px; border-radius: 6px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.15) }
         .dz3-money { background: #fef3c7; color: #92400e; font: 800 10px ${C.font}; padding: 2px 6px; border-radius: 7px; white-space: nowrap; border: 1px solid #f59e0b; box-shadow: 0 2px 6px rgba(0,0,0,.2); cursor: pointer }
+        .dz3-name { background: rgba(15,23,42,.82); color: #fff; font: 700 9.5px ${C.font}; padding: 2px 6px; border-radius: 6px; white-space: nowrap; transform: translateY(14px) }
+        .dz3-gain { background: linear-gradient(90deg,#fbbf24,#f59e0b); color: #1c1917; font: 900 15px ${C.font}; padding: 5px 12px; border-radius: 20px; white-space: nowrap; box-shadow: 0 6px 20px rgba(245,158,11,.55); border: 2px solid #fff }
+        @keyframes dz3T { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
         @keyframes dz3P { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.7) } 50% { box-shadow: 0 0 0 7px rgba(239,68,68,0) } } .dz3-pulse { animation: dz3P 1.2s ease-in-out infinite }
       `}</style>
 
@@ -308,24 +390,47 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
           <MapBtn onClick={() => api.current?.zoom(1 / 1.5)}>−</MapBtn>
           <MapBtn onClick={() => { setPick(null); api.current?.reset(); }}>⌂</MapBtn>
           {!demo && <MapBtn onClick={() => setShowMoney(v => !v)} on={showMoney}>💶</MapBtn>}
+          <MapBtn onClick={() => setSky(m => m === 'auto' ? 'jour' : m === 'jour' ? 'nuit' : 'auto')}>{sky === 'auto' ? '🕒' : sky === 'jour' ? '☀️' : '🌙'}</MapBtn>
         </div>
+        {/* Bas de la carte : missions + visite guidée + son */}
+        <div style={{ position: 'absolute', left: 8, right: 8, bottom: sBot(10), zIndex: 3, display: 'flex', gap: 6, alignItems: 'center', pointerEvents: 'none' }}>
+          {Q.all.length > 0 && <button onClick={() => { sfx.tap(); if (full) setQuestsOpen(v => !v); else wrap.current?.parentElement?.querySelector<HTMLElement>('[data-missions]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+            style={{ ...pill, color: Q.done.length === Q.all.length ? '#1c1917' : '#fff', background: Q.done.length === Q.all.length ? 'linear-gradient(90deg,#fbbf24,#f59e0b)' : 'linear-gradient(90deg,#6366f1,#8b5cf6)', boxShadow: '0 4px 14px rgba(99,102,241,.45)' }}>
+            {Q.done.length === Q.all.length ? '🏆' : '🎯'} {Q.done.length}/{Q.all.length}
+          </button>}
+          <button onClick={() => tour ? stopTour() : startTour()} style={{ ...pill, background: tour ? '#dc2626' : 'rgba(15,23,42,0.86)', color: '#fff' }}>{tour ? '■ Stop' : '▶ Visite'}</button>
+          <span style={{ flex: 1 }} />
+          <button onClick={() => { const v = !sound; setSound(v); setSnd(v); if (!v) hush(); else sfx.tap(); }} aria-label="Son" style={{ ...pill, background: 'rgba(255,255,255,0.94)', color: '#0f172a', padding: '7px 10px' }}>{sound ? '🔊' : '🔇'}</button>
+        </div>
+        {/* Heure + météo réelle d'Oran */}
+        {!full && <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.78)', color: '#fff', borderRadius: 11, padding: '5px 9px', fontSize: 12, fontWeight: 800, fontFamily: C.font, pointerEvents: 'none' }}>
+          {wxIcon(wx, clock, tz)} {wx ? `${wx.temp}° · ` : ''}{clock.toLocaleTimeString('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' })}{demo ? '' : ' Oran'}
+        </div>}
+        {full && questsOpen && <div style={{ position: 'absolute', left: 8, right: 8, bottom: sBot(64), zIndex: 5, maxWidth: 460, margin: '0 auto', maxHeight: '60vh', overflowY: 'auto' }}>
+          <Missions compact all={Q.all} done={Q.done} xp={Q.xp} streak={Q.streak} onGo={goQuest} onDone={q => Q.complete(q)} onUndo={Q.undo} />
+        </div>}
+        {/* Visite guidée : sous-titres */}
+        {tour && tour.steps[tour.i] && <div key={tour.i} onClick={stopTour} style={{ position: 'absolute', left: 10, right: 10, bottom: sBot(64), zIndex: 6, maxWidth: 520, margin: '0 auto', background: 'rgba(15,23,42,0.9)', color: '#fff', borderRadius: 16, padding: '12px 14px', fontFamily: C.font, fontSize: 15, fontWeight: 700, lineHeight: 1.4, boxShadow: '0 10px 30px rgba(0,0,0,.35)', animation: 'dz3T .35s ease-out', cursor: 'pointer' }}>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', color: '#a5b4fc', fontWeight: 800, marginBottom: 3 }}>VISITE GUIDÉE · {tour.i + 1}/{tour.steps.length} · toucher pour arrêter</div>
+          {tour.steps[tour.i]!.t}
+        </div>}
         {full && <div style={{ position: 'absolute', top: sTop, left: 8, zIndex: 3, background: 'rgba(15,23,42,0.82)', color: '#fff', borderRadius: 12, padding: '7px 11px', fontFamily: C.font }}>
           <div style={{ fontSize: 10, letterSpacing: '0.16em', color: '#6ee7b7', fontWeight: 700 }}>CARTE LIVE</div>
           <div style={{ fontSize: 15, fontWeight: 800 }}>{world.brand}</div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, opacity: 0.9 }}>{wxIcon(wx, clock, tz)} {wx ? `${wx.temp}° · ` : ''}{clock.toLocaleTimeString('fr-FR', { timeZone: tz, hour: '2-digit', minute: '2-digit' })}{demo ? '' : ' Oran'}</div>
           <div style={{ display: 'flex', gap: 9, fontSize: 11.5, marginTop: 3, flexWrap: 'wrap' }}>
             {(Object.keys(STATUS) as Status[]).map(k => <span key={k}><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 4, background: STATUS[k].badge, marginRight: 4 }} />{counts[k]}</span>)}
           </div>
         </div>}
-        <div style={{ position: 'absolute', left: 8, bottom: sBot(8), fontSize: 10.5, color: '#0f172a', opacity: 0.6, zIndex: 3, pointerEvents: 'none', fontFamily: C.font }}>
-          1 doigt : déplacer · 2 doigts : zoom / tourner{full ? ' · souris : clic droit pour tourner' : ''}
-        </div>
-        {day > 0 && <div onClick={() => setDay(0)} style={{ position: 'absolute', top: full ? 'calc(78px + env(safe-area-inset-top, 0px))' : 8, left: 8, zIndex: 3, background: '#4f46e5', color: '#fff', borderRadius: 12, padding: '6px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(79,70,229,.4)' }}>
+        {day > 0 && <div onClick={() => setDay(0)} style={{ position: 'absolute', top: full ? 'calc(96px + env(safe-area-inset-top, 0px))' : 42, left: 8, zIndex: 3, background: '#4f46e5', color: '#fff', borderRadius: 12, padding: '6px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(79,70,229,.4)' }}>
           🕒 {when.charAt(0).toUpperCase() + when.slice(1)} · revenir à aujourd'hui ✕
         </div>}
-        {full && panel && <div style={{ position: 'absolute', left: 8, right: 8, bottom: sBot(26), zIndex: 4, maxWidth: 460, margin: '0 auto' }}>{panel}</div>}
+        {full && panel && !questsOpen && !tour && <div style={{ position: 'absolute', left: 8, right: 8, bottom: sBot(26), zIndex: 4, maxWidth: 460, margin: '0 auto' }}>{panel}</div>}
       </div>
 
       {!full && panel && <div style={{ marginTop: 8 }}>{panel}</div>}
+
+      {(Q.all.length > 0 || !loading) && <div data-missions style={{ marginTop: 10 }}><Missions all={Q.all} done={Q.done} xp={Q.xp} streak={Q.streak} onGo={goQuest} onDone={q => Q.complete(q)} onUndo={Q.undo} /></div>}
 
       {/* Légende : touche → vole vers la zone */}
       {world.cars.length > 0 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '10px 0 14px' }}>
@@ -376,7 +481,7 @@ export default function CarteScreen({ onAsk, onOpen, actor = 'kouider', startFul
       </>}
 
       {adding && <AddRentals cars={cars} actor={actor} initialCar={adding.car} onClose={() => setAdding(null)} onDone={n => { say(`${n} location${n > 1 ? 's' : ''} ajoutée${n > 1 ? 's' : ''} ✓`); void load(); }} />}
-      {toast && <div style={{ position: 'fixed', left: '50%', bottom: 90, transform: 'translateX(-50%)', background: '#0f172a', color: '#fff', padding: '9px 14px', borderRadius: 12, fontSize: 13, fontWeight: 700, zIndex: 1100, boxShadow: '0 6px 20px rgba(0,0,0,.35)' }}>{toast}</div>}
+      {toast && <div style={{ position: 'fixed', left: '50%', bottom: 90, transform: 'translateX(-50%)', background: '#0f172a', color: '#fff', padding: '9px 14px', borderRadius: 12, fontSize: 13, fontWeight: 700, zIndex: 1100, whiteSpace: 'nowrap', maxWidth: '92vw', overflow: 'hidden', textOverflow: 'ellipsis', boxShadow: '0 6px 20px rgba(0,0,0,.35)' }}>{toast}</div>}
     </div>
   );
 }
@@ -574,6 +679,7 @@ function MoneyCard({ money, cars, month, setMonth, on, toggle, onCar, onAsk }: {
     </div>
   );
 }
+const pill: CSSProperties = { pointerEvents: 'auto', border: 'none', borderRadius: 20, padding: '8px 13px', fontSize: 13, fontWeight: 900, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(0,0,0,.25)', whiteSpace: 'nowrap' };
 const mbtn: CSSProperties = { width: 28, height: 26, borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.text, cursor: 'pointer', fontSize: 13, fontWeight: 800 };
 function Stat({ k, v, sub, warn }: { k: string; v: string; sub?: string; warn?: boolean }) {
   return <div style={{ background: '#0f0f14', borderRadius: 10, padding: '7px 8px', minWidth: 0 }}>
@@ -581,4 +687,13 @@ function Stat({ k, v, sub, warn }: { k: string; v: string; sub?: string; warn?: 
     <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2, color: warn && k !== 'Bénéfice' ? C.orange : C.text, overflowWrap: 'anywhere' }}>{v}</div>
     {sub && <div style={{ fontSize: 10, color: warn ? C.orange : C.muted, marginTop: 1 }}>{sub}</div>}
   </div>;
+}
+
+// Icône météo (codes WMO d'Open-Meteo) ; la nuit, lune au lieu du soleil
+function wxIcon(w: Weather | null, now: Date, tz: string): string {
+  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(now));
+  const night = h < 7 || h >= 19;
+  if (!w) return night ? '🌙' : '☀️';
+  const c = w.code;
+  return c >= 95 ? '⛈️' : c >= 80 ? '🌦️' : c >= 71 ? '🌨️' : c >= 51 ? '🌧️' : c >= 45 ? '🌫️' : c === 3 ? '☁️' : c >= 1 ? (night ? '🌙' : '🌤️') : night ? '🌙' : '☀️';
 }
