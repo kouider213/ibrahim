@@ -6,6 +6,12 @@
 
 ---
 
+## ⚡ Session 2026-10-15 (soir) — Routine du matin, trajets avec trafic, voyages + check-lists
+- Réveil + motivation chaque matin, appel si pas de réponse (`morning-routine.ts`, outil `morning_routine`, pause vacances).
+- Départs calculés avec le trafic pour chaque RDV avec adresse (`departures.ts`) ; GPS = position en direct partagée sur Telegram.
+- Billets → agenda + check-list, rappels J-5, appel J-2 ; check-lists clients (`trips.ts`, outil `travel`).
+- ⏳ 1er vrai réveil vendredi 16/10 6h00 ; position en direct à activer par Kouider ; import mail jamais testé sur un vrai billet.
+
 ## ⚡ Session 2026-10-15 (suite) — Démarchage sites web, WhatsApp après réponse, À PAYER, survie sans crédit
 - **Démarchage FIK Sites** (`site-prospecting.ts`, mode par défaut « sites ») : commerces SANS site en Belgique/France/Algérie,
   1er mail = proposition de démo, démo envoyée seulement après un « oui ». Réglable dans l'app (mode, villes). ⏳ 1er vrai passage

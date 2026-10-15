@@ -62,6 +62,10 @@ import { jobBillingWatch } from '../integrations/billing.js';
 import { jobKouiderDossier } from '../integrations/kouider-dossier.js';
 import { jobCloudWatch, jobCloudRoutines } from '../integrations/cloud-watch.js';
 
+import { jobMorningRoutine } from '../integrations/morning-routine.js';
+import { jobDepartureWatch } from '../integrations/departures.js';
+import { jobTripReminders, jobFlightMailImport } from '../integrations/trips.js';
+
 const SCHEDULER_QUEUE = 'in-process';
 
 const JOBS = [
@@ -362,6 +366,26 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'morning-routine',
+    cron:  '*/2 4-11 * * *',        // toutes les 2 min 4h–11h (Bruxelles) — message du matin + appel si Kouider ne répond pas
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'departure-watch',
+    cron:  '*/5 4-22 * * *',        // toutes les 5 min — heure de départ selon le trafic (salle, travail, aéroport, RDV avec adresse)
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'trip-reminders',
+    cron:  '30 19 * * *',           // 19h30 — check-lists de voyage / clients pas validées ; appel à J-2
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'flight-mail-import',
+    cron:  '*/15 * * * *',          // billets d'avion arrivés dans la boîte pro → agenda + check-list
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'goals',
     cron:  '0 9 * * *',             // 9h (Bruxelles) — point quotidien sur chaque objectif + actions proposées
     tz:    'Europe/Brussels',
@@ -453,6 +477,10 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'mail-reply-call':         async () => { await jobMailReplyCall(); },
   'car-papers-call':         async () => { await jobCarPapersCall(); },
   'rental-eve-call':         async () => { await jobRentalEveCall(); },
+  'morning-routine':         async () => { await jobMorningRoutine(); },
+  'departure-watch':         async () => { await jobDepartureWatch(); },
+  'trip-reminders':          async () => { await jobTripReminders(); },
+  'flight-mail-import':      async () => { await jobFlightMailImport(); },
   'missions':                async () => { await jobMissions(); },
   'meeting-prep':            async () => { await jobMeetingPrep(); },
   'intentions':              async () => { await jobIntentions(); },

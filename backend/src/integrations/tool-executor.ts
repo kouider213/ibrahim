@@ -391,6 +391,8 @@ async function _dispatch(
       case 'web_routine':               return await webRoutineTool(input);
       case 'whatsapp_web':              return await whatsappWebTool(input, sessionId);
       case 'business_mentor':           return await businessMentorTool(input, sessionId);
+      case 'morning_routine':           return await (await import('./morning-routine.js')).morningRoutineTool(input, sessionId);
+      case 'travel':                    return await (await import('./trips.js')).travelTool(input, sessionId);
       case 'kouider_dossier':           return await kouiderDossierTool(input, sessionId);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));
       case 'run_self_test':             return input['what'] === 'backup_now'

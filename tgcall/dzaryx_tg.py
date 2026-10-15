@@ -643,6 +643,24 @@ async def on_message(_, msg: Message) -> None:
                  msg.from_user.username if msg.from_user else '?')
         return
     try:
+        if msg.location:                                     # position (ou position EN DIRECT) → trajets + trafic
+            await api('/api/call/location', {'lat': msg.location.latitude, 'lng': msg.location.longitude}, actor, 15)
+            await msg.reply_text('📍 Position reçue. Si tu la partages « en direct » (jusqu\'à ce que tu l\'arrêtes), '
+                                 'je calcule tes trajets avec le trafic depuis là où tu es et je vois si tu es bien parti.')
+            return
+        if msg.document and ((msg.document.mime_type or '') == 'application/pdf' or (msg.document.file_name or '').lower().endswith('.pdf')):
+            await app.send_chat_action(uid, enums.ChatAction.TYPING)
+            path = await msg.download(file_name=tempfile.mktemp(prefix='dzpdf_', suffix='.pdf'))
+            try:
+                text = subprocess.run(['pdftotext', '-layout', path, '-'], capture_output=True, text=True, timeout=30).stdout
+            finally:
+                os.unlink(path)
+            name = msg.document.file_name or 'document.pdf'
+            body = (f"[Document PDF reçu sur Telegram : « {name} ». Si c'est un billet d'avion / une carte d'embarquement, "
+                    f"enregistre-le avec l'outil travel (add_trip).]\n{msg.caption or ''}\n\n{text.strip()[:9000] or '(PDF sans texte lisible)'}")
+            out = await api('/api/call/turn', {'message': body, 'textOnly': True, 'channel': 'message'}, actor, 120)
+            await msg.reply_text(out.get('text') or '…')
+            return
         if msg.voice or msg.audio:
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzin_', suffix='.ogg'))
             b64 = base64.b64encode(Path(path).read_bytes()).decode()
@@ -687,6 +705,19 @@ async def on_message(_, msg: Message) -> None:
     except Exception as e:
         log.error('message échoué: %s', e)
         await msg.reply_text('Petit souci technique, réessaie dans un instant.')
+
+
+@app.on_edited_message(pfilters.private & pfilters.incoming)
+async def on_edited(_, msg: Message) -> None:
+    """Position en direct : Telegram modifie le même message à chaque déplacement."""
+    uid = msg.from_user.id if msg.from_user else 0
+    actor = peer_actor.get(uid)
+    if actor is None or not msg.location:
+        return
+    try:
+        await api('/api/call/location', {'lat': msg.location.latitude, 'lng': msg.location.longitude}, actor, 15)
+    except Exception as e:
+        log.warning('position en direct: %s', e)
 
 
 async def reply_voice_pcm(msg: Message, pcm: bytes) -> None:

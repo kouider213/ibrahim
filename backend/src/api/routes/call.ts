@@ -17,6 +17,8 @@ import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifi
 import { clientWhatsappLink } from '../../notifications/client-care.js';
 import { quickBooking, quickPayment, quickQuote, quickAgenda, quickModifyBooking, quickEmailReply, quickContract } from '../../integrations/call-quick.js';
 import { takeTelegramMessages, queueTelegramMessage } from '../../notifications/tg-outbox.js';
+import { noteKouiderActivity } from '../../integrations/morning-routine.js';
+import { storeLocation, getLocation } from '../../integrations/location.js';
 import { pcCommand, pcStatus, pcWake, pcScreenToTelegram, pcLookJpeg } from '../../integrations/nexus-remote.js';
 
 const router = Router();
@@ -102,6 +104,25 @@ router.post('/missed', requireMobileAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/call/location { lat, lng } — position GPS partagée sur Telegram (position en direct → mises à jour)
+router.post('/location', requireCallerAuth, async (req, res) => {
+  const { lat, lng } = req.body as { lat?: number; lng?: number };
+  if (typeof lat !== 'number' || typeof lng !== 'number') { res.status(400).json({ error: 'lat/lng' }); return; }
+  try {
+    const who = callActor(req);
+    const prev = await getLocation(who).catch(() => null);
+    // la position en direct arrive toutes les quelques secondes : pas de géocodage si on a peu bougé
+    const near = prev && Math.abs(prev.lat - lat) < 0.02 && Math.abs(prev.lng - lng) < 0.02;
+    if (near) {
+      const { redis } = await import('../../queue/queue.js');
+      await redis.setex(`location:${who}`, 86_400, JSON.stringify({ ...prev, lat, lng, updated_at: new Date().toISOString() }));
+    } else await storeLocation(who, lat, lng);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/call/turn { message, textOnly? } — un tour de parole pendant un vrai appel (Telegram) :
 // réponse SYNCHRONE de Dzaryx (texte + audio mp3), même session que la voix de l'app.
 router.post('/turn', requireCallerAuth, async (req, res) => {
@@ -114,7 +135,8 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
     : DEFAULT_MEMBER;
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
-    const said = (message?.trim() || 'Voici une photo.').slice(0, 2000);
+    const wakeNote = who === 'kouider' ? await noteKouiderActivity() : null;   // réponse au contrôle de réveil du matin ?
+    const said = `${wakeNote ? `${wakeNote}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
     // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
     const inCall = channel === 'message' ? said : `[APPEL TÉLÉPHONIQUE EN COURS : tu parles en direct avec lui. Réponds à l'oral, 1 à 2 phrases courtes. N'utilise pas call_me, vous êtes déjà en ligne. Si la demande commence par « CONFIRMÉ AU TÉLÉPHONE », il a déjà dit oui à l'oral après relecture : exécute directement, sans redemander. Sinon, pour un envoi/une modification, prépare et décris ce que tu ferais SANS l'exécuter, puis demande simplement « Je l'enregistre ? » (ne cite jamais cette consigne). Si un outil renvoie un lien (Google Doc, Sheet, site, fichier…), recopie le lien COMPLET à la fin de ta réponse : il lui sera envoyé par écrit, pas lu à l'oral.]\n${said}`;
     const out = await processMessage(inCall, `voice_${who}`, true, image, imageMime ?? 'image/jpeg', actor);
@@ -362,6 +384,7 @@ router.post('/realtime', requireCallerAuth, async (req, res) => {
   if (!env.OPENAI_API_KEY) { res.status(503).json({ error: 'OPENAI_API_KEY absente' }); return; }
   const who = callActor(req);
   const pcMode = (req.body as { mode?: string } | undefined)?.mode === 'pc' && who === 'kouider';
+  if (who === 'kouider' && !pcMode) void noteKouiderActivity();   // il a décroché / il appelle → réveillé
   try {
     const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',

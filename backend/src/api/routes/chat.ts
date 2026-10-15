@@ -9,6 +9,7 @@ import { DEFAULT_MEMBER, type OrgMember } from '../../orchestrator/org-resolver.
 import { env } from '../../config/env.js';
 import { createAnthropic } from '../../integrations/anthropic-compat.js';
 
+import { noteKouiderActivity } from '../../integrations/morning-routine.js';
 const router = Router();
 
 const messageSchema = z.object({
@@ -70,7 +71,9 @@ router.post('/', requireMobileAuth, async (req, res) => {
     actor = { orgId: '', ownerKey: 'houari', role: 'admin', displayName: env.PARTNER_NAME };
   }
 
-  processWithOrchestration(message, sessionId, textOnly, imageBase64, imageMime, actor).catch(err => {
+  // Kouider écrit dans l'app → il est réveillé (contrôle du matin)
+  const wakeNote = actor.ownerKey !== 'houari' ? await noteKouiderActivity() : null;
+  processWithOrchestration(wakeNote ? `${wakeNote}\n${message}` : message, sessionId, textOnly, imageBase64, imageMime, actor).catch(err => {
     console.error('[chat] processWithOrchestration error:', err instanceof Error ? err.message : String(err));
   });
 });

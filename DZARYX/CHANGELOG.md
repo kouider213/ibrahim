@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-10-15 (15) — Routine du matin, départs avec trafic, voyages + check-lists
+- `integrations/morning-routine.ts` : sport chaque matin sauf jeudi (ouverture 6h30), douche + petit-déj ; message de réveil
+  + motivation (Fatima, Ibrahim, santé, business, mental, citation) à l'heure du réveil ; pas de réponse → appel à +7 min,
+  rappel +20 min. Pause/vacances/réglages : outil `morning_routine`. Séries « 🏋️ Sport », « 🚿 Douche » créées dans l'agenda
+  FIK + adresses sur « ✈️ Belgique — travail » et « 🏠 Maison » (une fois, flag `routine:calendar:v1`).
+- `integrations/departures.ts` (job departure-watch */5) : pour chaque RDV de l'agenda avec adresse, heure de départ selon
+  le trafic Google, message 15 min avant, appel si pas parti (GPS Telegram en direct, sinon pas de réponse).
+- `integrations/trips.ts` : outil `travel` (billet → vol + « être à l'aéroport » dans l'agenda, check-list, pause routine),
+  check-lists clients auto (début/fin de location), rappels 19h30 dès J-5, appel J-2 ; billets dans la boîte pro importés
+  (flight-mail-import */15). Appel de veille 18h : ajoute ce qui manque à la check-list client.
+- tgcall : position (et position en direct) → `/api/call/location` ; PDF reçus → texte → Dzaryx.
+
 ## 2026-10-15 (14) — Agenda FIK réorganisé (3 h libres / jour) + créneaux RDV
 - Séries renommées pour le bonhomme : « ✈️ Belgique — travail », « 🏢 Agence FIK — business Algérie », « 🏠 Maison — temps famille ».
 - Raccourcies (business + famille seulement, travail inchangé) pour libérer 3 h/jour → séries « 🟢 Libre — RDV possibles »

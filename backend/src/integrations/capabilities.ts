@@ -18,7 +18,7 @@ const CATEGORIES: Array<[string, RegExp]> = [
   ['Clients', /client|_reviews?$|arrival_pattern/],
   ['Marketing et réseaux sociaux', /tiktok|social|competitor/],
   ['Mails, documents et tableaux', /email|gmail|google_doc|google_sheet|document|presentation_doc/],
-  ['Agenda, rappels et appels', /calendar|event|reminder|^call_me$|alarm|meeting|telegram|whatsapp/],
+  ['Agenda, rappels et appels', /calendar|event|reminder|^call_me$|alarm|meeting|telegram|whatsapp|morning_routine|^travel$/],
   ['Recherche et infos du monde', /web_search|fetch_url|weather|football|news|currency|browser|location/],
   ['Mémoire, apprentissage et missions', /memory|remember|recall|learn|rule|feedback|improvement|preference|conversation|private_mode|intention|mission|goal|task|procedure|habit|obsidian|capabilit/],
 ];

@@ -106,7 +106,8 @@ export async function jobRentalEveCall(): Promise<void> {
     const { data: sig } = await supabase.from('contract_signatures').select('status').eq('booking_id', b.id).eq('status', 'signed').limit(1);
     const contract = sig?.length ? '' : ' Le contrat n\'est pas encore signé.';
     const papers = (await paperWarning(b.car_id, tomorrow).catch(() => '')).replace(/^⚠️ PAPIERS : /, ' Attention, ').replace(', avant la fin de la location.', ' !');
-    parts.push(`Départ : ${b.client_name} prend la ${carOf(b)} demain.${leftToPay(b)}${contract}${papers}`);
+    const list = await (await import('../../integrations/trips.js')).clientChecklistMissing(b.id, 'booking-start').catch(() => '');
+    parts.push(`Départ : ${b.client_name} prend la ${carOf(b)} demain.${leftToPay(b)}${contract}${papers}${list}`);
   }
   for (const b of returns) {
     const { data: next } = await supabase.from('bookings').select('client_name, start_date')
@@ -116,7 +117,8 @@ export async function jobRentalEveCall(): Promise<void> {
     const after = n
       ? ` Elle repart ${n.start_date === tomorrow ? 'le jour même' : `le ${new Date(`${n.start_date}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })}`} avec ${n.client_name}.`
       : '';
-    parts.push(`Retour : ${b.client_name} rend la ${carOf(b)} demain.${leftToPay(b)}${after}`);
+    const listR = await (await import('../../integrations/trips.js')).clientChecklistMissing(b.id, 'booking-end').catch(() => '');
+    parts.push(`Retour : ${b.client_name} rend la ${carOf(b)} demain.${leftToPay(b)}${after}${listR}`);
   }
   const intro = [departs.length ? plural(departs.length, 'départ') : '', returns.length ? plural(returns.length, 'retour') : ''].filter(Boolean).join(' et ');
   await autoCall(`rental-eve:${tomorrow}`, `Pour demain, ${intro}. ${parts.join(' ')} Tu veux que je prépare un message pour un client, le contrat à signer, ou une proposition de prolongation ?`);
