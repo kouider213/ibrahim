@@ -56,7 +56,7 @@ export function phantomGuard(
   // Y a-t-il au moins un outil write qui a réussi ?
   // whatsapp_web : seul un vrai envoi (« ✅ Envoyé… ») compte, pas une lecture ni une relecture
   const hasSuccessfulWriteTool = toolsExecuted.some(t => WRITE_TOOLS.has(t.name) && t.success
-    && (t.name !== 'whatsapp_web' || /^\s*✅/.test(t.result ?? '')));
+    && (t.name !== 'whatsapp_web' || /^\s*✅ Envoyé/.test(t.result ?? '')));
   if (hasSuccessfulWriteTool) return text;
 
   // ⛔ PHANTOM DÉTECTÉ
