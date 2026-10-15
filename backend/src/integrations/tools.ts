@@ -876,7 +876,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   // ─── AGENDA DE KOUIDER = agenda FIK (fikconciergerie@gmail.com) — jamais l'agenda perso ──
   {
     name: 'create_agenda_event',
-    description: 'Ajouter un RDV avec heure dans l\'agenda de Kouider = agenda FIK (fikconciergerie@gmail.com) : RDV client, garage, banque, aéroport, appel prospect, voyage, rappel… Utiliser quand Kouider dit "mets dans mon agenda", "ajoute un RDV", "note ce rendez-vous". Dzaryx n\'a PAS accès à l\'agenda perso de Kouider (kouiderpablo@gmail.com) et ne doit jamais y toucher. Pour une RÉSERVATION de voiture : create_calendar_event.',
+    description: 'Ajouter un RDV avec heure dans l\'agenda de Kouider = agenda FIK (fikconciergerie@gmail.com) : RDV client, garage, banque, aéroport, appel prospect, voyage, rappel… Utiliser quand Kouider dit "mets dans mon agenda", "ajoute un RDV", "note ce rendez-vous". Mets le lieu dans location quand il le donne ; s\'il ne le donne pas et que c\'est un lieu physique, crée quand même le RDV et propose en une phrase de l\'ajouter (jamais obligatoire) : avec une adresse, Dzaryx le prévient tout seul de l\'heure de départ avec le trafic + Waze. Dzaryx n\'a PAS accès à l\'agenda perso de Kouider (kouiderpablo@gmail.com) et ne doit jamais y toucher. Pour une RÉSERVATION de voiture : create_calendar_event.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -904,7 +904,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'update_agenda_event',
-    description: 'MODIFIER un RDV de l\'agenda FIK de Kouider : déplacer (nouvelle date ET heure), renommer, changer le lieu ou les notes. Appeler list_agenda_events d\'abord pour avoir l\'id. Ex : "décale mon RDV banque à 16h", "mets le garage à jeudi 10h".',
+    description: 'MODIFIER un RDV de l\'agenda FIK de Kouider : déplacer (nouvelle date ET heure), renommer, changer le lieu ou les notes. Appeler list_agenda_events d\'abord pour avoir l\'id. Ex : "décale mon RDV banque à 16h", "mets le garage à jeudi 10h". Quand Kouider donne l\'adresse d\'un RDV (souvent après « … n\'a pas d\'adresse dans l\'agenda »), la mettre dans location : Dzaryx le prévient alors tout seul de l\'heure de départ avec le trafic + Waze.',
     input_schema: {
       type: 'object' as const,
       properties: {

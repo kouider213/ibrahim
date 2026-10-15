@@ -53,6 +53,17 @@ async function drive(o: LatLng, d: LatLng): Promise<{ min: number; normal: numbe
 
 interface DepState { warnedAt?: number; warnMin?: number; leaveBy?: number; updated?: boolean; called?: boolean; done?: boolean; originAtWarn?: LatLng }
 
+/** RDV sans adresse (ponctuel, pas un appel/visio) : une seule question ~3 h avant pour pouvoir prévenir du départ. */
+async function askAddress(id: string, title: string, start: number, now: number, recurring: boolean): Promise<void> {
+  if (recurring || start - now > 3 * 3600_000 || start - now < 20 * 60_000) return;
+  if (/^(🟢|🏠|🚿|⏰|🚗|🏋️|✈️|🧳)/u.test(title) || /\b(appel|call|visio|zoom|meet|teams|t[ée]l[ée]phone|en ligne|libre|anniv)/i.test(title)) return;
+  const key = `dep:ask:${id}`;
+  if (await kvGet(key).catch(() => '1')) return;
+  await kvSet(key, '1', 86_400);
+  const name = title.replace(/^[^\p{L}\d]+/u, '').trim();
+  await queueTelegramMessage(`📍 « ${name} » à ${hm(start)} n'a pas d'adresse dans l'agenda. Envoie-la-moi (ou le nom du lieu) : je l'ajoute et je te dis quand partir, avec le trafic et le lien Waze.`);
+}
+
 /** Toutes les 5 min (4h–23h Bruxelles). */
 export async function jobDepartureWatch(): Promise<void> {
   await ensureRoutineStart().catch(() => {});
@@ -68,8 +79,9 @@ export async function jobDepartureWatch(): Promise<void> {
   if (!origin) return;
 
   for (const e of evs) {
-    if (!e.id || !e.location || !e.start.dateTime || e.transparency === 'transparent') continue;
+    if (!e.id || !e.start.dateTime || e.transparency === 'transparent') continue;
     const title = e.summary ?? 'RDV';
+    if (!e.location?.trim()) { await askAddress(e.id, title, Date.parse(e.start.dateTime), now, !!e.recurringEventId); continue; }
     if (/^(🟢|🏠|🚿|⏰)/u.test(title) || /laekenveld/i.test(e.location)) continue;
     const routineTrip = /wemmel|werrie/i.test(e.location) || /^(🏋️|✈️ Belgique)/u.test(title);
     // pause « sport » (ex. il commence lundi) : seules les alertes salle sautent, le travail reste prévenu
@@ -94,7 +106,7 @@ export async function jobDepartureWatch(): Promise<void> {
     const leaveBy = start - (t.min + (airport ? 0 : 5)) * 60_000;
     const name = title.replace(/^[^\p{L}\d]+/u, '').split(' — ')[0]!.trim();
     const traffic = t.min - t.normal >= 5 ? ` 🔴 trafic chargé (+${t.min - t.normal} min)` : t.min - t.normal >= 2 ? ' 🟡 un peu de trafic' : ' 🟢 fluide';
-    const maps = `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving`;
+    const maps = `🧭 Waze : https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes\n🗺️ Maps : https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving`;
 
     if (!st.warnedAt && now >= leaveBy - 15 * 60_000) {
       const text = `🚗 ${name} à ${hm(start)} — pars à ${hm(leaveBy)}.\n⏱ ${t.min} min de route (${t.km} km),${traffic}.${fresh ? '' : ' (calculé depuis la maison)'}\n${maps}`;
