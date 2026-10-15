@@ -2550,6 +2550,21 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'whatsapp_web',
+    description: "Le WHATSAPP BUSINESS de Kouider (+32 466 31 14 69), connecté au PC cloud : lire les messages des clients et leur RÉPONDRE après son accord. Chaque nouveau message non lu arrive tout seul avec une réponse proposée. action='unread' : non lus + réponses proposées. 'read' + chat : lire une discussion (la marque comme lue). 'drafts' : réponses en attente. 'send' + chat (+ text, sinon la réponse proposée) : 1) SANS confirmed → relecture, demande « je l'envoie ? » ; 2) après son OUI clair seulement → confirmed:true avec le même chat et le même texte. Jamais sans son accord, jamais de premier message à un inconnu ni d'envoi en masse. 'status' : connecté ? 'connect' : donne un code pour (re)connecter WhatsApp. Pour « j'ai des messages WhatsApp ? », « qu'est-ce que Karim m'a écrit ? », « réponds-lui que… », « envoie la réponse ».",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['unread', 'read', 'drafts', 'send', 'status', 'connect'] },
+        chat: { type: 'string', description: 'Nom du contact tel que dans WhatsApp, ou numéro' },
+        text: { type: 'string', description: 'Message à envoyer (send)' },
+        count: { type: 'number', description: 'Nombre de messages à lire (read, défaut 15)' },
+        confirmed: { type: 'boolean', description: 'true seulement après le oui de Kouider sur la relecture' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'business_mentor',
     description: "Ton CONSEILLER BUSINESS (homme d'affaires qui a réussi) : chaque jour travaillé il appelle Kouider avec UNE proposition (idée, nouveau projet, plan, personne à contacter, risque, opportunité), analysée avec les chiffres FIK + recherche web. action='new' : nouvelle analyse maintenant (focus = sujet facultatif : « l'immobilier à Oran », « comment doubler le CA cet été ») — résultat sur Telegram + app. 'history' : les dernières propositions. 'show' : le détail d'une proposition. 'paper' : « mets-le sur papier » → business plan complet en Google Docs envoyé par Telegram. 'execute' : « vas-y, exécute » → plan validé, Dzaryx le suit chaque semaine. 'reject' : on laisse tomber. idea = id ou mots du titre (vide = la dernière). Pour « donne-moi une idée », « un plan pour… », « ton idée d'hier, mets-la sur papier », « exécute ».",
     input_schema: {

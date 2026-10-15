@@ -5,6 +5,7 @@
  * Signature: DZX-FK-OAN-2024-K7X9M2Q1
  */
 import { businessMentorTool } from './business-mentor.js';
+import { whatsappWebTool } from './whatsapp-web.js';
 import { kouiderDossierTool } from './kouider-dossier.js';
 import { supabase } from './supabase.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
@@ -385,6 +386,7 @@ async function _dispatch(
       case 'cloud_pc':                  return await cloudPcTool(input);
       case 'watch_page':                return await watchPageTool(input);
       case 'web_routine':               return await webRoutineTool(input);
+      case 'whatsapp_web':              return await whatsappWebTool(input, sessionId);
       case 'business_mentor':           return await businessMentorTool(input, sessionId);
       case 'kouider_dossier':           return await kouiderDossierTool(input, sessionId);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));

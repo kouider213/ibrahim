@@ -29,6 +29,8 @@ from pathlib import Path
 
 import socketio
 
+import whatsapp_web
+
 ROOT = Path(__file__).resolve().parent.parent
 for line in (ROOT / '.env').read_text(encoding='utf-8').splitlines() if (ROOT / '.env').exists() else []:
     k, _, v = line.partition('=')
@@ -535,6 +537,17 @@ async def watch_downloads() -> None:
             log.warning('surveillance téléchargements : %s', e)
 
 
+@sio.on('cloud:wa', namespace=NS)
+@safe
+async def on_wa(d):
+    return await asyncio.wait_for(whatsapp_web.action(d), 90)
+
+
+async def wa_emit(event: str, data: dict) -> None:
+    if sio.connected:
+        await sio.emit(event, data, namespace=NS)
+
+
 @sio.event(namespace=NS)
 async def connect():
     log.info('connecté à %s%s', BACKEND, NS)
@@ -549,6 +562,7 @@ async def main() -> None:
     if not TOKEN:
         raise SystemExit('PC_AGENT_TOKEN manquant dans .env')
     asyncio.create_task(watch_downloads())
+    asyncio.create_task(whatsapp_web.watch(wa_emit))
     delay = 2
     while True:
         try:

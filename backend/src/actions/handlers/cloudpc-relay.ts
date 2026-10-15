@@ -24,6 +24,28 @@ export function initCloudPcRelay(io: SocketServer): void {
     socket.on('cloud:new_file', (f: { name?: string; size?: number; url?: string | null }) => {
       void onNewFile(f).catch(err => console.error('[CLOUDPC] nouveau fichier:', err instanceof Error ? err.message : err));
     });
+    socket.on('cloud:wa_new', (c: { name: string; preview: string; unread: number; time: string }) => {
+      void import('../../integrations/whatsapp-web.js').then(m => m.onWaNew(c))
+        .catch(err => console.error('[CLOUDPC] WhatsApp:', err instanceof Error ? err.message : err));
+    });
+    socket.on('cloud:wa_code', (c: { code?: string }) => {
+      if (!c.code) return;
+      void import('../../notifications/tg-outbox.js').then(({ queueTelegramMessage }) => queueTelegramMessage(
+        `🔗 Nouveau code WhatsApp : ${c.code}\nWhatsApp Business → Paramètres → Appareils connectés → Connecter un appareil → « Connecter plutôt avec un numéro de téléphone ».`)).catch(() => {});
+    });
+    socket.on('cloud:wa_state', (st: { logged_in?: boolean }) => {
+      void (async () => {
+        const { kvGet, kvSet } = await import('../../integrations/app-store.js');
+        const was = await kvGet('wa:web:logged_in').catch(() => null);
+        const now = st.logged_in ? '1' : '0';
+        await kvSet('wa:web:logged_in', now);
+        console.log(`[CLOUDPC] WhatsApp ${st.logged_in ? 'connecté' : 'déconnecté'}`);
+        const msg = was === now ? '' : st.logged_in
+          ? '✅ Ton WhatsApp Business est connecté au PC cloud. Je te préviens à chaque message client avec une réponse proposée — rien ne part sans ton accord.'
+          : was === '1' ? '⚠️ WhatsApp s\'est déconnecté du PC cloud. Dis « connecte mon WhatsApp » pour un nouveau code.' : '';
+        if (msg) await (await import('../../notifications/tg-outbox.js')).queueTelegramMessage(msg);
+      })().catch(() => {});
+    });
     socket.on('disconnect', reason => {
       if (_socket?.id === socket.id) _socket = null;
       console.warn(`[CLOUDPC] déconnecté (${reason})`);
