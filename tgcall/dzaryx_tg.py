@@ -24,7 +24,7 @@ import wave
 from pathlib import Path
 
 import aiohttp
-from pyrogram import Client, enums, filters as pfilters
+from pyrogram import Client, enums, filters as pfilters, raw
 from pyrogram.types import Message
 from pytgcalls import PyTgCalls, filters as cfilters
 from pytgcalls.types.raw import AudioParameters
@@ -643,10 +643,7 @@ async def on_message(_, msg: Message) -> None:
                  msg.from_user.username if msg.from_user else '?')
         return
     try:
-        if msg.location:                                     # position (ou position EN DIRECT) → trajets + trafic
-            await api('/api/call/location', {'lat': msg.location.latitude, 'lng': msg.location.longitude}, actor, 15)
-            await msg.reply_text('📍 Position reçue. Si tu la partages « en direct » (jusqu\'à ce que tu l\'arrêtes), '
-                                 'je calcule tes trajets avec le trafic depuis là où tu es et je vois si tu es bien parti.')
+        if msg.location:                                     # position : traitée par on_raw_geo (voir plus bas)
             return
         if msg.document and ((msg.document.mime_type or '') == 'application/pdf' or (msg.document.file_name or '').lower().endswith('.pdf')):
             await app.send_chat_action(uid, enums.ChatAction.TYPING)
@@ -707,17 +704,34 @@ async def on_message(_, msg: Message) -> None:
         await msg.reply_text('Petit souci technique, réessaie dans un instant.')
 
 
-@app.on_edited_message(pfilters.private & pfilters.incoming)
-async def on_edited(_, msg: Message) -> None:
-    """Position en direct : Telegram modifie le même message à chaque déplacement."""
-    uid = msg.from_user.id if msg.from_user else 0
-    actor = peer_actor.get(uid)
-    if actor is None or not msg.location:
+@app.on_raw_update(group=-1)
+async def on_raw_geo(client, update, users, chats) -> None:
+    """Position (et position EN DIRECT) lue en brut : Pyrogram ne parse pas une position en direct
+    « jusqu'à ce que je l'arrête » (période infinie) → msg.location vide. Telegram modifie le même
+    message à chaque déplacement (UpdateEditMessage)."""
+    if not isinstance(update, (raw.types.UpdateNewMessage, raw.types.UpdateEditMessage)):
+        return
+    m = update.message
+    media = getattr(m, 'media', None)
+    if getattr(m, 'out', True) or not isinstance(media, (raw.types.MessageMediaGeo, raw.types.MessageMediaGeoLive)):
+        return
+    if not isinstance(getattr(m, 'peer_id', None), raw.types.PeerUser):
+        return
+    geo = media.geo
+    actor = peer_actor.get(m.peer_id.user_id)
+    if actor is None or not isinstance(geo, raw.types.GeoPoint):
         return
     try:
-        await api('/api/call/location', {'lat': msg.location.latitude, 'lng': msg.location.longitude}, actor, 15)
+        await api('/api/call/location', {'lat': geo.lat, 'lng': geo.long}, actor, 15)
+        if isinstance(update, raw.types.UpdateNewMessage):
+            live = isinstance(media, raw.types.MessageMediaGeoLive)
+            log.info('position %s reçue de %s', 'en direct' if live else 'fixe', actor)
+            await client.send_message(m.peer_id.user_id, '📍 Position en direct reçue. Je calcule tes trajets avec le trafic '
+                                      'depuis là où tu es et je vois si tu es bien parti.' if live else
+                                      '📍 Position reçue. Pour que je suive tes départs, partage-la « en direct » '
+                                      '(jusqu\'à ce que tu l\'arrêtes).')
     except Exception as e:
-        log.warning('position en direct: %s', e)
+        log.warning('position: %s', e)
 
 
 async def reply_voice_pcm(msg: Message, pcm: bytes) -> None:
