@@ -106,11 +106,19 @@ export class GmailNotConnectedError extends Error {}
 async function gmailGet<T>(address: string, path: string, params?: Record<string, unknown>): Promise<T> {
   const token = await getGmailToken(address);
   if (!token) throw new GmailNotConnectedError(address);
-  const { data } = await axios.get<T>(`${GMAIL_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` }, params, timeout: 15_000,
-    paramsSerializer: { indexes: null },  // metadataHeaders=From&metadataHeaders=Subject…
-  });
-  return data;
+  // Gmail renvoie 429 (« too many concurrent requests ») en rafale : on attend et on réessaie (2 s, 4 s, 8 s)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const { data } = await axios.get<T>(`${GMAIL_BASE}${path}`, {
+        headers: { Authorization: `Bearer ${token}` }, params, timeout: 15_000,
+        paramsSerializer: { indexes: null },  // metadataHeaders=From&metadataHeaders=Subject…
+      });
+      return data;
+    } catch (err) {
+      if (attempt >= 3 || !axios.isAxiosError(err) || err.response?.status !== 429) throw err;
+      await new Promise(r => setTimeout(r, 2000 * 2 ** attempt + Math.random() * 500));
+    }
+  }
 }
 
 type Header = { name: string; value: string };
@@ -295,7 +303,10 @@ export async function listInboxMessages(account: GmailAccount, query: string, ma
   const list = await gmailGet<{ messages?: { id: string }[] }>(address, '/messages', {
     q: `${query} -from:me`, maxResults: Math.min(Math.max(max, 1), 100),
   });
-  return Promise.all((list.messages ?? []).map(async ({ id }) => {
+  // Par paquets de 5 : 50 requêtes d'un coup déclenchaient le 429 de Gmail (prospect-replies a planté le 16/10)
+  const ids = (list.messages ?? []).map(m => m.id);
+  const out: InboxMessage[] = [];
+  for (let i = 0; i < ids.length; i += 5) out.push(...await Promise.all(ids.slice(i, i + 5).map(async id => {
     const m = await gmailGet<{ id: string; threadId: string; internalDate?: string; payload?: { headers?: Header[] } }>(
       address, `/messages/${id}`, { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Message-ID'] });
     const from = header(m.payload?.headers, 'From');
@@ -306,7 +317,8 @@ export async function listInboxMessages(account: GmailAccount, query: string, ma
       messageId: header(m.payload?.headers, 'Message-ID'),
       date: Number(m.internalDate ?? 0),
     };
-  }));
+  })));
+  return out;
 }
 
 /** Message-ID (en-tête RFC) d'un mail de la boîte — pour y répondre dans la même conversation. */

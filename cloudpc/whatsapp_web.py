@@ -42,7 +42,11 @@ JS_CHATS = r"""(() => {
       .find(l => /non lu|unread/i.test(l || '')) || '';
     const n = parseInt((badge.match(/\d+/) || ['0'])[0], 10) || (badge ? 1 : 0);
     const time = ((r.innerText || '').split('\n').find(l => /^\d{1,2}:\d{2}$|^hier$|^\d{2}\/\d{2}\/\d{4}$/i.test(l.trim())) || '').trim();
-    return { name, preview, unread: n, time };
+    // Coches ✓/✓✓ devant l'aperçu = le dernier message vient de NOUS (ex. message d'accueil auto WhatsApp Business)
+    const st = r.querySelector('[data-testid="last-msg-status"]');
+    const out = !!st && [...st.querySelectorAll('svg title, [data-icon]')]
+      .some(e => /ic-(read|delivered|sent|pending|check|dblcheck|clock)|msg-(check|dblcheck|time)|status-(check|dblcheck|time)/i.test(e.getAttribute('data-icon') || e.textContent || ''));
+    return { name, preview, unread: n, time, out };
   }).filter(c => c.name);
 })()"""
 

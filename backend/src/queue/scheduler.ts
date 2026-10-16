@@ -525,7 +525,7 @@ async function runJob(name: string, slot: string): Promise<void> {
 
 // Coupure réseau passagère (ex. « timeout of 15000ms exceeded ») sur une tâche qui repasse dans moins de 2 h :
 // pas d'appel au 1er échec, seulement si l'essai suivant échoue aussi.
-const TRANSIENT_RE = /timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|socket hang up|fetch failed|\b50[234]\b/i;
+const TRANSIENT_RE = /timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|socket hang up|fetch failed|\b429\b|\b50[234]\b/i;
 
 async function firstTransientFailure(name: string, msg: string): Promise<boolean> {
   if (!TRANSIENT_RE.test(msg)) return false;

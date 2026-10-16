@@ -17,7 +17,7 @@ const DRAFTS_KEY = 'wa:drafts';
 const PREVIEW_KEY = 'wa:send:preview';
 const DELICATE_RE = /accident|accroch|panne|crev[ée]|police|gendarm|vol[ée]e?\b|amende|fourri[èe]re|bless|urgence|urgent|حادث|عطب|شرطة|سرقة/i;
 
-export interface WaChat { name: string; preview: string; unread: number; time: string }
+export interface WaChat { name: string; preview: string; unread: number; time: string; out?: boolean }
 interface Draft { chat: string; preview: string; draft: string; at: string }
 
 async function drafts(): Promise<Record<string, Draft>> {
@@ -36,6 +36,16 @@ export async function onWaNew(c: WaChat): Promise<void> {
   const name = String(c.name ?? '').slice(0, 80);
   const preview = String(c.preview ?? '').slice(0, 600);
   if (!name) return;
+  if (c.out) {
+    // Aperçu = NOTRE dernier message (message d'accueil auto WhatsApp Business) : le texte du client est caché derrière.
+    // Pas de « réponse proposée » à notre propre message, pas d'appel « nouvelle demande » sur une devinette.
+    const text = `📲 WhatsApp — ${name} : ${c.unread > 1 ? `${c.unread} nouveaux messages` : 'nouveau message'}.\n`
+      + `Ton message d'accueil automatique est parti, il cache le texte du client dans la liste (je n'ouvre pas la discussion pour qu'elle reste « non lue » sur ton téléphone).\n`
+      + `Dis-moi « lis WhatsApp ${name} » et je te prépare la réponse.`;
+    await queueTelegramMessage(text).catch(() => {});
+    emitProactive(`WhatsApp — ${name} : nouveau message`, 'info', text);
+    return;
+  }
   // On se base sur l'aperçu (dernier message) : ouvrir la discussion la marquerait comme lue sur son téléphone.
   let summary = preview, reply = '', kind = 'autre';
   try {
