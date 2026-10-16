@@ -92,7 +92,7 @@ class RealtimeCall:
         self.tasks.append(asyncio.create_task(self._reader()))
         self.tasks.append(asyncio.create_task(self._sender()))
         self.full_instr, self.guest_instr = res.get('instructions') or '', res.get('guestInstructions') or ''
-        if self.guest_instr and speaker.available() and speaker.known() > 0:
+        if self.guest_instr and speaker.available() and speaker.known() > 0 and speaker.guard_on():
             self.guarded, self.who = True, '?'
             await self._session(self.guest_instr, auto=False)   # rien d'automatique tant qu'on ne sait pas qui parle
         log.info('voix temps réel connectée%s', ' (vérification de la voix)' if self.guarded else '')

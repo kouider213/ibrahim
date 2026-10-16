@@ -672,6 +672,7 @@ async def heartbeat() -> None:
 
 # ── Messages privés ──────────────────────────────────────────────────────────
 
+GUARD_CMD = re.compile(r'^v[ée]rif(?:ication)?\s+(?:de\s+la\s+)?voix\s+(on|off|oui|non)$', re.I)
 PASSCODE_CMD = re.compile(r'^code secret\s*[:=]?\s*(\S.{1,40})$', re.I)
 
 
@@ -765,6 +766,11 @@ async def on_message(_, msg: Message) -> None:
                 pass
             await app.send_message(uid, '🔐 Code secret enregistré (message effacé). Si un jour je ne reconnais pas ta voix '
                                         'au téléphone, je te le demanderai.')
+        elif msg.text and GUARD_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
+            on = GUARD_CMD.match(msg.text.strip()).group(1).lower() in ('on', 'oui')
+            speaker.set_guard(on)
+            await app.send_message(uid, '🔐 Vérification de la voix ACTIVÉE : au téléphone je vérifie que c\'est toi avant de parler affaires.'
+                                   if on else '🔓 Vérification de la voix désactivée : ton compte Telegram suffit, je te parle direct.')
         elif msg.text and VOICE_CMD.match(msg.text.strip()):
             await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:

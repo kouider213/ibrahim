@@ -124,8 +124,25 @@ def identify(vec: np.ndarray) -> tuple[str, float, float]:
 
 
 # ── Code secret (déverrouillage si la voix n'est pas reconnue) ──────────────
+def _norm(code: str) -> str:
+    # « FIK. », « f-i-k » → « fik » (la transcription ajoute ponctuation, espaces, accents)
+    import unicodedata
+    code = unicodedata.normalize('NFKD', code.lower())
+    return ''.join(c for c in code if c.isalnum())
+
+
 def _h(code: str) -> str:
-    return hashlib.sha256(''.join(code.lower().split()).encode()).hexdigest()
+    return hashlib.sha256(_norm(code).encode()).hexdigest()
+
+
+def _variants(code: str) -> set[str]:
+    # tolère une voyelle mal transcrite (« fek » pour « fik ») sur un code court
+    c = _norm(code)
+    out = {c}
+    for i, ch in enumerate(c):
+        if ch in 'aeiouy':
+            out |= {c[:i] + v + c[i + 1:] for v in 'aeiouy'}
+    return out
 
 
 def set_passcode(code: str) -> None:
@@ -135,7 +152,23 @@ def set_passcode(code: str) -> None:
 
 def check_passcode(code: str) -> bool:
     f = PRINTS / 'passcode'
-    return f.exists() and bool(code.strip()) and f.read_text().strip() == _h(code)
+    if not f.exists() or not _norm(code):
+        return False
+    h = f.read_text().strip()
+    return any(hashlib.sha256(v.encode()).hexdigest() == h for v in _variants(code))
+
+
+GUARD = PRINTS / 'guard_on'
+
+
+def guard_on() -> bool:
+    # vérification de la voix au téléphone : désactivée par défaut (son compte Telegram suffit), « vérif voix on » pour l'activer
+    return GUARD.exists()
+
+
+def set_guard(on: bool) -> None:
+    PRINTS.mkdir(exist_ok=True)
+    GUARD.touch() if on else GUARD.unlink(missing_ok=True)
 
 
 def has_passcode() -> bool:
