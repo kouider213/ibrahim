@@ -13,7 +13,7 @@ import { kvGet, kvSet, kvDel } from './app-store.js';
 import { trackTokenUsage } from '../monitoring/cost-tracker.js';
 import { createAnthropic, QUALITY } from './anthropic-compat.js';
 import { proposeProspectWhatsapp } from './prospect-whatsapp.js';
-import { getProspectMode, discoverSiteProspects, sendSiteOutreach, writeSiteFollowUp, handleSiteReply } from './site-prospecting.js';
+import { getProspectMode, discoverSiteProspects, sendSiteOutreach, writeSiteFollowUp, handleSiteReply, isBelgian } from './site-prospecting.js';
 
 // Démarchage automatique FIK Conciergerie : chaque jour Dzaryx trouve de nouvelles sociétés (web, LinkedIn,
 // annuaires), leur écrit un mail personnalisé avec le lien du site, puis surveille les réponses.
@@ -81,14 +81,14 @@ const TARGETS: Array<{ segment: ProspectSegment; label: string; abroad?: boolean
   { segment: 'agence_voyage', label: 'agences de voyage et tour-opérateurs qui envoient des voyageurs à Oran (ils vendent nos packs logement + voiture à leurs clients)', queries: [
     'agence de voyage Oran séjour contact email', 'tour opérateur Algérie séjours Oran email contact',
     'agence voyage omra tourisme Alger contact email' ] },
-  { segment: 'agence_voyage', abroad: true, label: 'agences de voyage en France/Belgique spécialisées Algérie (diaspora, vacances d\'été à Oran)', queries: [
-    'agence de voyage spécialiste Algérie Paris contact email', 'agence voyage Algérie Bruxelles contact email',
+  { segment: 'agence_voyage', abroad: true, label: 'agences de voyage en France spécialisées Algérie (diaspora, vacances d\'été à Oran)', queries: [
+    'agence de voyage spécialiste Algérie Paris contact email', 'agence voyage Algérie Marseille contact email',
     'agence voyage Oran depuis Lyon Marseille contact email' ] },
   { segment: 'organisme', label: 'organismes qui font venir des visiteurs à Oran : organisateurs de séminaires et salons, universités et colloques, ONG, consulats', queries: [
     'organisateur séminaire congrès Oran contact email', 'salon professionnel Oran organisateur contact email',
     'université Oran colloque international contact email', 'agence événementielle Oran contact email' ] },
-  { segment: 'organisme', abroad: true, label: 'associations de la diaspora algérienne en France/Belgique (membres qui viennent à Oran l\'été)', queries: [
-    'association franco-algérienne Oran contact email', 'association diaspora algérienne Belgique contact email' ] },
+  { segment: 'organisme', abroad: true, label: 'associations de la diaspora algérienne en France (membres qui viennent à Oran l\'été)', queries: [
+    'association franco-algérienne Oran contact email', 'association diaspora algérienne Lyon contact email' ] },
   { segment: 'loueur_voitures', partner: true, label: 'loueurs de voitures à Oran (PARTENAIRES : sous-location en haute saison, échange de clients)', queries: [
     'location voiture Oran agence contact email', 'location de voiture aéroport Oran contact email' ] },
   { segment: 'autre', partner: true, label: 'agences immobilières, résidences et appart-hôtels à Oran (PARTENAIRES : logements pour nos clients)', queries: [
@@ -402,8 +402,9 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
 
   // Commerces sans site web : le 1er mail propose seulement une démo (faite et envoyée s'ils répondent oui)
   if (sitesN > 0) {
-    const pickSites = async () => ((await supabase.from('prospects').select('*').eq('status', 'a_contacter').eq('segment', 'site_web')
-      .not('email', 'is', null).is('last_contacted_at', null).order('created_at').limit(sitesN)).data ?? []) as Prospect[];
+    const pickSites = async () => (((await supabase.from('prospects').select('*').eq('status', 'a_contacter').eq('segment', 'site_web')
+      .not('email', 'is', null).is('last_contacted_at', null).order('created_at').limit(sitesN * 2)).data ?? []) as Prospect[])
+      .filter(p => !isBelgian(p)).slice(0, sitesN);
     let sites = await pickSites();
     if (sites.length < sitesN) {
       await discoverSiteProspects(sitesN - sites.length).catch(err => console.error('[prospect-auto] recherche sites:', err));
@@ -539,6 +540,7 @@ export async function runFollowUps(budget: number): Promise<string[]> {
     .order('last_contacted_at').limit(max);
   const lines: string[] = [];
   for (const p of (data ?? []) as Prospect[]) {
+    if (isBelgian(p)) continue;  // plus de démarchage en Belgique (Kouider 16/10/2026)
     try {
       const ref = p.ref_code ?? newRefCode();
       const isSite = p.segment === 'site_web';

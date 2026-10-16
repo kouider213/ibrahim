@@ -20,7 +20,7 @@ import { rdvLink } from './rdv-booking.js';
 const MODEL      = 'claude-sonnet-5-5';
 const ACCOUNT: GmailAccount = 'pro';
 const FROM_NAME  = 'Kouider - FIK Sites';
-const SIGNATURE  = 'Kouider\nFIK Sites — création de sites web';
+const SIGNATURE  = 'Kouider\nFIK Sites — Sites web pour commerces et artisans\nFrance · Algérie';
 const FOOTER     = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
 const DAILY_CAP  = 30;
 const EMAIL_RE   = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
@@ -32,12 +32,22 @@ const CITIES_KEY = 'siteprospect:cities';
 const infoKey    = (id: string) => `siteprospect:${id}`;
 
 export type ProspectMode = 'sites' | 'conciergerie' | 'both';
-// Belgique, France et Algérie mélangées : chaque jour la rotation tombe sur les 3 pays (demande de Kouider 15/10/2026)
+// France et Algérie seulement, mélangées : plus de démarchage en Belgique (demande de Kouider 16/10/2026)
 export const DEFAULT_CITIES = [
-  'Bruxelles, Belgique', 'Paris, France', 'Oran, Algérie', 'Liège, Belgique', 'Lille, France', 'Alger, Algérie',
-  'Charleroi, Belgique', 'Lyon, France', 'Constantine, Algérie', 'Namur, Belgique', 'Marseille, France', 'Tlemcen, Algérie',
-  'Mons, Belgique', 'Roubaix, France', 'Annaba, Algérie', 'Anderlecht, Belgique', 'Toulouse, France', 'Sétif, Algérie',
+  'Paris, France', 'Oran, Algérie', 'Lille, France', 'Alger, Algérie', 'Lyon, France', 'Constantine, Algérie',
+  'Marseille, France', 'Tlemcen, Algérie', 'Roubaix, France', 'Annaba, Algérie', 'Toulouse, France', 'Sétif, Algérie',
+  'Saint-Denis, France', 'Blida, Algérie', 'Nice, France', 'Mostaganem, Algérie', 'Bordeaux, France', 'Béjaïa, Algérie',
 ];
+// Belgique exclue : ni nouvelle ville, ni premier mail, ni relance (les réponses déjà reçues restent traitées)
+const BE_RE = /belgi|bruxelles|brussel|li[eè]ge|charleroi|namur|mons\b|anderlecht|anvers|antwerp|gand|gent\b|schaerbeek|molenbeek|ixelles|louvain|leuven|verviers|tournai|mouscron|la louvi[eè]re|wavre|seraing|\+32/i;
+export const isBelgian = (p: { city?: string | null; phone?: string | null; email?: string | null }) =>
+  BE_RE.test(`${p.city ?? ''} ${p.phone ?? ''}`) || /\.be$/i.test(p.email ?? '');
+/** Pays du commerce d'après la liste des villes (pour adapter le mail). */
+async function countryOf(city: string | null | undefined): Promise<string> {
+  const c = (city ?? '').toLowerCase();
+  const hit = [...await getSiteCities(), ...DEFAULT_CITIES].find(x => x.toLowerCase().startsWith(c));
+  return hit?.split(',')[1]?.trim() ?? '';
+}
 const CATEGORIES = [
   'restaurant', 'coiffeur', 'barbier', 'institut de beauté', 'garage automobile', 'boulangerie pâtisserie', 'pizzeria',
   'snack', 'boucherie', 'fleuriste', 'traiteur', 'auto-école', 'pressing', 'épicerie fine', 'café', 'photographe',
@@ -56,10 +66,14 @@ export async function getProspectMode(): Promise<ProspectMode> {
 }
 export async function setProspectMode(m: ProspectMode): Promise<void> { await kvSet(MODE_KEY, m); }
 export async function getSiteCities(): Promise<string[]> {
-  try { const v = JSON.parse((await kvGet(CITIES_KEY)) ?? 'null'); if (Array.isArray(v) && v.length) return v.map(String); } catch { /* défaut */ }
+  try {
+    const v = JSON.parse((await kvGet(CITIES_KEY)) ?? 'null');
+    const ok = Array.isArray(v) ? v.map(String).filter(c => !BE_RE.test(c)) : [];
+    if (ok.length) return ok;
+  } catch { /* défaut */ }
   return DEFAULT_CITIES;
 }
-export async function setSiteCities(cities: string[]): Promise<void> { await kvSet(CITIES_KEY, JSON.stringify(cities.slice(0, 20))); }
+export async function setSiteCities(cities: string[]): Promise<void> { await kvSet(CITIES_KEY, JSON.stringify(cities.filter(c => !BE_RE.test(c)).slice(0, 20))); }
 export async function getSiteInfo(id: string): Promise<SiteProspectInfo | null> {
   try { return JSON.parse((await kvGet(infoKey(id))) ?? 'null') as SiteProspectInfo | null; } catch { return null; }
 }
@@ -77,6 +91,8 @@ function parseJson<T>(text: string): T | null {
   try { return JSON.parse(m[0]) as T; } catch { return null; }
 }
 const stamp = () => new Date().toISOString().slice(0, 10);
+/** Retire une signature que le modèle aurait ajoutée malgré la consigne (sinon elle apparaît en double). */
+const stripSig = (body: string) => body.trim().replace(/(\n\s*(cordialement|bien à vous|bien cordialement|belle journée)?[,.]?\s*\n?\s*kouider[^\n]*(\n[^\n]*fik[^\n]*)?)\s*$/i, '').trim();
 const addNote = (p: Prospect, line: string) => [p.notes, `[${stamp()}] ${line}`].filter(Boolean).join('\n');
 
 // ── 1. Trouver des commerces sans site (Google Maps) avec un e-mail public ──
@@ -172,23 +188,34 @@ export async function discoverSiteProspects(wanted: number): Promise<number> {
 // ── 2. Premier mail : on propose une démo gratuite (rien d'autre) ──
 export async function writeSiteOutreach(p: Prospect): Promise<{ subject: string; body: string; lang: string } | null> {
   const info = await getSiteInfo(p.id);
+  const country = await countryOf(p.city);
   const out = parseJson<{ subject: string; body: string }>(await ask(
     `Tu écris le PREMIER mail de Kouider (FIK Sites, création de sites web pour commerces) à un commerce qui n'a PAS de site internet. ` +
-    `But unique : obtenir un « oui » pour lui envoyer une DÉMO GRATUITE de son futur site, préparée avec les infos de sa fiche Google ` +
-    `(nom, adresse, horaires, photos, avis). Aucun engagement.\n` +
-    `STYLE : français, vouvoiement, chaleureux et direct, texte brut, 80 à 130 mots, paragraphes courts. Pas de formules creuses, ` +
-    `pas de mots spam (gratuit en majuscules, urgent, offre exceptionnelle), pas de prix, aucune fausse référence.\n` +
-    `STRUCTURE : 1) accroche personnalisée sur SON commerce (métier, quartier, sa bonne note Google s'il y en a une) ; 2) constat simple : ` +
-    `sans site, les clients qui le cherchent sur Google ne trouvent pas ${'menu/prestations, horaires, photos ni moyen de réserver ou de le contacter facilement'} ; ` +
-    `3) proposition : on lui prépare une démo de son site, sans engagement ; 4) appel à l'action : « Répondez simplement oui à ce mail et je vous l'envoie. »\n` +
-    `Pas de signature ni de lien dans "body". OBJET : 4 à 8 mots, avec le nom du commerce, sans clickbait.\n` +
+    `But unique : qu'il réponde « oui » pour recevoir une DÉMO de son futur site, préparée avec les infos de sa fiche Google ` +
+    `(nom, adresse, horaires, photos, avis). Sans engagement, rien à payer pour voir la démo.\n` +
+    `TON : professionnel, confiant et humain — un artisan du web qui a VRAIMENT regardé son commerce, pas une agence qui envoie en masse. ` +
+    `Français, vouvoiement, texte brut, 90 à 140 mots, phrases courtes, paragraphes de 1 à 2 lignes, facile à lire sur téléphone.\n` +
+    `STRUCTURE :\n` +
+    `1) Ouverture : « Bonjour, » puis une première phrase qui ne parle QUE de lui, précise et flatteuse sans excès (son métier, sa rue/son quartier, ` +
+    `sa note Google et son nombre d'avis s'ils sont bons : « 4,7/5 sur 120 avis, vos clients vous adorent »). Jamais « Je me permets de vous contacter ».\n` +
+    `2) Le manque, concret et visuel : un client le cherche sur Google ${country === 'Algérie' ? 'ou Instagram ' : ''}le soir, tombe sur une simple fiche, ` +
+    `ne voit ni ${'menu/prestations'}, ni photos, ni moyen de réserver… et va chez le concurrent qui a un site. Une ou deux phrases, sans exagérer ni chiffre inventé.\n` +
+    `3) Ce qu'on propose, en bénéfices : un site moderne à son image, qui s'affiche bien sur téléphone, avec ses horaires, ses photos, ses avis, ` +
+    `un bouton pour appeler / WhatsApp / réserver — et qu'on lui prépare d'abord une démo pour qu'il juge sur pièce.\n` +
+    `4) Appel à l'action très simple, en une ligne seule : « Répondez simplement “oui” à ce mail et je vous envoie votre démo. »\n` +
+    `5) Un « PS : » court qui lève l'objection (aucun engagement, la démo est faite avec sa fiche Google, ça ne lui prend pas une minute).\n` +
+    `INTERDIT : formules creuses (« à l'ère du numérique », « n'hésitez pas »), mots spam (GRATUIT en majuscules, urgent, offre exceptionnelle, promo, !!!), ` +
+    `emojis, prix, fausse référence ou faux client, promesse chiffrée (x2 clients…), affirmer que la démo est déjà faite.\n` +
+    `Pas de signature ni de lien dans "body".\n` +
+    `OBJET : 3 à 7 mots, personnel, intrigant, avec le nom du commerce, comme un mail écrit à la main (ex. : « Une idée pour ${p.company} », ` +
+    `« ${p.company} mérite son site »). Varie, pas de majuscules partout, pas de point d'exclamation.\n` +
     `Réponds UNIQUEMENT en JSON {"subject":"…","body":"…"}.`,
-    `Commerce : ${p.company} — ${p.city}${info?.address ? `, ${info.address}` : ''}\nCe qu'on sait : ${p.notes ?? ''}` +
+    `Commerce : ${p.company} — ${p.city}${country ? ` (${country})` : ''}${info?.address ? `, ${info.address}` : ''}\nCe qu'on sait : ${p.notes ?? ''}` +
     `${info?.rating ? `\nNote Google : ${info.rating}/5 (${info.ratings ?? 0} avis)` : ''}${info?.social ? `\nIl a seulement : ${info.social}` : ''}`,
-    900,
+    1000,
   ));
   if (!out?.subject?.trim() || !out.body?.trim()) return null;
-  return { subject: out.subject.trim().replace(/[\r\n]+/g, ' '), body: `${out.body.trim()}\n\n${SIGNATURE}${FOOTER}`, lang: 'fr' };
+  return { subject: out.subject.trim().replace(/[\r\n]+/g, ' '), body: `${stripSig(out.body)}\n\n${SIGNATURE}${FOOTER}`, lang: 'fr' };
 }
 
 export async function sendSiteOutreach(p: Prospect): Promise<string | null> {
@@ -204,12 +231,14 @@ export async function sendSiteOutreach(p: Prospect): Promise<string | null> {
 
 export async function writeSiteFollowUp(p: Prospect): Promise<string | null> {
   const out = parseJson<{ body: string }>(await ask(
-    'Tu écris une RELANCE très courte (2-3 phrases, 35 à 60 mots, français, vouvoiement, texte brut) de Kouider (FIK Sites) à un commerce ' +
-    'sans site internet qui n\'a pas répondu à sa proposition de démo gratuite (premier mail fourni). Ton léger, jamais insistant. ' +
-    'Rappelle que la démo est déjà faisable avec sa fiche Google et qu\'il suffit de répondre « oui ». Pas de signature. JSON {"body":"…"}.',
+    'Tu écris une RELANCE très courte (3 phrases max, 35 à 60 mots, français, vouvoiement, texte brut, sans emoji) de Kouider (FIK Sites) à un commerce ' +
+    'sans site internet qui n\'a pas répondu à sa proposition de démo (premier mail fourni). Commence par « Bonjour, » puis une phrase humaine ' +
+    '(« je me doute que vos journées sont bien remplies »), un angle NOUVEAU par rapport au 1er mail (ex. : ses clients qui veulent voir ses photos ' +
+    'ou ses horaires avant de venir, ou un bouton WhatsApp/réservation), puis : il suffit de répondre « oui » pour voir sa démo, sans engagement. ' +
+    'Ton léger, confiant, jamais insistant ni culpabilisant ; pas de « je reviens vers vous » ni « n\'hésitez pas ». Pas de signature. JSON {"body":"…"}.',
     `Commerce : ${p.company}\n\nPremier mail :\n${(p.last_sent_text ?? '').slice(0, 2000)}`, 400,
   ));
-  return out?.body?.trim() ? `${out.body.trim()}\n\n${SIGNATURE}${FOOTER}` : null;
+  return out?.body?.trim() ? `${stripSig(out.body)}\n\n${SIGNATURE}${FOOTER}` : null;
 }
 
 // ── 3. Réponse reçue ──
