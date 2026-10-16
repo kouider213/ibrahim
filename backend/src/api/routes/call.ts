@@ -189,7 +189,7 @@ async function realtimeVoice(): Promise<string> {
 // Lectures RAPIDES pendant l'appel : outils en lecture seule exécutés directement (sans le cerveau complet,
 // qui prend 5 à 15 s). Toute action / tout le reste passe toujours par ask_dzaryx.
 const QUICK_TOOLS = ['list_bookings', 'get_fleet_status', 'check_car_availability', 'get_unpaid_bookings',
-  'get_finance_dashboard', 'list_emails', 'read_email',
+  'get_finance_dashboard', 'list_emails', 'read_email', 'read_email_thread',
   'check_client', 'get_expenses', 'get_vehicle_maintenance', 'get_car_papers', 'web_search'] as const;
 const quickToolDefs = Dzaryx_TOOLS
   .filter(t => (QUICK_TOOLS as readonly string[]).includes(t.name))

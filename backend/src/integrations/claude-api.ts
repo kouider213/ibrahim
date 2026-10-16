@@ -160,7 +160,7 @@ const CORE_TOOLS = new Set([
   'get_revenue_report', 'get_daily_report', 'record_expense', 'get_expenses',
   // Communication, agenda, mails
   'send_whatsapp_to_client', 'send_telegram_message', 'call_me', 'schedule_reminder',
-  'list_emails', 'read_email', 'draft_email', 'send_email', 'create_calendar_event', 'list_calendar_events',
+  'list_emails', 'read_email', 'read_email_thread', 'read_email_attachment', 'manage_emails', 'draft_email', 'send_email', 'create_calendar_event', 'list_calendar_events',
   // Mémoire et PC
   'remember_info', 'recall_memory', 'search_conversations', 'create_intention', 'list_intentions',
   'set_private_mode', 'show_my_memory', 'send_nexus_command', 'nexus_screenshot', 'ping_nexus',

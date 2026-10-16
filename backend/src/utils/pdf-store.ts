@@ -3,15 +3,16 @@ import { randomUUID } from 'crypto';
 interface PdfEntry {
   buffer: Buffer;
   filename: string;
+  mime?: string;
   expiresAt: number;
 }
 
 const store = new Map<string, PdfEntry>();
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-export function storePdf(buffer: Buffer, filename: string): string {
+export function storePdf(buffer: Buffer, filename: string, mime?: string): string {
   const token = randomUUID();
-  store.set(token, { buffer, filename, expiresAt: Date.now() + TTL_MS });
+  store.set(token, { buffer, filename, mime, expiresAt: Date.now() + TTL_MS });
   return token;
 }
 

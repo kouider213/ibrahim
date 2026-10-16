@@ -620,7 +620,14 @@ async def start_realtime(actor: str, user_id: int) -> bool:
 async def send_outbox_message(uid: int, m: dict) -> None:
     try:
         text = (m.get('text') or '')[:4000]
-        if m.get('image'):
+        if m.get('file'):      # pièce jointe d'un mail… : lien temporaire du backend → document Telegram
+            async with aiohttp.ClientSession() as http:
+                async with http.get(m['file']['url'], timeout=aiohttp.ClientTimeout(total=60)) as r:
+                    r.raise_for_status()
+                    doc = io.BytesIO(await r.read())
+            doc.name = (m['file'].get('name') or 'fichier')[:120]
+            await app.send_document(uid, doc, caption=text[:1000] or None)
+        elif m.get('image'):
             photo = io.BytesIO(base64.b64decode(m['image'])); photo.name = 'pc.jpg'
             await app.send_photo(uid, photo, caption=text[:1000] or None)
         elif text:

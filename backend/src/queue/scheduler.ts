@@ -65,6 +65,7 @@ import { jobCloudWatch, jobCloudRoutines } from '../integrations/cloud-watch.js'
 import { jobMorningRoutine } from '../integrations/morning-routine.js';
 import { jobDepartureWatch } from '../integrations/departures.js';
 import { jobTripReminders, jobFlightMailImport } from '../integrations/trips.js';
+import { jobMailDigest } from '../integrations/mail-digest.js';
 
 const SCHEDULER_QUEUE = 'in-process';
 
@@ -381,6 +382,11 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'mail-digest',
+    cron:  '0 20 * * *',            // 20h — résumé des mails du jour sur Telegram (importants, prospects, sans réponse ≥ 3 j)
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'flight-mail-import',
     cron:  '*/15 * * * *',          // billets d'avion arrivés dans la boîte pro → agenda + check-list
     tz:    'Europe/Brussels',
@@ -481,6 +487,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'departure-watch':         async () => { await jobDepartureWatch(); },
   'trip-reminders':          async () => { await jobTripReminders(); },
   'flight-mail-import':      async () => { await jobFlightMailImport(); },
+  'mail-digest':             async () => { await jobMailDigest(); },
   'missions':                async () => { await jobMissions(); },
   'meeting-prep':            async () => { await jobMeetingPrep(); },
   'intentions':              async () => { await jobIntentions(); },

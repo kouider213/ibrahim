@@ -435,7 +435,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     'record_lead', 'list_leads', 'update_lead_status', 'match_lead', 'get_daily_report',
     'generate_image', 'transform_image', 'remove_background', 'search_images',
     'create_signature_link', 'apply_dynamic_pricing', 'estimate_damage',
-    'list_emails', 'read_email', 'connect_gmail', 'draft_email', 'send_email',
+    'list_emails', 'read_email', 'read_email_thread', 'read_email_attachment', 'manage_emails', 'connect_gmail', 'draft_email', 'send_email',
     'create_google_doc', 'create_google_sheet',
     'add_prospect', 'list_prospects', 'update_prospect', 'prospect_replies', 'prospect_autopilot',
     'call_me', 'create_mission', 'list_missions', 'update_mission', 'run_mission_now', 'prepare_meeting',

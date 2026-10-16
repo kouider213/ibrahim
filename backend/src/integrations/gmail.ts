@@ -9,9 +9,11 @@ const GMAIL_BASE       = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SCOPE_READ       = 'https://www.googleapis.com/auth/gmail.readonly';
 const SCOPE_SEND       = 'https://www.googleapis.com/auth/gmail.send';
+// modify : marquer lu, archiver, mettre à la corbeille (jamais de suppression définitive)
+const SCOPE_MODIFY     = 'https://www.googleapis.com/auth/gmail.modify';
 // drive.file : seulement les Docs/Sheets créés par Dzaryx (pas d'accès au reste du Drive)
 export const SCOPE_DRIVE_FILE = 'https://www.googleapis.com/auth/drive.file';
-const GMAIL_SCOPE      = `${SCOPE_READ} ${SCOPE_SEND} ${SCOPE_DRIVE_FILE}`;
+const GMAIL_SCOPE      = `${SCOPE_READ} ${SCOPE_SEND} ${SCOPE_MODIFY} ${SCOPE_DRIVE_FILE}`;
 // Même callback que l'agenda → aucune nouvelle URI à déclarer dans Google Cloud
 const REDIRECT_URI     = () => env.GOOGLE_REDIRECT_URI ?? 'https://ibrahim-backend-production.up.railway.app/api/calendar/callback';
 export const GMAIL_STATE_PREFIX = 'gmail:';
@@ -153,7 +155,18 @@ export async function listEmails(
   }));
 }
 
-interface Part { mimeType?: string; body?: { data?: string }; parts?: Part[] }
+interface Part { mimeType?: string; filename?: string; body?: { data?: string; attachmentId?: string; size?: number }; parts?: Part[] }
+
+export interface EmailAttachment { attachmentId: string; filename: string; mimeType: string; size: number }
+
+function extractAttachments(part: Part | undefined, out: EmailAttachment[] = []): EmailAttachment[] {
+  if (!part) return out;
+  if (part.filename && part.body?.attachmentId) {
+    out.push({ attachmentId: part.body.attachmentId, filename: part.filename, mimeType: part.mimeType ?? 'application/octet-stream', size: part.body.size ?? 0 });
+  }
+  for (const p of part.parts ?? []) extractAttachments(p, out);
+  return out;
+}
 
 function decodeB64Url(s: string): string {
   return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8');
@@ -184,22 +197,90 @@ function htmlToText(html: string): string {
     .replace(/\n{3,}/g, '\n\n').trim();
 }
 
-export async function readEmail(account: GmailAccount, id: string, maxChars = 6000) {
-  const address = gmailAddress(account);
-  const m = await gmailGet<{ id: string; payload?: Part & { headers?: Header[] } }>(
-    address, `/messages/${encodeURIComponent(id)}`, { format: 'full' });
+type FullMessage = { id: string; threadId: string; labelIds?: string[]; internalDate?: string; payload?: Part & { headers?: Header[] } };
+
+function parseFull(m: FullMessage, maxChars: number) {
   const { text, html } = extractBody(m.payload);
-  let body = (text.trim() || htmlToText(html)).trim();
+  // Caractères invisibles des pré-en-têtes de newsletters (͏, zero-width…) → texte lisible
+  let body = (text.trim() || htmlToText(html))
+    .replace(/[\u034f\u00ad\u200b-\u200d\u2060\ufeff]/g, '').replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   const truncated = body.length > maxChars;
   if (truncated) body = body.slice(0, maxChars);
+  const h = m.payload?.headers;
   return {
-    id: m.id,
-    from: header(m.payload?.headers, 'From'),
-    to: header(m.payload?.headers, 'To'),
-    subject: header(m.payload?.headers, 'Subject') || '(sans objet)',
-    date: header(m.payload?.headers, 'Date'),
+    id: m.id, threadId: m.threadId,
+    from: header(h, 'From'), to: header(h, 'To'), replyTo: header(h, 'Reply-To'),
+    subject: header(h, 'Subject') || '(sans objet)',
+    date: header(h, 'Date'), messageId: header(h, 'Message-ID'),
+    sent: m.labelIds?.includes('SENT') ?? false,
+    attachments: extractAttachments(m.payload),
     body, truncated,
   };
+}
+
+export async function readEmail(account: GmailAccount, id: string, maxChars = 6000) {
+  const m = await gmailGet<FullMessage>(gmailAddress(account), `/messages/${encodeURIComponent(id)}`, { format: 'full' });
+  return parseFull(m, maxChars);
+}
+
+const QUOTE_RE = /\n(?:>.*\n?)+$|\n\s*(?:Le [\s\S]{5,200}?a écrit\s*:|On [\s\S]{5,200}?wrote\s*:|-{2,} ?(?:Original Message|Message d'origine)|De ?: .+\n(?:Envoyé|Date) ?:)[\s\S]*$/i;
+
+/** Toute la conversation d'un mail (du plus ancien au plus récent), citations retirées. */
+export async function readThread(account: GmailAccount, threadId: string, maxCharsPerMsg = 1500) {
+  const t = await gmailGet<{ messages?: FullMessage[] }>(gmailAddress(account), `/threads/${encodeURIComponent(threadId)}`, { format: 'full' });
+  return (t.messages ?? []).map(m => {
+    const p = parseFull(m, 20_000);
+    // Les réponses citent tout l'historique (« Le … a écrit : ») : on le coupe, il est déjà dans le fil
+    let body = p.body.replace(QUOTE_RE, '').trim() || p.body;
+    const truncated = body.length > maxCharsPerMsg;
+    if (truncated) body = body.slice(0, maxCharsPerMsg);
+    return { ...p, body, truncated };
+  });
+}
+
+/** Contenu d'une pièce jointe. */
+export async function getAttachment(account: GmailAccount, messageId: string, attachmentId: string): Promise<Buffer> {
+  const r = await gmailGet<{ data?: string }>(gmailAddress(account),
+    `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`);
+  return Buffer.from((r.data ?? '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+}
+
+// ── Rangement (permission gmail.modify) ───────────────────────
+
+export class GmailModifyNotAllowedError extends Error {}
+
+export async function canModifyEmail(account: GmailAccount): Promise<boolean> {
+  const { data } = await supabase
+    .from('google_oauth_tokens').select('scope')
+    .eq('email', tokenKey(gmailAddress(account))).maybeSingle();
+  return Boolean((data as { scope?: string } | null)?.scope?.includes(SCOPE_MODIFY));
+}
+
+export type MailAction = 'read' | 'unread' | 'archive' | 'trash' | 'inbox';
+
+/** Marque lu/non lu, archive, remet en boîte de réception ou met à la corbeille (récupérable 30 jours). */
+export async function modifyEmails(account: GmailAccount, ids: string[], action: MailAction): Promise<number> {
+  const address = gmailAddress(account);
+  if (!(await canModifyEmail(account))) throw new GmailModifyNotAllowedError(address);
+  const token = await getGmailToken(address);
+  if (!token) throw new GmailNotConnectedError(address);
+  const headers = { Authorization: `Bearer ${token}` };
+  if (!ids.length) return 0;
+  if (action === 'trash') {
+    for (const id of ids) await axios.post(`${GMAIL_BASE}/messages/${encodeURIComponent(id)}/trash`, {}, { headers, timeout: 15_000 });
+    return ids.length;
+  }
+  const labels = { read: { removeLabelIds: ['UNREAD'] }, unread: { addLabelIds: ['UNREAD'] },
+    archive: { removeLabelIds: ['INBOX'] }, inbox: { addLabelIds: ['INBOX'] } }[action];
+  await axios.post(`${GMAIL_BASE}/messages/batchModify`, { ids, ...labels }, { headers, timeout: 15_000 });
+  return ids.length;
+}
+
+/** IDs des mails correspondant à une recherche Gmail (pour ranger en lot). */
+export async function searchEmailIds(account: GmailAccount, query: string, max = 50): Promise<string[]> {
+  const r = await gmailGet<{ messages?: { id: string }[] }>(gmailAddress(account), '/messages', { q: query, maxResults: Math.min(Math.max(max, 1), 100) });
+  return (r.messages ?? []).map(m => m.id);
 }
 
 // ── Envoi ─────────────────────────────────────────────────────

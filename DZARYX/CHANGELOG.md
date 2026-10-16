@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-16 (4) — Mails : pièces jointes, conversation entière, réponse à tout mail, rangement, résumé du soir
+- `read_email` liste les pièces jointes ; `read_email_attachment` lit PDF (texte, sinon Claude), images (Claude), texte,
+  et peut envoyer le fichier sur Telegram (lien temporaire `/api/pdf/:token` → `tgcall` `send_document`).
+- `read_email_thread` : tout l'échange (citations retirées) + qui a écrit en dernier.
+- `draft_email.reply_to_email_id` : répondre dans le même fil à n'importe quel mail (pas seulement les prospects).
+- `manage_emails` : lu / non lu / archiver / corbeille / remettre en boîte, par IDs ou recherche. Scope `gmail.modify`
+  ajouté → reconnecter la boîte une fois (lien connect_gmail).
+- `mail-digest.ts` : 20h (Bruxelles) résumé Telegram + app : importants du jour, réponses prospects, sans réponse ≥ 3 j ;
+  rien d'important → pas de message.
+
 ## 2026-10-16 (3) — Ordres exécutés pour de vrai avant de rappeler
 - `integrations/call-tasks.ts` : `call_me` + `task` → le travail démarre tout de suite (business plan via le conseiller
   business, sinon agent lecture seule avec recherche web), résultat écrit sur Telegram/app, et dit à l'oral au rappel
