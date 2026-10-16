@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-10-16 — Appels : reconnaissance de la voix, confidentialité, famille, chant, recherche web
+- `tgcall/speaker.py` : empreinte vocale locale (sherpa-onnx + modèle 3D-Speaker CAM++ `tgcall/models/spk.onnx`, empreintes
+  dans `tgcall/voiceprints/`, non versionnés). Kouider s'apprend tout seul (ses vocaux Telegram non transférés + appels
+  reconnus ; 1er appel qu'il passe lui-même tant qu'aucune empreinte n'existe). « code secret … » sur Telegram = code de
+  secours (haché, message effacé).
+- `tgcall/realtime.py` : avec une empreinte connue, l'appel démarre en mode « qui parle ? » (accueil neutre, pas de réponse
+  auto, motif / messages en attente retenus) ; Kouider reconnu → consignes complètes + motif ; sinon consignes invitées
+  (aucune info business, outils bloqués sauf web_search / call_back_later / leave_message / learn_voice / verify_code /
+  end_call). Re-vérification toutes les 4 s de parole (téléphone passé à Fatima ou repris par Kouider).
+- `tgcall/dzaryx_tg.py` : outils call_back_later (rappel avec le vrai motif, jamais dit à la personne), leave_message,
+  learn_voice (Fatima apprise quand elle se présente), verify_code ; apprentissage de la voix en fin d'appel.
+- `routes/call.ts` : `guestInstructions()` (famille, Fatima chaleureuse, confidentialité), `HUMAN_RULES` (chanter
+  vraiment une berceuse, web_search en parallèle de la conversation, discuter comme un ami), web_search en lecture rapide ;
+  `/api/call/realtime` renvoie `instructions` + `guestInstructions`. `kouider-dossier.ts` : `familyText()`.
+  `call-memory.ts` : `speaker` sur les lignes (résumé dit qui a décroché).
+
 ## 2026-10-15 (15) — Routine du matin, départs avec trafic, voyages + check-lists
 - `integrations/morning-routine.ts` : sport chaque matin sauf jeudi (ouverture 6h30), douche + petit-déj ; message de réveil
   + motivation (Fatima, Ibrahim, santé, business, mental, citation) à l'heure du réveil ; pas de réponse → appel à +7 min,

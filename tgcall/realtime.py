@@ -19,6 +19,8 @@ import aiohttp
 from pytgcalls import PyTgCalls
 from pytgcalls.types import Device
 
+import speaker
+
 log = logging.getLogger('dzaryx-tg')
 
 IN_RATE = 24000                    # voix reçue de l'appel (RecordStream) et envoyée à OpenAI
@@ -28,6 +30,11 @@ SILENCE = b'\x00' * FRAME_10MS
 SEND_EVERY_S = 0.1                 # voix de Kouider envoyée à OpenAI par paquets de 100 ms
 VIDEO_FRESH_S = 2.0                # image caméra considérée « en direct » si reçue il y a moins de 2 s
 VIDEO_EVERY_S = 3.0                # au plus une image caméra envoyée à OpenAI toutes les 3 s
+CHECK_EVERY_S = 4.0                # voix re-vérifiée toutes les 4 s de parole (téléphone passé à quelqu'un d'autre ?)
+VOICE_KEEP_S = 30                  # au plus 30 s de sa voix gardées (vérification + apprentissage en fin d'appel)
+# Outils permis quand ce n'est PAS Kouider (sa femme, un proche, un inconnu) : rien qui touche à ses affaires
+GUEST_TOOLS = {'web_search', 'end_call', 'call_back_later', 'leave_message', 'learn_voice', 'verify_code'}
+NAMES = {'fatima': 'Fatima (sa femme)'}
 ROTATE = {90: 'transpose=1', 180: 'transpose=1,transpose=1', 270: 'transpose=2'}
 
 
@@ -63,6 +70,18 @@ class RealtimeCall:
         self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
         self.started = time.monotonic()
         self.interpreter = ''             # langue du client en mode interprète ('' = normal)
+        # Qui parle ? (reconnaissance de la voix, speaker.py) — 'kouider', un proche ('fatima'), 'inconnu' ou '?'
+        self.guarded = False              # voix de Kouider connue → on vérifie avant de parler affaires
+        self.who = 'kouider'
+        self.by_code = False              # déverrouillé par le code secret (pas par la voix → on n'apprend pas)
+        self.decided = asyncio.Event()
+        self.voice = bytearray()          # sa voix (24 kHz) pour la vérification
+        self.win = bytearray()            # voix depuis la dernière vérification
+        self.last_vec = None
+        self.full_instr = ''
+        self.guest_instr = ''
+        self.held_greeting = ''           # ce que Dzaryx devait dire (motif / messages en attente) : seulement à Kouider
+        self.held_outgoing = False
 
     # ── Connexion ────────────────────────────────────────────────────────────
     async def connect(self) -> None:
@@ -72,7 +91,11 @@ class RealtimeCall:
             headers={'Authorization': f"Bearer {res['key']}"}, heartbeat=20, max_msg_size=0)
         self.tasks.append(asyncio.create_task(self._reader()))
         self.tasks.append(asyncio.create_task(self._sender()))
-        log.info('voix temps réel connectée')
+        self.full_instr, self.guest_instr = res.get('instructions') or '', res.get('guestInstructions') or ''
+        if self.guest_instr and speaker.available() and speaker.known() > 0:
+            self.guarded, self.who = True, '?'
+            await self._session(self.guest_instr, auto=False)   # rien d'automatique tant qu'on ne sait pas qui parle
+        log.info('voix temps réel connectée%s', ' (vérification de la voix)' if self.guarded else '')
 
     def start_audio(self) -> None:
         """L'appel est décroché : on commence à jouer (au rythme réel)."""
@@ -93,6 +116,13 @@ class RealtimeCall:
 
     async def greet(self, text: str, outgoing: bool = False) -> None:
         """Dzaryx parle en premier (motif de l'appel, ou « je t'écoute »)."""
+        self.held_outgoing = outgoing
+        if self.guarded:   # on ne sait pas encore qui décroche : accueil neutre, le motif attend la voix de Kouider
+            self.held_greeting = text
+            text = 'Allô, Kouider ? C\'est Dzaryx.' if outgoing else 'Oui, allô ? Je t\'écoute.'
+            await self._send({'type': 'response.create', 'response': {
+                'instructions': f'Dis seulement, naturellement : « {text} » — rien d\'autre.'}})
+            return
         if outgoing:   # sinon « c'est toi qui m'as appelé » est compris comme une question sur ses appels
             await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system', 'content': [
                 {'type': 'input_text', 'text': f"C'est TOI (Dzaryx) qui appelles {self.actor.capitalize()}, il n'a pas appelé. "
@@ -104,6 +134,129 @@ class RealtimeCall:
     # ── Voix de Kouider → OpenAI ─────────────────────────────────────────────
     def feed(self, pcm24k: bytes) -> None:
         self.inp.extend(pcm24k)
+        self.voice.extend(pcm24k); self.win.extend(pcm24k)
+        cap = VOICE_KEEP_S * IN_RATE * 2
+        if len(self.voice) > cap:
+            del self.voice[:len(self.voice) - cap]
+        if len(self.win) > cap:
+            del self.win[:len(self.win) - cap]
+
+    # ── Qui parle ? ──────────────────────────────────────────────────────────
+    async def _session(self, instructions: str, auto: bool = True) -> None:
+        await self._send({'type': 'session.update', 'session': {'type': 'realtime', 'instructions': instructions,
+            'audio': {'input': {'turn_detection': {'type': 'semantic_vad', 'eagerness': 'high',
+                                                   'create_response': auto, 'interrupt_response': True}}}}})
+
+    def _identify(self, pcm: bytes) -> tuple[str | None, float]:
+        """→ ('kouider' | 'fatima' | 'inconnu' | None = pas encore sûr, score de Kouider)."""
+        v = speaker.voiced(pcm, IN_RATE)
+        secs = len(v) / (2 * IN_RATE)
+        vec = speaker.embed(v, IN_RATE) if secs >= 1.0 else None
+        if vec is None:
+            return None, 0.0
+        self.last_vec = vec
+        best, best_s, owner_s = speaker.identify(vec)
+        if owner_s >= speaker.MATCH:
+            who = 'kouider'
+        elif best and best != speaker.OWNER and best_s >= speaker.MATCH and best_s > owner_s + 0.1:
+            who = best
+        elif owner_s < speaker.REJECT and secs >= 2.0:
+            who = 'inconnu'
+        elif secs >= 8.0:                     # toujours pas sûr après 8 s → prudence
+            who = 'inconnu'
+        else:
+            who = None
+        log.info('voix : %s (%.1f s, kouider %.2f, meilleur %s %.2f)', who or '?', secs, owner_s, best, best_s)
+        return who, owner_s
+
+    async def _on_turn(self) -> None:
+        """Fin d'une phrase : tant qu'on ne sait pas qui parle, on vérifie avant de répondre."""
+        if not self.guarded:
+            return
+        if self.who == '?':
+            who, _ = await asyncio.to_thread(self._identify, bytes(self.voice))
+            self.win.clear()
+            if who:
+                await self._become(who)
+            else:   # pas encore sûr : réponse neutre, sans rien dévoiler
+                await self._send({'type': 'response.create', 'response': {'instructions':
+                    'Tu ne sais pas encore qui est au téléphone. Réponds en une phrase courte et neutre, sans aucune '
+                    'information (ex. « Oui, c\'est Dzaryx, l\'assistant de Kouider. C\'est qui à l\'appareil ? »).'}})
+            return
+        if len(speaker.voiced(bytes(self.win), IN_RATE)) / (2 * IN_RATE) < CHECK_EVERY_S:
+            return
+        pcm = bytes(self.win); self.win.clear()      # re-vérifie de temps en temps (téléphone passé ?)
+        who, owner_s = await asyncio.to_thread(self._identify, pcm)
+        if not who or who == self.who or (self.by_code and who == 'inconnu'):
+            return
+        if self.who == 'kouider' and owner_s >= speaker.REJECT:   # pour lui enlever la main, il faut être sûr
+            return
+        log.info('changement de voix : %s → %s', self.who, who)
+        await self._become(who, switched=True)
+
+    async def _become(self, who: str, switched: bool = False) -> None:
+        prev, self.who = self.who, who
+        self.decided.set()
+        if who == 'kouider':
+            await self._session(self.full_instr)
+            note = '🔐 VOIX : c\'est bien Kouider (voix reconnue). Mode normal : tu peux tout lui dire.'
+            if self.held_greeting:
+                note += (f' Ce que tu devais lui dire en décrochant : « {self.held_greeting} ». Dis-le maintenant, '
+                         'naturellement (sans redire allô), puis réponds à ce qu\'il vient de dire.')
+                if self.held_outgoing:
+                    note += ' C\'est TOI qui l\'as appelé (il n\'a pas appelé) : c\'est le motif de ton appel.'
+                self.held_greeting = ''
+            elif switched:
+                note += ' Il vient de reprendre le téléphone.'
+        else:
+            await self._session(self.guest_instr)
+            name = NAMES.get(who) or (who.capitalize() if who != 'inconnu' else '')
+            note = (f'🔒 VOIX : ce n\'est PAS Kouider. C\'est {name} (voix reconnue). ' if name else
+                    '🔒 VOIX : ce n\'est PAS Kouider (voix inconnue). Demande naturellement qui est à l\'appareil. ')
+            note += 'Ne dévoile AUCUNE information sur ses affaires ni sur le motif de l\'appel.'
+            if switched and prev == 'kouider':
+                note += ' Kouider a passé le téléphone : ne répète rien de ce qui a été dit avant.'
+            elif self.held_outgoing:
+                note += ' C\'est toi qui appelais Kouider : demande quand il sera disponible, puis call_back_later.'
+        await self._send({'type': 'conversation.item.create', 'item': {'type': 'message', 'role': 'system',
+                          'content': [{'type': 'input_text', 'text': note}]}})
+        await self._send({'type': 'response.create'})
+
+    async def learn_voice(self, name: str) -> str:
+        name = (name or '').strip().split()[0].lower() if (name or '').strip() else ''
+        if not name or name == speaker.OWNER:
+            return 'Prénom manquant (et la voix de Kouider s\'apprend toute seule).'
+        if self.last_vec is None:
+            return 'Pas encore assez entendu sa voix : continue de discuter, puis réessaie.'
+        await asyncio.to_thread(speaker.enroll, name, self.last_vec)
+        self.who = name
+        self.decided.set()
+        return f'✅ Voix de {name.capitalize()} retenue : la prochaine fois tu la reconnaîtras. Continue la conversation.'
+
+    async def verify_code(self, code: str) -> str:
+        if not speaker.has_passcode():
+            return 'Aucun code secret n\'a été défini : reste discret (Kouider peut en créer un sur Telegram : « code secret … »).'
+        if not speaker.check_passcode(code):
+            log.warning('code secret faux')
+            return 'Code faux. Reste aimable et discret, ne donne aucune information.'
+        self.by_code = True
+        asyncio.create_task(self._become('kouider'))
+        return '✅ Code correct : c\'est Kouider.'
+
+    def learn_at_end(self) -> None:
+        """Fin d'appel : la voix de Kouider s'affine — seulement si c'était sûrement lui (reconnu par sa voix,
+        ou, tant qu'aucune empreinte n'existe, quand c'est lui qui a appelé depuis son compte)."""
+        if self.actor != speaker.OWNER or not speaker.available() or self.by_code or self.who != 'kouider':
+            return
+        if not self.guarded and (speaker.known() or self.held_outgoing):
+            return
+        v = speaker.voiced(bytes(self.voice), IN_RATE)
+        if len(v) / (2 * IN_RATE) < speaker.MIN_ENROLL_S:
+            return
+        vec = speaker.embed(v, IN_RATE)
+        if vec is None or (self.guarded and speaker.identify(vec)[2] < speaker.MATCH):
+            return
+        speaker.enroll(speaker.OWNER, vec)
 
     async def _sender(self) -> None:
         while not self.closed:
@@ -187,6 +340,8 @@ class RealtimeCall:
                 self.responding = True
             elif t == 'response.done':
                 self.responding = False
+            elif t == 'input_audio_buffer.committed':
+                asyncio.create_task(self._on_turn())
             elif t == 'input_audio_buffer.speech_started':
                 asyncio.create_task(self.show_camera())
                 if self.out:
@@ -196,7 +351,10 @@ class RealtimeCall:
                 said = (ev.get('transcript') or '').strip()
                 log.info('%s a dit: %r', self.actor, said)
                 if said:
-                    self.lines.append({'role': 'user', 'text': said})
+                    line = {'role': 'user', 'text': said}
+                    if self.who not in ('kouider', '?'):
+                        line['speaker'] = NAMES.get(self.who) or ('inconnu' if self.who == 'inconnu' else self.who.capitalize())
+                    self.lines.append(line)
             elif t in ('response.output_audio_transcript.done', 'response.audio_transcript.done'):
                 said = (ev.get('transcript') or '').strip()
                 log.info('Dzaryx: %r', said[:200])
@@ -217,7 +375,17 @@ class RealtimeCall:
             args = {}
         t0 = time.monotonic()
         follow_up = True
-        if name in self.local_tools:
+        if self.guarded and name not in GUEST_TOOLS and self.who != 'kouider':
+            if self.who == '?':
+                try:
+                    await asyncio.wait_for(self.decided.wait(), 6)
+                except asyncio.TimeoutError:
+                    pass
+        if self.guarded and name not in GUEST_TOOLS and self.who != 'kouider':
+            log.warning('outil %s refusé : ce n\'est pas Kouider (%s)', name, self.who)
+            result = ('BLOQUÉ : ce n\'est pas Kouider au téléphone (voix pas reconnue). Ne donne AUCUNE information '
+                      'sur ses affaires. Reste naturel et discret.')
+        elif name in self.local_tools:
             try:
                 result, follow_up = await self.local_tools[name](args)
             except Exception as e:

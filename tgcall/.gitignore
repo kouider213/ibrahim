@@ -9,3 +9,5 @@ outbox/
 .watchdog.json
 .*.tmp
 watchdog.log
+voiceprints/
+models/

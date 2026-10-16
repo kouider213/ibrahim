@@ -35,6 +35,7 @@ from pytgcalls.types import (
 
 from ntgcalls import VideoRotation
 from realtime import IN_RATE, OUT_RATE, RealtimeCall, speak
+import speaker
 
 HERE = Path(__file__).parent
 
@@ -375,6 +376,10 @@ async def on_left(_, update: ChatUpdate) -> None:
 
 async def remember_call(user_id: int, actor: str, rt: RealtimeCall) -> None:
     """Mémoire des appels : résumé + choses à faire gardés par Dzaryx, et envoyés en message Telegram."""
+    try:
+        await asyncio.to_thread(rt.learn_at_end)
+    except Exception as e:
+        log.warning('apprentissage de la voix: %s', e)
     if not rt.lines:
         return
     try:
@@ -523,8 +528,43 @@ def call_tools(user_id: int) -> dict:
         log.info('interprète %s (%s)', 'ON' if args.get('on') else 'OFF', args.get('language', ''))
         return await st.rt.set_interpreter(bool(args.get('on')), str(args.get('language') or '')), True
 
+    async def call_back_later(args: dict) -> tuple[str, bool]:
+        """Quelqu'un d'autre a décroché : on rappelle Kouider plus tard avec le VRAI motif (jamais dit à la personne)."""
+        st = active.get(user_id)
+        held = strip_greeting(st.rt.held_greeting) if st and st.rt and st.rt.held_greeting else ''
+        who = (args.get('who_answered') or '').strip()
+        reason = held or 'Je te rappelle comme prévu.'
+        if who:
+            reason = f"{who} m'a dit que tu serais là. {reason}"
+        inp = {k: args[k] for k in ('delay_minutes', 'at_time', 'at_date') if args.get(k)}
+        if not inp:
+            return 'Il me faut une heure ou un délai (« vers 18h », « dans une heure »). Demande-le gentiment.', True
+        res = await api('/api/call/tool', {'name': 'call_me', 'input': {**inp, 'reason': reason}}, st.actor if st else 'kouider', 20)
+        return (res.get('text') or 'Rappel programmé.') + ' Dis simplement que tu rappelleras Kouider à ce moment-là, sans dire pourquoi.', True
+
+    async def leave_message(args: dict) -> tuple[str, bool]:
+        text = (args.get('text') or '').strip()
+        if not text:
+            return 'Message vide.', True
+        frm = (args.get('from') or '').strip() or 'quelqu\'un'
+        await app.send_message(user_id, f'📝 Message de {frm} (au téléphone avec Dzaryx) :\n{text}')
+        return '✅ Message transmis à Kouider par écrit.', True
+
+    async def learn_voice(args: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        return (await st.rt.learn_voice(str(args.get('name') or '')) if st and st.rt else 'Indisponible.'), True
+
+    async def verify_code(args: dict) -> tuple[str, bool]:
+        st = active.get(user_id)
+        if not st or not st.rt:
+            return 'Indisponible.', True
+        out = await st.rt.verify_code(str(args.get('code') or ''))
+        return out, not out.startswith('✅')   # code bon → la bascule relance elle-même la parole
+
     return {'send_text_to_me': send_text_to_me, 'end_call': end_call, 'look': look, 'pc_look': pc_look,
-            'whatsapp_link': whatsapp_link, 'send_contract': send_contract, 'interpreter': interpreter}
+            'whatsapp_link': whatsapp_link, 'send_contract': send_contract, 'interpreter': interpreter,
+            'call_back_later': call_back_later, 'leave_message': leave_message, 'learn_voice': learn_voice,
+            'verify_code': verify_code}
 
 
 async def hang_up(user_id: int) -> None:
@@ -632,6 +672,25 @@ async def heartbeat() -> None:
 
 # ── Messages privés ──────────────────────────────────────────────────────────
 
+PASSCODE_CMD = re.compile(r'^code secret\s*[:=]?\s*(\S.{1,40})$', re.I)
+
+
+def learn_owner_voice(path: str) -> None:
+    """Vocal Telegram de Kouider → sa voix s'apprend (reconnaissance au téléphone)."""
+    if not speaker.available():
+        return
+    v = speaker.voiced(speaker.ogg_to_pcm(path, 16000), 16000)
+    if len(v) / 32000 < speaker.MIN_ENROLL_S:
+        return
+    vec = speaker.embed(v, 16000)
+    if vec is None:
+        return
+    if speaker.known() >= 3 and speaker.identify(vec)[2] < speaker.REJECT:   # pas sa voix (quelqu'un d'autre a parlé)
+        log.info('vocal : voix différente de Kouider, pas apprise')
+        return
+    speaker.enroll(speaker.OWNER, vec)
+
+
 @app.on_message(pfilters.private & pfilters.incoming)
 async def on_message(_, msg: Message) -> None:
     uid = msg.from_user.id if msg.from_user else 0
@@ -661,6 +720,11 @@ async def on_message(_, msg: Message) -> None:
         if msg.voice or msg.audio:
             path = await msg.download(file_name=tempfile.mktemp(prefix='dzin_', suffix='.ogg'))
             b64 = base64.b64encode(Path(path).read_bytes()).decode()
+            if msg.voice and actor == speaker.OWNER and not msg.forward_origin:   # son propre vocal (pas transféré)
+                try:
+                    await asyncio.to_thread(learn_owner_voice, path)
+                except Exception as e:
+                    log.warning('voix du vocal: %s', e)
             os.unlink(path)
             tr = await api('/api/transcribe', {'audio': b64, 'mimeType': 'audio/ogg'}, actor, 40)
             text = (tr.get('text') or '').strip()
@@ -693,6 +757,14 @@ async def on_message(_, msg: Message) -> None:
             out = await api('/api/call/turn', {'message': msg.caption or '', 'image': b64, 'imageMime': mime,
                                                'textOnly': True, 'channel': 'message'}, actor, 120)
             await msg.reply_text(out.get('text') or '…')
+        elif msg.text and PASSCODE_CMD.match(msg.text.strip()) and actor == speaker.OWNER:
+            speaker.set_passcode(PASSCODE_CMD.match(msg.text.strip()).group(1))
+            try:
+                await msg.delete()   # le code ne reste pas écrit dans la conversation
+            except Exception:
+                pass
+            await app.send_message(uid, '🔐 Code secret enregistré (message effacé). Si un jour je ne reconnais pas ta voix '
+                                        'au téléphone, je te le demanderai.')
         elif msg.text and VOICE_CMD.match(msg.text.strip()):
             await voice_command(msg, actor, VOICE_CMD.match(msg.text.strip()).group(1))
         elif msg.text:

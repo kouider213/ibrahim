@@ -63,6 +63,20 @@ export async function kouiderDossierText(): Promise<string> {
   ].join('\n');
 }
 
+// LA FAMILLE (demande de Kouider 2026-10-16) : quand sa femme ou un proche répond / appelle avec son téléphone,
+// Dzaryx lui parle comme un ami de la famille (sans jamais rien dire des affaires). Base + ce qu'il a dicté.
+const FAMILY_BASE = [
+  'Sa femme : Fatima. Son fils : Ibrahim (« le petit »). Ils vivent ensemble à Bruxelles.',
+  'Lundi et jeudi : journée en famille. L\'été : vacances à Oran.',
+];
+const FAMILY_WORDS = /\b(femme|épouse|fatima|fils|ibrahim|petit|enfant|bébé|famille|mère|maman|père|papa|frère|sœur|soeur|beau-|belle-|cousin|oncle|tante|neveu|nièce|anniversaire)\b/i;
+
+/** Ce que Dzaryx sait de la famille de Kouider (pour parler à Fatima & co). Jamais d'info business. */
+export async function familyText(): Promise<string> {
+  const notes = (await readNotes().catch(() => [] as string[])).filter(n => FAMILY_WORDS.test(n));
+  return [...FAMILY_BASE, ...notes.slice(-12)].map(l => `- ${l}`).join('\n');
+}
+
 /** Outil kouider_dossier : show | add (une info sur lui) | days_off (ses jours de congé). */
 export async function kouiderDossierTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (/houari/i.test(sessionId ?? '')) return '❌ Réservé à Kouider.';

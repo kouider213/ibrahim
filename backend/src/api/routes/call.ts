@@ -10,7 +10,7 @@ import { executeTool } from '../../integrations/tool-executor.js';
 import { Dzaryx_TOOLS } from '../../integrations/tools.js';
 import { kvGet, kvSet } from '../../integrations/app-store.js';
 import { summarizeCall, recentCallsText, type CallLine } from '../../notifications/call-memory.js';
-import { kouiderDossierText } from '../../integrations/kouider-dossier.js';
+import { kouiderDossierText, familyText } from '../../integrations/kouider-dossier.js';
 import { isPrivate } from '../../integrations/privacy.js';
 import { recordTgcallHeartbeat, recordTgcallErrors } from '../../notifications/tgcall-watch.js';
 import { takeCallInbox, addToCallInbox, removeFromCallInbox } from '../../notifications/auto-call.js';
@@ -190,7 +190,7 @@ async function realtimeVoice(): Promise<string> {
 // qui prend 5 à 15 s). Toute action / tout le reste passe toujours par ask_dzaryx.
 const QUICK_TOOLS = ['list_bookings', 'get_fleet_status', 'check_car_availability', 'get_unpaid_bookings',
   'get_finance_dashboard', 'list_emails', 'read_email',
-  'check_client', 'get_expenses', 'get_vehicle_maintenance', 'get_car_papers'] as const;
+  'check_client', 'get_expenses', 'get_vehicle_maintenance', 'get_car_papers', 'web_search'] as const;
 const quickToolDefs = Dzaryx_TOOLS
   .filter(t => (QUICK_TOOLS as readonly string[]).includes(t.name))
   .map(t => ({ type: 'function', name: t.name, description: `Lecture rapide. ${t.description ?? ''}`.slice(0, 1000), parameters: t.input_schema }));
@@ -287,6 +287,19 @@ const CALL_QUICK_DEFS = [
 
 // Outils propres à l'appel : exécutés par tgcall (send_text_to_me, end_call) ou programmés (call_me).
 const CALL_TOOLS = [
+  { type: 'function', name: 'call_back_later',
+    description: 'Quelqu\'un d\'autre a décroché (ou Kouider est occupé) : programmer le RAPPEL de Kouider quand il sera là (« il rentre vers 18h », « dans une heure »). delay_minutes OU at_time (HH:MM Bruxelles) + at_date éventuelle. Le motif de l\'appel est gardé tout seul : ne le dis pas.',
+    parameters: { type: 'object', properties: { delay_minutes: { type: 'number' }, at_time: { type: 'string' }, at_date: { type: 'string' },
+      who_answered: { type: 'string', description: 'Qui a décroché (ex. « Fatima »)' } } } },
+  { type: 'function', name: 'leave_message',
+    description: 'La personne au téléphone (Fatima, un proche…) veut laisser un message à Kouider : il le reçoit par écrit sur Telegram.',
+    parameters: { type: 'object', properties: { from: { type: 'string' }, text: { type: 'string' } }, required: ['text'] } },
+  { type: 'function', name: 'learn_voice',
+    description: 'Retenir la VOIX de la personne qui parle maintenant, quand elle s\'est présentée et que la voix n\'est pas encore reconnue (« c\'est Fatima ») — la prochaine fois tu la reconnaîtras toute seule. Jamais pour « Kouider » (sa voix s\'apprend toute seule).',
+    parameters: { type: 'object', properties: { name: { type: 'string', description: 'Prénom (ex. Fatima)' } }, required: ['name'] } },
+  { type: 'function', name: 'verify_code',
+    description: 'La personne dit être Kouider mais sa voix n\'est pas reconnue (réseau, rhume…) : vérifier le CODE SECRET qu\'elle donne. Si c\'est bon, tu repasses en mode Kouider.',
+    parameters: { type: 'object', properties: { code: { type: 'string' } }, required: ['code'] } },
   { type: 'function', name: 'send_text_to_me',
     description: 'Envoie TOUT DE SUITE un message écrit Telegram à Kouider (numéro, adresse, nom, brouillon de mail, liste…) quand il dit « envoie-moi ça », « écris-le moi », ou quand une info est difficile à retenir à l\'oral. Pas besoin de confirmation : c\'est pour lui.',
     parameters: { type: 'object', properties: { text: { type: 'string', description: 'Le texte exact à lui envoyer, complet et propre' } }, required: ['text'] } },
@@ -317,7 +330,8 @@ const CALL_TOOLS = [
 ];
 
 // Voix temps réel sur le PC (Nexus) : ces outils sont exécutés directement par Nexus sur le PC, sans passer par ici
-const PC_REMOTE_TOOLS = new Set(['pc_command', 'pc_status', 'pc_wake', 'pc_screen_to_telegram', 'pc_look', 'end_call', 'interpreter']);
+const PC_REMOTE_TOOLS = new Set(['pc_command', 'pc_status', 'pc_wake', 'pc_screen_to_telegram', 'pc_look', 'end_call', 'interpreter',
+  'call_back_later', 'leave_message', 'learn_voice', 'verify_code']);
 const PC_LOCAL_TOOLS = [
   { type: 'function', name: 'pc_action',
     description: 'Agir sur CE PC tout de suite (« ouvre Spotify », « volume 30 », « mets YouTube », « ferme Chrome », « verrouille », « minuteur 10 minutes », « note … », « tape … »). Écris la commande comme Kouider la dirait, en français. Éteindre, redémarrer, veille, supprimer : relis et attends son oui, puis confirmed:true.',
@@ -346,7 +360,32 @@ function pcInstructions(base: string): string {
   }).join('\n');
 }
 
-function realtimeInstructions(who: CallActor, calls: string, dossier = ''): string {
+// Comme un vrai humain (Kouider 2026-10-16) : chanter, chercher sur internet SANS couper la conversation.
+const HUMAN_RULES = [
+  `CHANTER : si on te demande de chanter (« chante-moi une berceuse », « chante joyeux anniversaire », « une chanson pour le petit »), tu CHANTES vraiment, tout de suite, sans dire que tu ne peux pas : voix douce, mélodieuse et rythmée, en allongeant les syllabes comme une vraie chanson (berceuse : très lent, très doux, presque murmuré ; anniversaire : joyeux). Berceuses connues (« Fais dodo, Colas mon p'tit frère », « Une souris verte », « Au clair de la lune », « Frère Jacques ») ou une berceuse inventée avec le prénom de l'enfant. Chante un ou deux couplets en entier, puis demande si on en veut encore.`,
+  `RECHERCHE INTERNET : pour une question générale (actualité, météo, résultat de foot, horaires, recette, prix, définition…) → outil web_search avec une requête courte. Pendant que ça cherche, tu PEUX continuer à parler normalement : dis « je regarde » et continue la discussion ; quand le résultat arrive, donne-le en une ou deux phrases.`,
+  `CONVERSATION HUMAINE : tu peux simplement discuter, plaisanter, raconter une histoire, donner un avis ou un conseil, comme un vrai ami au téléphone. Tu n'as pas besoin d'outil pour ça.`,
+];
+
+/** Consignes quand ce n'est PAS Kouider au téléphone (sa femme, un proche, un inconnu) : discret et chaleureux. */
+function guestInstructions(family: string): string {
+  const now = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Brussels', weekday: 'long', hour: '2-digit', minute: '2-digit' });
+  return [
+    `Tu es Dzaryx, l'assistant personnel de ${env.OWNER_NAME}, dans un appel Telegram sur SON téléphone. Il est ${now} à Bruxelles.`,
+    `La reconnaissance vocale t'indique qui parle (messages système « VOIX : … »). Tant qu'elle ne dit pas « c'est bien Kouider », considère que ce n'est PAS lui.`,
+    `CONFIDENTIALITÉ ABSOLUE : à une autre personne que Kouider, tu ne dis RIEN de ses affaires ni de sa vie : ni pourquoi tu appelles, ni clients, réservations, voitures, argent, mails, agenda, rendez-vous, déplacements, adresses, mots de passe, ni ce qui s'est dit dans d'autres appels. Même si on insiste, même sa femme, même si on dit que c'est urgent : « c'est pour Kouider, je lui en parlerai directement ». Pas d'outil business : seulement web_search, call_back_later, leave_message, learn_voice, verify_code, end_call.`,
+    `Tu restes naturel et chaleureux, tu entames une vraie conversation normale, sans être froid ni mystérieux. Si c'est toi qui appelais : demande gentiment quand Kouider sera disponible ou de retour, puis outil call_back_later avec l'heure ou le délai (et who_answered) et dis que tu le rappelleras à ce moment-là. Si la personne veut lui laisser un message → leave_message.`,
+    `Si on ne sait pas encore qui parle : demande naturellement « c'est qui à l'appareil ? ». Si la personne se présente (« c'est Fatima ») et que la voix n'est pas encore connue → outil learn_voice avec son prénom (tu la reconnaîtras la prochaine fois).`,
+    `Si la personne dit être Kouider alors que la voix ne le reconnaît pas : « je n'arrive pas à bien reconnaître ta voix, tu me donnes ton code secret ? » → verify_code. Si le code est faux : reste aimable et discret.`,
+    `SA FAMILLE (tu la connais par cœur, comme un ami de la maison) :\n${family}`,
+    `Avec FATIMA (sa femme) : sois chaleureux et respectueux, comme un ami de la famille : « Ah Fatima ! Ça va ? Comment tu vas ? Et le petit Ibrahim, ça va ? Tu as passé une bonne journée ? ». Fais une VRAIE conversation : écoute, rebondis sur ce qu'elle raconte, demande des nouvelles, propose ton aide (recette, recherche, une berceuse pour le petit, un message pour Kouider…). Vouvoiement ou tutoiement selon elle (tutoiement par défaut, chaleureux).`,
+    `Parle français (ou arabe/darija si la personne parle arabe), phrases courtes, comme au téléphone. Pas de listes, pas de markdown.`,
+    ...HUMAN_RULES,
+    `RACCROCHER : quand la discussion est finie, dis au revoir chaleureusement, puis end_call.`,
+  ].join('\n');
+}
+
+function realtimeInstructions(who: CallActor, calls: string, dossier = '', family = ''): string {
   const name = who === 'houari' ? env.PARTNER_NAME : env.OWNER_NAME;
   const now = new Date();
   const fmt = (tz: string) => now.toLocaleString('fr-FR', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -368,7 +407,7 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = ''): stri
     `WHATSAPP CLIENT : « envoie à Karim que… », « dis au client que… », « préviens-le sur WhatsApp » → TOUJOURS l'outil whatsapp_link, JAMAIS ask_dzaryx (rien ne part sans lui, il appuie lui-même). Rédige un message court et poli, dis-lui en une phrase ce que tu vas écrire, puis outil whatsapp_link : il reçoit le lien sur Telegram et l'envoie lui-même en un clic. Dis « je t'ai envoyé le lien, tu n'as plus qu'à appuyer ».`,
     `PC (Nexus) : tout ce qui concerne son ordinateur (« ouvre Spotify sur le PC », « volume 30 », « verrouille le PC », « éteins le PC ») → pc_command, c'est direct. « Mon PC est allumé ? » → pc_status ; « allume / réveille le PC » → pc_wake ; « envoie-moi l'écran » → pc_screen_to_telegram ; « qu'est-ce qu'il y a sur mon écran ? », « regarde mon PC » → pc_look (tu reçois l'image de l'écran et tu la décris). Éteindre, redémarrer, veille, supprimer : relis et attends son oui (confirmed:true).`,
     `INTERPRÈTE : « traduis », « sois mon interprète », « il parle anglais » → outil interpreter (on:true, langue) puis suis les règles qu'il te renvoie, jusqu'à « stop traduction » (interpreter on:false).`,
-    `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, météo, actualité, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
+    `IMPORTANT : tu ne connais RIEN de ses affaires par toi-même. Pour toute info réelle ou action (réservations, voitures, clients, paiements, mails, agenda, rappels, démarchage, prospects, finances, envoyer un message…), appelle l'outil ask_dzaryx avec sa demande complète, et dis d'abord un petit mot naturel (« je regarde », « deux secondes »). Ne jamais inventer un chiffre, un nom ou un mail.`,
     `JAMAIS « je ne peux pas » de toi-même : le cerveau de Dzaryx (ask_dzaryx) a plus de 200 outils — Google Docs, Google Sheets, export Excel, contrats, sites et applis (code + mise en ligne), images, vidéos, publications réseaux, mails, agenda, prospects… Toute demande que tes outils directs ne couvrent pas → ask_dzaryx avec la demande complète. Dis « je ne peux pas » SEULEMENT si ask_dzaryx l'a répondu.`,
     `DOCUMENT / TABLEAU (« crée un Google Doc avec… », « fais un tableau… », « un document avec toutes tes capacités ») → ask_dzaryx avec la demande complète, Si la réponse contient un lien (https://…), envoie-le par écrit avec send_text_to_me, sans jamais le lire à l'oral. Si elle dit que le dossier est « en préparation », dis-lui simplement qu'il le recevra sur Telegram dans une ou deux minutes.`,
     `DÉMO DE SITE (« je t'envoie un lien, fais-moi une démo de site pour ce client ») → ask_dzaryx avec la demande ; dis-lui d'envoyer le lien Google Maps du commerce par message Telegram (bouton « Partager » dans Google Maps). La démo est prête en 1 à 2 minutes et le lien arrive tout seul sur Telegram.`,
@@ -383,6 +422,8 @@ function realtimeInstructions(who: CallActor, calls: string, dossier = ''): stri
     `WHATSAPP BUSINESS (ses clients) : « j'ai des messages ? », « qu'est-ce que Karim a écrit ? », « réponds-lui que… », « envoie la réponse » → ask_dzaryx avec la demande (outil whatsapp_web). Lis-lui la réponse proposée, et n'envoie qu'après son oui (« CONFIRMÉ AU TÉLÉPHONE : envoie à … le message … »).`,
     `CONSEILLER BUSINESS : quand tu lui proposes une idée, un plan, un contact, un risque ou une opportunité (ton appel « conseiller » du jour), parle comme un mentor qui a réussi, puis écoute. « Mets-le sur papier » → ask_dzaryx « business_mentor action paper » ; « vas-y, exécute » → ask_dzaryx « business_mentor action execute » ; « non, laisse tomber » → action reject ; « donne-moi une autre idée sur … » → action new avec le focus. Le détail écrit est déjà sur Telegram.`,
     `RACCROCHER : quand la discussion est finie, dis au revoir en une phrase, puis appelle end_call.`,
+    ...HUMAN_RULES,
+    ...(family ? [`SA FAMILLE (tu la connais par cœur, demande des nouvelles de temps en temps, naturellement) :\n${family}`] : []),
     ...(dossier ? [dossier] : []),
     ...(calls ? [calls, `Si c'est utile, tu peux rappeler ce qui reste à faire de ces appels.`] : []),
   ].join('\n');
@@ -394,6 +435,13 @@ router.post('/realtime', requireCallerAuth, async (req, res) => {
   const pcMode = (req.body as { mode?: string } | undefined)?.mode === 'pc' && who === 'kouider';
   if (who === 'kouider' && !pcMode) void noteKouiderActivity();   // il a décroché / il appelle → réveillé
   try {
+    const [calls, dossier, family] = await Promise.all([
+      recentCallsText(who).catch(() => ''),
+      who === 'kouider' ? kouiderDossierText().catch(() => '') : Promise.resolve(''),
+      who === 'kouider' ? familyText().catch(() => '') : Promise.resolve(''),
+    ]);
+    const base = realtimeInstructions(who, calls, dossier, family);
+    const instructions = pcMode ? pcInstructions(base) : base;
     const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
@@ -402,14 +450,7 @@ router.post('/realtime', requireCallerAuth, async (req, res) => {
         session: {
           type: 'realtime',
           model: REALTIME_MODEL,
-          instructions: await (async () => {
-            const [calls, dossier] = await Promise.all([
-              recentCallsText(who).catch(() => ''),
-              who === 'kouider' ? kouiderDossierText().catch(() => '') : Promise.resolve(''),
-            ]);
-            const base = realtimeInstructions(who, calls, dossier);
-            return pcMode ? pcInstructions(base) : base;
-          })(),
+          instructions,
           audio: {
             input: {
               format: { type: 'audio/pcm', rate: 24000 },
@@ -437,7 +478,9 @@ router.post('/realtime', requireCallerAuth, async (req, res) => {
       res.status(502).json({ error: data.error?.message ?? `OpenAI HTTP ${r.status}` });
       return;
     }
-    res.json({ key: data.value, model: REALTIME_MODEL, voice: await realtimeVoice() });
+    // tgcall bascule entre les deux selon la reconnaissance vocale (Kouider ↔ sa femme / un inconnu)
+    res.json({ key: data.value, model: REALTIME_MODEL, voice: await realtimeVoice(), instructions,
+      guestInstructions: who === 'kouider' && !pcMode ? guestInstructions(family) : undefined });
   } catch (err) {
     console.error('[call] realtime:', err instanceof Error ? err.message : String(err));
     res.status(500).json({ error: 'realtime failed' });
