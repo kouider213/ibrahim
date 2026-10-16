@@ -138,7 +138,11 @@ router.post('/turn', requireCallerAuth, async (req, res) => {
   try {
     // Dzaryx doit savoir qu'il est DÉJÀ au téléphone : sinon « tu m'entends ? » relance call_me.
     const wakeNote = who === 'kouider' ? await noteKouiderActivity() : null;   // réponse au contrôle de réveil du matin ?
-    const said = `${wakeNote ? `${wakeNote}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
+    // « oui » / « non » juste après une réponse WhatsApp proposée → envoi direct, sans repasser par l'IA
+    const wa = who === 'kouider' && channel === 'message' && !image && message
+      ? await import('../../integrations/whatsapp-web.js').then(m => m.handleWaYesNo(message)).catch(() => null) : null;
+    if (wa?.reply) { res.json({ text: wa.reply, audio: null }); return; }
+    const said = `${wakeNote ? `${wakeNote}\n` : ''}${wa?.note ? `${wa.note}\n` : ''}${(message?.trim() || 'Voici une photo.').slice(0, 2000)}`;
     // Message Telegram écrit (texte/photo) : pas de consigne « appel en cours »
     // Photo écrite (capture d'un billet, d'un document…) : boucle complète avec outils, pas la vision rapide de l'appel vidéo
     const photoNote = channel === 'message' && image ? `${PHOTO_TG}. Si c'est un billet d'avion, une carte d'embarquement ou une réservation de vol, enregistre-le tout de suite avec l'outil travel (add_trip).]\n` : '';

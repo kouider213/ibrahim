@@ -15,6 +15,7 @@ import { autoCall } from '../notifications/auto-call.js';
 const DEFAULT_PHONE = '+32466311469';     // WhatsApp Business FIK (site, widget)
 const DRAFTS_KEY = 'wa:drafts';
 const PREVIEW_KEY = 'wa:send:preview';
+const PENDING_KEY = 'wa:pending';          // dernière réponse proposée : le PROCHAIN message de Kouider (oui / non) décide
 const DELICATE_RE = /accident|accroch|panne|crev[ée]|police|gendarm|vol[ée]e?\b|amende|fourri[èe]re|bless|urgence|urgent|حادث|عطب|شرطة|سرقة/i;
 
 export interface WaChat { name: string; preview: string; unread: number; time: string; out?: boolean }
@@ -74,7 +75,8 @@ export async function onWaNew(c: WaChat): Promise<void> {
     await kvSet(DRAFTS_KEY, JSON.stringify(Object.fromEntries(keep)), 3 * 86_400);
   }
   const text = `📲 WhatsApp — ${name}${c.unread > 1 ? ` (${c.unread} non lus)` : ''}\n« ${preview} »`
-    + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n\nDis-moi « envoie la réponse à ${name} », ou modifie-la.` : '');
+    + (reply ? `\n\n✍️ Réponse proposée :\n${reply}\n\nRéponds « oui » pour l'envoyer à ${name}, « non » pour laisser, ou dis-moi quoi changer.` : '');
+  if (reply) await kvSet(PENDING_KEY, JSON.stringify({ chat: name, draft: reply }), 12 * 3600);
   await queueTelegramMessage(text).catch(() => {});
   const delicate = kind === 'plainte' || kind === 'urgence' || isComplaint(preview) || DELICATE_RE.test(preview);
   emitProactive(`WhatsApp — ${name} : ${preview.slice(0, 70)}`, delicate ? 'alert' : 'info', text);
@@ -87,6 +89,30 @@ export async function onWaNew(c: WaChat): Promise<void> {
 }
 
 type R = { ok: boolean; error?: string; [k: string]: unknown };
+
+const YES_RE = /^\s*(oui|ouais|wi|yes|ok|okay|d'?accord|vas[- ]y|envoie(-la|-le)?|go|c'?est bon|parfait|nickel|wah|ih|نعم|واه)(?=$|[\s,.!👍])/i;
+const NO_RE = /^\s*(non|no|nan|laisse|annule|pas maintenant|لا)(?=$|[\s,.!])/i;
+const CHANGE_RE = /mais|change|modifi|plut[oô]t|sauf|ajoute|enl[eè]ve|corrige/i;
+
+/** Message écrit de Kouider juste après une réponse WhatsApp proposée : « oui » → envoi, « non » → on laisse.
+ *  Tout autre message annule l'attente (il passe à Dzaryx normalement, le brouillon reste disponible). null = pas concerné. */
+export async function handleWaYesNo(message: string): Promise<{ reply?: string; note?: string } | null> {
+  const raw = await kvGet(PENDING_KEY).catch(() => null);
+  if (!raw) return null;
+  await kvSet(PENDING_KEY, '', 60);
+  const short = message.trim().length <= 40 && !CHANGE_RE.test(message);
+  const yes = short && YES_RE.test(message), no = short && NO_RE.test(message);
+  let p: { chat: string; draft: string };
+  try { p = JSON.parse(raw) as { chat: string; draft: string }; } catch { return null; }
+  if (!yes && !no) return { note: `[Contexte : tu viens de lui proposer cette réponse WhatsApp pour ${p.chat} : « ${p.draft} ». S'il demande un changement, réécris-la puis outil whatsapp_web send (relecture, puis confirmed:true après son oui).]` };
+  if (no) return { reply: `👍 Je n'envoie rien à ${p.chat}. La réponse reste prête si tu changes d'avis (« envoie la réponse à ${p.chat} »).` };
+  if (!isCloudPcOnline()) return { reply: '❌ Le PC cloud ne répond pas : WhatsApp injoignable, rien n\'est parti. Réessaie dans un moment.' };
+  const r = await cloudEmit<R & { chat?: string }>('cloud:wa', { action: 'send', chat: p.chat, text: p.draft }, 80_000)
+    .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
+  if (!r.ok) return { reply: `❌ Pas envoyé à ${p.chat} : ${r.error ?? 'erreur'}` };
+  const d = await drafts(); delete d[p.chat.toLowerCase()]; await kvSet(DRAFTS_KEY, JSON.stringify(d), 3 * 86_400);
+  return { reply: `✅ Envoyé sur WhatsApp à ${r['chat'] || p.chat}.` };
+}
 
 /** Réponse proposée (ex. suite à un mail de démarchage) : « envoie la réponse à <chat> » la retrouve. */
 export async function saveWaDraft(chat: string, preview: string, draft: string): Promise<void> {
