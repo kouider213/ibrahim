@@ -10,7 +10,11 @@ const DOWN_KEY = 'tgcall:down';
 const DOWN_MIN = 5;
 
 /** Erreurs remontées par le service (log ERROR) : gardées 24 h pour l'auto-test (selftest). */
+// Kouider qui refuse / ne décroche pas / est déjà en ligne = appel manqué normal, pas une panne du service
+const NOT_A_FAULT_RE = /declined|busy|no answer|missed|timed? ?out waiting|refus|occup/i;
+
 export async function recordTgcallErrors(errors: string[]): Promise<void> {
+  errors = errors.filter(e => !NOT_A_FAULT_RE.test(String(e)));
   if (!errors.length) return;
   const now = new Date().toISOString();
   const prev = JSON.parse((await kvGet('tgcall:errors')) ?? '[]') as Array<{ at: string; msg: string }>;

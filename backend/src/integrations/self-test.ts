@@ -95,7 +95,7 @@ export async function runSelfTest(): Promise<SelfTestReport> {
     const beat = await kvGet('tgcall:heartbeat');
     const h = ageH(beat);
     const errs = JSON.parse((await kvGet('tgcall:errors')) ?? '[]') as Array<{ at: string; msg: string }>;
-    const recent = errs.filter(e => ageH(e.at) < 24);
+    const recent = errs.filter(e => ageH(e.at) < 24 && !/declined|busy|no answer|missed|refus|occup/i.test(e.msg));
     if (h > 0.2) return { ok: false, info: `plus de signe de vie depuis ${Math.round(h * 60)} min` };
     if (recent.length) return { ok: false, info: `${recent.length} erreur(s) en 24 h, dernière : ${recent[recent.length - 1]!.msg.slice(0, 120)}` };
     return { ok: true, info: 'en ligne, aucune erreur en 24 h' };
