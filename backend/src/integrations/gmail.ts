@@ -98,8 +98,11 @@ async function getGmailToken(address: string): Promise<string | null> {
 // ── Lecture ───────────────────────────────────────────────────
 
 export interface EmailSummary {
-  id: string; from: string; subject: string; date: string; snippet: string; unread: boolean;
+  id: string; from: string; to: string; subject: string; date: string; snippet: string; unread: boolean; sent: boolean;
 }
+
+export type MailFolder = 'inbox' | 'sent' | 'all';
+const FOLDER_QUERY: Record<MailFolder, string> = { inbox: 'in:inbox', sent: 'in:sent', all: 'in:anywhere -in:spam -in:trash' };
 
 export class GmailNotConnectedError extends Error {}
 
@@ -126,20 +129,22 @@ const header = (headers: Header[] | undefined, name: string) =>
   headers?.find(h => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
 
 export async function listEmails(
-  account: GmailAccount, opts: { query?: string; max?: number; unreadOnly?: boolean } = {},
+  account: GmailAccount, opts: { query?: string; max?: number; unreadOnly?: boolean; folder?: MailFolder } = {},
 ): Promise<EmailSummary[]> {
   const address = gmailAddress(account);
-  const q = [opts.query, opts.unreadOnly ? 'is:unread' : '', 'in:inbox'].filter(Boolean).join(' ');
+  const q = [opts.query, opts.unreadOnly ? 'is:unread' : '', FOLDER_QUERY[opts.folder ?? 'inbox']].filter(Boolean).join(' ');
   const list = await gmailGet<{ messages?: { id: string }[] }>(address, '/messages', {
     q, maxResults: Math.min(Math.max(opts.max ?? 10, 1), 25),
   });
   const ids = (list.messages ?? []).map(m => m.id);
   return Promise.all(ids.map(async id => {
     const m = await gmailGet<{ id: string; snippet: string; labelIds?: string[]; payload?: { headers?: Header[] } }>(
-      address, `/messages/${id}`, { format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] });
+      address, `/messages/${id}`, { format: 'metadata', metadataHeaders: ['From', 'To', 'Subject', 'Date'] });
     return {
       id: m.id,
       from: header(m.payload?.headers, 'From'),
+      to: header(m.payload?.headers, 'To'),
+      sent: m.labelIds?.includes('SENT') ?? false,
       subject: header(m.payload?.headers, 'Subject') || '(sans objet)',
       date: header(m.payload?.headers, 'Date'),
       snippet: m.snippet ?? '',
