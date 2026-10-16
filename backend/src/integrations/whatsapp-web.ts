@@ -7,7 +7,7 @@ import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { autoCall } from '../notifications/auto-call.js';
 
 // WhatsApp Business de Kouider branché sur le PC cloud (web.whatsapp.com, appareil connecté — 2026-10-15).
-// cloudpc/whatsapp_web.py surveille les discussions NON LUES (sans les ouvrir) et envoie `cloud:wa_new`.
+// cloudpc/whatsapp_web.py surveille les discussions NON LUES et envoie `cloud:wa_new` ; on ouvre alors la discussion pour lire le vrai texte.
 // Ici : Dzaryx prépare une réponse (avec les vraies données FIK, outils de lecture), prévient Kouider (app + Telegram),
 // appelle si c'est une nouvelle demande de location ou une situation délicate. RIEN ne part sans l'accord de Kouider :
 // l'outil `whatsapp_web` action send exige d'abord une relecture (sans confirmed), puis confirmed:true sur LE MÊME texte.
@@ -34,22 +34,32 @@ Réponds UNIQUEMENT avec ce JSON : {"summary":"en une phrase, ce que veut le cli
 /** Nouveau message non lu sur le WhatsApp Business (envoyé par le PC cloud). */
 export async function onWaNew(c: WaChat): Promise<void> {
   const name = String(c.name ?? '').slice(0, 80);
-  const preview = String(c.preview ?? '').slice(0, 600);
+  let preview = String(c.preview ?? '').slice(0, 600);
   if (!name) return;
-  if (c.out) {
-    // Aperçu = NOTRE dernier message (message d'accueil auto WhatsApp Business) : le texte du client est caché derrière.
-    // Pas de « réponse proposée » à notre propre message, pas d'appel « nouvelle demande » sur une devinette.
+  // Kouider (2026-10-16) : il faut LIRE le vrai message, tant pis si la discussion passe « lue » sur son téléphone.
+  // L'aperçu de la liste ne montre que le dernier message — souvent NOTRE message d'accueil automatique.
+  let convo = '';
+  const r = await cloudEmit<R & { messages?: Array<{ me: boolean; text: string }> }>('cloud:wa', { action: 'read', chat: name, n: 12 }, 70_000)
+    .catch(err => ({ ok: false, error: err instanceof Error ? err.message : String(err) } as R));
+  const msgs = (r.ok ? r['messages'] as Array<{ me: boolean; text: string }> | undefined : undefined) ?? [];
+  const fromClient = msgs.filter(m => !m.me).slice(-Math.max(1, c.unread || 1));
+  if (fromClient.length) {
+    preview = fromClient.map(m => m.text).join('\n').slice(0, 1200);
+    convo = msgs.map(m => `${m.me ? 'FIK' : 'Client'} : ${m.text}`).join('\n').slice(-2500);
+  } else if (c.out) {
+    // Lecture impossible (PC cloud occupé/hors ligne) et l'aperçu est notre propre message : on ne devine pas.
+    console.warn('[wa-web] lecture discussion:', r.error ?? 'aucun message client');
     const text = `📲 WhatsApp — ${name} : ${c.unread > 1 ? `${c.unread} nouveaux messages` : 'nouveau message'}.\n`
-      + `Ton message d'accueil automatique est parti, il cache le texte du client dans la liste (je n'ouvre pas la discussion pour qu'elle reste « non lue » sur ton téléphone).\n`
-      + `Dis-moi « lis WhatsApp ${name} » et je te prépare la réponse.`;
+      + `Je n'ai pas réussi à ouvrir la discussion pour lire le texte du client (ton message d'accueil le cache dans la liste).\n`
+      + `Dis-moi « lis WhatsApp ${name} » et je réessaie.`;
     await queueTelegramMessage(text).catch(() => {});
     emitProactive(`WhatsApp — ${name} : nouveau message`, 'info', text);
     return;
   }
-  // On se base sur l'aperçu (dernier message) : ouvrir la discussion la marquerait comme lue sur son téléphone.
   let summary = preview, reply = '', kind = 'autre';
   try {
-    const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Dernier message :\n« ${preview} »`,
+    const run = await runReadOnlyAgent(`Client WhatsApp « ${name} » (${c.unread} message(s) non lu(s)). Nouveau(x) message(s) du client :\n« ${preview} »`
+      + (convo ? `\n\nDiscussion récente (contexte) :\n${convo}` : ''),
       { system: REPLY_SYSTEM, sessionId: 'wa_web_draft', maxRounds: 4, maxTokens: 900 });
     const a = run.text.indexOf('{'), z = run.text.lastIndexOf('}');
     const o = JSON.parse(run.text.slice(a, z + 1)) as { summary?: string; reply?: string; kind?: string };
