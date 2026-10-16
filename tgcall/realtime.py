@@ -179,9 +179,11 @@ class RealtimeCall:
             if who:
                 await self._become(who)
             else:   # pas encore sûr : réponse neutre, sans rien dévoiler
+                why = (' C\'est TOI qui as appelé (pas lui) : si on te demande pourquoi, dis « j\'ai quelque chose pour Kouider, '
+                       'c\'est bien toi ? » sans donner le motif.') if self.held_outgoing else ''
                 await self._send({'type': 'response.create', 'response': {'instructions':
                     'Tu ne sais pas encore qui est au téléphone. Réponds en une phrase courte et neutre, sans aucune '
-                    'information (ex. « Oui, c\'est Dzaryx, l\'assistant de Kouider. C\'est qui à l\'appareil ? »).'}})
+                    'information (ex. « Oui, c\'est Dzaryx, l\'assistant de Kouider. C\'est qui à l\'appareil ? »).' + why}})
             return
         if len(speaker.voiced(bytes(self.win), IN_RATE)) / (2 * IN_RATE) < CHECK_EVERY_S:
             return

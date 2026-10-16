@@ -86,6 +86,11 @@ function parseIdea(text: string): MentorIdea | null {
   } catch { return null; }
 }
 
+/** Garde une proposition dans l'historique (« mets-le sur papier », « exécute » la retrouvent ensuite). */
+export async function keepMentorIdea(idea: MentorIdea): Promise<void> {
+  const list = await history(); list.push(idea); await saveHistory(list);
+}
+
 export function ideaText(i: MentorIdea): string {
   const label: Record<MentorKind, string> = { idee: '💡 Idée', projet: '🚀 Nouveau projet', plan: '🗺️ Plan', contact: '🤝 À contacter',
     risque: '⚠️ Risque', opportunite: '📈 Opportunité', conseil: '🎯 Conseil' };

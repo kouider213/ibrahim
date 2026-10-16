@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-16 (3) — Ordres exécutés pour de vrai avant de rappeler
+- `integrations/call-tasks.ts` : `call_me` + `task` → le travail démarre tout de suite (business plan via le conseiller
+  business, sinon agent lecture seule avec recherche web), résultat écrit sur Telegram/app, et dit à l'oral au rappel
+  (`reminder-worker` → `callTaskReason`). Travail perdu (redémarrage) → refait juste avant d'appeler. Avant : « rappelle-moi
+  dans 1h avec un business plan » programmait un appel vide.
+- Consigne ORDRES dans la voix temps réel ; `keepMentorIdea()` ; greeting d'appel jusqu'à 1200 caractères.
+
 ## 2026-10-16 (2) — WhatsApp : bonne discussion, qui a écrit, répondu ou pas
 - `cloudpc/whatsapp_web.py` : `_open_chat` vérifie le titre de la discussion ouverte (avant : la discussion précédente
   restait affichée → messages d'un autre client) + vrai clic souris ; lecture : attend le chargement complet, remonte

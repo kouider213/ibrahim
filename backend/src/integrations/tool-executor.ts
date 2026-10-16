@@ -114,6 +114,7 @@ import { multiProviderWebSearch, jinaAuthHeaders } from './web-search-provider.j
 import { saveBeforeState, saveAfterState } from './vehicle-state.js';
 import { savePropertyBeforeState, savePropertyAfterState } from './property-state.js';
 import { callOwner, CALL_REMINDER_MARK } from '../notifications/voice-call.js';
+import { startCallTask, callTaskReason } from './call-tasks.js';
 
 // ── In-memory lock — prevents duplicate video generations per chat ─────────────
 // Key = chatId (Telegram) or sessionId. Set before generation, deleted in finally.
@@ -2003,15 +2004,25 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
   const reason = String(input['reason'] ?? '').trim();
   if (!reason) return '❌ reason requis : ce que Dzaryx dira en décrochant.';
   const later = input['delay_minutes'] != null || !!input['at_time'] || !!input['at_date'];
+  const task = String(input['task'] ?? '').trim();
+  if (task && !later) {   // « fais X et rappelle-moi quand c'est prêt » → travail d'abord, appel ensuite
+    const id = await startCallTask(task);
+    void callTaskReason(`[TÂCHE:${id}] ${reason}`).then(r => callOwner(r)).catch(err => console.error('[call_me] tâche:', err));
+    return '✅ Je m\'y mets tout de suite : je t\'appelle dès que c\'est prêt (le détail arrive aussi sur Telegram).';
+  }
+  if (task) {
+    const id = await startCallTask(task);
+    input = { ...input, reason: `[TÂCHE:${id}] ${reason}` };
+  }
   if (!later) {
     const actor = sessionId && /^(voice|mobile)_houari($|_)/i.test(sessionId) ? 'houari' : 'kouider';
     const { id } = await callOwner(reason, actor);
     return `✅ Dzaryx t'appelle maintenant sur Telegram et dans l'app (appel ${id.slice(0, 8)}). Si personne ne décroche, l'appel s'arrête après 3 minutes.`;
   }
-  const raw = await scheduleReminder({ ...input, message: `${CALL_REMINDER_MARK}${reason}` }, sessionId);
+  const raw = await scheduleReminder({ ...input, message: `${CALL_REMINDER_MARK}${String(input['reason'])}` }, sessionId);
   try {
     const r = JSON.parse(raw) as { status?: string; local_time?: string; timezone_used?: string };
-    if (r.status === 'created') return `✅ Appel programmé : Dzaryx appellera sur Telegram (et l'app sonnera) à ${r.local_time} (${r.timezone_used}). ${raw}`;
+    if (r.status === 'created') return `✅ Appel programmé : Dzaryx appellera sur Telegram (et l'app sonnera) à ${r.local_time} (${r.timezone_used}).${task ? ' Le travail demandé a COMMENCÉ maintenant (le résultat écrit arrive sur Telegram dès qu\'il est prêt, et je le lui dirai en appelant).' : ''} ${raw}`;
   } catch { /* renvoie le résultat brut */ }
   return `❌ Appel NON programmé. ${raw}`;
 }

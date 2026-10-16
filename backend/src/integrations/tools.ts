@@ -832,6 +832,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
       type: 'object' as const,
       properties: {
         reason:        { type: 'string', description: 'Ce que Dzaryx dit en décrochant (oral, 1-2 phrases)' },
+        task:          { type: 'string', description: "Le TRAVAIL à faire avant de rappeler, quand Kouider donne un ORDRE (« rappelle-moi dans 1h avec un business plan / une analyse / les prix des concurrents… ») : la demande complète. Le travail démarre tout de suite, le résultat part sur Telegram et tu le lui dis en rappelant. Sans task, tu rappelles les mains vides." },
         delay_minutes: { type: 'number', description: 'Appeler dans X minutes' },
         at_time:       { type: 'string', description: 'Heure HH:MM' },
         at_date:       { type: 'string', description: 'Date YYYY-MM-DD' },

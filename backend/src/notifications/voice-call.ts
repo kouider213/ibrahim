@@ -28,7 +28,7 @@ function firstName(actor: CallActor): string {
 
 /** Dzaryx appelle Kouider (ou Houari) : sonnerie push + appel en attente côté serveur. */
 export async function callOwner(reason: string, actor: CallActor = 'kouider'): Promise<{ id: string }> {
-  const clean = reason.trim().replace(/\s+/g, ' ').slice(0, 600);
+  const clean = reason.trim().replace(/\s+/g, " ").slice(0, 1200);   // 1200 : place pour le travail préparé (call-tasks)
   const call: PendingCall = {
     id:        randomUUID(),
     reason:    clean,

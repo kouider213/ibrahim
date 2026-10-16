@@ -1,6 +1,7 @@
 import { durableKv as redis } from '../integrations/app-store.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, CALL_REMINDER_MARK } from '../notifications/voice-call.js';
+import { callTaskReason } from '../integrations/call-tasks.js';
 import {
   getPendingDue,
   getRetryEligible,
@@ -22,7 +23,7 @@ async function deliver(row: ReminderRow): Promise<string> {
 
   // Rappel « appelle-moi » → l'app sonne (écran d'appel) au lieu d'une notif texte
   if (row.message.startsWith(CALL_REMINDER_MARK)) {
-    await callOwner(row.message.slice(CALL_REMINDER_MARK.length));
+    await callOwner(await callTaskReason(row.message.slice(CALL_REMINDER_MARK.length)));   // ordre avec travail → résultat dit à l'oral
     return 'call';
   }
 
