@@ -35,6 +35,7 @@ import { setCarPapers, getCarPapers } from './car-papers.js';
 import { listEmails, readEmail, readThread, getAttachment, modifyEmails, searchEmailIds, type MailAction, sendEmail, canSendEmail, type ThreadRef, countSentToday, getGmailConnectLink, gmailAddress, proSenderAddress, GmailNotConnectedError, GmailSendNotAllowedError, GmailModifyNotAllowedError, type GmailAccount } from './gmail.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { storePdf } from '../utils/pdf-store.js';
+import { kvGet, kvSet, kvDel } from './app-store.js';
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { runDailyOutreach } from './prospect-autopilot.js';
@@ -2301,10 +2302,25 @@ const SEND_CONFIRM_RE = /^\W*(oui|ok|okay|go|vas[- ]y|envoie|envoi|envoies|envoy
 const PROSPECT_FOOTER = '\n\n—\nVous ne souhaitez plus recevoir nos messages ? Répondez simplement « STOP ».';
 
 interface EmailDraft { to: string; subject: string; body: string; createdAt: number; reply?: ThreadRef; prospectId?: string }
-// En mémoire (pas Redis : quota Upstash) — perdu au redémarrage, Dzaryx refait alors le brouillon
+// En mémoire + copie dans app_kv (Supabase, pas Redis : quota Upstash) : un redémarrage/déploiement de Railway
+// entre le brouillon et le « oui » de Kouider ne perd plus le brouillon
 const emailDrafts = new Map<string, EmailDraft>();
 const DRAFT_TTL_MS = 24 * 3600_000;
 const draftKey = (sessionId: string, id: string) => `${sessionId}:${id}`;
+const draftKvKey = (sessionId: string) => `email:drafts:${sessionId}`;
+
+async function persistDrafts(sessionId: string): Promise<void> {
+  const prefix = `${sessionId}:`;
+  const mine = Object.fromEntries([...emailDrafts].filter(([k]) => k.startsWith(prefix)));
+  await kvSet(draftKvKey(sessionId), JSON.stringify(mine), 24 * 3600).catch(err => console.error('[gmail] brouillons:', err instanceof Error ? err.message : err));
+}
+
+async function loadDrafts(sessionId: string): Promise<void> {
+  try {
+    const saved = JSON.parse((await kvGet(draftKvKey(sessionId))) ?? '{}') as Record<string, EmailDraft>;
+    for (const [k, d] of Object.entries(saved)) if (!emailDrafts.has(k)) emailDrafts.set(k, d);
+  } catch { /* pas de copie → mémoire seule */ }
+}
 
 async function draftEmailTool(input: Record<string, unknown>, sessionId?: string): Promise<string> {
   if (!sessionId) return '❌ Session inconnue — impossible de préparer un mail.';
@@ -2351,7 +2367,9 @@ async function draftEmailTool(input: Record<string, unknown>, sessionId?: string
   const id = Math.random().toString(36).slice(2, 8);
   const draft: EmailDraft = { to, subject, body, createdAt: Date.now(), reply, prospectId: prospect?.id };
   for (const [k, d] of emailDrafts) if (Date.now() - d.createdAt > DRAFT_TTL_MS) emailDrafts.delete(k);
+  await loadDrafts(sessionId);  // sinon la sauvegarde écraserait les brouillons d'avant un redémarrage
   emailDrafts.set(draftKey(sessionId, id), draft);
+  await persistDrafts(sessionId);
   return `📝 Brouillon prêt (draft_id: ${id}) — PAS ENCORE ENVOYÉ.${prospect ? ` Réponse à ${prospect.company} (même conversation).` : reply ? ' Réponse dans la même conversation.' : ''}\nDe: FIK Conciergerie <${await proSenderAddress()}> (les réponses arrivent dans ${gmailAddress('pro')})\nÀ: ${to}\nObjet: ${subject}\n\n${body}\n\n` +
     `→ Montre ce brouillon EN ENTIER à Kouider et demande "Je l'envoie ?". N'appelle send_email qu'après son "oui"/"envoie" dans son PROCHAIN message.`;
 }
@@ -2370,6 +2388,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
   // …et on envoie le brouillon qu'il a VU : le plus récent créé AVANT sa confirmation
   // (le draft_id n'est pas dans l'historique → le LLM le perd ; un brouillon refait ce tour-ci n'a pas été vu)
   const prefix = `${sessionId}:`;
+  await loadDrafts(sessionId);
   let key: string | null = null; let draft: EmailDraft | undefined;
   for (const [k, d] of emailDrafts) {
     if (!k.startsWith(prefix) || d.createdAt >= lastAt || Date.now() - d.createdAt > DRAFT_TTL_MS) continue;
@@ -2395,6 +2414,7 @@ async function sendEmailTool(input: Record<string, unknown>, sessionId?: string)
     return `❌ Échec de l'envoi Gmail (${err instanceof Error ? err.message.slice(0, 120) : 'erreur'}). Vérifie dans "Messages envoyés" avant de réessayer.` + NOT_SENT;
   }
   for (const k of [...emailDrafts.keys()]) if (k.startsWith(prefix)) emailDrafts.delete(k);  // évite un double envoi
+  await kvDel(draftKvKey(sessionId)).catch(() => {});
   void markProspectContacted(draft.to).catch(() => {});
   if (draft.prospectId) void updateProspect(draft.prospectId, { suggested_reply: null, last_contacted_at: new Date().toISOString() }).catch(() => {});
   return `✅ Mail envoyé depuis ${await proSenderAddress()} à ${draft.to} — "${draft.subject}" (${sentToday + 1}/${EMAIL_DAILY_CAP} aujourd'hui).`;

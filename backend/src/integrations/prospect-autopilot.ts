@@ -369,7 +369,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
   // Mode (réglable) : « sites » = commerces sans site web (FIK Sites), « conciergerie » = FIK Conciergerie, « both » = moitié-moitié
   const mode = await getProspectMode();
   const sitesN = toSendAll <= 0 ? 0 : mode === 'sites' ? toSendAll : mode === 'both' ? Math.ceil(toSendAll / 2) : 0;
-  const toSend = Math.max(0, toSendAll - sitesN);
+  let toSend = Math.max(0, toSendAll - sitesN);
 
   // Un grand compte par jour (avant les petites sociétés → son mail part dans le lot du jour)
   const keyLine = toSend > 0 ? await discoverKeyAccount().catch(err => { console.error('[prospect-auto] grand compte:', err); return null; }) : null;
@@ -396,7 +396,7 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
     }
   }
 
-  const site = batch.length ? await getSiteInfo() : '';
+  let site = batch.length ? await getSiteInfo() : '';
   const sent: string[] = [];
   const failed: string[] = [];
 
@@ -420,6 +420,17 @@ export async function runDailyOutreach(opts: { force?: boolean } = {}): Promise<
         failed.push(`${p.company} (${err instanceof Error ? err.message.slice(0, 60) : 'erreur'})`);
       }
       await new Promise(r => setTimeout(r, SEND_GAP_MS));
+    }
+    // Pas assez de commerces sans site (16/10 : 3 trouvés sur 4 → 6 mails au lieu de 7) : les places restantes vont à la conciergerie
+    const sitesSent = sent.length;
+    if (sitesSent < sitesN) {
+      toSend += sitesN - sitesSent;
+      batch = await pick();
+      if (batch.length < toSend) {
+        await discoverProspects(toSend - batch.length + 2).catch(err => console.error('[prospect-auto] recherche:', err));
+        batch = await pick();
+      }
+      if (batch.length && !site) site = await getSiteInfo();
     }
   }
   for (const [i, p] of batch.entries()) {
