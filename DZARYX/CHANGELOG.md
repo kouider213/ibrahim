@@ -5,6 +5,15 @@
 
 ---
 
+## 2026-10-16 (2) — WhatsApp : bonne discussion, qui a écrit, répondu ou pas
+- `cloudpc/whatsapp_web.py` : `_open_chat` vérifie le titre de la discussion ouverte (avant : la discussion précédente
+  restait affichée → messages d'un autre client) + vrai clic souris ; lecture : attend le chargement complet, remonte
+  l'historique, expéditeur selon le côté de la bulle (les coches ne sont que sur la 1re bulle d'une série), dates des
+  séparateurs, notice de chiffrement ignorée, messages supprimés, documents hors écran affichés, liens, message cité.
+- `integrations/whatsapp-web.ts` : `waConversationText()` — du plus ancien au plus récent, CLIENT / TOI / RÉPONSE AUTO
+  (message d'accueil WhatsApp Business), statut « déjà répondu » ou « pas encore répondu → propose une réponse » ;
+  listes unread/récentes indiquent qui a écrit le dernier message.
+
 ## 2026-10-16 — Appels : reconnaissance de la voix, confidentialité, famille, chant, recherche web
 - `tgcall/speaker.py` : empreinte vocale locale (sherpa-onnx + modèle 3D-Speaker CAM++ `tgcall/models/spk.onnx`, empreintes
   dans `tgcall/voiceprints/`, non versionnés). Kouider s'apprend tout seul (ses vocaux Telegram non transférés + appels

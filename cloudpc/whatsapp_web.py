@@ -57,13 +57,57 @@ JS_MESSAGES = r"""((max) => {
   // Ancien DOM : div.message-in/out ; nouveau DOM (2026-10) : [data-testid^=conv-msg-], envoyé = coche msg-check/dblcheck/time ou tail-out
   let rows = [...main.querySelectorAll('div.message-in, div.message-out')];
   if (!rows.length) rows = [...main.querySelectorAll('[data-testid^="conv-msg-"]')];
-  return { chat: title, messages: rows.slice(-max).map(m => {
+  // Séparateurs de date (« 13/07/2026 », « mardi », « hier », « aujourd'hui ») : date des bulles sans en-tête
+  const DATE_RE = /^(aujourd’hui|aujourd'hui|hier|today|yesterday|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|\d{1,2}\/\d{1,2}\/\d{4})$/i;
+  const seps = [...main.querySelectorAll('div, span')].filter(d => !d.children.length || d.children.length === 1 && !d.children[0].children.length)
+    .filter(d => DATE_RE.test((d.innerText || '').trim()));
+  const dayOf = m => { let day = ''; for (const d of seps) { if (d.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING) day = d.innerText.trim(); } return day; };
+  // Qui a envoyé ? La bulle est collée à droite = nous (FIK), à gauche = le client. Les icônes (coches, queue) ne sont
+  // que sur la 1re bulle d'une série, d'où des messages à nous pris pour ceux du client.
+  const isMe = m => {
+    if (m.classList.contains('message-out') || m.querySelector('.message-out')) return true;
+    if (m.classList.contains('message-in') || m.querySelector('.message-in')) return false;
+    const R = m.getBoundingClientRect();
+    const b = [...m.querySelectorAll('div')].find(d => d.innerText && d.getBoundingClientRect().width > 0 && d.getBoundingClientRect().width < R.width * 0.8);
+    if (b) { const r = b.getBoundingClientRect(); return (R.right - r.right) < (r.left - R.left); }
+    return !!m.querySelector('[data-icon="tail-out"], [data-icon^="msg-check"], [data-icon^="msg-dblcheck"], [data-icon^="msg-time"]');
+  };
+  // Bulles seulement (pas la notice « chiffrés de bout en bout » ni les bandeaux système)
+  rows = rows.filter(m => m.classList.contains('message-in') || m.classList.contains('message-out')
+    || m.querySelector('[data-icon="tail-in"], [data-icon="tail-out"], [data-pre-plain-text]') || /\b\d{1,2}:\d{2}\s*$/.test(m.innerText || '') || !(m.innerText || '').trim());   // vide = pièce jointe pas encore affichée
+  return { chat: title, total: rows.length, messages: rows.slice(-max).map(m => {
     const c = m.querySelector('[data-pre-plain-text]');
-    const meta = c ? c.getAttribute('data-pre-plain-text') : '';
-    const text = [...m.querySelectorAll('span.selectable-text')].map(s => s.innerText).join(' ').trim();
-    return { me: m.classList.contains('message-out') || !!m.querySelector('[data-icon="tail-out"], [data-icon^="msg-check"], [data-icon^="msg-dblcheck"], [data-icon^="msg-time"]'), meta: meta.trim(), text: text || (m.querySelector('img') ? '[photo]' : m.querySelector('audio, [data-icon*="audio"], [data-icon*="ptt"]') ? '[message vocal]' : '[pièce jointe]') };
+    let meta = c ? c.getAttribute('data-pre-plain-text').trim() : '';
+    const hm = ((m.innerText || '').match(/\b(\d{1,2}:\d{2})\s*$/m) || [])[1] || '';
+    if (!meta && hm) meta = `[${hm}, ${dayOf(m)}]`;
+    if (m.querySelector('[data-icon="recalled"]')) return { me: isMe(m), meta, kind: 'supprimé', text: '[message supprimé par son auteur]' };
+    // Texte : seulement les spans « racines » (sinon les listes à puces sont doublées)
+    const spans = [...m.querySelectorAll('span.selectable-text')].filter(s => !s.parentElement.closest('span.selectable-text'));
+    let text = spans.map(s => s.innerText).join('\n').trim();
+    const links = [...m.querySelectorAll('a[href^="http"]')].map(a => a.href).filter((h, i, l) => l.indexOf(h) === i);
+    const quoted = (m.querySelector('[data-testid="quoted-message"], [aria-label*="Message cité"], [aria-label*="Quoted"]') || {}).innerText || '';
+    let kind = '';
+    if (m.querySelector('audio, [data-icon*="audio"], [data-icon*="ptt"]')) kind = 'message vocal';
+    else if (m.querySelector('[data-icon*="document"], [data-testid*="document"]')) kind = 'document';
+    else if (m.querySelector('img[src^="blob:"], [data-testid*="image"]')) kind = 'photo';
+    else if (m.querySelector('video, [data-icon*="video"]')) kind = 'vidéo';
+    if (!text && kind === 'document') text = (m.innerText || '').split('\n').map(l => l.trim()).filter(l => l && !/^\d{1,2}:\d{2}$/.test(l)).slice(0, 2).join(' — ');
+    if (!text && links.length) text = links.join(' ');
+    return { me: isMe(m),
+      meta, kind, text: text ? (kind ? `[${kind}] ${text}` : text) : `[${kind || 'pièce jointe'}]`,
+      ...(links.length && text.indexOf(links[0]) < 0 ? { links } : {}), ...(quoted ? { reply_to: quoted.slice(0, 200) } : {}) };
   }) };
 })"""
+
+# Remonte dans la discussion pour charger les anciens messages (WhatsApp n'affiche que les derniers)
+JS_SCROLL_UP = r"""(() => {
+  const main = document.querySelector('#main');
+  if (!main) return false;
+  const sc = [...main.querySelectorAll('div')].find(d => d.scrollHeight > d.clientHeight + 50 && /(auto|scroll)/.test(getComputedStyle(d).overflowY));
+  if (!sc) return false;
+  sc.scrollTop = 0;
+  return true;
+})()"""
 
 
 async def _page():
@@ -168,24 +212,41 @@ async def _open_chat(p: Page, chat: str) -> bool:
             if await p.js("!!document.querySelector('#main footer [contenteditable=true]')"):
                 return True
         return False
-    clicked = await p.js(f"""(() => {{ const want = {json.dumps(chat.lower())};
+    title_js = "((document.querySelector('#main header span[title], #main header span[dir=auto]') || {}).innerText || '')"
+    want = chat.lower()
+
+    async def opened() -> bool:   # la BONNE discussion est ouverte (pas celle d'avant, restée affichée)
+        t = (await p.js(title_js) or '').lower()
+        return bool(t) and (t == want or want in t) and await p.js("!!document.querySelector('#main footer [contenteditable=true]')")
+
+    if await opened():
+        return True
+    box = await p.js(f"""(() => {{ const want = {json.dumps(want)};
       const span = [...document.querySelectorAll('#pane-side span[title]')].find(s => (s.getAttribute('title') || '').toLowerCase() === want)
         || [...document.querySelectorAll('#pane-side span[title]')].find(s => (s.getAttribute('title') || '').toLowerCase().includes(want));
-      if (!span) return false;
+      if (!span) return null;
       const row = span.closest('[role="listitem"], [role="row"]') || span;
-      for (const t of ['mousedown', 'mouseup', 'click']) row.dispatchEvent(new MouseEvent(t, {{ bubbles: true }}));
-      return true; }})()""")
-    if not clicked:
-        # Recherche (discussion hors écran)
-        await p.js("(document.querySelector('#side [contenteditable=true]') || document.querySelector('#side input')).focus()")
-        await _key(p, 'a', 'KeyA', 65, 2)
-        await _key(p, 'Backspace', 'Backspace', 8)
-        await p.call('Input.insertText', {'text': chat})
-        await asyncio.sleep(2.5)
-        await _key(p, 'Enter', 'Enter', 13)
+      row.scrollIntoView({{ block: 'center' }});
+      const r = row.getBoundingClientRect();
+      return {{ x: r.left + r.width / 2, y: r.top + r.height / 2 }}; }})()""")
+    if box:   # vrai clic de souris (un clic JS n'ouvre pas toujours la discussion)
+        for t in ('mouseMoved', 'mousePressed', 'mouseReleased'):
+            await p.call('Input.dispatchMouseEvent', {'type': t, 'x': box['x'], 'y': box['y'],
+                                                      'button': 'none' if t == 'mouseMoved' else 'left', 'clickCount': 1})
+        for _ in range(10):
+            await asyncio.sleep(0.5)
+            if await opened():
+                return True
+    # Recherche (discussion hors écran)
+    await p.js("(document.querySelector('#side [contenteditable=true]') || document.querySelector('#side input')).focus()")
+    await _key(p, 'a', 'KeyA', 65, 2)
+    await _key(p, 'Backspace', 'Backspace', 8)
+    await p.call('Input.insertText', {'text': chat})
+    await asyncio.sleep(2.5)
+    await _key(p, 'Enter', 'Enter', 13)
     for _ in range(10):
         await asyncio.sleep(0.5)
-        if await p.js("!!document.querySelector('#main footer [contenteditable=true]')"):
+        if await opened():
             return True
     return False
 
@@ -195,8 +256,36 @@ async def read(chat: str, n: int = 15) -> dict:
         async with await _page() as p:
             if not await _open_chat(p, chat):
                 return {'ok': False, 'error': f'Discussion « {chat} » introuvable.'}
-            await asyncio.sleep(1.5)
+            count_js = "document.querySelectorAll('#main [data-testid^=\"conv-msg-\"], #main div.message-in, #main div.message-out').length"
+            last, stable = -1, 0
+            for _ in range(16):       # la discussion se charge petit à petit : on attend que le nombre de bulles ne bouge plus
+                await asyncio.sleep(0.5)
+                cnt = await p.js(count_js) or 0
+                stable = stable + 1 if cnt == last and cnt > 0 else 0
+                last = cnt
+                if stable >= 3:
+                    break
             r = await p.js(f'({JS_MESSAGES})({int(n)})')
+            flat = 0
+            for _ in range(8):        # pas assez de messages chargés → on remonte (anciens messages)
+                if not r or r.get('total', 0) >= n or not await p.js(JS_SCROLL_UP):
+                    break
+                await asyncio.sleep(1.5)
+                before = r.get('total', 0)
+                r = await p.js(f'({JS_MESSAGES})({int(n)})')
+                flat = flat + 1 if r and r.get('total', 0) <= before else 0
+                if flat >= 2:          # début de la discussion atteint
+                    break
+            # Bulles vides = pièces jointes pas encore dessinées (hors écran) → on les fait défiler à l'écran puis on relit
+            for i in range(10):
+                shown = await p.js(f"""(() => {{ const e = [...document.querySelectorAll('#main [data-testid^="conv-msg-"]')]
+                  .slice(-{int(n)}).filter(m => !(m.innerText || '').trim())[{i}]; if (!e) return false;
+                  e.scrollIntoView({{ block: 'center' }}); return true; }})()""")
+                if not shown:
+                    break
+                await asyncio.sleep(0.6)
+            if i:
+                r = await p.js(f'({JS_MESSAGES})({int(n)})')
     return {'ok': True, **(r or {'messages': []})}
 
 
