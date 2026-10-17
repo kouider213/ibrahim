@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-17 (soir) — Page COACH : sport + nutrition + mental + jeu — 3e5b3b0
+- Page app SPORT → COACH (onglets 🏋️ Sport · 🍽️ Nutrition · 🧠 Mental · 🎮 Progrès), app v154.
+- Nutrition/mental dans l'agenda : `buildCoachDay` (life-coach.ts) génère en JSON 4 repas + eau + objectif mental + coucher, écrits chaque soir (20h30, rattrapage `ensureCoachDays` dans sport-watch) comme événements LIBRES (transparents) 🍳🍽️🥜🍲🧠😴 ; jamais de santé/poids/moral dans l'agenda. meeting-prep et departures ignorent ces événements (fenêtre meeting-prep 20 → 40).
+- Jeu (`coach-game.ts`) : points recalculés depuis l'historique (séance, séries, records, arrivée GPS, repas, eau, respiration, gratitude, humeur, pesée), niveaux, 14 badges, 5 quêtes hebdo ; pesée = points pour la régularité seulement. API `/api/coach`.
+- Démos animées de chaque exercice (free-exercise-db, domaine public) + bouton vidéo YouTube, dans la fiche et en mode séance. Courbes : charge par exercice, poids (+ objectif), humeur.
+
 ## 2026-10-17 — Coach sportif (sport_coach) + page SPORT — a8655c3
 - `backend/src/integrations/sport-coach.ts` : rotation PUSH / PULL / LEG / CARDIO / UPPER / CORE & MOBILITÉ posée sur chaque créneau 🏋️ de l'agenda FIK (titre + exercices, séries × reps, charge conseillée dans la description). Créneau raccourci par un RDV → séance courte ; séance ratée → refaite au créneau suivant (clôture à 20h15) ; progression +step kg quand toutes les séries sont réussies. Programme sans charge lourde sur la colonne.
 - Rappels : au message « pars à… » d'un créneau sport (departures.ts) → point GPS de la salle (send_venue Telegram) + séance + appel (sauf si la routine du matin vient d'appeler) ; `sport-watch` */5 : arrivé à la salle (GPS < 400 m) → séance sur Telegram, séance commencée +10 min et GPS loin → appel « tu as oublié le sport ? » + point GPS ; pas de GPS → message.
