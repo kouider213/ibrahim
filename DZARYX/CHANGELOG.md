@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-17 (10) — Logo central VOIX + barre du bas sans coupure
+- Page VOIX « Activer Dzaryx » : l'ancien orbe est remplacé par l'emblème hexagonal + deux anneaux HUD qui tournent. `OrbIcon` (carte réponse, chat) affiche aussi l'emblème. Emblème partagé dans `ui/DzaryxLogo.tsx`.
+- Barre du bas : le trait du haut ne coupe plus le bouton micro (bosse arrondie autour de l'orbe), fond de page #030712 pour ne plus voir de bande noire sous la barre.
+
 ## 2026-10-17 (9) — App au style Nexus partout + tableau de bord Nexus + nouveau logo
 - Palette Nexus (bleu nuit, cyan) sur tous les écrans, coque refaite : barre du haut, menu du bas à vraies icônes, grille « Plus », titres (Hero) et recherche.
 - **Nouveau logo** : emblème hexagonal holographique + monogramme D (barre du haut, verrouillage, connexion, icônes web + APK). Le point rouge est remplacé par « EN LIGNE / CONNEXION… » sous DZARYX.

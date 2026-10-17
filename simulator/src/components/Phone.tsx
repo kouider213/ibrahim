@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import DzaryxIcon from './ui/DzaryxLogo.tsx';
 import VoiceScreen, { prepareCallAudio } from './screens/VoiceScreen.tsx';
 import CallOverlay from './CallOverlay.tsx';
 import TextScreen from './screens/TextScreen.tsx';
@@ -753,44 +754,6 @@ const loginInputStyle: React.CSSProperties = {
   transition: 'border-color 0.2s ease',
 };
 
-// ─── Dzaryx SVG Icon ──────────────────────────────────────────────────────────
-
-function DzaryxIcon({ size = 80, glow = false }: { size?: number; glow?: boolean }) {
-  // Emblème Dzaryx : hexagone holographique + monogramme D + anneaux (même langage visuel que Nexus).
-  const uid = `dz${Math.round(size)}`;
-  const hex = (r: number) => Array.from({ length: 6 }, (_, i) => {
-    const a = Math.PI / 6 + i * Math.PI / 3;
-    return `${(256 + r * Math.cos(a)).toFixed(1)},${(256 + r * Math.sin(a)).toFixed(1)}`;
-  }).join(' ');
-  return (
-    <svg width={size} height={size} viewBox="0 0 512 512" style={{ display: 'block', overflow: 'visible', filter: glow ? 'drop-shadow(0 0 14px rgba(56,216,245,0.45)) drop-shadow(0 0 32px rgba(59,130,246,0.2))' : 'drop-shadow(0 0 6px rgba(56,216,245,0.35))' }}>
-      <defs>
-        <linearGradient id={`${uid}edge`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#7cf3ff" /><stop offset="55%" stopColor="#38d8f5" /><stop offset="100%" stopColor="#3b82f6" />
-        </linearGradient>
-        <radialGradient id={`${uid}core`} cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stopColor="#0f2a4d" /><stop offset="100%" stopColor="#040a18" />
-        </radialGradient>
-        <linearGradient id={`${uid}d`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#ffffff" /><stop offset="100%" stopColor="#7ce8ff" />
-        </linearGradient>
-      </defs>
-      <polygon points={hex(236)} fill={`url(#${uid}core)`} stroke={`url(#${uid}edge)`} strokeWidth="14" strokeLinejoin="round" />
-      <polygon points={hex(196)} fill="none" stroke="#38d8f5" strokeOpacity="0.28" strokeWidth="4" strokeDasharray="22 14" />
-      <circle cx="256" cy="256" r="150" fill="none" stroke="#38d8f5" strokeOpacity="0.5" strokeWidth="6" strokeDasharray="160 60 40 60" strokeLinecap="round" />
-      {/* Monogramme D */}
-      <path d="M196 160 H262 a96 96 0 0 1 0 192 H196 Z" fill="none" stroke={`url(#${uid}d)`} strokeWidth="30" strokeLinejoin="round" />
-      <path d="M196 256 H246" stroke="#38d8f5" strokeWidth="14" strokeLinecap="round" />
-      <circle cx="262" cy="256" r="14" fill="#7cf3ff" />
-      {/* Nœuds aux sommets */}
-      {[0, 2, 4].map(i => {
-        const a = Math.PI / 6 + i * Math.PI / 3;
-        return <circle key={i} cx={256 + 236 * Math.cos(a)} cy={256 + 236 * Math.sin(a)} r="16" fill="#7cf3ff" />;
-      })}
-    </svg>
-  );
-}
-
 // ─── Offline Banner ───────────────────────────────────────────────────────────
 function OfflineBanner() {
   const [offline, setOff] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
@@ -973,17 +936,24 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
   return (
     <div style={{
       width: '100%', flexShrink: 0, position: 'relative', zIndex: 5,
-      background: 'linear-gradient(0deg, rgba(3,7,18,0.99), rgba(6,14,32,0.97))',
-      borderTop: '1px solid rgba(90,150,255,0.14)',
-      boxShadow: '0 -6px 24px rgba(0,0,0,0.35)',
+      background: 'linear-gradient(0deg, #030712, #060e20)',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
     }}>
+      {/* Bord du haut avec une bosse sous l'orbe VOIX (au lieu d'un trait qui coupe le bouton) */}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: -27, height: 28, display: 'flex', alignItems: 'flex-end', pointerEvents: 'none' }}>
+        <div style={{ flex: 1, height: 1, background: 'rgba(90,150,255,0.18)', boxShadow: '0 -6px 18px rgba(0,0,0,0.35)' }} />
+        <svg width="104" height="28" viewBox="0 0 104 28" style={{ display: 'block', flexShrink: 0 }}>
+          <path d="M0 27.5 C22 27.5 20 1 52 1 C84 1 82 27.5 104 27.5 V28 H0 Z" fill="#060e20" />
+          <path d="M0 27.5 C22 27.5 20 1 52 1 C84 1 82 27.5 104 27.5" fill="none" stroke="rgba(90,150,255,0.18)" />
+        </svg>
+        <div style={{ flex: 1, height: 1, background: 'rgba(90,150,255,0.18)', boxShadow: '0 -6px 18px rgba(0,0,0,0.35)' }} />
+      </div>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         {side.slice(0, half).map(t => item(t.id, label(t), page === t.id))}
         {/* VOIX : orbe central surélevé */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
           <button onClick={() => onPage('voice')} aria-label="Voix" style={{
-            width: 56, height: 56, marginTop: -22, borderRadius: '50%', cursor: 'pointer', padding: 0,
+            width: 54, height: 54, marginTop: -24, borderRadius: '50%', position: 'relative', zIndex: 1, cursor: 'pointer', padding: 0,
             background: voiceActive ? `radial-gradient(circle at 50% 35%, ${accent}66, #0a2550 75%)` : 'radial-gradient(circle at 50% 35%, #14366b, #071229 75%)',
             border: `1.5px solid ${voiceActive ? accent : accent + '66'}`,
             boxShadow: voiceActive ? `0 0 22px ${accent}88, 0 6px 18px rgba(0,0,0,0.6)` : `0 0 12px ${accent}33, 0 6px 18px rgba(0,0,0,0.6)`,

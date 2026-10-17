@@ -6,6 +6,7 @@ import {
   type DzaryxStatus,
 } from '../../services/api.ts';
 import { OrbIcon } from '../ui/Premium.tsx';
+import DzaryxIcon from '../ui/DzaryxLogo.tsx';
 
 interface Props {
   onNavigateText: () => void;
@@ -1719,12 +1720,24 @@ function DzaryxRobot({
   );
 }
 
-// ── Logo Dzaryx au centre (remplace l'étoile) ────────────────────────────────
-function Sparkle({ active }: { col: string; active: boolean }) {
-  const size = active ? 100 : 84;
+// ── Logo Dzaryx au centre : emblème + anneaux HUD qui tournent ───────────────
+function Sparkle({ col, active }: { col: string; active: boolean }) {
+  const size = active ? 104 : 92;
+  const box = size + 76;
+  const ring = (inset: number, dash: string, anim: string, op: number) => (
+    <svg width={box - inset * 2} height={box - inset * 2} viewBox="0 0 100 100"
+      style={{ position: 'absolute', top: inset, left: inset, animation: anim, opacity: op }}>
+      <circle cx="50" cy="50" r="48" fill="none" stroke={col} strokeWidth="1.1" strokeDasharray={dash} strokeLinecap="round" />
+    </svg>
+  );
   return (
-    <div style={{ animation: active ? 'corePulse 1.6s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite', transition: 'all 0.3s ease' }}>
-      <OrbIcon size={size} glow />
+    <div style={{ position: 'relative', width: box, height: box, animation: active ? 'corePulse 1.6s ease-in-out infinite' : 'orbFloat 4.5s ease-in-out infinite' }}>
+      <div style={{ position: 'absolute', inset: 10, borderRadius: '50%', background: `radial-gradient(circle, ${col}22 0%, transparent 70%)` }} />
+      {ring(0, '2 6', 'spin-slow 26s linear infinite', 0.45)}
+      {ring(12, '40 14 8 14', 'spin-rev 14s linear infinite', 0.6)}
+      <div style={{ position: 'absolute', top: (box - size) / 2, left: (box - size) / 2 }}>
+        <DzaryxIcon size={size} glow />
+      </div>
     </div>
   );
 }

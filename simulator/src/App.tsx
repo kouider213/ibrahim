@@ -36,7 +36,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#030712', overflow: 'hidden' }}>
       <AppShell />
     </div>
   );
