@@ -61,6 +61,7 @@ import nexusRoutes         from './api/routes/nexus.js';
 import nexusLiveRoutes     from './api/routes/nexus-live.js';
 import nexusOsRoutes       from './api/routes/nexus-os.js';
 import nexusDataRoutes     from './api/routes/nexus-data.js';
+import phoneCamRoutes      from './api/routes/phonecam.js';
 import multiAgentRoutes    from './api/routes/multi-agent.js';
 import workflowRoutes      from './api/routes/workflow.js';
 import biRoutes            from './api/routes/bi.js';
@@ -352,6 +353,7 @@ app.use('/api/vision',        apiLimiter, visionRoutes);
 // Écran du PC en direct : limite à part (plusieurs images/s), AVANT /api/nexus
 const liveLimiter = makeRateLimiter(600, 60_000);
 app.use('/api/nexus/live',    liveLimiter, nexusLiveRoutes);
+app.use('/api/phonecam',      liveLimiter, phoneCamRoutes);
 app.use('/api/nexus/data',    apiLimiter, nexusDataRoutes);
 app.use('/api/nexus',         apiLimiter, nexusRoutes);
 app.use('/api/nexus/os',     apiLimiter, nexusOsRoutes);

@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-10-17 (7) — Caméra du téléphone → Nexus (widget en direct, vision, photos/vidéos rangées sur le PC)
+- App : nouvel écran **CAMÉRA → PC** (`PhoneCamScreen.tsx`) : « Montrer à Nexus » envoie ~3 images/s, boutons photo / vidéo 10 s /
+  retourner, et usages en un geste (état voiture, lire document, permis/CNI, plaque/km, voyant, ticket/facture, identifier) :
+  Nexus regarde, répond (lu à voix haute) et range la photo.
+- Backend `api/routes/phonecam.ts` (Kouider seulement, limite à part) : `/frame`, `/media`, `/ask`, `/stop` ;
+  `/api/nexus/data/phonecam-cmd` pour les ordres de Nexus vers l'app. Ancien `/api/vision/relay-frame` sans auth retiré.
+- Nexus `modules/phonecam.py` : widget « CAMÉRA TÉLÉPHONE · LIVE » (holo.js), « tu vois ça ? » = vision sur l'image du téléphone
+  quand elle est ouverte, « prends-la en photo » / « filme 15 secondes » → l'app capture en pleine qualité → Images/Dzaryx Caméra/<date>/.
+  Outils agent : `phone_camera`, `look_phone_camera`, `phone_media` (réafficher en widget ou renvoyer sur Telegram).
+
 ## 2026-10-17 (6) — Dzaryx : bugs trouvés dans les échanges du 14 au 17/10
 - « je n'ai pas d'outil WhatsApp / pour supprimer un événement / pour programmer l'appel » : l'agent choisi selon les mots
   (Réservations, Finance…) ne voyait QUE ses outils. `claude-api.ts` : ses outils sont « préférés », tous les autres restent

@@ -49,6 +49,7 @@ from modules.pc_agent         import PCAgent
 from modules.panels           import Panels
 from modules.globe            import Globe
 from modules.hud              import Hud
+from modules.phonecam         import PhoneCam
 from modules                  import globe as globe_data
 from modules                  import vision_click
 from modules                  import ui_automation
@@ -89,6 +90,7 @@ _CAMERA_RE       = re.compile(r'\b(regarde[\s-]?moi|active\s+la\s+cam[eé]ra?|ou
 # Écran PC en live (stream bureau)
 _SCREEN_LIVE_RE  = re.compile(r'\b((?:active|lance?|d[eé]marre?|montre?|stream)\s+(?:le?\s+)?(?:live\s+)?[eé]cran\s*(?:en\s+(?:live|direct))?|live\s+[eé]cran|stream\s*[eé]cran|vois?\s+(?:mon\s+)?[eé]cran\s+en\s+(?:live|direct)|regarde?\s+(?:mon\s+)?[eé]cran\s+en\s+(?:live|direct))\b', re.I)
 _SCREEN_OFF_RE   = re.compile(r'\b(stop\s+[eé]cran|arr[eê]te?\s+(?:le\s+)?(?:live\s+|stream\s+)?[eé]cran|d[eé]sactive?\s+(?:le\s+)?(?:stream|vision|live)\s+[eé]cran)\b', re.I)
+_PHONECAM_ACT_RE = re.compile(r"\b(?:prends?|fais|capture)[\s-]+(?:la|le|les|une|ça|ca)?\s*(?:en\s+)?photo|\b(?P<video>filme|enregistre\s+(?:une\s+)?vid[eé]o|prends?\s+(?:une\s+)?vid[eé]o)", re.I)
 _VISION_RE     = re.compile(
     r"\b(qu[e']\s+vois[\s-]?tu"
     r"|d[eé]cris\s+ce\s+que"
@@ -157,6 +159,8 @@ class NexusApp:
         self.panels   = Panels(self)
         self.globe    = Globe(self)
         self.hud      = Hud(self)
+        self.phonecam = PhoneCam(self)
+        self.pc_agent.app = self              # outils caméra du téléphone / renvoi Telegram depuis le fil de l'agent
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -195,6 +199,13 @@ class NexusApp:
         w['id'] = spec.get('id') or f'w{int(time.time() * 1000)}'
         await self.gui_send({'type': 'holo_widget', 'widget': w})
         return f"Widget « {w.get('title', '')} » affiché sur l'écran Nexus."
+
+    def run_from_thread(self, coro, timeout: float = 30):
+        """Exécute une coroutine de Nexus depuis un fil (agent PC) et renvoie son résultat."""
+        if not (self.loop and self.loop.is_running()):
+            coro.close()
+            raise RuntimeError('Nexus pas prêt')
+        return asyncio.run_coroutine_threadsafe(coro, self.loop).result(timeout=timeout)
 
     def _widget_from_thread(self, spec: dict) -> str:
         if not (self.loop and self.loop.is_running()):
@@ -429,6 +440,24 @@ class NexusApp:
             else:
                 await self.ws.journal(r)
             await self.journal('🖥️ Stream écran PC → app')
+            return
+
+        # Caméra du téléphone ouverte dans l'app (« Montrer à Nexus ») : « tu vois ça ? », « prends-la en photo », « filme »
+        if self.phonecam.live and (_PHONECAM_ACT_RE.search(tl) or _VISION_RE.search(tl) or _CAMERA_RE.search(tl)):
+            await self.gui_send({'type': 'thinking', 'active': True})
+            m = _PHONECAM_ACT_RE.search(tl)
+            if m and m.group('video'):
+                secs = re.search(r'(\d+)\s*(?:s\b|sec|seconde)', tl)
+                r = await self.phonecam.command('video', int(secs.group(1)) if secs else 10, re.sub(_PHONECAM_ACT_RE, '', t).strip(' ,.'))
+            elif m:
+                r = await self.phonecam.command('photo', 10, re.sub(_PHONECAM_ACT_RE, '', t).strip(' ,.'))
+            else:
+                r = await asyncio.get_running_loop().run_in_executor(None, self.phonecam.look, t)
+            await self.gui_send({'type': 'thinking', 'active': False})
+            if source == 'nexus':
+                await self.speak(r)
+            else:
+                await self.ws.journal(r)
             return
 
         # Caméra → téléphone/app uniquement

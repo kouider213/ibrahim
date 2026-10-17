@@ -197,13 +197,13 @@ TOOLS = [
         "description": "Affiche un widget holographique sur l'écran Nexus (déplaçable). À utiliser dès que Kouider demande d'afficher, "
                        "montrer, lister ou comparer quelque chose, ou quand ta réponse contient une liste, un tableau, une image ou "
                        "plus de 3 lignes d'infos. kind: 'text' (content = texte), 'list' (items = [{title, subtitle}]), "
-                       "'table' (columns = [...], rows = [[...]]), 'kv' (pairs = [[clé, valeur]]), 'image' (path = fichier image du PC "
+                       "'table' (columns = [...], rows = [[...]]), 'kv' (pairs = [[clé, valeur]]), 'image' / 'video' (path = fichier du PC "
                        "ou URL https). Tu peux en afficher plusieurs.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "title": {"type": "string"},
-                "kind": {"type": "string", "enum": ["text", "list", "table", "kv", "image"]},
+                "kind": {"type": "string", "enum": ["text", "list", "table", "kv", "image", "video"]},
                 "content": {"type": "string"},
                 "items": {"type": "array", "items": {"type": "object"}},
                 "columns": {"type": "array", "items": {"type": "string"}},
@@ -213,6 +213,30 @@ TOOLS = [
             },
             "required": ["title", "kind"]
         }
+    },
+    {
+        "name": "phone_camera",
+        "description": "Pilote la caméra du téléphone de Kouider (app Dzaryx → CAMÉRA → « Montrer à Nexus », visible en direct dans un widget). "
+                       "action: 'photo' (photo pleine qualité rangée sur le PC), 'video' (filme secs secondes, rangée sur le PC), "
+                       "'switch' (caméra avant/arrière), 'stop'. label = nom court du sujet (ex. « Clio AB-123 rayure », « facture garage »).",
+        "input_schema": {"type": "object", "properties": {
+            "action": {"type": "string", "enum": ["photo", "video", "switch", "stop"]},
+            "secs": {"type": "integer"}, "label": {"type": "string"}}, "required": ["action"]}
+    },
+    {
+        "name": "look_phone_camera",
+        "description": "Regarde ce que Kouider montre en ce moment avec la caméra de son téléphone et réponds à la question : lire un "
+                       "document / une plaque / un compteur / un ticket, état d'une voiture (rayures, pneus, voyants), identifier un objet "
+                       "ou une pièce, recopier un numéro… À utiliser dès qu'il dit « regarde », « tu vois ça ? », « lis-moi ça ».",
+        "input_schema": {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]}
+    },
+    {
+        "name": "phone_media",
+        "description": "Retrouve les photos/vidéos prises avec la caméra du téléphone (rangées dans Images/Dzaryx Caméra/<date>/). "
+                       "query = mot du nom, date AAAA-MM-JJ, 'photo' ou 'video' (vide = les dernières). show=true les affiche en widgets "
+                       "sur l'écran Nexus ; send=true envoie la plus récente trouvée à Kouider sur Telegram (« renvoie-la-moi »).",
+        "input_schema": {"type": "object", "properties": {
+            "query": {"type": "string"}, "show": {"type": "boolean"}, "send": {"type": "boolean"}, "limit": {"type": "integer"}}}
     },
     {
         "name": "organize_files",
@@ -423,6 +447,8 @@ class PCAgent:
         "(PowerShell) avant d'abandonner, puis dis clairement ce qui n'a pas marché. 4) Ménage du PC : clean_pc (complet), "
         "la corbeille seulement si Kouider le demande. 5) Dès que Kouider veut voir, afficher, lister, comparer ou que la réponse "
         "a une liste / un tableau / une image : show_widget sur l'écran Nexus, et ta réponse parlée reste courte. "
+        "Caméra du téléphone : « regarde / tu vois ça » → look_phone_camera ; « prends-la en photo / filme » → phone_camera "
+        "(avec un label parlant) ; « montre / renvoie-moi la photo de… » → phone_media. "
         "6) Réponds en français, court et naturel (ta réponse est lue à voix haute) : pas de markdown, pas d'émojis."
         f" Bureau : {DESKTOP}. Documents : {DOCUMENTS}. Téléchargements : {DOWNLOADS}."
     )
@@ -432,6 +458,7 @@ class PCAgent:
         self.client = anthropic.Anthropic(api_key=api_key) if api_key else None
         self.available = bool(api_key)
         self.widget_cb = widget_cb          # show_widget → interface Nexus (appelé depuis le fil de l'agent)
+        self.app = None                     # Nexus (branché après création) : caméra du téléphone, Telegram
 
     @staticmethod
     def _history_messages(history: list[dict] | None) -> list[dict]:
@@ -472,6 +499,33 @@ class PCAgent:
             self.MODEL = self.FALLBACK_MODEL
             return self.client.messages.create(model=self.MODEL, max_tokens=2048, system=self.SYSTEM, tools=TOOLS, messages=messages)
 
+    def _phone_tool(self, name: str, inp: dict) -> str:
+        app = self.app
+        if not app:
+            return 'Nexus pas prêt'
+        try:
+            if name == 'phone_camera':
+                return app.run_from_thread(app.phonecam.command(inp.get('action', 'photo'), int(inp.get('secs') or 10), inp.get('label', '')))
+            if name == 'look_phone_camera':
+                return app.phonecam.look(inp.get('question', ''))
+            files = app.phonecam.list_media(inp.get('query', ''), int(inp.get('limit') or 6))
+            if not files:
+                return 'Aucune photo/vidéo trouvée dans Dzaryx Caméra' + (f" pour « {inp.get('query')} »" if inp.get('query') else '')
+            if inp.get('show'):
+                for f in files[:6]:
+                    app.run_from_thread(app.show_widget({'title': f.stem.replace('_', ' '), 'path': str(f),
+                                                         'kind': 'video' if f.suffix.lower() in ('.webm', '.mp4', '.mov') else 'image'}))
+            if inp.get('send'):
+                f = files[0]
+                fn = app.ws.send_photo_telegram if f.suffix.lower() in ('.jpg', '.png') else app.ws.send_file_telegram
+                ok = app.run_from_thread(fn(str(f), f'📷 {f.name}'), timeout=90)
+                if not ok:
+                    return f'Envoi Telegram impossible (serveur déconnecté). Fichier : {f}'
+            return '\n'.join(str(f) for f in files) + ('\n(affichés sur l\'écran)' if inp.get('show') else '') + \
+                ('\n(le premier a été envoyé sur Telegram)' if inp.get('send') else '')
+        except Exception as e:
+            return f'Erreur caméra du téléphone : {e}'
+
     def _agentic_loop(self, messages: list) -> str:
         guard = LoopGuard()
         last_text = ''
@@ -490,6 +544,8 @@ class PCAgent:
                 log.info('PC Agent tool: %s %s', block.name, str(block.input)[:80])
                 if block.name == 'show_widget':
                     result = self.widget_cb(dict(block.input)) if self.widget_cb else 'Écran Nexus indisponible'
+                elif block.name in ('phone_camera', 'look_phone_camera', 'phone_media'):
+                    result = self._phone_tool(block.name, dict(block.input))
                 else:
                     result = _run_tool(block.name, block.input)
                 log.info('PC Agent result: %s', str(result)[:100])

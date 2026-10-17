@@ -653,6 +653,24 @@ class NexusWSClient:
             self.app.vision.push_relay_frame(b64)
             await self.app.gui_send({'type': 'live_frame', 'data': b64})
 
+        # ── Caméra du téléphone (app Dzaryx → /api/phonecam) ──────────────────
+
+        @sio.on('nexus:phonecam_frame', namespace='/nexus')
+        async def on_phonecam_frame(data: dict):
+            await self.app.phonecam.on_frame(data or {})
+
+        @sio.on('nexus:phonecam_stop', namespace='/nexus')
+        async def on_phonecam_stop(_data=None):
+            await self.app.phonecam.on_stop()
+
+        @sio.on('nexus:phonecam_media', namespace='/nexus')
+        async def on_phonecam_media(data: dict):
+            try:
+                return await self.app.phonecam.on_media(data or {})
+            except Exception as e:
+                log.error('phonecam_media: %s', e)
+                return {'ok': False, 'error': str(e)}
+
         # ── OS Agent — File Explorer ─────────────────────────────────────────
 
         @sio.on('nexus:file_list', namespace='/nexus')

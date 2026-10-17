@@ -289,6 +289,24 @@ function showWidget(w){
   else { const d = document.createElement('div'); d.className = 'mb'; d.textContent = w.content || ''; b.appendChild(d); }
   box.style.zIndex = 6 + wSlot;
 }
+/* Caméra du téléphone en direct (app Dzaryx → « Montrer à Nexus ») */
+let camW = null, camT = 0;
+function phoneCamFrame(b64){
+  if(!camW){
+    camW = document.createElement('div'); camW.className = 'holo hw'; camW.id = 'phonecam';
+    camW.innerHTML = `<div class="hh"><b>CAMÉRA TÉLÉPHONE · LIVE</b><button data-a="photo" title="Photo">📷</button><button data-a="big" title="Agrandir">⤢</button><button data-a="close" title="Fermer">✕</button></div><div class="hb"><img class="wimg" alt="Caméra du téléphone"></div><div class="hf"><span class="k">● EN DIRECT</span><span>DIS « PRENDS-LA EN PHOTO » · « FILME 10 SECONDES » · « TU VOIS ÇA ? »</span></div>`;
+    stage.appendChild(camW);
+    camW.style.right = '18px'; camW.style.top = '60px'; camW.style.zIndex = 40;
+    camW.querySelector('[data-a=close]').onclick = phoneCamStop;
+    camW.querySelector('[data-a=big]').onclick = () => camW.classList.toggle('wide');
+    camW.querySelector('[data-a=photo]').onclick = () => send({ type:'message', text:'prends-la en photo' });
+    dragBy(camW.querySelector('.hh'), camW);
+  }
+  camW.querySelector('img').src = 'data:image/jpeg;base64,' + String(b64).replace(/^data:[^,]+,/, '');
+  clearTimeout(camT); camT = setTimeout(phoneCamStop, 9000);   // plus d'images depuis 9 s → l'app a fermé la caméra
+}
+function phoneCamStop(){ clearTimeout(camT); if(camW){ camW.remove(); camW = null; } }
+
 function closeWidget(id){ const b = widgets.get(id); if(b){ b.remove(); widgets.delete(id); } }
 function closeAllWidgets(){ [...widgets.keys()].forEach(closeWidget); }
 
@@ -452,6 +470,8 @@ window.Holo = {
       case 'mail_open': openMail(d.index, d.mail || {}); break;
       case 'mails_close': closeMails(); break;
       case 'holo_widget': if(d.widget) showWidget(d.widget); break;
+      case 'phonecam_frame': if(d.data) phoneCamFrame(d.data); break;
+      case 'phonecam_stop': phoneCamStop(); break;
       case 'holo_close': d.id ? closeWidget(d.id) : closeAllWidgets(); break;
       case 'gesture': void setGesture(!!d.on, false); break;
       case 'look': if(d.style) style = d.style; if(d.color) color = d.color; store.set('nexus_look', style); store.set('nexus_color', color); applyLook(); break;

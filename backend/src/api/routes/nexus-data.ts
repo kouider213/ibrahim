@@ -144,4 +144,13 @@ router.get('/webcams', async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
+// POST /api/nexus/data/phonecam-cmd { cmd: photo|video|switch|stop, secs?, label? } — Nexus demande à l'app du téléphone
+router.post('/phonecam-cmd', async (req, res) => {
+  const { cmd, secs, label } = (req.body ?? {}) as { cmd?: string; secs?: number; label?: string };
+  if (!cmd || !['photo', 'video', 'switch', 'stop'].includes(cmd)) { res.status(400).json({ error: 'cmd photo|video|switch|stop' }); return; }
+  const { queuePhoneCamCmd, phoneCamLive } = await import('./phonecam.js');
+  const c = queuePhoneCamCmd({ cmd: cmd as 'photo', secs: Math.min(Math.max(Number(secs) || 10, 2), 60), label: String(label ?? '').slice(0, 80) });
+  res.json({ ok: true, id: c.id, live: phoneCamLive() });
+});
+
 export default router;

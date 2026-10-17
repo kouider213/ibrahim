@@ -33,13 +33,14 @@ import PaiementsScreen from './screens/PaiementsScreen.tsx';
 import StudioScreen from './screens/StudioScreen.tsx';
 import CarteScreen from './screens/CarteScreen.tsx';
 import NexusScreen from './screens/NexusScreen.tsx';
+import PhoneCamScreen from './screens/PhoneCamScreen.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'camera' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -59,6 +60,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
   { id: 'carte',         icon: '🗺️', label: 'CARTE LIVE', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
+  { id: 'camera',        icon: '👁️', label: 'CAMÉRA → PC', kouiderOnly: true, group: 'tool' },
   { id: 'demarchage',    icon: '📤', label: 'DÉMARCHAGE', kouiderOnly: true, group: 'tool' },
   { id: 'sites',         icon: '🌐', label: 'SITES CLIENTS', kouiderOnly: true, group: 'tool' },
   { id: 'studio',        icon: '🎬', label: 'STUDIO VIDÉO', kouiderOnly: true, group: 'tool' },
@@ -288,7 +290,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['documents', 'demarchage', 'sites', 'paiements', 'studio', 'carte'];
+  const kouiderOnlyPages: Page[] = ['documents', 'demarchage', 'sites', 'paiements', 'studio', 'carte', 'camera'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -325,6 +327,7 @@ export default function Phone() {
       case 'sites':         return <SitesScreen />;
       case 'paiements':     return <PaiementsScreen />;
       case 'studio':        return <StudioScreen />;
+      case 'camera':        return <PhoneCamScreen />;
       case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;
