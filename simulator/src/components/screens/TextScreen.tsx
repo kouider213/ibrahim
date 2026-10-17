@@ -294,8 +294,11 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
   // Détecte "enregistre ces photos pour la voiture X" (voiture EXISTANTE)
   const isStoreIntent = (t: string) => /\b(enregistre|range|sauvegarde|stocke|ajoute(?:r)?\s+(?:ces|les|la|au)?)\b/i.test(t) || /voici.*photo|photos?\s+(du|de|des|pour)/i.test(t);
   // Détecte "crée/ajoute une NOUVELLE annonce" (voiture location/vente, immo, pack)
-  const isCreateIntent = (t: string) => /\b(cr[ée]e?r?|cree|nouvelle?\s+annonce|publie|met(?:s)?\s+en\s+ligne)\b/i.test(t)
-    || /\b(ajoute|rajoute)\b.*\b(voiture|v[ée]hicule|annonce|appartement|villa|maison|local|studio|bien|pack|à\s+louer|à\s+vendre|flotte|location|vente)\b/i.test(t);
+  // Demande de retouche / génération d'image ou de vidéo : la photo DOIT partir en vision, jamais en annonce
+  // (« modifie ma photo, crée une image ultra réaliste de moi… » était pris pour une création d'annonce → photo invisible pour Dzaryx).
+  const isImageEditIntent = (t: string) => /\b(modifie\w*|retouche\w*|transforme\w*|images?|montage|vid[ée]os?|de\s+moi|g[ée]n[èe]re\w*|dessine\w*|avatar|logo|affiche|ultra\s*-?\s*r[ée]alistes?|anime\w*|photoshop)\b/i.test(t);
+  const isCreateIntent = (t: string) => !isImageEditIntent(t) && (/\b(nouvelle?\s+annonce|publie|met(?:s)?\s+en\s+ligne)\b/i.test(t)
+    || /\b(cr[ée]e?r?|cree|ajoute|rajoute)\b.*\b(voiture|v[ée]hicule|annonce|appartement|villa|maison|local|studio|bien|pack|à\s+louer|à\s+vendre|flotte|location|vente)\b/i.test(t));
 
   const send = useCallback(async (forced?: string, forcedImg?: { base64: string; preview: string } | null) => {
     const text = (forced ?? input).trim();
@@ -303,7 +306,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
     if ((!text && !selectedImages.length && !forcedImg) || status === 'thinking') return;
 
     // CAS SPÉCIAL — ranger plusieurs photos sur une voiture EXISTANTE (Supabase)
-    if (selectedImages.length && isStoreIntent(text) && !isCreateIntent(text) && !isIdDocIntent(text)) {
+    if (selectedImages.length && isStoreIntent(text) && !isImageEditIntent(text) && !isCreateIntent(text) && !isIdDocIntent(text)) {
       const imgs = selectedImages;
       setMsgs(ms => [...ms,
         { id: uid(), role: 'user', text: `${text}  (${imgs.length} photo${imgs.length > 1 ? 's' : ''})`, ts: now(), status: 'done', imagePreview: imgs[0].preview },

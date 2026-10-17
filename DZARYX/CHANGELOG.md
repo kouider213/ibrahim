@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-17 (2) — Chat app : photo « invisible » pour Dzaryx corrigée
+- `TextScreen.tsx` : « modifie ma photo, crée une image de moi… » était pris pour « créer une annonce avec photos »
+  (le mot « crée » suffisait) → photo rangée pour une annonce, pas envoyée en vision → Dzaryx disait ne rien recevoir.
+  Nouvelle règle `isImageEditIntent` (image, retouche, vidéo, « de moi », ultra réaliste…) → toujours vision ;
+  « créer » ne déclenche une annonce que s'il parle de voiture / bien / annonce. sw v152.
+
 ## 2026-10-17 — STUDIO VIDÉO (vidéos IA niveau Higgsfield, sans Higgsfield)
 - `marketing/video-studio.ts` : idée → scénario viral (Claude) → plans IA réalistes via fal.ai (Kling 3.0 Pro,
   Veo 3.1 / Veo 3.1 Fast, Seedance 2.0), effets caméra (drone, FPV, travelling, 360°, zoom rapide, ralenti…)
