@@ -273,6 +273,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'sport-plan',
+    cron:  '15 20 * * *',           // 20h15 — coach sportif : clôture du jour (séance faite/ratée) + séances des 7 jours écrites dans l'agenda
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'sport-watch',
+    cron:  '*/5 4-23 * * *',        // toutes les 5 min — arrivé à la salle → séance sur Telegram ; séance commencée et GPS loin → appel « tu as oublié ? »
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'life-coach-evening',
     cron:  '30 20 * * *',           // 20h30 — coach : plan de demain (repas, sport, mental) + « ton moral ? » ; moral bas → appel
     tz:    'Europe/Brussels',
@@ -479,6 +489,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
   'business-mentor':         jobBusinessMentor,
   'mentor-news':             jobMentorNewsWatch,
+  'sport-plan':              async () => { await (await import('../integrations/sport-coach.js')).jobSportPlan(); },
+  'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); },
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },

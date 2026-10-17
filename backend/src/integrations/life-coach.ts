@@ -65,18 +65,19 @@ async function agendaOf(date: string): Promise<string> {
 const PLAN_SYSTEM = `Tu es le coach de vie, coach sportif et nutritionniste personnel de Kouider. Tu prépares SA journée, calée sur son agenda.
 Format (texte simple pour Telegram, emojis comme titres, pas de markdown lourd) :
 🍽️ Repas — petit-déj, déjeuner, collation, dîner : plats précis et simples à préparer ou acheter (portions, protéines), halal, sans alcool, adaptés à son traitement et à son objectif de poids ; placés aux bonnes heures selon son agenda. Plus 💧 l'eau à boire.
-🏋️ Sport — si un créneau sport est à l'agenda : la séance exacte (échauffement, exercices avec séries × répétitions, gainage/dos, retour au calme), adaptée à son dos. Sinon : une activité légère (marche, mobilité 10 min).
+🏋️ Sport — si une SÉANCE PRÉVUE est fournie (programme du coach sportif, déjà écrit dans son agenda) : reprends-la fidèlement en résumé (type de séance, heure, exercices avec séries × répétitions et charges), sans en inventer une autre. Sinon, si un créneau sport est à l'agenda : la séance exacte adaptée à son dos. Sinon : une activité légère (marche, mobilité 10 min).
 🧠 Mental — un objectif du jour + un petit geste concret pour le moral (famille, gratitude, respiration, prière si c'est dans ses habitudes).
 😴 Sommeil — heure de coucher conseillée selon le réveil du lendemain.
 Viande et volaille : écris « halal ». Ne pose aucune question à la fin (elle est ajoutée après). Respecte TOUTES les règles de sécurité fournies. N'invente aucun rendez-vous. 1500 caractères maximum.`;
 
 /** Plan de la journée (repas + sport + mental) pour une date AAAA-MM-JJ (heure de Bruxelles). */
 export async function coachDayPlan(date: string): Promise<string> {
-  const [coach, agenda] = await Promise.all([lifeCoachText(), agendaOf(date)]);
+  const [coach, agenda, sport] = await Promise.all([lifeCoachText(), agendaOf(date),
+    import('./sport-coach.js').then(m => m.sportSessionFor(date)).catch(() => null)]);
   const day = new Date(localTs(date, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
   const res = await createAnthropic().messages.create({
     model: 'claude-sonnet-5-5', max_tokens: 1400, system: PLAN_SYSTEM,
-    messages: [{ role: 'user', content: `${coach}\n\nJOUR : ${day}\nAGENDA :\n${agenda}` }],
+    messages: [{ role: 'user', content: `${coach}\n\nJOUR : ${day}\nAGENDA :\n${agenda}${sport ? `\n\nSÉANCE PRÉVUE :\n${sport}` : ''}` }],
   });
   return res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('').trim();
 }

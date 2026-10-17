@@ -123,6 +123,24 @@ export function setOffline(on: boolean) {
   try { window.dispatchEvent(new CustomEvent('dz:offline', { detail: on })); } catch { /* SSR */ }
 }
 
+
+// ── Coach sportif (page SPORT) ──
+export type SportType = 'push' | 'pull' | 'legs' | 'cardio' | 'upper' | 'core';
+export interface SportExercise { id: string; name: string; muscle: string; sets: number; reps: string; rest: number; tip: string; alt: string[]; step?: number;
+  suggestion: { kg: number | null; last?: string; up?: boolean }; timed: boolean }
+export interface SportSession { date: string; type: SportType; label: string; emoji: string; focus: string; muscles: string[]; warmup: string;
+  exercises: SportExercise[]; finisher: string | null; estMin: number; start: string; end: string; minutes: number; arrived: number | null }
+export interface SportOverview {
+  today: SportSession | null; next: SportSession | null;
+  week: Array<{ date: string; type: SportType | null; label: string | null; emoji: string | null; start: string | null; end: string | null; minutes: number | null; skip: string | null; status: string | null }>;
+  recovery: Array<{ muscle: string; pct: number }>;
+  stats: { streak: number; monthSessions: number; total: number; weeks: Array<{ from: string; sessions: number; volume: number }>; prs: Array<{ ex: string; kg: number; reps: number | null; date: string }> };
+  gym: { address: string; lat?: number; lng?: number; distanceKm?: number | null };
+  settings: { callBefore: boolean; gymCheck: boolean };
+  sessions: Record<SportType, { label: string; emoji: string; focus: string }>;
+  recent: Array<{ date: string; type: SportType; label: string; sets: number; volume: number; durationMin: number | null; rpe: number | null }>;
+}
+
 export async function apiFetch<T>(path: string, options: RequestInit = {}, _attempt = 0): Promise<T> {
   const isGet = !options.method || options.method.toUpperCase() === 'GET';
   let res: Response;
@@ -1051,6 +1069,13 @@ export const business = {
     apiFetch<{ ok: boolean }>(`/api/prospects/${id}/whatsapp`, { method: 'POST', body: JSON.stringify({ sent }) }),
   prospectWhatsappSend: (id: string) => apiFetch<{ ok: boolean; message: string }>(`/api/prospects/${id}/whatsapp/send`, { method: 'POST' }),
   billing: () => apiFetch<BillingOverview>('/api/billing'),
+  sport: () => apiFetch<SportOverview>('/api/sport'),
+  sportLog: (body: { date: string; type: SportType; sets: Array<{ ex: string; kg?: number; reps?: number }>; durationMin?: number; rpe?: number; note?: string }) =>
+    apiFetch<{ ok: boolean; prs: string[]; total: number }>('/api/sport/log', { method: 'POST', body: JSON.stringify(body) }),
+  sportSwap: (date: string, type: SportType | null) => apiFetch<SportOverview>('/api/sport/swap', { method: 'POST', body: JSON.stringify({ date, type }) }),
+  sportSkip: (date: string, reason: string | null) => apiFetch<SportOverview>('/api/sport/skip', { method: 'POST', body: JSON.stringify({ date, reason }) }),
+  sportSettings: (patch: { callBefore?: boolean; gymCheck?: boolean }) => apiFetch<{ settings: SportOverview['settings'] }>('/api/sport/settings', { method: 'POST', body: JSON.stringify(patch) }),
+  sportSync: () => apiFetch<{ ok: boolean; message: string }>('/api/sport/sync', { method: 'POST' }),
   studioOptions: () => apiFetch<StudioOptions>('/api/studio/options'),
   studioPlan: (body: { idea: string; template: string; lang: string; seconds: number; imageUrl?: string; carName?: string }
     | { manual: { prompt: string; camera: string; duration: number; imageUrl?: string } }) =>

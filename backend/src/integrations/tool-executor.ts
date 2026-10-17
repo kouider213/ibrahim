@@ -404,6 +404,7 @@ async function _dispatch(
       case 'travel':                    return await (await import('./trips.js')).travelTool(input, sessionId);
       case 'kouider_dossier':           return await kouiderDossierTool(input, sessionId);
       case 'life_coach':                return await lifeCoachTool(input, sessionId);
+      case 'sport_coach':               return await (await import('./sport-coach.js')).sportCoachTool(input, sessionId);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));
       case 'run_self_test':             return input['what'] === 'backup_now'
         ? `💾 Sauvegarde faite : ${await jobDbBackup().catch(e => `❌ échec — ${e instanceof Error ? e.message : String(e)}`)}`

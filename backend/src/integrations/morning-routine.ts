@@ -22,7 +22,7 @@ const DAYS_V2_FLAG = 'routine:days:v3';                 // séance 1h30 + trajet
 const START_FLAG = 'routine:start:2026-10-19';          // sport à partir du lundi 19/10 : séries recréées après la pause
 const DAY_NAMES = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const RRULE_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-const ROUTINE_TITLE = /^(🏋️ Sport — salle de Wemmel|🚗 Trajet → salle de Wemmel|🚗 Retour maison|🚿 Douche|⏰ Réveil, douche, petit-déj)/u;
+const ROUTINE_TITLE = /^(🏋️ [^—]+— salle de Wemmel|🚗 Trajet → salle de Wemmel|🚗 Retour maison|🚿 Douche|⏰ Réveil, douche, petit-déj)/u;
 
 export interface DayPlan {
   kind: 'sport' | 'work' | 'none';
@@ -152,6 +152,12 @@ export async function noteKouiderActivity(): Promise<string | null> {
       : plan?.leave ? `départ à ${plan.leave} (${plan.next ?? 'travail'})` : plan?.next ?? '';
     return `[Contexte : ce message répond à ton contrôle de réveil de ce matin — Kouider est RÉVEILLÉ, plus besoin de l'appeler. Félicite-le en une phrase courte et énergique et rappelle-lui ${next}. Puis réponds normalement à ce qu'il dit.]`;
   } catch { return null; }
+}
+
+/** La routine du matin a-t-elle appelé Kouider ces dernières minutes ? (évite deux appels coup sur coup) */
+export async function routineCalledRecently(min: number): Promise<boolean> {
+  const st = await getState(localNow().date);
+  return !!st.lastCallAt && Date.now() - st.lastCallAt < min * 60_000;
 }
 
 // ── Message du matin ─────────────────────────────────────────────────────────

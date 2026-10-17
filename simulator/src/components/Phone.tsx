@@ -36,13 +36,14 @@ import CarteScreen from './screens/CarteScreen.tsx';
 import NexusScreen from './screens/NexusScreen.tsx';
 import PhoneCamScreen from './screens/PhoneCamScreen.tsx';
 import GlobeScreen from './screens/GlobeScreen.tsx';
+import SportScreen from './screens/SportScreen.tsx';
 import { setSimActor, resumeWebPush, business, callApi, loginDevice, logoutDevice, setDeviceToken, getDeviceToken } from '../services/api.ts';
 
 export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -60,6 +61,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'settings',      icon: '⚙️', label: 'CONFIG'  },
   // ── Menu "⋯ Plus" (outils) ──
   { id: 'search',        icon: '🔍', label: 'CHERCHER', group: 'tool' },
+  { id: 'sport',         icon: '🏋️', label: 'SPORT',   kouiderOnly: true, group: 'tool' },
   { id: 'carte',         icon: '🗺️', label: 'CARTE LIVE', kouiderOnly: true, group: 'tool' },
   { id: 'nexus',         icon: '🖥️', label: 'MON PC',  kouiderOnly: true, group: 'tool' },
   { id: 'globe',         icon: '🌍', label: 'GLOBE',   kouiderOnly: true, group: 'tool' },
@@ -332,6 +334,7 @@ export default function Phone() {
       case 'studio':        return <StudioScreen />;
       case 'camera':        return <PhoneCamScreen />;
       case 'globe':         return <GlobeScreen />;
+      case 'sport':         return <SportScreen />;
       case 'carte':         return <CarteScreen actor={actor} startFull={carteLink} onOpen={(p) => setPage(p as Page)} onAsk={(prompt) => { try { localStorage.setItem('dz:ask_prompt', prompt); } catch { /* ignore */ } setPage('text'); }} />;
       case 'plus':          return <ToolsGrid onOpen={setPage} actor={actor} />;
       case 'documents':     return <DocumentsScreen />;

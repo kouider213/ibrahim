@@ -627,6 +627,10 @@ async def send_outbox_message(uid: int, m: dict) -> None:
                     doc = io.BytesIO(await r.read())
             doc.name = (m['file'].get('name') or 'fichier')[:120]
             await app.send_document(uid, doc, caption=text[:1000] or None)
+        elif m.get('location'):  # point GPS épinglé (salle de sport…) : s'ouvre dans Maps / Waze
+            loc = m['location']
+            await app.send_venue(uid, float(loc['lat']), float(loc['lng']), (loc.get('title') or 'Lieu')[:100],
+                                 (loc.get('address') or '')[:200])
         elif m.get('image'):
             photo = io.BytesIO(base64.b64decode(m['image'])); photo.name = 'pc.jpg'
             await app.send_photo(uid, photo, caption=text[:1000] or None)

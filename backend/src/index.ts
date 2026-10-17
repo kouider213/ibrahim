@@ -82,6 +82,7 @@ import clientSitesRoutes from './api/routes/client-sites.js';
 import fikSitesRoutes from './api/routes/fik-sites.js';
 import billingRoutes from './api/routes/billing.js';
 import studioRoutes from './api/routes/studio.js';
+import sportRoutes from './api/routes/sport.js';
 import rdvRoutes from './api/routes/rdv.js';
 import contratRoutes from './api/routes/contrat.js';
 
@@ -374,6 +375,7 @@ app.use('/api/packs',     apiLimiter, packsRoutes);
 app.use('/api/fik-site',  fikSiteWebhookRoutes);
 app.use('/api/billing',    apiLimiter, billingRoutes);
 app.use('/api/studio',     apiLimiter, studioRoutes);
+app.use('/api/sport',      apiLimiter, sportRoutes);
 app.use('/contrat',        apiLimiter, contratRoutes);     // page publique « contrat FIK Sites » à signer
 app.use('/rdv',            apiLimiter, rdvRoutes);        // page publique « choisir mon rendez-vous » (FIK Sites)    // page « À PAYER » (Kouider)
 app.use('/api/fik-sites',  apiLimiter, fikSitesRoutes);   // page « Sites clients » de l'app (Kouider)

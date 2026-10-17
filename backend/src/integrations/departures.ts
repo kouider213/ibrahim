@@ -4,6 +4,7 @@ import { getLocation } from './location.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { callOwner, getPendingCall } from '../notifications/voice-call.js';
+import { isSportSkipped, sportDepartureNotice } from './sport-coach.js';
 import { ensureRoutineStart, getRoutineConfig, routinePausedReason, lastKouiderActivity, localNow, hm } from './morning-routine.js';
 
 // DÉPARTS + TRAFIC (demande de Kouider 2026-10-15) : pour chaque RDV de l'agenda FIK qui a une ADRESSE (salle de sport,
@@ -19,13 +20,13 @@ const MAX_KM = 150;                         // au-delà, ce RDV n'est pas « en 
 
 type LatLng = { lat: number; lng: number };
 
-function km(a: LatLng, b: LatLng): number {
+export function km(a: LatLng, b: LatLng): number {
   const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
   const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-async function geocode(address: string): Promise<LatLng | null> {
+export async function geocode(address: string): Promise<LatLng | null> {
   const ck = `geo:${address.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120)}`;
   try { const c = await kvGet(ck); if (c) return JSON.parse(c) as LatLng; } catch { /* rien */ }
   const key = process.env['GOOGLE_MAPS_API_KEY'];
@@ -39,7 +40,7 @@ async function geocode(address: string): Promise<LatLng | null> {
   } catch { return null; }
 }
 
-async function drive(o: LatLng, d: LatLng): Promise<{ min: number; normal: number; km: number } | null> {
+export async function drive(o: LatLng, d: LatLng): Promise<{ min: number; normal: number; km: number } | null> {
   const key = process.env['GOOGLE_MAPS_API_KEY'];
   if (!key) return null;
   try {
@@ -111,11 +112,13 @@ export async function jobDepartureWatch(): Promise<void> {
     const traffic = t.min - t.normal >= 5 ? ` 🔴 trafic chargé (+${t.min - t.normal} min)` : t.min - t.normal >= 2 ? ' 🟡 un peu de trafic' : ' 🟢 fluide';
     const maps = `🧭 Waze : https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes\n🗺️ Maps : https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving`;
 
+    if (/^🏋️/u.test(title) && await isSportSkipped(localNow(start).date)) continue;   // « pas de sport aujourd'hui »
     if (!st.warnedAt && now >= leaveBy - 15 * 60_000) {
       const text = `🚗 ${name} à ${hm(start)} — pars à ${hm(leaveBy)}.\n⏱ ${t.min} min de route (${t.km} km),${traffic}.${fresh ? '' : ' (calculé depuis la maison)'}\n${maps}`;
       await queueTelegramMessage(text);
       emitProactive(text.split('\n')[0]!, 'reminder', text);
       st = { ...st, warnedAt: now, warnMin: t.min, leaveBy, originAtWarn: origin };
+      if (/^🏋️/u.test(title)) await sportDepartureNotice({ start, leaveBy, minutes: t.min, traffic }).catch(err => console.error('[sport] départ:', err));
     } else if (st.warnedAt && !st.updated && st.warnMin && t.min - st.warnMin >= 8 && now < leaveBy) {
       const text = `⚠️ Le trafic a empiré pour ${name} : ${t.min} min maintenant (au lieu de ${st.warnMin}). Pars à ${hm(leaveBy)} au plus tard.\n${maps}`;
       await queueTelegramMessage(text);
