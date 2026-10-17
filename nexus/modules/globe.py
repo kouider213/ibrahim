@@ -26,6 +26,9 @@ def _norm(t: str) -> str:
     return ''.join(c for c in t if unicodedata.category(c) != 'Mn')
 
 
+_down: dict[str, float] = {}
+
+
 def _get(url: str, ttl: float, timeout: float = 12) -> bytes:
     hit = _cache.get(url)
     if hit and time.time() - hit[0] < ttl:
@@ -51,8 +54,10 @@ def _planes(q: dict) -> dict:
     lat, lon = _f(q, 'lat', 35.7), _f(q, 'lon', -0.6)
     nm = max(10, min(250, int(_f(q, 'nm', 200))))
     for base in ('https://api.adsb.lol/v2/point', 'https://api.airplanes.live/v2/point'):
+        if time.time() < _down.get(base, 0):      # source en panne : on ne la réessaie pas avant 10 min
+            continue
         try:
-            d = json.loads(_get(f'{base}/{lat:.3f}/{lon:.3f}/{nm}', 12))
+            d = json.loads(_get(f'{base}/{lat:.3f}/{lon:.3f}/{nm}', 12, timeout=6))
             out = []
             for a in d.get('ac') or []:
                 if a.get('lat') is None or a.get('lon') is None or a.get('alt_baro') == 'ground':
@@ -64,6 +69,7 @@ def _planes(q: dict) -> dict:
             return {'source': base.split('/')[2], 'planes': out}
         except Exception as e:
             log.info('avions %s : %s', base, e)
+            _down[base] = time.time() + 600
     # Secours : OpenSky (anonyme, quota limité) sur un carré autour du point
     dl = nm / 60
     url = (f'https://opensky-network.org/api/states/all?lamin={lat - dl:.2f}&lomin={lon - dl * 1.3:.2f}'

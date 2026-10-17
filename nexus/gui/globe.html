@@ -257,6 +257,7 @@ new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => {
 }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 /* ── Commandes ── */
+function afterFly(){ if(state.planes) void loadPlanes(); }   // avions de la zone dès l'arrivée
 async function flyTo(query){
   try {
     const g = await get('geocode', { q:query });
@@ -264,8 +265,8 @@ async function flyTo(query){
     state.spin = false; syncButtons();
     const [s,n,w,e] = g.bbox || [];
     const big = g.bbox && (n-s > 0.3 || e-w > 0.3);
-    if(big) camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(w, s, e, n), duration:3 });
-    else camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(g.lon, g.lat, 25_000), duration:3 });
+    if(big) camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(w, s, e, n), duration:3, complete:afterFly });
+    else camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(g.lon, g.lat, 25_000), duration:3, complete:afterFly });
     setTimeout(() => refreshWeather(true), 3300);
   } catch(e){ reply('Recherche du lieu impossible : '+e.message); }
 }
