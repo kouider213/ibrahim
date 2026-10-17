@@ -30,6 +30,7 @@ const LAST_KEY  = 'autocall:last';
 const OFF_KEY   = 'autocall:off';
 const INBOX_KEY = 'autocall:inbox';
 const HELD_KEY  = 'autocall:held';
+const QUIET_KEY = 'autocall:quiet_until';   // « je suis pas dispo, rappelle-moi à 11h » → rien de non urgent ne sonne avant
 const INBOX_MAX_AGE_MS = 36 * 3_600_000;
 
 export type AutoCallLevel = 'urgent' | 'normal';
@@ -86,9 +87,19 @@ export async function takeCallInbox(): Promise<string[]> {
   return all.slice(-6);
 }
 
-/** Peut-on faire sonner maintenant ? (heure, écart entre appels, quota, appel déjà en cours) */
-async function canRingNow(): Promise<{ ok: boolean; why?: string }> {
+/** Kouider n'est pas disponible jusqu'à `until` (ms) : les appels auto non urgents attendent (0 = annuler). */
+export async function setQuietUntil(until: number): Promise<void> {
+  await kvSet(QUIET_KEY, String(until), Math.max(60, Math.ceil((until - Date.now()) / 1000) + 60));
+}
+export async function quietUntil(): Promise<number> {
+  const v = Number((await kvGet(QUIET_KEY).catch(() => null)) ?? 0);
+  return v > Date.now() ? v : 0;
+}
+
+/** Peut-on faire sonner maintenant ? (heure, pas dispo, écart entre appels, quota, appel déjà en cours) */
+async function canRingNow(level: AutoCallLevel = 'normal'): Promise<{ ok: boolean; why?: string }> {
   if ((await kvGet(OFF_KEY)) === '1') return { ok: false, why: 'off' };
+  if (level !== 'urgent' && await quietUntil()) return { ok: false, why: 'pas dispo' };
   const { hour, day } = localNow();
   if (hour < START_HOUR || hour >= END_HOUR) return { ok: false, why: 'nuit' };
   const last = Number((await kvGet(LAST_KEY)) ?? 0);
@@ -129,7 +140,7 @@ export async function autoCall(key: string, spoken: string, opts: { level?: Auto
       return;
     }
 
-    const check = await canRingNow();
+    const check = await canRingNow(opts.level);
     if (check.ok) {
       await ring(clean);
       console.log(`[auto-call] RING ${key}`);

@@ -373,6 +373,7 @@ async function _dispatch(
       // ─── Rappels ───
       case 'schedule_reminder':          return await scheduleReminder(input, sessionId);
       case 'call_me':                    return await callMeTool(input, sessionId);
+      case 'pause_calls':                return await pauseCallsTool(input);
       // ─── PHASE 15 — Recherche images ───
       case 'search_images':              return await searchImages(input);
       // ─── GOOGLE CALENDAR ───
@@ -2028,10 +2029,37 @@ async function callMeTool(input: Record<string, unknown>, sessionId?: string): P
   }
   const raw = await scheduleReminder({ ...input, message: `${CALL_REMINDER_MARK}${String(input['reason'])}` }, sessionId);
   try {
-    const r = JSON.parse(raw) as { status?: string; local_time?: string; timezone_used?: string };
+    const r = JSON.parse(raw) as { status?: string; local_time?: string; timezone_used?: string; remind_at_utc?: string };
+    // Il a dit quand le rappeler → il n'est pas dispo d'ici là : les appels auto non urgents attendent (vu le 17/10 : rappels à 9h30 et 9h41)
+    if (r.status === 'created' && r.remind_at_utc && input['busy_until_then'] !== false) {
+      const { setQuietUntil } = await import('../notifications/auto-call.js');
+      await setQuietUntil(new Date(r.remind_at_utc).getTime() - 60_000).catch(() => {});
+    }
     if (r.status === 'created') return `✅ Appel programmé : Dzaryx appellera sur Telegram (et l'app sonnera) à ${r.local_time} (${r.timezone_used}).${task ? ' Le travail demandé a COMMENCÉ maintenant (le résultat écrit arrive sur Telegram dès qu\'il est prêt, et je le lui dirai en appelant).' : ''} ${raw}`;
   } catch { /* renvoie le résultat brut */ }
   return `❌ Appel NON programmé. ${raw}`;
+}
+
+// « Ne m'appelle pas avant 14h » / « pas d'appel pendant 2 heures » / « tu peux m'appeler à nouveau »
+async function pauseCallsTool(input: Record<string, unknown>): Promise<string> {
+  const { setQuietUntil } = await import('../notifications/auto-call.js');
+  if (input['resume']) { await setQuietUntil(0); return '✅ Appels automatiques réactivés.'; }
+  let until = 0;
+  const mins = Number(input['minutes'] ?? 0);
+  if (mins > 0) until = Date.now() + Math.min(mins, 24 * 60) * 60_000;
+  const at = String(input['until_time'] ?? '').match(/^(\d{1,2})[:h](\d{2})?$/);
+  if (!until && at) {
+    const tz = 'Europe/Brussels';
+    const now = new Date();
+    const local = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    const target = new Date(local); target.setHours(Number(at[1]), Number(at[2] ?? 0), 0, 0);
+    if (target <= local) target.setDate(target.getDate() + 1);
+    until = now.getTime() + (target.getTime() - local.getTime());
+  }
+  if (!until) return '❌ Donne minutes ou until_time (HH:MM, heure de Bruxelles), ou resume:true.';
+  await setQuietUntil(until);
+  const hhmm = new Date(until).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit' });
+  return `✅ Plus aucun appel automatique non urgent avant ${hhmm} (heure de Bruxelles). Les infos attendent et seront dites ensuite.`;
 }
 
 // ─── PHASE 15 — Recherche d'images (Pexels) ──────────────────────────────

@@ -605,6 +605,29 @@ export async function processMessage(
     }
   }
 
+  // ── Auto-retry anti-« fantôme » : Claude a dit « c'est envoyé / j'ai créé » sans appeler l'outil.
+  // Avant : réponse morte « ⚠️ Je n'ai pas exécuté cette action » (vu 3 fois d'affilée sur « oui envoie-lui »,
+  // « envoie-moi le reçu Anthropic »). Maintenant : 1 relance qui l'oblige à VRAIMENT agir ou à dire honnêtement pourquoi il ne peut pas.
+  if (!imageBase64 && phantomText === PHANTOM_REFUSAL && !halluCheck.blocked) {
+    console.log(`[orch:${requestId}] phantom retry → forcing real tool call`);
+    _io?.emit(SOCKET_EVENTS.STATUS, { status: 'thinking', sessionId, toolLabel: '🔁 Je le fais vraiment…' });
+    const retrySystem = `${agentSystemExtra}\n\n⚠️ Ta réponse précédente affirmait une action (envoyé, créé, modifié, programmé…) SANS avoir appelé l'outil. `
+      + `Cette fois : appelle RÉELLEMENT l'outil qui fait l'action demandée (cherche-le avec la recherche d'outils si besoin : mails/pièces jointes, WhatsApp, agenda, Telegram, rappels…), `
+      + `puis confirme seulement ce que le résultat de l'outil confirme. Si aucun outil ne permet de le faire, dis-le simplement et propose l'alternative la plus proche, sans prétendre l'avoir fait.`;
+    try {
+      const retry = await chatWithTools(ctx.messages, retrySystem, sessionId, onToolStart, onToolDone, onTextChunk, undefined, imageMime, undefined);
+      const retryGuards = runGuards(retry);
+      if (retryGuards.phantomText !== PHANTOM_REFUSAL && !retryGuards.hallu.blocked) {
+        console.log(`[orch:${requestId}] phantom retry SUCCESS tools=[${retry.toolsExecuted.map(t => t.name).join(',')}]`);
+        response = retry; phantomText = retryGuards.phantomText; halluCheck = retryGuards.hallu;
+      } else {
+        console.log(`[orch:${requestId}] phantom retry still blocked`);
+      }
+    } catch (retryErr) {
+      console.error(`[orch:${requestId}] phantom retry failed:`, retryErr);
+    }
+  }
+
   const safeText     = oranize(localizeGuardMessage(halluCheck.blocked ?? phantomText, halluCheck.reason, guardLang), actor);
   // Log trace complète
   const phantomBlocked = phantomText === PHANTOM_REFUSAL;

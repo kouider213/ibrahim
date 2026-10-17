@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-10-17 (6) — Dzaryx : bugs trouvés dans les échanges du 14 au 17/10
+- « je n'ai pas d'outil WhatsApp / pour supprimer un événement / pour programmer l'appel » : l'agent choisi selon les mots
+  (Réservations, Finance…) ne voyait QUE ses outils. `claude-api.ts` : ses outils sont « préférés », tous les autres restent
+  trouvables par la recherche d'outils. `delete_agenda_event` ajouté aux outils toujours chargés.
+- « ⚠️ Je n'ai pas exécuté cette action » renvoyé 3 fois de suite (« oui envoie-lui », « envoie-moi le reçu Anthropic ») :
+  `orchestrator.ts` relance maintenant Claude une fois en l'obligeant à vraiment appeler l'outil (comme pour les chiffres).
+- Appels pour des créneaux perso (« Temps famille », « Libre — RDV possibles », « Belgique — travail ») : `meeting-prep.ts`
+  ignore les blocs perso sans participant, et n'appelle plus si la fiche ne trouve aucun interlocuteur (« ORAL: AUCUN »).
+- « Je suis pas dispo, rappelle-moi à 11h » puis appels à 9h30 et 9h41 : call_me programmé = ne pas déranger jusqu'à l'heure dite
+  (`autocall:quiet_until`, appels non urgents mis en file, pas de 2e essai d'appel manqué) ; nouvel outil `pause_calls`
+  (« ne m'appelle pas avant 14h », « je suis en réunion »).
+
 ## 2026-10-17 (5) — Nexus : il entend, se souvient, ouvre les bons dossiers, fait un vrai ménage, affiche tout en widgets
 - Micro : `modules/mic.py` — sounddevice quand PyAudio manque (PyAudio n'a pas de paquet pour Python 3.13/3.14 → Nexus
   n'entendait rien). Mot « Nexus » + bouton micro passent par là. requirements : audioop-lts / standard-aifc (Python 3.13+).

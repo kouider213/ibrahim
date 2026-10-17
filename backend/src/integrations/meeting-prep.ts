@@ -24,6 +24,14 @@ function isBookingOrNoise(e: Ev): boolean {
   return /Booking ID|Réservation Fik Conciergerie|anniversaire|birthday|\[APPEL\]/i.test(s) || !e.start?.dateTime;
 }
 
+// Créneaux perso / blocs d'organisation de Kouider : pas de fiche ni d'appel (vu le 14-17/10 : appels pour « Temps famille »,
+// « Libre — RDV possibles », « Belgique — travail », « Agence FIK — business Algérie » sans aucun interlocuteur).
+const PERSONAL_RE = /\b(libre|dispo(nible)?s?|famille|perso(nnel)?|travail|boulot|belgique|sport|salle|gym|repos|pause|d[ée]jeuner|d[îi]ner|focus|bloqu[ée]|trajet|route|vol|avion|cong[ée]|vacances|off|sieste|pri[èe]re|mosqu[ée]e|courses|m[ée]decin|dentiste|enfants?|[ée]cole)\b/i;
+function isPersonalBlock(e: Ev): boolean {
+  const others = (e.attendees ?? []).filter(a => !a.self);
+  return others.length === 0 && PERSONAL_RE.test(e.summary ?? '') && !/@/.test(e.description ?? '');
+}
+
 const PREP_SYSTEM =
   'Tu PRÉPARES Kouider pour un rendez-vous qui commence dans environ une heure. Cherche avec tes outils : ' +
   'le prospect correspondant (list_prospects : nom de société, email), les mails échangés (list_emails avec le nom ' +
@@ -31,7 +39,9 @@ const PREP_SYSTEM =
   'et si c\'est une société inconnue, une recherche web rapide. Puis réponds avec ce format EXACT :\n' +
   'ORAL: 2 ou 3 phrases à dire au téléphone (qui c\'est, où on en est, quoi proposer), sans emoji\n' +
   'DÉTAIL: la fiche complète — Qui · Historique (mails, locations) · Ce qu\'il veut · Quoi proposer (voitures ' +
-  'dispo, prix) · Points d\'attention. Concret et court. Si tu ne trouves rien sur la personne, dis-le simplement.';
+  'dispo, prix) · Points d\'attention. Concret et court. Si tu ne trouves rien sur la personne, dis-le simplement.\n' +
+  'Si ce n\'est visiblement pas un rendez-vous business avec quelqu\'un (créneau perso, bloc de travail, rien trouvé sur un interlocuteur), ' +
+  'écris exactement « ORAL: AUCUN » : Kouider ne sera pas appelé pour rien.';
 
 export async function prepareMeeting(e: Ev): Promise<{ oral: string; detail: string }> {
   const start = new Date(e.start!.dateTime!);
@@ -53,7 +63,7 @@ export async function jobMeetingPrep(): Promise<void> {
   const biz = await listUpcomingEvents(20).catch(() => [] as unknown[]);   // agenda FIK seulement
   const now = Date.now();
   for (const e of biz as Ev[]) {
-    if (!e.id || isBookingOrNoise(e)) continue;
+    if (!e.id || isBookingOrNoise(e) || isPersonalBlock(e)) continue;
     const mins = (new Date(e.start!.dateTime!).getTime() - now) / 60_000;
     if (mins < WINDOW_MIN || mins > WINDOW_MAX) continue;
     const key = `meetprep:done:${e.id}:${e.start!.dateTime}`;
@@ -64,7 +74,7 @@ export async function jobMeetingPrep(): Promise<void> {
       const hour = new Date(e.start!.dateTime!).toLocaleTimeString('fr-BE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
       emitProactive(`📋 RDV ${hour} — ${e.summary ?? ''} : fiche prête`, 'reminder',
         `📋 Préparation du RDV de ${hour} — ${e.summary ?? ''}\n\n${detail}`);
-      if (oral) await autoCall(`meetprep:${e.id}`, `Ton rendez-vous de ${hour}, ${e.summary ?? ''}. ${oral}`);
+      if (oral && !/^aucun\b/i.test(oral)) await autoCall(`meetprep:${e.id}`, `Ton rendez-vous de ${hour}, ${e.summary ?? ''}. ${oral}`);
       console.log(`[meeting-prep] ✅ ${e.summary}`);
     } catch (err) {
       console.error('[meeting-prep]', e.summary, err instanceof Error ? err.message : err);

@@ -159,7 +159,7 @@ const CORE_TOOLS = new Set([
   'get_payment_status', 'record_payment', 'get_unpaid_bookings', 'get_late_returns', 'get_financial_report',
   'get_revenue_report', 'get_daily_report', 'record_expense', 'get_expenses',
   // Communication, agenda, mails
-  'send_whatsapp_to_client', 'send_telegram_message', 'call_me', 'schedule_reminder',
+  'send_whatsapp_to_client', 'send_telegram_message', 'call_me', 'pause_calls', 'schedule_reminder',
   'list_emails', 'read_email', 'read_email_thread', 'read_email_attachment', 'manage_emails', 'draft_email', 'send_email', 'create_calendar_event', 'list_calendar_events',
   // Mémoire et PC
   'remember_info', 'recall_memory', 'search_conversations', 'create_intention', 'list_intentions',
@@ -168,7 +168,7 @@ const CORE_TOOLS = new Set([
   // Se décrire sans inventer + documents
   'list_my_capabilities', 'whatsapp_web', 'business_mentor', 'kouider_dossier', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site', 'fik_site_contract', 'flash_offer', 'billing', 'morning_routine', 'travel',
   // Position live (Telegram) + trajet avec trafic réel
-  'get_my_location', 'get_travel_time', 'list_agenda_events', 'update_agenda_event',
+  'get_my_location', 'get_travel_time', 'list_agenda_events', 'update_agenda_event', 'delete_agenda_event',
 ]);
 
 // ── Extraction des citations depuis la réponse ────────────────────────────────
@@ -267,8 +267,11 @@ export async function chatWithTools(
   // ══════════════════════════════════════════════════════════════════════════
   const useWebSearch = needsWebSearch(processedMessages);
 
-  // Phase 3: use agent-specific tool subset if provided, else full tool set
-  const activeDzaryxTools = toolOverride ?? Dzaryx_TOOLS;
+  // Phase 3 : l'agent choisi (Réservations, Finance…) donne ses outils PRÉFÉRÉS (chargés d'office), mais TOUS les autres
+  // restent trouvables par la recherche d'outils. Avant, l'agent ne voyait que son sous-ensemble → « je n'ai pas d'outil
+  // WhatsApp / pour supprimer un événement / pour ta position » selon les mots de la phrase.
+  const preferred = toolOverride ? new Set(toolOverride.map(t => t.name)) : null;
+  const activeDzaryxTools = Dzaryx_TOOLS;
   const baseTools = useWebSearch
     ? activeDzaryxTools.filter(t => t.name !== 'web_search')
     : activeDzaryxTools;
@@ -277,7 +280,7 @@ export async function chatWithTools(
   // ~35 000 tokens d'outils en moins par message, et moins de confusion entre outils voisins.
   const useToolSearch = baseTools.length > DEFER_THRESHOLD;
   const scopedTools: Anthropic.Tool[] = useToolSearch
-    ? [TOOL_SEARCH_TOOL, ...baseTools.map(t => (CORE_TOOLS.has(t.name) ? t : ({ ...t, defer_loading: true } as Anthropic.Tool)))]
+    ? [TOOL_SEARCH_TOOL, ...baseTools.map(t => (CORE_TOOLS.has(t.name) || preferred?.has(t.name) ? t : ({ ...t, defer_loading: true } as Anthropic.Tool)))]
     : baseTools;
   if (useToolSearch) systemBlocks.push({ type: 'text', text: TOOL_SEARCH_HINT });
   const tools: Anthropic.Tool[] = useWebSearch

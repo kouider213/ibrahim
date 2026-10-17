@@ -822,6 +822,18 @@ Retourne: { status, db_id, job_id, remind_at_utc, local_time, timezone_used, utc
 
   // ─── APPEL VOCAL DANS L'APP ─────────────────────────────────
   {
+    name: 'pause_calls',
+    description: "Mettre Dzaryx en « ne pas déranger » : plus d'appels automatiques non urgents (récaps, idées, rendez-vous…) jusqu'à une heure ou pendant X minutes. « Je suis pas dispo jusqu'à 14h », « ne m'appelle pas pendant 2 heures », « je suis en réunion ». resume:true pour réactiver. Si Kouider dit aussi « rappelle-moi à 11h », utilise call_me avec at_time (il met déjà en pause jusque-là).",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        until_time: { type: 'string', description: 'HH:MM heure de Bruxelles' },
+        minutes:    { type: 'number', description: 'Durée de la pause en minutes' },
+        resume:     { type: 'boolean', description: 'true = réactiver les appels' },
+      },
+    },
+  },
+  {
     name: 'call_me',
     description: `Faire SONNER l'app Dzaryx de Kouider : écran « 📞 Dzaryx t'appelle », il décroche et vous parlez à voix haute (pas de numéro de téléphone, tout passe par l'app).
 Utiliser quand Kouider dit "appelle-moi", "appelle-moi dans 20 minutes", "appelle-moi demain à 9h pour…", ou pour une info vraiment urgente qu'il a demandé de recevoir par appel.

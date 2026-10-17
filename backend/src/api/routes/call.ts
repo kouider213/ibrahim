@@ -92,6 +92,11 @@ router.post('/test', requireMobileAuth, async (req, res) => {
 router.post('/retry', requireMobileAuth, async (req, res) => {
   const reason = String((req.body as { reason?: string }).reason ?? '').trim();
   if (!reason) { res.status(400).json({ error: 'reason required' }); return; }
+  const { quietUntil, addToCallInbox } = await import('../../notifications/auto-call.js');
+  if (callActor(req) === 'kouider' && await quietUntil()) {           // « pas dispo » : pas de 2e essai, gardé pour plus tard
+    await addToCallInbox(reason).catch(() => {});
+    res.json({ ok: true, held: true }); return;
+  }
   await removeFromCallInbox(reason).catch(() => {});   // dit dans ce 2e essai
   const { id } = await callOwner(`Je te rappelle, tu n'avais pas décroché. ${reason}`, callActor(req));
   res.json({ ok: true, id });
