@@ -451,13 +451,17 @@ function rFolder(body,d){
 }
 function rCleanup(body,d){
   const s=el('div','stats');
-  [[(d.temp_mb||0)+' Mo','Fichiers temporaires libérables'],[(d.pct??'—')+' %','Disque C: utilisé'],[(d.free_gb??'—')+' Go','Espace libre']].forEach(([v,l])=>{ const c=el('div','stat'); c.append(el('b','',v),el('small','',l)); s.appendChild(c); });
+  const first=d.running?['…','Ménage en cours']:[(d.freed_mb!=null?(d.freed_mb>=1000?(d.freed_mb/1000).toFixed(1)+' Go':d.freed_mb+' Mo'):(d.temp_mb||0)+' Mo'),'Libéré'];
+  [first,[(d.pct??'—')+' %','Disque C: utilisé'],[(d.free_gb??'—')+' Go','Espace libre']].forEach(([v,l])=>{ const c=el('div','stat'); c.append(el('b','',v),el('small','',l)); s.appendChild(c); });
   body.appendChild(s);
+  if(d.running){ body.appendChild(el('div','pnote','Je vide les fichiers temporaires, les caches des navigateurs et des applis, les rapports de plantage…')); return; }
+  (d.cats||[]).forEach(c=>{ const r=el('div','rowl'); r.appendChild(el('span','',c.label)); r.appendChild(el('span','',c.mb+' Mo'+(c.files?' · '+c.files+' fichiers':''))); body.appendChild(r); });
   if(d.done) body.appendChild(el('div','pnote','✓ '+d.done));
-  else {
-    const row=el('div','pbtns'); row.style.margin='0 0 14px';
-    const go=btn(d.temp_mb>0?'Nettoyer les fichiers temporaires ('+d.temp_mb+' Mo)':'Rien à nettoyer','go',b=>{ act({action:'cleanup_confirm'}); b.disabled=true; b.textContent='Nettoyage en cours…'; });
-    go.disabled=!(d.temp_mb>0); row.append(go,el('span','pnote','Seuls les fichiers temporaires de plus de 2 jours sont supprimés.')); body.appendChild(row);
+  if(d.recycle_mb>0){
+    const row=el('div','pbtns'); row.style.margin='4px 0 14px';
+    row.append(btn('Vider la corbeille ('+d.recycle_mb+' Mo)','go',b=>{ act({action:'cleanup_recycle'}); b.disabled=true; b.textContent='Je vide la corbeille…'; }),
+      el('span','pnote','Ou dis « oui » à Nexus.'));
+    body.appendChild(row);
   }
   if((d.big||[]).length){ body.appendChild(el('div','pnote warn','Gros fichiers dans Téléchargements — à vérifier toi-même, je n\'y touche pas')); d.big.forEach(f=>{ const r=el('div','rowl'); r.appendChild(el('span','',f.name)); r.appendChild(el('span','',f.mb+' Mo · '+f.age+' j')); body.appendChild(r); }); }
 }

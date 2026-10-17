@@ -129,15 +129,17 @@ class VoiceModule:
             return None
         try:
             import speech_recognition as sr
-            with sr.Microphone() as source:
-                self._sr.adjust_for_ambient_noise(source, duration=0.3)
-                audio = self._sr.listen(source, timeout=10, phrase_time_limit=20)
+            from modules import mic
+            audio = mic.listen(self._sr, timeout=10, phrase_time_limit=20, ambient=0.3)
             from modules.offline_brain import recognize
             text = recognize(self._sr, audio)
             if text:
                 log.info('STT: %s', text)
             return text
-        except Exception:
+        except Exception as e:
+            if type(e).__name__ != 'WaitTimeoutError':
+                log.warning('micro : %s', e)
+                time.sleep(1)
             return None
 
 

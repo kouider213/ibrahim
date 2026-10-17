@@ -5318,7 +5318,7 @@ async function updateNexusTool(): Promise<string> {
   }
   // Optionnel : micro du mot « Nexus » (PyAudio) — un échec ne bloque pas la mise à jour
   const pa = await nexusRunCommand(`${py} -m pip install PyAudio`, info.cwd, 300_000).catch(() => null);
-  lines.push(pa?.ok ? '✅ Micro du mot « Nexus » (PyAudio)' : '⚠️ PyAudio non installé — le mot « Nexus » restera coupé, le reste marche');
+  lines.push(pa?.ok ? '✅ Micro (PyAudio)' : '✅ Micro via sounddevice (PyAudio indisponible pour ce Python, pas grave)');
   lines.push(await restartNexusTool());
   return lines.join('\n');
 }

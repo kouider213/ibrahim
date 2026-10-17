@@ -18,10 +18,11 @@ from modules.loop_guard import LoopGuard
 
 log = logging.getLogger('nexus.pc_agent')
 
-DESKTOP   = Path.home() / 'OneDrive' / 'Bureau'
+from modules.pc_control import DESKTOP, find_folders
+
 DOWNLOADS = Path.home() / 'Downloads'
 DOCUMENTS = Path.home() / 'Documents'
-IBRAHIM   = Path.home() / 'OneDrive' / 'Bureau' / 'ibrahim' / 'ibrahim'
+IBRAHIM   = DESKTOP / 'ibrahim' / 'ibrahim'
 DZARYX_ROOT = DESKTOP / 'Dzaryx'
 
 _SHORTCUT: dict[str, Path] = {
@@ -32,11 +33,16 @@ _SHORTCUT: dict[str, Path] = {
 
 def _resolve(text: str) -> Path:
     t = text.strip().lower()
-    for k, p in _SHORTCUT.items():
-        if k in t:
-            return p
     p = Path(text.strip())
-    return p if p.exists() else DESKTOP / text.strip()
+    if p.is_absolute() and p.exists():
+        return p
+    for k, sp in _SHORTCUT.items():
+        if t == k or t.startswith(k + ' ') or t.endswith(' ' + k):
+            return sp
+    if (DESKTOP / text.strip()).exists():
+        return DESKTOP / text.strip()
+    found = find_folders(text)
+    return found[0] if found else DESKTOP / text.strip()
 
 TOOLS = [
     {
@@ -166,6 +172,46 @@ TOOLS = [
                 "path": {"type": "string", "description": "Chemin fichier, nom d'app, ou URL"}
             },
             "required": ["path"]
+        }
+    },
+    {
+        "name": "find_folder",
+        "description": "Cherche un dossier par son nom (approximatif) dans Bureau, Documents, Téléchargements, Images, Vidéos, OneDrive. "
+                       "Renvoie les chemins trouvés. À utiliser AVANT d'ouvrir/lister un dossier dont tu ne connais pas le chemin exact.",
+        "input_schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}
+    },
+    {
+        "name": "open_folder",
+        "description": "Ouvre un dossier dans l'explorateur Windows (nom approximatif ou chemin complet). Vérifie qu'il existe.",
+        "input_schema": {"type": "object", "properties": {"name_or_path": {"type": "string"}}, "required": ["name_or_path"]}
+    },
+    {
+        "name": "clean_pc",
+        "description": "Ménage complet et sûr du PC : fichiers temporaires (utilisateur + Windows), caches navigateurs et applis, caches "
+                       "graphiques, rapports de plantage, Windows Update déjà installé. Renvoie ce qui a été libéré par catégorie. "
+                       "include_recycle_bin=true vide aussi la corbeille (seulement si Kouider l'a demandé).",
+        "input_schema": {"type": "object", "properties": {"include_recycle_bin": {"type": "boolean"}}}
+    },
+    {
+        "name": "show_widget",
+        "description": "Affiche un widget holographique sur l'écran Nexus (déplaçable). À utiliser dès que Kouider demande d'afficher, "
+                       "montrer, lister ou comparer quelque chose, ou quand ta réponse contient une liste, un tableau, une image ou "
+                       "plus de 3 lignes d'infos. kind: 'text' (content = texte), 'list' (items = [{title, subtitle}]), "
+                       "'table' (columns = [...], rows = [[...]]), 'kv' (pairs = [[clé, valeur]]), 'image' (path = fichier image du PC "
+                       "ou URL https). Tu peux en afficher plusieurs.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "kind": {"type": "string", "enum": ["text", "list", "table", "kv", "image"]},
+                "content": {"type": "string"},
+                "items": {"type": "array", "items": {"type": "object"}},
+                "columns": {"type": "array", "items": {"type": "string"}},
+                "rows": {"type": "array", "items": {"type": "array"}},
+                "pairs": {"type": "array", "items": {"type": "array"}},
+                "path": {"type": "string"},
+            },
+            "required": ["title", "kind"]
         }
     },
     {
@@ -330,6 +376,25 @@ def _run_tool(name: str, inp: dict) -> str:
                 except Exception as e:
                     return f'❌ Impossible d\'ouvrir: {e}'
 
+        elif name == 'find_folder':
+            found = find_folders(inp['name'], limit=8)
+            return '\n'.join(str(p) for p in found) if found else f'Aucun dossier ressemblant à « {inp["name"]} »'
+
+        elif name == 'open_folder':
+            target = _resolve(inp['name_or_path'])
+            if not target.is_dir():
+                return f'❌ Dossier introuvable : {inp["name_or_path"]} (essaie find_folder ou list_directory)'
+            os.startfile(str(target))
+            return f'✅ Dossier ouvert : {target}'
+
+        elif name == 'clean_pc':
+            from modules import cleaner
+            keys = None if not inp.get('include_recycle_bin') else [c[0] for c in cleaner.CATEGORIES] + ['recycle']
+            done = cleaner.clean(keys)
+            total = sum(d['mb'] for d in done)
+            return f'✅ {total} Mo libérés\n' + '\n'.join(f"- {d['label']} : {d['mb']} Mo ({d['files']} fichiers)" for d in done) + \
+                f"\nCorbeille restante : {round(cleaner.recycle_size() / 1e6)} Mo"
+
         elif name == 'organize_files':
             folder_name = re.sub(r'[<>:"|?*]', '_', inp['folder_name'].strip())
             target = DZARYX_ROOT / folder_name
@@ -344,81 +409,94 @@ def _run_tool(name: str, inp: dict) -> str:
 
 
 class PCAgent:
-    """Claude AI local avec accès complet au PC Windows."""
+    """Claude AI local avec accès complet au PC Windows. Garde le fil de la conversation (historique Nexus)."""
+
+    MODEL = os.environ.get('NEXUS_AGENT_MODEL', 'claude-sonnet-5-5')
+    FALLBACK_MODEL = 'claude-haiku-4-5-20251001'
 
     SYSTEM = (
-        "Tu es NEXUS, l'agent PC de Kouider (Fik Conciergerie Oran, location voitures). "
-        "Tu as un accès complet au PC Windows de Kouider et tu EXÉCUTES vraiment les actions demandées. "
-        "Tu peux: installer des apps, ouvrir des terminaux, lancer Claude Code, gérer des fichiers/dossiers, "
-        "exécuter des commandes PowerShell, tout ce qu'un humain peut faire sur ce PC. "
-        "Quand Kouider te demande quelque chose, utilise les outils disponibles pour le faire. "
-        "Réponds toujours en français. Sois direct et concis."
+        "Tu es NEXUS, l'assistant IA du PC Windows de Kouider (Fik Conciergerie, location de voitures à Oran). "
+        "Tu as un accès complet au PC et tu EXÉCUTES vraiment les actions demandées avec tes outils. "
+        "Règles : 1) Tu te souviens de la conversation : « et l'autre ? », « ouvre-le », « fais pareil » se rapportent "
+        "aux messages précédents. 2) Pour un dossier dont tu n'as pas le chemin exact : find_folder, puis open_folder. "
+        "3) Ne dis jamais « c'est fait » sans qu'un outil l'ait confirmé ; si une étape échoue, essaie une autre méthode "
+        "(PowerShell) avant d'abandonner, puis dis clairement ce qui n'a pas marché. 4) Ménage du PC : clean_pc (complet), "
+        "la corbeille seulement si Kouider le demande. 5) Dès que Kouider veut voir, afficher, lister, comparer ou que la réponse "
+        "a une liste / un tableau / une image : show_widget sur l'écran Nexus, et ta réponse parlée reste courte. "
+        "6) Réponds en français, court et naturel (ta réponse est lue à voix haute) : pas de markdown, pas d'émojis."
+        f" Bureau : {DESKTOP}. Documents : {DOCUMENTS}. Téléchargements : {DOWNLOADS}."
     )
 
-    def __init__(self) -> None:
+    def __init__(self, widget_cb=None) -> None:
         api_key = os.environ.get('ANTHROPIC_API_KEY', '')
         self.client = anthropic.Anthropic(api_key=api_key) if api_key else None
         self.available = bool(api_key)
+        self.widget_cb = widget_cb          # show_widget → interface Nexus (appelé depuis le fil de l'agent)
 
-    async def run(self, instruction: str) -> str:
+    @staticmethod
+    def _history_messages(history: list[dict] | None) -> list[dict]:
+        """Historique Nexus [{role: user|nexus, text}] → messages Claude alternés, en commençant par l'utilisateur."""
+        msgs: list[dict] = []
+        for h in (history or [])[-16:]:
+            role = 'assistant' if h.get('role') == 'nexus' else 'user'
+            text = str(h.get('text') or '').strip()[:1500]
+            if not text:
+                continue
+            if msgs and msgs[-1]['role'] == role:
+                msgs[-1]['content'] += '\n' + text
+            else:
+                msgs.append({'role': role, 'content': text})
+        while msgs and msgs[0]['role'] != 'user':
+            msgs.pop(0)
+        if msgs and msgs[-1]['role'] == 'user':          # le message courant est ajouté juste après
+            msgs[-1]['content'] = '(message précédent) ' + msgs[-1]['content']
+            msgs.append({'role': 'assistant', 'content': "D'accord."})
+        return msgs
+
+    async def run(self, instruction: str, history: list[dict] | None = None) -> str:
         if not self.available or not self.client:
             return "ANTHROPIC_API_KEY manquant — PC Agent indisponible."
-
-        messages = [{"role": "user", "content": instruction}]
+        messages = self._history_messages(history) + [{"role": "user", "content": instruction}]
         loop = asyncio.get_running_loop()
-
         try:
-            result = await loop.run_in_executor(None, self._agentic_loop, messages)
-            return result
+            return await loop.run_in_executor(None, self._agentic_loop, messages)
         except Exception as e:
             log.error('PCAgent error: %s', e)
             return f'❌ PC Agent erreur: {e}'
 
+    def _create(self, messages: list):
+        try:
+            return self.client.messages.create(model=self.MODEL, max_tokens=2048, system=self.SYSTEM, tools=TOOLS, messages=messages)
+        except anthropic.NotFoundError:
+            log.warning('Modèle %s indisponible → %s', self.MODEL, self.FALLBACK_MODEL)
+            self.MODEL = self.FALLBACK_MODEL
+            return self.client.messages.create(model=self.MODEL, max_tokens=2048, system=self.SYSTEM, tools=TOOLS, messages=messages)
+
     def _agentic_loop(self, messages: list) -> str:
-        max_rounds = 6
         guard = LoopGuard()
-        for _ in range(max_rounds):
-            response = self.client.messages.create(
-                model='claude-haiku-4-5-20251001',
-                max_tokens=1024,
-                system=self.SYSTEM,
-                tools=TOOLS,
-                messages=messages,
-            )
+        last_text = ''
+        for _ in range(14):
+            response = self._create(messages)
             messages.append({"role": "assistant", "content": response.content})
-
-            if response.stop_reason == 'end_turn':
-                # Extract text response
-                for block in response.content:
-                    if hasattr(block, 'text'):
-                        return block.text
-                return '✅ Fait.'
-
+            texts = [b.text for b in response.content if getattr(b, 'type', '') == 'text' and b.text.strip()]
+            if texts:
+                last_text = texts[-1]
             if response.stop_reason != 'tool_use':
-                break
-
-            # Execute tool calls
+                return last_text or '✅ Fait.'
             tool_results = []
             for block in response.content:
                 if block.type != 'tool_use':
                     continue
                 log.info('PC Agent tool: %s %s', block.name, str(block.input)[:80])
-                result = _run_tool(block.name, block.input)
-                log.info('PC Agent result: %s', result[:100])
+                if block.name == 'show_widget':
+                    result = self.widget_cb(dict(block.input)) if self.widget_cb else 'Écran Nexus indisponible'
+                else:
+                    result = _run_tool(block.name, block.input)
+                log.info('PC Agent result: %s', str(result)[:100])
                 stop = guard.check(block.name, block.input, result)
                 if stop:
                     log.warning('PC Agent loop guard: %s', stop)
                     return stop
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
-
+                tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(result)[:4000]})
             messages.append({"role": "user", "content": tool_results})
-
-        # Extract final text if any
-        for block in (messages[-1].get('content', []) if isinstance(messages[-1].get('content'), list) else []):
-            if isinstance(block, dict) and block.get('type') == 'text':
-                return block['text']
-        return '✅ Commande exécutée.'
+        return last_text or "J'ai fait plusieurs étapes mais je n'ai pas fini : redis-moi ce qu'il reste à faire."

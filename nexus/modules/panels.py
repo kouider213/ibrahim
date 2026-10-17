@@ -60,10 +60,17 @@ _AGENDA_RE   = re.compile(r'^\s*(?:l\'|le\s+)?(?:agenda|planning)\s*$')
 _DOC_RE      = re.compile(rf'\b{_VERB_SHOW}(?:-moi|\s+moi)?\s+(?:(?:(?:le|la|les|un|une|des)\s+)|l\')?(?P<kind>passeports?|permis|documents?|pieces?(?:\s+d\'identite)?|cni|carte\s+d\'identite)\s+(?:de|d\'|du)\s+(?P<who>[^,.;!?]+)')
 _INVOICE_RE  = re.compile(rf'\b{_VERB_MAKE}(?:-moi|\s+moi)?\s+(?:(?:une?|la|ma|sa)\s+)?(?:facture|recu)\b(?:\s+(?:pour|de|du|a)\s+(?P<who>[^,.;!?]+?))?\s*(?:$|[,.;!?]|\s+(?:et|puis|ensuite|apres)\b)')
 _LINK_RE     = re.compile(r'\benvoi\w*(?:-moi|\s+moi)?\s+(?:moi\s+)?(?:(?:un|une|le|la|les|mon|ma|mes|des|du|de)\s+)*(?:liens?|link|adresse|url)\b')
-_CLEAN_RE    = re.compile(r'\b(?:fais|fait|faire|libere\w*|nettoie\w*|vide\w*|degage\w*)\s+(?:(?:de\s+la|de\s+l\'|de|un\s+peu\s+de)\s+(?:place|espace)|(?:le\s+)?pc|(?:l[ea]\s+)?disque|de\s+la\s+memoire)')
+_CLEAN_RE    = re.compile(r'\b(?:fais|fait|faire|libere\w*|nettoie\w*|nettoyer|nettoyage|vide\w*|degage\w*|optimise\w*|menage)\s+(?:(?:du|de\s+la|de\s+l\'|de|un\s+peu\s+de|le|mon|ton|l\'|la)\s*)*(?:place|espace|pc|ordi\w*|ordinateur|disque|memoire|windows|cache|caches|menage)')
 _FOLDER_RE   = re.compile(rf'\b{_VERB_MAKE}(?:-moi|\s+moi)?\s+(?:un\s+)?(?:nouveau\s+)?dossier\b(?:[^,.;!?]*?\b(?:reservations?|clients?)\b)?')
 _CHART_RE    = re.compile(rf'\b(?:{_VERB_MAKE}|{_VERB_SHOW})(?:-moi|\s+moi)?\s+(?:(?:un|une|le|la|les|des|mon|ma)\s+)?(?:graphiques?|graphes?|diagrammes?|courbes?|statistiques?|stats)\b')
+_RECYCLE_RE = re.compile(r'\bvide\w*\s+(?:la\s+|ma\s+)?corbeille')
+_YES_RE     = re.compile(r"^\s*(?:oui|ouais|vas[- ]y|ok|d.accord|vide[- ]la|fais[- ]le|go|bien sur|carrement)\b")
+_NO_RE      = re.compile(r"^\s*(?:non|laisse|pas besoin|annule)\b")
 _AND_SPLIT   = re.compile(r'\b(?:ensuite|puis|apres ca|et apres)\b')
+
+
+def _size(mb: float) -> str:
+    return f'{mb / 1000:.1f} gigas'.replace('.', ',') if mb >= 1000 else f'{int(mb)} mégas'
 
 
 class Panels:
@@ -73,6 +80,7 @@ class Panels:
         self._allowed: list[Path] = [WORKDIR]  # dossiers que le bouton « Ouvrir » peut ouvrir
         self._last_folder: Path | None = None
         self._cache: list[dict] | None = None
+        self._pending_recycle = False
 
     # ── Détection ────────────────────────────────────────────────────────────
     def plan(self, text: str) -> list[tuple[str, dict]]:
@@ -82,6 +90,9 @@ class Panels:
         m = _DOC_RE.search(f)
         if m:
             found.append((m.start(), 'document', {'kind': m.group('kind'), 'who': text[m.start('who'):m.end('who')].strip()}))
+        m = _RECYCLE_RE.search(f)
+        if m:
+            found.append((m.start(), 'recycle', {}))
         for key, rx in (('invoice', _INVOICE_RE), ('links', _LINK_RE), ('cleanup', _CLEAN_RE), ('folder', _FOLDER_RE), ('chart', _CHART_RE)):
             m = rx.search(f)
             if m:
@@ -99,6 +110,12 @@ class Panels:
 
     # ── Point d'entrée ───────────────────────────────────────────────────────
     async def handle(self, text: str) -> str | None:
+        if self._pending_recycle and _YES_RE.search(_fold(text)):
+            asyncio.create_task(self._cleanup_run(['recycle']))
+            return 'Je vide la corbeille.'
+        if self._pending_recycle and _NO_RE.search(_fold(text)):
+            self._pending_recycle = False
+            return "D'accord, je laisse la corbeille."
         steps = self.plan(text)
         if not steps:
             return None
@@ -121,6 +138,8 @@ class Panels:
         try:
             if act == 'cleanup_confirm':
                 await self._cleanup_run()
+            elif act == 'cleanup_recycle':
+                await self._cleanup_run(['recycle'])
             elif act == 'open_path':
                 p = Path(str(data.get('path', ''))).resolve()
                 if any(p == a or a in p.parents for a in (x.resolve() for x in self._allowed)) and p.exists():
@@ -156,7 +175,7 @@ class Panels:
         await self.app.gui_send({'type': 'panel', 'kind': kind, 'title': title, 'data': data})
 
     def _serve(self, path: Path) -> str:
-        key = f'{int(time.time() * 1000)}_{path.name}'
+        key = f'{int(time.time() * 1000)}_{re.sub(r"[^A-Za-z0-9._-]", "_", path.name)}'
         self.served[key] = path
         return '/files/' + key
 
@@ -290,71 +309,54 @@ class Panels:
         out.append('</svg>')
         return '\n'.join(out)
 
-    # ── Ménage du PC ─────────────────────────────────────────────────────────
-    @staticmethod
-    def _scan_temp(days: int = 2, budget_s: float = 20.0) -> tuple[int, int]:
-        temp = Path(os.environ.get('TEMP') or (HOME / 'AppData' / 'Local' / 'Temp'))
-        cutoff, size, n, t0 = time.time() - days * 86400, 0, 0, time.time()
-        for root, _dirs, files in os.walk(temp):
-            if time.time() - t0 > budget_s:
-                break
-            for fn in files:
-                try:
-                    fp = os.path.join(root, fn)
-                    if not os.path.islink(fp) and os.path.getmtime(fp) < cutoff:
-                        size += os.path.getsize(fp)
-                        n += 1
-                except OSError:
-                    pass
-        return size, n
-
+    # ── Ménage du PC (modules/cleaner.py) ────────────────────────────────────
     @staticmethod
     def _big_downloads() -> list[dict]:
-        dl, out = HOME / 'Downloads', []
-        try:
-            for f in dl.iterdir():
-                if f.is_file() and f.stat().st_size > 150 * 1024 * 1024:
-                    out.append({'name': f.name, 'mb': round(f.stat().st_size / 1e6), 'age': int((time.time() - f.stat().st_mtime) / 86400)})
-        except OSError:
-            pass
-        return sorted(out, key=lambda x: -x['mb'])[:6]
+        from modules import cleaner
+        return cleaner.big_files()
 
     async def _do_cleanup(self, p: dict) -> str:
+        """« Nettoie le PC » : vide tout de suite les caches et fichiers jetables, puis propose la corbeille."""
         import shutil
+        from modules import cleaner
         loop = asyncio.get_running_loop()
-        size, n = await loop.run_in_executor(None, self._scan_temp)
-        big = await loop.run_in_executor(None, self._big_downloads)
+        _t, _u, free0 = shutil.disk_usage('C:')
+        await self._panel('cleanup', 'Ménage du PC en cours…', {'running': True, 'free_gb': round(free0 / 1e9, 1), 'pct': round(_u / _t * 100, 1)})
+        done = await loop.run_in_executor(None, cleaner.clean)
+        recycle = await loop.run_in_executor(None, cleaner.recycle_size)
+        big = await loop.run_in_executor(None, cleaner.big_files)
         _t, used, free = shutil.disk_usage('C:')
-        await self._panel('cleanup', 'Faire de la place sur le PC', {
-            'temp_mb': round(size / 1e6), 'temp_files': n, 'big': big, 'free_gb': round(free / 1e9, 1), 'pct': round(used / _t * 100, 1)})
-        extra = f' Et {len(big)} gros fichiers dans Téléchargements à vérifier.' if big else ''
-        return f'Je peux libérer environ {round(size / 1e6)} méga-octets de fichiers temporaires. Confirme avec le bouton nettoyer.{extra}'
-
-    async def _cleanup_run(self) -> None:
-        import shutil
-        loop = asyncio.get_running_loop()
-
-        def purge() -> tuple[int, int]:
-            temp = Path(os.environ.get('TEMP') or (HOME / 'AppData' / 'Local' / 'Temp'))
-            cutoff, freed, n, t0 = time.time() - 2 * 86400, 0, 0, time.time()
-            for root, _d, files in os.walk(temp):
-                if time.time() - t0 > 60:
-                    break
-                for fn in files:
-                    fp = os.path.join(root, fn)
-                    try:
-                        if not os.path.islink(fp) and os.path.getmtime(fp) < cutoff:
-                            sz = os.path.getsize(fp)
-                            os.remove(fp)
-                            freed += sz
-                            n += 1
-                    except OSError:
-                        pass                                            # fichier en cours d'utilisation : on le laisse
-            return freed, n
-
-        freed, n = await loop.run_in_executor(None, purge)
-        _t, used, free = shutil.disk_usage('C:')
-        await self._panel('cleanup', 'Ménage terminé', {'temp_mb': 0, 'temp_files': 0, 'big': await loop.run_in_executor(None, self._big_downloads),
-                                                       'free_gb': round(free / 1e9, 1), 'pct': round(used / _t * 100, 1), 'done': f'{round(freed / 1e6)} Mo libérés ({n} fichiers)'})
+        freed_mb = sum(d['mb'] for d in done)
+        self._pending_recycle = recycle > 20e6
+        await self._panel('cleanup', 'Ménage du PC terminé', {
+            'cats': done, 'freed_mb': freed_mb, 'recycle_mb': round(recycle / 1e6), 'big': big,
+            'free_gb': round(free / 1e9, 1), 'pct': round(used / _t * 100, 1), 'gain_gb': round(max(0, free - free0) / 1e9, 2)})
         await self.app.gui_send({'type': 'widget', 'widget': 'disk', 'data': {'total': _t, 'used': used, 'free': free, 'pct': round(used / _t * 100, 1)}})
-        await self.app.speak(f'C\'est fait, {round(freed / 1e6)} méga-octets libérés.')
+        top = sorted((d for d in done if d['mb'] >= 1), key=lambda d: -d['mb'])[:3]
+        detail = ', '.join(f"{d['label'].lower()} {_size(d['mb'])}" for d in top)
+        msg = f"Ménage fait : {_size(freed_mb)} libérés{f' ({detail})' if detail else ''}. Il te reste {round(free / 1e9, 1)} gigas libres."
+        if self._pending_recycle:
+            msg += f" Ta corbeille contient {_size(round(recycle / 1e6))} : je la vide ?"
+        if big:
+            msg += f" Et j'ai trouvé {len(big)} gros fichiers que je te laisse vérifier."
+        return msg
+
+    async def _do_recycle(self, p: dict) -> str:
+        from modules import cleaner
+        mb = round(await asyncio.get_running_loop().run_in_executor(None, cleaner.empty_recycle) / 1e6)
+        self._pending_recycle = False
+        return f'Corbeille vidée : {_size(mb)} libérés.' if mb else 'La corbeille était déjà vide.'
+
+    async def _cleanup_run(self, keys: list[str] | None = None) -> None:
+        import shutil
+        from modules import cleaner
+        loop = asyncio.get_running_loop()
+        done = await loop.run_in_executor(None, cleaner.clean, keys)
+        self._pending_recycle = False
+        _t, used, free = shutil.disk_usage('C:')
+        freed_mb = sum(d['mb'] for d in done)
+        await self._panel('cleanup', 'Ménage du PC terminé', {'cats': done, 'freed_mb': freed_mb, 'recycle_mb': 0,
+                                                             'big': await loop.run_in_executor(None, cleaner.big_files),
+                                                             'free_gb': round(free / 1e9, 1), 'pct': round(used / _t * 100, 1)})
+        await self.app.gui_send({'type': 'widget', 'widget': 'disk', 'data': {'total': _t, 'used': used, 'free': free, 'pct': round(used / _t * 100, 1)}})
+        await self.app.speak(f'C\'est fait, {_size(freed_mb)} libérés.')

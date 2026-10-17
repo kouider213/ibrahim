@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-10-17 (5) — Nexus : il entend, se souvient, ouvre les bons dossiers, fait un vrai ménage, affiche tout en widgets
+- Micro : `modules/mic.py` — sounddevice quand PyAudio manque (PyAudio n'a pas de paquet pour Python 3.13/3.14 → Nexus
+  n'entendait rien). Mot « Nexus » + bouton micro passent par là. requirements : audioop-lts / standard-aifc (Python 3.13+).
+- Mémoire : l'agent PC recevait chaque message seul (`messages=[instruction]`) → il repartait de zéro. Il reçoit maintenant
+  les 16 derniers échanges. Modèle Sonnet 5.5 (au lieu de Haiku), 14 étapes max (au lieu de 6), repli Haiku si indispo.
+- Dossiers : `find_folders()` cherche par nom approché (Bureau réel OneDrive ou non, Documents, Téléchargements, Images,
+  Vidéos, OneDrive) ; « ouvre le dossier factures » trouve « Factures_2026 ». Fini « cherche… » = Google et « écoute… » = Spotify.
+- Ménage : `modules/cleaner.py` — temp utilisateur + Windows, caches Chrome/Edge/Brave/Opera/Firefox, Discord/Spotify/Teams/
+  CapCut/pip/npm, caches DirectX/NVIDIA/AMD, rapports de plantage, Windows Update installé. Fait directement sur
+  « nettoie le PC », puis propose la corbeille (« oui » à la voix). « vide la corbeille » direct.
+- Widgets : outil `show_widget` de l'agent (texte, liste, tableau, infos, image, vidéo) → widgets holographiques déplaçables ;
+  réponses longues affichées aussi en widget ; « ferme les widgets ».
+
 ## 2026-10-17 (4) — Nexus : interface holographique façon JARVIS v10 (2e vidéo TikTok)
 - `nexus/gui/holo.js` (nouveau) : sphère neuronale 3D (three.js, 1 500 neurones + synapses) qui respire en veille,
   pulse quand Nexus parle, se tord en ruban quand il réfléchit ; « sphère bleue / verte / violette », « ancien affichage ».

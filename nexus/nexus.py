@@ -150,7 +150,7 @@ class NexusApp:
         self.input    = InputControl()
         self.installer= AppInstaller()
         self.git_mgr  = GitManager()
-        self.pc_agent = PCAgent()
+        self.pc_agent = PCAgent(widget_cb=self._widget_from_thread)
         self.extras   = Extras(notify=self._notify_from_thread)
         self.browser  = BrowserAgent()
         self.overlay  = Overlay(self)
@@ -177,6 +177,32 @@ class NexusApp:
             except Exception:
                 dead.add(conn)
         self.gui_connections -= dead
+
+    # ── Widgets holographiques génériques (agent PC, caméra du téléphone…) ──────
+    async def show_widget(self, spec: dict) -> str:
+        """Affiche n'importe quel contenu dans un widget de l'écran Nexus : text, list, table, kv, image, video."""
+        w = {k: spec.get(k) for k in ('title', 'kind', 'content', 'items', 'columns', 'rows', 'pairs') if spec.get(k) is not None}
+        path = str(spec.get('path') or '').strip()
+        if path:
+            if path.startswith('https://'):
+                w['src'] = path
+            else:
+                f = Path(path).expanduser()
+                if not f.is_file():
+                    return f'Fichier introuvable : {path}'
+                w['src'] = self.panels._serve(f)
+                w['file'] = str(f)
+        w['id'] = spec.get('id') or f'w{int(time.time() * 1000)}'
+        await self.gui_send({'type': 'holo_widget', 'widget': w})
+        return f"Widget « {w.get('title', '')} » affiché sur l'écran Nexus."
+
+    def _widget_from_thread(self, spec: dict) -> str:
+        if not (self.loop and self.loop.is_running()):
+            return 'Écran Nexus indisponible'
+        try:
+            return asyncio.run_coroutine_threadsafe(self.show_widget(spec), self.loop).result(timeout=10)
+        except Exception as e:
+            return f'Widget impossible : {e}'
 
     # ── Chat history ─────────────────────────────────────────────────────────
     def _push_chat(self, role: str, text: str) -> None:
@@ -762,7 +788,7 @@ class NexusApp:
             response = await loop.run_in_executor(None, offline_brain.ask, t)
         else:
             if self.pc_agent.available:
-                response = await self.pc_agent.run(t)
+                response = await self.pc_agent.run(t, self._chat_history[:-1] if source == 'nexus' else None)
             else:
                 response = await self.ws.send_to_dzaryx(t, source)
             # Claude en panne / quota épuisé → cerveau local s'il est installé
@@ -770,6 +796,8 @@ class NexusApp:
                     await loop.run_in_executor(None, offline_brain.ollama_ok):
                 response = await loop.run_in_executor(None, offline_brain.ask, t)
         await self.gui_send({'type': 'thinking', 'active': False})
+        if response and source == 'nexus' and len(response) > 350:
+            await self.show_widget({'title': 'Réponse', 'kind': 'text', 'content': response, 'id': 'last_answer'})
         if response:
             await self._reply(response, source)
 
@@ -918,7 +946,7 @@ class NexusApp:
             import importlib.util
             await self.gui_send({
                 'type': 'status', 'backend': self.ws.is_connected(),
-                'mic_available': importlib.util.find_spec('pyaudio') is not None,
+                'mic_available': importlib.util.find_spec('pyaudio') is not None or importlib.util.find_spec('sounddevice') is not None,
             })
             # Send chat history
             await self.gui_send({'type': 'chat_history', 'history': self._chat_history[-5:]})

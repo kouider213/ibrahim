@@ -67,6 +67,13 @@ body.neural #you.on{display:block}
 .mopen .mh b{color:#fff;font-size:12.5px;display:block}
 .mopen .mb{white-space:pre-wrap;font-size:11.5px;line-height:1.55;padding:8px 4px;color:#d8faff;text-transform:none}
 button.ghover{outline:2px solid #4ade80}
+.holo.hw{width:min(420px,46%)}
+.holo.hw.wide{width:min(860px,92%);max-height:88%}
+.holo .wimg{display:block;width:100%;max-height:60vh;object-fit:contain;border-radius:4px;background:#000}
+.holo .mb{white-space:pre-wrap;font-size:12px;line-height:1.55;padding:6px 4px;color:#d8faff}
+.wtab{width:100%;border-collapse:collapse;font-size:11px}.wtab th{color:var(--cyan);text-align:left;border-bottom:1px solid rgba(56,216,245,.4);padding:4px}
+.wtab td{padding:4px;border-bottom:1px solid rgba(56,216,245,.12);color:#d8faff}
+.wkv{display:flex;justify-content:space-between;gap:12px;padding:5px 4px;border-bottom:1px solid rgba(56,216,245,.12);font-size:11.5px}.wkv span{color:var(--dim)}.wkv b{color:#fff;text-align:right}
 #gcur{position:fixed;left:0;top:0;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:2px solid #a6ff3a;z-index:50;pointer-events:none;display:none;
   box-shadow:0 0 14px #a6ff3a;transition:width .1s,height .1s,margin .1s,background .1s}
 #gcur.pinch{width:20px;height:20px;margin:-10px 0 0 -10px;background:rgba(166,255,58,.55)}
@@ -252,6 +259,39 @@ function openMail(i, m){
 }
 function closeMails(){ if(mailW){ mailW.remove(); mailW = null; } }
 
+/* ══════════ Widgets génériques : Nexus affiche n'importe quoi (texte, liste, tableau, infos, image, vidéo) ══════════ */
+const widgets = new Map();
+let wSlot = 0;
+const safeSrc = u => /^(https:\/\/|\/files\/|data:image\/)/.test(String(u || '')) ? String(u) : '';
+function showWidget(w){
+  let box = widgets.get(w.id);
+  if(!box){
+    box = document.createElement('div'); box.className = 'holo hw'; box.dataset.id = w.id;
+    box.innerHTML = `<div class="hh"><b></b><button data-a="big" title="Agrandir">⤢</button><button data-a="close" title="Fermer">✕</button></div><div class="hb"></div><div class="hf"><span class="k"></span><span>NEXUS_DISPLAY</span></div>`;
+    stage.appendChild(box); widgets.set(w.id, box);
+    const W = stage.clientWidth, n = wSlot++ % 4;
+    box.style.left = (n % 2 ? Math.max(10, W - 420 - n * 18) : 18 + n * 18) + 'px'; box.style.top = (60 + n * 26) + 'px';
+    box.querySelector('[data-a=close]').onclick = () => closeWidget(w.id);
+    box.querySelector('[data-a=big]').onclick = () => box.classList.toggle('wide');
+    dragBy(box.querySelector('.hh'), box);
+  }
+  box.querySelector('.hh b').textContent = String(w.title || 'NEXUS').toUpperCase();
+  box.querySelector('.hf .k').textContent = String(w.kind || 'text').toUpperCase() + (w.file ? ' · ' + String(w.file).split(/[\\/]/).pop() : '');
+  const b = box.querySelector('.hb'); b.innerHTML = '';
+  const k = w.kind || 'text', src = safeSrc(w.src);
+  if(k === 'image' && src){ const im = document.createElement('img'); im.src = src; im.alt = w.title || ''; im.className = 'wimg'; b.appendChild(im); }
+  else if(k === 'video' && src){ const v = document.createElement('video'); Object.assign(v, { src, controls:true, autoplay:true, muted:true, loop:true, playsInline:true }); v.className = 'wimg'; b.appendChild(v); }
+  else if(k === 'list'){ (w.items || []).forEach((it, i) => { const r = document.createElement('div'); r.className = 'mrow';
+      r.innerHTML = `<div class="r1"><span>[${i + 1}]</span><b>${esc(it.title ?? it.name ?? it)}</b><i>${esc(it.right ?? '')}</i></div>${it.subtitle || it.detail ? `<div class="p">${esc(it.subtitle || it.detail)}</div>` : ''}`; b.appendChild(r); }); }
+  else if(k === 'table'){ const t = document.createElement('table'); t.className = 'wtab';
+      t.innerHTML = `<thead><tr>${(w.columns || []).map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${(w.rows || []).map(r => `<tr>${(r || []).map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>`; b.appendChild(t); }
+  else if(k === 'kv'){ (w.pairs || []).forEach(([a, v]) => { const r = document.createElement('div'); r.className = 'wkv'; r.innerHTML = `<span>${esc(a)}</span><b>${esc(v)}</b>`; b.appendChild(r); }); }
+  else { const d = document.createElement('div'); d.className = 'mb'; d.textContent = w.content || ''; b.appendChild(d); }
+  box.style.zIndex = 6 + wSlot;
+}
+function closeWidget(id){ const b = widgets.get(id); if(b){ b.remove(); widgets.delete(id); } }
+function closeAllWidgets(){ [...widgets.keys()].forEach(closeWidget); }
+
 /* Déplacer un widget (souris ou main) */
 function dragBy(handle, el){
   handle.addEventListener('pointerdown', e => {
@@ -397,6 +437,7 @@ function zoom(f){
 function swipe(dir){
   if($('globewrap').classList.contains('on')) toGlobe({ action: dir === 'right' ? 'cam_next' : 'cam_prev' });
   else if(mailW) send({ type:'message', text:'ferme les mails' });
+  else if(widgets.size) closeWidget([...widgets.keys()].pop());
   else if(document.querySelector('#panel.on')) $('pclose').click();
   else sphere.nudge(dir === 'right' ? 260 : -260, 0);
 }
@@ -410,6 +451,8 @@ window.Holo = {
       case 'mails': showMails(d.emails); break;
       case 'mail_open': openMail(d.index, d.mail || {}); break;
       case 'mails_close': closeMails(); break;
+      case 'holo_widget': if(d.widget) showWidget(d.widget); break;
+      case 'holo_close': d.id ? closeWidget(d.id) : closeAllWidgets(); break;
       case 'gesture': void setGesture(!!d.on, false); break;
       case 'look': if(d.style) style = d.style; if(d.color) color = d.color; store.set('nexus_look', style); store.set('nexus_color', color); applyLook(); break;
     }

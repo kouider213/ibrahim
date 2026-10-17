@@ -81,6 +81,13 @@ class Hud:
             await self.app.gui_send({'type': 'gesture', 'on': True})
             return 'Contrôle gestuel activé. Lève la main devant la caméra : pince pour attraper, glisse pour déplacer.'
 
+        # ── Widgets affichés sur l'écran
+        if re.search(r"\b(ferme|cache|enleve|retire|efface|vire)\b.*\b(widgets?|fenetres?|tout l.ecran|ecran)\b", t) and not re.search(_MAILS, t):
+            await self.app.gui_send({'type': 'holo_close'})
+            self.mails_open = False
+            await self.app.gui_send({'type': 'mails_close'})
+            return 'Écran nettoyé.'
+
         # ── Apparence du cœur
         if _LOOK.search(t) and re.search(r"\b(mets|passe|change|affiche|en|style|mode|sphere)\b", t):
             if _CLASSIC.search(t):

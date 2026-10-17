@@ -2,10 +2,12 @@
 NEXUS PC Control — Windows automation
 Direct local commands handled here (no Dzaryx round-trip).
 """
+import difflib
 import logging
 import os
 import re
 import subprocess
+import unicodedata
 import webbrowser
 from pathlib import Path
 
@@ -57,21 +59,78 @@ APP_MAP: dict[str, str] = {
     'audacity':           'audacity',
 }
 
+def _desktop() -> Path:
+    for p in (USER_HOME / 'OneDrive' / 'Bureau', USER_HOME / 'OneDrive' / 'Desktop', USER_HOME / 'Desktop', USER_HOME / 'Bureau'):
+        if p.is_dir():
+            return p
+    return USER_HOME / 'Desktop'
+
+
+DESKTOP = _desktop()
+
 FOLDER_MAP: dict[str, str] = {
-    'bureau':          str(USER_HOME / 'OneDrive' / 'Bureau'),
-    'desktop':         str(USER_HOME / 'OneDrive' / 'Bureau'),
+    'bureau':          str(DESKTOP),
+    'desktop':         str(DESKTOP),
     'documents':       str(USER_HOME / 'Documents'),
     'téléchargements': str(USER_HOME / 'Downloads'),
     'downloads':       str(USER_HOME / 'Downloads'),
     'images':          str(USER_HOME / 'Pictures'),
+    'photos':          str(USER_HOME / 'Pictures'),
+    'vidéos':          str(USER_HOME / 'Videos'),
+    'videos':          str(USER_HOME / 'Videos'),
+    'onedrive':        str(USER_HOME / 'OneDrive'),
+    'nexus':           str(DESKTOP / 'Nexus'),
+    'dzaryx':          str(DESKTOP / 'Dzaryx'),
     'musique':         str(USER_HOME / 'Music'),
     'ibrahim':         str(USER_HOME / 'OneDrive' / 'Bureau' / 'ibrahim' / 'ibrahim'),
 }
 
 _OPEN_RE       = re.compile(r'\b(ouvre?|lance|démarre?|start|open)\b', re.I)
 _SCREENSHOT_RE = re.compile(r'\b(screenshot|capture|écran|photo\s*écran)\b', re.I)
-_MUSIC_RE      = re.compile(r'\b(musique|chanson|joue?|play|écoute?)\b', re.I)
-_SEARCH_RE     = re.compile(r'\b(cherche?|search|google|recherche?)\b', re.I)
+_MUSIC_RE      = re.compile(r'^\s*(?:mets|met|joue|lance|play)\b.*\b(?:musique|chanson|son|playlist|album|morceau|titre|spotify)\b|^\s*(?:joue|play)\s', re.I)
+_SEARCH_RE     = re.compile(r'^\s*(?:cherche|recherche|search|google)\w*\b(?=.*\b(?:sur\s+google|sur\s+internet|sur\s+le\s+web|en\s+ligne)\b)|^\s*google\s', re.I)
+_FOLDER_WORD   = re.compile(r'\b(?:dossier|répertoire|repertoire|fichier)s?\b', re.I)
+_SKIP_DIRS     = {'node_modules', '.git', '__pycache__', 'appdata', '$recycle.bin', 'windows', 'program files', '.venv', 'venv'}
+
+
+def _fold(t: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFD', t.lower()) if unicodedata.category(c) != 'Mn')
+
+
+def find_folders(name: str, limit: int = 6, max_depth: int = 4) -> list[Path]:
+    """Dossiers dont le nom ressemble à `name` (Bureau, Documents, Téléchargements, Images, Vidéos, OneDrive…)."""
+    want = _fold(name).strip(' .,!?\'"')
+    if not want:
+        return []
+    roots = [DESKTOP, USER_HOME / 'Documents', USER_HOME / 'Downloads', USER_HOME / 'Pictures', USER_HOME / 'Videos',
+             USER_HOME / 'Music', USER_HOME / 'OneDrive', USER_HOME]
+    scored: list[tuple[float, int, Path]] = []
+    seen: set[str] = set()
+    for root in roots:
+        if not root.is_dir():
+            continue
+        base_depth = len(root.parts)
+        for cur, dirs, _files in os.walk(root):
+            depth = len(Path(cur).parts) - base_depth
+            dirs[:] = [d for d in dirs if _fold(d) not in _SKIP_DIRS and not d.startswith('.')] if depth < max_depth else []
+            if root == USER_HOME and depth >= 1:
+                dirs[:] = []
+            for d in dirs:
+                p = Path(cur) / d
+                if str(p).lower() in seen:
+                    continue
+                seen.add(str(p).lower())
+                dn = _fold(d)
+                if dn == want:
+                    score = 1.0
+                elif want in dn or dn in want and len(dn) > 3:
+                    score = .85 - abs(len(dn) - len(want)) / 200
+                else:
+                    score = difflib.SequenceMatcher(None, want, dn).ratio() * .8
+                if score >= .62:
+                    scored.append((score, depth, p))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    return [p for _, _, p in scored[:limit]]
 _SLEEP_RE      = re.compile(r'\b(dors?|veille|sleep|suspend|mise\s*en\s*veille)\b', re.I)
 _VOLUME_RE     = re.compile(r'\bvolume\s+(\d+)\b', re.I)
 
@@ -105,11 +164,22 @@ class PCControl:
                 return self.web_search(query)
 
         if _OPEN_RE.search(t):
-            for key in APP_MAP:
-                if key in t:
+            if _FOLDER_WORD.search(t):
+                m = re.search(r'\b(?:dossier|r[ée]pertoire)s?\s+(?:(?:de|des|du|d\'|le|la|les|mes|mon|ma)\s*)*(.+)$', t)
+                name = m.group(1).strip(' .!?') if m else ''
+                for key, path in FOLDER_MAP.items():
+                    if name == key or name in (key + 's',):
+                        return self.open_folder(key)
+                if name:
+                    found = find_folders(name)
+                    if found:
+                        return self.open_folder(str(found[0])) + (f' ({len(found) - 1} autres dossiers ressemblants)' if len(found) > 1 else '')
+                return None                     # introuvable ici → l'agent PC cherche plus loin
+            for key in sorted(APP_MAP, key=len, reverse=True):
+                if re.search(rf'(?<![\w-]){re.escape(key)}(?![\w-])', t):
                     return self.open_app(key)
             for key in FOLDER_MAP:
-                if key in t:
+                if re.search(rf'\b{re.escape(key)}\b', t):
                     return self.open_folder(key)
 
         return None  # Let Dzaryx handle
@@ -129,9 +199,11 @@ class PCControl:
 
     def open_folder(self, path: str) -> str:
         resolved = FOLDER_MAP.get(path.lower().strip(), path)
+        if not Path(resolved).is_dir():
+            return f'Le dossier {Path(resolved).name} n\'existe pas sur ce PC.'
         try:
-            subprocess.Popen(['explorer', resolved])
-            return f'✅ Dossier ouvert: {resolved}'
+            os.startfile(resolved) if os.name == 'nt' else subprocess.Popen(['xdg-open', resolved])
+            return f'✅ Dossier {Path(resolved).name} ouvert'
         except Exception as e:
             return f'Erreur dossier: {e}'
 

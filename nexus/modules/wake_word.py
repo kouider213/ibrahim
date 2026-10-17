@@ -22,6 +22,8 @@ import threading
 import time
 from pathlib import Path
 
+from modules import mic
+
 log = logging.getLogger('nexus.wake_word')
 
 WAKE_PHRASES = [
@@ -176,12 +178,10 @@ class WakeWordDetector:
             was_in_session = self.in_session
 
             try:
-                with sr.Microphone() as source:
-                    rec.adjust_for_ambient_noise(source, duration=0.2)
-                    try:
-                        audio = rec.listen(source, timeout=4, phrase_time_limit=10 if self.in_session else 6)
-                    except sr.WaitTimeoutError:
-                        continue
+                try:
+                    audio = mic.listen(rec, timeout=4, phrase_time_limit=10 if self.in_session else 6, ambient=0.2)
+                except sr.WaitTimeoutError:
+                    continue
                 # Filtre local : hors session, rien ne part chez Google tant que « Nexus » n'est pas entendu
                 kw = local_keywords(audio) if not self.in_session or self.app.voice.is_speaking else None
                 if kw is not None:
@@ -219,9 +219,9 @@ class WakeWordDetector:
                 fails = 0
             except Exception as e:
                 # Pas de PyAudio / pas de micro : inutile de réessayer toutes les 2 s (le journal se remplissait)
-                if 'PyAudio' in str(e):
-                    log.error('Mot « Nexus » désactivé : PyAudio absent (pip install PyAudio). Le reste de Nexus marche.')
-                    self._run(self.app.journal('🎤 Mot « Nexus » désactivé : PyAudio manquant — relance install ou « mets à jour Nexus »'))
+                if not mic.available():
+                    log.error('Mot « Nexus » désactivé : aucun micro utilisable (PyAudio et sounddevice absents). Le reste de Nexus marche.')
+                    self._run(self.app.journal('🎤 Mot « Nexus » désactivé : aucun micro trouvé — vérifie qu\'un micro est branché, puis « mets à jour Nexus »'))
                     return
                 fails += 1
                 if fails in (1, 5) or fails % 50 == 0:
