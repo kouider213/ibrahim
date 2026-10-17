@@ -937,6 +937,11 @@ class NexusApp:
         class SilentHandler(http.server.SimpleHTTPRequestHandler):
             def log_message(self, *_): pass
 
+            # Sans ça, Chrome garde l'ancienne interface en cache après une mise à jour (nouveautés invisibles)
+            def end_headers(self):
+                self.send_header('Cache-Control', 'no-cache')
+                super().end_headers()
+
             # N'expose QUE l'interface (/gui/) et les fichiers déposés par les panneaux (/files/<clé>) — jamais .env ni le code
             def do_GET(self):
                 path = self.path.split('?', 1)[0]
