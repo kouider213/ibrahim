@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEXUS — Globe</title>
+<script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/';</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Cesium.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@6.0.1/dist/satellite.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Widgets/widgets.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--line:rgba(90,150,255,.34);--text:#e8f0ff;--dim:#8ea3c8;--cyan:#38d8f5;--blue:#4aa3ff;--gold:#fbbf24;--card:rgba(6,12,30,.82)}
+html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
+#globe{position:absolute;inset:0}
+.cesium-widget-credits{opacity:.45;font-size:9px!important}
+.hud{position:absolute;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;backdrop-filter:blur(6px);
+  box-shadow:0 0 24px rgba(56,216,245,.12) inset}
+#clock{top:14px;left:14px;min-width:210px}
+#clock .t{font-size:26px;font-weight:700;letter-spacing:.5px}
+#clock .s{font-size:12px;color:var(--dim);margin-top:3px;line-height:1.5}
+#wx{top:14px;right:14px;min-width:200px;display:none}
+#wx .n{font-size:20px;font-weight:700}
+#wx .s{font-size:12.5px;color:var(--dim);line-height:1.6;margin-top:3px}
+#wx .big{font-size:15px;color:var(--text)}
+#info{bottom:64px;left:50%;transform:translateX(-50%);display:none;font-size:13px;white-space:nowrap}
+#layers{bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:6px}
+#layers button{font:inherit;font-size:12px;font-weight:700;color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line);
+  border-radius:999px;padding:6px 11px;cursor:pointer}
+#layers button.on{color:#02050d;background:var(--cyan);border-color:var(--cyan)}
+#zoomctl{right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;padding:6px}
+#zoomctl button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:rgba(74,163,255,.15);color:var(--text);font-size:17px;cursor:pointer}
+#toast{position:absolute;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--cyan);border-radius:12px;
+  padding:12px 18px;font-size:15px;display:none;max-width:70%;text-align:center}
+#ring{position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(circle at 50% 50%,transparent 38%,rgba(56,216,245,.07) 46%,transparent 56%)}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:14px;letter-spacing:2px;z-index:7}
+</style>
+</head>
+<body>
+<div id="globe"></div>
+<div id="ring"></div>
+<div id="loading">CHARGEMENT DU GLOBE…</div>
+<div class="hud" id="clock"><div class="t" id="c-time">--:--</div><div class="s" id="c-sub"></div></div>
+<div class="hud" id="wx"><div class="n" id="wx-name"></div><div class="s" id="wx-body"></div></div>
+<div class="hud" id="info"></div>
+<div class="hud" id="layers">
+  <button data-l="view">🛰 Vue satellite</button>
+  <button data-l="spin">🌀 Rotation</button>
+  <button data-l="planes">✈️ Avions</button>
+  <button data-l="quakes">🌋 Séismes</button>
+  <button data-l="sats">🛰️ Satellites</button>
+  <button data-l="weather">🌤 Météo</button>
+</div>
+<div class="hud" id="zoomctl"><button id="z-in" title="Zoom avant">+</button><button id="z-out" title="Zoom arrière">−</button><button id="z-home" title="Vue d'ensemble">⌂</button></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const state = { view: 'holo', spin: true, planes: false, quakes: false, sats: false, weather: true };
+const data = { planes: [], quakes: [], sats: [] };
+const WX = {0:'Ciel clair',1:'Peu nuageux',2:'Nuageux',3:'Couvert',45:'Brouillard',48:'Brouillard',51:'Bruine',53:'Bruine',55:'Bruine',61:'Pluie faible',63:'Pluie',65:'Forte pluie',
+  71:'Neige',73:'Neige',75:'Forte neige',80:'Averses',81:'Averses',82:'Fortes averses',95:'Orage',96:'Orage + grêle',99:'Orage + grêle'};
+
+/* Réponse parlée vers Nexus (le HUD parent relaie au serveur local) */
+function reply(text){ try{ if(parent !== window) parent.postMessage({ type:'globe_reply', text }, location.origin); }catch(_){} toast(text); }
+let toastT; function toast(t){ $('toast').textContent=t; $('toast').style.display='block'; clearTimeout(toastT); toastT=setTimeout(()=>$('toast').style.display='none',4500); }
+async function get(kind, params={}){
+  const r = await fetch('/globe-data/'+kind+'?'+new URLSearchParams(params));
+  const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status); return j;
+}
+
+/* ── Globe ── */
+Cesium.Ion.defaultAccessToken = '';
+const viewer = new Cesium.Viewer('globe', {
+  baseLayer:false, animation:false, timeline:false, geocoder:false, homeButton:false, sceneModePicker:false, baseLayerPicker:false,
+  navigationHelpButton:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, requestRenderMode:false,
+  skyBox:false, contextOptions:{ webgl:{ alpha:false } },
+});
+const scene = viewer.scene, camera = viewer.camera, globe = scene.globe;
+scene.backgroundColor = Cesium.Color.fromCssColorString('#02050d');
+globe.baseColor = Cesium.Color.fromCssColorString('#061a3a');
+globe.enableLighting = false; globe.showGroundAtmosphere = true;
+scene.skyAtmosphere.hueShift = -0.08; scene.skyAtmosphere.brightnessShift = 0.25;
+scene.fog.enabled = false;
+
+const esri = new Cesium.UrlTemplateImageryProvider({
+  url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', maximumLevel:19,
+  credit:'Esri, Maxar, Earthstar Geographics, GIS User Community' });
+const labels = new Cesium.UrlTemplateImageryProvider({
+  url:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maximumLevel:19, credit:'Esri' });
+const photo = viewer.imageryLayers.addImageryProvider(esri);
+// Teinte « hologramme » : la même imagerie en niveaux de gris + voile bleu
+const tintCanvas = Object.assign(document.createElement('canvas'), { width:4, height:4 });
+const tctx = tintCanvas.getContext('2d'); tctx.fillStyle = '#1676ff'; tctx.fillRect(0,0,4,4);
+let tint = null;
+Cesium.SingleTileImageryProvider.fromUrl(tintCanvas.toDataURL()).then(p => { tint = viewer.imageryLayers.addImageryProvider(p); applyView(); }).catch(()=>{});
+const labelLayer = viewer.imageryLayers.addImageryProvider(labels);
+function applyView(){
+  const holo = state.view === 'holo';
+  photo.saturation = holo ? 0 : 1.1; photo.contrast = holo ? 1.5 : 1.05; photo.brightness = holo ? 0.75 : 1.05; photo.gamma = holo ? 1.2 : 1;
+  if(tint){ tint.alpha = holo ? 0.5 : 0; tint.show = holo; }
+  labelLayer.alpha = holo ? 0.55 : 0.9;
+  globe.showGroundAtmosphere = holo; $('ring').style.display = holo ? 'block' : 'none';
+  syncButtons();
+}
+const HOME = Cesium.Cartesian3.fromDegrees(-0.6, 30, 24_000_000);
+camera.setView({ destination: HOME });
+viewer.cesiumWidget.creditContainer.style.display = 'block';
+setTimeout(()=>$('loading').style.display='none', 1200);
+
+/* Rotation automatique (seulement vue de loin) */
+let lastUser = 0;
+['wheel','pointerdown','touchstart'].forEach(ev => viewer.canvas.addEventListener(ev, () => { lastUser = Date.now(); }, { passive:true }));
+scene.preRender.addEventListener(() => {
+  if(state.spin && Date.now() - lastUser > 4000 && camera.positionCartographic.height > 6e6) camera.rotate(Cesium.Cartesian3.UNIT_Z, -0.0012);
+});
+
+/* Centre de la vue */
+function center(){
+  const c = camera.pickEllipsoid(new Cesium.Cartesian2(viewer.canvas.clientWidth/2, viewer.canvas.clientHeight/2));
+  const carto = c ? Cesium.Cartographic.fromCartesian(c) : camera.positionCartographic;
+  return { lat: Cesium.Math.toDegrees(carto.latitude), lon: Cesium.Math.toDegrees(carto.longitude), h: camera.positionCartographic.height };
+}
+function distKm(a, b){
+  const R=6371, r=Math.PI/180, dLat=(b.lat-a.lat)*r, dLon=(b.lon-a.lon)*r;
+  const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(x));
+}
+
+/* ── Horloge + météo du lieu visé ── */
+let wxData = null, wxAt = { lat: 999, lon: 999 }, placeName = '';
+function fmtOffset(s){ const sg = s<0?'−':'+', a=Math.abs(s); return `UTC${sg}${String(Math.floor(a/3600)).padStart(2,'0')}:${String(Math.floor(a%3600/60)).padStart(2,'0')}`; }
+function tick(){
+  const c = center(), off = wxData ? wxData.offset : -new Date().getTimezoneOffset()*60;
+  const d = new Date(Date.now() + off*1000);
+  $('c-time').textContent = `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}  ${fmtOffset(off)}`;
+  $('c-sub').innerHTML = '';
+  [d.toISOString().slice(0,10), `⌖ ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}`, `↕ ${Math.round(c.h/1000).toLocaleString('fr-FR')} km`].forEach(t => {
+    const div=document.createElement('div'); div.textContent=t; $('c-sub').appendChild(div); });
+}
+setInterval(tick, 1000);
+async function refreshWeather(force){
+  if(!state.weather){ $('wx').style.display='none'; return; }
+  const c = center();
+  if(!force && distKm(c, wxAt) < Math.max(30, c.h/1000/8)) return;
+  wxAt = c;
+  try {
+    const [w, p] = await Promise.all([get('weather', { lat:c.lat, lon:c.lon }), get('place', { lat:c.lat, lon:c.lon }).catch(()=>({ name:'' }))]);
+    wxData = w; placeName = p.name || (p.country || 'Océan');
+    $('wx-name').textContent = placeName;
+    const lt = new Date(Date.now() + w.offset*1000);
+    $('wx-body').innerHTML = '';
+    [ `<span class="big">🌡 ${w.temp ?? '—'} °C · ressenti ${w.feels ?? '—'} °C</span>`,
+      `${WX[w.code] ?? ''} · ${String(lt.getUTCHours()).padStart(2,'0')}:${String(lt.getUTCMinutes()).padStart(2,'0')} ${fmtOffset(w.offset)}`,
+      `💧 ${w.hum ?? '—'} % · 💨 ${w.wind ?? '—'} km/h`, `🌅 ${w.sunrise || '—'} · 🌇 ${w.sunset || '—'}` ].forEach(h => {
+      const div=document.createElement('div'); div.innerHTML=h; $('wx-body').appendChild(div); });
+    $('wx').style.display='block';
+  } catch(e){ /* météo indisponible : on garde l'ancienne carte */ }
+}
+camera.moveEnd.addEventListener(() => { void refreshWeather(false); if(state.planes) void loadPlanes(); });
+
+/* ── Avions ── */
+const planeIcon = (() => {
+  const c = Object.assign(document.createElement('canvas'), { width:24, height:24 }), g = c.getContext('2d');
+  g.fillStyle='#ffffff'; g.strokeStyle='rgba(0,0,0,.6)'; g.lineWidth=1.5;
+  g.beginPath(); g.moveTo(12,1); g.lineTo(21,22); g.lineTo(12,17); g.lineTo(3,22); g.closePath(); g.fill(); g.stroke(); return c;
+})();
+const planeBB = scene.primitives.add(new Cesium.BillboardCollection());
+const planeLabels = scene.primitives.add(new Cesium.LabelCollection());
+let planeTimer = null;
+async function loadPlanes(){
+  const c = center();
+  if(c.h > 4_500_000){ planeBB.removeAll(); planeLabels.removeAll(); data.planes=[]; toast('Zoome sur une région pour voir les avions en direct'); return; }
+  try {
+    const nm = Math.max(40, Math.min(250, c.h/1852/1.2));
+    const r = await get('planes', { lat:c.lat, lon:c.lon, nm:Math.round(nm) });
+    data.planes = r.planes || [];
+    planeBB.removeAll(); planeLabels.removeAll();
+    const showLabels = c.h < 700_000;
+    for(const p of data.planes){
+      const pos = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, Math.max(0, p.alt));
+      planeBB.add({ position:pos, image:planeIcon, scale:0.75, rotation:-Cesium.Math.toRadians(p.trk), alignedAxis:Cesium.Cartesian3.UNIT_Z, id:{ kind:'plane', p } });
+      if(showLabels && p.cs) planeLabels.add({ position:pos, text:p.cs, font:'11px Segoe UI', fillColor:Cesium.Color.WHITE, outlineColor:Cesium.Color.BLACK, outlineWidth:2,
+        style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(12,-10) });
+    }
+  } catch(e){ toast('Avions indisponibles : '+e.message); }
+}
+function setPlanes(on){
+  state.planes = on; clearInterval(planeTimer);
+  if(on){ void loadPlanes(); planeTimer = setInterval(loadPlanes, 15000); } else { planeBB.removeAll(); planeLabels.removeAll(); data.planes=[]; }
+}
+
+/* ── Séismes ── */
+const quakeEnts = [];
+async function setQuakes(on){
+  state.quakes = on; quakeEnts.splice(0).forEach(e => viewer.entities.remove(e));
+  if(!on) return;
+  try {
+    data.quakes = (await get('quakes')).quakes || [];
+    for(const q of data.quakes){
+      const m = q.mag || 2.5, col = m >= 6 ? '#ff3b3b' : m >= 4.5 ? '#ff8a1f' : '#ffc53d';
+      quakeEnts.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(q.lon, q.lat),
+        point:{ pixelSize:4 + (m-2.5)*3.2, color:Cesium.Color.fromCssColorString(col).withAlpha(.85), outlineColor:Cesium.Color.fromCssColorString(col).withAlpha(.3), outlineWidth:6 },
+        properties:{ kind:'quake', q } }));
+    }
+  } catch(e){ toast('Séismes indisponibles : '+e.message); }
+}
+
+/* ── Satellites ── */
+const satPts = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+const satLabels = scene.primitives.add(new Cesium.LabelCollection());
+let satRecs = [], satTimer = null, issOrbit = null;
+function satPos(rec, when){
+  const pv = satellite.propagate(rec, when); if(!pv.position) return null;
+  const gd = satellite.eciToGeodetic(pv.position, satellite.gstime(when));
+  return { lon: satellite.degreesLong(gd.longitude), lat: satellite.degreesLat(gd.latitude), alt: gd.height*1000 };
+}
+function drawSats(){
+  satPts.removeAll(); satLabels.removeAll(); const now = new Date();
+  for(const s of satRecs){
+    const p = satPos(s.rec, now); if(!p) continue;
+    const pos = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt), iss = s.id === 25544;
+    satPts.add({ position:pos, pixelSize: iss ? 9 : 4, color: iss ? Cesium.Color.fromCssColorString('#38d8f5') : Cesium.Color.fromCssColorString('#a5c8ff').withAlpha(.85), id:{ kind:'sat', s, p } });
+    if(iss || s.station) satLabels.add({ position:pos, text:s.name, font:'11px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#bfe9ff'),
+      outlineColor:Cesium.Color.BLACK, outlineWidth:2, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(10,-8) });
+  }
+}
+async function setSats(on){
+  state.sats = on; clearInterval(satTimer); satPts.removeAll(); satLabels.removeAll();
+  if(issOrbit){ viewer.entities.remove(issOrbit); issOrbit = null; }
+  if(!on) return;
+  try {
+    if(!satRecs.length){
+      const r = await get('sats');
+      satRecs = (r.sats || []).map(o => { try { return { id:o.NORAD_CAT_ID, name:o.OBJECT_NAME, station:/ISS|CSS|TIANGONG/i.test(o.OBJECT_NAME), rec:satellite.json2satrec(o) }; } catch(_){ return null; } }).filter(Boolean);
+    }
+    drawSats(); satTimer = setInterval(drawSats, 2000);
+    const iss = satRecs.find(s => s.id === 25544);
+    if(iss){
+      const pts = []; const t0 = Date.now();
+      for(let k=0;k<=93;k++){ const p = satPos(iss.rec, new Date(t0 + k*60000)); if(p) pts.push(Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt)); }
+      issOrbit = viewer.entities.add({ polyline:{ positions:pts, width:1.6, material:Cesium.Color.fromCssColorString('#38d8f5').withAlpha(.6) } });
+    }
+  } catch(e){ toast('Satellites indisponibles : '+e.message); }
+}
+
+/* ── Clic : fiche de l'objet ── */
+new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => {
+  const o = scene.pick(ev.position); const box = $('info');
+  const id = o && (o.id && o.id.properties ? o.id.properties.getValue(Cesium.JulianDate.now()) : o && o.id);
+  if(!id || !id.kind){ box.style.display='none'; return; }
+  if(id.kind === 'plane'){ const p=id.p; box.textContent = `✈️ ${p.cs||p.id} ${p.type||''} · ${p.alt.toLocaleString('fr-FR')} m · ${p.spd} km/h · cap ${Math.round(p.trk)}°`; }
+  else if(id.kind === 'quake'){ const q=id.q; box.textContent = `🌋 M${(q.mag??0).toFixed(1)} · ${q.place} · ${new Date(q.time).toLocaleString('fr-FR')} · ${Math.round(q.depth)} km de profondeur`; }
+  else if(id.kind === 'sat'){ box.textContent = `🛰️ ${id.s.name} · ${Math.round(id.p.alt/1000)} km d'altitude`; }
+  box.style.display='block';
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+/* ── Commandes ── */
+async function flyTo(query){
+  try {
+    const g = await get('geocode', { q:query });
+    if(!g.found){ reply(`Je ne trouve pas ${query}.`); return; }
+    state.spin = false; syncButtons();
+    const [s,n,w,e] = g.bbox || [];
+    const big = g.bbox && (n-s > 0.3 || e-w > 0.3);
+    if(big) camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(w, s, e, n), duration:3 });
+    else camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(g.lon, g.lat, 25_000), duration:3 });
+    setTimeout(() => refreshWeather(true), 3300);
+  } catch(e){ reply('Recherche du lieu impossible : '+e.message); }
+}
+function zoom(dir){
+  const h = camera.positionCartographic.height;
+  dir === 'in' ? camera.zoomIn(h*0.55) : camera.zoomOut(h*1.2);
+}
+function events(){
+  const c = center(), radius = Math.max(300, Math.min(2500, c.h/1000));
+  const near = data.quakes.length ? data.quakes : null;
+  const go = list => {
+    const q = list.filter(x => distKm(c, x) <= radius && Date.now() - x.time < 7*86400e3).sort((a,b) => b.mag - a.mag);
+    const zone = placeName || 'cette zone';
+    const parts = [q.length ? `${q.length} séisme${q.length>1?'s':''} cette semaine autour de ${zone}, le plus fort M${q[0].mag.toFixed(1)} ${q[0].place}.` : `Aucun séisme récent autour de ${zone}.`];
+    if(state.planes) parts.push(`${data.planes.length} avions en vol dans le secteur.`);
+    if(wxData) parts.push(`Il fait ${wxData.temp} degrés, ${WX[wxData.code] ? WX[wxData.code].toLowerCase() : ''}.`);
+    reply(parts.join(' '));
+  };
+  if(near) go(near); else get('quakes').then(r => { data.quakes = r.quakes || []; go(data.quakes); }).catch(e => reply('Données indisponibles : '+e.message));
+}
+function command(d){
+  switch(d.action){
+    case 'open': camera.flyTo({ destination:HOME, duration:1.5 }); break;
+    case 'spin': state.spin = !!d.on; lastUser = 0; syncButtons(); break;
+    case 'view': state.view = d.mode === 'satellite' ? 'satellite' : 'holo'; applyView(); break;
+    case 'fly': void flyTo(d.query); break;
+    case 'zoom': zoom(d.dir); break;
+    case 'home': camera.flyTo({ destination:HOME, duration:2 }); break;
+    case 'events': events(); break;
+    case 'layer': setLayer(d.name, !!d.on); break;
+  }
+}
+function setLayer(name, on){
+  if(name === 'planes') setPlanes(on);
+  else if(name === 'quakes') void setQuakes(on);
+  else if(name === 'sats') void setSats(on);
+  else if(name === 'weather'){ state.weather = on; void refreshWeather(true); }
+  syncButtons();
+}
+function syncButtons(){
+  document.querySelectorAll('#layers button').forEach(b => {
+    const l = b.dataset.l; b.classList.toggle('on', l === 'view' ? state.view === 'satellite' : !!state[l]); });
+}
+document.querySelectorAll('#layers button').forEach(b => b.addEventListener('click', () => {
+  const l = b.dataset.l;
+  if(l === 'view'){ state.view = state.view === 'holo' ? 'satellite' : 'holo'; applyView(); }
+  else if(l === 'spin'){ state.spin = !state.spin; syncButtons(); }
+  else setLayer(l, !state[l]);
+}));
+$('z-in').onclick = () => zoom('in'); $('z-out').onclick = () => zoom('out'); $('z-home').onclick = () => command({ action:'home' });
+window.addEventListener('message', e => { if(e.origin === location.origin && e.data && e.data.type === 'globe') command(e.data); });
+applyView(); tick(); void refreshWeather(true);
+</script>
+</body>
+</html>

@@ -47,6 +47,8 @@ from modules.app_installer    import AppInstaller
 from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
 from modules.panels           import Panels
+from modules.globe            import Globe
+from modules                  import globe as globe_data
 from modules                  import vision_click
 from modules                  import ui_automation
 from modules                  import quick_answers, whatsapp_call
@@ -152,6 +154,7 @@ class NexusApp:
         self.browser  = BrowserAgent()
         self.overlay  = Overlay(self)
         self.panels   = Panels(self)
+        self.globe    = Globe(self)
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -233,6 +236,13 @@ class NexusApp:
         extra = self.extras.try_handle(t)
         if extra:
             await self._reply(extra, source)
+            return
+
+        # ── 0b2. Globe 3D façon JARVIS : « montre le globe », « va sur Oran », « les avions », « vue satellite »…
+        globe_reply = await self.globe.handle(t)
+        if globe_reply is not None:
+            if globe_reply:
+                await self._reply(globe_reply, source)
             return
 
         # ── 0b2a. Panneaux métier : réservations/agenda, documents clients, facture, liens, dossier, graphique, ménage ──
@@ -862,6 +872,14 @@ class NexusApp:
                 path = self.path.split('?', 1)[0]
                 if path.startswith('/gui/'):
                     return super().do_GET()
+                if path.startswith('/globe-data/'):
+                    code, body = globe_data.serve(path[len('/globe-data/'):], self.path.partition('?')[2])
+                    self.send_response(code)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.send_header('Content-Length', str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 if path.startswith('/files/'):
                     f = app.panels.served.get(path[len('/files/'):])
                     if f and f.is_file():
@@ -905,6 +923,11 @@ class NexusApp:
                         self.toggle_mic()
                     elif t2 == 'widget_request':
                         asyncio.create_task(self.handle_widget_request(data.get('widget', '')))
+                    elif t2 == 'globe_reply':
+                        reply = str(data.get('text', ''))[:600]
+                        if reply:
+                            asyncio.create_task(self.speak(reply))
+                            self._push_chat('nexus', reply)
                     elif t2 == 'panel_action':
                         asyncio.create_task(self.panels.action(data))
                     elif t2 == 'camera_toggle':

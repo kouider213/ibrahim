@@ -88,6 +88,11 @@ button.chip:hover{border-color:var(--line2);color:var(--text)}
 
 /* ── Panneaux ── */
 .stage.popen #feed,.stage.popen .caption{opacity:0;pointer-events:none}
+#globewrap{position:absolute;inset:0;display:none;border-radius:18px;overflow:hidden;border:1px solid var(--line2);z-index:4;background:#02050d}
+#globewrap.on{display:block;animation:pin .35s cubic-bezier(.2,.8,.2,1)}
+#globewrap iframe{width:100%;height:100%;border:0;display:block}
+#globewrap .x{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:5;background:rgba(6,12,30,.85);border:1px solid var(--line2);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--dim)}
+.stage.gopen #feed,.stage.gopen .caption,.stage.gopen #hud{opacity:0;pointer-events:none}
 #panel{position:absolute;inset:0;display:none;flex-direction:column;border-radius:18px;background:rgba(6,12,30,.9);border:1px solid var(--line2);
   backdrop-filter:blur(18px);box-shadow:0 20px 70px rgba(0,0,0,.55),0 0 40px rgba(74,163,255,.12);overflow:hidden;z-index:4}
 #panel.on{display:flex;animation:pin .35s cubic-bezier(.2,.8,.2,1)}
@@ -190,6 +195,7 @@ footer{grid-area:foot;display:flex;gap:10px;align-items:center;padding:9px 12px;
     <canvas id="hud" role="img" aria-label="Nexus"></canvas>
     <div id="feed" aria-live="polite"></div>
     <div id="panel" role="region" aria-label="Panneau"><div class="ph"><div id="ptabs"></div><button class="x" id="pclose" aria-label="Fermer le panneau" title="Fermer (Échap)">✕</button></div><div class="pb" id="pbody"></div></div>
+    <div id="globewrap" role="region" aria-label="Globe"><button class="x" id="gclose" title="Fermer le globe (Échap)">✕ Globe</button></div>
     <div id="cam"><span>● LIVE</span><img id="camimg" alt="Caméra Nexus"></div>
     <div class="caption">
       <div id="phase">En veille</div>
@@ -267,6 +273,7 @@ function handle(d){
     case 'widget':   renderWidget(d.widget,d.data||{}); break;
     case 'chat_history': renderChat(d.history||[]); break;
     case 'panel':    showPanel(d); break;
+    case 'globe':    globeCmd(d); break;
     case 'camera_frame':
       camOn=!!d.data; $('cam').classList.toggle('on',camOn); chip('c-cam',camOn?true:null); $('btn-cam').classList.toggle('rec',camOn);
       if(camOn) $('camimg').src='data:image/jpeg;base64,'+d.data; break;
@@ -345,6 +352,29 @@ function drawPanel(){
 }
 $('pclose').addEventListener('click',closePanel);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ const big=document.querySelector('.doc img.big'); if(big) big.classList.remove('big'); else closePanel(); } });
+
+/* ── Globe 3D (gui/globe.html) : ouvert/piloté à la voix, ses réponses repartent vers Nexus pour être dites ── */
+let globeFrame=null, globeQueue=[];
+function globeCmd(d){
+  if(d.action==='close'){ closeGlobe(false); return; }
+  if(!globeFrame){
+    globeFrame=document.createElement('iframe'); globeFrame.src='globe.html'; globeFrame.title='Globe';
+    globeFrame.addEventListener('load',()=>{ globeQueue.splice(0).forEach(m=>globeFrame.contentWindow.postMessage(m,location.origin)); globeFrame.dataset.ready='1'; });
+    $('globewrap').appendChild(globeFrame);
+  }
+  closePanel(); $('globewrap').classList.add('on'); $('stage').classList.add('gopen');
+  if(globeFrame.dataset.ready) globeFrame.contentWindow.postMessage(d,location.origin); else globeQueue.push(d);
+}
+function closeGlobe(tell){
+  $('globewrap').classList.remove('on'); $('stage').classList.remove('gopen');
+  if(tell) send({type:'message',text:'ferme le globe'});
+}
+$('gclose').addEventListener('click',()=>closeGlobe(true));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && $('globewrap').classList.contains('on')) closeGlobe(true); });
+window.addEventListener('message',e=>{
+  if(e.origin!==location.origin || !e.data || e.data.type!=='globe_reply') return;
+  send({type:'globe_reply',text:String(e.data.text||'').slice(0,600)});
+});
 
 function rBookings(body,d){
   const items=d.items||[]; const [ty,tm]=String(d.today||'').split('-').map(Number);
