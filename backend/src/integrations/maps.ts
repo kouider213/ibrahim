@@ -60,7 +60,7 @@ async function geocodeAddress(address: string, apiKey: string): Promise<{ lat: n
 async function resolveDestination(destination: string, apiKey?: string): Promise<{ lat: number; lng: number; label: string } | null> {
   // 1. Fast local lookup first
   const lower = destination.toLowerCase().trim();
-  // Adresse complète (« Chaussée de Bruxelles 397B, 1780 Wemmel ») : pas de raccourci, sinon « bruxelles » gagne
+  // Adresse complète (« rue X 12, 1780 Ville ») : pas de raccourci, sinon « bruxelles » gagne
   const fullAddress = apiKey && /\d/.test(lower) && lower.includes(',');
   if (!fullAddress) for (const [key, coords] of Object.entries(ORAN_LANDMARKS)) {
     if (lower.includes(key)) return coords;

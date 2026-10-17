@@ -67,16 +67,22 @@ export async function kouiderDossierText(): Promise<string> {
 
 // LA FAMILLE (demande de Kouider 2026-10-16) : quand sa femme ou un proche répond / appelle avec son téléphone,
 // Dzaryx lui parle comme un ami de la famille (sans jamais rien dire des affaires). Base + ce qu'il a dicté.
+// Prénoms : app_kv `kouider:family` (privé — le dépôt est public), une ligne par info.
+const FAMILY_KEY = 'kouider:family';
 const FAMILY_BASE = [
-  'Sa femme : Fatima. Son fils : Ibrahim (« le petit »). Ils vivent ensemble à Bruxelles.',
+  'Sa femme et son fils (« le petit ») vivent avec lui à Bruxelles.',
   'Lundi et jeudi : journée en famille. L\'été : vacances à Oran.',
 ];
-const FAMILY_WORDS = /\b(femme|épouse|fatima|fils|ibrahim|petit|enfant|bébé|famille|mère|maman|père|papa|frère|sœur|soeur|beau-|belle-|cousin|oncle|tante|neveu|nièce|anniversaire)\b/i;
+const FAMILY_WORDS = /\b(femme|épouse|fils|petit|enfant|bébé|famille|mère|maman|père|papa|frère|sœur|soeur|beau-|belle-|cousin|oncle|tante|neveu|nièce|anniversaire)\b/i;
 
-/** Ce que Dzaryx sait de la famille de Kouider (pour parler à Fatima & co). Jamais d'info business. */
+/** Ce que Dzaryx sait de la famille de Kouider (pour parler à sa femme & co). Jamais d'info business. */
 export async function familyText(): Promise<string> {
-  const notes = (await readNotes().catch(() => [] as string[])).filter(n => FAMILY_WORDS.test(n));
-  return [...FAMILY_BASE, ...notes.slice(-12)].map(l => `- ${l}`).join('\n');
+  const [notes, saved] = await Promise.all([
+    readNotes().catch(() => [] as string[]).then(ns => ns.filter(n => FAMILY_WORDS.test(n))),
+    kvGet(FAMILY_KEY).catch(() => null),
+  ]);
+  const base = saved?.split('\n').map(l => l.trim()).filter(Boolean) ?? FAMILY_BASE;
+  return [...base, ...notes.slice(-12)].map(l => `- ${l}`).join('\n');
 }
 
 /** Outil kouider_dossier : show | add (une info sur lui) | days_off (ses jours de congé). */

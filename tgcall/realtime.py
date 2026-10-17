@@ -11,6 +11,7 @@ import audioop
 import base64
 import json
 import logging
+import os
 import subprocess
 import time
 from typing import Awaitable, Callable
@@ -34,7 +35,7 @@ CHECK_EVERY_S = 4.0                # voix re-vérifiée toutes les 4 s de parole
 VOICE_KEEP_S = 30                  # au plus 30 s de sa voix gardées (vérification + apprentissage en fin d'appel)
 # Outils permis quand ce n'est PAS Kouider (sa femme, un proche, un inconnu) : rien qui touche à ses affaires
 GUEST_TOOLS = {'web_search', 'end_call', 'call_back_later', 'leave_message', 'learn_voice', 'verify_code'}
-NAMES = {'fatima': 'Fatima (sa femme)'}
+NAMES = json.loads(os.environ.get('TG_SPEAKER_NAMES', '{}'))   # {"prénom": "Prénom (sa femme)"} dans .env : pas de prénoms dans le dépôt public
 ROTATE = {90: 'transpose=1', 180: 'transpose=1,transpose=1', 270: 'transpose=2'}
 
 
@@ -70,7 +71,7 @@ class RealtimeCall:
         self.lines: list[dict] = []       # transcription de l'appel (mémoire des appels, envoyée à la fin)
         self.started = time.monotonic()
         self.interpreter = ''             # langue du client en mode interprète ('' = normal)
-        # Qui parle ? (reconnaissance de la voix, speaker.py) — 'kouider', un proche ('fatima'), 'inconnu' ou '?'
+        # Qui parle ? (reconnaissance de la voix, speaker.py) — 'kouider', un proche (prénom appris), 'inconnu' ou '?'
         self.guarded = False              # voix de Kouider connue → on vérifie avant de parler affaires
         self.who = 'kouider'
         self.by_code = False              # déverrouillé par le code secret (pas par la voix → on n'apprend pas)
@@ -148,7 +149,7 @@ class RealtimeCall:
                                                    'create_response': auto, 'interrupt_response': True}}}}})
 
     def _identify(self, pcm: bytes) -> tuple[str | None, float]:
-        """→ ('kouider' | 'fatima' | 'inconnu' | None = pas encore sûr, score de Kouider)."""
+        """→ ('kouider' | prénom d'un proche | 'inconnu' | None = pas encore sûr, score de Kouider)."""
         v = speaker.voiced(pcm, IN_RATE)
         secs = len(v) / (2 * IN_RATE)
         vec = speaker.embed(v, IN_RATE) if secs >= 1.0 else None

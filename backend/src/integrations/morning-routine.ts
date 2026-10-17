@@ -8,7 +8,7 @@ import { callOwner, getPendingCall } from '../notifications/voice-call.js';
 
 // ROUTINE DU MATIN (demande de Kouider 2026-10-15) : sport chaque matin sauf le jeudi (ouverture du magasin tôt),
 // douche + petit-déj avant le travail. Chaque matin à l'heure du réveil, Dzaryx envoie un message de motivation
-// (famille Fatima + Ibrahim, santé, business, mental, citation) et demande « tu es réveillé ? ». Tant qu'il ne répond
+// (famille, santé, business, mental, citation) et demande « tu es réveillé ? ». Tant qu'il ne répond
 // pas (message Telegram/app ou appel décroché), il est considéré endormi : appel au bout de callAfterMin, rappel ensuite.
 // Pause (vacances, repos) : outil morning_routine, ou automatique pendant un voyage enregistré (trips.ts).
 // Les trajets (salle, travail, aéroport) et le trafic sont suivis par departures.ts à partir de l'agenda FIK.
@@ -55,9 +55,9 @@ export const DEFAULT_CONFIG: RoutineConfig = {
   enabled: true,
   pausedUntil: null,
   addresses: {
-    home: 'Rue du Laekenveld, 1080 Bruxelles, Belgique',
-    work: 'Pl. Philippe Werrie 3, 1090 Jette, Belgique',
-    gym: 'Chaussée de Bruxelles 397B, 1780 Wemmel, Belgique',
+    home: 'Bruxelles, Belgique',                      // vraies adresses : app_kv routine:config (privé, dépôt public)
+    work: 'Jette, Belgique',
+    gym: 'Wemmel, Belgique',
   },
   days: [
     { kind: 'sport', wake: '05:45', leave: '06:05', sport: ['06:25', '07:55'], shower: '08:20', eat: '08:45', next: '08:45 petit-déj en famille, 10:00 travail' },
@@ -68,7 +68,7 @@ export const DEFAULT_CONFIG: RoutineConfig = {
     { ...SPORT_EARLY, next: '10:00 Agence FIK, 12:00 travail' },
     { ...SPORT_EARLY, next: '10:00 Agence FIK, 12:00 travail' },
   ],
-  family: 'sa femme Fatima et son fils Ibrahim',
+  family: 'sa femme et son fils',                    // prénoms : app_kv routine:config (privé)
   callAfterMin: 7,
   recallAfterMin: 20,
 };
@@ -166,7 +166,7 @@ function planLine(p: DayPlan, addrs: RoutineConfig['addresses']): string {
 
 const WAKE_SYSTEM = `Tu es Dzaryx, le bras droit de Kouider. Chaque matin tu le réveilles avec un message qui lui donne la niaque.
 Tu le connais par cœur (dossier ci-dessous). Écris EXACTEMENT 5 lignes, chacune commence par son émoji, tutoiement, français, phrases courtes et percutantes :
-🔥 Motivation famille : fais-le pour sa femme Fatima et son fils Ibrahim (varie l'angle : exemple pour son fils, fierté de sa femme, l'avenir qu'il construit pour eux…)
+🔥 Motivation famille : fais-le pour sa femme et son fils (prénoms dans le dossier ; varie l'angle : exemple pour son fils, fierté de sa femme, l'avenir qu'il construit pour eux…)
 💪 Santé : un conseil concret pour aujourd'hui (sport, sommeil, eau, nutrition, récupération…)
 💼 Business : un conseil concret et actionnable pour FIK Conciergerie / FIK Sites aujourd'hui
 🧠 Mental : un conseil de gagnant (discipline, focus, résilience, confiance…)
@@ -196,7 +196,7 @@ export async function motivationLines(cfg: RoutineConfig, plan: DayPlan, date: s
     console.error('[routine] motivation:', err instanceof Error ? err.message : err);
   }
   return [
-    `🔥 Fatima et Ibrahim comptent sur toi : chaque matin où tu te lèves, tu leur montres l'exemple.`,
+    `🔥 Ta femme et ton fils comptent sur toi : chaque matin où tu te lèves, tu leur montres l'exemple.`,
     `💪 Un grand verre d'eau dès maintenant, avant même le café.`,
     `💼 Une seule action business aujourd'hui qui rapporte : un client relancé ou un prospect appelé.`,
     `🧠 La discipline, c'est faire ce qu'il faut même quand tu n'en as pas envie.`,
@@ -284,7 +284,7 @@ export async function jobMorningRoutine(): Promise<void> {
     ? `Tu pars à la salle à ${plan.leave?.replace(':', ' h ')}, sport à ${plan.sport?.[0].replace(':', ' h ')}.`
     : `Tu ouvres le magasin, départ à ${plan.leave?.replace(':', ' h ')}.`;
   await callOwner(st.calls === 1
-    ? `Debout champion, il est ${hm(Date.now()).replace('h', ' h ')} ! Je t'ai écrit et tu n'as pas répondu. ${what} Fais-le pour Fatima et Ibrahim. Dis-moi que tu es bien réveillé.`
+    ? `Debout champion, il est ${hm(Date.now()).replace('h', ' h ')} ! Je t'ai écrit et tu n'as pas répondu. ${what} Fais-le pour ta femme et ton fils. Dis-moi que tu es bien réveillé.`
     : `Kouider, c'est encore Dzaryx : tu ne m'as toujours pas répondu. Lève-toi maintenant, ${what} Allez, on y va !`);
   console.log(`[routine] appel de réveil n°${st.calls}`);
 }
@@ -365,8 +365,7 @@ export async function setupRoutineCalendar(): Promise<string> {
       await updateAgendaSeries(e.id!, { location: loc }).catch(() => false);
     }
     for (const fact of [
-      'Sa femme s\'appelle Fatima et son fils s\'appelle Ibrahim.',
-      'Il fait du sport chaque matin à la salle de Wemmel (Chaussée de Bruxelles 397B), sauf le jeudi où il ouvre le magasin tôt (6h30).',
+      'Il fait du sport chaque matin à la salle de Wemmel, sauf le jeudi où il ouvre le magasin tôt (6h30).',
       `Adresses en Belgique : maison ${cfg.addresses.home} ; travail ${cfg.addresses.work}.`,
     ]) await kouiderDossierTool({ action: 'add', fact }).catch(() => '');
     await kvSet(CALENDAR_FLAG, '1');

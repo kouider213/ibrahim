@@ -85,7 +85,7 @@ export async function jobDepartureWatch(): Promise<void> {
     const title = e.summary ?? 'RDV';
     if (night && !/^🧳/u.test(title)) continue;                      // la nuit : seulement l'aéroport (vol à 6h → partir vers 3h)
     if (!e.location?.trim()) { await askAddress(e.id, title, Date.parse(e.start.dateTime), now, !!e.recurringEventId); continue; }
-    if (/^(🟢|🏠|🚿|⏰)/u.test(title) || /laekenveld/i.test(e.location)) continue;
+    if (/^(🟢|🏠|🚿|⏰)/u.test(title) || e.location.trim() === cfg.addresses.home) continue;
     const routineTrip = /wemmel|werrie/i.test(e.location) || /^(🏋️|✈️ Belgique)/u.test(title);
     // pause « sport » (ex. il commence lundi) : seules les alertes salle sautent, le travail reste prévenu
     if (paused && routineTrip && !(/sport/i.test(cfg.pauseReason ?? '') && !/wemmel/i.test(e.location) && !/^🏋️/u.test(title))) continue;

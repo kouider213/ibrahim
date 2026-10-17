@@ -3,7 +3,7 @@
 - Modèle CAM++ (3D-Speaker zh+en, ONNX, models/spk.onnx) via sherpa-onnx : une voix → un vecteur de 512 nombres.
 - voiceprints/<nom>.npy = moyenne des vecteurs de la personne (+ .json : nombre d'échantillons).
 - Kouider est appris tout seul à partir de ses vocaux Telegram et de ses appels reconnus ;
-  Fatima (ou un proche) est apprise pendant un appel quand elle se présente (outil learn_voice).
+  Sa femme (ou un proche) est apprise pendant un appel quand elle se présente (outil learn_voice).
 - Mot de passe vocal (« code secret … » sur Telegram) : déverrouille un appel si la voix n'est pas reconnue.
 """
 import hashlib
