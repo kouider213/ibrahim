@@ -478,6 +478,7 @@ export default function App() {
           domStorageEnabled
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction={false}
+          mediaCapturePermissionGrantType="grant"
           allowsFullscreenVideo
           originWhitelist={['*']}
           onLoadEnd={() => {
