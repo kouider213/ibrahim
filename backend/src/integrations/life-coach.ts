@@ -78,6 +78,7 @@ export interface CoachDay {
 }
 const DAY_KEY = (date: string) => `kouider:coach:day:${date}`;
 export const MEAL_LABEL: Record<CoachMeal['slot'], string> = { breakfast: '🍳 Petit-déj', lunch: '🍽️ Déjeuner', snack: '🥜 Collation', dinner: '🍲 Dîner' };
+const COACH_TITLE = /^(🍳 Petit-déj|🍽️ Déjeuner|🥜 Collation|🍲 Dîner|🧠 Mental|😴 Au lit) — /u;
 const isHHMM = (v: unknown): v is string => typeof v === 'string' && /^\d{2}:\d{2}$/.test(v);
 
 export async function getCoachDay(date: string): Promise<CoachDay | null> {
@@ -107,7 +108,11 @@ export async function buildCoachDay(date: string, writeAgenda = true): Promise<C
     sport, eventIds: [], at: Date.now(),
   };
   if (writeAgenda) {
-    for (const id of old?.eventIds ?? []) await deleteAgendaEvent(id).catch(() => false);
+    // Repas / mental / coucher déjà posés ce jour-là (ids connus OU retrouvés par le titre, si un essai a été coupé) → effacés
+    const ids = new Set(old?.eventIds ?? []);
+    const existing = await listAgendaRange(new Date(localTs(date, '00:00')).toISOString(), new Date(localTs(date, '23:59')).toISOString(), 60).catch(() => null);
+    for (const e of existing ?? []) if (e.id && !e.recurringEventId && e.transparency === 'transparent' && COACH_TITLE.test(e.summary ?? '')) ids.add(e.id);
+    for (const id of ids) await deleteAgendaEvent(id).catch(() => false);
     const add = async (title: string, start: string, min: number, desc: string) => {
       const end = new Date(localTs(date, start) + min * 60_000);
       const endHm = localNow(end.getTime()).hhmm;
