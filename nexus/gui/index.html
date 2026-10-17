@@ -372,8 +372,9 @@ function closeGlobe(tell){
 $('gclose').addEventListener('click',()=>closeGlobe(true));
 document.addEventListener('keydown',e=>{ if(e.key==='Escape' && $('globewrap').classList.contains('on')) closeGlobe(true); });
 window.addEventListener('message',e=>{
-  if(e.origin!==location.origin || !e.data || e.data.type!=='globe_reply') return;
-  send({type:'globe_reply',text:String(e.data.text||'').slice(0,600)});
+  if(e.origin!==location.origin || !e.data) return;
+  if(e.data.type==='globe_reply') send({type:'globe_reply',text:String(e.data.text||'').slice(0,600)});
+  else if(e.data.type==='globe_state') send({type:'globe_state',cams:!!e.data.cams,flights:!!e.data.flights});
 });
 
 function rBookings(body,d){

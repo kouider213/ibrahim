@@ -896,7 +896,8 @@ class NexusApp:
             def do_HEAD(self):
                 self.send_error(405)
 
-        with socketserver.TCPServer(('localhost', HTTP_PORT), SilentHandler) as httpd:
+        socketserver.ThreadingTCPServer.daemon_threads = True   # une requête lente (avions, caméras) ne bloque pas le HUD
+        with socketserver.ThreadingTCPServer(('localhost', HTTP_PORT), SilentHandler) as httpd:
             log.info('HTTP  → http://localhost:%d/gui/index.html', HTTP_PORT)
             httpd.serve_forever()
 
@@ -923,6 +924,9 @@ class NexusApp:
                         self.toggle_mic()
                     elif t2 == 'widget_request':
                         asyncio.create_task(self.handle_widget_request(data.get('widget', '')))
+                    elif t2 == 'globe_state':
+                        self.globe.cams_open = bool(data.get('cams'))
+                        self.globe.flights_open = bool(data.get('flights'))
                     elif t2 == 'globe_reply':
                         reply = str(data.get('text', ''))[:600]
                         if reply:

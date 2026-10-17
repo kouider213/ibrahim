@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-10-17 (3) — Nexus : globe 3D façon JARVIS (vidéo TikTok) + vols vers une ville + caméras du monde
+- `nexus/modules/globe.py` + `nexus/gui/globe.html` (CesiumJS, calque du HUD) : « montre le globe », « fais-le tourner »,
+  « vue satellite », « va sur Oran », avions en direct, séismes (USGS), satellites + orbite ISS (CelesTrak), météo/heure locale.
+- Look holo : continents néon dessinés (Natural Earth) sur bleu nuit, aurore boréale animée, intro « NEXUS » ;
+  en zoomant, fondu vers la vraie image satellite en couleurs.
+- « Y a-t-il des avions qui vont vers Oran ? » / « les vols qui partent d'Alger » : OpenSky + routes adsbdb →
+  widget à droite (compagnie, départ → arrivée, altitude, vitesse, distance, arrivée ≈ HH:MM), trajectoires sur le globe.
+- « Montre les caméras à Londres » : caméras publiques officielles (TfL Londres, Caltrans Californie, Digitraffic
+  Finlande ; monde entier avec `WINDY_WEBCAMS_KEY` gratuite dans nexus/.env) → widget sous le globe (◀ ▶ agrandir),
+  position sur le globe (faisceau). « ouvre la caméra » reste la webcam du PC.
+- Serveur HTTP local de Nexus passé en multi-thread (une requête lente ne bloque plus le HUD).
+
 ## 2026-10-17 (2) — Chat app : photo « invisible » pour Dzaryx corrigée
 - `TextScreen.tsx` : « modifie ma photo, crée une image de moi… » était pris pour « créer une annonce avec photos »
   (le mot « crée » suffisait) → photo rangée pour une annonce, pas envoyée en vision → Dzaryx disait ne rien recevoir.

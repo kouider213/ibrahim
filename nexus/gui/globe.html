@@ -7,6 +7,7 @@
 <script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/';</script>
 <script src="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Cesium.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/satellite.js@6.0.1/dist/satellite.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Widgets/widgets.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -23,9 +24,45 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
 #wx .n{font-size:20px;font-weight:700}
 #wx .s{font-size:12.5px;color:var(--dim);line-height:1.6;margin-top:3px}
 #wx .big{font-size:15px;color:var(--text)}
-#info{bottom:64px;left:50%;transform:translateX(-50%);display:none;font-size:13px;white-space:nowrap}
+#info{top:52px;left:50%;transform:translateX(-50%);display:none;font-size:13px;white-space:nowrap}
+/* Widget vols (côté droit, sous la météo) */
+#flights{top:164px;right:14px;width:310px;max-height:calc(100% - 340px);display:none;flex-direction:column;padding:0;overflow:hidden}
+#flights.on{display:flex}
+.whead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.whead b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.whead button{background:none;border:1px solid var(--line);color:var(--dim);border-radius:7px;min-width:26px;height:24px;cursor:pointer;font-size:12px}
+.whead button:hover{color:var(--text);border-color:var(--cyan)}
+#fl-sub{font-size:11.5px;color:var(--dim);padding:6px 12px 2px}
+#fl-list{overflow:auto;padding:4px 6px 8px}
+.fl{padding:7px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.fl:hover,.fl.sel{background:rgba(56,216,245,.08);border-color:rgba(56,216,245,.35)}
+.fl .r1{display:flex;gap:8px;align-items:baseline}.fl .cs{font-weight:700;color:var(--gold)}.fl .al{flex:1;font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl .eta{font-weight:700;font-size:13px;color:var(--cyan)}.fl .r2{font-size:12.5px;margin-top:2px}.fl .r3{font-size:11.5px;color:var(--dim);margin-top:1px}
+/* Widget caméra (sous le globe) */
+#cam{bottom:66px;left:50%;transform:translateX(-50%);width:min(400px,40vw);display:none;padding:0;overflow:hidden;transition:width .3s}
+#cam.on{display:block}#cam.big{width:min(820px,70vw)}
+#cam .media{position:relative;aspect-ratio:16/9;background:#000}
+#cam .media img,#cam .media video,#cam .media iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}
+#cam .live{position:absolute;top:8px;left:8px;background:rgba(220,30,50,.85);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:5px}
+#cam .meta{font-size:11.5px;color:var(--dim);padding:6px 12px 8px}
+/* Intro holographique */
+#intro{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:radial-gradient(circle at 50% 45%,#06203f 0,#02050d 62%);transition:opacity .9s}
+#intro.out{opacity:0;pointer-events:none}
+#intro .core{position:relative;width:220px;height:220px;perspective:600px}
+#intro .orb{position:absolute;inset:62px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#dffbff 0,#38d8f5 18%,#0d5fb8 55%,rgba(13,95,184,0) 72%);box-shadow:0 0 60px #38d8f5,0 0 120px rgba(56,216,245,.45);animation:pulse 1.6s ease-in-out infinite}
+#intro i{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(56,216,245,.7);box-shadow:0 0 14px rgba(56,216,245,.6)}
+#intro .r1{animation:spinA 3.2s linear infinite}#intro .r2{inset:18px;border-color:rgba(120,255,200,.55);animation:spinB 2.4s linear infinite}
+#intro .r3{inset:-26px;border-style:dashed;border-color:rgba(56,216,245,.35);animation:spinC 9s linear infinite}
+#intro .lbl{font-size:15px;letter-spacing:9px;color:#bfefff;text-shadow:0 0 12px #38d8f5}
+#intro .bar{width:220px;height:3px;background:rgba(56,216,245,.15);border-radius:3px;overflow:hidden}
+#intro .bar b{display:block;height:100%;width:0;background:linear-gradient(90deg,#38d8f5,#7affc8);box-shadow:0 0 10px #38d8f5;animation:load 2.3s ease-out forwards}
+@keyframes spinA{from{transform:rotateX(68deg) rotateZ(0)}to{transform:rotateX(68deg) rotateZ(360deg)}}
+@keyframes spinB{from{transform:rotateY(64deg) rotateZ(0)}to{transform:rotateY(64deg) rotateZ(-360deg)}}
+@keyframes spinC{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{transform:scale(1.08);filter:brightness(1.25)}}
+@keyframes load{to{width:100%}}
 #layers{bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:6px}
-#layers button{font:inherit;font-size:12px;font-weight:700;color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line);
+#layers button{white-space:nowrap;font:inherit;font-size:12px;font-weight:700;color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line);
   border-radius:999px;padding:6px 11px;cursor:pointer}
 #layers button.on{color:#02050d;background:var(--cyan);border-color:var(--cyan)}
 #zoomctl{right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;padding:6px}
@@ -34,22 +71,24 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
   padding:12px 18px;font-size:15px;display:none;max-width:70%;text-align:center}
 #ring{position:absolute;inset:0;pointer-events:none;z-index:2;
   background:radial-gradient(circle at 50% 50%,transparent 38%,rgba(56,216,245,.07) 46%,transparent 56%)}
-#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:14px;letter-spacing:2px;z-index:7}
 </style>
 </head>
 <body>
 <div id="globe"></div>
 <div id="ring"></div>
-<div id="loading">CHARGEMENT DU GLOBE…</div>
+<div id="intro"><div class="core"><i class="r3"></i><i class="r1"></i><i class="r2"></i><div class="orb"></div></div><div class="lbl">N E X U S</div><div class="bar"><b></b></div></div>
 <div class="hud" id="clock"><div class="t" id="c-time">--:--</div><div class="s" id="c-sub"></div></div>
 <div class="hud" id="wx"><div class="n" id="wx-name"></div><div class="s" id="wx-body"></div></div>
 <div class="hud" id="info"></div>
+<div class="hud" id="flights" role="region" aria-label="Vols"><div class="whead"><b id="fl-title">✈️ Vols</b><button id="fl-x" title="Fermer">✕</button></div><div id="fl-sub"></div><div id="fl-list"></div></div>
+<div class="hud" id="cam" role="region" aria-label="Caméra"><div class="whead"><b id="cam-title">📷</b><button id="cam-prev" title="Caméra précédente">◀</button><button id="cam-next" title="Caméra suivante">▶</button><button id="cam-big" title="Agrandir">⤢</button><button id="cam-x" title="Fermer">✕</button></div><div class="media" id="cam-media"></div><div class="meta" id="cam-meta"></div></div>
 <div class="hud" id="layers">
   <button data-l="view">🛰 Vue satellite</button>
   <button data-l="spin">🌀 Rotation</button>
   <button data-l="planes">✈️ Avions</button>
   <button data-l="quakes">🌋 Séismes</button>
   <button data-l="sats">🛰️ Satellites</button>
+  <button data-l="cams">📷 Caméras</button>
   <button data-l="weather">🌤 Météo</button>
 </div>
 <div class="hud" id="zoomctl"><button id="z-in" title="Zoom avant">+</button><button id="z-out" title="Zoom arrière">−</button><button id="z-home" title="Vue d'ensemble">⌂</button></div>
@@ -58,7 +97,7 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
-const state = { view: 'holo', spin: true, planes: false, quakes: false, sats: false, weather: true };
+const state = { view: 'holo', spin: true, planes: false, quakes: false, sats: false, weather: true, cams: false };
 const data = { planes: [], quakes: [], sats: [] };
 const WX = {0:'Ciel clair',1:'Peu nuageux',2:'Nuageux',3:'Couvert',45:'Brouillard',48:'Brouillard',51:'Bruine',53:'Bruine',55:'Bruine',61:'Pluie faible',63:'Pluie',65:'Forte pluie',
   71:'Neige',73:'Neige',75:'Forte neige',80:'Averses',81:'Averses',82:'Fortes averses',95:'Orage',96:'Orage + grêle',99:'Orage + grêle'};
@@ -80,7 +119,7 @@ const viewer = new Cesium.Viewer('globe', {
 });
 const scene = viewer.scene, camera = viewer.camera, globe = scene.globe;
 scene.backgroundColor = Cesium.Color.fromCssColorString('#02050d');
-globe.baseColor = Cesium.Color.fromCssColorString('#061a3a');
+globe.baseColor = Cesium.Color.fromCssColorString('#031228');
 globe.enableLighting = false; globe.showGroundAtmosphere = true;
 scene.skyAtmosphere.hueShift = -0.08; scene.skyAtmosphere.brightnessShift = 0.25;
 scene.fog.enabled = false;
@@ -99,16 +138,99 @@ Cesium.SingleTileImageryProvider.fromUrl(tintCanvas.toDataURL()).then(p => { tin
 const labelLayer = viewer.imageryLayers.addImageryProvider(labels);
 function applyView(){
   const holo = state.view === 'holo';
-  photo.saturation = holo ? 0 : 1.1; photo.contrast = holo ? 1.5 : 1.05; photo.brightness = holo ? 0.75 : 1.05; photo.gamma = holo ? 1.2 : 1;
-  if(tint){ tint.alpha = holo ? 0.5 : 0; tint.show = holo; }
-  labelLayer.alpha = holo ? 0.55 : 0.9;
-  globe.showGroundAtmosphere = holo; $('ring').style.display = holo ? 'block' : 'none';
-  syncButtons();
+  if(tint) tint.show = holo;
+  if(holoLayer) holoLayer.show = holo;
+  aurora.forEach(a => a.show = holo);
+  globe.showGroundAtmosphere = false; $('ring').style.display = holo ? 'block' : 'none';
+  blendHolo(); syncButtons();
 }
+/* Holo de loin, vraie image en couleurs de près (comme la vidéo) : fondu selon l'altitude */
+const lerp = (a, b, k) => a + (b - a) * k;
+function blendHolo(){
+  const holo = state.view === 'holo', h = camera.positionCartographic.height;
+  const k = holo ? Math.max(0, Math.min(1, (h - 500_000) / 2_500_000)) : 0;
+  photo.saturation = lerp(1.1, 0, k); photo.contrast = lerp(1.05, 1.5, k); photo.brightness = lerp(1.05, .75, k); photo.gamma = lerp(1, 1.2, k);
+  if(tint) tint.alpha = .5 * k;
+  if(holoLayer) holoLayer.alpha = k;
+  labelLayer.alpha = lerp(.9, .4, k);
+}
+/* Continents néon dessinés à la main (Natural Earth) : bleu nuit + côtes cyan qui brillent, comme JARVIS */
+let holoLayer = null;
+async function buildHolo(){
+  const topo = await (await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json')).json();
+  const land = topojson.feature(topo, topo.objects.land), borders = topojson.mesh(topo, topo.objects.countries, (a, b) => a !== b);
+  const W = 4096, H = 2048, c = Object.assign(document.createElement('canvas'), { width:W, height:H }), g = c.getContext('2d');
+  const X = lon => (lon + 180) / 360 * W, Y = lat => (90 - lat) / 180 * H;
+  const sea = g.createLinearGradient(0, 0, 0, H);
+  sea.addColorStop(0, '#020a1a'); sea.addColorStop(.5, '#05214a'); sea.addColorStop(1, '#020a1a');
+  g.fillStyle = sea; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(90,180,255,.13)'; g.lineWidth = 1;                 // graticule tous les 15°
+  for(let lon = -180; lon <= 180; lon += 15){ g.beginPath(); g.moveTo(X(lon), 0); g.lineTo(X(lon), H); g.stroke(); }
+  for(let lat = -75; lat <= 75; lat += 15){ g.beginPath(); g.moveTo(0, Y(lat)); g.lineTo(W, Y(lat)); g.stroke(); }
+  const trace = geom => {
+    g.beginPath();
+    const rings = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : geom.coordinates.map(l => [l]);
+    for(const poly of rings) for(const ring of poly){
+      let px = null;
+      ring.forEach(([lon, lat], i) => { const x = X(lon), y = Y(lat); (i === 0 || Math.abs(x - px) > W / 2) ? g.moveTo(x, y) : g.lineTo(x, y); px = x; });
+    }
+  };
+  const fill = g.createLinearGradient(0, 0, 0, H);
+  fill.addColorStop(0, '#1a7fd8'); fill.addColorStop(.5, '#0f5fb5'); fill.addColorStop(1, '#1a7fd8');
+  for(const f of land.features){ trace(f.geometry); g.fillStyle = fill; g.fill('evenodd'); }
+  g.shadowColor = '#5fe3ff'; g.shadowBlur = 10; g.strokeStyle = 'rgba(150,240,255,.95)'; g.lineWidth = 1.8;
+  for(const f of land.features){ trace(f.geometry); g.stroke(); }
+  g.shadowBlur = 0; g.strokeStyle = 'rgba(170,230,255,.35)'; g.lineWidth = .9; trace(borders); g.stroke();
+  const p = await Cesium.SingleTileImageryProvider.fromUrl(c.toDataURL('image/jpeg', .92));
+  holoLayer = viewer.imageryLayers.addImageryProvider(p);
+  viewer.imageryLayers.raiseToTop(labelLayer);
+  applyView();
+}
+scene.preRender.addEventListener(blendHolo);
+
+/* Aurore boréale : rideau vert autour du pôle géomagnétique */
+const aurora = [];
+(function buildAurora(){
+  const cv = Object.assign(document.createElement('canvas'), { width:512, height:128 }), g = cv.getContext('2d');
+  for(let x = 0; x < 512; x++){
+    const a = .25 + .75 * Math.abs(Math.sin(x * .07) * Math.sin(x * .023 + 1.3)) * (0.6 + Math.random() * .4);
+    const gr = g.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, 'rgba(150,90,255,0)'); gr.addColorStop(.35, `rgba(120,255,190,${a * .25})`);
+    gr.addColorStop(.85, `rgba(70,255,160,${a * .9})`); gr.addColorStop(1, `rgba(40,255,140,${a * .35})`);
+    g.fillStyle = gr; g.fillRect(x, 0, 1, 128);
+  }
+  const pole = { lat:80.7, lon:-72.7 }, r = Math.PI / 180, N = 160;
+  const ring = (rad) => { const pts = [], lo = [], hi = [];
+    for(let i = 0; i <= N; i++){
+      const brg = i / N * 2 * Math.PI, d = rad * r, la1 = pole.lat * r, lo1 = pole.lon * r;
+      const la2 = Math.asin(Math.sin(la1) * Math.cos(d) + Math.cos(la1) * Math.sin(d) * Math.cos(brg));
+      const lo2 = lo1 + Math.atan2(Math.sin(brg) * Math.sin(d) * Math.cos(la1), Math.cos(d) - Math.sin(la1) * Math.sin(la2));
+      pts.push(lo2 / r, la2 / r); lo.push(100_000); hi.push(650_000 + 250_000 * Math.sin(i * .21) * Math.sin(i * .05));
+    }
+    return { pts, lo, hi }; };
+  for(const [rad, alpha] of [[20, 1], [23, .6]]){
+    const w = ring(rad);
+    aurora.push(viewer.entities.add({ wall:{ positions:Cesium.Cartesian3.fromDegreesArray(w.pts), minimumHeights:w.lo, maximumHeights:w.hi,
+      material:new Cesium.ImageMaterialProperty({ image:cv, transparent:true, repeat:new Cesium.Cartesian2(18, 1),
+        color:new Cesium.CallbackProperty(() => Cesium.Color.WHITE.withAlpha(alpha * (.75 + .25 * Math.sin(Date.now() / 700 + rad))), false) }) } }));
+  }
+})();
+
 const HOME = Cesium.Cartesian3.fromDegrees(-0.6, 30, 24_000_000);
-camera.setView({ destination: HOME });
+camera.setView({ destination: Cesium.Cartesian3.fromDegrees(-40, 25, 90_000_000) });
 viewer.cesiumWidget.creditContainer.style.display = 'block';
-setTimeout(()=>$('loading').style.display='none', 1200);
+/* Intro : sphère holographique pendant le chargement, puis plongée vers la Terre */
+let introT = 0;
+function playIntro(ms){
+  const el = $('intro'); el.classList.remove('out');
+  const b = el.querySelector('.bar b'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = `load ${ms/1000}s ease-out forwards`;
+  clearTimeout(introT);
+  introT = setTimeout(() => { el.classList.add('out');
+    camera.setView({ destination: Cesium.Cartesian3.fromDegrees(-40, 25, 90_000_000) });
+    camera.flyTo({ destination:HOME, duration:2.6, easingFunction:Cesium.EasingFunction.CUBIC_IN_OUT }); }, ms);
+}
+const holoReady = buildHolo().catch(e => console.warn('holo', e));
+Promise.race([holoReady, new Promise(r => setTimeout(r, 6000))]).then(() => playIntro(900));
 
 /* Rotation automatique (seulement vue de loin) */
 let lastUser = 0;
@@ -245,10 +367,172 @@ async function setSats(on){
   } catch(e){ toast('Satellites indisponibles : '+e.message); }
 }
 
+/* ── Avions en route vers / partis d'une ville : widget à droite + trajectoires sur le globe ── */
+const goldPlane = (() => {
+  const c = Object.assign(document.createElement('canvas'), { width:32, height:32 }), g = c.getContext('2d');
+  g.shadowColor = '#ffb020'; g.shadowBlur = 8; g.fillStyle = '#ffc53d'; g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(16,3); g.lineTo(27,28); g.lineTo(16,22); g.lineTo(5,28); g.closePath(); g.fill(); g.stroke(); return c;
+})();
+const inBB = scene.primitives.add(new Cesium.BillboardCollection());
+const inLabels = scene.primitives.add(new Cesium.LabelCollection());
+const inbound = { place:null, mode:'in', flights:[], timer:null, ents:[], sel:null };
+const esc = t => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
+const fmtKm = n => `${Math.round(n).toLocaleString('fr-FR')} km`;
+function clockIn(min){ const d = new Date(Date.now() + min * 60000); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function clearInbound(){ inBB.removeAll(); inLabels.removeAll(); inbound.ents.splice(0).forEach(e => viewer.entities.remove(e)); }
+function drawInbound(){
+  clearInbound();
+  const P = inbound.place, end = inbound.airport || P;
+  inbound.ents.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(end.lon, end.lat),
+    point:{ pixelSize:11, color:Cesium.Color.fromCssColorString('#ffc53d'), outlineColor:Cesium.Color.fromCssColorString('#ffc53d').withAlpha(.35), outlineWidth:10 },
+    label:{ text:end.iata ? `${end.city || P.name} · ${end.iata}` : P.name, font:'13px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'),
+      outlineColor:Cesium.Color.BLACK, outlineWidth:3, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(0,-20) } }));
+  inbound.flights.forEach((f, i) => {
+    const pos = Cesium.Cartesian3.fromDegrees(f.lon, f.lat, Math.max(0, f.alt));
+    inBB.add({ position:pos, image:goldPlane, scale: inbound.sel === f.cs ? 1.15 : .8, rotation:-Cesium.Math.toRadians(f.trk), alignedAxis:Cesium.Cartesian3.UNIT_Z, id:{ kind:'inflight', i } });
+    inLabels.add({ position:pos, text:f.cs, font:'12px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'), outlineColor:Cesium.Color.BLACK, outlineWidth:2,
+      style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(14,-10), distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, 9e6) });
+    const other = inbound.mode === 'out' ? f.from : f.to;
+    if(other && other.lat != null) inbound.ents.push(viewer.entities.add({ polyline:{
+      positions:Cesium.Cartesian3.fromDegreesArray(inbound.mode === 'out' ? [other.lon, other.lat, f.lon, f.lat] : [f.lon, f.lat, other.lon, other.lat]),
+      width: inbound.sel === f.cs ? 2.6 : 1.4, arcType:Cesium.ArcType.GEODESIC,
+      material:new Cesium.PolylineDashMaterialProperty({ color:Cesium.Color.fromCssColorString('#ffc53d').withAlpha(inbound.sel === f.cs ? .95 : .55), dashLength:14 }) } }));
+  });
+}
+function renderFlights(){
+  const L = $('fl-list'); L.innerHTML = '';
+  const out = inbound.mode === 'out';
+  $('fl-sub').textContent = inbound.flights.length
+    ? `${inbound.flights.length} vol${inbound.flights.length > 1 ? 's' : ''} en l'air · mis à jour ${new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}`
+    : (out ? 'Aucun vol parti de là en ce moment.' : 'Aucun avion en approche en ce moment.');
+  inbound.flights.forEach((f, i) => {
+    const d = document.createElement('div'); d.className = 'fl' + (inbound.sel === f.cs ? ' sel' : '');
+    const eta = !out && f.eta != null ? `${f.eta} min` : '';
+    d.innerHTML = `<div class="r1"><span class="cs">${esc(f.cs)}</span><span class="al">${esc(f.airline)}</span><span class="eta">${esc(eta)}</span></div>
+      <div class="r2">${esc(f.from.city)} ${esc(f.from.iata)} → ${esc(f.to.city)} ${esc(f.to.iata)}</div>
+      <div class="r3">${f.alt.toLocaleString('fr-FR')} m · ${f.spd} km/h · ${out ? 'à ' + fmtKm(f.dist) + ' de l\'aéroport' : 'encore ' + fmtKm(f.dist)}${!out && f.eta != null ? ' · arrivée ≈ ' + clockIn(f.eta) : ''}</div>`;
+    d.onclick = () => focusFlight(i);
+    L.appendChild(d);
+  });
+}
+function focusFlight(i){
+  const f = inbound.flights[i]; if(!f) return;
+  inbound.sel = f.cs; drawInbound(); renderFlights(); state.spin = false; syncButtons();
+  camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(f.lon, f.lat, 450_000), duration:2 });
+  const box = $('info'); box.textContent = `✈️ ${f.cs} ${f.airline} · ${f.from.city} → ${f.to.city} · ${f.alt.toLocaleString('fr-FR')} m · ${f.spd} km/h`; box.style.display = 'block';
+}
+async function loadInbound(first){
+  const P = inbound.place; if(!P) return;
+  try {
+    const r = await get('inbound', { lat:P.lat, lon:P.lon, mode:inbound.mode });
+    if(inbound.place !== P) return;
+    inbound.flights = r.flights || []; inbound.airport = r.airport;
+    drawInbound(); renderFlights();
+    if(!first) return;
+    const fs = inbound.flights.slice(0, 10), end = r.airport || P;
+    if(fs.length){
+      const lats = [end.lat, ...fs.map(f => f.lat)], lons = [end.lon, ...fs.map(f => f.lon)];
+      const pad = 1.5;
+      camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(Math.min(...lons) - pad, Math.min(...lats) - pad, Math.max(...lons) + pad, Math.max(...lats) + pad), duration:2.5 });
+    } else camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(P.lon, P.lat, 2_200_000), duration:2.5 });
+    const n = inbound.flights.length, f = inbound.flights[0];
+    if(inbound.mode === 'out') reply(n ? `${n} avion${n > 1 ? 's' : ''} parti${n > 1 ? 's' : ''} de ${P.name} ${n > 1 ? 'sont' : 'est'} en vol. Le dernier décollé : ${f.cs}${f.airline ? ' de ' + f.airline : ''}, vers ${f.to.city}.`
+                                        : `Aucun avion parti de ${P.name} n'est en vol en ce moment.`);
+    else reply(n ? `${n} avion${n > 1 ? 's' : ''} en route vers ${P.name}. Le prochain : ${f.cs}${f.airline ? ' de ' + f.airline : ''}, en provenance de ${f.from.city}${f.eta != null ? `, arrivée dans ${f.eta} minutes environ` : ''}.`
+                 : `Aucun avion en route vers ${P.name} en ce moment, d'après les données radar en direct.`);
+  } catch(e){ if(first) reply('Recherche des vols impossible : ' + e.message); }
+}
+async function showInbound(query, mode){
+  $('fl-title').textContent = '✈️ Recherche…'; $('fl-sub').textContent = 'Je regarde le ciel…'; $('fl-list').innerHTML = ''; $('flights').classList.add('on');
+  try {
+    const g = await get('geocode', { q:query });
+    if(!g.found){ reply(`Je ne trouve pas ${query}.`); closeInbound(); return; }
+    inbound.place = { name:g.name, lat:g.lat, lon:g.lon }; inbound.mode = mode === 'out' ? 'out' : 'in'; inbound.sel = null; syncNexus();
+    $('fl-title').textContent = inbound.mode === 'out' ? `✈️ Départs de ${g.name}` : `✈️ Vers ${g.name}`;
+    state.spin = false; syncButtons();
+    clearInterval(inbound.timer); inbound.timer = setInterval(() => loadInbound(false), 60000);
+    await loadInbound(true);
+  } catch(e){ reply('Recherche des vols impossible : ' + e.message); }
+}
+function closeInbound(){ clearInterval(inbound.timer); inbound.place = null; inbound.flights = []; clearInbound(); $('flights').classList.remove('on'); $('info').style.display = 'none'; syncNexus(); }
+$('fl-x').onclick = () => closeInbound();
+
+/* ── Caméras publiques : widget sous le globe + position sur le globe ── */
+const camIcon = (() => {
+  const c = Object.assign(document.createElement('canvas'), { width:28, height:28 }), g = c.getContext('2d');
+  g.shadowColor = '#38d8f5'; g.shadowBlur = 6; g.fillStyle = '#38d8f5'; g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 1.2;
+  g.beginPath(); g.roundRect(4, 9, 15, 11, 2); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(19, 12); g.lineTo(25, 9); g.lineTo(25, 20); g.lineTo(19, 17); g.closePath(); g.fill(); g.stroke(); return c;
+})();
+const camBB = scene.primitives.add(new Cesium.BillboardCollection());
+const cams = { list:[], i:-1, refresh:null, ents:[], center:null };
+function drawCams(){
+  camBB.removeAll(); cams.ents.splice(0).forEach(e => viewer.entities.remove(e));
+  cams.list.forEach((c, i) => camBB.add({ position:Cesium.Cartesian3.fromDegrees(c.lon, c.lat, 30), image:camIcon, scale: i === cams.i ? 1.1 : .7,
+    color: i === cams.i ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(.8), id:{ kind:'cam', i }, disableDepthTestDistance:Number.POSITIVE_INFINITY }));
+  const c = cams.list[cams.i]; if(!c) return;
+  // Caméra ouverte : faisceau vertical visible même de très loin + anneau qui pulse
+  cams.ents.push(viewer.entities.add({ polyline:{ positions:Cesium.Cartesian3.fromDegreesArrayHeights([c.lon, c.lat, 0, c.lon, c.lat, 600_000]), width:7,
+    material:new Cesium.PolylineGlowMaterialProperty({ glowPower:.35, color:Cesium.Color.fromCssColorString('#38d8f5') }) } }));
+  cams.ents.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(c.lon, c.lat),
+    point:{ pixelSize:new Cesium.CallbackProperty(() => 10 + 6 * (1 + Math.sin(Date.now() / 300)), false), color:Cesium.Color.fromCssColorString('#38d8f5').withAlpha(.45),
+      outlineColor:Cesium.Color.WHITE, outlineWidth:2, disableDepthTestDistance:Number.POSITIVE_INFINITY },
+    label:{ text:c.name, font:'12px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#bfefff'), outlineColor:Cesium.Color.BLACK, outlineWidth:3,
+      style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(0,-22), disableDepthTestDistance:Number.POSITIVE_INFINITY } }));
+}
+function openCam(i, fly){
+  if(!cams.list.length) return;
+  cams.i = (i + cams.list.length) % cams.list.length;
+  const c = cams.list[cams.i], M = $('cam-media'); clearInterval(cams.refresh);
+  M.innerHTML = '';
+  if(c.embed){ const f = document.createElement('iframe'); f.src = c.embed; f.allow = 'autoplay; fullscreen'; f.title = c.name; M.appendChild(f); }
+  else if(c.video){ const v = document.createElement('video'); Object.assign(v, { src:c.video, autoplay:true, muted:true, loop:true, playsInline:true, poster:c.img }); M.appendChild(v); }
+  else {
+    const im = document.createElement('img'); im.alt = c.name; im.src = c.img; M.appendChild(im);
+    cams.refresh = setInterval(() => { im.src = c.img + (c.img.includes('?') ? '&' : '?') + 't=' + Date.now(); }, 6000);
+  }
+  const live = document.createElement('span'); live.className = 'live'; live.textContent = c.video || c.embed ? '● LIVE' : '● DIRECT'; M.appendChild(live);
+  $('cam-title').textContent = `📷 ${c.name}`;
+  $('cam-meta').textContent = `${c.city} · ${c.src} · ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}${c.dist != null ? ' · à ' + c.dist + ' km' : ''} · ${cams.i + 1}/${cams.list.length}`;
+  $('cam').classList.add('on'); state.cams = true; syncButtons(); drawCams(); syncNexus();
+  if(fly){ const h = Math.min(Math.max(camera.positionCartographic.height, 25_000), 1_500_000);
+    camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(c.lon, c.lat - h / 400_000, h), duration:1.6 }); }
+}
+async function showCams(query){
+  try {
+    let P;
+    if(query){ const g = await get('geocode', { q:query }); if(!g.found){ reply(`Je ne trouve pas ${query}.`); return; } P = { name:g.name, lat:g.lat, lon:g.lon }; }
+    else { const c = center(); P = { name:placeName || 'cette zone', lat:c.lat, lon:c.lon, h:c.h }; }
+    const km = query ? 40 : Math.max(10, Math.min(250, (P.h || 1e5) / 1000 / 3));
+    const r = await get('cams', { lat:P.lat, lon:P.lon, km:Math.round(km) });
+    state.spin = false;
+    if(!r.cams.length){
+      closeCams();
+      const ne = r.nearest_elsewhere;
+      reply(`Pas de caméra publique trouvée près de ${P.name}.` + (r.windy ? '' : ' Avec la clé gratuite Windy, je couvrirai le monde entier.') + (ne ? ` Zone couverte la plus proche : ${ne.name}, à ${ne.dist.toLocaleString('fr-FR')} kilomètres.` : ''));
+      if(query) camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(P.lon, P.lat, 600_000), duration:2.5 });
+      return;
+    }
+    cams.list = r.cams; cams.center = P;
+    camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(P.lon, P.lat - 0.15, Math.max(30_000, km * 1800)), duration:2.5 });
+    openCam(0, false);
+    reply(`${r.cams.length} caméra${r.cams.length > 1 ? 's' : ''} publique${r.cams.length > 1 ? 's' : ''} autour de ${P.name}. J'ouvre la plus proche : ${r.cams[0].name}.`);
+  } catch(e){ reply('Caméras indisponibles : ' + e.message); }
+}
+function closeCams(){ clearInterval(cams.refresh); cams.list = []; cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big'); drawCams(); state.cams = false; syncButtons(); syncNexus(); }
+$('cam-prev').onclick = () => openCam(cams.i - 1, true);
+$('cam-next').onclick = () => openCam(cams.i + 1, true);
+$('cam-big').onclick = () => $('cam').classList.toggle('big');
+$('cam-x').onclick = () => closeCams();
+/* Nexus doit savoir quels widgets sont ouverts (« caméra suivante », « ferme la liste »), même ouverts/fermés à la souris */
+function syncNexus(){ try{ if(parent !== window) parent.postMessage({ type:'globe_state', cams:!!state.cams, flights:!!inbound.place }, location.origin); }catch(_){} }
+
 /* ── Clic : fiche de l'objet ── */
 new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => {
   const o = scene.pick(ev.position); const box = $('info');
   const id = o && (o.id && o.id.properties ? o.id.properties.getValue(Cesium.JulianDate.now()) : o && o.id);
+  if(id && id.kind === 'cam'){ openCam(id.i, false); return; }
+  if(id && id.kind === 'inflight'){ focusFlight(id.i); return; }
   if(!id || !id.kind){ box.style.display='none'; return; }
   if(id.kind === 'plane'){ const p=id.p; box.textContent = `✈️ ${p.cs||p.id} ${p.type||''} · ${p.alt.toLocaleString('fr-FR')} m · ${p.spd} km/h · cap ${Math.round(p.trk)}°`; }
   else if(id.kind === 'quake'){ const q=id.q; box.textContent = `🌋 M${(q.mag??0).toFixed(1)} · ${q.place} · ${new Date(q.time).toLocaleString('fr-FR')} · ${Math.round(q.depth)} km de profondeur`; }
@@ -287,9 +571,10 @@ function events(){
   };
   if(near) go(near); else get('quakes').then(r => { data.quakes = r.quakes || []; go(data.quakes); }).catch(e => reply('Données indisponibles : '+e.message));
 }
+let booted = false;   // le 1er « open » arrive pendant l'intro de chargement
 function command(d){
   switch(d.action){
-    case 'open': camera.flyTo({ destination:HOME, duration:1.5 }); break;
+    case 'open': if(booted) playIntro(1400); booted = true; break;
     case 'spin': state.spin = !!d.on; lastUser = 0; syncButtons(); break;
     case 'view': state.view = d.mode === 'satellite' ? 'satellite' : 'holo'; applyView(); break;
     case 'fly': void flyTo(d.query); break;
@@ -297,6 +582,13 @@ function command(d){
     case 'home': camera.flyTo({ destination:HOME, duration:2 }); break;
     case 'events': events(); break;
     case 'layer': setLayer(d.name, !!d.on); break;
+    case 'inbound': void showInbound(d.query, d.mode); break;
+    case 'inbound_close': closeInbound(); break;
+    case 'cams': void showCams(d.query); break;
+    case 'cam_next': openCam(cams.i + 1, true); break;
+    case 'cam_prev': openCam(cams.i - 1, true); break;
+    case 'cam_size': $('cam').classList.toggle('big', !!d.big); break;
+    case 'cam_close': closeCams(); break;
   }
 }
 function setLayer(name, on){
@@ -314,6 +606,7 @@ document.querySelectorAll('#layers button').forEach(b => b.addEventListener('cli
   const l = b.dataset.l;
   if(l === 'view'){ state.view = state.view === 'holo' ? 'satellite' : 'holo'; applyView(); }
   else if(l === 'spin'){ state.spin = !state.spin; syncButtons(); }
+  else if(l === 'cams'){ state.cams ? closeCams() : void showCams(''); }
   else setLayer(l, !state[l]);
 }));
 $('z-in').onclick = () => zoom('in'); $('z-out').onclick = () => zoom('out'); $('z-home').onclick = () => command({ action:'home' });
