@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Dzaryx — Globe</title>
+<script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/';</script>
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Cesium.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@6.0.1/dist/satellite.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.121.0/Build/Cesium/Widgets/widgets.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--line:rgba(90,150,255,.34);--text:#e8f0ff;--dim:#8ea3c8;--cyan:#38d8f5;--blue:#4aa3ff;--gold:#fbbf24;--card:rgba(6,12,30,.82)}
+html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
+#globe{position:absolute;inset:0}
+.cesium-widget-credits{opacity:.45;font-size:9px!important}
+.hud{position:absolute;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;backdrop-filter:blur(6px);
+  box-shadow:0 0 24px rgba(56,216,245,.12) inset}
+#clock{top:14px;left:14px;min-width:210px}
+#clock .t{font-size:26px;font-weight:700;letter-spacing:.5px}
+#clock .s{font-size:12px;color:var(--dim);margin-top:3px;line-height:1.5}
+#wx{top:14px;right:14px;min-width:200px;display:none}
+#wx .n{font-size:20px;font-weight:700}
+#wx .s{font-size:12.5px;color:var(--dim);line-height:1.6;margin-top:3px}
+#wx .big{font-size:15px;color:var(--text)}
+#info{top:52px;left:50%;transform:translateX(-50%);display:none;font-size:13px;white-space:nowrap}
+/* Widget vols (côté droit, sous la météo) */
+#flights{top:164px;right:14px;width:310px;max-height:calc(100% - 340px);display:none;flex-direction:column;padding:0;overflow:hidden}
+#flights.on{display:flex}
+.whead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.whead b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.whead button{background:none;border:1px solid var(--line);color:var(--dim);border-radius:7px;min-width:26px;height:24px;cursor:pointer;font-size:12px}
+.whead button:hover{color:var(--text);border-color:var(--cyan)}
+#fl-sub{font-size:11.5px;color:var(--dim);padding:6px 12px 2px}
+#fl-list{overflow:auto;padding:4px 6px 8px}
+.fl{padding:7px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.fl:hover,.fl.sel{background:rgba(56,216,245,.08);border-color:rgba(56,216,245,.35)}
+.fl .r1{display:flex;gap:8px;align-items:baseline}.fl .cs{font-weight:700;color:var(--gold)}.fl .al{flex:1;font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl .eta{font-weight:700;font-size:13px;color:var(--cyan)}.fl .r2{font-size:12.5px;margin-top:2px}.fl .r3{font-size:11.5px;color:var(--dim);margin-top:1px}
+/* Widget caméra (sous le globe) */
+#cam{bottom:66px;left:50%;transform:translateX(-50%);width:min(400px,40vw);display:none;padding:0;overflow:hidden;transition:width .3s}
+#cam.on{display:block}#cam.big{width:min(820px,70vw)}
+#cam .media{position:relative;aspect-ratio:16/9;background:#000}
+#cam .media img,#cam .media video,#cam .media iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}
+#cam .live{position:absolute;top:8px;left:8px;background:rgba(220,30,50,.85);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:5px}
+#cam .meta{font-size:11.5px;color:var(--dim);padding:6px 12px 8px}
+/* Liste des caméras du monde (côté gauche, sous l'horloge) */
+#camlist{top:104px;left:14px;width:320px;max-height:calc(100% - 190px);display:none;flex-direction:column;padding:0;overflow:hidden}
+#camlist.on{display:flex}
+#cl-sub{font-size:11.5px;color:var(--dim);padding:6px 12px 4px;line-height:1.45}
+#cl-q{margin:2px 10px 6px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);font:inherit;font-size:12.5px;outline:none}
+#cl-q:focus{border-color:var(--cyan)}
+#cl-list{overflow:auto;padding:2px 6px 8px}
+.cl .r1{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl .n{color:var(--cyan);font-weight:700;margin-right:6px}
+/* Bandeau de caméras par catégorie (sous le globe, au-dessus des boutons) */
+#strip{bottom:66px;left:50%;transform:translateX(-50%);width:min(1040px,88vw);display:none;padding:0;overflow:hidden;border-color:rgba(74,222,128,.55);box-shadow:0 0 22px rgba(74,222,128,.18)}
+#strip.on{display:block}
+body.strip #cam{bottom:226px}
+#st-tabs{display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;padding:7px 10px 5px;scrollbar-width:none}
+#st-tabs::-webkit-scrollbar{display:none}
+#st-tabs button{white-space:nowrap;font:inherit;font-size:11.5px;font-weight:700;color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer}
+#st-tabs button.on{color:#02130a;background:#4ade80;border-color:#4ade80}
+#st-tabs .info{margin-left:auto;font-size:11px;color:var(--dim);align-self:center;white-space:nowrap;padding-left:8px}
+#st-row{display:flex;gap:8px;overflow-x:auto;padding:4px 10px 10px;scrollbar-width:thin}
+.th{flex:0 0 156px;cursor:pointer;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#000;position:relative}
+.th:hover,.th.sel,.th.ghover{border-color:#4ade80;box-shadow:0 0 12px rgba(74,222,128,.4)}
+.th img{display:block;width:156px;height:88px;object-fit:cover}
+.th div{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 4px;font-size:10.5px;line-height:1.25;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ghover{outline:2px solid #4ade80;outline-offset:1px}
+/* Intro holographique */
+#intro{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:radial-gradient(circle at 50% 45%,#06203f 0,#02050d 62%);transition:opacity .9s}
+#intro.out{opacity:0;pointer-events:none}
+#intro .core{position:relative;width:220px;height:220px;perspective:600px}
+#intro .orb{position:absolute;inset:62px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#dffbff 0,#38d8f5 18%,#0d5fb8 55%,rgba(13,95,184,0) 72%);box-shadow:0 0 60px #38d8f5,0 0 120px rgba(56,216,245,.45);animation:pulse 1.6s ease-in-out infinite}
+#intro i{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(56,216,245,.7);box-shadow:0 0 14px rgba(56,216,245,.6)}
+#intro .r1{animation:spinA 3.2s linear infinite}#intro .r2{inset:18px;border-color:rgba(120,255,200,.55);animation:spinB 2.4s linear infinite}
+#intro .r3{inset:-26px;border-style:dashed;border-color:rgba(56,216,245,.35);animation:spinC 9s linear infinite}
+#intro .lbl{font-size:15px;letter-spacing:9px;color:#bfefff;text-shadow:0 0 12px #38d8f5}
+#intro .bar{width:220px;height:3px;background:rgba(56,216,245,.15);border-radius:3px;overflow:hidden}
+#intro .bar b{display:block;height:100%;width:0;background:linear-gradient(90deg,#38d8f5,#7affc8);box-shadow:0 0 10px #38d8f5;animation:load 2.3s ease-out forwards}
+@keyframes spinA{from{transform:rotateX(68deg) rotateZ(0)}to{transform:rotateX(68deg) rotateZ(360deg)}}
+@keyframes spinB{from{transform:rotateY(64deg) rotateZ(0)}to{transform:rotateY(64deg) rotateZ(-360deg)}}
+@keyframes spinC{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{transform:scale(1.08);filter:brightness(1.25)}}
+@keyframes load{to{width:100%}}
+#layers{bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:6px}
+#layers button{white-space:nowrap;font:inherit;font-size:12px;font-weight:700;color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line);
+  border-radius:999px;padding:6px 11px;cursor:pointer}
+#layers button.on{color:#02050d;background:var(--cyan);border-color:var(--cyan)}
+#zoomctl{right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;padding:6px}
+#zoomctl button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:rgba(74,163,255,.15);color:var(--text);font-size:17px;cursor:pointer}
+#toast{position:absolute;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border:1px solid var(--cyan);border-radius:12px;
+  padding:12px 18px;font-size:15px;display:none;max-width:70%;text-align:center}
+#ring{position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:radial-gradient(circle at 50% 50%,transparent 38%,rgba(56,216,245,.07) 46%,transparent 56%)}
+
+/* ── Barre de recherche + actions (version app) ── */
+#search{top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 20px));display:flex;gap:6px;padding:6px}
+#search input{flex:1;min-width:0;padding:9px 12px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);font:inherit;font-size:15px;outline:none}
+#search input:focus{border-color:var(--cyan)}
+#search button{padding:0 14px;border-radius:9px;border:1px solid var(--cyan);background:rgba(56,216,245,.16);color:var(--cyan);font:inherit;font-weight:700;font-size:14px}
+#acts{position:absolute;z-index:5;top:calc(64px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 20px));display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+#acts::-webkit-scrollbar{display:none}
+#acts button{flex:0 0 auto;white-space:nowrap;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 12px;backdrop-filter:blur(6px)}
+#acts button:active{border-color:var(--cyan);color:var(--cyan)}
+#clock{top:calc(112px + env(safe-area-inset-top))}
+#wx{top:calc(112px + env(safe-area-inset-top))}
+#info{top:calc(112px + env(safe-area-inset-top))}
+@media (max-width:700px){
+  .hud{padding:8px 11px;border-radius:12px}
+  #clock{display:none}
+  #wx{right:10px;min-width:0;max-width:62%}
+  #wx .n{font-size:15px}#wx .s{font-size:11.5px;line-height:1.5}#wx .big{font-size:13px}
+  #info{left:10px;right:10px;transform:none;white-space:normal;font-size:12.5px;top:calc(205px + env(safe-area-inset-top))}
+  #layers{left:10px;right:10px;transform:none;bottom:calc(10px + env(safe-area-inset-bottom));overflow-x:auto;scrollbar-width:none;padding:5px}
+  #layers::-webkit-scrollbar{display:none}
+  #layers button{font-size:11.5px;padding:7px 10px}
+  #zoomctl{right:10px;top:42%;bottom:auto;padding:4px}
+  #zoomctl button{width:36px;height:36px}
+  #flights,#camlist{left:8px;right:8px;width:auto;top:auto;bottom:calc(64px + env(safe-area-inset-bottom));max-height:44%}
+  #cam{left:8px;right:8px;width:auto;transform:none;bottom:calc(64px + env(safe-area-inset-bottom))}
+  #cam.big{width:auto}
+  #strip{left:8px;right:8px;width:auto;transform:none;bottom:calc(64px + env(safe-area-inset-bottom))}
+  body.strip #cam{bottom:calc(210px + env(safe-area-inset-bottom))}
+  .th{flex-basis:128px}.th img{width:128px;height:72px}
+  #toast{max-width:86%;font-size:14px}
+  .whead button{min-width:32px;height:30px;font-size:14px}
+}
+</style>
+</head>
+<body>
+<div id="globe"></div>
+<div id="ring"></div>
+<div id="intro"><div class="core"><i class="r3"></i><i class="r1"></i><i class="r2"></i><div class="orb"></div></div><div class="lbl">D Z A R Y X</div><div class="bar"><b></b></div></div>
+<div class="hud" id="search"><input id="q" type="search" enterkeyhint="go" placeholder="Ville, pays, aéroport…" aria-label="Lieu"><button id="go">Aller</button></div>
+<div id="acts">
+  <button data-a="in">✈️ Vols vers…</button><button data-a="out">🛫 Départs de…</button><button data-a="cams">📷 Caméras ici</button>
+  <button data-a="world">🌍 Caméras du monde</button><button data-a="strip">🎞 Par catégorie</button><button data-a="events">📡 Que se passe-t-il ?</button>
+</div>
+<div class="hud" id="clock"><div class="t" id="c-time">--:--</div><div class="s" id="c-sub"></div></div>
+<div class="hud" id="wx"><div class="n" id="wx-name"></div><div class="s" id="wx-body"></div></div>
+<div class="hud" id="info"></div>
+<div class="hud" id="flights" role="region" aria-label="Vols"><div class="whead"><b id="fl-title">✈️ Vols</b><button id="fl-x" title="Fermer">✕</button></div><div id="fl-sub"></div><div id="fl-list"></div></div>
+<div class="hud" id="camlist" role="region" aria-label="Caméras du monde"><div class="whead"><b id="cl-title">🌍 Caméras du monde</b><button id="cl-x" title="Fermer">✕</button></div><div id="cl-sub"></div><input id="cl-q" type="search" placeholder="Rechercher une ville, un pays…" aria-label="Rechercher une caméra"><div id="cl-list"></div></div>
+<div class="hud" id="strip" role="region" aria-label="Caméras par catégorie"><div id="st-tabs"></div><div id="st-row"></div></div>
+<div class="hud" id="cam" role="region" aria-label="Caméra"><div class="whead"><b id="cam-title">📷</b><button id="cam-prev" title="Caméra précédente">◀</button><button id="cam-next" title="Caméra suivante">▶</button><button id="cam-big" title="Agrandir">⤢</button><button id="cam-x" title="Fermer">✕</button></div><div class="media" id="cam-media"></div><div class="meta" id="cam-meta"></div></div>
+<div class="hud" id="layers">
+  <button data-l="view">🛰 Vue satellite</button>
+  <button data-l="spin">🌀 Rotation</button>
+  <button data-l="planes">✈️ Avions</button>
+  <button data-l="quakes">🌋 Séismes</button>
+  <button data-l="sats">🛰️ Satellites</button>
+  <button data-l="cams">📷 Caméras</button>
+  <button data-l="weather">🌤 Météo</button>
+</div>
+<div class="hud" id="zoomctl"><button id="z-in" title="Zoom avant">+</button><button id="z-out" title="Zoom arrière">−</button><button id="z-home" title="Vue d'ensemble">⌂</button></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const state = { view: 'holo', spin: true, planes: false, quakes: false, sats: false, weather: true, cams: false };
+const data = { planes: [], quakes: [], sats: [] };
+const WX = {0:'Ciel clair',1:'Peu nuageux',2:'Nuageux',3:'Couvert',45:'Brouillard',48:'Brouillard',51:'Bruine',53:'Bruine',55:'Bruine',61:'Pluie faible',63:'Pluie',65:'Forte pluie',
+  71:'Neige',73:'Neige',75:'Forte neige',80:'Averses',81:'Averses',82:'Fortes averses',95:'Orage',96:'Orage + grêle',99:'Orage + grêle'};
+
+/* Réponse parlée vers Nexus (le HUD parent relaie au serveur local) */
+function reply(text){ try{ if(parent !== window) parent.postMessage({ type:'globe_reply', text }, location.origin); }catch(_){} toast(text); }
+let toastT; function toast(t){ $('toast').textContent=t; $('toast').style.display='block'; clearTimeout(toastT); toastT=setTimeout(()=>$('toast').style.display='none',4500); }
+// Version app : les données viennent du serveur Dzaryx (marche PC éteint), avec le jeton de l'appareil (même origine que l'app)
+const API = new URLSearchParams(location.search).get('api') || 'https://ibrahim-backend-production.up.railway.app';
+const TOKEN = (() => { try { return localStorage.getItem('dz:device_token') || ''; } catch(_){ return ''; } })();
+async function get(kind, params={}){
+  const r = await fetch(API + '/api/nexus/globe/'+kind+'?'+new URLSearchParams(params), { headers:{ Authorization:'Bearer ' + TOKEN } });
+  const j = await r.json(); if(!r.ok) throw new Error(j.error||r.status); return j;
+}
+
+/* ── Globe ── */
+Cesium.Ion.defaultAccessToken = '';
+const viewer = new Cesium.Viewer('globe', {
+  baseLayer:false, animation:false, timeline:false, geocoder:false, homeButton:false, sceneModePicker:false, baseLayerPicker:false,
+  navigationHelpButton:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, requestRenderMode:false,
+  skyBox:false, contextOptions:{ webgl:{ alpha:false } },
+});
+const scene = viewer.scene, camera = viewer.camera, globe = scene.globe;
+scene.backgroundColor = Cesium.Color.fromCssColorString('#02050d');
+globe.baseColor = Cesium.Color.fromCssColorString('#031228');
+globe.enableLighting = false; globe.showGroundAtmosphere = true;
+scene.skyAtmosphere.hueShift = -0.08; scene.skyAtmosphere.brightnessShift = 0.25;
+scene.fog.enabled = false;
+
+const esri = new Cesium.UrlTemplateImageryProvider({
+  url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', maximumLevel:19,
+  credit:'Esri, Maxar, Earthstar Geographics, GIS User Community' });
+const labels = new Cesium.UrlTemplateImageryProvider({
+  url:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maximumLevel:19, credit:'Esri' });
+const photo = viewer.imageryLayers.addImageryProvider(esri);
+// Teinte « hologramme » : la même imagerie en niveaux de gris + voile bleu
+const tintCanvas = Object.assign(document.createElement('canvas'), { width:4, height:4 });
+const tctx = tintCanvas.getContext('2d'); tctx.fillStyle = '#1676ff'; tctx.fillRect(0,0,4,4);
+let tint = null;
+Cesium.SingleTileImageryProvider.fromUrl(tintCanvas.toDataURL()).then(p => { tint = viewer.imageryLayers.addImageryProvider(p); applyView(); }).catch(()=>{});
+const labelLayer = viewer.imageryLayers.addImageryProvider(labels);
+function applyView(){
+  const holo = state.view === 'holo';
+  if(tint) tint.show = holo;
+  if(holoLayer) holoLayer.show = holo;
+  aurora.forEach(a => a.show = holo);
+  globe.showGroundAtmosphere = false; $('ring').style.display = holo ? 'block' : 'none';
+  blendHolo(); syncButtons();
+}
+/* Holo de loin, vraie image en couleurs de près (comme la vidéo) : fondu selon l'altitude */
+const lerp = (a, b, k) => a + (b - a) * k;
+function blendHolo(){
+  const holo = state.view === 'holo', h = camera.positionCartographic.height;
+  const k = holo ? Math.max(0, Math.min(1, (h - 500_000) / 2_500_000)) : 0;
+  photo.saturation = lerp(1.1, 0, k); photo.contrast = lerp(1.05, 1.5, k); photo.brightness = lerp(1.05, .75, k); photo.gamma = lerp(1, 1.2, k);
+  if(tint) tint.alpha = .5 * k;
+  if(holoLayer) holoLayer.alpha = k;
+  labelLayer.alpha = lerp(.9, .4, k);
+}
+/* Continents néon dessinés à la main (Natural Earth) : bleu nuit + côtes cyan qui brillent, comme JARVIS */
+let holoLayer = null;
+async function buildHolo(){
+  const topo = await (await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json')).json();
+  const land = topojson.feature(topo, topo.objects.land), borders = topojson.mesh(topo, topo.objects.countries, (a, b) => a !== b);
+  const W = 4096, H = 2048, c = Object.assign(document.createElement('canvas'), { width:W, height:H }), g = c.getContext('2d');
+  const X = lon => (lon + 180) / 360 * W, Y = lat => (90 - lat) / 180 * H;
+  const sea = g.createLinearGradient(0, 0, 0, H);
+  sea.addColorStop(0, '#020a1a'); sea.addColorStop(.5, '#05214a'); sea.addColorStop(1, '#020a1a');
+  g.fillStyle = sea; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(90,180,255,.13)'; g.lineWidth = 1;                 // graticule tous les 15°
+  for(let lon = -180; lon <= 180; lon += 15){ g.beginPath(); g.moveTo(X(lon), 0); g.lineTo(X(lon), H); g.stroke(); }
+  for(let lat = -75; lat <= 75; lat += 15){ g.beginPath(); g.moveTo(0, Y(lat)); g.lineTo(W, Y(lat)); g.stroke(); }
+  const trace = geom => {
+    g.beginPath();
+    const rings = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : geom.coordinates.map(l => [l]);
+    for(const poly of rings) for(const ring of poly){
+      let px = null;
+      ring.forEach(([lon, lat], i) => { const x = X(lon), y = Y(lat); (i === 0 || Math.abs(x - px) > W / 2) ? g.moveTo(x, y) : g.lineTo(x, y); px = x; });
+    }
+  };
+  const fill = g.createLinearGradient(0, 0, 0, H);
+  fill.addColorStop(0, '#1a7fd8'); fill.addColorStop(.5, '#0f5fb5'); fill.addColorStop(1, '#1a7fd8');
+  for(const f of land.features){ trace(f.geometry); g.fillStyle = fill; g.fill('evenodd'); }
+  g.shadowColor = '#5fe3ff'; g.shadowBlur = 10; g.strokeStyle = 'rgba(150,240,255,.95)'; g.lineWidth = 1.8;
+  for(const f of land.features){ trace(f.geometry); g.stroke(); }
+  g.shadowBlur = 0; g.strokeStyle = 'rgba(170,230,255,.35)'; g.lineWidth = .9; trace(borders); g.stroke();
+  const p = await Cesium.SingleTileImageryProvider.fromUrl(c.toDataURL('image/jpeg', .92));
+  holoLayer = viewer.imageryLayers.addImageryProvider(p);
+  viewer.imageryLayers.raiseToTop(labelLayer);
+  applyView();
+}
+scene.preRender.addEventListener(blendHolo);
+
+/* Aurore boréale : rideau vert autour du pôle géomagnétique */
+const aurora = [];
+(function buildAurora(){
+  const cv = Object.assign(document.createElement('canvas'), { width:512, height:128 }), g = cv.getContext('2d');
+  for(let x = 0; x < 512; x++){
+    const a = .25 + .75 * Math.abs(Math.sin(x * .07) * Math.sin(x * .023 + 1.3)) * (0.6 + Math.random() * .4);
+    const gr = g.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, 'rgba(150,90,255,0)'); gr.addColorStop(.35, `rgba(120,255,190,${a * .25})`);
+    gr.addColorStop(.85, `rgba(70,255,160,${a * .9})`); gr.addColorStop(1, `rgba(40,255,140,${a * .35})`);
+    g.fillStyle = gr; g.fillRect(x, 0, 1, 128);
+  }
+  const pole = { lat:80.7, lon:-72.7 }, r = Math.PI / 180, N = 160;
+  const ring = (rad) => { const pts = [], lo = [], hi = [];
+    for(let i = 0; i <= N; i++){
+      const brg = i / N * 2 * Math.PI, d = rad * r, la1 = pole.lat * r, lo1 = pole.lon * r;
+      const la2 = Math.asin(Math.sin(la1) * Math.cos(d) + Math.cos(la1) * Math.sin(d) * Math.cos(brg));
+      const lo2 = lo1 + Math.atan2(Math.sin(brg) * Math.sin(d) * Math.cos(la1), Math.cos(d) - Math.sin(la1) * Math.sin(la2));
+      pts.push(lo2 / r, la2 / r); lo.push(100_000); hi.push(650_000 + 250_000 * Math.sin(i * .21) * Math.sin(i * .05));
+    }
+    return { pts, lo, hi }; };
+  for(const [rad, alpha] of [[20, 1], [23, .6]]){
+    const w = ring(rad);
+    aurora.push(viewer.entities.add({ wall:{ positions:Cesium.Cartesian3.fromDegreesArray(w.pts), minimumHeights:w.lo, maximumHeights:w.hi,
+      material:new Cesium.ImageMaterialProperty({ image:cv, transparent:true, repeat:new Cesium.Cartesian2(18, 1),
+        color:new Cesium.CallbackProperty(() => Cesium.Color.WHITE.withAlpha(alpha * (.75 + .25 * Math.sin(Date.now() / 700 + rad))), false) }) } }));
+  }
+})();
+
+const HOME = Cesium.Cartesian3.fromDegrees(-0.6, 30, 24_000_000);
+camera.setView({ destination: Cesium.Cartesian3.fromDegrees(-40, 25, 90_000_000) });
+viewer.cesiumWidget.creditContainer.style.display = 'block';
+/* Intro : sphère holographique pendant le chargement, puis plongée vers la Terre */
+let introT = 0;
+function playIntro(ms){
+  const el = $('intro'); el.classList.remove('out');
+  const b = el.querySelector('.bar b'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = `load ${ms/1000}s ease-out forwards`;
+  clearTimeout(introT);
+  introT = setTimeout(() => { el.classList.add('out');
+    camera.setView({ destination: Cesium.Cartesian3.fromDegrees(-40, 25, 90_000_000) });
+    camera.flyTo({ destination:HOME, duration:2.6, easingFunction:Cesium.EasingFunction.CUBIC_IN_OUT }); }, ms);
+}
+const holoReady = buildHolo().catch(e => console.warn('holo', e));
+Promise.race([holoReady, new Promise(r => setTimeout(r, 6000))]).then(() => playIntro(900));
+
+/* Rotation automatique (seulement vue de loin) */
+let lastUser = 0;
+['wheel','pointerdown','touchstart'].forEach(ev => viewer.canvas.addEventListener(ev, () => { lastUser = Date.now(); }, { passive:true }));
+scene.preRender.addEventListener(() => {
+  if(state.spin && Date.now() - lastUser > 4000 && camera.positionCartographic.height > 6e6) camera.rotate(Cesium.Cartesian3.UNIT_Z, -0.0012);
+});
+
+/* Centre de la vue */
+function center(){
+  const c = camera.pickEllipsoid(new Cesium.Cartesian2(viewer.canvas.clientWidth/2, viewer.canvas.clientHeight/2));
+  const carto = c ? Cesium.Cartographic.fromCartesian(c) : camera.positionCartographic;
+  return { lat: Cesium.Math.toDegrees(carto.latitude), lon: Cesium.Math.toDegrees(carto.longitude), h: camera.positionCartographic.height };
+}
+function distKm(a, b){
+  const R=6371, r=Math.PI/180, dLat=(b.lat-a.lat)*r, dLon=(b.lon-a.lon)*r;
+  const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(x));
+}
+
+/* ── Horloge + météo du lieu visé ── */
+let wxData = null, wxAt = { lat: 999, lon: 999 }, placeName = '';
+function fmtOffset(s){ const sg = s<0?'−':'+', a=Math.abs(s); return `UTC${sg}${String(Math.floor(a/3600)).padStart(2,'0')}:${String(Math.floor(a%3600/60)).padStart(2,'0')}`; }
+function tick(){
+  const c = center(), off = wxData ? wxData.offset : -new Date().getTimezoneOffset()*60;
+  const d = new Date(Date.now() + off*1000);
+  $('c-time').textContent = `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}  ${fmtOffset(off)}`;
+  $('c-sub').innerHTML = '';
+  [d.toISOString().slice(0,10), `⌖ ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}`, `↕ ${Math.round(c.h/1000).toLocaleString('fr-FR')} km`].forEach(t => {
+    const div=document.createElement('div'); div.textContent=t; $('c-sub').appendChild(div); });
+}
+setInterval(tick, 1000);
+async function refreshWeather(force){
+  if(!state.weather){ $('wx').style.display='none'; return; }
+  const c = center();
+  if(!force && distKm(c, wxAt) < Math.max(30, c.h/1000/8)) return;
+  wxAt = c;
+  try {
+    const [w, p] = await Promise.all([get('weather', { lat:c.lat, lon:c.lon }), get('place', { lat:c.lat, lon:c.lon }).catch(()=>({ name:'' }))]);
+    wxData = w; placeName = p.name || (p.country || 'Océan');
+    $('wx-name').textContent = placeName;
+    const lt = new Date(Date.now() + w.offset*1000);
+    $('wx-body').innerHTML = '';
+    [ `<span class="big">🌡 ${w.temp ?? '—'} °C · ressenti ${w.feels ?? '—'} °C</span>`,
+      `${WX[w.code] ?? ''} · ${String(lt.getUTCHours()).padStart(2,'0')}:${String(lt.getUTCMinutes()).padStart(2,'0')} ${fmtOffset(w.offset)}`,
+      `💧 ${w.hum ?? '—'} % · 💨 ${w.wind ?? '—'} km/h`, `🌅 ${w.sunrise || '—'} · 🌇 ${w.sunset || '—'}` ].forEach(h => {
+      const div=document.createElement('div'); div.innerHTML=h; $('wx-body').appendChild(div); });
+    $('wx').style.display='block';
+  } catch(e){ /* météo indisponible : on garde l'ancienne carte */ }
+}
+camera.moveEnd.addEventListener(() => { void refreshWeather(false); if(state.planes) void loadPlanes(); });
+
+/* ── Avions ── */
+const planeIcon = (() => {
+  const c = Object.assign(document.createElement('canvas'), { width:24, height:24 }), g = c.getContext('2d');
+  g.fillStyle='#ffffff'; g.strokeStyle='rgba(0,0,0,.6)'; g.lineWidth=1.5;
+  g.beginPath(); g.moveTo(12,1); g.lineTo(21,22); g.lineTo(12,17); g.lineTo(3,22); g.closePath(); g.fill(); g.stroke(); return c;
+})();
+const planeBB = scene.primitives.add(new Cesium.BillboardCollection());
+const planeLabels = scene.primitives.add(new Cesium.LabelCollection());
+let planeTimer = null;
+async function loadPlanes(){
+  const c = center();
+  if(c.h > 4_500_000){ planeBB.removeAll(); planeLabels.removeAll(); data.planes=[]; toast('Zoome sur une région pour voir les avions en direct'); return; }
+  try {
+    const nm = Math.max(40, Math.min(250, c.h/1852/1.2));
+    const r = await get('planes', { lat:c.lat, lon:c.lon, nm:Math.round(nm) });
+    data.planes = r.planes || [];
+    planeBB.removeAll(); planeLabels.removeAll();
+    const showLabels = c.h < 700_000;
+    for(const p of data.planes){
+      const pos = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, Math.max(0, p.alt));
+      planeBB.add({ position:pos, image:planeIcon, scale:0.75, rotation:-Cesium.Math.toRadians(p.trk), alignedAxis:Cesium.Cartesian3.UNIT_Z, id:{ kind:'plane', p } });
+      if(showLabels && p.cs) planeLabels.add({ position:pos, text:p.cs, font:'11px Segoe UI', fillColor:Cesium.Color.WHITE, outlineColor:Cesium.Color.BLACK, outlineWidth:2,
+        style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(12,-10) });
+    }
+  } catch(e){ toast('Avions indisponibles : '+e.message); }
+}
+function setPlanes(on){
+  state.planes = on; clearInterval(planeTimer);
+  if(on){ void loadPlanes(); planeTimer = setInterval(loadPlanes, 15000); } else { planeBB.removeAll(); planeLabels.removeAll(); data.planes=[]; }
+}
+
+/* ── Séismes ── */
+const quakeEnts = [];
+async function setQuakes(on){
+  state.quakes = on; quakeEnts.splice(0).forEach(e => viewer.entities.remove(e));
+  if(!on) return;
+  try {
+    data.quakes = (await get('quakes')).quakes || [];
+    for(const q of data.quakes){
+      const m = q.mag || 2.5, col = m >= 6 ? '#ff3b3b' : m >= 4.5 ? '#ff8a1f' : '#ffc53d';
+      quakeEnts.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(q.lon, q.lat),
+        point:{ pixelSize:4 + (m-2.5)*3.2, color:Cesium.Color.fromCssColorString(col).withAlpha(.85), outlineColor:Cesium.Color.fromCssColorString(col).withAlpha(.3), outlineWidth:6 },
+        properties:{ kind:'quake', q } }));
+    }
+  } catch(e){ toast('Séismes indisponibles : '+e.message); }
+}
+
+/* ── Satellites ── */
+const satPts = scene.primitives.add(new Cesium.PointPrimitiveCollection());
+const satLabels = scene.primitives.add(new Cesium.LabelCollection());
+let satRecs = [], satTimer = null, issOrbit = null;
+function satPos(rec, when){
+  const pv = satellite.propagate(rec, when); if(!pv.position) return null;
+  const gd = satellite.eciToGeodetic(pv.position, satellite.gstime(when));
+  return { lon: satellite.degreesLong(gd.longitude), lat: satellite.degreesLat(gd.latitude), alt: gd.height*1000 };
+}
+function drawSats(){
+  satPts.removeAll(); satLabels.removeAll(); const now = new Date();
+  for(const s of satRecs){
+    const p = satPos(s.rec, now); if(!p) continue;
+    const pos = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt), iss = s.id === 25544;
+    satPts.add({ position:pos, pixelSize: iss ? 9 : 4, color: iss ? Cesium.Color.fromCssColorString('#38d8f5') : Cesium.Color.fromCssColorString('#a5c8ff').withAlpha(.85), id:{ kind:'sat', s, p } });
+    if(iss || s.station) satLabels.add({ position:pos, text:s.name, font:'11px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#bfe9ff'),
+      outlineColor:Cesium.Color.BLACK, outlineWidth:2, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(10,-8) });
+  }
+}
+async function setSats(on){
+  state.sats = on; clearInterval(satTimer); satPts.removeAll(); satLabels.removeAll();
+  if(issOrbit){ viewer.entities.remove(issOrbit); issOrbit = null; }
+  if(!on) return;
+  try {
+    if(!satRecs.length){
+      const r = await get('sats');
+      satRecs = (r.sats || []).map(o => { try { return { id:o.NORAD_CAT_ID, name:o.OBJECT_NAME, station:/ISS|CSS|TIANGONG/i.test(o.OBJECT_NAME), rec:satellite.json2satrec(o) }; } catch(_){ return null; } }).filter(Boolean);
+    }
+    drawSats(); satTimer = setInterval(drawSats, 2000);
+    const iss = satRecs.find(s => s.id === 25544);
+    if(iss){
+      const pts = []; const t0 = Date.now();
+      for(let k=0;k<=93;k++){ const p = satPos(iss.rec, new Date(t0 + k*60000)); if(p) pts.push(Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt)); }
+      issOrbit = viewer.entities.add({ polyline:{ positions:pts, width:1.6, material:Cesium.Color.fromCssColorString('#38d8f5').withAlpha(.6) } });
+    }
+  } catch(e){ toast('Satellites indisponibles : '+e.message); }
+}
+
+/* ── Avions en route vers / partis d'une ville : widget à droite + trajectoires sur le globe ── */
+const goldPlane = (() => {
+  const c = Object.assign(document.createElement('canvas'), { width:32, height:32 }), g = c.getContext('2d');
+  g.shadowColor = '#ffb020'; g.shadowBlur = 8; g.fillStyle = '#ffc53d'; g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(16,3); g.lineTo(27,28); g.lineTo(16,22); g.lineTo(5,28); g.closePath(); g.fill(); g.stroke(); return c;
+})();
+const inBB = scene.primitives.add(new Cesium.BillboardCollection());
+const inLabels = scene.primitives.add(new Cesium.LabelCollection());
+const inbound = { place:null, mode:'in', flights:[], timer:null, ents:[], sel:null };
+const esc = t => String(t ?? '').replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
+const fmtKm = n => `${Math.round(n).toLocaleString('fr-FR')} km`;
+function clockIn(min){ const d = new Date(Date.now() + min * 60000); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function clearInbound(){ inBB.removeAll(); inLabels.removeAll(); inbound.ents.splice(0).forEach(e => viewer.entities.remove(e)); }
+function drawInbound(){
+  clearInbound();
+  const P = inbound.place, end = inbound.airport || P;
+  inbound.ents.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(end.lon, end.lat),
+    point:{ pixelSize:11, color:Cesium.Color.fromCssColorString('#ffc53d'), outlineColor:Cesium.Color.fromCssColorString('#ffc53d').withAlpha(.35), outlineWidth:10 },
+    label:{ text:end.iata ? `${end.city || P.name} · ${end.iata}` : P.name, font:'13px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'),
+      outlineColor:Cesium.Color.BLACK, outlineWidth:3, style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(0,-20) } }));
+  inbound.flights.forEach((f, i) => {
+    const pos = Cesium.Cartesian3.fromDegrees(f.lon, f.lat, Math.max(0, f.alt));
+    inBB.add({ position:pos, image:goldPlane, scale: inbound.sel === f.cs ? 1.15 : .8, rotation:-Cesium.Math.toRadians(f.trk), alignedAxis:Cesium.Cartesian3.UNIT_Z, id:{ kind:'inflight', i } });
+    inLabels.add({ position:pos, text:f.cs, font:'12px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#ffe2a0'), outlineColor:Cesium.Color.BLACK, outlineWidth:2,
+      style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(14,-10), distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0, 9e6) });
+    const other = inbound.mode === 'out' ? f.from : f.to;
+    if(other && other.lat != null) inbound.ents.push(viewer.entities.add({ polyline:{
+      positions:Cesium.Cartesian3.fromDegreesArray(inbound.mode === 'out' ? [other.lon, other.lat, f.lon, f.lat] : [f.lon, f.lat, other.lon, other.lat]),
+      width: inbound.sel === f.cs ? 2.6 : 1.4, arcType:Cesium.ArcType.GEODESIC,
+      material:new Cesium.PolylineDashMaterialProperty({ color:Cesium.Color.fromCssColorString('#ffc53d').withAlpha(inbound.sel === f.cs ? .95 : .55), dashLength:14 }) } }));
+  });
+}
+function renderFlights(){
+  const L = $('fl-list'); L.innerHTML = '';
+  const out = inbound.mode === 'out';
+  $('fl-sub').textContent = inbound.flights.length
+    ? `${inbound.flights.length} vol${inbound.flights.length > 1 ? 's' : ''} en l'air · mis à jour ${new Date().toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' })}`
+    : (out ? 'Aucun vol parti de là en ce moment.' : 'Aucun avion en approche en ce moment.');
+  inbound.flights.forEach((f, i) => {
+    const d = document.createElement('div'); d.className = 'fl' + (inbound.sel === f.cs ? ' sel' : '');
+    const eta = !out && f.eta != null ? `${f.eta} min` : '';
+    d.innerHTML = `<div class="r1"><span class="cs">${esc(f.cs)}</span><span class="al">${esc(f.airline)}</span><span class="eta">${esc(eta)}</span></div>
+      <div class="r2">${esc(f.from.city)} ${esc(f.from.iata)} → ${esc(f.to.city)} ${esc(f.to.iata)}</div>
+      <div class="r3">${f.alt.toLocaleString('fr-FR')} m · ${f.spd} km/h · ${out ? 'à ' + fmtKm(f.dist) + ' de l\'aéroport' : 'encore ' + fmtKm(f.dist)}${!out && f.eta != null ? ' · arrivée ≈ ' + clockIn(f.eta) : ''}</div>`;
+    d.onclick = () => focusFlight(i);
+    L.appendChild(d);
+  });
+}
+function focusFlight(i){
+  const f = inbound.flights[i]; if(!f) return;
+  inbound.sel = f.cs; drawInbound(); renderFlights(); state.spin = false; syncButtons();
+  camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(f.lon, f.lat, 450_000), duration:2 });
+  const box = $('info'); box.textContent = `✈️ ${f.cs} ${f.airline} · ${f.from.city} → ${f.to.city} · ${f.alt.toLocaleString('fr-FR')} m · ${f.spd} km/h`; box.style.display = 'block';
+}
+async function loadInbound(first){
+  const P = inbound.place; if(!P) return;
+  try {
+    const r = await get('inbound', { lat:P.lat, lon:P.lon, mode:inbound.mode });
+    if(inbound.place !== P) return;
+    inbound.flights = r.flights || []; inbound.airport = r.airport;
+    drawInbound(); renderFlights();
+    if(!first) return;
+    const fs = inbound.flights.slice(0, 10), end = r.airport || P;
+    if(fs.length){
+      const lats = [end.lat, ...fs.map(f => f.lat)], lons = [end.lon, ...fs.map(f => f.lon)];
+      const pad = 1.5;
+      camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(Math.min(...lons) - pad, Math.min(...lats) - pad, Math.max(...lons) + pad, Math.max(...lats) + pad), duration:2.5 });
+    } else camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(P.lon, P.lat, 2_200_000), duration:2.5 });
+    const n = inbound.flights.length, f = inbound.flights[0];
+    if(inbound.mode === 'out') reply(n ? `${n} avion${n > 1 ? 's' : ''} parti${n > 1 ? 's' : ''} de ${P.name} ${n > 1 ? 'sont' : 'est'} en vol. Le dernier décollé : ${f.cs}${f.airline ? ' de ' + f.airline : ''}, vers ${f.to.city}.`
+                                        : `Aucun avion parti de ${P.name} n'est en vol en ce moment.`);
+    else reply(n ? `${n} avion${n > 1 ? 's' : ''} en route vers ${P.name}. Le prochain : ${f.cs}${f.airline ? ' de ' + f.airline : ''}, en provenance de ${f.from.city}${f.eta != null ? `, arrivée dans ${f.eta} minutes environ` : ''}.`
+                 : `Aucun avion en route vers ${P.name} en ce moment, d'après les données radar en direct.`);
+  } catch(e){ if(first) reply('Recherche des vols impossible : ' + e.message); }
+}
+async function showInbound(query, mode){
+  $('fl-title').textContent = '✈️ Recherche…'; $('fl-sub').textContent = 'Je regarde le ciel…'; $('fl-list').innerHTML = ''; $('flights').classList.add('on');
+  try {
+    const g = await get('geocode', { q:query });
+    if(!g.found){ reply(`Je ne trouve pas ${query}.`); closeInbound(); return; }
+    inbound.place = { name:g.name, lat:g.lat, lon:g.lon }; inbound.mode = mode === 'out' ? 'out' : 'in'; inbound.sel = null; syncNexus();
+    $('fl-title').textContent = inbound.mode === 'out' ? `✈️ Départs de ${g.name}` : `✈️ Vers ${g.name}`;
+    state.spin = false; syncButtons();
+    clearInterval(inbound.timer); inbound.timer = setInterval(() => loadInbound(false), 60000);
+    await loadInbound(true);
+  } catch(e){ reply('Recherche des vols impossible : ' + e.message); }
+}
+function closeInbound(){ clearInterval(inbound.timer); inbound.place = null; inbound.flights = []; clearInbound(); $('flights').classList.remove('on'); $('info').style.display = 'none'; syncNexus(); }
+$('fl-x').onclick = () => closeInbound();
+
+/* ── Caméras publiques : widget sous le globe + position sur le globe ── */
+const camIcon = (() => {
+  const c = Object.assign(document.createElement('canvas'), { width:28, height:28 }), g = c.getContext('2d');
+  g.shadowColor = '#38d8f5'; g.shadowBlur = 6; g.fillStyle = '#38d8f5'; g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 1.2;
+  g.beginPath(); g.roundRect(4, 9, 15, 11, 2); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(19, 12); g.lineTo(25, 9); g.lineTo(25, 20); g.lineTo(19, 17); g.closePath(); g.fill(); g.stroke(); return c;
+})();
+const camBB = scene.primitives.add(new Cesium.BillboardCollection());
+const cams = { list:[], i:-1, refresh:null, ents:[], center:null };
+function drawCams(){
+  camBB.removeAll(); cams.ents.splice(0).forEach(e => viewer.entities.remove(e));
+  cams.list.forEach((c, i) => camBB.add({ position:Cesium.Cartesian3.fromDegrees(c.lon, c.lat, 30), image:camIcon, scale: i === cams.i ? 1.1 : .7,
+    color: i === cams.i ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(.8), id:{ kind:'cam', i }, disableDepthTestDistance:Number.POSITIVE_INFINITY }));
+  const c = cams.list[cams.i]; if(!c) return;
+  // Caméra ouverte : faisceau vertical visible même de très loin + anneau qui pulse
+  cams.ents.push(viewer.entities.add({ polyline:{ positions:Cesium.Cartesian3.fromDegreesArrayHeights([c.lon, c.lat, 0, c.lon, c.lat, 600_000]), width:7,
+    material:new Cesium.PolylineGlowMaterialProperty({ glowPower:.35, color:Cesium.Color.fromCssColorString('#38d8f5') }) } }));
+  cams.ents.push(viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(c.lon, c.lat),
+    point:{ pixelSize:new Cesium.CallbackProperty(() => 10 + 6 * (1 + Math.sin(Date.now() / 300)), false), color:Cesium.Color.fromCssColorString('#38d8f5').withAlpha(.45),
+      outlineColor:Cesium.Color.WHITE, outlineWidth:2, disableDepthTestDistance:Number.POSITIVE_INFINITY },
+    label:{ text:c.name, font:'12px Segoe UI', fillColor:Cesium.Color.fromCssColorString('#bfefff'), outlineColor:Cesium.Color.BLACK, outlineWidth:3,
+      style:Cesium.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new Cesium.Cartesian2(0,-22), disableDepthTestDistance:Number.POSITIVE_INFINITY } }));
+}
+function openCam(i, fly){
+  if(!cams.list.length) return;
+  cams.i = (i + cams.list.length) % cams.list.length;
+  const c = cams.list[cams.i], M = $('cam-media'); clearInterval(cams.refresh);
+  M.innerHTML = '';
+  if(c.embed){ const f = document.createElement('iframe'); f.src = c.embed; f.allow = 'autoplay; fullscreen'; f.title = c.name; M.appendChild(f); }
+  else if(c.video){ const v = document.createElement('video'); Object.assign(v, { src:c.video, autoplay:true, muted:true, loop:true, playsInline:true, poster:c.img }); M.appendChild(v); }
+  else {
+    const im = document.createElement('img'); im.alt = c.name; im.src = c.img; M.appendChild(im);
+    cams.refresh = setInterval(() => { im.src = c.img + (c.img.includes('?') ? '&' : '?') + 't=' + Date.now(); }, 6000);
+  }
+  const live = document.createElement('span'); live.className = 'live'; live.textContent = c.video || c.embed ? '● LIVE' : '● DIRECT'; M.appendChild(live);
+  $('cam-title').textContent = `📷 ${c.name}`;
+  $('cam-meta').textContent = `${c.city}${c.country && c.country !== c.city ? ', ' + c.country : ''} · ${c.src}${c.views ? ' · ' + fmtN(c.views) + ' vues' : ''} · ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}${c.dist != null ? ' · à ' + c.dist + ' km' : ''} · ${cams.i + 1}/${cams.list.length}`;
+  $('cam').classList.add('on'); state.cams = true; syncButtons(); drawCams(); syncNexus(); markWorldRow(); markStrip();
+  if(fly){ const h = Math.min(Math.max(camera.positionCartographic.height, 25_000), 1_500_000);
+    camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(c.lon, c.lat - h / 400_000, h), duration:1.6 }); }
+}
+async function showCams(query){
+  try {
+    let P;
+    if(query){ const g = await get('geocode', { q:query }); if(!g.found){ reply(`Je ne trouve pas ${query}.`); return; } P = { name:g.name, lat:g.lat, lon:g.lon }; }
+    else { const c = center(); P = { name:placeName || 'cette zone', lat:c.lat, lon:c.lon, h:c.h }; }
+    const km = query ? 40 : Math.max(10, Math.min(250, (P.h || 1e5) / 1000 / 3));
+    const r = await get('cams', { lat:P.lat, lon:P.lon, km:Math.round(km) });
+    state.spin = false;
+    if(!r.cams.length){
+      closeCams();
+      const ne = r.nearest_elsewhere;
+      reply(`Pas de caméra publique trouvée près de ${P.name}.` + (r.windy ? '' : ' Avec la clé gratuite Windy, je couvrirai le monde entier.') + (ne ? ` Zone couverte la plus proche : ${ne.name}, à ${ne.dist.toLocaleString('fr-FR')} kilomètres.` : ''));
+      if(query) camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(P.lon, P.lat, 600_000), duration:2.5 });
+      return;
+    }
+    cams.list = r.cams; cams.center = P;
+    camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(P.lon, P.lat - 0.15, Math.max(30_000, km * 1800)), duration:2.5 });
+    openCam(0, false);
+    reply(`${r.cams.length} caméra${r.cams.length > 1 ? 's' : ''} publique${r.cams.length > 1 ? 's' : ''} autour de ${P.name}. J'ouvre la plus proche : ${r.cams[0].name}.`);
+  } catch(e){ reply('Caméras indisponibles : ' + e.message); }
+}
+function closeCams(){ clearInterval(cams.refresh); cams.list = []; cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big');
+  world.on = false; $('camlist').classList.remove('on'); $('strip').classList.remove('on'); document.body.classList.remove('strip');
+  drawCams(); state.cams = false; syncButtons(); syncNexus(); }
+// Liste du monde ouverte : fermer la caméra garde la liste (on peut en choisir une autre)
+function closeCamView(){
+  if(!(world.on || $('strip').classList.contains('on')) || cams.i < 0){ closeCams(); return; }
+  clearInterval(cams.refresh); cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big'); drawCams(); markWorldRow(); syncNexus();
+}
+$('cam-prev').onclick = () => openCam(cams.i - 1, true);
+$('cam-next').onclick = () => openCam(cams.i + 1, true);
+$('cam-big').onclick = () => $('cam').classList.toggle('big');
+$('cam-x').onclick = () => closeCamView();
+
+/* ── Caméras du monde : liste cliquable (les plus regardées d'abord), chaque caméra repérée sur le globe ── */
+const world = { on:false, rows:[], shown:0, total:0 };
+const fmtN = n => Number(n).toLocaleString('fr-FR');
+async function showWorld(){
+  closeCams();
+  world.on = true; $('camlist').classList.add('on'); $('cl-q').value = '';
+  $('cl-sub').textContent = 'Je recense les caméras du monde…'; $('cl-list').innerHTML = '';
+  state.spin = false; syncButtons();
+  try {
+    const r = await get('world');
+    if(!world.on) return;
+    cams.list = r.cams || []; cams.i = -1; cams.center = null; world.total = r.total || cams.list.length; world.windyTotal = r.windy_total || 0;
+    state.cams = true; syncButtons(); drawCams(); syncNexus(); filterWorld();
+    camera.flyTo({ destination:HOME, duration:2 });
+    reply(`${fmtN(world.total)} caméras publiques dans le monde. J'en affiche ${fmtN(cams.list.length)} dans la liste, les plus regardées en premier. Choisis-en une.`
+      + (r.windy ? '' : ' Sans la clé Windy, seules Londres, la Californie et la Finlande sont couvertes.'));
+  } catch(e){ reply('Caméras indisponibles : ' + e.message); closeCams(); }
+}
+function filterWorld(){
+  const q = $('cl-q').value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  world.rows = [];
+  cams.list.forEach((c, i) => { if(!q || `${c.name} ${c.city} ${c.country || ''} ${c.src}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(q)) world.rows.push(i); });
+  const shown = world.windyTotal ? `${fmtN(cams.list.length)} dans la liste (Windy gratuit : les ${fmtN(cams.list.length - (cams.list.filter(c => c.src !== 'Windy').length))} plus regardées sur ${fmtN(world.windyTotal)}, + Londres, Californie, Finlande)` : `${fmtN(cams.list.length)} dans la liste`;
+  $('cl-title').textContent = `🌍 ${fmtN(world.total)} caméras dans le monde`;
+  $('cl-sub').textContent = q ? `${fmtN(world.rows.length)} résultat${world.rows.length > 1 ? 's' : ''} pour « ${$('cl-q').value.trim()} »` : shown;
+  $('cl-list').innerHTML = ''; world.shown = 0; moreWorld();
+}
+function moreWorld(){
+  const L = $('cl-list'), end = Math.min(world.rows.length, world.shown + 150);
+  for(let k = world.shown; k < end; k++){
+    const i = world.rows[k], c = cams.list[i], d = document.createElement('div');
+    d.className = 'fl cl' + (i === cams.i ? ' sel' : ''); d.dataset.i = i;
+    d.innerHTML = `<div class="r1"><span class="n">${k + 1}</span>${esc(c.name)}</div><div class="r3">📍 ${esc(c.city)}${c.country && c.country !== c.city ? ', ' + esc(c.country) : ''} · ${esc(c.src)}${c.views ? ' · ' + fmtN(c.views) + ' vues' : ''}</div>`;
+    d.onclick = () => openCam(i, true);
+    L.appendChild(d);
+  }
+  world.shown = end;
+}
+function markWorldRow(){
+  if(!world.on) return;
+  document.querySelectorAll('#cl-list .sel').forEach(e => e.classList.remove('sel'));
+  const row = document.querySelector(`#cl-list [data-i="${cams.i}"]`);
+  if(row){ row.classList.add('sel'); row.scrollIntoView({ block:'nearest' }); }
+}
+$('cl-list').addEventListener('scroll', e => { const L = e.target; if(L.scrollTop + L.clientHeight > L.scrollHeight - 200 && world.shown < world.rows.length) moreWorld(); });
+let clTimer = 0;
+$('cl-q').addEventListener('input', () => { clearTimeout(clTimer); clTimer = setTimeout(filterWorld, 200); });
+$('cl-x').onclick = () => closeCams();
+/* Nexus doit savoir quels widgets sont ouverts (« caméra suivante », « ferme la liste »), même ouverts/fermés à la souris */
+function syncNexus(){ try{ if(parent !== window) parent.postMessage({ type:'globe_state', cams:!!state.cams, flights:!!inbound.place }, location.origin); }catch(_){} }
+
+/* ── Clic : fiche de l'objet ── */
+function pickAt(position){
+  const o = scene.pick(position); const box = $('info');
+  const id = o && (o.id && o.id.properties ? o.id.properties.getValue(Cesium.JulianDate.now()) : o && o.id);
+  if(id && id.kind === 'cam'){ openCam(id.i, false); return; }
+  if(id && id.kind === 'inflight'){ focusFlight(id.i); return; }
+  if(!id || !id.kind){ box.style.display='none'; return; }
+  if(id.kind === 'plane'){ const p=id.p; box.textContent = `✈️ ${p.cs||p.id} ${p.type||''} · ${p.alt.toLocaleString('fr-FR')} m · ${p.spd} km/h · cap ${Math.round(p.trk)}°`; }
+  else if(id.kind === 'quake'){ const q=id.q; box.textContent = `🌋 M${(q.mag??0).toFixed(1)} · ${q.place} · ${new Date(q.time).toLocaleString('fr-FR')} · ${Math.round(q.depth)} km de profondeur`; }
+  else if(id.kind === 'sat'){ box.textContent = `🛰️ ${id.s.name} · ${Math.round(id.p.alt/1000)} km d'altitude`; }
+  box.style.display='block';
+}
+new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => pickAt(ev.position), Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+/* ── Contrôle à la main (relayé par Nexus) : pincer-glisser = tourner, pincer sans bouger = clic, deux mains = zoom ── */
+const gp = { x:0, y:0, moved:0 };
+function gesturePtr(d){
+  if(d.phase === 'down'){ gp.x = d.x; gp.y = d.y; gp.moved = 0; state.spin = false; lastUser = Date.now(); syncButtons(); return; }
+  const dx = d.x - gp.x, dy = d.y - gp.y; gp.x = d.x; gp.y = d.y; gp.moved += Math.abs(dx) + Math.abs(dy);
+  if(d.phase === 'move'){
+    const h = camera.positionCartographic.height, k = Math.max(2e-6, Math.min(2.5e-3, h / 4e9));
+    camera.rotateLeft(dx * k); camera.rotateUp(dy * k); lastUser = Date.now(); return;
+  }
+  if(d.phase === 'up' && gp.moved < 14){
+    const el = document.elementFromPoint(d.x, d.y);
+    if(el && el.tagName === 'CANVAS') pickAt(new Cesium.Cartesian2(d.x, d.y));
+    else { const b = el && el.closest('button,.fl,.th'); if(b) b.click(); }
+  }
+}
+let gHover = null;
+function gestureHover(d){
+  const el = document.elementFromPoint(d.x, d.y), b = el && el.closest('button,.fl,.th');
+  if(b !== gHover){ if(gHover) gHover.classList.remove('ghover'); gHover = b; if(b) b.classList.add('ghover'); }
+}
+function gestureZoom(f){
+  const h = camera.positionCartographic.height;
+  if(f > 1) camera.zoomIn(h * Math.min(.5, f - 1)); else camera.zoomOut(h * Math.min(1, 1 / f - 1));
+}
+
+/* ── Bandeau de caméras par catégorie ── */
+const CATS = [['all','🔥 Populaires'],['beach','🏖 Plage'],['city','🏙 Ville'],['mountain','🏔 Montagne'],['coast','🌊 Côte'],['lake','🏞 Lac'],
+  ['port','⚓ Port'],['airport','✈️ Aéroport'],['traffic','🚗 Trafic'],['village','🏡 Village'],['landscape','🌄 Paysage'],['square','⛲ Place'],
+  ['river','🛶 Rivière'],['forest','🌲 Forêt'],['sportArea','🏟 Sport'],['building','🏛 Bâtiment'],['observatory','🔭 Observatoire']];
+const strip = { cat:'all', place:null, list:[] };
+$('st-tabs').innerHTML = CATS.map(([k, n]) => `<button data-cat="${k}">${n}</button>`).join('') + '<span class="info" id="st-info"></span>';
+$('st-tabs').querySelectorAll('button').forEach(b => b.onclick = () => void showStrip(b.dataset.cat, '', true));
+async function showStrip(cat, query, silent){
+  closeCams();
+  strip.cat = cat || 'all'; $('strip').classList.add('on'); document.body.classList.add('strip');
+  $('st-tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.cat === strip.cat));
+  $('st-row').innerHTML = '<div style="padding:24px;color:var(--dim);font-size:12px">Je cherche les caméras…</div>'; $('st-info').textContent = '';
+  try {
+    let P = null;
+    if(query){ const g = await get('geocode', { q:query }); if(!g.found){ reply(`Je ne trouve pas ${query}.`); return; } P = { name:g.name, lat:g.lat, lon:g.lon }; }
+    if(query || !silent) strip.place = P;
+    const r = await get('catcams', strip.place ? { cat:strip.cat, lat:strip.place.lat, lon:strip.place.lon } : { cat:strip.cat });
+    if(!$('strip').classList.contains('on')) return;
+    strip.list = r.cams || [];
+    cams.list = strip.list; cams.i = -1; state.cams = true; state.spin = false; syncButtons(); drawCams(); syncNexus();
+    const label = CATS.find(c => c[0] === strip.cat)[1].replace(/^\S+\s/, '');
+    $('st-info').textContent = `${fmtN(r.total || strip.list.length)} caméras${strip.cat === 'all' ? '' : ' « ' + label + ' »'}${strip.place ? ' autour de ' + strip.place.name : ' dans le monde'}`;
+    $('st-row').innerHTML = '';
+    strip.list.forEach((c, i) => {
+      const d = document.createElement('div'); d.className = 'th'; d.dataset.i = i; d.title = `${c.name} — ${c.city}${c.country ? ', ' + c.country : ''}`;
+      d.innerHTML = `<img loading="lazy" alt="" src="${esc(c.thumb || c.img)}"><div>${esc(c.city || c.name)}${c.country && c.country !== c.city ? ' · ' + esc(c.country) : ''}</div>`;
+      d.onclick = () => openCam(i, true);
+      $('st-row').appendChild(d);
+    });
+    if(strip.place) camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(strip.place.lon, strip.place.lat, 900_000), duration:2.5 });
+    else camera.flyTo({ destination:HOME, duration:2 });
+    if(!r.windy) reply('Les caméras par catégorie ont besoin de la clé Windy sur le serveur.');
+    else if(!silent) reply(strip.list.length ? `${fmtN(r.total)} caméras${strip.cat === 'all' ? '' : ' de type ' + label.toLowerCase()}${strip.place ? ' autour de ' + strip.place.name : ' dans le monde'}. Je t'affiche les ${strip.list.length} plus regardées en dessous du globe.`
+      : `Aucune caméra de ce type${strip.place ? ' autour de ' + strip.place.name : ''}.`);
+  } catch(e){ reply('Caméras indisponibles : ' + e.message); }
+}
+function markStrip(){ document.querySelectorAll('#st-row .th').forEach(t => t.classList.toggle('sel', +t.dataset.i === cams.i && $('strip').classList.contains('on'))); }
+
+/* ── Commandes ── */
+function afterFly(){ if(state.planes) void loadPlanes(); }   // avions de la zone dès l'arrivée
+async function flyTo(query){
+  try {
+    const g = await get('geocode', { q:query });
+    if(!g.found){ reply(`Je ne trouve pas ${query}.`); return; }
+    state.spin = false; syncButtons();
+    const [s,n,w,e] = g.bbox || [];
+    const big = g.bbox && (n-s > 0.3 || e-w > 0.3);
+    if(big) camera.flyTo({ destination:Cesium.Rectangle.fromDegrees(w, s, e, n), duration:3, complete:afterFly });
+    else camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(g.lon, g.lat, 25_000), duration:3, complete:afterFly });
+    setTimeout(() => refreshWeather(true), 3300);
+  } catch(e){ reply('Recherche du lieu impossible : '+e.message); }
+}
+function zoom(dir){
+  const h = camera.positionCartographic.height;
+  dir === 'in' ? camera.zoomIn(h*0.55) : camera.zoomOut(h*1.2);
+}
+function events(){
+  const c = center(), radius = Math.max(300, Math.min(2500, c.h/1000));
+  const near = data.quakes.length ? data.quakes : null;
+  const go = list => {
+    const q = list.filter(x => distKm(c, x) <= radius && Date.now() - x.time < 7*86400e3).sort((a,b) => b.mag - a.mag);
+    const zone = placeName || 'cette zone';
+    const parts = [q.length ? `${q.length} séisme${q.length>1?'s':''} cette semaine autour de ${zone}, le plus fort M${q[0].mag.toFixed(1)} ${q[0].place}.` : `Aucun séisme récent autour de ${zone}.`];
+    if(state.planes) parts.push(`${data.planes.length} avions en vol dans le secteur.`);
+    if(wxData) parts.push(`Il fait ${wxData.temp} degrés, ${WX[wxData.code] ? WX[wxData.code].toLowerCase() : ''}.`);
+    reply(parts.join(' '));
+  };
+  if(near) go(near); else get('quakes').then(r => { data.quakes = r.quakes || []; go(data.quakes); }).catch(e => reply('Données indisponibles : '+e.message));
+}
+let booted = false;   // le 1er « open » arrive pendant l'intro de chargement
+function command(d){
+  switch(d.action){
+    case 'open': if(booted) playIntro(1400); booted = true; break;
+    case 'spin': state.spin = !!d.on; lastUser = 0; syncButtons(); break;
+    case 'view': state.view = d.mode === 'satellite' ? 'satellite' : 'holo'; applyView(); break;
+    case 'fly': void flyTo(d.query); break;
+    case 'zoom': zoom(d.dir); break;
+    case 'home': camera.flyTo({ destination:HOME, duration:2 }); break;
+    case 'events': events(); break;
+    case 'layer': setLayer(d.name, !!d.on); break;
+    case 'inbound': void showInbound(d.query, d.mode); break;
+    case 'inbound_close': closeInbound(); break;
+    case 'cams': void showCams(d.query); break;
+    case 'cam_next': openCam(cams.i + 1, true); break;
+    case 'cam_prev': openCam(cams.i - 1, true); break;
+    case 'cam_size': $('cam').classList.toggle('big', !!d.big); break;
+    case 'cam_close': closeCamView(); break;
+    case 'cams_world': void showWorld(); break;
+    case 'cam_close_all': closeCams(); break;
+    case 'cams_strip': void showStrip(d.cat, d.query, false); break;
+    case 'g_ptr': gesturePtr(d); break;
+    case 'g_hover': gestureHover(d); break;
+    case 'g_zoom': gestureZoom(+d.f || 1); break;
+  }
+}
+function setLayer(name, on){
+  if(name === 'planes') setPlanes(on);
+  else if(name === 'quakes') void setQuakes(on);
+  else if(name === 'sats') void setSats(on);
+  else if(name === 'weather'){ state.weather = on; void refreshWeather(true); }
+  syncButtons();
+}
+function syncButtons(){
+  document.querySelectorAll('#layers button').forEach(b => {
+    const l = b.dataset.l; b.classList.toggle('on', l === 'view' ? state.view === 'satellite' : !!state[l]); });
+}
+document.querySelectorAll('#layers button').forEach(b => b.addEventListener('click', () => {
+  const l = b.dataset.l;
+  if(l === 'view'){ state.view = state.view === 'holo' ? 'satellite' : 'holo'; applyView(); }
+  else if(l === 'spin'){ state.spin = !state.spin; syncButtons(); }
+  else if(l === 'cams'){ state.cams ? closeCams() : void showCams(''); }
+  else setLayer(l, !state[l]);
+}));
+$('z-in').onclick = () => zoom('in'); $('z-out').onclick = () => zoom('out'); $('z-home').onclick = () => command({ action:'home' });
+window.addEventListener('message', e => { if(e.origin === location.origin && e.data && e.data.type === 'globe') command(e.data); });
+/* ── Recherche + actions (version app) ── */
+const qv = () => $('q').value.trim();
+$('go').onclick = () => { if(qv()) { $('q').blur(); void flyTo(qv()); } };
+$('q').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('go').click(); } });
+document.querySelectorAll('#acts button').forEach(b => b.onclick = () => {
+  const a = b.dataset.a, place = qv() || (a === 'in' || a === 'out' ? 'Oran' : '');
+  $('q').blur();
+  if(a === 'in' || a === 'out') void showInbound(place, a);
+  else if(a === 'cams') void showCams(place);
+  else if(a === 'world') void showWorld();
+  else if(a === 'strip') void showStrip('all', place, false);
+  else if(a === 'events') events();
+});
+applyView(); tick(); void refreshWeather(true);
+</script>
+</body>
+</html>

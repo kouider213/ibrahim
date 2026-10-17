@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-17 (12) — GLOBE dans l'app (le globe de Nexus sur le téléphone)
+- Nouvel écran **GLOBE** (Plus → 🌍) : `simulator/public/globe.html` (copie mobile de nexus/gui/globe.html, CesiumJS) dans `GlobeScreen.tsx`.
+- Barre de recherche (Aller), actions : vols vers… / départs de… (Oran par défaut), caméras ici, caméras du monde, par catégorie, « que se passe-t-il ? ». Couches : satellite, rotation, avions, séismes, satellites, caméras, météo. Panneaux en bas d'écran sur téléphone.
+- Données côté serveur (marche PC éteint) : `backend/src/integrations/globe-data.ts` (port de nexus/modules/globe.py) via `GET /api/nexus/globe/:kind` (jeton de l'app). Testé : avions, séismes, satellites, météo, lieux, vols vers Oran, caméras Londres ; Windy = clé Railway.
+
 ## 2026-10-17 (11) — Nexus récupère le dernier APK au démarrage du PC
 - `backend/src/integrations/apk-release.ts` : dernier build réussi de build-apk.yml (lecture publique), téléchargement de l'artefact avec GITHUB_TOKEN, extraction de l'APK (cache /tmp), lien privé signé 3 jours. L'APK n'est jamais publié en public (il contient les clés de l'app).
 - Routes : `POST /api/nexus/apk-check` (jeton PC) → envoi Telegram une seule fois par build (kv `apk:telegram_run`) ; `GET /api/nexus/apk/:token` → le fichier.

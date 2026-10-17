@@ -28,6 +28,7 @@ import { nexusRateLimiter, nexusIpLogger, nexusAntiReplay } from '../middleware/
 import { nexusQueue } from '../../actions/handlers/nexus-command-queue.js';
 import { pcCommand, pcWake, pcStatus } from '../../integrations/nexus-remote.js';
 import { executeTool } from '../../integrations/tool-executor.js';
+import { globeData } from '../../integrations/globe-data.js';
 import { checkApkForPc, verifyApkToken, latestApk, apkFile } from '../../integrations/apk-release.js';
 import { runAutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
 import type { AutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
@@ -170,6 +171,15 @@ router.post('/widget', requireMobileAuth, (req, res) => {
   if (!widget || !NEXUS_WIDGETS.has(widget)) { res.status(400).json({ ok: false, error: 'Widget inconnu' }); return; }
   if (!nexusShowWidget(widget)) { res.status(503).json({ ok: false, error: 'Nexus hors ligne' }); return; }
   res.json({ ok: true });
+});
+
+// GET /api/nexus/globe/:kind — données du GLOBE de l'app (avions, séismes, satellites, météo, lieux, vols, caméras)
+router.get('/globe/:kind', requireMobileAuth, async (req, res) => {
+  try {
+    const out = await globeData(String(req.params['kind']), req.query as Record<string, string>);
+    if (out === null) { res.status(404).json({ error: 'inconnu' }); return; }
+    res.json(out);
+  } catch (err) { res.status(502).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 
 // POST /api/nexus/apk-check — Nexus au démarrage du PC : dernier APK (lien signé) + envoi Telegram une seule fois par build
