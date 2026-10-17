@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, business } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 import NexusDeck from './NexusDeck.tsx';
+import NexusTools from './NexusTools.tsx';
 
 // Piloter le PC (Nexus) depuis le téléphone : écran en direct au doigt, clavier, télécommande,
 // et « Demande à Nexus » à l'écrit ou à la voix (même cerveau que sur le PC).
@@ -533,6 +534,9 @@ export default function NexusScreen() {
       </Section>
 
       {/* Clavier */}
+      {/* Outils de Nexus : fichiers, fenêtres, musique, agents, journal */}
+      {!cloud && <NexusTools online={online} busy={!!busy} onSay={(c) => { flash('Envoyé à Nexus — réponse dans « Demande à Nexus »'); void say(c); }} flash={flash} />}
+
       <Section title="Clavier">
         <div style={{ display: 'flex', gap: 7, marginBottom: 9 }}>
           <input value={kb} onChange={e => setKb(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void typeText(); }}

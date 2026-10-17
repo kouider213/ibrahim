@@ -1323,6 +1323,19 @@ export const business = {
     apiFetch<{ ok: boolean; cpu_percent?: number; ram_percent?: number; ram_used_mb?: number; ram_total_mb?: number; disk_percent?: number; disk_free_gb?: number; uptime_s?: number; hostname?: string; error?: string }>('/api/nexus/sysinfo', { method: 'POST' }),
   nexusWidget: (widget: 'disk' | 'weather' | 'bookings' | 'railway') =>
     apiFetch<{ ok: boolean; error?: string }>('/api/nexus/widget', { method: 'POST', body: JSON.stringify({ widget }) }),
+  // Explorateur du PC portable (dossiers autorisés), fenêtres ouvertes, journal de Nexus
+  pcFiles: (path?: string) =>
+    apiFetch<{ ok: boolean; path?: string; entries?: Array<{ name: string; type: string; size?: number | null; modified?: string }>; error?: string }>('/api/nexus/os/file/list', { method: 'POST', body: JSON.stringify({ path }) }),
+  pcFileSearch: (query: string, root?: string) =>
+    apiFetch<{ ok: boolean; results?: Array<{ path: string; name: string; type: string }>; error?: string }>('/api/nexus/os/file/search', { method: 'POST', body: JSON.stringify({ query, root, max_results: 40 }) }),
+  pcFileAction: (action: 'open' | 'send', path: string) =>
+    apiFetch<{ ok: boolean; error?: string }>(`/api/nexus/os/file/${action}`, { method: 'POST', body: JSON.stringify({ path, caption: `📎 ${path.split(/[\\/]/).pop()} — depuis le PC` }) }),
+  pcWindows: () =>
+    apiFetch<{ ok: boolean; windows?: Array<{ pid: number; process: string; title: string }>; error?: string }>('/api/nexus/os/window/list'),
+  pcWindowAction: (action: 'focus' | 'close', title: string) =>
+    apiFetch<{ ok: boolean; error?: string }>(`/api/nexus/os/window/${action}`, { method: 'POST', body: JSON.stringify({ title }) }),
+  nexusJournal: () =>
+    apiFetch<{ ok: boolean; items: Array<{ at: string; text: string }> }>('/api/nexus/journal'),
   weather: () =>
     apiFetch<{ temperature: number; apparent_temp: number; humidity: number; wind_speed: number; condition: string; icon: string; is_day: boolean }>('/api/weather'),
 };

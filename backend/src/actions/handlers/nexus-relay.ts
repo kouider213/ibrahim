@@ -407,6 +407,7 @@ export function initNexusRelay(io: SocketServer): void {
     socket.on('nexus:journal', (data: { text?: string }) => {
       const text = data?.text ?? '';
       console.log(`[NEXUS journal] ${text}`);
+      if (text) { _journal.push({ at: new Date().toISOString(), text: text.slice(0, 500) }); if (_journal.length > 80) _journal.shift(); }
       void _sendTelegram(`🖥️ *NEXUS*: ${text}`);
     });
 
@@ -1020,6 +1021,10 @@ export const nexusScreenUnderstand = (
 
 // ── App notification helpers (Telegram supprimé — tout via Socket.IO) ──────────
 
+// Journal de Nexus (ce qu'il a fait et quand) — pour l'écran MON PC de l'app
+const _journal: Array<{ at: string; text: string }> = [];
+export const getNexusJournal = () => _journal.slice().reverse();
+
 async function _sendTelegram(text: string): Promise<void> {
   try {
     const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
@@ -1028,20 +1033,34 @@ async function _sendTelegram(text: string): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-async function _sendTelegramDocument(_base64: string, filename: string, caption: string): Promise<void> {
-  try {
-    const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
-    const msg = `📎 ${caption || filename}`;
-    emitNexusProactive(msg.slice(0, 120), 'info', msg, 'kouider');
-  } catch { /* non-critical */ }
+// Fichiers / photos du PC → vrai message Telegram (compte Dzaryx via tgcall) : le fichier reste 30 min en mémoire
+// derrière un lien impossible à deviner, tgcall le télécharge et l'envoie en document.
+const _tmpFiles = new Map<string, { buf: Buffer; name: string; at: number }>();
+export function takeTmpFile(id: string): { buf: Buffer; name: string } | null {
+  const f = _tmpFiles.get(id);
+  return f && Date.now() - f.at < 30 * 60_000 ? f : null;
+}
+async function _queueTelegramFile(base64: string, filename: string, caption: string): Promise<void> {
+  const { randomBytes } = await import('crypto');
+  for (const [k, v] of _tmpFiles) if (Date.now() - v.at > 30 * 60_000) _tmpFiles.delete(k);
+  const id = randomBytes(16).toString('hex');
+  _tmpFiles.set(id, { buf: Buffer.from(base64, 'base64'), name: filename, at: Date.now() });
+  const api = process.env['PUBLIC_API_URL'] ?? 'https://ibrahim-backend-production.up.railway.app';
+  const { queueTelegramMessage } = await import('../../notifications/tg-outbox.js');
+  await queueTelegramMessage(caption, undefined, 'kouider', { url: `${api}/api/nexus/tmpfile/${id}`, name: filename });
 }
 
-async function _sendTelegramPhoto(_base64: string, caption: string): Promise<void> {
+async function _sendTelegramDocument(base64: string, filename: string, caption: string): Promise<void> {
+  try { await _queueTelegramFile(base64, filename, caption || `📎 ${filename}`); }
+  catch (e) { console.warn('[NEXUS] fichier → Telegram :', e); }
+}
+
+async function _sendTelegramPhoto(base64: string, caption: string): Promise<void> {
   try {
-    const { emitNexusProactive } = await import('../../notifications/mobile-push.js');
-    const msg = `📸 ${caption || 'Screenshot NEXUS'}`;
-    emitNexusProactive(msg.slice(0, 120), 'info', msg, 'kouider');
-  } catch { /* non-critical */ }
+    const { queueTelegramMessage } = await import('../../notifications/tg-outbox.js');
+    if (base64.length <= 900_000) await queueTelegramMessage(caption || '📸 Capture NEXUS', base64, 'kouider');
+    else await _queueTelegramFile(base64, `capture-${Date.now()}.jpg`, caption || '📸 Capture NEXUS');
+  } catch (e) { console.warn('[NEXUS] photo → Telegram :', e); }
 }
 
 // ── Structured notification → app ────────────────────────────────────────────

@@ -104,7 +104,7 @@ _UNLOCK_RE     = re.compile(r'\b(d[eé]verrouille|unlock|ouvre\s+le\s+pc|mot\s+d
 _SAVE_PASS_RE  = re.compile(r'\b(enregistre\s+(mon\s+)?mot\s+de\s+passe|sauvegarde\s+(mon\s+)?mot\s+de\s+passe)\b', re.I)
 
 _BRIEFING_RE   = re.compile(r'\b(briefing|rapport\s+(du\s+)?matin|r[eé]sum[eé]\s+(du\s+)?jour)\b', re.I)
-_AGENT_RE      = re.compile(r'\b(strat[eè]ge?|agent\s+dev|agent\s+design|agent\s+anal|agent\s+market|agent\s+supervis|agent\s+architect|agent\s+git|agent\s+r[eé]seau|agent\s+vid[eé]o)\b', re.I)
+_AGENT_RE      = re.compile(r'\b(strat[eè]ge?|agent\s+dev|agent\s+design|agent\s+anal|agent\s+market\w*|agent\s+supervis|agent\s+architect|agent\s+git|agent\s+r[eé]seau|agent\s+vid[eé]o)\b', re.I)
 _CLAUDE_RE     = re.compile(r'\b(claude\s+code|lance\s+claude|ouvre\s+claude(\s+code)?|d[eé]marre\s+claude)\b', re.I)
 _CLAUDE_FOLDER_RE = re.compile(r'\b(dans|sur|pour|in)\s+(.+)$', re.I)
 _CLAUDE_TASK_RE= re.compile(r'\b(claude\s+(t[aâ]che|task)|ex[eé]cute\s+avec\s+claude)\b', re.I)
@@ -784,7 +784,9 @@ class NexusApp:
                 await self.gui_send({'type': 'thinking', 'active': False})
                 if source == 'nexus':
                     await self.speak(result[:300])
-                await self.journal(f'🤖 Claude task done')
+                    await self.journal('🤖 Claude task done')
+                else:
+                    await self.journal(f'🤖 Claude Code :\n{result[:3500]}')
             return
 
         # ── 7b. TikTok ───────────────────────────────────────────────────────────
@@ -807,7 +809,9 @@ class NexusApp:
             await self.gui_send({'type': 'status', 'text': f'AGENT {result.agent.upper()}'})
             if source == 'nexus':
                 await self.speak(result.response[:400])
-            await self.journal(f'🧠 Agent {result.agent}')
+                await self.journal(f'🧠 Agent {result.agent}')
+            else:                                    # depuis l'app / Telegram : la réponse complète revient à l'appelant
+                await self.journal(f'🧠 Agent {result.agent} :\n{result.response[:3500]}')
             return
 
         # ── 9. PC Agent (fallback — Claude AI local avec outils PC) ─────────────

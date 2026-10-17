@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   isNexusOnline, pingNexus, getNexusMac, getNexusIp, getNexusStatus,
   isLauncherOnline, wakeNexus, getLauncherStatus,
-  nexusRunCommand, nexusSysinfo, nexusShowWidget, nexusScreenshot, nexusScreenshotBase64,
+  nexusRunCommand, nexusSysinfo, nexusShowWidget, getNexusJournal, takeTmpFile, nexusScreenshot, nexusScreenshotBase64,
   nexusWriteFile, listNexusJobs, getNexusJob,
   getOrCreateJobEmitter,
 } from '../../actions/handlers/nexus-relay.js';
@@ -180,6 +180,17 @@ router.get('/globe/:kind', requireMobileAuth, async (req, res) => {
     if (out === null) { res.status(404).json({ error: 'inconnu' }); return; }
     res.json(out);
   } catch (err) { res.status(502).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// GET /api/nexus/journal — ce que Nexus a fait (démarrage, captures, alertes…), plus récent d'abord
+router.get('/journal', requireMobileAuth, (_req, res) => { res.json({ ok: true, items: getNexusJournal() }); });
+
+// GET /api/nexus/tmpfile/:id — fichier du PC envoyé sur Telegram (lien aléatoire, 30 min) que tgcall récupère
+router.get('/tmpfile/:id', (req, res) => {
+  const f = /^[0-9a-f]{32}$/.test(String(req.params['id'])) ? takeTmpFile(String(req.params['id'])) : null;
+  if (!f) { res.status(404).send('Expiré'); return; }
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(f.name)}"`);
+  res.type('application/octet-stream').send(f.buf);
 });
 
 // POST /api/nexus/apk-check — Nexus au démarrage du PC : dernier APK (lien signé) + envoi Telegram une seule fois par build

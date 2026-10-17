@@ -386,7 +386,7 @@ const io = new SocketServer(server, {
   cors:              { origin: '*', methods: ['GET', 'POST'] },
   pingTimeout:       30_000,
   pingInterval:      10_000,
-  maxHttpBufferSize: 5 * 1024 * 1024,
+  maxHttpBufferSize: 30 * 1024 * 1024,   // fichiers du PC → Telegram (jusqu'à 20 Mo en base64)
 });
 
 // Mobile clients namespace (must be created before init calls)
