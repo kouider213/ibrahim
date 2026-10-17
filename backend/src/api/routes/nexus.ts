@@ -28,6 +28,7 @@ import { nexusRateLimiter, nexusIpLogger, nexusAntiReplay } from '../middleware/
 import { nexusQueue } from '../../actions/handlers/nexus-command-queue.js';
 import { pcCommand, pcWake, pcStatus } from '../../integrations/nexus-remote.js';
 import { executeTool } from '../../integrations/tool-executor.js';
+import { checkApkForPc, verifyApkToken, latestApk, apkFile } from '../../integrations/apk-release.js';
 import { runAutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
 import type { AutonomousTask } from '../../actions/handlers/nexus-autonomous.js';
 import { phantomGuard, PHANTOM_REFUSAL } from '../../conversation/response-guard.js';
@@ -169,6 +170,26 @@ router.post('/widget', requireMobileAuth, (req, res) => {
   if (!widget || !NEXUS_WIDGETS.has(widget)) { res.status(400).json({ ok: false, error: 'Widget inconnu' }); return; }
   if (!nexusShowWidget(widget)) { res.status(503).json({ ok: false, error: 'Nexus hors ligne' }); return; }
   res.json({ ok: true });
+});
+
+// POST /api/nexus/apk-check — Nexus au démarrage du PC : dernier APK (lien signé) + envoi Telegram une seule fois par build
+router.post('/apk-check', requirePcAuth, async (_req, res) => {
+  try { res.json(await checkApkForPc()); }
+  catch (err) { res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// GET /api/nexus/apk/:token — le fichier .apk (lien signé, valable 3 jours) pour Nexus et tgcall
+router.get('/apk/:token', async (req, res) => {
+  const run = verifyApkToken(String(req.params['token']));
+  if (!run) { res.status(403).send('Lien expiré'); return; }
+  try {
+    const info = await latestApk();
+    if (!info || info.run !== run) { res.status(410).send('Version remplacée'); return; }
+    const apk = await apkFile(info);
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', `attachment; filename="${info.name}"`);
+    res.send(apk);
+  } catch (err) { res.status(502).send(err instanceof Error ? err.message : String(err)); }
 });
 
 // POST /api/nexus/screenshot — take real desktop screenshot → Telegram

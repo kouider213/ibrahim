@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-17 (11) — Nexus récupère le dernier APK au démarrage du PC
+- `backend/src/integrations/apk-release.ts` : dernier build réussi de build-apk.yml (lecture publique), téléchargement de l'artefact avec GITHUB_TOKEN, extraction de l'APK (cache /tmp), lien privé signé 3 jours. L'APK n'est jamais publié en public (il contient les clés de l'app).
+- Routes : `POST /api/nexus/apk-check` (jeton PC) → envoi Telegram une seule fois par build (kv `apk:telegram_run`) ; `GET /api/nexus/apk/:token` → le fichier.
+- Nexus (`modules/apk_update.py`) : 20 s après le démarrage, range le nouvel APK dans Téléchargements\Dzaryx (une fois par build), le note dans le journal et le dit à voix haute.
+- tgcall : délai de téléchargement des documents porté à 300 s (APK ~40 Mo).
+
 ## 2026-10-17 (10) — Logo central VOIX + barre du bas sans coupure
 - Page VOIX « Activer Dzaryx » : l'ancien orbe est remplacé par l'emblème hexagonal + deux anneaux HUD qui tournent. `OrbIcon` (carte réponse, chat) affiche aussi l'emblème. Emblème partagé dans `ui/DzaryxLogo.tsx`.
 - Barre du bas : le trait du haut ne coupe plus le bouton micro (bosse arrondie autour de l'orbe), fond de page #030712 pour ne plus voir de bande noire sous la barre.

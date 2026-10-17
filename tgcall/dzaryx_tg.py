@@ -622,7 +622,7 @@ async def send_outbox_message(uid: int, m: dict) -> None:
         text = (m.get('text') or '')[:4000]
         if m.get('file'):      # pièce jointe d'un mail… : lien temporaire du backend → document Telegram
             async with aiohttp.ClientSession() as http:
-                async with http.get(m['file']['url'], timeout=aiohttp.ClientTimeout(total=60)) as r:
+                async with http.get(m['file']['url'], timeout=aiohttp.ClientTimeout(total=300)) as r:   # APK ~40 Mo
                     r.raise_for_status()
                     doc = io.BytesIO(await r.read())
             doc.name = (m['file'].get('name') or 'fichier')[:120]

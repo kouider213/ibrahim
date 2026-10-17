@@ -43,6 +43,7 @@ from modules.auto_unlock      import save_password, unlock_pc, is_configured
 from modules.tiktok           import TikTokAnalyzer
 from modules.file_manager     import FileManager
 from modules.input_control    import InputControl
+from modules.apk_update       import fetch_latest_apk
 from modules.app_installer    import AppInstaller
 from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
@@ -1052,6 +1053,18 @@ class NexusApp:
         await self.handle_widget_request('disk')
         self.wake_det.start()
         asyncio.create_task(self.briefing.run_if_morning())
+        asyncio.create_task(self._fetch_apk())
+
+    async def _fetch_apk(self) -> None:
+        """Nouvel APK Dzaryx construit sur GitHub ? → rangé sur le PC + envoyé sur Telegram (par le serveur)."""
+        await asyncio.sleep(20)                      # laisser la connexion et le réseau se poser après l'allumage
+        try:
+            msg = await fetch_latest_apk()
+            if msg:
+                await self.journal(msg)
+                await self.speak("Nouvelle version de l'app Dzaryx téléchargée, je te l'ai envoyée sur Telegram.")
+        except Exception as e:
+            log.warning('APK : %s', e)
 
     # ── Main ──────────────────────────────────────────────────────────────────
     async def run(self) -> None:
