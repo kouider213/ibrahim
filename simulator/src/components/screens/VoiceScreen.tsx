@@ -20,13 +20,24 @@ interface Props {
 
 const MAX_CALL_S = 15 * 60;   // un appel raccroche tout seul après 15 min (crédits ElevenLabs/Claude)
 
-// Palette or Dzaryx — un seul hue, intensité varie selon l'état (calme façon Gemini)
+// Palette holographique (style Nexus) — la sphère change de teinte selon l'état
 const STATE_COLOR: Record<DzaryxStatus, string> = {
-  idle:      '#C9A96E',
-  listening: '#E8C98A',
-  thinking:  '#D4B87A',
-  speaking:  '#E8C98A',
+  idle:      '#38d8f5',
+  listening: '#5ef0df',
+  thinking:  '#a78bfa',
+  speaking:  '#4aa3ff',
 };
+
+// Sphère neuronale : points répartis (Fibonacci) + liaisons vers les voisins proches
+const SPHERE_N = 110;
+const sphereNodes = Array.from({ length: SPHERE_N }, (_, i) => {
+  const y = 1 - (i / (SPHERE_N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
+  return { x: Math.cos(th) * r, y, z: Math.sin(th) * r, ph: Math.random() * 6.28 };
+});
+const sphereLinks: [number, number][] = [];
+sphereNodes.forEach((a, i) => sphereNodes.forEach((b, j) => {
+  if (j > i && (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2 < 0.13) sphereLinks.push([i, j]);
+}));
 
 const STATE_MSG: Record<DzaryxStatus, string> = {
   idle:      'Sur quoi puis-je vous aider ?',
@@ -130,7 +141,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const facingModeRef = useRef<'environment' | 'user'>('environment');
   facingModeRef.current = facingMode;
-  const [particles]             = useState(() => makeParticles(30));
+  const [particles]             = useState(() => makeParticles(40));
   const [, setHud]              = useState('SYSTÈME DZARYX INITIALISÉ');
   const [audioUnlocked, setAudioUnlocked] = useState(sessionAudioUnlocked);
   const [rmsLevel, setRmsLevel] = useState(0);
@@ -871,51 +882,129 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     if (statusRef.current !== 'speaking' && statusRef.current !== 'thinking') setStatus('idle');
   }
 
-  // ── Canvas background ───────────────────────────────────────────────────────
+  // ── Canvas background : sphère neuronale holographique (style Nexus) ─────────
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    cancelAnimationFrame(animRef.current);
     const ctx = canvas.getContext('2d')!;
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let W = 0, H = 0;
+    function fit() {
+      const r = canvas!.getBoundingClientRect();
+      W = Math.max(1, r.width); H = Math.max(1, r.height);
+      canvas!.width = Math.round(W * dpr); canvas!.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    fit();
+    let smooth = 0;
 
     function frame(t: number) {
       animRef.current = requestAnimationFrame(frame);
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, W, H);
+      const r = canvas!.getBoundingClientRect();
+      if (Math.abs(r.width - W) > 1 || Math.abs(r.height - H) > 1) fit();
+      const cx = W / 2, cy = H * 0.34;
+      const st  = statusRef.current;
+      const col = STATE_COLOR[st];
+      smooth += (rmsRef.current - smooth) * 0.25;
+      const amp = Math.min(1, smooth * 4);
+      const R   = Math.min(W * 0.27, H * 0.17) * (1 + amp * 0.12 + (st === 'speaking' ? Math.sin(t * 0.012) * 0.03 : 0));
 
-      const rms   = rmsRef.current;
-      const pulse = Math.sin(t * 0.002) * 0.5 + 0.5;
-      const amp   = Math.max(rms * 3, pulse * 0.06);
-      const col   = STATE_COLOR[statusRef.current];
+      // Fond bleu nuit + halo
+      ctx.fillStyle = '#03060f'; ctx.fillRect(0, 0, W, H);
+      const halo = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 2.6);
+      halo.addColorStop(0, hexToRgba(col, 0.16 + amp * 0.12));
+      halo.addColorStop(0.5, 'rgba(20,50,110,0.10)');
+      halo.addColorStop(1, 'rgba(3,6,15,0)');
+      ctx.fillStyle = halo; ctx.fillRect(0, 0, W, H);
 
-      // Lueur ambiante douce qui monte du bas (façon Gemini)
-      const glow = ctx.createRadialGradient(cx, H * 1.02, 0, cx, H * 1.02, H * 0.6);
-      glow.addColorStop(0, hexToRgba(col, 0.10 + amp * 0.06));
-      glow.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(0, 0, W, H);
+      // Grille de sol en perspective (bas de l'écran)
+      ctx.strokeStyle = 'rgba(74,163,255,0.07)'; ctx.lineWidth = 1;
+      const hz = H * 0.62;
+      for (let i = -8; i <= 8; i++) {
+        ctx.beginPath(); ctx.moveTo(cx + i * 14, hz); ctx.lineTo(cx + i * W * 0.22, H); ctx.stroke();
+      }
+      const off = (t * 0.02) % 1;
+      for (let j = 0; j < 9; j++) {
+        const k = (j + off) / 9, y = hz + (H - hz) * k * k;
+        ctx.globalAlpha = k; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
 
-      // Particules très discrètes (poussière d'or)
+      // Sphère : points de Fibonacci en rotation + liaisons
+      const rotY = t * (st === 'thinking' ? 0.0011 : 0.00035), rotX = 0.35 + Math.sin(t * 0.0003) * 0.15;
+      const cyR = Math.cos(rotY), syR = Math.sin(rotY), cxR = Math.cos(rotX), sxR = Math.sin(rotX);
+      const proj: { x: number; y: number; z: number }[] = [];
+      for (const n of sphereNodes) {
+        const wob = 1 + (st === 'listening' || st === 'speaking' ? Math.sin(t * 0.008 + n.ph) * amp * 0.18 : 0);
+        const x1 = n.x * cyR + n.z * syR, z1 = -n.x * syR + n.z * cyR;
+        const y2 = n.y * cxR - z1 * sxR, z2 = n.y * sxR + z1 * cxR;
+        proj.push({ x: cx + x1 * R * wob, y: cy + y2 * R * wob, z: z2 });
+      }
+      ctx.lineWidth = 0.6;
+      for (const [i, j] of sphereLinks) {
+        const a = proj[i]!, b = proj[j]!;
+        const d = (a.z + b.z) / 2;
+        ctx.strokeStyle = hexToRgba(col, 0.05 + (d + 1) * 0.11);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      for (const p of proj) {
+        const f = (p.z + 1) / 2;
+        ctx.fillStyle = hexToRgba(col, 0.25 + f * 0.7);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 0.7 + f * 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+      // Cœur
+      const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.55);
+      core.addColorStop(0, hexToRgba('#ffffff', 0.55 + amp * 0.4));
+      core.addColorStop(0.25, hexToRgba(col, 0.45 + amp * 0.3));
+      core.addColorStop(1, hexToRgba(col, 0));
+      ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, R * 0.55, 0, Math.PI * 2); ctx.fill();
+
+      // Anneaux HUD (graduations + arcs qui tournent)
+      const ring = (rad: number, rot: number, alpha: number, dash: number[]) => {
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+        ctx.strokeStyle = hexToRgba(col, alpha); ctx.setLineDash(dash);
+        ctx.beginPath(); ctx.arc(0, 0, rad, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore(); ctx.setLineDash([]);
+      };
+      ctx.lineWidth = 1;
+      ring(R * 1.32, t * 0.0002, 0.22, [2, 6]);
+      ring(R * 1.55, -t * 0.00012, 0.12, [24, 10, 4, 10]);
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * (st === 'thinking' ? 0.004 : 0.0009));
+      ctx.strokeStyle = hexToRgba(col, 0.75); ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.43, 0, Math.PI * 0.35); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.43, Math.PI, Math.PI * 1.18); ctx.stroke();
+      ctx.restore();
+      // Onde vocale circulaire quand il écoute / parle
+      if (st === 'listening' || st === 'speaking') {
+        ctx.strokeStyle = hexToRgba(col, 0.5); ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        for (let k = 0; k <= 96; k++) {
+          const ang = (k / 96) * Math.PI * 2;
+          const rr = R * 1.18 + Math.sin(ang * 6 + t * 0.01) * (2 + amp * 10) + Math.sin(ang * 11 - t * 0.017) * amp * 6;
+          const x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr;
+          if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+        ctx.stroke();
+      }
+
+      // Particules qui montent (données)
       particles.forEach((p, idx) => {
-        p.y -= p.vy * (1 + amp) * 0.6;
+        p.y -= p.vy * (1 + amp * 2) * 0.6;
         p.x += Math.sin(t * 0.001 + idx) * 0.15;
         p.life -= 0.0015;
-        if (p.life <= 0) {
-          p.x = Math.random() * W;
-          p.y = H + 10;
-          p.life = 0.4 + Math.random() * 0.6;
-          p.vy = 0.15 + Math.random() * 0.3;
+        if (p.life <= 0 || p.y < -5) {
+          p.x = Math.random() * W; p.y = H + 10;
+          p.life = 0.4 + Math.random() * 0.6; p.vy = 0.15 + Math.random() * 0.3;
         }
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = hexToRgba(col, p.life * 0.12);
-        ctx.fill();
+        ctx.fillStyle = hexToRgba(col, p.life * 0.25);
+        ctx.fillRect(p.x, p.y, p.r, p.r * 3);
       });
     }
-    frame(0);
+    animRef.current = requestAnimationFrame(frame);
   }, [particles]);
+
+  useEffect(() => { drawCanvas(); }, [drawCanvas]);
 
   // ── Vision ──────────────────────────────────────────────────────────────────
   async function handleVision() {
@@ -1044,46 +1133,86 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
     );
   }
 
+  // Micro principal : écoute / envoie / coupe Dzaryx (1 seul tap)
+  const micTapMain = () => {
+    if (status === 'idle' && !isRecordingRef.current) {
+      void ensureMicThenRecord();
+    } else if (status === 'listening') {
+      stopRecordingAndProcess();
+    } else if (status === 'speaking') {
+      // Coupe Dzaryx ET se met à écouter ta nouvelle question (1 seul tap, façon Gemini)
+      stopAudio(); bargeFramesRef.current = 0; setStatus('idle');
+      setTimeout(() => { if (!isRecordingRef.current && streamRef.current) { bargeRecordingRef.current = true; startRecording(); } }, 60);
+    } else {
+      // statut figé (thinking bloqué…) → reset dur + réécoute
+      void ensureMicThenRecord();
+    }
+  };
+
+  const pickScan = () => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*';
+    input.onchange = async () => {
+      const file = input.files?.[0]; if (!file) return;
+      setScanActive(true);
+      try {
+        const b64 = await new Promise<string>((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res((reader.result as string).split(',')[1] ?? '');
+          reader.onerror = rej; reader.readAsDataURL(file);
+        });
+        const scan = await api.scan(b64, file.type);
+        const chat = await api.chat(`[SCAN OCR] ${scan.description}`, sessionId.current);
+        if (chat.text) setResp(chat.text);
+        if (chat.audio) await playBase64Audio(chat.audio);
+      } catch { /* ignore */ } finally { setScanActive(false); }
+    };
+    input.click();
+  };
+
+  const glass: React.CSSProperties = {
+    background: 'rgba(10,18,38,0.62)', border: '1px solid rgba(90,150,255,0.18)',
+    backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+  };
+  const STATE_TAG: Record<DzaryxStatus, string> = {
+    idle: 'EN VEILLE', listening: 'ÉCOUTE', thinking: 'ANALYSE', speaking: 'RÉPONSE',
+  };
+  const showChips = !displayText && !liveText && status === 'idle' && !call;
+
   return (
     <div
-      style={{ width: '100%', height: '100%', background: '#000000', position: 'relative', overflow: 'hidden' }}
+      style={{ width: '100%', height: '100%', background: '#03060f', position: 'relative', overflow: 'hidden' }}
     >
-      {/* Canvas background */}
-      <canvas ref={canvasRef} width={347} height={704}
+      {/* Fond holographique (sphère neuronale Nexus, réagit à la voix) */}
+      <canvas ref={canvasRef}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
 
-      {/* ── HEADER (minimal, façon Gemini) ── */}
+      {/* ── HEADER ── */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 6,
-        padding: '14px 18px 8px',
+        padding: '12px 14px 8px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        {/* Connexion + nom */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <div style={{ ...glass, display: 'flex', alignItems: 'center', gap: 6, borderRadius: 14, height: 30, padding: '0 11px' }}>
           <div style={{
             width: 6, height: 6, borderRadius: '50%',
-            background: wsConn ? '#52E3A1' : '#FF5A5A',
-            boxShadow: `0 0 8px ${wsConn ? '#52E3A1' : '#FF5A5A'}`,
+            background: wsConn ? '#34d399' : '#f87171',
+            boxShadow: `0 0 6px ${wsConn ? '#34d399' : '#f87171'}`,
           }} />
-          <span style={{ fontFamily: 'Inter', fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.62)', letterSpacing: '0.01em' }}>
-            Dzaryx
+          <span style={{ fontFamily: 'Share Tech Mono', fontSize: 10, color: '#8ea3c8', letterSpacing: '0.12em' }}>
+            {wsConn ? 'EN LIGNE' : 'HORS LIGNE'}{wakeWordOn ? ' · À L\'ÉCOUTE' : ''}
           </span>
-          {wakeWordOn && (
-            <span style={{ fontFamily: 'Inter', fontSize: 9, color: `${col}99`, letterSpacing: '0.08em', marginLeft: 2 }}>· à l'écoute</span>
-          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Overlay flottant (par-dessus les autres apps) — natif Android uniquement */}
           {!(typeof location !== 'undefined' && location.search.includes('overlay')) && (
             <button
               onClick={() => sendNativeAction({ __native_action: 'open_overlay' })}
               title="Ouvrir en overlay par-dessus les autres apps"
               style={{
-                background: 'transparent', border: '1px solid rgba(255,255,255,0.14)',
-                borderRadius: 16, padding: '4px 10px', cursor: 'pointer',
-                fontFamily: 'Inter', fontSize: 13, fontWeight: 500,
-                color: 'rgba(255,255,255,0.55)', transition: 'all 0.2s ease',
+                ...glass, borderRadius: 14, width: 32, height: 30, cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 13, color: '#8ea3c8',
               }}
             >
               ⧉
@@ -1096,13 +1225,14 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               onClick={onStartCall}
               title="Appeler Dzaryx"
               style={{
-                background: 'rgba(52,199,89,0.14)', border: '1px solid rgba(52,199,89,0.55)',
-                borderRadius: 16, padding: '4px 12px', cursor: 'pointer',
-                fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#5BE07F',
-                letterSpacing: '0.02em',
+                background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.5)',
+                borderRadius: 14, height: 30, padding: '0 11px', cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 11, fontWeight: 600, color: '#34d399',
+                display: 'flex', alignItems: 'center', gap: 5,
               }}
             >
-              📞 Appeler
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="#34d399"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z" /></svg>
+              Appeler
             </button>
           )}
 
@@ -1110,12 +1240,12 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           <button
             onClick={() => setHandsFree(h => !h)}
             style={{
-              background: handsFree ? `${col}1c` : 'transparent',
-              border: `1px solid ${handsFree ? col + '88' : 'rgba(255,255,255,0.14)'}`,
-              borderRadius: 16, padding: '4px 12px', cursor: 'pointer',
+              ...glass,
+              background: handsFree ? `${col}1f` : glass.background,
+              border: `1px solid ${handsFree ? col + '99' : 'rgba(90,150,255,0.18)'}`,
+              borderRadius: 14, height: 30, padding: '0 11px', cursor: 'pointer',
               fontFamily: 'Inter', fontSize: 11, fontWeight: 500,
-              color: handsFree ? col : 'rgba(255,255,255,0.4)',
-              letterSpacing: '0.02em', transition: 'all 0.2s ease',
+              color: handsFree ? col : '#8ea3c8', transition: 'all 0.2s ease',
             }}
           >
             {handsFree ? 'Mains libres' : 'Manuel'}
@@ -1127,7 +1257,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
       {call && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 7,
-          padding: '12px 16px', background: 'linear-gradient(180deg, #000 70%, rgba(0,0,0,0))',
+          padding: '12px 16px', background: 'linear-gradient(180deg, #03060f 70%, rgba(3,6,15,0))',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter' }}>
@@ -1152,72 +1282,116 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         </div>
       )}
 
-      {/* ── ÉTOILE DZARYX (centre, façon Gemini) ── */}
+      {/* ── ÉTAT (sous la sphère) ── */}
       <div style={{
-        position: 'absolute', left: 0, right: 0, top: '33%',
-        display: 'flex', justifyContent: 'center', zIndex: 5, pointerEvents: 'none',
+        position: 'absolute', top: '51%', left: 0, right: 0, zIndex: 6,
+        display: 'flex', justifyContent: 'center', pointerEvents: 'none',
       }}>
-        <Sparkle col={col} active={orbActive} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ width: 18, height: 1, background: `${col}66` }} />
+          <span style={{ fontFamily: 'Orbitron', fontSize: 9, fontWeight: 600, color: col, letterSpacing: '0.34em', textShadow: `0 0 10px ${col}88` }}>
+            {STATE_TAG[status]}
+          </span>
+          <div style={{ width: 18, height: 1, background: `${col}66` }} />
+        </div>
       </div>
 
-      {/* ── TEXTE CENTRAL (salutation / réponse) ── */}
+      {/* ── TEXTE (salutation / ce que tu dis / réponse) ── */}
       <div style={{
-        position: 'absolute', top: '42%', left: 0, right: 0, zIndex: 6,
-        padding: '0 26px', textAlign: 'center',
-        maxHeight: '38%', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        position: 'absolute', top: '56%', left: 0, right: 0, bottom: 150, zIndex: 6,
+        padding: '0 16px', display: 'flex', flexDirection: 'column', alignItems: 'center',
       }}>
         {liveText ? (
           <div style={{
-            fontFamily: 'Inter', fontSize: 21, fontWeight: 300,
-            color: '#E8C98A', lineHeight: 1.4, letterSpacing: '0.01em', fontStyle: 'italic',
+            fontFamily: 'Inter', fontSize: 19, fontWeight: 300, textAlign: 'center',
+            color: '#bfe9ff', lineHeight: 1.4, fontStyle: 'italic', padding: '4px 10px',
           }}>
-            {liveText}
+            « {liveText} »
           </div>
         ) : displayText ? (
           <div
             onClick={() => setRespExpanded(e => !e)}
             style={{
-              fontFamily: 'Inter', fontSize: 18, fontWeight: 300,
-              color: 'rgba(255,255,255,0.92)',
-              lineHeight: 1.55, letterSpacing: '0.01em',
-              maxHeight: respExpanded ? 280 : 168,
-              overflow: 'auto', cursor: 'pointer', width: '100%',
+              ...glass, borderRadius: 18, width: '100%', boxSizing: 'border-box',
+              borderColor: `${col}33`, boxShadow: `0 0 30px ${col}14, inset 0 1px 0 rgba(255,255,255,0.05)`,
+              padding: '12px 14px', cursor: 'pointer', overflow: 'auto',
+              maxHeight: respExpanded ? '100%' : 150, animation: 'fadeIn 0.3s ease',
             }}
           >
-            {displayText}
+            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#4f6288', letterSpacing: '0.16em', marginBottom: 6 }}>
+              DZARYX ▸
+            </div>
+            <div style={{ fontFamily: 'Inter', fontSize: 15, fontWeight: 400, color: '#e8f0ff', lineHeight: 1.55 }}>
+              {displayText}
+            </div>
+            {/* Images (passeport/permis/doc client) */}
+            {imageUrlsFrom(displayText).slice(0, 3).map((u, i) => (
+              <a key={i} href={u} target="_blank" rel="noopener noreferrer" style={{ display: 'block', margin: '10px 0 0' }}>
+                <img src={u} alt="document"
+                  style={{ width: '100%', maxHeight: 200, objectFit: 'contain', borderRadius: 12, border: `1px solid ${col}33`, background: 'rgba(0,0,0,0.3)' }} />
+              </a>
+            ))}
           </div>
         ) : (
           <div style={{
-            fontFamily: 'Inter', fontSize: 27, fontWeight: 300,
-            color: 'rgba(255,255,255,0.96)',
-            lineHeight: 1.25, letterSpacing: '0.01em',
+            fontFamily: 'Inter', fontSize: 23, fontWeight: 300, textAlign: 'center',
+            color: '#e8f0ff', lineHeight: 1.25,
           }}>
             {STATE_MSG[status]}
           </div>
         )}
 
-        {/* Images (passeport/permis/doc client) */}
-        {imageUrlsFrom(displayText).slice(0, 3).map((u, i) => (
-          <a key={i} href={u} target="_blank" rel="noopener noreferrer" style={{ display: 'block', margin: '12px 0 0', width: '100%' }}>
-            <img src={u} alt="document"
-              style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 14, border: `1px solid ${col}33`, background: 'rgba(0,0,0,0.3)' }} />
-          </a>
-        ))}
+        {/* Raccourcis rapides */}
+        {showChips && audioUnlocked && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 16 }}>
+            {[
+              ['📅', 'Mon agenda', 'Qu\'est-ce que j\'ai aujourd\'hui dans l\'agenda ?'],
+              ['✉️', 'Mes mails', 'Résume-moi mes nouveaux mails importants'],
+              ['🚗', 'Réservations', 'Quelles sont les prochaines réservations ?'],
+              ['🖥️', 'Mon PC', 'Montre-moi l\'état de mon PC sur Nexus'],
+            ].map(([ic, label, q]) => (
+              <button key={label} onClick={() => void processUserText(q)} style={{
+                ...glass, borderRadius: 16, padding: '7px 12px', cursor: 'pointer',
+                fontFamily: 'Inter', fontSize: 12, color: '#c8d8f5',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span style={{ fontSize: 13 }}>{ic}</span>{label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* ── BARRE D'ACTIONS (façon Gemini Live) ── */}
+      {/* Mode continu — petit toggle discret */}
+      <button
+        onClick={() => setContinuousMode(m => !m)}
+        style={{
+          position: 'absolute', bottom: 116, left: '50%', transform: 'translateX(-50%)', zIndex: 6,
+          padding: '4px 14px', borderRadius: 14,
+          background: continuousMode ? `${col}1c` : 'transparent',
+          border: `1px solid ${continuousMode ? col + '88' : 'rgba(90,150,255,0.18)'}`,
+          cursor: 'pointer', color: continuousMode ? col : '#8ea3c8',
+          fontFamily: 'Inter', fontSize: 10, fontWeight: 500, letterSpacing: '0.02em',
+          transition: 'all 0.2s ease', whiteSpace: 'nowrap',
+        }}
+      >
+        {continuousMode ? 'Conversation continue' : 'Appui pour parler'}
+      </button>
+
+      {/* ── DOCK (caméra · micro · scan) ── */}
       <div style={{
-        position: 'absolute', bottom: 26, left: 0, right: 0, zIndex: 6,
-        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 22,
-        padding: '0 18px',
+        position: 'absolute', bottom: 18, left: 16, right: 16, zIndex: 6,
+        ...glass, borderRadius: 30, height: 84,
+        display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
       }}>
         {/* CAMÉRA / VISION */}
         <button
           onClick={toggleLiveCam}
           style={{
-            width: 52, height: 52, borderRadius: '50%',
-            background: camActive ? `${col}1c` : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${camActive ? col + '99' : 'rgba(255,255,255,0.14)'}`,
+            width: 48, height: 48, borderRadius: '50%',
+            background: camActive ? 'rgba(167,139,250,0.18)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${camActive ? '#a78bfa' : 'rgba(90,150,255,0.2)'}`,
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.2s ease', position: 'relative',
           }}
@@ -1228,64 +1402,55 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
             <div style={{
               position: 'absolute', top: -2, right: -2,
               width: 9, height: 9, borderRadius: '50%',
-              background: '#FF5A5A', boxShadow: '0 0 6px #FF5A5A',
+              background: '#f87171', boxShadow: '0 0 6px #f87171',
             }} />
           )}
         </button>
 
-        {/* ORBE PILL — micro, coeur lumineux tappable */}
+        {/* MICRO — cœur lumineux avec anneau réactif */}
         <button
-          onClick={() => {
-            if (status === 'idle' && !isRecordingRef.current) {
-              void ensureMicThenRecord();
-            } else if (status === 'listening') {
-              stopRecordingAndProcess();
-            } else if (status === 'speaking') {
-              // Coupe Dzaryx ET se met à écouter ta nouvelle question (1 seul tap, façon Gemini)
-              stopAudio(); bargeFramesRef.current = 0; setStatus('idle');
-              setTimeout(() => { if (!isRecordingRef.current && streamRef.current) { bargeRecordingRef.current = true; startRecording(); } }, 60);
-            } else {
-              // statut figé (thinking bloqué…) → reset dur + réécoute
-              void ensureMicThenRecord();
-            }
-          }}
+          onClick={micTapMain}
           style={{
-            position: 'relative',
-            width: 118, height: 56, borderRadius: 28, padding: 0,
+            position: 'relative', width: 70, height: 70, borderRadius: '50%', padding: 0,
+            marginTop: -26,
             background: orbActive
-              ? `linear-gradient(180deg, ${col}33, ${col}14)`
-              : 'rgba(20,16,8,0.9)',
-            border: `1px solid ${orbActive ? col : col + '55'}`,
+              ? `radial-gradient(circle at 50% 35%, ${col}55, ${col}18 70%)`
+              : 'radial-gradient(circle at 50% 35%, #12305a, #071229 75%)',
+            border: `1.5px solid ${orbActive ? col : col + '77'}`,
             cursor: isThinking ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: isListening
-              ? `0 0 ${22 + rmsLevel * 40}px ${col}aa, 0 0 70px ${col}33`
-              : orbActive ? `0 0 26px ${col}77` : `0 0 16px ${col}33`,
+              ? `0 0 ${22 + rmsLevel * 46}px ${col}bb, 0 0 70px ${col}44`
+              : orbActive ? `0 0 28px ${col}88` : `0 0 18px ${col}44, 0 8px 24px rgba(0,0,0,0.6)`,
             transition: 'box-shadow 0.08s linear, background 0.3s ease, border 0.3s ease',
-            overflow: 'hidden',
           }}
           aria-label="Micro"
         >
+          <div style={{
+            position: 'absolute', inset: -7, borderRadius: '50%', pointerEvents: 'none',
+            border: `1px dashed ${col}55`,
+            animation: `spinSlow ${orbActive ? 4 : 14}s linear infinite`,
+          }} />
           {isThinking ? (
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin-slow 1.2s linear infinite' }}>
               <circle cx="12" cy="12" r="9" strokeOpacity="0.25" />
               <path d="M12 3a9 9 0 0 1 9 9" />
             </svg>
           ) : isListening ? (
             // barres d'onde réactives
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 26 }}>
               {[0.5, 0.85, 1, 0.7, 0.9].map((h, i) => (
                 <div key={i} style={{
                   width: 4, borderRadius: 2, background: col,
-                  height: `${Math.max(6, (h * (0.4 + rmsLevel * 1.6)) * 24)}px`,
+                  height: `${Math.max(6, (h * (0.4 + rmsLevel * 1.6)) * 26)}px`,
                   transition: 'height 0.08s linear',
                 }} />
               ))}
             </div>
           ) : isSpeaking ? (
-            <div style={{ width: 56, height: 18, borderRadius: 9, background: col, opacity: 0.9, animation: 'corePulse 1.1s ease-in-out infinite' }} />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill={col}><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
           ) : (
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
               <rect x="9" y="3" width="6" height="11" rx="3" fill={col} />
               <path d="M5 11a7 7 0 0 0 14 0" stroke={col} strokeWidth="1.8" strokeLinecap="round" fill="none" />
               <line x1="12" y1="18" x2="12" y2="21" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
@@ -1295,31 +1460,12 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
 
         {/* SCAN DOC */}
         <button
-          onClick={() => {
-            const input = document.createElement('input');
-            input.type = 'file'; input.accept = 'image/*';
-            input.onchange = async () => {
-              const file = input.files?.[0]; if (!file) return;
-              setScanActive(true);
-              try {
-                const b64 = await new Promise<string>((res, rej) => {
-                  const reader = new FileReader();
-                  reader.onload = () => res((reader.result as string).split(',')[1] ?? '');
-                  reader.onerror = rej; reader.readAsDataURL(file);
-                });
-                const scan = await api.scan(b64, file.type);
-                const chat = await api.chat(`[SCAN OCR] ${scan.description}`, sessionId.current);
-                if (chat.text) setResp(chat.text);
-                if (chat.audio) await playBase64Audio(chat.audio);
-              } catch { /* ignore */ } finally { setScanActive(false); }
-            };
-            input.click();
-          }}
+          onClick={pickScan}
           disabled={scanActive}
           style={{
-            width: 52, height: 52, borderRadius: '50%',
+            width: 48, height: 48, borderRadius: '50%',
             background: scanActive ? `${col}1c` : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${scanActive ? col + '99' : 'rgba(255,255,255,0.14)'}`,
+            border: `1px solid ${scanActive ? col + '99' : 'rgba(90,150,255,0.2)'}`,
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.2s ease',
           }}
@@ -1331,7 +1477,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
               <path d="M12 3a9 9 0 0 1 9 9" />
             </svg>
           ) : (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9fc4ff" strokeWidth="1.5" strokeLinecap="round">
               <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" />
               <path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" />
               <rect x="7" y="7" width="10" height="10" rx="1" strokeOpacity="0.5" />
@@ -1341,22 +1487,6 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
         </button>
       </div>
 
-      {/* Mode continu — petit toggle discret */}
-      <button
-        onClick={() => setContinuousMode(m => !m)}
-        style={{
-          position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 6,
-          padding: '4px 14px', borderRadius: 14,
-          background: continuousMode ? `${col}1c` : 'transparent',
-          border: `1px solid ${continuousMode ? col + '88' : 'rgba(255,255,255,0.12)'}`,
-          cursor: 'pointer', color: continuousMode ? col : 'rgba(255,255,255,0.4)',
-          fontFamily: 'Inter', fontSize: 10, fontWeight: 500, letterSpacing: '0.02em',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        {continuousMode ? 'Conversation continue' : 'Appui pour parler'}
-      </button>
-
       {/* ── OVERLAY D'ACTIVATION (clean) ── */}
       {!audioUnlocked && (
         <div
@@ -1364,7 +1494,7 @@ export default function VoiceScreen({ onNavigateText, onWsStatus, compact = fals
           style={{
             position: 'absolute', inset: 0, zIndex: 20,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.96)', backdropFilter: 'blur(8px)', cursor: 'pointer',
+            background: 'radial-gradient(ellipse at 50% 35%, rgba(10,30,70,0.97), rgba(3,6,15,0.98) 70%)', backdropFilter: 'blur(8px)', cursor: 'pointer',
             animation: 'fadeIn 0.4s ease', padding: '0 32px',
           }}
         >

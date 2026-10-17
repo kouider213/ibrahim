@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-17 (8) — Nouveau design de la page VOIX (style Nexus holographique)
+- `VoiceScreen.tsx` : fond bleu nuit + **sphère neuronale 3D** animée (110 nœuds, liaisons, cœur lumineux) qui gonfle/ondule avec la voix, anneaux HUD qui tournent, grille au sol en perspective, particules de données.
+- Teinte selon l'état : veille cyan, écoute turquoise, analyse violet (rotation rapide), réponse bleu.
+- Libellé d'état (EN VEILLE / ÉCOUTE / ANALYSE / RÉPONSE), réponse dans une carte en verre, raccourcis rapides (agenda, mails, réservations, mon PC).
+- Dock en verre en bas : caméra · gros micro avec anneau réactif · scan. Canvas net en haute densité (DPR) et adapté à la taille de l'écran.
+- Logique inchangée (micro, appel, caméra, scan, mains libres, conversation continue).
+
 ## 2026-10-17 (7) — Caméra du téléphone → Nexus (widget en direct, vision, photos/vidéos rangées sur le PC)
 - App : nouvel écran **CAMÉRA → PC** (`PhoneCamScreen.tsx`) : « Montrer à Nexus » envoie ~3 images/s, boutons photo / vidéo 10 s /
   retourner, et usages en un geste (état voiture, lire document, permis/CNI, plaque/km, voyant, ticket/facture, identifier) :
