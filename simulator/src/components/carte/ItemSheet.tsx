@@ -204,7 +204,7 @@ export default function ItemSheet({ kind, raw, onClose, onChanged, onAsk }: {
       )}
 
       <div style={{ display: 'flex', gap: 6, marginTop: 9, flexWrap: 'wrap' }}>
-        {kind !== 'dem' && <Btn bg="#10b981" fg="#fff" disabled={busy} onClick={save}>{busy ? '…' : creating ? '➕ Ajouter' : 'Enregistrer'}</Btn>}
+        {kind !== 'dem' && <Btn bg="#38d8f5" fg="#fff" disabled={busy} onClick={save}>{busy ? '…' : creating ? '➕ Ajouter' : 'Enregistrer'}</Btn>}
         {!creating && raw?.['client_phone'] ? <>
           <Btn bg="#dcfce7" fg="#15803d" onClick={() => wa(raw['client_phone'])}>💬 WhatsApp</Btn>
           <Btn bg="#e0f2fe" fg="#0369a1" onClick={() => { window.location.href = `tel:${str(raw['client_phone'])}`; }}>📞 Appeler</Btn>

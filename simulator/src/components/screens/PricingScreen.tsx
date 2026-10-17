@@ -3,8 +3,8 @@ import { business, type Car, type FleetStat } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 
 const C = {
-  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', gold: '#fbbf24', red: '#ef4444', blue: '#60a5fa', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#38d8f5', gold: '#fbbf24', red: '#ef4444', blue: '#60a5fa', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 

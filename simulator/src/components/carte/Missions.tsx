@@ -76,7 +76,7 @@ export function useQuests(quests: Quest[], date: string, live: boolean, onWin: (
   return { all, done, xp, streak, complete, undo };
 }
 
-const S = { surface: '#16161c', border: 'rgba(255,255,255,0.08)', muted: '#9b9ba6', gold: '#fbbf24', accent: '#10b981', text: '#f5f5f7' };
+const S = { surface: '#0c1730', border: 'rgba(90,150,255,0.16)', muted: '#8ea3c8', gold: '#fbbf24', accent: '#38d8f5', text: '#f5f5f7' };
 
 export function Missions({ all, done, xp, streak, onGo, onDone, onUndo, compact }: {
   all: Quest[]; done: string[]; xp: number; streak: { last: string; n: number };

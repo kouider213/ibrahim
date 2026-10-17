@@ -3,8 +3,8 @@ import { business } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
 
 const C = {
-  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', blue: '#60a5fa', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#38d8f5', blue: '#60a5fa', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const TONES = [
@@ -81,7 +81,7 @@ export default function ReponseScreen() {
         </div>
       )}
 
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.15)', border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.accent, whiteSpace: 'nowrap', maxWidth: '90%' }}>{toast}</div>}
+      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(56,216,245,0.15)', border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.accent, whiteSpace: 'nowrap', maxWidth: '90%' }}>{toast}</div>}
     </div>
   );
 }

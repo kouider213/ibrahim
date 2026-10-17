@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   isNexusOnline, pingNexus, getNexusMac, getNexusIp, getNexusStatus,
   isLauncherOnline, wakeNexus, getLauncherStatus,
-  nexusRunCommand, nexusSysinfo, nexusScreenshot, nexusScreenshotBase64,
+  nexusRunCommand, nexusSysinfo, nexusShowWidget, nexusScreenshot, nexusScreenshotBase64,
   nexusWriteFile, listNexusJobs, getNexusJob,
   getOrCreateJobEmitter,
 } from '../../actions/handlers/nexus-relay.js';
@@ -160,6 +160,15 @@ router.post('/sysinfo', requireMobileAuth, async (_req, res) => {
   } catch (err) {
     res.status(504).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// POST /api/nexus/widget — afficher un widget sur l'écran Nexus du PC (depuis l'app)
+const NEXUS_WIDGETS = new Set(['disk', 'weather', 'bookings', 'railway']);
+router.post('/widget', requireMobileAuth, (req, res) => {
+  const { widget } = req.body as { widget?: string };
+  if (!widget || !NEXUS_WIDGETS.has(widget)) { res.status(400).json({ ok: false, error: 'Widget inconnu' }); return; }
+  if (!nexusShowWidget(widget)) { res.status(503).json({ ok: false, error: 'Nexus hors ligne' }); return; }
+  res.json({ ok: true });
 });
 
 // POST /api/nexus/screenshot — take real desktop screenshot → Telegram

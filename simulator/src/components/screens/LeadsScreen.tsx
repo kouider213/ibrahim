@@ -2,8 +2,8 @@ import { useState, useEffect, type CSSProperties } from 'react';
 import { business, type ClientLead } from '../../services/api.ts';
 
 const C = {
-  bg: '#0b0b0d', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.07)',
-  accent: '#10b981', accentSoft: '#34d399', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.15)',
+  accent: '#38d8f5', accentSoft: '#34d399', text: '#f5f5f7', muted: '#8ea3c8',
   violet: '#a78bfa', orange: '#fb923c', amber: '#fbbf24', red: '#fb7185',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };

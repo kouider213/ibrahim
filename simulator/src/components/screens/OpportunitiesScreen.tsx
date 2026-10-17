@@ -3,8 +3,8 @@ import { business, type OpportunitiesReport, type Opportunity } from '../../serv
 import { Hero } from '../ui/Premium.tsx';
 
 const C = {
-  bg: '#0b0b0d', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.07)',
-  gold: '#a78bfa', goldSoft: '#c4b5fd', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.15)',
+  gold: '#a78bfa', goldSoft: '#c4b5fd', text: '#f5f5f7', muted: '#8ea3c8',
   red: '#fb7185', green: '#34d399',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
@@ -22,7 +22,7 @@ const OPP_META: Record<string, { icon: string; label: string }> = {
   marche:   { icon: '📊', label: 'Marché' },
   modele:   { icon: '🆕', label: 'Nouveauté' },
 };
-const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#34d399', info: '#9b9ba6' };
+const URG_COL: Record<string, string> = { urgent: '#fb7185', a_suivre: '#34d399', info: '#8ea3c8' };
 const URG_LABEL: Record<string, string> = { urgent: 'URGENT', a_suivre: 'À suivre', info: 'Info' };
 
 // Filtres affichés (ordre)

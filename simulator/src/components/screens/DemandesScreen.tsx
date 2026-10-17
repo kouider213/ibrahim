@@ -189,24 +189,24 @@ export default function DemandesScreen() {
     <button onClick={() => setFilter(key)} style={{
       padding: '6px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap',
       fontSize: 11, fontWeight: 700, fontFamily: 'Inter',
-      background: filter === key ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.04)',
+      background: filter === key ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.04)',
       color: filter === key ? '#06210f' : 'rgba(255,255,255,0.55)',
-      border: `1px solid ${filter === key ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.08)'}`,
+      border: `1px solid ${filter === key ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.08)'}`,
     }}>{label} {n > 0 && <span style={{ opacity: 0.7 }}>· {n}</span>}</button>
   );
 
   return (
-    <div style={{ width: '100%', height: '100%', background: '#0a0a0c', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ width: '100%', height: '100%', background: '#050a16', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
       {/* Header */}
-      <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid rgba(16,185,129,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid rgba(56,216,245,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Demandes</div>
+          <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#38d8f5', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Demandes</div>
           <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Demandes du site</div>
           <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{counts.total} demande{counts.total !== 1 ? 's' : ''}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowNew(true)} style={{ background: 'rgba(16,185,129,0.16)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#10b981' }}>＋ Nouveau</button>
-          <button onClick={() => { void load(); }} style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'rgba(16,185,129,0.8)' }}>↺</button>
+          <button onClick={() => setShowNew(true)} style={{ background: 'rgba(56,216,245,0.16)', border: '1px solid rgba(56,216,245,0.5)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#38d8f5' }}>＋ Nouveau</button>
+          <button onClick={() => { void load(); }} style={{ background: 'rgba(56,216,245,0.07)', border: '1px solid rgba(56,216,245,0.2)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'rgba(56,216,245,0.8)' }}>↺</button>
         </div>
       </div>
 
@@ -294,13 +294,13 @@ export default function DemandesScreen() {
 
       {showNew && (
         <div onClick={() => setShowNew(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 30, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '88%', overflowY: 'auto', background: '#0e0e12', borderTopLeftRadius: 20, borderTopRightRadius: 20, border: '1px solid rgba(16,185,129,0.2)', padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '88%', overflowY: 'auto', background: '#0e0e12', borderTopLeftRadius: 20, borderTopRightRadius: 20, border: '1px solid rgba(56,216,245,0.2)', padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 2 }}>Nouvelle demande</div>
 
             {/* Type */}
             <div style={{ display: 'flex', gap: 7 }}>
               {(['dossier', 'import'] as const).map(t => (
-                <button key={t} onClick={() => setF('type', t)} style={{ flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'Inter', background: form.type === t ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.04)', color: form.type === t ? '#06210f' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.type === t ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.1)'}` }}>{t === 'dossier' ? '📁 Dossier' : '🛳️ Import'}</button>
+                <button key={t} onClick={() => setF('type', t)} style={{ flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'Inter', background: form.type === t ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.04)', color: form.type === t ? '#06210f' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.type === t ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.1)'}` }}>{t === 'dossier' ? '📁 Dossier' : '🛳️ Import'}</button>
               ))}
             </div>
 
@@ -343,14 +343,14 @@ export default function DemandesScreen() {
 
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button onClick={() => setShowNew(false)} style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter' }}>Annuler</button>
-              <button disabled={busy === 'new'} onClick={() => void submitNew()} style={{ flex: 2, padding: '12px', background: 'rgba(16,185,129,0.9)', border: 'none', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#06210f', fontFamily: 'Inter' }}>{busy === 'new' ? 'Création…' : 'Créer la demande'}</button>
+              <button disabled={busy === 'new'} onClick={() => void submitNew()} style={{ flex: 2, padding: '12px', background: 'rgba(56,216,245,0.9)', border: 'none', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#06210f', fontFamily: 'Inter' }}>{busy === 'new' ? 'Création…' : 'Créer la demande'}</button>
             </div>
           </div>
         </div>
       )}
 
       {toast && (
-        <div style={{ position: 'absolute', bottom: 70, left: '50%', transform: 'translateX(-50%)', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#10b981', zIndex: 20, backdropFilter: 'blur(8px)', whiteSpace: 'nowrap' }}>{toast}</div>
+        <div style={{ position: 'absolute', bottom: 70, left: '50%', transform: 'translateX(-50%)', background: 'rgba(56,216,245,0.15)', border: '1px solid rgba(56,216,245,0.3)', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#38d8f5', zIndex: 20, backdropFilter: 'blur(8px)', whiteSpace: 'nowrap' }}>{toast}</div>
       )}
     </div>
   );

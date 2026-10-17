@@ -6,8 +6,8 @@ import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 // le reste se remplit ici (date, montant, solde après recharge). Dzaryx prévient à J-7, J-3, J-1, le jour J.
 
 const C = {
-  surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', gold: '#fbbf24', red: '#f87171', text: '#f5f5f7', muted: '#9b9ba6',
+  surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#38d8f5', gold: '#fbbf24', red: '#f87171', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 9, padding: '8px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font } as const);
@@ -56,7 +56,7 @@ export default function PaiementsScreen() {
   const unknown = paid.filter(r => r.state === 'unknown');
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#0a0a0c', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
+    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#050a16', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
       <Hero eyebrow="Dzaryx · Abonnements" title="À payer" subtitle="Tout ce qu'il faut payer pour garder Dzaryx actif" accent={C.gold} />
       <div style={{ padding: '0 14px' }}>
         {loading && !data ? <SkeletonCards /> : (<>
@@ -78,10 +78,10 @@ export default function PaiementsScreen() {
               <div style={{ color: C.muted }}>Les tâches de fond utilisent le modèle léger (≈ 20× moins cher). Le chat, les mails aux prospects, le conseiller et les inspections gardent le meilleur modèle.</div>
             </div>
             <button onClick={() => void act(() => business.billingEco(data?.eco === false))}
-              style={btn(data?.eco !== false ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.06)', data?.eco !== false ? C.accent : C.text)}>{data?.eco !== false ? 'ON' : 'OFF'}</button>
+              style={btn(data?.eco !== false ? 'rgba(56,216,245,0.18)' : 'rgba(255,255,255,0.06)', data?.eco !== false ? C.accent : C.text)}>{data?.eco !== false ? 'ON' : 'OFF'}</button>
           </div>
 
-          <div style={{ background: 'rgba(16,185,129,0.08)', border: `1px solid rgba(16,185,129,0.25)`, borderRadius: 14, padding: 12, marginBottom: 14, fontSize: 12, lineHeight: 1.5 }}>
+          <div style={{ background: 'rgba(56,216,245,0.08)', border: `1px solid rgba(56,216,245,0.25)`, borderRadius: 14, padding: 12, marginBottom: 14, fontSize: 12, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}>🛡️ Dzaryx ne meurt pas</div>
             {(data?.survival ?? []).map((l, i) => <div key={i}>• {l}</div>)}
             <div style={{ color: C.muted, marginTop: 4 }}>🔔 Dzaryx te prévient à J-7, J-3, la veille (appel pour Railway) et le jour J, et dès qu'un crédit est épuisé.</div>
@@ -95,7 +95,7 @@ export default function PaiementsScreen() {
           {showFree && <div style={{ marginTop: 8 }}>{free.map(r => <Card key={r.id} r={r} open={open === r.id} onToggle={() => setOpen(open === r.id ? null : r.id)} act={act} />)}</div>}
         </>)}
       </div>
-      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 96, background: '#1f1f27', border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, fontSize: 13, textAlign: 'center', zIndex: 50 }}>{toast}</div>}
+      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 96, background: '#142342', border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, fontSize: 13, textAlign: 'center', zIndex: 50 }}>{toast}</div>}
     </div>
   );
 }
@@ -139,8 +139,8 @@ function Card({ r, open, onToggle, act }: { r: BillingRow; open: boolean; onTogg
           {r.note && <div style={{ color: C.muted }}>📝 {r.note}</div>}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
             {r.payUrl && <button onClick={() => window.open(r.payUrl, '_blank')} style={btn('rgba(251,191,36,0.18)', C.gold)}>💳 Payer</button>}
-            {r.kind !== 'gratuit' && r.kind !== 'credits' && r.id !== 'railway' && r.id !== 'domain' && <button onClick={() => { if (window.confirm(`${r.name} payé ? (l'échéance passe au ${r.period === 'an' ? 'an' : 'mois'} suivant)`)) void act(() => business.billingUpdate(r.id, { paid: true })); }} style={btn('rgba(16,185,129,0.18)', C.accent)}>✓ Payé</button>}
-            {r.kind === 'credits' && <button onClick={setBalance} style={btn('rgba(16,185,129,0.18)', C.accent)}>💰 J'ai rechargé</button>}
+            {r.kind !== 'gratuit' && r.kind !== 'credits' && r.id !== 'railway' && r.id !== 'domain' && <button onClick={() => { if (window.confirm(`${r.name} payé ? (l'échéance passe au ${r.period === 'an' ? 'an' : 'mois'} suivant)`)) void act(() => business.billingUpdate(r.id, { paid: true })); }} style={btn('rgba(56,216,245,0.18)', C.accent)}>✓ Payé</button>}
+            {r.kind === 'credits' && <button onClick={setBalance} style={btn('rgba(56,216,245,0.18)', C.accent)}>💰 J'ai rechargé</button>}
             {r.kind !== 'gratuit' && !((r.id === 'railway' || r.id === 'domain') && r.live) && <button onClick={setDate} style={btn('rgba(255,255,255,0.06)', C.text)}>📅 Date</button>}
             {r.kind !== 'gratuit' && <button onClick={setAmount} style={btn('rgba(255,255,255,0.06)', C.text)}>Montant</button>}
           </div>

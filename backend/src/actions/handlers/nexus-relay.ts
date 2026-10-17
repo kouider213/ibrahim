@@ -749,7 +749,8 @@ export function nexusScreenshotBase64(
 
 export function nexusSysinfo(
   timeoutMs = 10_000,
-): Promise<{ ok: boolean; python_executable?: string; python_version?: string; python_full?: string; hostname?: string; os?: string; os_version?: string; cwd?: string; pid?: number }> {
+): Promise<{ ok: boolean; python_executable?: string; python_version?: string; python_full?: string; hostname?: string; os?: string; os_version?: string; cwd?: string; pid?: number;
+  cpu_percent?: number; ram_percent?: number; ram_used_mb?: number; ram_total_mb?: number; disk_percent?: number; disk_free_gb?: number; uptime_s?: number }> {
   return new Promise((resolve, reject) => {
     if (!_nexusSocket) { reject(new Error('Nexus not connected')); return; }
     const timer = setTimeout(() => reject(new Error(`nexusSysinfo timeout ${timeoutMs}ms`)), timeoutMs);
@@ -769,10 +770,26 @@ export function nexusSysinfo(
           os_version:        data?.['os_version'] as string | undefined,
           cwd:               data?.['cwd'] as string | undefined,
           pid:               data?.['pid'] as number | undefined,
+          cpu_percent:       data?.['cpu_percent'] as number | undefined,
+          ram_percent:       data?.['ram_percent'] as number | undefined,
+          ram_used_mb:       data?.['ram_used_mb'] as number | undefined,
+          ram_total_mb:      data?.['ram_total_mb'] as number | undefined,
+          disk_percent:      data?.['disk_percent'] as number | undefined,
+          disk_free_gb:      data?.['disk_free_gb'] as number | undefined,
+          uptime_s:          data?.['uptime_s'] as number | undefined,
         });
       },
     );
   });
+}
+
+// ── nexusShowWidget — afficher un widget (disque, météo, réservations, serveur) sur l'écran Nexus ──
+
+export function nexusShowWidget(widget: string): boolean {
+  if (!_nexusSocket) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (_nexusSocket as any).emit('nexus:widget', { widget });
+  return true;
 }
 
 // ── pingNexus ─────────────────────────────────────────────────────────────────

@@ -3,8 +3,8 @@ import { business, type ProspectRow, type ProspectsOverview } from '../../servic
 import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 
 const C = {
-  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', gold: '#fbbf24', blue: '#0a66c2', wa: '#25d366', red: '#f87171', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#38d8f5', gold: '#fbbf24', blue: '#0a66c2', wa: '#25d366', red: '#f87171', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
@@ -127,7 +127,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
                 <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2 }}>Chaque jour à 10h (Oran) · {ap.per_day} mail(s)/jour{(data.mode ?? 'sites') !== 'sites' ? ' + 1 grand compte' : ''}</div>
               </div>
               <button onClick={() => act(() => business.prospectsAutopilot({ enabled: !ap.enabled }), ap.enabled ? 'Démarchage mis en pause' : 'Démarchage réactivé')}
-                style={btn(ap.enabled ? 'rgba(248,113,113,0.15)' : 'rgba(16,185,129,0.18)', ap.enabled ? C.red : C.accent)}>{ap.enabled ? 'Pause' : 'Activer'}</button>
+                style={btn(ap.enabled ? 'rgba(248,113,113,0.15)' : 'rgba(56,216,245,0.18)', ap.enabled ? C.red : C.accent)}>{ap.enabled ? 'Pause' : 'Activer'}</button>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
               <span style={{ fontSize: 12, color: C.muted }}>Mails par jour</span>
@@ -142,7 +142,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
               {MODES.map(m => {
                 const on = (data.mode ?? 'sites') === m.id;
                 return <button key={m.id} onClick={() => !on && act(() => business.prospectsAutopilot({ mode: m.id }), `Mode : ${m.label}`)}
-                  style={{ ...btn(on ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.06)', on ? C.accent : C.text), flex: 1, border: on ? `1px solid ${C.accent}` : '1px solid transparent' }}>{m.label}</button>;
+                  style={{ ...btn(on ? 'rgba(56,216,245,0.18)' : 'rgba(255,255,255,0.06)', on ? C.accent : C.text), flex: 1, border: on ? `1px solid ${C.accent}` : '1px solid transparent' }}>{m.label}</button>;
               })}
             </div>
             <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8, lineHeight: 1.45 }}>
@@ -185,7 +185,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
                   <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.company}</div>
                   <div style={{ fontSize: 11.5, color: C.muted }}>{r.site_visits > 1 ? `${r.site_visits} visites · ` : ''}dernière le {r.site_visit_at ? fmtSlot(r.site_visit_at) : '—'}</div>
                 </div>
-                {r.phone && <a href={`tel:${r.phone}`} style={{ ...btn('rgba(16,185,129,0.18)', C.accent), textDecoration: 'none' }}>📞 Appeler</a>}
+                {r.phone && <a href={`tel:${r.phone}`} style={{ ...btn('rgba(56,216,245,0.18)', C.accent), textDecoration: 'none' }}>📞 Appeler</a>}
               </div>
             ))}
           </Section>
@@ -211,7 +211,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                   <button onClick={() => { void navigator.clipboard?.writeText(c.message).then(() => say('Message copié'), () => say('Copie impossible')); }} style={btn('rgba(255,255,255,0.08)', C.text)}>📋 Copier</button>
                   <button onClick={() => window.open(c.url, '_blank')} style={btn('rgba(10,102,194,0.25)', '#7fb5ff')}>Ouvrir le profil</button>
-                  <button onClick={() => act(() => business.prospectLinkedinSent(r.id, i, true), `Noté : message envoyé à ${c.name}`)} style={btn('rgba(16,185,129,0.18)', C.accent)}>✓ Envoyé</button>
+                  <button onClick={() => act(() => business.prospectLinkedinSent(r.id, i, true), `Noté : message envoyé à ${c.name}`)} style={btn('rgba(56,216,245,0.18)', C.accent)}>✓ Envoyé</button>
                 </div>
               </div>
             )))}
@@ -231,7 +231,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
                   {r.status !== 'a_contacter' && <button onClick={() => { if (window.confirm(`Envoyer ce message WhatsApp à ${r.company} (+${r.whatsapp_number}) ?`)) act(() => business.prospectWhatsappSend(r.id), `💬 Envoyé à ${r.company}`); }}
                     style={btn(C.wa, '#06210f')}>📤 Envoyer</button>}
                   <button onClick={() => window.open(`https://wa.me/${r.whatsapp_number}?text=${encodeURIComponent(r.whatsapp_message ?? '')}`, '_blank')} style={btn('rgba(37,211,102,0.2)', C.wa)}>Ouvrir WhatsApp</button>
-                  <button onClick={() => act(() => business.prospectWhatsappSent(r.id, true), `Noté : message envoyé à ${r.company}`)} style={btn('rgba(16,185,129,0.18)', C.accent)}>✓ Envoyé</button>
+                  <button onClick={() => act(() => business.prospectWhatsappSent(r.id, true), `Noté : message envoyé à ${r.company}`)} style={btn('rgba(56,216,245,0.18)', C.accent)}>✓ Envoyé</button>
                 </div>
               </div>
             ))}
@@ -253,7 +253,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
         </Section>
       </>)}
 
-      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 90, background: '#1f1f27', border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 14px', fontSize: 13, textAlign: 'center', zIndex: 50 }}>{toast}</div>}
+      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 90, background: '#142342', border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 14px', fontSize: 13, textAlign: 'center', zIndex: 50 }}>{toast}</div>}
     </div>
   );
 }
@@ -281,11 +281,11 @@ function ReplyCard({ p, onSend, onDismiss, onDevis }: { p: ProspectRow; onSend: 
       {!!p.proposed_slots?.length && <div style={{ fontSize: 11.5, color: C.accent, marginBottom: 6 }}>📅 Créneaux libres proposés : {p.proposed_slots.map(fmtSlot).join(' · ')}</div>}
       <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>Réponse préparée par Dzaryx (tu peux la modifier) :</div>
       <textarea value={text} onChange={e => { setText(e.target.value); setConfirm(false); }} rows={7}
-        style={{ width: '100%', boxSizing: 'border-box', background: '#0f0f14', color: C.text, border: `1px solid ${C.border}`, borderRadius: 9, padding: 9, fontSize: 12.5, fontFamily: C.font, lineHeight: 1.45, resize: 'vertical' }} />
+        style={{ width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 9, padding: 9, fontSize: 12.5, fontFamily: C.font, lineHeight: 1.45, resize: 'vertical' }} />
       <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
         {confirm
           ? <button onClick={() => onSend(text)} style={btn(C.accent, '#06210f')}>Oui, envoyer à {p.company}</button>
-          : <button onClick={() => setConfirm(true)} style={btn('rgba(16,185,129,0.18)', C.accent)}>📤 Envoyer</button>}
+          : <button onClick={() => setConfirm(true)} style={btn('rgba(56,216,245,0.18)', C.accent)}>📤 Envoyer</button>}
         <button onClick={onDismiss} style={btn('rgba(255,255,255,0.06)', C.muted)}>Ne pas répondre</button>
       </div>
       {(p.status === 'interesse' || !!p.quote_draft?.length) && (

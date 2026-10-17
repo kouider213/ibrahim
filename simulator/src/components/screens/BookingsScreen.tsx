@@ -18,7 +18,7 @@ const OP_META: Record<string, { label: string; icon: string; col: string }> = {
 };
 
 const S: Record<string, string> = {
-  active: '#00e676', confirmed: '#10b981', completed: '#ffffff44',
+  active: '#00e676', confirmed: '#38d8f5', completed: '#ffffff44',
   cancelled: '#ff336655', pending: '#ffb347',
 };
 const P: Record<string, string> = {
@@ -232,16 +232,16 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   const covDzd = kDzd.filter(b => bkgMargin(b) != null).length;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '16px 16px 8px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
           <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Locations</div>
+            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#38d8f5', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Locations</div>
             <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 26, color: '#fff', letterSpacing: '-0.02em', fontWeight: 800, lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Réservations</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b98155', letterSpacing: '0.15em' }}>{mode === 'resa' ? bookings.length : operations.length}</span>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f555', letterSpacing: '0.15em' }}>{mode === 'resa' ? bookings.length : operations.length}</span>
             {mode === 'resa' && <button onClick={() => setCreate(c => !c)} style={createBtn}>+ CRÉER</button>}
           </div>
         </div>
@@ -251,10 +251,10 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
           {([['resa', '🚗 RÉSA VOITURE'], ['ops', '🏠 OPÉRATIONS']] as [ResaMode, string][]).map(([k, lbl]) => (
             <button key={k} onClick={() => setMode(k)} style={{
               flex: 1, padding: '6px 4px', borderRadius: 7,
-              background: mode === k ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.04)',
-              border: `1px solid #10b981${mode === k ? '88' : '22'}`,
+              background: mode === k ? 'rgba(56,216,245,0.15)' : 'rgba(56,216,245,0.04)',
+              border: `1px solid #38d8f5${mode === k ? '88' : '22'}`,
               fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.1em',
-              color: `#10b981${mode === k ? '' : '77'}`, cursor: 'pointer',
+              color: `#38d8f5${mode === k ? '' : '77'}`, cursor: 'pointer',
             }}>{lbl}</button>
           ))}
         </div>
@@ -263,7 +263,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
         {mode === 'resa' && (
         <div style={{ display: 'flex', gap: 5, marginBottom: 8, overflowX: 'auto' }}>
           <KpiCard label="ACTIVES" val={String(activeCount)} col="#00e676" />
-          {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#10b981" />}
+          {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#38d8f5" />}
           {totalRevDzd > 0 && <KpiCard label="CA DZD" val={totalRevDzd >= 100000 ? `${(totalRevDzd/1000).toFixed(0)}k` : String(Math.round(totalRevDzd))} col="#7c3aed" />}
           {!isHouari && totalRevEur > 0 && <KpiCard label="MARGE €" val={fmtMoney(marginEur)} col="#ffd700" sub={`${covEur}/${kEur.length} résas`} />}
           {!isHouari && kDzd.length > 0 && <KpiCard label="MARGE DZD" val={marginDzd >= 100000 ? `${(marginDzd/1000).toFixed(0)}k` : String(Math.round(marginDzd))} col="#ffd700" sub={`${covDzd}/${kDzd.length} résas`} />}
@@ -277,14 +277,14 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
           style={inputStyle}
         />
         )}
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
+        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #38d8f544, transparent)' }} />
       </div>
 
       {/* Create form — redesigned */}
       {mode === 'resa' && showCreate && (
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid #10b98118', flexShrink: 0, background: 'rgba(0,8,18,0.98)' }}>
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid #38d8f518', flexShrink: 0, background: 'rgba(0,8,18,0.98)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b98177', letterSpacing: '0.3em' }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f577', letterSpacing: '0.3em' }}>
               NOUVELLE RÉSERVATION
             </div>
             <div style={{ display: 'flex', gap: 4 }}>
@@ -294,11 +294,11 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   const car = cars.find(c => c.id === form.car_id);
                   setOwnerPpd((ccy === 'DZD' ? car?.houari_resale_price : car?.base_price) ?? null);
                 }} style={{
-                  background: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed33' : '#10b98122') : 'transparent',
-                  border: `1px solid ${form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#10b981') : '#ffffff22'}`,
+                  background: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed33' : '#38d8f522') : 'transparent',
+                  border: `1px solid ${form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#38d8f5') : '#ffffff22'}`,
                   borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
                   fontFamily: 'Inter, sans-serif', fontSize: 7,
-                  color: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#10b981') : '#ffffff33',
+                  color: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#38d8f5') : '#ffffff33',
                   letterSpacing: '0.1em',
                 }}>{ccy}</button>
               ))}
@@ -320,12 +320,12 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
           {/* Dates */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
             <div>
-              <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2, letterSpacing: '0.1em' }}>DÉBUT *</div>
+              <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>DÉBUT *</div>
               <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
                 style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
             </div>
             <div>
-              <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2, letterSpacing: '0.1em' }}>FIN *</div>
+              <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>FIN *</div>
               <input type="date" value={form.end_date} min={form.start_date || undefined} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
                 style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
             </div>
@@ -373,7 +373,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
             <div style={{ marginBottom: 8 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
                 <div>
-                  <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
+                  <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
                   <input type="number" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))}
                     placeholder={form.currency === 'DZD' ? 'ex: 8000' : 'ex: 55'} style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
                 </div>
@@ -471,7 +471,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                     {(() => {
                       const by = (b as unknown as { rented_by?: string }).rented_by ?? 'Kouider';
                       const isH = by.toLowerCase().startsWith('h');
-                      const c = isH ? '#a78bfa' : '#10b981';
+                      const c = isH ? '#a78bfa' : '#38d8f5';
                       return (
                         <span title={by} style={{ flexShrink: 0, width: 17, height: 17, borderRadius: '50%', background: `${c}1f`, border: `1px solid ${c}66`, color: c, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {isH ? 'H' : 'K'}
@@ -487,7 +487,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: bkgCcy(b) === 'DZD' ? '#7c3aed' : '#10b981' }}>
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: bkgCcy(b) === 'DZD' ? '#7c3aed' : '#38d8f5' }}>
                     {fmtPrice(b.final_price, bkgCcy(b))}
                   </div>
                   <div style={{ fontSize: 7, color: pyCol, letterSpacing: '0.06em', marginTop: 1 }}>
@@ -507,7 +507,7 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
                     <button onClick={() => openEdit(b)} style={{ background: '#ffb347', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#000', cursor: 'pointer' }}>✏️ MODIFIER</button>
                     <button onClick={() => handleDelete(b.id)} style={{ background: '#ff3366', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#fff', cursor: 'pointer' }}>🗑 SUPPR</button>
                     {b.client_phone && (
-                      <a href={`tel:${b.client_phone}`} style={{ ...aBtn('#10b981') as React.CSSProperties, textDecoration: 'none' }}>📞 APPEL</a>
+                      <a href={`tel:${b.client_phone}`} style={{ ...aBtn('#38d8f5') as React.CSSProperties, textDecoration: 'none' }}>📞 APPEL</a>
                     )}
                   </div>
                 </div>
@@ -522,9 +522,9 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
 
 function KpiCard({ label, val, col, sub }: { label: string; val: string; col: string; sub?: string }) {
   return (
-    <div style={{ flex: 1, background: '#16161c', borderRadius: 14, padding: '12px 8px', border: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
+    <div style={{ flex: 1, background: '#0c1730', borderRadius: 14, padding: '12px 8px', border: '1px solid rgba(90,150,255,0.15)', textAlign: 'center' }}>
       <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 18, fontWeight: 800, color: col }}>{val}</div>
-      <div style={{ fontSize: 10, color: '#9b9ba6', marginTop: 3 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#8ea3c8', marginTop: 3 }}>{label}</div>
       {sub && <div style={{ fontSize: 8, color: '#6b6b76', marginTop: 1 }}>{sub}</div>}
     </div>
   );
@@ -541,7 +541,7 @@ function Row({ label, val, col }: { label: string; val: string; col?: string }) 
 
 function HudLoader() {
   return (
-    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#10b98133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
+    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
       CHARGEMENT…
     </div>
   );
@@ -552,14 +552,14 @@ function HudEmpty({ text }: { text: string }) {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
-  background: 'rgba(16,185,129,0.04)', border: '1px solid #10b9811a',
+  background: 'rgba(56,216,245,0.04)', border: '1px solid #38d8f51a',
   borderRadius: 8, padding: '6px 10px',
   fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
 const createBtn: React.CSSProperties = {
-  background: '#10b98118', border: '1px solid #10b98155', borderRadius: 8,
-  padding: '4px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b981',
+  background: '#38d8f518', border: '1px solid #38d8f555', borderRadius: 8,
+  padding: '4px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f5',
   cursor: 'pointer', letterSpacing: '0.12em',
 };
 
@@ -610,12 +610,12 @@ function EditModal({ editState, setEditState, editMsg, saving, handleEdit, input
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
         <div>
-          <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2 }}>DÉBUT</div>
+          <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2 }}>DÉBUT</div>
           <input type="date" value={editState.start_date} onChange={e => up({ start_date: e.target.value })}
             style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
         </div>
         <div>
-          <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2 }}>FIN</div>
+          <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2 }}>FIN</div>
           <input type="date" value={editState.end_date} min={editState.start_date || undefined} onChange={e => up({ end_date: e.target.value })}
             style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
         </div>
@@ -628,11 +628,11 @@ function EditModal({ editState, setEditState, editMsg, saving, handleEdit, input
       </FieldRow>
 
       {newNb > 0 && (
-        <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: delta > 0 ? '#10b9810a' : delta < 0 ? '#ff33660a' : '#00e6760a', border: `1px solid ${delta > 0 ? '#10b98133' : delta < 0 ? '#ff336633' : '#00e67633'}` }}>
+        <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: delta > 0 ? '#38d8f50a' : delta < 0 ? '#ff33660a' : '#00e6760a', border: `1px solid ${delta > 0 ? '#38d8f533' : delta < 0 ? '#ff336633' : '#00e67633'}` }}>
           <div style={{ fontSize: 8, color: '#ffffff55', marginBottom: 4 }}>
             {daysDiff > 0 ? `+${daysDiff}j` : daysDiff < 0 ? `${daysDiff}j` : 'Même durée'} · {newNb}j total · Nouveau: {newTotal.toFixed(0)}€ · Payé: {paid}€
           </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: delta > 0 ? '#10b981' : delta < 0 ? '#ff3366' : '#00e676' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: delta > 0 ? '#38d8f5' : delta < 0 ? '#ff3366' : '#00e676' }}>
             {delta > 0 ? `💳 Client doit encore ${delta.toFixed(0)}€` : delta < 0 ? `↩ Rembourser ${Math.abs(delta).toFixed(0)}€ au client` : '✅ Aucun ajustement'}
           </div>
         </div>
@@ -743,22 +743,22 @@ function GpsCalculator() {
   const trafficColor = result?.traffic === 'heavy' ? '#ff3366' : result?.traffic === 'light' ? '#00e676' : '#ffb347';
 
   return (
-    <div style={{ background: 'rgba(16,185,129,0.03)', borderRadius: 12, padding: 12, border: '1px solid #10b98112', marginBottom: 8 }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b98177', letterSpacing: '0.25em', marginBottom: 4 }}>
+    <div style={{ background: 'rgba(56,216,245,0.03)', borderRadius: 12, padding: 12, border: '1px solid #38d8f512', marginBottom: 8 }}>
+      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f577', letterSpacing: '0.25em', marginBottom: 4 }}>
         🗺️ GPS LIVRAISON
       </div>
       {/* Toggle origine */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         <button onClick={() => setFromDepot(true)} style={{
           flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6,
-          background: fromDepot ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.04)',
-          border: `1px solid ${fromDepot ? '#10b98155' : '#10b98118'}`,
-          color: fromDepot ? '#10b981' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
+          background: fromDepot ? 'rgba(56,216,245,0.15)' : 'rgba(56,216,245,0.04)',
+          border: `1px solid ${fromDepot ? '#38d8f555' : '#38d8f518'}`,
+          color: fromDepot ? '#38d8f5' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
         }}>🏢 DÉPÔT</button>
         <button onClick={() => setFromDepot(false)} style={{
           flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6,
-          background: !fromDepot ? 'rgba(0,230,118,0.15)' : 'rgba(16,185,129,0.04)',
-          border: `1px solid ${!fromDepot ? '#00e67655' : '#10b98118'}`,
+          background: !fromDepot ? 'rgba(0,230,118,0.15)' : 'rgba(56,216,245,0.04)',
+          border: `1px solid ${!fromDepot ? '#00e67655' : '#38d8f518'}`,
           color: !fromDepot ? '#00e676' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
         }}>📍 MA POSITION</button>
       </div>
@@ -777,24 +777,24 @@ function GpsCalculator() {
           style={{ ...inputStyle, paddingRight: acLoading ? 28 : undefined }}
         />
         {acLoading && (
-          <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: '#10b98144' }}>⏳</div>
+          <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: '#38d8f544' }}>⏳</div>
         )}
         {showDropdown && predictions.length > 0 && (
           <div style={{
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
-            background: '#020f1e', border: '1px solid #10b98133', borderRadius: 8,
+            background: '#020f1e', border: '1px solid #38d8f533', borderRadius: 8,
             boxShadow: '0 8px 24px rgba(0,0,0,0.6)', overflow: 'hidden', marginTop: 2,
           }}>
             {predictions.map((p, i) => (
               <div key={p.place_id} onMouseDown={() => selectPrediction(p)} style={{
                 padding: '8px 12px', fontSize: 9, color: '#c8e8ff', cursor: 'pointer',
-                borderBottom: i < predictions.length - 1 ? '1px solid #10b98110' : 'none',
+                borderBottom: i < predictions.length - 1 ? '1px solid #38d8f510' : 'none',
                 background: 'transparent', transition: 'background 0.1s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(16,185,129,0.08)')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(56,216,245,0.08)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <span style={{ color: '#10b98166', marginRight: 6 }}>📍</span>{p.label}
+                <span style={{ color: '#38d8f566', marginRight: 6 }}>📍</span>{p.label}
               </div>
             ))}
           </div>
@@ -812,8 +812,8 @@ function GpsCalculator() {
       )}
 
       {result && (
-        <div style={{ marginTop: 10, background: 'rgba(16,185,129,0.06)', borderRadius: 10, border: '1px solid #10b98122', padding: '10px 12px' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b981cc', marginBottom: 8 }}>
+        <div style={{ marginTop: 10, background: 'rgba(56,216,245,0.06)', borderRadius: 10, border: '1px solid #38d8f522', padding: '10px 12px' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f5cc', marginBottom: 8 }}>
             📍 {result.destination_label ?? address}
           </div>
 
@@ -824,14 +824,14 @@ function GpsCalculator() {
           {(result.distance_km !== undefined || result.travel_time_minutes !== undefined) && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
               {result.distance_km !== undefined && (
-                <div style={{ textAlign: 'center', background: 'rgba(16,185,129,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #10b98118' }}>
-                  <div style={{ fontSize: 6, color: '#10b98155', letterSpacing: '0.1em', marginBottom: 3 }}>DISTANCE</div>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981cc' }}>{result.distance_km} km</div>
+                <div style={{ textAlign: 'center', background: 'rgba(56,216,245,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #38d8f518' }}>
+                  <div style={{ fontSize: 6, color: '#38d8f555', letterSpacing: '0.1em', marginBottom: 3 }}>DISTANCE</div>
+                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#38d8f5cc' }}>{result.distance_km} km</div>
                 </div>
               )}
               {result.travel_time_minutes !== undefined && (
-                <div style={{ textAlign: 'center', background: 'rgba(16,185,129,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #10b98118' }}>
-                  <div style={{ fontSize: 6, color: '#10b98155', letterSpacing: '0.1em', marginBottom: 3 }}>TRAJET</div>
+                <div style={{ textAlign: 'center', background: 'rgba(56,216,245,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #38d8f518' }}>
+                  <div style={{ fontSize: 6, color: '#38d8f555', letterSpacing: '0.1em', marginBottom: 3 }}>TRAJET</div>
                   <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: trafficColor }}>{result.travel_time_minutes} min</div>
                 </div>
               )}
@@ -861,7 +861,7 @@ function GpsCalculator() {
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 6 }}>
-      <div style={{ fontSize: 6, color: '#10b98144', marginBottom: 2, letterSpacing: '0.1em' }}>{label}</div>
+      <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>{label}</div>
       {children}
     </div>
   );

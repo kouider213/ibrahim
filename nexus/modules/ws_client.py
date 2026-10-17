@@ -159,6 +159,13 @@ def _sysinfo_dict() -> dict:
     except ImportError:
         # psutil not installed — provide what we can
         info['ram_note'] = 'psutil not installed — pip install psutil'
+    try:
+        import shutil as _sh
+        t, u, f = _sh.disk_usage(os.environ.get('SystemDrive', 'C:') + os.sep if os.name == 'nt' else '/')
+        info['disk_percent'] = round(u / t * 100, 1)
+        info['disk_free_gb'] = round(f / 1_073_741_824, 1)
+    except Exception:
+        pass
     return info
 
 
@@ -617,6 +624,12 @@ class NexusWSClient:
             info = await loop.run_in_executor(None, _sysinfo_dict)
             info['ok'] = True
             return info
+
+        # Widget demandé depuis l'app (disque, météo, réservations, serveur)
+        @sio.on('nexus:widget', namespace='/nexus')
+        async def on_widget(data: dict):
+            asyncio.create_task(self.app.handle_widget_request(str((data or {}).get('widget', ''))))
+            return {'ok': True}
 
         # ── Save file (organised folders) ─────────────────────────────────────
 

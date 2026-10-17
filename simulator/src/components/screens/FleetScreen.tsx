@@ -94,7 +94,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   const occPct       = intel ? Math.round(intel.occupancy_avg_pct) : 0;
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       {/* Header premium (cohérent avec les autres écrans) */}
       <div style={{ flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <Hero eyebrow="Dzaryx · Parc" title={tab === 'cars' ? 'Véhicules' : tab === 'immo' ? 'Immobilier' : 'Vente auto'} subtitle={msg || undefined} />
@@ -104,16 +104,16 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
             {([['cars', '🚗 LOCATION'], ['immo', '🏠 IMMO'], ['vente', '💰 VENTE']] as [ParcTab, string][]).map(([k, lbl]) => (
               <button key={k} onClick={() => setTab(k)} style={{
                 flex: 1, padding: '9px 4px', borderRadius: 10,
-                background: tab === k ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${tab === k ? '#10b98188' : 'rgba(255,255,255,0.08)'}`,
+                background: tab === k ? 'rgba(56,216,245,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${tab === k ? '#38d8f588' : 'rgba(255,255,255,0.08)'}`,
                 fontFamily: 'Inter, sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-                color: tab === k ? '#10b981' : 'rgba(255,255,255,0.55)', cursor: 'pointer',
+                color: tab === k ? '#38d8f5' : 'rgba(255,255,255,0.55)', cursor: 'pointer',
               }}>{lbl}</button>
             ))}
           </div>
           {tab === 'cars' && (
           <div style={{ display: 'flex', gap: 10 }}>
-            <StatCard value={String(cars.length)} label="TOTAL" color="#10b981" />
+            <StatCard value={String(cars.length)} label="TOTAL" color="#38d8f5" />
             <StatCard value={String(availCount)} label="DISPO" color="#00e676" />
             <StatCard value={`${occPct}%`} label="OCCUP" color="#ffb347" />
             <StatCard value={String(unavailCount)} label="INDISPO" color="#ff3366" />
@@ -150,8 +150,8 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
           return (
             <div key={car.id} style={{
               borderRadius: 16,
-              border: '1px solid rgba(255,255,255,0.07)',
-              background: '#16161c',
+              border: '1px solid rgba(90,150,255,0.15)',
+              background: '#0c1730',
               display: 'flex', alignItems: 'stretch',
             }}>
               {/* Left accent bar */}
@@ -178,7 +178,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                   {car.name}
                 </div>
                 {/* Category */}
-                <div style={{ fontSize: 10.5, color: '#9b9ba6', marginBottom: 6 }}>
+                <div style={{ fontSize: 10.5, color: '#8ea3c8', marginBottom: 6 }}>
                   {car.category ?? 'Standard'}
                 </div>
                 {/* Prices — Proprio / Client / marge */}
@@ -201,7 +201,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                 </div>
                 {/* Rev 30j + occupation — affichés seulement s'il y a de l'activité */}
                 {rev30d !== null && rev30d > 0 && (
-                  <div style={{ fontSize: 11, color: '#9b9ba6', marginBottom: 4 }}>
+                  <div style={{ fontSize: 11, color: '#8ea3c8', marginBottom: 4 }}>
                     CA RÉSAS <span style={{ color: '#e5e7eb', fontWeight: 700 }}>
                       {rev30d >= 1000 ? `${(rev30d / 1000).toFixed(1)}k€` : `${rev30d}€`}
                     </span>
@@ -255,20 +255,20 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                     onClick={() => setBookCar(car)}
                     title="Créer une réservation (calendrier)"
                     style={{
-                      width: 30, height: 22, borderRadius: 6, border: '1px solid #10b98166',
-                      background: 'rgba(16,185,129,0.12)', cursor: 'pointer',
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #38d8f566',
+                      background: 'rgba(56,216,245,0.12)', cursor: 'pointer',
                       fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#10b981', transition: 'all 0.2s',
+                      color: '#38d8f5', transition: 'all 0.2s',
                     }}
                   >📅</button>
                   <button
                     onClick={() => setEditCar(car)}
                     title="Modifier prix & devise"
                     style={{
-                      width: 30, height: 22, borderRadius: 6, border: '1px solid #10b98144',
-                      background: 'rgba(16,185,129,0.06)', cursor: 'pointer',
+                      width: 30, height: 22, borderRadius: 6, border: '1px solid #38d8f544',
+                      background: 'rgba(56,216,245,0.06)', cursor: 'pointer',
                       fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#10b981', transition: 'all 0.2s',
+                      color: '#38d8f5', transition: 'all 0.2s',
                     }}
                   >✎</button>
                   <button
@@ -427,17 +427,17 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
   const _t = new Date();
   const todayIso = `${_t.getFullYear()}-${String(_t.getMonth() + 1).padStart(2, '0')}-${String(_t.getDate()).padStart(2, '0')}`;
   const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-  const E = '#10b981';
+  const E = '#38d8f5';
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-end' }}>
-      <div style={{ width: '100%', maxHeight: '94%', overflowY: 'auto', background: '#15151b', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.08)', padding: '16px 16px 22px', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ width: '100%', maxHeight: '94%', overflowY: 'auto', background: '#15151b', borderRadius: '20px 20px 0 0', border: '1px solid rgba(90,150,255,0.16)', padding: '16px 16px 22px', fontFamily: 'Inter, sans-serif' }}>
         <div style={{ width: 38, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)', margin: '0 auto 14px' }} />
         <div style={{ fontSize: 17, fontWeight: 800, color: '#fff' }}>Réserver — {car.name}</div>
-        <div style={{ fontSize: 12, color: '#9b9ba6', marginBottom: 12 }}>1 ou plusieurs clients · dates indispo en rouge</div>
+        <div style={{ fontSize: 12, color: '#8ea3c8', marginBottom: 12 }}>1 ou plusieurs clients · dates indispo en rouge</div>
 
         {/* Calendrier */}
-        <div style={{ background: '#1d1d25', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: 12, marginBottom: 12 }}>
+        <div style={{ background: '#12203d', border: '1px solid rgba(90,150,255,0.15)', borderRadius: 14, padding: 12, marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <button onClick={() => setMonth(s => s.m === 0 ? { y: s.y - 1, m: 11 } : { y: s.y, m: s.m - 1 })} style={calNav}>‹</button>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{MONTHS[month.m]} {month.y}</span>
@@ -464,7 +464,7 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
               );
             })}
           </div>
-          <div style={{ fontSize: 11, color: '#9b9ba6', marginTop: 8, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: '#8ea3c8', marginTop: 8, textAlign: 'center' }}>
             {selStart && !selEnd ? `Début ${selStart.slice(8)}/${selStart.slice(5, 7)} — choisis la fin` : selStart && selEnd ? `${selStart.slice(8)}/${selStart.slice(5, 7)} → ${selEnd.slice(8)}/${selEnd.slice(5, 7)} (${eachDay(selStart, selEnd).length}j)` : 'Choisis la date de début'}
           </div>
         </div>
@@ -483,9 +483,9 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
         {entries.length > 0 && (
           <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {entries.map((e, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1d1d25', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '8px 11px' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#12203d', border: '1px solid rgba(90,150,255,0.15)', borderRadius: 10, padding: '8px 11px' }}>
                 <span style={{ flex: 1, fontSize: 13, color: '#fff' }}>{e.client}</span>
-                <span style={{ fontSize: 11, color: '#9b9ba6' }}>{e.start.slice(5)} → {e.end.slice(5)}</span>
+                <span style={{ fontSize: 11, color: '#8ea3c8' }}>{e.start.slice(5)} → {e.end.slice(5)}</span>
                 <button onClick={() => setEntries(x => x.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', color: '#fb7185', fontSize: 14, cursor: 'pointer' }}>✕</button>
               </div>
             ))}
@@ -495,7 +495,7 @@ function BookingCalendarModal({ car, isHouari, onClose, onCreated }: {
         {err && <div style={{ fontSize: 12, color: '#fb7185', marginBottom: 8, textAlign: 'center' }}>{err}</div>}
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 13, borderRadius: 13, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#9b9ba6', fontSize: 14, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Annuler</button>
+          <button onClick={onClose} style={{ flex: 1, padding: 13, borderRadius: 13, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#8ea3c8', fontSize: 14, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Annuler</button>
           <button onClick={() => void createAll()} disabled={saving || totalClients === 0} style={{ flex: 2, padding: 13, borderRadius: 13, border: 'none', background: `linear-gradient(135deg, ${E}, #34d399)`, color: '#04140d', fontSize: 14, fontWeight: 800, cursor: 'pointer', opacity: saving || totalClients === 0 ? 0.5 : 1, fontFamily: 'Inter, sans-serif' }}>
             {saving ? 'Création…' : `Créer ${totalClients || ''} résa${totalClients > 1 ? 's' : ''}`}
           </button>
@@ -515,8 +515,8 @@ function eachDay(start: string, end: string): string[] {
   }
   return out;
 }
-const calNav: CSSProperties = { width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#10b981', fontSize: 16, cursor: 'pointer' };
-const bkInp: CSSProperties = { padding: '11px 12px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.1)', background: '#1d1d25', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
+const calNav: CSSProperties = { width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#38d8f5', fontSize: 16, cursor: 'pointer' };
+const bkInp: CSSProperties = { padding: '11px 12px', borderRadius: 11, border: '1px solid rgba(255,255,255,0.1)', background: '#12203d', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' };
 
 // ── Édition prix voiture (Kouider €, Houari DZD) ──────────────────────────────
 function CarEditModal({ car, isHouari, onClose, onSaved }: {
@@ -546,10 +546,10 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
 
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }}>
-      <div style={{ width: '90%', maxWidth: 300, background: 'linear-gradient(135deg, #161618, #101012)', border: '1px solid #10b98133', borderRadius: 16, padding: 18 }}>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.15em', textAlign: 'center' }}>MODIFIER PRIX</div>
+      <div style={{ width: '90%', maxWidth: 300, background: 'linear-gradient(135deg, #161618, #101012)', border: '1px solid #38d8f533', borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#38d8f5', letterSpacing: '0.15em', textAlign: 'center' }}>MODIFIER PRIX</div>
         <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ffffff66', textAlign: 'center', marginBottom: 4 }}>{car.name.toUpperCase()}</div>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: isHouari ? '#10b981' : '#00e676', textAlign: 'center', marginBottom: 14 }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: isHouari ? '#38d8f5' : '#00e676', textAlign: 'center', marginBottom: 14 }}>
           {isHouari ? '💱 Tarifs HOUARI — en dinars (DA)' : '💶 Tarifs KOUIDER — en euros (€)'}
         </div>
 
@@ -571,7 +571,7 @@ function CarEditModal({ car, isHouari, onClose, onSaved }: {
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid #ffffff18', background: 'transparent', color: '#ffffff66', fontFamily: 'Inter, sans-serif', fontSize: 8, cursor: 'pointer' }}>ANNULER</button>
-          <button onClick={() => void save()} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #10b981, #34d399)', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: 8, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? '…' : 'ENREGISTRER'}</button>
+          <button onClick={() => void save()} disabled={saving} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #38d8f5, #34d399)', color: '#ffffff', fontFamily: 'Inter, sans-serif', fontSize: 8, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.5 : 1 }}>{saving ? '…' : 'ENREGISTRER'}</button>
         </div>
       </div>
     </div>
@@ -588,11 +588,11 @@ const editInp: CSSProperties = {
 const IMMO_ST: Record<string, { label: string; col: string }> = {
   disponible: { label: 'DISPO', col: '#00e676' }, libre: { label: 'DISPO', col: '#00e676' },
   loue: { label: 'LOUÉ', col: '#ffb347' }, vendu: { label: 'VENDU', col: '#ff5fa2' },
-  coming_soon: { label: 'BIENTÔT', col: '#10b981' },
+  coming_soon: { label: 'BIENTÔT', col: '#38d8f5' },
 };
 const paneInput: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: 'rgba(16,185,129,0.04)',
-  border: '1px solid #10b9811a', borderRadius: 7, padding: '6px 8px',
+  width: '100%', boxSizing: 'border-box', background: 'rgba(56,216,245,0.04)',
+  border: '1px solid #38d8f51a', borderRadius: 7, padding: '6px 8px',
   fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
 };
 
@@ -689,7 +689,7 @@ function ImmoPane({ onMsg, onInspect }: { onMsg: (m: string) => void; onInspect:
             </div>
             <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
               <button onClick={() => void cycle(p)} disabled={busy === p.id} style={{ flex: 1, padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,179,71,0.1)', border: '1px solid #ffb34744', color: '#ffb347' }}>🔄 STATUT</button>
-              <button onClick={() => onInspect(p.title || p.name || 'Bien')} title="État des lieux entrée/sortie" style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 9, cursor: 'pointer', background: 'rgba(16,185,129,0.1)', border: '1px solid #10b98144', color: '#10b981' }}>📷</button>
+              <button onClick={() => onInspect(p.title || p.name || 'Bien')} title="État des lieux entrée/sortie" style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 9, cursor: 'pointer', background: 'rgba(56,216,245,0.1)', border: '1px solid #38d8f544', color: '#38d8f5' }}>📷</button>
               <button onClick={() => void del(p)} disabled={busy === p.id} style={{ flex: '0 0 44px', padding: '6px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 7, cursor: 'pointer', background: 'rgba(255,51,102,0.1)', border: '1px solid #ff336644', color: '#ff3366' }}>🗑</button>
             </div>
           </div>
@@ -806,11 +806,11 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
       {/* Gestion photos vente */}
       {manage && (
         <div onClick={() => setManage(null)} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: '#16161c', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.1)', padding: '18px 16px 24px', maxHeight: '85%', overflowY: 'auto', fontFamily: 'Inter, sans-serif' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: '#0c1730', borderRadius: '20px 20px 0 0', border: '1px solid rgba(255,255,255,0.1)', padding: '18px 16px 24px', maxHeight: '85%', overflowY: 'auto', fontFamily: 'Inter, sans-serif' }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Photos — {manage.name}</div>
-            <div style={{ fontSize: 11, color: '#9b9ba6', marginBottom: 14 }}>{mPhotos.length} photo(s) · ✕ pour supprimer</div>
+            <div style={{ fontSize: 11, color: '#8ea3c8', marginBottom: 14 }}>{mPhotos.length} photo(s) · ✕ pour supprimer</div>
             {mPhotos.length === 0 ? (
-              <div style={{ fontSize: 12, color: '#9b9ba6', marginBottom: 14 }}>Aucune photo.</div>
+              <div style={{ fontSize: 12, color: '#8ea3c8', marginBottom: 14 }}>Aucune photo.</div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
                 {mPhotos.map(url => (
@@ -833,7 +833,7 @@ function VentePane({ onMsg }: { onMsg: (m: string) => void }) {
 
 function HudLoader() {
   return (
-    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#10b98133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
+    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
       CHARGEMENT…
     </div>
   );
@@ -844,9 +844,9 @@ function HudEmpty({ text }: { text: string }) {
 }
 
 const refreshBtn: React.CSSProperties = {
-  background: 'transparent', border: '1px solid #10b98122', borderRadius: 6,
+  background: 'transparent', border: '1px solid #38d8f522', borderRadius: 6,
   padding: '5px 12px', fontFamily: 'Inter, sans-serif', fontSize: 7,
-  color: '#10b98155', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
+  color: '#38d8f555', cursor: 'pointer', letterSpacing: '0.2em', width: '100%',
 };
 
 function CarPhoto({ url, name, col }: { url: string | null; name: string; col: string }) {
@@ -999,7 +999,7 @@ export function InspectionModal({ kind, subject, sessionId, onClose, initialMode
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setResult(null); setShots([]); setMode(mode === 'before' ? 'after' : mode); }} style={inspBtn('#10b981')}>+ NOUVELLE</button>
+              <button onClick={() => { setResult(null); setShots([]); setMode(mode === 'before' ? 'after' : mode); }} style={inspBtn('#38d8f5')}>+ NOUVELLE</button>
               <button onClick={onClose} style={inspBtn('#ffb347')}>✓ TERMINÉ</button>
             </div>
           </>

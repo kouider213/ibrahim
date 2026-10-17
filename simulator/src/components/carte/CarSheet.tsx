@@ -197,7 +197,7 @@ function StateForm({ car, busy, run }: { car: Car; busy: boolean; run: (fn: () =
         <L t="Vignette"><input type="date" value={f.vignette_expiry} onChange={set('vignette_expiry')} style={inp} /></L>
       </div>
       <L t="Notes"><textarea value={f.service_notes} onChange={set('service_notes')} rows={2} placeholder="ex. rayure portière arrière, pneus neufs le 10/10" style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} /></L>
-      <Btn bg="#10b981" fg="#fff" disabled={busy} onClick={() => void save()}>{busy ? '…' : 'Enregistrer'}</Btn>
+      <Btn bg="#38d8f5" fg="#fff" disabled={busy} onClick={() => void save()}>{busy ? '…' : 'Enregistrer'}</Btn>
     </div>
   );
 }

@@ -6,12 +6,12 @@ import { Hero, StatCard, SkeletonCards, SearchPill } from '../ui/Premium.tsx';
 // main, noms de domaine, réservations/messages reçus par les sites. Mêmes actions que l'outil vocal manage_client_site.
 
 const C = {
-  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', gold: '#fbbf24', blue: '#60a5fa', red: '#f87171', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#38d8f5', gold: '#fbbf24', blue: '#60a5fa', red: '#f87171', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 9, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font } as const);
-const input = { width: '100%', boxSizing: 'border-box', background: '#0f0f14', color: C.text, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 10px', fontSize: 13, fontFamily: C.font } as const;
+const input = { width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 9, padding: '9px 10px', fontSize: 13, fontFamily: C.font } as const;
 const KIND: Record<string, string> = {
   restaurant: '🍽️ Restaurant', cafe: '☕ Café', bar: '🍸 Bar', coiffure: '💇 Coiffure', beaute: '💅 Beauté', garage: '🔧 Garage',
   vente_auto: '🚗 Vente auto', boutique: '🛍️ Boutique', librairie: '📚 Librairie', tabac: '🚬 Tabac', hotel: '🏨 Hôtel', sante: '🩺 Santé', autre: '🏪 Commerce',
@@ -102,7 +102,7 @@ export default function SitesScreen() {
         </Section>
       </>)}
 
-      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 90, background: '#1f1f27', border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 14px', fontSize: 13, lineHeight: 1.4, whiteSpace: 'pre-wrap', zIndex: 50, maxHeight: '45vh', overflowY: 'auto' }} onClick={() => setToast('')}>{toast}</div>}
+      {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 90, background: '#142342', border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 14px', fontSize: 13, lineHeight: 1.4, whiteSpace: 'pre-wrap', zIndex: 50, maxHeight: '45vh', overflowY: 'auto' }} onClick={() => setToast('')}>{toast}</div>}
     </div>
   );
 }
@@ -138,7 +138,7 @@ function DemoCard({ d, onCreate }: { d: SitesOverview['demos'][number]; onCreate
           <div style={{ fontSize: 11, color: C.muted }}>démo du {fmtDay(d.createdAt.slice(0, 10))}</div>
         </div>
         <button onClick={() => window.open(d.url, '_blank')} style={btn('rgba(255,255,255,0.07)', C.text)}>Voir</button>
-        <button onClick={() => setForm(!form)} style={btn('rgba(16,185,129,0.18)', C.accent)}>{form ? 'Fermer' : 'Faire le vrai site'}</button>
+        <button onClick={() => setForm(!form)} style={btn('rgba(56,216,245,0.18)', C.accent)}>{form ? 'Fermer' : 'Faire le vrai site'}</button>
       </div>
       {form && (
         <div style={{ marginTop: 10 }}>
@@ -207,7 +207,7 @@ function SiteDetail({ s, act, onRead }: { s: ClientSiteRow; act: Act; onRead: ()
         <div style={{ color: C.muted, fontSize: 11.5, marginBottom: 7 }}>Créé le {fmtDay(s.createdAt.slice(0, 10))} · modifié le {fmtAt(s.updatedAt)}</div>
         {s.status === 'live'
           ? <ConfirmButton label="⏸️ Mettre en pause" confirm="Oui, mettre en pause" color={C.red} onGo={() => act('pause')} />
-          : <button onClick={() => act('resume')} style={btn('rgba(16,185,129,0.18)', C.accent)}>▶️ Remettre en ligne</button>}
+          : <button onClick={() => act('resume')} style={btn('rgba(56,216,245,0.18)', C.accent)}>▶️ Remettre en ligne</button>}
       </Block>
     </div>
   );
@@ -352,7 +352,7 @@ function OpenAsMe({ s }: { s: ClientSiteRow }) {
     finally { setBusy(false); }
   };
   return (<>
-    <button disabled={busy} onClick={() => { void go(); }} style={{ ...btn('rgba(16,185,129,0.16)', C.accent), opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Ouverture…' : '🔓 Ouvrir son espace (moi)'}</button>
+    <button disabled={busy} onClick={() => { void go(); }} style={{ ...btn('rgba(56,216,245,0.16)', C.accent), opacity: busy ? 0.6 : 1 }}>{busy ? '⏳ Ouverture…' : '🔓 Ouvrir son espace (moi)'}</button>
     {err && <div style={{ width: '100%', color: C.red, fontSize: 11.5 }}>❌ {err}</div>}
   </>);
 }
@@ -360,13 +360,13 @@ function OpenAsMe({ s }: { s: ClientSiteRow }) {
 function CopyLine({ label, value }: { label: string; value: string }) {
   const [done, setDone] = useState(false);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#0f0f14', border: `1px solid ${C.border}`, borderRadius: 9, padding: '6px 6px 6px 10px', marginTop: 5 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#081024', border: `1px solid ${C.border}`, borderRadius: 9, padding: '6px 6px 6px 10px', marginTop: 5 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 10.5, color: C.muted }}>{label}</div>
         <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13, wordBreak: 'break-all' }}>{value}</div>
       </div>
       <button onClick={() => { void navigator.clipboard?.writeText(value); setDone(true); setTimeout(() => setDone(false), 1500); }}
-        style={{ ...btn(done ? 'rgba(16,185,129,0.2)' : 'rgba(96,165,250,0.18)', done ? C.accent : C.blue), flex: '0 0 auto' }}>{done ? '✓ Copié' : 'Copier'}</button>
+        style={{ ...btn(done ? 'rgba(56,216,245,0.2)' : 'rgba(96,165,250,0.18)', done ? C.accent : C.blue), flex: '0 0 auto' }}>{done ? '✓ Copié' : 'Copier'}</button>
     </div>
   );
 }
@@ -407,7 +407,7 @@ function DomainBlock({ s, act }: { s: ClientSiteRow; act: Act }) {
         <CopyLine label="Nom / Hôte" value="www" />
         <CopyLine label="Valeur / Cible" value={t.cname} />
         <div style={{ fontSize: 11.5, color: C.gold, marginTop: 7 }}>⚠️ Supprime les autres lignes A, AAAA ou CNAME qui ont le nom « @ » ou « www » (souvent une page « parking » du vendeur). Ne touche pas aux lignes MX (les e-mails).</div>
-        <button onClick={copyMsg} style={{ ...btn(sent ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.07)', sent ? C.accent : C.text), marginTop: 8 }}>{sent ? '✓ Message copié' : '💬 Copier le message pour le client'}</button>
+        <button onClick={copyMsg} style={{ ...btn(sent ? 'rgba(56,216,245,0.2)' : 'rgba(255,255,255,0.07)', sent ? C.accent : C.text), marginTop: 8 }}>{sent ? '✓ Message copié' : '💬 Copier le message pour le client'}</button>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Si c'est lui (ou son informaticien) qui fait le réglage : colle ce message sur WhatsApp, tout y est.</div>
       </div>
       <Step n={4} title="Attendre que ça devienne actif">

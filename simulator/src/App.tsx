@@ -17,7 +17,7 @@ export default function App() {
     const kind = (['location', 'vente', 'garage', 'immo', 'transport'].includes(k) ? k : 'location') as DemoKind;
     const brand = (params.get('n') ?? '').slice(0, 40).toUpperCase();
     return (
-      <div style={{ position: 'fixed', inset: 0, background: '#0a0a0c', overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', inset: 0, background: '#050a16', overflow: 'hidden' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', height: '100%' }}>
           <CarteScreen demo={{ kind, brand }} onAsk={() => {}} onOpen={() => {}} />
         </div>

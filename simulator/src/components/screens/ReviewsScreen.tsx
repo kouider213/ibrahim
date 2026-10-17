@@ -3,8 +3,8 @@ import { business, type SiteReview } from '../../services/api.ts';
 import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 
 const C = {
-  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  green: '#10b981', red: '#ef4444', gold: '#fbbf24', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  green: '#38d8f5', red: '#ef4444', gold: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 

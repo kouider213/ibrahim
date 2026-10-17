@@ -4,8 +4,8 @@ import { SkeletonCards } from '../ui/Premium.tsx';
 
 // ── Palette premium (cartes sur obsidian + accent émeraude) ─────
 const C = {
-  bg: '#0b0b0d', surface: '#16161c', surface2: '#1d1d25', border: 'rgba(255,255,255,0.07)',
-  accent: '#10b981', accentSoft: '#34d399', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.15)',
+  accent: '#38d8f5', accentSoft: '#34d399', text: '#f5f5f7', muted: '#8ea3c8',
   gold: '#fbbf24', blue: '#60a5fa', violet: '#a78bfa',
   font: '-apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
 };
@@ -279,7 +279,7 @@ export default function ClientsScreen() {
           { v: String(vipCount), l: 'VIP', c: C.gold, icon: '👑' },
           { v: fmt(totalSpent), l: 'CA total', c: C.accent, icon: '💰' },
         ].map(s => (
-          <div key={s.l} style={{ position: 'relative', background: 'linear-gradient(160deg, #18181f, #121217)', border: `1px solid ${C.border}`, borderRadius: 18, padding: '14px 6px 12px', textAlign: 'center', overflow: 'hidden' }}>
+          <div key={s.l} style={{ position: 'relative', background: 'linear-gradient(160deg, #0e1a34, #091328)', border: `1px solid ${C.border}`, borderRadius: 18, padding: '14px 6px 12px', textAlign: 'center', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', insetInline: 0, top: 0, height: 2, background: `linear-gradient(90deg, transparent, ${s.c}, transparent)` }} />
             <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: `${s.c}14`, filter: 'blur(8px)' }} />
             <div style={{ fontSize: 16, marginBottom: 3 }}>{s.icon}</div>
@@ -326,7 +326,7 @@ export default function ClientsScreen() {
           const cOps = ops.get(c.name) ?? [];
 
           return (
-            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #18181f, #131318)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px ${scCol}18` : '0 1px 0 rgba(255,255,255,0.02)' }}>
+            <div key={c.name} style={{ background: isExp ? 'linear-gradient(160deg, #0e1a34, #131318)' : C.surface, border: `1px solid ${isExp ? scCol + '55' : C.border}`, borderRadius: 18, overflow: 'hidden', transition: 'all .2s', boxShadow: isExp ? `0 8px 28px ${scCol}18` : '0 1px 0 rgba(255,255,255,0.02)' }}>
               <div onClick={() => toggle(c)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '15px 14px', cursor: 'pointer' }}>
                 <div style={{ width: 48, height: 48, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(145deg, ${scCol}33, ${scCol}10)`, border: `1.5px solid ${scCol}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: scCol, boxShadow: `0 0 14px ${scCol}22` }}>{initials || '?'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>

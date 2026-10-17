@@ -14,7 +14,7 @@ interface CalEvent {
 }
 
 const SOURCE_COL: Record<Source, string> = {
-  fik:     '#10b981',
+  fik:     '#38d8f5',
   kouider: '#00e676',
   houari:  '#b388ff',
 };
@@ -28,7 +28,7 @@ const SOURCE_LABEL: Record<Source, string> = {
 const STATUS_COL: Record<string, string> = {
   CONFIRMED: '#00e676',
   PENDING:   '#ffb347',
-  ACTIVE:    '#10b981',
+  ACTIVE:    '#38d8f5',
   COMPLETED: '#ffffff33',
   REJECTED:  '#ff3366',
 };
@@ -205,19 +205,19 @@ export default function CalendarScreen() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '16px 16px 8px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
           <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#10b981', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Agenda</div>
+            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#38d8f5', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Agenda</div>
             <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 26, color: '#fff', letterSpacing: '-0.02em', fontWeight: 800, lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Agenda</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => void load()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#10b98155' }}>↻</button>
+            <button onClick={() => void load()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#38d8f555' }}>↻</button>
             <button
               onClick={() => setShowAdd(true)}
-              style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid #10b98144', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b981', letterSpacing: '0.1em' }}
+              style={{ background: 'rgba(56,216,245,0.1)', border: '1px solid #38d8f544', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f5', letterSpacing: '0.1em' }}
             >
               + AJOUTER
             </button>
@@ -250,7 +250,7 @@ export default function CalendarScreen() {
         {/* Month navigation */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px' }}>
           <button onClick={prevMonth} style={navBtn}>‹</button>
-          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#10b981', letterSpacing: '0.2em' }}>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#38d8f5', letterSpacing: '0.2em' }}>
             {MONTH_FR[month].toUpperCase()} {year}
           </span>
           <button onClick={nextMonth} style={navBtn}>›</button>
@@ -269,7 +269,7 @@ export default function CalendarScreen() {
         {/* Day labels */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
           {DAY_LABELS.map((l, i) => (
-            <div key={i} style={{ textAlign: 'center', fontSize: 7, color: '#10b98144', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', padding: '2px 0' }}>
+            <div key={i} style={{ textAlign: 'center', fontSize: 7, color: '#38d8f544', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', padding: '2px 0' }}>
               {l}
             </div>
           ))}
@@ -277,7 +277,7 @@ export default function CalendarScreen() {
 
         {/* Calendar grid */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#10b98133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>CHARGEMENT…</div>
+          <div style={{ textAlign: 'center', padding: 20, fontSize: 8, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>CHARGEMENT…</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
             {cells.map((cell, i) => {
@@ -298,8 +298,8 @@ export default function CalendarScreen() {
                   onClick={() => setSelected(isSel ? null : cell.iso)}
                   style={{
                     aspectRatio: '1', borderRadius: 6,
-                    background: isSel ? '#10b98118' : isToday ? '#10b9810a' : hasAny ? '#ffffff05' : 'transparent',
-                    border: isSel ? '1px solid #10b98155' : isToday ? '1px solid #10b98133' : '1px solid transparent',
+                    background: isSel ? '#38d8f518' : isToday ? '#38d8f50a' : hasAny ? '#ffffff05' : 'transparent',
+                    border: isSel ? '1px solid #38d8f555' : isToday ? '1px solid #38d8f533' : '1px solid transparent',
                     cursor: hasAny ? 'pointer' : 'default',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
                     padding: '3px 1px',
@@ -307,7 +307,7 @@ export default function CalendarScreen() {
                 >
                   <span style={{
                     fontSize: 9, lineHeight: 1,
-                    color: isToday ? '#10b981' : isSel ? '#e8f4ff' : hasAny ? '#c8e8ff' : '#ffffff33',
+                    color: isToday ? '#38d8f5' : isSel ? '#e8f4ff' : hasAny ? '#c8e8ff' : '#ffffff33',
                     fontFamily: isToday ? 'Inter, sans-serif' : undefined,
                     fontWeight: isToday ? 700 : undefined,
                   }}>
@@ -331,8 +331,8 @@ export default function CalendarScreen() {
 
         {/* Selected day detail */}
         {selected && (selectedBookings.length > 0 || selectedGc.length > 0) && (
-          <div style={{ background: 'rgba(16,185,129,0.04)', borderRadius: 12, padding: '10px', border: '1px solid #10b9811a' }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b98166', letterSpacing: '0.2em', marginBottom: 8 }}>
+          <div style={{ background: 'rgba(56,216,245,0.04)', borderRadius: 12, padding: '10px', border: '1px solid #38d8f51a' }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f566', letterSpacing: '0.2em', marginBottom: 8 }}>
               {fmtDate(selected)}
             </div>
 
@@ -464,8 +464,8 @@ export default function CalendarScreen() {
       {toast && (
         <div style={{
           position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(16,185,129,0.15)', border: '1px solid #10b98144',
-          borderRadius: 20, padding: '8px 18px', fontSize: 9, color: '#10b981',
+          background: 'rgba(56,216,245,0.15)', border: '1px solid #38d8f544',
+          borderRadius: 20, padding: '8px 18px', fontSize: 9, color: '#38d8f5',
           fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em', zIndex: 100,
           backdropFilter: 'blur(10px)',
         }}>
@@ -481,9 +481,9 @@ export default function CalendarScreen() {
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ width: '100%', background: '#061220', borderTop: '1px solid #10b98133', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}
+            style={{ width: '100%', background: '#061220', borderTop: '1px solid #38d8f533', borderRadius: '16px 16px 0 0', padding: '16px 14px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}
           >
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#10b981', letterSpacing: '0.2em', marginBottom: 4 }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#38d8f5', letterSpacing: '0.2em', marginBottom: 4 }}>
               + NOUVEL ÉVÉNEMENT
             </div>
 
@@ -531,9 +531,9 @@ export default function CalendarScreen() {
                 onClick={() => setAddForm(f => ({ ...f, allDay: !f.allDay }))}
                 style={{
                   padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
-                  background: addForm.allDay ? 'rgba(16,185,129,0.15)' : 'transparent',
-                  border: `1px solid ${addForm.allDay ? '#10b98166' : '#ffffff11'}`,
-                  fontFamily: 'Inter, sans-serif', fontSize: 6, color: addForm.allDay ? '#10b981' : '#ffffff33',
+                  background: addForm.allDay ? 'rgba(56,216,245,0.15)' : 'transparent',
+                  border: `1px solid ${addForm.allDay ? '#38d8f566' : '#ffffff11'}`,
+                  fontFamily: 'Inter, sans-serif', fontSize: 6, color: addForm.allDay ? '#38d8f5' : '#ffffff33',
                   letterSpacing: '0.1em', whiteSpace: 'nowrap',
                 }}
               >
@@ -578,9 +578,9 @@ export default function CalendarScreen() {
                 disabled={addSaving || !addForm.title || !addForm.date}
                 style={{
                   flex: 2, padding: '10px', borderRadius: 10, cursor: addSaving ? 'default' : 'pointer',
-                  background: addSaving ? 'rgba(16,185,129,0.05)' : 'rgba(16,185,129,0.15)',
-                  border: '1px solid #10b98144',
-                  fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#10b981', letterSpacing: '0.1em',
+                  background: addSaving ? 'rgba(56,216,245,0.05)' : 'rgba(56,216,245,0.15)',
+                  border: '1px solid #38d8f544',
+                  fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f5', letterSpacing: '0.1em',
                 }}
               >
                 {addSaving ? '...' : '✓ AJOUTER'}
@@ -600,8 +600,8 @@ const inputStyle: React.CSSProperties = {
 };
 
 const navBtn: React.CSSProperties = {
-  background: 'rgba(16,185,129,0.08)', border: '1px solid #10b98122', borderRadius: 6,
-  width: 28, height: 28, cursor: 'pointer', color: '#10b981aa',
+  background: 'rgba(56,216,245,0.08)', border: '1px solid #38d8f522', borderRadius: 6,
+  width: 28, height: 28, cursor: 'pointer', color: '#38d8f5aa',
   fontFamily: 'Inter, sans-serif', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 

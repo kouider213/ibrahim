@@ -14,8 +14,8 @@ import CarSheet from '../carte/CarSheet.tsx';
 import ItemSheet, { type SheetKind, type Raw } from '../carte/ItemSheet.tsx';
 
 const C = {
-  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', gold: '#fbbf24', red: '#ef4444', orange: '#fb923c', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#38d8f5', gold: '#fbbf24', red: '#ef4444', orange: '#fb923c', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const APP_URL = 'https://kouider213.github.io/ibrahim/';
@@ -618,7 +618,7 @@ function PcLink({ url, onCopy }: { url: string; onCopy: () => void }) {
         Ouvre ce lien sur le PC : la carte s'affiche directement en grand et se met à jour toute seule chaque minute. La 1re fois, connecte-toi avec ton mot de passe Dzaryx. Touche ⛶ pour le vrai plein écran.
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
-        <code style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, background: '#0f0f14', borderRadius: 8, padding: '8px 9px', color: '#a7f3d0' }}>{url}</code>
+        <code style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, background: '#081024', borderRadius: 8, padding: '8px 9px', color: '#a7f3d0' }}>{url}</code>
         <Btn bg={C.accent} fg="#fff" onClick={onCopy}>Copier</Btn>
       </div>
     </div>
@@ -638,7 +638,7 @@ function SellOffer({ onCopy }: { onCopy: (url: string) => void }) {
       <div style={{ fontSize: 12, color: C.muted, margin: '4px 0 8px', lineHeight: 1.4 }}>
         Une démo à leur nom, avec des données d'exemple (aucune de tes vraies données). Tu peux aussi dire à Dzaryx : « envoie la démo carte au garage X ».
       </div>
-      <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom de l'entreprise (ex. Garage Benali)" style={{ width: '100%', boxSizing: 'border-box', background: '#0f0f14', border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 9px', color: C.text, fontSize: 13, marginBottom: 7 }} />
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom de l'entreprise (ex. Garage Benali)" style={{ width: '100%', boxSizing: 'border-box', background: '#081024', border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 9px', color: C.text, fontSize: 13, marginBottom: 7 }} />
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 9 }}>
         {kinds.map(([k, t]) => <button key={k} onClick={() => setKind(k)} style={{ fontSize: 11.5, fontWeight: 700, borderRadius: 16, padding: '5px 10px', cursor: 'pointer', border: `1px solid ${kind === k ? C.gold : C.border}`, background: kind === k ? `${C.gold}25` : 'transparent', color: C.text }}>{t}</button>)}
       </div>
@@ -740,7 +740,7 @@ function MoneyCard({ money, cars, month, setMonth, on, toggle, onCar, onAsk }: {
 const pill: CSSProperties = { pointerEvents: 'auto', border: 'none', borderRadius: 20, padding: '8px 13px', fontSize: 13, fontWeight: 900, cursor: 'pointer', fontFamily: C.font, boxShadow: '0 3px 10px rgba(0,0,0,.25)', whiteSpace: 'nowrap' };
 const mbtn: CSSProperties = { width: 28, height: 26, borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.text, cursor: 'pointer', fontSize: 13, fontWeight: 800 };
 function Stat({ k, v, sub, warn }: { k: string; v: string; sub?: string; warn?: boolean }) {
-  return <div style={{ background: '#0f0f14', borderRadius: 10, padding: '7px 8px', minWidth: 0 }}>
+  return <div style={{ background: '#081024', borderRadius: 10, padding: '7px 8px', minWidth: 0 }}>
     <div style={{ fontSize: 9.5, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{k}</div>
     <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2, color: warn && k !== 'Bénéfice' ? C.orange : C.text, overflowWrap: 'anywhere' }}>{v}</div>
     {sub && <div style={{ fontSize: 10, color: warn ? C.orange : C.muted, marginTop: 1 }}>{sub}</div>}

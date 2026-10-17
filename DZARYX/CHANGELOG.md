@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-17 (9) — App au style Nexus partout + tableau de bord Nexus + nouveau logo
+- Palette Nexus (bleu nuit, cyan) sur tous les écrans, coque refaite : barre du haut, menu du bas à vraies icônes, grille « Plus », titres (Hero) et recherche.
+- **Nouveau logo** : emblème hexagonal holographique + monogramme D (barre du haut, verrouillage, connexion, icônes web + APK). Le point rouge est remplacé par « EN LIGNE / CONNEXION… » sous DZARYX.
+- **MON PC → tableau de bord Nexus** (`NexusDeck.tsx`) : horloge, jauges CPU/RAM/disque en direct, météo Oran, départs/retours du jour, actions rapides (Chrome, VS Code, capture, analyse écran, briefing, musique, ménage, verrouiller), boutons « afficher sur l'écran Nexus » (météo, réservations, disque, serveur).
+- Serveur : `/api/nexus/sysinfo` renvoie CPU/RAM/disque/uptime ; nouvelle route `POST /api/nexus/widget` → event `nexus:widget`. Nexus : disque dans sysinfo + handler `nexus:widget`.
+- APK v1.4.0 (versionCode 17) : nouvelle icône, fond #050b1a.
+
 ## 2026-10-17 (8) — Nouveau design de la page VOIX (style Nexus holographique)
 - `VoiceScreen.tsx` : fond bleu nuit + **sphère neuronale 3D** animée (110 nœuds, liaisons, cœur lumineux) qui gonfle/ondule avec la voix, anneaux HUD qui tournent, grille au sol en perspective, particules de données.
 - Teinte selon l'état : veille cyan, écoute turquoise, analyse violet (rotation rapide), réponse bleu.

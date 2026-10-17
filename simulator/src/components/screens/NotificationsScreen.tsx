@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { business, type SmartReminder } from '../../services/api.ts';
 
-const PRIORITY_COL = { HIGH: '#ff3366', MEDIUM: '#ffb347', LOW: '#10b981' };
-const PRIORITY_BG  = { HIGH: 'rgba(255,51,102,0.07)', MEDIUM: 'rgba(255,179,71,0.07)', LOW: 'rgba(16,185,129,0.04)' };
+const PRIORITY_COL = { HIGH: '#ff3366', MEDIUM: '#ffb347', LOW: '#38d8f5' };
+const PRIORITY_BG  = { HIGH: 'rgba(255,51,102,0.07)', MEDIUM: 'rgba(255,179,71,0.07)', LOW: 'rgba(56,216,245,0.04)' };
 const PRIORITY_ICON = { HIGH: '🔴', MEDIUM: '🟡', LOW: '🔵' };
 
 const TYPE_ICON: Record<string, string> = {
@@ -116,14 +116,14 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <Corner pos="tl" /><Corner pos="tr" /><Corner pos="bl" /><Corner pos="br" />
 
       {/* Header */}
-      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #10b98112', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
+      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #38d8f512', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#10b981', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #10b98155' }}>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#38d8f5', letterSpacing: '0.3em', fontWeight: 700, textShadow: '0 0 12px #38d8f555' }}>
               ALERTES
             </div>
             {reminders.length > 0 && (
@@ -138,16 +138,16 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {lastUpdate && <span style={{ fontSize: 7, color: '#ffffff22', letterSpacing: '0.1em' }}>{lastUpdate}</span>}
-            <button onClick={() => void load()} disabled={loading} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#10b98155' }}>↻</button>
+            <button onClick={() => void load()} disabled={loading} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#38d8f555' }}>↻</button>
           </div>
         </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #10b98144, transparent)' }} />
+        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #38d8f544, transparent)' }} />
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#10b98133', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
+          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
             CHARGEMENT…
           </div>
         ) : reminders.length === 0 ? (
@@ -167,8 +167,8 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
         )}
 
         {/* Dzaryx proactive info */}
-        <div style={{ background: 'rgba(16,185,129,0.03)', borderRadius: 10, padding: '10px 12px', border: '1px solid #10b9810f' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#10b98133', letterSpacing: '0.2em', marginBottom: 6 }}>
+        <div style={{ background: 'rgba(56,216,245,0.03)', borderRadius: 10, padding: '10px 12px', border: '1px solid #38d8f50f' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f533', letterSpacing: '0.2em', marginBottom: 6 }}>
             ◉ DZARYX — PROACTIF
           </div>
           <div style={{ fontSize: 8, color: '#ffffff22', lineHeight: 1.6 }}>

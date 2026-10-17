@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, business } from '../../services/api.ts';
 import { Hero } from '../ui/Premium.tsx';
+import NexusDeck from './NexusDeck.tsx';
 
 // Piloter le PC (Nexus) depuis le téléphone : écran en direct au doigt, clavier, télécommande,
 // et « Demande à Nexus » à l'écrit ou à la voix (même cerveau que sur le PC).
 // Deux PC : le laptop (Nexus) et le PC cloud (bureau virtuel toujours allumé sur le serveur, Chrome connecté).
 
 const C = {
-  bg: '#0a0a0c', surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#10b981', red: '#f87171', amber: '#fbbf24', text: '#f5f5f7', muted: '#9b9ba6',
+  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#38d8f5', red: '#f87171', amber: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 
@@ -376,7 +377,7 @@ export default function NexusScreen() {
           {online ? 'Chargement de l\'écran…' : cloud ? 'PC cloud non connecté' : 'PC non connecté'}
         </div>
       )}
-      {mark && <div style={{ position: 'absolute', left: mark.x - 18, top: mark.y - 18, width: 36, height: 36, borderRadius: '50%', border: `3px solid ${mark.kind === 'right' ? C.amber : C.accent}`, pointerEvents: 'none', boxShadow: '0 0 12px rgba(16,185,129,0.6)' }} />}
+      {mark && <div style={{ position: 'absolute', left: mark.x - 18, top: mark.y - 18, width: 36, height: 36, borderRadius: '50%', border: `3px solid ${mark.kind === 'right' ? C.amber : C.accent}`, pointerEvents: 'none', boxShadow: '0 0 12px rgba(56,216,245,0.6)' }} />}
       {frame && <div style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 10, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 6px', pointerEvents: 'none' }}>{liveOn ? '● direct' : frame.at}</div>}
     </div>
   );
@@ -409,7 +410,7 @@ export default function NexusScreen() {
       <div style={{ display: 'flex', gap: 6, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, marginBottom: 10 }}>
         {([['laptop', '💻 Laptop', targets?.laptop], ['cloud', '☁️ PC cloud', targets?.cloud]] as Array<[Target, string, boolean | undefined]>).map(([t, l, on]) => (
           <button key={t} onClick={() => choose(t)} style={{ flex: 1, padding: '9px 6px', borderRadius: 9, border: 'none', cursor: 'pointer', fontFamily: C.font, fontSize: 13, fontWeight: 600,
-            background: target === t ? 'rgba(16,185,129,0.18)' : 'transparent', color: target === t ? C.accent : C.text }}>
+            background: target === t ? 'rgba(56,216,245,0.18)' : 'transparent', color: target === t ? C.accent : C.text }}>
             {l} <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', marginLeft: 4, background: on === undefined ? C.amber : on ? C.accent : C.red }} />
           </button>
         ))}
@@ -425,6 +426,9 @@ export default function NexusScreen() {
         </span>
         {!online && !cloud && <Btn onClick={() => { void maint('wake'); }} label={busy === 'wake' ? '…' : 'Réveiller'} color={C.accent} />}
       </div>
+
+      {/* Tableau de bord Nexus (comme l'écran du PC) */}
+      {!cloud && <NexusDeck online={online} busy={!!busy} onSay={(c) => { flash('Envoyé à Nexus — réponse plus bas'); void say(c); }} flash={flash} />}
 
       {/* Écran */}
       <div style={{ marginBottom: 8 }}>{screen}</div>
@@ -511,7 +515,7 @@ export default function NexusScreen() {
         {msgs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
             {msgs.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.who === 'me' ? 'flex-end' : 'flex-start', maxWidth: '88%', background: m.who === 'me' ? 'rgba(16,185,129,0.16)' : 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.text}</div>
+              <div key={i} style={{ alignSelf: m.who === 'me' ? 'flex-end' : 'flex-start', maxWidth: '88%', background: m.who === 'me' ? 'rgba(56,216,245,0.16)' : 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '8px 11px', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.text}</div>
             ))}
           </div>
         )}
@@ -621,7 +625,7 @@ function Key({ label, onClick, disabled }: { label: string; onClick: () => void;
 
 function Pill({ label, onClick, on }: { label: string; onClick: () => void; on?: boolean }) {
   return (
-    <button onClick={onClick} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(16,185,129,0.16)' : 'rgba(255,255,255,0.04)', color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer' }}>{label}</button>
+    <button onClick={onClick} style={{ padding: '7px 11px', borderRadius: 999, border: `1px solid ${on ? C.accent : C.border}`, background: on ? 'rgba(56,216,245,0.16)' : 'rgba(255,255,255,0.04)', color: on ? C.accent : C.text, fontSize: 12, fontFamily: C.font, cursor: 'pointer' }}>{label}</button>
   );
 }
 

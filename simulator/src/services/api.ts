@@ -1318,4 +1318,11 @@ export const business = {
 
   nexusRestart: () =>
     apiFetch<{ ok: boolean; text?: string; error?: string }>('/api/nexus/soft-restart', { method: 'POST' }),
+  // Jauges du PC (CPU / RAM / disque) et widgets poussés sur l'écran Nexus
+  nexusSysinfo: () =>
+    apiFetch<{ ok: boolean; cpu_percent?: number; ram_percent?: number; ram_used_mb?: number; ram_total_mb?: number; disk_percent?: number; disk_free_gb?: number; uptime_s?: number; hostname?: string; error?: string }>('/api/nexus/sysinfo', { method: 'POST' }),
+  nexusWidget: (widget: 'disk' | 'weather' | 'bookings' | 'railway') =>
+    apiFetch<{ ok: boolean; error?: string }>('/api/nexus/widget', { method: 'POST', body: JSON.stringify({ widget }) }),
+  weather: () =>
+    apiFetch<{ temperature: number; apparent_temp: number; humidity: number; wind_speed: number; condition: string; icon: string; is_day: boolean }>('/api/weather'),
 };

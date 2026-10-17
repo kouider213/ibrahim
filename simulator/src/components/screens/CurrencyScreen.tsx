@@ -114,7 +114,7 @@ export default function CurrencyScreen({ actor }: { actor: string }) {
   const actorCol = actor === 'houari' ? '#7c3aed' : '#00d4ff';
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0a0c', color: '#fff', fontFamily: 'Share Tech Mono', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Share Tech Mono', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '12px 14px 10px', borderBottom: '1px solid #00d4ff12', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

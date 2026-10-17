@@ -7,15 +7,15 @@ import { Hero, StatCard, SkeletonCards } from '../ui/Premium.tsx';
 // Le rendu tourne sur le serveur ; la vidéo arrive ici et sur Telegram.
 
 const C = {
-  surface: '#16161c', border: 'rgba(255,255,255,0.08)',
-  accent: '#f472b6', green: '#10b981', gold: '#fbbf24', red: '#f87171', text: '#f5f5f7', muted: '#9b9ba6',
+  surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
+  accent: '#f472b6', green: '#38d8f5', gold: '#fbbf24', red: '#f87171', text: '#f5f5f7', muted: '#8ea3c8',
   font: '-apple-system, "Segoe UI", Roboto, sans-serif',
 };
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '10px 13px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
-const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#0a0a0c' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
+const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0.06)', color: on ? '#050a16' : C.text, border: `1px solid ${on ? C.accent : C.border}`,
   borderRadius: 999, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: C.font, whiteSpace: 'nowrap' } as const);
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 } as const;
-const input = { width: '100%', boxSizing: 'border-box', background: '#0f0f14', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
+const input = { width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
   padding: 10, fontSize: 13, fontFamily: C.font, resize: 'vertical' } as const;
 const label = { fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: 0.6, margin: '10px 0 6px' } as const;
 const LANGS: Record<string, string> = { fr: '🇫🇷 Français', darija: '🇩🇿 Darija', ar: 'العربية', en: '🇬🇧 English' };
@@ -108,7 +108,7 @@ export default function StudioScreen() {
   const done = jobs.filter(j => j.status === 'done').length;
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#0a0a0c', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
+    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#050a16', color: C.text, fontFamily: C.font, paddingBottom: 110 }}>
       <Hero eyebrow="Dzaryx · Vidéo IA" title="Studio vidéo" subtitle="Vidéos virales réalistes : Kling 3.0, Veo 3.1, Seedance 2.0" accent={C.accent} />
       <div style={{ padding: '0 14px' }}>
         {!opts ? <SkeletonCards /> : (<>
@@ -170,7 +170,7 @@ export default function StudioScreen() {
               </div>
               <input style={{ ...input, marginTop: 6 }} value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="…ou colle le lien d'une photo" />
 
-              <button style={{ ...btn(C.accent, '#0a0a0c'), width: '100%', marginTop: 12, opacity: busy || !idea.trim() ? 0.5 : 1 }} disabled={busy || !idea.trim()} onClick={() => void makePlan()}>
+              <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy || !idea.trim() ? 0.5 : 1 }} disabled={busy || !idea.trim()} onClick={() => void makePlan()}>
                 {busy ? '✍️ Dzaryx prépare…' : mode === 'viral' ? '✍️ Écrire le scénario (gratuit)' : '✍️ Préparer le plan (gratuit)'}
               </button>
             </div>
@@ -231,7 +231,7 @@ export default function StudioScreen() {
                 {plan.voiceover && <button style={chip(subtitles)} onClick={() => setSubtitles(!subtitles)}>💬 Sous-titres</button>}
                 <button style={chip(nativeAudio)} onClick={() => setNativeAudio(!nativeAudio)}>🔊 Son natif du modèle</button>
               </div>
-              <button style={{ ...btn(C.accent, '#0a0a0c'), width: '100%', marginTop: 12, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void render()}>
+              <button style={{ ...btn(C.accent, '#050a16'), width: '100%', marginTop: 12, opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={() => void render()}>
                 🎬 Lancer le rendu · ≈ {cost.toFixed(2)} $
               </button>
               <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>
@@ -260,7 +260,7 @@ export default function StudioScreen() {
               {j.status === 'done' && j.url && (<>
                 <video src={j.url} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 480, borderRadius: 10, marginTop: 8, background: '#000' }} />
                 <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <a href={j.url} target="_blank" rel="noreferrer" download style={{ ...btn(C.green, '#0a0a0c'), textDecoration: 'none', flex: 1, textAlign: 'center' }}>⬇️ Télécharger</a>
+                  <a href={j.url} target="_blank" rel="noreferrer" download style={{ ...btn(C.green, '#050a16'), textDecoration: 'none', flex: 1, textAlign: 'center' }}>⬇️ Télécharger</a>
                   {j.caption && <button style={{ ...btn('rgba(255,255,255,0.08)', C.text), flex: 1 }}
                     onClick={() => { void navigator.clipboard?.writeText(j.caption ?? '').then(() => say('📋 Légende copiée')).catch(() => say(j.caption ?? '')); }}>📋 Copier la légende</button>}
                 </div>

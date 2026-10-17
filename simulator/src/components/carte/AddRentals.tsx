@@ -11,8 +11,8 @@ interface Row {
   price: string; currency: Cur; pay: Pay; paid_amount: string; note: string; err?: string; done?: boolean;
 }
 
-const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#0f0f14', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '8px 9px', color: '#f5f5f7', fontSize: 13 };
-const lbl: CSSProperties = { fontSize: 10.5, color: '#9b9ba6', fontWeight: 700, letterSpacing: '0.06em', marginBottom: 3, textTransform: 'uppercase' };
+const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: '#081024', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '8px 9px', color: '#f5f5f7', fontSize: 13 };
+const lbl: CSSProperties = { fontSize: 10.5, color: '#8ea3c8', fontWeight: 700, letterSpacing: '0.06em', marginBottom: 3, textTransform: 'uppercase' };
 
 // « API 400: {"error":"…"} » → juste le message lisible
 export const errMsg = (e: unknown) => {
@@ -120,14 +120,14 @@ export default function AddRentals({ cars, actor, initialCar, onClose, onDone }:
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '92%', overflowY: 'auto', background: '#16161c', color: '#f5f5f7', borderRadius: '18px 18px 0 0', padding: '14px 14px 26px', fontFamily: '-apple-system, "Segoe UI", Roboto, sans-serif' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '92%', overflowY: 'auto', background: '#0c1730', color: '#f5f5f7', borderRadius: '18px 18px 0 0', padding: '14px 14px 26px', fontFamily: '-apple-system, "Segoe UI", Roboto, sans-serif' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
           <div style={{ fontSize: 17, fontWeight: 800, flex: 1 }}>Ajouter des locations</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9b9ba6', fontSize: 18, cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8ea3c8', fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
           {([['one', '⚡ Une location'], ['bulk', '📋 Plusieurs d\'un coup']] as const).map(([k, t]) => (
-            <button key={k} onClick={() => { setTab(k); setMsg(''); }} style={{ flex: 1, padding: '8px 0', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12.5, border: `1px solid ${tab === k ? '#10b981' : 'rgba(255,255,255,0.1)'}`, background: tab === k ? '#10b98122' : 'transparent', color: '#f5f5f7' }}>{t}</button>
+            <button key={k} onClick={() => { setTab(k); setMsg(''); }} style={{ flex: 1, padding: '8px 0', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12.5, border: `1px solid ${tab === k ? '#38d8f5' : 'rgba(255,255,255,0.1)'}`, background: tab === k ? '#38d8f522' : 'transparent', color: '#f5f5f7' }}>{t}</button>
           ))}
         </div>
 
@@ -135,12 +135,12 @@ export default function AddRentals({ cars, actor, initialCar, onClose, onDone }:
           <RowForm r={one} cars={sorted} onChange={p => setOne(o => ({ ...o, ...p }))} />
         ) : rows.length === 0 ? (
           <div>
-            <div style={{ fontSize: 12.5, color: '#9b9ba6', marginBottom: 8, lineHeight: 1.45 }}>
+            <div style={{ fontSize: 12.5, color: '#8ea3c8', marginBottom: 8, lineHeight: 1.45 }}>
               Colle tes notes telles quelles : carnet, messages WhatsApp, tableau Excel… ou prends en photo ton carnet. Dzaryx retrouve la voiture, le client, les dates et le prix.
             </div>
             <textarea value={text} onChange={e => setText(e.target.value)} rows={7} placeholder={'clio alpine - Karim 0661223344 du 2 au 9 octobre 50€/j payé\nsandero Amine 0770112233 12/10 → 18/10 300 € reste 100'} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <Big onClick={() => void read()} disabled={busy} bg="#10b981">✨ Lire le texte</Big>
+              <Big onClick={() => void read()} disabled={busy} bg="#38d8f5">✨ Lire le texte</Big>
               <label style={{ flex: 1, display: 'grid', placeItems: 'center', borderRadius: 11, background: '#3b82f6', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', opacity: busy ? 0.5 : 1 }}>
                 📷 Photo du carnet
                 <input type="file" accept="image/*" style={{ display: 'none' }} disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) void read(f); e.target.value = ''; }} />
@@ -150,25 +150,25 @@ export default function AddRentals({ cars, actor, initialCar, onClose, onDone }:
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {rows.map((r, i) => (
-              <div key={i} style={{ border: `1px solid ${r.done ? '#10b981' : r.err ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, borderRadius: 12, padding: 10, opacity: r.on ? 1 : 0.45 }}>
+              <div key={i} style={{ border: `1px solid ${r.done ? '#38d8f5' : r.err ? '#ef4444' : 'rgba(255,255,255,0.1)'}`, borderRadius: 12, padding: 10, opacity: r.on ? 1 : 0.45 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <input type="checkbox" checked={r.on} disabled={r.done} onChange={e => set(i, { on: e.target.checked })} />
                   <b style={{ fontSize: 13, flex: 1 }}>{r.done ? '✅ ' : ''}{cars.find(c => c.id === r.car_id)?.name ?? '— voiture à choisir —'} · {r.client_name || '?'}</b>
                   {missing(r) && r.on && !r.done && <span style={{ fontSize: 10.5, color: '#f87171', fontWeight: 700 }}>manque : {missing(r)}</span>}
                 </div>
                 {!r.done && r.on && <RowForm r={r} cars={sorted} onChange={p => set(i, p)} compact />}
-                {(r.note || r.err) && <div style={{ fontSize: 11, marginTop: 6, color: r.err ? '#f87171' : '#9b9ba6' }}>{r.err ?? r.note}</div>}
+                {(r.note || r.err) && <div style={{ fontSize: 11, marginTop: 6, color: r.err ? '#f87171' : '#8ea3c8' }}>{r.err ?? r.note}</div>}
               </div>
             ))}
           </div>
         )}
 
         {msg && <div style={{ fontSize: 12.5, marginTop: 10, color: msg.startsWith('Il manque') ? '#f87171' : '#d4d4d8' }}>{msg}</div>}
-        {tab === 'one' && <div style={{ marginTop: 12 }}><Big onClick={() => void saveOne()} disabled={busy} bg="#10b981">{busy ? '…' : 'Enregistrer la location'}</Big></div>}
+        {tab === 'one' && <div style={{ marginTop: 12 }}><Big onClick={() => void saveOne()} disabled={busy} bg="#38d8f5">{busy ? '…' : 'Enregistrer la location'}</Big></div>}
         {tab === 'bulk' && rows.length > 0 && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <Big onClick={() => { setRows([]); setMsg(''); }} disabled={busy} bg="#3f3f46">↺ Recommencer</Big>
-            <Big onClick={() => void saveAll()} disabled={busy} bg="#10b981">{busy ? '…' : `Ajouter ${rows.filter(r => r.on && !r.done).length}`}</Big>
+            <Big onClick={() => void saveAll()} disabled={busy} bg="#38d8f5">{busy ? '…' : `Ajouter ${rows.filter(r => r.on && !r.done).length}`}</Big>
           </div>
         )}
       </div>
@@ -203,9 +203,9 @@ const F = ({ l, children }: { l: string; children: ReactNode }) => <div><div sty
 
 function Seg({ value, opts, onChange }: { value: string; opts: Array<[string, string]>; onChange: (v: string) => void }) {
   return (
-    <div style={{ display: 'flex', background: '#0f0f14', borderRadius: 10, padding: 3, border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div style={{ display: 'flex', background: '#081024', borderRadius: 10, padding: 3, border: '1px solid rgba(255,255,255,0.1)' }}>
       {opts.map(([k, t]) => (
-        <button key={k} onClick={() => onChange(k)} style={{ flex: 1, whiteSpace: 'nowrap', padding: '6px 9px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: value === k ? '#10b981' : 'transparent', color: value === k ? '#fff' : '#9b9ba6' }}>{t}</button>
+        <button key={k} onClick={() => onChange(k)} style={{ flex: 1, whiteSpace: 'nowrap', padding: '6px 9px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: value === k ? '#38d8f5' : 'transparent', color: value === k ? '#fff' : '#8ea3c8' }}>{t}</button>
       ))}
     </div>
   );
