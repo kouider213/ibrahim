@@ -60,6 +60,7 @@ import { jobSeasonWatch } from '../integrations/seasons.js';
 import { jobBusinessMentor, jobMentorNewsWatch } from '../integrations/business-mentor.js';
 import { jobBillingWatch } from '../integrations/billing.js';
 import { jobKouiderDossier } from '../integrations/kouider-dossier.js';
+import { jobLifeCoachEvening, jobLifeCoachWeekly } from '../integrations/life-coach.js';
 import { jobCloudWatch, jobCloudRoutines } from '../integrations/cloud-watch.js';
 
 import { jobMorningRoutine } from '../integrations/morning-routine.js';
@@ -272,6 +273,16 @@ const JOBS = [
     tz:    'Europe/Brussels',
   },
   {
+    name:  'life-coach-evening',
+    cron:  '30 20 * * *',           // 20h30 — coach : plan de demain (repas, sport, mental) + « ton moral ? » ; moral bas → appel
+    tz:    'Europe/Brussels',
+  },
+  {
+    name:  'life-coach-weekly',
+    cron:  '0 18 * * 0',            // dimanche 18h — coach : bilan de la semaine au téléphone
+    tz:    'Europe/Brussels',
+  },
+  {
     name:  'kouider-dossier',
     cron:  '30 3 * * *',            // 3h30 — réécrit le portrait de Kouider (mémoire, règles, messages, appels)
     tz:    'Europe/Brussels',
@@ -468,6 +479,8 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'self-test':               async () => { console.log(`[self-test] ${await jobSelfTest()}`); },
   'business-mentor':         jobBusinessMentor,
   'mentor-news':             jobMentorNewsWatch,
+  'life-coach-evening':      jobLifeCoachEvening,
+  'life-coach-weekly':       jobLifeCoachWeekly,
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
   'season-watch':            async () => { console.log(`[season-watch] ${await jobSeasonWatch()}`); },
   'cloud-watch':             async () => { console.log(`[cloud-watch] ${await jobCloudWatch()}`); },

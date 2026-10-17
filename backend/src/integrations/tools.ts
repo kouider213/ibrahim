@@ -2756,6 +2756,22 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'life_coach',
+    description: "Son COACH DE VIE + coach sportif + nutritionniste (privé, Kouider seulement). action='plan' (+ date 'tomorrow' ou AAAA-MM-JJ, défaut aujourd'hui) : repas halal du jour, séance de sport adaptée à son dos, objectif mental, calés sur son agenda — pour « qu'est-ce que je mange aujourd'hui ? », « ma séance de demain », « mon programme ». 'log' + mood (1-10) / weight (kg) / note : noter son moral, son poids ou comment il se sent (« j'ai pas le moral », « je fais 79 kg »). 'add' + fact : retenir une info privée sur sa santé, son mental, ses objectifs. 'history' : son suivi récent. 'show' : tout son profil coach. Jamais d'info santé à quelqu'un d'autre que lui.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['plan', 'log', 'add', 'history', 'show'] },
+        date: { type: 'string' },
+        mood: { type: 'number' },
+        weight: { type: 'number' },
+        note: { type: 'string' },
+        fact: { type: 'string' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'get_upcoming_seasons',
     description: "Saisons fortes à venir pour la location à Oran : vacances scolaires France + Belgique (diaspora), été diaspora, Ramadan, Aïd el-Fitr, Aïd el-Adha, Mawlid, fêtes nationales — avec le REMPLISSAGE RÉEL du parc sur chaque période et un conseil (prix, relances). Pour « quand est l'Aïd ? », « la diaspora arrive quand ? », « je dois monter mes prix ? », « les vacances de Toussaint ». Avant de proposer des prix de saison (apply_dynamic_pricing / suggest_smart_pricing).",
     input_schema: {

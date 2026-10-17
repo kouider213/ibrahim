@@ -7,6 +7,7 @@
 import { businessMentorTool } from './business-mentor.js';
 import { whatsappWebTool } from './whatsapp-web.js';
 import { kouiderDossierTool } from './kouider-dossier.js';
+import { lifeCoachTool } from './life-coach.js';
 import { supabase } from './supabase.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
 import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
@@ -402,6 +403,7 @@ async function _dispatch(
       case 'morning_routine':           return await (await import('./morning-routine.js')).morningRoutineTool(input, sessionId);
       case 'travel':                    return await (await import('./trips.js')).travelTool(input, sessionId);
       case 'kouider_dossier':           return await kouiderDossierTool(input, sessionId);
+      case 'life_coach':                return await lifeCoachTool(input, sessionId);
       case 'get_upcoming_seasons':      return await seasonsReport(Math.min(365, Math.max(7, Number(input['days']) || 120)));
       case 'run_self_test':             return input['what'] === 'backup_now'
         ? `💾 Sauvegarde faite : ${await jobDbBackup().catch(e => `❌ échec — ${e instanceof Error ? e.message : String(e)}`)}`

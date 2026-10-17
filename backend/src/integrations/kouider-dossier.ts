@@ -52,14 +52,16 @@ async function readNotes(): Promise<string[]> {
 
 /** Le portrait à donner à Dzaryx (chat, appels, conseiller). Jamais vide. */
 export async function kouiderDossierText(): Promise<string> {
-  const [dossier, notes, days, off] = await Promise.all([
+  const [dossier, notes, days, off, coach] = await Promise.all([
     kvGet(DOSSIER_KEY).catch(() => null), readNotes(), getDaysOff(), isDayOff(),
+    import('./life-coach.js').then(m => m.lifeCoachText()).catch(() => ''),   // import dynamique : life-coach → morning-routine → ce fichier
   ]);
   return [
     'QUI EST KOUIDER (son dossier — tu tournes autour de lui, tu le connais par cœur) :',
     dossier?.trim() || BASE,
     `Jours de congé : ${daysOffText(days)}.${off ? " AUJOURD'HUI EST UN JOUR DE CONGÉ : sois bref, rien de non urgent, souhaite-lui une bonne journée en famille." : ''}`,
     ...(notes.length ? ['Notes récentes de Kouider sur lui-même :', ...notes.slice(-10).map(n => `- ${n}`)] : []),
+    ...(coach ? [coach] : []),
   ].join('\n');
 }
 

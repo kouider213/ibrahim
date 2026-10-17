@@ -5,6 +5,12 @@
 
 ---
 
+## 2026-10-17 — Coach de vie (life_coach)
+- Dzaryx devient aussi coach de vie, coach sportif et nutritionniste : outil `life_coach` (plan du jour/demain calé sur l'agenda, suivi moral/poids, profil privé), injecté dans le dossier Kouider (chat, app, voix, appels).
+- Tâches : `life-coach-evening` 20h30 (plan de demain + « ton moral ? », moral bas 2 jours → appel), `life-coach-weekly` dimanche 18h (bilan au téléphone).
+- Données perso et santé UNIQUEMENT en base (app_kv `kouider:coach:*`), jamais dans le code (dépôt public). Règles de sécurité : jamais de conseil de dose, numéros d'aide, rien de santé à un tiers.
+- Nexus : interface servie sans cache (Cache-Control no-cache) — les mises à jour de l'interface s'affichent tout de suite.
+
 ## 2026-10-17 (12) — GLOBE dans l'app (le globe de Nexus sur le téléphone)
 - Nouvel écran **GLOBE** (Plus → 🌍) : `simulator/public/globe.html` (copie mobile de nexus/gui/globe.html, CesiumJS) dans `GlobeScreen.tsx`.
 - Barre de recherche (Aller), actions : vols vers… / départs de… (Oran par défaut), caméras ici, caméras du monde, par catégorie, « que se passe-t-il ? ». Couches : satellite, rotation, avions, séismes, satellites, caméras, météo. Panneaux en bas d'écran sur téléphone.
