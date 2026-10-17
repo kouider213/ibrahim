@@ -298,33 +298,57 @@ def _finland() -> list:
     return out
 
 
-def _windy(lat: float, lon: float, km: float) -> list:
+def _windy_raw(params: dict, ttl: float = 300) -> dict:
+    """Requête Windy Webcams : directe si la clé est dans .env, sinon via le backend (clé gardée côté serveur)."""
     key = os.getenv('WINDY_WEBCAMS_KEY', '').strip()
-    nearby = f'{lat:.3f},{lon:.3f},{int(min(250, max(5, km)))}'
     if key:
-        url = ('https://api.windy.com/webcams/api/v3/webcams?' + urllib.parse.urlencode({
-            'nearby': nearby, 'limit': 50, 'lang': 'fr', 'include': 'location,images,player'}))
+        url = 'https://api.windy.com/webcams/api/v3/webcams?' + urllib.parse.urlencode(
+            {**params, 'limit': 50, 'lang': 'fr', 'include': 'location,images,player'})
         headers = {'x-windy-api-key': key}
-    else:   # sans clé locale : le backend interroge Windy avec la clé gardée côté serveur
+    else:
         token = os.getenv('PC_AGENT_TOKEN', '').strip()
         if not token:
-            return []
+            return {}
         backend = os.getenv('BACKEND_URL', 'https://ibrahim-backend-production.up.railway.app').rstrip('/')
-        url = f'{backend}/api/nexus/data/webcams?' + urllib.parse.urlencode({'nearby': nearby})
+        url = f'{backend}/api/nexus/data/webcams?' + urllib.parse.urlencode(params)
         headers = {'Authorization': f'Bearer {token}'}
     try:
-        d = json.loads(_get(url, 300, timeout=15, headers=headers))
+        return json.loads(_get(url, ttl, timeout=15, headers=headers))
     except Exception as e:
         log.info('caméras windy : %s', e)
-        return []
+        return {}
+
+
+def _windy_cams(d: dict) -> list:
     out = []
     for w in d.get('webcams') or []:
         loc, pl = w.get('location') or {}, w.get('player') or {}
         out.append({'id': f"w{w.get('webcamId')}", 'name': w.get('title', ''), 'city': loc.get('city') or loc.get('country') or '',
-                    'lat': loc.get('latitude'), 'lon': loc.get('longitude'),
+                    'country': loc.get('country') or '', 'lat': loc.get('latitude'), 'lon': loc.get('longitude'),
                     'img': (((w.get('images') or {}).get('current') or {}).get('preview') or ''), 'video': '',
-                    'embed': pl.get('live') or pl.get('day') or '', 'src': 'Windy'})
+                    'embed': pl.get('live') or pl.get('day') or '', 'src': 'Windy', 'views': w.get('viewCount')})
     return [c for c in out if c['lat'] is not None]
+
+
+def _windy(lat: float, lon: float, km: float) -> list:
+    return _windy_cams(_windy_raw({'nearby': f'{lat:.3f},{lon:.3f},{int(min(250, max(5, km)))}'}))
+
+
+# Clé Windy gratuite : 68 000+ caméras recensées, mais lecture limitée aux 1 050 premières (offset ≤ 1000) → les plus regardées
+def _world(q: dict) -> dict:
+    with ThreadPoolExecutor(6) as ex:
+        pages = list(ex.map(lambda o: _windy_raw({'offset': o, 'sortKey': 'popularity', 'sortDirection': 'desc'}, 3600), range(0, 1001, 50)))
+        keyless = list(ex.map(lambda nl: _cam_list(*nl), [('tfl', _tfl), ('caltrans', _caltrans), ('finland', _finland)]))
+    seen, windy = set(), []
+    for c in (c for p in pages for c in _windy_cams(p)):
+        if c['id'] not in seen:
+            seen.add(c['id']); windy.append(c)
+    for name, part in zip(('Royaume-Uni', 'États-Unis', 'Finlande'), keyless):
+        for c in part:
+            c.setdefault('country', name)
+    free = [c for part in keyless for c in part]
+    windy_total = max((p.get('total') or 0 for p in pages), default=0)
+    return {'cams': windy + free, 'total': windy_total + len(free), 'windy_total': windy_total, 'windy': bool(pages and pages[0])}
 
 
 def _cams(q: dict) -> dict:
@@ -352,7 +376,7 @@ def _nearest_cam_zone(lat: float, lon: float) -> dict:
 
 
 DATA = {'planes': _planes, 'quakes': _quakes, 'sats': _sats, 'weather': _weather, 'geocode': _geocode, 'place': _place,
-        'inbound': _inbound, 'cams': _cams}
+        'inbound': _inbound, 'cams': _cams, 'world': _world}
 
 
 def serve(kind: str, query: str) -> tuple[int, bytes]:
@@ -393,6 +417,7 @@ _FLIGHTS_IN = re.compile(r"\b(avions?|vols?)\b.*?\b(?:qui\s+(?:vont|va|arrivent|
 _FLIGHTS_CLOSE = re.compile(r"\b(ferme|cache|enleve|retire)\b.*\b(liste|widget|panneau|vols?)\b")
 # Caméras publiques du monde (≠ « ouvre la caméra » = webcam du PC, gérée plus loin dans nexus.py)
 _CAMS = re.compile(r"\b(cameras?|webcams?|cams)\b")
+_CAMS_WORLD = re.compile(r"\b(du monde|dans le monde|monde entier|toute la planete|de la planete|partout|toutes les cameras|mondiales?)\b")
 _CAMS_PLACE = re.compile(r"\b(?:a|au|aux|en|de|du|des|sur|dans|pres de|autour de|a cote de)\s+(.+)$")
 _CAM_NEXT = re.compile(r"\b(suivante?|autre|change|prochaine?)\b")
 _CAM_PREV = re.compile(r"\b(precedente?|d.avant|retour)\b")
@@ -446,6 +471,10 @@ class Globe:
                 self.flights_open = True
                 await self._send(action='inbound', query=place, mode='out' if mo else 'in')
                 return pre      # la page annonce elle-même le résultat (globe_reply)
+        if self.cams_open and not self.flights_open and _FLIGHTS_CLOSE.search(t):
+            self.cams_open = False
+            await self._send(action='cam_close_all')
+            return 'Liste des caméras fermée.'
         if self.flights_open and _FLIGHTS_CLOSE.search(t):
             self.flights_open = False
             await self._send(action='inbound_close')
@@ -454,7 +483,7 @@ class Globe:
         # ── Caméras publiques
         if _CAMS.search(t):
             after = t[_CAMS.search(t).end():]
-            pm = _CAMS_PLACE.search(_FILLER.sub(' ', after))
+            pm = _CAMS_PLACE.search(_FILLER.sub(' ', _CAMS_WORLD.sub(' ', after)))
             place = _clean_place(pm.group(1)) if pm else ''
             if self.cams_open and _CAM_CLOSE.search(t):
                 self.cams_open = False
@@ -468,6 +497,11 @@ class Globe:
                 await self._send(action='cam_size', big=True); return 'Je l\'agrandis.'
             if self.cams_open and _CAM_SMALL.search(t):
                 await self._send(action='cam_size', big=False); return 'Je la réduis.'
+            if not place and _CAMS_WORLD.search(t) and not _CAM_CLOSE.search(t):
+                pre = await self._ensure_open()
+                self.cams_open = True
+                await self._send(action='cams_world')
+                return pre      # la page annonce le nombre de caméras (globe_reply)
             plural = bool(re.search(r"\b(cameras|webcams|cams)\b", t))
             if place or (self.active and (plural or 'webcam' in t)):
                 pre = await self._ensure_open()

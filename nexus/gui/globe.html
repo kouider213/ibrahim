@@ -45,6 +45,15 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
 #cam .media img,#cam .media video,#cam .media iframe{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}
 #cam .live{position:absolute;top:8px;left:8px;background:rgba(220,30,50,.85);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:1px;padding:2px 7px;border-radius:5px}
 #cam .meta{font-size:11.5px;color:var(--dim);padding:6px 12px 8px}
+/* Liste des caméras du monde (côté gauche, sous l'horloge) */
+#camlist{top:104px;left:14px;width:320px;max-height:calc(100% - 190px);display:none;flex-direction:column;padding:0;overflow:hidden}
+#camlist.on{display:flex}
+#cl-sub{font-size:11.5px;color:var(--dim);padding:6px 12px 4px;line-height:1.45}
+#cl-q{margin:2px 10px 6px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);font:inherit;font-size:12.5px;outline:none}
+#cl-q:focus{border-color:var(--cyan)}
+#cl-list{overflow:auto;padding:2px 6px 8px}
+.cl .r1{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl .n{color:var(--cyan);font-weight:700;margin-right:6px}
 /* Intro holographique */
 #intro{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:radial-gradient(circle at 50% 45%,#06203f 0,#02050d 62%);transition:opacity .9s}
 #intro.out{opacity:0;pointer-events:none}
@@ -81,6 +90,7 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
 <div class="hud" id="wx"><div class="n" id="wx-name"></div><div class="s" id="wx-body"></div></div>
 <div class="hud" id="info"></div>
 <div class="hud" id="flights" role="region" aria-label="Vols"><div class="whead"><b id="fl-title">✈️ Vols</b><button id="fl-x" title="Fermer">✕</button></div><div id="fl-sub"></div><div id="fl-list"></div></div>
+<div class="hud" id="camlist" role="region" aria-label="Caméras du monde"><div class="whead"><b id="cl-title">🌍 Caméras du monde</b><button id="cl-x" title="Fermer">✕</button></div><div id="cl-sub"></div><input id="cl-q" type="search" placeholder="Rechercher une ville, un pays…" aria-label="Rechercher une caméra"><div id="cl-list"></div></div>
 <div class="hud" id="cam" role="region" aria-label="Caméra"><div class="whead"><b id="cam-title">📷</b><button id="cam-prev" title="Caméra précédente">◀</button><button id="cam-next" title="Caméra suivante">▶</button><button id="cam-big" title="Agrandir">⤢</button><button id="cam-x" title="Fermer">✕</button></div><div class="media" id="cam-media"></div><div class="meta" id="cam-meta"></div></div>
 <div class="hud" id="layers">
   <button data-l="view">🛰 Vue satellite</button>
@@ -493,8 +503,8 @@ function openCam(i, fly){
   }
   const live = document.createElement('span'); live.className = 'live'; live.textContent = c.video || c.embed ? '● LIVE' : '● DIRECT'; M.appendChild(live);
   $('cam-title').textContent = `📷 ${c.name}`;
-  $('cam-meta').textContent = `${c.city} · ${c.src} · ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}${c.dist != null ? ' · à ' + c.dist + ' km' : ''} · ${cams.i + 1}/${cams.list.length}`;
-  $('cam').classList.add('on'); state.cams = true; syncButtons(); drawCams(); syncNexus();
+  $('cam-meta').textContent = `${c.city}${c.country && c.country !== c.city ? ', ' + c.country : ''} · ${c.src}${c.views ? ' · ' + fmtN(c.views) + ' vues' : ''} · ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}${c.dist != null ? ' · à ' + c.dist + ' km' : ''} · ${cams.i + 1}/${cams.list.length}`;
+  $('cam').classList.add('on'); state.cams = true; syncButtons(); drawCams(); syncNexus(); markWorldRow();
   if(fly){ const h = Math.min(Math.max(camera.positionCartographic.height, 25_000), 1_500_000);
     camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(c.lon, c.lat - h / 400_000, h), duration:1.6 }); }
 }
@@ -519,11 +529,66 @@ async function showCams(query){
     reply(`${r.cams.length} caméra${r.cams.length > 1 ? 's' : ''} publique${r.cams.length > 1 ? 's' : ''} autour de ${P.name}. J'ouvre la plus proche : ${r.cams[0].name}.`);
   } catch(e){ reply('Caméras indisponibles : ' + e.message); }
 }
-function closeCams(){ clearInterval(cams.refresh); cams.list = []; cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big'); drawCams(); state.cams = false; syncButtons(); syncNexus(); }
+function closeCams(){ clearInterval(cams.refresh); cams.list = []; cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big');
+  world.on = false; $('camlist').classList.remove('on'); drawCams(); state.cams = false; syncButtons(); syncNexus(); }
+// Liste du monde ouverte : fermer la caméra garde la liste (on peut en choisir une autre)
+function closeCamView(){
+  if(!world.on || cams.i < 0){ closeCams(); return; }
+  clearInterval(cams.refresh); cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big'); drawCams(); markWorldRow(); syncNexus();
+}
 $('cam-prev').onclick = () => openCam(cams.i - 1, true);
 $('cam-next').onclick = () => openCam(cams.i + 1, true);
 $('cam-big').onclick = () => $('cam').classList.toggle('big');
-$('cam-x').onclick = () => closeCams();
+$('cam-x').onclick = () => closeCamView();
+
+/* ── Caméras du monde : liste cliquable (les plus regardées d'abord), chaque caméra repérée sur le globe ── */
+const world = { on:false, rows:[], shown:0, total:0 };
+const fmtN = n => Number(n).toLocaleString('fr-FR');
+async function showWorld(){
+  closeCams();
+  world.on = true; $('camlist').classList.add('on'); $('cl-q').value = '';
+  $('cl-sub').textContent = 'Je recense les caméras du monde…'; $('cl-list').innerHTML = '';
+  state.spin = false; syncButtons();
+  try {
+    const r = await get('world');
+    if(!world.on) return;
+    cams.list = r.cams || []; cams.i = -1; cams.center = null; world.total = r.total || cams.list.length; world.windyTotal = r.windy_total || 0;
+    state.cams = true; syncButtons(); drawCams(); syncNexus(); filterWorld();
+    camera.flyTo({ destination:HOME, duration:2 });
+    reply(`${fmtN(world.total)} caméras publiques dans le monde. J'en affiche ${fmtN(cams.list.length)} dans la liste, les plus regardées en premier. Choisis-en une.`
+      + (r.windy ? '' : ' Sans la clé Windy, seules Londres, la Californie et la Finlande sont couvertes.'));
+  } catch(e){ reply('Caméras indisponibles : ' + e.message); closeCams(); }
+}
+function filterWorld(){
+  const q = $('cl-q').value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  world.rows = [];
+  cams.list.forEach((c, i) => { if(!q || `${c.name} ${c.city} ${c.country || ''} ${c.src}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(q)) world.rows.push(i); });
+  const shown = world.windyTotal ? `${fmtN(cams.list.length)} dans la liste (Windy gratuit : les ${fmtN(cams.list.length - (cams.list.filter(c => c.src !== 'Windy').length))} plus regardées sur ${fmtN(world.windyTotal)}, + Londres, Californie, Finlande)` : `${fmtN(cams.list.length)} dans la liste`;
+  $('cl-title').textContent = `🌍 ${fmtN(world.total)} caméras dans le monde`;
+  $('cl-sub').textContent = q ? `${fmtN(world.rows.length)} résultat${world.rows.length > 1 ? 's' : ''} pour « ${$('cl-q').value.trim()} »` : shown;
+  $('cl-list').innerHTML = ''; world.shown = 0; moreWorld();
+}
+function moreWorld(){
+  const L = $('cl-list'), end = Math.min(world.rows.length, world.shown + 150);
+  for(let k = world.shown; k < end; k++){
+    const i = world.rows[k], c = cams.list[i], d = document.createElement('div');
+    d.className = 'fl cl' + (i === cams.i ? ' sel' : ''); d.dataset.i = i;
+    d.innerHTML = `<div class="r1"><span class="n">${k + 1}</span>${esc(c.name)}</div><div class="r3">📍 ${esc(c.city)}${c.country && c.country !== c.city ? ', ' + esc(c.country) : ''} · ${esc(c.src)}${c.views ? ' · ' + fmtN(c.views) + ' vues' : ''}</div>`;
+    d.onclick = () => openCam(i, true);
+    L.appendChild(d);
+  }
+  world.shown = end;
+}
+function markWorldRow(){
+  if(!world.on) return;
+  document.querySelectorAll('#cl-list .sel').forEach(e => e.classList.remove('sel'));
+  const row = document.querySelector(`#cl-list [data-i="${cams.i}"]`);
+  if(row){ row.classList.add('sel'); row.scrollIntoView({ block:'nearest' }); }
+}
+$('cl-list').addEventListener('scroll', e => { const L = e.target; if(L.scrollTop + L.clientHeight > L.scrollHeight - 200 && world.shown < world.rows.length) moreWorld(); });
+let clTimer = 0;
+$('cl-q').addEventListener('input', () => { clearTimeout(clTimer); clTimer = setTimeout(filterWorld, 200); });
+$('cl-x').onclick = () => closeCams();
 /* Nexus doit savoir quels widgets sont ouverts (« caméra suivante », « ferme la liste »), même ouverts/fermés à la souris */
 function syncNexus(){ try{ if(parent !== window) parent.postMessage({ type:'globe_state', cams:!!state.cams, flights:!!inbound.place }, location.origin); }catch(_){} }
 
@@ -588,7 +653,9 @@ function command(d){
     case 'cam_next': openCam(cams.i + 1, true); break;
     case 'cam_prev': openCam(cams.i - 1, true); break;
     case 'cam_size': $('cam').classList.toggle('big', !!d.big); break;
-    case 'cam_close': closeCams(); break;
+    case 'cam_close': closeCamView(); break;
+    case 'cams_world': void showWorld(); break;
+    case 'cam_close_all': closeCams(); break;
   }
 }
 function setLayer(name, on){

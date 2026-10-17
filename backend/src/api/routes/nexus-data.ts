@@ -97,18 +97,23 @@ router.post('/notify', async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
-// GET /api/nexus/data/webcams?nearby=lat,lon,km — caméras Windy pour le globe ; la clé reste côté serveur (env ou app_kv cfg:windy_webcams_key)
+// GET /api/nexus/data/webcams?nearby=lat,lon,km  ou  ?offset=0..1000 (les plus regardées du monde) — caméras Windy pour le globe ;
+// la clé reste côté serveur (env WINDY_WEBCAMS_KEY ou app_kv cfg:windy_webcams_key)
 router.get('/webcams', async (req, res) => {
   const nearby = String(req.query['nearby'] ?? '');
-  if (!/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+$/.test(nearby)) { res.status(400).json({ error: 'nearby=lat,lon,km requis' }); return; }
+  const offset = Number(req.query['offset'] ?? 0);
+  if (nearby && !/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+$/.test(nearby)) { res.status(400).json({ error: 'nearby=lat,lon,km invalide' }); return; }
+  if (!Number.isInteger(offset) || offset < 0 || offset > 1000) { res.status(400).json({ error: 'offset 0..1000' }); return; }
   try {
     const key = process.env['WINDY_WEBCAMS_KEY'] || await kvGet('cfg:windy_webcams_key');
-    if (!key) { res.json({ webcams: [], windy: false }); return; }
-    const qs = new URLSearchParams({ nearby, limit: '50', lang: 'fr', include: 'location,images,player' });
+    if (!key) { res.json({ webcams: [], total: 0, windy: false }); return; }
+    const qs = new URLSearchParams({ limit: '50', lang: 'fr', include: 'location,images,player' });
+    if (nearby) qs.set('nearby', nearby);
+    else { qs.set('offset', String(offset)); qs.set('sortKey', 'popularity'); qs.set('sortDirection', 'desc'); }
     const r = await fetch(`https://api.windy.com/webcams/api/v3/webcams?${qs}`, { headers: { 'x-windy-api-key': key }, signal: AbortSignal.timeout(12000) });
     if (!r.ok) throw new Error(`windy ${r.status}`);
-    const d = await r.json() as { webcams?: unknown[] };
-    res.json({ webcams: d.webcams ?? [], windy: true });
+    const d = await r.json() as { webcams?: unknown[]; total?: number };
+    res.json({ webcams: d.webcams ?? [], total: d.total ?? 0, windy: true });
   } catch (err) { fail(res, err); }
 });
 
