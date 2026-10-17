@@ -217,6 +217,10 @@ export async function ensureCoachDays(): Promise<void> {
   if (!target || await getCoachDay(target)) return;
   const lock = `kouider:coach:gen:${target}`;
   if (await kvGet(lock).catch(() => '1')) return;
-  await kvSet(lock, '1', 1800);
-  await buildCoachDay(target).catch(err => console.error('[life-coach] journée:', err instanceof Error ? err.message : err));
+  await kvSet(lock, '1', 900);
+  await buildCoachDay(target).catch(async err => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[life-coach] journée:', msg);
+    await kvSet(lock, `erreur ${new Date().toISOString()} : ${msg.slice(0, 300)}`, 900);   // visible pour le débogage, nouvel essai dans 15 min
+  });
 }
