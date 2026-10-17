@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-17 — Coach sportif (sport_coach) + page SPORT — a8655c3
+- `backend/src/integrations/sport-coach.ts` : rotation PUSH / PULL / LEG / CARDIO / UPPER / CORE & MOBILITÉ posée sur chaque créneau 🏋️ de l'agenda FIK (titre + exercices, séries × reps, charge conseillée dans la description). Créneau raccourci par un RDV → séance courte ; séance ratée → refaite au créneau suivant (clôture à 20h15) ; progression +step kg quand toutes les séries sont réussies. Programme sans charge lourde sur la colonne.
+- Rappels : au message « pars à… » d'un créneau sport (departures.ts) → point GPS de la salle (send_venue Telegram) + séance + appel (sauf si la routine du matin vient d'appeler) ; `sport-watch` */5 : arrivé à la salle (GPS < 400 m) → séance sur Telegram, séance commencée +10 min et GPS loin → appel « tu as oublié le sport ? » + point GPS ; pas de GPS → message.
+- Outil `sport_coach` (week/session/swap/skip/unskip/log/progress/settings/sync), API `/api/sport`, page app SPORT (mode séance, minuteur de repos parlé + vibration, remplacement d'exercice, wake lock, récupération musculaire, records, volume), app v153.
+- tgcall : messages `location` → `send_venue`. Plan du coach de vie (20h30) reprend la séance prévue.
+- Dossier investisseur PDF (25 p.) envoyé sur Telegram.
+
 ## 2026-10-17 — Coach de vie (life_coach)
 - Dzaryx devient aussi coach de vie, coach sportif et nutritionniste : outil `life_coach` (plan du jour/demain calé sur l'agenda, suivi moral/poids, profil privé), injecté dans le dossier Kouider (chat, app, voix, appels).
 - Tâches : `life-coach-evening` 20h30 (plan de demain + « ton moral ? », moral bas 2 jours → appel), `life-coach-weekly` dimanche 18h (bilan au téléphone).
