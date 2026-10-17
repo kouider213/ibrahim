@@ -420,6 +420,7 @@ async function _dispatch(
       case 'prospect_replies':          return await prospectRepliesTool(input);
       case 'prospect_autopilot':        return await prospectAutopilotTool(input);
       case 'billing':                   return await (await import('./billing.js')).billingTool(input);
+      case 'video_studio':              return sessionId?.includes('houari') ? 'Le studio vidéo est réservé à Kouider.' : await (await import('../marketing/video-studio.js')).videoStudioTool(input, 'kouider');
       case 'delete_calendar_event':     return await deleteCalendarEventTool(input);
       case 'update_calendar_event':     return await updateCalendarEventTool(input);
       // ─── OBSIDIAN BRAIN ───
@@ -4264,6 +4265,10 @@ async function findCarByName(name: string): Promise<{ id: string; name: string; 
   return null;
 }
 
+// Kling 3.0 Pro (fal.ai) — remplace Kling 1.6 standard (2024)
+const KLING_I2V = 'fal-ai/kling-video/v3/pro/image-to-video';
+const KLING_T2V = 'fal-ai/kling-video/v3/pro/text-to-video';
+
 async function falGenerate(
   modelId: string,
   input: Record<string, unknown>,
@@ -4700,18 +4705,18 @@ async function generateVehicleVideo(opts: {
     if (!falKey) throw new Error('FAL_KEY non configurée — impossible d\'utiliser Kling.');
     if (imageUrl) {
       const url = await falGenerate(
-        'fal-ai/kling-video/v1.6/standard/image-to-video',
-        { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), aspect_ratio: '9:16' },
-        falKey, 240_000,
+        KLING_I2V,
+        { start_image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), generate_audio: false },
+        falKey, 420_000,
       );
-      return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
+      return { url, provider: 'Kling 3.0', mode: 'image-to-video' };
     }
     const url = await falGenerate(
-      'fal-ai/kling-video/v1.6/standard/text-to-video',
-      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16' },
-      falKey, 240_000,
+      KLING_T2V,
+      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16', generate_audio: false },
+      falKey, 420_000,
     );
-    return { url, provider: 'Kling 1.6', mode: 'text-to-video' };
+    return { url, provider: 'Kling 3.0', mode: 'text-to-video' };
   }
 
   // ── AUTO: Runway first if available ───────────────────────────────────────
@@ -4730,21 +4735,21 @@ async function generateVehicleVideo(opts: {
   // Kling image-to-video — cfgScale from builder (0.4 strict / 0.65 scene transform)
   if (imageUrl && falKey) {
     const url = await falGenerate(
-      'fal-ai/kling-video/v1.6/standard/image-to-video',
-      { image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), aspect_ratio: '9:16' },
-      falKey, 240_000,
+      KLING_I2V,
+      { start_image_url: imageUrl, prompt, negative_prompt: negativePrompt, cfg_scale: cfgScale, duration: String(duration), generate_audio: false },
+      falKey, 420_000,
     );
-    return { url, provider: 'Kling 1.6', mode: 'image-to-video' };
+    return { url, provider: 'Kling 3.0', mode: 'image-to-video' };
   }
 
   // Kling text-to-video (last resort)
   if (falKey) {
     const url = await falGenerate(
-      'fal-ai/kling-video/v1.6/standard/text-to-video',
-      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16' },
-      falKey, 240_000,
+      KLING_T2V,
+      { prompt, negative_prompt: negativePrompt, duration: String(duration), aspect_ratio: '9:16', generate_audio: false },
+      falKey, 420_000,
     );
-    return { url, provider: 'Kling 1.6', mode: 'text-to-video' };
+    return { url, provider: 'Kling 3.0', mode: 'text-to-video' };
   }
 
   throw new Error('Aucun provider vidéo configuré — ajoute FAL_KEY dans Railway → Variables');
@@ -4936,7 +4941,7 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
   // TOUT pré-traitement fal.ai/bria et on envoie directement l'image à Runway/Kling.
   // La transformation de scène est décrite dans le prompt texte — le modèle s'en charge.
   if (forceProvider !== 'auto' && sceneTransformation && carImageUrl) {
-    const provLabel = forceProvider === 'runway' ? 'Runway Gen-3' : 'Kling 1.6';
+    const provLabel = forceProvider === 'runway' ? 'Runway Gen-3' : 'Kling 3.0';
     await tgMsg(chatId,
       `🎬 *Génération vidéo — ${provLabel}* (provider forcé)\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Scène décrite dans le prompt — aucun pré-traitement fal.ai._\n⏳ 60-240 secondes...`
     ).catch(() => {});
@@ -5040,12 +5045,12 @@ async function generateAiVideoTool(input: Record<string, unknown>, sessionId?: s
     await tgMsg(chatId,
       `🎬 *Génération vidéo — Runway Gen-3* (mode forcé)\n${carImageUrl ? `✅ Photo réelle de *${carDisplayName}* trouvée.` : '⚠️ Aucune photo réelle trouvée.'}\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes, patience...`);
   } else if (carImageUrl) {
-    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
+    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 3.0' : 'Runway Gen-3';
     await tgMsg(chatId,
       `🎬 *Génération vidéo IA — ${providerLabel}*\n✅ Photo réelle de *${carDisplayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes, patience...`);
   } else {
     await tgMsg(chatId,
-      `🎬 *Génération vidéo IA — Kling 1.6*\n⚠️ Aucune photo réelle exploitable trouvée. Génération basée uniquement sur description, le rendu peut être moins fidèle.\n⏳ 60-240 secondes, patience...`);
+      `🎬 *Génération vidéo IA — Kling 3.0*\n⚠️ Aucune photo réelle exploitable trouvée. Génération basée uniquement sur description, le rendu peut être moins fidèle.\n⏳ 60-240 secondes, patience...`);
   }
 
   const sourceImageType = effectiveImageUrl !== carImageUrl ? 'transformed' : 'original';
@@ -5158,7 +5163,7 @@ async function animateCarPhotoTool(input: Record<string, unknown>, sessionId?: s
     await tgMsg(chatId,
       `🎬 *Animation photo — Runway Gen-3* (mode forcé)\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération en mode fidélité stricte avec Runway..._\n⏳ 60-240 secondes...`);
   } else {
-    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 1.6' : 'Runway Gen-3';
+    const providerLabel = (forceProvider === 'kling' || !runwayKey) ? 'Kling 3.0' : 'Runway Gen-3';
     await tgMsg(chatId,
       `🎬 *Animation photo IA — ${providerLabel}*\n✅ Photo réelle de *${displayName}* trouvée.\n_Génération réaliste en cours avec ${providerLabel}..._\n⏳ 60-240 secondes...`);
   }

@@ -1346,8 +1346,32 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'video_studio',
+    description: 'STUDIO VIDÉO niveau Higgsfield : vidéos virales TikTok/Reels/Shorts 9:16 avec plans IA ultra réalistes (fal.ai : Kling 3.0 Pro, Veo 3.1, Veo 3.1 Fast, Seedance 2.0), effets caméra (drone, FPV, travelling, rotation 360°, zoom rapide, ralenti…), voix off FR/darija/arabe, sous-titres animés mot par mot, musique IA, accroche, appel à l\'action, logo. À utiliser dès que Kouider veut « une vidéo virale », « une pub vidéo », « une vidéo comme Higgsfield », « anime ma voiture façon cinéma ». Étapes : 1) action="plan" (idée + template, ou manual_prompt pour un seul plan) → renvoie plan_id + coût estimé par modèle ; 2) montrer le plan et le coût à Kouider et ATTENDRE son accord ; 3) action="render" avec plan_id et le modèle choisi. Le rendu prend 5 à 15 min et arrive sur Telegram + app (page STUDIO VIDÉO). action="status" = où en sont les rendus.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action:        { type: 'string', enum: ['plan', 'render', 'status'], description: 'plan (gratuit, juste le scénario + coût), render (coûte du crédit fal.ai, seulement après accord), status.' },
+        idea:          { type: 'string', description: 'plan : idée de la vidéo en clair (ex. « 3 raisons de louer chez Autolux cet été »).' },
+        template:      { type: 'string', enum: ['autolux', 'voiture', 'fik_sites', 'temoignage', 'avant_apres', 'libre'], description: 'plan : type de vidéo.' },
+        lang:          { type: 'string', enum: ['fr', 'darija', 'ar', 'en'], description: 'plan : langue de la voix off. Défaut fr.' },
+        seconds:       { type: 'number', description: 'plan : durée totale visée (8 à 45 s, défaut 20). Avec manual_prompt : durée du plan unique.' },
+        car_name:      { type: 'string', description: 'plan : voiture de la flotte à montrer (sa vraie photo sert d\'image de départ).' },
+        image_url:     { type: 'string', description: 'plan : photo de départ à animer (sinon photo de la voiture ou rien).' },
+        manual_prompt: { type: 'string', description: 'plan : un seul plan façon Higgsfield, décrit en français (sans script ni voix off).' },
+        camera:        { type: 'string', enum: ['auto', 'drone', 'fpv', 'travelling', 'orbit', 'dolly_in', 'crash_zoom', 'low_angle', 'slowmo', 'handheld'], description: 'Avec manual_prompt : mouvement de caméra.' },
+        plan_id:       { type: 'string', description: 'render : plan_id renvoyé par action="plan".' },
+        model:         { type: 'string', enum: ['kling3', 'veo31fast', 'veo31', 'seedance2'], description: 'render : kling3 (défaut, meilleur rapport qualité/prix), veo31fast (pas cher), veo31 (le plus réaliste, cher), seedance2.' },
+        native_audio:  { type: 'boolean', description: 'render : son natif généré par le modèle (plus cher). Défaut false.' },
+        voice:         { type: 'boolean', description: 'render : voix off (défaut true si le plan en a une).' },
+        music:         { type: 'boolean', description: 'render : musique IA de fond (défaut true).' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'generate_ai_video',
-    description: 'Générer une vidéo IA réaliste d\'une voiture. Providers : Runway Gen-3 (haute fidélité, si RUNWAY_API_KEY configurée) et Kling 1.6 (fallback). Mode auto par défaut : Runway si disponible, sinon Kling. IMPORTANT : si Kouider dit "avec Runway", "force Runway", "génère avec Runway", "teste Runway", "premium Runway" → passer provider: "runway". Si une voiture de la flotte est mentionnée, TOUJOURS passer car_name — Dzaryx récupère la vraie photo Supabase et génère depuis l\'image (image-to-video, plus réaliste). Envoie le MP4 sur Telegram.',
+    description: 'Générer une vidéo IA réaliste d\'une voiture. Providers : Runway Gen-3 (haute fidélité, si RUNWAY_API_KEY configurée) et Kling 3.0 Pro (fallback). Mode auto par défaut : Runway si disponible, sinon Kling. IMPORTANT : si Kouider dit "avec Runway", "force Runway", "génère avec Runway", "teste Runway", "premium Runway" → passer provider: "runway". Si une voiture de la flotte est mentionnée, TOUJOURS passer car_name — Dzaryx récupère la vraie photo Supabase et génère depuis l\'image (image-to-video, plus réaliste). Envoie le MP4 sur Telegram.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1361,7 +1385,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'animate_car_photo',
-    description: 'Animer une photo réelle de voiture (image → vidéo réaliste). Providers : Runway Gen-3 (si RUNWAY_API_KEY) ou Kling 1.6. Si Kouider dit "avec Runway" ou "force Runway" → provider: "runway". Mode auto par défaut. ⚠️ Prend 60-240 secondes. Envoie le MP4 sur Telegram. ⚠️ IMPORTANT : NE PAS appeler si generate_ai_video a déjà été invoqué dans ce même message — un seul outil vidéo par message. Ne pas passer provider:"kling" sauf si Kouider dit explicitement "utilise Kling" ou "sans Runway".',
+    description: 'Animer une photo réelle de voiture (image → vidéo réaliste). Providers : Runway Gen-3 (si RUNWAY_API_KEY) ou Kling 3.0 Pro. Si Kouider dit "avec Runway" ou "force Runway" → provider: "runway". Mode auto par défaut. ⚠️ Prend 60-240 secondes. Envoie le MP4 sur Telegram. ⚠️ IMPORTANT : NE PAS appeler si generate_ai_video a déjà été invoqué dans ce même message — un seul outil vidéo par message. Ne pas passer provider:"kling" sauf si Kouider dit explicitement "utilise Kling" ou "sans Runway".',
     input_schema: {
       type: 'object' as const,
       properties: {

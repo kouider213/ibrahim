@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-10-17 — STUDIO VIDÉO (vidéos IA niveau Higgsfield, sans Higgsfield)
+- `marketing/video-studio.ts` : idée → scénario viral (Claude) → plans IA réalistes via fal.ai (Kling 3.0 Pro,
+  Veo 3.1 / Veo 3.1 Fast, Seedance 2.0), effets caméra (drone, FPV, travelling, 360°, zoom rapide, ralenti…)
+  → montage ffmpeg 1080×1920 : transitions, voix off ElevenLabs (FR/darija/arabe), sous-titres mot par mot
+  (style CapCut), accroche, CTA, logo, musique IA (CassetteAI), volume TikTok (-14 LUFS)
+  → Supabase `videos/studio/` + Telegram (tgcall document) + notification app. Coût estimé avant, coût réel noté.
+- Route `/api/studio` (options, plan, render, jobs) ; outil Dzaryx `video_studio` (plan → accord → render → status).
+- App : page 🎬 STUDIO VIDÉO (Kouider) : vidéo virale complète ou plan unique, photo de la flotte, scénario modifiable,
+  choix du modèle avec prix, suivi du rendu, lecteur + téléchargement + légende à copier. sw v151.
+- `generate_ai_video` / `animate_car_photo` : Kling 1.6 standard → Kling 3.0 Pro.
+
 ## 2026-10-16 (4) — Mails : pièces jointes, conversation entière, réponse à tout mail, rangement, résumé du soir
 - `read_email` liste les pièces jointes ; `read_email_attachment` lit PDF (texte, sinon Claude), images (Claude), texte,
   et peut envoyer le fichier sur Telegram (lien temporaire `/api/pdf/:token` → `tgcall` `send_document`).

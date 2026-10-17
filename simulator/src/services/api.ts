@@ -913,6 +913,24 @@ export interface SitesOverview {
   stats: { live: number; paused: number; late: number; unread: number; mrr: Record<string, number> };
 }
 
+// ── Studio vidéo IA ──
+export interface StudioShot { prompt: string; camera: string; duration: number; use_image?: boolean }
+export interface StudioPlan {
+  id: string; title: string; hook: string; voiceover: string; cta: string; music_prompt: string; post_caption: string;
+  brand: string; lang: string; template: string; image_url?: string | null; shots: StudioShot[]; createdAt: string;
+}
+export interface StudioModel { id: string; label: string; perSec: number; perSecAudio: number; durations: number[]; note: string }
+export interface StudioOptions {
+  models: StudioModel[]; cameras: Array<{ id: string; label: string }>; templates: Array<{ id: string; label: string }>;
+  langs: string[]; cars: Array<{ id: string; name: string; image_url: string }>; spentUsd: number;
+}
+export interface StudioJob {
+  id: string; planId: string; title: string; model: string; status: 'queued' | 'shots' | 'audio' | 'montage' | 'done' | 'error';
+  step: string; progress: number; estimateUsd: number; costUsd: number; url?: string; caption?: string; error?: string;
+  shotsDone: number; shotsTotal: number; createdAt: string; updatedAt: string;
+}
+export interface StudioRenderOptions { model: string; nativeAudio: boolean; voice: boolean; music: boolean; subtitles: boolean }
+
 export const business = {
   fetchBookings: (q?: string, rentedBy?: string) => {
     const p = new URLSearchParams({ limit: '40' });
@@ -1033,6 +1051,13 @@ export const business = {
     apiFetch<{ ok: boolean }>(`/api/prospects/${id}/whatsapp`, { method: 'POST', body: JSON.stringify({ sent }) }),
   prospectWhatsappSend: (id: string) => apiFetch<{ ok: boolean; message: string }>(`/api/prospects/${id}/whatsapp/send`, { method: 'POST' }),
   billing: () => apiFetch<BillingOverview>('/api/billing'),
+  studioOptions: () => apiFetch<StudioOptions>('/api/studio/options'),
+  studioPlan: (body: { idea: string; template: string; lang: string; seconds: number; imageUrl?: string; carName?: string }
+    | { manual: { prompt: string; camera: string; duration: number; imageUrl?: string } }) =>
+    apiFetch<StudioPlan>('/api/studio/plan', { method: 'POST', body: JSON.stringify(body) }),
+  studioRender: (plan: StudioPlan, options: StudioRenderOptions) =>
+    apiFetch<{ job: StudioJob; estimateUsd: number }>('/api/studio/render', { method: 'POST', body: JSON.stringify({ plan, options }) }),
+  studioJobs: () => apiFetch<{ jobs: StudioJob[]; spentUsd: number }>('/api/studio/jobs'),
   billingEco: (on: boolean) => apiFetch<{ ok: boolean; message: string }>('/api/billing/eco', { method: 'POST', body: JSON.stringify({ on }) }),
   billingUpdate: (id: string, patch: { due?: string; amount?: string; balance?: number; note?: string; paid?: boolean }) =>
     apiFetch<{ ok: boolean; message: string }>(`/api/billing/${id}`, { method: 'POST', body: JSON.stringify(patch) }),
