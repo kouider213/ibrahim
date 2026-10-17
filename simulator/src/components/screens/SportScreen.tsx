@@ -47,12 +47,14 @@ function initLive(s: SportSession): Live {
   return { date: s.date, type: s.type, startedAt: Date.now(), idx: 0, sets, alt: {} };
 }
 
-export default function SportScreen() {
+export default function SportScreen({ embedded = false, onLive }: { embedded?: boolean; onLive?: (live: boolean) => void } = {}) {
   const [data, setData] = useState<SportOverview | null>(null);
   const [err, setErr] = useState('');
   const [toast, setToast] = useState('');
   const [live, setLive] = useState<Live | null>(loadLive);
   const [sheet, setSheet] = useState<string | null>(null);           // date du jour à modifier
+  const [demo, setDemo] = useState<SportExercise | null>(null);
+  useEffect(() => { onLive?.(!!live); }, [live, onLive]);
   const say = (t: string) => { setToast(t); setTimeout(() => setToast(''), 4000); };
   const load = useCallback(() => business.sport().then(setData).catch(e => setErr(errText(e))), []);
   useEffect(() => { void load(); }, [load]);
@@ -71,9 +73,9 @@ export default function SportScreen() {
 
   const s = data?.today ?? data?.next ?? null;
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 60% at 50% 0%, #2a0b1d 0%, #050a16 55%)', color: C.text, fontFamily: C.font, paddingBottom: 30 }}>
-      <Hero eyebrow="Coach sportif · Dzaryx" title="SPORT" accent={C.accent}
-        subtitle={data ? `🔥 ${data.stats.streak} séance(s) d'affilée · ${data.stats.monthSessions} ce mois` : 'Ton programme calé sur ton agenda'} />
+    <div style={{ height: '100%', overflowY: 'auto', background: embedded ? 'transparent' : 'radial-gradient(120% 60% at 50% 0%, #2a0b1d 0%, #050a16 55%)', color: C.text, fontFamily: C.font, paddingBottom: 30, paddingTop: embedded ? 12 : 0 }}>
+      {!embedded && <Hero eyebrow="Coach sportif · Dzaryx" title="SPORT" accent={C.accent}
+        subtitle={data ? `🔥 ${data.stats.streak} séance(s) d'affilée · ${data.stats.monthSessions} ce mois` : 'Ton programme calé sur ton agenda'} />}
       <div style={{ padding: '0 14px' }}>
         {err && <div style={{ ...card, color: '#f87171' }}>❌ {err}</div>}
         {!data && !err && <SkeletonCards count={4} height={90} />}
@@ -91,8 +93,9 @@ export default function SportScreen() {
                 {s.arrived && <span style={{ ...pill, color: C.green }}>✅ arrivé à {hm(new Date(s.arrived).toISOString())}</span>}
               </div>
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.7 }}>
-                {s.exercises.map(e => <div key={e.id}>• {e.name} <b style={{ color: C.text }}>{e.sets}×{e.reps}</b>{e.suggestion.kg != null && <span style={{ color: e.suggestion.up ? C.green : C.cyan }}> · {e.suggestion.kg} kg{e.suggestion.up ? ' ⬆️' : ''}</span>}</div>)}
+                {s.exercises.map(e => <div key={e.id} onClick={() => setDemo(e)} style={{ cursor: 'pointer' }}>{e.demo.length ? '🎬' : '•'} {e.name} <b style={{ color: C.text }}>{e.sets}×{e.reps}</b>{e.suggestion.kg != null && <span style={{ color: e.suggestion.up ? C.green : C.cyan }}> · {e.suggestion.kg} kg{e.suggestion.up ? ' ⬆️' : ''}</span>}</div>)}
                 {s.finisher && <div>🏁 {s.finisher}</div>}
+                <div style={{ fontSize: 10.5, marginTop: 4 }}>👆 Touche un exercice pour voir la démo et la vidéo</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginTop: 14 }}>
                 <button style={{ ...btn(C.accent), fontSize: 15, padding: 14 }} onClick={() => { const l = initLive(s); setLive(l); saveLive(l); }}>▶ COMMENCER</button>
@@ -196,7 +199,38 @@ export default function SportScreen() {
           </div>
         </div>
       )}
+      {demo && (
+        <div onClick={() => setDemo(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 55, display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: '#0a1428', borderRadius: '20px 20px 0 0', padding: 16, border: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>{demo.name}</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 10 }}>{demo.sets} × {demo.reps} · repos {demo.rest ? `${demo.rest} s` : '—'} · {MUSCLE[demo.muscle]}</div>
+            <ExerciseDemo e={demo} />
+            <div style={{ fontSize: 12.5, color: '#fda4af', margin: '10px 0', lineHeight: 1.5 }}>💡 {demo.tip}</div>
+            {demo.alt.length > 0 && <div style={{ fontSize: 11.5, color: C.muted }}>Remplacement : {demo.alt.join(' · ')}</div>}
+            <button style={{ ...ghost, width: '100%', marginTop: 12 }} onClick={() => setDemo(null)}>Fermer</button>
+          </div>
+        </div>
+      )}
       {toast && <div style={{ position: 'fixed', left: 16, right: 16, bottom: 90, background: '#111c36', border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, fontSize: 13, zIndex: 60 }}>{toast}</div>}
+    </div>
+  );
+}
+
+/** Démo animée (2 positions qui alternent) + bouton vidéo YouTube. */
+export function ExerciseDemo({ e, height = 190 }: { e: SportExercise; height?: number }) {
+  const [f, setF] = useState(0);
+  const [ok, setOk] = useState(true);
+  useEffect(() => { const t = setInterval(() => setF(x => (x + 1) % 2), 900); return () => clearInterval(t); }, []);
+  return (
+    <div>
+      {e.demo.length > 0 && ok && (
+        <div style={{ position: 'relative', height, background: '#fff', borderRadius: 14, overflow: 'hidden' }}>
+          {e.demo.map((src, i) => <img key={src} src={src} alt={e.name} onError={() => setOk(false)} loading="lazy"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: f === i ? 1 : 0, transition: 'opacity .35s' }} />)}
+          <span style={{ position: 'absolute', left: 8, bottom: 6, fontSize: 9, color: '#667', background: 'rgba(255,255,255,0.8)', borderRadius: 6, padding: '1px 5px' }}>démo · {f === 0 ? 'départ' : 'arrivée'}</span>
+        </div>
+      )}
+      <a href={e.video} target="_blank" rel="noreferrer" style={{ ...btn('#ef4444', '#fff'), display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 8, padding: 10 }}>▶ Voir la vidéo de l'exercice</a>
     </div>
   );
 }
@@ -284,7 +318,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
       const payload = s.exercises.flatMap(x => (live.sets[x.id] ?? []).filter(st => st.done).map(st => ({ ex: x.id, ...(st.kg != null ? { kg: st.kg } : {}), reps: st.reps })));
       const r = await business.sportLog({ date: live.date, type: live.type, sets: payload, durationMin: Math.round(elapsed / 60), rpe });
       speak(r.prs.length ? `Nouveau record ! ${r.prs[0]}. Bravo !` : 'Séance enregistrée. Bravo champion !');
-      onDone(r.prs.length ? `🏆 Record : ${r.prs.join(', ')}` : '✅ Séance enregistrée — bravo !');
+      onDone(`${r.levelUp ? `🎉 NIVEAU ${r.level} ! ` : ''}+${r.gained} pts 🎮 — ${r.prs.length ? `🏆 Record : ${r.prs.join(', ')}` : 'séance enregistrée, bravo !'}`);
     } catch (err) { alert(errText(err)); setSaving(false); }
   };
 
@@ -309,6 +343,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'Orbitron', fontSize: 10, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
           <div style={{ fontSize: 22, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{mmss(elapsed)}</div>
+          <div style={{ fontSize: 10.5, color: C.gold, fontWeight: 800 }}>🎮 +{100 + doneCount * 5} pts en jeu</div>
         </div>
         <button style={{ ...btn(C.green), padding: '7px 11px', fontSize: 12 }} onClick={() => setFinish(true)}>Fin ✓</button>
       </div>
@@ -341,6 +376,7 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
           <div style={{ fontSize: 22, fontWeight: 900, margin: '4px 0 6px', lineHeight: 1.15 }}>{name}</div>
           <div style={{ fontSize: 13 }}><b>{e.sets} × {e.reps}</b> · repos {e.rest ? `${e.rest} s` : '—'}</div>
           <div style={{ fontSize: 12, color: '#fda4af', margin: '8px 0', lineHeight: 1.45 }}>💡 {e.tip}</div>
+          {!work && <ExerciseDemo e={e} height={150} />}
           {e.suggestion.last && <div style={{ fontSize: 11.5, color: C.muted }}>La dernière fois : {e.suggestion.last}{e.suggestion.up ? <b style={{ color: C.green }}> → on monte à {e.suggestion.kg} kg ⬆️</b> : ''}</div>}
           {e.alt.length > 0 && <button style={{ ...ghost, padding: '6px 10px', fontSize: 11.5, marginTop: 8 }} onClick={() => onChange({ ...live, alt: { ...live.alt, [e.id]: ((live.alt[e.id] ?? 0) + 1) % (e.alt.length + 1) } })}>
             🔁 Machine prise ? {altName ? '(retour à l\'original au bout de la liste)' : `→ ${e.alt[0]}`}</button>}

@@ -2757,7 +2757,7 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
   },
   {
     name: 'life_coach',
-    description: "Son COACH DE VIE + coach sportif + nutritionniste (privé, Kouider seulement). action='plan' (+ date 'tomorrow' ou AAAA-MM-JJ, défaut aujourd'hui) : repas halal du jour, séance de sport adaptée à son dos, objectif mental, calés sur son agenda — pour « qu'est-ce que je mange aujourd'hui ? », « ma séance de demain », « mon programme ». 'log' + mood (1-10) / weight (kg) / note : noter son moral, son poids ou comment il se sent (« j'ai pas le moral », « je fais 79 kg »). 'add' + fact : retenir une info privée sur sa santé, son mental, ses objectifs. 'history' : son suivi récent. 'show' : tout son profil coach. Jamais d'info santé à quelqu'un d'autre que lui.",
+    description: "Son COACH DE VIE + coach sportif + nutritionniste (privé, Kouider seulement). action='plan' (+ date 'tomorrow' ou AAAA-MM-JJ, défaut aujourd'hui) : repas halal du jour, séance de sport adaptée à son dos, objectif mental, calés sur son agenda — pour « qu'est-ce que je mange aujourd'hui ? », « ma séance de demain », « mon programme ». 'log' + mood (1-10) / weight (kg) / note : noter son moral, son poids ou comment il se sent (« j'ai pas le moral », « je fais 79 kg »). 'add' + fact : retenir une info privée sur sa santé, son mental, ses objectifs. 'history' : son suivi récent. 'show' : tout son profil coach. Les 4 repas, l'objectif mental et l'heure du coucher sont écrits chaque soir dans son agenda FIK (événements libres) et se cochent dans l'app → COACH (jeu de points) ; action='plan' + regenerate=true refait la journée et l'agenda (« change mon déjeuner », « refais mon plan »). Jamais d'info santé à quelqu'un d'autre que lui.",
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -2767,13 +2767,14 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         weight: { type: 'number' },
         note: { type: 'string' },
         fact: { type: 'string' },
+        regenerate: { type: 'boolean' },
       },
       required: ['action'],
     },
   },
   {
     name: 'sport_coach',
-    description: "Son COACH SPORTIF (Kouider seulement) : chaque créneau sport de l'agenda a sa séance (PUSH DAY, PULL DAY, LEG DAY, CARDIO DAY, UPPER DAY, CORE & MOBILITÉ) avec exercices, séries × reps, repos et charge conseillée, écrite dans l'agenda ; adapté à son dos et à son agenda (séance ratée refaite au prochain créneau, créneau raccourci = séance courte). action='week' : le programme des 7 jours. 'session' (+ date AAAA-MM-JJ / 'demain' / 'lundi'…) : la séance détaillée (« c'est quoi ma séance ? », « je fais quoi à la salle ? »). 'swap' + date + type (push/pull/legs/cardio/upper/core) : changer la séance d'un jour (« demain je veux faire cardio »). 'skip' + date + reason : pas de sport ce jour-là (malade, fatigué, imprévu) → pas d'appel ni d'alerte, séance décalée. 'unskip'. 'log' : noter une perf (exercise + sets + reps + kg, ex. « 4×8 à 22 kg au développé couché ») ou done=true (+ rpe 1-10, duration_min, note) pour une séance faite. 'progress' : records, série, récupération des muscles. 'settings' : call_before (appel + point GPS au moment de partir) / gym_check (GPS loin de la salle après le début → appel « tu as oublié ? ») true/false. 'sync' : réécrire les séances dans l'agenda. La page SPORT de l'app a le mode séance (séries, minuteur de repos parlé).",
+    description: "Son COACH SPORTIF (Kouider seulement) : chaque créneau sport de l'agenda a sa séance (PUSH DAY, PULL DAY, LEG DAY, CARDIO DAY, UPPER DAY, CORE & MOBILITÉ) avec exercices, séries × reps, repos et charge conseillée, écrite dans l'agenda ; adapté à son dos et à son agenda (séance ratée refaite au prochain créneau, créneau raccourci = séance courte). action='week' : le programme des 7 jours. 'session' (+ date AAAA-MM-JJ / 'demain' / 'lundi'…) : la séance détaillée (« c'est quoi ma séance ? », « je fais quoi à la salle ? »). 'swap' + date + type (push/pull/legs/cardio/upper/core) : changer la séance d'un jour (« demain je veux faire cardio »). 'skip' + date + reason : pas de sport ce jour-là (malade, fatigué, imprévu) → pas d'appel ni d'alerte, séance décalée. 'unskip'. 'log' : noter une perf (exercise + sets + reps + kg, ex. « 4×8 à 22 kg au développé couché ») ou done=true (+ rpe 1-10, duration_min, note) pour une séance faite. 'progress' : records, série, récupération des muscles, niveau et points du jeu. 'settings' : call_before (appel + point GPS au moment de partir) / gym_check (GPS loin de la salle après le début → appel « tu as oublié ? ») true/false. 'sync' : réécrire les séances dans l'agenda. La page SPORT de l'app a le mode séance (séries, minuteur de repos parlé).",
     input_schema: {
       type: 'object' as const,
       properties: {

@@ -113,6 +113,23 @@ export const SESSIONS: Record<SessionType, { label: string; emoji: string; focus
   },
 };
 
+// Démo animée de chaque exercice : images libres de droits (free-exercise-db, domaine public), 2 positions alternées dans l'app.
+const DEMO: Record<string, string> = {
+  db_bench: 'Dumbbell_Bench_Press', incline_press: 'Leverage_Incline_Chest_Press', shoulder_press: 'Leverage_Shoulder_Press', lateral_raise: 'Side_Lateral_Raise',
+  pec_deck: 'Butterfly', triceps_rope: 'Triceps_Pushdown_-_Rope_Attachment', plank: 'Plank', plank_c: 'Plank', plank_u: 'Plank',
+  lat_pulldown: 'Wide-Grip_Lat_Pulldown', seated_row: 'Seated_Cable_Rows', db_row: 'One-Arm_Dumbbell_Row', face_pull: 'Face_Pull',
+  db_curl: 'Dumbbell_Bicep_Curl', hammer_curl: 'Hammer_Curls', leg_press: 'Leg_Press', leg_ext: 'Leg_Extensions', leg_curl: 'Seated_Leg_Curl',
+  hip_thrust: 'Barbell_Hip_Thrust', lunges: 'Dumbbell_Lunges', calf: 'Seated_Calf_Raise', dead_bug: 'Dead_Bug', dead_bug_c: 'Dead_Bug',
+  intervals: 'Rowing_Stationary', zone2: 'Elliptical_Trainer', zone2_c: 'Elliptical_Trainer', side_plank: 'Side_Bridge', side_plank_c: 'Side_Bridge',
+  incline_walk: 'Walking_Treadmill', chest_press: 'Leverage_Chest_Press', assisted_pullup: 'Band_Assisted_Pull-Up', row_machine: 'Leverage_Iso_Row',
+  db_shoulder: 'Dumbbell_Shoulder_Press', superset_arms: 'Standing_Biceps_Cable_Curl', cat_cow: 'Cat_Stretch', glute_bridge: 'Barbell_Glute_Bridge',
+  pallof: 'Pallof_Press', stretch: 'Hamstring_Stretch',
+};
+const DEMO_BASE = 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises';
+export const demoOf = (id: string): string[] => (DEMO[id] ? [0, 1].map(i => `${DEMO_BASE}/${DEMO[id]}/${i}.jpg`) : []);
+export const videoOf = (name: string) => `https://www.youtube.com/results?search_query=${encodeURIComponent(`${name} exercice technique exécution`)}`;
+export const ALL_EXERCISES = (): Exercise[] => Object.values(SESSIONS).flatMap(s => s.exercises);
+
 export interface SetLog { ex: string; kg?: number; reps?: number }
 export interface SessionLog { date: string; type: SessionType; at: string; durationMin?: number; rpe?: number; note?: string; sets: SetLog[] }
 interface PlanSlot { type: SessionType; eventId: string; start: string; end: string; minutes: number; title: string }
@@ -434,7 +451,7 @@ export async function sportOverview() {
     const p = st.plan[date];
     if (!p) return null;
     const fit = fitSession(p.type, p.minutes);
-    return { date, type: p.type, ...SESSIONS[p.type], exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log), timed: isTimed(e) })),
+    return { date, type: p.type, ...SESSIONS[p.type], exercises: fit.exercises.map(e => ({ ...e, suggestion: suggestFor(e, log), timed: isTimed(e), demo: demoOf(e.id), video: videoOf(e.name) })),
       finisher: fit.finisher ?? null, estMin: fit.estMin, start: p.start, end: p.end, minutes: p.minutes, arrived: st.arrived[date] ?? null };
   };
   const nextDate = week.find(w => w.type && w.status !== 'done' && (w.date > today || Date.parse(w.end!) > Date.now()))?.date;
@@ -487,6 +504,10 @@ export async function setSportSkip(date: string, reason: string | null): Promise
   if (reason) st.skips[date] = reason; else delete st.skips[date];
   await saveState(st);
   await planSportWeek(true);
+}
+export async function sportHistory(): Promise<{ history: Record<string, 'done' | 'missed' | 'skip'>; arrived: Record<string, number> }> {
+  const st = await getState();
+  return { history: st.history, arrived: st.arrived };
 }
 export async function isSportSkipped(date: string): Promise<boolean> {
   return !!(await getState()).skips[date];
@@ -568,7 +589,9 @@ export async function sportCoachTool(input: Record<string, unknown>, sessionId?:
   }
   if (action === 'progress') {
     const o = await sportOverview();
+    const game = await (await import('./coach-game.js')).computeGame().catch(() => null);
     return [
+      game ? `🎮 Niveau ${game.level} — ${game.title} · ${game.total} pts (${game.pct}% vers le niveau ${game.level + 1}) · aujourd'hui +${game.today}` : '',
       `🔥 Série en cours : ${o.stats.streak} séance(s) d'affilée · ce mois : ${o.stats.monthSessions} · total : ${o.stats.total}`,
       o.stats.prs.length ? `🏆 Records : ${o.stats.prs.map(p => `${p!.ex} ${p!.kg} kg`).join(' · ')}` : '🏆 Pas encore de charges notées.',
       `🔋 Récupération : ${o.recovery.map(r => `${r.muscle} ${r.pct}%`).join(' · ')}`,

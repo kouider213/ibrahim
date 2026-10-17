@@ -28,6 +28,7 @@ function isBookingOrNoise(e: Ev): boolean {
 // « Libre — RDV possibles », « Belgique — travail », « Agence FIK — business Algérie » sans aucun interlocuteur).
 const PERSONAL_RE = /\b(libre|dispo(nible)?s?|famille|perso(nnel)?|travail|boulot|belgique|sport|salle|gym|repos|pause|d[ée]jeuner|d[îi]ner|focus|bloqu[ée]|trajet|route|vol|avion|cong[ée]|vacances|off|sieste|pri[èe]re|mosqu[ée]e|courses|m[ée]decin|dentiste|enfants?|[ée]cole)\b/i;
 function isPersonalBlock(e: Ev): boolean {
+  if (/^(🍳|🍽️|🥜|🍲|🧠|😴|🏋️)/u.test(e.summary ?? '')) return true;      // repas / mental / coucher / sport posés par le coach
   const others = (e.attendees ?? []).filter(a => !a.self);
   return others.length === 0 && PERSONAL_RE.test(e.summary ?? '') && !/@/.test(e.description ?? '');
 }
@@ -60,7 +61,7 @@ export async function prepareMeeting(e: Ev): Promise<{ oral: string; detail: str
 /** Job toutes les 10 min. */
 export async function jobMeetingPrep(): Promise<void> {
   if ((await kvGet('meetprep:off').catch(() => null)) === '1') return;
-  const biz = await listUpcomingEvents(20).catch(() => [] as unknown[]);   // agenda FIK seulement
+  const biz = await listUpcomingEvents(40).catch(() => [] as unknown[]);   // agenda FIK seulement
   const now = Date.now();
   for (const e of biz as Ev[]) {
     if (!e.id || isBookingOrNoise(e) || isPersonalBlock(e)) continue;

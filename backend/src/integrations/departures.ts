@@ -57,7 +57,7 @@ interface DepState { warnedAt?: number; warnMin?: number; leaveBy?: number; upda
 /** RDV sans adresse (ponctuel, pas un appel/visio) : une seule question ~3 h avant pour pouvoir prévenir du départ. */
 async function askAddress(id: string, title: string, start: number, now: number, recurring: boolean): Promise<void> {
   if (recurring || start - now > 3 * 3600_000 || start - now < 20 * 60_000) return;
-  if (/^(🟢|🏠|🚿|⏰|🚗|🏋️|✈️|🧳)/u.test(title) || /\b(appel|call|visio|zoom|meet|teams|t[ée]l[ée]phone|en ligne|libre|anniv)/i.test(title)) return;
+  if (/^(🟢|🏠|🚿|⏰|🚗|🏋️|✈️|🧳|🍳|🍽️|🥜|🍲|🧠|😴)/u.test(title) || /\b(appel|call|visio|zoom|meet|teams|t[ée]l[ée]phone|en ligne|libre|anniv)/i.test(title)) return;
   const key = `dep:ask:${id}`;
   if (await kvGet(key).catch(() => '1')) return;
   await kvSet(key, '1', 86_400);

@@ -6,6 +6,7 @@ import {
 } from '../../integrations/sport-coach.js';
 import { localNow } from '../../integrations/morning-routine.js';
 import { queueTelegramMessage } from '../../notifications/tg-outbox.js';
+import { computeGame } from '../../integrations/coach-game.js';
 
 // Page « SPORT » de l'app (Kouider) : séance du jour, mode séance, semaine calée sur l'agenda, progrès, récupération.
 const router = Router();
@@ -31,13 +32,17 @@ router.post('/log', async (req, res) => {
     const date = isDate(b.date) ? b.date : localNow().date;
     const sets = (b.sets ?? []).filter(s => typeof s?.ex === 'string').slice(0, 80)
       .map(s => ({ ex: s.ex, ...(Number(s.kg) > 0 ? { kg: Math.round(Number(s.kg) * 10) / 10 } : {}), ...(Number(s.reps) > 0 ? { reps: Math.round(Number(s.reps)) } : {}) }));
+    const before = await computeGame().catch(() => null);
     const r = await logSportSession({ date, type: b.type, sets,
       ...(Number(b.durationMin) > 0 ? { durationMin: Math.round(Number(b.durationMin)) } : {}),
       ...(Number(b.rpe) > 0 ? { rpe: Math.min(10, Math.round(Number(b.rpe))) } : {}),
       ...(b.note ? { note: String(b.note).slice(0, 200) } : {}) });
     const s = SESSIONS[b.type];
-    await queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée${b.durationMin ? ` en ${Math.round(Number(b.durationMin))} min` : ''} — ${sets.length} séries.${r.prs.length ? `\n🏆 Nouveau record : ${r.prs.join(', ')} !` : ''}\nBravo champion, ta femme et ton fils peuvent être fiers. 💪 Pense à boire et à manger des protéines dans l'heure.`).catch(() => {});
-    res.json({ ok: true, ...r });
+    const after = await computeGame().catch(() => null);
+    const gained = before && after ? after.total - before.total : 0;
+    const levelUp = before && after && after.level > before.level ? `\n🎉 NIVEAU ${after.level} — ${after.title} !` : '';
+    await queueTelegramMessage(`✅ ${s.emoji} ${s.label} terminée${b.durationMin ? ` en ${Math.round(Number(b.durationMin))} min` : ''} — ${sets.length} séries. +${gained} pts 🎮${levelUp}${r.prs.length ? `\n🏆 Nouveau record : ${r.prs.join(', ')} !` : ''}\nBravo champion, ta femme et ton fils peuvent être fiers. 💪 Pense à boire et à manger des protéines dans l'heure.`).catch(() => {});
+    res.json({ ok: true, ...r, gained, level: after?.level ?? null, levelUp: !!levelUp });
   } catch (err) { fail(res, err); }
 });
 

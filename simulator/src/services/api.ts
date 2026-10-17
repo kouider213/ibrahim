@@ -127,7 +127,7 @@ export function setOffline(on: boolean) {
 // ── Coach sportif (page SPORT) ──
 export type SportType = 'push' | 'pull' | 'legs' | 'cardio' | 'upper' | 'core';
 export interface SportExercise { id: string; name: string; muscle: string; sets: number; reps: string; rest: number; tip: string; alt: string[]; step?: number;
-  suggestion: { kg: number | null; last?: string; up?: boolean }; timed: boolean }
+  suggestion: { kg: number | null; last?: string; up?: boolean }; timed: boolean; demo: string[]; video: string }
 export interface SportSession { date: string; type: SportType; label: string; emoji: string; focus: string; muscles: string[]; warmup: string;
   exercises: SportExercise[]; finisher: string | null; estMin: number; start: string; end: string; minutes: number; arrived: number | null }
 export interface SportOverview {
@@ -139,6 +139,25 @@ export interface SportOverview {
   settings: { callBefore: boolean; gymCheck: boolean };
   sessions: Record<SportType, { label: string; emoji: string; focus: string }>;
   recent: Array<{ date: string; type: SportType; label: string; sets: number; volume: number; durationMin: number | null; rpe: number | null }>;
+}
+
+// ── Coach (nutrition, mental, jeu, évolution) ──
+export type MealSlot = 'breakfast' | 'lunch' | 'snack' | 'dinner';
+export interface CoachDay { date: string; meals: Array<{ slot: MealSlot; time: string; title: string; detail: string }>; water: string;
+  mental: { time: string; goal: string; action: string }; sleep: { time: string; why: string }; sport: string | null }
+export interface CoachGame {
+  total: number; level: number; title: string; floor: number; next: number; pct: number; today: number; streakDays: number; prCount: number;
+  feed: Array<{ date: string; xp: number; label: string }>;
+  badges: Array<{ id: string; icon: string; name: string; how: string; ok: boolean }>;
+  quests: Array<{ icon: string; name: string; have: number; need: number; xp: number; done: boolean }>;
+  xpRules: Record<string, number>;
+}
+export interface CoachOverview {
+  today: string; day: CoachDay | null; tomorrow: CoachDay | null;
+  checks: { meals: string[]; water: number; breath: number; gratitude: string[] };
+  mealLabels: Record<MealSlot, string>; game: CoachGame;
+  evolution: { exercises: Record<string, { name: string; points: Array<{ date: string; kg: number }> }>; weights: Array<{ date: string; kg: number }>; moods: Array<{ date: string; mood: number }>; target: number | null };
+  gained?: number; message?: string;
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}, _attempt = 0): Promise<T> {
@@ -1071,10 +1090,16 @@ export const business = {
   billing: () => apiFetch<BillingOverview>('/api/billing'),
   sport: () => apiFetch<SportOverview>('/api/sport'),
   sportLog: (body: { date: string; type: SportType; sets: Array<{ ex: string; kg?: number; reps?: number }>; durationMin?: number; rpe?: number; note?: string }) =>
-    apiFetch<{ ok: boolean; prs: string[]; total: number }>('/api/sport/log', { method: 'POST', body: JSON.stringify(body) }),
+    apiFetch<{ ok: boolean; prs: string[]; total: number; gained: number; level: number | null; levelUp: boolean }>('/api/sport/log', { method: 'POST', body: JSON.stringify(body) }),
   sportSwap: (date: string, type: SportType | null) => apiFetch<SportOverview>('/api/sport/swap', { method: 'POST', body: JSON.stringify({ date, type }) }),
   sportSkip: (date: string, reason: string | null) => apiFetch<SportOverview>('/api/sport/skip', { method: 'POST', body: JSON.stringify({ date, reason }) }),
   sportSettings: (patch: { callBefore?: boolean; gymCheck?: boolean }) => apiFetch<{ settings: SportOverview['settings'] }>('/api/sport/settings', { method: 'POST', body: JSON.stringify(patch) }),
+  coach: () => apiFetch<CoachOverview>('/api/coach'),
+  coachGenerate: (day: 'today' | 'tomorrow') => apiFetch<CoachOverview>('/api/coach/generate', { method: 'POST', body: JSON.stringify({ day }) }),
+  coachCheck: (kind: 'meal' | 'water' | 'breath' | 'gratitude' | 'mood', value?: string | number) =>
+    apiFetch<CoachOverview>('/api/coach/check', { method: 'POST', body: JSON.stringify({ kind, value }) }),
+  coachWeight: (kg: number) => apiFetch<CoachOverview>('/api/coach/weight', { method: 'POST', body: JSON.stringify({ kg }) }),
+  coachTarget: (kg: number | null) => apiFetch<CoachOverview>('/api/coach/target', { method: 'POST', body: JSON.stringify({ kg }) }),
   sportSync: () => apiFetch<{ ok: boolean; message: string }>('/api/sport/sync', { method: 'POST' }),
   studioOptions: () => apiFetch<StudioOptions>('/api/studio/options'),
   studioPlan: (body: { idea: string; template: string; lang: string; seconds: number; imageUrl?: string; carName?: string }

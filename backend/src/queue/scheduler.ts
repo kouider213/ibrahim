@@ -490,7 +490,7 @@ const handlers: Record<string, (job: Job) => Promise<void>> = {
   'business-mentor':         jobBusinessMentor,
   'mentor-news':             jobMentorNewsWatch,
   'sport-plan':              async () => { await (await import('../integrations/sport-coach.js')).jobSportPlan(); },
-  'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); },
+  'sport-watch':             async () => { await (await import('../integrations/sport-coach.js')).jobSportWatch(); await (await import('../integrations/life-coach.js')).ensureCoachDays(); },
   'life-coach-evening':      jobLifeCoachEvening,
   'life-coach-weekly':       jobLifeCoachWeekly,
   'kouider-dossier':         async () => { console.log(`[kouider-dossier] ${await jobKouiderDossier()}`); },
