@@ -4,6 +4,7 @@ import { requirePcAuth } from '../middleware/auth.js';
 import { generatePdfReceipt } from '../../integrations/phase5-finance.js';
 import { logDocumentAccess } from '../../security/document-access-log.js';
 import { queueTelegramMessage } from '../../notifications/tg-outbox.js';
+import { kvGet } from '../../integrations/app-store.js';
 
 // Données métier pour les panneaux de Nexus (PC de Kouider). Protégé par PC_AGENT_TOKEN, jamais par un jeton mobile.
 const router = Router();
@@ -93,6 +94,21 @@ router.post('/notify', async (req, res) => {
   try {
     await queueTelegramMessage(text);
     res.json({ ok: true });
+  } catch (err) { fail(res, err); }
+});
+
+// GET /api/nexus/data/webcams?nearby=lat,lon,km — caméras Windy pour le globe ; la clé reste côté serveur (env ou app_kv cfg:windy_webcams_key)
+router.get('/webcams', async (req, res) => {
+  const nearby = String(req.query['nearby'] ?? '');
+  if (!/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+$/.test(nearby)) { res.status(400).json({ error: 'nearby=lat,lon,km requis' }); return; }
+  try {
+    const key = process.env['WINDY_WEBCAMS_KEY'] || await kvGet('cfg:windy_webcams_key');
+    if (!key) { res.json({ webcams: [], windy: false }); return; }
+    const qs = new URLSearchParams({ nearby, limit: '50', lang: 'fr', include: 'location,images,player' });
+    const r = await fetch(`https://api.windy.com/webcams/api/v3/webcams?${qs}`, { headers: { 'x-windy-api-key': key }, signal: AbortSignal.timeout(12000) });
+    if (!r.ok) throw new Error(`windy ${r.status}`);
+    const d = await r.json() as { webcams?: unknown[] };
+    res.json({ webcams: d.webcams ?? [], windy: true });
   } catch (err) { fail(res, err); }
 });
 

@@ -300,13 +300,20 @@ def _finland() -> list:
 
 def _windy(lat: float, lon: float, km: float) -> list:
     key = os.getenv('WINDY_WEBCAMS_KEY', '').strip()
-    if not key:
-        return []
-    url = ('https://api.windy.com/webcams/api/v3/webcams?' + urllib.parse.urlencode({
-        'nearby': f'{lat:.3f},{lon:.3f},{int(min(250, max(5, km)))}', 'limit': 50, 'lang': 'fr',
-        'include': 'location,images,player'}))
+    nearby = f'{lat:.3f},{lon:.3f},{int(min(250, max(5, km)))}'
+    if key:
+        url = ('https://api.windy.com/webcams/api/v3/webcams?' + urllib.parse.urlencode({
+            'nearby': nearby, 'limit': 50, 'lang': 'fr', 'include': 'location,images,player'}))
+        headers = {'x-windy-api-key': key}
+    else:   # sans clé locale : le backend interroge Windy avec la clé gardée côté serveur
+        token = os.getenv('PC_AGENT_TOKEN', '').strip()
+        if not token:
+            return []
+        backend = os.getenv('BACKEND_URL', 'https://ibrahim-backend-production.up.railway.app').rstrip('/')
+        url = f'{backend}/api/nexus/data/webcams?' + urllib.parse.urlencode({'nearby': nearby})
+        headers = {'Authorization': f'Bearer {token}'}
     try:
-        d = json.loads(_get(url, 300, timeout=12, headers={'x-windy-api-key': key}))
+        d = json.loads(_get(url, 300, timeout=15, headers=headers))
     except Exception as e:
         log.info('caméras windy : %s', e)
         return []
@@ -334,7 +341,7 @@ def _cams(q: dict) -> dict:
     for c in pool:
         c['dist'] = round(_km(lat, lon, c['lat'], c['lon']), 1)
     near = sorted((c for c in pool if c['dist'] <= km), key=lambda c: c['dist'])[:80]
-    return {'cams': near, 'windy': bool(os.getenv('WINDY_WEBCAMS_KEY', '').strip()),
+    return {'cams': near, 'windy': bool(os.getenv('WINDY_WEBCAMS_KEY', '').strip() or os.getenv('PC_AGENT_TOKEN', '').strip()),
             'nearest_elsewhere': None if near else _nearest_cam_zone(lat, lon)}
 
 
