@@ -5,6 +5,7 @@ import { generatePdfReceipt } from '../../integrations/phase5-finance.js';
 import { logDocumentAccess } from '../../security/document-access-log.js';
 import { queueTelegramMessage } from '../../notifications/tg-outbox.js';
 import { kvGet } from '../../integrations/app-store.js';
+import { listEmails, readEmail } from '../../integrations/gmail.js';
 
 // Données métier pour les panneaux de Nexus (PC de Kouider). Protégé par PC_AGENT_TOKEN, jamais par un jeton mobile.
 const router = Router();
@@ -97,17 +98,43 @@ router.post('/notify', async (req, res) => {
   } catch (err) { fail(res, err); }
 });
 
-// GET /api/nexus/data/webcams?nearby=lat,lon,km  ou  ?offset=0..1000 (les plus regardées du monde) — caméras Windy pour le globe ;
+const WINDY_CATEGORIES = new Set(['airport', 'beach', 'building', 'city', 'coast', 'forest', 'indoor', 'lake', 'landscape', 'meteo',
+  'mountain', 'observatory', 'port', 'river', 'sportArea', 'square', 'traffic', 'village']);
+
+// GET /api/nexus/data/emails?max=6 — derniers mails de la boîte pro (lecture seule) pour le widget mails de Nexus
+router.get('/emails', async (req, res) => {
+  const max = Math.min(Math.max(Number(req.query['max'] ?? 6) || 6, 1), 15);
+  try {
+    const emails = await listEmails('pro', { max, folder: 'inbox' });
+    res.json({ emails: emails.map(e => ({ id: e.id, from: e.from, subject: e.subject, date: e.date, snippet: e.snippet, unread: e.unread })) });
+  } catch (err) { fail(res, err); }
+});
+
+// GET /api/nexus/data/emails/:id — un mail complet (texte seulement, 4000 caractères max)
+router.get('/emails/:id', async (req, res) => {
+  const id = String(req.params['id'] ?? '');
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(id)) { res.status(400).json({ error: 'id invalide' }); return; }
+  try {
+    const m = await readEmail('pro', id, 4000);
+    res.json({ id: m.id, from: m.from, subject: m.subject, date: m.date, body: m.body, truncated: m.truncated,
+      attachments: m.attachments.map(a => a.filename) });
+  } catch (err) { fail(res, err); }
+});
+
+// GET /api/nexus/data/webcams?nearby=lat,lon,km  ou  ?offset=0..1000[&categories=beach] (les plus regardées du monde) — caméras Windy pour le globe ;
 // la clé reste côté serveur (env WINDY_WEBCAMS_KEY ou app_kv cfg:windy_webcams_key)
 router.get('/webcams', async (req, res) => {
   const nearby = String(req.query['nearby'] ?? '');
   const offset = Number(req.query['offset'] ?? 0);
+  const category = String(req.query['categories'] ?? '');
   if (nearby && !/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+$/.test(nearby)) { res.status(400).json({ error: 'nearby=lat,lon,km invalide' }); return; }
   if (!Number.isInteger(offset) || offset < 0 || offset > 1000) { res.status(400).json({ error: 'offset 0..1000' }); return; }
+  if (category && !WINDY_CATEGORIES.has(category)) { res.status(400).json({ error: 'catégorie inconnue' }); return; }
   try {
     const key = process.env['WINDY_WEBCAMS_KEY'] || await kvGet('cfg:windy_webcams_key');
     if (!key) { res.json({ webcams: [], total: 0, windy: false }); return; }
     const qs = new URLSearchParams({ limit: '50', lang: 'fr', include: 'location,images,player' });
+    if (category) qs.set('categories', category);
     if (nearby) qs.set('nearby', nearby);
     else { qs.set('offset', String(offset)); qs.set('sortKey', 'popularity'); qs.set('sortDirection', 'desc'); }
     const r = await fetch(`https://api.windy.com/webcams/api/v3/webcams?${qs}`, { headers: { 'x-windy-api-key': key }, signal: AbortSignal.timeout(12000) });

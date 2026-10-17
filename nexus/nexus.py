@@ -48,6 +48,7 @@ from modules.git_manager      import GitManager
 from modules.pc_agent         import PCAgent
 from modules.panels           import Panels
 from modules.globe            import Globe
+from modules.hud              import Hud
 from modules                  import globe as globe_data
 from modules                  import vision_click
 from modules                  import ui_automation
@@ -155,6 +156,7 @@ class NexusApp:
         self.overlay  = Overlay(self)
         self.panels   = Panels(self)
         self.globe    = Globe(self)
+        self.hud      = Hud(self)
 
         self.gui_connections: set = set()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -239,6 +241,12 @@ class NexusApp:
             return
 
         # ── 0b2. Globe 3D façon JARVIS : « montre le globe », « va sur Oran », « les avions », « vue satellite »…
+        # ── 0b2. Widgets holographiques : mails, contrôle à la main, apparence de la sphère
+        hud_reply = await self.hud.handle(t)
+        if hud_reply is not None:
+            await self._reply(hud_reply, source)
+            return
+
         globe_reply = await self.globe.handle(t)
         if globe_reply is not None:
             if globe_reply:
@@ -920,6 +928,8 @@ class NexusApp:
                     t2 = data.get('type')
                     if t2 == 'message':
                         asyncio.create_task(self.handle_command(data.get('text', '')))
+                    elif t2 == 'stop_speech':
+                        self.voice.stop()
                     elif t2 == 'mic_toggle':
                         self.toggle_mic()
                     elif t2 == 'widget_request':

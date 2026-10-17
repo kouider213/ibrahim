@@ -326,6 +326,7 @@ def _windy_cams(d: dict) -> list:
         out.append({'id': f"w{w.get('webcamId')}", 'name': w.get('title', ''), 'city': loc.get('city') or loc.get('country') or '',
                     'country': loc.get('country') or '', 'lat': loc.get('latitude'), 'lon': loc.get('longitude'),
                     'img': (((w.get('images') or {}).get('current') or {}).get('preview') or ''), 'video': '',
+                    'thumb': (((w.get('images') or {}).get('current') or {}).get('thumbnail') or ''),
                     'embed': pl.get('live') or pl.get('day') or '', 'src': 'Windy', 'views': w.get('viewCount')})
     return [c for c in out if c['lat'] is not None]
 
@@ -335,6 +336,28 @@ def _windy(lat: float, lon: float, km: float) -> list:
 
 
 # Clé Windy gratuite : 68 000+ caméras recensées, mais lecture limitée aux 1 050 premières (offset ≤ 1000) → les plus regardées
+WINDY_CATS = {'airport', 'beach', 'building', 'city', 'coast', 'forest', 'indoor', 'lake', 'landscape', 'meteo', 'mountain',
+              'observatory', 'port', 'river', 'sportArea', 'square', 'traffic', 'village'}
+
+
+def _catcams(q: dict) -> dict:
+    """Bandeau de caméras par catégorie (plage, ville, montagne…) : les plus regardées du monde, ou autour d'un lieu."""
+    cat = (q.get('cat') or ['all'])[0]
+    params: dict = {'categories': cat} if cat in WINDY_CATS else {}
+    if 'lat' in q and 'lon' in q:
+        d = _windy_raw({**params, 'nearby': f"{_f(q, 'lat', 0):.3f},{_f(q, 'lon', 0):.3f},250"})
+        pages = [d]
+    else:
+        with ThreadPoolExecutor(2) as ex:
+            pages = list(ex.map(lambda o: _windy_raw({**params, 'offset': o, 'sortKey': 'popularity', 'sortDirection': 'desc'}, 1800), (0, 50)))
+    seen, cams = set(), []
+    for c in (c for p in pages for c in _windy_cams(p)):
+        if c['id'] not in seen:
+            seen.add(c['id']); cams.append(c)
+    return {'cams': cams, 'total': max((p.get('total') or 0 for p in pages), default=0), 'cat': cat if params else 'all',
+            'windy': any(pages)}
+
+
 def _world(q: dict) -> dict:
     with ThreadPoolExecutor(6) as ex:
         pages = list(ex.map(lambda o: _windy_raw({'offset': o, 'sortKey': 'popularity', 'sortDirection': 'desc'}, 3600), range(0, 1001, 50)))
@@ -376,7 +399,7 @@ def _nearest_cam_zone(lat: float, lon: float) -> dict:
 
 
 DATA = {'planes': _planes, 'quakes': _quakes, 'sats': _sats, 'weather': _weather, 'geocode': _geocode, 'place': _place,
-        'inbound': _inbound, 'cams': _cams, 'world': _world}
+        'inbound': _inbound, 'cams': _cams, 'world': _world, 'catcams': _catcams}
 
 
 def serve(kind: str, query: str) -> tuple[int, bytes]:
@@ -418,6 +441,13 @@ _FLIGHTS_CLOSE = re.compile(r"\b(ferme|cache|enleve|retire)\b.*\b(liste|widget|p
 # Caméras publiques du monde (≠ « ouvre la caméra » = webcam du PC, gérée plus loin dans nexus.py)
 _CAMS = re.compile(r"\b(cameras?|webcams?|cams)\b")
 _CAMS_WORLD = re.compile(r"\b(du monde|dans le monde|monde entier|toute la planete|de la planete|partout|toutes les cameras|mondiales?)\b")
+_CAT_WORDS = [(r"plages?|bord de mer", 'beach'), (r"villes?|urbaines?|centre.ville", 'city'), (r"montagnes?|ski|stations? de ski", 'mountain'),
+              (r"lacs?", 'lake'), (r"ports?|marinas?", 'port'), (r"trafic|routes?|autoroutes?|circulation", 'traffic'),
+              (r"aeroports?", 'airport'), (r"villages?", 'village'), (r"cotes?|littoral|mer|ocean", 'coast'), (r"forets?", 'forest'),
+              (r"rivieres?|fleuves?", 'river'), (r"paysages?|nature", 'landscape'), (r"places? publiques?", 'square'),
+              (r"stades?|sport\w*", 'sportArea'), (r"observatoires?", 'observatory'), (r"batiments?|monuments?", 'building')]
+_CAM_CAT = re.compile(r"\b(?:de |des |d'|du |a la |au |aux |sur la |sur les |en |de la |type |categorie )?(" + '|'.join(w for w, _ in _CAT_WORDS) + r")\b")
+_STRIP = re.compile(r"\b(bandeau|bande|par categories?|categories)\b")
 _CAMS_PLACE = re.compile(r"\b(?:a|au|aux|en|de|du|des|sur|dans|pres de|autour de|a cote de)\s+(.+)$")
 _CAM_NEXT = re.compile(r"\b(suivante?|autre|change|prochaine?)\b")
 _CAM_PREV = re.compile(r"\b(precedente?|d.avant|retour)\b")
@@ -487,6 +517,8 @@ class Globe:
             place = _clean_place(pm.group(1)) if pm else ''
             if self.cams_open and _CAM_CLOSE.search(t):
                 self.cams_open = False
+                if _STRIP.search(t) or re.search(r"\b(liste|toutes)\b", t):
+                    await self._send(action='cam_close_all'); return 'Caméras fermées.'
                 await self._send(action='cam_close')
                 return 'Caméra fermée.'
             if self.cams_open and _CAM_NEXT.search(t) and not place:
@@ -497,6 +529,16 @@ class Globe:
                 await self._send(action='cam_size', big=True); return 'Je l\'agrandis.'
             if self.cams_open and _CAM_SMALL.search(t):
                 await self._send(action='cam_size', big=False); return 'Je la réduis.'
+            cm = _CAM_CAT.search(after)
+            if (cm or _STRIP.search(t)) and not _CAM_CLOSE.search(t):
+                cat = next((c for w, c in _CAT_WORDS if cm and re.fullmatch(w, cm.group(1))), 'all')
+                rest = (after[:cm.start()] + ' ' + after[cm.end():]) if cm else after
+                pm2 = _CAMS_PLACE.search(_FILLER.sub(' ', _CAMS_WORLD.sub(' ', _STRIP.sub(' ', rest))))
+                where = _clean_place(pm2.group(1)) if pm2 else ''
+                pre = await self._ensure_open()
+                self.cams_open = True
+                await self._send(action='cams_strip', cat=cat, query=where)
+                return pre
             if not place and _CAMS_WORLD.search(t) and not _CAM_CLOSE.search(t):
                 pre = await self._ensure_open()
                 self.cams_open = True

@@ -256,6 +256,7 @@ function send(o){
 
 /* ── Messages du serveur ── */
 function handle(d){
+  if(window.Holo) try { Holo.on(d); } catch(e){ console.error(e); }
   switch(d.type){
     case 'status':
       if(d.backend!==undefined) chip('c-backend',!!d.backend);
@@ -572,7 +573,9 @@ const PHASES={
 })();
 
 setPhase('idle');
-connect();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="holo.js"></script>
+<script>connect();</script>
 </body>
 </html>

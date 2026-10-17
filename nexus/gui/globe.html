@@ -54,6 +54,22 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
 #cl-list{overflow:auto;padding:2px 6px 8px}
 .cl .r1{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cl .n{color:var(--cyan);font-weight:700;margin-right:6px}
+/* Bandeau de caméras par catégorie (sous le globe, au-dessus des boutons) */
+#strip{bottom:66px;left:50%;transform:translateX(-50%);width:min(1040px,88vw);display:none;padding:0;overflow:hidden;border-color:rgba(74,222,128,.55);box-shadow:0 0 22px rgba(74,222,128,.18)}
+#strip.on{display:block}
+body.strip #cam{bottom:226px}
+#st-tabs{display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;padding:7px 10px 5px;scrollbar-width:none}
+#st-tabs::-webkit-scrollbar{display:none}
+#st-tabs button{white-space:nowrap;font:inherit;font-size:11.5px;font-weight:700;color:var(--dim);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer}
+#st-tabs button.on{color:#02130a;background:#4ade80;border-color:#4ade80}
+#st-tabs .info{margin-left:auto;font-size:11px;color:var(--dim);align-self:center;white-space:nowrap;padding-left:8px}
+#st-row{display:flex;gap:8px;overflow-x:auto;padding:4px 10px 10px;scrollbar-width:thin}
+.th{flex:0 0 156px;cursor:pointer;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#000;position:relative}
+.th:hover,.th.sel,.th.ghover{border-color:#4ade80;box-shadow:0 0 12px rgba(74,222,128,.4)}
+.th img{display:block;width:156px;height:88px;object-fit:cover}
+.th div{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 4px;font-size:10.5px;line-height:1.25;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ghover{outline:2px solid #4ade80;outline-offset:1px}
 /* Intro holographique */
 #intro{position:absolute;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;background:radial-gradient(circle at 50% 45%,#06203f 0,#02050d 62%);transition:opacity .9s}
 #intro.out{opacity:0;pointer-events:none}
@@ -91,6 +107,7 @@ html,body{height:100%;overflow:hidden;background:#02050d;color:var(--text);font-
 <div class="hud" id="info"></div>
 <div class="hud" id="flights" role="region" aria-label="Vols"><div class="whead"><b id="fl-title">✈️ Vols</b><button id="fl-x" title="Fermer">✕</button></div><div id="fl-sub"></div><div id="fl-list"></div></div>
 <div class="hud" id="camlist" role="region" aria-label="Caméras du monde"><div class="whead"><b id="cl-title">🌍 Caméras du monde</b><button id="cl-x" title="Fermer">✕</button></div><div id="cl-sub"></div><input id="cl-q" type="search" placeholder="Rechercher une ville, un pays…" aria-label="Rechercher une caméra"><div id="cl-list"></div></div>
+<div class="hud" id="strip" role="region" aria-label="Caméras par catégorie"><div id="st-tabs"></div><div id="st-row"></div></div>
 <div class="hud" id="cam" role="region" aria-label="Caméra"><div class="whead"><b id="cam-title">📷</b><button id="cam-prev" title="Caméra précédente">◀</button><button id="cam-next" title="Caméra suivante">▶</button><button id="cam-big" title="Agrandir">⤢</button><button id="cam-x" title="Fermer">✕</button></div><div class="media" id="cam-media"></div><div class="meta" id="cam-meta"></div></div>
 <div class="hud" id="layers">
   <button data-l="view">🛰 Vue satellite</button>
@@ -504,7 +521,7 @@ function openCam(i, fly){
   const live = document.createElement('span'); live.className = 'live'; live.textContent = c.video || c.embed ? '● LIVE' : '● DIRECT'; M.appendChild(live);
   $('cam-title').textContent = `📷 ${c.name}`;
   $('cam-meta').textContent = `${c.city}${c.country && c.country !== c.city ? ', ' + c.country : ''} · ${c.src}${c.views ? ' · ' + fmtN(c.views) + ' vues' : ''} · ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}${c.dist != null ? ' · à ' + c.dist + ' km' : ''} · ${cams.i + 1}/${cams.list.length}`;
-  $('cam').classList.add('on'); state.cams = true; syncButtons(); drawCams(); syncNexus(); markWorldRow();
+  $('cam').classList.add('on'); state.cams = true; syncButtons(); drawCams(); syncNexus(); markWorldRow(); markStrip();
   if(fly){ const h = Math.min(Math.max(camera.positionCartographic.height, 25_000), 1_500_000);
     camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(c.lon, c.lat - h / 400_000, h), duration:1.6 }); }
 }
@@ -530,10 +547,11 @@ async function showCams(query){
   } catch(e){ reply('Caméras indisponibles : ' + e.message); }
 }
 function closeCams(){ clearInterval(cams.refresh); cams.list = []; cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big');
-  world.on = false; $('camlist').classList.remove('on'); drawCams(); state.cams = false; syncButtons(); syncNexus(); }
+  world.on = false; $('camlist').classList.remove('on'); $('strip').classList.remove('on'); document.body.classList.remove('strip');
+  drawCams(); state.cams = false; syncButtons(); syncNexus(); }
 // Liste du monde ouverte : fermer la caméra garde la liste (on peut en choisir une autre)
 function closeCamView(){
-  if(!world.on || cams.i < 0){ closeCams(); return; }
+  if(!(world.on || $('strip').classList.contains('on')) || cams.i < 0){ closeCams(); return; }
   clearInterval(cams.refresh); cams.i = -1; $('cam-media').innerHTML = ''; $('cam').classList.remove('on', 'big'); drawCams(); markWorldRow(); syncNexus();
 }
 $('cam-prev').onclick = () => openCam(cams.i - 1, true);
@@ -593,8 +611,8 @@ $('cl-x').onclick = () => closeCams();
 function syncNexus(){ try{ if(parent !== window) parent.postMessage({ type:'globe_state', cams:!!state.cams, flights:!!inbound.place }, location.origin); }catch(_){} }
 
 /* ── Clic : fiche de l'objet ── */
-new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => {
-  const o = scene.pick(ev.position); const box = $('info');
+function pickAt(position){
+  const o = scene.pick(position); const box = $('info');
   const id = o && (o.id && o.id.properties ? o.id.properties.getValue(Cesium.JulianDate.now()) : o && o.id);
   if(id && id.kind === 'cam'){ openCam(id.i, false); return; }
   if(id && id.kind === 'inflight'){ focusFlight(id.i); return; }
@@ -603,7 +621,71 @@ new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => {
   else if(id.kind === 'quake'){ const q=id.q; box.textContent = `🌋 M${(q.mag??0).toFixed(1)} · ${q.place} · ${new Date(q.time).toLocaleString('fr-FR')} · ${Math.round(q.depth)} km de profondeur`; }
   else if(id.kind === 'sat'){ box.textContent = `🛰️ ${id.s.name} · ${Math.round(id.p.alt/1000)} km d'altitude`; }
   box.style.display='block';
-}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+}
+new Cesium.ScreenSpaceEventHandler(viewer.canvas).setInputAction(ev => pickAt(ev.position), Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+/* ── Contrôle à la main (relayé par Nexus) : pincer-glisser = tourner, pincer sans bouger = clic, deux mains = zoom ── */
+const gp = { x:0, y:0, moved:0 };
+function gesturePtr(d){
+  if(d.phase === 'down'){ gp.x = d.x; gp.y = d.y; gp.moved = 0; state.spin = false; lastUser = Date.now(); syncButtons(); return; }
+  const dx = d.x - gp.x, dy = d.y - gp.y; gp.x = d.x; gp.y = d.y; gp.moved += Math.abs(dx) + Math.abs(dy);
+  if(d.phase === 'move'){
+    const h = camera.positionCartographic.height, k = Math.max(2e-6, Math.min(2.5e-3, h / 4e9));
+    camera.rotateLeft(dx * k); camera.rotateUp(dy * k); lastUser = Date.now(); return;
+  }
+  if(d.phase === 'up' && gp.moved < 14){
+    const el = document.elementFromPoint(d.x, d.y);
+    if(el && el.tagName === 'CANVAS') pickAt(new Cesium.Cartesian2(d.x, d.y));
+    else { const b = el && el.closest('button,.fl,.th'); if(b) b.click(); }
+  }
+}
+let gHover = null;
+function gestureHover(d){
+  const el = document.elementFromPoint(d.x, d.y), b = el && el.closest('button,.fl,.th');
+  if(b !== gHover){ if(gHover) gHover.classList.remove('ghover'); gHover = b; if(b) b.classList.add('ghover'); }
+}
+function gestureZoom(f){
+  const h = camera.positionCartographic.height;
+  if(f > 1) camera.zoomIn(h * Math.min(.5, f - 1)); else camera.zoomOut(h * Math.min(1, 1 / f - 1));
+}
+
+/* ── Bandeau de caméras par catégorie ── */
+const CATS = [['all','🔥 Populaires'],['beach','🏖 Plage'],['city','🏙 Ville'],['mountain','🏔 Montagne'],['coast','🌊 Côte'],['lake','🏞 Lac'],
+  ['port','⚓ Port'],['airport','✈️ Aéroport'],['traffic','🚗 Trafic'],['village','🏡 Village'],['landscape','🌄 Paysage'],['square','⛲ Place'],
+  ['river','🛶 Rivière'],['forest','🌲 Forêt'],['sportArea','🏟 Sport'],['building','🏛 Bâtiment'],['observatory','🔭 Observatoire']];
+const strip = { cat:'all', place:null, list:[] };
+$('st-tabs').innerHTML = CATS.map(([k, n]) => `<button data-cat="${k}">${n}</button>`).join('') + '<span class="info" id="st-info"></span>';
+$('st-tabs').querySelectorAll('button').forEach(b => b.onclick = () => void showStrip(b.dataset.cat, '', true));
+async function showStrip(cat, query, silent){
+  closeCams();
+  strip.cat = cat || 'all'; $('strip').classList.add('on'); document.body.classList.add('strip');
+  $('st-tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.cat === strip.cat));
+  $('st-row').innerHTML = '<div style="padding:24px;color:var(--dim);font-size:12px">Je cherche les caméras…</div>'; $('st-info').textContent = '';
+  try {
+    let P = null;
+    if(query){ const g = await get('geocode', { q:query }); if(!g.found){ reply(`Je ne trouve pas ${query}.`); return; } P = { name:g.name, lat:g.lat, lon:g.lon }; }
+    if(query || !silent) strip.place = P;
+    const r = await get('catcams', strip.place ? { cat:strip.cat, lat:strip.place.lat, lon:strip.place.lon } : { cat:strip.cat });
+    if(!$('strip').classList.contains('on')) return;
+    strip.list = r.cams || [];
+    cams.list = strip.list; cams.i = -1; state.cams = true; state.spin = false; syncButtons(); drawCams(); syncNexus();
+    const label = CATS.find(c => c[0] === strip.cat)[1].replace(/^\S+\s/, '');
+    $('st-info').textContent = `${fmtN(r.total || strip.list.length)} caméras${strip.cat === 'all' ? '' : ' « ' + label + ' »'}${strip.place ? ' autour de ' + strip.place.name : ' dans le monde'}`;
+    $('st-row').innerHTML = '';
+    strip.list.forEach((c, i) => {
+      const d = document.createElement('div'); d.className = 'th'; d.dataset.i = i; d.title = `${c.name} — ${c.city}${c.country ? ', ' + c.country : ''}`;
+      d.innerHTML = `<img loading="lazy" alt="" src="${esc(c.thumb || c.img)}"><div>${esc(c.city || c.name)}${c.country && c.country !== c.city ? ' · ' + esc(c.country) : ''}</div>`;
+      d.onclick = () => openCam(i, true);
+      $('st-row').appendChild(d);
+    });
+    if(strip.place) camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(strip.place.lon, strip.place.lat, 900_000), duration:2.5 });
+    else camera.flyTo({ destination:HOME, duration:2 });
+    if(!r.windy) reply('Les caméras par catégorie ont besoin de la clé Windy sur le serveur.');
+    else if(!silent) reply(strip.list.length ? `${fmtN(r.total)} caméras${strip.cat === 'all' ? '' : ' de type ' + label.toLowerCase()}${strip.place ? ' autour de ' + strip.place.name : ' dans le monde'}. Je t'affiche les ${strip.list.length} plus regardées en dessous du globe.`
+      : `Aucune caméra de ce type${strip.place ? ' autour de ' + strip.place.name : ''}.`);
+  } catch(e){ reply('Caméras indisponibles : ' + e.message); }
+}
+function markStrip(){ document.querySelectorAll('#st-row .th').forEach(t => t.classList.toggle('sel', +t.dataset.i === cams.i && $('strip').classList.contains('on'))); }
 
 /* ── Commandes ── */
 function afterFly(){ if(state.planes) void loadPlanes(); }   // avions de la zone dès l'arrivée
@@ -656,6 +738,10 @@ function command(d){
     case 'cam_close': closeCamView(); break;
     case 'cams_world': void showWorld(); break;
     case 'cam_close_all': closeCams(); break;
+    case 'cams_strip': void showStrip(d.cat, d.query, false); break;
+    case 'g_ptr': gesturePtr(d); break;
+    case 'g_hover': gestureHover(d); break;
+    case 'g_zoom': gestureZoom(+d.f || 1); break;
   }
 }
 function setLayer(name, on){

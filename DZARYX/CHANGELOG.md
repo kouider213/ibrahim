@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-10-17 (4) — Nexus : interface holographique façon JARVIS v10 (2e vidéo TikTok)
+- `nexus/gui/holo.js` (nouveau) : sphère neuronale 3D (three.js, 1 500 neurones + synapses) qui respire en veille,
+  pulse quand Nexus parle, se tord en ruban quand il réfléchit ; « sphère bleue / verte / violette », « ancien affichage ».
+  Horloge HUD encadrée (météo + disque), terminal de sous-titres tapés à la machine, bandeau orange « VOUS : … », bouton ⏹ stop.
+- Widget mails holographique déplaçable : « montre mes mails » (boîte pro, lecture seule via `/api/nexus/data/emails`),
+  « ouvre le deuxième / le mail de Booking », « retour à la liste », « ferme les mails ».
+- Contrôle à la main par la webcam (MediaPipe, dans la page) : « active le contrôle gestuel » ou bouton ✋ ;
+  index = curseur, pincer = cliquer / attraper un widget / faire défiler / tourner la sphère ou le globe,
+  deux mains pincées = zoom, balayage main ouverte = fermer le widget / caméra suivante.
+- Globe : mini-sphère dans le coin, bandeau de caméras par catégorie (« caméras de plage », « de montagne en Suisse »,
+  onglets Plage/Ville/Montagne/Port/Trafic… ; Windy via le backend), « affiche les caméras du monde » (liste cliquable).
+- Backend : `/api/nexus/data/webcams` (clé Windy côté serveur : variable Railway `WINDY_WEBCAMS_KEY`).
+
 ## 2026-10-17 (3) — Nexus : globe 3D façon JARVIS (vidéo TikTok) + vols vers une ville + caméras du monde
 - `nexus/modules/globe.py` + `nexus/gui/globe.html` (CesiumJS, calque du HUD) : « montre le globe », « fais-le tourner »,
   « vue satellite », « va sur Oran », avions en direct, séismes (USGS), satellites + orbite ISS (CelesTrak), météo/heure locale.
