@@ -52,7 +52,7 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
             {byPri.HIGH.length > 0 && (
               <div style={{
                 background: '#ff336618', border: '1px solid #ff336655', borderRadius: 10,
-                padding: '3px 8px', fontSize: 7, color: '#ff3366', fontFamily: 'Inter, sans-serif',
+                padding: '3px 8px', fontSize: 12, color: '#ff3366', fontFamily: 'Inter, sans-serif',
                 letterSpacing: '0.1em', animation: 'statusPulse 1.5s ease infinite',
               }}>
                 {byPri.HIGH.length} URGENT
@@ -74,7 +74,7 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
               <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13, color: PRI_COL[pri], textShadow: `0 0 8px ${PRI_COL[pri]}44` }}>
                 {byPri[pri].length}
               </div>
-              <div style={{ fontSize: 6, color: `${PRI_COL[pri]}66`, letterSpacing: '0.12em', marginTop: 1 }}>{PRI_LABEL[pri]}</div>
+              <div style={{ fontSize: 11.5, color: `${PRI_COL[pri]}66`, letterSpacing: '0.12em', marginTop: 1 }}>{PRI_LABEL[pri]}</div>
             </div>
           ))}
         </div>
@@ -84,11 +84,11 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
+          <div style={{ textAlign: 'center', padding: 30, fontSize: 13, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>CHARGEMENT…</div>
         ) : visible.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 28 }}>✅</div>
-            <div style={{ fontSize: 10, color: '#00e676', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>
+            <div style={{ fontSize: 13.5, color: '#00e676', fontFamily: 'Inter, sans-serif', letterSpacing: '0.2em' }}>
               AUCUN RAPPEL ACTIF
             </div>
           </div>
@@ -106,11 +106,11 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                   padding: '6px 8px 4px',
                 }}>
                   <span>{PRI_ICON[pri]}</span>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: col, letterSpacing: '0.2em' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: col, letterSpacing: '0.2em' }}>
                     {PRI_LABEL[pri]}
                   </span>
                   <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${col}33, transparent)` }} />
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: `${col}55` }}>{items.length}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: `${col}55` }}>{items.length}</span>
                 </div>
 
                 {/* Items */}
@@ -125,13 +125,13 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                       {/* Left accent bar */}
                       <div style={{ width: 3, borderRadius: 2, background: col, flexShrink: 0, alignSelf: 'stretch', opacity: 0.8 }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: '#e8f4ff', lineHeight: 1.45, marginBottom: 4 }}>
+                        <div style={{ fontSize: 13.5, color: '#e8f4ff', lineHeight: 1.45, marginBottom: 4 }}>
                           {r.message}
                         </div>
-                        <div style={{ fontSize: 8, color: '#ffffff44' }}>
+                        <div style={{ fontSize: 12.5, color: '#8ea3c8' }}>
                           {r.client_name} · {r.car_name}
                         </div>
-                        <div style={{ fontSize: 7, color: `${col}55`, marginTop: 3, letterSpacing: '0.05em' }}>
+                        <div style={{ fontSize: 12, color: `${col}55`, marginTop: 3, letterSpacing: '0.05em' }}>
                           {fmtDate(r.date)} · {r.action}
                         </div>
                       </div>
@@ -144,7 +144,7 @@ export default function RemindersScreen({ actor = 'kouider' }: { actor?: string 
                           style={{
                             background: 'none', border: `1px solid ${col}22`,
                             borderRadius: 4, cursor: 'pointer',
-                            fontSize: 10, color: `${col}44`, padding: '2px 4px',
+                            fontSize: 13.5, color: `${col}44`, padding: '2px 4px',
                           }}
                         >✕</button>
                       </div>

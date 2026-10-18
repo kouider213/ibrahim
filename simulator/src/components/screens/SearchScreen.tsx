@@ -39,9 +39,9 @@ export default function SearchScreen({ onOpen }: { onOpen?: (p: string) => void 
       <div style={{ margin: '-20px -16px 4px' }}><Hero eyebrow="Dzaryx · Recherche" title="Tout chercher" /></div>
 
       <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Nom client, voiture, réf dossier/import, bien…"
-        style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 15px', color: C.text, fontFamily: C.font, fontSize: 15, outline: 'none', marginBottom: 16 }} />
+        style={{ width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '13px 15px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none', marginBottom: 16 }} />
 
-      {loading ? <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Recherche…</div>
+      {loading ? <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 16 }}>Recherche…</div>
         : q.trim().length < 2 ? <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Tape au moins 2 lettres</div>
         : results.length === 0 ? <div style={{ textAlign: 'center', padding: 20, color: C.muted, fontSize: 13 }}>Aucun résultat</div>
         : (
@@ -51,7 +51,7 @@ export default function SearchScreen({ onOpen }: { onOpen?: (p: string) => void 
               const dest = TYPE_PAGE[r.type];
               return (
                 <div key={i} onClick={() => dest && onOpen?.(dest)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '11px 13px', cursor: dest ? 'pointer' : 'default' }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}44`, borderRadius: 7, padding: '3px 8px', flexShrink: 0 }}>{r.type}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}44`, borderRadius: 7, padding: '3px 8px', flexShrink: 0 }}>{r.type}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</div>
                     {(r.sub || r.ref) && <div style={{ fontSize: 11, color: C.muted }}>{r.ref ? `${r.ref} · ` : ''}{r.sub}</div>}

@@ -47,7 +47,7 @@ export default function CaisseScreen() {
   };
 
   const fmt = (n: number, cur = 'DZD') => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} ${cur === 'EUR' ? '€' : 'DA'}`;
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
@@ -61,7 +61,7 @@ export default function CaisseScreen() {
           const m = month[cur] || { income: 0, expense: 0, balance: 0 };
           return (
             <div key={cur} style={{ marginBottom: 10 }}>
-              {curs.length > 1 && <div style={{ fontSize: 10, color: C.muted, marginBottom: 5, fontWeight: 700 }}>{cur === 'EUR' ? 'EUROS' : 'DINARS'}</div>}
+              {curs.length > 1 && <div style={{ fontSize: 13.5, color: C.muted, marginBottom: 5, fontWeight: 700 }}>{cur === 'EUR' ? 'EUROS' : 'DINARS'}</div>}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
                 {[
                   { l: 'Entrées', v: m.income, c: C.green },
@@ -110,7 +110,7 @@ export default function CaisseScreen() {
                   <span style={{ fontSize: 16 }}>{isInc ? '➕' : '➖'}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.label || e.category || (isInc ? 'Entrée' : 'Sortie')}</div>
-                    <div style={{ fontSize: 10.5, color: C.muted, marginTop: 1 }}>{e.category} · {(e.entry_date ?? '').slice(0, 10)}</div>
+                    <div style={{ fontSize: 13.5, color: C.muted, marginTop: 1 }}>{e.category} · {e.entry_date ? new Date(e.entry_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}</div>
                   </div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: isInc ? C.green : C.red }}>{isInc ? '+' : '−'}{fmt(Number(e.amount), e.currency || 'DZD')}</div>
                   <button onClick={() => void del(e.id)} disabled={busy === e.id} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: C.muted, padding: 2 }}>✕</button>

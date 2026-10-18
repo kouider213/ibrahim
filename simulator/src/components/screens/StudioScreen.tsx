@@ -164,7 +164,7 @@ export default function StudioScreen() {
                   <button key={c.id} onClick={() => setCar(car?.name === c.name ? null : c)}
                     style={{ flex: '0 0 auto', width: 86, background: 'none', border: `2px solid ${car?.name === c.name ? C.accent : C.border}`, borderRadius: 10, padding: 0, cursor: 'pointer', overflow: 'hidden' }}>
                     <img src={c.image_url} alt={c.name} style={{ width: '100%', height: 54, objectFit: 'cover', display: 'block' }} />
-                    <div style={{ fontSize: 10, color: C.text, padding: '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                    <div style={{ fontSize: 13.5, color: C.text, padding: '3px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                   </button>
                 ))}
               </div>

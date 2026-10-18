@@ -72,7 +72,7 @@ export default function BlogScreen() {
     catch { flash('Erreur'); } finally { setBusy(''); }
   };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
@@ -111,7 +111,7 @@ export default function BlogScreen() {
             {posts.map(p => (
               <div key={p.id} style={{ background: C.surface, border: `1px solid ${p.published ? C.green + '33' : C.border}`, borderRadius: 13, padding: 12 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{p.title_fr || '(sans titre)'}</div>
-                <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{(p.created_at ?? '').slice(0, 10)} · {p.published ? '🟢 publié' : '⚪ brouillon'}</div>
+                <div style={{ fontSize: 13.5, color: C.muted, marginTop: 2 }}>{p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} · {p.published ? '🟢 publié' : '⚪ brouillon'}</div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
                   <button disabled={busy === p.id} onClick={() => void toggle(p)} style={{ flex: 1, padding: '7px', borderRadius: 9, border: `1px solid ${p.published ? C.border : C.green + '55'}`, background: p.published ? 'transparent' : `${C.green}18`, color: p.published ? C.muted : C.green, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{p.published ? 'Dépublier' : 'Publier'}</button>
                   <button disabled={busy === p.id} onClick={() => { if (confirmDel === p.id) { void del(p); setConfirmDel(''); } else { setConfirmDel(p.id); setTimeout(() => setConfirmDel(c => c === p.id ? '' : c), 3000); } }} style={{ flex: 1, padding: '7px', borderRadius: 9, border: `1px solid ${C.red}${confirmDel === p.id ? '' : '44'}`, background: confirmDel === p.id ? C.red : `${C.red}12`, color: confirmDel === p.id ? '#fff' : C.red, fontFamily: C.font, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{confirmDel === p.id ? 'Confirmer ?' : 'Supprimer'}</button>

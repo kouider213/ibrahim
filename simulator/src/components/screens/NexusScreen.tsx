@@ -379,7 +379,7 @@ export default function NexusScreen() {
         </div>
       )}
       {mark && <div style={{ position: 'absolute', left: mark.x - 18, top: mark.y - 18, width: 36, height: 36, borderRadius: '50%', border: `3px solid ${mark.kind === 'right' ? C.amber : C.accent}`, pointerEvents: 'none', boxShadow: '0 0 12px rgba(56,216,245,0.6)' }} />}
-      {frame && <div style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 10, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 6px', pointerEvents: 'none' }}>{liveOn ? '● direct' : frame.at}</div>}
+      {frame && <div style={{ position: 'absolute', right: 6, bottom: 6, fontSize: 13.5, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '2px 6px', pointerEvents: 'none' }}>{liveOn ? '● direct' : frame.at}</div>}
     </div>
   );
 
@@ -605,7 +605,7 @@ const blobToB64 = (b: Blob) => new Promise<string>((res, rej) => {
   r.onloadend = () => res(String(r.result).split(',')[1] ?? ''); r.onerror = rej; r.readAsDataURL(b);
 });
 
-const inp: React.CSSProperties = { boxSizing: 'border-box', minWidth: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+const inp: React.CSSProperties = { boxSizing: 'border-box', minWidth: 0, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
 const round: React.CSSProperties = { width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: `1px solid ${C.border}`, color: C.text, fontSize: 17, cursor: 'pointer' };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

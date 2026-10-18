@@ -14,7 +14,7 @@ const C = {
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 } as const;
 const btn = (bg: string, color = '#050a16') => ({ background: bg, color, border: 'none', borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
 const ghost = { ...btn('rgba(255,255,255,0.06)', C.text), border: `1px solid ${C.border}` } as const;
-const section = (t: string) => <div style={{ fontFamily: 'Orbitron', fontSize: 9.5, letterSpacing: '0.28em', color: C.accent, fontWeight: 600, margin: '18px 2px 10px' }}>{t}</div>;
+const section = (t: string) => <div style={{ fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.28em', color: C.accent, fontWeight: 600, margin: '18px 2px 10px' }}>{t}</div>;
 const MUSCLE: Record<string, string> = { pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos', cardio: 'Cardio' };
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }).replace(':', 'h');
 const dayName = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '');
@@ -95,7 +95,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.7 }}>
                 {s.exercises.map(e => <div key={e.id} onClick={() => setDemo(e)} style={{ cursor: 'pointer' }}>{e.demo.length ? '🎬' : '•'} {e.name} <b style={{ color: C.text }}>{e.sets}×{e.reps}</b>{e.suggestion.kg != null && <span style={{ color: e.suggestion.up ? C.green : C.cyan }}> · {e.suggestion.kg} kg{e.suggestion.up ? ' ⬆️' : ''}</span>}</div>)}
                 {s.finisher && <div>🏁 {s.finisher}</div>}
-                <div style={{ fontSize: 10.5, marginTop: 4 }}>👆 Touche un exercice pour voir la démo et la vidéo</div>
+                <div style={{ fontSize: 13.5, marginTop: 4 }}>👆 Touche un exercice pour voir la démo et la vidéo</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginTop: 14 }}>
                 <button style={{ ...btn(C.accent), fontSize: 15, padding: 14 }} onClick={() => { const l = initLive(s); setLive(l); saveLive(l); }}>▶ COMMENCER</button>
@@ -120,10 +120,10 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
                 border: `1px solid ${w.status === 'done' ? C.green : w.type ? `${C.accent}55` : C.border}`, borderRadius: 12, padding: '8px 2px',
                 color: C.text, cursor: 'pointer', fontFamily: C.font, minHeight: 78,
               }}>
-                <div style={{ fontSize: 10, color: C.muted, textTransform: 'capitalize' }}>{dayName(w.date)}</div>
+                <div style={{ fontSize: 13.5, color: C.muted, textTransform: 'capitalize' }}>{dayName(w.date)}</div>
                 <div style={{ fontSize: 20, margin: '4px 0' }}>{w.status === 'done' ? '✅' : w.skip ? '😴' : w.emoji ?? '·'}</div>
-                <div style={{ fontSize: 8.5, fontWeight: 800, lineHeight: 1.15 }}>{w.skip ? 'REPOS' : w.label?.replace(' DAY', '').replace(' & MOBILITÉ', '') ?? ''}</div>
-                {w.start && <div style={{ fontSize: 8.5, color: C.muted }}>{hm(w.start)}</div>}
+                <div style={{ fontSize: 12.5, fontWeight: 800, lineHeight: 1.15 }}>{w.skip ? 'REPOS' : w.label?.replace(' DAY', '').replace(' & MOBILITÉ', '') ?? ''}</div>
+                {w.start && <div style={{ fontSize: 12.5, color: C.muted }}>{hm(w.start)}</div>}
               </button>
             ))}
           </div>
@@ -140,7 +140,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
                 <span style={{ width: 70, fontSize: 11, textAlign: 'right' }}>{r.pct >= 90 ? '✅ prêt' : r.pct >= 50 ? '🟡 ' : '🔴 '}{r.pct < 90 ? `${r.pct}%` : ''}</span>
               </div>
             ))}
-            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Calculé d'après tes séances notées (gros muscles 72 h, petits 48 h).</div>
+            <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>Calculé d'après tes séances notées (gros muscles 72 h, petits 48 h).</div>
           </div>
 
           {/* ── Progrès ── */}
@@ -187,7 +187,7 @@ export default function SportScreen({ embedded = false, onLive }: { embedded?: b
               : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {(Object.keys(data.sessions) as SportType[]).map(t => (
                   <button key={t} style={{ ...ghost, textAlign: 'left' }} onClick={() => { setSheet(null); void act(business.sportSwap(sheet, t), `✅ ${data.sessions[t].label} (agenda mis à jour)`); }}>
-                    {data.sessions[t].emoji} {data.sessions[t].label}<div style={{ fontSize: 10, color: C.muted, fontWeight: 500 }}>{data.sessions[t].focus}</div>
+                    {data.sessions[t].emoji} {data.sessions[t].label}<div style={{ fontSize: 13.5, color: C.muted, fontWeight: 500 }}>{data.sessions[t].focus}</div>
                   </button>))}
               </div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -227,7 +227,7 @@ export function ExerciseDemo({ e, height = 190 }: { e: SportExercise; height?: n
         <div style={{ position: 'relative', height, background: '#fff', borderRadius: 14, overflow: 'hidden' }}>
           {e.demo.map((src, i) => <img key={src} src={src} alt={e.name} onError={() => setOk(false)} loading="lazy"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: f === i ? 1 : 0, transition: 'opacity .35s' }} />)}
-          <span style={{ position: 'absolute', left: 8, bottom: 6, fontSize: 9, color: '#667', background: 'rgba(255,255,255,0.8)', borderRadius: 6, padding: '1px 5px' }}>démo · {f === 0 ? 'départ' : 'arrivée'}</span>
+          <span style={{ position: 'absolute', left: 8, bottom: 6, fontSize: 13, color: '#667', background: 'rgba(255,255,255,0.8)', borderRadius: 6, padding: '1px 5px' }}>démo · {f === 0 ? 'départ' : 'arrivée'}</span>
         </div>
       )}
       <a href={e.video} target="_blank" rel="noreferrer" style={{ ...btn('#ef4444', '#fff'), display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 8, padding: 10 }}>▶ Voir la vidéo de l'exercice</a>
@@ -256,7 +256,7 @@ function VolumeBars({ weeks }: { weeks: SportOverview['stats']['weeks'] }) {
       {weeks.map((w, i) => (
         <div key={w.from} title={`Semaine du ${w.from.slice(8)}/${w.from.slice(5, 7)} : ${w.volume} kg · ${w.sessions} séance(s)`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
           <div style={{ width: '70%', height: `${Math.max(2, w.volume / max * 70)}px`, background: i === weeks.length - 1 ? C.accent : '#7f4a63', borderRadius: '4px 4px 0 0' }} />
-          <span style={{ fontSize: 9, color: C.muted }}>{i === weeks.length - 1 ? 'cette' : `S-${weeks.length - 1 - i}`}</span>
+          <span style={{ fontSize: 13, color: C.muted }}>{i === weeks.length - 1 ? 'cette' : `S-${weeks.length - 1 - i}`}</span>
         </div>
       ))}
     </div>
@@ -341,9 +341,9 @@ function LiveWorkout({ s, live, onChange, onQuit, onDone }: { s: SportSession; l
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button style={{ ...ghost, padding: '7px 11px', fontSize: 12 }} onClick={() => { if (confirm('Quitter la séance sans l\'enregistrer ?')) onQuit(); }}>✕</button>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontFamily: 'Orbitron', fontSize: 10, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 13.5, letterSpacing: '0.2em', color: C.accent }}>{s.emoji} {s.label}</div>
           <div style={{ fontSize: 22, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>{mmss(elapsed)}</div>
-          <div style={{ fontSize: 10.5, color: C.gold, fontWeight: 800 }}>🎮 +{100 + doneCount * 5} pts en jeu</div>
+          <div style={{ fontSize: 13.5, color: C.gold, fontWeight: 800 }}>🎮 +{100 + doneCount * 5} pts en jeu</div>
         </div>
         <button style={{ ...btn(C.green), padding: '7px 11px', fontSize: 12 }} onClick={() => setFinish(true)}>Fin ✓</button>
       </div>
@@ -442,7 +442,7 @@ function Stepper({ value, unit, step, onChange }: { value: number | null; unit: 
       <div style={{ flex: 1, textAlign: 'center' }}>
         <input inputMode="decimal" value={value ?? ''} placeholder="—" onChange={ev => { const v = parseFloat(ev.target.value.replace(',', '.')); onChange(Number.isFinite(v) ? v : null); }}
           style={{ width: '100%', background: 'transparent', border: 'none', color: C.text, fontSize: 17, fontWeight: 900, textAlign: 'center', fontFamily: C.font, outline: 'none' }} />
-        <div style={{ fontSize: 9, color: C.muted, marginTop: -2 }}>{unit}</div>
+        <div style={{ fontSize: 16, color: C.muted, marginTop: -2 }}>{unit}</div>
       </div>
       <button style={b} onClick={() => onChange(Math.round(((value ?? 0) + step) * 10) / 10)}>+</button>
     </div>

@@ -60,7 +60,7 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
     const col = PRIORITY_COL[priority];
     return (
       <div key={priority} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: `${col}88`, letterSpacing: '0.2em', paddingLeft: 2 }}>
+        <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: `${col}88`, letterSpacing: '0.2em', paddingLeft: 2 }}>
           {PRIORITY_ICON[priority]} {priority} ({items.length})
         </div>
         {items.map(r => {
@@ -78,17 +78,17 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
                   {TYPE_ICON[r.type] ?? '🔔'}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, color: '#e8f4ff', marginBottom: 3, lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 13.5, color: '#e8f4ff', marginBottom: 3, lineHeight: 1.4 }}>
                     {r.message}
                   </div>
-                  <div style={{ fontSize: 7, color: '#ffffff44', marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: '#8ea3c8', marginBottom: 4 }}>
                     {r.client_name}
                     {r.car_name ? ` · ${r.car_name}` : ''}
                     {r.date ? ` · ${fmtDate(r.date)}` : ''}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{
-                      fontSize: 6, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
+                      fontSize: 11.5, color: col, fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em',
                       background: `${col}14`, padding: '2px 6px', borderRadius: 4,
                     }}>
                       {r.action}
@@ -98,8 +98,8 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
                       disabled={isDismissing}
                       style={{
                         background: 'none', border: '1px solid #ffffff11', borderRadius: 4,
-                        padding: '2px 7px', fontFamily: 'Inter, sans-serif', fontSize: 6,
-                        color: '#ffffff33', cursor: 'pointer', letterSpacing: '0.1em',
+                        padding: '2px 7px', fontFamily: 'Inter, sans-serif', fontSize: 11.5,
+                        color: '#8ea3c8', cursor: 'pointer', letterSpacing: '0.1em',
                         marginLeft: 'auto',
                       }}
                     >
@@ -130,14 +130,14 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
               <div style={{
                 background: '#ff3366', borderRadius: '50%', width: 16, height: 16,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#fff',
+                fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#fff',
               }}>
                 {reminders.length}
               </div>
             )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {lastUpdate && <span style={{ fontSize: 7, color: '#ffffff22', letterSpacing: '0.1em' }}>{lastUpdate}</span>}
+            {lastUpdate && <span style={{ fontSize: 12, color: '#5d7096', letterSpacing: '0.1em' }}>{lastUpdate}</span>}
             <button onClick={() => void load()} disabled={loading} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#38d8f555' }}>↻</button>
           </div>
         </div>
@@ -147,16 +147,16 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
+          <div style={{ textAlign: 'center', padding: 30, fontSize: 13, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
             CHARGEMENT…
           </div>
         ) : reminders.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 32, opacity: 0.3 }}>✅</span>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#00e67644', letterSpacing: '0.2em' }}>
+            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: '#00e67644', letterSpacing: '0.2em' }}>
               AUCUNE ALERTE
             </span>
-            <span style={{ fontSize: 8, color: '#ffffff22' }}>Tout est en ordre</span>
+            <span style={{ fontSize: 12.5, color: '#5d7096' }}>Tout est en ordre</span>
           </div>
         ) : (
           <>
@@ -168,10 +168,10 @@ export default function NotificationsScreen({ actor = 'kouider' }: { actor?: str
 
         {/* Dzaryx proactive info */}
         <div style={{ background: 'rgba(56,216,245,0.03)', borderRadius: 10, padding: '10px 12px', border: '1px solid #38d8f50f' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f533', letterSpacing: '0.2em', marginBottom: 6 }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#38d8f533', letterSpacing: '0.2em', marginBottom: 6 }}>
             ◉ DZARYX — PROACTIF
           </div>
-          <div style={{ fontSize: 8, color: '#ffffff22', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12.5, color: '#5d7096', lineHeight: 1.6 }}>
             Dzaryx envoie des alertes en temps réel via Socket.IO.
             Activez la voix ou le chat pour recevoir les notifications proactives directement.
           </div>

@@ -44,7 +44,7 @@ export default function ReponseScreen() {
 
   const copy = () => { navigator.clipboard?.writeText(reply).then(() => flash('Copié')).catch(() => {}); };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
@@ -60,7 +60,7 @@ export default function ReponseScreen() {
         </div>
         <div style={{ display: 'flex', gap: 7 }}>
           {TONES.map(tn => (
-            <button key={tn.id} onClick={() => setTone(tn.id)} style={{ flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer', fontSize: 10.5, fontWeight: 700, background: tone === tn.id ? `${C.accent}22` : 'rgba(255,255,255,0.04)', color: tone === tn.id ? C.accent : C.muted, border: `1px solid ${tone === tn.id ? C.accent + '55' : 'transparent'}` }}>{tn.label}</button>
+            <button key={tn.id} onClick={() => setTone(tn.id)} style={{ flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 700, background: tone === tn.id ? `${C.accent}22` : 'rgba(255,255,255,0.04)', color: tone === tn.id ? C.accent : C.muted, border: `1px solid ${tone === tn.id ? C.accent + '55' : 'transparent'}` }}>{tn.label}</button>
           ))}
         </div>
         <textarea value={clientMsg} onChange={e => setMsg(e.target.value)} placeholder="Colle le message du client (ce qu'il a écrit)…" rows={3} style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />
@@ -71,7 +71,7 @@ export default function ReponseScreen() {
 
       {reply && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Réponse (modifiable)</div>
+          <div style={{ fontSize: 13.5, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Réponse (modifiable)</div>
           <textarea value={reply} onChange={e => setReply(e.target.value)} rows={6} dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{ ...inp, resize: 'vertical', lineHeight: 1.6, fontSize: 14.5 }} />
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button onClick={copy} style={{ flex: 1, padding: '12px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: C.font, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>📋 Copier</button>

@@ -991,47 +991,95 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
 }
 
 // ─── Tools Grid (menu "Plus") ─────────────────────────────────────────────────
+// Menu « Plus » : outils rangés par thème, nom lisible + une ligne d'explication, recherche.
+const TOOL_INFO: Partial<Record<Page, { name: string; hint: string; cat: string }>> = {
+  bookings:      { name: 'Locations',      hint: 'Réservations voitures', cat: 'Activité' },
+  fleet:         { name: 'Parc',           hint: 'Voitures, prix, photos', cat: 'Activité' },
+  revenue:       { name: 'CA & marge', hint: 'Encaissé, à encaisser', cat: 'Activité' },
+  clients:       { name: 'Clients',        hint: 'Fichier et historique', cat: 'Activité' },
+  calendar:      { name: 'Agenda',         hint: 'Rendez-vous et locations', cat: 'Activité' },
+  immo:          { name: 'Immobilier',     hint: 'Biens à louer / vendre', cat: 'Activité' },
+  deals:         { name: 'Achat-revente',  hint: 'Voitures et biens', cat: 'Activité' },
+  caisse:        { name: 'Caisse',         hint: 'Entrées et sorties', cat: 'Activité' },
+  paiements:     { name: 'À payer',        hint: 'Abonnements de Dzaryx', cat: 'Activité' },
+  documents:     { name: 'Documents',      hint: 'Pièces, contrats PDF', cat: 'Activité' },
+  devis:         { name: 'Devis',          hint: 'Devis WhatsApp + PDF', cat: 'Clients & ventes' },
+  voucher:       { name: 'Bon de résa',    hint: 'Confirmation + acompte', cat: 'Clients & ventes' },
+  reponse:       { name: 'Réponse client', hint: 'Dans sa langue', cat: 'Clients & ventes' },
+  reengage:      { name: 'Relance',        hint: 'Anciens clients', cat: 'Clients & ventes' },
+  parrainage:    { name: 'Parrainage',     hint: 'Codes parrain', cat: 'Clients & ventes' },
+  reviews:       { name: 'Avis',           hint: 'Avis du site', cat: 'Clients & ventes' },
+  demarchage:    { name: 'Démarchage',     hint: 'Prospection auto', cat: 'Clients & ventes' },
+  sites:         { name: 'Sites clients',  hint: 'FIK Sites', cat: 'Clients & ventes' },
+  social:        { name: 'Réseaux sociaux', hint: 'Posts prêts', cat: 'Marketing' },
+  newsletter:    { name: 'Newsletter',     hint: 'Mail aux abonnés', cat: 'Marketing' },
+  blog:          { name: 'Blog',           hint: 'Articles du site', cat: 'Marketing' },
+  studio:        { name: 'Studio vidéo',   hint: 'Vidéos IA', cat: 'Marketing' },
+  opportunities: { name: 'Opportunités',   hint: 'Veille business', cat: 'Pilotage' },
+  forecast:      { name: 'Prévisions',     hint: 'Saisons et pics', cat: 'Pilotage' },
+  pricing:       { name: 'Prix conseillés', hint: 'Selon la demande', cat: 'Pilotage' },
+  partners:      { name: 'Partenaires',    hint: 'Houari et les autres', cat: 'Pilotage' },
+  search:        { name: 'Chercher',       hint: 'Partout dans Dzaryx', cat: 'Perso & PC' },
+  sport:         { name: 'Coach',          hint: 'Sport et mental', cat: 'Perso & PC' },
+  carte:         { name: 'Carte live',     hint: 'Toute l\'activité en 3D', cat: 'Perso & PC' },
+  nexus:         { name: 'Mon PC',         hint: 'Contrôle à distance', cat: 'Perso & PC' },
+  camera:        { name: 'Caméra → PC',    hint: 'Montrer à Nexus', cat: 'Perso & PC' },
+  globe:         { name: 'Globe',          hint: 'Vue du monde', cat: 'Perso & PC' },
+  settings:      { name: 'Réglages',       hint: 'Notifications, sécurité', cat: 'Perso & PC' },
+};
+const TOOL_CATS = ['Activité', 'Clients & ventes', 'Marketing', 'Pilotage', 'Perso & PC'];
+
 function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string }) {
+  const [q, setQ] = useState('');
   const primary = (PRIMARY[actor] ?? PRIMARY.kouider)!;
   const visible = TABS.filter(t =>
     !primary.includes(t.id) &&
     (!t.kouiderOnly || actor === 'kouider') &&
     (!t.houariOnly  || actor === 'houari')
   );
-  const essentials = visible.filter(t => t.group !== 'tool');
-  const tools = visible.filter(t => t.group === 'tool');
   const accent = actor === 'houari' ? '#a78bfa' : '#38d8f5';
-  const tile = (t: (typeof TABS)[number], big = false) => (
-    <button key={t.id} onClick={() => onOpen(t.id)} style={{
-      background: 'linear-gradient(160deg, rgba(18,34,68,0.85), rgba(8,16,36,0.85))',
-      border: '1px solid rgba(90,150,255,0.16)', borderRadius: 18,
-      padding: big ? '16px 6px 14px' : '14px 6px 12px', cursor: 'pointer', position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-    }}>
-      <div style={{ position: 'absolute', insetInline: 0, top: 0, height: 1, background: `linear-gradient(90deg, transparent, ${accent}66, transparent)` }} />
-      <div style={{
-        width: big ? 46 : 42, height: big ? 46 : 42, borderRadius: 14,
-        background: `radial-gradient(circle at 50% 35%, ${accent}26, ${accent}08)`, border: `1px solid ${accent}2a`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: big ? 22 : 20, lineHeight: 1,
-      }}>{t.icon}</div>
-      <span style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: '#c8d8f5', textAlign: 'center', letterSpacing: '0.03em' }}>{t.label}</span>
-    </button>
-  );
-  const section = (title: string) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px' }}>
-      <span style={{ fontFamily: 'Orbitron', fontSize: 9, fontWeight: 600, color: accent, letterSpacing: '0.28em' }}>{title}</span>
-      <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${accent}44, transparent)` }} />
-    </div>
-  );
+  const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const info = (t: (typeof TABS)[number]) => TOOL_INFO[t.id] ?? { name: t.label.charAt(0) + t.label.slice(1).toLowerCase(), hint: '', cat: 'Perso & PC' };
+  const shown = visible.filter(t => { const i = info(t); return !q || norm(`${i.name} ${i.hint} ${t.label}`).includes(norm(q)); });
+  const tile = (t: (typeof TABS)[number]) => {
+    const i = info(t);
+    return (
+      <button key={t.id} onClick={() => onOpen(t.id)} style={{
+        background: 'linear-gradient(160deg, #101d3d, #0b1530)', border: '1px solid rgba(110,160,255,0.14)', borderRadius: 16,
+        padding: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', minHeight: 64, minWidth: 0,
+        fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif',
+      }}>
+        <span style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+          background: `radial-gradient(circle at 50% 35%, ${accent}2e, ${accent}0a)`, border: `1px solid ${accent}33` }}>{t.icon}</span>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: '#f4f7ff', lineHeight: 1.2 }}>{i.name}</span>
+          {i.hint && <span style={{ display: 'block', fontSize: 12, color: '#8ea3c8', marginTop: 2, lineHeight: 1.25 }}>{i.hint}</span>}
+        </span>
+      </button>
+    );
+  };
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 60% at 50% 0%, #0b1a3a 0%, #050a16 60%)', color: '#e8f0ff', fontFamily: '-apple-system, "Segoe UI", Roboto, sans-serif', padding: '20px 16px 30px' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 10, letterSpacing: '0.28em', color: accent, fontWeight: 600 }}>DZARYX · OUTILS</div>
-      <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', marginTop: 6, background: `linear-gradient(120deg, #fff 30%, ${accent})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Tout Dzaryx</div>
-      {essentials.length > 0 && <>{section('ESSENTIELS')}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>{essentials.map(t => tile(t, true))}</div></>}
-      {section('OUTILS')}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>{tools.map(t => tile(t))}</div>
+    <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 60% at 50% 0%, #0b1a3a 0%, #050a16 60%)', color: '#e8f0ff', fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif', padding: '18px 16px 130px' }}>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 10, letterSpacing: '0.26em', color: accent, fontWeight: 600 }}>OUTILS</div>
+      <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', marginTop: 6, color: '#f4f7ff' }}>Tout Dzaryx</div>
+      <div style={{ position: 'relative', margin: '14px 0 4px' }}>
+        <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 14, opacity: 0.5 }}>🔍</span>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chercher un outil…" style={{ width: '100%', boxSizing: 'border-box', minHeight: 48, background: '#0b1530', border: '1px solid rgba(110,160,255,0.14)', borderRadius: 999, padding: '0 16px 0 42px', color: '#f4f7ff', fontFamily: 'inherit', fontSize: 16, outline: 'none' }} />
+      </div>
+      {TOOL_CATS.map(cat => {
+        const items = shown.filter(t => info(t).cat === cat);
+        if (!items.length) return null;
+        return (
+          <div key={cat}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 10px' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#8ea3c8', letterSpacing: '0.12em', textTransform: 'uppercase' }}>{cat}</span>
+              <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(110,160,255,0.2), transparent)' }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 160px), 1fr))', gap: 8 }}>{items.map(tile)}</div>
+          </div>
+        );
+      })}
+      {!shown.length && <div style={{ textAlign: 'center', color: '#8ea3c8', fontSize: 14, marginTop: 30 }}>Aucun outil ne correspond.</div>}
     </div>
   );
 }

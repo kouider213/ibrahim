@@ -14,7 +14,7 @@ const C = {
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 } as const;
 const btn = (bg: string, color = '#050a16') => ({ background: bg, color, border: 'none', borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
 const ghost = { ...btn('rgba(255,255,255,0.06)', C.text), border: `1px solid ${C.border}` } as const;
-const h = (t: string, color = C.accent) => <div style={{ fontFamily: 'Orbitron', fontSize: 9.5, letterSpacing: '0.26em', color, fontWeight: 600, margin: '16px 2px 10px' }}>{t}</div>;
+const h = (t: string, color = C.accent) => <div style={{ fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.26em', color, fontWeight: 600, margin: '16px 2px 10px' }}>{t}</div>;
 const errText = (e: unknown) => { const m = e instanceof Error ? e.message : 'Erreur'; try { return (JSON.parse(m.replace(/^API \d+: /, '')) as { error?: string }).error ?? m; } catch { return m; } };
 const last = <T,>(a: T[]): T | undefined => a[a.length - 1];
 const dm = (d: string) => `${d.slice(8)}/${d.slice(5, 7)}`;
@@ -59,15 +59,15 @@ export default function CoachScreen() {
         <div style={{ padding: '14px 14px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }} onClick={() => setTab('game')}>
             <div style={{ width: 52, height: 52, borderRadius: 16, background: 'linear-gradient(140deg, #fbbf24, #fb7185)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#1a0710', flexShrink: 0 }}>
-              <div style={{ fontSize: 8.5, fontWeight: 900 }}>NIV.</div><div style={{ fontSize: 21, fontWeight: 900, lineHeight: 1 }}>{g?.level ?? '–'}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 900 }}>NIV.</div><div style={{ fontSize: 21, fontWeight: 900, lineHeight: 1 }}>{g?.level ?? '–'}</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.24em', color: C.accent }}>COACH DZARYX</div>
+              <div style={{ fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.24em', color: C.accent }}>COACH DZARYX</div>
               <div style={{ fontSize: 17, fontWeight: 900 }}>{g ? g.title : 'Chargement…'} <span style={{ fontSize: 12, color: C.gold }}>{g ? `${g.total.toLocaleString('fr-FR')} pts` : ''}</span></div>
               <div style={{ height: 7, background: 'rgba(255,255,255,0.08)', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
                 <div style={{ width: `${g?.pct ?? 0}%`, height: '100%', background: 'linear-gradient(90deg, #fbbf24, #fb7185)', borderRadius: 4, transition: 'width .6s' }} />
               </div>
-              <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{g ? `Aujourd'hui +${g.today} pts · ${g.next - g.total} pts avant le niveau ${g.level + 1}${g.streakDays > 1 ? ` · 🔥 ${g.streakDays} jours actifs` : ''}` : ''}</div>
+              <div style={{ fontSize: 13.5, color: C.muted, marginTop: 3 }}>{g ? `Aujourd'hui +${g.today} pts · ${g.next - g.total} pts avant le niveau ${g.level + 1}${g.streakDays > 1 ? ` · 🔥 ${g.streakDays} jours actifs` : ''}` : ''}</div>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${TABS.length}, 1fr)`, gap: 5, marginTop: 12 }}>
@@ -137,7 +137,7 @@ function MindTab({ d, run }: { d: CoachOverview; run: Run }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
           {MOODS.map((m, i) => (
             <button key={i} onClick={() => void run(business.coachCheck('mood', i + 1))} style={{ ...ghost, padding: '8px 0', fontSize: 22,
-              background: todayMood === i + 1 ? C.violet : 'rgba(255,255,255,0.05)' }}>{m}<div style={{ fontSize: 10, fontWeight: 800, color: todayMood === i + 1 ? '#050a16' : C.muted }}>{i + 1}</div></button>
+              background: todayMood === i + 1 ? C.violet : 'rgba(255,255,255,0.05)' }}>{m}<div style={{ fontSize: 13.5, fontWeight: 800, color: todayMood === i + 1 ? '#050a16' : C.muted }}>{i + 1}</div></button>
           ))}
         </div>
         {todayMood != null && todayMood <= 4 && <div style={{ fontSize: 12, color: '#d5c8ff', marginTop: 10, lineHeight: 1.5 }}>
@@ -155,7 +155,7 @@ function MindTab({ d, run }: { d: CoachOverview; run: Run }) {
         </div>
         {breath ? <div style={{ fontSize: 12, color: C.muted }}>Cycle {Math.min(CYCLES, Math.floor(el / 16) + 1)}/{CYCLES} · {Math.max(0, Math.ceil(total - el))} s</div>
           : <button style={{ ...btn(C.violet), width: '100%' }} onClick={() => { sent.current = false; setBreath({ start: Date.now() }); }}>▶ 1 minute de respiration carrée</button>}
-        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 8 }}>4 s inspire · 4 s bloque · 4 s expire · 4 s bloque — idéal avant la salle, un RDV ou pour dormir.</div>
+        <div style={{ fontSize: 13.5, color: C.muted, marginTop: 8 }}>4 s inspire · 4 s bloque · 4 s expire · 4 s bloque — idéal avant la salle, un RDV ou pour dormir.</div>
       </div>
 
       {h('3 CHOSES POSITIVES AUJOURD\'HUI (+10 PTS CHACUNE)', C.violet)}
@@ -216,7 +216,7 @@ function GameTab({ d, run }: { d: CoachOverview; run: Run }) {
             style={{ width: 80, background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10, padding: 8, fontSize: 13, fontFamily: C.font }} />
           <button style={{ ...ghost, padding: '8px 12px', fontSize: 12 }} onClick={() => void run(business.coachTarget(parseFloat(target.replace(',', '.')) || null))}>Enregistrer</button>
         </div>
-        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Les points récompensent la régularité de la pesée, pas les kilos : on avance doucement et sainement.</div>
+        <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>Les points récompensent la régularité de la pesée, pas les kilos : on avance doucement et sainement.</div>
       </div>
 
       {h('CHARGES SOULEVÉES', C.gold)}
@@ -240,8 +240,8 @@ function GameTab({ d, run }: { d: CoachOverview; run: Run }) {
         {g.badges.map(b => (
           <div key={b.id} title={b.how} style={{ ...card, marginBottom: 0, padding: '10px 4px', textAlign: 'center', opacity: b.ok ? 1 : 0.38, filter: b.ok ? 'none' : 'grayscale(1)', borderColor: b.ok ? `${C.gold}88` : C.border }}>
             <div style={{ fontSize: 26 }}>{b.icon}</div>
-            <div style={{ fontSize: 9.5, fontWeight: 800, marginTop: 3, lineHeight: 1.15 }}>{b.name}</div>
-            <div style={{ fontSize: 8.5, color: C.muted, marginTop: 2, lineHeight: 1.15 }}>{b.how}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, marginTop: 3, lineHeight: 1.15 }}>{b.name}</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2, lineHeight: 1.15 }}>{b.how}</div>
           </div>
         ))}
       </div>
@@ -250,7 +250,7 @@ function GameTab({ d, run }: { d: CoachOverview; run: Run }) {
       <div style={card}>
         {g.feed.length === 0 ? <div style={{ fontSize: 12.5, color: C.muted }}>Termine une séance, respire ou note ton humeur : tes premiers points arrivent ici.</div>
           : g.feed.map((f, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '5px 0', borderTop: i ? `1px solid ${C.border}` : 'none' }}>
-            <span>{f.label} <span style={{ color: C.muted, fontSize: 10.5 }}>{dm(f.date)}</span></span><b style={{ color: C.gold }}>+{f.xp}</b></div>)}
+            <span>{f.label} <span style={{ color: C.muted, fontSize: 13.5 }}>{dm(f.date)}</span></span><b style={{ color: C.gold }}>+{f.xp}</b></div>)}
       </div>
 
       {h('BARÈME DES POINTS', C.gold)}

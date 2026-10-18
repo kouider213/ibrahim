@@ -127,7 +127,7 @@ function Card({ r, open, onToggle, act }: { r: BillingRow; open: boolean; onTogg
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span>{st.icon}</span>
           <span style={{ fontSize: 14, fontWeight: 700, flex: 1 }}>{r.name}</span>
-          <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 1, color: lv.color, border: `1px solid ${lv.color}55`, borderRadius: 6, padding: '2px 6px' }}>{lv.label}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1, color: lv.color, border: `1px solid ${lv.color}55`, borderRadius: 6, padding: '2px 6px' }}>{lv.label}</span>
         </div>
         <div style={{ fontSize: 12, color: st.color, marginTop: 5 }}>{r.status}{r.live ? ' · en direct' : ''}</div>
         <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{r.amount ?? r.price ?? ''}{r.period && (r.amount || r.price) ? ` · par ${r.period}` : ''}</div>

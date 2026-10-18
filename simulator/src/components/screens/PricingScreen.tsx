@@ -57,7 +57,7 @@ export default function PricingScreen() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 11, color: C.muted, textDecoration: s.pct !== 0 ? 'line-through' : 'none' }}>{s.price} {s.cur}/j</div>
-                    {s.pct !== 0 && <div style={{ fontSize: 16, fontWeight: 800, color: s.col }}>{s.sugg} {s.cur}/j <span style={{ fontSize: 10 }}>{s.pct > 0 ? `+${s.pct}%` : `${s.pct}%`}</span></div>}
+                    {s.pct !== 0 && <div style={{ fontSize: 16, fontWeight: 800, color: s.col }}>{s.sugg} {s.cur}/j <span style={{ fontSize: 13.5 }}>{s.pct > 0 ? `+${s.pct}%` : `${s.pct}%`}</span></div>}
                   </div>
                 </div>
               </div>
@@ -65,7 +65,7 @@ export default function PricingScreen() {
           })}
         </div>
       )}
-      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Conseils indicatifs. Pour appliquer un prix : onglet PARC → bouton Prix sur le véhicule.</div>
+      <div style={{ fontSize: 13.5, color: C.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Conseils indicatifs. Pour appliquer un prix : onglet PARC → bouton Prix sur le véhicule.</div>
     </div>
   );
 }

@@ -163,7 +163,7 @@ export default function PhoneCamScreen() {
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '14px 16px', background: 'linear-gradient(#04070de6, transparent)', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ fontSize: 11, letterSpacing: 3, color: C.cyan, fontWeight: 700 }}>NEXUS · VISION</div>
         <div style={{ flex: 1 }} />
-        {on && <span style={{ fontSize: 10, letterSpacing: 1.5, padding: '4px 9px', borderRadius: 10, border: `1px solid ${pc ? C.green : C.red}66`, color: pc ? C.green : C.red }}>
+        {on && <span style={{ fontSize: 13.5, letterSpacing: 1.5, padding: '4px 9px', borderRadius: 10, border: `1px solid ${pc ? C.green : C.red}66`, color: pc ? C.green : C.red }}>
           {pc === null ? '…' : pc ? '● PC EN DIRECT' : '● PC HORS LIGNE'}</span>}
         {rec > 0 && <span style={{ fontSize: 11, padding: '4px 9px', borderRadius: 10, background: C.red, fontWeight: 700 }}>● REC {rec}s</span>}
       </div>
@@ -200,7 +200,7 @@ export default function PhoneCamScreen() {
           </div>
           <form onSubmit={e => { e.preventDefault(); if (q.trim()) { void ask(q.trim()); setQ(''); } }} style={{ display: 'flex', gap: 8, padding: '0 14px 12px' }}>
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Demande à Nexus ce qu'il voit…"
-              style={{ flex: 1, minWidth: 0, background: C.glass, border: `1px solid ${C.border}`, borderRadius: 20, padding: '10px 14px', color: C.text, fontSize: 14, outline: 'none' }} />
+              style={{ flex: 1, minWidth: 0, background: C.glass, border: `1px solid ${C.border}`, borderRadius: 20, padding: '10px 14px', color: C.text, fontSize: 16, outline: 'none' }} />
           </form>
           <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '0 20px' }}>
             <button onClick={stop} style={btn('rgba(255,77,109,0.25)')} title="Arrêter">✕</button>

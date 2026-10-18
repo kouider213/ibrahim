@@ -200,7 +200,7 @@ export default function CapacitesScreen() {
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               flex: 1, background: activeTab === tab ? '#38d8f50d' : 'transparent',
               border: 'none', borderBottom: activeTab === tab ? '2px solid #38d8f5' : '2px solid transparent',
-              padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 7,
+              padding: '6px 4px', fontFamily: 'Inter, sans-serif', fontSize: 12,
               color: activeTab === tab ? '#38d8f5' : '#ffffff33',
               letterSpacing: '0.15em', cursor: 'pointer',
             }}>
@@ -216,7 +216,7 @@ export default function CapacitesScreen() {
 
         {activeTab === 'agents' && (
           <>
-            <div style={{ fontSize: 8, color: '#ffffff22', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: '#5d7096', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               {AGENTS.length} agents spécialisés — routing automatique par intention
             </div>
             {AGENTS.map(agent => {
@@ -237,29 +237,29 @@ export default function CapacitesScreen() {
                   >
                     <span style={{ fontSize: 18, flexShrink: 0 }}>{agent.icon}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, color: '#e8f4ff', fontWeight: 600, marginBottom: 2 }}>
+                      <div style={{ fontSize: 13.5, color: '#e8f4ff', fontWeight: 600, marginBottom: 2 }}>
                         {agent.name}
                       </div>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {agent.tags.map(t => (
                           <span key={t} style={{
-                            fontSize: 6, background: `${agent.col}15`, color: `${agent.col}cc`,
+                            fontSize: 11.5, background: `${agent.col}15`, color: `${agent.col}cc`,
                             borderRadius: 4, padding: '1px 5px', fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em',
                           }}>{t}</span>
                         ))}
                       </div>
                     </div>
-                    <span style={{ fontSize: 9, color: '#ffffff33', flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, color: '#8ea3c8', flexShrink: 0 }}>
                       {isOpen ? '▲' : '▼'}
                     </span>
                   </button>
 
                   {isOpen && (
                     <div style={{ padding: '0 12px 12px', borderTop: `1px solid ${agent.col}11` }}>
-                      <div style={{ fontSize: 9, color: '#ffffff66', lineHeight: 1.6, marginBottom: 8 }}>
+                      <div style={{ fontSize: 13, color: '#8ea3c8', lineHeight: 1.6, marginBottom: 8 }}>
                         {agent.desc}
                       </div>
-                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 6, color: `${agent.col}77`, letterSpacing: '0.15em', marginBottom: 5 }}>
+                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11.5, color: `${agent.col}77`, letterSpacing: '0.15em', marginBottom: 5 }}>
                         EXEMPLES DE COMMANDES
                       </div>
                       {agent.examples.map((ex, i) => (
@@ -268,8 +268,8 @@ export default function CapacitesScreen() {
                           padding: '5px 8px', background: `${agent.col}08`, borderRadius: 6,
                           border: `1px solid ${agent.col}11`,
                         }}>
-                          <span style={{ fontSize: 8, color: `${agent.col}77`, flexShrink: 0 }}>›</span>
-                          <span style={{ fontSize: 9, color: '#d8eaff', lineHeight: 1.4 }}>"{ex}"</span>
+                          <span style={{ fontSize: 12.5, color: `${agent.col}77`, flexShrink: 0 }}>›</span>
+                          <span style={{ fontSize: 13, color: '#d8eaff', lineHeight: 1.4 }}>"{ex}"</span>
                         </div>
                       ))}
                     </div>
@@ -282,13 +282,13 @@ export default function CapacitesScreen() {
 
         {activeTab === 'proactif' && (
           <>
-            <div style={{ fontSize: 8, color: '#ffffff22', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: '#5d7096', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               Dzaryx envoie des alertes automatiquement, sans que tu ne demandes rien
             </div>
 
             {/* Timeline visual */}
             <div style={{ background: 'rgba(56,216,245,0.03)', borderRadius: 10, padding: '12px', border: '1px solid #38d8f50f', marginBottom: 4 }}>
-              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f566', letterSpacing: '0.2em', marginBottom: 10 }}>
+              <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#38d8f566', letterSpacing: '0.2em', marginBottom: 10 }}>
                 ◉ TIMELINE JOURNÉE TYPE — KOUIDER
               </div>
               {[
@@ -301,11 +301,11 @@ export default function CapacitesScreen() {
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <div style={{
-                    fontFamily: 'Inter, sans-serif', fontSize: 7, color: item.col, minWidth: 35,
+                    fontFamily: 'Inter, sans-serif', fontSize: 12, color: item.col, minWidth: 35,
                     textAlign: 'right', letterSpacing: '0.05em',
                   }}>{item.time}</div>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.col, flexShrink: 0 }} />
-                  <div style={{ fontSize: 8, color: '#e8f4ff' }}>
+                  <div style={{ fontSize: 12.5, color: '#e8f4ff' }}>
                     {item.icon} {item.label}
                   </div>
                 </div>
@@ -321,10 +321,10 @@ export default function CapacitesScreen() {
               }}>
                 <span style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</span>
                 <div>
-                  <div style={{ fontSize: 10, color: '#e8f4ff', fontWeight: 600, marginBottom: 3 }}>
+                  <div style={{ fontSize: 13.5, color: '#e8f4ff', fontWeight: 600, marginBottom: 3 }}>
                     {f.title}
                   </div>
-                  <div style={{ fontSize: 8, color: '#ffffff55', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 12.5, color: '#8ea3c8', lineHeight: 1.5 }}>
                     {f.desc}
                   </div>
                 </div>
@@ -335,7 +335,7 @@ export default function CapacitesScreen() {
 
         {activeTab === 'capacites' && (
           <>
-            <div style={{ fontSize: 8, color: '#ffffff22', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
+            <div style={{ fontSize: 12.5, color: '#5d7096', letterSpacing: '0.1em', textAlign: 'center', padding: '4px 0' }}>
               Tout ce que Dzaryx peut faire
             </div>
 
@@ -447,13 +447,13 @@ export default function CapacitesScreen() {
                 background: `linear-gradient(135deg, ${section.col}05, rgba(10,10,12,0.5))`,
                 padding: '10px 12px',
               }}>
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: section.col, letterSpacing: '0.15em', marginBottom: 8 }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12.5, color: section.col, letterSpacing: '0.15em', marginBottom: 8 }}>
                   {section.title}
                 </div>
                 {section.items.map((item, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
-                    <span style={{ fontSize: 6, color: `${section.col}88`, flexShrink: 0, marginTop: 3 }}>●</span>
-                    <span style={{ fontSize: 8.5, color: '#c8e8ff', lineHeight: 1.5 }}>{item}</span>
+                    <span style={{ fontSize: 11.5, color: `${section.col}88`, flexShrink: 0, marginTop: 3 }}>●</span>
+                    <span style={{ fontSize: 12.5, color: '#c8e8ff', lineHeight: 1.5 }}>{item}</span>
                   </div>
                 ))}
               </div>

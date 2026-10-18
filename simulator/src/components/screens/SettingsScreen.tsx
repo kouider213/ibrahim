@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { T, PageHeader } from '../ui/Kit.tsx';
 import { business, setSimActor, getSimActor, registerWebPush, notifStatus, changePassword, apiFetch } from '../../services/api.ts';
 import CapacitesScreen from './CapacitesScreen.tsx';
 
@@ -136,22 +137,9 @@ export default function SettingsScreen() {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ padding: '16px 16px 8px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#38d8f5', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Réglages</div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 26, color: '#fff', letterSpacing: '-0.02em', fontWeight: 800, lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Réglages</div>
-          </div>
-          {msg && (
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#00e676', fontWeight: 600 }}>{msg}</span>
-          )}
-        </div>
-        <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #38d8f544, transparent)' }} />
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, color: T.text, fontFamily: T.font, position: 'relative', overflow: 'hidden' }}>
+      <PageHeader eyebrow="Configuration" title="Réglages" subtitle={msg || 'Notifications, sécurité, position, état du système'} />
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 16px 130px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {/* Notifications */}
         <NotifPrefs />
@@ -160,7 +148,7 @@ export default function SettingsScreen() {
         <SecurityPanel />
 
         {/* GPS Location */}
-        <Panel title="LOCALISATION GPS">
+        <Panel title="Localisation GPS">
           {locData ? (
             <div style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -169,33 +157,33 @@ export default function SettingsScreen() {
                   boxShadow: '0 0 8px #00e676', flexShrink: 0,
                   animation: 'statusPulse 2s ease infinite',
                 }} />
-                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#00e676' }}>
+                <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 13.5, color: '#00e676' }}>
                   {locData.country === 'Algeria' ? '🇩🇿' : locData.country === 'Belgium' ? '🇧🇪' : locData.country === 'France' ? '🇫🇷' : '🌍'}{' '}
                   {locData.city ?? locData.country}
                 </div>
               </div>
-              <div style={{ fontSize: 7, color: '#ffffff33', marginBottom: 3 }}>
+              <div style={{ fontSize: 12, color: '#8ea3c8', marginBottom: 3 }}>
                 {locData.lat.toFixed(5)}, {locData.lng.toFixed(5)}
               </div>
-              <div style={{ fontSize: 7, color: '#ffffff22' }}>
+              <div style={{ fontSize: 12, color: '#5d7096' }}>
                 Mis à jour: {new Date(locData.updated_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 8, color: '#ffffff33', marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: '#8ea3c8', marginBottom: 10 }}>
               Position non partagée — Dzaryx ne peut pas calculer tes trajets.
             </div>
           )}
           <button onClick={() => shareLocation()} disabled={locLoading} style={actionBtn('#00e676')}>
             {locLoading ? 'LOCALISATION EN COURS…' : '📍 PARTAGER MA POSITION'}
           </button>
-          <div style={{ fontSize: 6, color: '#ffffff22', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 11.5, color: '#5d7096', textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
             Dzaryx utilise ta position pour calculer tes trajets · Rappels livraison intelligents · 24h TTL
           </div>
         </Panel>
 
         {/* System health */}
-        <Panel title="SYSTÈME BACKEND">
+        <Panel title="État du système">
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <StatusPill label="API" val={health?.status?.toUpperCase() ?? '…'} ok={apiOk} />
             <StatusPill label="NEXUS" val={nexusOk ? 'CONNECTÉ' : 'HORS LIGNE'} ok={nexusOk} />
@@ -221,8 +209,8 @@ export default function SettingsScreen() {
         </Panel>
 
         {/* Cache */}
-        <Panel title="CACHE BI">
-          <div style={{ fontSize: 8, color: '#ffffff44', marginBottom: 8, lineHeight: 1.6 }}>
+        <Panel title="Cache des calculs">
+          <div style={{ fontSize: 12.5, color: '#8ea3c8', marginBottom: 8, lineHeight: 1.6 }}>
             Vide le cache des calculs de revenus. TTL normal: 5 minutes.
           </div>
           <button onClick={() => void clearCache()} disabled={clearing} style={actionBtn('#ffb347')}>
@@ -232,7 +220,7 @@ export default function SettingsScreen() {
 
         {/* Scheduled jobs */}
         {jobs.length > 0 && (
-          <Panel title="JOBS SCHEDULÉS">
+          <Panel title="Tâches programmées">
             {jobs.map(j => (
               <div key={j.name} style={{
                 display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7,
@@ -240,8 +228,8 @@ export default function SettingsScreen() {
                 background: 'rgba(255,255,255,0.02)', border: '1px solid #ffffff08',
               }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 9, color: '#e0f0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
-                  <div style={{ fontSize: 7, color: '#ffffff33', marginTop: 1 }}>
+                  <div style={{ fontSize: 13, color: '#e0f0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.name}</div>
+                  <div style={{ fontSize: 12, color: '#8ea3c8', marginTop: 1 }}>
                     {j.cron} · prochain: {fmtNext(j.next)}
                   </div>
                 </div>
@@ -263,7 +251,7 @@ export default function SettingsScreen() {
         )}
 
         {/* Règles apprises — Phase 8 */}
-        <Panel title="RÈGLES APPRISES (PHASE 8)">
+        <Panel title="Règles apprises">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
             {RULES.map(r => (
               <div key={r.id} style={{
@@ -277,24 +265,24 @@ export default function SettingsScreen() {
                   marginTop: 4,
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 8, color: '#c8e8ff', lineHeight: 1.5 }}>{r.rule}</div>
-                  <div style={{ fontSize: 6, color: r.col, marginTop: 2, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>
+                  <div style={{ fontSize: 12.5, color: '#c8e8ff', lineHeight: 1.5 }}>{r.rule}</div>
+                  <div style={{ fontSize: 11.5, color: r.col, marginTop: 2, letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>
                     {r.cat} · PRIORITÉ {r.priority}
                   </div>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 7, color: '#ffffff22', textAlign: 'center', letterSpacing: '0.1em' }}>
+          <div style={{ fontSize: 12, color: '#5d7096', textAlign: 'center', letterSpacing: '0.1em' }}>
             Dzaryx apprend de chaque conversation · "sauvegarde cette règle: …"
           </div>
         </Panel>
 
         {/* Capacités & Agents Dzaryx (déplacé ici depuis l'onglet DZARYX) */}
-        <Panel title="CAPACITÉS & AGENTS DZARYX">
+        <Panel title="Capacités & agents Dzaryx">
           <button
             onClick={() => setShowCaps(s => !s)}
-            style={{ width: '100%', textAlign: 'left', background: 'rgba(56,216,245,0.06)', border: '1px solid #38d8f522', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Inter, sans-serif', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            style={{ width: '100%', textAlign: 'left', background: 'rgba(56,216,245,0.06)', border: '1px solid #38d8f522', borderRadius: 8, padding: '10px 12px', cursor: 'pointer', color: '#cfefff', fontFamily: 'Inter, sans-serif', fontSize: 13.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
             <span>🤖 14 agents · ce que Dzaryx sait faire</span>
             <span style={{ color: '#38d8f588' }}>{showCaps ? '▲' : '▼'}</span>
@@ -308,7 +296,7 @@ export default function SettingsScreen() {
 
         {/* Version */}
         <div style={{ textAlign: 'center', padding: '8px 0 2px' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ffffff15', letterSpacing: '0.3em' }}>
+          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#5d7096', letterSpacing: '0.3em' }}>
             DZARYX SIMULATOR v1.3 · GPS BRAIN · FIK CONCIERGERIE ORAN
           </div>
         </div>
@@ -353,22 +341,22 @@ function NotifPrefs() {
   const needsInstall = !st.standalone && !granted && st.permission !== 'unsupported';
 
   return (
-    <Panel title="NOTIFICATIONS">
+    <Panel title="Notifications">
       {!granted && (
         <div style={{ marginBottom: 12 }}>
           <button onClick={() => void enableNotifs()} disabled={busy} style={actionBtn('#38d8f5')}>
             {busy ? 'ACTIVATION…' : '🔔 ACTIVER LES NOTIFICATIONS'}
           </button>
           {needsInstall && (
-            <div style={{ fontSize: 9, color: '#ffb347', marginTop: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: '#ffb347', marginTop: 8, lineHeight: 1.5 }}>
               📲 Sur iPhone : ouvre d'abord l'app depuis l'écran d'accueil (Partager → « Sur l'écran d'accueil »), puis touche ce bouton.
             </div>
           )}
-          {hint && <div style={{ fontSize: 10, color: '#cfefff', marginTop: 8 }}>{hint}</div>}
+          {hint && <div style={{ fontSize: 13.5, color: '#cfefff', marginTop: 8 }}>{hint}</div>}
         </div>
       )}
       {granted && (
-        <div style={{ fontSize: 10, color: '#00e676', marginBottom: 12 }}>● Notifications activées sur cet appareil</div>
+        <div style={{ fontSize: 13.5, color: '#00e676', marginBottom: 12 }}>● Notifications activées sur cet appareil</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {TYPES.map(t => (
@@ -380,7 +368,7 @@ function NotifPrefs() {
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 9.5, color: '#ffffff33', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
+      <div style={{ fontSize: 13, color: '#8ea3c8', marginTop: 10 }}>Coupe un type pour ne plus recevoir ces notifications push.</div>
     </Panel>
   );
 }
@@ -416,7 +404,7 @@ function SecurityPanel() {
   const fmt = (iso: string | null) => iso ? new Date(iso).toLocaleString('fr-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 
   return (
-    <Panel title="SÉCURITÉ">
+    <Panel title="Sécurité">
       <input type="password" placeholder="Mot de passe actuel" value={cur} onChange={e => setCur(e.target.value)} autoComplete="current-password" style={input} />
       <input type="password" placeholder="Nouveau mot de passe (6 caractères min.)" value={next} onChange={e => setNext(e.target.value)} autoComplete="new-password" style={input} />
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'Inter, sans-serif', fontSize: 12, color: '#8ea3c8', marginBottom: 10 }}>
@@ -433,7 +421,7 @@ function SecurityPanel() {
           {devices.map(d => (
             <div key={d.id} style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#cfcfd6', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
               {d.actor === 'houari' ? '👤 Houari' : '👤 Kouider'} · {d.label}
-              <div style={{ fontSize: 10, color: '#6b6b76' }}>Connecté le {fmt(d.created)} · vu {fmt(d.last)}</div>
+              <div style={{ fontSize: 13.5, color: '#6b6b76' }}>Connecté le {fmt(d.created)} · vu {fmt(d.last)}</div>
             </div>
           ))}
         </div>
@@ -444,8 +432,8 @@ function SecurityPanel() {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#0c1730', borderRadius: 16, padding: '14px 16px', border: '1px solid rgba(90,150,255,0.15)' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 12, fontWeight: 700, color: '#8ea3c8', letterSpacing: '0.04em', marginBottom: 12, textTransform: 'uppercase' }}>{title}</div>
+    <div style={{ background: `linear-gradient(160deg, ${T.surface2}, ${T.surface})`, borderRadius: T.radius, padding: '16px', border: `1px solid ${T.line}` }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 12, letterSpacing: '-0.01em' }}>{title}</div>
       {children}
     </div>
   );
@@ -455,7 +443,7 @@ function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: b
   const c = col ?? (ok ? '#00e676' : '#ff3366');
   return (
     <div style={{ flex: 1, textAlign: 'center', background: '#12203d', borderRadius: 12, padding: '10px 6px', border: `1px solid ${c}33` }}>
-      <div style={{ fontSize: 9, color: '#8ea3c8', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 13, color: '#8ea3c8', letterSpacing: '0.05em', marginBottom: 4 }}>{label}</div>
       <div style={{
         fontSize: 12, fontWeight: 700, color: c, fontFamily: 'Inter, sans-serif',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
@@ -475,7 +463,7 @@ function StatusPill({ label, val, ok, col }: { label: string; val: string; ok: b
 function actionBtn(col: string): React.CSSProperties {
   return {
     background: `${col}14`, border: `1px solid ${col}55`, borderRadius: 12,
-    padding: '12px', fontFamily: 'Inter, sans-serif', fontSize: 13, fontWeight: 600,
+    minHeight: 46, padding: '0 14px', fontFamily: T.font, fontSize: 14, fontWeight: 700,
     color: col, cursor: 'pointer', letterSpacing: '0.01em',
     width: '100%', textAlign: 'center',
   };
@@ -484,8 +472,8 @@ function actionBtn(col: string): React.CSSProperties {
 function NexusRow({ k, v }: { k: string; v: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <span style={{ fontSize: 6, color: '#00e67644', letterSpacing: '0.1em' }}>{k}</span>
-      <span style={{ fontSize: 7, color: '#00e676cc', fontFamily: 'Inter, sans-serif' }}>{v}</span>
+      <span style={{ fontSize: 11.5, color: '#00e67644', letterSpacing: '0.1em' }}>{k}</span>
+      <span style={{ fontSize: 12, color: '#00e676cc', fontFamily: 'Inter, sans-serif' }}>{v}</span>
     </div>
   );
 }

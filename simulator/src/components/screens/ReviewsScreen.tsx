@@ -68,7 +68,7 @@ export default function ReviewsScreen() {
                   <div style={{ fontSize: 13.5, fontWeight: 700 }}>{r.client_name || 'Client'}</div>
                   <div style={{ fontSize: 13, color: C.gold }}>{stars(r.rating)}</div>
                 </div>
-                <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{(r.created_at ?? '').slice(0, 10)}{r.verified ? ' · ✓ vérifié' : ''}{r.approved ? ' · publié' : ' · en attente'}</div>
+                <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}{r.verified ? ' · ✓ vérifié' : ''}{r.approved ? ' · publié' : ' · en attente'}</div>
                 {r.comment && <div style={{ fontSize: 12.5, color: '#d8d8de', marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>« {r.comment} »</div>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   {!r.approved

@@ -95,11 +95,11 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.2em', color: online ? C.green : C.red }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.2em', color: online ? C.green : C.red }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: online ? C.green : C.red, boxShadow: `0 0 8px ${online ? C.green : C.red}` }} />
             {online ? 'NEXUS ACTIF' : 'NEXUS HORS LIGNE'}
           </div>
-          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 5 }}>Actif depuis {up}</div>
+          <div style={{ fontSize: 13.5, color: C.muted, marginTop: 5 }}>Actif depuis {up}</div>
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
           <button key={label} disabled={!online || busy} onClick={() => onSay(cmd)} style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '11px 2px 9px', borderRadius: 12,
             border: `1px solid ${C.border}`, background: 'rgba(56,216,245,0.05)', color: C.text, cursor: online && !busy ? 'pointer' : 'default',
-            opacity: online ? 1 : 0.4, fontFamily: C.font, fontSize: 10.5,
+            opacity: online ? 1 : 0.4, fontFamily: C.font, fontSize: 13.5,
           }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
             {label}
@@ -146,7 +146,7 @@ export default function NexusDeck({ online, busy, onSay, flash }: {
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontFamily: 'Orbitron', fontSize: 9, letterSpacing: '0.24em', color: C.muted, textTransform: 'uppercase', marginBottom: 8 }}>{children}</div>;
+  return <div style={{ fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.24em', color: C.muted, textTransform: 'uppercase', marginBottom: 8 }}>{children}</div>;
 }
 
 function Gauge({ label, pct, sub }: { label: string; pct?: number; sub?: string }) {
@@ -162,8 +162,8 @@ function Gauge({ label, pct, sub }: { label: string; pct?: number; sub?: string 
           style={{ transition: 'stroke-dasharray 0.6s ease', filter: `drop-shadow(0 0 4px ${col})` }} />
         <text x="32" y="36" textAnchor="middle" fill="#fff" fontFamily="Orbitron" fontSize="13" fontWeight="700">{v == null ? '—' : `${Math.round(v)}%`}</text>
       </svg>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 8.5, letterSpacing: '0.2em', color: C.muted, marginTop: 4 }}>{label}</div>
-      {sub && <div style={{ fontSize: 9.5, color: C.muted, marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontFamily: 'Orbitron', fontSize: 12.5, letterSpacing: '0.2em', color: C.muted, marginTop: 4 }}>{label}</div>
+      {sub && <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
@@ -171,9 +171,9 @@ function Gauge({ label, pct, sub }: { label: string; pct?: number; sub?: string 
 function Info({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div style={{ padding: '10px 11px', borderRadius: 12, background: 'rgba(5,12,28,0.6)', border: `1px solid ${C.border}`, minWidth: 0 }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 8.5, letterSpacing: '0.2em', color: C.muted, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 12.5, letterSpacing: '0.2em', color: C.muted, marginBottom: 6 }}>{label}</div>
       <div style={{ fontFamily: 'Orbitron', fontSize: 18, fontWeight: 700, color: '#fff' }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
+      <div style={{ fontSize: 13.5, color: C.muted, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
     </div>
   );
 }

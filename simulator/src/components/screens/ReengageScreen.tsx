@@ -44,7 +44,7 @@ export default function ReengageScreen() {
             <div key={d.phone || d.name + i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: '11px 13px' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.name}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>Dernière : {d.car} · {(d.date || '').slice(0, 10)} · {d.count} résa</div>
+                <div style={{ fontSize: 11, color: C.muted }}>Dernière : {d.car} · {d.date ? new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} · {d.count} résa</div>
               </div>
               {d.phone && <button onClick={() => wa(d)} style={{ background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.4)', borderRadius: 9, padding: '7px 11px', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#25D366' }}>💬 Relancer</button>}
             </div>

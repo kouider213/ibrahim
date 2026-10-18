@@ -120,7 +120,7 @@ export default function DevisScreen() {
     finally { setPdfBusy(false); }
   };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
@@ -139,7 +139,7 @@ export default function DevisScreen() {
       </div>
 
       {/* Lignes */}
-      <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Prestations</div>
+      <div style={{ fontSize: 13.5, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Prestations</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
         {lines.map(l => (
           <div key={l.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -156,7 +156,7 @@ export default function DevisScreen() {
       </div>
 
       {/* Packs entreprise (B2B) — devis société */}
-      <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>🏢 Packs entreprise</div>
+      <div style={{ fontSize: 13.5, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>🏢 Packs entreprise</div>
       <div style={{ display: 'flex', gap: 7, marginBottom: 16, flexWrap: 'wrap' }}>
         {PACKS_B2B.map(p => (
           <button key={p.name} onClick={() => addPack(p)} title={p.desc}
@@ -196,7 +196,7 @@ export default function DevisScreen() {
                   <span style={{ fontSize: 15 }}>📄</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{q.client_name || 'Client'} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>· {q.ref}</span></div>
-                    <div style={{ fontSize: 11, color: C.muted }}>{q.total ? `${Math.round(q.total).toLocaleString('fr-FR')} ${q.currency === 'EUR' ? '€' : 'DA'} · ` : ''}{(q.created_at || '').slice(0, 10)}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>{q.total ? `${Math.round(q.total).toLocaleString('fr-FR')} ${q.currency === 'EUR' ? '€' : 'DA'} · ` : ''}{q.created_at ? new Date(q.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}</div>
                   </div>
                   <span style={{ color: C.gold, fontSize: 16 }}>›</span>
                 </a>

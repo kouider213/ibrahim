@@ -317,7 +317,7 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
             {p.site_visit_at ? ` · 👀 ${p.site_visits || 1}` : ''}{p.followup_at ? ' · 🔁' : ''}
           </div>
         </div>
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: s.color, border: `1px solid ${s.color}55`, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' }}>{s.label}</span>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: s.color, border: `1px solid ${s.color}55`, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' }}>{s.label}</span>
       </button>
       {open && (
         <div style={{ paddingBottom: 12 }}>

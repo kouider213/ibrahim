@@ -130,7 +130,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
                   }}>
                     <span style={{ width: 18, textAlign: 'center', color: isDir ? C.gold : C.accent }}>{isDir ? '▸' : '•'}</span>
                     <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                    <span style={{ fontSize: 10.5, color: C.muted, flexShrink: 0 }}>{isDir ? '' : fmtSize(e.size)}</span>
+                    <span style={{ fontSize: 13.5, color: C.muted, flexShrink: 0 }}>{isDir ? '' : fmtSize(e.size)}</span>
                   </button>
                   {picked === full && (
                     <div style={{ display: 'flex', gap: 6, padding: '0 11px 10px 39px' }}>
@@ -155,7 +155,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
               <div key={`${w.pid}-${w.title}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 10, background: C.inner, border: `1px solid ${C.border}` }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</div>
-                  <div style={{ fontSize: 10.5, color: C.muted }}>{w.process}</div>
+                  <div style={{ fontSize: 13.5, color: C.muted }}>{w.process}</div>
                 </div>
                 <Btn label="Afficher" onClick={() => { void winAct('focus', w.title); }} />
                 <Btn label="Fermer" color={C.red} onClick={() => { void winAct('close', w.title); }} />
@@ -205,7 +205,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
           <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {journal.slice(0, 60).map((j, i) => (
               <div key={`${j.at}-${i}`} style={{ display: 'flex', gap: 10, fontSize: 12.5, lineHeight: 1.4, padding: '6px 2px', borderBottom: `1px solid ${C.border}` }}>
-                <span style={{ fontFamily: 'Orbitron', fontSize: 10, color: C.accent, flexShrink: 0, paddingTop: 2 }}>
+                <span style={{ fontFamily: 'Orbitron', fontSize: 13.5, color: C.accent, flexShrink: 0, paddingTop: 2 }}>
                   {new Date(j.at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </span>
                 <span style={{ color: C.text, wordBreak: 'break-word' }}>{j.text}</span>
@@ -220,7 +220,7 @@ export default function NexusTools({ online, busy, onSay, flash }: {
 
 const inp: React.CSSProperties = {
   flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.04)',
-  color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none',
+  color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none',
 };
 const ghost: React.CSSProperties = { borderRadius: 8, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, cursor: 'pointer' };
 
@@ -261,7 +261,7 @@ function Big({ label, sub, onClick, disabled }: { label: string; sub: string; on
       background: 'rgba(56,216,245,0.05)', color: C.text, fontFamily: C.font, cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1,
     }}>
       <span style={{ fontSize: 20, color: C.accent }}>{label}</span>
-      <span style={{ fontSize: 10.5, color: C.muted }}>{sub}</span>
+      <span style={{ fontSize: 13.5, color: C.muted }}>{sub}</span>
     </button>
   );
 }

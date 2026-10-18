@@ -179,7 +179,7 @@ function SiteCard({ s, open, onToggle, act, onRead }: { s: ClientSiteRow; open: 
 }
 
 function Badge({ color, children }: { color: string; children: React.ReactNode }) {
-  return <span style={{ fontSize: 10.5, fontWeight: 700, color, border: `1px solid ${color}55`, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' }}>{children}</span>;
+  return <span style={{ fontSize: 13.5, fontWeight: 700, color, border: `1px solid ${color}55`, borderRadius: 20, padding: '3px 8px', whiteSpace: 'nowrap' }}>{children}</span>;
 }
 
 function SiteDetail({ s, act, onRead }: { s: ClientSiteRow; act: Act; onRead: () => void }) {
@@ -362,7 +362,7 @@ function CopyLine({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#081024', border: `1px solid ${C.border}`, borderRadius: 9, padding: '6px 6px 6px 10px', marginTop: 5 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 10.5, color: C.muted }}>{label}</div>
+        <div style={{ fontSize: 13.5, color: C.muted }}>{label}</div>
         <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13, wordBreak: 'break-all' }}>{value}</div>
       </div>
       <button onClick={() => { void navigator.clipboard?.writeText(value); setDone(true); setTimeout(() => setDone(false), 1500); }}

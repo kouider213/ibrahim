@@ -165,7 +165,7 @@ export default function DealsScreen() {
                     <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{[v.year, v.mileage ? `${Number(v.mileage).toLocaleString('fr-FR')} km` : null].filter(Boolean).join(' · ') || '—'}</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: C.goldSoft, marginTop: 7 }}>{v.price != null ? `${Number(v.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{sm.label}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{sm.label}</span>
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}` }}>
                   <button onClick={() => void cycleVehicle(v)} disabled={busy === v.id} style={rowBtn}>Changer le statut →</button>
@@ -191,7 +191,7 @@ export default function DealsScreen() {
                     <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{[p.district, p.city].filter(Boolean).join(', ') || '—'}</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: C.goldSoft, marginTop: 7 }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{(p.status || 'disponible') === 'vendu' ? 'Vendu' : 'À vendre'}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: sm.col, background: `${sm.col}1f`, padding: '3px 9px', borderRadius: 20, height: 'fit-content' }}>{(p.status || 'disponible') === 'vendu' ? 'Vendu' : 'À vendre'}</span>
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}` }}>
                   <button onClick={() => void cycleProp(p)} disabled={busy === p.id} style={rowBtn}>Changer le statut →</button>
@@ -213,7 +213,7 @@ export default function DealsScreen() {
             <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
               {opps?.summary || 'Dzaryx surveille le marché algérien chaque jour : ventes, location, nouveautés, lois & import. Touche une opportunité pour la lire en entier.'}
             </div>
-            {opps?.updated_at && <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
+            {opps?.updated_at && <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
           </div>
 
           {(oppLoading && !opps) || opps?.pending ? (
@@ -233,11 +233,11 @@ export default function DealsScreen() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <span style={{ fontSize: 17 }}>{m.icon}</span>
                   <span style={{ fontSize: 14.5, fontWeight: 700, flex: 1 }}>{o.title}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: uc, background: `${uc}1f`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: uc, background: `${uc}1f`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
                 </div>
                 <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{o.detail}</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={{ fontSize: 9.5, color: C.muted }}>{m.label}</span>
+                  <span style={{ fontSize: 13, color: C.muted }}>{m.label}</span>
                   <span style={{ fontSize: 11, color: C.goldSoft, fontWeight: 600 }}>Lire →</span>
                 </div>
               </div>
@@ -314,8 +314,8 @@ export default function DealsScreen() {
                   {photos.map((u, i) => (
                     <div key={i} style={{ position: 'relative', width: 56, height: 56, borderRadius: 9, overflow: 'hidden', border: `1px solid ${C.border}` }}>
                       <img src={u} alt={`p${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      {i === 0 && <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: C.goldSoft, fontSize: 7, textAlign: 'center' }}>Principale</span>}
-                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(255,51,102,0.85)', color: '#fff', fontSize: 10, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
+                      {i === 0 && <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.6)', color: C.goldSoft, fontSize: 12, textAlign: 'center' }}>Principale</span>}
+                      <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(255,51,102,0.85)', color: '#fff', fontSize: 13.5, lineHeight: '14px', cursor: 'pointer', padding: 0 }}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -351,5 +351,5 @@ function Field({ label, children, flex }: { label: string; children: ReactNode; 
 
 const card: CSSProperties = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, overflow: 'hidden' };
 const addBtn: CSSProperties = { width: '100%', padding: '13px 0', borderRadius: 14, border: `1px dashed ${C.gold}66`, background: `${C.gold}10`, color: C.goldSoft, fontFamily: C.font, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' };
-const rowBtn: CSSProperties = { width: '100%', padding: '11px 0', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: C.font, fontSize: 12.5, fontWeight: 600, color: C.gold };
-const inp: CSSProperties = { width: '100%', padding: '11px 12px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface2, color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none', boxSizing: 'border-box' };
+const rowBtn: CSSProperties = { width: '100%', padding: '11px 0', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: C.font, fontSize: 16, fontWeight: 600, color: C.gold };
+const inp: CSSProperties = { width: '100%', padding: '11px 12px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface2, color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none', boxSizing: 'border-box' };

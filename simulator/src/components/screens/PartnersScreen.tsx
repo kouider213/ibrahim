@@ -36,8 +36,8 @@ const STATUS_COL: Record<string, string> = { actif: C.green, 'en discussion': C.
 const tInfo = (t: OfferType) => TYPES.find(x => x.id === t) ?? TYPES[4]!;
 const money = (n: number | null | undefined, cur: string) => (n == null ? '—' : `${Math.round(n * 10) / 10} ${cur === 'DZD' ? 'DA' : '€'}`);
 const btn = (bg: string, color: string) => ({ background: bg, color, border: 'none', borderRadius: 10, padding: '9px 12px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: C.font } as const);
-const input = { width: '100%', boxSizing: 'border-box' as const, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 14, fontFamily: C.font, outline: 'none' };
-const label = { fontSize: 11, color: C.muted, fontWeight: 600, margin: '10px 0 4px', display: 'block' } as const;
+const input = { width: '100%', boxSizing: 'border-box' as const, background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 16, fontFamily: C.font, outline: 'none' };
+const label = { fontSize: 16, color: C.muted, fontWeight: 600, margin: '10px 0 4px', display: 'block' } as const;
 const errText = (e: unknown) => {
   const m = e instanceof Error ? e.message : 'Erreur';
   try { return (JSON.parse(m.replace(/^API \d+: /, '')) as { error?: string }).error ?? m; } catch { return m; }
@@ -397,10 +397,10 @@ function Avatar({ name, photo }: { name: string; photo?: string }) {
     : <div style={{ width: 52, height: 52, borderRadius: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #fbbf2433, #38d8f522)', color: '#fbbf24', fontWeight: 800, fontSize: 22 }}>{name.slice(0, 1).toUpperCase()}</div>;
 }
 function Badge({ text, color }: { text: string; color: string }) {
-  return <span style={{ fontSize: 10.5, fontWeight: 700, color, background: `${color}1f`, border: `1px solid ${color}44`, borderRadius: 7, padding: '2px 7px' }}>{text}</span>;
+  return <span style={{ fontSize: 13.5, fontWeight: 700, color, background: `${color}1f`, border: `1px solid ${color}44`, borderRadius: 7, padding: '2px 7px' }}>{text}</span>;
 }
 function Price({ lab, val, color = '#f5f5f7' }: { lab: string; val: string; color?: string }) {
-  return <div style={{ background: '#101e3d', borderRadius: 10, padding: '7px 8px' }}><div style={{ fontSize: 10, color: '#8ea3c8' }}>{lab}</div><div style={{ fontWeight: 800, fontSize: 13.5, color }}>{val}</div></div>;
+  return <div style={{ background: '#101e3d', borderRadius: 10, padding: '7px 8px' }}><div style={{ fontSize: 13.5, color: '#8ea3c8' }}>{lab}</div><div style={{ fontWeight: 800, fontSize: 13.5, color }}>{val}</div></div>;
 }
 function Toggle({ on, onClick, text }: { on: boolean; onClick: () => void; text: string }) {
   return (

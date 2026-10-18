@@ -481,7 +481,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
           <input
             autoFocus value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Rechercher dans la conversation…"
-            style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: '9px 13px', color: '#fff', fontFamily: 'Inter', fontSize: 14, outline: 'none' }}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, padding: '9px 13px', color: '#fff', fontFamily: 'Inter', fontSize: 16, outline: 'none' }}
           />
         </div>
       )}
@@ -590,7 +590,7 @@ export default function TextScreen({ onNavigateVoice, actor = 'kouider' }: Props
             style={{
               flex: 1, background: 'transparent', border: 'none',
               padding: '8px 0', color: 'rgba(255,255,255,0.92)',
-              fontFamily: 'Inter', fontSize: 15, fontWeight: 400,
+              fontFamily: 'Inter', fontSize: 16, fontWeight: 400,
               resize: 'none', outline: 'none', lineHeight: 1.5, maxHeight: 100, overflowY: 'auto',
             }}
           />

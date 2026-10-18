@@ -37,7 +37,7 @@ export default function NewsletterScreen() {
     finally { setBusy(''); setConfirmAll(false); }
   };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
@@ -67,7 +67,7 @@ export default function NewsletterScreen() {
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Objet de la campagne" style={inp} />
         <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Message (texte simple, traduit automatiquement par langue d'abonné)" rows={8} style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />
         <input value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="Email de test" style={inp} />
-        <div style={{ fontSize: 10.5, color: C.muted, marginTop: -4 }}>« Test » envoie seulement à cet email. « À tous » envoie aux {active ?? 0} abonnés ci-dessus.</div>
+        <div style={{ fontSize: 13.5, color: C.muted, marginTop: -4 }}>« Test » envoie seulement à cet email. « À tous » envoie aux {active ?? 0} abonnés ci-dessus.</div>
 
         <button disabled={!!busy} onClick={() => void send(true)} style={{ padding: '12px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
           {busy === 'test' ? 'Envoi…' : '✉️ Envoyer un test'}

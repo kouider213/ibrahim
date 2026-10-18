@@ -195,8 +195,8 @@ export default function ReservationVoucherScreen() {
     } finally { setBusy(false); }
   };
 
-  const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
-  const lbl: CSSProperties = { fontSize: 10, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '14px 0 6px' };
+  const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
+  const lbl: CSSProperties = { fontSize: 16, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '14px 0 6px' };
   const placeChips = (val: string, set: (v: string) => void) => (
     <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
       {PLACES.map(p => (
@@ -217,7 +217,7 @@ export default function ReservationVoucherScreen() {
         style={{ width: '100%', marginTop: 14, padding: '13px', borderRadius: 12, border: `1px solid ${C.blue}55`, background: `${C.blue}14`, color: C.blue, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
         {scanBusy ? '🔍 Lecture du document…' : '📷 Scanner passeport / pièce → remplir auto'}
       </button>
-      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Prends une photo, ou importe depuis ta galerie / tes fichiers → nom, prénom et n° remplis tout seuls. Ou remplis à la main ci-dessous.</div>
+      <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>Prends une photo, ou importe depuis ta galerie / tes fichiers → nom, prénom et n° remplis tout seuls. Ou remplis à la main ci-dessous.</div>
 
       {/* Client */}
       <div style={lbl}>Client</div>

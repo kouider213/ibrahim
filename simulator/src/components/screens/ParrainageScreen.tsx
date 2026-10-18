@@ -44,7 +44,7 @@ export default function ParrainageScreen() {
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 14, outline: 'none' };
+  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
   const totalUses = list.reduce((s, r) => s + (r.uses || 0), 0);
 
   return (
@@ -91,7 +91,7 @@ export default function ParrainageScreen() {
         </div>
       )}
 
-      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Le client utilise le code → tu cliques + pour compter le parrainage et appliquer la récompense.</div>
+      <div style={{ fontSize: 13.5, color: C.muted, marginTop: 16, lineHeight: 1.5 }}>💡 Le client utilise le code → tu cliques + pour compter le parrainage et appliquer la récompense.</div>
 
       {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(251,191,36,0.15)', border: `1px solid ${C.gold}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.gold, whiteSpace: 'nowrap' }}>{toast}</div>}
     </div>

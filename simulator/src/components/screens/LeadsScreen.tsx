@@ -24,7 +24,7 @@ const STATUS_FLOW = ['nouveau', 'en_cours', 'conclu', 'perdu'];
 
 const inp: CSSProperties = {
   width: '100%', boxSizing: 'border-box', background: C.surface2, border: `1px solid ${C.border}`,
-  borderRadius: 11, padding: '11px 12px', fontFamily: C.font, fontSize: 14, color: C.text, outline: 'none',
+  borderRadius: 11, padding: '11px 12px', fontFamily: C.font, fontSize: 16, color: C.text, outline: 'none',
 };
 
 export default function LeadsScreen() {
@@ -86,7 +86,7 @@ export default function LeadsScreen() {
         {[{ v: nouveaux, l: 'Nouveaux', c: C.accent }, { v: enCours, l: 'En cours', c: C.amber }, { v: leads.length, l: 'Total', c: C.text }].map(s => (
           <div key={s.l} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: s.c }}>{s.v}</div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{s.l}</div>
+            <div style={{ fontSize: 13.5, color: C.muted, marginTop: 2 }}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -132,7 +132,7 @@ export default function LeadsScreen() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 15, fontWeight: 700 }}>{l.client_name}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: m.col, background: `${m.col}1a`, border: `1px solid ${m.col}40`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: m.col, background: `${m.col}1a`, border: `1px solid ${m.col}40`, borderRadius: 20, padding: '2px 9px' }}>{m.label}</span>
                   </div>
                   <div style={{ fontSize: 13, color: C.text, marginTop: 4, lineHeight: 1.4 }}>{l.criteria}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{[l.city, l.budget_max ? `≤ ${Number(l.budget_max).toLocaleString('fr-FR')} ${cur}` : null].filter(Boolean).join(' · ') || '—'}</div>

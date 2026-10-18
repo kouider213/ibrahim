@@ -31,7 +31,7 @@ export default function ForecastScreen() {
             <div style={{ fontSize: 18, fontWeight: 800, color: C.gold }}>{f.peaks.length ? f.peaks.join(' · ') : '—'}</div>
           </div>
 
-          <div style={{ fontSize: 10, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Réservations par mois</div>
+          <div style={{ fontSize: 13.5, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Réservations par mois</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {f.byMonth.map(m => (
               <div key={m.month} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -108,7 +108,7 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
         <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
           {opps?.summary || 'Dzaryx surveille chaque jour TOUT le business algérien : auto, immobilier, devises (euro/dinar), investissement, aides de l\'État, lois & toute affaire intéressante. Touche une opportunité pour la lire en entier.'}
         </div>
-        {opps?.updated_at && <div style={{ fontSize: 10, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
+        {opps?.updated_at && <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>🔄 Auto chaque jour · mis à jour : {new Date(opps.updated_at).toLocaleString('fr-FR')}</div>}
       </div>
 
       {/* Filtres par axe */}
@@ -151,11 +151,11 @@ export default function OpportunitiesScreen({ onAsk }: { onAsk?: (prompt: string
                 <span style={{ fontSize: 14.5, fontWeight: 700, flex: 1 }}>{o.title}</span>
                 <button onClick={(e) => { e.stopPropagation(); toggleFav(o); }} title={isFav(o) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                   style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 17, padding: 0, lineHeight: 1, color: isFav(o) ? C.gold : C.muted }}>{isFav(o) ? '★' : '☆'}</button>
-                <span style={{ fontSize: 9, fontWeight: 700, color: uc, background: `${uc}1f`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: uc, background: `${uc}1f`, padding: '3px 8px', borderRadius: 20 }}>{URG_LABEL[o.urgency]}</span>
               </div>
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{o.detail}</div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                <span style={{ fontSize: 9.5, color: C.muted }}>{isFav(o) ? '★ Favori · ' : ''}{m.label}</span>
+                <span style={{ fontSize: 13, color: C.muted }}>{isFav(o) ? '★ Favori · ' : ''}{m.label}</span>
                 <span style={{ fontSize: 11, color: C.goldSoft, fontWeight: 600 }}>Lire →</span>
               </div>
             </div>
