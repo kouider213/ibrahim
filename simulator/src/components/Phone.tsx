@@ -407,7 +407,7 @@ export default function Phone() {
           animation: 'fadeIn 0.3s ease',
         }}>
           <DzaryxIcon size={64} glow />
-          <div style={{ fontFamily: 'Orbitron', fontSize: 10, color: '#38d8f544', letterSpacing: '0.3em' }}>
+          <div style={{ fontFamily: 'Orbitron', fontSize: 12, color: '#38d8f588', letterSpacing: '0.3em' }}>
             DÉCONNEXION…
           </div>
         </div>
@@ -438,10 +438,10 @@ export default function Phone() {
               : '🔔'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: 7, color: '#38d8f5', letterSpacing: '0.15em', marginBottom: 2 }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: 11, color: '#38d8f5', letterSpacing: '0.15em', marginBottom: 3 }}>
               DZARYX
             </div>
-            <div style={{ fontFamily: 'Share Tech Mono', fontSize: 9, color: '#c8e8ff', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            <div style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, color: '#e6f4ff', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
               {notif.text.replace(/^[^\s]+\s/, '').slice(0, 60)}
             </div>
           </div>
@@ -450,8 +450,8 @@ export default function Phone() {
               onClick={() => { setPage(notif.deepLink!); setNotif(null); }}
               style={{
                 background: 'rgba(56,216,245,0.12)', border: '1px solid #38d8f555',
-                borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-                fontFamily: 'Orbitron', fontSize: 6, color: '#38d8f5', letterSpacing: '0.12em',
+                borderRadius: 10, padding: '0 14px', minHeight: 40, cursor: 'pointer',
+                fontFamily: 'Orbitron', fontSize: 11, color: '#38d8f5', letterSpacing: '0.12em',
                 flexShrink: 0,
               }}
             >
