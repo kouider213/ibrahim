@@ -113,7 +113,7 @@ export function Badge({ children, color = T.accent, solid = false }: { children:
 
 type BtnVariant = 'primary' | 'soft' | 'ghost' | 'danger';
 export function btnStyle(variant: BtnVariant = 'soft', color: string = T.accent): CSSProperties {
-  const base: CSSProperties = { minHeight: 44, padding: '0 16px', borderRadius: 13, fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: 'none', boxSizing: 'border-box' };
+  const base: CSSProperties = { minHeight: 44, padding: '0 16px', borderRadius: 13, fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: 'none', boxSizing: 'border-box', whiteSpace: 'nowrap' };
   if (variant === 'primary') return { ...base, background: `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, color: '#04101f', boxShadow: `0 8px 24px -10px ${tone(T.accent, 0.8)}` };
   if (variant === 'danger') return { ...base, background: tone(T.bad, 0.12), color: T.bad, border: `1px solid ${tone(T.bad, 0.35)}` };
   if (variant === 'ghost') return { ...base, background: 'transparent', color: T.muted, border: `1px solid ${T.line}` };
@@ -175,7 +175,7 @@ export function Sheet({ title, subtitle, onClose, children, footer, accent = T.a
 
 /** Champ de saisie avec libellé. */
 export const inputStyle: CSSProperties = {
-  width: '100%', boxSizing: 'border-box', minHeight: 48, padding: '0 14px', borderRadius: 13, border: `1px solid ${T.line}`,
+  width: '100%', minWidth: 0, boxSizing: 'border-box', minHeight: 48, padding: '0 14px', borderRadius: 13, border: `1px solid ${T.line}`,
   background: 'rgba(255,255,255,0.04)', color: T.text, fontFamily: T.font, fontSize: 16, outline: 'none',
 };
 export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
@@ -219,3 +219,81 @@ export function SectionTitle({ children, right }: { children: ReactNode; right?:
     </div>
   );
 }
+
+/** Écran standard : en-tête fixe + contenu défilant (bas dégagé pour le bouton micro). */
+export function Screen({ header, children, toast, pad = true }: { header?: ReactNode; children: ReactNode; toast?: string; pad?: boolean }) {
+  return (
+    <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, color: T.text, fontFamily: T.font }}>
+      {toast != null && <Toast text={toast} />}
+      {header != null && <div style={{ flexShrink: 0 }}>{header}</div>}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: pad ? '6px 16px 130px' : '0 0 130px' }}>{children}</div>
+    </div>
+  );
+}
+
+/** Carte de contenu. `accent` = liseré coloré à gauche. */
+export function Card({ children, accent, onClick, style, pad = 14 }: { children: ReactNode; accent?: string; onClick?: () => void; style?: CSSProperties; pad?: number }) {
+  return (
+    <div onClick={onClick} role={onClick ? 'button' : undefined} style={{
+      position: 'relative', background: `linear-gradient(160deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${accent ? tone(accent, 0.3) : T.line}`,
+      borderRadius: T.radius, padding: pad, overflow: 'hidden', cursor: onClick ? 'pointer' : undefined, ...style,
+    }}>
+      {accent && <div style={{ position: 'absolute', left: 0, top: 12, bottom: 12, width: 3, borderRadius: '0 3px 3px 0', background: accent, boxShadow: `0 0 10px ${tone(accent, 0.6)}` }} />}
+      {children}
+    </div>
+  );
+}
+
+/** Avatar rond : initiales ou emoji. */
+export function Avatar({ name, icon, color = T.accent, size = 42 }: { name?: string; icon?: string; color?: string; size?: number }) {
+  const ini = icon ?? (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: `linear-gradient(135deg, ${tone(color, 0.28)}, ${tone(color, 0.1)})`, border: `1px solid ${tone(color, 0.45)}`,
+      color, fontSize: icon ? size * 0.46 : size * 0.36, fontWeight: 800, letterSpacing: '-0.02em' }}>{ini}</div>
+  );
+}
+
+/** Ligne de liste : avatar/icône, titre, sous-titre, élément à droite. */
+export function Row({ left, title, sub, right, onClick, accent }: { left?: ReactNode; title: ReactNode; sub?: ReactNode; right?: ReactNode; onClick?: () => void; accent?: string }) {
+  return (
+    <Card onClick={onClick} accent={accent} pad={12} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {left}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+        {sub != null && <div style={{ fontSize: 13, color: T.muted, marginTop: 2, lineHeight: 1.35 }}>{sub}</div>}
+      </div>
+      {right}
+    </Card>
+  );
+}
+
+/** Rangée de chiffres clés (2 colonnes, ou 3 si `cols=3`). */
+export function KpiGrid({ children, cols = 2 }: { children: ReactNode; cols?: 2 | 3 }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`, gap: 10, marginBottom: 16 }}>{children}</div>;
+}
+
+/** Bouton icône rond libellé pour l'en-tête (rafraîchir, ajouter…). */
+export function HeadBtn({ icon, label, onClick, busy, color = T.accent }: { icon: string; label: string; onClick: () => void; busy?: boolean; color?: string }) {
+  return (
+    <button onClick={onClick} disabled={busy} aria-label={label} title={label} style={{
+      minWidth: 44, height: 44, padding: '0 12px', borderRadius: 13, cursor: busy ? 'wait' : 'pointer', fontFamily: T.font,
+      background: tone(color, 0.12), border: `1px solid ${tone(color, 0.32)}`, color, fontSize: 14, fontWeight: 700,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 16, display: 'inline-block', animation: busy ? 'dzSpin 1s linear infinite' : undefined }}>{icon}</span>
+      {label.length <= 9 && <span>{label}</span>}
+      <style>{'@keyframes dzSpin{to{transform:rotate(360deg)}}'}</style>
+    </button>
+  );
+}
+
+/** Lien WhatsApp à partir d'un numéro. */
+export const waLink = (phone?: string | null, text?: string) => {
+  const p = (phone ?? '').replace(/\D/g, '');
+  return p ? `https://wa.me/${p}${text ? `?text=${encodeURIComponent(text)}` : ''}` : null;
+};
+
+/** Montant lisible : 2 380 €. */
+export const money = (n: number | null | undefined, cur = '€') =>
+  n == null || !isFinite(n) ? '—' : `${Math.round(n).toLocaleString('fr-FR')} ${cur === 'EUR' ? '€' : cur === 'DZD' ? 'DA' : cur}`;

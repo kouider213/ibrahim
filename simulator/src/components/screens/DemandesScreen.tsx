@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BACKEND_URL, getToken } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, HeadBtn, Chips, Segmented, Card, Badge, Avatar, Btn, btnStyle, Empty, Sheet, Field, inputStyle } from '../ui/Kit.tsx';
 
 interface Demande {
   id: string;
@@ -185,173 +186,146 @@ export default function DemandesScreen() {
 
   const fmt = (d?: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 
-  const chip = (key: 'all' | Demande['source'], label: string, n: number) => (
-    <button onClick={() => setFilter(key)} style={{
-      padding: '6px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap',
-      fontSize: 11, fontWeight: 700, fontFamily: 'Inter',
-      background: filter === key ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.04)',
-      color: filter === key ? '#06210f' : 'rgba(255,255,255,0.55)',
-      border: `1px solid ${filter === key ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.08)'}`,
-    }}>{label} {n > 0 && <span style={{ opacity: 0.7 }}>· {n}</span>}</button>
-  );
+  const ago = (iso?: string) => {
+    if (!iso) return '';
+    const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    return m < 60 ? `il y a ${Math.max(1, m)} min` : m < 1440 ? `il y a ${Math.round(m / 60)} h` : m < 2880 ? 'hier' : fmt(iso);
+  };
 
   return (
-    <div style={{ width: '100%', height: '100%', background: '#050a16', display: 'flex', flexDirection: 'column', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
-      {/* Header */}
-      <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid rgba(56,216,245,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#38d8f5', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Demandes</div>
-          <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.1, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Demandes du site</div>
-          <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{counts.total} demande{counts.total !== 1 ? 's' : ''}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowNew(true)} style={{ background: 'rgba(56,216,245,0.16)', border: '1px solid rgba(56,216,245,0.5)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#38d8f5' }}>＋ Nouveau</button>
-          <button onClick={() => { void load(); }} style={{ background: 'rgba(56,216,245,0.07)', border: '1px solid rgba(56,216,245,0.2)', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontSize: 11, fontWeight: 600, color: 'rgba(56,216,245,0.8)' }}>↺</button>
-        </div>
+    <Screen toast={toast} header={<>
+      <PageHeader eyebrow="Site & dossiers" title="Demandes"
+        subtitle={loading ? 'Chargement…' : `${counts.total} demande${counts.total !== 1 ? 's' : ''} en cours`}
+        right={<div style={{ display: 'flex', gap: 8 }}>
+          <HeadBtn icon="↻" label="Actualiser" onClick={() => void load()} busy={loading} />
+          <HeadBtn icon="＋" label="Nouveau" onClick={() => setShowNew(true)} />
+        </div>} />
+      <div style={{ padding: '0 16px 10px' }}>
+        <Chips<'all' | Demande['source']> value={filter} onChange={setFilter} items={[
+          { id: 'all', label: 'Tout', count: counts.total },
+          { id: 'booking', label: '🚗 Réservations', count: counts.booking },
+          { id: 'lead', label: '🔔 Leads', count: counts.lead },
+          { id: 'dossier', label: '📁 Dossiers', count: counts.dossier },
+          { id: 'import', label: '🛳️ Imports', count: counts.import },
+        ]} />
       </div>
+    </>}>
+      {loading && !demandes.length && <SkeletonCards count={4} height={150} />}
+      {error && !loading && <Empty icon="📡" title="Impossible de charger" text={error} action={<Btn onClick={() => void load()}>Réessayer</Btn>} />}
+      {!loading && !error && shown.length === 0 && <Empty icon="📭" title="Aucune demande" text="Les nouvelles demandes du site arrivent ici automatiquement." />}
 
-      {/* Filtres */}
-      <div style={{ display: 'flex', gap: 7, padding: '10px 12px 4px', overflowX: 'auto' }}>
-        {chip('all', 'Tout', counts.total)}
-        {chip('booking', '🚗 Résa', counts.booking)}
-        {chip('lead', '🔔 Leads', counts.lead)}
-        {chip('dossier', '📁 Dossiers', counts.dossier)}
-        {chip('import', '🛳️ Import', counts.import)}
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {loading && <SkeletonCards count={5} height={120} />}
-        {error && !loading && <div style={{ textAlign: 'center', color: '#ef4444', fontSize: 12, paddingTop: 40 }}>{error}</div>}
-        {!loading && !error && shown.length === 0 && (
-          <div style={{ textAlign: 'center', paddingTop: 40 }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>📭</div>
-            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>Aucune demande</div>
-          </div>
-        )}
-
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {shown.map(d => {
           const s = SRC[d.source];
+          const flow = d.source === 'dossier' || d.source === 'import' ? flowFor(d) : null;
+          const stepIdx = flow ? flow.findIndex(x => x.key === d.status) : -1;
+          const next = flow && d.status !== 'CANCELLED' ? nextStage(d) : null;
+          const isBusy = busy === d.id;
           return (
-            <div key={d.id} style={{ background: 'rgba(7,17,31,0.8)', border: `1px solid ${s.color}22`, borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: s.color, background: `${s.color}18`, border: `1px solid ${s.color}40`, borderRadius: 7, padding: '2px 7px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.icon} {s.label}</span>
-                    {d.ref && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>{d.ref}</span>}
-                    {d.lang && <span style={{ fontSize: 11 }}>{LANG_FLAG[d.lang] || ''}</span>}
+            <Card key={d.id} accent={s.color} pad={0}>
+              <div style={{ padding: '14px 14px 12px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <Badge color={s.color}>{s.icon} {s.label}</Badge>
+                  {d.ref && <span style={{ fontSize: 12, color: T.faint, fontFamily: 'ui-monospace, monospace' }}>{d.ref}</span>}
+                  {d.lang && <span style={{ fontSize: 14 }}>{LANG_FLAG[d.lang] || ''}</span>}
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: T.faint }}>{ago(d.created_at)}</span>
+                </div>
+                <div style={{ fontSize: 16.5, fontWeight: 800, color: T.text, lineHeight: 1.25, letterSpacing: '-0.01em' }}>{d.title}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                  <Avatar name={d.client_name || 'Client'} color={s.color} size={36} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{d.client_name || 'Client'}</div>
+                    <div style={{ fontSize: 13, color: T.muted }}>{d.client_phone || 'pas de téléphone'}{d.meta ? ` · ${d.meta}` : ''}</div>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 5 }}>{d.title}</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{d.client_name || 'Client'} · {d.client_phone || '—'}</div>
-                  {d.meta && <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>{d.meta}</div>}
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 3 }}>{fmt(d.created_at)}{d.status ? ` · ${d.status}` : ''}</div>
                 </div>
+
+                {/* Parcours d'étapes (dossier / import) */}
+                {flow && d.status !== 'CANCELLED' && (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
+                      {flow.map((st, i) => <div key={st.key} title={st.fr} style={{ flex: 1, height: 5, borderRadius: 3, background: i <= stepIdx ? s.color : 'rgba(255,255,255,0.08)', boxShadow: i === stepIdx ? `0 0 8px ${s.color}` : 'none' }} />)}
+                    </div>
+                    <div style={{ fontSize: 13, color: T.muted }}>Étape {Math.max(1, stepIdx + 1)}/{flow.length} : <b style={{ color: s.color }}>{stageLabel(d, d.status)}</b></div>
+                  </div>
+                )}
+                {d.status === 'CANCELLED' && <div style={{ marginTop: 10 }}><Badge color={T.bad}>Annulée</Badge></div>}
+                {!flow && d.status && d.status !== 'CANCELLED' && <div style={{ marginTop: 10, fontSize: 13, color: T.faint }}>Statut : {d.status}</div>}
               </div>
-              {/* Action rapide : accepter/refuser une réservation depuis l'app */}
-              {d.source === 'booking' && d.status === 'PENDING' && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button disabled={!!busy} onClick={() => act(d, 'ACCEPTED', 'Réservation acceptée ✅')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(34,197,94,0.18)', border: '1px solid rgba(34,197,94,0.5)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#22c55e', fontFamily: 'Inter' }}>✅ ACCEPTER</button>
-                  <button disabled={!!busy} onClick={() => act(d, 'REJECTED', 'Réservation refusée')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.45)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#ef4444', fontFamily: 'Inter' }}>❌ REFUSER</button>
-                </div>
-              )}
-              {/* Avancement d'étape in-app : dossier (achat/immo/pack) + importation */}
-              {(d.source === 'dossier' || d.source === 'import') && d.status !== 'CANCELLED' && (() => {
-                const next = nextStage(d);
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)' }}>
-                      Étape : <span style={{ color: s.color, fontWeight: 700 }}>{stageLabel(d, d.status)}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {next ? (
-                        <button disabled={!!busy} onClick={() => act(d, next.key, `Étape → ${next.fr} ✅`)} style={{ flex: 2, padding: '9px 6px', background: `${s.color}22`, border: `1px solid ${s.color}66`, borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: s.color, fontFamily: 'Inter' }}>→ {next.fr.toUpperCase()}</button>
-                      ) : (
-                        <div style={{ flex: 2, padding: '9px 6px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'rgba(34,197,94,0.7)' }}>✓ Terminé</div>
-                      )}
-                      <button disabled={!!busy} onClick={() => act(d, 'CANCELLED', 'Demande annulée')} style={{ flex: 1, padding: '9px 6px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#ef4444', fontFamily: 'Inter' }}>Annuler</button>
-                    </div>
-                    <label style={{ display: 'block', textAlign: 'center', padding: '8px 6px', background: 'rgba(255,255,255,0.04)', border: '1px dashed rgba(255,255,255,0.18)', borderRadius: 10, cursor: busy ? 'wait' : 'pointer', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter' }}>
-                      📷 Ajouter une photo
+
+              {/* Actions */}
+              <div style={{ padding: '0 14px 14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {d.source === 'booking' && d.status === 'PENDING' && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Btn variant="primary" disabled={!!busy} onClick={() => void act(d, 'ACCEPTED', 'Réservation acceptée ✅')} style={{ flex: 1 }}>✅ Accepter</Btn>
+                    <Btn variant="danger" disabled={!!busy} onClick={() => void act(d, 'REJECTED', 'Réservation refusée')} style={{ flex: 1 }}>Refuser</Btn>
+                  </div>
+                )}
+                {flow && d.status !== 'CANCELLED' && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {next
+                      ? <Btn color={s.color} disabled={!!busy} onClick={() => void act(d, next.key, `Étape → ${next.fr} ✅`)} style={{ flex: 2 }}>{isBusy ? '⏳' : '→'} {next.fr}</Btn>
+                      : <div style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: T.ok }}>✓ Terminé</div>}
+                    <label style={{ ...btnStyle('ghost'), flex: 1, cursor: busy ? 'wait' : 'pointer' }}>
+                      📷 Photo
                       <input type="file" accept="image/*" disabled={!!busy} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) void addPhoto(d, f); e.currentTarget.value = ''; }} />
                     </label>
                   </div>
-                );
-              })()}
-              <div style={{ display: 'flex', gap: 8 }}>
-                {d.client_phone && (
-                  <button onClick={() => waRelance(d)} style={{ flex: 1, padding: '8px 6px', background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.4)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#25D366', fontFamily: 'Inter' }}>💬 WhatsApp</button>
                 )}
-                {d.source === 'lead' && d.status !== 'conclu' && (
-                  <button disabled={!!busy} onClick={() => act(d, 'conclu', 'Lead marqué conclu ✅')} style={{ flex: 1, padding: '8px 6px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#22c55e', fontFamily: 'Inter' }}>✓ Conclu</button>
-                )}
-                <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ flex: 1, textAlign: 'center', padding: '8px 6px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>⚙️ Gérer</a>
-                <button disabled={busy === d.id} onClick={() => del(d)} style={{ flex: confirmDel === d.id ? 1.4 : 1, padding: '8px 6px', background: confirmDel === d.id ? 'rgba(239,68,68,0.9)' : 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 10, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: confirmDel === d.id ? '#fff' : '#ef4444', fontFamily: 'Inter' }}>{confirmDel === d.id ? '⚠️ Confirmer' : '🗑️ Suppr'}</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {d.client_phone && <Btn color="#25D366" onClick={() => waRelance(d)} style={{ flex: 1.2 }}>💬 WhatsApp</Btn>}
+                  {d.source === 'lead' && d.status !== 'conclu' && <Btn color={T.ok} disabled={!!busy} onClick={() => void act(d, 'conclu', 'Lead marqué conclu ✅')} style={{ flex: 1 }}>✓ Conclu</Btn>}
+                  <a href={`${SITE}${d.admin_path}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost'), flex: 1, textDecoration: 'none' }}>⚙️ Gérer</a>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {flow && d.status !== 'CANCELLED' && <Btn variant="ghost" disabled={!!busy} onClick={() => void act(d, 'CANCELLED', 'Demande annulée')} style={{ flex: 1, minHeight: 40, fontSize: 13 }}>✕ Annuler</Btn>}
+                  <Btn variant={confirmDel === d.id ? 'primary' : 'danger'} disabled={isBusy} onClick={() => void del(d)}
+                    style={{ flex: 1, minHeight: 40, fontSize: 13, ...(confirmDel === d.id ? { background: T.bad, color: '#fff' } : {}) }}>{confirmDel === d.id ? '⚠️ Confirmer' : '🗑️ Supprimer'}</Btn>
+                </div>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
 
       {showNew && (
-        <div onClick={() => setShowNew(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 30, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxHeight: '88%', overflowY: 'auto', background: '#0e0e12', borderTopLeftRadius: 20, borderTopRightRadius: 20, border: '1px solid rgba(56,216,245,0.2)', padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 2 }}>Nouvelle demande</div>
-
-            {/* Type */}
-            <div style={{ display: 'flex', gap: 7 }}>
-              {(['dossier', 'import'] as const).map(t => (
-                <button key={t} onClick={() => setF('type', t)} style={{ flex: 1, padding: '8px', borderRadius: 9, cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'Inter', background: form.type === t ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.04)', color: form.type === t ? '#06210f' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.type === t ? 'rgba(56,216,245,0.9)' : 'rgba(255,255,255,0.1)'}` }}>{t === 'dossier' ? '📁 Dossier' : '🛳️ Import'}</button>
-              ))}
-            </div>
-
-            {/* Kind (dossier seulement) */}
-            {form.type === 'dossier' && (
-              <div style={{ display: 'flex', gap: 7 }}>
-                {([['voiture', '🚗 Achat'], ['immo', '🏠 Immo'], ['pack', '🎫 Pack']] as const).map(([k, lbl]) => (
-                  <button key={k} onClick={() => setF('kind', k)} style={{ flex: 1, padding: '7px', borderRadius: 9, cursor: 'pointer', fontSize: 10.5, fontWeight: 700, fontFamily: 'Inter', background: form.kind === k ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.04)', color: form.kind === k ? '#fff' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.kind === k ? 'rgba(139,92,246,0.8)' : 'rgba(255,255,255,0.1)'}` }}>{lbl}</button>
-                ))}
-              </div>
-            )}
-
-            {(() => {
-              const inp = { width: '100%', boxSizing: 'border-box' as const, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '11px 13px', color: '#fff', fontFamily: 'Inter', fontSize: 14, outline: 'none' };
-              return (
-                <>
-                  <input value={form.client_name} onChange={e => setF('client_name', e.target.value)} placeholder="Nom du client" style={inp} />
-                  <input value={form.client_phone} onChange={e => setF('client_phone', e.target.value)} placeholder="Téléphone (WhatsApp)" style={inp} />
-                  <input value={form.client_email} onChange={e => setF('client_email', e.target.value)} placeholder="Email (optionnel)" style={inp} />
-                  {form.type === 'dossier'
-                    ? <input value={form.subject} onChange={e => setF('subject', e.target.value)} placeholder="Objet (ex: Clio 2020, Appart 3 pièces…)" style={inp} />
-                    : <>
-                        <input value={form.vehicle} onChange={e => setF('vehicle', e.target.value)} placeholder="Véhicule (marque modèle année)" style={inp} />
-                        <input value={form.subject} onChange={e => setF('subject', e.target.value)} placeholder="Pays d'origine (ex: France)" style={inp} />
-                      </>}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input value={form.budget} onChange={e => setF('budget', e.target.value)} placeholder="Budget" inputMode="numeric" style={{ ...inp, flex: 2 }} />
-                    <select value={form.currency} onChange={e => setF('currency', e.target.value)} style={{ ...inp, flex: 1 }}>
-                      <option value="DZD">DZD</option><option value="EUR">EUR</option><option value="USD">USD</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: 7 }}>
-                    {(['fr', 'ar', 'en'] as const).map(l => (
-                      <button key={l} onClick={() => setF('lang', l)} style={{ flex: 1, padding: '7px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, background: form.lang === l ? 'rgba(96,165,250,0.8)' : 'rgba(255,255,255,0.04)', color: form.lang === l ? '#06210f' : 'rgba(255,255,255,0.6)', border: `1px solid ${form.lang === l ? 'rgba(96,165,250,0.8)' : 'rgba(255,255,255,0.1)'}` }}>{LANG_FLAG[l]}</button>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button onClick={() => setShowNew(false)} style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter' }}>Annuler</button>
-              <button disabled={busy === 'new'} onClick={() => void submitNew()} style={{ flex: 2, padding: '12px', background: 'rgba(56,216,245,0.9)', border: 'none', borderRadius: 11, cursor: 'pointer', fontSize: 12, fontWeight: 800, color: '#06210f', fontFamily: 'Inter' }}>{busy === 'new' ? 'Création…' : 'Créer la demande'}</button>
-            </div>
+        <Sheet title="Nouvelle demande" subtitle="Dossier d'achat, immo, pack ou importation" onClose={() => setShowNew(false)}
+          footer={<>
+            <Btn variant="ghost" onClick={() => setShowNew(false)} style={{ flex: 1 }}>Annuler</Btn>
+            <Btn variant="primary" disabled={busy === 'new'} onClick={() => void submitNew()} style={{ flex: 2 }}>{busy === 'new' ? 'Création…' : 'Créer la demande'}</Btn>
+          </>}>
+          <div style={{ marginBottom: 12 }}>
+            <Segmented<'dossier' | 'import'> value={form.type as 'dossier' | 'import'} onChange={v => setF('type', v)}
+              items={[{ id: 'dossier', label: '📁 Dossier' }, { id: 'import', label: '🛳️ Import' }]} />
           </div>
-        </div>
+          {form.type === 'dossier' && (
+            <div style={{ marginBottom: 14 }}>
+              <Chips<string> value={form.kind} onChange={v => setF('kind', v)}
+                items={[{ id: 'voiture', label: '🚗 Achat voiture' }, { id: 'immo', label: '🏠 Immo' }, { id: 'pack', label: '🎫 Pack séjour' }]} />
+            </div>
+          )}
+          <Field label="Nom du client"><input value={form.client_name} onChange={e => setF('client_name', e.target.value)} placeholder="Ex. Karim Benali" style={inputStyle} /></Field>
+          <Field label="Téléphone (WhatsApp)"><input value={form.client_phone} onChange={e => setF('client_phone', e.target.value)} placeholder="+213 …" inputMode="tel" style={inputStyle} /></Field>
+          <Field label="Email (optionnel)"><input value={form.client_email} onChange={e => setF('client_email', e.target.value)} placeholder="client@mail.com" inputMode="email" style={inputStyle} /></Field>
+          {form.type === 'dossier'
+            ? <Field label="Objet"><input value={form.subject} onChange={e => setF('subject', e.target.value)} placeholder="Ex. Clio 2020, appart 3 pièces…" style={inputStyle} /></Field>
+            : <>
+                <Field label="Véhicule"><input value={form.vehicle} onChange={e => setF('vehicle', e.target.value)} placeholder="Marque modèle année" style={inputStyle} /></Field>
+                <Field label="Pays d'origine"><input value={form.subject} onChange={e => setF('subject', e.target.value)} placeholder="Ex. France" style={inputStyle} /></Field>
+              </>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 2 }}><Field label="Budget"><input value={form.budget} onChange={e => setF('budget', e.target.value)} placeholder="0" inputMode="numeric" style={inputStyle} /></Field></div>
+            <div style={{ flex: 1 }}><Field label="Devise">
+              <select value={form.currency} onChange={e => setF('currency', e.target.value)} style={inputStyle}>
+                <option value="DZD">DZD</option><option value="EUR">EUR</option><option value="USD">USD</option>
+              </select>
+            </Field></div>
+          </div>
+          <Field label="Langue du client">
+            <Segmented<string> value={form.lang} onChange={v => setF('lang', v)}
+              items={[{ id: 'fr', label: '🇫🇷 Français' }, { id: 'ar', label: '🇩🇿 Arabe' }, { id: 'en', label: '🇬🇧 Anglais' }]} />
+          </Field>
+        </Sheet>
       )}
-
-      {toast && (
-        <div style={{ position: 'absolute', bottom: 70, left: '50%', transform: 'translateX(-50%)', background: 'rgba(56,216,245,0.15)', border: '1px solid rgba(56,216,245,0.3)', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#38d8f5', zIndex: 20, backdropFilter: 'blur(8px)', whiteSpace: 'nowrap' }}>{toast}</div>
-      )}
-    </div>
+    </Screen>
   );
 }

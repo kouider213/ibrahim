@@ -1,13 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import { business, type TodayItem } from '../../services/api.ts';
-import { StatCard, SkeletonCards } from '../ui/Premium.tsx';
+import { SkeletonCards } from '../ui/Premium.tsx';
+import { T, tone, Screen, PageHeader, HeadBtn, Kpi, KpiGrid, SectionTitle, Row, Avatar, Badge, Empty, waLink, money } from '../ui/Kit.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', red: '#ef4444', blue: '#60a5fa', text: '#f5f5f7', muted: '#8ea3c8',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
 type Today = { date: string; departures: TodayItem[]; returns: TodayItem[]; toCollect: Array<TodayItem & { due: number }>; newDemands: number; pendingBookings: number };
+
+const longDate = () => {
+  const s = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+const hello = () => { const h = new Date().getHours(); return h < 5 ? 'Bonne nuit' : h < 18 ? 'Bonjour' : 'Bonsoir'; };
+
+function WaBtn({ phone }: { phone: string | null }) {
+  const href = waLink(phone);
+  if (!href) return null;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{
+      minHeight: 40, padding: '0 12px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none',
+      background: 'rgba(37,211,102,0.13)', border: '1px solid rgba(37,211,102,0.4)', color: '#25D366', fontSize: 13, fontWeight: 700, flexShrink: 0,
+    }}>💬 WhatsApp</a>
+  );
+}
 
 export default function CommandCenterScreen() {
   const [d, setD] = useState<Today | null>(null);
@@ -20,21 +33,23 @@ export default function CommandCenterScreen() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const wa = (it: TodayItem) => { const p = (it.phone || '').replace(/\D/g, ''); if (p) window.open(`https://wa.me/${p}`, '_blank'); };
+  const due = d ? d.toCollect.reduce((s, x) => s + x.due, 0) : 0;
+  const moves = d ? d.departures.length + d.returns.length : 0;
 
-  const Section = ({ title, items, col, icon, empty }: { title: string; items: TodayItem[]; col: string; icon: string; empty: string }) => (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: col, marginBottom: 8 }}>{icon} {title} ({items.length})</div>
-      {items.length === 0 ? <div style={{ fontSize: 12, color: C.muted }}>{empty}</div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+  const Section = ({ title, items, col, icon, empty, verb }: { title: string; items: Array<TodayItem & { due?: number }>; col: string; icon: string; empty: string; verb: string }) => (
+    <div style={{ marginBottom: 18 }}>
+      <SectionTitle right={<Badge color={items.length ? col : T.faint}>{items.length}</Badge>}>{icon} {title}</SectionTitle>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 14, color: T.faint, padding: '4px 2px' }}>{empty}</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {items.map(it => (
-            <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.client}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{it.car}{'due' in it ? ` · ${(it as TodayItem & { due: number }).due.toLocaleString('fr-FR')} à encaisser` : ''}</div>
-              </div>
-              {it.phone && <button onClick={() => wa(it)} style={{ background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.4)', borderRadius: 9, padding: '6px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#25D366' }}>💬</button>}
-            </div>
+            <Row key={it.id} accent={col}
+              left={<Avatar name={it.client} color={col} />}
+              title={it.client}
+              sub={<>{verb} · <span style={{ color: T.text }}>{it.car}</span>{it.due != null && <> · <b style={{ color: T.warn }}>{money(it.due)}</b></>}</>}
+              right={<WaBtn phone={it.phone} />}
+            />
           ))}
         </div>
       )}
@@ -42,26 +57,33 @@ export default function CommandCenterScreen() {
   );
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div>
-          <div style={{ fontSize: 11, letterSpacing: '0.18em', color: C.accent, fontWeight: 600, textTransform: 'uppercase' }}>Dzaryx · Aujourd'hui</div>
-          <div style={{ fontSize: 28, fontWeight: 800 }}>Ma journée</div>
-        </div>
-        <button onClick={() => void load()} style={{ background: `${C.accent}12`, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: '7px 12px', cursor: 'pointer', color: C.accent, fontWeight: 700 }}>↻</button>
-      </div>
-
-      {loading ? <SkeletonCards count={4} /> : !d ? <div style={{ textAlign: 'center', padding: 30, color: C.muted, fontSize: 13 }}>Indisponible</div> : (
+    <Screen header={
+      <PageHeader eyebrow={longDate()} title={`${hello()} Kouider`}
+        subtitle={loading ? 'Je prépare ta journée…' : !d ? 'Données indisponibles' : moves || due ? `${moves} mouvement${moves > 1 ? 's' : ''} de voiture aujourd'hui${due ? ` · ${money(due)} à encaisser` : ''}` : 'Journée calme : aucun départ ni retour.'}
+        right={<HeadBtn icon="↻" label="Actualiser" onClick={() => void load()} busy={loading} />} />
+    }>
+      {loading && !d ? <SkeletonCards count={4} /> : !d ? (
+        <Empty icon="📡" title="Pas de connexion au serveur" text="Vérifie le réseau puis actualise." />
+      ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 18 }}>
-            <StatCard icon="💰" value={d.toCollect.reduce((s, x) => s + x.due, 0).toLocaleString('fr-FR')} label="À ENCAISSER" color={C.gold} />
-            <StatCard icon="📥" value={String(d.newDemands)} label="DEMANDES (24h)" color={C.blue} />
-          </div>
-          <Section title="Départs aujourd'hui" items={d.departures} col={C.accent} icon="🚗" empty="Aucun départ" />
-          <Section title="Retours aujourd'hui" items={d.returns} col={C.blue} icon="↩️" empty="Aucun retour" />
-          <Section title="À encaisser" items={d.toCollect} col={C.gold} icon="💰" empty="Rien à encaisser" />
+          <KpiGrid>
+            <Kpi value={money(due)} label="À encaisser" color={T.warn} sub={d.toCollect.length ? `${d.toCollect.length} client${d.toCollect.length > 1 ? 's' : ''}` : 'Tout est payé'} />
+            <Kpi value={d.newDemands} label="Demandes (24 h)" color={T.accent2} sub={d.pendingBookings ? `${d.pendingBookings} résa à confirmer` : undefined} />
+            <Kpi value={d.departures.length} label="Départs" color={T.accent} />
+            <Kpi value={d.returns.length} label="Retours" color={T.violet} />
+          </KpiGrid>
+
+          {d.pendingBookings > 0 && (
+            <div style={{ marginBottom: 18, padding: '12px 14px', borderRadius: 14, background: tone(T.warn, 0.1), border: `1px solid ${tone(T.warn, 0.35)}`, fontSize: 14, color: T.text, lineHeight: 1.4 }}>
+              ⏳ <b>{d.pendingBookings} réservation{d.pendingBookings > 1 ? 's' : ''}</b> en attente de confirmation — onglet <b>Demandes</b>.
+            </div>
+          )}
+
+          <Section title="Départs" items={d.departures} col={T.accent} icon="🚗" empty="Aucun départ aujourd'hui." verb="Part avec" />
+          <Section title="Retours" items={d.returns} col={T.violet} icon="↩️" empty="Aucun retour aujourd'hui." verb="Rend" />
+          <Section title="À encaisser" items={d.toCollect} col={T.warn} icon="💰" empty="Rien à encaisser." verb="Location" />
         </>
       )}
-    </div>
+    </Screen>
   );
 }

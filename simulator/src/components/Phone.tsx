@@ -115,7 +115,9 @@ function resolveDeepLink(dl: string): Page {
 export default function Phone() {
   // Lien PC : ?carte=1 → ouvre directement la Carte live en grand
   const carteLink = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('carte');
-  const [page, setPage]       = useState<Page>(carteLink ? 'carte' : 'voice');
+  // Dev seulement : ?page=xxx ouvre la page directement (captures d'écran du design)
+  const devPage = (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV && typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('page') as Page | null : null;
+  const [page, setPage]       = useState<Page>(devPage ?? (carteLink ? 'carte' : 'voice'));
   const [showOnboard, setShowOnboard] = useState<boolean>(() => { try { return !localStorage.getItem('dz:onboarded'); } catch { return false; } });
   const [wsOk, setWsOk]       = useState(false);
   // Hors de la page vocale (pas de socket), une lecture réussie suffit pour afficher « EN LIGNE »

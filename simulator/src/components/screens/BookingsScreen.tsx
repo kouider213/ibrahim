@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { business, type Booking, type Car, type ClientOperation } from '../../services/api.ts';
+import { SkeletonCards, SearchPill } from '../ui/Premium.tsx';
+import { T, tone, Screen, PageHeader, HeadBtn, Segmented, Kpi, KpiGrid, Card, Row, Avatar, Badge, Btn, btnStyle, ActionBtn, Empty, Sheet, Field, inputStyle as inputStyleKit, waLink, money } from '../ui/Kit.tsx';
 
 type ResaMode = 'resa' | 'ops';
 
@@ -17,13 +19,6 @@ const OP_META: Record<string, { label: string; icon: string; col: string }> = {
   demande:            { label: 'DEMANDE SPÉCIALE', icon: '✨', col: '#ff5fa2' },
 };
 
-const S: Record<string, string> = {
-  active: '#00e676', confirmed: '#38d8f5', completed: '#ffffff44',
-  cancelled: '#ff336655', pending: '#ffb347',
-};
-const P: Record<string, string> = {
-  PAID: '#00e676', UNPAID: '#ff3366', PARTIAL: '#ffb347',
-};
 
 interface Props { onNavigateVoice?: () => void; actor?: string; }
 
@@ -192,13 +187,11 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
     setTimeout(() => setMsg(''), 3000);
   };
 
-  const fmtDate  = (d: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '?';
   const bkgCcy   = (b: Booking) => (b as unknown as { currency?: string }).currency ?? 'EUR';
   const fmtPrice = (n: number | null | undefined, ccy: string) => {
     if (n == null) return '—';
     return ccy === 'DZD' ? `${Math.round(n).toLocaleString('fr-FR')} DZD` : `${n}€`;
   };
-  const fmtMoney = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k€` : `${Math.round(n)}€`;
 
   const activeCount = bookings.filter(b => b.status === 'active' || b.status === 'confirmed').length;
   // CA/marge = résas RÉELLES : on exclut les REJETÉES (comme l'écran Finances) pour
@@ -231,344 +224,164 @@ export default function BookingsScreen({ onNavigateVoice: _, actor = 'kouider' }
   const covEur = kEur.filter(b => bkgMargin(b) != null).length;
   const covDzd = kDzd.filter(b => bkgMargin(b) != null).length;
 
+  const ST_FR: Record<string, string> = { active: 'En cours', confirmed: 'Confirmée', completed: 'Terminée', cancelled: 'Annulée', pending: 'En attente', rejected: 'Refusée' };
+  const ST_COL: Record<string, string> = { active: T.ok, confirmed: T.accent, completed: T.faint, cancelled: T.bad, pending: T.warn, rejected: T.bad };
+  const PAY: Record<string, [string, string]> = { PAID: ['Payé', T.ok], PARTIAL: ['Acompte', T.warn], UNPAID: ['À payer', T.bad], PENDING: ['À payer', T.bad] };
+  const longD = (d: string) => d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '?';
+  const ownerOf = (b: Booking) => ((b.rented_by ?? 'Kouider').toLowerCase().startsWith('h') ? 'H' : 'K');
+  const closeCreate = () => { setCreate(false); setDispo(null); setOwnerPpd(null); };
+  const pickCcy = (ccy: 'EUR' | 'DZD') => {
+    setForm(f => ({ ...f, currency: ccy }));
+    const car = cars.find(c => c.id === form.car_id);
+    setOwnerPpd((ccy === 'DZD' ? car?.houari_resale_price : car?.base_price) ?? null);
+  };
+  const createNb = form.start_date && form.end_date && new Date(form.end_date) > new Date(form.start_date) ? daysInclusive(form.start_date, form.end_date) : 0;
+  const createCpp = parseFloat(form.client_ppd) || 0;
+  const unit = form.currency === 'DZD' ? 'DA' : '€';
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#050a16', color: '#fff', fontFamily: 'Inter, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ padding: '16px 16px 8px', flexShrink: 0, background: 'rgba(10,10,12,0.97)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div>
-            <div style={{ fontSize: 10.5, letterSpacing: '0.22em', color: '#38d8f5', fontWeight: 700, textTransform: 'uppercase' }}>Dzaryx · Locations</div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 26, color: '#fff', letterSpacing: '-0.02em', fontWeight: 800, lineHeight: 1.05, background: 'linear-gradient(120deg, #fff, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Réservations</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f555', letterSpacing: '0.15em' }}>{mode === 'resa' ? bookings.length : operations.length}</span>
-            {mode === 'resa' && <button onClick={() => setCreate(c => !c)} style={createBtn}>+ CRÉER</button>}
-          </div>
-        </div>
-
-        {/* Segment résa voiture / opérations */}
-        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
-          {([['resa', '🚗 RÉSA VOITURE'], ['ops', '🏠 OPÉRATIONS']] as [ResaMode, string][]).map(([k, lbl]) => (
-            <button key={k} onClick={() => setMode(k)} style={{
-              flex: 1, padding: '6px 4px', borderRadius: 7,
-              background: mode === k ? 'rgba(56,216,245,0.15)' : 'rgba(56,216,245,0.04)',
-              border: `1px solid #38d8f5${mode === k ? '88' : '22'}`,
-              fontFamily: 'Inter, sans-serif', fontSize: 7, letterSpacing: '0.1em',
-              color: `#38d8f5${mode === k ? '' : '77'}`, cursor: 'pointer',
-            }}>{lbl}</button>
-          ))}
-        </div>
-
-        {/* KPI row */}
-        {mode === 'resa' && (
-        <div style={{ display: 'flex', gap: 5, marginBottom: 8, overflowX: 'auto' }}>
-          <KpiCard label="ACTIVES" val={String(activeCount)} col="#00e676" />
-          {totalRevEur > 0 && <KpiCard label="CA €" val={fmtMoney(totalRevEur)} col="#38d8f5" />}
-          {totalRevDzd > 0 && <KpiCard label="CA DZD" val={totalRevDzd >= 100000 ? `${(totalRevDzd/1000).toFixed(0)}k` : String(Math.round(totalRevDzd))} col="#7c3aed" />}
-          {!isHouari && totalRevEur > 0 && <KpiCard label="MARGE €" val={fmtMoney(marginEur)} col="#ffd700" sub={`${covEur}/${kEur.length} résas`} />}
-          {!isHouari && kDzd.length > 0 && <KpiCard label="MARGE DZD" val={marginDzd >= 100000 ? `${(marginDzd/1000).toFixed(0)}k` : String(Math.round(marginDzd))} col="#ffd700" sub={`${covDzd}/${kDzd.length} résas`} />}
-        </div>
-        )}
-
-        {mode === 'resa' && (
-        <input
-          value={search} onChange={e => handleSearch(e.target.value)}
-          placeholder="Chercher client / voiture…"
-          style={inputStyle}
-        />
-        )}
-        <div style={{ marginTop: 6, height: 1, background: 'linear-gradient(90deg, transparent, #38d8f544, transparent)' }} />
+    <Screen toast={msg && !showCreate ? msg : ''} header={<>
+      <PageHeader eyebrow="Locations" title="Réservations"
+        subtitle={loading ? 'Chargement…' : mode === 'resa' ? `${bookings.length} réservation${bookings.length > 1 ? 's' : ''} · ${activeCount} en cours ou à venir` : `${operations.length} opération${operations.length > 1 ? 's' : ''} immo / vente`}
+        right={mode === 'resa' ? <HeadBtn icon="＋" label="Créer" onClick={() => setCreate(true)} /> : undefined} />
+      <div style={{ padding: '0 16px 10px' }}>
+        <Segmented<ResaMode> value={mode} onChange={setMode} items={[
+          { id: 'resa', label: '🚗 Voitures', count: bookings.length || undefined },
+          { id: 'ops', label: '🏠 Opérations', count: operations.length || undefined },
+        ]} />
       </div>
-
-      {/* Create form — redesigned */}
-      {mode === 'resa' && showCreate && (
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid #38d8f518', flexShrink: 0, background: 'rgba(0,8,18,0.98)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f577', letterSpacing: '0.3em' }}>
-              NOUVELLE RÉSERVATION
-            </div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {(['EUR', 'DZD'] as const).map(ccy => (
-                <button key={ccy} onClick={() => {
-                  setForm(f => ({ ...f, currency: ccy }));
-                  const car = cars.find(c => c.id === form.car_id);
-                  setOwnerPpd((ccy === 'DZD' ? car?.houari_resale_price : car?.base_price) ?? null);
-                }} style={{
-                  background: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed33' : '#38d8f522') : 'transparent',
-                  border: `1px solid ${form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#38d8f5') : '#ffffff22'}`,
-                  borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
-                  fontFamily: 'Inter, sans-serif', fontSize: 7,
-                  color: form.currency === ccy ? (ccy === 'DZD' ? '#7c3aed' : '#38d8f5') : '#ffffff33',
-                  letterSpacing: '0.1em',
-                }}>{ccy}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Client name */}
-          <FieldRow label="CLIENT *">
-            <input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))}
-              placeholder="Prénom Nom" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-          </FieldRow>
-
-          {/* Phone optional */}
-          <FieldRow label="TÉL (optionnel)">
-            <input value={form.client_phone} onChange={e => setForm(f => ({ ...f, client_phone: e.target.value }))}
-              placeholder="+213…" type="tel" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-          </FieldRow>
-
-          {/* Dates */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
-            <div>
-              <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>DÉBUT *</div>
-              <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>FIN *</div>
-              <input type="date" value={form.end_date} min={form.start_date || undefined} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-            </div>
-          </div>
-
-          {/* Car selector */}
-          <FieldRow label="VOITURE *">
-            <select
-              value={form.car_id}
-              onChange={e => {
-                const car = cars.find(c => c.id === e.target.value);
-                setForm(f => ({ ...f, car_id: e.target.value }));
-                // Prix proprio selon la devise : € = base_price, DZD = houari_resale_price (prix Houari en dinars)
-                setOwnerPpd((form.currency === 'DZD' ? car?.houari_resale_price : car?.base_price) ?? null);
-              }}
-              style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }}
-            >
-              <option value="">— Choisir voiture —</option>
-              {cars.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name}{c.base_price ? ` (proprio: ${c.base_price}€/j)` : ''}
-                </option>
-              ))}
-            </select>
-          </FieldRow>
-
-          {/* Availability badge */}
-          {dispo && (
-            <div style={{ marginBottom: 6, fontSize: 8, color: dispo === 'ok' ? '#00e676' : '#ff3366', fontFamily: 'Inter, sans-serif', letterSpacing: '0.1em' }}>
-              {dispo === 'ok' ? '✅ Disponible' : '❌ Déjà réservée sur ces dates'}
-            </div>
-          )}
-
-          {/* Prix client + proprio.
-              Houari = propriétaire → CA complet, AUCUN prix proprio à saisir.
-              Kouider = loue le véhicule d'un proprio → doit saisir le prix proprio pour la marge. */}
-          {isHouari ? (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 6, color: '#7c3aed99', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
-              <input type="number" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))}
-                placeholder={form.currency === 'DZD' ? 'ex: 8000' : 'ex: 55'} style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-              <div style={{ fontSize: 7, color: '#7c3aed', marginTop: 3 }}>👑 Propriétaire — le CA est ta marge complète (rien à déduire).</div>
-            </div>
-          ) : (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
-                <div>
-                  <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX CLIENT {form.currency}/j</div>
-                  <input type="number" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))}
-                    placeholder={form.currency === 'DZD' ? 'ex: 8000' : 'ex: 55'} style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 6, color: ownerPpd ? '#ffd70099' : '#ff336699', marginBottom: 2, letterSpacing: '0.1em' }}>PRIX PROPRIO {form.currency}/j *</div>
-                  <input type="number" value={ownerPpd ?? ''} onChange={e => { const v = parseFloat(e.target.value); setOwnerPpd(Number.isFinite(v) ? v : null); }}
-                    placeholder={form.currency === 'DZD' ? 'ex: 5000' : 'ex: 40'}
-                    style={{ ...inputStyle, fontSize: 9, padding: '5px 6px', color: ownerPpd ? '#ffd700' : undefined, borderColor: ownerPpd ? undefined : '#ff336655' }} />
-                </div>
-              </div>
-              {!ownerPpd && <div style={{ fontSize: 7, color: '#ff3366', marginTop: 3 }}>⚠️ Sans prix proprio, la marge ne sera pas calculée pour cette résa.</div>}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={handleCreate} style={{ ...aBtn('#00e676'), flex: 1 }}>✅ ENREGISTRER</button>
-            <button onClick={() => { setCreate(false); setDispo(null); setOwnerPpd(null); }} style={{ ...aBtn('#ff3366'), flex: 1 }}>✕ ANNULER</button>
-          </div>
-          {msg && <div style={{ fontSize: 8, color: msg.startsWith('✅') ? '#00e676' : '#ff3366', marginTop: 5 }}>{msg}</div>}
-        </div>
+    </>}>
+      {mode === 'resa' && (
+        <>
+          <KpiGrid cols={3}>
+            <Kpi value={activeCount} label="En cours" color={T.ok} />
+            {totalRevEur > 0 || !totalRevDzd ? <Kpi value={money(totalRevEur)} label="CA total" color={T.accent} /> : null}
+            {totalRevDzd > 0 && <Kpi value={money(totalRevDzd, 'DZD')} label="CA (DA)" color={T.violet} />}
+            {!isHouari && (totalRevEur > 0 || !kDzd.length) && <Kpi value={money(marginEur)} label="Ma marge" color={T.warn} sub={covEur < kEur.length ? `${covEur}/${kEur.length} résas` : undefined} />}
+            {!isHouari && kDzd.length > 0 && <Kpi value={money(marginDzd, 'DZD')} label="Ma marge (DA)" color={T.warn} sub={`${covDzd}/${kDzd.length} résas`} />}
+          </KpiGrid>
+          <div style={{ marginBottom: 12 }}><SearchPill value={search} onChange={handleSearch} placeholder="Chercher un client ou une voiture…" /></div>
+          <GpsCalculator />
+        </>
       )}
 
-      {/* Edit modal overlay */}
-      {editState ? <EditModal
-        editState={editState}
-        setEditState={setEditState}
-        editMsg={editMsg}
-        saving={saving}
-        handleEdit={handleEdit}
-        inputStyle={inputStyle}
-      /> : null}
+      {/* OPÉRATIONS immo / vente / demandes */}
+      {mode === 'ops' && (
+        loading ? <SkeletonCards count={4} /> : operations.length === 0
+          ? <Empty icon="🏠" title="Aucune opération" text="Dzaryx les enregistre quand tu marques un bien loué ou vendu, ou une voiture vendue." />
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{operations.map(op => {
+              const m = OP_META[op.deal_type] ?? { label: op.deal_type, icon: '•', col: T.muted };
+              return (
+                <Row key={op.id} accent={m.col} left={<Avatar icon={m.icon} color={m.col} />}
+                  title={op.client_name}
+                  sub={<><span style={{ color: m.col, fontWeight: 700 }}>{m.label.charAt(0) + m.label.slice(1).toLowerCase()}</span>{op.item_label ? ` · ${op.item_label}` : ''}<br />{new Date(op.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</>}
+                  right={<div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>{op.amount != null ? money(Number(op.amount), op.currency || 'EUR') : '—'}</div>
+                    {op.client_phone && <a href={`tel:${op.client_phone}`} style={{ fontSize: 13, color: T.accent, textDecoration: 'none', fontWeight: 600 }}>📞 Appeler</a>}
+                  </div>} />
+              );
+            })}</div>
+      )}
 
-      {/* Booking list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {/* OPÉRATIONS immo / vente / demandes */}
-        {mode === 'ops' && (
-          loading ? <HudLoader /> : operations.length === 0
-            ? <HudEmpty text="Aucune opération — Dzaryx les enregistre quand tu marques un bien loué/vendu ou une voiture vendue." />
-            : operations.map(op => {
-                const m = OP_META[op.deal_type] ?? { label: op.deal_type.toUpperCase(), icon: '•', col: '#888' };
-                const cur = op.currency === 'DZD' ? 'DA' : (op.currency || '€');
-                return (
-                  <div key={op.id} style={{
-                    borderRadius: 10, border: `1px solid ${m.col}33`,
-                    background: `linear-gradient(135deg, ${m.col}08, rgba(10,10,12,0.6))`,
-                    padding: '9px 12px', display: 'flex', alignItems: 'center', gap: 8,
-                  }}>
-                    <span style={{ fontSize: 15 }}>{m.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.client_name}</span>
-                        <span style={{ flexShrink: 0, fontSize: 6, fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em', color: m.col, background: `${m.col}14`, border: `1px solid ${m.col}44`, borderRadius: 4, padding: '2px 5px' }}>
-                          {m.label}
-                        </span>
-                      </div>
-                      {op.item_label ? <div style={{ fontSize: 8, color: '#ffffff55', marginTop: 1 }}>{op.item_label}</div> : null}
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#fff' }}>
-                        {op.amount != null ? `${Number(op.amount).toLocaleString('fr-FR')} ${cur}` : '—'}
-                      </div>
-                      <div style={{ fontSize: 7, color: '#ffffff33', marginTop: 1 }}>{String(op.created_at).slice(0, 10)}</div>
-                    </div>
-                    {op.client_phone && (
-                      <a href={`tel:${op.client_phone}`} onClick={e => e.stopPropagation()} style={{ fontSize: 14, textDecoration: 'none' }}>📞</a>
-                    )}
+      {mode === 'resa' && (loading && !bookings.length ? <SkeletonCards count={5} height={80} /> : bookings.length === 0 ? <Empty icon="📋" title={search ? 'Aucun résultat' : 'Aucune réservation'} text={search ? 'Essaie un autre nom.' : 'Crée la première avec le bouton ＋ ou demande à Dzaryx.'} /> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {bookings.map(b => {
+            const st = (b.status ?? '').toLowerCase();
+            const stCol = ST_COL[st] ?? T.faint;
+            const [payLbl, payCol] = PAY[(b.payment_status ?? '').toUpperCase()] ?? [b.payment_status ?? '—', T.faint];
+            const isExp = expanded === b.id;
+            const own = ownerOf(b);
+            const ccy = bkgCcy(b);
+            const mg = bkgMargin(b);
+            const nb = b.nb_days ?? daysInclusive(b.start_date, b.end_date);
+            return (
+              <Card key={b.id} accent={stCol} pad={0}>
+                <div onClick={() => setExpanded(e => e === b.id ? null : b.id)} style={{ padding: '13px 14px 13px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Avatar name={b.client_name} color={own === 'H' ? T.violet : T.accent} size={42} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.client_name}</div>
+                    <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{b.cars?.name ?? '?'}</div>
+                    <div style={{ fontSize: 13, color: T.text, marginTop: 2 }}>{longD(b.start_date)} → {longD(b.end_date)} <span style={{ color: T.faint }}>· {nb} j</span></div>
                   </div>
-                );
-              })
-        )}
+                  <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: ccy === 'DZD' ? T.violet : T.text }}>{money(b.final_price, ccy)}</div>
+                    <Badge color={payCol}>{payLbl}</Badge>
+                  </div>
+                </div>
+                {isExp && (
+                  <div style={{ padding: '0 14px 14px 16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 8, marginBottom: 12 }}>
+                      {([['Client / j', fmtPrice(b.client_price_per_day, ccy), T.text], ['Proprio / j', fmtPrice(b.owner_price_per_day, ccy), T.muted], ['Ma marge', mg != null ? fmtPrice(mg, ccy) : '—', mg != null ? T.ok : T.faint]] as const).map(([l, v, c]) => (
+                        <div key={l} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${T.line}`, borderRadius: 12, padding: '9px 10px' }}>
+                          <div style={{ fontSize: 11.5, color: T.faint }}>{l}</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: c, marginTop: 2 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                      <Badge color={stCol}>{ST_FR[st] ?? b.status}</Badge>
+                      <Badge color={own === 'H' ? T.violet : T.accent}>{own === 'H' ? 'Loué par Houari' : 'Loué par Kouider'}</Badge>
+                      {(b.paid_amount ?? 0) > 0 && <span style={{ fontSize: 13, color: T.muted }}>Payé : {fmtPrice(b.paid_amount, ccy)}</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <ActionBtn icon="✏️" label="Modifier" color={T.warn} onClick={() => openEdit(b)} />
+                      {b.client_phone && <ActionBtn icon="📞" label="Appeler" onClick={() => { window.location.href = `tel:${b.client_phone}`; }} />}
+                      {waLink(b.client_phone) && <ActionBtn icon="💬" label="WhatsApp" color="#25D366" onClick={() => window.open(waLink(b.client_phone)!, '_blank')} />}
+                      <ActionBtn icon="🗑️" label="Supprimer" color={T.bad} onClick={() => void handleDelete(b.id)} />
+                    </div>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      ))}
 
-        {mode === 'resa' && <GpsCalculator />}
-        {mode === 'resa' && (loading ? <HudLoader /> : bookings.length === 0 ? <HudEmpty text="Aucune réservation" /> : bookings.map(b => {
-          const stCol = S[b.status] ?? '#ffffff44';
-          const pyCol = P[b.payment_status?.toUpperCase() ?? ''] ?? '#ffffff33';
-          const isExp = expanded === b.id;
-          return (
-            <div key={b.id} style={{
-              borderRadius: 10,
-              border: `1px solid ${stCol}33`,
-              background: `linear-gradient(135deg, ${stCol}07, rgba(10,10,12,0.6))`,
-              boxShadow: isExp ? `0 0 14px ${stCol}1a` : 'none',
-              transition: 'box-shadow 0.2s',
-              WebkitTransform: 'translateZ(0)',
-            }}>
-              <div onClick={() => setExpanded(e => e === b.id ? null : b.id)}
-                style={{ padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 7, height: 7, borderRadius: '50%', background: stCol, flexShrink: 0,
-                  boxShadow: `0 0 7px ${stCol}`,
-                  animation: b.status === 'active' ? 'statusPulse 2s ease infinite' : 'none',
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {(() => {
-                      const by = (b as unknown as { rented_by?: string }).rented_by ?? 'Kouider';
-                      const isH = by.toLowerCase().startsWith('h');
-                      const c = isH ? '#a78bfa' : '#38d8f5';
-                      return (
-                        <span title={by} style={{ flexShrink: 0, width: 17, height: 17, borderRadius: '50%', background: `${c}1f`, border: `1px solid ${c}66`, color: c, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {isH ? 'H' : 'K'}
-                        </span>
-                      );
-                    })()}
-                    <span style={{ fontSize: 11, color: '#e8f4ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {b.client_name}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 8, color: '#ffffff44', marginTop: 1 }}>
-                    {b.cars?.name ?? '?'} · {fmtDate(b.start_date)} → {fmtDate(b.end_date)}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: bkgCcy(b) === 'DZD' ? '#7c3aed' : '#38d8f5' }}>
-                    {fmtPrice(b.final_price, bkgCcy(b))}
-                  </div>
-                  <div style={{ fontSize: 7, color: pyCol, letterSpacing: '0.06em', marginTop: 1 }}>
-                    {b.payment_status}
-                  </div>
-                </div>
-              </div>
-              {isExp && (
-                <div style={{ padding: '6px 12px 10px 20px', background: 'rgba(0,5,15,0.96)', borderTop: `1px solid ${stCol}22` }}>
-                  <Row label="ID" val={b.id.slice(0, 8) + '…'} />
-                  <Row label="Nb jours" val={String(b.nb_days ?? '?')} />
-                  <Row label="Prix client/j" val={fmtPrice(b.client_price_per_day, bkgCcy(b))} />
-                  <Row label="Prix proprio/j" val={fmtPrice(b.owner_price_per_day, bkgCcy(b))} />
-                  <Row label="Marge Kouider" val={bkgMargin(b) != null ? fmtPrice(bkgMargin(b), bkgCcy(b)) : '—'} col={bkgMargin(b) != null ? '#00e676' : undefined} />
-                  <Row label="Statut" val={b.status} col={stCol} />
-                  <div style={{ display: 'flex', gap: 6, marginTop: 12, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <button onClick={() => openEdit(b)} style={{ background: '#ffb347', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#000', cursor: 'pointer' }}>✏️ MODIFIER</button>
-                    <button onClick={() => handleDelete(b.id)} style={{ background: '#ff3366', border: 'none', borderRadius: 6, padding: '8px 14px', fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#fff', cursor: 'pointer' }}>🗑 SUPPR</button>
-                    {b.client_phone && (
-                      <a href={`tel:${b.client_phone}`} style={{ ...aBtn('#38d8f5') as React.CSSProperties, textDecoration: 'none' }}>📞 APPEL</a>
-                    )}
-                  </div>
-                </div>
-              )}
+      {/* Nouvelle réservation */}
+      {showCreate && (
+        <Sheet title="Nouvelle réservation" subtitle={isHouari ? 'Tu es le propriétaire : le CA est ta marge.' : 'Prix proprio = ce que tu paies à Houari'} onClose={closeCreate}
+          footer={<>
+            <Btn variant="ghost" onClick={closeCreate} style={{ flex: 1 }}>Annuler</Btn>
+            <Btn variant="primary" onClick={() => void handleCreate()} style={{ flex: 2 }}>Enregistrer{createNb && createCpp ? ` · ${money(createCpp * createNb, form.currency)}` : ''}</Btn>
+          </>}>
+          {msg && <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: tone(msg.startsWith('✅') ? T.ok : T.bad, 0.12), color: msg.startsWith('✅') ? T.ok : T.bad }}>{msg}</div>}
+          <div style={{ marginBottom: 14 }}>
+            <Segmented<'EUR' | 'DZD'> value={form.currency} onChange={pickCcy} items={[{ id: 'EUR', label: '€ Euros' }, { id: 'DZD', label: 'DA Dinars' }]} />
+          </div>
+          <Field label="Client *"><input value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} placeholder="Prénom Nom" style={inputStyleKit} /></Field>
+          <Field label="Téléphone (optionnel)"><input value={form.client_phone} onChange={e => setForm(f => ({ ...f, client_phone: e.target.value }))} placeholder="+213…" type="tel" style={inputStyleKit} /></Field>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
+            <Field label="Début *"><input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} style={inputStyleKit} /></Field>
+            <Field label="Fin *"><input type="date" value={form.end_date} min={form.start_date || undefined} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} style={inputStyleKit} /></Field>
+          </div>
+          <Field label="Voiture *" hint={dispo ? <span style={{ color: dispo === 'ok' ? T.ok : T.bad, fontWeight: 700 }}>{dispo === 'ok' ? '✅ Libre sur ces dates' : '❌ Déjà réservée sur ces dates'}</span> : createNb ? `${createNb} jour${createNb > 1 ? 's' : ''} de location` : undefined}>
+            <select value={form.car_id} onChange={e => {
+              const car = cars.find(c => c.id === e.target.value);
+              setForm(f => ({ ...f, car_id: e.target.value }));
+              // Prix proprio selon la devise : € = base_price, DZD = houari_resale_price (prix Houari en dinars)
+              setOwnerPpd((form.currency === 'DZD' ? car?.houari_resale_price : car?.base_price) ?? null);
+            }} style={inputStyleKit}>
+              <option value="">— Choisir —</option>
+              {cars.map(c => <option key={c.id} value={c.id}>{c.name}{c.base_price ? ` (proprio ${c.base_price} €/j)` : ''}</option>)}
+            </select>
+          </Field>
+          {/* Houari = propriétaire → CA complet, aucun prix proprio. Kouider → prix proprio pour la marge. */}
+          <div style={{ display: 'grid', gridTemplateColumns: isHouari ? '1fr' : 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
+            <Field label={`Prix client (${unit}/jour)`}><input type="number" inputMode="decimal" value={form.client_ppd} onChange={e => setForm(f => ({ ...f, client_ppd: e.target.value }))} placeholder={form.currency === 'DZD' ? '8000' : '30'} style={inputStyleKit} /></Field>
+            {!isHouari && <Field label={`Prix proprio (${unit}/jour) *`}><input type="number" inputMode="decimal" value={ownerPpd ?? ''} onChange={e => { const v = parseFloat(e.target.value); setOwnerPpd(Number.isFinite(v) ? v : null); }} placeholder={form.currency === 'DZD' ? '5000' : '16'} style={{ ...inputStyleKit, borderColor: ownerPpd ? undefined : tone(T.bad, 0.5) }} /></Field>}
+          </div>
+          {!isHouari && !ownerPpd && <div style={{ fontSize: 13, color: T.bad, marginTop: -4 }}>⚠️ Sans prix proprio, la marge ne sera pas calculée.</div>}
+          {!isHouari && ownerPpd != null && createCpp > 0 && createNb > 0 && (
+            <div style={{ marginTop: 4, padding: '12px 14px', borderRadius: 14, background: tone(T.ok, 0.08), border: `1px solid ${tone(T.ok, 0.3)}`, fontSize: 14 }}>
+              Ta marge : <b style={{ color: T.ok }}>{money((createCpp - ownerPpd) * createNb, form.currency)}</b> <span style={{ color: T.muted }}>({createCpp - ownerPpd} {unit} × {createNb} j)</span>
             </div>
-          );
-        }))}
-      </div>
-    </div>
+          )}
+        </Sheet>
+      )}
+
+      {editState && <EditModal editState={editState} setEditState={setEditState} editMsg={editMsg} saving={saving} handleEdit={handleEdit} />}
+    </Screen>
   );
-}
-
-function KpiCard({ label, val, col, sub }: { label: string; val: string; col: string; sub?: string }) {
-  return (
-    <div style={{ flex: 1, background: '#0c1730', borderRadius: 14, padding: '12px 8px', border: '1px solid rgba(90,150,255,0.15)', textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 18, fontWeight: 800, color: col }}>{val}</div>
-      <div style={{ fontSize: 10, color: '#8ea3c8', marginTop: 3 }}>{label}</div>
-      {sub && <div style={{ fontSize: 8, color: '#6b6b76', marginTop: 1 }}>{sub}</div>}
-    </div>
-  );
-}
-
-function Row({ label, val, col }: { label: string; val: string; col?: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-      <span style={{ fontSize: 8, color: '#ffffff2a' }}>{label}</span>
-      <span style={{ fontSize: 8, color: col ?? '#ffffff77' }}>{val}</span>
-    </div>
-  );
-}
-
-function HudLoader() {
-  return (
-    <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#38d8f533', fontFamily: 'Inter, sans-serif', letterSpacing: '0.25em' }}>
-      CHARGEMENT…
-    </div>
-  );
-}
-function HudEmpty({ text }: { text: string }) {
-  return <div style={{ textAlign: 'center', padding: 30, fontSize: 9, color: '#ffffff1a', letterSpacing: '0.1em' }}>{text}</div>;
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box',
-  background: 'rgba(56,216,245,0.04)', border: '1px solid #38d8f51a',
-  borderRadius: 8, padding: '6px 10px',
-  fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#c8e8ff', outline: 'none',
-};
-
-const createBtn: React.CSSProperties = {
-  background: '#38d8f518', border: '1px solid #38d8f555', borderRadius: 8,
-  padding: '4px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#38d8f5',
-  cursor: 'pointer', letterSpacing: '0.12em',
-};
-
-function aBtn(col: string): React.CSSProperties {
-  return {
-    background: `${col}12`, border: `1px solid ${col}55`, borderRadius: 6,
-    padding: '5px 10px', fontFamily: 'Inter, sans-serif', fontSize: 7, color: col,
-    cursor: 'pointer', letterSpacing: '0.1em',
-  };
 }
 
 interface EditModalProps {
@@ -577,10 +390,9 @@ interface EditModalProps {
   editMsg: string;
   saving: boolean;
   handleEdit: () => void;
-  inputStyle: React.CSSProperties;
 }
 
-function EditModal({ editState, setEditState, editMsg, saving, handleEdit, inputStyle }: EditModalProps) {
+function EditModal({ editState, setEditState, editMsg, saving, handleEdit }: EditModalProps) {
   const b = editState.booking;
   const newNb = editState.start_date && editState.end_date && new Date(editState.end_date) > new Date(editState.start_date)
     ? daysInclusive(editState.start_date, editState.end_date)
@@ -592,63 +404,33 @@ function EditModal({ editState, setEditState, editMsg, saving, handleEdit, input
   const origNb   = b.nb_days ?? 0;
   const daysDiff = newNb - origNb;
   const up = (patch: Partial<typeof editState>) => setEditState(s => s ? { ...s, ...patch } : s);
+  const dCol = delta > 0 ? T.accent : delta < 0 ? T.bad : T.ok;
 
   return (
-    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, background: 'rgba(0,5,15,0.97)', display: 'flex', flexDirection: 'column', padding: '14px', overflowY: 'auto' }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#ffb347', letterSpacing: '0.3em', marginBottom: 10 }}>
-        ✏️ MODIFIER RÉSERVATION
+    <Sheet title="Modifier la réservation" subtitle={`${b.client_name} · ${b.cars?.name ?? ''}`} onClose={() => setEditState(null)}
+      footer={<>
+        <Btn variant="ghost" onClick={() => setEditState(null)} style={{ flex: 1 }}>Annuler</Btn>
+        <Btn variant="primary" onClick={handleEdit} disabled={saving} style={{ flex: 2 }}>{saving ? 'Enregistrement…' : 'Enregistrer'}</Btn>
+      </>}>
+      <Field label="Client"><input value={editState.client_name} onChange={e => up({ client_name: e.target.value })} style={inputStyleKit} /></Field>
+      <Field label="Téléphone"><input value={editState.client_phone} onChange={e => up({ client_phone: e.target.value })} type="tel" style={inputStyleKit} /></Field>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>
+        <Field label="Début"><input type="date" value={editState.start_date} onChange={e => up({ start_date: e.target.value })} style={inputStyleKit} /></Field>
+        <Field label="Fin"><input type="date" value={editState.end_date} min={editState.start_date || undefined} onChange={e => up({ end_date: e.target.value })} style={inputStyleKit} /></Field>
       </div>
-
-      <FieldRow label="CLIENT">
-        <input value={editState.client_name} onChange={e => up({ client_name: e.target.value })}
-          style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-      </FieldRow>
-      <FieldRow label="TÉL">
-        <input value={editState.client_phone} onChange={e => up({ client_phone: e.target.value })}
-          type="tel" style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-      </FieldRow>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
-        <div>
-          <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2 }}>DÉBUT</div>
-          <input type="date" value={editState.start_date} onChange={e => up({ start_date: e.target.value })}
-            style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-        </div>
-        <div>
-          <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2 }}>FIN</div>
-          <input type="date" value={editState.end_date} min={editState.start_date || undefined} onChange={e => up({ end_date: e.target.value })}
-            style={{ ...inputStyle, fontSize: 9, padding: '5px 6px' }} />
-        </div>
-      </div>
-
-      <FieldRow label="PRIX CLIENT €/j">
-        <input value={editState.client_ppd} onChange={e => up({ client_ppd: e.target.value })}
-          type="number" placeholder={String(b.client_price_per_day ?? '')}
-          style={{ ...inputStyle, fontSize: 9, padding: '5px 8px' }} />
-      </FieldRow>
-
+      <Field label="Prix client (€/jour)"><input value={editState.client_ppd} onChange={e => up({ client_ppd: e.target.value })} type="number" inputMode="decimal" placeholder={String(b.client_price_per_day ?? '')} style={inputStyleKit} /></Field>
       {newNb > 0 && (
-        <div style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 8, background: delta > 0 ? '#38d8f50a' : delta < 0 ? '#ff33660a' : '#00e6760a', border: `1px solid ${delta > 0 ? '#38d8f533' : delta < 0 ? '#ff336633' : '#00e67633'}` }}>
-          <div style={{ fontSize: 8, color: '#ffffff55', marginBottom: 4 }}>
-            {daysDiff > 0 ? `+${daysDiff}j` : daysDiff < 0 ? `${daysDiff}j` : 'Même durée'} · {newNb}j total · Nouveau: {newTotal.toFixed(0)}€ · Payé: {paid}€
+        <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 14, background: tone(dCol, 0.08), border: `1px solid ${tone(dCol, 0.32)}` }}>
+          <div style={{ fontSize: 13, color: T.muted, marginBottom: 4 }}>
+            {daysDiff > 0 ? `+${daysDiff} j` : daysDiff < 0 ? `${daysDiff} j` : 'Même durée'} · {newNb} j au total · nouveau total {newTotal.toFixed(0)} € · déjà payé {paid} €
           </div>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: delta > 0 ? '#38d8f5' : delta < 0 ? '#ff3366' : '#00e676' }}>
-            {delta > 0 ? `💳 Client doit encore ${delta.toFixed(0)}€` : delta < 0 ? `↩ Rembourser ${Math.abs(delta).toFixed(0)}€ au client` : '✅ Aucun ajustement'}
+          <div style={{ fontSize: 16, fontWeight: 800, color: dCol }}>
+            {delta > 0 ? `💳 Le client doit encore ${delta.toFixed(0)} €` : delta < 0 ? `↩ Rembourser ${Math.abs(delta).toFixed(0)} € au client` : '✅ Aucun ajustement'}
           </div>
         </div>
       )}
-
-      {editMsg && <div style={{ fontSize: 8, color: editMsg.startsWith('✅') ? '#00e676' : '#ff3366', marginBottom: 8 }}>{editMsg}</div>}
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={handleEdit} disabled={saving} style={{ flex: 1, background: '#ffb347', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#000', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
-          {saving ? '…' : '✅ ENREGISTRER'}
-        </button>
-        <button onClick={() => setEditState(null)} style={{ flex: 1, background: '#ff3366', border: 'none', borderRadius: 8, padding: '10px', fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#fff', cursor: 'pointer' }}>
-          ✕ ANNULER
-        </button>
-      </div>
-    </div>
+      {editMsg && <div style={{ fontSize: 14, fontWeight: 600, color: editMsg.startsWith('✅') ? T.ok : T.bad }}>{editMsg}</div>}
+    </Sheet>
   );
 }
 
@@ -676,6 +458,7 @@ function GpsCalculator() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [acLoading,    setAcLoading]    = useState(false);
   const [fromDepot,    setFromDepot]    = useState(true);
+  const [open,         setOpen]         = useState(false);
   const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef  = useRef<HTMLDivElement>(null);
 
@@ -740,130 +523,62 @@ function GpsCalculator() {
     } finally { setLoading(false); }
   };
 
-  const trafficColor = result?.traffic === 'heavy' ? '#ff3366' : result?.traffic === 'light' ? '#00e676' : '#ffb347';
+  const trafficColor = result?.traffic === 'heavy' ? T.bad : result?.traffic === 'light' ? T.ok : T.warn;
+
+  if (!open) return (
+    <button onClick={() => setOpen(true)} style={{ width: '100%', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16, cursor: 'pointer', fontFamily: T.font, textAlign: 'left',
+      background: 'rgba(255,255,255,0.02)', border: `1px dashed ${T.lineStrong}`, color: T.text }}>
+      <span style={{ fontSize: 22 }}>🗺️</span>
+      <span style={{ flex: 1 }}><span style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>Trajet de livraison</span><span style={{ fontSize: 12.5, color: T.muted }}>Distance et temps réels depuis le dépôt ou ta position</span></span>
+      <span style={{ color: T.accent, fontSize: 18 }}>›</span>
+    </button>
+  );
 
   return (
-    <div style={{ background: 'rgba(56,216,245,0.03)', borderRadius: 12, padding: 12, border: '1px solid #38d8f512', marginBottom: 8 }}>
-      <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f577', letterSpacing: '0.25em', marginBottom: 4 }}>
-        🗺️ GPS LIVRAISON
+    <Card style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ flex: 1, fontSize: 15, fontWeight: 800 }}>🗺️ Trajet de livraison</div>
+        <button onClick={() => setOpen(false)} aria-label="Fermer" style={{ width: 36, height: 36, borderRadius: 11, border: `1px solid ${T.line}`, background: 'transparent', color: T.muted, cursor: 'pointer', fontSize: 15 }}>✕</button>
       </div>
-      {/* Toggle origine */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-        <button onClick={() => setFromDepot(true)} style={{
-          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6,
-          background: fromDepot ? 'rgba(56,216,245,0.15)' : 'rgba(56,216,245,0.04)',
-          border: `1px solid ${fromDepot ? '#38d8f555' : '#38d8f518'}`,
-          color: fromDepot ? '#38d8f5' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
-        }}>🏢 DÉPÔT</button>
-        <button onClick={() => setFromDepot(false)} style={{
-          flex: 1, padding: '5px 4px', borderRadius: 6, fontFamily: 'Inter, sans-serif', fontSize: 6,
-          background: !fromDepot ? 'rgba(0,230,118,0.15)' : 'rgba(56,216,245,0.04)',
-          border: `1px solid ${!fromDepot ? '#00e67655' : '#38d8f518'}`,
-          color: !fromDepot ? '#00e676' : '#ffffff44', cursor: 'pointer', letterSpacing: '0.1em',
-        }}>📍 MA POSITION</button>
+      <div style={{ marginBottom: 10 }}>
+        <Segmented<'depot' | 'me'> value={fromDepot ? 'depot' : 'me'} onChange={v => setFromDepot(v === 'depot')} items={[{ id: 'depot', label: '🏢 Depuis le dépôt' }, { id: 'me', label: '📍 Ma position' }]} />
       </div>
-      <div style={{ fontSize: 7, color: '#ffffff22', marginBottom: 10 }}>
-        {fromDepot ? 'Depuis Haï Badr (dépôt)' : 'Depuis ta position GPS'} · Distance &amp; trajet réels Google Maps
-      </div>
-
-      {/* Input + autocomplete dropdown */}
       <div ref={wrapRef} style={{ position: 'relative' }}>
         <input
           value={address}
           onChange={e => handleAddressChange(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { setShowDropdown(false); void calculate(); } if (e.key === 'Escape') setShowDropdown(false); }}
           onFocus={() => predictions.length > 0 && setShowDropdown(true)}
-          placeholder="Destination (ex: aéroport, Bir El Djir, Bruxelles…)"
-          style={{ ...inputStyle, paddingRight: acLoading ? 28 : undefined }}
+          placeholder="Destination : aéroport, Bir El Djir…"
+          style={{ ...inputStyleKit, paddingRight: 36 }}
         />
-        {acLoading && (
-          <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: '#38d8f544' }}>⏳</div>
-        )}
+        {acLoading && <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14 }}>⏳</div>}
         {showDropdown && predictions.length > 0 && (
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
-            background: '#020f1e', border: '1px solid #38d8f533', borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.6)', overflow: 'hidden', marginTop: 2,
-          }}>
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999, background: T.surface2, border: `1px solid ${T.lineStrong}`, borderRadius: 13, boxShadow: '0 12px 30px rgba(0,0,0,0.6)', overflow: 'hidden', marginTop: 4 }}>
             {predictions.map((p, i) => (
-              <div key={p.place_id} onMouseDown={() => selectPrediction(p)} style={{
-                padding: '8px 12px', fontSize: 9, color: '#c8e8ff', cursor: 'pointer',
-                borderBottom: i < predictions.length - 1 ? '1px solid #38d8f510' : 'none',
-                background: 'transparent', transition: 'background 0.1s',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(56,216,245,0.08)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <span style={{ color: '#38d8f566', marginRight: 6 }}>📍</span>{p.label}
+              <div key={p.place_id} onMouseDown={() => selectPrediction(p)} style={{ padding: '12px 14px', fontSize: 14, color: T.text, cursor: 'pointer', borderBottom: i < predictions.length - 1 ? `1px solid ${T.line}` : 'none' }}>
+                <span style={{ marginRight: 8 }}>📍</span>{p.label}
               </div>
             ))}
           </div>
         )}
       </div>
-
-      <button onClick={() => { setShowDropdown(false); void calculate(); }} disabled={loading} style={{ ...createBtn, marginTop: 8, width: '100%', opacity: loading ? 0.6 : 1 }}>
-        {loading ? '⏳ CALCUL EN COURS…' : '📍 CALCULER TRAJET RÉEL'}
-      </button>
-
-      {apiError && (
-        <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(255,51,102,0.06)', borderRadius: 8, border: '1px solid #ff336622', fontSize: 8, color: '#ff336688' }}>
-          ⚠️ {apiError}
-        </div>
-      )}
-
+      <Btn variant="primary" onClick={() => { setShowDropdown(false); void calculate(); }} disabled={loading} style={{ width: '100%', marginTop: 10 }}>{loading ? '⏳ Calcul…' : 'Calculer le trajet'}</Btn>
+      {apiError && <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: tone(T.bad, 0.1), fontSize: 13.5, color: T.bad }}>⚠️ {apiError}</div>}
       {result && (
-        <div style={{ marginTop: 10, background: 'rgba(56,216,245,0.06)', borderRadius: 10, border: '1px solid #38d8f522', padding: '10px 12px' }}>
-          <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 8, color: '#38d8f5cc', marginBottom: 8 }}>
-            📍 {result.destination_label ?? address}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📍 {result.destination_label ?? address}</div>
+          {result.warning && <div style={{ marginBottom: 10, fontSize: 13, color: T.warn }}>⚠️ {result.warning}</div>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 10, marginBottom: 10 }}>
+            {result.distance_km !== undefined && <Kpi value={`${result.distance_km} km`} label="Distance" />}
+            {result.travel_time_minutes !== undefined && <Kpi value={`${result.travel_time_minutes} min`} label="Trajet" color={trafficColor} />}
           </div>
-
-          {result.warning && (
-            <div style={{ marginBottom: 8, fontSize: 7, color: '#ffb34788' }}>⚠️ {result.warning}</div>
-          )}
-
-          {(result.distance_km !== undefined || result.travel_time_minutes !== undefined) && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
-              {result.distance_km !== undefined && (
-                <div style={{ textAlign: 'center', background: 'rgba(56,216,245,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #38d8f518' }}>
-                  <div style={{ fontSize: 6, color: '#38d8f555', letterSpacing: '0.1em', marginBottom: 3 }}>DISTANCE</div>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#38d8f5cc' }}>{result.distance_km} km</div>
-                </div>
-              )}
-              {result.travel_time_minutes !== undefined && (
-                <div style={{ textAlign: 'center', background: 'rgba(56,216,245,0.05)', borderRadius: 8, padding: '8px 4px', border: '1px solid #38d8f518' }}>
-                  <div style={{ fontSize: 6, color: '#38d8f555', letterSpacing: '0.1em', marginBottom: 3 }}>TRAJET</div>
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: trafficColor }}>{result.travel_time_minutes} min</div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 6 }}>
-            {result.waze_link && (
-              <a href={result.waze_link} target="_blank" rel="noreferrer"
-                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(0,230,118,0.08)', border: '1px solid #00e67622', borderRadius: 8, fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#00e676', textDecoration: 'none' }}>
-                🔵 WAZE
-              </a>
-            )}
-            {result.maps_link && (
-              <a href={result.maps_link} target="_blank" rel="noreferrer"
-                style={{ flex: 1, textAlign: 'center', padding: '7px 4px', background: 'rgba(255,107,107,0.08)', border: '1px solid #ff6b6b22', borderRadius: 8, fontFamily: 'Inter, sans-serif', fontSize: 7, color: '#ff6b6b', textDecoration: 'none' }}>
-                🔴 GMAPS
-              </a>
-            )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {result.waze_link && <a href={result.waze_link} target="_blank" rel="noreferrer" style={{ ...btnStyle('soft', '#33ccff'), flex: 1, textDecoration: 'none' }}>Waze</a>}
+            {result.maps_link && <a href={result.maps_link} target="_blank" rel="noreferrer" style={{ ...btnStyle('soft', T.ok), flex: 1, textDecoration: 'none' }}>Google Maps</a>}
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
-
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 6 }}>
-      <div style={{ fontSize: 6, color: '#38d8f544', marginBottom: 2, letterSpacing: '0.1em' }}>{label}</div>
-      {children}
-    </div>
-  );
-}
-
