@@ -49,7 +49,7 @@ import { clientRisk, recordCarKm, flashOffers } from '../notifications/client-ca
 import { executeMediaTool } from './media-executor.js';
 import { getFileContent, updateFile, listDirectory, triggerNetlifyDeploy, searchCode, vercelGetDeployments, vercelGetDeploymentLogs, vercelCheckUrl, vercelRedeploy } from './github.js';
 import { learnRule, chat } from './claude-api.js';
-import { formatPricingTable, getPricingForVehicle } from '../config/pricing.js';
+import { formatPricingTable, getPricingForVehicle, refreshPricing, DISCOUNT_FLOORS_KEY } from '../config/pricing.js';
 import { getOranWeather } from './web-search.js';
 import { getRailwayLogs, waitForDeploy } from './railway.js';
 import { env } from '../config/env.js';
@@ -751,12 +751,12 @@ async function createBooking(input: Record<string, unknown>, sessionId?: string)
 
   // Vérification prix Houari — refuse si prix client < coût Houari
   try {
-    const { data: carRow } = await supabase.from('cars').select('name').eq('id', carId).single();
+    // Prix Houari = cars.base_price (seule source des prix, l'ancienne table « pricing » n'est plus à jour)
+    const { data: carRow } = await supabase.from('cars').select('name, base_price').eq('id', carId).single();
     const carNameForCheck = (carRow as any)?.name as string | undefined;
     if (carNameForCheck) {
-      const { data: pricingRow } = await supabase.from('pricing').select('houari_price').ilike('vehicle_name', `%${carNameForCheck}%`).limit(1).single();
-      const houariDay = pricingRow ? Number((pricingRow as any).houari_price) : null;
-      if (houariDay !== null) {
+      const houariDay = (carRow as any)?.base_price != null ? Number((carRow as any).base_price) : null;
+      if (houariDay !== null && houariDay > 0) {
         const minTotal = houariDay * nb_days;
         const clientTotal = Number(input['final_price']);
         if (clientTotal < minTotal) {
@@ -6619,23 +6619,38 @@ async function updateCarTool(input: Record<string, unknown>): Promise<string> {
       : state === 'reparation' ? `🔧 ${reason || 'En réparation'}` : (reason || 'Indisponible');
   }
 
-  if (Object.keys(updates).length === 0) return '❌ Aucun champ à mettre à jour fourni';
+  // Prix plancher de ristourne (app_kv, jamais affiché sur le site) ; 0 ou null = supprimer
+  let floorLine = '';
+  if (input['discount_floor'] !== undefined) {
+    const { kvGet, kvSet } = await import('./app-store.js');
+    let floors: Record<string, number> = {};
+    try { floors = JSON.parse((await kvGet(DISCOUNT_FLOORS_KEY)) ?? '{}') as Record<string, number>; } catch { /* vide */ }
+    const f = Number(input['discount_floor']);
+    if (f > 0) { floors[carId] = f; floorLine = `🏷️ Ristourne (si le client la demande): ${f}€/j minimum`; }
+    else { delete floors[carId]; floorLine = '🏷️ Ristourne: plus de prix plancher'; }
+    await kvSet(DISCOUNT_FLOORS_KEY, JSON.stringify(floors));
+  }
 
-  const { data, error } = await supabase
-    .from('cars')
-    .update(updates)
-    .eq('id', carId)
-    .select('name, available, base_price, resale_price, maintenance_note')
-    .single();
+  if (Object.keys(updates).length === 0 && !floorLine) return '❌ Aucun champ à mettre à jour fourni';
+
+  const { data, error } = Object.keys(updates).length
+    ? await supabase.from('cars').update(updates).eq('id', carId)
+        .select('name, available, base_price, resale_price, maintenance_note').single()
+    : await supabase.from('cars').select('name, available, base_price, resale_price, maintenance_note').eq('id', carId).single();
 
   if (error) return `❌ Erreur mise à jour: ${error.message}`;
+  // La grille de Dzaryx relit la table cars tout de suite (site/admin/partenaires/simulateur la lisent déjà)
+  await refreshPricing();
 
   const car = data as { name: string; available: boolean; base_price: number; resale_price: number; maintenance_note: string | null };
   const lines = [
     `✅ ${car.name} mis à jour`,
     `📍 Statut: ${car.available ? '✅ DISPONIBLE' : car.maintenance_note?.startsWith('🔧') ? `🔧 EN RÉPARATION (${car.maintenance_note.replace(/^🔧\s*/, '')})` : `🔒 INDISPONIBLE${car.maintenance_note ? ` (${car.maintenance_note})` : ''}`}`,
-    car.base_price   != null ? `💶 Prix client: ${car.base_price}€/j` : '',
-    car.resale_price != null ? `🏠 Prix proprio: ${car.resale_price}€/j` : '',
+    car.resale_price != null ? `💶 Prix client (site): ${car.resale_price}€/j` : '',
+    car.base_price   != null ? `🏠 Prix propriétaire (Houari): ${car.base_price}€/j` : '',
+    car.resale_price != null && car.base_price != null ? `📈 Marge: ${car.resale_price - car.base_price}€/j` : '',
+    floorLine,
+    updates['resale_price'] !== undefined || updates['base_price'] !== undefined ? '🔄 Mis à jour partout : site, admin, partenaires, simulateur et grille Dzaryx' : '',
   ].filter(Boolean);
   return lines.join('\n');
 }

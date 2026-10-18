@@ -342,7 +342,8 @@ async function applyPricesAction(input: Record<string, unknown>): Promise<string
     const { error } = await supabase.from('cars').update({ resale_price: c.client, base_price: c.owner }).eq('id', c.id);
     if (error) return `❌ Erreur sur ${c.name} : ${error.message} (les voitures précédentes sont déjà modifiées).`;
   }
-  return `✅ Prix mis à jour (site + app + Carte live) :\n${preview}`;
+  await (await import('../config/pricing.js')).refreshPricing();
+  return `✅ Prix mis à jour partout (site + admin + app + Carte live + partenaires + grille Dzaryx) :\n${preview}`;
 }
 
 export async function businessSimulator(input: Record<string, unknown>): Promise<string> {

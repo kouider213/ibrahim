@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-10-18 — Prix : une seule source (table cars), changé partout d'un coup
+- `config/pricing.ts` : la grille de Dzaryx (contexte, finance, marketing) se recharge depuis `cars` (base_price = Houari, resale_price = client) au démarrage, toutes les 2 min et après chaque changement ; la liste en dur ne sert plus que de secours. Prix plancher de ristourne dans app_kv `pricing:discount_floors` (jamais affiché sur le site).
+- `update_car` : nouveau champ `discount_floor` ; grille rafraîchie aussitôt ; confirmation corrigée (prix client et prix Houari étaient inversés) + marge.
+- `create_booking` : le contrôle « prix < coût Houari » lit `cars.base_price` au lieu de l'ancienne table `pricing`.
+- `business_simulator apply_prices` et `partners` (offre liée au parc) rafraîchissent aussi la grille.
+- Données : Clio 4 → « Clio 4 Essence » (Houari 16 €, client 30 €, ristourne 25 €), Clio 4 (2) → « Clio 4 Diesel » (24/35), i10 (16/30, ristourne 25).
+
 ## 2026-10-18 — Partenaires (Houari, Karim…)
 - `partners.ts` (app_kv `partners:v1`) : fiche partenaire (rôle, contacts, paiement, commission, caution, contrat, note, statut) + offres véhicule/immobilier/service/activité/autre avec photos (Cloudinary), prix partenaire, prix client, unité, capacité, lieu. Véhicule lié au parc (cars = source de vérité, add_to_fleet), bien publiable sur le site (properties). Houari créé avec les 15 voitures du parc.
 - Routes `/api/partners` (Kouider) ; outil `partners` ; `business_simulator scenario partner=…`.

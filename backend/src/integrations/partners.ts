@@ -247,6 +247,7 @@ export async function updateOffer(partnerId: string, offerId: string, b: Record<
     if (Object.keys(upd).length) {
       const { error } = await supabase.from('cars').update(upd).eq('id', o.car_id);
       if (error) throw new Error(error.message);
+      void import('../config/pricing.js').then(m => m.refreshPricing());
     }
     if (added.length) {
       const { data: last } = await supabase.from('car_photos').select('position').eq('car_id', o.car_id).order('position', { ascending: false }).limit(1);
