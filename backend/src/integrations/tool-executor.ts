@@ -500,6 +500,11 @@ async function _dispatch(
       case 'generate_ai_video':          return await generateAiVideoTool(input, sessionId);
       case 'animate_car_photo':          return await animateCarPhotoTool(input, sessionId);
       case 'get_car_photo':              return await getCarPhotoTool(input);
+      case 'send_photos': {
+        const { sendMediaToTelegram } = await import('./media-photos.js');
+        const k = String(input['kind'] ?? 'car');
+        return await sendMediaToTelegram((['car', 'property', 'sale'].includes(k) ? k : 'car') as 'car' | 'property' | 'sale', String(input['name'] ?? ''));
+      }
       // ─── IMMOBILIER & VENTE — synchro site ───
       case 'create_property':            return await createPropertyTool(input, sessionId);
       case 'add_vehicle_for_sale':       return await addVehicleForSaleTool(input, sessionId);

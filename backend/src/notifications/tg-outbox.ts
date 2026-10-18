@@ -3,7 +3,7 @@
 // Sert aux résultats qui arrivent après coup : mise à jour de Nexus, capture d'écran du PC demandée en appel…
 import { kvGet, kvSet } from '../integrations/app-store.js';
 
-export interface TgOutMessage { text: string; image?: string; file?: { url: string; name: string }; location?: { lat: number; lng: number; title: string; address: string } }   // image = JPEG en base64 ; file = lien que tgcall télécharge et envoie en document
+export interface TgOutMessage { text: string; image?: string; file?: { url: string; name: string }; album?: { url: string }[]; location?: { lat: number; lng: number; title: string; address: string } }   // image = JPEG en base64 ; file = lien que tgcall télécharge et envoie en document
 
 const key = (actor: string) => `tg:outbox:${actor}`;
 const MAX_IMAGE_B64 = 900_000;
@@ -16,6 +16,13 @@ async function read(actor: string): Promise<TgOutMessage[]> {
 export async function queueTelegramMessage(text: string, image?: string, actor = 'kouider', file?: TgOutMessage['file']): Promise<void> {
   const list = await read(actor);
   list.push({ text: text.slice(0, 4000), ...(image && image.length <= MAX_IMAGE_B64 ? { image } : {}), ...(file ? { file } : {}) });
+  await kvSet(key(actor), JSON.stringify(list.slice(-10)), 24 * 3600);
+}
+
+/** Album de photos (liens publics, ex. Cloudinary) : tgcall l'envoie par groupes de 10, légende sur la 1re. */
+export async function queueTelegramAlbum(text: string, urls: string[], actor = 'kouider'): Promise<void> {
+  const list = await read(actor);
+  list.push({ text: text.slice(0, 1000), album: urls.slice(0, 50).map(url => ({ url })) });
   await kvSet(key(actor), JSON.stringify(list.slice(-10)), 24 * 3600);
 }
 

@@ -28,7 +28,7 @@ const WRITE_TOOLS = new Set([
 // Outils qui envoient / créent quelque chose (leur succès suffit à confirmer l'action)
 const ACTION_TOOLS = new Set([
   'send_doc_pdf', 'create_presentation_doc', 'create_google_doc', 'create_google_sheet', 'export_excel',
-  'get_car_photo', 'get_client_document', 'partners', 'update_car', 'add_car', 'delete_car', 'business_mentor', 'kouider_dossier',
+  'get_car_photo', 'send_photos', 'get_client_document', 'partners', 'update_car', 'add_car', 'delete_car', 'business_mentor', 'kouider_dossier',
 ]);
 
 // Patterns qui indiquent que Claude prétend avoir exécuté une action write

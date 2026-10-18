@@ -642,7 +642,21 @@ async def start_realtime(actor: str, user_id: int) -> bool:
 async def send_outbox_message(uid: int, m: dict) -> None:
     try:
         text = (m.get('text') or '')[:4000]
-        if m.get('file'):      # pièce jointe d'un mail… : lien temporaire du backend → document Telegram
+        if m.get('album'):     # photos d'une voiture / d'un bien : album(s) de 10 max, légende sur la 1re
+            from pyrogram.types import InputMediaPhoto
+            urls = [x['url'] for x in m['album'] if x.get('url')]
+            for i in range(0, len(urls), 10):
+                chunk = urls[i:i + 10]
+                media = [InputMediaPhoto(u, caption=(text[:1000] if i == 0 and j == 0 else '')) for j, u in enumerate(chunk)]
+                try:
+                    if len(media) == 1:
+                        await app.send_photo(uid, chunk[0], caption=(text[:1000] if i == 0 else None) or None)
+                    else:
+                        await app.send_media_group(uid, media)
+                except Exception as e:   # lien refusé par Telegram : on envoie au moins les liens
+                    log.warning('album → Telegram: %s', e)
+                    await app.send_message(uid, (text + '\n' if i == 0 and text else '') + '\n'.join(chunk), disable_web_page_preview=True)
+        elif m.get('file'):      # pièce jointe d'un mail… : lien temporaire du backend → document Telegram
             async with aiohttp.ClientSession() as http:
                 async with http.get(m['file']['url'], timeout=aiohttp.ClientTimeout(total=300)) as r:   # APK ~40 Mo
                     r.raise_for_status()

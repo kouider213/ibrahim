@@ -1441,6 +1441,19 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
 
+  {
+    name: 'send_photos',
+    description: 'Envoyer TOUTES les photos d\'une annonce sur le Telegram de Kouider, en album (pour les enregistrer ou les transférer à un client). Utiliser quand Kouider dit « envoie-moi les photos de la Clio sur Telegram », « envoie les photos de l\'appart Hay Badr », « mets-moi les photos du Duster à vendre ». Marche pour : voiture du parc (kind=car), bien immobilier (kind=property), voiture à vendre (kind=sale).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        kind: { type: 'string', enum: ['car', 'property', 'sale'], description: 'car = voiture de location du parc (défaut), property = bien immobilier, sale = voiture à vendre' },
+        name: { type: 'string', description: 'Nom de la voiture / titre ou quartier du bien / marque-modèle de la voiture à vendre' },
+      },
+      required: ['name'],
+    },
+  },
+
   // ─── IMMOBILIER & VENTE — synchro site (mêmes tables que le site web) ─────────
   {
     name: 'list_properties',

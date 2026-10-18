@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { business, getOrCreateSessionId, type Car, type FleetIntel, type SiteProperty, type SaleVehicle, type InspectionResult, type DamageBox } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import { T, tone, PageHeader, Segmented, Chips, Kpi, Badge, Btn, ActionBtn, Toggle, Sheet, Field, inputStyle, Empty, Toast, SectionTitle } from '../ui/Kit.tsx';
+import PhotoGallery, { type GalleryKind } from '../ui/PhotoGallery.tsx';
 
 type ParcTab = 'cars' | 'immo' | 'vente';
 type CarFilter = 'all' | 'on' | 'off';
@@ -26,31 +27,15 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
   const [inspect, setInspect] = useState<InspectOpen | null>(null);
   const [editCar, setEditCar] = useState<Car | null>(null);
   const [bookCar, setBookCar] = useState<Car | null>(null);
-  const [photoBusy, setPhotoBusy] = useState<string | null>(null);
+  const [detail, setDetail] = useState<Car | null>(null);
+  const [gallery, setGallery] = useState<{ kind: GalleryKind; id: string; name: string } | null>(null);
   const [counts, setCounts] = useState<{ immo?: number; vente?: number }>({});
-  const photoTarget = useRef<string>('');
-  const carPhotoRef = useRef<HTMLInputElement>(null);
   const sessionId = useRef(getOrCreateSessionId());
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setMsg = (m: string, ms = 2600) => {
     setMsgRaw(m);
     if (msgTimer.current) clearTimeout(msgTimer.current);
     if (m) msgTimer.current = setTimeout(() => setMsgRaw(''), ms);
-  };
-
-  const onCarPhotos = async (files: File[]) => {
-    const name = photoTarget.current;
-    if (!files.length || !name) return;
-    setPhotoBusy(name);
-    try {
-      const imgs = await Promise.all(files.slice(0, 15).map(f => new Promise<string>((res, rej) => {
-        const r = new FileReader(); r.onloadend = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f);
-      })));
-      const r = await business.addCarPhotos(name, imgs);
-      setMsg(`✅ ${r.count ?? imgs.length} photo(s) ajoutée(s) — ${name}`);
-      void load();
-    } catch { setMsg('❌ Échec de l\'envoi des photos'); }
-    finally { setPhotoBusy(null); }
   };
 
   const load = async () => {
@@ -165,17 +150,17 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
               return (
                 <div key={car.id} style={{ borderRadius: 22, overflow: 'hidden', background: `linear-gradient(180deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${car.available ? T.line : tone(stCol, 0.35)}`, boxShadow: '0 18px 40px -24px rgba(0,0,0,0.9)' }}>
                   {/* Photo pleine largeur */}
-                  <div style={{ position: 'relative', height: 170, background: '#040914', overflow: 'hidden' }}>
+                  <div onClick={() => setDetail(car)} role="button" aria-label={`Fiche ${car.name}`} style={{ position: 'relative', height: 170, background: '#040914', overflow: 'hidden', cursor: 'pointer' }}>
                     <CarPhoto url={car.image_url ?? null} name={car.name} col={stCol} />
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(4,9,20,0.55) 0%, transparent 35%, transparent 45%, rgba(8,16,36,0.96) 100%)', pointerEvents: 'none' }} />
                     {!car.available && <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,9,20,0.35)', backdropFilter: 'grayscale(0.7)', pointerEvents: 'none' }} />}
                     <div style={{ position: 'absolute', top: 12, left: 12 }}><Badge color={stCol}>{stLbl}</Badge></div>
-                    <div style={{ position: 'absolute', top: 10, right: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 10, right: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Toggle on={car.available} busy={toggling === car.id} onChange={() => void toggle(car)} />
                     </div>
                     <div style={{ position: 'absolute', left: 14, right: 14, bottom: 10 }}>
                       <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em', color: '#fff', textShadow: '0 2px 12px rgba(0,0,0,0.7)', lineHeight: 1.15 }}>{car.name}</div>
-                      <div style={{ fontSize: 12.5, color: '#c3d2f0', marginTop: 2, textTransform: 'capitalize' }}>{[car.category, (car as Car & { fuel?: string }).fuel].filter(Boolean).join(' · ') || 'Standard'}</div>
+                      <div style={{ fontSize: 12.5, color: '#c3d2f0', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ textTransform: 'capitalize' }}>{[car.category, car.fuel].filter(Boolean).join(' · ') || 'Standard'}</span><span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: T.accent }}>Voir la fiche ›</span></div>
                     </div>
                   </div>
 
@@ -203,7 +188,7 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
                   <div style={{ display: 'flex', gap: 8, padding: 14 }}>
                     <ActionBtn icon="📅" label="Réserver" color={T.accent} onClick={() => setBookCar(car)} />
                     <ActionBtn icon="✏️" label="Prix" color={T.accent} onClick={() => setEditCar(car)} />
-                    <ActionBtn icon="🖼️" label="Photos" color={T.ok} busy={photoBusy === car.name} onClick={() => { photoTarget.current = car.name; carPhotoRef.current?.click(); }} />
+                    <ActionBtn icon="🖼️" label="Photos" color={T.ok} onClick={() => setGallery({ kind: 'car', id: car.id, name: car.name })} />
                     <ActionBtn icon="📷" label="État" color={T.warn} onClick={() => setInspect({ kind: 'vehicle', name: car.name })} />
                   </div>
                 </div>
@@ -214,9 +199,24 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
       </div>
       )}
 
-      {/* Input caché — ajout multi-photos véhicule (PARC) */}
-      <input ref={carPhotoRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
-        onChange={e => { const arr = Array.from(e.target.files ?? []); e.target.value = ''; void onCarPhotos(arr); }} />
+      {detail && (
+        <CarDetailSheet
+          car={cars.find(c => c.id === detail.id) ?? detail}
+          isHouari={isHouari}
+          stat={intel?.stats.find(s => s.car_name === detail.name)}
+          busy={toggling === detail.id}
+          onClose={() => setDetail(null)}
+          onToggle={(c) => void toggle(c)}
+          onBook={(c) => setBookCar(c)}
+          onPrice={(c) => setEditCar(c)}
+          onPhotos={(c) => setGallery({ kind: 'car', id: c.id, name: c.name })}
+          onInspect={(c) => setInspect({ kind: 'vehicle', name: c.name })}
+        />
+      )}
+
+      {gallery && (
+        <PhotoGallery kind={gallery.kind} id={gallery.id} name={gallery.name} onClose={() => setGallery(null)} onChanged={() => void load()} />
+      )}
 
       {inspect && (
         <InspectionModal kind={inspect.kind} subject={inspect.name} sessionId={sessionId.current} onClose={() => setInspect(null)} />
@@ -240,6 +240,156 @@ export default function FleetScreen({ actor = 'kouider' }: { actor?: string }) {
         />
       )}
     </div>
+  );
+}
+
+// ── Fiche complète d'un véhicule ─────────────────────────────────────────────
+const dayDiff = (iso?: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso.slice(0, 10) + 'T00:00:00'); const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - t.getTime()) / 86400000);
+};
+const frDate = (iso?: string | null) => iso ? new Date(iso.slice(0, 10) + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+function InfoRow({ label, value, color, hint }: { label: string; value: React.ReactNode; color?: string; hint?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', borderBottom: `1px solid ${T.line}` }}>
+      <div style={{ flex: 1, fontSize: 14, color: T.muted }}>{label}</div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, color: color ?? T.text }}>{value}</div>
+        {hint != null && <div style={{ fontSize: 12, color: color ?? T.faint, marginTop: 1 }}>{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ExpiryRow({ label, iso }: { label: string; iso?: string | null }) {
+  const d = dayDiff(iso);
+  const col = d == null ? T.faint : d < 0 ? T.bad : d <= 30 ? T.warn : T.ok;
+  const hint = d == null ? 'non renseigné' : d < 0 ? `expiré depuis ${-d} j` : d === 0 ? 'expire aujourd\'hui' : `dans ${d} j`;
+  return d == null
+    ? <InfoRow label={label} value="non renseigné" color={T.faint} />
+    : <InfoRow label={label} value={frDate(iso)} color={col} hint={hint} />;
+}
+
+function CarDetailSheet({ car, isHouari, stat, busy, onClose, onToggle, onBook, onPrice, onPhotos, onInspect }: {
+  car: Car; isHouari: boolean; stat?: { revenue_30d: number; occupancy_pct: number }; busy: boolean;
+  onClose: () => void; onToggle: (c: Car) => void; onBook: (c: Car) => void; onPrice: (c: Car) => void; onPhotos: (c: Car) => void; onInspect: (c: Car) => void;
+}) {
+  const [photos, setPhotos] = useState<string[]>(car.image_url ? [car.image_url] : []);
+  const [bookings, setBookings] = useState<Array<{ client_name: string; start_date: string; end_date: string; status: string }>>([]);
+  useEffect(() => {
+    business.carPhotos(car.id).then(r => { if (r.photos.length) setPhotos(r.photos.map(p => p.url)); }).catch(() => {});
+    business.fetchBookings().then(r => {
+      const today = new Date().toISOString().slice(0, 10);
+      setBookings((r.bookings ?? []).filter(b => (b as unknown as { car_id?: string }).car_id === car.id
+        && !['cancelled', 'rejected', 'CANCELLED', 'REJECTED'].includes(b.status) && (b.end_date ?? '').slice(0, 10) >= today)
+        .sort((a, b) => a.start_date.localeCompare(b.start_date)).slice(0, 5)
+        .map(b => ({ client_name: b.client_name, start_date: b.start_date, end_date: b.end_date, status: b.status })));
+    }).catch(() => {});
+  }, [car.id]);
+
+  const cur = isHouari ? 'DA' : '€';
+  const h = isHouari ? (car.houari_base_price ?? null) : (car.base_price ?? null);
+  const k = isHouari ? (car.houari_resale_price ?? null) : (car.resale_price ?? null);
+  const margin = h != null && k != null ? k - h : null;
+  const repair = !car.available && (car.maintenance_note ?? '').startsWith('🔧');
+  const stCol = car.available ? T.ok : repair ? T.warn : T.bad;
+  const kmLeft = car.next_service_km != null && car.current_km != null ? car.next_service_km - car.current_km : null;
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <Sheet
+      title={car.name}
+      subtitle={<span style={{ textTransform: 'capitalize' }}>{[car.category, car.fuel, car.transmission, car.seats ? `${car.seats} places` : null].filter(Boolean).join(' · ') || 'Véhicule du parc'}</span>}
+      onClose={onClose}
+      footer={<div style={{ display: 'flex', gap: 8, width: '100%' }}>
+        <ActionBtn icon="📅" label="Réserver" onClick={() => onBook(car)} />
+        <ActionBtn icon="✏️" label="Prix" onClick={() => onPrice(car)} />
+        <ActionBtn icon="🖼️" label="Photos" color={T.ok} onClick={() => onPhotos(car)} />
+        <ActionBtn icon="📷" label="État" color={T.warn} onClick={() => onInspect(car)} />
+      </div>}
+    >
+      {/* Photos (défilement) */}
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollSnapType: 'x mandatory', margin: '0 -18px 14px', padding: '0 18px', scrollbarWidth: 'none' }}>
+        {photos.length ? photos.map((u, i) => (
+          <button key={u} onClick={() => onPhotos(car)} style={{ flex: '0 0 82%', height: 190, borderRadius: 16, border: `1px solid ${T.line}`, background: `${T.surface2} url(${u}) center/cover`, scrollSnapAlign: 'start', cursor: 'pointer', position: 'relative', padding: 0 }}>
+            <span style={{ position: 'absolute', bottom: 8, right: 8, fontSize: 12, fontWeight: 700, padding: '3px 8px', borderRadius: 8, background: 'rgba(0,0,0,0.6)', color: '#fff' }}>{i + 1}/{photos.length}</span>
+          </button>
+        )) : (
+          <button onClick={() => onPhotos(car)} style={{ flex: '1 0 100%', height: 150, borderRadius: 16, border: `1px dashed ${T.lineStrong}`, background: 'transparent', color: T.accent, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: T.font }}>📷 Ajouter des photos</button>
+        )}
+      </div>
+
+      {/* Statut */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16, background: tone(stCol, 0.08), border: `1px solid ${tone(stCol, 0.3)}`, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: stCol }}>{car.available ? 'Disponible' : repair ? 'Au garage' : 'Indisponible'}</div>
+          {car.maintenance_note && !car.available && <div style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{car.maintenance_note.replace(/^🔧\s*/, '')}</div>}
+        </div>
+        <Toggle on={car.available} busy={busy} onChange={() => onToggle(car)} />
+      </div>
+
+      {/* Prix */}
+      <div style={{ display: 'grid', gridTemplateColumns: isHouari ? '1fr' : 'repeat(3, minmax(0,1fr))', borderRadius: 14, border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.02)', marginBottom: 14 }}>
+        {!isHouari && <PriceCell label="Houari" value={h} cur={cur} color={T.muted} />}
+        <PriceCell label={isHouari ? 'Prix de location' : 'Client'} value={k} cur={cur} color={T.text} divider={!isHouari} />
+        {!isHouari && <PriceCell label="Marge" value={margin} cur={cur} color={margin != null && margin > 0 ? T.ok : T.bad} divider plus />}
+      </div>
+
+      {/* Réservations */}
+      <SectionTitle>Réservations à venir</SectionTitle>
+      {bookings.length === 0 ? (
+        <div style={{ fontSize: 14, color: T.muted, marginBottom: 14 }}>Aucune réservation en cours ou à venir.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+          {bookings.map((b, i) => {
+            const now = b.start_date.slice(0, 10) <= today;
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 13, background: 'rgba(255,255,255,0.03)', border: `1px solid ${now ? tone(T.accent, 0.4) : T.line}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.client_name}</div>
+                  <div style={{ fontSize: 12.5, color: T.muted }}>{frDate(b.start_date)} → {frDate(b.end_date)}</div>
+                </div>
+                {now && <Badge color={T.accent}>En cours</Badge>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Activité */}
+      {stat && (stat.revenue_30d > 0 || stat.occupancy_pct > 0) && (
+        <>
+          <SectionTitle>Activité 30 jours</SectionTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            <Kpi value={`${Math.round(stat.revenue_30d).toLocaleString('fr-FR')} €`} label="Chiffre d'affaires" color={T.accent} />
+            <Kpi value={`${Math.round(stat.occupancy_pct)} %`} label="Occupation" color={T.warn} />
+          </div>
+        </>
+      )}
+
+      {/* Entretien & papiers */}
+      <SectionTitle>Entretien & papiers</SectionTitle>
+      <div style={{ marginBottom: 14 }}>
+        <InfoRow label="Kilométrage" value={car.current_km != null ? `${car.current_km.toLocaleString('fr-FR')} km` : '—'} color={car.current_km == null ? T.faint : undefined} />
+        <InfoRow label="Prochaine vidange" value={car.next_service_km != null ? `${car.next_service_km.toLocaleString('fr-FR')} km` : car.next_service_date ? frDate(car.next_service_date) : '—'}
+          color={kmLeft != null ? (kmLeft <= 0 ? T.bad : kmLeft <= 1000 ? T.warn : T.ok) : (car.next_service_km == null && !car.next_service_date ? T.faint : undefined)}
+          hint={kmLeft != null ? (kmLeft <= 0 ? `dépassée de ${(-kmLeft).toLocaleString('fr-FR')} km` : `dans ${kmLeft.toLocaleString('fr-FR')} km`) : undefined} />
+        <InfoRow label="Dernier entretien" value={car.last_service_date ? frDate(car.last_service_date) : '—'} color={car.last_service_date ? undefined : T.faint} hint={car.last_service_km != null ? `${car.last_service_km.toLocaleString('fr-FR')} km` : undefined} />
+        <ExpiryRow label="Assurance" iso={car.insurance_expiry} />
+        <ExpiryRow label="Contrôle technique" iso={car.technical_expiry} />
+        <ExpiryRow label="Vignette" iso={car.vignette_expiry} />
+      </div>
+      {(car.description || car.service_notes) && (
+        <>
+          <SectionTitle>Notes</SectionTitle>
+          {car.description && <div style={{ fontSize: 14, color: T.text, lineHeight: 1.5, marginBottom: 8 }}>{car.description}</div>}
+          {car.service_notes && <div style={{ fontSize: 13.5, color: T.muted, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>🔧 {car.service_notes}</div>}
+        </>
+      )}
+      <div style={{ fontSize: 12.5, color: T.faint, textAlign: 'center', marginTop: 14 }}>Pour remplir le kilométrage ou les dates de papiers, dis-le à Dzaryx (ex. « la Clio Diesel est à 84 000 km »).</div>
+    </Sheet>
   );
 }
 
@@ -508,6 +658,7 @@ function TwoChoice<K extends string>({ value, onChange, items }: { value: K; onC
 }
 
 function ImmoPane({ onMsg, onInspect, onCount }: { onMsg: (m: string) => void; onInspect: (name: string) => void; onCount: (n: number) => void }) {
+  const [gallery, setGallery] = useState<{ id: string; name: string } | null>(null);
   const [items, setItems] = useState<SiteProperty[]>([]);
   const [loading, setLoad] = useState(true);
   const [show, setShow] = useState(false);
@@ -593,12 +744,14 @@ function ImmoPane({ onMsg, onInspect, onCount }: { onMsg: (m: string) => void; o
             <div style={{ fontSize: 20, fontWeight: 800, color: T.text, margin: '12px 0' }}>{p.price != null ? `${Number(p.price).toLocaleString('fr-FR')} ${cur}` : '—'}<span style={{ fontSize: 12.5, color: T.faint, fontWeight: 600 }}>{p.transaction === 'vente' ? '' : ' / mois'}</span></div>
             <div style={{ display: 'flex', gap: 8 }}>
               <ActionBtn icon="🔄" label="Statut" color={T.warn} busy={busy === p.id} onClick={() => void cycle(p)} />
+              <ActionBtn icon="🖼️" label="Photos" color={T.ok} onClick={() => setGallery({ id: p.id, name: p.title || p.name || 'Bien' })} />
               <ActionBtn icon="📷" label="État des lieux" color={T.accent} onClick={() => onInspect(p.title || p.name || 'Bien')} />
               <ActionBtn icon="🗑️" label="Supprimer" color={T.bad} onClick={() => void del(p)} />
             </div>
           </div>
         );
       })}
+      {gallery && <PhotoGallery kind="property" id={gallery.id} name={gallery.name} onClose={() => setGallery(null)} onChanged={() => void load()} />}
     </PaneShell>
   );
 }
@@ -637,29 +790,7 @@ function VentePane({ onMsg, onCount }: { onMsg: (m: string) => void; onCount: (n
     catch { onMsg('❌ Échec de la mise à jour'); } finally { setBusy(null); }
   };
 
-  const addPhotos = async (id: string, files: FileList) => {
-    setBusy(id);
-    try {
-      const photos = await Promise.all(Array.from(files).slice(0, 10).map(fl => new Promise<string>((res, rej) => {
-        const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('read')); r.readAsDataURL(fl);
-      })));
-      const out = await business.addVehicleSalePhotos(id, photos);
-      onMsg(`✅ ${out.count} photo(s) — visibles sur le site`); void load();
-      if (manage && manage.id === id) { try { const r = await business.vehiclePhotos(id); setMPhotos(r.photos.map(x => x.url)); } catch { /* ignore */ } }
-    } catch { onMsg('❌ Échec de l\'envoi des photos'); } finally { setBusy(null); }
-  };
-
-  const [manage, setManage] = useState<{ id: string; name: string } | null>(null);
-  const [mPhotos, setMPhotos] = useState<string[]>([]);
-  const openMgr = async (v: SaleVehicle) => {
-    setManage({ id: v.id, name: `${v.brand} ${v.model}` }); setMPhotos([]);
-    try { const r = await business.vehiclePhotos(v.id); setMPhotos(r.photos.map(x => x.url)); } catch { /* vide */ }
-  };
-  const delPhoto = async (url: string) => {
-    if (!manage) return;
-    try { await business.vehiclePhotoDelete(manage.id, url); setMPhotos(ps => ps.filter(u => u !== url)); void load(); }
-    catch { onMsg('❌ Échec de la suppression'); }
-  };
+  const [gallery, setGallery] = useState<{ id: string; name: string } | null>(null);
 
   return (
     <PaneShell>
@@ -697,31 +828,13 @@ function VentePane({ onMsg, onCount }: { onMsg: (m: string) => void; onCount: (n
             <div style={{ fontSize: 20, fontWeight: 800, color: T.text, margin: '12px 0' }}>{v.price != null ? `${Number(v.price).toLocaleString('fr-FR')} ${cur}` : '—'}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <ActionBtn icon="🔄" label="Statut" color={T.warn} busy={busy === v.id} onClick={() => void cycle(v)} />
-              <ActionBtn icon="🖼️" label="Photos" color={T.accent} onClick={() => void openMgr(v)} />
+              <ActionBtn icon="🖼️" label="Photos" color={T.accent} onClick={() => setGallery({ id: v.id, name: `${v.brand} ${v.model}` })} />
             </div>
           </div>
         );
       })}
 
-      {manage && (
-        <Sheet fixed title={`Photos · ${manage.name}`} subtitle={`${mPhotos.length} photo(s) · ✕ pour supprimer`} onClose={() => setManage(null)}>
-          {mPhotos.length === 0 ? (
-            <div style={{ fontSize: 14, color: T.muted, marginBottom: 14 }}>Aucune photo pour l'instant.</div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
-              {mPhotos.map(url => (
-                <div key={url} style={{ position: 'relative', paddingTop: '75%', borderRadius: 12, overflow: 'hidden', background: `#0e0e12 url(${url}) center/cover` }}>
-                  <button onClick={() => void delPhoto(url)} aria-label="Supprimer la photo" style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: '50%', border: 'none', background: 'rgba(225,29,72,0.92)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <label style={{ ...btnLabel, cursor: busy === manage.id ? 'wait' : 'pointer' }}>
-            {busy === manage.id ? 'Envoi…' : '＋ Ajouter des photos'}
-            <input type="file" accept="image/*" multiple disabled={busy === manage.id} style={{ display: 'none' }} onChange={e => { if (e.target.files?.length) void addPhotos(manage.id, e.target.files); e.currentTarget.value = ''; }} />
-          </label>
-        </Sheet>
-      )}
+      {gallery && <PhotoGallery kind="sale" id={gallery.id} name={gallery.name} onClose={() => setGallery(null)} onChanged={() => void load()} />}
     </PaneShell>
   );
 }

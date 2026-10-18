@@ -88,7 +88,7 @@ AGENDA RÉSULTAT: Texte "⚠️ Google Agenda non synchro" → répète EXACTEME
     // Photos du parc : Kouider demande souvent "envoie une photo de [voiture]" dans
     // un contexte véhicule/flotte → cet agent gagne (priorité 10). Sans ce tool il
     // improvisait "je n'ai pas accès aux photos". Maintenant il récupère la vraie photo.
-    'get_car_photo',
+    'get_car_photo', 'send_photos',
     // Immobilier + vente voiture + historique client (synchro site) :
     'list_properties', 'get_property_photo', 'update_property_status', 'list_vehicles_for_sale',
     'get_vehicle_sale_photo', 'mark_vehicle_sold', 'record_client_deal', 'get_client_history',
@@ -201,9 +201,10 @@ ENVOI DE PHOTO EXISTANTE (≠ création pub) — "envoie/montre la photo de X" :
 - BIEN immobilier / appartement → get_property_photo(property_query="X", ou VIDE = tous)
 - voiture À VENDRE → get_vehicle_sale_photo(vehicle_query="X", ou VIDE = toutes)
 - Si la demande suit une discussion sur UN bien/véhicule précis, utilise le bon tool SANS redemander.
+- « envoie-moi les photos de X sur Telegram » / « toutes les photos » → send_photos(kind=car|property|sale, name="X") : album complet sur Telegram.
 - Ne dis JAMAIS "laisse-moi récupérer" sans appeler le tool dans le même tour.`,
   toolNames: [
-    'get_car_photo', 'get_property_photo', 'get_vehicle_sale_photo',
+    'get_car_photo', 'send_photos', 'get_property_photo', 'get_vehicle_sale_photo',
     'analyze_image','optimize_image','create_social_variants','enhance_image','remove_background',
     'add_text_overlay','analyze_video','cut_video','add_subtitles','optimize_for_platform',
     'extract_thumbnail','add_background_music','create_video_preview',
@@ -429,7 +430,7 @@ FORMAT: réponse directe, concise, sans blabla. Si données récentes → cite l
     // sortait les appels en texte <invoke> faute d'avoir l'outil en natif).
     'list_properties', 'get_property_photo', 'update_property_status',
     'list_vehicles_for_sale', 'get_vehicle_sale_photo', 'mark_vehicle_sold',
-    'record_client_deal', 'get_client_history', 'get_car_photo', 'list_bookings',
+    'record_client_deal', 'get_client_history', 'get_car_photo', 'send_photos', 'list_bookings',
     'add_car', 'update_car', 'update_import_status',
     'create_property', 'add_vehicle_for_sale', 'update_property', 'update_vehicle_details', 'set_site_hero',
     'list_packs', 'create_pack', 'set_pack_status',

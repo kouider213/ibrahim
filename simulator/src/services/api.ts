@@ -715,6 +715,8 @@ export interface Car {
   currency?: string | null; category: string | null;
   image_url?: string | null;
   maintenance_note?: string | null; service_notes?: string | null;
+  fuel?: string | null; transmission?: string | null; seats?: number | null; description?: string | null;
+  last_service_date?: string | null; last_service_km?: number | null; service_interval_km?: number | null; service_due_date?: string | null;
   current_km?: number | null; next_service_km?: number | null; next_service_date?: string | null;
   insurance_expiry?: string | null; technical_expiry?: string | null; vignette_expiry?: string | null;
 }
@@ -1234,6 +1236,20 @@ export const business = {
 
   addCarPhotos: (carName: string, images: string[]) =>
     apiFetch<{ text: string; count?: number; car?: string }>('/api/cars/photos', { method: 'POST', body: JSON.stringify({ car_name: carName, images }) }),
+  // Galerie : photos d'une voiture du parc (1re = photo principale du site), suppression, photo principale
+  carPhotos: (id: string) =>
+    apiFetch<{ photos: Array<{ url: string; position: number }>; cover: string | null }>(`/api/cars/${encodeURIComponent(id)}/photos`),
+  carPhotoDelete: (id: string, url: string) =>
+    apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}/photos`, { method: 'DELETE', body: JSON.stringify({ url }) }),
+  carPhotoCover: (id: string, url: string) =>
+    apiFetch<{ ok: boolean }>(`/api/cars/${encodeURIComponent(id)}/photos/cover`, { method: 'POST', body: JSON.stringify({ url }) }),
+  propertyPhotoCover: (id: string, url: string) =>
+    apiFetch<{ ok: boolean }>(`/api/immo/properties/${encodeURIComponent(id)}/photos/cover`, { method: 'POST', body: JSON.stringify({ url }) }),
+  vehiclePhotoCover: (id: string, url: string) =>
+    apiFetch<{ ok: boolean }>(`/api/immo/vehicles-for-sale/${encodeURIComponent(id)}/photos/cover`, { method: 'POST', body: JSON.stringify({ url }) }),
+  // Toutes les photos d'une annonce → album sur le Telegram de Kouider
+  sendPhotosTelegram: (kind: 'car' | 'property' | 'sale', id: string) =>
+    apiFetch<{ text: string }>('/api/cars/send-photos', { method: 'POST', body: JSON.stringify({ kind, id }) }),
 
   // Inspection avant/après (véhicule ou bien) — multi-photos, renvoie photos + dégâts localisés
   inspect: (kind: 'vehicle' | 'property', body: {

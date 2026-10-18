@@ -7,6 +7,7 @@ import { redis } from '../../queue/queue.js';
 import { env } from '../../config/env.js';
 import { insertReminder, updateReminderStatus } from '../../db/reminders.js';
 import { resolveTimezone, getUTCOffsetString, toLocalISO } from '../../utils/timezone.js';
+import { resolveMedia, deleteMediaPhoto, setMediaCover, sendMediaToTelegram, type MediaKind } from '../../integrations/media-photos.js';
 
 cloudinary.config({
   cloud_name: env.CLOUDINARY_CLOUD_NAME ?? '',
@@ -93,6 +94,39 @@ router.post('/session-photos', requireMobileAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// ── Galerie photos (voiture, bien, voiture à vendre) ─────────────────────────
+// POST /api/cars/send-photos { kind: car|property|sale, id } → album sur le Telegram de Kouider
+router.post('/send-photos', requireMobileAuth, async (req, res) => {
+  const b = req.body as { kind?: string; id?: string };
+  const kind = (['car', 'property', 'sale'].includes(String(b.kind)) ? b.kind : 'car') as MediaKind;
+  if (!b.id) { res.status(400).json({ error: 'id requis' }); return; }
+  try { res.json({ text: await sendMediaToTelegram(kind, b.id) }); }
+  catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// GET /api/cars/:id/photos — photos d'une voiture du parc (la 1re = photo principale du site)
+router.get('/:id/photos', requireMobileAuth, async (req, res) => {
+  const t = await resolveMedia('car', String(req.params['id'])).catch(() => null);
+  if (!t) { res.status(404).json({ error: 'Véhicule introuvable' }); return; }
+  res.json({ photos: t.urls.map((url, position) => ({ url, position })), cover: t.cover });
+});
+
+// DELETE /api/cars/:id/photos { url }
+router.delete('/:id/photos', requireMobileAuth, async (req, res) => {
+  const url = (req.body as { url?: string }).url;
+  if (!url) { res.status(400).json({ error: 'url requise' }); return; }
+  try { await deleteMediaPhoto('car', String(req.params['id']), url); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
+// POST /api/cars/:id/photos/cover { url } — photo principale (site + app)
+router.post('/:id/photos/cover', requireMobileAuth, async (req, res) => {
+  const url = (req.body as { url?: string }).url;
+  if (!url) { res.status(400).json({ error: 'url requise' }); return; }
+  try { await setMediaCover('car', String(req.params['id']), url); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 
 // GET /api/cars — full car list with all fields

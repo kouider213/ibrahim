@@ -172,6 +172,15 @@ router.post('/properties/:id/photos', requireMobileAuth, async (req, res) => {
   }
 });
 
+// POST /api/immo/:kind/:id/photos/cover { url } — photo principale d'un bien (properties) ou d'une voiture à vendre (vehicles-for-sale)
+router.post('/:kind(properties|vehicles-for-sale)/:id/photos/cover', requireMobileAuth, async (req, res) => {
+  const url = (req.body as { url?: string }).url;
+  if (!url) { res.status(400).json({ error: 'url requise' }); return; }
+  const kind = req.params['kind'] === 'properties' ? 'property' : 'sale';
+  try { const { setMediaCover } = await import('../../integrations/media-photos.js'); await setMediaCover(kind, String(req.params['id']), url); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
+});
+
 // GET /api/immo/properties/:id/photos — liste les photos d'un bien
 router.get('/properties/:id/photos', requireMobileAuth, async (req, res) => {
   try {
