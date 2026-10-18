@@ -3,6 +3,7 @@ import { createAnthropic, CLAUDE_MAIN } from './anthropic-compat.js';
 import { token, notConnected, googleFileRef, sendGooglePdfToTelegram } from './google-docs.js';
 import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
+import { kvGet, kvSet } from './app-store.js';
 import { chartPngUrl, cleanChart, type ChartSpec } from './chart-image.js';
 
 // Dossier de présentation soigné dans Google Docs (create_presentation_doc) :
@@ -387,7 +388,15 @@ function cleanSpec(raw: DocSpec, fallbackTitle: string): DocSpec {
     summary: (Array.isArray(raw.summary) ? raw.summary : []).map(str).filter(Boolean), sections };
 }
 
+// Dernier dossier rédigé (titre, but, matière) : « refais-le avec telle hypothèse » repart de la même base.
+const LAST_KEY = 'dossier:last';
+type LastDossier = { title: string; brief: string; material: string; url?: string; at: string };
+async function getLastDossier(): Promise<LastDossier | null> {
+  try { return JSON.parse((await kvGet(LAST_KEY)) ?? 'null') as LastDossier | null; } catch { return null; }
+}
+
 export async function writeDossier(title: string, brief: string, material: string): Promise<DocSpec> {
+  await kvSet(LAST_KEY, JSON.stringify({ title, brief, material: material.slice(0, 60_000), at: new Date().toISOString() } satisfies LastDossier)).catch(() => {});
   const raw = await askJson<DocSpec>(WRITER_SYSTEM,
     `Titre souhaité : ${title}\nObjectif / public : ${brief || 'dossier de présentation'}\n\nFAITS À UTILISER (seule source autorisée) :\n${material}`, 32000, DOSSIER_SCHEMA);
   const spec = cleanSpec(raw, title);
@@ -412,6 +421,10 @@ export function startDossierJob(title: string, make: () => Promise<DocSpec>): st
       const nCharts = spec.sections.reduce((n, s) => n + s.blocks.filter(bl => bl.type === 'chart').length, 0);
       okUrl = r.ok ? r.url : '';
       docTitle = spec.title;
+      if (r.ok) {
+        const last = await getLastDossier();
+        if (last) await kvSet(LAST_KEY, JSON.stringify({ ...last, url: r.url })).catch(() => {});
+      }
       msg = r.ok ? `📄 Ton dossier « ${spec.title} » est prêt (page de garde, résumé, sommaire, ${spec.sections.length} parties${nCharts ? `, ${nCharts} graphique${nCharts > 1 ? 's' : ''}` : ''}) :\n${r.url}` : r.error;
     } catch (err) {
       msg = `❌ Le dossier « ${title} » n'a pas pu être fait : ${err instanceof Error ? err.message : String(err)}`;
@@ -428,10 +441,20 @@ export function startDossierJob(title: string, make: () => Promise<DocSpec>): st
   return `⏳ Dossier « ${title} » en préparation (1 à 2 minutes) : page de garde avec le logo FIK, résumé, sommaire avec les pages, une partie par page. Le PDF (avec le lien Google Docs) sera envoyé sur Telegram, et le lien dans l'app, dès qu'il est prêt.`;
 }
 
-export function createPresentationDoc(input: Record<string, unknown>): string {
-  const title = String(input['title'] ?? '').trim() || 'Dossier de présentation';
-  const brief = String(input['brief'] ?? '').trim();
-  const material = String(input['material'] ?? '').trim();
+export async function createPresentationDoc(input: Record<string, unknown>): Promise<string> {
+  let title = String(input['title'] ?? '').trim() || 'Dossier de présentation';
+  let brief = String(input['brief'] ?? '').trim();
+  let material = String(input['material'] ?? '').trim();
+  if (input['revise_last'] === true) {
+    // « Refais le dernier dossier avec cette hypothèse » : même matière + les changements, prioritaires.
+    const last = await getLastDossier();
+    if (!last) return "❌ Je n'ai pas gardé la matière du dernier dossier. Récupère les infos avec les autres outils et rappelle create_presentation_doc sans revise_last.";
+    const changes = String(input['changes'] ?? '').trim();
+    if (!changes && !material) return '❌ Dis-moi ce qui change (changes) : l\'hypothèse ou les modifications voulues par Kouider.';
+    title = String(input['title'] ?? '').trim() || `${last.title.replace(/ — (hypothèse|version).*$/i, '')} — hypothèse`;
+    brief = `${brief || last.brief}. Nouvelle version du dossier « ${last.title} » : intègre l'hypothèse ci-dessous partout (chiffres, graphiques, plan d'action) et compare-la à la situation actuelle.`;
+    material = `${last.material}\n\n=== HYPOTHÈSE / MODIFICATIONS DEMANDÉES PAR KOUIDER (PRIORITAIRES : elles remplacent les chiffres ci-dessus quand ils se contredisent) ===\n${changes}${material ? `\n\nCALCULS ET FAITS DE L'HYPOTHÈSE :\n${material}` : ''}`;
+  }
   if (material.length < 80) {
     return "❌ Il me faut la matière du dossier dans material : récupère d'abord les vraies infos avec les autres outils (ou demande-les à Kouider), puis rappelle create_presentation_doc.";
   }

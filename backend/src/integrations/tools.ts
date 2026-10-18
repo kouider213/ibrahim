@@ -2834,6 +2834,45 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
     },
   },
   {
+    name: 'business_simulator',
+    description: "SIMULATEUR BUSINESS de Kouider : TOUS les calculs « et si… ? », objectifs de revenus et prix de location, faits sur ses VRAIES données (réservations 2026 + prix du parc : prix client = resale_price, prix propriétaire/Houari = base_price). OBLIGATOIRE dès qu'il y a un calcul d'argent hypothétique : ne JAMAIS estimer de tête. Actions : "
+      + "'baseline' = chiffres réels (bénéfice, jours loués/mois, marge/jour, occupation, grille de prix). "
+      + "'scenario' = « et si… » : nouveau partenaire/fournisseur qui baisse ses prix (owner_discount_pct 15 = -15 % sur ce que tu paies), hausse/baisse des prix client (client_change_pct -10), prix précis par voiture (price_overrides [{car, client_price, owner_price}]), plus de voitures (extra_cars [{name, client_price, owner_price, count}]), plus/moins de clients (demand_change_pct, rental_days_per_month ou occupancy_pct), autres activités (other_income [{label, monthly}] ou [{label, unit_price, units_per_month}] : immobilier, FIK Sites, abonnements entreprises, Carte live, vente auto, import…), charges (monthly_costs), label = nom du scénario. "
+      + "'target_income' = « je veux X € net par mois » (target_net_monthly) : jours à louer, marge nécessaire, tableau marge × volume, prix proprio/client voiture par voiture, part des autres activités. "
+      + "'price_car' = une voiture : « le client paie 50 € la Clio 5 Alpine, combien je paie le proprio ? » (car + client_price) ou l'inverse (owner_price), marges 10–30 % ou margin_pct / margin_eur. "
+      + "'price_grid' = tout le parc pour une marge voulue (margin_pct ou margin_eur). "
+      + "'apply_prices' = « baisse les prix », « mets la Clio 5 à 45 € » : mêmes paramètres que scenario (price_overrides, client_change_pct, owner_change_pct, category) → aperçu ; puis confirm=true APRÈS le oui de Kouider (change les prix du site). "
+      + "Exemples : « si je trouve un autre fournisseur que Houari, 20 % moins cher, avec de l'immobilier en plus, combien je gagne ? », « je veux 2 000 € net par mois, je fais comment ? », « les prix clients sont trop chers, baisse de 10 % : ça donne quoi ? », « combien je dois payer le proprio pour garder 25 % ? », « et si j'ajoute 3 Clio à 35/28 ? », « et si je loue 2 fois plus ? », « quel prix pour le Jumpy ? ». "
+      + "Pour un dossier avec ces chiffres : colle le résultat dans material de create_presentation_doc (revise_last=true pour refaire le dernier dossier avec l'hypothèse).",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', enum: ['baseline', 'scenario', 'target_income', 'price_car', 'price_grid', 'apply_prices'] },
+        label: { type: 'string', description: 'Nom du scénario (ex. « Nouveau partenaire Karim »)' },
+        year: { type: 'number', description: 'Année de référence (défaut : année en cours)' },
+        owner_discount_pct: { type: 'number', description: 'Baisse en % de ce que Kouider paie au propriétaire (15 = -15 %)' },
+        owner_change_pct: { type: 'number', description: 'Variation en % du prix propriétaire (-15 ou +10)' },
+        client_change_pct: { type: 'number', description: 'Variation en % du prix client (-10 = baisse de 10 %)' },
+        category: { type: 'string', description: 'Limiter les % à une catégorie (citadine, SUV, berline, familiale, premium)' },
+        price_overrides: { type: 'array', items: { type: 'object', properties: { car: { type: 'string' }, client_price: { type: 'number' }, owner_price: { type: 'number' } }, required: ['car'] }, description: 'Prix précis par voiture (€/jour)' },
+        extra_cars: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, client_price: { type: 'number' }, owner_price: { type: 'number' }, count: { type: 'number' }, category: { type: 'string' } } }, description: 'Voitures ajoutées au parc' },
+        rental_days_per_month: { type: 'number', description: 'Jours loués par mois (tout le parc)' },
+        occupancy_pct: { type: 'number', description: "Taux d'occupation du parc en % (alternative à rental_days_per_month)" },
+        demand_change_pct: { type: 'number', description: 'Variation du nombre de jours loués en % (+50 = 50 % de clients en plus)' },
+        other_income: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, monthly: { type: 'number' }, unit_price: { type: 'number' }, units_per_month: { type: 'number' } } }, description: 'Autres revenus mensuels (immobilier, FIK Sites, abonnements…)' },
+        monthly_costs: { type: 'number', description: 'Charges mensuelles (€) à déduire' },
+        target_net_monthly: { type: 'number', description: 'Objectif net par mois en € (target_income)' },
+        car: { type: 'string', description: 'Voiture (price_car)' },
+        client_price: { type: 'number', description: 'Prix client €/jour (price_car)' },
+        owner_price: { type: 'number', description: 'Prix propriétaire €/jour (price_car)' },
+        margin_pct: { type: 'number', description: 'Marge voulue en % du prix client' },
+        margin_eur: { type: 'number', description: 'Marge voulue en € par jour' },
+        confirm: { type: 'boolean', description: 'apply_prices : true seulement après le oui de Kouider' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'create_presentation_doc',
     description: 'DOSSIER DE PRÉSENTATION soigné dans Google Docs, prêt à remettre (partenaire, client, investisseur, banque) : page de garde avec le logo FIK, résumé + sommaire avec les numéros de page, puis une partie par page, rédigée proprement. À utiliser pour « fais un document / dossier / présentation sur… », « un document bien écrit », « à présenter ». Mets dans material TOUTES les vraies infos (récupérées d\'abord avec les autres outils ou données par Kouider) : rien n\'est inventé. Prêt en 1 à 2 min ; le lien est envoyé tout seul sur Telegram et dans l\'app. Pour un dossier sur Dzaryx lui-même → list_my_capabilities output=google_doc.',
     input_schema: {
@@ -2842,8 +2881,10 @@ Ne dis "appel programmé" que si le résultat commence par ✅.`,
         title:    { type: 'string', description: 'Titre du dossier' },
         brief:    { type: 'string', description: 'À qui il est destiné et dans quel but (ex. « présenter FIK Conciergerie à un investisseur »)' },
         material: { type: 'string', description: 'Tous les faits, chiffres et textes à utiliser, même en vrac : c\'est la SEULE source du rédacteur' },
+        revise_last: { type: 'boolean', description: "true = refaire le DERNIER dossier envoyé avec une hypothèse / des modifications (« reprends le dossier, mais si je change de fournisseur… », « refais-le avec des prix plus bas ») : la matière du dernier dossier est reprise automatiquement ; mets la demande dans changes et les calculs (business_simulator) dans material" },
+        changes: { type: 'string', description: 'revise_last : ce qui change, avec les mots de Kouider' },
       },
-      required: ['title', 'material'],
+      required: [],
     },
   },
   {

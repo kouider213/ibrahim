@@ -26,7 +26,7 @@ const ALWAYS_TOOLS = ['search_conversations', 'create_intention', 'list_intentio
   // Mails partout : « envoie-moi le reçu Anthropic » part en Finance (« reçu ») sans le mot « mail » → sinon il passait par le navigateur
   'list_emails', 'read_email', 'read_email_thread', 'read_email_attachment', 'manage_emails', 'draft_email', 'send_email', 'connect_gmail',
   // « fais un document sur toi » part souvent vers l'Agent Clients (mot « document ») : docs + vraie liste partout
-  'list_my_capabilities', 'business_mentor', 'kouider_dossier', 'life_coach', 'whatsapp_web', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'send_doc_pdf', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site',
+  'list_my_capabilities', 'business_mentor', 'kouider_dossier', 'life_coach', 'whatsapp_web', 'run_self_test', 'get_upcoming_seasons', 'cloud_pc', 'watch_page', 'web_routine', 'create_google_doc', 'send_doc_pdf', 'business_simulator', 'create_google_sheet', 'create_presentation_doc', 'create_demo_site', 'get_demo_site', 'carte_live_demo_link', 'create_client_site', 'manage_client_site',
   // « à quelle heure j'arrive à la salle avec la voiture ? » part vers l'Agent Réservations (mot « voiture ») : position live + trafic partout
   'get_my_location', 'get_travel_time', 'morning_routine', 'sport_coach', 'travel', 'list_agenda_events', 'update_agenda_event'];
 export const withAlways = (names: string[]) => Dzaryx_TOOLS.filter(t => names.includes(t.name) || ALWAYS_TOOLS.includes(t.name));

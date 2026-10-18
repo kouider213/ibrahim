@@ -5,6 +5,10 @@
 
 ---
 
+## 2026-10-18 — Simulateur business + dossier « refais avec cette hypothèse »
+- `business-simulator.ts` (outil `business_simulator`) : baseline (chiffres réels 2026), scenario (nouveau fournisseur −X %, prix client ±%, prix par voiture, voitures en plus, demande, autres activités, charges), target_income (« 2 000 € net/mois » : leviers, tableau marge × volume, plan réaliste voiture par voiture), price_car, price_grid, apply_prices (aperçu puis confirm=true). Tout est calculé, ancré sur la marge RÉELLE (prix négociés), jamais estimé par l'IA.
+- `pro-doc.ts` : le dernier dossier (titre, but, matière, lien) est gardé (`dossier:last`) ; `create_presentation_doc revise_last=true + changes` le refait avec l'hypothèse.
+
 ## 2026-10-18 — Documents en PDF sur Telegram
 - `google-docs.ts` : `exportGooglePdf` (lien d'export, marche avec drive.file), `sendGooglePdfToTelegram`, outil `send_doc_pdf` (« envoie-le-moi en PDF ») ; `create_google_doc` accepte `send_pdf`.
 - `pro-doc.ts` startDossierJob : chaque dossier prêt part en fichier PDF sur Telegram (légende = lien Google Docs) ; si l'export rate → lien seul comme avant.
