@@ -16,7 +16,7 @@ export interface Prospect {
   // Suivi Gmail (démarchage auto) : conversation, dernier mail reçu, réponse proposée par Dzaryx
   gmail_thread_id: string | null; last_subject: string | null; reply_message_id: string | null;
   reply_seen_id: string | null; last_reply_text: string | null; suggested_reply: string | null;
-  // Grands comptes : décideurs trouvés sur LinkedIn + message préparé (Kouider l'envoie lui-même)
+  // Grands comptes : décideurs trouvés sur LinkedIn + leur email pro + mail préparé (Kouider l'envoie lui-même)
   website: string | null; linkedin_contacts: LinkedinContact[];
   // Langue du mail envoyé (fr, en, ar…) + son texte, pour que Kouider le relise dans la page
   lang: string | null; last_sent_text: string | null;
@@ -30,7 +30,9 @@ export interface Prospect {
 
 export interface QuoteDraftLine { label: string; currency: string }
 
-export interface LinkedinContact { name: string; title: string; url: string; message: string; sent_at: string | null }
+// email : adresse pro trouvée telle quelle sur le web (jamais devinée). Sans email, le décideur n'est plus proposé
+// (envoyer un message LinkedIn à quelqu'un qu'on ne connaît pas est payant). subject : objet du mail préparé.
+export interface LinkedinContact { name: string; title: string; url: string; message: string; sent_at: string | null; email?: string | null; subject?: string | null }
 
 const CREATE_SQL = `
 CREATE TABLE IF NOT EXISTS prospects (

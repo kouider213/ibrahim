@@ -26,7 +26,7 @@ const STATUS: Record<string, { label: string; color: string }> = {
 type Filter = 'all' | 'sites' | 'clients' | 'partners' | 'replies' | 'visits' | 'linkedin' | 'whatsapp' | 'grand_compte' | 'contacte' | 'a_contacter' | 'closed';
 const FILTERS: Array<{ id: Filter; label: string }> = [
   { id: 'all', label: 'Tout' }, { id: 'sites', label: '🌐 Sites web' }, { id: 'clients', label: '🎯 Clients' }, { id: 'partners', label: '🤝 Partenaires' }, { id: 'replies', label: '📩 Réponses' },
-  { id: 'visits', label: '👀 Visites' }, { id: 'linkedin', label: '🔗 LinkedIn' }, { id: 'whatsapp', label: '💬 WhatsApp' },
+  { id: 'visits', label: '👀 Visites' }, { id: 'linkedin', label: '👔 Décideurs' }, { id: 'whatsapp', label: '💬 WhatsApp' },
   { id: 'grand_compte', label: '🏭 Grands comptes' }, { id: 'contacte', label: 'Contactés' },
   { id: 'a_contacter', label: 'À contacter' }, { id: 'closed', label: 'Refus / STOP' },
 ];
@@ -72,7 +72,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
 
   const rows = data?.prospects ?? [];
   const replies = rows.filter(r => r.suggested_reply);
-  const liTodo = rows.filter(r => r.linkedin_contacts.some(c => !c.sent_at));
+  const liTodo = rows.filter(r => r.linkedin_contacts.some(c => c.email && !c.sent_at));
   const waTodo = rows.filter(r => r.whatsapp_message && r.whatsapp_number && !r.whatsapp_sent_at && !['refus', 'stop', 'client'].includes(r.status));
   const visits = rows.filter(r => r.site_visit_at).sort((a, b) => (b.site_visit_at ?? '').localeCompare(a.site_visit_at ?? ''));
   const ql = q.trim().toLowerCase();
@@ -99,7 +99,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 40px' }}>
       <div style={{ margin: '-20px -16px 0' }}>
-        <Hero eyebrow="Dzaryx · Prospection" title="Démarchage" subtitle="Sociétés trouvées, mails envoyés, réponses et LinkedIn" />
+        <Hero eyebrow="Dzaryx · Prospection" title="Démarchage" subtitle="Sociétés trouvées, mails envoyés, réponses et décideurs" />
       </div>
 
       {loading ? <SkeletonCards count={5} /> : !data ? (
@@ -110,7 +110,7 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
           <StatCard icon="📤" value={String(st?.sent ?? 0)} label="MAILS ENVOYÉS" />
           <StatCard icon="📅" value={String(st?.sent_today ?? 0)} label="AUJOURD'HUI" color="#60a5fa" />
           <StatCard icon="📩" value={String(st?.replies ?? 0)} label="RÉPONSES" color={C.gold} />
-          <StatCard icon="🔗" value={String(st?.linkedin_todo ?? 0)} label="LINKEDIN" color={C.blue} />
+          <StatCard icon="🔗" value={String(st?.linkedin_todo ?? 0)} label="DÉCIDEURS" color={C.blue} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7, marginTop: -7, marginBottom: 14 }}>
           <StatCard icon="👀" value={String(st?.visits ?? 0)} label="ONT VISITÉ LE SITE" color={C.accent} />
@@ -199,19 +199,23 @@ export default function DemarchageScreen({ onOpen }: { onOpen?: (page: string) =
           </Section>
         )}
 
-        {/* LinkedIn à envoyer */}
+        {/* Décideurs (trouvés sur LinkedIn) avec leur email pro : écrire sur LinkedIn est payant → on passe par le mail */}
         {liTodo.length > 0 && (
-          <Section title={`🔗 Messages LinkedIn à envoyer (${st?.linkedin_todo ?? 0})`}
-            hint="Dzaryx prépare, toi tu envoies : copie le message, ouvre le profil, « Se connecter » → « Ajouter une note ».">
-            {liTodo.map(r => r.linkedin_contacts.map((c, i) => c.sent_at ? null : (
+          <Section title={`👔 Décideurs à contacter par mail (${st?.linkedin_todo ?? 0})`}
+            hint="Dzaryx a trouvé leur email pro sur le web et préparé le mail. « Envoyer le mail » l'ouvre tout prêt dans ta messagerie, puis « ✓ Envoyé ». Sans email trouvé, Dzaryx ne te propose pas la personne.">
+            {liTodo.map(r => r.linkedin_contacts.map((c, i) => c.sent_at || !c.email ? null : (
               <div key={`${r.id}-${i}`} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 13, padding: 12, marginBottom: 8 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{c.name} <span style={{ color: C.muted, fontWeight: 500 }}>· {r.company}</span></div>
-                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 7 }}>{c.title}</div>
-                <div style={{ fontSize: 12.5, lineHeight: 1.45, background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 9, marginBottom: 9 }}>{c.message}</div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 4 }}>{c.title}</div>
+                <div style={{ fontSize: 12.5, marginBottom: 7 }}>✉️ <a href={`mailto:${c.email}`} style={{ color: '#7fb5ff', wordBreak: 'break-all' }}>{c.email}</a></div>
+                {c.subject && <div style={{ fontSize: 12, color: C.gold, marginBottom: 4 }}>Objet : {c.subject}</div>}
+                <div style={{ fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 9, marginBottom: 9 }}>{c.message}</div>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                  <button onClick={() => { void navigator.clipboard?.writeText(c.message).then(() => say('Message copié'), () => say('Copie impossible')); }} style={btn('rgba(255,255,255,0.08)', C.text)}>📋 Copier</button>
-                  <button onClick={() => window.open(c.url, '_blank')} style={btn('rgba(10,102,194,0.25)', '#7fb5ff')}>Ouvrir le profil</button>
-                  <button onClick={() => act(() => business.prospectLinkedinSent(r.id, i, true), `Noté : message envoyé à ${c.name}`)} style={btn('rgba(56,216,245,0.18)', C.accent)}>✓ Envoyé</button>
+                  <button onClick={() => window.open(`mailto:${c.email}?subject=${encodeURIComponent(c.subject ?? '')}&body=${encodeURIComponent(c.message)}`, '_self')} style={btn('rgba(56,216,245,0.18)', C.accent)}>✉️ Envoyer le mail</button>
+                  <button onClick={() => { void navigator.clipboard?.writeText(c.email!).then(() => say('Email copié'), () => say('Copie impossible')); }} style={btn('rgba(255,255,255,0.08)', C.text)}>📋 Email</button>
+                  <button onClick={() => { void navigator.clipboard?.writeText(c.message).then(() => say('Texte copié'), () => say('Copie impossible')); }} style={btn('rgba(255,255,255,0.08)', C.text)}>📋 Texte</button>
+                  {c.url && <button onClick={() => window.open(c.url, '_blank')} style={btn('rgba(10,102,194,0.25)', '#7fb5ff')}>Profil</button>}
+                  <button onClick={() => act(() => business.prospectLinkedinSent(r.id, c.idx ?? i, true), `Noté : mail envoyé à ${c.name}`)} style={btn('rgba(56,216,245,0.18)', C.accent)}>✓ Envoyé</button>
                 </div>
               </div>
             )))}
@@ -306,7 +310,7 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
           <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.company}</div>
           <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {SEGMENT[p.segment] ?? p.segment}{p.lang && p.lang !== 'fr' ? ` · ${(LANG[p.lang] ?? p.lang).toLowerCase()}` : ''} · {p.last_contacted_at ? `contacté le ${fmtDate(p.last_contacted_at)}` : `trouvé le ${fmtDate(p.created_at)}`}
-            {p.linkedin_contacts.length ? ` · 🔗 ${p.linkedin_contacts.length}` : ''}
+            {p.linkedin_contacts.length ? ` · 👔 ${p.linkedin_contacts.length}` : ''}
             {p.site_visit_at ? ` · 👀 ${p.site_visits || 1}` : ''}{p.followup_at ? ' · 🔁' : ''}
           </div>
         </div>
@@ -326,7 +330,7 @@ function ProspectCard({ p, open, onToggle, onStatus }: { p: ProspectRow; open: b
             <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 260, overflowY: 'auto' }}>{p.last_sent_text}</div></details>}
           {p.source && <div style={{ color: C.muted, wordBreak: 'break-all' }}>Source : {/^https?:/.test(p.source) ? <a href={p.source} target="_blank" rel="noreferrer" style={{ color: C.muted }}>{p.source}</a> : p.source}</div>}
           {p.linkedin_contacts.map((c, i) => (
-            <div key={i} style={{ marginTop: 4 }}>🔗 <a href={c.url} target="_blank" rel="noreferrer" style={{ color: '#7fb5ff' }}>{c.name}</a> — {c.title} {c.sent_at ? <span style={{ color: C.accent }}>· envoyé</span> : ''}</div>
+            <div key={i} style={{ marginTop: 4 }}>👔 <a href={c.url} target="_blank" rel="noreferrer" style={{ color: '#7fb5ff' }}>{c.name}</a> — {c.title}{c.email ? <> · <a href={`mailto:${c.email}`} style={{ color: '#7fb5ff' }}>{c.email}</a></> : ''} {c.sent_at ? <span style={{ color: C.accent }}>· envoyé</span> : ''}</div>
           ))}
           {p.last_reply_text && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', background: 'rgba(255,255,255,0.04)', borderRadius: 9, padding: 8, maxHeight: 160, overflowY: 'auto' }}>{p.last_reply_text}</div>}
           {p.notes && <div style={{ marginTop: 6, color: C.muted, whiteSpace: 'pre-wrap' }}>{p.notes}</div>}

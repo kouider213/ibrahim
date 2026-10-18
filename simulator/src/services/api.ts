@@ -916,7 +916,7 @@ export interface ProspectRow {
   segment: string; city: string; source: string | null; status: string; notes: string | null; website: string | null;
   created_at: string; last_contacted_at: string | null; last_subject: string | null;
   last_reply_text: string | null; suggested_reply: string | null;
-  linkedin_contacts: Array<{ name: string; title: string; url: string; message: string; sent_at: string | null }>;
+  linkedin_contacts: Array<{ name: string; title: string; url: string; message: string; sent_at: string | null; email?: string | null; subject?: string | null; idx?: number }>;
   lang: string | null; last_sent_text: string | null;
   followup_at: string | null; site_visit_at: string | null; site_visits: number;
   whatsapp_message: string | null; whatsapp_sent_at: string | null; whatsapp_number: string | null;

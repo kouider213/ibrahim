@@ -194,9 +194,9 @@ async function discoverProspects(wanted: number): Promise<number> {
 }
 
 // ── 1 bis. Grands comptes (multinationales, grands groupes) ──
-// Un par jour : email public de leur bureau en Algérie + décideurs trouvés sur LinkedIn avec un message prêt.
-// Dzaryx n'envoie RIEN sur LinkedIn (interdit par LinkedIn, risque de bannir le compte) : Kouider envoie
-// lui-même depuis la page Démarchage (bouton « Copier » + « Ouvrir le profil »).
+// Un par jour : email public de leur bureau en Algérie + décideurs trouvés sur LinkedIn, avec LEUR email pro et un
+// mail prêt. Écrire sur LinkedIn à un inconnu est payant (InMail) → un décideur sans email trouvé n'est pas proposé,
+// et une société sans aucun email n'est pas démarchée. Kouider envoie le mail lui-même depuis la page Démarchage.
 const KEY_ACCOUNTS = [
   'TotalEnergies', 'Sonatrach', 'ENI', 'Moeve (Cepsa)', 'Equinor', 'Repsol', 'BP', 'Occidental Petroleum',
   'SLB (Schlumberger)', 'Halliburton', 'Baker Hughes', 'Saipem', 'Technip Energies', 'JGC', 'Petrofac',
@@ -223,6 +223,73 @@ async function searchLinkedin(query: string): Promise<string> {
   }
 }
 
+const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const EMAIL_DIRECTORIES = /rocketreach|zoominfo|lusha|apollo|signalhire|contactout|example|noreply|no-reply/i;
+
+/**
+ * Email pro d'un décideur, uniquement s'il est écrit tel quel dans les résultats de recherche (jamais deviné) :
+ * la partie avant @ doit contenir son nom ou prénom, le domaine doit être celui de la société. '' sinon.
+ */
+export async function findPersonEmail(name: string, company: string, website?: string | null): Promise<string> {
+  const nameParts = norm(name).split(/[^a-z]+/).filter(w => w.length >= 3);
+  const companyParts = [...norm(company).split(/[^a-z]+/), ...(website ? [norm(website).replace(/^https?:\/\/(www\.)?/, '').split(/[./]/)[0]!] : [])]
+    .filter(w => w.length >= 3 && !['groupe', 'group', 'algerie', 'algeria', 'spa', 'sarl', 'energies'].includes(w));
+  if (!nameParts.length) return '';
+  const plain = company.replace(/\(.*?\)/g, '').trim();
+  for (const query of [`"${name}" ${plain} email`, `"${name}" ${plain} "@"`]) {
+    const { text } = await multiProviderWebSearch(query, 'prospect-auto');
+    for (const raw of text.match(EMAIL_RE) ?? []) {
+      const email = raw.toLowerCase().replace(/\.$/, '');
+      const [local = '', domain = ''] = email.split('@');
+      if (EMAIL_DIRECTORIES.test(email)) continue;
+      if (!nameParts.some(w => local.includes(w))) continue;
+      if (!companyParts.some(w => domain.includes(w))) continue;
+      return email;
+    }
+  }
+  return '';
+}
+
+/** Mail court et personnel pour un décideur (objet + texte), dans sa langue. */
+async function writeContactEmail(person: { name: string; title: string }, company: string, site: string): Promise<{ subject: string; body: string }> {
+  const draft = parseJson<{ subject: string; body: string }>(await ask(
+    'Tu écris un premier mail de prospection pour Kouider, fondateur de FIK Conciergerie (Oran), à un décideur précis. Dans la langue ' +
+    'du destinataire (d\'après son nom, son titre et son entreprise : titre en anglais → anglais ; sinon français), vouvoiement, ' +
+    '6 lignes maximum, ton humain et direct, pas de prix. Un bénéfice concret pour SON rôle (hébergement + véhicules clé en main ' +
+    'pour les équipes en mission à Oran), proposer un court appel. Signer « Kouider — FIK Conciergerie, Oran · fikconciergerie.com ». ' +
+    'Réponds UNIQUEMENT en JSON : {"subject":"…","body":"…"}',
+    `Notre site :\n${site.slice(0, 1500)}\n\nDestinataire : ${person.name}, ${person.title} chez ${company}.`,
+    700,
+  ));
+  return { subject: (draft?.subject ?? '').trim() || `FIK Conciergerie — vos équipes en mission à Oran`, body: (draft?.body ?? '').trim() };
+}
+
+/**
+ * Anciens décideurs (avant les emails) : cherche une fois leur email pro et prépare le mail.
+ * email null = cherché sans succès → plus proposé. Retourne les décideurs trouvés.
+ */
+export async function enrichContactEmails(limit = 6): Promise<string[]> {
+  const { data } = await supabase.from('prospects').select('id, company, website, status, linkedin_contacts')
+    .eq('segment', 'grand_compte').not('status', 'in', '(refus,stop,client)');
+  const found: string[] = [];
+  let budget = limit;
+  for (const p of (data ?? []) as Array<Pick<Prospect, 'id' | 'company' | 'website' | 'status' | 'linkedin_contacts'>>) {
+    const contacts = p.linkedin_contacts ?? [];
+    if (!contacts.some(c => c.email === undefined && !c.sent_at) || budget <= 0) continue;
+    const site = await getSiteInfo();
+    for (const c of contacts) {
+      if (c.email !== undefined || c.sent_at || budget-- <= 0) continue;
+      c.email = (await findPersonEmail(c.name, p.company, p.website)) || null;
+      if (!c.email) continue;
+      const draft = await writeContactEmail(c, p.company, site);
+      if (draft.body) { c.subject = draft.subject; c.message = draft.body; }
+      found.push(`${c.name} (${p.company}) <${c.email}>`);
+    }
+    await updateProspect(p.id, { linkedin_contacts: contacts });
+  }
+  return found;
+}
+
 async function nextKeyAccount(): Promise<string | null> {
   const { data } = await supabase.from('prospects').select('company').eq('segment', 'grand_compte').limit(500);
   const done = new Set((data ?? []).map((r: { company: string }) => companyKey(r.company)));
@@ -231,8 +298,11 @@ async function nextKeyAccount(): Promise<string | null> {
 
 /** Traite le prochain grand compte. Retourne une ligne de récap (ou null s'il n'y a plus rien à traiter). */
 export async function discoverKeyAccount(): Promise<string | null> {
+  // D'abord les anciens décideurs sans email cherché (une fois chacun)
+  const enriched = await enrichContactEmails().catch(err => { console.error('[prospect-auto] emails décideurs:', err); return [] as string[]; });
+  const enrichedLine = enriched.length ? `👔 Email trouvé pour ${enriched.join(', ')} : mail prêt (page Démarchage)` : null;
   const company = await nextKeyAccount();
-  if (!company) return null;
+  if (!company) return enrichedLine;
   const site = await getSiteInfo();
 
   // a) Email public de leur entité en Algérie (Oran/Arzew en priorité)
@@ -261,30 +331,33 @@ export async function discoverKeyAccount(): Promise<string | null> {
     800,
   )) ?? []).filter(p => p.name && /linkedin\.com\/in\//.test(p.url ?? '') && liRes.text.includes(p.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 30))).slice(0, 3);
 
+  // c) Leur email pro (trouvé sur le web, jamais deviné) → sans email, le décideur n'est pas gardé
   const contacts: LinkedinContact[] = [];
   for (const person of people) {
-    const message = (await ask(
-      'Tu écris une note de demande de connexion LinkedIn pour Kouider, fondateur de FIK Conciergerie (Oran). Dans la langue ' +
-      'du destinataire (d\'après son nom, son titre et son entreprise : titre en anglais → anglais ; sinon français), ' +
-      'vouvoiement, 280 caractères MAXIMUM, ton humain et direct, pas de prix, pas de lien. Un bénéfice concret pour son rôle ' +
-      '(hébergement + véhicules clé en main pour les équipes en mission à Oran). Réponds uniquement par le texte de la note.',
-      `Notre site :\n${site.slice(0, 1500)}\n\nDestinataire : ${person.name}, ${person.title} chez ${company}.`,
-      300,
-    )).trim().replace(/^"|"$/g, '').slice(0, 300);
-    contacts.push({ name: person.name.trim(), title: (person.title ?? '').trim(), url: person.url.trim(), message, sent_at: null });
+    const personEmail = await findPersonEmail(person.name, company, info.website);
+    if (!personEmail) { console.log(`[prospect-auto] ${person.name} (${company}) : pas d'email trouvé → ignoré`); continue; }
+    const { subject, body } = await writeContactEmail(person, company, site);
+    if (!body) continue;
+    contacts.push({ name: person.name.trim(), title: (person.title ?? '').trim(), url: person.url.trim(), email: personEmail, subject, message: body, sent_at: null });
   }
 
-  // Toujours enregistré (même sans email ni contact) → ce grand compte ne sera pas retraité demain
+  // Toujours enregistré → ce grand compte ne sera pas retraité demain. Sans aucun email (ni société ni décideur) :
+  // gardé en « stop » avec une note, il n'est proposé nulle part.
+  const noEmail = !emailOk && !contacts.length;
   await addProspect({
     company, segment: 'grand_compte', city: 'Oran',
     email: emailOk ? email : undefined, website: info.website || undefined,
     source: emailOk ? (info.source || 'recherche web') : 'recherche grands comptes (pas d\'email public trouvé)',
-    notes: info.notes || undefined, linkedin_contacts: contacts,
+    notes: noEmail ? `Aucun email trouvé (ni société ni décideur) → pas démarché.${info.notes ? ` ${info.notes}` : ''}` : info.notes || undefined,
+    linkedin_contacts: contacts,
   }).catch(err => console.error('[prospect-auto] grand compte:', err instanceof Error ? err.message : err));
+  if (noEmail) await supabase.from('prospects').update({ status: 'stop' }).eq('segment', 'grand_compte').eq('company', company);
 
-  console.log(`[prospect-auto] grand compte ${company} : email=${emailOk ? email : '—'} linkedin=${contacts.length}`);
-  return `🏭 ${company} : ${emailOk ? `email trouvé (${email}), mail prévu` : 'pas d\'email public'}` +
-    `${contacts.length ? `, ${contacts.length} décideur(s) LinkedIn avec message prêt` : ''}`;
+  console.log(`[prospect-auto] grand compte ${company} : email=${emailOk ? email : '—'} décideurs avec email=${contacts.length}`);
+  const head = enrichedLine ? `${enrichedLine}\n` : '';
+  if (noEmail) return `${head}🏭 ${company} : aucun email trouvé → pas démarché`;
+  return `${head}🏭 ${company} : ${emailOk ? `email trouvé (${email}), mail prévu` : 'pas d\'email public'}` +
+    `${contacts.length ? `, ${contacts.length} décideur(s) avec leur email et un mail prêt : ${contacts.map(c => `${c.name} <${c.email}>`).join(', ')}` : ''}`;
 }
 
 // ── 2. Écrire et envoyer le mail de démarchage ──
@@ -624,7 +697,7 @@ export async function checkProspectVisits(): Promise<number> {
     emitProactive(`👀 ${p.company} vient de visiter ton site${total > 1 ? ` (${total}e visite)` : ''}.`, 'alert',
       `👀 ${p.company} a ouvert le lien de ton mail et visité le site à ${hour}${isClient ? ' (page Entreprises)' : ''}.` +
       `${total > 1 ? ` C'est sa ${total}e visite.` : ''}\nC'est le bon moment pour les contacter${p.phone ? ` : ${p.phone}` : ''}` +
-      `${p.linkedin_contacts?.length ? ` ou sur LinkedIn (${p.linkedin_contacts[0]!.name})` : ''}.`,
+      `${p.linkedin_contacts?.find(c => c.email) ? ` ou par mail à ${p.linkedin_contacts.find(c => c.email)!.name} (${p.linkedin_contacts.find(c => c.email)!.email})` : ''}.`,
       'kouider', 'demarchage');
     n++;
   }
@@ -759,7 +832,7 @@ export async function buildYesterdayRecap(): Promise<{ lines: string[]; short: s
   const sent = (sentY.data ?? []) as Array<{ company: string }>;
   const waiting = (pending.data ?? []) as Array<{ company: string }>;
   const rows = (all.data ?? []) as Array<{ status: string; linkedin_contacts: LinkedinContact[] | null }>;
-  const liTodo = rows.reduce((n, r) => n + (r.linkedin_contacts ?? []).filter(c => !c.sent_at).length, 0);
+  const liTodo = rows.reduce((n, r) => n + (r.linkedin_contacts ?? []).filter(c => c.email && !c.sent_at).length, 0);
   const contacted = rows.filter(r => r.status !== 'a_contacter').length;
   const interested = rows.filter(r => r.status === 'interesse' || r.status === 'client').length;
   const notifCount = (notifs.data ?? []).length;
@@ -771,7 +844,7 @@ export async function buildYesterdayRecap(): Promise<{ lines: string[]; short: s
   if ((repliedY.data ?? []).length) lines.push(`  • 📩 ${(repliedY.data ?? []).length} réponse(s) reçue(s)`);
   if (visited.length) lines.push(`  • 👀 ${visited.length} société(s) ont visité le site via ton mail : ${visited.map(s => s.company).slice(0, 5).join(', ')}`);
   if (waiting.length) lines.push(`  • ✍️ ${waiting.length} réponse(s) prête(s), en attente de ton accord : ${waiting.map(w => w.company).slice(0, 4).join(', ')}`);
-  if (liTodo) lines.push(`  • 🔗 ${liTodo} message(s) LinkedIn prêt(s) à envoyer (page Démarchage)`);
+  if (liTodo) lines.push(`  • 👔 ${liTodo} mail(s) à des décideurs prêt(s) à envoyer (page Démarchage)`);
   if (notifCount) lines.push(`  • 🔔 ${notifCount} notification(s) envoyée(s)${reminders ? `, dont ${reminders} rappel(s)` : ''}`);
   lines.push(`  • 📊 Démarchage au total : ${contacted} société(s) contactée(s), ${interested} intéressée(s)`);
 

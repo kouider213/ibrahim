@@ -18,7 +18,9 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
       supabase.from('prospects').select('*').order('created_at', { ascending: false }).limit(500),
     ]);
     if (error) throw new Error(error.message);
-    const rows = (data ?? []) as Prospect[];
+    // Grand compte sans aucun email (ni société ni décideur) → pas démarché, pas affiché
+    const rows = ((data ?? []) as Prospect[]).filter(r => r.segment !== 'grand_compte' || r.email || r.phone
+      || (r.linkedin_contacts ?? []).some(c => c.email || c.sent_at));
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date());
     const byStatus = Object.fromEntries(PROSPECT_STATUSES.map(s => [s, rows.filter(r => r.status === s).length]));
     res.json({
@@ -30,7 +32,7 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
         sent_today: rows.filter(r => r.gmail_thread_id && r.last_contacted_at
           && new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers' }).format(new Date(r.last_contacted_at)) === day).length,
         replies:    rows.filter(r => ['a_repondu', 'interesse', 'client', 'refus'].includes(r.status)).length,
-        linkedin_todo: rows.reduce((n, r) => n + (r.linkedin_contacts ?? []).filter(c => !c.sent_at).length, 0),
+        linkedin_todo: rows.reduce((n, r) => n + (r.linkedin_contacts ?? []).filter(c => c.email && !c.sent_at).length, 0),
         whatsapp_todo: rows.filter(r => r.whatsapp_message && !r.whatsapp_sent_at && !['refus', 'stop', 'client'].includes(r.status)).length,
         followups:  rows.filter(r => r.followup_at).length,
         visits:     rows.filter(r => r.site_visit_at).length,
@@ -42,7 +44,8 @@ router.get('/overview', requireMobileAuth, async (_req, res) => {
         segment: r.segment, city: r.city, source: r.source, status: r.status, notes: r.notes,
         website: r.website ?? null, created_at: r.created_at, last_contacted_at: r.last_contacted_at,
         last_subject: r.last_subject, last_reply_text: r.last_reply_text, suggested_reply: r.suggested_reply,
-        linkedin_contacts: r.linkedin_contacts ?? [], lang: r.lang ?? null, last_sent_text: r.last_sent_text ?? null,
+        // Décideurs sans email jamais proposés (LinkedIn payant) ; idx = position en base pour « ✓ Envoyé »
+        linkedin_contacts: (r.linkedin_contacts ?? []).map((c, idx) => ({ ...c, idx })).filter(c => c.email || c.sent_at), lang: r.lang ?? null, last_sent_text: r.last_sent_text ?? null,
         followup_at: r.followup_at ?? null, site_visit_at: r.site_visit_at ?? null, site_visits: r.site_visits ?? 0,
         whatsapp_message: r.whatsapp_message ?? null, whatsapp_sent_at: r.whatsapp_sent_at ?? null, whatsapp_number: prospectWaNumber(r.phone) ?? algerianMobile(r.phone),
         quote_draft: r.quote_draft ?? null, proposed_slots: r.proposed_slots ?? null,
@@ -110,7 +113,7 @@ router.post('/:id/status', requireMobileAuth, async (req, res) => {
   catch (err) { res.status(500).json({ error: err instanceof Error ? err.message : String(err) }); }
 });
 
-// POST /api/prospects/:id/linkedin/:idx { sent } — Kouider a envoyé (ou pas) le message LinkedIn
+// POST /api/prospects/:id/linkedin/:idx { sent } — Kouider a envoyé (ou pas) le mail au décideur
 router.post('/:id/linkedin/:idx', requireMobileAuth, async (req, res) => {
   const idx = Number(req.params['idx']);
   const sent = (req.body as { sent?: boolean }).sent !== false;
@@ -122,7 +125,7 @@ router.post('/:id/linkedin/:idx', requireMobileAuth, async (req, res) => {
     contacts[idx] = { ...contacts[idx]!, sent_at: sent ? new Date().toISOString() : null };
     await updateProspect(String(req.params['id']), {
       linkedin_contacts: contacts,
-      // Sans email, LinkedIn est le seul canal → contacté. Avec email, on laisse partir le mail prévu.
+      // Sans email société, le mail au décideur est le seul contact → contacté. Sinon on laisse partir le mail prévu.
       ...(sent && row?.status === 'a_contacter' && !row.email ? { status: 'contacte' as const } : {}),
     });
     res.json({ ok: true, contacts });
