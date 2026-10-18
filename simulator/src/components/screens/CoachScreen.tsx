@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { business, type CoachOverview, type MealSlot } from '../../services/api.ts';
+import { business, type CoachOverview } from '../../services/api.ts';
 import { SkeletonCards } from '../ui/Premium.tsx';
 import SportScreen from './SportScreen.tsx';
 
 // « COACH » : tous les coachs de Dzaryx au même endroit — 🏋️ sport (séances de l'agenda, mode séance),
-// 🍽️ nutrition (les 4 repas du jour, eau, coucher — aussi dans l'agenda), 🧠 mental (objectif du jour, humeur,
-// respiration guidée, gratitude) et 🎮 progrès (points, niveaux, badges, quêtes, courbes des charges et du poids).
+// 🧠 mental (objectif du jour, humeur, respiration guidée, gratitude, coucher — aussi dans l'agenda) et 🎮 progrès (points, niveaux, badges, quêtes, courbes des charges et du poids).
 // Chaque action cochée rapporte des points : le jeu est recalculé par le serveur depuis l'historique.
 
 const C = {
@@ -21,14 +20,15 @@ const last = <T,>(a: T[]): T | undefined => a[a.length - 1];
 const dm = (d: string) => `${d.slice(8)}/${d.slice(5, 7)}`;
 function speak(text: string) { try { const u = new SpeechSynthesisUtterance(text); u.lang = 'fr-FR'; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch { /* */ } }
 
-type Tab = 'sport' | 'food' | 'mind' | 'game';
+// Pas d'onglet nutrition : Kouider n'en veut pas (2026-10-18).
+type Tab = 'sport' | 'mind' | 'game';
 const TABS: Array<{ id: Tab; label: string; color: string }> = [
-  { id: 'sport', label: '🏋️ Sport', color: C.accent }, { id: 'food', label: '🍽️ Nutrition', color: C.green },
+  { id: 'sport', label: '🏋️ Sport', color: C.accent },
   { id: 'mind', label: '🧠 Mental', color: C.violet }, { id: 'game', label: '🎮 Progrès', color: C.gold },
 ];
 
 export default function CoachScreen() {
-  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('dz:coach:tab') as Tab) || 'sport'; } catch { return 'sport'; } });
+  const [tab, setTab] = useState<Tab>(() => { try { const t = localStorage.getItem('dz:coach:tab') as Tab; return TABS.some(x => x.id === t) ? t : 'sport'; } catch { return 'sport'; } });
   const [data, setData] = useState<CoachOverview | null>(null);
   const [err, setErr] = useState('');
   const [live, setLive] = useState(false);
@@ -70,7 +70,7 @@ export default function CoachScreen() {
               <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{g ? `Aujourd'hui +${g.today} pts · ${g.next - g.total} pts avant le niveau ${g.level + 1}${g.streakDays > 1 ? ` · 🔥 ${g.streakDays} jours actifs` : ''}` : ''}</div>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 5, marginTop: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${TABS.length}, 1fr)`, gap: 5, marginTop: 12 }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{ ...ghost, padding: '9px 2px', fontSize: 11.5, background: tab === t.id ? t.color : 'rgba(255,255,255,0.05)', color: tab === t.id ? '#050a16' : C.text, border: `1px solid ${tab === t.id ? t.color : C.border}` }}>{t.label}</button>
             ))}
@@ -81,7 +81,6 @@ export default function CoachScreen() {
         {tab === 'sport' && <SportScreen embedded onLive={setLive} />}
         {tab !== 'sport' && err && <div style={{ ...card, margin: 14, color: '#f87171' }}>❌ {err}</div>}
         {tab !== 'sport' && !data && !err && <div style={{ padding: 14 }}><SkeletonCards count={4} height={80} /></div>}
-        {tab === 'food' && data && <FoodTab d={data} run={run} />}
         {tab === 'mind' && data && <MindTab d={data} run={run} />}
         {tab === 'game' && data && <GameTab d={data} run={run} />}
       </div>
@@ -94,68 +93,6 @@ export default function CoachScreen() {
 
 type Run = (p: Promise<CoachOverview>) => Promise<CoachOverview | null>;
 
-// ── 🍽️ NUTRITION ─────────────────────────────────────────────────────────────
-
-function FoodTab({ d, run }: { d: CoachOverview; run: Run }) {
-  const [busy, setBusy] = useState(false);
-  const gen = async (day: 'today' | 'tomorrow') => { setBusy(true); await run(business.coachGenerate(day)); setBusy(false); };
-  const day = d.day;
-  const waterTarget = 8;
-  return (
-    <div style={{ padding: '4px 14px 30px' }}>
-      {h('TES REPAS DU JOUR · AUSSI DANS TON AGENDA', C.green)}
-      {!day ? (
-        <div style={card}>
-          <div style={{ fontSize: 13, marginBottom: 10 }}>Ton plan repas d'aujourd'hui n'est pas encore prêt.</div>
-          <button style={{ ...btn(C.green), width: '100%' }} disabled={busy} onClick={() => void gen('today')}>{busy ? '⏳ Dzaryx prépare ta journée…' : '✨ Préparer ma journée (repas + agenda)'}</button>
-        </div>
-      ) : (<>
-        {day.meals.map(m => {
-          const done = d.checks.meals.includes(m.slot);
-          return (
-            <div key={m.slot} style={{ ...card, display: 'flex', gap: 12, alignItems: 'flex-start', opacity: done ? 0.7 : 1, borderColor: done ? `${C.green}88` : C.border }}>
-              <div style={{ textAlign: 'center', width: 46, flexShrink: 0 }}>
-                <div style={{ fontSize: 24 }}>{d.mealLabels[m.slot as MealSlot].split(' ')[0]}</div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: C.green }}>{m.time.replace(':', 'h')}</div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700 }}>{d.mealLabels[m.slot as MealSlot].split(' ').slice(1).join(' ').toUpperCase()}</div>
-                <div style={{ fontSize: 14.5, fontWeight: 800, margin: '2px 0 4px' }}>{m.title}</div>
-                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.45 }}>{m.detail}</div>
-              </div>
-              <button onClick={() => void run(business.coachCheck('meal', m.slot))} style={{ width: 52, height: 52, borderRadius: 14, border: 'none', cursor: 'pointer', flexShrink: 0,
-                background: done ? C.green : 'rgba(255,255,255,0.08)', color: done ? '#050a16' : C.text, fontWeight: 900, fontSize: done ? 20 : 11, whiteSpace: 'pre-line' }}>{done ? '✓' : '+10\npts'}</button>
-            </div>
-          );
-        })}
-        <div style={card}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>💧 Eau — objectif {day.water}</div>
-            <div style={{ fontSize: 12, color: C.cyan, fontWeight: 800 }}>{d.checks.water}/{waterTarget} verres</div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6, marginTop: 10 }}>
-            {Array.from({ length: waterTarget }, (_, i) => (
-              <button key={i} onClick={() => void run(business.coachCheck('water', i < d.checks.water ? -1 : 1))} aria-label={`verre ${i + 1}`}
-                style={{ height: 44, borderRadius: '6px 6px 12px 12px', border: `2px solid ${C.cyan}`, cursor: 'pointer', fontSize: 16,
-                  background: i < d.checks.water ? `linear-gradient(0deg, ${C.cyan} 75%, transparent 75%)` : 'transparent' }}>{i < d.checks.water ? '' : '+'}</button>
-            ))}
-          </div>
-          <div style={{ fontSize: 10.5, color: C.muted, marginTop: 6 }}>Touche un verre quand tu bois : +2 pts par verre.</div>
-        </div>
-        <div style={card}><div style={{ fontSize: 14, fontWeight: 800 }}>😴 Au lit à {day.sleep.time.replace(':', 'h')}</div><div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{day.sleep.why}</div></div>
-        <button style={{ ...ghost, width: '100%' }} disabled={busy} onClick={() => void gen('today')}>{busy ? '⏳…' : '🔄 Refaire mon plan d\'aujourd\'hui (et l\'agenda)'}</button>
-      </>)}
-      {h('DEMAIN', C.green)}
-      {d.tomorrow ? (
-        <div style={card}>{d.tomorrow.meals.map(m => <div key={m.slot} style={{ fontSize: 12.5, padding: '3px 0' }}><b style={{ color: C.green }}>{m.time.replace(':', 'h')}</b> {d.mealLabels[m.slot as MealSlot]} — {m.title}</div>)}</div>
-      ) : (
-        <div style={card}><div style={{ fontSize: 12.5, color: C.muted, marginBottom: 8 }}>Dzaryx prépare demain chaque soir à 20h30 (Telegram + agenda).</div>
-          <button style={{ ...ghost, width: '100%' }} disabled={busy} onClick={() => void gen('tomorrow')}>✨ Préparer demain maintenant</button></div>
-      )}
-    </div>
-  );
-}
-
 // ── 🧠 MENTAL ────────────────────────────────────────────────────────────────
 
 const MOODS = ['😫', '😣', '😞', '😕', '😐', '🙂', '😊', '😄', '😁', '🤩'];
@@ -163,6 +100,8 @@ const BREATH = [{ t: 'Inspire', s: 4 }, { t: 'Bloque', s: 4 }, { t: 'Expire', s:
 
 function MindTab({ d, run }: { d: CoachOverview; run: Run }) {
   const [grat, setGrat] = useState('');
+  const [busy, setBusy] = useState(false);
+  const gen = async (day: 'today' | 'tomorrow') => { setBusy(true); await run(business.coachGenerate(day)); setBusy(false); };
   const [breath, setBreath] = useState<{ start: number } | null>(null);
   const [now, setNow] = useState(Date.now());
   const sent = useRef(false);
@@ -185,8 +124,13 @@ function MindTab({ d, run }: { d: CoachOverview; run: Run }) {
         {d.day ? <>
           <div style={{ fontSize: 18, fontWeight: 900 }}>🎯 {d.day.mental.goal}</div>
           <div style={{ fontSize: 13, color: '#d5c8ff', marginTop: 8, lineHeight: 1.5 }}>✨ {d.day.mental.action}</div>
-        </> : <div style={{ fontSize: 13, color: C.muted }}>Ouvre l'onglet Nutrition → « Préparer ma journée » : Dzaryx te donne aussi ton objectif mental.</div>}
+        </> : <>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>Ton objectif du jour n'est pas encore prêt.</div>
+          <button style={{ ...btn(C.violet), width: '100%' }} disabled={busy} onClick={() => void gen('today')}>{busy ? '⏳ Dzaryx prépare ta journée…' : '✨ Préparer ma journée (objectif + coucher)'}</button>
+        </>}
       </div>
+      {d.day && <div style={card}><div style={{ fontSize: 14, fontWeight: 800 }}>😴 Au lit à {d.day.sleep.time.replace(':', 'h')}</div><div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{d.day.sleep.why}</div></div>}
+      {d.day && <button style={{ ...ghost, width: '100%', marginBottom: 4 }} disabled={busy} onClick={() => void gen('today')}>{busy ? '⏳…' : '🔄 Refaire ma journée (et l\'agenda)'}</button>}
 
       {h('COMMENT TU TE SENS ? (+15 PTS)', C.violet)}
       <div style={card}>
@@ -304,7 +248,7 @@ function GameTab({ d, run }: { d: CoachOverview; run: Run }) {
 
       {h('DERNIERS POINTS GAGNÉS', C.gold)}
       <div style={card}>
-        {g.feed.length === 0 ? <div style={{ fontSize: 12.5, color: C.muted }}>Coche un repas, bois un verre ou note ton humeur : tes premiers points arrivent ici.</div>
+        {g.feed.length === 0 ? <div style={{ fontSize: 12.5, color: C.muted }}>Termine une séance, respire ou note ton humeur : tes premiers points arrivent ici.</div>
           : g.feed.map((f, i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '5px 0', borderTop: i ? `1px solid ${C.border}` : 'none' }}>
             <span>{f.label} <span style={{ color: C.muted, fontSize: 10.5 }}>{dm(f.date)}</span></span><b style={{ color: C.gold }}>+{f.xp}</b></div>)}
       </div>
@@ -312,7 +256,7 @@ function GameTab({ d, run }: { d: CoachOverview; run: Run }) {
       {h('BARÈME DES POINTS', C.gold)}
       <div style={{ ...card, fontSize: 12, color: C.muted, lineHeight: 1.8 }}>
         🏋️ Séance terminée <b style={{ color: C.text }}>+{g.xpRules['session']}</b> · série cochée <b style={{ color: C.text }}>+{g.xpRules['set']}</b> · record <b style={{ color: C.text }}>+{g.xpRules['pr']}</b> · arrivé à la salle <b style={{ color: C.text }}>+{g.xpRules['arrival']}</b> · 3 séances d'affilée <b style={{ color: C.text }}>+{g.xpRules['streak']}</b><br />
-        🍽️ Repas suivi <b style={{ color: C.text }}>+{g.xpRules['meal']}</b> · 💧 verre d'eau <b style={{ color: C.text }}>+{g.xpRules['water']}</b> · ⚖️ pesée <b style={{ color: C.text }}>+{g.xpRules['weigh']}</b><br />
+        ⚖️ pesée <b style={{ color: C.text }}>+{g.xpRules['weigh']}</b><br />
         🧠 Humeur <b style={{ color: C.text }}>+{g.xpRules['mood']}</b> · 🌬️ respiration <b style={{ color: C.text }}>+{g.xpRules['breath']}</b> · 🙏 gratitude <b style={{ color: C.text }}>+{g.xpRules['gratitude']}</b> · ⭐ journée parfaite <b style={{ color: C.text }}>+{g.xpRules['perfect']}</b> · badge <b style={{ color: C.text }}>+{g.xpRules['badge']}</b>
       </div>
     </div>

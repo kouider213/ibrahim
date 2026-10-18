@@ -4,16 +4,17 @@ import { readLog, type CoachLog } from './life-coach.js';
 import { localNow } from './morning-routine.js';
 
 // LE JEU DU COACH (demande de Kouider 2026-10-17) : chaque bonne action rapporte des points — séance faite, séries,
-// records, arrivée à la salle, repas cochés, eau, respiration, gratitude, humeur et pesée notées. Niveaux, badges,
+// records, arrivée à la salle, respiration, gratitude, humeur et pesée notées. Niveaux, badges,
 // quêtes de la semaine. Tout est recalculé depuis l'historique (rien à tricher, rien à perdre).
 // La pesée rapporte des points pour la RÉGULARITÉ, jamais pour la perte de poids (sécurité : pas de pression sur la balance).
 
 const CHECKS_KEY = 'kouider:coach:checks';
 const TARGET_KEY = 'kouider:coach:target';
 
-export interface DayChecks { meals: string[]; water: number; breath: number; gratitude: string[] }
+// (Les anciens jours peuvent encore contenir meals/water : ignorés depuis le retrait de la nutrition, 2026-10-18.)
+export interface DayChecks { breath: number; gratitude: string[] }
 export type Checks = Record<string, DayChecks>;
-const empty = (): DayChecks => ({ meals: [], water: 0, breath: 0, gratitude: [] });
+const empty = (): DayChecks => ({ breath: 0, gratitude: [] });
 
 export async function readChecks(): Promise<Checks> {
   try { return JSON.parse((await kvGet(CHECKS_KEY)) ?? '{}') as Checks; } catch { return {}; }
@@ -34,7 +35,7 @@ export async function getTarget(): Promise<number | null> {
 }
 export const setTarget = (kg: number | null) => kvSet(TARGET_KEY, kg ? String(kg) : '');
 
-export const XP = { session: 100, set: 5, pr: 50, arrival: 60, streak: 25, meal: 10, water: 2, breath: 15, gratitude: 10, mood: 15, weigh: 15, perfect: 50, badge: 100 };
+export const XP = { session: 100, set: 5, pr: 50, arrival: 60, streak: 25, breath: 15, gratitude: 10, mood: 15, weigh: 15, perfect: 50, badge: 100 };
 const TITLES = ['Recrue', 'Débutant motivé', 'Régulier', 'Costaud', 'Guerrier', 'Machine', 'Lion', 'Titan', 'Légende de Wemmel', 'Champion FIK'];
 export const levelFloor = (l: number) => 150 * l * (l - 1);        // niveau 2 = 300 pts, 3 = 900, 4 = 1 800, 5 = 3 000…
 
@@ -83,15 +84,13 @@ export async function computeGame() {
     if (c.mood != null && !moodDays.has(d)) { moodDays.add(d); g(d, XP.mood, '🧠 Humeur notée', at); }
     if (c.weight != null && !weighDays.has(d)) { weighDays.add(d); g(d, XP.weigh, '⚖️ Pesée', at); }
   }
-  // Nutrition + mental (cases cochées)
+  // Mental (cases cochées)
   const perfectDays: string[] = [];
   for (const [d, c] of Object.entries(checks)) {
-    if (c.meals.length) g(d, c.meals.length * XP.meal, `🍽️ ${c.meals.length} repas suivis`);
-    if (c.water) g(d, Math.min(10, c.water) * XP.water, `💧 ${c.water} verres d'eau`);
     if (c.breath) g(d, Math.min(2, c.breath) * XP.breath, '🌬️ Respiration');
     if (c.gratitude.length) g(d, Math.min(3, c.gratitude.length) * XP.gratitude, '🙏 Gratitude');
     const sportOk = history[d] !== 'missed';
-    if (c.meals.length >= 4 && c.water >= 8 && (c.breath > 0 || c.gratitude.length > 0) && sportOk) { perfectDays.push(d); g(d, XP.perfect, '⭐ Journée parfaite'); }
+    if (c.breath > 0 && c.gratitude.length > 0 && moodDays.has(d) && sportOk) { perfectDays.push(d); g(d, XP.perfect, '⭐ Journée parfaite'); }
   }
 
   // Badges
@@ -109,7 +108,7 @@ export async function computeGame() {
     { id: 'ton', icon: '🏗️', name: 'Une tonne', how: '1 000 kg soulevés en une séance', ok: maxVolume >= 1000 },
     { id: 'weigh7', icon: '⚖️', name: 'Suivi sérieux', how: '7 pesées', ok: weighDays.size >= 7 },
     { id: 'mood7', icon: '🧠', name: 'À l\'écoute', how: '7 humeurs notées', ok: moodDays.size >= 7 },
-    { id: 'perfect', icon: '⭐', name: 'Journée parfaite', how: '4 repas + 8 verres + mental', ok: perfectDays.length >= 1 },
+    { id: 'perfect', icon: '⭐', name: 'Journée parfaite', how: 'humeur + respiration + gratitude', ok: perfectDays.length >= 1 },
     { id: 'perfect7', icon: '🌟', name: 'Semaine en or', how: '7 journées parfaites', ok: perfectDays.length >= 7 },
   ];
   for (const b of BADGES) if (b.ok) g(localNow().date, XP.badge, `${b.icon} Badge « ${b.name} »`, 0);
@@ -120,7 +119,7 @@ export async function computeGame() {
   const weekChecks = Object.entries(checks).filter(([d]) => inWeek(d)).map(([, c]) => c);
   const QUESTS = [
     { icon: '🏋️', name: '3 séances cette semaine', have: sport.filter(l => inWeek(l.date)).length, need: 3, xp: 150 },
-    { icon: '🍽️', name: '5 jours avec les 4 repas', have: weekChecks.filter(c => c.meals.length >= 4).length, need: 5, xp: 100 },
+    { icon: '🌬️', name: 'Respiration 5 jours', have: weekChecks.filter(c => c.breath > 0).length, need: 5, xp: 100 },
     { icon: '🧠', name: 'Humeur notée 5 jours', have: [...moodDays].filter(inWeek).length, need: 5, xp: 100 },
     { icon: '⚖️', name: '2 pesées', have: [...weighDays].filter(inWeek).length, need: 2, xp: 50 },
     { icon: '🏆', name: '1 record battu', have: gains.filter(x => x.label.startsWith('🏆 Record') && inWeek(x.date)).length, need: 1, xp: 75 },
@@ -132,7 +131,7 @@ export async function computeGame() {
     const inW = (d: string) => d >= w && d <= end;
     const wc = Object.entries(checks).filter(([d]) => inW(d)).map(([, c]) => c);
     const done = [
-      sport.filter(l => inW(l.date)).length >= 3, wc.filter(c => c.meals.length >= 4).length >= 5,
+      sport.filter(l => inW(l.date)).length >= 3, wc.filter(c => c.breath > 0).length >= 5,
       [...moodDays].filter(inW).length >= 5, [...weighDays].filter(inW).length >= 2,
       gains.some(x => x.label.startsWith('🏆 Record') && inW(x.date)),
     ];

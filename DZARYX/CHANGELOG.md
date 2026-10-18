@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-18 — Coach : nutrition retirée (demande de Kouider)
+- Page COACH : plus d'onglet 🍽️ Nutrition (reste Sport · Mental · Progrès) ; « Préparer ma journée » + coucher passent dans Mental. App v155.
+- Plus aucun repas ni eau : ni dans le plan du soir (20h30), ni dans l'agenda FIK, ni dans le jeu (points repas/eau, quête 4 repas → quête respiration, journée parfaite = humeur + respiration + gratitude). Le coach ne propose plus de nutrition.
+- Purge unique sur Railway des repas déjà posés dans l'agenda (J-2 → J+14), drapeau app_kv `kouider:coach:meals-purged`.
+
 ## 2026-10-18 — B036 : envoi de mail confirmé au téléphone
 - `sendEmailTool` : le « oui » dit en appel (« CONFIRMÉ AU TÉLÉPHONE ») est enfin reconnu ; avant, la consigne d'appel en tête du message faisait refuser tous les envois de mail demandés par la voix.
 

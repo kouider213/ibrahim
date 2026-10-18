@@ -284,7 +284,7 @@ const JOBS = [
   },
   {
     name:  'life-coach-evening',
-    cron:  '30 20 * * *',           // 20h30 — coach : plan de demain (repas, sport, mental) + « ton moral ? » ; moral bas → appel
+    cron:  '30 20 * * *',           // 20h30 — coach : plan de demain (sport, mental, coucher) + « ton moral ? » ; moral bas → appel
     tz:    'Europe/Brussels',
   },
   {

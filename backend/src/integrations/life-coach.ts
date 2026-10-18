@@ -6,8 +6,9 @@ import { queueTelegramMessage } from '../notifications/tg-outbox.js';
 import { emitProactive } from '../notifications/mobile-push.js';
 import { autoCall } from '../notifications/auto-call.js';
 
-// COACH DE VIE (demande de Kouider 2026-10-17) : Dzaryx devient aussi son coach de vie, son coach sportif et son
-// nutritionniste — mental, humeur, repas, entraînements, calés sur son agenda. Partout : chat, app, voix, appels.
+// COACH DE VIE (demande de Kouider 2026-10-17) : Dzaryx devient aussi son coach de vie et son coach sportif —
+// mental, humeur, entraînements, coucher, calés sur son agenda. Partout : chat, app, voix, appels.
+// PAS DE NUTRITION (Kouider 2026-10-18 : « je n'ai pas besoin de la nutrition ») : aucun repas, ni dans l'app ni dans l'agenda.
 // VIE PRIVÉE : ce dépôt est PUBLIC. Rien de personnel ici (âge, santé, traitements, poids, famille) : tout est dans
 // la base (app_kv `kouider:coach:profile`, rempli par Kouider ou par l'outil), jamais dans le code.
 
@@ -24,7 +25,7 @@ const SAFETY = [
   '- Moral bas : écoute d\'abord, reformule, encourage-le à en parler à son médecin ou à un psychologue, propose une petite action concrète (marcher 10 min, appeler un proche, respirer). Tu ne remplaces pas un professionnel.',
   '- Idées noires, envie de disparaître, ou s\'il a pris beaucoup plus que d\'habitude : prends-le au sérieux, reste avec lui, donne le 112 (urgence) et le Centre de Prévention du Suicide 0800 32 123 (Belgique, gratuit, 24h/24). En Algérie : 115 / 3033 (SAMU).',
   '- Tout ce qui touche à sa santé, son moral et ses traitements est STRICTEMENT PRIVÉ : tu n\'en parles qu\'à Kouider lui-même — jamais à sa femme, sa famille, Houari, un client, ni dans un message à quelqu\'un d\'autre.',
-  '- Nutrition : halal, jamais d\'alcool (ni dans les recettes). Pendant un traitement qui coupe l\'appétit : petites portions, protéines à chaque repas, légumes/fibres, beaucoup d\'eau, pas de gras lourd ni sucres rapides ; ne fais jamais sauter de repas. Sport adapté à son dos : gainage, renforcement du dos et des abdos, mobilité, pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde) sans avis médical ; douleur vive = stop.',
+  '- Pas de plan repas ni de conseils nutrition : il n\'en veut pas (ne propose rien sur ce qu\'il mange sauf s\'il le demande lui-même). Sport adapté à son dos : gainage, renforcement du dos et des abdos, mobilité, pas de charge lourde sur la colonne (pas de soulevé de terre lourd ni squat barre lourde) sans avis médical ; douleur vive = stop.',
 ].join('\n');
 
 export async function readLog(): Promise<CoachLog[]> {
@@ -44,7 +45,7 @@ function logSummary(log: CoachLog[]): string {
 export async function lifeCoachText(): Promise<string> {
   const [profile, log] = await Promise.all([kvGet(PROFILE_KEY).catch(() => null), readLog()]);
   return [
-    'TU ES AUSSI SON COACH DE VIE, SON COACH SPORTIF ET SON NUTRITIONNISTE : bienveillant, exigeant, concret, comme un grand frère qui veut le voir réussir. Tu suis son moral, son poids, ses repas et ses entraînements, calés sur son agenda. De temps en temps, demande-lui sincèrement comment il va (pas à chaque message). Quand il te donne son humeur (1 à 10), son poids ou comment il se sent, note-le avec life_coach action log.',
+    'TU ES AUSSI SON COACH DE VIE ET SON COACH SPORTIF : bienveillant, exigeant, concret, comme un grand frère qui veut le voir réussir. Tu suis son moral, son poids et ses entraînements, calés sur son agenda. De temps en temps, demande-lui sincèrement comment il va (pas à chaque message). Quand il te donne son humeur (1 à 10), son poids ou comment il se sent, note-le avec life_coach action log.',
     profile?.trim() ? `SON PROFIL (privé) :\n${profile.trim()}` : 'Profil coach pas encore rempli : pose-lui les questions au fil des conversations (life_coach action add).',
     logSummary(log),
     SAFETY,
@@ -63,21 +64,19 @@ async function agendaOf(date: string): Promise<string> {
   }).join('\n');
 }
 
-const PLAN_SYSTEM = `Tu es le coach de vie, coach sportif et nutritionniste personnel de Kouider. Tu prépares SA journée, calée sur son agenda.
+const PLAN_SYSTEM = `Tu es le coach de vie et coach sportif personnel de Kouider. Tu prépares SA journée, calée sur son agenda.
 Réponds UNIQUEMENT avec un objet JSON valide (pas de texte autour, pas de \`\`\`), de cette forme :
-{"meals":[{"slot":"breakfast|lunch|snack|dinner","time":"HH:MM","title":"plat court (≤ 45 caractères)","detail":"portions, protéines, comment le préparer ou où l'acheter (≤ 220 caractères)"}],
- "water":"2,5 L","mental":{"time":"HH:MM","goal":"objectif du jour (≤ 70 caractères)","action":"petit geste concret pour le moral (≤ 160 caractères)"},
+{"mental":{"time":"HH:MM","goal":"objectif du jour (≤ 70 caractères)","action":"petit geste concret pour le moral (≤ 160 caractères)"},
  "sleep":{"time":"HH:MM","why":"pourquoi cette heure (≤ 100 caractères)"}}
-Règles : exactement 4 repas (breakfast, lunch, snack, dinner) placés dans les trous de son agenda (heures de Bruxelles, jamais pendant le sport ni pendant un RDV) ; petit-déj à l'heure prévue par sa routine s'il y en a une ; après une SÉANCE PRÉVUE, le repas suivant riche en protéines. Repas halal, jamais d'alcool, simples, adaptés à son profil et son objectif ; écris « halal » pour la viande et la volaille. Mental : objectif + geste (famille, gratitude, respiration, prière si c'est dans ses habitudes), placé le matin. Coucher selon le réveil du lendemain.
+Règles : AUCUN repas ni conseil nutrition (il n'en veut pas). Heures de Bruxelles, jamais pendant le sport ni pendant un RDV. Mental : objectif + geste (famille, gratitude, respiration, prière si c'est dans ses habitudes), placé le matin. Coucher selon le réveil du lendemain.
 CONFIDENTIALITÉ : ces textes vont dans son agenda — n'y écris JAMAIS rien sur sa santé, ses traitements, son poids ou son moral (pas de « traitement », « appétit », « médicament », « moral bas »). Respecte TOUTES les règles de sécurité fournies. N'invente aucun rendez-vous.`;
 
-export interface CoachMeal { slot: 'breakfast' | 'lunch' | 'snack' | 'dinner'; time: string; title: string; detail: string }
 export interface CoachDay {
-  date: string; meals: CoachMeal[]; water: string; mental: { time: string; goal: string; action: string }; sleep: { time: string; why: string };
+  date: string; mental: { time: string; goal: string; action: string }; sleep: { time: string; why: string };
   sport: string | null; eventIds: string[]; at: number;
 }
 const DAY_KEY = (date: string) => `kouider:coach:day:${date}`;
-export const MEAL_LABEL: Record<CoachMeal['slot'], string> = { breakfast: '🍳 Petit-déj', lunch: '🍽️ Déjeuner', snack: '🥜 Collation', dinner: '🍲 Dîner' };
+// Les titres repas restent reconnus : ceux posés avant le 18/10 sont effacés de l'agenda à chaque (re)génération.
 const COACH_TITLE = /^(🍳 Petit-déj|🍽️ Déjeuner|🥜 Collation|🍲 Dîner|🧠 Mental|😴 Au lit) — /u;
 const isHHMM = (v: unknown): v is string => typeof v === 'string' && /^\d{2}:\d{2}$/.test(v);
 
@@ -85,30 +84,25 @@ export async function getCoachDay(date: string): Promise<CoachDay | null> {
   try { return JSON.parse((await kvGet(DAY_KEY(date))) ?? 'null') as CoachDay | null; } catch { return null; }
 }
 
-/** Génère la journée du coach (repas, eau, mental, coucher) et l'écrit dans l'agenda FIK (événements « libres »). */
+/** Génère la journée du coach (mental, coucher) et l'écrit dans l'agenda FIK (événements « libres »). */
 export async function buildCoachDay(date: string, writeAgenda = true): Promise<CoachDay> {
   const [coach, agenda, sport, old] = await Promise.all([lifeCoachText(), agendaOf(date),
     import('./sport-coach.js').then(m => m.sportSessionFor(date)).catch(() => null), getCoachDay(date)]);
-  const { getRoutineConfig } = await import('./morning-routine.js');
-  const plan = (await getRoutineConfig()).days[new Date(localTs(date, '12:00')).getUTCDay()];
-  const routine = plan?.eat ? `Petit-déj prévu par sa routine : ${plan.eat}.` : '';
   const day = new Date(localTs(date, '12:00')).toLocaleDateString('fr-FR', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' });
   const res = await createAnthropic().messages.create({
-    model: 'claude-sonnet-5-5', max_tokens: 1500, system: PLAN_SYSTEM,
-    messages: [{ role: 'user', content: `${coach}\n\nJOUR : ${day}\n${routine}\nAGENDA (sans les repas déjà posés par toi) :\n${agenda}${sport ? `\n\nSÉANCE PRÉVUE :\n${sport}` : ''}` }],
+    model: 'claude-sonnet-5-5', max_tokens: 600, system: PLAN_SYSTEM,
+    messages: [{ role: 'user', content: `${coach}\n\nJOUR : ${day}\nAGENDA (sans ce que tu as déjà posé) :\n${agenda}${sport ? `\n\nSÉANCE PRÉVUE :\n${sport}` : ''}` }],
   }, QUALITY);
   const raw = res.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('');
   const j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as Partial<CoachDay>;
-  const meals = (j.meals ?? []).filter(m => m && MEAL_LABEL[m.slot] && isHHMM(m.time)).slice(0, 4)
-    .map(m => ({ slot: m.slot, time: m.time, title: String(m.title ?? '').slice(0, 60), detail: String(m.detail ?? '').slice(0, 300) }));
   const out: CoachDay = {
-    date, meals, water: String(j.water ?? '2 L').slice(0, 20),
+    date,
     mental: { time: isHHMM(j.mental?.time) ? j.mental!.time : '09:30', goal: String(j.mental?.goal ?? '').slice(0, 90), action: String(j.mental?.action ?? '').slice(0, 200) },
     sleep: { time: isHHMM(j.sleep?.time) ? j.sleep!.time : '22:30', why: String(j.sleep?.why ?? '').slice(0, 120) },
     sport, eventIds: [], at: Date.now(),
   };
   if (writeAgenda) {
-    // Repas / mental / coucher déjà posés ce jour-là (ids connus OU retrouvés par le titre, si un essai a été coupé) → effacés
+    // Mental / coucher (et anciens repas) déjà posés ce jour-là (ids connus OU retrouvés par le titre, si un essai a été coupé) → effacés
     const ids = new Set(old?.eventIds ?? []);
     const existing = await listAgendaRange(new Date(localTs(date, '00:00')).toISOString(), new Date(localTs(date, '23:59')).toISOString(), 60).catch(() => null);
     for (const e of existing ?? []) if (e.id && !e.recurringEventId && e.transparency === 'transparent' && COACH_TITLE.test(e.summary ?? '')) ids.add(e.id);
@@ -120,9 +114,8 @@ export async function buildCoachDay(date: string, writeAgenda = true): Promise<C
         { transparent: true, timeZone: TZ }).catch(() => null);
       if (id) out.eventIds.push(id);
     };
-    for (const m of meals) await add(`${MEAL_LABEL[m.slot]} — ${m.title}`, m.time, m.slot === 'snack' ? 10 : 25, m.detail);
     if (out.mental.goal) await add(`🧠 Mental — ${out.mental.goal}`, out.mental.time, 10, out.mental.action);
-    await add(`😴 Au lit — coucher conseillé`, out.sleep.time, 15, `${out.sleep.why}\n💧 Eau du jour : ${out.water}`);
+    await add(`😴 Au lit — coucher conseillé`, out.sleep.time, 15, out.sleep.why);
   }
   await kvSet(DAY_KEY(date), JSON.stringify(out), 12 * 86_400);
   return out;
@@ -130,17 +123,14 @@ export async function buildCoachDay(date: string, writeAgenda = true): Promise<C
 
 export function coachDayText(d: CoachDay): string {
   return [
-    `🍽️ Repas`,
-    ...d.meals.map(m => `${m.time} ${MEAL_LABEL[m.slot]} — ${m.title}\n   ${m.detail}`),
-    `💧 Eau : ${d.water}`,
-    d.sport ? `\n🏋️ Sport — ${d.sport.split('\n').slice(0, 9).join('\n')}` : '\n🏋️ Pas de sport prévu : 20 min de marche ou 10 min de mobilité.',
+    d.sport ? `🏋️ Sport — ${d.sport.split('\n').slice(0, 9).join('\n')}` : '🏋️ Pas de sport prévu : 20 min de marche ou 10 min de mobilité.',
     `\n🧠 Mental (${d.mental.time}) — ${d.mental.goal}\n   ${d.mental.action}`,
     `😴 Au lit à ${d.sleep.time} — ${d.sleep.why}`,
     `\n📅 Tout est dans ton agenda · à cocher dans l'app → COACH`,
   ].join('\n');
 }
 
-/** Plan de la journée (repas + sport + mental) pour une date AAAA-MM-JJ (heure de Bruxelles). */
+/** Plan de la journée (sport + mental + coucher) pour une date AAAA-MM-JJ (heure de Bruxelles). */
 export async function coachDayPlan(date: string, regenerate = false): Promise<string> {
   const d = (!regenerate && await getCoachDay(date)) || await buildCoachDay(date);
   return coachDayText(d);
@@ -183,7 +173,7 @@ export async function lifeCoachTool(input: Record<string, unknown>, sessionId?: 
   return await lifeCoachText();
 }
 
-/** 20h30 : plan de demain (repas, sport, mental) + « comment tu te sens ? ». Moral bas récent → appel bienveillant. */
+/** 20h30 : plan de demain (sport, mental, coucher) + « comment tu te sens ? ». Moral bas récent → appel bienveillant. */
 export async function jobLifeCoachEvening(): Promise<void> {
   const today = localNow().date;
   try {
@@ -217,6 +207,7 @@ export async function jobLifeCoachWeekly(): Promise<void> {
 
 /** Rattrapage (toutes les 5 min) : journée du coach d'aujourd'hui (5h–20h) ou de demain (après 20h40) manquante → générée + agenda. */
 export async function ensureCoachDays(): Promise<void> {
+  await purgeMealEvents().catch(err => console.error('[life-coach] purge repas:', err instanceof Error ? err.message : err));
   const { date, hhmm } = localNow();
   const target = hhmm >= '20:40' ? plusDays(date, 1) : hhmm >= '05:00' && hhmm < '20:00' ? date : null;
   if (!target || await getCoachDay(target)) return;
@@ -228,4 +219,16 @@ export async function ensureCoachDays(): Promise<void> {
     console.error('[life-coach] journée:', msg);
     await kvSet(lock, `erreur ${new Date().toISOString()} : ${msg.slice(0, 300)}`, 900);   // visible pour le débogage, nouvel essai dans 15 min
   });
+}
+
+/** Une seule fois (nutrition retirée le 2026-10-18) : efface de l'agenda FIK les repas déjà posés (J-2 → J+14). */
+async function purgeMealEvents(): Promise<void> {
+  const FLAG = 'kouider:coach:meals-purged';
+  if (await kvGet(FLAG)) return;
+  const evs = await listAgendaRange(new Date(Date.now() - 2 * 86_400_000).toISOString(), new Date(Date.now() + 14 * 86_400_000).toISOString(), 500);
+  if (!evs) return;   // agenda injoignable → nouvel essai dans 5 min
+  let n = 0;
+  for (const e of evs) if (e.id && /^(🍳 Petit-déj|🍽️ Déjeuner|🥜 Collation|🍲 Dîner) — /u.test(e.summary ?? '') && await deleteAgendaEvent(e.id).catch(() => false)) n++;
+  await kvSet(FLAG, `${new Date().toISOString()} : ${n} repas effacés`);
+  console.log(`[life-coach] ${n} repas effacés de l'agenda`);
 }

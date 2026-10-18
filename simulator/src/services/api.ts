@@ -141,9 +141,8 @@ export interface SportOverview {
   recent: Array<{ date: string; type: SportType; label: string; sets: number; volume: number; durationMin: number | null; rpe: number | null }>;
 }
 
-// ── Coach (nutrition, mental, jeu, évolution) ──
-export type MealSlot = 'breakfast' | 'lunch' | 'snack' | 'dinner';
-export interface CoachDay { date: string; meals: Array<{ slot: MealSlot; time: string; title: string; detail: string }>; water: string;
+// ── Coach (mental, jeu, évolution) ──
+export interface CoachDay { date: string;
   mental: { time: string; goal: string; action: string }; sleep: { time: string; why: string }; sport: string | null }
 export interface CoachGame {
   total: number; level: number; title: string; floor: number; next: number; pct: number; today: number; streakDays: number; prCount: number;
@@ -154,8 +153,8 @@ export interface CoachGame {
 }
 export interface CoachOverview {
   today: string; day: CoachDay | null; tomorrow: CoachDay | null;
-  checks: { meals: string[]; water: number; breath: number; gratitude: string[] };
-  mealLabels: Record<MealSlot, string>; game: CoachGame;
+  checks: { breath: number; gratitude: string[] };
+  game: CoachGame;
   evolution: { exercises: Record<string, { name: string; points: Array<{ date: string; kg: number }> }>; weights: Array<{ date: string; kg: number }>; moods: Array<{ date: string; mood: number }>; target: number | null };
   gained?: number; message?: string;
 }
@@ -1096,7 +1095,7 @@ export const business = {
   sportSettings: (patch: { callBefore?: boolean; gymCheck?: boolean }) => apiFetch<{ settings: SportOverview['settings'] }>('/api/sport/settings', { method: 'POST', body: JSON.stringify(patch) }),
   coach: () => apiFetch<CoachOverview>('/api/coach'),
   coachGenerate: (day: 'today' | 'tomorrow') => apiFetch<CoachOverview>('/api/coach/generate', { method: 'POST', body: JSON.stringify({ day }) }),
-  coachCheck: (kind: 'meal' | 'water' | 'breath' | 'gratitude' | 'mood', value?: string | number) =>
+  coachCheck: (kind: 'breath' | 'gratitude' | 'mood', value?: string | number) =>
     apiFetch<CoachOverview>('/api/coach/check', { method: 'POST', body: JSON.stringify({ kind, value }) }),
   coachWeight: (kg: number) => apiFetch<CoachOverview>('/api/coach/weight', { method: 'POST', body: JSON.stringify({ kg }) }),
   coachTarget: (kg: number | null) => apiFetch<CoachOverview>('/api/coach/target', { method: 'POST', body: JSON.stringify({ kg }) }),
