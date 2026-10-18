@@ -73,6 +73,7 @@ export async function getSiteCities(): Promise<string[]> {
   } catch { /* défaut */ }
   return DEFAULT_CITIES;
 }
+export function isBelgianCity(city: string): boolean { return BE_RE.test(city); }
 export async function setSiteCities(cities: string[]): Promise<void> { await kvSet(CITIES_KEY, JSON.stringify(cities.filter(c => !BE_RE.test(c)).slice(0, 20))); }
 export async function getSiteInfo(id: string): Promise<SiteProspectInfo | null> {
   try { return JSON.parse((await kvGet(infoKey(id))) ?? 'null') as SiteProspectInfo | null; } catch { return null; }

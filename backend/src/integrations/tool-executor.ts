@@ -9,6 +9,7 @@ import { whatsappWebTool } from './whatsapp-web.js';
 import { kouiderDossierTool } from './kouider-dossier.js';
 import { lifeCoachTool } from './life-coach.js';
 import { supabase } from './supabase.js';
+import { sandboxIntercept, sandboxRecord } from './crash-test-sandbox.js';
 import { convertCurrency, weatherAlerts, footballScores } from './jarvis-tools.js';
 import { createGoogleDoc, createGoogleSheet } from './google-docs.js';
 import { listMyCapabilities } from './capabilities.js';
@@ -40,7 +41,7 @@ import { kvGet, kvSet, kvDel } from './app-store.js';
 import { getConversationHistory } from './supabase.js';
 import { addProspect, listProspects, findProspect, updateProspect, markProspectContacted, isOptedOut, listPendingReplies, getAutopilot, setAutopilot, PROSPECT_SEGMENTS, PROSPECT_STATUSES, type Prospect, type ProspectSegment, type ProspectStatus } from './prospects.js';
 import { runDailyOutreach } from './prospect-autopilot.js';
-import { getProspectMode, setProspectMode, getSiteCities, setSiteCities, retrySiteDemo } from './site-prospecting.js';
+import { getProspectMode, setProspectMode, getSiteCities, setSiteCities, retrySiteDemo, isBelgianCity } from './site-prospecting.js';
 import { recordExpense, getExpenses, deleteExpense, findCar } from './expenses.js';
 import { clientRisk, recordCarKm, flashOffers } from '../notifications/client-care.js';
 import { executeMediaTool } from './media-executor.js';
@@ -251,9 +252,12 @@ export async function executeTool(
   input: Record<string, unknown>,
   sessionId?: string,
 ): Promise<string> {
+  const simulated = sandboxIntercept(name, input);   // crash-test : rien de réel ne part
+  if (simulated !== null) return simulated;
   const t0     = Date.now();
   const sid    = sessionId ?? 'unknown';
   let result   = await _dispatch(name, input, sessionId);
+  sandboxRecord(name, input, result);
   const ms     = Date.now() - t0;
   // Laptop (Nexus) éteint mais PC cloud en ligne → Dzaryx propose le PC cloud au lieu de bloquer
   if ((NEXUS_TOOLS.has(name) || PC_TOOLS.has(name)) && /hors ligne|offline|not connected/i.test(result)) {
@@ -2508,6 +2512,7 @@ async function prospectRepliesTool(input: Record<string, unknown>): Promise<stri
 
 async function prospectAutopilotTool(input: Record<string, unknown>): Promise<string> {
   const action = String(input['action'] ?? 'status');
+  let dropped = '';
   if (action === 'on')  await setAutopilot({ enabled: true });
   if (action === 'off') await setAutopilot({ enabled: false });
   if (action === 'set_per_day') {
@@ -2522,8 +2527,12 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
   }
   if (action === 'set_cities') {
     const cities = (Array.isArray(input['cities']) ? input['cities'] : String(input['cities'] ?? '').split(/[;\n]/)).map(c => String(c).trim()).filter(Boolean);
-    if (!cities.length) return '❌ Donne au moins une ville (ex. « Jette, Bruxelles »).';
+    if (!cities.length) return '❌ Donne au moins une ville (ex. « Lyon, France » ou « Oran, Algérie »).';
+    // Plus de démarchage en Belgique (Kouider 16/10/2026) : le dire, sinon Dzaryx croit avoir ciblé la ville
+    const be = cities.filter(isBelgianCity);
+    if (be.length === cities.length) return `❌ Pas de démarchage en Belgique (${be.join(', ')}) : Kouider l'a arrêté le 16/10. Seulement France et Algérie — propose-lui une ville FR/DZ. Rien n'a été changé, ne lance pas run_now pour ça.`;
     await setSiteCities(cities);
+    if (be.length) dropped = `⚠️ Villes belges ignorées (plus de démarchage en Belgique) : ${be.join(', ')}.\n`;
   }
   if (action === 'retry_demo') {
     const found = await findProspect(String(input['company'] ?? ''));
@@ -2540,7 +2549,7 @@ async function prospectAutopilotTool(input: Record<string, unknown>): Promise<st
   const { count } = await supabase.from('prospects').select('id', { count: 'exact', head: true }).not('gmail_thread_id', 'is', null);
   const mode = await getProspectMode();
   const modeTxt = mode === 'sites' ? '🌐 commerces SANS SITE WEB (proposition de démo FIK Sites)' : mode === 'both' ? 'moitié commerces sans site web, moitié conciergerie' : 'FIK Conciergerie (entreprises, partenaires)';
-  return `${s.enabled ? '✅ Démarchage auto ACTIF' : '⏸️ Démarchage auto EN PAUSE'} — ${s.per_day} mail(s)/jour à 10h (heure d\'Oran), ` +
+  return dropped + `${s.enabled ? '✅ Démarchage auto ACTIF' : '⏸️ Démarchage auto EN PAUSE'} — ${s.per_day} mail(s)/jour à 10h (heure d\'Oran), ` +
     `nouvelles sociétés uniquement. Cible : ${modeTxt}.` +
     (mode !== 'conciergerie' ? ` Villes : ${(await getSiteCities()).join(' · ')}. La démo n'est faite et envoyée QUE si le commerce répond oui au 1er mail.` : '') +
     ` ${count ?? 0} société(s) démarchée(s) au total.`;

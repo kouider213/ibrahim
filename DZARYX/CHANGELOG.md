@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-10-18 — Crash-test de Dzaryx (faux messages, rien ne part)
+- `backend/scripts/crash-test.ts` : 18 scénarios passent par le vrai cerveau (processWithOrchestration, comme Telegram), un juge Claude note chaque réponse, rapport .md, messages de test effacés de `conversations`. Run : `cd backend && npx tsx --env-file ../.env scripts/crash-test.ts rapport.md [filtre]`.
+- `integrations/crash-test-sandbox.ts` (AsyncLocalStorage) : outils de lecture réels, tout le reste simulé (relecture imitée pour whatsapp_web / send_whatsapp_to_client sans confirmed). Branché dans executeTool ; pas de mémoire auto, d'apprentissage ni d'épisode pendant un test.
+- 1er run : 7 OK · 9 moyen · 2 KO · 0 crash. Fix : `prospect_autopilot set_cities` avec une ville belge (Liège…) répondait OK alors que la ville était retirée en silence → Dzaryx disait « j'ai ciblé Liège ». Il refuse maintenant clairement (France + Algérie seulement).
+
 ## 2026-10-18 — Coach : nutrition retirée (demande de Kouider)
 - Page COACH : plus d'onglet 🍽️ Nutrition (reste Sport · Mental · Progrès) ; « Préparer ma journée » + coucher passent dans Mental. App v155.
 - Plus aucun repas ni eau : ni dans le plan du soir (20h30), ni dans l'agenda FIK, ni dans le jeu (points repas/eau, quête 4 repas → quête respiration, journée parfaite = humeur + respiration + gratitude). Le coach ne propose plus de nutrition.

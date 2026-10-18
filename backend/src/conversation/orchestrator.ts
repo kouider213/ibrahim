@@ -35,6 +35,7 @@ function localizeGuardMessage(text: string, reason: HallucinationReason, lang: G
 }
 import { chatWithTools }                         from '../integrations/claude-api.js';
 import { saveConversationTurn }                  from '../integrations/supabase.js';
+import { inSandbox }                             from '../integrations/crash-test-sandbox.js';
 import { synthesizeVoiceStream }                 from '../notifications/dispatcher.js';
 import { classifyRequest, callGroq, callGroqVision, callClaudeVision, callOpenAI, callOpenAIVision, isGroqAvailable, isClaudeAvailable, isOpenAIAvailable } from '../integrations/llm-router.js';
 import { routeToAgent, detectAgentFromHistory, buildAgentSystem } from '../agents/core-router.js';
@@ -161,17 +162,18 @@ export async function processMessage(
   const actorUserId = actor.ownerKey === 'houari' || sessionId.toLowerCase().includes('houari') ? 'houari' : 'kouider';
   // Mode privé : rien n'est retenu (mémoire auto, apprentissage) et les messages seront effacés à la fin du mode
   const privateMode = await isPrivate(actorUserId, sessionId).catch(() => false);
+  const sandbox = inSandbox();   // crash-test : ni mémoire auto ni apprentissage, sans la consigne du mode privé
   const [ctx] = await Promise.all([
     buildContext(sessionId, effectiveMessage, actor, textOnly),
     saveConversationTurn(sessionId, 'user', userMessage).catch((err: unknown) =>
       console.error('[orchestrator] user save error:', err),
     ),
     // Auto-extract memory facts from user message (non-blocking, background)
-    privateMode ? Promise.resolve() : autoExtractMemory(userMessage, actorUserId).catch(() => {}),
+    privateMode || sandbox ? Promise.resolve() : autoExtractMemory(userMessage, actorUserId).catch(() => {}),
   ]);
   // Apprentissage automatique : relecture de la conversation 10 min après le dernier message
-  if (!privateMode) noteOwnerTurn(sessionId, actorUserId);
-  else ctx.systemExtra = `MODE PRIVÉ ACTIF : n'enregistre RIEN en mémoire (remember_info, learn_rule…) sauf si l'utilisateur le demande explicitement dans ce message.\n\n${ctx.systemExtra ?? ''}`.trim();
+  if (!privateMode && !sandbox) noteOwnerTurn(sessionId, actorUserId);
+  if (privateMode) ctx.systemExtra = `MODE PRIVÉ ACTIF : n'enregistre RIEN en mémoire (remember_info, learn_rule…) sauf si l'utilisateur le demande explicitement dans ce message.\n\n${ctx.systemExtra ?? ''}`.trim();
 
   // Rappels déclenchés par ce que dit Kouider/Houari (« quand je parle de la Clio, rappelle-moi le pneu »)
   // + procédures apprises qui concernent ce message, + tâches en attente de Houari
@@ -652,7 +654,7 @@ export async function processMessage(
   saveConversationTurn(sessionId, 'assistant', safeText).catch((err: unknown) =>
     console.error('[orchestrator] save error:', err),
   );
-  trackEpisode({
+  if (!sandbox) trackEpisode({
     sessionId,
     userMessage,
     aiResponse:    safeText,
