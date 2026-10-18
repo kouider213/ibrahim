@@ -30,6 +30,7 @@ import ParrainageScreen from './screens/ParrainageScreen.tsx';
 import PricingScreen from './screens/PricingScreen.tsx';
 import DemarchageScreen from './screens/DemarchageScreen.tsx';
 import SitesScreen from './screens/SitesScreen.tsx';
+import PartnersScreen from './screens/PartnersScreen.tsx';
 import PaiementsScreen from './screens/PaiementsScreen.tsx';
 import StudioScreen from './screens/StudioScreen.tsx';
 import CarteScreen from './screens/CarteScreen.tsx';
@@ -43,7 +44,7 @@ export type Page =
   | 'voice' | 'text' | 'bookings' | 'fleet' | 'revenue'
   | 'clients' | 'documents' | 'calendar'
   | 'settings' | 'immo' | 'deals' | 'leads' | 'newsletter' | 'caisse' | 'reviews' | 'blog' | 'devis' | 'reponse'
-  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'plus';
+  | 'aujourdhui' | 'forecast' | 'reengage' | 'social' | 'search' | 'parrainage' | 'pricing' | 'opportunities' | 'voucher' | 'demarchage' | 'sites' | 'partners' | 'paiements' | 'studio' | 'carte' | 'nexus' | 'globe' | 'camera' | 'sport' | 'plus';
 
 type SimState = 'locked' | 'home' | 'login' | 'app';
 type Actor = 'kouider' | 'houari';
@@ -67,6 +68,7 @@ const TABS: Array<{ id: Page; icon: string; label: string; kouiderOnly?: boolean
   { id: 'globe',         icon: '🌍', label: 'GLOBE',   kouiderOnly: true, group: 'tool' },
   { id: 'camera',        icon: '👁️', label: 'CAMÉRA → PC', kouiderOnly: true, group: 'tool' },
   { id: 'demarchage',    icon: '📤', label: 'DÉMARCHAGE', kouiderOnly: true, group: 'tool' },
+  { id: 'partners',      icon: '🤝', label: 'PARTENAIRES', kouiderOnly: true, group: 'tool' },
   { id: 'sites',         icon: '🌐', label: 'SITES CLIENTS', kouiderOnly: true, group: 'tool' },
   { id: 'studio',        icon: '🎬', label: 'STUDIO VIDÉO', kouiderOnly: true, group: 'tool' },
   { id: 'paiements',     icon: '💳', label: 'À PAYER', kouiderOnly: true, group: 'tool' },
@@ -301,7 +303,7 @@ export default function Phone() {
   const actor = loggedActor ?? 'kouider';
 
   const houariOnlyPages: Page[] = [];
-  const kouiderOnlyPages: Page[] = ['documents', 'demarchage', 'sites', 'paiements', 'studio', 'carte', 'camera'];
+  const kouiderOnlyPages: Page[] = ['documents', 'demarchage', 'sites', 'partners', 'paiements', 'studio', 'carte', 'camera'];
 
   const safePage: Page = (() => {
     if (actor === 'houari' && kouiderOnlyPages.includes(page)) return 'voice';
@@ -336,6 +338,7 @@ export default function Phone() {
       case 'nexus':         return <NexusScreen />;
       case 'demarchage':    return <DemarchageScreen onOpen={(p) => setPage(p as Page)} />;
       case 'sites':         return <SitesScreen />;
+      case 'partners':      return <PartnersScreen />;
       case 'paiements':     return <PaiementsScreen />;
       case 'studio':        return <StudioScreen />;
       case 'camera':        return <PhoneCamScreen />;
