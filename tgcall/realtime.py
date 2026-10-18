@@ -98,6 +98,8 @@ class RealtimeCall:
             await self._session(self.guest_instr, auto=False)   # rien d'automatique tant qu'on ne sait pas qui parle
         log.info('voix temps réel connectée%s', ' (vérification de la voix)' if self.guarded else '')
 
+    n_in = n_out = n_voiced = 0; rms_max = 0   # diagnostic : tranches audio reçues / envoyées (voix) pendant l'appel
+
     def start_audio(self) -> None:
         """L'appel est décroché : on commence à jouer (au rythme réel)."""
         if not self.playing:
@@ -105,6 +107,8 @@ class RealtimeCall:
             self.tasks.append(asyncio.create_task(self._pacer()))
 
     async def close(self) -> None:
+        if not self.closed:
+            log.info('audio de l\'appel : %d reçus (volume max %d), %d envoyés dont %d de voix', self.n_in, self.rms_max, self.n_out, self.n_voiced)
         self.closed = True
         for t in self.tasks:
             t.cancel()
@@ -134,6 +138,9 @@ class RealtimeCall:
 
     # ── Voix de Kouider → OpenAI ─────────────────────────────────────────────
     def feed(self, pcm24k: bytes) -> None:
+        self.n_in += 1
+        if self.n_in % 10 == 0:
+            self.rms_max = max(self.rms_max, audioop.rms(pcm24k, 2))
         self.inp.extend(pcm24k)
         self.voice.extend(pcm24k); self.win.extend(pcm24k)
         cap = VOICE_KEEP_S * IN_RATE * 2
@@ -310,10 +317,12 @@ class RealtimeCall:
             nxt += 0.01
             if len(self.out) >= FRAME_10MS:
                 frame = bytes(self.out[:FRAME_10MS]); del self.out[:FRAME_10MS]
+                self.n_voiced += 1
             else:
                 frame = SILENCE
             try:
                 await self.calls.send_frame(self.user_id, Device.MICROPHONE, frame)
+                self.n_out += 1
             except Exception as e:
                 log.warning('send_frame: %s', e)
                 return

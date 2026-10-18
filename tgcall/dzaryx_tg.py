@@ -76,6 +76,23 @@ logging.getLogger('pyrogram').setLevel(logging.WARNING)
 
 app = Client('dzaryx', api_id=API_ID, api_hash=API_HASH, workdir=str(HERE))
 calls = PyTgCalls(app)
+
+
+class _RelayOnly:
+    """Appels par les relais de Telegram uniquement (18/10 : en direct en IPv6, le téléphone n'envoyait plus que
+    des paquets vides → appel muet dans les deux sens ; par relais ça marchait). TG_P2P=1 pour revenir au direct."""
+    def __init__(self, binding) -> None:
+        self._b = binding
+
+    def __getattr__(self, name: str):
+        return getattr(self._b, name)
+
+    async def connect_p2p(self, chat_id, servers, versions, p2p_allowed, *rest):
+        return await self._b.connect_p2p(chat_id, servers, versions, False, *rest)
+
+
+if os.environ.get('TG_P2P', '0') != '1':
+    calls._binding = _RelayOnly(calls._binding)
 http: aiohttp.ClientSession | None = None
 
 # user_id → actor, résolu au démarrage
