@@ -14,7 +14,7 @@ const C = {
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 } as const;
 const btn = (bg: string, color = '#050a16') => ({ background: bg, color, border: 'none', borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
 const ghost = { ...btn('rgba(255,255,255,0.06)', C.text), border: `1px solid ${C.border}` } as const;
-const h = (t: string, color = C.accent) => <div style={{ fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.26em', color, fontWeight: 600, margin: '16px 2px 10px' }}>{t}</div>;
+const h = (t: string, color = C.accent) => <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 2px 10px' }}><span style={{ width: 4, height: 14, borderRadius: 2, background: color }} /><span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>{t}</span><span style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(110,160,255,0.14), transparent)' }} /></div>;
 const errText = (e: unknown) => { const m = e instanceof Error ? e.message : 'Erreur'; try { return (JSON.parse(m.replace(/^API \d+: /, '')) as { error?: string }).error ?? m; } catch { return m; } };
 const last = <T,>(a: T[]): T | undefined => a[a.length - 1];
 const dm = (d: string) => `${d.slice(8)}/${d.slice(5, 7)}`;
@@ -62,7 +62,7 @@ export default function CoachScreen() {
               <div style={{ fontSize: 12.5, fontWeight: 900 }}>NIV.</div><div style={{ fontSize: 21, fontWeight: 900, lineHeight: 1 }}>{g?.level ?? '–'}</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.24em', color: C.accent }}>COACH DZARYX</div>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: C.accent, textTransform: 'uppercase' }}>Coach Dzaryx</div>
               <div style={{ fontSize: 17, fontWeight: 900 }}>{g ? g.title : 'Chargement…'} <span style={{ fontSize: 12, color: C.gold }}>{g ? `${g.total.toLocaleString('fr-FR')} pts` : ''}</span></div>
               <div style={{ height: 7, background: 'rgba(255,255,255,0.08)', borderRadius: 4, marginTop: 5, overflow: 'hidden' }}>
                 <div style={{ width: `${g?.pct ?? 0}%`, height: '100%', background: 'linear-gradient(90deg, #fbbf24, #fb7185)', borderRadius: 4, transition: 'width .6s' }} />

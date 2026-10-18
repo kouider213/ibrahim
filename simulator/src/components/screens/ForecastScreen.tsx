@@ -13,6 +13,8 @@ export default function ForecastScreen() {
   const cur = new Date().getMonth();
   const next3 = f ? [0, 1, 2].map(k => f.byMonth[(cur + k) % 12]).filter(Boolean) : [];
   const nextSum = next3.reduce((a, m) => a + m.count, 0);
+  const maxCount = f ? Math.max(1, ...f.byMonth.map(m => m.count)) : 1;
+  const SHORT = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 'sep', 'oct', 'nov', 'déc'];
   const avg3 = f && f.total ? Math.round(f.total / 4) : 0;
 
   return (
@@ -35,13 +37,13 @@ export default function ForecastScreen() {
                 return (
                   <div key={m.month} style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
                     <span style={{ fontSize: 11, color: peak ? T.warn : T.muted, fontWeight: 700 }}>{m.count}</span>
-                    <div style={{ width: '100%', height: Math.max(4, m.pct * 1.3), borderRadius: '6px 6px 2px 2px', background: `linear-gradient(180deg, ${col}, ${tone(col, 0.35)})`, boxShadow: peak ? `0 0 12px ${tone(col, 0.5)}` : 'none' }} />
+                    <div style={{ width: '100%', height: Math.max(4, (m.count / maxCount) * 130), borderRadius: '6px 6px 2px 2px', background: `linear-gradient(180deg, ${col}, ${tone(col, 0.35)})`, boxShadow: peak ? `0 0 12px ${tone(col, 0.5)}` : 'none' }} />
                   </div>
                 );
               })}
             </div>
             <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-              {f.byMonth.map((m, i) => <span key={m.month} style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: 11, color: i === cur ? T.ok : T.muted, fontWeight: i === cur ? 800 : 500, overflow: 'hidden' }}>{m.month.slice(0, 3).replace('.', '')}</span>)}
+              {f.byMonth.map((m, i) => <span key={m.month} style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: 11, color: i === cur ? T.ok : T.muted, fontWeight: i === cur ? 800 : 500, overflow: 'hidden' }}>{SHORT[i] ?? m.month}</span>)}
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 12, color: T.muted, flexWrap: 'wrap' }}>
               <span><span style={{ color: T.warn }}>■</span> mois forts</span><span><span style={{ color: T.ok }}>■</span> ce mois-ci</span>

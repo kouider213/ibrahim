@@ -17,7 +17,7 @@ const chip = (on: boolean) => ({ background: on ? C.accent : 'rgba(255,255,255,0
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 12, marginBottom: 10 } as const;
 const input = { width: '100%', boxSizing: 'border-box', background: '#081024', color: C.text, border: `1px solid ${C.border}`, borderRadius: 10,
   padding: 10, fontSize: 13, fontFamily: C.font, resize: 'vertical' } as const;
-const label = { fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: 0.6, margin: '10px 0 6px' } as const;
+const label = { fontSize: 12.5, fontWeight: 600, color: C.muted, margin: '14px 0 7px' } as const;
 const LANGS: Record<string, string> = { fr: '🇫🇷 Français', darija: '🇩🇿 Darija', ar: 'العربية', en: '🇬🇧 English' };
 const RUNNING = ['queued', 'shots', 'audio', 'montage'];
 const errText = (e: unknown) => {
@@ -130,35 +130,35 @@ export default function StudioScreen() {
                   : 'Un seul plan IA façon Higgsfield (5 à 10 s) avec un mouvement de caméra. Idéal pour animer une photo de voiture.'}
               </div>
 
-              <div style={label}>{mode === 'viral' ? 'TON IDÉE' : 'CE QUE TU VEUX VOIR'}</div>
+              <div style={label}>{mode === 'viral' ? 'Ton idée' : 'Ce que tu veux voir'}</div>
               <textarea style={input} rows={3} value={idea} onChange={e => setIdea(e.target.value)}
                 placeholder={mode === 'viral' ? 'Ex. 3 raisons de louer chez Autolux cet été, pour la diaspora qui arrive à Oran' : 'Ex. la Clio blanche qui roule sur la corniche d\'Oran au coucher du soleil'} />
 
               {mode === 'viral' ? (<>
-                <div style={label}>TYPE DE VIDÉO</div>
+                <div style={label}>Type de vidéo</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {opts.templates.map(t => <button key={t.id} style={chip(template === t.id)} onClick={() => setTemplate(t.id)}>{t.label}</button>)}
                 </div>
-                <div style={label}>LANGUE DE LA VOIX</div>
+                <div style={label}>Langue de la voix</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {opts.langs.map(l => <button key={l} style={chip(lang === l)} onClick={() => setLang(l)}>{LANGS[l] ?? l}</button>)}
                 </div>
-                <div style={label}>DURÉE</div>
+                <div style={label}>Durée</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[15, 20, 30, 45].map(s => <button key={s} style={chip(seconds === s)} onClick={() => setSeconds(s)}>{s} s</button>)}
                 </div>
               </>) : (<>
-                <div style={label}>MOUVEMENT DE CAMÉRA</div>
+                <div style={label}>Mouvement de caméra</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {opts.cameras.map(c => <button key={c.id} style={chip(camera === c.id)} onClick={() => setCamera(c.id)}>{c.label}</button>)}
                 </div>
-                <div style={label}>DURÉE</div>
+                <div style={label}>Durée</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[5, 8, 10].map(s => <button key={s} style={chip(single === s)} onClick={() => setSingle(s)}>{s} s</button>)}
                 </div>
               </>)}
 
-              <div style={label}>PHOTO DE DÉPART (FACULTATIF)</div>
+              <div style={label}>Photo de départ (facultatif)</div>
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
                 {opts.cars.map(c => (
                   <button key={c.id} onClick={() => setCar(car?.name === c.name ? null : c)}
@@ -183,11 +183,11 @@ export default function StudioScreen() {
                 <button style={btn('rgba(255,255,255,0.08)', C.text)} onClick={() => setPlan(null)}>✕</button>
               </div>
               {plan.template !== 'manuel' && (<>
-                <div style={label}>ACCROCHE (2 PREMIÈRES SECONDES)</div>
+                <div style={label}>Accroche (2 premières secondes)</div>
                 <input style={input} value={plan.hook} onChange={e => setPlan({ ...plan, hook: e.target.value })} />
-                <div style={label}>VOIX OFF</div>
+                <div style={label}>Voix off</div>
                 <textarea style={input} rows={4} value={plan.voiceover} onChange={e => setPlan({ ...plan, voiceover: e.target.value })} />
-                <div style={label}>APPEL À L'ACTION (FIN)</div>
+                <div style={label}>Appel à l'action (fin)</div>
                 <input style={input} value={plan.cta} onChange={e => setPlan({ ...plan, cta: e.target.value })} />
               </>)}
             </div>

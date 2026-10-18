@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties, type RefObject, type ReactNode } from 'react';
 import html2canvas from 'html2canvas';
 import { business, api, type Car } from '../../services/api.ts';
-import { Hero } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, Field, inputStyle, Btn, Card, SectionTitle, Segmented, Chips, Row, Avatar, tone } from '../ui/Kit.tsx';
 
 const LOGO_URL = `${((import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL) ?? '/'}logo.png`;
 
@@ -195,105 +195,83 @@ export default function ReservationVoucherScreen() {
     } finally { setBusy(false); }
   };
 
-  const inp: CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
-  const lbl: CSSProperties = { fontSize: 16, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '14px 0 6px' };
+  const LANGS = [{ id: 'fr', label: '🇫🇷 Français' }, { id: 'ar', label: '🇩🇿 Arabe' }, { id: 'en', label: '🇬🇧 Anglais' }];
+  const CURS = [{ id: 'DZD', label: 'DA' }, { id: 'EUR', label: '€' }, { id: 'USD', label: '$' }];
   const placeChips = (val: string, set: (v: string) => void) => (
-    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-      {PLACES.map(p => (
-        <button key={p} onClick={() => set(p)} style={{ padding: '6px 11px', borderRadius: 20, border: `1px solid ${val === p ? C.accent : C.border}`, background: val === p ? `${C.accent}1c` : 'transparent', color: val === p ? C.accent : C.muted, fontFamily: C.font, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>{p}</button>
-      ))}
-    </div>
+    <div style={{ marginTop: 8 }}><Chips items={PLACES.map(p => ({ id: p, label: p }))} value={val as string} onChange={set} /></div>
   );
+  const dateIn = { ...inputStyle, colorScheme: 'dark' as const };
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Conciergerie" title="Bon de réservation" /></div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Confirme la réservation d'un véhicule + l'acompte → PDF + WhatsApp</div>
-
-      {/* Scan passeport → remplit le client */}
+    <Screen toast={toast} header={<PageHeader eyebrow="Conciergerie" title="Bon de réservation" subtitle="Confirme une réservation + l'acompte → photo ou PDF sur WhatsApp" />}>
       <input ref={scanRef} type="file" accept="image/*" style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void scanDoc(f); }} />
-      <button onClick={() => scanRef.current?.click()} disabled={scanBusy}
-        style={{ width: '100%', marginTop: 14, padding: '13px', borderRadius: 12, border: `1px solid ${C.blue}55`, background: `${C.blue}14`, color: C.blue, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
-        {scanBusy ? '🔍 Lecture du document…' : '📷 Scanner passeport / pièce → remplir auto'}
-      </button>
-      <div style={{ fontSize: 13.5, color: C.muted, marginTop: 6 }}>Prends une photo, ou importe depuis ta galerie / tes fichiers → nom, prénom et n° remplis tout seuls. Ou remplis à la main ci-dessous.</div>
-
-      {/* Client */}
-      <div style={lbl}>Client</div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input value={firstName} onChange={e => setFirst(e.target.value)} placeholder="Prénom" style={inp} />
-        <input value={lastName} onChange={e => setLast(e.target.value)} placeholder="Nom" style={inp} />
-      </div>
-      <div style={{ marginTop: 8 }}><input value={passport} onChange={e => setPass(e.target.value)} placeholder="N° de passeport" style={inp} /></div>
-      <div style={{ marginTop: 8 }}><input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Téléphone (WhatsApp)" style={inp} /></div>
-
-      {/* Véhicule */}
-      <div style={lbl}>Véhicule</div>
-      <input value={vehicle} onChange={e => setVehicle(e.target.value)} placeholder="Ex : Renault Clio 4 — gris" style={inp} list="cars-list" />
-      <datalist id="cars-list">{cars.map(c => <option key={c.id} value={c.name} />)}</datalist>
-
-      {/* Période */}
-      <div style={lbl}>Période (optionnel)</div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input type="date" value={start} onChange={e => setStart(e.target.value)} style={inp} />
-        <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={inp} />
-      </div>
-
-      {/* Lieux */}
-      <div style={lbl}>Lieu de récupération</div>
-      <input value={pickup} onChange={e => setPickup(e.target.value)} style={inp} />
-      {placeChips(pickup, setPickup)}
-      <div style={lbl}>Lieu de dépôt</div>
-      <input value={dropoff} onChange={e => setDropoff(e.target.value)} style={inp} />
-      {placeChips(dropoff, setDropoff)}
-
-      {/* Paiement */}
-      <div style={lbl}>Paiement</div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input value={total} onChange={e => setTotal(e.target.value)} placeholder="Total (optionnel)" inputMode="numeric" style={inp} />
-        <input value={deposit} onChange={e => setDeposit(e.target.value)} placeholder="Acompte versé" inputMode="numeric" style={inp} />
-        <select value={currency} onChange={e => setCurrency(e.target.value)} style={{ ...inp, width: 72, flex: 'none' }}><option value="DZD">DA</option><option value="EUR">€</option><option value="USD">$</option></select>
-      </div>
-      {resteN != null && (
-        <div style={{ marginTop: 10, background: C.surface, border: `1px solid ${C.gold}33`, borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ color: C.muted, fontSize: 12.5 }}>{t('reste', lang)}</span>
-          <span style={{ fontWeight: 800, color: C.gold }}>{fmt(resteN)}</span>
+      <Card onClick={scanBusy ? undefined : () => scanRef.current?.click()} accent={T.accent2} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+        <Avatar icon={scanBusy ? '🔍' : '📷'} color={T.accent2} size={46} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15.5, fontWeight: 700 }}>{scanBusy ? 'Lecture du document…' : 'Scanner le passeport'}</div>
+          <div style={{ fontSize: 13, color: T.muted, marginTop: 2, lineHeight: 1.4 }}>Photo ou galerie → nom, prénom et n° remplis tout seuls</div>
         </div>
-      )}
+        <span style={{ color: T.accent2, fontSize: 20 }}>›</span>
+      </Card>
 
-      {/* Langue */}
-      <div style={lbl}>Langue du message</div>
-      <div style={{ display: 'flex', gap: 7 }}>
-        {(['fr', 'ar', 'en'] as const).map(l => (
-          <button key={l} onClick={() => setLang(l)} style={{ flex: 1, padding: '8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700, background: lang === l ? C.blue : 'rgba(255,255,255,0.04)', color: lang === l ? '#06182e' : C.muted, border: 'none' }}>{l === 'fr' ? '🇫🇷 FR' : l === 'ar' ? '🇩🇿 AR' : '🇬🇧 EN'}</button>
-        ))}
+      <SectionTitle>Client</SectionTitle>
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}><Field label="Prénom"><input value={firstName} onChange={e => setFirst(e.target.value)} style={inputStyle} /></Field></div>
+          <div style={{ flex: 1, minWidth: 0 }}><Field label="Nom"><input value={lastName} onChange={e => setLast(e.target.value)} style={inputStyle} /></Field></div>
+        </div>
+        <Field label="N° de passeport"><input value={passport} onChange={e => setPass(e.target.value)} style={{ ...inputStyle, letterSpacing: '0.05em' }} /></Field>
+        <div style={{ marginBottom: -12 }}><Field label="Téléphone WhatsApp"><input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="+33 … ou +213 …" style={inputStyle} /></Field></div>
+      </Card>
+
+      <SectionTitle>Location</SectionTitle>
+      <Card style={{ marginBottom: 16 }}>
+        <Field label="Véhicule">
+          <input value={vehicle} onChange={e => setVehicle(e.target.value)} placeholder="Ex : Renault Clio 4 — gris" style={inputStyle} list="cars-list" />
+          <datalist id="cars-list">{cars.map(c => <option key={c.id} value={c.name} />)}</datalist>
+        </Field>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}><Field label="Du (facultatif)"><input type="date" lang="fr" value={start} onChange={e => setStart(e.target.value)} style={dateIn} /></Field></div>
+          <div style={{ flex: 1, minWidth: 0 }}><Field label="Au"><input type="date" lang="fr" value={end} onChange={e => setEnd(e.target.value)} style={dateIn} /></Field></div>
+        </div>
+        <Field label="Lieu de récupération"><input value={pickup} onChange={e => setPickup(e.target.value)} style={inputStyle} />{placeChips(pickup, setPickup)}</Field>
+        <div style={{ marginBottom: -12 }}><Field label="Lieu de dépôt"><input value={dropoff} onChange={e => setDropoff(e.target.value)} style={inputStyle} />{placeChips(dropoff, setDropoff)}</Field></div>
+      </Card>
+
+      <SectionTitle>Paiement</SectionTitle>
+      <Card style={{ marginBottom: 16 }}>
+        <Field label="Devise"><Segmented items={CURS} value={currency} onChange={setCurrency} /></Field>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}><Field label="Total (facultatif)"><input value={total} onChange={e => setTotal(e.target.value)} inputMode="numeric" style={{ ...inputStyle, fontWeight: 700 }} /></Field></div>
+          <div style={{ flex: 1, minWidth: 0 }}><Field label="Acompte versé"><input value={deposit} onChange={e => setDeposit(e.target.value)} inputMode="numeric" style={{ ...inputStyle, fontWeight: 700 }} /></Field></div>
+        </div>
+        {resteN != null && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '12px 14px', borderRadius: 13, background: tone(T.warn, 0.1), border: `1px solid ${tone(T.warn, 0.3)}` }}>
+            <span style={{ color: T.muted, fontSize: 14 }}>{t('reste', lang)}</span>
+            <span style={{ fontWeight: 800, fontSize: 20, color: T.warn }}>{fmt(resteN)}</span>
+          </div>
+        )}
+      </Card>
+
+      <Field label="Langue du message"><Segmented items={LANGS} value={lang} onChange={setLang} /></Field>
+
+      <Btn onClick={() => void sendWhatsApp()} disabled={busy} style={{ width: '100%', background: '#25D366', color: '#04210f', border: 'none', minHeight: 50, marginTop: 4 }}>{busy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (en photo)'}</Btn>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <Btn color={T.warn} onClick={() => void makePdf()} disabled={busy} style={{ flex: 1 }}>📄 PDF</Btn>
+        <Btn color={T.accent2} onClick={() => void downloadImage()} disabled={busy} style={{ flex: 1 }}>🖼️ Image</Btn>
       </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-        <button onClick={() => void makePdf()} disabled={busy} style={{ flex: 1, padding: '13px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy ? '…' : '📄 PDF (fichier)'}</button>
-        <button onClick={() => void downloadImage()} disabled={busy} style={{ flex: 1, padding: '13px', borderRadius: 12, border: `1px solid ${C.blue}55`, background: `${C.blue}14`, color: C.blue, fontFamily: C.font, fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>{busy ? '…' : '🖼️ Image'}</button>
-      </div>
-      <button onClick={() => void sendWhatsApp()} disabled={busy} style={{ width: '100%', marginTop: 8, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>{busy ? 'Préparation…' : '💬 Envoyer WhatsApp (en photo)'}</button>
-
-      {/* Historique */}
       {history.length > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <button onClick={() => setShowHist(v => !v)} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
-            {showHist ? '▾' : '▸'} Bons récents ({history.length})
-          </button>
+        <div style={{ marginTop: 20 }}>
+          <SectionTitle right={<button onClick={() => setShowHist(v => !v)} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}>{showHist ? 'Masquer' : `Voir (${history.length})`}</button>}>Bons récents</SectionTitle>
           {showHist && (
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {history.map(v => (
-                <a key={v.id} href={v.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 13px', textDecoration: 'none' }}>
-                  <span style={{ fontSize: 15 }}>🧾</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{v.client_name || 'Client'} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>· {v.ref}</span></div>
-                    <div style={{ fontSize: 11, color: C.muted }}>{v.vehicle ? `${v.vehicle} · ` : ''}{v.deposit ? `acompte ${Math.round(v.deposit).toLocaleString('fr-FR')} ${v.currency === 'EUR' ? '€' : 'DA'}` : ''}</div>
-                  </div>
-                  <span style={{ color: C.gold, fontSize: 16 }}>›</span>
-                </a>
+                <Row key={v.id} onClick={() => window.open(v.url, '_blank')} left={<Avatar icon="🧾" color={T.warn} size={38} />}
+                  title={v.client_name || 'Client'}
+                  sub={`${v.ref}${v.vehicle ? ` · ${v.vehicle}` : ''}${v.deposit ? ` · acompte ${Math.round(v.deposit).toLocaleString('fr-FR')} ${v.currency === 'EUR' ? '€' : 'DA'}` : ''}`}
+                  right={<span style={{ color: T.muted, fontSize: 20 }}>›</span>} />
               ))}
             </div>
           )}
@@ -310,9 +288,7 @@ export default function ReservationVoucherScreen() {
           total={totalN} deposit={depositN} reste={resteN} fmt={fmt}
         />
       </div>
-
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(56,216,245,0.15)', border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.accent, whiteSpace: 'nowrap' }}>{toast}</div>}
-    </div>
+    </Screen>
   );
 }
 

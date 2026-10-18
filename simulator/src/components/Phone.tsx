@@ -618,7 +618,7 @@ function HomeScreen({ onOpenApp }: { onOpenApp: () => void }) {
               <div style={{ fontFamily: 'Orbitron', fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.3em' }}>
                 DZARYX
               </div>
-              <div style={{ fontFamily: 'Inter', fontSize: 10, color: 'rgba(56,216,245,0.5)', marginTop: 3, letterSpacing: '0.08em' }}>
+              <div style={{ fontFamily: 'Inter', fontSize: 11, color: 'rgba(56,216,245,0.5)', marginTop: 3, letterSpacing: '0.08em' }}>
                 Assistant IA · Fik Conciergerie
               </div>
             </div>
@@ -687,7 +687,7 @@ function LoginScreen({
             <div style={{ fontFamily: 'Orbitron', fontSize: 22, fontWeight: 900, color: '#38d8f5', letterSpacing: '0.4em', textShadow: '0 0 20px rgba(56,216,245,0.4)', textAlign: 'center' }}>
               DZARYX
             </div>
-            <div style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 400, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', textAlign: 'center', marginTop: 4 }}>
+            <div style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.15em', textAlign: 'center', marginTop: 4 }}>
               FIK CONCIERGERIE · ORAN
             </div>
           </div>
@@ -704,7 +704,7 @@ function LoginScreen({
           backdropFilter: 'blur(20px)',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(56,216,245,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            <label style={{ fontFamily: 'Inter', fontSize: 11.5, fontWeight: 600, color: 'rgba(56,216,245,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Identifiant
             </label>
             <input
@@ -717,7 +717,7 @@ function LoginScreen({
             />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: 'Inter', fontSize: 10, fontWeight: 600, color: 'rgba(56,216,245,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            <label style={{ fontFamily: 'Inter', fontSize: 11.5, fontWeight: 600, color: 'rgba(56,216,245,0.5)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Mot de passe
             </label>
             <input
@@ -839,7 +839,7 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
 
         {/* Page courante */}
         <span style={{
-          fontFamily: 'Orbitron', fontSize: 10, fontWeight: 600, color: '#8ea3c8', letterSpacing: '0.22em',
+          fontFamily: 'Orbitron', fontSize: 11, fontWeight: 600, color: '#8ea3c8', letterSpacing: '0.22em',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150,
         }}>
           {tab?.label ?? (page === 'plus' ? 'OUTILS' : page.toUpperCase())}
@@ -884,7 +884,7 @@ function StatusBar({ wsOk, page, actorCol, actorInit, onLogout }: {
             <div style={{
               padding: '8px 14px',
               borderBottom: '1px solid rgba(56,216,245,0.08)',
-              fontFamily: 'Inter', fontSize: 10, fontWeight: 600,
+              fontFamily: 'Inter', fontSize: 11, fontWeight: 600,
               color: 'rgba(255,255,255,0.25)', letterSpacing: '0.1em', textTransform: 'uppercase',
             }}>
               Connecté en tant que {actorInit === 'K' ? 'Kouider' : 'Houari'}
@@ -943,7 +943,7 @@ function NavBar({ page, onPage, actor }: { page: Page; onPage: (p: Page) => void
       <div style={{ filter: active ? `drop-shadow(0 0 6px ${accent}aa)` : 'none', display: 'flex' }}>
         <NavIcon id={id} col={active ? accent : '#5d7096'} />
       </div>
-      <span style={{ fontFamily: 'Inter', fontSize: 9, fontWeight: active ? 700 : 500, color: active ? accent : '#5d7096', letterSpacing: '0.04em' }}>{label}</span>
+      <span style={{ fontFamily: 'Inter', fontSize: 11, fontWeight: active ? 700 : 500, color: active ? accent : '#5d7096', letterSpacing: '0.04em' }}>{label}</span>
     </button>
   );
   const voiceActive = page === 'voice';
@@ -1060,7 +1060,7 @@ function ToolsGrid({ onOpen, actor }: { onOpen: (p: Page) => void; actor: string
   };
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: 'radial-gradient(120% 60% at 50% 0%, #0b1a3a 0%, #050a16 60%)', color: '#e8f0ff', fontFamily: 'Inter, -apple-system, "Segoe UI", Roboto, sans-serif', padding: '18px 16px 130px' }}>
-      <div style={{ fontFamily: 'Orbitron', fontSize: 10, letterSpacing: '0.26em', color: accent, fontWeight: 600 }}>OUTILS</div>
+      <div style={{ fontFamily: 'Orbitron', fontSize: 11, letterSpacing: '0.26em', color: accent, fontWeight: 600 }}>OUTILS</div>
       <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', marginTop: 6, color: '#f4f7ff' }}>Tout Dzaryx</div>
       <div style={{ position: 'relative', margin: '14px 0 4px' }}>
         <span style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', fontSize: 14, opacity: 0.5 }}>🔍</span>

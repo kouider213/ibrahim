@@ -14,7 +14,7 @@ const C = {
 const card = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, marginBottom: 12 } as const;
 const btn = (bg: string, color = '#050a16') => ({ background: bg, color, border: 'none', borderRadius: 12, padding: '11px 14px', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: C.font } as const);
 const ghost = { ...btn('rgba(255,255,255,0.06)', C.text), border: `1px solid ${C.border}` } as const;
-const section = (t: string) => <div style={{ fontFamily: 'Orbitron', fontSize: 13, letterSpacing: '0.28em', color: C.accent, fontWeight: 600, margin: '18px 2px 10px' }}>{t}</div>;
+const section = (t: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 2px 10px' }}><span style={{ width: 4, height: 14, borderRadius: 2, background: C.accent }} /><span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.muted }}>{t}</span><span style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(110,160,255,0.14), transparent)' }} /></div>;
 const MUSCLE: Record<string, string> = { pecs: 'Pecs', dos: 'Dos', epaules: 'Épaules', bras: 'Bras', jambes: 'Jambes', abdos: 'Abdos', cardio: 'Cardio' };
 const hm = (iso: string) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }).replace(':', 'h');
 const dayName = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '');

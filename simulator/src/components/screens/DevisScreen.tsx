@@ -1,12 +1,7 @@
 import { useState, useEffect } from 'react';
 import { business, type Car } from '../../services/api.ts';
-import { Hero } from '../ui/Premium.tsx';
+import { T, Screen, PageHeader, Sheet, Field, inputStyle, Btn, Card, SectionTitle, Segmented, Row, Avatar, tone } from '../ui/Kit.tsx';
 
-const C = {
-  bg: '#050a16', surface: '#0c1730', surface2: '#12203d', border: 'rgba(90,150,255,0.16)',
-  accent: '#38d8f5', gold: '#fbbf24', text: '#f5f5f7', muted: '#8ea3c8', blue: '#60a5fa',
-  font: '-apple-system, "Segoe UI", Roboto, sans-serif',
-};
 
 interface Line { id: string; label: string; amount: string; currency: string; }
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -120,114 +115,106 @@ export default function DevisScreen() {
     finally { setPdfBusy(false); }
   };
 
-  const inp: React.CSSProperties = { width: '100%', boxSizing: 'border-box', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 11, padding: '11px 13px', color: C.text, fontFamily: C.font, fontSize: 16, outline: 'none' };
+  const LANGS = [{ id: 'fr', label: '🇫🇷 Français' }, { id: 'ar', label: '🇩🇿 Arabe' }, { id: 'en', label: '🇬🇧 Anglais' }];
+  const CURS = [{ id: 'DZD', label: 'DA' }, { id: 'EUR', label: '€' }, { id: 'USD', label: '$' }];
+  const sel = cars.find(c => c.id === carId);
+  const nDays = Math.max(1, Number(days) || 1);
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: C.font, padding: '20px 16px 30px', position: 'relative' }}>
-      <div style={{ margin: '-20px -16px 0' }}><Hero eyebrow="Dzaryx · Conciergerie" title="Devis instantané" /></div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Voiture + logement + extras → total → WhatsApp en 1 tap</div>
+    <Screen toast={toast} header={<PageHeader eyebrow="Conciergerie" title="Devis instantané" subtitle="Voiture + logement + extras → PDF → WhatsApp en 1 tap" />}>
+      <SectionTitle>Client</SectionTitle>
+      <Card style={{ marginBottom: 16 }}>
+        <Field label="Nom du client"><input value={name} onChange={e => setName(e.target.value)} placeholder="Ex : Karim Benali" style={inputStyle} /></Field>
+        <Field label="Téléphone WhatsApp"><input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="+33 … ou +213 …" style={inputStyle} /></Field>
+        <div style={{ marginBottom: -12 }}><Field label="Langue du devis"><Segmented items={LANGS} value={lang} onChange={setLang} /></Field></div>
+      </Card>
 
-      {/* Client */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 14 }}>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Nom du client" style={inp} />
-        <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Téléphone (WhatsApp)" style={inp} />
-        <div style={{ display: 'flex', gap: 7 }}>
-          {(['fr', 'ar', 'en'] as const).map(l => (
-            <button key={l} onClick={() => setLang(l)} style={{ flex: 1, padding: '8px', borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 700, background: lang === l ? C.blue : 'rgba(255,255,255,0.04)', color: lang === l ? '#06182e' : C.muted, border: 'none' }}>{l === 'fr' ? '🇫🇷 FR' : l === 'ar' ? '🇩🇿 AR' : '🇬🇧 EN'}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Lignes */}
-      <div style={{ fontSize: 13.5, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Prestations</div>
+      <SectionTitle>Prestations</SectionTitle>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-        {lines.map(l => (
-          <div key={l.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <input value={l.label} onChange={e => setLine(l.id, 'label', e.target.value)} placeholder="Prestation (ex: Appartement 3 nuits)" style={{ ...inp, flex: 3, fontSize: 13, padding: '10px 11px' }} />
-            <input value={l.amount} onChange={e => setLine(l.id, 'amount', e.target.value)} placeholder="Prix" inputMode="numeric" style={{ ...inp, flex: 1, fontSize: 13, padding: '10px 8px' }} />
-            <select value={l.currency} onChange={e => setLine(l.id, 'currency', e.target.value)} style={{ ...inp, width: 64, flex: 'none', fontSize: 12, padding: '10px 4px' }}><option value="DZD">DA</option><option value="EUR">€</option><option value="USD">$</option></select>
-            <button onClick={() => delLine(l.id)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 16, cursor: 'pointer', padding: 2 }}>✕</button>
-          </div>
+        {lines.length === 0 && <div style={{ fontSize: 14, color: T.muted, padding: '4px 2px 6px' }}>Ajoute une voiture, une ligne libre ou un pack entreprise ⬇️</div>}
+        {lines.map((l, i) => (
+          <Card key={l.id} pad={12}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.faint }}>LIGNE {i + 1}</span>
+              <div style={{ flex: 1 }} />
+              <button onClick={() => delLine(l.id)} style={{ background: 'none', border: 'none', color: T.bad, fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 32 }}>Retirer</button>
+            </div>
+            <input value={l.label} onChange={e => setLine(l.id, 'label', e.target.value)} placeholder="Ex : Appartement 3 nuits" style={{ ...inputStyle, marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={l.amount} onChange={e => setLine(l.id, 'amount', e.target.value)} placeholder="Prix" inputMode="numeric" style={{ ...inputStyle, flex: 1, fontWeight: 700 }} />
+              <div style={{ flex: 1.3 }}><Segmented items={CURS} value={l.currency} onChange={v => setLine(l.id, 'currency', v)} /></div>
+            </div>
+          </Card>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-        <button onClick={addLine} style={{ flex: 1, padding: '10px', borderRadius: 11, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>＋ Ligne</button>
-        <button onClick={() => setShowCar(true)} style={{ flex: 1, padding: '10px', borderRadius: 11, border: `1px solid ${C.accent}55`, background: `${C.accent}14`, color: C.accent, fontFamily: C.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>🚗 Voiture</button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <Btn onClick={() => setShowCar(true)} style={{ flex: 1 }}>🚗 Voiture</Btn>
+        <Btn variant="ghost" onClick={addLine} style={{ flex: 1 }}>＋ Ligne libre</Btn>
       </div>
 
-      {/* Packs entreprise (B2B) — devis société */}
-      <div style={{ fontSize: 13.5, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>🏢 Packs entreprise</div>
-      <div style={{ display: 'flex', gap: 7, marginBottom: 16, flexWrap: 'wrap' }}>
+      <SectionTitle>Packs entreprise</SectionTitle>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
         {PACKS_B2B.map(p => (
-          <button key={p.name} onClick={() => addPack(p)} title={p.desc}
-            style={{ flex: 1, minWidth: 90, padding: '9px 8px', borderRadius: 11, border: `1px solid ${C.gold}44`, background: `${C.gold}12`, color: C.gold, fontFamily: C.font, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            ＋ {p.name}
-          </button>
+          <Row key={p.name} onClick={() => addPack(p)} left={<Avatar icon="🏢" color={T.warn} size={38} />} title={`Pack ${p.name}`} sub={p.desc} right={<span style={{ color: T.warn, fontSize: 14, fontWeight: 700 }}>＋</span>} />
         ))}
       </div>
 
-      {/* Totaux */}
       {Object.keys(totals).length > 0 && (
-        <div style={{ background: C.surface, border: `1px solid ${C.gold}33`, borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+        <Card accent={T.warn} style={{ marginBottom: 12, background: `linear-gradient(160deg, ${tone(T.warn, 0.12)}, ${T.surface})` }}>
           {Object.entries(totals).map(([cur, v]) => (
-            <div key={cur} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 16 }}>
-              <span style={{ color: C.muted, fontSize: 12.5 }}>Total {cur === 'EUR' ? '€' : cur === 'USD' ? '$' : 'DA'}</span>
-              <span style={{ fontWeight: 800, color: C.gold }}>{fmt(v, cur)}</span>
+            <div key={cur} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ color: T.muted, fontSize: 14 }}>Total {cur === 'EUR' ? 'en euros' : cur === 'USD' ? 'en dollars' : 'en dinars'}</span>
+              <span style={{ fontWeight: 800, fontSize: 24, color: T.warn }}>{fmt(v, cur)}</span>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={() => void makePdf()} disabled={pdfBusy} style={{ flex: 1, padding: '14px', borderRadius: 12, border: `1px solid ${C.gold}55`, background: `${C.gold}14`, color: C.gold, fontFamily: C.font, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>{pdfBusy ? '…' : '📄 PDF'}</button>
-        <button onClick={() => void sendWhatsApp()} disabled={pdfBusy} style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#25D366', color: '#06210f', fontFamily: C.font, fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>{pdfBusy ? 'Préparation…' : '💬 Envoyer WhatsApp (+PDF)'}</button>
-      </div>
+      <Btn onClick={() => void sendWhatsApp()} disabled={pdfBusy} style={{ width: '100%', background: '#25D366', color: '#04210f', border: 'none', marginBottom: 8, minHeight: 50 }}>{pdfBusy ? 'Préparation…' : '💬 Envoyer sur WhatsApp (avec PDF)'}</Btn>
+      <Btn color={T.warn} onClick={() => void makePdf()} disabled={pdfBusy} style={{ width: '100%' }}>📄 Voir le PDF seulement</Btn>
 
-      {/* Historique des devis */}
       {history.length > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <button onClick={() => setShowHist(v => !v)} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontFamily: C.font, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
-            {showHist ? '▾' : '▸'} Devis récents ({history.length})
-          </button>
+        <div style={{ marginTop: 20 }}>
+          <SectionTitle right={<button onClick={() => setShowHist(v => !v)} style={{ background: 'none', border: 'none', color: T.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}>{showHist ? 'Masquer' : `Voir (${history.length})`}</button>}>Devis récents</SectionTitle>
           {showHist && (
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {history.map(q => (
-                <a key={q.id} href={q.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 13px', textDecoration: 'none' }}>
-                  <span style={{ fontSize: 15 }}>📄</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{q.client_name || 'Client'} <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>· {q.ref}</span></div>
-                    <div style={{ fontSize: 11, color: C.muted }}>{q.total ? `${Math.round(q.total).toLocaleString('fr-FR')} ${q.currency === 'EUR' ? '€' : 'DA'} · ` : ''}{q.created_at ? new Date(q.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}</div>
-                  </div>
-                  <span style={{ color: C.gold, fontSize: 16 }}>›</span>
-                </a>
+                <Row key={q.id} onClick={() => window.open(q.url, '_blank')} left={<Avatar icon="📄" color={T.warn} size={38} />}
+                  title={q.client_name || 'Client'}
+                  sub={`${q.ref}${q.total ? ` · ${Math.round(q.total).toLocaleString('fr-FR')} ${q.currency === 'EUR' ? '€' : 'DA'}` : ''}${q.created_at ? ` · ${new Date(q.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : ''}`}
+                  right={<span style={{ color: T.muted, fontSize: 20 }}>›</span>} />
               ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Modal voiture */}
       {showCar && (
-        <div onClick={() => setShowCar(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 30, display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', background: '#0e0e12', borderTopLeftRadius: 20, borderTopRightRadius: 20, border: `1px solid ${C.accent}22`, padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>Ajouter une voiture</div>
-            <select value={carId} onChange={e => setCarId(e.target.value)} style={inp}>
-              <option value="">— Choisir une voiture —</option>
-              {cars.map(c => <option key={c.id} value={c.id}>{c.name} ({(c.resale_price ?? c.base_price ?? 0)} {c.currency === 'DZD' ? 'DA' : '€'}/j)</option>)}
-            </select>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: C.muted }}>Nombre de jours</span>
-              <input value={days} onChange={e => setDays(e.target.value)} inputMode="numeric" style={{ ...inp, width: 80, flex: 'none' }} />
+        <Sheet title="Ajouter une voiture" subtitle="Le prix est calculé avec le tarif du parc" onClose={() => setShowCar(false)}
+          footer={<Btn variant="primary" disabled={!sel} onClick={addCar} style={{ width: '100%' }}>{sel ? `Ajouter — ${fmt((sel.resale_price ?? sel.base_price ?? 0) * nDays, sel.currency || 'EUR')}` : 'Choisis une voiture'}</Btn>}>
+          <Field label="Nombre de jours">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Btn variant="ghost" onClick={() => setDays(String(Math.max(1, nDays - 1)))}>−</Btn>
+              <input value={days} onChange={e => setDays(e.target.value)} inputMode="numeric" style={{ ...inputStyle, width: 80, textAlign: 'center', fontSize: 20, fontWeight: 800 }} />
+              <Btn variant="ghost" onClick={() => setDays(String(nDays + 1))}>＋</Btn>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowCar(false)} style={{ flex: 1, padding: '12px', borderRadius: 11, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontFamily: C.font, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={addCar} style={{ flex: 2, padding: '12px', borderRadius: 11, border: 'none', background: C.accent, color: '#06210f', fontFamily: C.font, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Ajouter au devis</button>
-            </div>
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8 }}>
+            {cars.map(c => {
+              const on = c.id === carId;
+              return (
+                <button key={c.id} onClick={() => setCarId(c.id)} style={{ padding: 0, textAlign: 'left', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', fontFamily: T.font, background: T.surface, border: `2px solid ${on ? T.accent : T.line}`, color: T.text }}>
+                  <div style={{ aspectRatio: '16 / 10', background: c.image_url ? `url(${c.image_url}) center/cover` : tone(T.accent, 0.1) }} />
+                  <div style={{ padding: '8px 10px' }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                    <div style={{ fontSize: 12.5, color: on ? T.accent : T.muted }}>{c.resale_price ?? c.base_price ?? 0} {c.currency === 'DZD' ? 'DA' : '€'} / jour</div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        </div>
+        </Sheet>
       )}
-
-      {toast && <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: 'rgba(56,216,245,0.15)', border: `1px solid ${C.accent}40`, borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: C.accent, whiteSpace: 'nowrap' }}>{toast}</div>}
-    </div>
+    </Screen>
   );
 }
